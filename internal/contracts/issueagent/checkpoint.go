@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -89,22 +90,91 @@ type Budget struct {
 }
 
 // Lease is populated only while one Worker operation owns the Issue.
-type Lease struct{}
+type Lease struct {
+	OperationID       string    `json:"operation_id"`
+	Workflow          string    `json:"workflow"`
+	DispatchRequestID string    `json:"dispatch_request_id"`
+	Phase             Phase     `json:"phase"`
+	IssuedAt          time.Time `json:"issued_at"`
+	ExpiresAt         time.Time `json:"expires_at"`
+	TaskSHA256        string    `json:"task_sha256"`
+	ReservedSeconds   uint64    `json:"reserved_seconds"`
+	Heavy             bool      `json:"heavy"`
+}
 
-// Reproduction is populated after black-box reproduction is accepted.
-type Reproduction struct{}
+// TestFile freezes one regression-test path and Git blob.
+type TestFile struct {
+	Path    string `json:"path"`
+	BlobSHA string `json:"blob_sha"`
+}
 
-// Work is populated after an Agent branch or Draft PR exists.
-type Work struct{}
+// ReproductionRun is one process-level black-box invocation.
+type ReproductionRun struct {
+	RunID           int64  `json:"run_id"`
+	SourceSHA       string `json:"source_sha"`
+	BinarySHA256    string `json:"binary_sha256"`
+	CommandSHA256   string `json:"command_sha256"`
+	AssertionSHA256 string `json:"assertion_sha256"`
+	Outcome         string `json:"outcome"`
+}
 
-// Diagnosis is populated after evidence supports one root cause.
-type Diagnosis struct{}
+// Reproduction freezes the accepted fail-before contract and evidence.
+type Reproduction struct {
+	TestFiles         []TestFile        `json:"test_files"`
+	Assertion         string            `json:"assertion"`
+	AssertionSHA256   string            `json:"assertion_sha256"`
+	Topology          string            `json:"topology"`
+	AffectedRuns      []ReproductionRun `json:"affected_runs"`
+	DiagnosisBaseRuns []ReproductionRun `json:"diagnosis_base_runs"`
+	ArtifactRunID     int64             `json:"artifact_run_id"`
+	ArtifactName      string            `json:"artifact_name"`
+	ArtifactSHA256    string            `json:"artifact_sha256"`
+}
 
-// Validation is populated after local or remote validation evidence exists.
-type Validation struct{}
+// Work binds the deterministic Agent branch and optional Draft PR.
+type Work struct {
+	Branch   string `json:"branch"`
+	HeadSHA  string `json:"head_sha"`
+	PRNumber int64  `json:"pr_number"`
+}
 
-// ModelAttempt records the selected provider attempt.
-type ModelAttempt struct{}
+// Diagnosis records the required causal checkpoint before any production fix.
+type Diagnosis struct {
+	Summary            string   `json:"summary"`
+	ViolatedInvariant  string   `json:"violated_invariant"`
+	EvidenceSHA256     string   `json:"evidence_sha256"`
+	IntendedPaths      []string `json:"intended_paths"`
+	ClusterSemantics   string   `json:"cluster_semantics"`
+	ValidationSuites   []string `json:"validation_suites"`
+	RiskClasses        []string `json:"risk_classes"`
+	AuthorizationEvent string   `json:"authorization_event,omitempty"`
+}
+
+// Validation binds local and remote validation to an exact candidate head.
+type Validation struct {
+	HeadSHA        string   `json:"head_sha"`
+	TestMergeSHA   string   `json:"test_merge_sha"`
+	GateGeneration uint64   `json:"gate_generation"`
+	RequestRunID   int64    `json:"request_run_id"`
+	EvidenceRunID  int64    `json:"evidence_run_id"`
+	RequiredSuites []string `json:"required_suites"`
+	LocalPasses    uint32   `json:"local_passes"`
+	Conclusion     string   `json:"conclusion"`
+}
+
+// ModelAttempt records provider selection and auditable bounded usage.
+type ModelAttempt struct {
+	Provider            Provider `json:"provider"`
+	Model               string   `json:"model"`
+	AdapterVersion      string   `json:"adapter_version"`
+	PromptPolicyVersion string   `json:"prompt_policy_version"`
+	InputTokens         uint64   `json:"input_tokens"`
+	OutputTokens        uint64   `json:"output_tokens"`
+	ElapsedMilliseconds uint64   `json:"elapsed_milliseconds"`
+	CostMicrounits      uint64   `json:"cost_microunits"`
+	TerminalResult      string   `json:"terminal_result"`
+	ModelChanged        bool     `json:"model_changed"`
+}
 
 // Checkpoint is the complete durable workflow snapshot stored on the Issue.
 type Checkpoint struct {
@@ -145,7 +215,7 @@ func ValidateCheckpoint(checkpoint Checkpoint) error {
 		}
 	} else if checkpoint.ExpectedPreviousCheckpointID == nil ||
 		checkpoint.PreviousCheckpointSHA256 == nil ||
-		!*checkpoint.ExpectedPreviousCheckpointIDPositive() ||
+		*checkpoint.ExpectedPreviousCheckpointID <= 0 ||
 		!digestPattern.MatchString(*checkpoint.PreviousCheckpointSHA256) {
 		return errors.New("non-first checkpoint requires a valid predecessor")
 	}
@@ -157,6 +227,36 @@ func ValidateCheckpoint(checkpoint Checkpoint) error {
 	}
 	if err := validateVersions(checkpoint.Versions); err != nil {
 		return err
+	}
+	if checkpoint.Lease != nil {
+		if err := validateLease(*checkpoint.Lease); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Reproduction != nil {
+		if err := validateReproduction(*checkpoint.Reproduction); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Work != nil {
+		if err := validateWork(*checkpoint.Work, checkpoint.IssueNumber); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Diagnosis != nil {
+		if err := validateDiagnosis(*checkpoint.Diagnosis); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Validation != nil {
+		if err := validateValidation(*checkpoint.Validation); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Model != nil {
+		if err := validateModelAttempt(*checkpoint.Model); err != nil {
+			return err
+		}
 	}
 	if !validAction(checkpoint.NextAction) {
 		return fmt.Errorf("invalid next action %q", checkpoint.NextAction)
@@ -178,17 +278,154 @@ func CanonicalCheckpoint(checkpoint Checkpoint) ([]byte, error) {
 	return bytes.TrimSuffix(buffer.Bytes(), []byte{'\n'}), nil
 }
 
-func (checkpoint Checkpoint) ExpectedPreviousCheckpointIDPositive() *bool {
-	positive := checkpoint.ExpectedPreviousCheckpointID != nil &&
-		*checkpoint.ExpectedPreviousCheckpointID > 0
-	return &positive
-}
-
 func validRepository(repository string) bool {
 	return len(repository) > 0 &&
 		len(repository) <= maxIdentityBytes &&
 		repositoryPattern.MatchString(repository) &&
 		!strings.Contains(repository, "..")
+}
+
+func validateLease(lease Lease) error {
+	if !digestPattern.MatchString(lease.OperationID) ||
+		!digestPattern.MatchString(lease.TaskSHA256) ||
+		strings.TrimSpace(lease.Workflow) == "" || len(lease.Workflow) > 256 ||
+		strings.TrimSpace(lease.DispatchRequestID) == "" ||
+		len(lease.DispatchRequestID) > 256 ||
+		!validPhase(lease.Phase) ||
+		lease.IssuedAt.IsZero() || !lease.ExpiresAt.After(lease.IssuedAt) ||
+		lease.ExpiresAt.Sub(lease.IssuedAt) > 3*time.Hour ||
+		lease.ReservedSeconds == 0 || lease.ReservedSeconds > 2*60*60 {
+		return errors.New("invalid Worker lease")
+	}
+	return nil
+}
+
+func validateReproduction(reproduction Reproduction) error {
+	if len(reproduction.TestFiles) == 0 || len(reproduction.TestFiles) > 32 ||
+		len(reproduction.Assertion) == 0 || len(reproduction.Assertion) > 2048 ||
+		!digestPattern.MatchString(reproduction.AssertionSHA256) ||
+		len(reproduction.AffectedRuns) != 3 ||
+		len(reproduction.DiagnosisBaseRuns) != 3 ||
+		reproduction.ArtifactRunID <= 0 ||
+		strings.TrimSpace(reproduction.ArtifactName) == "" ||
+		len(reproduction.ArtifactName) > 256 ||
+		!digestPattern.MatchString(reproduction.ArtifactSHA256) {
+		return errors.New("invalid reproduction evidence")
+	}
+	switch reproduction.Topology {
+	case "single-node-cluster", "three-node-cluster", "multi-node-cluster":
+	default:
+		return errors.New("invalid reproduction topology")
+	}
+	var previousPath string
+	for _, file := range reproduction.TestFiles {
+		if err := validateRepositoryPath(file.Path); err != nil ||
+			!gitSHAPattern.MatchString(file.BlobSHA) ||
+			previousPath != "" && file.Path <= previousPath {
+			return errors.New("invalid or unsorted reproduction test file")
+		}
+		previousPath = file.Path
+	}
+	for _, runs := range [][]ReproductionRun{
+		reproduction.AffectedRuns, reproduction.DiagnosisBaseRuns,
+	} {
+		for _, run := range runs {
+			if run.RunID <= 0 || !gitSHAPattern.MatchString(run.SourceSHA) ||
+				!digestPattern.MatchString(run.BinarySHA256) ||
+				!digestPattern.MatchString(run.CommandSHA256) ||
+				run.AssertionSHA256 != reproduction.AssertionSHA256 ||
+				run.Outcome != "assertion_failed" && run.Outcome != "passed" {
+				return errors.New("invalid reproduction run evidence")
+			}
+		}
+	}
+	return nil
+}
+
+func validateWork(work Work, issueNumber int64) error {
+	if work.Branch != fmt.Sprintf("agent/issue-%d", issueNumber) ||
+		!gitSHAPattern.MatchString(work.HeadSHA) || work.PRNumber < 0 {
+		return errors.New("invalid Agent branch or pull request reference")
+	}
+	return nil
+}
+
+func validateDiagnosis(diagnosis Diagnosis) error {
+	for _, statement := range []string{
+		diagnosis.Summary,
+		diagnosis.ViolatedInvariant,
+		diagnosis.ClusterSemantics,
+	} {
+		if strings.TrimSpace(statement) == "" || len(statement) > 4096 {
+			return errors.New("diagnosis statement is empty or oversized")
+		}
+	}
+	if !digestPattern.MatchString(diagnosis.EvidenceSHA256) ||
+		len(diagnosis.IntendedPaths) == 0 || len(diagnosis.IntendedPaths) > 64 ||
+		len(diagnosis.ValidationSuites) == 0 ||
+		len(diagnosis.ValidationSuites) > 32 ||
+		len(diagnosis.RiskClasses) > 32 {
+		return errors.New("diagnosis evidence or scope is invalid")
+	}
+	for index, intendedPath := range diagnosis.IntendedPaths {
+		if err := validateRepositoryPath(intendedPath); err != nil ||
+			index > 0 && intendedPath <= diagnosis.IntendedPaths[index-1] {
+			return errors.New("diagnosis paths must be safe and strictly sorted")
+		}
+	}
+	if !strictStrings(diagnosis.ValidationSuites) ||
+		!strictStrings(diagnosis.RiskClasses) {
+		return errors.New("diagnosis lists must be strictly sorted and unique")
+	}
+	if len(diagnosis.AuthorizationEvent) > 256 {
+		return errors.New("diagnosis authorization event is oversized")
+	}
+	return nil
+}
+
+func validateValidation(validation Validation) error {
+	if !gitSHAPattern.MatchString(validation.HeadSHA) ||
+		!gitSHAPattern.MatchString(validation.TestMergeSHA) ||
+		validation.GateGeneration == 0 ||
+		validation.RequestRunID <= 0 || validation.EvidenceRunID <= 0 ||
+		len(validation.RequiredSuites) < 2 ||
+		len(validation.RequiredSuites) > 16 ||
+		!strictStrings(validation.RequiredSuites) ||
+		!slices.Contains(validation.RequiredSuites, "go-e2e") ||
+		!slices.Contains(validation.RequiredSuites, "go-fast") ||
+		validation.LocalPasses != 3 ||
+		validation.Conclusion != "success" {
+		return errors.New("invalid validation evidence")
+	}
+	return nil
+}
+
+func validateModelAttempt(model ModelAttempt) error {
+	if model.Provider != ProviderCodex && model.Provider != ProviderDeepSeek ||
+		strings.TrimSpace(model.Model) == "" || len(model.Model) > 256 ||
+		strings.TrimSpace(model.AdapterVersion) == "" ||
+		len(model.AdapterVersion) > 64 ||
+		strings.TrimSpace(model.PromptPolicyVersion) == "" ||
+		len(model.PromptPolicyVersion) > 64 ||
+		model.ElapsedMilliseconds == 0 ||
+		strings.TrimSpace(model.TerminalResult) == "" ||
+		len(model.TerminalResult) > 256 {
+		return errors.New("invalid model attempt")
+	}
+	return nil
+}
+
+func strictStrings(values []string) bool {
+	if !slices.IsSorted(values) {
+		return false
+	}
+	for index, value := range values {
+		if strings.TrimSpace(value) == "" || len(value) > 256 ||
+			index > 0 && value == values[index-1] {
+			return false
+		}
+	}
+	return true
 }
 
 func validateFrozenInput(input FrozenInput) error {

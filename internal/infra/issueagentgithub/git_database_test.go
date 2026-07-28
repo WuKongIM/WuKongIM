@@ -71,7 +71,7 @@ func TestGitDatabasePublishesVerifiedNonForceCommit(t *testing.T) {
 		Message: "fix(agent): issue #42", ExistingBranch: true,
 		ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
 			Path: "pkg/example/fix.go", Operation: issueagent.FileOperationUpsert,
-			Mode: issueagent.FileModeRegular, Content: []byte("package example\n"),
+			Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("package example\n")),
 		}}},
 	})
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestGitDatabaseRejectsUnverifiedCommitAndStaleRef(t *testing.T) {
 				BaseTreeSHA: fortyHex("b"), Message: "fix", ExistingBranch: true,
 				ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
 					Path: "fix.go", Operation: issueagent.FileOperationUpsert,
-					Mode: issueagent.FileModeRegular, Content: []byte("fix"),
+					Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("fix")),
 				}}},
 			})
 			require.Error(t, err)

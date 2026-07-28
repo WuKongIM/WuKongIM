@@ -55,6 +55,7 @@ type ResourceLimits struct {
 	WallTime       time.Duration `json:"wall_time"`
 	MaxOutputBytes int64         `json:"max_output_bytes"`
 	MaxFiles       int           `json:"max_files"`
+	MaxFileBytes   int64         `json:"max_file_bytes"`
 	MaxTotalBytes  int64         `json:"max_total_bytes"`
 }
 
@@ -128,6 +129,7 @@ func ValidateTaskEnvelope(task TaskEnvelope) error {
 	if task.Limits.WallTime <= 0 || task.Limits.WallTime > 2*time.Hour ||
 		task.Limits.MaxOutputBytes <= 0 || task.Limits.MaxOutputBytes > 16<<20 ||
 		task.Limits.MaxFiles <= 0 || task.Limits.MaxFiles > 128 ||
+		task.Limits.MaxFileBytes <= 0 || task.Limits.MaxFileBytes > 8<<20 ||
 		task.Limits.MaxTotalBytes <= 0 || task.Limits.MaxTotalBytes > 32<<20 {
 		return errors.New("task resource limits are outside policy bounds")
 	}

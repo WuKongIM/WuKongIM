@@ -112,7 +112,7 @@ func ValidateAgentResult(result AgentResult, task TaskEnvelope) error {
 	}
 	if err := ValidateChangeSet(result.ChangeSet, ChangeSetLimits{
 		MaxFiles:      task.Limits.MaxFiles,
-		MaxFileBytes:  int(task.Limits.MaxTotalBytes),
+		MaxFileBytes:  int(task.Limits.MaxFileBytes),
 		MaxTotalBytes: int(task.Limits.MaxTotalBytes),
 		MaxDeletions:  task.Limits.MaxFiles,
 	}); err != nil {

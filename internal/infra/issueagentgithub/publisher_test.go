@@ -29,28 +29,28 @@ func TestPublisherValidationRejectsProtectedAndAmbiguousChanges(t *testing.T) {
 			file: issueagent.FileChange{
 				Path:      ".github/issue-agent/policy.json",
 				Operation: issueagent.FileOperationUpsert,
-				Mode:      issueagent.FileModeRegular, Content: []byte("{}"),
+				Mode:      issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("{}")),
 			},
 		},
 		{
 			name: "existing AGENTS",
 			file: issueagent.FileChange{
 				Path: "test/e2e/AGENTS.md", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeRegular, Content: []byte("changed"),
+				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("changed")),
 			},
 		},
 		{
 			name: "executable",
 			file: issueagent.FileChange{
 				Path: "pkg/example/fix.go", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeExecutable, Content: []byte("fix"),
+				Mode: issueagent.FileModeExecutable, ContentBase64: issueagent.EncodeFileContent([]byte("fix")),
 			},
 		},
 		{
 			name: "outside allowed path",
 			file: issueagent.FileChange{
 				Path: "docs/fix.md", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeRegular, Content: []byte("fix"),
+				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("fix")),
 			},
 		},
 	}
@@ -78,12 +78,13 @@ func TestPublisherValidationAcceptsBoundedRegularFilesAndTrustedScenarioInstruct
 		ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{
 			{
 				Path: "pkg/example/fix.go", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeRegular, Content: []byte("package example\n"),
+				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("package example\n")),
 			},
 			{
-				Path:      "test/e2e/scenarios/issue_42/AGENTS.md",
-				Operation: issueagent.FileOperationUpsert,
-				Mode:      issueagent.FileModeRegular, Content: template,
+				Path:          "test/e2e/scenarios/issue_42/AGENTS.md",
+				Operation:     issueagent.FileOperationUpsert,
+				Mode:          issueagent.FileModeRegular,
+				ContentBase64: issueagent.EncodeFileContent(template),
 			},
 		}},
 		Limits: issueagent.ChangeSetLimits{

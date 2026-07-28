@@ -1,6 +1,7 @@
 package issueagent
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"path"
@@ -25,10 +26,10 @@ const (
 
 // FileChange declares one complete file result, never a patch command.
 type FileChange struct {
-	Path      string        `json:"path"`
-	Operation FileOperation `json:"operation"`
-	Mode      FileMode      `json:"mode,omitempty"`
-	Content   []byte        `json:"content,omitempty"`
+	Path          string        `json:"path"`
+	Operation     FileOperation `json:"operation"`
+	Mode          FileMode      `json:"mode,omitempty"`
+	ContentBase64 string        `json:"content_base64,omitempty"`
 }
 
 // ChangeSet is the sorted complete set of file mutations proposed by a Worker.
@@ -78,13 +79,17 @@ func ValidateChangeSet(changeSet ChangeSet, limits ChangeSetLimits) error {
 			if file.Mode != FileModeRegular && file.Mode != FileModeExecutable {
 				return fmt.Errorf("file %q has unsupported mode %q", file.Path, file.Mode)
 			}
-			if len(file.Content) > limits.MaxFileBytes {
+			content, err := DecodeFileContent(file)
+			if err != nil {
+				return fmt.Errorf("file %q: %w", file.Path, err)
+			}
+			if len(content) > limits.MaxFileBytes {
 				return fmt.Errorf("file %q exceeds byte limit", file.Path)
 			}
-			totalBytes += len(file.Content)
+			totalBytes += len(content)
 		case FileOperationDelete:
 			deletions++
-			if file.Mode != "" || len(file.Content) != 0 {
+			if file.Mode != "" || file.ContentBase64 != "" {
 				return fmt.Errorf("deleted file %q must not carry mode or content", file.Path)
 			}
 		default:
@@ -98,6 +103,29 @@ func ValidateChangeSet(changeSet ChangeSet, limits ChangeSetLimits) error {
 		return fmt.Errorf("change set has %d deletions, limit is %d", deletions, limits.MaxDeletions)
 	}
 	return nil
+}
+
+// EncodeFileContent returns the canonical standard-base64 ChangeSet encoding.
+func EncodeFileContent(content []byte) string {
+	return base64.StdEncoding.EncodeToString(content)
+}
+
+// DecodeFileContent validates and decodes one upsert file's complete content.
+func DecodeFileContent(file FileChange) ([]byte, error) {
+	if file.Operation != FileOperationUpsert {
+		return nil, errors.New("only upsert files contain content")
+	}
+	if file.ContentBase64 == "" {
+		return []byte{}, nil
+	}
+	content, err := base64.StdEncoding.Strict().DecodeString(file.ContentBase64)
+	if err != nil {
+		return nil, errors.New("file content is not canonical base64")
+	}
+	if base64.StdEncoding.EncodeToString(content) != file.ContentBase64 {
+		return nil, errors.New("file content is not canonical base64")
+	}
+	return content, nil
 }
 
 func validateRepositoryPath(repositoryPath string) error {

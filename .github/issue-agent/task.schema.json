@@ -2,42 +2,58 @@
   "type": "object",
   "properties": {
     "schema_version": {
-      "type": "integer"
+      "type": "integer",
+      "const": 1
     },
     "repository": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     },
     "issue_number": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 1
     },
     "generation": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 1
     },
     "sequence": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 1
     },
     "operation_id": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "phase": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "reproduce",
+        "diagnose",
+        "fix",
+        "address_review"
+      ]
     },
     "checkpoint_digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "policy_digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "prompt_digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "affected_sha": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     },
     "diagnosis_base_sha": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     },
     "frozen_issue": {
       "type": "string"
@@ -126,6 +142,9 @@
         "max_files": {
           "type": "integer"
         },
+        "max_file_bytes": {
+          "type": "integer"
+        },
         "max_total_bytes": {
           "type": "integer"
         }
@@ -134,12 +153,17 @@
         "wall_time",
         "max_output_bytes",
         "max_files",
+        "max_file_bytes",
         "max_total_bytes"
       ],
       "additionalProperties": false
     },
     "provider": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "codex",
+        "deepseek"
+      ]
     },
     "model": {
       "type": "string"

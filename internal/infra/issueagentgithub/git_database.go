@@ -54,6 +54,10 @@ func (client *Client) PublishCommit(
 	for _, file := range plan.ChangeSet.Files {
 		var sha *string
 		if file.Operation == issueagentcontract.FileOperationUpsert {
+			content, err := issueagentcontract.DecodeFileContent(file)
+			if err != nil {
+				return PublishedCommit{}, err
+			}
 			var blobResponse struct {
 				SHA string `json:"sha"`
 			}
@@ -64,7 +68,7 @@ func (client *Client) PublishCommit(
 				struct {
 					Content  []byte `json:"content"`
 					Encoding string `json:"encoding"`
-				}{Content: file.Content, Encoding: "base64"},
+				}{Content: content, Encoding: "base64"},
 				&blobResponse,
 				http.StatusCreated,
 				http.StatusOK,

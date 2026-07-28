@@ -1117,3 +1117,12 @@ maintenance-only local read, rebuilds side-effect runtimes, retargets the
 stable Channel RPC gateway, and restarts paused Channel background loops.
 Controller clears maintenance only after every current data node acknowledges
 that resume path.
+
+## Standalone Issue Agent Composition
+
+`issue_agent.go` composes the JSON command operations used only by
+`cmd/wkissueagent`. It intentionally is not called by `app.New`, does not join a
+WuKongIM cluster, and owns no server lifecycle. Pure event reconciliation and
+repository scheduling are always available; GitHub publication, checkpoint
+verification, and App authentication are supplied as explicit standalone
+dependencies so Publisher credentials cannot enter the product process.

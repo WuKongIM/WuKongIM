@@ -92,19 +92,19 @@ type policyJSON struct {
 
 var requiredProtectedPaths = []string{
 	".agents",
+	".github/ISSUE_TEMPLATE",
 	".github/issue-agent",
-	".github/workflows/issue-agent-control.yml",
-	".github/workflows/issue-agent-reconcile.yml",
-	".github/workflows/issue-agent-run.yml",
+	".github/workflows",
 	"AGENTS.md",
 	"cmd/wkissueagent",
 	"internal/access/issueagentcli",
-	"internal/app/issue_agent.go",
+	"internal/app/issue_agent",
 	"internal/contracts/issueagent",
 	"internal/infra/issueagentgithub",
 	"internal/infra/issueagentmodel",
 	"internal/runtime/issueagentworker",
 	"internal/usecase/issueagent",
+	"scripts/issue_agent",
 }
 
 // DecodePolicy strictly decodes bounded protected policy JSON.

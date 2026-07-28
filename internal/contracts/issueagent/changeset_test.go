@@ -13,10 +13,10 @@ func TestChangeSetAcceptsBoundedSortedRegularFiles(t *testing.T) {
 	changeSet := issueagent.ChangeSet{
 		Files: []issueagent.FileChange{
 			{
-				Path:      "internal/usecase/example/app.go",
-				Operation: issueagent.FileOperationUpsert,
-				Mode:      issueagent.FileModeRegular,
-				Content:   []byte("package example\n"),
+				Path:          "internal/usecase/example/app.go",
+				Operation:     issueagent.FileOperationUpsert,
+				Mode:          issueagent.FileModeRegular,
+				ContentBase64: issueagent.EncodeFileContent([]byte("package example\n")),
 			},
 			{
 				Path:      "test/e2e/message/example/example_test.go",
@@ -44,14 +44,14 @@ func TestChangeSetRejectsUnsafeRepositoryPaths(t *testing.T) {
 			name: "traversal",
 			files: []issueagent.FileChange{{
 				Path: "../AGENTS.md", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeRegular, Content: []byte("unsafe"),
+				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("unsafe")),
 			}},
 		},
 		{
 			name: "absolute",
 			files: []issueagent.FileChange{{
 				Path: "/tmp/payload", Operation: issueagent.FileOperationUpsert,
-				Mode: issueagent.FileModeRegular, Content: []byte("unsafe"),
+				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("unsafe")),
 			}},
 		},
 		{
@@ -59,11 +59,11 @@ func TestChangeSetRejectsUnsafeRepositoryPaths(t *testing.T) {
 			files: []issueagent.FileChange{
 				{
 					Path: "internal/A.go", Operation: issueagent.FileOperationUpsert,
-					Mode: issueagent.FileModeRegular, Content: []byte("a"),
+					Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("a")),
 				},
 				{
 					Path: "internal/a.go", Operation: issueagent.FileOperationUpsert,
-					Mode: issueagent.FileModeRegular, Content: []byte("b"),
+					Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("b")),
 				},
 			},
 		},
@@ -72,11 +72,11 @@ func TestChangeSetRejectsUnsafeRepositoryPaths(t *testing.T) {
 			files: []issueagent.FileChange{
 				{
 					Path: "z.go", Operation: issueagent.FileOperationUpsert,
-					Mode: issueagent.FileModeRegular, Content: []byte("z"),
+					Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("z")),
 				},
 				{
 					Path: "a.go", Operation: issueagent.FileOperationUpsert,
-					Mode: issueagent.FileModeRegular, Content: []byte("a"),
+					Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("a")),
 				},
 			},
 		},
@@ -84,7 +84,7 @@ func TestChangeSetRejectsUnsafeRepositoryPaths(t *testing.T) {
 			name: "delete with content",
 			files: []issueagent.FileChange{{
 				Path: "obsolete.go", Operation: issueagent.FileOperationDelete,
-				Content: []byte("smuggled"),
+				ContentBase64: issueagent.EncodeFileContent([]byte("smuggled")),
 			}},
 		},
 	}

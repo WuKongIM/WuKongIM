@@ -40,6 +40,14 @@ func ValidatePublish(input PublishValidation) error {
 		return err
 	}
 	for _, file := range input.ChangeSet.Files {
+		var content []byte
+		if file.Operation == issueagentcontract.FileOperationUpsert {
+			var err error
+			content, err = issueagentcontract.DecodeFileContent(file)
+			if err != nil {
+				return err
+			}
+		}
 		if file.Operation == issueagentcontract.FileOperationUpsert &&
 			file.Mode != issueagentcontract.FileModeRegular {
 			return fmt.Errorf("Publisher rejects unexpected executable mode for %q", file.Path)
@@ -57,14 +65,14 @@ func ValidatePublish(input PublishValidation) error {
 			if !strings.HasPrefix(file.Path, "test/e2e/scenarios/") ||
 				file.Operation != issueagentcontract.FileOperationUpsert ||
 				len(input.ScenarioInstructionTemplate) == 0 ||
-				!bytes.Equal(file.Content, input.ScenarioInstructionTemplate) {
+				!bytes.Equal(content, input.ScenarioInstructionTemplate) {
 				return fmt.Errorf("new instruction file %q is not the trusted scenario template", file.Path)
 			}
 		}
 		if frozen, ok := input.FrozenFileSHA256[file.Path]; ok &&
 			!input.AllowReproductionReset {
 			if file.Operation != issueagentcontract.FileOperationUpsert ||
-				digestContent(file.Content) != frozen {
+				digestContent(content) != frozen {
 				return fmt.Errorf("frozen reproduction file %q changed without reset", file.Path)
 			}
 		}

@@ -24,10 +24,10 @@ func TestAgentResultBindsTaskAndCarriesOnlyTypedChanges(t *testing.T) {
 		RequestedState:  issueagent.StateValidating,
 		RequestedAction: issueagent.ActionValidate,
 		ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
-			Path:      "internal/usecase/example/app.go",
-			Operation: issueagent.FileOperationUpsert,
-			Mode:      issueagent.FileModeRegular,
-			Content:   []byte("package example\n"),
+			Path:          "internal/usecase/example/app.go",
+			Operation:     issueagent.FileOperationUpsert,
+			Mode:          issueagent.FileModeRegular,
+			ContentBase64: issueagent.EncodeFileContent([]byte("package example\n")),
 		}}},
 		Evidence: issueagent.EvidenceManifest{
 			ArtifactSHA256: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
@@ -116,6 +116,7 @@ func resultTestTask() issueagent.TaskEnvelope {
 			WallTime:       20 * time.Minute,
 			MaxOutputBytes: 1 << 20,
 			MaxFiles:       8,
+			MaxFileBytes:   1 << 20,
 			MaxTotalBytes:  1 << 20,
 		},
 		Provider: issueagent.ProviderCodex,

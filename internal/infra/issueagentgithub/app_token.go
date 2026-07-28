@@ -43,8 +43,8 @@ type AppTokenConfig struct {
 
 // InstallationToken is retained in memory only by the trusted Publisher.
 type InstallationToken struct {
-	Token     string
-	ExpiresAt time.Time
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // AppTokenMinter creates one short-lived repository-scoped installation token.

@@ -263,6 +263,13 @@ func (store *CheckpointStore) VerifyChain(
 				*checkpoint.PreviousCheckpointSHA256 != previousDigest {
 				return VerifiedCheckpoint{}, errors.New("checkpoint chain is forked or out of order")
 			}
+			if checkpoint.Generation == previousGeneration {
+				if err := issueagentcontract.ValidateTransition(
+					latest.Checkpoint.State, checkpoint.State,
+				); err != nil {
+					return VerifiedCheckpoint{}, err
+				}
+			}
 		}
 		latest = VerifiedCheckpoint{
 			CommentID:  comment.ID,

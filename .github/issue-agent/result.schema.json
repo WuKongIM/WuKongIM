@@ -2,36 +2,84 @@
   "type": "object",
   "properties": {
     "schema_version": {
-      "type": "integer"
+      "type": "integer",
+      "const": 1
     },
     "repository": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     },
     "issue_number": {
-      "type": "integer"
+      "type": "integer",
+      "minimum": 1
     },
     "generation": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 1
     },
     "sequence": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 1
     },
     "operation_id": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
     },
     "phase": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "reproduce",
+        "diagnose",
+        "fix",
+        "address_review"
+      ]
     },
     "status": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "success",
+        "failed"
+      ]
     },
     "requested_state": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "awaiting_triage",
+        "needs_info",
+        "authorized",
+        "version_pinned",
+        "reproducing",
+        "already_fixed",
+        "reproduced",
+        "draft_pr_open",
+        "diagnosing",
+        "diagnosed",
+        "fixing",
+        "validating",
+        "ready_for_review",
+        "ready_for_human",
+        "merged",
+        "cancelled",
+        "superseded",
+        "wontfix"
+      ]
     },
     "requested_action": {
-      "type": "string"
+      "type": "string",
+      "enum": [
+        "none",
+        "pin_versions",
+        "reproduce",
+        "open_draft_pr",
+        "diagnose",
+        "implement_fix",
+        "validate",
+        "request_review",
+        "wait_for_human",
+        "reconcile",
+        "create_backport"
+      ]
     },
     "change_set": {
       "type": "object",
@@ -48,21 +96,22 @@
                 "type": "string"
               },
               "operation": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "upsert",
+                  "delete"
+                ]
               },
               "mode": {
-                "type": "string"
+                "type": "string",
+                "enum": [
+                  "100644",
+                  "100755"
+                ]
               },
-              "content": {
-                "type": [
-                  "null",
-                  "array"
-                ],
-                "items": {
-                  "type": "integer",
-                  "minimum": 0,
-                  "maximum": 255
-                }
+              "content_base64": {
+                "type": "string",
+                "contentEncoding": "base64"
               }
             },
             "required": [
@@ -82,7 +131,8 @@
       "type": "object",
       "properties": {
         "artifact_sha256": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "commands": {
           "type": [
@@ -111,10 +161,12 @@
                 "type": "integer"
               },
               "stdout_sha256": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
               },
               "stderr_sha256": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
               },
               "duration_ms": {
                 "type": "integer"
@@ -143,7 +195,11 @@
       "type": "object",
       "properties": {
         "provider": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "codex",
+            "deepseek"
+          ]
         },
         "model": {
           "type": "string"
@@ -172,7 +228,19 @@
       ],
       "properties": {
         "class": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "needs_info",
+            "already_fixed",
+            "product_assertion",
+            "test_harness",
+            "worker_infrastructure",
+            "provider",
+            "unsafe_scope",
+            "state_conflict",
+            "budget_exhausted",
+            "cancelled"
+          ]
         },
         "summary": {
           "type": "string"
