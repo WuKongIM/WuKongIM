@@ -25,3 +25,11 @@ sequence, predecessor, Agent branch, and expected old ref. Default branches,
 tags, non-Agent branches, protected paths, force updates, unverified commits,
 and stale plans fail closed.
 
+Worker file proposals remain typed `ChangeSet` values. The Publisher validates
+their paths, regular-file modes, frozen reproduction files, byte budgets, and
+scenario instruction template before creating blobs. It then builds a tree and
+a single-parent commit through the Git Database API, requires GitHub
+verification, performs a non-force Agent-branch update, and re-reads the ref and
+commit. Issue comments, exact label sets, Draft PR state, and tracking Issues
+are projections of the already-validated plan; no method can merge a PR or
+write a default branch or tag.

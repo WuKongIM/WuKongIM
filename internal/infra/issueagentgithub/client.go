@@ -196,6 +196,78 @@ func (client *Client) getJSONPage(
 	return parseNextLink(response.Header.Get("Link"))
 }
 
+func (client *Client) requestJSON(
+	ctx context.Context,
+	method string,
+	path string,
+	input any,
+	output any,
+	expectedStatuses ...int,
+) error {
+	if client == nil || len(expectedStatuses) == 0 {
+		return errors.New("GitHub API write request is invalid")
+	}
+	var body io.Reader
+	if input != nil {
+		encoded, err := json.Marshal(input)
+		if err != nil {
+			return errors.New("encode GitHub API request")
+		}
+		if int64(len(encoded)) > client.maxBodyBytes {
+			return errors.New("GitHub API request exceeds byte limit")
+		}
+		body = bytes.NewReader(encoded)
+	}
+	endpoint := client.endpoint(path)
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	if err != nil {
+		return errors.New("create GitHub API request")
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
+	request.Header.Set("Authorization", "Bearer "+client.token)
+	if input != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("GitHub API request failed: %w", redactHTTPError(err))
+	}
+	defer response.Body.Close()
+	statusOK := false
+	for _, status := range expectedStatuses {
+		statusOK = statusOK || response.StatusCode == status
+	}
+	if !statusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		return fmt.Errorf("GitHub API returned status %d", response.StatusCode)
+	}
+	if output == nil {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		return nil
+	}
+	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		return errors.New("GitHub API returned unexpected content type")
+	}
+	encoded, err := io.ReadAll(io.LimitReader(response.Body, client.maxBodyBytes+1))
+	if err != nil {
+		return errors.New("read GitHub API response")
+	}
+	if int64(len(encoded)) > client.maxBodyBytes {
+		return errors.New("GitHub API response exceeds byte limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	if err := decoder.Decode(output); err != nil {
+		return errors.New("decode GitHub API response")
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return errors.New("GitHub API response contains trailing JSON")
+	}
+	return nil
+}
+
 func parseNextLink(header string) (*url.URL, error) {
 	if header == "" {
 		return nil, nil
