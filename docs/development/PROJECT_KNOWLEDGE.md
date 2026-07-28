@@ -220,6 +220,7 @@
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.
 - Prebuilt binaries passed through `WK_E2E_BINARY` must be built with `go build -tags=e2e`; tagged product substitutes remain dormant unless each scenario also supplies its explicit harness environment.
+- Default local E2E binaries use one repository/GOOS/GOARCH-scoped user-cache path and are atomically replaced; do not create process-specific binary cache roots.
 - Backup sustained-outage qualification uses three Slot replicas and two Channel replicas, keeps either a Controller Leader/Slot leader or a non-Controller-Leader Slot leader offline, and requires surviving nodes to recover readiness and verify the exact restore point.
 - E2E loopback allocation leases one non-overlapping port block per `go test` process with a process-lifetime sentinel listener; per-address probes still skip unrelated host listeners.
 
