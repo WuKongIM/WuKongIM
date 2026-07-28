@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // DownloadArtifact downloads opaque bytes only after exact metadata fencing.
@@ -40,7 +41,19 @@ func (client *Client) DownloadArtifact(
 	request.Header.Set("Accept", "application/vnd.github+json")
 	request.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
 	request.Header.Set("Authorization", "Bearer "+client.token)
-	response, err := client.httpClient.Do(request)
+	downloadClient := *client.httpClient
+	downloadClient.CheckRedirect = func(
+		next *http.Request,
+		via []*http.Request,
+	) error {
+		if len(via) != 1 || !allowedArtifactRedirect(client.baseURL, next.URL) {
+			return errors.New("Artifact redirect is outside approved storage")
+		}
+		next.Header.Del("Authorization")
+		next.Header.Del("X-GitHub-Api-Version")
+		return nil
+	}
+	response, err := downloadClient.Do(request)
 	if err != nil {
 		return nil, errors.New("Artifact download failed")
 	}
@@ -66,6 +79,22 @@ func (client *Client) DownloadArtifact(
 		return nil, errors.New("Artifact digest does not match expected result")
 	}
 	return body, nil
+}
+
+func allowedArtifactRedirect(base, target *url.URL) bool {
+	if base == nil || target == nil || target.User != nil ||
+		target.Fragment != "" || target.Host == "" {
+		return false
+	}
+	if isLoopbackHTTP(base) && isLoopbackHTTP(target) {
+		return true
+	}
+	if target.Scheme != "https" {
+		return false
+	}
+	host := strings.ToLower(target.Hostname())
+	return host == "objects.githubusercontent.com" ||
+		strings.HasSuffix(host, ".blob.core.windows.net")
 }
 
 var digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)

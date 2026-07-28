@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -143,6 +144,54 @@ func (client *Client) ListIssueComments(
 		}
 	}
 	return nil, errors.New("GitHub comment pagination did not terminate")
+}
+
+// ListOpenIssueNumbersByLabel returns one complete bounded repository-wide
+// candidate set. A saturated page fails closed because global lease accounting
+// must never mistake a truncated inventory for the complete set.
+func (client *Client) ListOpenIssueNumbersByLabel(
+	ctx context.Context,
+	label string,
+) ([]int64, error) {
+	if client == nil || label == "" || len(label) > 100 ||
+		strings.ContainsAny(label, "\r\n,") {
+		return nil, errors.New("Issue inventory request is invalid")
+	}
+	endpoint := client.endpoint("/repos/" + client.repository + "/issues")
+	query := endpoint.Query()
+	query.Set("state", "open")
+	query.Set("labels", label)
+	query.Set("per_page", "100")
+	query.Set("page", "1")
+	endpoint.RawQuery = query.Encode()
+	var payload []struct {
+		Number      int64 `json:"number"`
+		PullRequest any   `json:"pull_request"`
+	}
+	next, err := client.getJSONPage(ctx, endpoint, &payload)
+	if err != nil {
+		return nil, err
+	}
+	if next != nil || len(payload) >= 100 {
+		return nil, errors.New("Issue inventory exceeds the global accounting bound")
+	}
+	result := make([]int64, 0, len(payload))
+	seen := make(map[int64]struct{}, len(payload))
+	for _, item := range payload {
+		if item.PullRequest != nil {
+			continue
+		}
+		if item.Number <= 0 {
+			return nil, errors.New("Issue inventory identity is invalid")
+		}
+		if _, duplicate := seen[item.Number]; duplicate {
+			return nil, errors.New("Issue inventory contains a duplicate")
+		}
+		seen[item.Number] = struct{}{}
+		result = append(result, item.Number)
+	}
+	slices.Sort(result)
+	return result, nil
 }
 
 func (client *Client) endpoint(path string) url.URL {

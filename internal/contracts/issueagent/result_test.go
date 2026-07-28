@@ -87,6 +87,40 @@ func TestAgentResultRejectsIdentityAndCommandSmuggling(t *testing.T) {
 	require.Error(t, issueagent.ValidateAgentResult(result, task))
 }
 
+func TestModelProposalCannotClaimTrustedEvidenceOrUsage(t *testing.T) {
+	t.Parallel()
+
+	task := resultTestTask()
+	proposal := issueagent.AgentResult{
+		SchemaVersion: 1, Repository: task.Repository,
+		IssueNumber: task.IssueNumber, Generation: task.Generation,
+		Sequence: task.Sequence, OperationID: task.OperationID,
+		Phase: task.Phase, Status: issueagent.ResultStatusSuccess,
+		RequestedState:  issueagent.StateValidating,
+		RequestedAction: issueagent.ActionValidate,
+		ChangeSet:       issueagent.ChangeSet{Files: []issueagent.FileChange{}},
+		Evidence: issueagent.EvidenceManifest{
+			Commands: []issueagent.CommandEvidence{},
+		},
+		Usage: issueagent.ModelUsage{
+			Provider: task.Provider,
+			Model:    task.Model,
+		},
+	}
+	require.NoError(t, issueagent.ValidateModelProposal(proposal, task))
+
+	proposal.Evidence.ArtifactSHA256 =
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.ErrorContains(
+		t, issueagent.ValidateModelProposal(proposal, task), "Worker-owned",
+	)
+	proposal.Evidence.ArtifactSHA256 = ""
+	proposal.Usage.InputTokens = 1
+	require.ErrorContains(
+		t, issueagent.ValidateModelProposal(proposal, task), "untrusted usage",
+	)
+}
+
 func resultTestTask() issueagent.TaskEnvelope {
 	return issueagent.TaskEnvelope{
 		SchemaVersion:    1,
@@ -101,6 +135,7 @@ func resultTestTask() issueagent.TaskEnvelope {
 		PromptDigest:     "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		AffectedSHA:      "0123456789abcdef0123456789abcdef01234567",
 		DiagnosisBaseSHA: "89abcdef0123456789abcdef0123456789abcdef",
+		CandidateSHA:     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		FrozenIssue:      "Expected result differs from actual result.",
 		InstructionDigests: []issueagent.FileDigest{{
 			Path:   "AGENTS.md",
@@ -119,7 +154,10 @@ func resultTestTask() issueagent.TaskEnvelope {
 			MaxFileBytes:   1 << 20,
 			MaxTotalBytes:  1 << 20,
 		},
-		Provider: issueagent.ProviderCodex,
-		Model:    "policy-selected",
+		RequiredTopology:         "single-node-cluster",
+		RequiredRuns:             3,
+		ProductionChangesAllowed: true,
+		Provider:                 issueagent.ProviderCodex,
+		Model:                    "policy-selected",
 	}
 }

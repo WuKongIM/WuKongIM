@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 	"github.com/WuKongIM/WuKongIM/internal/infra/issueagentmodel"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +30,7 @@ func TestDeepSeekAdapterReplaysReasoningAcrossToolRounds(t *testing.T) {
 	t.Parallel()
 
 	task, result := validAdapterTaskAndResult(t)
+	result = modelProposal(t, task, result)
 	var round int
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		require.Equal(t, "Bearer deepseek-secret", request.Header.Get("Authorization"))
@@ -39,7 +41,9 @@ func TestDeepSeekAdapterReplaysReasoningAcrossToolRounds(t *testing.T) {
 		round++
 		if round == 1 {
 			writeModelJSON(t, writer, map[string]any{
-				"model": task.Model,
+				"id": "chatcmpl-provider-field", "object": "chat.completion",
+				"created": 1785200000,
+				"model":   task.Model,
 				"choices": []map[string]any{{
 					"index": 0, "finish_reason": "tool_calls",
 					"message": map[string]any{
@@ -129,6 +133,7 @@ func TestDeepSeekAdapterDecodesBoundedStreamingResponse(t *testing.T) {
 	t.Parallel()
 
 	task, result := validAdapterTaskAndResult(t)
+	result = modelProposal(t, task, result)
 	encodedResult, err := json.Marshal(result)
 	require.NoError(t, err)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
@@ -156,6 +161,46 @@ func TestDeepSeekAdapterDecodesBoundedStreamingResponse(t *testing.T) {
 	}, &recordingToolExecutor{})
 	require.NoError(t, err)
 	require.Equal(t, 1, outcome.Rounds)
+	require.Equal(t, uint64(30), outcome.Usage.InputTokens)
+	require.Equal(t, uint64(15), outcome.Usage.OutputTokens)
+}
+
+func TestDeepSeekAdapterRejectsModelAuthoredUsage(t *testing.T) {
+	t.Parallel()
+
+	task, result := validAdapterTaskAndResult(t)
+	result.ChangeSet = issueagent.ChangeSet{Files: []issueagent.FileChange{}}
+	result.Evidence = issueagent.EvidenceManifest{
+		Commands: []issueagent.CommandEvidence{},
+	}
+	encodedResult, err := json.Marshal(result)
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		writeModelJSON(t, writer, map[string]any{
+			"model": task.Model,
+			"choices": []map[string]any{{
+				"index": 0, "finish_reason": "stop",
+				"message": map[string]any{
+					"role": "assistant", "content": string(encodedResult),
+				},
+			}},
+			"usage": map[string]any{"prompt_tokens": 30, "completion_tokens": 15},
+		})
+	}))
+	t.Cleanup(server.Close)
+	adapter, err := issueagentmodel.NewDeepSeekAdapter(
+		server.URL, "secret", server.Client(),
+	)
+	require.NoError(t, err)
+	_, err = adapter.Run(context.Background(), issueagentmodel.Request{
+		Task: task, SystemPrompt: "fixed prompt", PromptSHA256: task.PromptDigest,
+		MaxRounds: 2, MaxBytes: 1 << 20,
+	}, &recordingToolExecutor{})
+	require.ErrorContains(t, err, "untrusted usage")
 }
 
 func writeModelJSON(t *testing.T, writer http.ResponseWriter, value any) {

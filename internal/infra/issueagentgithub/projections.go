@@ -19,6 +19,8 @@ type DraftPullRequest struct {
 
 type pullResponse struct {
 	Number      int64  `json:"number"`
+	Title       string `json:"title"`
+	Body        string `json:"body"`
 	State       string `json:"state"`
 	Draft       bool   `json:"draft"`
 	Mergeable   *bool  `json:"mergeable"`
@@ -152,8 +154,50 @@ func (client *Client) CreateDraftPullRequest(
 	}
 	pull, err := validatePullResponse(response)
 	if err != nil || !pull.Draft || pull.HeadRef != input.Head ||
-		pull.BaseRef != input.Base {
+		pull.BaseRef != input.Base || response.Title != input.Title ||
+		response.Body != input.Body {
 		return PullRequestFacts{}, errors.New("created Draft pull request is inconsistent")
+	}
+	return pull, nil
+}
+
+// EnsureDraftPullRequest creates the deterministic Draft PR or reuses the one
+// exact open Draft left by an interrupted Publisher attempt.
+func (client *Client) EnsureDraftPullRequest(
+	ctx context.Context,
+	input DraftPullRequest,
+) (PullRequestFacts, error) {
+	if strings.TrimSpace(input.Title) == "" || len(input.Title) > 256 ||
+		len(input.Body) > 64<<10 || !agentRefPattern.MatchString(input.Head) ||
+		input.Base != "main" {
+		return PullRequestFacts{}, errors.New("Draft pull request input is invalid")
+	}
+	owner := strings.SplitN(client.repository, "/", 2)[0]
+	endpoint := client.endpoint("/repos/" + client.repository + "/pulls")
+	query := endpoint.Query()
+	query.Set("state", "all")
+	query.Set("head", owner+":"+input.Head)
+	query.Set("base", input.Base)
+	query.Set("per_page", "100")
+	query.Set("page", "1")
+	endpoint.RawQuery = query.Encode()
+	var responses []pullResponse
+	next, err := client.getJSONPage(ctx, endpoint, &responses)
+	if err != nil {
+		return PullRequestFacts{}, err
+	}
+	if next != nil || len(responses) > 1 {
+		return PullRequestFacts{}, errors.New("Agent branch has ambiguous pull requests")
+	}
+	if len(responses) == 0 {
+		return client.CreateDraftPullRequest(ctx, input)
+	}
+	response := responses[0]
+	pull, err := validatePullResponse(response)
+	if err != nil || pull.State != "open" || !pull.Draft ||
+		pull.HeadRef != input.Head || pull.BaseRef != input.Base ||
+		response.Title != input.Title || response.Body != input.Body {
+		return PullRequestFacts{}, errors.New("existing Agent pull request is inconsistent")
 	}
 	return pull, nil
 }
@@ -212,6 +256,30 @@ func (client *Client) MarkPullRequestReady(
 		return PullRequestFacts{}, errors.New("pull request did not become ready")
 	}
 	return pull, nil
+}
+
+// EnsurePullRequestReady converts a Draft or reuses an exact already-Ready PR
+// left by an interrupted Publisher.
+func (client *Client) EnsurePullRequestReady(
+	ctx context.Context,
+	number int64,
+	expectedHeadSHA string,
+) (PullRequestFacts, error) {
+	current, err := client.PullRequest(ctx, number)
+	if err != nil {
+		return PullRequestFacts{}, err
+	}
+	if current.State != "open" || current.HeadSHA != expectedHeadSHA {
+		return PullRequestFacts{}, errors.New("pull request Ready fence is stale")
+	}
+	if !current.Draft {
+		return current, nil
+	}
+	ready, err := client.MarkPullRequestReady(ctx, number)
+	if err != nil || ready.HeadSHA != expectedHeadSHA || ready.State != "open" {
+		return PullRequestFacts{}, errors.New("pull request did not become exactly Ready")
+	}
+	return ready, nil
 }
 
 // CreateTrackingIssue creates a bounded child/backport tracking Issue.

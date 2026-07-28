@@ -91,7 +91,9 @@ func TestReaderCollectsPullRequestAndActionsFacts(t *testing.T) {
 			writeJSON(t, writer, map[string]any{
 				"id": 11, "event": "workflow_dispatch", "status": "completed",
 				"conclusion": "success", "head_sha": fortyHex("b"),
-				"name": "Agent PR Validation Gate",
+				"name":          "Agent PR Validation Gate",
+				"path":          ".github/workflows/gate.yml",
+				"display_title": "bounded gate", "run_attempt": 1,
 			})
 		case "/repos/WuKongIM/WuKongIM/actions/runs/11/artifacts":
 			writeJSON(t, writer, map[string]any{

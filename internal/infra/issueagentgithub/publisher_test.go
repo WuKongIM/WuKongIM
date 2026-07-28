@@ -18,7 +18,7 @@ func TestPublisherValidationRejectsProtectedAndAmbiguousChanges(t *testing.T) {
 			MaxFiles: 10, MaxFileBytes: 1024, MaxTotalBytes: 4096, MaxDeletions: 2,
 		},
 		ProtectedPaths: []string{".github/issue-agent", "AGENTS.md", "cmd/wkissueagent"},
-		AllowedPaths:   []string{"pkg", "test/e2e/scenarios"},
+		AllowedPaths:   []string{"pkg", "test/e2e/issue_agent"},
 	}
 	tests := []struct {
 		name string
@@ -81,7 +81,7 @@ func TestPublisherValidationAcceptsBoundedRegularFilesAndTrustedScenarioInstruct
 				Mode: issueagent.FileModeRegular, ContentBase64: issueagent.EncodeFileContent([]byte("package example\n")),
 			},
 			{
-				Path:          "test/e2e/scenarios/issue_42/AGENTS.md",
+				Path:          "test/e2e/issue_agent/issue_42/AGENTS.md",
 				Operation:     issueagent.FileOperationUpsert,
 				Mode:          issueagent.FileModeRegular,
 				ContentBase64: issueagent.EncodeFileContent(template),
@@ -91,7 +91,7 @@ func TestPublisherValidationAcceptsBoundedRegularFilesAndTrustedScenarioInstruct
 			MaxFiles: 10, MaxFileBytes: 1024, MaxTotalBytes: 4096, MaxDeletions: 2,
 		},
 		ProtectedPaths:              []string{".github/issue-agent", "AGENTS.md", "cmd/wkissueagent"},
-		AllowedPaths:                []string{"pkg", "test/e2e/scenarios"},
+		AllowedPaths:                []string{"pkg", "test/e2e/issue_agent"},
 		ScenarioInstructionTemplate: template,
 	}
 	require.NoError(t, issueagentgithub.ValidatePublish(input))

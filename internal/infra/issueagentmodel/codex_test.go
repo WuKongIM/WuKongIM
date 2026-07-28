@@ -31,11 +31,7 @@ func TestCodexAdapterUsesIsolatedStrictToolRounds(t *testing.T) {
 	task, result := validAdapterTaskAndResult(t)
 	task.Provider = issueagent.ProviderCodex
 	task.Model = "policy-codex-model"
-	result.Usage.Provider = task.Provider
-	result.Usage.Model = task.Model
-	result.Usage.InputTokens = 30
-	result.Usage.OutputTokens = 15
-	require.NoError(t, issueagent.ValidateAgentResult(result, task))
+	result = modelProposal(t, task, result)
 	final, err := json.Marshal(issueagentmodel.CodexEnvelope{
 		SchemaVersion: 1, Kind: "final", Result: &result,
 	})
@@ -66,6 +62,9 @@ func TestCodexAdapterUsesIsolatedStrictToolRounds(t *testing.T) {
 	require.Contains(t, runner.requests[1].Prompt, `"call_1"`)
 	require.Equal(t, uint64(30), outcome.Usage.InputTokens)
 	require.Equal(t, uint64(15), outcome.Usage.OutputTokens)
+	require.Empty(t, outcome.Result.ChangeSet.Files)
+	require.Empty(t, outcome.Result.Evidence.ArtifactSHA256)
+	require.Contains(t, runner.requests[0].Prompt, "MODEL PROPOSAL CONTRACT")
 }
 
 func TestCodexAdapterDoesNotFallBackAfterMalformedEnvelope(t *testing.T) {
@@ -85,4 +84,28 @@ func TestCodexAdapterDoesNotFallBackAfterMalformedEnvelope(t *testing.T) {
 	}, &recordingToolExecutor{})
 	require.Error(t, err)
 	require.Len(t, runner.requests, 1)
+}
+
+func TestCodexAdapterRejectsModelAuthoredTrustedFields(t *testing.T) {
+	t.Parallel()
+
+	task, result := validAdapterTaskAndResult(t)
+	task.Provider = issueagent.ProviderCodex
+	task.Model = "policy-codex-model"
+	result.Usage.Provider = task.Provider
+	result.Usage.Model = task.Model
+	final, err := json.Marshal(issueagentmodel.CodexEnvelope{
+		SchemaVersion: 1, Kind: "final", Result: &result,
+	})
+	require.NoError(t, err)
+	runner := &fakeCodexRoundRunner{responses: []issueagentmodel.CodexRoundResponse{{
+		Envelope: final, InputTokens: 10, OutputTokens: 5,
+	}}}
+	adapter, err := issueagentmodel.NewCodexAdapter(runner)
+	require.NoError(t, err)
+	_, err = adapter.Run(context.Background(), issueagentmodel.Request{
+		Task: task, SystemPrompt: "fixed prompt",
+		PromptSHA256: task.PromptDigest, MaxRounds: 2, MaxBytes: 1 << 20,
+	}, &recordingToolExecutor{})
+	require.ErrorContains(t, err, "Worker-owned")
 }

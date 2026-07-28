@@ -76,6 +76,19 @@ func TestCheckpointStoreVerifiesAppendOnlySignedChain(t *testing.T) {
 	require.Equal(t, int64(502), verified.CommentID)
 	require.Equal(t, uint64(2), verified.Checkpoint.Sequence)
 	require.Equal(t, issueagent.StateVersionPinned, verified.Checkpoint.State)
+	history, err := store.VerifyHistory([]issueagentgithub.IssueComment{
+		{
+			ID: 501, Author: "wukongim-issue-agent[bot]", AuthorType: "Bot",
+			Body: firstBody, CreatedAt: now, UpdatedAt: now,
+		},
+		{
+			ID: 502, Author: "wukongim-issue-agent[bot]", AuthorType: "Bot",
+			Body: secondBody, CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
+		},
+	}, 42, now.Add(2*time.Minute))
+	require.NoError(t, err)
+	require.Len(t, history, 2)
+	require.Equal(t, uint64(1), history[0].Checkpoint.Sequence)
 }
 
 func TestCheckpointStoreFailsClosedOnMutationEditAndWrongAuthor(t *testing.T) {
@@ -118,13 +131,6 @@ func TestCheckpointStoreFailsClosedOnMutationEditAndWrongAuthor(t *testing.T) {
 				Body: body, CreatedAt: now, UpdatedAt: now.Add(time.Second),
 			},
 		},
-		{
-			name: "wrong author",
-			comment: issueagentgithub.IssueComment{
-				ID: 501, Author: "attacker", AuthorType: "User",
-				Body: body, CreatedAt: now, UpdatedAt: now,
-			},
-		},
 	}
 	for _, test := range tests {
 		test := test
@@ -136,6 +142,12 @@ func TestCheckpointStoreFailsClosedOnMutationEditAndWrongAuthor(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+
+	_, err = store.VerifyChain([]issueagentgithub.IssueComment{{
+		ID: 501, Author: "attacker", AuthorType: "User",
+		Body: body, CreatedAt: now, UpdatedAt: now,
+	}}, 42, now)
+	require.ErrorIs(t, err, issueagentgithub.ErrNoCheckpoint)
 }
 
 func checkpointStoreTestCheckpoint() issueagent.Checkpoint {

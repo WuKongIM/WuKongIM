@@ -58,9 +58,25 @@ func (broker *Broker) List(
 	if maxEntries <= 0 || maxEntries > 1000 {
 		return ListResult{}, errors.New("workspace_list entry limit is invalid")
 	}
-	root, err := broker.resolveExisting(relativePath)
+	paths, err := broker.listPaths(ctx, relativePath, maxEntries)
 	if err != nil {
 		return ListResult{}, err
+	}
+	id := broker.record(ToolEvidence{
+		Tool: "workspace_list", Path: relativePath,
+		OutputSHA256: digest([]byte(strings.Join(paths, "\n"))),
+	})
+	return ListResult{ID: id, Paths: paths}, nil
+}
+
+func (broker *Broker) listPaths(
+	ctx context.Context,
+	relativePath string,
+	maxEntries int,
+) ([]string, error) {
+	root, err := broker.resolveExisting(relativePath)
+	if err != nil {
+		return nil, err
 	}
 	paths := make([]string, 0)
 	err = filepath.WalkDir(root, func(current string, entry fs.DirEntry, walkErr error) error {
@@ -94,14 +110,10 @@ func (broker *Broker) List(
 		return nil
 	})
 	if err != nil {
-		return ListResult{}, err
+		return nil, err
 	}
 	slices.Sort(paths)
-	id := broker.record(ToolEvidence{
-		Tool: "workspace_list", Path: relativePath,
-		OutputSHA256: digest([]byte(strings.Join(paths, "\n"))),
-	})
-	return ListResult{ID: id, Paths: paths}, nil
+	return paths, nil
 }
 
 // Search performs a bounded literal, line-oriented search over regular files.
@@ -116,12 +128,12 @@ func (broker *Broker) Search(
 		maxMatches <= 0 || maxMatches > 1000 {
 		return SearchResult{}, errors.New("workspace_search request is invalid")
 	}
-	listed, err := broker.List(ctx, relativePath, 1000)
+	paths, err := broker.listPaths(ctx, relativePath, 1000)
 	if err != nil {
 		return SearchResult{}, err
 	}
 	matches := make([]SearchMatch, 0)
-	for _, filePath := range listed.Paths {
+	for _, filePath := range paths {
 		if err := ctx.Err(); err != nil {
 			return SearchResult{}, err
 		}

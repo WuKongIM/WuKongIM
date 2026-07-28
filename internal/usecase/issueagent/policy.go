@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -52,17 +53,19 @@ type ProviderPolicy struct {
 
 // Policy is protected default-branch configuration for trusted planning.
 type Policy struct {
-	SchemaVersion           int
-	Enabled                 bool
-	RolloutMode             RolloutMode
-	DefaultProvider         issueagentcontract.Provider
-	IssueBudget             IssueBudget
-	RepositoryBudget        RepositoryBudget
-	ProtectedPaths          []string
-	GeneratedFiles          []string
-	HighRiskClasses         []string
-	Providers               []ProviderPolicy
-	AllowedBackportBranches []string
+	SchemaVersion             int
+	Enabled                   bool
+	RolloutMode               RolloutMode
+	DefaultProvider           issueagentcontract.Provider
+	SandboxImage              string
+	IssueBudget               IssueBudget
+	RepositoryBudget          RepositoryBudget
+	ProtectedPaths            []string
+	GeneratedFiles            []string
+	HighRiskClasses           []string
+	Providers                 []ProviderPolicy
+	RemediationIssueAllowlist []int64
+	AllowedBackportBranches   []string
 }
 
 type policyJSON struct {
@@ -70,6 +73,7 @@ type policyJSON struct {
 	Enabled         bool                        `json:"enabled"`
 	RolloutMode     RolloutMode                 `json:"rollout_mode"`
 	DefaultProvider issueagentcontract.Provider `json:"default_provider"`
+	SandboxImage    string                      `json:"sandbox_image"`
 	IssueBudget     struct {
 		MaxReproductionAttempts  int    `json:"max_reproduction_attempts"`
 		MaxRemediationAttempts   int    `json:"max_remediation_attempts"`
@@ -83,11 +87,12 @@ type policyJSON struct {
 		RollingWindow        string `json:"rolling_window"`
 		MaxStartedWorkerTime string `json:"max_started_worker_time"`
 	} `json:"repository_budget"`
-	ProtectedPaths          []string         `json:"protected_paths"`
-	GeneratedFiles          []string         `json:"generated_files"`
-	HighRiskClasses         []string         `json:"high_risk_classes"`
-	Providers               []ProviderPolicy `json:"providers"`
-	AllowedBackportBranches []string         `json:"allowed_backport_branches"`
+	ProtectedPaths            []string         `json:"protected_paths"`
+	GeneratedFiles            []string         `json:"generated_files"`
+	HighRiskClasses           []string         `json:"high_risk_classes"`
+	Providers                 []ProviderPolicy `json:"providers"`
+	RemediationIssueAllowlist []int64          `json:"remediation_issue_allowlist"`
+	AllowedBackportBranches   []string         `json:"allowed_backport_branches"`
 }
 
 var requiredProtectedPaths = []string{
@@ -149,6 +154,7 @@ func DecodePolicy(reader io.Reader, maxBytes int64) (Policy, error) {
 		Enabled:         encoded.Enabled,
 		RolloutMode:     encoded.RolloutMode,
 		DefaultProvider: encoded.DefaultProvider,
+		SandboxImage:    encoded.SandboxImage,
 		IssueBudget: IssueBudget{
 			MaxReproductionAttempts:  encoded.IssueBudget.MaxReproductionAttempts,
 			MaxRemediationAttempts:   encoded.IssueBudget.MaxRemediationAttempts,
@@ -162,10 +168,13 @@ func DecodePolicy(reader io.Reader, maxBytes int64) (Policy, error) {
 			RollingWindow:        rollingWindow,
 			MaxStartedWorkerTime: maxStartedWorkerTime,
 		},
-		ProtectedPaths:          append([]string(nil), encoded.ProtectedPaths...),
-		GeneratedFiles:          append([]string(nil), encoded.GeneratedFiles...),
-		HighRiskClasses:         append([]string(nil), encoded.HighRiskClasses...),
-		Providers:               append([]ProviderPolicy(nil), encoded.Providers...),
+		ProtectedPaths:  append([]string(nil), encoded.ProtectedPaths...),
+		GeneratedFiles:  append([]string(nil), encoded.GeneratedFiles...),
+		HighRiskClasses: append([]string(nil), encoded.HighRiskClasses...),
+		Providers:       append([]ProviderPolicy(nil), encoded.Providers...),
+		RemediationIssueAllowlist: append(
+			[]int64(nil), encoded.RemediationIssueAllowlist...,
+		),
 		AllowedBackportBranches: append([]string(nil), encoded.AllowedBackportBranches...),
 	}
 	if err := ValidatePolicy(policy); err != nil {
@@ -178,6 +187,9 @@ func DecodePolicy(reader io.Reader, maxBytes int64) (Policy, error) {
 func ValidatePolicy(policy Policy) error {
 	if policy.SchemaVersion != 1 || !validRolloutMode(policy.RolloutMode) {
 		return errors.New("invalid Issue Agent policy identity")
+	}
+	if !sandboxImagePattern.MatchString(policy.SandboxImage) {
+		return errors.New("Issue Agent sandbox image is not digest-pinned")
 	}
 	if policy.IssueBudget.MaxReproductionAttempts <= 0 ||
 		policy.IssueBudget.MaxReproductionAttempts > 3 ||
@@ -214,6 +226,16 @@ func ValidatePolicy(policy Policy) error {
 	if len(policy.HighRiskClasses) == 0 || len(policy.Providers) != 2 {
 		return errors.New("policy risk classes or providers are incomplete")
 	}
+	if !slices.IsSorted(policy.RemediationIssueAllowlist) ||
+		len(policy.RemediationIssueAllowlist) > 100 {
+		return errors.New("remediation Issue allowlist is invalid")
+	}
+	for index, issueNumber := range policy.RemediationIssueAllowlist {
+		if issueNumber <= 0 ||
+			index > 0 && policy.RemediationIssueAllowlist[index-1] == issueNumber {
+			return errors.New("remediation Issue allowlist is invalid")
+		}
+	}
 	seenProviders := make(map[issueagentcontract.Provider]struct{}, len(policy.Providers))
 	for _, provider := range policy.Providers {
 		if provider.Provider != issueagentcontract.ProviderCodex &&
@@ -240,6 +262,10 @@ func ValidatePolicy(policy Policy) error {
 	}
 	return nil
 }
+
+var sandboxImagePattern = regexp.MustCompile(
+	`^[a-z0-9][a-z0-9./_-]*:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$`,
+)
 
 func validRolloutMode(mode RolloutMode) bool {
 	switch mode {

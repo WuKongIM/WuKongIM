@@ -169,6 +169,215 @@
               "type": "string",
               "pattern": "^sha256:[0-9a-f]{64}$"
             },
+            "task": {
+              "type": "object",
+              "properties": {
+                "schema_version": {
+                  "type": "integer",
+                  "const": 1
+                },
+                "repository": {
+                  "type": "string",
+                  "maxLength": 256,
+                  "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                },
+                "issue_number": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "generation": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sequence": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "operation_id": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "phase": {
+                  "type": "string",
+                  "enum": [
+                    "reproduce",
+                    "diagnose",
+                    "fix",
+                    "address_review"
+                  ]
+                },
+                "checkpoint_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "policy_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "prompt_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "affected_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "diagnosis_base_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "candidate_sha": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "frozen_issue": {
+                  "type": "string"
+                },
+                "accepted_comment_ids": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "instruction_digests": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "allowed_paths": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "allowed_commands": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "executable": {
+                        "type": "string"
+                      },
+                      "argv_prefix": {
+                        "type": [
+                          "null",
+                          "array"
+                        ],
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "max_args": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "executable",
+                      "argv_prefix",
+                      "max_args"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "properties": {
+                    "wall_time": {
+                      "type": "integer"
+                    },
+                    "max_output_bytes": {
+                      "type": "integer"
+                    },
+                    "max_files": {
+                      "type": "integer"
+                    },
+                    "max_file_bytes": {
+                      "type": "integer"
+                    },
+                    "max_total_bytes": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "wall_time",
+                    "max_output_bytes",
+                    "max_files",
+                    "max_file_bytes",
+                    "max_total_bytes"
+                  ],
+                  "additionalProperties": false
+                },
+                "required_topology": {
+                  "type": "string"
+                },
+                "required_runs": {
+                  "type": "integer"
+                },
+                "production_changes_allowed": {
+                  "type": "boolean"
+                },
+                "provider": {
+                  "type": "string",
+                  "enum": [
+                    "codex",
+                    "deepseek"
+                  ]
+                },
+                "model": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "schema_version",
+                "repository",
+                "issue_number",
+                "generation",
+                "sequence",
+                "operation_id",
+                "phase",
+                "checkpoint_digest",
+                "policy_digest",
+                "prompt_digest",
+                "affected_sha",
+                "diagnosis_base_sha",
+                "frozen_issue",
+                "accepted_comment_ids",
+                "instruction_digests",
+                "allowed_paths",
+                "allowed_commands",
+                "limits",
+                "production_changes_allowed",
+                "provider",
+                "model"
+              ],
+              "additionalProperties": false
+            },
             "reserved_seconds": {
               "type": "integer",
               "minimum": 1
@@ -185,6 +394,7 @@
             "issued_at",
             "expires_at",
             "task_sha256",
+            "task",
             "reserved_seconds",
             "heavy"
           ],
@@ -387,8 +597,23 @@
             "summary": {
               "type": "string"
             },
+            "external_symptom": {
+              "type": "string"
+            },
+            "causal_path": {
+              "type": "string"
+            },
             "violated_invariant": {
               "type": "string"
+            },
+            "evidence_references": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              }
             },
             "evidence_sha256": {
               "type": "string",
@@ -430,7 +655,10 @@
           },
           "required": [
             "summary",
+            "external_symptom",
+            "causal_path",
             "violated_invariant",
+            "evidence_references",
             "evidence_sha256",
             "intended_paths",
             "cluster_semantics",

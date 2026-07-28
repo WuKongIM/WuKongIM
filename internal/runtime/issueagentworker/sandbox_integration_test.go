@@ -27,6 +27,7 @@ func TestSandboxHasNoNetworkHostControlOrSupervisorSecrets(t *testing.T) {
 		issueagentworker.DockerSandboxConfig{
 			Image: image, Workspace: workspace, CPUs: 1,
 			MemoryBytes: 256 << 20, PIDs: 64, TempBytes: 64 << 20,
+			ModuleCache: t.TempDir(),
 		},
 	)
 	require.NoError(t, err)

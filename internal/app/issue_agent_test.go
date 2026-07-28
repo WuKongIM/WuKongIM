@@ -26,5 +26,5 @@ func TestIssueAgentOperationsComposeWithoutServerLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	plan, ok := result.(issueagentusecase.Plan)
 	require.True(t, ok)
-	require.Equal(t, issueagentusecase.OperationWait, plan.Operation)
+	require.Equal(t, issueagentusecase.OperationIntakeIssue, plan.Operation)
 }

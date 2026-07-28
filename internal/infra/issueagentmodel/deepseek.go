@@ -119,12 +119,20 @@ func (adapter *DeepSeekAdapter) Run(
 	if err := validateRequest(request, executor); err != nil {
 		return Outcome{}, err
 	}
+	if request.Task.Provider != issueagent.ProviderDeepSeek {
+		return Outcome{}, errors.New("DeepSeek Adapter task selects another provider")
+	}
 	taskJSON, err := json.Marshal(request.Task)
 	if err != nil {
 		return Outcome{}, errors.New("encode model task")
 	}
 	messages := []deepSeekMessage{
-		{Role: "system", Content: request.SystemPrompt},
+		{
+			Role: "system",
+			Content: request.SystemPrompt + modelProposalInstructions(request.Task) +
+				"\nUse the declared API tools for tool rounds. On the final round, " +
+				"return the direct model-proposal JSON object as message content.",
+		},
 		{Role: "user", Content: string(taskJSON)},
 	}
 	var inputTokens uint64
@@ -183,15 +191,15 @@ func (adapter *DeepSeekAdapter) Run(
 			if !ok || content == "" || int64(len(content)) > request.MaxBytes {
 				return Outcome{}, errors.New("DeepSeek final content is invalid")
 			}
-			result, err := issueagent.DecodeAgentResult(
-				strings.NewReader(content), request.MaxBytes, request.Task,
+			result, err := decodeModelProposal(
+				[]byte(content), request.MaxBytes, request.Task,
 			)
 			if err != nil {
 				return Outcome{}, err
 			}
-			if result.Usage.InputTokens != inputTokens ||
-				result.Usage.OutputTokens != outputTokens {
-				return Outcome{}, errors.New("DeepSeek result usage does not match provider")
+			result.Usage = issueagent.ModelUsage{
+				Provider: issueagent.ProviderDeepSeek, Model: request.Task.Model,
+				InputTokens: inputTokens, OutputTokens: outputTokens,
 			}
 			return Outcome{
 				Result: result, Usage: result.Usage,
@@ -265,7 +273,6 @@ func (adapter *DeepSeekAdapter) complete(
 		return deepSeekResponse{}, errors.New("DeepSeek response exceeds byte limit")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(responseBody))
-	decoder.DisallowUnknownFields()
 	var decoded deepSeekResponse
 	if err := decoder.Decode(&decoded); err != nil {
 		return deepSeekResponse{}, errors.New("decode DeepSeek response")

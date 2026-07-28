@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -83,6 +85,49 @@ type RefFacts struct {
 	SHA  string
 }
 
+// TreeEntryFacts is one exact Git tree path resolved from an immutable root.
+type TreeEntryFacts struct {
+	Path string
+	Type string
+	Mode string
+	SHA  string
+}
+
+// CompareFileFacts is one exact file in a one-commit comparison.
+type CompareFileFacts struct {
+	Path   string
+	Status string
+	SHA    string
+}
+
+// DefaultBranchHead reads the exact protected main ref without permitting writes.
+func (client *Client) DefaultBranchHead(
+	ctx context.Context,
+	branch string,
+) (RefFacts, error) {
+	if branch != "main" {
+		return RefFacts{}, errors.New("Issue Agent diagnosis baseline must be main")
+	}
+	var payload struct {
+		Ref    string `json:"ref"`
+		Object struct {
+			Type string `json:"type"`
+			SHA  string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := client.getJSON(
+		ctx, "/repos/"+client.repository+"/git/ref/heads/main", &payload,
+	); err != nil {
+		return RefFacts{}, err
+	}
+	if payload.Ref != "refs/heads/main" || payload.Object.Type != "commit" ||
+		!gitObjectPattern.MatchString(payload.Object.SHA) ||
+		len(payload.Object.SHA) != 40 {
+		return RefFacts{}, errors.New("GitHub main ref response is invalid")
+	}
+	return RefFacts{Name: "main", SHA: payload.Object.SHA}, nil
+}
+
 // CommitFacts records the tree, parents, and GitHub verification result.
 type CommitFacts struct {
 	SHA                string
@@ -94,12 +139,15 @@ type CommitFacts struct {
 
 // WorkflowRunFacts binds validation evidence to one exact head SHA.
 type WorkflowRunFacts struct {
-	ID         int64
-	Name       string
-	Event      string
-	Status     string
-	Conclusion string
-	HeadSHA    string
+	ID           int64
+	Name         string
+	Path         string
+	DisplayTitle string
+	Event        string
+	Status       string
+	Conclusion   string
+	HeadSHA      string
+	RunAttempt   int
 }
 
 // ArtifactFacts is a metadata-only artifact identity. Downloading is separate.
@@ -177,6 +225,91 @@ func (client *Client) Issue(ctx context.Context, number int64) (IssueFacts, erro
 		Body: payload.Body, Author: payload.User.Login,
 		AuthorAssociation: payload.AuthorAssociation, Labels: labels,
 	}, nil
+}
+
+// IssueComment reads one exact comment and binds its issue_url back to the
+// expected Issue before it can authorize a state change.
+func (client *Client) IssueComment(
+	ctx context.Context,
+	commentID int64,
+	issueNumber int64,
+) (IssueComment, error) {
+	if commentID <= 0 || issueNumber <= 0 {
+		return IssueComment{}, errors.New("Issue comment identity is invalid")
+	}
+	var payload struct {
+		ID       int64  `json:"id"`
+		IssueURL string `json:"issue_url"`
+		User     struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		} `json:"user"`
+		Body      string   `json:"body"`
+		CreatedAt jsonTime `json:"created_at"`
+		UpdatedAt jsonTime `json:"updated_at"`
+	}
+	if err := client.getJSON(
+		ctx,
+		"/repos/"+client.repository+"/issues/comments/"+strconv.FormatInt(commentID, 10),
+		&payload,
+	); err != nil {
+		return IssueComment{}, err
+	}
+	expectedSuffix := "/repos/" + client.repository + "/issues/" +
+		strconv.FormatInt(issueNumber, 10)
+	parsed, err := url.Parse(payload.IssueURL)
+	if payload.ID != commentID || payload.User.Login == "" ||
+		payload.User.Type == "" || len(payload.Body) > 64<<10 ||
+		payload.CreatedAt.Time.IsZero() || payload.UpdatedAt.Time.IsZero() ||
+		err != nil || parsed.Path != expectedSuffix {
+		return IssueComment{}, errors.New("GitHub Issue comment response is invalid")
+	}
+	return IssueComment{
+		ID: payload.ID, Author: payload.User.Login, AuthorType: payload.User.Type,
+		Body: payload.Body, CreatedAt: payload.CreatedAt.Time,
+		UpdatedAt: payload.UpdatedAt.Time,
+	}, nil
+}
+
+// IssueLabels reads the labels of an Issue or pull request without accepting
+// any other mutable projection.
+func (client *Client) IssueLabels(
+	ctx context.Context,
+	number int64,
+) ([]string, error) {
+	if number <= 0 {
+		return nil, errors.New("Issue-like number is invalid")
+	}
+	var payload struct {
+		Number int64 `json:"number"`
+		Labels []struct {
+			Name string `json:"name"`
+		} `json:"labels"`
+	}
+	if err := client.getJSON(
+		ctx,
+		"/repos/"+client.repository+"/issues/"+strconv.FormatInt(number, 10),
+		&payload,
+	); err != nil {
+		return nil, err
+	}
+	if payload.Number != number || len(payload.Labels) > 100 {
+		return nil, errors.New("GitHub labels response is invalid")
+	}
+	labels := make([]string, 0, len(payload.Labels))
+	for _, label := range payload.Labels {
+		if strings.TrimSpace(label.Name) == "" || len(label.Name) > 100 {
+			return nil, errors.New("GitHub label is invalid")
+		}
+		labels = append(labels, label.Name)
+	}
+	slices.Sort(labels)
+	for index := 1; index < len(labels); index++ {
+		if labels[index-1] == labels[index] {
+			return nil, errors.New("GitHub labels contain a duplicate")
+		}
+	}
+	return labels, nil
 }
 
 // ActorPermission resolves a fresh repository permission for an event actor.
@@ -360,6 +493,162 @@ func (client *Client) Ref(ctx context.Context, branch string) (RefFacts, error) 
 	return RefFacts{Name: branch, SHA: payload.Object.SHA}, nil
 }
 
+// RefIfExists reads an Agent branch while distinguishing an exact 404 from an
+// existing or malformed ref.
+func (client *Client) RefIfExists(
+	ctx context.Context,
+	branch string,
+) (RefFacts, bool, error) {
+	if !agentRefPattern.MatchString(branch) {
+		return RefFacts{}, false, errors.New("GitHub ref is not an Agent branch")
+	}
+	var payload struct {
+		Ref    string `json:"ref"`
+		Object struct {
+			Type string `json:"type"`
+			SHA  string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := client.requestJSON(
+		ctx, http.MethodGet,
+		"/repos/"+client.repository+"/git/ref/heads/"+branch,
+		nil, &payload, http.StatusOK, http.StatusNotFound,
+	); err != nil {
+		return RefFacts{}, false, err
+	}
+	if payload.Ref == "" {
+		return RefFacts{}, false, nil
+	}
+	if payload.Ref != "refs/heads/"+branch ||
+		payload.Object.Type != "commit" ||
+		!gitObjectPattern.MatchString(payload.Object.SHA) {
+		return RefFacts{}, false, errors.New("GitHub ref response is invalid")
+	}
+	return RefFacts{Name: branch, SHA: payload.Object.SHA}, true, nil
+}
+
+// ResolveTreePath walks exact non-recursive Git trees so publication never
+// assumes whether a Worker path already exists at the frozen parent.
+func (client *Client) ResolveTreePath(
+	ctx context.Context,
+	rootTreeSHA string,
+	repositoryPath string,
+) (TreeEntryFacts, bool, error) {
+	if !gitObjectPattern.MatchString(rootTreeSHA) ||
+		!validRepositoryPath(repositoryPath) {
+		return TreeEntryFacts{}, false, errors.New("Git tree path input is invalid")
+	}
+	parts := strings.Split(repositoryPath, "/")
+	treeSHA := rootTreeSHA
+	for index, part := range parts {
+		var payload struct {
+			SHA       string `json:"sha"`
+			Truncated bool   `json:"truncated"`
+			Tree      []struct {
+				Path string `json:"path"`
+				Mode string `json:"mode"`
+				Type string `json:"type"`
+				SHA  string `json:"sha"`
+			} `json:"tree"`
+		}
+		if err := client.getJSON(
+			ctx, "/repos/"+client.repository+"/git/trees/"+treeSHA, &payload,
+		); err != nil {
+			return TreeEntryFacts{}, false, err
+		}
+		if payload.SHA != treeSHA || payload.Truncated || len(payload.Tree) > 100000 {
+			return TreeEntryFacts{}, false, errors.New("Git tree response is incomplete")
+		}
+		var exact *TreeEntryFacts
+		for _, entry := range payload.Tree {
+			if entry.Path == "" || strings.Contains(entry.Path, "/") ||
+				!gitObjectPattern.MatchString(entry.SHA) {
+				return TreeEntryFacts{}, false, errors.New("Git tree entry is invalid")
+			}
+			if strings.EqualFold(entry.Path, part) && entry.Path != part {
+				return TreeEntryFacts{}, false,
+					errors.New("Git tree contains a case-colliding path")
+			}
+			if entry.Path == part {
+				value := TreeEntryFacts{
+					Path: strings.Join(parts[:index+1], "/"),
+					Type: entry.Type, Mode: entry.Mode, SHA: entry.SHA,
+				}
+				exact = &value
+			}
+		}
+		if exact == nil {
+			return TreeEntryFacts{}, false, nil
+		}
+		if index == len(parts)-1 {
+			return *exact, true, nil
+		}
+		if exact.Type != "tree" {
+			return TreeEntryFacts{}, false,
+				errors.New("Git tree path traverses a non-directory")
+		}
+		treeSHA = exact.SHA
+	}
+	panic("unreachable")
+}
+
+// CompareOneCommit verifies that head is exactly one commit ahead of base and
+// returns its complete bounded changed-file set.
+func (client *Client) CompareOneCommit(
+	ctx context.Context,
+	baseSHA string,
+	headSHA string,
+) ([]CompareFileFacts, error) {
+	if !gitObjectPattern.MatchString(baseSHA) ||
+		!gitObjectPattern.MatchString(headSHA) || baseSHA == headSHA {
+		return nil, errors.New("Git compare identity is invalid")
+	}
+	var payload struct {
+		Status       string `json:"status"`
+		AheadBy      int    `json:"ahead_by"`
+		BehindBy     int    `json:"behind_by"`
+		TotalCommits int    `json:"total_commits"`
+		Files        []struct {
+			Filename string `json:"filename"`
+			Status   string `json:"status"`
+			SHA      string `json:"sha"`
+		} `json:"files"`
+	}
+	if err := client.getJSON(
+		ctx,
+		"/repos/"+client.repository+"/compare/"+baseSHA+"..."+headSHA,
+		&payload,
+	); err != nil {
+		return nil, err
+	}
+	if payload.Status != "ahead" || payload.AheadBy != 1 ||
+		payload.BehindBy != 0 || payload.TotalCommits != 1 ||
+		len(payload.Files) == 0 || len(payload.Files) > 128 {
+		return nil, errors.New("Git compare is not one bounded descendant commit")
+	}
+	files := make([]CompareFileFacts, 0, len(payload.Files))
+	for _, file := range payload.Files {
+		if !validRepositoryPath(file.Filename) ||
+			(file.Status != "added" && file.Status != "modified" &&
+				file.Status != "removed") ||
+			file.Status != "removed" && !gitObjectPattern.MatchString(file.SHA) {
+			return nil, errors.New("Git compare file is invalid")
+		}
+		files = append(files, CompareFileFacts{
+			Path: file.Filename, Status: file.Status, SHA: file.SHA,
+		})
+	}
+	slices.SortFunc(files, func(left, right CompareFileFacts) int {
+		return strings.Compare(left.Path, right.Path)
+	})
+	for index := 1; index < len(files); index++ {
+		if files[index-1].Path == files[index].Path {
+			return nil, errors.New("Git compare contains duplicate files")
+		}
+	}
+	return files, nil
+}
+
 // Commit reads one Git commit, including GitHub's verification result.
 func (client *Client) Commit(ctx context.Context, sha string) (CommitFacts, error) {
 	if !gitObjectPattern.MatchString(sha) {
@@ -409,12 +698,15 @@ func (client *Client) WorkflowRun(ctx context.Context, id int64) (WorkflowRunFac
 		return WorkflowRunFacts{}, errors.New("workflow run ID is invalid")
 	}
 	var payload struct {
-		ID         int64  `json:"id"`
-		Name       string `json:"name"`
-		Event      string `json:"event"`
-		Status     string `json:"status"`
-		Conclusion string `json:"conclusion"`
-		HeadSHA    string `json:"head_sha"`
+		ID           int64  `json:"id"`
+		Name         string `json:"name"`
+		Path         string `json:"path"`
+		DisplayTitle string `json:"display_title"`
+		Event        string `json:"event"`
+		Status       string `json:"status"`
+		Conclusion   string `json:"conclusion"`
+		HeadSHA      string `json:"head_sha"`
+		RunAttempt   int    `json:"run_attempt"`
 	}
 	if err := client.getJSON(
 		ctx,
@@ -423,9 +715,15 @@ func (client *Client) WorkflowRun(ctx context.Context, id int64) (WorkflowRunFac
 	); err != nil {
 		return WorkflowRunFacts{}, err
 	}
-	if payload.ID != id || payload.Name == "" || payload.Event == "" ||
-		payload.Status == "" || !gitObjectPattern.MatchString(payload.HeadSHA) {
-		return WorkflowRunFacts{}, errors.New("GitHub workflow run response is invalid")
+	if payload.ID != id {
+		return WorkflowRunFacts{}, errors.New("GitHub workflow run identity is invalid")
+	}
+	if payload.Name == "" || payload.Path == "" || payload.DisplayTitle == "" ||
+		payload.Event == "" || payload.Status == "" || payload.RunAttempt <= 0 {
+		return WorkflowRunFacts{}, errors.New("GitHub workflow run metadata is invalid")
+	}
+	if !gitObjectPattern.MatchString(payload.HeadSHA) {
+		return WorkflowRunFacts{}, errors.New("GitHub workflow run head SHA is invalid")
 	}
 	return WorkflowRunFacts(payload), nil
 }

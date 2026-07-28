@@ -1,6 +1,7 @@
 package issueagentgithub
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
@@ -76,7 +77,14 @@ func DecodeKeySet(reader io.Reader, maxBytes int64) (KeySet, error) {
 	if reader == nil || maxBytes <= 0 || maxBytes > 1<<20 {
 		return KeySet{}, errors.New("checkpoint key-set input is invalid")
 	}
-	decoder := json.NewDecoder(io.LimitReader(reader, maxBytes+1))
+	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+	if err != nil {
+		return KeySet{}, errors.New("read checkpoint key set")
+	}
+	if int64(len(body)) > maxBytes {
+		return KeySet{}, errors.New("checkpoint key set exceeds byte limit")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	var keySet KeySet
 	if err := decoder.Decode(&keySet); err != nil {
@@ -185,8 +193,22 @@ func (store *CheckpointStore) VerifyChain(
 	issueNumber int64,
 	now time.Time,
 ) (VerifiedCheckpoint, error) {
+	history, err := store.VerifyHistory(comments, issueNumber, now)
+	if err != nil {
+		return VerifiedCheckpoint{}, err
+	}
+	return history[len(history)-1], nil
+}
+
+// VerifyHistory verifies the complete append-only chain and returns every
+// authoritative snapshot in sequence order for repository budget accounting.
+func (store *CheckpointStore) VerifyHistory(
+	comments []IssueComment,
+	issueNumber int64,
+	now time.Time,
+) ([]VerifiedCheckpoint, error) {
 	if store == nil || issueNumber <= 0 || now.IsZero() {
-		return VerifiedCheckpoint{}, errors.New("checkpoint verification input is invalid")
+		return nil, errors.New("checkpoint verification input is invalid")
 	}
 	ordered := append([]IssueComment(nil), comments...)
 	slices.SortFunc(ordered, func(left, right IssueComment) int {
@@ -206,52 +228,55 @@ func (store *CheckpointStore) VerifyChain(
 	var previousDigest string
 	var previousGeneration uint64
 	var previousSequence uint64
+	history := make([]VerifiedCheckpoint, 0)
 	for index, comment := range ordered {
 		if comment.ID <= 0 || index > 0 && comment.ID == ordered[index-1].ID {
-			return VerifiedCheckpoint{}, errors.New("checkpoint comments have invalid identity")
+			return nil, errors.New("checkpoint comments have invalid identity")
 		}
 		if !strings.Contains(comment.Body, checkpointMarkerPrefix) {
 			continue
 		}
-		found = true
 		if comment.Author != store.appLogin || comment.AuthorType != "Bot" {
-			return VerifiedCheckpoint{}, errors.New("checkpoint marker has an unexpected author")
+			// Public users may copy the hidden marker text. Only the configured
+			// GitHub App identity can introduce authoritative chain entries.
+			continue
 		}
+		found = true
 		if comment.CreatedAt.IsZero() ||
 			comment.UpdatedAt.IsZero() ||
 			!comment.CreatedAt.Equal(comment.UpdatedAt) ||
 			comment.CreatedAt.After(now) {
-			return VerifiedCheckpoint{}, errors.New("checkpoint comment was edited or has invalid time")
+			return nil, errors.New("checkpoint comment was edited or has invalid time")
 		}
 		envelope, err := parseCheckpointComment(comment.Body)
 		if err != nil {
-			return VerifiedCheckpoint{}, err
+			return nil, err
 		}
 		key, ok := store.keys[envelope.KeyID]
 		if !ok ||
 			comment.CreatedAt.Before(key.NotBefore) ||
 			comment.CreatedAt.After(key.NotAfter) {
-			return VerifiedCheckpoint{}, errors.New("checkpoint key is unknown or outside its validity window")
+			return nil, errors.New("checkpoint key is unknown or outside its validity window")
 		}
 		checkpoint := envelope.Checkpoint
 		if checkpoint.Repository != store.repository ||
 			checkpoint.IssueNumber != issueNumber {
-			return VerifiedCheckpoint{}, errors.New("checkpoint object identity does not match Issue")
+			return nil, errors.New("checkpoint object identity does not match Issue")
 		}
 		canonical, err := issueagentcontract.CanonicalCheckpoint(checkpoint)
 		if err != nil {
-			return VerifiedCheckpoint{}, err
+			return nil, err
 		}
 		signature, err := base64.RawStdEncoding.DecodeString(envelope.Signature)
 		if err != nil || !ed25519.Verify(key.PublicKey, canonical, signature) {
-			return VerifiedCheckpoint{}, errors.New("checkpoint signature is invalid")
+			return nil, errors.New("checkpoint signature is invalid")
 		}
 		digest := digestBytes(canonical)
 		if previousCommentID == 0 {
 			if checkpoint.Sequence != 1 ||
 				checkpoint.ExpectedPreviousCheckpointID != nil ||
 				checkpoint.PreviousCheckpointSHA256 != nil {
-				return VerifiedCheckpoint{}, errors.New("first checkpoint has an invalid predecessor")
+				return nil, errors.New("first checkpoint has an invalid predecessor")
 			}
 		} else {
 			if checkpoint.Sequence != previousSequence+1 ||
@@ -261,14 +286,18 @@ func (store *CheckpointStore) VerifyChain(
 				*checkpoint.ExpectedPreviousCheckpointID != previousCommentID ||
 				checkpoint.PreviousCheckpointSHA256 == nil ||
 				*checkpoint.PreviousCheckpointSHA256 != previousDigest {
-				return VerifiedCheckpoint{}, errors.New("checkpoint chain is forked or out of order")
+				return nil, errors.New("checkpoint chain is forked or out of order")
 			}
 			if checkpoint.Generation == previousGeneration {
-				if err := issueagentcontract.ValidateTransition(
-					latest.Checkpoint.State, checkpoint.State,
+				if err := issueagentcontract.ValidateCheckpointSuccessor(
+					latest.Checkpoint, checkpoint,
 				); err != nil {
-					return VerifiedCheckpoint{}, err
+					return nil, err
 				}
+			} else if err := issueagentcontract.ValidateCheckpointSuccessor(
+				latest.Checkpoint, checkpoint,
+			); err != nil {
+				return nil, err
 			}
 		}
 		latest = VerifiedCheckpoint{
@@ -276,15 +305,16 @@ func (store *CheckpointStore) VerifyChain(
 			Digest:     digest,
 			Checkpoint: checkpoint,
 		}
+		history = append(history, latest)
 		previousCommentID = comment.ID
 		previousDigest = digest
 		previousGeneration = checkpoint.Generation
 		previousSequence = checkpoint.Sequence
 	}
 	if !found {
-		return VerifiedCheckpoint{}, ErrNoCheckpoint
+		return nil, ErrNoCheckpoint
 	}
-	return latest, nil
+	return history, nil
 }
 
 func parseCheckpointComment(body string) (issueagentcontract.CheckpointEnvelope, error) {

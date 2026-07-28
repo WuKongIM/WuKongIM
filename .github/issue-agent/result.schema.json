@@ -170,6 +170,10 @@
               },
               "duration_ms": {
                 "type": "integer"
+              },
+              "assertion_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
               }
             },
             "required": [
@@ -249,6 +253,114 @@
       "required": [
         "class",
         "summary"
+      ],
+      "additionalProperties": false
+    },
+    "reproduction": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "assertion": {
+          "type": "string"
+        },
+        "assertion_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "topology": {
+          "type": "string",
+          "enum": [
+            "single-node-cluster",
+            "three-node-cluster",
+            "multi-node-cluster"
+          ]
+        }
+      },
+      "required": [
+        "assertion",
+        "assertion_sha256",
+        "topology"
+      ],
+      "additionalProperties": false
+    },
+    "diagnosis": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "external_symptom": {
+          "type": "string"
+        },
+        "causal_path": {
+          "type": "string"
+        },
+        "violated_invariant": {
+          "type": "string"
+        },
+        "evidence_references": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "intended_paths": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "cluster_semantics": {
+          "type": "string"
+        },
+        "validation_suites": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_classes": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorization_event": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "external_symptom",
+        "causal_path",
+        "violated_invariant",
+        "evidence_references",
+        "evidence_sha256",
+        "intended_paths",
+        "cluster_semantics",
+        "validation_suites",
+        "risk_classes"
       ],
       "additionalProperties": false
     }

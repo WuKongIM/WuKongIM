@@ -7,5 +7,9 @@ without exception.
 - Use `WK_E2E_BINARY`; never import product internals or read private stores.
 - Describe deployment topology as a single-node cluster or multi-node cluster.
 - Keep the frozen business assertion explicit and deterministic.
+- On only that business assertion failure, print exactly one
+  `WK_ISSUE_AGENT_ASSERTION_FAILED sha256:<64 lowercase hex>` line.
+- Never print the assertion marker for build, setup, startup, timeout, port, or
+  other infrastructure failures.
 - Keep logs bounded and put reusable harness behavior in `test/e2e/suite`.
 - Do not weaken, skip, replace, or delete the frozen assertion during a fix.

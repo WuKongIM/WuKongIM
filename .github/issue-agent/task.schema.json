@@ -55,6 +55,10 @@
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
     },
+    "candidate_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
     "frozen_issue": {
       "type": "string"
     },
@@ -158,6 +162,15 @@
       ],
       "additionalProperties": false
     },
+    "required_topology": {
+      "type": "string"
+    },
+    "required_runs": {
+      "type": "integer"
+    },
+    "production_changes_allowed": {
+      "type": "boolean"
+    },
     "provider": {
       "type": "string",
       "enum": [
@@ -191,6 +204,7 @@
     "allowed_paths",
     "allowed_commands",
     "limits",
+    "production_changes_allowed",
     "provider",
     "model"
   ],

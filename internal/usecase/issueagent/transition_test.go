@@ -29,6 +29,7 @@ func TestValidateTransitionAcceptsOnlyApprovedLifecycleEdges(t *testing.T) {
 			issueagent.StateNeedsInfo,
 			issueagent.StateAlreadyFixed,
 			issueagent.StateReproduced,
+			issueagent.StateVersionPinned,
 		},
 		issueagent.StateReproduced: {
 			issueagent.StateDraftPROpen,
@@ -38,6 +39,7 @@ func TestValidateTransitionAcceptsOnlyApprovedLifecycleEdges(t *testing.T) {
 		},
 		issueagent.StateDiagnosing: {
 			issueagent.StateDiagnosed,
+			issueagent.StateDraftPROpen,
 			issueagent.StateReadyForHuman,
 		},
 		issueagent.StateDiagnosed: {
@@ -47,6 +49,7 @@ func TestValidateTransitionAcceptsOnlyApprovedLifecycleEdges(t *testing.T) {
 		issueagent.StateFixing: {
 			issueagent.StateValidating,
 			issueagent.StateAlreadyFixed,
+			issueagent.StateDiagnosed,
 			issueagent.StateReadyForHuman,
 		},
 		issueagent.StateValidating: {

@@ -75,3 +75,39 @@ func TestArtifactDownloadRejectsExpiredOversizedAndCrossHost(t *testing.T) {
 		require.Error(t, err)
 	}
 }
+
+func TestArtifactDownloadFollowsOneStorageRedirectWithoutCredential(t *testing.T) {
+	t.Parallel()
+
+	content := []byte("redirected artifact")
+	sum := sha256.Sum256(content)
+	digest := "sha256:" + hex.EncodeToString(sum[:])
+	storage := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		require.Empty(t, request.Header.Get("Authorization"))
+		writer.Header().Set("Content-Type", "application/zip")
+		_, _ = writer.Write(content)
+	}))
+	t.Cleanup(storage.Close)
+	api := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		require.Equal(t, "Bearer token", request.Header.Get("Authorization"))
+		http.Redirect(writer, request, storage.URL+"/signed", http.StatusFound)
+	}))
+	t.Cleanup(api.Close)
+
+	downloaded, err := newTestClient(t, api).DownloadArtifact(
+		context.Background(),
+		issueagentgithub.ArtifactFacts{
+			ID: 1, Name: "result", SizeInBytes: int64(len(content)),
+			DownloadURL: api.URL + "/download",
+		},
+		1, "result", digest, 1024,
+	)
+	require.NoError(t, err)
+	require.Equal(t, content, downloaded)
+}

@@ -102,11 +102,16 @@ func Schedule(
 	windowStart := now.Add(-budget.RollingWindow)
 	var rollingUse time.Duration
 	for _, start := range starts {
-		if start.StartedAt.IsZero() || start.StartedAt.After(now) || start.Reserved <= 0 {
+		if start.StartedAt.IsZero() || start.StartedAt.After(now) ||
+			start.Reserved <= 0 || start.Reserved > budget.RollingWindow {
 			return nil, errors.New("Worker start accounting is invalid")
 		}
 		if !start.StartedAt.Before(windowStart) {
-			rollingUse += start.Reserved
+			if rollingUse >= budget.MaxStartedWorkerTime-start.Reserved {
+				rollingUse = budget.MaxStartedWorkerTime
+			} else {
+				rollingUse += start.Reserved
+			}
 		}
 	}
 	if rollingUse >= budget.MaxStartedWorkerTime {
@@ -134,7 +139,14 @@ func Schedule(
 		if comparison := left.EligibleAt.Compare(right.EligibleAt); comparison != 0 {
 			return comparison
 		}
-		return int(left.IssueNumber - right.IssueNumber)
+		switch {
+		case left.IssueNumber < right.IssueNumber:
+			return -1
+		case left.IssueNumber > right.IssueNumber:
+			return 1
+		default:
+			return 0
+		}
 	})
 
 	plans := make([]LeasePlan, 0, budget.MaxActiveWorkers-activeCount)
@@ -151,7 +163,10 @@ func Schedule(
 		if rollingUse+candidate.Reserved > budget.MaxStartedWorkerTime {
 			continue
 		}
-		operationID := operationID(candidate)
+		operationID := OperationID(
+			candidate.Repository, candidate.IssueNumber, candidate.Generation,
+			candidate.NextSequence, candidate.Phase,
+		)
 		plans = append(plans, LeasePlan{
 			Repository:  candidate.Repository,
 			IssueNumber: candidate.IssueNumber,
@@ -200,15 +215,22 @@ func validateCandidate(candidate Candidate, now time.Time) error {
 	}
 }
 
-func operationID(candidate Candidate) string {
+// OperationID deterministically identifies one Issue generation, sequence, and
+// phase without depending on the Task that embeds it.
+func OperationID(
+	repository string,
+	issueNumber int64,
+	generation uint64,
+	sequence uint64,
+	phase issueagentcontract.Phase,
+) string {
 	hasher := sha256.New()
 	parts := []string{
-		candidate.Repository,
-		strconv.FormatInt(candidate.IssueNumber, 10),
-		strconv.FormatUint(candidate.Generation, 10),
-		strconv.FormatUint(candidate.NextSequence, 10),
-		string(candidate.Phase),
-		candidate.TaskDigest,
+		repository,
+		strconv.FormatInt(issueNumber, 10),
+		strconv.FormatUint(generation, 10),
+		strconv.FormatUint(sequence, 10),
+		string(phase),
 	}
 	for _, part := range parts {
 		hasher.Write([]byte(part))

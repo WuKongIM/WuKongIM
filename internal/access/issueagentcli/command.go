@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	maxCommandInput  = 1 << 20
-	maxCommandOutput = 16 << 20
+	maxCommandInput  = 20 << 20
+	maxCommandOutput = 20 << 20
 )
 
 // PlanEventRequest is the flattened strict CLI input for reconciliation.
@@ -57,13 +57,27 @@ type DocumentRequest struct {
 
 // Operations are narrow composition-root functions invoked by the CLI.
 type Operations struct {
-	PlanEvent        func(context.Context, PlanEventRequest) (any, error)
-	PlanSweep        func(context.Context, PlanSweepRequest) (any, error)
-	PublishLease     func(context.Context, DocumentRequest) (any, error)
-	PublishResult    func(context.Context, DocumentRequest) (any, error)
-	RunWorker        func(context.Context, DocumentRequest) (any, error)
-	VerifyCheckpoint func(context.Context, DocumentRequest) (any, error)
-	MintAppToken     func(context.Context, DocumentRequest) (any, error)
+	PlanEvent                func(context.Context, PlanEventRequest) (any, error)
+	PlanSweep                func(context.Context, PlanSweepRequest) (any, error)
+	PublishLease             func(context.Context, DocumentRequest) (any, error)
+	PublishResult            func(context.Context, DocumentRequest) (any, error)
+	PublishDraft             func(context.Context, DocumentRequest) (any, error)
+	PublishIntake            func(context.Context, DocumentRequest) (any, error)
+	PublishAuthorization     func(context.Context, DocumentRequest) (any, error)
+	PublishVersionPin        func(context.Context, DocumentRequest) (any, error)
+	PublishReproductionLease func(context.Context, DocumentRequest) (any, error)
+	PublishWorkerArtifact    func(context.Context, DocumentRequest) (any, error)
+	PublishDraftPR           func(context.Context, DocumentRequest) (any, error)
+	PublishPhaseLease        func(context.Context, DocumentRequest) (any, error)
+	PublishRiskAuthorization func(context.Context, DocumentRequest) (any, error)
+	PublishValidationRequest func(context.Context, DocumentRequest) (any, error)
+	PublishValidationResult  func(context.Context, DocumentRequest) (any, error)
+	PublishExpiredLease      func(context.Context, DocumentRequest) (any, error)
+	ReadCurrentCheckpoint    func(context.Context, DocumentRequest) (any, error)
+	ReadCurrentTask          func(context.Context, DocumentRequest) (any, error)
+	RunWorker                func(context.Context, DocumentRequest) (any, error)
+	VerifyCheckpoint         func(context.Context, DocumentRequest) (any, error)
+	MintAppToken             func(context.Context, DocumentRequest) (any, error)
 }
 
 // Run executes one bounded command and returns a process exit code.
@@ -120,6 +134,34 @@ func Run(
 		result, err = runDocument(ctx, body, operations.PublishLease)
 	case "publish-result":
 		result, err = runDocument(ctx, body, operations.PublishResult)
+	case "publish-draft":
+		result, err = runDocument(ctx, body, operations.PublishDraft)
+	case "publish-intake":
+		result, err = runDocument(ctx, body, operations.PublishIntake)
+	case "publish-authorization":
+		result, err = runDocument(ctx, body, operations.PublishAuthorization)
+	case "publish-version-pin":
+		result, err = runDocument(ctx, body, operations.PublishVersionPin)
+	case "publish-reproduction-lease":
+		result, err = runDocument(ctx, body, operations.PublishReproductionLease)
+	case "publish-worker-artifact":
+		result, err = runDocument(ctx, body, operations.PublishWorkerArtifact)
+	case "publish-draft-pr":
+		result, err = runDocument(ctx, body, operations.PublishDraftPR)
+	case "publish-phase-lease":
+		result, err = runDocument(ctx, body, operations.PublishPhaseLease)
+	case "publish-risk-authorization":
+		result, err = runDocument(ctx, body, operations.PublishRiskAuthorization)
+	case "publish-validation-request":
+		result, err = runDocument(ctx, body, operations.PublishValidationRequest)
+	case "publish-validation-result":
+		result, err = runDocument(ctx, body, operations.PublishValidationResult)
+	case "publish-expired-lease":
+		result, err = runDocument(ctx, body, operations.PublishExpiredLease)
+	case "read-current-checkpoint":
+		result, err = runDocument(ctx, body, operations.ReadCurrentCheckpoint)
+	case "read-current-task":
+		result, err = runDocument(ctx, body, operations.ReadCurrentTask)
 	case "run-worker":
 		result, err = runDocument(ctx, body, operations.RunWorker)
 	case "verify-checkpoint":
@@ -253,12 +295,16 @@ func runGenerateKey(args []string, stdout io.Writer, stderr io.Writer) int {
 	result := struct {
 		KeyID     string `json:"key_id"`
 		PublicKey struct {
-			ID        string `json:"id"`
-			PublicKey string `json:"public_key"`
+			ID        string    `json:"id"`
+			PublicKey string    `json:"public_key"`
+			NotBefore time.Time `json:"not_before"`
+			NotAfter  time.Time `json:"not_after"`
 		} `json:"public_key_record"`
 	}{KeyID: keyID}
 	result.PublicKey.ID = keyID
 	result.PublicKey.PublicKey = base64.StdEncoding.EncodeToString(publicKey)
+	result.PublicKey.NotBefore = time.Now().UTC().Truncate(time.Second)
+	result.PublicKey.NotAfter = result.PublicKey.NotBefore.Add(365 * 24 * time.Hour)
 	if err := writeResult(stdout, result); err != nil {
 		writeDiagnostic(stderr, "write public-key result")
 		return 1

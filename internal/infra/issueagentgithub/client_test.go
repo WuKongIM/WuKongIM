@@ -119,6 +119,35 @@ func TestClientRejectsMalformedResponsesAndCrossHostRedirects(t *testing.T) {
 	})
 }
 
+func TestClientIssueInventoryIsCompleteBoundedAndPRFree(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		require.Equal(t, "open", request.URL.Query().Get("state"))
+		require.Equal(t, "ready-for-agent", request.URL.Query().Get("labels"))
+		require.NoError(t, json.NewEncoder(writer).Encode([]map[string]any{
+			{"number": 9},
+			{"number": 7, "pull_request": map[string]any{"url": "ignored"}},
+			{"number": 3},
+		}))
+	}))
+	t.Cleanup(server.Close)
+	client, err := issueagentgithub.NewClient(issueagentgithub.ClientConfig{
+		BaseURL: server.URL, Repository: "WuKongIM/WuKongIM",
+		Token: "token", MaxPages: 1, MaxBodyBytes: 4096,
+	}, server.Client())
+	require.NoError(t, err)
+	issues, err := client.ListOpenIssueNumbersByLabel(
+		context.Background(), "ready-for-agent",
+	)
+	require.NoError(t, err)
+	require.Equal(t, []int64{3, 9}, issues)
+}
+
 func serverURLFromRequest(request *http.Request) string {
 	return "http://" + request.Host
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -15,13 +16,21 @@ import (
 
 // DockerSandboxConfig fixes the no-network Linux tool-container envelope.
 type DockerSandboxConfig struct {
-	DockerBinary string
-	Image        string
-	Workspace    string
-	CPUs         float64
-	MemoryBytes  int64
-	PIDs         int
-	TempBytes    int64
+	DockerBinary  string
+	Image         string
+	Workspace     string
+	CPUs          float64
+	MemoryBytes   int64
+	PIDs          int
+	TempBytes     int64
+	ReadOnlyFiles []ReadOnlyFileMount
+	ModuleCache   string
+}
+
+// ReadOnlyFileMount exposes one trusted host-built binary at a fixed container path.
+type ReadOnlyFileMount struct {
+	HostPath      string
+	ContainerPath string
 }
 
 // DockerSandboxRunner launches target commands inside disposable containers.
@@ -47,6 +56,49 @@ func NewDockerSandboxRunner(config DockerSandboxConfig) (*DockerSandboxRunner, e
 		return nil, errors.New("resolve Docker sandbox workspace")
 	}
 	config.Workspace = workspace
+	moduleCache, err := filepath.Abs(config.ModuleCache)
+	if err != nil {
+		return nil, errors.New("resolve Docker sandbox module cache")
+	}
+	moduleCache, err = filepath.EvalSymlinks(moduleCache)
+	if err != nil {
+		return nil, errors.New("Docker sandbox module cache is unavailable")
+	}
+	moduleInfo, err := os.Stat(moduleCache)
+	if err != nil || !moduleInfo.IsDir() || moduleCache == workspace ||
+		strings.HasPrefix(moduleCache, workspace+string(filepath.Separator)) {
+		return nil, errors.New("Docker sandbox module cache is invalid")
+	}
+	config.ModuleCache = moduleCache
+	seenMounts := make(map[string]struct{}, len(config.ReadOnlyFiles))
+	for index := range config.ReadOnlyFiles {
+		mount := &config.ReadOnlyFiles[index]
+		switch mount.ContainerPath {
+		case "/issue-agent/bin/affected", "/issue-agent/bin/diagnosis-base":
+		default:
+			return nil, errors.New("Docker sandbox read-only mount target is invalid")
+		}
+		if _, duplicate := seenMounts[mount.ContainerPath]; duplicate {
+			return nil, errors.New("Docker sandbox read-only mount is duplicated")
+		}
+		seenMounts[mount.ContainerPath] = struct{}{}
+		if strings.ContainsAny(mount.HostPath, ",\r\n") {
+			return nil, errors.New("Docker sandbox read-only mount source is invalid")
+		}
+		resolved, err := filepath.Abs(mount.HostPath)
+		if err != nil {
+			return nil, errors.New("resolve Docker sandbox read-only file")
+		}
+		resolved, err = filepath.EvalSymlinks(resolved)
+		if err != nil {
+			return nil, errors.New("Docker sandbox read-only file is unavailable")
+		}
+		info, err := os.Stat(resolved)
+		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
+			return nil, errors.New("Docker sandbox read-only file is not executable")
+		}
+		mount.HostPath = resolved
+	}
 	return &DockerSandboxRunner{config: config}, nil
 }
 
@@ -83,8 +135,17 @@ func (runner *DockerSandboxRunner) Run(
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=" +
 			strconv.FormatInt(runner.config.TempBytes, 10),
 		"--mount", "type=bind,src=" + runner.config.Workspace +
-			",dst=/workspace,rw",
+			",dst=/workspace",
+		"--mount", "type=tmpfs,dst=/workspace/.git,tmpfs-mode=0555",
+		"--mount", "type=bind,src=" + runner.config.ModuleCache +
+			",dst=/go/pkg/mod,readonly",
 		"--workdir", containerDir,
+	}
+	for _, mount := range runner.config.ReadOnlyFiles {
+		args = append(args,
+			"--mount", "type=bind,src="+mount.HostPath+
+				",dst="+mount.ContainerPath+",readonly",
+		)
 	}
 	for _, environment := range request.Environment {
 		if strings.ContainsAny(environment, "\r\n") ||

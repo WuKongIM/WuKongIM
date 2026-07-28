@@ -47,6 +47,34 @@ func TestCheckpointCanonicalBytesBindFirstAuthorizedSnapshot(t *testing.T) {
 func TestCheckpointValidatesDurableLeaseReferences(t *testing.T) {
 	t.Parallel()
 
+	task := issueagent.TaskEnvelope{
+		SchemaVersion: 1, Repository: "WuKongIM/WuKongIM",
+		IssueNumber: 42, Generation: 1, Sequence: 1,
+		OperationID:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Phase:            issueagent.PhaseReproduce,
+		CheckpointDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		PolicyDigest:     "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		PromptDigest:     "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		AffectedSHA:      "1234567890abcdef1234567890abcdef12345678",
+		DiagnosisBaseSHA: "0123456789abcdef0123456789abcdef01234567",
+		FrozenIssue:      "bug",
+		InstructionDigests: []issueagent.FileDigest{{
+			Path:   "AGENTS.md",
+			SHA256: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		}},
+		AllowedPaths: []string{"test/e2e/issue_agent/issue_42"},
+		AllowedCommands: []issueagent.CommandRule{{
+			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 1,
+		}},
+		Limits: issueagent.ResourceLimits{
+			WallTime: time.Minute, MaxOutputBytes: 1024,
+			MaxFiles: 1, MaxFileBytes: 1024, MaxTotalBytes: 1024,
+		},
+		RequiredTopology: "three-node-cluster", RequiredRuns: 3,
+		Provider: issueagent.ProviderCodex, Model: "gpt-5",
+	}
+	taskDigest, err := issueagent.TaskDigest(task)
+	require.NoError(t, err)
 	checkpoint := issueagent.Checkpoint{
 		SchemaVersion: 1, Repository: "WuKongIM/WuKongIM",
 		IssueNumber: 42, Generation: 1, Sequence: 1,
@@ -64,10 +92,10 @@ func TestCheckpointValidatesDurableLeaseReferences(t *testing.T) {
 		Lease: &issueagent.Lease{
 			OperationID: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			Workflow:    "issue-agent-run.yml", DispatchRequestID: "dispatch-42",
-			Phase:           issueagent.PhaseReproduce,
-			IssuedAt:        time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-			ExpiresAt:       time.Date(2026, 7, 28, 12, 35, 0, 0, time.UTC),
-			TaskSHA256:      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			Phase:      issueagent.PhaseReproduce,
+			IssuedAt:   time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
+			ExpiresAt:  time.Date(2026, 7, 28, 12, 35, 0, 0, time.UTC),
+			TaskSHA256: taskDigest, Task: task,
 			ReservedSeconds: 2100, Heavy: true,
 		},
 		NextAction: issueagent.ActionReproduce,
@@ -104,4 +132,26 @@ func TestCheckpointRejectsMalformedIdentityBeforeSigning(t *testing.T) {
 
 	_, err := issueagent.CanonicalCheckpoint(checkpoint)
 	require.Error(t, err)
+}
+
+func TestCheckpointRejectsLifecycleStateWithoutRequiredEvidence(t *testing.T) {
+	t.Parallel()
+
+	checkpoint := issueagent.Checkpoint{
+		SchemaVersion: 1, Repository: "WuKongIM/WuKongIM",
+		IssueNumber: 42, Generation: 1, Sequence: 1,
+		State: issueagent.StateReproduced,
+		FrozenInput: issueagent.FrozenInput{
+			IssueBodySHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			AffectedVersion: "v2.0.0", AcceptedCommentIDs: []int64{},
+			AuthorizationEvent: "evt-42", AuthorizedBy: "maintainer",
+		},
+		Versions: issueagent.Versions{
+			ReportedRef:      "v2.0.0",
+			AffectedSHA:      "1234567890abcdef1234567890abcdef12345678",
+			DiagnosisBaseSHA: "0123456789abcdef0123456789abcdef01234567",
+		},
+		NextAction: issueagent.ActionOpenDraftPR,
+	}
+	require.Error(t, issueagent.ValidateCheckpoint(checkpoint))
 }

@@ -91,15 +91,16 @@ type Budget struct {
 
 // Lease is populated only while one Worker operation owns the Issue.
 type Lease struct {
-	OperationID       string    `json:"operation_id"`
-	Workflow          string    `json:"workflow"`
-	DispatchRequestID string    `json:"dispatch_request_id"`
-	Phase             Phase     `json:"phase"`
-	IssuedAt          time.Time `json:"issued_at"`
-	ExpiresAt         time.Time `json:"expires_at"`
-	TaskSHA256        string    `json:"task_sha256"`
-	ReservedSeconds   uint64    `json:"reserved_seconds"`
-	Heavy             bool      `json:"heavy"`
+	OperationID       string       `json:"operation_id"`
+	Workflow          string       `json:"workflow"`
+	DispatchRequestID string       `json:"dispatch_request_id"`
+	Phase             Phase        `json:"phase"`
+	IssuedAt          time.Time    `json:"issued_at"`
+	ExpiresAt         time.Time    `json:"expires_at"`
+	TaskSHA256        string       `json:"task_sha256"`
+	Task              TaskEnvelope `json:"task"`
+	ReservedSeconds   uint64       `json:"reserved_seconds"`
+	Heavy             bool         `json:"heavy"`
 }
 
 // TestFile freezes one regression-test path and Git blob.
@@ -141,7 +142,10 @@ type Work struct {
 // Diagnosis records the required causal checkpoint before any production fix.
 type Diagnosis struct {
 	Summary            string   `json:"summary"`
+	ExternalSymptom    string   `json:"external_symptom"`
+	CausalPath         string   `json:"causal_path"`
 	ViolatedInvariant  string   `json:"violated_invariant"`
+	EvidenceReferences []string `json:"evidence_references"`
 	EvidenceSHA256     string   `json:"evidence_sha256"`
 	IntendedPaths      []string `json:"intended_paths"`
 	ClusterSemantics   string   `json:"cluster_semantics"`
@@ -229,7 +233,7 @@ func ValidateCheckpoint(checkpoint Checkpoint) error {
 		return err
 	}
 	if checkpoint.Lease != nil {
-		if err := validateLease(*checkpoint.Lease); err != nil {
+		if err := validateLease(*checkpoint.Lease, checkpoint); err != nil {
 			return err
 		}
 	}
@@ -261,6 +265,9 @@ func ValidateCheckpoint(checkpoint Checkpoint) error {
 	if !validAction(checkpoint.NextAction) {
 		return fmt.Errorf("invalid next action %q", checkpoint.NextAction)
 	}
+	if err := validateStateEvidence(checkpoint); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -285,9 +292,17 @@ func validRepository(repository string) bool {
 		!strings.Contains(repository, "..")
 }
 
-func validateLease(lease Lease) error {
+func validateLease(lease Lease, checkpoint Checkpoint) error {
+	taskDigest, taskErr := TaskDigest(lease.Task)
 	if !digestPattern.MatchString(lease.OperationID) ||
 		!digestPattern.MatchString(lease.TaskSHA256) ||
+		taskErr != nil || taskDigest != lease.TaskSHA256 ||
+		lease.Task.Repository != checkpoint.Repository ||
+		lease.Task.IssueNumber != checkpoint.IssueNumber ||
+		lease.Task.Generation != checkpoint.Generation ||
+		lease.Task.Sequence != checkpoint.Sequence ||
+		lease.Task.OperationID != lease.OperationID ||
+		lease.Task.Phase != lease.Phase ||
 		strings.TrimSpace(lease.Workflow) == "" || len(lease.Workflow) > 256 ||
 		strings.TrimSpace(lease.DispatchRequestID) == "" ||
 		len(lease.DispatchRequestID) > 256 ||
@@ -353,6 +368,8 @@ func validateWork(work Work, issueNumber int64) error {
 func validateDiagnosis(diagnosis Diagnosis) error {
 	for _, statement := range []string{
 		diagnosis.Summary,
+		diagnosis.ExternalSymptom,
+		diagnosis.CausalPath,
 		diagnosis.ViolatedInvariant,
 		diagnosis.ClusterSemantics,
 	} {
@@ -361,6 +378,8 @@ func validateDiagnosis(diagnosis Diagnosis) error {
 		}
 	}
 	if !digestPattern.MatchString(diagnosis.EvidenceSHA256) ||
+		len(diagnosis.EvidenceReferences) == 0 ||
+		len(diagnosis.EvidenceReferences) > 64 ||
 		len(diagnosis.IntendedPaths) == 0 || len(diagnosis.IntendedPaths) > 64 ||
 		len(diagnosis.ValidationSuites) == 0 ||
 		len(diagnosis.ValidationSuites) > 32 ||
@@ -373,7 +392,8 @@ func validateDiagnosis(diagnosis Diagnosis) error {
 			return errors.New("diagnosis paths must be safe and strictly sorted")
 		}
 	}
-	if !strictStrings(diagnosis.ValidationSuites) ||
+	if !strictStrings(diagnosis.EvidenceReferences) ||
+		!strictStrings(diagnosis.ValidationSuites) ||
 		!strictStrings(diagnosis.RiskClasses) {
 		return errors.New("diagnosis lists must be strictly sorted and unique")
 	}
@@ -411,6 +431,81 @@ func validateModelAttempt(model ModelAttempt) error {
 		strings.TrimSpace(model.TerminalResult) == "" ||
 		len(model.TerminalResult) > 256 {
 		return errors.New("invalid model attempt")
+	}
+	return nil
+}
+
+func validateStateEvidence(checkpoint Checkpoint) error {
+	switch checkpoint.State {
+	case StateAuthorized:
+		if checkpoint.NextAction != ActionPinVersions {
+			return errors.New("authorized checkpoint must pin versions next")
+		}
+	case StateVersionPinned:
+		if checkpoint.Versions.AffectedSHA == "" ||
+			checkpoint.NextAction != ActionReproduce {
+			return errors.New("version-pinned checkpoint lacks immutable source SHAs")
+		}
+	case StateReproducing:
+		if checkpoint.Versions.AffectedSHA == "" || checkpoint.Lease == nil ||
+			checkpoint.Lease.Phase != PhaseReproduce ||
+			checkpoint.NextAction != ActionReproduce {
+			return errors.New("reproducing checkpoint lacks an exact Worker lease")
+		}
+	case StateAlreadyFixed:
+		if checkpoint.Reproduction == nil || checkpoint.NextAction != ActionNone {
+			return errors.New("already-fixed checkpoint lacks reproduction evidence")
+		}
+	case StateReproduced:
+		if checkpoint.Reproduction == nil || checkpoint.Work == nil ||
+			checkpoint.Work.PRNumber != 0 ||
+			checkpoint.NextAction != ActionOpenDraftPR {
+			return errors.New("reproduced checkpoint lacks frozen test work")
+		}
+	case StateDraftPROpen:
+		if checkpoint.Reproduction == nil || checkpoint.Work == nil ||
+			checkpoint.Work.PRNumber <= 0 ||
+			checkpoint.NextAction != ActionDiagnose {
+			return errors.New("Draft PR checkpoint lacks frozen reproduction work")
+		}
+	case StateDiagnosing:
+		if checkpoint.Reproduction == nil || checkpoint.Work == nil ||
+			checkpoint.Work.PRNumber <= 0 || checkpoint.Lease == nil ||
+			checkpoint.Lease.Phase != PhaseDiagnose ||
+			checkpoint.NextAction != ActionDiagnose {
+			return errors.New("diagnosing checkpoint lacks an exact Worker lease")
+		}
+	case StateDiagnosed:
+		if checkpoint.Diagnosis == nil ||
+			checkpoint.NextAction != ActionImplementFix {
+			return errors.New("diagnosed checkpoint lacks causal evidence")
+		}
+	case StateFixing:
+		if checkpoint.Diagnosis == nil || checkpoint.Lease == nil ||
+			checkpoint.Lease.Phase != PhaseFix ||
+			checkpoint.NextAction != ActionImplementFix {
+			return errors.New("fixing checkpoint lacks diagnosis or Worker lease")
+		}
+	case StateValidating:
+		if checkpoint.Diagnosis == nil || checkpoint.Work == nil ||
+			checkpoint.Work.PRNumber <= 0 ||
+			checkpoint.NextAction != ActionValidate {
+			return errors.New("validating checkpoint lacks exact candidate work")
+		}
+	case StateReadyForReview:
+		if checkpoint.Validation == nil || checkpoint.Work == nil ||
+			checkpoint.Work.PRNumber <= 0 ||
+			checkpoint.NextAction != ActionRequestReview {
+			return errors.New("ready-for-review checkpoint lacks validation evidence")
+		}
+	case StateNeedsInfo, StateReadyForHuman:
+		if checkpoint.NextAction != ActionWaitForHuman {
+			return errors.New("human-queue checkpoint must wait for a human")
+		}
+	case StateMerged, StateCancelled, StateSuperseded, StateWontFix:
+		if checkpoint.NextAction != ActionNone {
+			return errors.New("terminal checkpoint must not select more work")
+		}
 	}
 	return nil
 }

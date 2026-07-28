@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -93,7 +94,6 @@ func NewBroker(config BrokerConfig, runner ToolRunner) (*Broker, error) {
 	if runner == nil || config.MaxFileBytes <= 0 ||
 		config.MaxFileBytes > 8<<20 || config.MaxOutputBytes <= 0 ||
 		config.MaxOutputBytes > 16<<20 ||
-		len(config.AllowedWritePaths) == 0 ||
 		len(config.AllowedCommands) == 0 {
 		return nil, errors.New("Worker broker configuration is invalid")
 	}
@@ -201,6 +201,8 @@ func (broker *Broker) RunCommand(
 			"LC_ALL=C.UTF-8",
 			"PATH=/usr/local/go/bin:/usr/bin:/bin",
 			"GOWORK=off",
+			"GOMODCACHE=/go/pkg/mod",
+			"GOCACHE=/tmp/go-build",
 		},
 	})
 	if ctxErr := runCtx.Err(); ctxErr != nil {
@@ -221,6 +223,7 @@ func (broker *Broker) RunCommand(
 		OutputSHA256: digest(stdout), ErrorSHA256: digest(stderr),
 		DurationMS: result.Duration.Milliseconds(),
 	}
+	evidence.AssertionSHA256 = assertionDigestFromOutput(stdout, stderr)
 	id := broker.record(evidence)
 	return CommandResult{
 		ID: id, ExitCode: result.ExitCode, Stdout: stdout, Stderr: stderr,
@@ -230,6 +233,21 @@ func (broker *Broker) RunCommand(
 		StderrTruncated: stderrTruncated,
 		DurationMS:      evidence.DurationMS,
 	}, nil
+}
+
+var assertionMarkerPattern = regexp.MustCompile(
+	`(?m)^WK_ISSUE_AGENT_ASSERTION_FAILED (sha256:[0-9a-f]{64})\r?$`,
+)
+
+func assertionDigestFromOutput(stdout, stderr []byte) string {
+	matches := assertionMarkerPattern.FindAllSubmatch(
+		append(append([]byte(nil), stdout...), stderr...),
+		-1,
+	)
+	if len(matches) != 1 {
+		return ""
+	}
+	return string(matches[0][1])
 }
 
 func (broker *Broker) commandAllowed(argv []string) bool {

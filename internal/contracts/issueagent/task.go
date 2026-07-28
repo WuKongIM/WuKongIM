@@ -1,6 +1,9 @@
 package issueagent
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -73,14 +76,33 @@ type TaskEnvelope struct {
 	PromptDigest       string         `json:"prompt_digest"`
 	AffectedSHA        string         `json:"affected_sha"`
 	DiagnosisBaseSHA   string         `json:"diagnosis_base_sha"`
+	CandidateSHA       string         `json:"candidate_sha,omitempty"`
 	FrozenIssue        string         `json:"frozen_issue"`
 	AcceptedCommentIDs []int64        `json:"accepted_comment_ids"`
 	InstructionDigests []FileDigest   `json:"instruction_digests"`
 	AllowedPaths       []string       `json:"allowed_paths"`
 	AllowedCommands    []CommandRule  `json:"allowed_commands"`
 	Limits             ResourceLimits `json:"limits"`
-	Provider           Provider       `json:"provider"`
-	Model              string         `json:"model"`
+	RequiredTopology   string         `json:"required_topology,omitempty"`
+	RequiredRuns       int            `json:"required_runs,omitempty"`
+	// ProductionChangesAllowed is false for reproduction and is explicit in
+	// the signed task so a provider cannot widen a no-fix phase.
+	ProductionChangesAllowed bool     `json:"production_changes_allowed"`
+	Provider                 Provider `json:"provider"`
+	Model                    string   `json:"model"`
+}
+
+// TaskDigest returns the canonical digest used by a signed Worker lease.
+func TaskDigest(task TaskEnvelope) (string, error) {
+	if err := ValidateTaskEnvelope(task); err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(task)
+	if err != nil {
+		return "", errors.New("encode task envelope")
+	}
+	sum := sha256.Sum256(encoded)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 // ValidateTaskEnvelope rejects an unsafe or ambiguous Worker task.
@@ -111,6 +133,10 @@ func ValidateTaskEnvelope(task TaskEnvelope) error {
 		!gitSHAPattern.MatchString(task.DiagnosisBaseSHA) {
 		return errors.New("task source SHAs must be immutable")
 	}
+	if task.Phase == PhaseReproduce && task.CandidateSHA != "" ||
+		task.Phase != PhaseReproduce && !gitSHAPattern.MatchString(task.CandidateSHA) {
+		return errors.New("task candidate SHA does not match its phase")
+	}
 	if len(task.FrozenIssue) == 0 || len(task.FrozenIssue) > MaxFrozenIssueBytes {
 		return errors.New("frozen Issue input is empty or oversized")
 	}
@@ -132,6 +158,34 @@ func ValidateTaskEnvelope(task TaskEnvelope) error {
 		task.Limits.MaxFileBytes <= 0 || task.Limits.MaxFileBytes > 8<<20 ||
 		task.Limits.MaxTotalBytes <= 0 || task.Limits.MaxTotalBytes > 32<<20 {
 		return errors.New("task resource limits are outside policy bounds")
+	}
+	if task.Phase == PhaseReproduce {
+		if task.RequiredRuns != 3 || task.ProductionChangesAllowed ||
+			task.RequiredTopology != "single-node-cluster" &&
+				task.RequiredTopology != "three-node-cluster" &&
+				task.RequiredTopology != "multi-node-cluster" {
+			return errors.New("reproduction task contract is invalid")
+		}
+		for _, allowed := range task.AllowedPaths {
+			if !strings.HasPrefix(allowed, "test/e2e/") {
+				return errors.New("reproduction task permits a production path")
+			}
+		}
+	} else {
+		if task.Phase == PhaseDiagnose && task.ProductionChangesAllowed {
+			return errors.New("diagnosis task cannot change repository files")
+		}
+		if task.Phase == PhaseDiagnose &&
+			(task.RequiredTopology != "" || task.RequiredRuns != 0) {
+			return errors.New("diagnosis task contains an execution proof contract")
+		}
+		if (task.Phase == PhaseFix || task.Phase == PhaseAddressReview) &&
+			(!task.ProductionChangesAllowed || task.RequiredRuns != 3 ||
+				task.RequiredTopology != "single-node-cluster" &&
+					task.RequiredTopology != "three-node-cluster" &&
+					task.RequiredTopology != "multi-node-cluster") {
+			return errors.New("remediation task lacks an exact fixed-E2E contract")
+		}
 	}
 	if task.Provider != ProviderCodex && task.Provider != ProviderDeepSeek {
 		return fmt.Errorf("unsupported model provider %q", task.Provider)

@@ -22,18 +22,19 @@ func ValidateTransition(from, to State) error {
 		allowed = to == StateReproducing
 	case StateReproducing:
 		allowed = to == StateNeedsInfo || to == StateAlreadyFixed ||
-			to == StateReproduced
+			to == StateReproduced || to == StateVersionPinned
 	case StateReproduced:
 		allowed = to == StateDraftPROpen
 	case StateDraftPROpen:
 		allowed = to == StateDiagnosing
 	case StateDiagnosing:
-		allowed = to == StateDiagnosed || to == StateReadyForHuman
+		allowed = to == StateDiagnosed || to == StateReadyForHuman ||
+			to == StateDraftPROpen
 	case StateDiagnosed:
 		allowed = to == StateFixing || to == StateReadyForHuman
 	case StateFixing:
 		allowed = to == StateValidating || to == StateAlreadyFixed ||
-			to == StateReadyForHuman
+			to == StateReadyForHuman || to == StateDiagnosed
 	case StateValidating:
 		allowed = to == StateFixing || to == StateAlreadyFixed ||
 			to == StateReadyForReview || to == StateReadyForHuman

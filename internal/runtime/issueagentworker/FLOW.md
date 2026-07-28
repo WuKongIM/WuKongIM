@@ -11,13 +11,20 @@ TaskEnvelope + clean source snapshot
   -> temporary writable workspace
   -> no-secret Tool Broker
   -> selected model Adapter
-  -> typed tool calls (monotonic IDs)
+  -> typed tool calls
   -> bounded command/file evidence
-  -> workspace diff -> AgentResult Artifact
+  -> workspace diff + provider usage -> AgentResult Artifact
   -> destroy workspace and model home
 ```
 
-On Linux CI the workspace is placed in a no-network container with CPU,
-memory, PID, disk, and wall-time limits. The Supervisor has model credentials
-but no target-code execution capability; the tool container has target code
-but no model, GitHub, Docker, or host credentials.
+The model returns only a semantic proposal. It must leave `ChangeSet`, command
+evidence, Artifact digest, diagnosis evidence digest, and token counts empty.
+The trusted Worker derives those values from the workspace, broker transcript,
+and Adapter response and validates the completed Artifact again. The Publisher
+replays the same validations before any GitHub write.
+
+On Linux CI the workspace is placed in a digest-pinned, no-network container
+with a read-only root, PID/memory/CPU constraints, temporary build caches, and
+a read-only pre-fetched Go module cache. The Supervisor has only one selected
+provider credential and no GitHub write credential. The tool container has
+target code but no model, GitHub, Docker-socket, or host credentials.

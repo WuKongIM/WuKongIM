@@ -3,6 +3,7 @@
   "enabled": true,
   "rollout_mode": "shadow",
   "default_provider": "codex",
+  "sandbox_image": "golang:1.25.12-bookworm@sha256:ea341baa9bd5ba6784f6d7161ace70544349a6242d54d34a0fbfd2c4d51c9d58",
   "issue_budget": {
     "max_reproduction_attempts": 3,
     "max_remediation_attempts": 3,
@@ -59,5 +60,6 @@
       "credential_variable": "DEEPSEEK_API_KEY"
     }
   ],
+  "remediation_issue_allowlist": [],
   "allowed_backport_branches": []
 }

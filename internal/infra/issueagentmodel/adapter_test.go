@@ -38,7 +38,9 @@ func validAdapterTaskAndResult(
 			WallTime: 20 * time.Minute, MaxOutputBytes: 1 << 20,
 			MaxFiles: 8, MaxFileBytes: 1 << 20, MaxTotalBytes: 4 << 20,
 		},
-		Provider: issueagent.ProviderDeepSeek, Model: "deepseek-chat",
+		RequiredTopology: "single-node-cluster",
+		RequiredRuns:     3,
+		Provider:         issueagent.ProviderDeepSeek, Model: "deepseek-chat",
 	}
 	result := issueagent.AgentResult{
 		SchemaVersion: 1, Repository: task.Repository,
@@ -47,7 +49,12 @@ func validAdapterTaskAndResult(
 		Phase: task.Phase, Status: issueagent.ResultStatusSuccess,
 		RequestedState:  issueagent.StateReproduced,
 		RequestedAction: issueagent.ActionOpenDraftPR,
-		ChangeSet:       issueagent.ChangeSet{Files: []issueagent.FileChange{}},
+		Reproduction: &issueagent.ReproductionClaim{
+			Assertion:       "message is delivered",
+			AssertionSHA256: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+			Topology:        "single-node-cluster",
+		},
+		ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{}},
 		Evidence: issueagent.EvidenceManifest{
 			ArtifactSHA256: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			Commands: []issueagent.CommandEvidence{{
@@ -65,6 +72,29 @@ func validAdapterTaskAndResult(
 	}
 	require.NoError(t, issueagent.ValidateAgentResult(result, task))
 	return task, result
+}
+
+func modelProposal(
+	t *testing.T,
+	task issueagent.TaskEnvelope,
+	result issueagent.AgentResult,
+) issueagent.AgentResult {
+	t.Helper()
+	result.ChangeSet = issueagent.ChangeSet{Files: []issueagent.FileChange{}}
+	result.Evidence = issueagent.EvidenceManifest{
+		Commands: []issueagent.CommandEvidence{},
+	}
+	result.Usage = issueagent.ModelUsage{
+		Provider: task.Provider,
+		Model:    task.Model,
+	}
+	if result.Diagnosis != nil {
+		diagnosis := *result.Diagnosis
+		diagnosis.EvidenceSHA256 = ""
+		result.Diagnosis = &diagnosis
+	}
+	require.NoError(t, issueagent.ValidateModelProposal(result, task))
+	return result
 }
 
 func promptDigest(prompt string) string {

@@ -179,6 +179,16 @@ func validImmutableVersionSyntax(version string) bool {
 		imageDigestPattern.MatchString(version)
 }
 
+// IsReleaseTagSyntax reports whether value is an exact semantic release tag.
+func IsReleaseTagSyntax(value string) bool {
+	return semverTagPattern.MatchString(value)
+}
+
+// IsImageDigestSyntax reports whether value is an immutable SHA-256 image reference.
+func IsImageDigestSyntax(value string) bool {
+	return imageDigestPattern.MatchString(value)
+}
+
 func intakeRequest(missing, candidates []string) string {
 	var builder strings.Builder
 	builder.WriteString("Thanks for the report. Before a maintainer can authorize the Issue Agent, please update: ")

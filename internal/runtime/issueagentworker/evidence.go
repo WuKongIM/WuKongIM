@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+var artifactDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
 var sensitiveTextPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)authorization:\s*(?:bearer|token)\s+[^\s]+`),
 	regexp.MustCompile(`(?i)(?:github_token|[a-z0-9_]*api_key|[a-z0-9_]*token)=[^\s]+`),
@@ -14,15 +16,16 @@ var sensitiveTextPatterns = []*regexp.Regexp{
 
 // ToolEvidence is the bounded redacted audit record for one broker operation.
 type ToolEvidence struct {
-	ID           uint64   `json:"id"`
-	Tool         string   `json:"tool"`
-	Path         string   `json:"path,omitempty"`
-	Executable   string   `json:"executable,omitempty"`
-	Arguments    []string `json:"arguments,omitempty"`
-	ExitCode     int      `json:"exit_code,omitempty"`
-	OutputSHA256 string   `json:"output_sha256,omitempty"`
-	ErrorSHA256  string   `json:"error_sha256,omitempty"`
-	DurationMS   int64    `json:"duration_ms,omitempty"`
+	ID              uint64   `json:"id"`
+	Tool            string   `json:"tool"`
+	Path            string   `json:"path,omitempty"`
+	Executable      string   `json:"executable,omitempty"`
+	Arguments       []string `json:"arguments,omitempty"`
+	ExitCode        int      `json:"exit_code,omitempty"`
+	OutputSHA256    string   `json:"output_sha256,omitempty"`
+	ErrorSHA256     string   `json:"error_sha256,omitempty"`
+	DurationMS      int64    `json:"duration_ms,omitempty"`
+	AssertionSHA256 string   `json:"assertion_sha256,omitempty"`
 }
 
 // Evidence returns a stable copy of all completed tool operations.

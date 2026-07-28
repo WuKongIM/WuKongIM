@@ -19,3 +19,12 @@ generate-checkpoint-key --private-key-file <new path>
 
 Diagnostics go only to stderr and must not include JSON input, credentials, or
 private-key bytes. The command is independent of the WuKongIM server lifecycle.
+
+Read commands re-fetch and verify the complete signed Issue history before
+returning a current checkpoint or unexpired task. Publish commands mint no
+credentials themselves: the protected Actions job provides the exact
+repository-scoped token and checkpoint signer, and the composed operation
+re-reads all fences immediately before mutation. `run-worker` is
+credential-free with respect to GitHub and accepts only one immutable task,
+prompt, policy, workspace, module cache, and optional exact reproduction
+binaries.

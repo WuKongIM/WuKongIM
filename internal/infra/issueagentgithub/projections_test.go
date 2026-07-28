@@ -34,6 +34,7 @@ func TestPublisherWritesBoundedIssueAndDraftPRProjections(t *testing.T) {
 			writer.WriteHeader(http.StatusCreated)
 			writeJSON(t, writer, map[string]any{
 				"number": 9, "state": "open", "draft": true, "mergeable": nil,
+				"title": "fix(agent): issue #42", "body": "summary",
 				"base": map[string]any{"ref": "main", "sha": fortyHex("a")},
 				"head": map[string]any{"ref": "agent/issue-42", "sha": fortyHex("b")},
 			})
@@ -66,4 +67,37 @@ func TestPublisherWritesBoundedIssueAndDraftPRProjections(t *testing.T) {
 	ready, err := client.MarkPullRequestReady(context.Background(), 9)
 	require.NoError(t, err)
 	require.False(t, ready.Draft)
+}
+
+func TestPublisherReusesOneExactDraftAfterInterruptedProjection(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		require.Equal(t, http.MethodGet, request.Method)
+		require.Equal(t, "/repos/WuKongIM/WuKongIM/pulls", request.URL.Path)
+		require.Equal(t, "all", request.URL.Query().Get("state"))
+		require.Equal(t, "WuKongIM:agent/issue-42", request.URL.Query().Get("head"))
+		writeJSON(t, writer, []map[string]any{{
+			"number": 9, "state": "open", "draft": true, "mergeable": nil,
+			"title": "fix(agent): issue #42", "body": "summary",
+			"base": map[string]any{"ref": "main", "sha": fortyHex("a")},
+			"head": map[string]any{"ref": "agent/issue-42", "sha": fortyHex("b")},
+		}})
+	}))
+	t.Cleanup(server.Close)
+
+	pull, err := newTestClient(t, server).EnsureDraftPullRequest(
+		context.Background(),
+		issueagentgithub.DraftPullRequest{
+			Title: "fix(agent): issue #42", Body: "summary",
+			Head: "agent/issue-42", Base: "main",
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(9), pull.Number)
+	require.True(t, pull.Draft)
 }

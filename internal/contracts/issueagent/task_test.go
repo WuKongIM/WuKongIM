@@ -44,8 +44,10 @@ func TestTaskEnvelopeAcceptsFrozenProviderNeutralWork(t *testing.T) {
 			MaxFileBytes:   1 << 20,
 			MaxTotalBytes:  1 << 20,
 		},
-		Provider: issueagent.ProviderDeepSeek,
-		Model:    "policy-selected",
+		RequiredTopology: "single-node-cluster",
+		RequiredRuns:     3,
+		Provider:         issueagent.ProviderDeepSeek,
+		Model:            "policy-selected",
 	}
 
 	require.NoError(t, issueagent.ValidateTaskEnvelope(task))

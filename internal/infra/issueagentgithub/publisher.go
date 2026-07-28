@@ -62,7 +62,7 @@ func ValidatePublish(input PublishValidation) error {
 			if input.ExistingPaths[file.Path] {
 				return fmt.Errorf("existing instruction file %q is immutable", file.Path)
 			}
-			if !strings.HasPrefix(file.Path, "test/e2e/scenarios/") ||
+			if !strings.HasPrefix(file.Path, "test/e2e/issue_agent/issue_") ||
 				file.Operation != issueagentcontract.FileOperationUpsert ||
 				len(input.ScenarioInstructionTemplate) == 0 ||
 				!bytes.Equal(content, input.ScenarioInstructionTemplate) {

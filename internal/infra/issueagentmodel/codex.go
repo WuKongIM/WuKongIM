@@ -87,7 +87,10 @@ func (adapter *CodexAdapter) Run(
 		}
 		prompt := request.SystemPrompt +
 			"\n\nReturn exactly one JSON envelope. Choose kind tool_calls to invoke only " +
-			"the declared broker tools, or kind final with the complete AgentResult." +
+			"the declared broker tools, or kind final with the model proposal in result. " +
+			"An envelope always has schema_version, kind, reasoning_summary, tool_calls, " +
+			"and result; use []/null for the inactive branch." +
+			modelProposalInstructions(request.Task) +
 			"\nTaskEnvelope:\n" + string(taskJSON) +
 			"\nPrior tool results:\n" + string(transcriptJSON)
 		if int64(len(prompt)) > request.MaxBytes {
@@ -147,14 +150,14 @@ func (adapter *CodexAdapter) Run(
 			if envelope.Result == nil || len(envelope.ToolCalls) != 0 {
 				return Outcome{}, errors.New("Codex final envelope is invalid")
 			}
-			envelope.Result.Usage = issueagent.ModelUsage{
-				Provider: issueagent.ProviderCodex, Model: request.Task.Model,
-				InputTokens: inputTokens, OutputTokens: outputTokens,
-			}
-			if err := issueagent.ValidateAgentResult(
+			if err := issueagent.ValidateModelProposal(
 				*envelope.Result, request.Task,
 			); err != nil {
 				return Outcome{}, err
+			}
+			envelope.Result.Usage = issueagent.ModelUsage{
+				Provider: issueagent.ProviderCodex, Model: request.Task.Model,
+				InputTokens: inputTokens, OutputTokens: outputTokens,
 			}
 			return Outcome{
 				Result: *envelope.Result, Usage: envelope.Result.Usage,
@@ -221,14 +224,10 @@ func (runner *CodexCLIRunner) RunRound(
 	if err := os.Chmod(tempRoot, 0o700); err != nil {
 		return CodexRoundResponse{}, errors.New("secure Codex temporary home")
 	}
-	schemaPath := filepath.Join(tempRoot, "envelope.schema.json")
 	outputPath := filepath.Join(tempRoot, "last-message.json")
 	workspace := filepath.Join(tempRoot, "empty-workspace")
 	if err := os.Mkdir(workspace, 0o700); err != nil {
 		return CodexRoundResponse{}, errors.New("create Codex empty workspace")
-	}
-	if err := os.WriteFile(schemaPath, codexEnvelopeSchema, 0o600); err != nil {
-		return CodexRoundResponse{}, errors.New("write Codex output schema")
 	}
 	args := []string{
 		"exec", "--ephemeral", "--ignore-user-config", "--ignore-rules",
@@ -243,7 +242,6 @@ func (runner *CodexCLIRunner) RunRound(
 		"--disable", "image_generation",
 		"-C", workspace,
 		"--model", request.Model,
-		"--output-schema", schemaPath,
 		"--output-last-message", outputPath,
 		"--json", "-",
 	}
@@ -301,35 +299,24 @@ func parseCodexUsage(events []byte) (uint64, uint64) {
 	var input uint64
 	var output uint64
 	for _, line := range bytes.Split(events, []byte{'\n'}) {
-		var event map[string]any
-		if json.Unmarshal(line, &event) != nil {
+		var event struct {
+			Type  string `json:"type"`
+			Usage *struct {
+				InputTokens  uint64 `json:"input_tokens"`
+				OutputTokens uint64 `json:"output_tokens"`
+			} `json:"usage"`
+		}
+		if json.Unmarshal(line, &event) != nil ||
+			event.Type != "turn.completed" || event.Usage == nil {
 			continue
 		}
-		accumulateUsage(event, &input, &output)
+		// One `codex exec` emits one authoritative turn.completed usage
+		// record. Assigning instead of recursively summing avoids double
+		// counting nested or repeated diagnostic projections.
+		input = event.Usage.InputTokens
+		output = event.Usage.OutputTokens
 	}
 	return input, output
-}
-
-func accumulateUsage(value any, input *uint64, output *uint64) {
-	switch typed := value.(type) {
-	case map[string]any:
-		for key, child := range typed {
-			if number, ok := child.(float64); ok {
-				switch key {
-				case "input_tokens":
-					*input += uint64(number)
-				case "output_tokens":
-					*output += uint64(number)
-				}
-			} else {
-				accumulateUsage(child, input, output)
-			}
-		}
-	case []any:
-		for _, child := range typed {
-			accumulateUsage(child, input, output)
-		}
-	}
 }
 
 func versionAtLeast(actual string, minimum string) bool {
@@ -352,17 +339,3 @@ func versionAtLeast(actual string, minimum string) bool {
 	}
 	return true
 }
-
-var codexEnvelopeSchema = []byte(`{
-  "$schema":"https://json-schema.org/draft/2020-12/schema",
-  "type":"object",
-  "properties":{
-    "schema_version":{"const":1},
-    "kind":{"enum":["tool_calls","final"]},
-    "reasoning_summary":{"type":"string","maxLength":16384},
-    "tool_calls":{"type":"array","maxItems":16},
-    "result":{"type":"object"}
-  },
-  "required":["schema_version","kind"],
-  "additionalProperties":false
-}`)

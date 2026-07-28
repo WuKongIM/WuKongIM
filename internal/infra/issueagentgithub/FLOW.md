@@ -1,9 +1,9 @@
 # Issue Agent GitHub Adapter Flow
 
 `internal/infra/issueagentgithub` adapts narrow Issue Agent ports to GitHub's
-REST and Git Database APIs. It owns GitHub App installation-token minting,
-bounded reads, signed checkpoint comment parsing, Artifact retrieval, and
-fenced publication. Business transitions remain in
+REST and GraphQL APIs. It owns repository-scoped GitHub App installation-token
+minting, bounded reads, complete signed-checkpoint history verification,
+Artifact validation, and fenced publication. Business transitions remain in
 `internal/usecase/issueagent`.
 
 ```text
@@ -15,7 +15,8 @@ Publisher Environment Secret
   -> short-lived installation token
   -> re-read exact checkpoint, branch, PR, run, and Artifact identities
   -> validate typed ChangeSet and protected paths
-  -> Git Database blobs/tree/commit/ref
+  -> GraphQL createCommitOnBranch with expected branch head
+  -> re-read Git ref, commit verification, and exact tree
   -> signed append-only checkpoint and deterministic Issue/PR projections
 ```
 
@@ -27,9 +28,14 @@ and stale plans fail closed.
 
 Worker file proposals remain typed `ChangeSet` values. The Publisher validates
 their paths, regular-file modes, frozen reproduction files, byte budgets, and
-scenario instruction template before creating blobs. It then builds a tree and
-a single-parent commit through the Git Database API, requires GitHub
-verification, performs a non-force Agent-branch update, and re-reads the ref and
-commit. Issue comments, exact label sets, Draft PR state, and tracking Issues
-are projections of the already-validated plan; no method can merge a PR or
-write a default branch or tag.
+scenario instruction template before publication. It creates or reuses only
+`agent/issue-<number>`, uses `expectedHeadOid` to prevent branch races, requests
+one single-parent GraphQL commit, requires GitHub's verified signature, and
+re-reads the ref and complete content. A partially created reproduction branch
+may be reused only when it still equals the exact expected parent.
+
+Issue comments, exact label sets, Draft PR state, validation requests, and
+tracking Issues are projections of already-validated state. No method can
+merge a PR, close a Bug Issue, force-update a ref, or write a default branch or
+tag. A saturated inventory, paginated history, unknown response shape, corrupt
+checkpoint, stale lease, or object mismatch fails closed.
