@@ -69,7 +69,8 @@ func validateSlotRebase(rebase *backupcontract.SlotRebase, generation string) er
 		backupcontract.RebaseReasonSourceRemapped,
 		backupcontract.RebaseReasonGenerationBytes,
 		backupcontract.RebaseReasonGenerationSegments,
-		backupcontract.RebaseReasonGenerationAge:
+		backupcontract.RebaseReasonGenerationAge,
+		backupcontract.RebaseReasonAuditCorruption:
 		return nil
 	default:
 		return ErrInvalidCapture

@@ -370,6 +370,60 @@ func TestCaptureEngineRebasesAuditCorruptionAndWaitsForAuditorConfirmation(t *te
 	require.Equal(t, 1, baselines.calls)
 }
 
+func TestCaptureEngineResumesDurableAuditCorruptionRebaseAfterTransientFailure(t *testing.T) {
+	transientErr := errors.New("transient baseline capture")
+	store := &fakeSlotFrontierStore{}
+	baselines := &recordingBaselineCapturer{
+		errs: []error{transientErr, nil},
+	}
+	gate := staticIntegrityAuditGate{slots: map[uint16]backupcontract.SlotIntegrityAuditState{
+		17: {
+			HashSlot: 17, Generation: "slot-generation-1",
+			Health: backupcontract.SlotAuditRebaseRequired,
+		},
+	}}
+	engine, err := backupruntime.NewCaptureEngine(backupruntime.CaptureEngineOptions{
+		RepositoryID: "backup-prod", SourceClusterID: "cluster-source",
+		SourceGeneration:  "source-generation-1",
+		InitialGeneration: "slot-generation-1", HashSlotCount: 256,
+		Source: &fakeContinuousSource{}, Frontiers: store,
+		Segments:  &recordingSegmentCommitter{},
+		Clock:     &fakeCaptureClock{now: time.UnixMilli(1_753_400_500_000)},
+		AuditGate: gate,
+		Policy: backupruntime.RollingPolicy{
+			TargetSegmentBytes: 64 << 20, MaxSegmentBytes: 256 << 20,
+			MaxOpenDuration: 30 * time.Second, PageRecords: 1024,
+		},
+		Rebase: &backupruntime.RebaseOptions{
+			Policy: backupruntime.SourcePinPolicy{
+				MaxAge: time.Hour, MaxNodeBytes: 128 << 20,
+			},
+			Pins: &recordingSourcePins{}, Baselines: baselines,
+			Validator: &recordingGenerationValidator{},
+			CostPlanner: &recordingGenerationCostPlanner{
+				cost: backupruntime.GenerationCompactionCost{
+					IOBytes: 96 << 30, NetworkBytes: 192 << 30,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.ReconcileSlot(context.Background(), 17)
+	require.ErrorIs(t, err, transientErr)
+	require.NotNil(t, store.frontier.Rebase)
+	require.Equal(t, backupcontract.RebaseReasonAuditCorruption, store.frontier.Rebase.Reason)
+	targetGeneration := store.frontier.Rebase.TargetGeneration
+
+	replacement, err := engine.ReconcileSlot(context.Background(), 17)
+	require.NoError(t, err)
+	require.Equal(t, targetGeneration, replacement.Generation)
+	require.Nil(t, replacement.Rebase)
+	require.Equal(t, 2, baselines.calls)
+	require.NotNil(t, replacement.LastPromotion)
+	require.Equal(t, backupcontract.RebaseReasonAuditCorruption, replacement.LastPromotion.Reason)
+}
+
 func TestCaptureIntegrityAuditRecoveryReportsOnlyPromotedReplacement(t *testing.T) {
 	probe := staticIntegrityAuditSourceProbe{available: true}
 	frontiers := &recordingIntegrityAuditFrontiers{
