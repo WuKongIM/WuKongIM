@@ -12,6 +12,7 @@ const getApplicationLogEntriesMock = vi.fn()
 const getPermissionsMock = vi.fn()
 const getBackupStatusMock = vi.fn()
 const getBackupCheckpointsMock = vi.fn()
+const getBackupCheckpointMock = vi.fn()
 
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
@@ -23,6 +24,7 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     getPermissions: (...args: unknown[]) => getPermissionsMock(...args),
     getBackupStatus: (...args: unknown[]) => getBackupStatusMock(...args),
     getBackupCheckpoints: (...args: unknown[]) => getBackupCheckpointsMock(...args),
+    getBackupCheckpoint: (...args: unknown[]) => getBackupCheckpointMock(...args),
   }
 })
 
@@ -46,6 +48,7 @@ beforeEach(() => {
   getPermissionsMock.mockReset()
   getBackupStatusMock.mockReset()
   getBackupCheckpointsMock.mockReset()
+  getBackupCheckpointMock.mockReset()
   getPermissionsMock.mockRejectedValue(new Error("authentication required"))
   getBackupStatusMock.mockResolvedValue({
     enabled: true,
@@ -83,7 +86,21 @@ beforeEach(() => {
     garbage_collection: { debt_repositories: 0, cursors: [] },
     erasure_streams: [],
   })
-  getBackupCheckpointsMock.mockResolvedValue({ items: [], total: 0 })
+  getBackupCheckpointsMock.mockResolvedValue({
+    catalog_head_token: "catalog-token",
+    items: [],
+    total: 0,
+  })
+  getBackupCheckpointMock.mockResolvedValue({
+    id: "checkpoint-1",
+    effective_at_unix_millis: 1_753_056_300_000,
+    created_at_unix_millis: 1_753_056_330_000,
+    held: false,
+    source_cluster_id: "source-cluster",
+    source_generation: "generation-7",
+    hash_slot_count: 256,
+    erasure_streams: [],
+  })
   getNodesMock.mockResolvedValue({
     total: 1,
     items: [{
@@ -140,7 +157,9 @@ test("opens backup management read-only for a fresh auth-disabled browser", asyn
   )
 
   expect(await screen.findByRole("heading", { name: "Backup Management" })).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Publish checkpoint" })).toBeDisabled()
+  expect(screen.getAllByText("Read-only")).not.toHaveLength(0)
+  expect(screen.queryByRole("button", { name: "More backup actions" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Publish current recovery point" })).not.toBeInTheDocument()
   expect(useAuthStore.getState()).toMatchObject({
     status: "readonly",
     permissions: [{ resource: "cluster.backup", actions: ["r"] }],
@@ -165,6 +184,28 @@ test("confines the auth-disabled readonly session to backup management", async (
   expect(await screen.findByRole("heading", { name: "Backup Management" })).toBeInTheDocument()
   expect(router.state.location.pathname).toBe("/cluster/backups")
   expect(getNodesMock).not.toHaveBeenCalled()
+})
+
+test("allows an auth-disabled readonly session to prepare recovery commands", async () => {
+  getPermissionsMock.mockResolvedValue({
+    auth_enabled: false,
+    current_user: "",
+    users: [],
+    resources: [],
+  })
+  const router = createMemoryRouter(routes, {
+    initialEntries: ["/cluster/backups/recovery/checkpoint-1"],
+  })
+
+  render(
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Prepare cluster recovery" })).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe("/cluster/backups/recovery/checkpoint-1")
+  expect(getBackupCheckpointMock).toHaveBeenCalledWith("checkpoint-1")
 })
 
 test("redirects authenticated /login visits to the cluster live monitor", async () => {

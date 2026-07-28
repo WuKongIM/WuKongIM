@@ -125,6 +125,8 @@ import type {
   BusinessChannelMembersParams,
   BusinessChannelMembersResponse,
   BackupCheckpointListParams,
+  ManagerBackupCheckpoint,
+  ManagerBackupCheckpointDetail,
   ManagerBackupCheckpointPage,
   ManagerBackupCheckpointPublication,
   ManagerBackupStatusResponse,
@@ -1330,9 +1332,22 @@ export function getBackupCheckpoints(params?: BackupCheckpointListParams) {
   if (params?.limit) search.set("limit", String(params.limit))
   if (params?.cursor) search.set("cursor", params.cursor)
   if (params?.id) search.set("id", params.id)
+  if (params?.held !== undefined) search.set("held", String(params.held))
+  if (params?.effectiveFrom !== undefined) {
+    search.set("effective_from", String(params.effectiveFrom))
+  }
+  if (params?.effectiveTo !== undefined) {
+    search.set("effective_to", String(params.effectiveTo))
+  }
   const query = search.toString()
   return jsonManagerFetch<ManagerBackupCheckpointPage>(
     `/manager/backups/checkpoints${query ? `?${query}` : ""}`,
+  )
+}
+
+export function getBackupCheckpoint(checkpointID: string) {
+  return jsonManagerFetch<ManagerBackupCheckpointDetail>(
+    `/manager/backups/checkpoints/${encodeURIComponent(checkpointID)}`,
   )
 }
 
@@ -1341,4 +1356,14 @@ export function publishBackupCheckpoint() {
     method: "POST",
     body: JSON.stringify({}),
   })
+}
+
+export function setBackupCheckpointHold(checkpointID: string, held: boolean) {
+  return jsonManagerFetch<ManagerBackupCheckpoint>(
+    `/manager/backups/checkpoints/${encodeURIComponent(checkpointID)}/hold`,
+    {
+      method: "POST",
+      body: JSON.stringify({ held }),
+    },
+  )
 }

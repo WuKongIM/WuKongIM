@@ -78,32 +78,54 @@ func (i *CheckpointCatalogIndex) List(
 	if err := i.ensure(ctx, head); err != nil {
 		return backupusecase.CheckpointPage{}, err
 	}
-	filtered := i.entries
-	if query := strings.ToLower(strings.TrimSpace(request.IDQuery)); query != "" {
-		filtered = make([]backupartifact.CatalogCheckpointReference, 0)
-		for _, entry := range i.entries {
-			if strings.Contains(strings.ToLower(entry.ID), query) {
-				filtered = append(filtered, entry)
-			}
-		}
-	}
-	start, err := checkpointPageStart(filtered, request.Cursor)
+	start, err := checkpointPageStart(i.entries, request.Cursor)
 	if err != nil {
 		return backupusecase.CheckpointPage{}, err
+	}
+	filtered := i.entries[start:]
+	total := len(i.entries)
+	query := strings.ToLower(strings.TrimSpace(request.IDQuery))
+	if query != "" || request.Held != nil ||
+		request.EffectiveFromUnixMillis > 0 ||
+		request.EffectiveToUnixMillis > 0 {
+		filtered = make([]backupartifact.CatalogCheckpointReference, 0)
+		total = 0
+		for index, entry := range i.entries {
+			if query != "" &&
+				!strings.Contains(strings.ToLower(entry.ID), query) {
+				continue
+			}
+			if request.Held != nil && entry.Held != *request.Held {
+				continue
+			}
+			if request.EffectiveFromUnixMillis > 0 &&
+				entry.EffectiveAtUnixMillis < request.EffectiveFromUnixMillis {
+				continue
+			}
+			if request.EffectiveToUnixMillis > 0 &&
+				entry.EffectiveAtUnixMillis > request.EffectiveToUnixMillis {
+				continue
+			}
+			total++
+			if index < start {
+				continue
+			}
+			filtered = append(filtered, entry)
+		}
 	}
 	limit := request.Limit
 	if limit <= 0 || limit > backupusecase.MaxCheckpointPageSize {
 		return backupusecase.CheckpointPage{}, backupusecase.ErrInvalidRequest
 	}
-	end := start + limit
+	end := limit
 	if end > len(filtered) {
 		end = len(filtered)
 	}
 	page := backupusecase.CheckpointPage{
-		Items: make([]backupusecase.CheckpointSummary, end-start),
-		Total: len(filtered),
+		Items: make([]backupusecase.CheckpointSummary, end),
+		Total: total,
 	}
-	for index, entry := range filtered[start:end] {
+	for index, entry := range filtered[:end] {
 		page.Items[index] = backupusecase.CheckpointSummary{
 			ID: entry.ID, CreatedAtUnixMillis: entry.CreatedAtUnixMillis,
 			EffectiveAtUnixMillis: entry.EffectiveAtUnixMillis, Held: entry.Held,

@@ -53,6 +53,12 @@ type CheckpointListRequest struct {
 	Limit int
 	// IDQuery applies a case-insensitive checkpoint-ID filter.
 	IDQuery string
+	// Held selects the current signed retention decision when non-nil.
+	Held *bool
+	// EffectiveFromUnixMillis and EffectiveToUnixMillis bound the inclusive
+	// recoverable-data time range. Zero leaves the corresponding edge open.
+	EffectiveFromUnixMillis int64
+	EffectiveToUnixMillis   int64
 }
 
 // CheckpointPage is one stable keyset-paged catalog response.
@@ -141,6 +147,13 @@ func (a *App) ListCheckpointsPage(ctx context.Context, request CheckpointListReq
 		return CheckpointPage{}, ErrDisabled
 	}
 	if a.catalogBrowser == nil || request.Limit < 0 || request.Limit > MaxCheckpointPageSize {
+		return CheckpointPage{}, ErrInvalidRequest
+	}
+	if request.EffectiveFromUnixMillis < 0 ||
+		request.EffectiveToUnixMillis < 0 ||
+		(request.EffectiveFromUnixMillis > 0 &&
+			request.EffectiveToUnixMillis > 0 &&
+			request.EffectiveFromUnixMillis > request.EffectiveToUnixMillis) {
 		return CheckpointPage{}, ErrInvalidRequest
 	}
 	if request.Limit == 0 {

@@ -125,9 +125,12 @@ file is not authority: every process cold start walks and authenticates the
 signed dual-repository hash chain through the repair-capable audit reader,
 replacing missing, malformed, injected, or head-inconsistent data. While the
 process remains live, a new head normally extends the authenticated index by
-reading only newly linked pages. The integrity selector consumes a detached
-latest-state reference snapshot from this index; only its digest and fixed
-active-restore ID are persisted in Controller Raft.
+reading only newly linked pages. Manager list reads locate the opaque keyset
+cursor in the authenticated immutable order, then filter later rows by ID
+substring, signed hold state, and inclusive effective time. The anchor remains
+valid when its hold state changes between pages. The integrity selector
+consumes a detached latest-state reference snapshot from this index; only its
+digest and fixed active-restore ID are persisted in Controller Raft.
 
 ## Continuous Sources
 

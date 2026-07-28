@@ -65,7 +65,7 @@ GET  /manager/app-logs/sources (ordinary app log fixed source list; requires clu
 GET  /manager/app-logs (ordinary app log page; requires cluster.log:r when Auth.On=true)
 GET  /manager/app-logs/stream (ordinary app log NDJSON stream; requires cluster.log:r when Auth.On=true)
 GET  /manager/backups/status (cluster backup health, sanitized integrity-audit progress, and non-secret effective policy; requires cluster.backup:r when Auth.On=true)
-GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog; requires cluster.backup:r when Auth.On=true)
+GET  /manager/backups/checkpoints (stable cursor-paged immutable checkpoint catalog with case-insensitive ID-substring, held-state, and inclusive effective-time filters; requires cluster.backup:r when Auth.On=true)
 GET  /manager/backups/checkpoints/:checkpoint_id (exact immutable checkpoint summary; requires cluster.backup:r when Auth.On=true)
 POST /manager/backups/checkpoints (publish one complete current Slot-vector checkpoint; requires cluster.backup:w when Auth.On=true)
 POST /manager/backups/checkpoints/:checkpoint_id/hold (append hold/release state; requires cluster.backup:w when Auth.On=true)
@@ -569,7 +569,11 @@ Normal mode exposes continuous status and the immutable checkpoint catalog
 through `cluster.backup:r`; explicit checkpoint publication uses
 `cluster.backup:w`. The catalog uses an opaque newest-first keyset cursor with
 a default page size of 50 and a hard maximum of 200, backed by a rebuildable
-local derived index. Responses expose bounded identities, timestamps, source
+local derived index. The cursor first locates its anchor in immutable catalog
+order; case-insensitive ID-substring, held-state, and inclusive effective-time
+filters then apply to later rows before the page-size cutoff. Malformed
+booleans, timestamps, or reversed time ranges fail with `400 bad_request`.
+Responses expose bounded identities, timestamps, source
 generation, and Hash Slot count but omit segment, KMS, repository-copy, and
 object details. Backup status and checkpoint detail expose permanent-erasure progress only
 as Hash Slot, committed sequence, and pending state; they never expose Channel
@@ -600,16 +604,28 @@ operators to correlate the separate restore endpoint.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.
-The Web publish action remains disabled until that status reports
-`enabled=true`, so startup configuration cannot present an action that the
-server will reject.
+The Web publish action is hidden until that status reports `enabled=true` and
+the session has `cluster.backup:w`, so startup configuration and read-only
+sessions cannot present an action that the server will reject.
 
-The embedded Web UI exposes `/cluster/backups` with Overview and Checkpoints
-tabs. Overview shows checkpoint, capture lag, audit/repair, compaction, GC, and
-restore state. It never exposes restore mutation, repository selection, or cryptographic
-details. Web writes are forced read-only when Manager authentication is
-disabled, even though the ordinary auth-disabled HTTP behavior remains
-unchanged.
+The embedded Web UI exposes `/cluster/backups` with Overview and Restore points
+tabs. Overview leads with protection health and the latest recoverable time,
+then shows only actionable issues, active restore/audit work, the three newest
+restore points, and collapsed non-secret running configuration. A disabled
+deployment renders one setup guide regardless of the requested tab. The
+restore-point catalog offers case-insensitive ID-substring, held-state, and
+effective-time filters, cursor-based load-more, responsive rows/cards, and a
+detail sheet for recovery eligibility, retention protection, and collapsed
+technical identity.
+`/cluster/backups/recovery/:checkpointId` is a non-navigation recovery guide:
+it reads the exact checkpoint and opaque catalog-head token, keeps the validated
+target Manager URL only in component memory, and generates ordered `wkcli`
+commands for plan, install, verify, source fence, and activation. It never
+accepts, persists, or exports credentials; commands reference terminal
+environment variables, and the browser never executes recovery. It never
+exposes repository selection or cryptographic details. Web writes are forced
+read-only when Manager authentication is disabled, even though the ordinary
+auth-disabled HTTP behavior remains unchanged.
 
 Restore mode registers only permission discovery, the read-only
 `/manager/nodes` inventory needed to observe Controller leadership, the
