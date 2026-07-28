@@ -24,9 +24,11 @@ MAX_GOROUTINES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES:-2000}"
 MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-4294967296}"
 BACKUP_ENABLE="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_ENABLE:-false}"
 BACKUP_BUILD_TAGS="e2e"
+BACKUP_E2E_REVISION=""
 BACKUP_MANAGER_API="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_MANAGER_API:-http://127.0.0.1:5311}"
 BACKUP_CHECKPOINT_INTERVAL="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_CHECKPOINT_INTERVAL:-30s}"
-BACKUP_WAIT_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WAIT_TIMEOUT:-120}"
+BACKUP_WAIT_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WAIT_TIMEOUT:-300}"
+BACKUP_WORKER_COUNT="${WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WORKER_COUNT:-16}"
 AUTO_JOIN_NODE="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE:-false}"
 AUTO_JOIN_AFTER="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_AFTER:-2}"
 AUTO_JOIN_NODE_ID="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE_ID:-4}"
@@ -87,6 +89,8 @@ BACKUP_PREVIOUS_CHECKPOINT_ID=""
 API_VALUES=()
 GATEWAY_VALUES=()
 AUTO_JOIN_SEED_VALUES=()
+CLUSTER_START_ENV=()
+CLUSTER_START_ARGS=()
 
 usage() {
   cat <<'USAGE'
@@ -120,10 +124,11 @@ Options:
   --ready-timeout SECS      Cluster ready wait timeout. Default: 90.
   --poll SECS               Ready polling interval. Default: 1.
   --backup                 Enable isolated local file-backed automatic backup validation.
-                           This builds the product with -tags=e2e, uses two repositories
-                           below OUT_DIR, requires jq, and does not use production object storage.
+                           This builds the product with -tags=e2e, binds it to the
+                           current Git revision, uses two repositories below OUT_DIR,
+                           requires jq, and does not use production object storage.
   --backup-manager-api URL Manager API used to verify local backup. Default: http://127.0.0.1:5311.
-  --backup-wait-timeout N  Seconds to wait for a new checkpoint. Default: 120.
+  --backup-wait-timeout N  Seconds to wait for a new checkpoint. Default: 300.
   --auto-join-node          Start one seed-join data node while wkcli sim is sending.
   --auto-join-after SECS    Seconds after the send phase starts before starting the new node. Default: 2.
   --auto-join-node-id N     Joining node ID. Default: 4.
@@ -293,6 +298,17 @@ backup_repository_root() {
 
 backup_staging_root() {
   printf '%s/backup-staging' "$OUT_DIR"
+}
+
+resolve_backup_e2e_revision() {
+  local revision
+  command -v git >/dev/null 2>&1 ||
+    die '--backup build requires git to resolve the exact source revision'
+  revision="$(git -C "$ROOT_DIR" rev-parse --verify HEAD 2>/dev/null)" ||
+    die '--backup build could not resolve the exact source revision'
+  [[ "$revision" =~ ^[0-9a-fA-F]{40}$ ]] ||
+    die "--backup build resolved an invalid Git revision: $revision"
+  printf '%s' "$revision"
 }
 
 backup_status_file() {
@@ -470,7 +486,7 @@ cluster_profile_env() {
       "WK_BACKUP_TARGET_SEGMENT_BYTES=8388608" \
       "WK_BACKUP_MAX_SEGMENT_OPEN_DURATION=5s" \
       "WK_BACKUP_STAGING_MAX_BYTES=1073741824" \
-      "WK_BACKUP_WORKER_COUNT=2" \
+      "WK_BACKUP_WORKER_COUNT=$BACKUP_WORKER_COUNT" \
       "WK_BACKUP_AUDIT_INTERVAL=500ms" \
       "WK_BACKUP_AUDIT_SCRUB_INTERVAL=24h" \
       "WK_BACKUP_GARBAGE_COLLECTION_INTERVAL=1h" \
@@ -496,22 +512,44 @@ cluster_profile_env() {
   fi
 }
 
-cluster_start_env_preview() {
+prepare_cluster_start_command() {
   local assignment
-  local envs=()
+  CLUSTER_START_ENV=()
+  CLUSTER_START_ARGS=()
+  if [[ "$START_CLUSTER" -eq 0 ]]; then
+    return
+  fi
   while IFS= read -r assignment; do
-    envs+=("$assignment")
+    CLUSTER_START_ENV+=("$assignment")
   done < <(cluster_profile_env)
   if [[ "$FAULT_KILL_NODE" == "true" ]]; then
-    [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
-    [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && envs+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL" ]] && envs+=("WK_CHANNEL_MIGRATION_SCAN_INTERVAL=$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] && envs+=("WK_CHANNEL_MIGRATION_SCAN_LIMIT=$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && envs+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && envs+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
+    [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && CLUSTER_START_ENV+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
+    [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && CLUSTER_START_ENV+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL" ]] && CLUSTER_START_ENV+=("WK_CHANNEL_MIGRATION_SCAN_INTERVAL=$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] && CLUSTER_START_ENV+=("WK_CHANNEL_MIGRATION_SCAN_LIMIT=$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && CLUSTER_START_ENV+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && CLUSTER_START_ENV+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
+    [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && CLUSTER_START_ENV+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
   fi
-  printf '%s' "${envs[*]}"
+
+  CLUSTER_START_ARGS=("$START_SCRIPT")
+  if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
+    CLUSTER_START_ARGS+=(--clean)
+  fi
+  CLUSTER_START_ARGS+=(--ready-timeout "$READY_TIMEOUT" --bin "$(cluster_bin)" --log-dir "$(node_log_dir)")
+  if [[ "$BACKUP_ENABLE" == "true" ]]; then
+    CLUSTER_START_ARGS+=(--build-tags "$BACKUP_BUILD_TAGS")
+    if [[ "$BUILD_CLUSTER" -eq 1 ]]; then
+      CLUSTER_START_ARGS+=(--backup-e2e-revision "$BACKUP_E2E_REVISION")
+    fi
+    CLUSTER_START_ARGS+=(--backup-staging-root "$(backup_staging_root)")
+  fi
+  if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
+    CLUSTER_START_ARGS+=(--no-build)
+  fi
+  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
+    CLUSTER_START_ARGS+=(--pid-dir "$FAULT_PID_DIR" --allow-node-exit "$FAULT_NODE_ID")
+  fi
 }
 
 print_start_cmd() {
@@ -519,20 +557,9 @@ print_start_cmd() {
     printf 'start_cmd=<disabled>\n'
     return
   fi
-  printf 'start_cmd=env %s %s' "$(cluster_start_env_preview)" "$START_SCRIPT"
-  if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
-    printf ' --clean'
-  fi
-  printf ' --ready-timeout %s --bin %s --log-dir %s' "$READY_TIMEOUT" "$(cluster_bin)" "$(node_log_dir)"
-  if [[ "$BACKUP_ENABLE" == "true" ]]; then
-    printf ' --build-tags %s --backup-staging-root %s' "$BACKUP_BUILD_TAGS" "$(backup_staging_root)"
-  fi
-  if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
-    printf ' --no-build'
-  fi
-  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
-    printf ' --pid-dir %s --allow-node-exit %s' "$FAULT_PID_DIR" "$FAULT_NODE_ID"
-  fi
+  printf 'start_cmd=env'
+  printf ' %s' "${CLUSTER_START_ENV[@]}"
+  printf ' %s' "${CLUSTER_START_ARGS[@]}"
   printf '\n'
 }
 
@@ -623,6 +650,13 @@ print_plan() {
   printf 'backup_repository_root=%s\n' "$(backup_repository_root)"
   printf 'backup_staging_root=%s\n' "$(backup_staging_root)"
   printf 'backup_build_tags=%s\n' "$BACKUP_BUILD_TAGS"
+  if [[ "$BACKUP_ENABLE" == "true" && "$BUILD_CLUSTER" -eq 1 ]]; then
+    printf 'backup_e2e_revision=%s\n' "$BACKUP_E2E_REVISION"
+  elif [[ "$BACKUP_ENABLE" == "true" ]]; then
+    printf 'backup_e2e_revision=<prebuilt>\n'
+  else
+    printf 'backup_e2e_revision=<disabled>\n'
+  fi
   printf 'backup_manager_api=%s\n' "$BACKUP_MANAGER_API"
   printf 'backup_checkpoint_interval=%s\n' "$BACKUP_CHECKPOINT_INTERVAL"
   printf 'backup_wait_timeout_secs=%s\n' "$BACKUP_WAIT_TIMEOUT"
@@ -1065,6 +1099,7 @@ require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT' "$GATEWAY_SEND_
 require_nonempty 'WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT' "$SIM_ACK_TIMEOUT"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_BACKUP_ENABLE' "$BACKUP_ENABLE"
 require_positive_uint '--backup-wait-timeout' "$BACKUP_WAIT_TIMEOUT"
+require_positive_uint 'WK_WKCLI_SIM_THREE_SMOKE_BACKUP_WORKER_COUNT' "$BACKUP_WORKER_COUNT"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE' "$AUTO_JOIN_NODE"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER' "$AUTO_PROMOTE_CONTROLLER_VOTER"
 require_bool 'WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_MANAGER_AUTH' "$AUTO_PROMOTE_MANAGER_AUTH"
@@ -1097,6 +1132,9 @@ BACKUP_MANAGER_API="${BACKUP_MANAGER_API%/}"
 if [[ "$BACKUP_ENABLE" == "true" ]]; then
   require_nonempty '--backup-manager-api' "$BACKUP_MANAGER_API"
   [[ "$START_CLUSTER" -eq 1 ]] || die '--backup requires the script to start its isolated cluster'
+  if [[ "$BUILD_CLUSTER" -eq 1 ]]; then
+    BACKUP_E2E_REVISION="$(resolve_backup_e2e_revision)"
+  fi
 fi
 if [[ "$AUTO_JOIN_NODE" == "true" ]]; then
   require_nonempty '--auto-join-api' "$AUTO_JOIN_API_ADDR"
@@ -1128,6 +1166,7 @@ if [[ "$FAULT_KILL_NODE" == "true" ]]; then
   esac
   require_nonempty '--fault-pid-dir' "$FAULT_PID_DIR"
 fi
+prepare_cluster_start_command
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
@@ -1177,8 +1216,7 @@ start_cluster() {
     log 'using already-running cluster'
     return
   fi
-  local args=("$START_SCRIPT")
-  local assignment
+  local args=("${CLUSTER_START_ARGS[@]}")
   local exported_name
   local env_args=()
   while IFS= read -r exported_name; do
@@ -1186,29 +1224,7 @@ start_cluster() {
       WK_WKCLI_SIM_THREE_SMOKE_*) env_args+=("-u" "$exported_name") ;;
     esac
   done < <(compgen -e)
-  while IFS= read -r assignment; do
-    env_args+=("$assignment")
-  done < <(cluster_profile_env)
-  if [[ "$CLEAN_CLUSTER" -eq 1 ]]; then
-    args+=(--clean)
-  fi
-  args+=(--ready-timeout "$READY_TIMEOUT" --bin "$(cluster_bin)" --log-dir "$(node_log_dir)")
-  if [[ "$BACKUP_ENABLE" == "true" ]]; then
-    args+=(--build-tags "$BACKUP_BUILD_TAGS" --backup-staging-root "$(backup_staging_root)")
-  fi
-  if [[ "$BUILD_CLUSTER" -eq 0 ]]; then
-    args+=(--no-build)
-  fi
-  if [[ "$FAULT_KILL_NODE" == "true" ]]; then
-    args+=(--pid-dir "$FAULT_PID_DIR" --allow-node-exit "$FAULT_NODE_ID")
-    [[ -n "$FAULT_HEALTH_REPORT_INTERVAL" ]] && env_args+=("WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL=$FAULT_HEALTH_REPORT_INTERVAL")
-    [[ -n "$FAULT_HEALTH_REPORT_TTL" ]] && env_args+=("WK_CLUSTER_NODE_HEALTH_REPORT_TTL=$FAULT_HEALTH_REPORT_TTL")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL" ]] && env_args+=("WK_CHANNEL_MIGRATION_SCAN_INTERVAL=$FAULT_CHANNEL_MIGRATION_SCAN_INTERVAL")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] && env_args+=("WK_CHANNEL_MIGRATION_SCAN_LIMIT=$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK" ]] && env_args+=("WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK=$FAULT_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK")
-    [[ -n "$FAULT_CHANNEL_MIGRATION_TASK_LIMIT" ]] && env_args+=("WK_CHANNEL_MIGRATION_TASK_LIMIT=$FAULT_CHANNEL_MIGRATION_TASK_LIMIT")
-  fi
+  env_args+=("${CLUSTER_START_ENV[@]}")
   log "starting three-node cluster: $START_SCRIPT"
   (
     cd "$ROOT_DIR"
@@ -1707,14 +1723,29 @@ backup_manager_get() {
     "$BACKUP_MANAGER_API$path" >"$output"
 }
 
-backup_checkpoint_healthy() {
+backup_checkpoint_available() {
   local input="$1"
   jq -e '
     (.enabled == true) and
-    (.health == "healthy") and
-    ((.checkpoint_age_seconds | type) == "number") and
+    (.running == true) and
+    (.capture_status_complete == true) and
+    (((.capture_status_missing_node_ids // []) | length) == 0) and
+    (((.capture_status_missing_slots // []) | length) == 0) and
     ((.latest_checkpoint.id | type) == "string") and
-    ((.latest_checkpoint.id | length) > 0)
+    ((.latest_checkpoint.id | length) > 0) and
+    (
+      (.health == "healthy") or
+      (
+        (.health == "degraded") and
+        (.failure_category == null) and
+        ((.checkpoint_age_seconds | type) == "number") and
+        ((.max_checkpoint_age_seconds | type) == "number") and
+        (.checkpoint_age_seconds > .max_checkpoint_age_seconds) and
+        ((.integrity_audit.debt_objects // 0) == 0) and
+        ((.compaction.debt_slots // 0) == 0) and
+        ((.garbage_collection.debt_repositories // 0) == 0)
+      )
+    )
   ' "$input" >/dev/null 2>&1
 }
 
@@ -1753,7 +1784,7 @@ capture_backup_baseline() {
   fi
 }
 
-wait_backup_checkpoint_health() {
+wait_backup_checkpoint_available() {
   if [[ "$BACKUP_ENABLE" != "true" ]]; then
     return
   fi
@@ -1767,15 +1798,15 @@ wait_backup_checkpoint_health() {
       if jq -e '.enabled == false' "$output" >/dev/null 2>&1; then
         die 'local backup remained disabled after backup-enabled startup'
       fi
-      if backup_checkpoint_healthy "$output"; then
+      if backup_checkpoint_available "$output"; then
         capture_backup_baseline
-        log 'local backup checkpoint healthy'
+        log 'local backup checkpoint available'
         return
       fi
     fi
     backup_poll_sleep
   done
-  die "local backup checkpoint did not become healthy within ${BACKUP_WAIT_TIMEOUT}s"
+  die "local backup checkpoint did not become available within ${BACKUP_WAIT_TIMEOUT}s"
 }
 
 wait_backup_checkpoint() {
@@ -2176,7 +2207,7 @@ write_summary() {
 
 start_cluster
 wait_ready
-wait_backup_checkpoint_health
+wait_backup_checkpoint_available
 capture_target_evidence
 capture_metrics before
 run_sim

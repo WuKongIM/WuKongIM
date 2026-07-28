@@ -267,6 +267,55 @@ func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuildAndIsolatedBackupStaging(
 	}
 }
 
+func TestWukongIMThreeNodeScriptDryRunPrintsLocalE2EBackupBuild(t *testing.T) {
+	root := repoRoot(t)
+	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	const revision = "0123456789abcdef0123456789abcdef01234567"
+	gitDirCommand := exec.Command("git", "rev-parse", "--absolute-git-dir")
+	gitDirCommand.Dir = root
+	gitDirOutput, err := gitDirCommand.Output()
+	if err != nil {
+		t.Fatalf("resolve worktree Git directory: %v", err)
+	}
+	gitDir := strings.TrimSpace(string(gitDirOutput))
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+		"--dry-run",
+		"--build-tags", "e2e",
+		"--backup-e2e-revision", revision,
+		"--bin", outputBin,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("dry-run failed: %v\n%s", err, output)
+	}
+	want := "build_cmd=env GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root +
+		" go build -tags=e2e -ldflags=-X=github.com/WuKongIM/WuKongIM/internal/app.backupLocalE2ERevision=" +
+		revision + " -o " + outputBin + " ./cmd/wukongim"
+	if text := string(output); !strings.Contains(text, want) {
+		t.Fatalf("dry-run output missing %q:\n%s", want, text)
+	}
+}
+
+func TestWukongIMThreeNodeScriptRejectsLocalBackupRevisionWithoutE2ETag(t *testing.T) {
+	root := repoRoot(t)
+	const revision = "0123456789abcdef0123456789abcdef01234567"
+
+	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
+		"--dry-run",
+		"--backup-e2e-revision", revision,
+	)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("qualified backup build without e2e tag should fail:\n%s", output)
+	}
+	if text := string(output); !strings.Contains(text, "--backup-e2e-revision requires the e2e build tag") {
+		t.Fatalf("unexpected qualification error:\n%s", text)
+	}
+}
+
 func TestWukongIMThreeNodeScriptRejectsEmptyDataRoot(t *testing.T) {
 	root := repoRoot(t)
 	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh", "--dry-run", "--data-root", "")
