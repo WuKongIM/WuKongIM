@@ -1413,6 +1413,33 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 			}
 		}
 	}
+	goE2EBuild := workflow.Jobs["go-e2e"]
+	var buildE2EBinary *ciStep
+	for index := range goE2EBuild.Steps {
+		if goE2EBuild.Steps[index].Name == "Build e2e binary once" {
+			buildE2EBinary = &goE2EBuild.Steps[index]
+			break
+		}
+	}
+	if buildE2EBinary == nil {
+		return fmt.Errorf("Agent validation Go e2e job has no shared binary build step")
+	}
+	wantBuildEnv := map[string]string{
+		"MERGE_SHA": "${{ github.event.client_payload.merge_sha }}",
+	}
+	if !reflect.DeepEqual(buildE2EBinary.Env, wantBuildEnv) {
+		return fmt.Errorf(
+			"Agent validation Go e2e binary build env = %#v, want %#v",
+			buildE2EBinary.Env,
+			wantBuildEnv,
+		)
+	}
+	if !strings.Contains(
+		buildE2EBinary.Run,
+		`-ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${MERGE_SHA}"`,
+	) {
+		return fmt.Errorf("Agent validation Go e2e binary is not qualified for the frozen test-merge revision")
+	}
 	gate, ok := workflow.Jobs["gate"]
 	if !ok {
 		return fmt.Errorf("Agent validation workflow gate job is missing")
