@@ -290,7 +290,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsLocalE2EBackupBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dry-run failed: %v\n%s", err, output)
 	}
-	want := "build_cmd=env GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root +
+	want := "build_cmd=env GOWORK=off GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root +
 		" go build -tags=e2e -ldflags=-X=github.com/WuKongIM/WuKongIM/internal/app.backupLocalE2ERevision=" +
 		revision + " -o " + outputBin + " ./cmd/wukongim"
 	if text := string(output); !strings.Contains(text, want) {

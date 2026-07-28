@@ -211,6 +211,7 @@ prepare_build_command() {
   if [[ -n "$BACKUP_E2E_REVISION" ]]; then
     BUILD_COMMAND=(
       env
+      "GOWORK=off"
       "GIT_DIR=$BACKUP_E2E_GIT_DIR"
       "GIT_WORK_TREE=$ROOT_DIR"
       go build

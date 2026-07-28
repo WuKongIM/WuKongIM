@@ -45,7 +45,10 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 
 	build := exec.Command("bash", "-c", buildCommand)
 	build.Dir = root
-	build.Env = append(envWithout("GOWORK"), "GOWORK=off")
+	build.Env = append(
+		envWithout("GOWORK"),
+		"GOWORK="+filepath.Join(t.TempDir(), "missing-go.work"),
+	)
 	buildOutput, err := build.CombinedOutput()
 	if err != nil {
 		t.Fatalf("build local e2e binary: %v\n%s", err, buildOutput)
