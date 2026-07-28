@@ -172,8 +172,11 @@ The repository currently uses the `first_time_contributors` approval policy.
 Adding `agent-ci/run` is the Agent's approval decision for the bounded,
 read-only test worker. Before doing so, the Agent must confirm that the PR does
 not weaken the control Workflow, request Secrets, add write permissions, or
-introduce deployment behavior. Workflow and CODEOWNERS changes also require an
-independent Code Owner review.
+introduce deployment behavior. Workflow and CODEOWNERS changes require an
+explicit Agent review recorded on the pull request before `agent-ci/run` is
+added. The Agent may perform and approve that review itself; no named GitHub
+user or Code Owner approval is required by branch protection. CODEOWNERS
+remains review-routing metadata, not a merge gate.
 
 ## Migration state
 

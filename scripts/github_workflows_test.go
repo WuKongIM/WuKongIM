@@ -834,6 +834,19 @@ func TestAgentWorkflowCatalogContract(t *testing.T) {
 			t.Errorf("workflow catalog is missing %q", required)
 		}
 	}
+	normalizedCatalog := strings.Join(strings.Fields(catalog), " ")
+	for _, required := range []string{
+		"The Agent may perform and approve that review itself",
+		"no named GitHub user or Code Owner approval",
+		"CODEOWNERS remains review-routing metadata",
+	} {
+		if !strings.Contains(normalizedCatalog, required) {
+			t.Errorf("workflow catalog is missing %q", required)
+		}
+	}
+	if strings.Contains(catalog, "independent Code Owner review") {
+		t.Error("workflow catalog still requires an independent Code Owner review")
+	}
 	for _, workflowPath := range []string{
 		".github/workflows/cloud-sim-analyze.yml",
 		".github/workflows/cloud-sim-cleanup.yml",
