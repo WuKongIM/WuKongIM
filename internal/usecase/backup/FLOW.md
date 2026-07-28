@@ -31,7 +31,9 @@ Current flow:
 4. `ListCheckpointsPage` and `CheckpointByID` read immutable history through an
    injected rebuildable catalog browser. Every page returns a versioned opaque
    catalog-head token that pins the exact immutable discovery window without
-   exposing repository object coordinates.
+   exposing repository object coordinates. List requests may filter by a
+   case-insensitive ID substring, current signed hold state, and inclusive
+   effective-time bounds; invalid or reversed ranges fail before storage access.
 5. `DecideCheckpointRetention` applies UTC five-minute, hourly, daily, and
    optional monthly tiers. The newest checkpoint, operator holds, and the
    active restore checkpoint are protected. The result is a sparse Generation

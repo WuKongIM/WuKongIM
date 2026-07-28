@@ -9,6 +9,11 @@ type RouteGateProps = {
   children: ReactNode
 }
 
+function isReadonlyBackupPath(pathname: string) {
+  return pathname === "/cluster/backups" ||
+    /^\/cluster\/backups\/recovery\/[^/]+$/.test(pathname)
+}
+
 export function ProtectedRoute({ children }: RouteGateProps) {
   const isHydrated = useAuthStore((state) => state.isHydrated)
   const status = useAuthStore((state) => state.status)
@@ -46,7 +51,7 @@ export function ProtectedRoute({ children }: RouteGateProps) {
   }
 
   if (status === "readonly") {
-    return location.pathname === "/cluster/backups"
+    return isReadonlyBackupPath(location.pathname)
       ? <>{children}</>
       : <Navigate replace to="/cluster/backups" />
   }

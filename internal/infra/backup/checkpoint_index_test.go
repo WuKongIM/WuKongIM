@@ -182,6 +182,88 @@ func TestCheckpointCatalogIndexReplaysSignedHoldAndReleaseState(t *testing.T) {
 	require.False(t, page.Items[1].Held)
 }
 
+func TestCheckpointCatalogIndexFiltersBeforeCursorPagination(t *testing.T) {
+	catalog, indexPath := newCheckpointIndexFixture(t)
+	var head *backupartifact.CatalogPageReference
+	var checkpointThree backupartifact.CatalogCheckpointReference
+	var checkpointFour backupartifact.CatalogCheckpointReference
+	for sequence := 1; sequence <= 4; sequence++ {
+		commit, err := catalog.Publish(
+			context.Background(),
+			catalogTestCheckpoint(
+				"checkpoint-"+string(rune('0'+sequence)),
+				1_753_400_200_000+int64(sequence)*1_000,
+			),
+			head,
+		)
+		require.NoError(t, err)
+		if sequence == 3 {
+			checkpointThree = commit.Checkpoint
+		}
+		if sequence == 4 {
+			checkpointFour = commit.Checkpoint
+		}
+		head = &commit.Head
+	}
+	heldFour, err := catalog.SetCheckpointHold(
+		context.Background(),
+		checkpointFour,
+		true,
+		1_753_400_205_000,
+		head,
+	)
+	require.NoError(t, err)
+	heldThree, err := catalog.SetCheckpointHold(
+		context.Background(),
+		checkpointThree,
+		true,
+		1_753_400_206_000,
+		&heldFour.Head,
+	)
+	require.NoError(t, err)
+	index, err := backupinfra.NewCheckpointCatalogIndex(catalog, indexPath)
+	require.NoError(t, err)
+
+	first, err := index.List(
+		context.Background(),
+		heldThree.Head,
+		backupusecase.CheckpointListRequest{
+			Limit:                   1,
+			Held:                    boolPointer(true),
+			EffectiveFromUnixMillis: 1_753_400_202_000,
+			EffectiveToUnixMillis:   1_753_400_204_000,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, []string{"checkpoint-4"}, checkpointPageIDs(first))
+	require.NotEmpty(t, first.NextCursor)
+	require.Equal(t, 2, first.Total)
+
+	releasedFour, err := catalog.SetCheckpointHold(
+		context.Background(),
+		heldFour.Checkpoint,
+		false,
+		1_753_400_207_000,
+		&heldThree.Head,
+	)
+	require.NoError(t, err)
+	second, err := index.List(
+		context.Background(),
+		releasedFour.Head,
+		backupusecase.CheckpointListRequest{
+			Limit:                   1,
+			Cursor:                  first.NextCursor,
+			Held:                    boolPointer(true),
+			EffectiveFromUnixMillis: 1_753_400_202_000,
+			EffectiveToUnixMillis:   1_753_400_204_000,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, []string{"checkpoint-3"}, checkpointPageIDs(second))
+	require.Empty(t, second.NextCursor)
+	require.Equal(t, 1, second.Total)
+}
+
 func newCheckpointIndexFixture(t *testing.T) (*backupinfra.ReplicatedCheckpointCatalog, string) {
 	t.Helper()
 	primary, err := backupinfra.NewFileRepository("primary", t.TempDir())
@@ -191,6 +273,10 @@ func newCheckpointIndexFixture(t *testing.T) (*backupinfra.ReplicatedCheckpointC
 	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(primary, secondary, newCatalogTestSigner())
 	require.NoError(t, err)
 	return catalog, filepath.Join(t.TempDir(), "checkpoint-index.json")
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }
 
 func checkpointPageIDs(page backupusecase.CheckpointPage) []string {

@@ -229,6 +229,43 @@ func (s *Server) handleBackupCheckpoints(c *gin.Context) {
 		}
 		request.Limit = limit
 	}
+	if raw, present := c.GetQuery("held"); present {
+		var held bool
+		switch strings.TrimSpace(raw) {
+		case "true":
+			held = true
+		case "false":
+			held = false
+		default:
+			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint held filter")
+			return
+		}
+		request.Held = &held
+	}
+	for _, filter := range []struct {
+		name   string
+		target *int64
+	}{
+		{name: "effective_from", target: &request.EffectiveFromUnixMillis},
+		{name: "effective_to", target: &request.EffectiveToUnixMillis},
+	} {
+		raw, present := c.GetQuery(filter.name)
+		if !present {
+			continue
+		}
+		value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+		if err != nil || value < 0 {
+			jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint time filter")
+			return
+		}
+		*filter.target = value
+	}
+	if request.EffectiveFromUnixMillis > 0 &&
+		request.EffectiveToUnixMillis > 0 &&
+		request.EffectiveFromUnixMillis > request.EffectiveToUnixMillis {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid checkpoint time range")
+		return
+	}
 	page, err := s.backup.ListCheckpointsPage(c.Request.Context(), request)
 	if err != nil {
 		writeBackupError(c, err)

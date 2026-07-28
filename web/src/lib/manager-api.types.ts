@@ -2270,6 +2270,13 @@ export type ManagerBackupCheckpoint = {
   held: boolean
 }
 
+export type ManagerBackupCheckpointDetail = ManagerBackupCheckpoint & {
+  source_cluster_id: string
+  source_generation: string
+  hash_slot_count: number
+  erasure_streams: ManagerBackupErasureStream[]
+}
+
 export type ManagerBackupCaptureLease = {
   hash_slot: number
   slot_id: number
@@ -2400,6 +2407,9 @@ export type BackupCheckpointListParams = {
   limit?: number
   cursor?: string
   id?: string
+  held?: boolean
+  effectiveFrom?: number
+  effectiveTo?: number
 }
 
 export type ManagerBackupCheckpointPublication = {

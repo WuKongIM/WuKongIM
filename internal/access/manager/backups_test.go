@@ -249,7 +249,7 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 		recorder,
 		httptest.NewRequest(
 			http.MethodGet,
-			"/manager/backups/checkpoints?limit=999&cursor=opaque&id=POINT",
+			"/manager/backups/checkpoints?limit=999&cursor=opaque&id=POINT&held=true&effective_from=100&effective_to=200",
 			nil,
 		),
 	)
@@ -257,6 +257,12 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 	require.Equal(t, backupusecase.MaxCheckpointPageSize,
 		provider.checkpointListRequest.Limit)
 	require.Equal(t, "opaque", provider.checkpointListRequest.Cursor)
+	require.NotNil(t, provider.checkpointListRequest.Held)
+	require.True(t, *provider.checkpointListRequest.Held)
+	require.Equal(t, int64(100),
+		provider.checkpointListRequest.EffectiveFromUnixMillis)
+	require.Equal(t, int64(200),
+		provider.checkpointListRequest.EffectiveToUnixMillis)
 	require.Contains(t, recorder.Body.String(),
 		`"catalog_head_token":"opaque-catalog-head"`)
 	require.NotContains(t, recorder.Body.String(), "catalog/pages/")
@@ -272,6 +278,46 @@ func TestManagerBackupCheckpointsSupportsStablePageAndExactQuery(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Body.String(), `"hash_slot_count":256`)
 	require.NotContains(t, recorder.Body.String(), "commit_sha256")
+}
+
+func TestManagerBackupCheckpointFiltersRejectInvalidInputAndRequireReadPermission(t *testing.T) {
+	provider := &fakeBackupManagement{}
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{
+			{Username: "reader", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"r"}}}},
+			{Username: "writer", Password: "secret", Permissions: []PermissionConfig{{Resource: "cluster.backup", Actions: []string{"w"}}}},
+		}),
+		Backup: provider,
+	})
+	call := func(user, target string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, target, nil)
+		request.Header.Set(
+			"Authorization", "Bearer "+mustIssueTestToken(t, srv, user),
+		)
+		srv.Engine().ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	require.Equal(
+		t, http.StatusForbidden,
+		call("writer", "/manager/backups/checkpoints").Code,
+	)
+	for _, target := range []string{
+		"/manager/backups/checkpoints?held=maybe",
+		"/manager/backups/checkpoints?held=1",
+		"/manager/backups/checkpoints?effective_from=invalid",
+		"/manager/backups/checkpoints?effective_from=200&effective_to=100",
+	} {
+		require.Equal(t, http.StatusBadRequest, call("reader", target).Code, target)
+	}
+	require.Equal(
+		t, http.StatusOK,
+		call(
+			"reader",
+			"/manager/backups/checkpoints?held=false&effective_from=100&effective_to=200",
+		).Code,
+	)
 }
 
 func TestManagerCheckpointHoldUsesBoundedContinuousSurface(t *testing.T) {
