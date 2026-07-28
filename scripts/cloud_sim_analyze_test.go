@@ -1565,7 +1565,7 @@ func TestCloudSimulationAnalyzeDefersRemediationUntilProviderRelease(t *testing.
 		"cloud-remediation",
 		" worktree add -b ",
 		" push --no-verify ",
-		"gh workflow run ci.yml",
+		"agent-ci/run",
 		"gh pr create",
 	} {
 		if strings.Contains(callText, forbidden) {
@@ -1823,10 +1823,6 @@ case "$1" in
   repo) printf '%s\n' example/project ;;
   api) printf '%s\n' '{}' ;;
   workflow)
-    if [[ "$*" == *"ci.yml"* ]]; then
-      printf '%s' 104 >"$WK_ANALYZE_STATE_DIR/ci-run-id"
-      exit 0
-    fi
     operation=""
     request_id=""
     for argument in "$@"; do
@@ -1852,10 +1848,6 @@ case "$1" in
   run)
     case "$2" in
       list)
-        if [[ "$*" == *"ci.yml"* ]]; then
-          jq -cn '[{databaseId:104,headSha:"dddddddddddddddddddddddddddddddddddddddd"}]'
-          exit 0
-        fi
         operation="$(cat "$WK_ANALYZE_STATE_DIR/operation")"
         if [[ "$operation" == close && -n "${WK_ANALYZE_CLOSE_LIST_FAILURES:-}" ]]; then
           failure_count_file="$WK_ANALYZE_STATE_DIR/close-list-failure-count"

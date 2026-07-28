@@ -274,7 +274,7 @@ func TestCloudSimulationFinalizeWaitsAnalyzesCleansAndVerifiesRelease(t *testing
 				t.Fatalf("analysis call count = %d, want %d:\n%s", got, testCase.wantAnalyzeCalls, calls)
 			}
 			if strings.Contains(calls, "--allow-fix-pr") || strings.Contains(calls, "cloud-remediation") ||
-				strings.Contains(calls, "workflow run ci.yml") {
+				strings.Contains(calls, "agent-ci/run") {
 				t.Fatalf("finalize ran optional remediation before exact Cleanup:\n%s", calls)
 			}
 			cleanupRequest := regexp.MustCompile(`(?m)^gh workflow run cloud-sim-cleanup\.yml .* -f request_id=finalize-[0-9a-f]{16}$`)
