@@ -18,10 +18,7 @@ import (
 
 const ossChecksumMetadataKey = "wukongim-sha256"
 
-const (
-	ossLeastPrivilegeProbeKey = "qualification/least-privilege/permission-probe"
-	ossLeastPrivilegeVersion  = "00000000000000000000000000000000"
-)
+const ossLeastPrivilegeProbeKey = "qualification/least-privilege/permission-probe"
 
 // OSSClient is the narrow Alibaba Cloud OSS SDK surface required by backup.
 type OSSClient interface {
@@ -137,27 +134,27 @@ func NewOSSRepairRepository(options OSSRepairRepositoryOptions) (*OSSRepairRepos
 }
 
 // QualifyOrdinaryRoleLeastPrivilege proves that an ordinary capture/restore
-// role cannot delete immutable object versions.
+// role cannot delete repository objects.
 func (r *OSSRepository) QualifyOrdinaryRoleLeastPrivilege(
 	ctx context.Context,
 ) error {
 	if r == nil {
 		return fmt.Errorf("backup OSS repository: ordinary role is unavailable")
 	}
-	return qualifyOSSVersionDeleteDenied(
+	return qualifyOSSObjectDeleteDenied(
 		ctx, r.client, r.bucket, r.prefix, "ordinary",
 	)
 }
 
 // QualifyRepairRoleLeastPrivilege proves that the repair writer cannot delete
-// immutable object versions.
+// repository objects.
 func (r *OSSRepairRepository) QualifyRepairRoleLeastPrivilege(
 	ctx context.Context,
 ) error {
 	if r == nil || r.repository == nil {
 		return fmt.Errorf("backup OSS repair repository: repair role is unavailable")
 	}
-	return qualifyOSSVersionDeleteDenied(
+	return qualifyOSSObjectDeleteDenied(
 		ctx, r.client, r.repository.bucket, r.repository.prefix, "repair",
 	)
 }
@@ -185,7 +182,7 @@ func (r *OSSRepository) QualifyGarbageRoleLeastPrivilege(
 	)
 }
 
-func qualifyOSSVersionDeleteDenied(
+func qualifyOSSObjectDeleteDenied(
 	ctx context.Context,
 	client OSSClient,
 	bucket string,
@@ -198,15 +195,12 @@ func qualifyOSSVersionDeleteDenied(
 	_, err := client.DeleteObject(ctx, &oss.DeleteObjectRequest{
 		Bucket: ossString(bucket),
 		Key:    ossString(path.Join(prefix, ossLeastPrivilegeProbeKey)),
-		// The probe targets a guaranteed-absent explicit version, so even an
-		// over-privileged role cannot create a delete marker or alter data.
-		VersionId: ossString(ossLeastPrivilegeVersion),
 	})
 	if ossErrorCode(err) == "AccessDenied" {
 		return nil
 	}
 	return fmt.Errorf(
-		"backup OSS repository: %s role is over-privileged: version deletion must be denied",
+		"backup OSS repository: %s role is over-privileged: object deletion must be denied",
 		role,
 	)
 }

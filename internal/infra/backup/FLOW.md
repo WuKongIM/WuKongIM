@@ -244,7 +244,11 @@ creates, lists, and removes one delete marker. This proves list,
 `DeleteObject`, and exact-version deletion through the garbage role without
 creating or deleting any data-object version. A failed delete leaves at most
 one marker in that node's slot; the next startup must clear it before creating
-another, and startup fails closed if any operation is denied.
+another, and startup fails closed if any operation is denied. Ordinary and
+repair adapters separately require an `AccessDenied` response from a
+`DeleteObject` request against their dedicated absent qualification key. This
+enforces the stronger rule that neither role has any delete capability and
+avoids relying on an absent-version response, which OSS treats idempotently.
 The reusable `pkg/backup/keypackage` authority discovers exactly one protected
 credential named `wukongim-backup-key-package`, authenticates all package
 fields with an independent HMAC-SHA256 package key, validates its repository

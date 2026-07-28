@@ -47,9 +47,11 @@ independent jobs pass:
    list, and remove an OSS delete marker at startup, proving list,
    `DeleteObject`, and exact-version delete permissions without touching a
    data-object version. Negative probes additionally require ordinary and
-   repair roles to be denied exact-version deletion and require garbage roles
+   repair roles to be denied `DeleteObject` entirely and require garbage roles
    to be denied object-body reads; administrator or wildcard data roles fail
-   qualification. The positive garbage probe uses one stable slot per node and clears any
+   qualification. This stronger separation also covers providers that authorize
+   version-qualified deletion as `DeleteObject`. The positive garbage probe uses
+   one stable slot per node and clears any
    stale marker before creating another, so failed startups cannot grow an
    unbounded marker history.
 
@@ -158,6 +160,8 @@ roles. The application refreshes one-hour STS sessions and never gives
 ordinary capture credentials a delete capability. All three repository roles
 are required for each Alibaba copy when automatic backup is enabled; restore
 requires only ordinary repository access plus the same deployment key package.
+Ordinary and repair policies must explicitly deny both `oss:DeleteObject` and
+`oss:DeleteObjectVersion`; only the garbage role receives delete permissions.
 Each ordinary access role needs `oss:GetObjectVersion` in addition to
 `oss:GetObject`: reads first obtain authoritative current-version metadata and
 then pin the body request to that exact `versionId`, preventing a concurrent

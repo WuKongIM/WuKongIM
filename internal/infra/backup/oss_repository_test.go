@@ -309,11 +309,12 @@ func TestOSSRepositoryLeastPrivilegeProbesRejectBroadRoles(t *testing.T) {
 	}
 
 	t.Run("ordinary role", func(t *testing.T) {
-		restricted := newRepository(t, &fakeOSSClient{
-			deleteVersionErr: accessDenied,
-		})
+		restrictedClient := &fakeOSSClient{deleteErr: accessDenied}
+		restricted := newRepository(t, restrictedClient)
 		require.NoError(t,
 			restricted.QualifyOrdinaryRoleLeastPrivilege(context.Background()))
+		require.NotNil(t, restrictedClient.lastDelete)
+		require.Empty(t, derefOSSTest(restrictedClient.lastDelete.VersionId))
 
 		broad := newRepository(t, &fakeOSSClient{})
 		require.Error(t,
@@ -322,15 +323,16 @@ func TestOSSRepositoryLeastPrivilegeProbesRejectBroadRoles(t *testing.T) {
 
 	t.Run("repair role", func(t *testing.T) {
 		ordinary := newRepository(t, &fakeOSSClient{})
+		restrictedClient := &fakeOSSClient{deleteErr: accessDenied}
 		restricted, err := NewOSSRepairRepository(OSSRepairRepositoryOptions{
 			Repository: ordinary,
-			Client: &fakeOSSClient{
-				deleteVersionErr: accessDenied,
-			},
+			Client:     restrictedClient,
 		})
 		require.NoError(t, err)
 		require.NoError(t,
 			restricted.QualifyRepairRoleLeastPrivilege(context.Background()))
+		require.NotNil(t, restrictedClient.lastDelete)
+		require.Empty(t, derefOSSTest(restrictedClient.lastDelete.VersionId))
 
 		broad, err := NewOSSRepairRepository(OSSRepairRepositoryOptions{
 			Repository: ordinary, Client: &fakeOSSClient{},
