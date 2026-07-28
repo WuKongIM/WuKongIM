@@ -19,3 +19,8 @@ Events are hints only. Every plan is derived from a current snapshot.
 Duplicated, reordered, missing, or stale events must converge to the same plan.
 One Issue generation fences all in-flight work, and checkpoint sequence remains
 strictly increasing across generations.
+
+Before authorization, deterministic Intake parses only the four required Bug
+Issue Form facts. It may propose `needs-triage` or `needs-info` and a bounded
+request for missing facts. It never resolves a version, runs a model or command,
+creates a branch, or opens a pull request.

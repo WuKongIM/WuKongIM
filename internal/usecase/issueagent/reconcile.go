@@ -24,6 +24,7 @@ const (
 	OperationWait                Operation = "wait"
 	OperationReportOnly          Operation = "report_only"
 	OperationAlertAuditFailure   Operation = "alert_audit_failure"
+	OperationIntakeIssue         Operation = "intake_issue"
 	OperationResolveVersions     Operation = "resolve_versions"
 	OperationDispatchWorker      Operation = "dispatch_worker"
 	OperationPublishWorkerResult Operation = "publish_worker_result"
@@ -102,7 +103,11 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 		}, nil
 	}
 	if input.ChainStatus == ChainMissing {
-		return Plan{Operation: OperationWait, Reason: "no authorized checkpoint"}, nil
+		return Plan{
+			Operation:    OperationIntakeIssue,
+			WriteAllowed: true,
+			Reason:       "Issue has no Agent checkpoint and is eligible for deterministic intake",
+		}, nil
 	}
 	if input.ChainStatus != ChainValid || input.Checkpoint == nil {
 		return Plan{}, errors.New("valid chain status requires a checkpoint")

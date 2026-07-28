@@ -2,11 +2,48 @@ package scripts_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
+
+func TestIssueAgentBugFormHasFourRequiredSemanticInputs(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(
+		repoRoot(t), ".github", "ISSUE_TEMPLATE", "bug.yml",
+	))
+	require.NoError(t, err)
+	var form struct {
+		Body []struct {
+			Type       string `yaml:"type"`
+			ID         string `yaml:"id"`
+			Attributes struct {
+				Label       string `yaml:"label"`
+				Description string `yaml:"description"`
+				Value       string `yaml:"value"`
+			} `yaml:"attributes"`
+			Validations struct {
+				Required bool `yaml:"required"`
+			} `yaml:"validations"`
+		} `yaml:"body"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &form))
+	var required []string
+	for _, field := range form.Body {
+		if field.Validations.Required {
+			require.NotEqual(t, "checkboxes", field.Type)
+			required = append(required, field.ID)
+		}
+	}
+	require.Equal(t, []string{
+		"affected_version", "environment", "reproduction", "expected_actual",
+	}, required)
+	require.Contains(t, strings.ToLower(string(raw)), "credential")
+	require.Contains(t, strings.ToLower(string(raw)), "private")
+}
 
 func TestIssueAgentWorkflowShadowContracts(t *testing.T) {
 	t.Parallel()

@@ -134,6 +134,36 @@ func TestReconcileShadowModeNeverProducesWriteAuthority(t *testing.T) {
 	require.False(t, plan.WriteAllowed)
 }
 
+func TestReconcileIntakeModeOnlyAdmitsDeterministicIntake(t *testing.T) {
+	t.Parallel()
+
+	plan, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
+		Now:         time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
+		ChainStatus: issueagentusecase.ChainMissing,
+	}, issueagentusecase.ReconcilePolicy{
+		Enabled:     true,
+		RolloutMode: issueagentusecase.RolloutIntake,
+	})
+	require.NoError(t, err)
+	require.Equal(t, issueagentusecase.OperationIntakeIssue, plan.Operation)
+	require.True(t, plan.WriteAllowed)
+
+	authorized := reconcileCheckpoint(issueagent.StateAuthorized)
+	blocked, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
+		Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
+		ChainStatus:         issueagentusecase.ChainValid,
+		Checkpoint:          authorized,
+		CheckpointCommentID: 10,
+		CheckpointDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}, issueagentusecase.ReconcilePolicy{
+		Enabled:     true,
+		RolloutMode: issueagentusecase.RolloutIntake,
+	})
+	require.NoError(t, err)
+	require.Equal(t, issueagentusecase.OperationWait, blocked.Operation)
+	require.False(t, blocked.WriteAllowed)
+}
+
 func reconcileCheckpoint(state issueagent.State) *issueagent.Checkpoint {
 	return &issueagent.Checkpoint{
 		SchemaVersion: 1,
