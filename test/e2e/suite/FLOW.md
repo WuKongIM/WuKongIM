@@ -13,14 +13,17 @@ HTTP helpers for real `cmd/wukongim` tests.
 2. Config renderers write node TOML and derive the product environment. The
    shared E2E baseline explicitly disables the optional plugin runtime; plugin
    scenarios opt in per node through a config override.
-3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag;
-   tagged product substitutes remain dormant unless their separate explicit
-   harness environment is present. `NodeProcess.Start` removes the
-   harness-only `WK_E2E_*` namespace before starting the child process. On
-   Unix, every product process starts as the leader of an independent process
-   group so plugin and other descendants stay inside the harness-owned
-   lifecycle boundary. `NodeProcess` owns the only `Wait` call for the group
-   leader.
+3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag into
+   one user-cache location scoped by repository, operating system, and
+   architecture. Concurrent test processes publish complete binaries through
+   atomic replacement, so package-level runs do not accumulate one large
+   temporary directory per process. Tagged product substitutes remain dormant
+   unless their separate explicit harness environment is present.
+   `NodeProcess.Start` removes the harness-only `WK_E2E_*` namespace before
+   starting the child process. On Unix, every product process starts as the
+   leader of an independent process group so plugin and other descendants stay
+   inside the harness-owned lifecycle boundary. `NodeProcess` owns the only
+   `Wait` call for the group leader.
 4. Test cleanup stops the current process for every registered node, including
    nodes appended after cluster startup and processes replaced by restart.
    Static cluster nodes receive graceful termination concurrently so one node

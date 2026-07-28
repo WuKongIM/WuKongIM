@@ -3,6 +3,7 @@
 package suite
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,7 +16,8 @@ import (
 const (
 	e2eBinaryOverrideEnv       = "WK_E2E_BINARY"
 	e2eBinaryCacheFileName     = "wukongim-e2e"
-	e2eBinaryCacheDirNameGlob  = "wukongim-e2e-bin-*"
+	e2eBinaryCacheNamespace    = "wukongim"
+	e2eBinaryCacheDirectory    = "e2e-binary"
 	e2eBinaryBuildPackage      = "./cmd/wukongim"
 	e2eBinaryBuildCommandLabel = "go build -tags=e2e with commit-bound backup qualification ./cmd/wukongim"
 )
@@ -48,7 +50,7 @@ func (c *BinaryCache) Path(tempRoot string) (string, error) {
 		if build == nil {
 			build = buildBinary
 		}
-		c.err = build(c.path)
+		c.err = buildBinaryAtomically(c.path, build)
 	})
 	return c.path, c.err
 }
@@ -78,9 +80,48 @@ func resolveBinaryOverride(envName string) (string, bool, error) {
 
 func defaultBinaryCacheRoot() (string, error) {
 	defaultBinaryRoot.once.Do(func() {
-		defaultBinaryRoot.path, defaultBinaryRoot.err = os.MkdirTemp("", e2eBinaryCacheDirNameGlob)
+		userCacheRoot, err := os.UserCacheDir()
+		if err != nil {
+			defaultBinaryRoot.err = fmt.Errorf("resolve user cache directory: %w", err)
+			return
+		}
+
+		repositoryKey := sha256.Sum256([]byte(repoRoot()))
+		defaultBinaryRoot.path = filepath.Join(
+			userCacheRoot,
+			e2eBinaryCacheNamespace,
+			e2eBinaryCacheDirectory,
+			fmt.Sprintf("%s-%s-%x", runtime.GOOS, runtime.GOARCH, repositoryKey[:8]),
+		)
+		defaultBinaryRoot.err = os.MkdirAll(defaultBinaryRoot.path, 0o755)
 	})
 	return defaultBinaryRoot.path, defaultBinaryRoot.err
+}
+
+// buildBinaryAtomically keeps the shared cache path executable while concurrent
+// test processes build and publish their own complete binaries.
+func buildBinaryAtomically(dst string, build func(string) error) error {
+	staged, err := os.CreateTemp(filepath.Dir(dst), "."+filepath.Base(dst)+"-build-*")
+	if err != nil {
+		return fmt.Errorf("create staged e2e binary: %w", err)
+	}
+	stagedPath := staged.Name()
+	if err := staged.Close(); err != nil {
+		_ = os.Remove(stagedPath)
+		return fmt.Errorf("close staged e2e binary: %w", err)
+	}
+	defer os.Remove(stagedPath)
+
+	if err := build(stagedPath); err != nil {
+		return err
+	}
+	if err := os.Chmod(stagedPath, 0o755); err != nil {
+		return fmt.Errorf("make staged e2e binary executable: %w", err)
+	}
+	if err := os.Rename(stagedPath, dst); err != nil {
+		return fmt.Errorf("publish staged e2e binary: %w", err)
+	}
+	return nil
 }
 
 func buildBinary(dst string) error {
