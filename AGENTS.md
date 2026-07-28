@@ -151,6 +151,12 @@ app -> access/usecase/runtime/infra/pkg
 - Use the single-context domain documentation layout defined in
   `docs/agents/domain.md`.
 
+## GitHub Actions tools
+
+GitHub Actions are Agent-callable tools or explicit safety automations. Before
+invoking or changing one, read `.github/workflows/README.md` and follow its
+authorization, validation-plan, label, retry, and monitoring contracts.
+
 ## Directory Guide
 
 | Path | Purpose |
