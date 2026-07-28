@@ -219,6 +219,10 @@ else
     >/dev/null <<<"$changed_paths"; then
     jq -e 'index("go-fast") != null' >/dev/null <<<"$selected_suites"
   fi
+  if jq -e 'any(.[]; test("^scripts/.*\\.sh$|^scripts/.*_integration_test\\.go$"))' \
+    >/dev/null <<<"$changed_paths"; then
+    jq -e 'index("go-integration") != null' >/dev/null <<<"$selected_suites"
+  fi
   if jq -e 'any(.[]; startswith("web/") or startswith("internal/access/manager/webui/dist/"))' \
     >/dev/null <<<"$changed_paths"; then
     jq -e 'index("web") != null' >/dev/null <<<"$selected_suites"

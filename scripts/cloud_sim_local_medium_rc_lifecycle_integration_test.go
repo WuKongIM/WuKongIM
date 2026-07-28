@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build integration && !windows
 
 package scripts_test
 
@@ -16,6 +16,7 @@ import (
 )
 
 func TestLocalMediumRCBuildSmokeLifecycle(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	t.Run("injects overlays and keeps both revisions clean", func(t *testing.T) {
 		fixture := newLocalMediumRCBuildFixture(t, false)
 		output := filepath.Join(filepath.Dir(fixture.root), "artifacts-success", "nested", "smoke")

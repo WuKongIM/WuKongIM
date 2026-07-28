@@ -108,6 +108,145 @@ func TestAgentPRValidationPlanAcceptsGoFastForGoChange(t *testing.T) {
 	if output, err := newCommand().CombinedOutput(); err == nil {
 		t.Fatalf("validation unexpectedly accepted a direct dispatch without request authorization:\n%s", output)
 	}
+	t.Run("production scripts require integration", testAgentPRValidationPlanRequiresGoIntegrationForProductionScript)
+}
+
+func testAgentPRValidationPlanRequiresGoIntegrationForProductionScript(t *testing.T) {
+	headSHA := strings.Repeat("c", 40)
+	dir := t.TempDir()
+	prPath := writeAgentValidationFixture(t, dir, "pr.json", `{
+  "number": 57,
+  "changed_files": 1,
+  "head": {"sha": "`+headSHA+`"},
+  "labels": [
+    {"name": "agent-ci/go-fast"},
+    {"name": "agent-ci/run"}
+  ]
+}`)
+	commentsPath := writeAgentValidationFixture(t, dir, "comments.json", `[
+  {
+    "id": 157,
+    "user": {"login": "tangtaoit"},
+    "body": "<!-- agent-validation-plan:v1\n{\"schema_version\":1,\"head_sha\":\"`+headSHA+`\",\"risk\":\"medium\",\"selected_suites\":[\"go-fast\"],\"reason\":\"Production shell script change\",\"retry_of_run_id\":null}\n-->\n\n## Agent validation plan"
+  }
+]`)
+	filesPath := writeAgentValidationFixture(t, dir, "files.json", `[
+  {"filename": "scripts/cloud-sim/analyze.sh"}
+]`)
+	statusesPath := writeAgentValidationFixture(
+		t,
+		dir,
+		"statuses.json",
+		agentValidationStatuses(t, 57, `[]`),
+	)
+	outputPath := filepath.Join(dir, "github-output")
+	planPath := filepath.Join(dir, "validated-plan.json")
+
+	command := agentValidationPlanCommand(
+		t,
+		prPath,
+		commentsPath,
+		filesPath,
+		statusesPath,
+		"tangtaoit",
+		headSHA,
+		outputPath,
+		planPath,
+	)
+	if output, err := command.CombinedOutput(); err == nil {
+		t.Fatalf("validation accepted a production script without go-integration:\n%s", output)
+	}
+
+	writeAgentValidationFixture(t, dir, "pr.json", `{
+  "number": 57,
+  "changed_files": 1,
+  "head": {"sha": "`+headSHA+`"},
+  "labels": [
+    {"name": "agent-ci/go-fast"},
+    {"name": "agent-ci/go-integration"},
+    {"name": "agent-ci/run"}
+  ]
+}`)
+	writeAgentValidationFixture(t, dir, "comments.json", `[
+  {
+    "id": 158,
+    "user": {"login": "tangtaoit"},
+    "body": "<!-- agent-validation-plan:v1\n{\"schema_version\":1,\"head_sha\":\"`+headSHA+`\",\"risk\":\"medium\",\"selected_suites\":[\"go-fast\",\"go-integration\"],\"reason\":\"Production shell script change\",\"retry_of_run_id\":null}\n-->\n\n## Agent validation plan"
+  }
+]`)
+	command = agentValidationPlanCommand(
+		t,
+		prPath,
+		commentsPath,
+		filesPath,
+		statusesPath,
+		"tangtaoit",
+		headSHA,
+		outputPath,
+		planPath,
+	)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("validation rejected production script with go-integration: %v\n%s", err, output)
+	}
+	gotOutput, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read GitHub output: %v", err)
+	}
+	for _, want := range []string{"go_fast=true\n", "go_integration=true\n"} {
+		if !strings.Contains(string(gotOutput), want) {
+			t.Fatalf("GitHub output missing %q:\n%s", want, gotOutput)
+		}
+	}
+
+	writeAgentValidationFixture(t, dir, "files.json", `[
+  {"filename": "scripts/example_integration_test.go"}
+]`)
+	writeAgentValidationFixture(t, dir, "pr.json", `{
+  "number": 57,
+  "changed_files": 1,
+  "head": {"sha": "`+headSHA+`"},
+  "labels": [
+    {"name": "agent-ci/go-fast"},
+    {"name": "agent-ci/run"}
+  ]
+}`)
+	writeAgentValidationFixture(t, dir, "comments.json", `[
+  {
+    "id": 159,
+    "user": {"login": "tangtaoit"},
+    "body": "<!-- agent-validation-plan:v1\n{\"schema_version\":1,\"head_sha\":\"`+headSHA+`\",\"risk\":\"medium\",\"selected_suites\":[\"go-fast\"],\"reason\":\"Scripts integration test change\",\"retry_of_run_id\":null}\n-->\n\n## Agent validation plan"
+  }
+]`)
+	if output, err := agentValidationPlanCommand(
+		t,
+		prPath,
+		commentsPath,
+		filesPath,
+		statusesPath,
+		"tangtaoit",
+		headSHA,
+		outputPath,
+		planPath,
+	).CombinedOutput(); err == nil {
+		t.Fatalf("validation accepted a scripts integration test without go-integration:\n%s", output)
+	}
+
+	writeAgentValidationFixture(t, dir, "files.json", `[
+  {"filename": "scripts/channel-metrics-summary.awk"}
+]`)
+	if output, err := agentValidationPlanCommand(
+		t,
+		prPath,
+		commentsPath,
+		filesPath,
+		statusesPath,
+		"tangtaoit",
+		headSHA,
+		outputPath,
+		planPath,
+	).CombinedOutput(); err != nil {
+		t.Fatalf("validation required go-integration solely for an AWK contract: %v\n%s", err, output)
+	}
 }
 
 func TestAgentPRValidationPlanRejectsDocsOnlyForWorkflowChange(t *testing.T) {

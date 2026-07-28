@@ -84,7 +84,7 @@ older generation cannot consume retries or satisfy the new gate.
 | `agent-ci/web` | Manager Web lint, tests, type check, build, and tracked bundle check |
 | `agent-ci/demo` | Chat Demo tests, build, and tracked bundle check |
 | `agent-ci/go-race` | All fixed Go race matrix groups |
-| `agent-ci/go-integration` | All explicit `internal/...` and `pkg/...` integration packages |
+| `agent-ci/go-integration` | All explicit `internal/...`, `pkg/...`, and `scripts/...` integration packages |
 | `agent-ci/go-e2e` | Full real-process E2E inventory and bounded Cloud Medium recipient gate |
 | `agent-ci/three-node-smoke` | Base three-node-cluster smoke with real `wkcli sim` traffic |
 | `agent-ci/run` | One-shot request trigger; it is never a suite selection |
@@ -104,6 +104,9 @@ The validator enforces these minimums:
   downgrade the required suites.
 - Go, module, script, Docker, configuration, Workflow, composite-action, and
   CODEOWNERS changes require `agent-ci/go-fast`.
+- Production `scripts/**/*.sh` and `scripts/**/*_integration_test.go` changes
+  also require `agent-ci/go-integration`; static AWK/JQ and default-tier test
+  changes do not require the heavy suite solely because of their path.
 - `web/**` or its tracked Manager bundle requires `agent-ci/web`.
 - `demo/chatdemo/**` or its tracked Demo bundle requires `agent-ci/demo`.
 - `agent-ci/docs-only` is exclusive and accepts only the documented path

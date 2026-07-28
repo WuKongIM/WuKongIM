@@ -1,3 +1,5 @@
+//go:build integration
+
 package scripts_test
 
 import (
@@ -9,6 +11,7 @@ import (
 )
 
 func TestWkcliTopThreeNodesScriptCollectsTopAndBenchEvidence(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -88,6 +91,7 @@ func TestWkcliTopThreeNodesScriptCollectsTopAndBenchEvidence(t *testing.T) {
 }
 
 func TestWkcliTopThreeNodesScriptFailsOnGatewaySessionErrorAlert(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()

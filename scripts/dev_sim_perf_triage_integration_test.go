@@ -1,3 +1,5 @@
+//go:build integration
+
 package scripts_test
 
 import (
@@ -9,6 +11,7 @@ import (
 )
 
 func TestDevSimPerfTriageCollectsEvidenceForSampledScenario(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()
@@ -121,6 +124,7 @@ func TestDevSimPerfTriageCollectsEvidenceForSampledScenario(t *testing.T) {
 }
 
 func TestDevSimPerfTriageFailsAfterCollectingEvidenceWhenStatusHasErrors(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
 	callsDir := t.TempDir()

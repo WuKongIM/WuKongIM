@@ -68,13 +68,16 @@ valid evidence for its exact head and test-merge commit.
 | `Web` | 10m | frozen Bun install, lint baseline, Vitest, TypeScript, build, tracked-output diff |
 | `Demo` | 10m | pinned Node/Yarn, frozen install, avatar unit tests, Vue type check/build, tracked-output diff |
 
-The scripts package contains subprocess-heavy black-box and fault-injection
-tests. Isolated top-level cases share a two-slot parallel pool; scenarios whose
-wall-clock assertions are sensitive to CPU starvation run exclusively. Their
-outer Go watchdogs intentionally include scheduler and process-reaping slack.
-Production behavior is proved by the shorter timeout passed to the script plus
-exit status, evidence, and descendant-cleanup assertions, so do not tighten an
-outer watchdog merely to make the test appear faster.
+The default scripts package tier contains static source/configuration
+contracts, parsers, AWK/JQ transforms, help output, and no-background dry runs.
+Subprocess-heavy black-box, build, lifecycle, retry/readiness, TCP, and
+fault-injection tests live in `*_integration_test.go` behind the `integration`
+build tag. The integration tier shares a two-slot parallel pool; scenarios
+whose wall-clock assertions are sensitive to CPU starvation run exclusively.
+Their outer Go watchdogs intentionally include scheduler and process-reaping
+slack. Production behavior is proved by the shorter timeout passed to the
+script plus exit status, evidence, and descendant-cleanup assertions, so do
+not tighten an outer watchdog merely to make the test appear faster.
 
 The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn
 1.22.22, matching the fixed Agent tools:
@@ -135,13 +138,22 @@ evidence.
 | `Go race (internal-runtime)` | 45m | `internal/app` and `internal/runtime/...` |
 | `Go race (gateway-transport)` | 45m | `pkg/gateway/...` and `pkg/transport/...` |
 | `Go race (channel-cluster-slot)` | 45m | `pkg/channel/...`, `pkg/cluster/...`, and `pkg/slot/...` |
-| `Go integration` | 30m | `-tags=integration` across explicit `internal/...` and `pkg/...` roots |
+| `Go integration` | 40m | `-tags=integration` across explicit `internal/...`, `pkg/...`, and `scripts/...` roots; scripts have a 10m hard step limit |
 | `Go e2e` | 60m | one prebuilt real `cmd/wukongim` binary and `test/e2e/...` |
 | `Three-node smoke` | 30m | base three-node cluster plus real `wkcli sim` traffic |
 
 Selected heavy-suite failures fail Agent validation and keep the merge gate
 closed. Gofail dynamic-node faults and the 100K-subscriber scenario remain
 explicit opt-in stress paths rather than part of routine validation.
+
+The local integration equivalents are separate commands so the core package
+gate keeps its existing package serialization while scripts use bounded
+test-level concurrency:
+
+```bash
+GOWORK=off go test -tags=integration ./internal/... ./pkg/... -count=1 -p=1
+GOWORK=off go test -tags=integration ./scripts/... -count=1 -timeout=9m -parallel=2
+```
 
 ## Failure Evidence
 
