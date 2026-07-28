@@ -18,6 +18,7 @@ func TestWkcliSimThreeNodeSmokeScriptPublishesLocalBackupCheckpoint(t *testing.T
 	callsDir := t.TempDir()
 	outDir := t.TempDir()
 	startScript := filepath.Join(binDir, "start-three.sh")
+	revision := scriptTestGitRevision(t, root)
 	writeFakeThreeNodeSimGo(t, filepath.Join(binDir, "go"), callsDir)
 	writeFakeThreeNodeSimCurl(t, filepath.Join(binDir, "curl"), callsDir)
 	writeFakeThreeNodeSimStartScript(t, startScript, callsDir)
@@ -46,7 +47,7 @@ func TestWkcliSimThreeNodeSmokeScriptPublishesLocalBackupCheckpoint(t *testing.T
 	}
 	text := string(output)
 	for _, want := range []string{
-		"local backup checkpoint healthy",
+		"local backup checkpoint available",
 		"local backup checkpoint published: checkpoint-local-1",
 		"smoke passed",
 	} {
@@ -63,6 +64,7 @@ func TestWkcliSimThreeNodeSmokeScriptPublishesLocalBackupCheckpoint(t *testing.T
 	startCalls := readFile(t, filepath.Join(callsDir, "start.calls"))
 	for _, want := range []string{
 		"--build-tags e2e",
+		"--backup-e2e-revision " + revision,
 		"--backup-staging-root " + filepath.Join(outDir, "backup-staging"),
 	} {
 		if !strings.Contains(startCalls, want) {
@@ -108,9 +110,9 @@ func TestWkcliSimThreeNodeSmokeScriptRejectsMisleadingBackupEvidence(t *testing.
 		wantError string
 	}{
 		{
-			name:      "aggregate health must be healthy",
+			name:      "failed status must not be masked by decoy health",
 			mode:      "health-decoy",
-			wantError: "local backup checkpoint did not become healthy",
+			wantError: "local backup checkpoint did not become available",
 		},
 		{
 			name:      "newest checkpoint must have an identity",
@@ -1026,9 +1028,9 @@ case "$url" in
     ;;
   http://127.0.0.1:5311/manager/backups/status)
     if [[ "${WK_TEST_BACKUP_EVIDENCE_MODE-}" == "health-decoy" ]]; then
-      echo '{"enabled":true,"health":"failed","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"},"decoy":{"health":"healthy"}}'
+      echo '{"enabled":true,"running":true,"health":"failed","failure_category":"checkpoint","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"},"capture_status_complete":true,"capture_status_missing_node_ids":[],"capture_status_missing_slots":[],"decoy":{"health":"healthy"}}'
     else
-      echo '{"enabled":true,"health":"healthy","checkpoint_age_seconds":1,"latest_checkpoint":{"id":"checkpoint-baseline"}}'
+      echo '{"enabled":true,"running":true,"health":"degraded","failure_category":null,"checkpoint_age_seconds":205,"max_checkpoint_age_seconds":30,"latest_checkpoint":{"id":"checkpoint-baseline"},"capture_status_complete":true,"capture_status_missing_node_ids":[],"capture_status_missing_slots":[],"integrity_audit":{"debt_objects":0},"compaction":{"debt_slots":0},"garbage_collection":{"debt_repositories":0}}'
     fi
     ;;
   "http://127.0.0.1:5311/manager/backups/checkpoints?limit=1")

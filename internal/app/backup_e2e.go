@@ -33,6 +33,55 @@ const (
 	backupE2EPinTriggerEnv     = "WUKONGIM_BACKUP_E2E_PIN_PRESSURE_TRIGGER"
 )
 
+// backupLocalE2ERevision is stamped only into local e2e backup smoke binaries.
+// Production qualification never reads or accepts this value.
+var backupLocalE2ERevision string
+
+// ValidateBackupLocalE2EBuildQualification binds the file-backed e2e substitute
+// to the exact clean source revision used to build the local smoke binary.
+func ValidateBackupLocalE2EBuildQualification(
+	qualification BackupBuildQualification,
+	localRevision string,
+) error {
+	buildRevision := strings.ToLower(
+		strings.TrimSpace(qualification.BuildRevision),
+	)
+	localRevision = strings.ToLower(strings.TrimSpace(localRevision))
+	if !validGitRevision(buildRevision) ||
+		!validGitRevision(localRevision) ||
+		buildRevision != localRevision ||
+		qualification.BuildModified {
+		return fmt.Errorf(
+			"%w: local e2e automatic backup requires an exact clean build revision",
+			ErrInvalidConfig,
+		)
+	}
+	return nil
+}
+
+func validateCurrentBackupBuildQualification() error {
+	return validateBackupBuildQualificationForE2EMode(
+		CurrentBackupBuildQualification(),
+		backupLocalE2ERevision,
+		strings.TrimSpace(os.Getenv(backupE2EFileRootEnv)) != "",
+	)
+}
+
+func validateBackupBuildQualificationForE2EMode(
+	qualification BackupBuildQualification,
+	localRevision string,
+	fileRepositoryEnabled bool,
+) error {
+	productionErr := ValidateBackupBuildQualification(qualification)
+	if productionErr == nil || !fileRepositoryEnabled {
+		return productionErr
+	}
+	return ValidateBackupLocalE2EBuildQualification(
+		qualification,
+		localRevision,
+	)
+}
+
 func init() {
 	productionRepositoryLoader := loadAppBackupRepository
 	productionRepairLoader := loadAppBackupRepairRepository

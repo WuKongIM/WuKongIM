@@ -1080,10 +1080,11 @@ key authority, worker, or timer. Automatic mode requires the qualified Alibaba
 OSS adapter and one protected deployment key package, then wires two
 cross-region repositories, local AES-256-GCM envelope encryption, Ed25519
 signing with the package's retained verification keyring, and an immutable
-Package ID/activated-revision pin chain in both repositories. Repository
-startup first requires the running binary's clean Go VCS revision to equal the
-commit revision embedded only in artifacts emitted by the successful backup
-qualification workflow; no TOML or environment bypass token exists. RAM
+Package ID/activated-revision pin chain in both repositories. Production
+repository startup first requires the running binary's clean Go VCS revision
+to equal the commit revision embedded only in artifacts emitted by the
+successful backup qualification workflow; no TOML or environment bypass token
+exists. RAM
 qualification uses positive provider operations plus negative probes: ordinary
 and repair roles must be denied version deletion, while garbage roles must be
 denied object-body reads.
@@ -1156,6 +1157,11 @@ deployment-key, and clock loaders remain authoritative. The file-backed substitu
 repository and key calls in one bounded artificial latency. A sentinel path
 activates that delay only after startup, allowing the black-box scale gate to
 prove foreground SEND does not synchronously cross either remote boundary. A
+file-backed local smoke build may carry a separately linked local E2E revision
+stamp. That stamp is accepted only when both the `e2e` build tag and the
+file-root substitute are active, must exactly match the clean Go VCS revision,
+and is never accepted by non-E2E or production-loader startup. A production
+qualification stamp remains valid for file-backed qualification jobs. A
 separate e2e-only fault directory can make segment-payload reads from one or
 both named copies return corrupt bytes; catalog objects and production loaders
 are never affected. Sticky single- or dual-copy faults select one exact logical

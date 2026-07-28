@@ -68,6 +68,25 @@ arm64 binaries. Retain them with the production evidence artifact as the
 recorded recovery drill. A missing, failed, skipped, different-commit, modified,
 or ordinary source build leaves automatic backup disabled.
 
+## Local E2E backup smoke
+
+The local three-node simulator can exercise automatic backup against isolated
+file-backed repositories:
+
+```sh
+./scripts/smoke-wkcli-sim-wukongim-three-nodes.sh --backup
+```
+
+When it builds the cluster binary, the helper resolves the current Git `HEAD`
+and injects that exact revision into its `e2e`-tagged test binary. The runtime
+still rejects tracked source modifications through Go's VCS build metadata.
+`--no-build` never stamps a binary; it requires the caller to place an already
+qualified executable at the smoke output path.
+
+This local test stamp is not a release qualification. Do not deploy the
+generated binary. Production deployments must use the commit-bound binaries
+and matching verdict emitted by the complete workflow above.
+
 ## Runtime model
 
 Each logical Hash Slot continuously captures two ordered streams:

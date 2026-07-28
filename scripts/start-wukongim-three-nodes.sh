@@ -19,6 +19,8 @@ PROMETHEUS_SOURCE_REF="${WK_PROMETHEUS_SOURCE_REF:-${WK_PROMETHEUS_EMBED_VERSION
 PROMETHEUS_REPO="${WK_PROMETHEUS_REPO:-https://github.com/prometheus/prometheus.git}"
 PROMETHEUS_EMBED_DIR="${WK_PROMETHEUS_EMBED_DIR:-$ROOT_DIR/internal/app/prometheus_embedded}"
 BUILD_TAGS="${WK_WUKONGIM_THREE_NODES_BUILD_TAGS:-}"
+BACKUP_E2E_REVISION=""
+BACKUP_E2E_GIT_DIR=""
 BACKUP_STAGING_ROOT="${WK_WUKONGIM_THREE_NODES_BACKUP_STAGING_ROOT:-}"
 PID_DIR="${WK_WUKONGIM_THREE_NODES_PID_DIR:-}"
 ALLOW_NODE_EXIT="${WK_WUKONGIM_THREE_NODES_ALLOW_NODE_EXIT:-}"
@@ -39,6 +41,7 @@ METRICS_TARGETS=(
 )
 PIDS=()
 ALLOW_NODE_EXIT_VALUES=()
+BUILD_COMMAND=()
 
 usage() {
   cat <<'USAGE'
@@ -56,6 +59,8 @@ Options:
   --clean                Remove the node data directories and log dir before start.
   --no-build             Reuse --bin instead of running go build.
   --build-tags TAGS      Optional comma-separated Go build tags.
+  --backup-e2e-revision REVISION
+                         Bind a file-backed e2e backup build to one exact Git revision.
   --bin PATH             Binary path. Default: WK_WUKONGIM_THREE_NODES_BIN or data/wukongim-three-nodes/wukongim.
   --log-dir DIR          Per-node log directory. Default: WK_WUKONGIM_THREE_NODES_LOG_DIR or data/wukongim-three-node-logs.
   --data-root DIR        Parent for isolated node data directories. Default: WK_WUKONGIM_THREE_NODES_DATA_ROOT or data/.
@@ -194,6 +199,48 @@ backup_staging_path() {
   printf '%s/node-%s' "$BACKUP_STAGING_ROOT" "$node"
 }
 
+backup_e2e_ldflags() {
+  printf '%s' "-X=github.com/WuKongIM/WuKongIM/internal/app.backupLocalE2ERevision=${BACKUP_E2E_REVISION}"
+}
+
+prepare_build_command() {
+  BUILD_COMMAND=()
+  if [[ "$BUILD" -eq 0 ]]; then
+    return
+  fi
+  if [[ -n "$BACKUP_E2E_REVISION" ]]; then
+    BUILD_COMMAND=(
+      env
+      "GOWORK=off"
+      "GIT_DIR=$BACKUP_E2E_GIT_DIR"
+      "GIT_WORK_TREE=$ROOT_DIR"
+      go build
+      "-tags=$BUILD_TAGS"
+      "-ldflags=$(backup_e2e_ldflags)"
+      -o "$BIN_PATH"
+      ./cmd/wukongim
+    )
+  elif [[ -n "$BUILD_TAGS" ]]; then
+    BUILD_COMMAND=(go build "-tags=$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim)
+  else
+    BUILD_COMMAND=(go build -o "$BIN_PATH" ./cmd/wukongim)
+  fi
+}
+
+print_shell_command() {
+  local label="$1"
+  local separator=""
+  local arg
+  shift
+  printf '%s' "$label"
+  for arg in "$@"; do
+    printf '%s' "$separator"
+    printf '%q' "$arg"
+    separator=" "
+  done
+  printf '\n'
+}
+
 node_env_preview() {
   local node="$1"
   printf '%s' "$(prometheus_node_env_preview "$node")"
@@ -205,11 +252,7 @@ node_env_preview() {
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   if [[ "$BUILD" -eq 1 ]]; then
-    if [[ -n "$BUILD_TAGS" ]]; then
-      printf 'build_cmd=go build -tags=%s -o %s ./cmd/wukongim\n' "$BUILD_TAGS" "$BIN_PATH"
-    else
-      printf 'build_cmd=go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
-    fi
+    print_shell_command 'build_cmd=' "${BUILD_COMMAND[@]}"
   else
     printf 'build_cmd=<disabled>\n'
   fi
@@ -300,6 +343,11 @@ while [[ $# -gt 0 ]]; do
       BUILD_TAGS="$2"
       shift 2
       ;;
+    --backup-e2e-revision)
+      [[ $# -ge 2 ]] || die '--backup-e2e-revision requires a value'
+      BACKUP_E2E_REVISION="$2"
+      shift 2
+      ;;
     --bin)
       [[ $# -ge 2 ]] || die '--bin requires a value'
       BIN_PATH="$2"
@@ -381,10 +429,23 @@ require_positive_uint '--ready-timeout' "$READY_TIMEOUT"
 require_uint '--poll' "$POLL_INTERVAL"
 require_bool 'prometheus enable' "$PROMETHEUS_ENABLE"
 [[ -n "$DATA_ROOT" ]] || die '--data-root must not be empty'
+if [[ -n "$BACKUP_E2E_REVISION" ]]; then
+  [[ "$BACKUP_E2E_REVISION" =~ ^[0-9a-fA-F]{40}$ ]] ||
+    die '--backup-e2e-revision must be a full 40-character Git revision'
+  [[ ",$BUILD_TAGS," == *,e2e,* ]] ||
+    die '--backup-e2e-revision requires the e2e build tag'
+  [[ "$BUILD" -eq 1 ]] ||
+    die '--backup-e2e-revision cannot be combined with --no-build'
+  command -v git >/dev/null 2>&1 ||
+    die '--backup-e2e-revision requires git'
+  BACKUP_E2E_GIT_DIR="$(git -C "$ROOT_DIR" rev-parse --absolute-git-dir 2>/dev/null)" ||
+    die '--backup-e2e-revision could not resolve the worktree Git directory'
+fi
 if [[ -n "$BACKUP_STAGING_ROOT" && "$BACKUP_STAGING_ROOT" != /* ]]; then
   die '--backup-staging-root must be an absolute path'
 fi
 parse_allow_node_exit
+prepare_build_command
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   print_plan
@@ -447,11 +508,7 @@ if [[ "$BUILD" -eq 1 ]]; then
   log "building $BIN_PATH"
   (
     cd "$ROOT_DIR"
-    if [[ -n "$BUILD_TAGS" ]]; then
-      go build -tags="$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim
-    else
-      go build -o "$BIN_PATH" ./cmd/wukongim
-    fi
+    "${BUILD_COMMAND[@]}"
   )
 elif [[ ! -x "$BIN_PATH" ]]; then
   die "--no-build requested but binary is not executable: $BIN_PATH"

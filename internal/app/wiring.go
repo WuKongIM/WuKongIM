@@ -47,9 +47,7 @@ func (a *App) applyConfigDefaults() error {
 		return err
 	}
 	if a.cfg.Backup.Enabled {
-		if err := ValidateBackupBuildQualification(
-			CurrentBackupBuildQualification(),
-		); err != nil {
+		if err := validateCurrentBackupBuildQualification(); err != nil {
 			return err
 		}
 	}
