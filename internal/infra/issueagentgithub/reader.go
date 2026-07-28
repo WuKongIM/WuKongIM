@@ -16,6 +16,7 @@ var (
 	gitObjectPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
 	loginPattern     = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
 	agentRefPattern  = regexp.MustCompile(`^agent/issue-[1-9][0-9]*$`)
+	branchPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
 )
 
 // RepositoryFacts binds all later reads and writes to one repository identity.
@@ -53,6 +54,7 @@ type PullRequestFacts struct {
 	State       string
 	Draft       bool
 	Mergeable   *bool
+	Merged      bool
 	BaseRef     string
 	BaseSHA     string
 	HeadRef     string
@@ -126,6 +128,102 @@ func (client *Client) DefaultBranchHead(
 		return RefFacts{}, errors.New("GitHub main ref response is invalid")
 	}
 	return RefFacts{Name: "main", SHA: payload.Object.SHA}, nil
+}
+
+// BranchHead reads one policy-allowlisted branch after the caller has applied
+// its protected branch allowlist.
+func (client *Client) BranchHead(
+	ctx context.Context,
+	branch string,
+) (RefFacts, error) {
+	if !branchPattern.MatchString(branch) ||
+		strings.Contains(branch, "..") ||
+		strings.Contains(branch, "//") {
+		return RefFacts{}, errors.New("GitHub branch name is unsafe")
+	}
+	var payload struct {
+		Ref    string `json:"ref"`
+		Object struct {
+			Type string `json:"type"`
+			SHA  string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := client.getJSON(
+		ctx, "/repos/"+client.repository+"/git/ref/heads/"+branch, &payload,
+	); err != nil {
+		return RefFacts{}, err
+	}
+	if payload.Ref != "refs/heads/"+branch || payload.Object.Type != "commit" ||
+		!gitObjectPattern.MatchString(payload.Object.SHA) {
+		return RefFacts{}, errors.New("GitHub branch ref response is invalid")
+	}
+	return RefFacts{Name: branch, SHA: payload.Object.SHA}, nil
+}
+
+// UnresolvedReviewThreadIDs reads the complete bounded unresolved review set.
+func (client *Client) UnresolvedReviewThreadIDs(
+	ctx context.Context,
+	number int64,
+) ([]string, error) {
+	if client == nil || number <= 0 {
+		return nil, errors.New("review-thread request is invalid")
+	}
+	parts := strings.Split(client.repository, "/")
+	var response struct {
+		Data struct {
+			Repository struct {
+				PullRequest struct {
+					ReviewThreads struct {
+						Nodes []struct {
+							ID         string `json:"id"`
+							IsResolved bool   `json:"isResolved"`
+						} `json:"nodes"`
+						PageInfo struct {
+							HasNextPage bool `json:"hasNextPage"`
+						} `json:"pageInfo"`
+					} `json:"reviewThreads"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	query := `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved} pageInfo{hasNextPage}}}}}`
+	if err := client.requestJSON(
+		ctx, http.MethodPost, "/graphql",
+		struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}{
+			Query: query,
+			Variables: map[string]any{
+				"owner": parts[0], "name": parts[1], "number": number,
+			},
+		},
+		&response, http.StatusOK,
+	); err != nil {
+		return nil, err
+	}
+	threads := response.Data.Repository.PullRequest.ReviewThreads
+	if len(response.Errors) != 0 || threads.PageInfo.HasNextPage ||
+		len(threads.Nodes) > 100 {
+		return nil, errors.New("review-thread response is incomplete")
+	}
+	result := make([]string, 0, len(threads.Nodes))
+	for _, node := range threads.Nodes {
+		if node.IsResolved {
+			continue
+		}
+		if node.ID == "" || len(node.ID) > 256 ||
+			strings.ContainsAny(node.ID, "\r\n") {
+			return nil, errors.New("review-thread identity is invalid")
+		}
+		result = append(result, node.ID)
+	}
+	slices.Sort(result)
+	result = slices.Compact(result)
+	return result, nil
 }
 
 // CommitFacts records the tree, parents, and GitHub verification result.
@@ -353,6 +451,7 @@ func (client *Client) PullRequest(ctx context.Context, number int64) (PullReques
 		State       string `json:"state"`
 		Draft       bool   `json:"draft"`
 		Mergeable   *bool  `json:"mergeable"`
+		Merged      bool   `json:"merged"`
 		MergeCommit string `json:"merge_commit_sha"`
 		Base        struct {
 			Ref string `json:"ref"`
@@ -374,12 +473,15 @@ func (client *Client) PullRequest(ctx context.Context, number int64) (PullReques
 		!validBranchName(payload.Base.Ref) || !agentRefPattern.MatchString(payload.Head.Ref) ||
 		!gitObjectPattern.MatchString(payload.Base.SHA) ||
 		!gitObjectPattern.MatchString(payload.Head.SHA) ||
-		payload.MergeCommit != "" && !gitObjectPattern.MatchString(payload.MergeCommit) {
+		payload.MergeCommit != "" && !gitObjectPattern.MatchString(payload.MergeCommit) ||
+		payload.Merged &&
+			(payload.State != "closed" || payload.MergeCommit == "") {
 		return PullRequestFacts{}, errors.New("GitHub pull request response is invalid")
 	}
 	return PullRequestFacts{
 		Number: payload.Number, State: payload.State, Draft: payload.Draft,
-		Mergeable: payload.Mergeable, BaseRef: payload.Base.Ref,
+		Mergeable: payload.Mergeable, Merged: payload.Merged,
+		BaseRef: payload.Base.Ref,
 		BaseSHA: payload.Base.SHA, HeadRef: payload.Head.Ref,
 		HeadSHA: payload.Head.SHA, MergeCommit: payload.MergeCommit,
 	}, nil

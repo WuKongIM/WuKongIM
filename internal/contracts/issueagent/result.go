@@ -189,9 +189,13 @@ func ValidateAgentResult(result AgentResult, task TaskEnvelope) error {
 			return fmt.Errorf("file %q is outside task path policy", file.Path)
 		}
 	}
+	allowEmptyCommands := result.Status == ResultStatusFailed &&
+		result.Failure != nil &&
+		(result.Failure.Class == FailureProvider ||
+			result.Failure.Class == FailureWorkerInfrastructure)
 	if !digestPattern.MatchString(result.Evidence.ArtifactSHA256) ||
-		len(result.Evidence.Commands) == 0 ||
-		len(result.Evidence.Commands) > maxTaskSliceItems {
+		len(result.Evidence.Commands) > maxTaskSliceItems ||
+		len(result.Evidence.Commands) == 0 && !allowEmptyCommands {
 		return errors.New("invalid evidence manifest")
 	}
 	for _, command := range result.Evidence.Commands {

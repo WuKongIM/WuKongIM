@@ -12,6 +12,7 @@ GitHub facts
 
 trusted Control
   -> typed TaskEnvelope
+  -> frozen review-thread IDs and maintainer ControlAudit
   -> credential-free Worker
   -> typed AgentResult with ChangeSet and Evidence
   -> trusted Publisher validation
@@ -23,3 +24,8 @@ free-form content. Checkpoint slices are sorted before signing and are required
 to remain sorted when verified. `AgentResult` is a proposal only; it cannot
 carry shell scripts, Git credentials, commits, refs, PR mutations, or Issue
 mutations.
+
+Provider and Worker-infrastructure failures may carry an empty command list
+only when they still carry a trusted evidence digest, exact provider identity,
+and no ChangeSet. A `recover_chain` ControlAudit binds its exact valid anchor,
+quarantined App-comment IDs, and quarantine digest.

@@ -23,6 +23,48 @@ func ValidateCheckpointSuccessor(previous, next Checkpoint) error {
 		return errors.New("checkpoint successor identity is invalid")
 	}
 	if next.Generation == previous.Generation+1 {
+		if next.Control != nil &&
+			(previous.Control == nil ||
+				next.Control.EventID != previous.Control.EventID) {
+			switch next.Control.Kind {
+			case "revise":
+				if next.State == StateAuthorized &&
+					next.FrozenInput.AuthorizationEvent == next.Control.EventID {
+					return nil
+				}
+			case "cancel":
+				if next.State == StateCancelled && next.Lease == nil &&
+					commandDomainPreserved(previous, next, true) {
+					return nil
+				}
+			case "address_review":
+				if next.State == StateFixing && next.Lease != nil &&
+					next.Lease.Phase == PhaseAddressReview &&
+					next.Validation == nil &&
+					commandDomainPreserved(previous, next, false) {
+					return nil
+				}
+			case "adopt_head":
+				if next.State == StateValidating && next.Work != nil &&
+					next.Work.HeadSHA == next.Control.AdoptedHeadSHA &&
+					adoptDomainPreserved(previous, next) {
+					return nil
+				}
+			case "backport":
+				if previous.State == StateMerged && next.State == StateMerged &&
+					commandDomainPreserved(previous, next, true) {
+					return nil
+				}
+			case "recover_chain":
+				if next.Control.RecoveryAnchorCommentID > 0 &&
+					next.Control.RecoveryAnchorDigest != "" &&
+					next.Lease == nil && next.Model == nil &&
+					recoveryBoundaryPreserved(previous, next) &&
+					commandDomainPreserved(previous, next, true) {
+					return nil
+				}
+			}
+		}
 		if next.State == StateAuthorized &&
 			next.FrozenInput.AuthorizationEvent != previous.FrozenInput.AuthorizationEvent {
 			return nil
@@ -41,6 +83,9 @@ func ValidateCheckpointSuccessor(previous, next Checkpoint) error {
 	}
 	if !reflect.DeepEqual(previous.FrozenInput, next.FrozenInput) {
 		return errors.New("frozen Issue input changed within a generation")
+	}
+	if !reflect.DeepEqual(previous.Control, next.Control) {
+		return errors.New("maintainer control audit changed within a generation")
 	}
 	if previous.Versions.ReportedRef != next.Versions.ReportedRef ||
 		previous.Versions.DiagnosisBaseSHA != next.Versions.DiagnosisBaseSHA {
@@ -77,6 +122,67 @@ func ValidateCheckpointSuccessor(previous, next Checkpoint) error {
 		return errors.New("checkpoint budget counters decreased")
 	}
 	return nil
+}
+
+func commandDomainPreserved(
+	previous Checkpoint,
+	next Checkpoint,
+	preserveValidation bool,
+) bool {
+	if !reflect.DeepEqual(previous.FrozenInput, next.FrozenInput) ||
+		!reflect.DeepEqual(previous.Versions, next.Versions) ||
+		!reflect.DeepEqual(previous.Reproduction, next.Reproduction) ||
+		!reflect.DeepEqual(previous.Work, next.Work) ||
+		!reflect.DeepEqual(previous.Diagnosis, next.Diagnosis) ||
+		!budgetNondecreasing(previous.Budget, next.Budget) {
+		return false
+	}
+	return !preserveValidation ||
+		reflect.DeepEqual(previous.Validation, next.Validation)
+}
+
+func recoveryBoundaryPreserved(previous Checkpoint, next Checkpoint) bool {
+	expectedState := previous.State
+	expectedAction := previous.NextAction
+	switch previous.State {
+	case StateReproducing:
+		expectedState = StateVersionPinned
+		expectedAction = ActionReproduce
+	case StateDiagnosing:
+		expectedState = StateDraftPROpen
+		expectedAction = ActionDiagnose
+	case StateFixing:
+		expectedState = StateDiagnosed
+		expectedAction = ActionImplementFix
+	}
+	return next.State == expectedState && next.NextAction == expectedAction
+}
+
+func adoptDomainPreserved(previous Checkpoint, next Checkpoint) bool {
+	if previous.Work == nil || next.Work == nil ||
+		previous.Work.Branch != next.Work.Branch ||
+		previous.Work.PRNumber != next.Work.PRNumber ||
+		next.Validation != nil {
+		return false
+	}
+	previousWithoutWork := previous
+	nextWithoutWork := next
+	previousWithoutWork.Work = nil
+	nextWithoutWork.Work = nil
+	previousWithoutWork.State = nextWithoutWork.State
+	previousWithoutWork.Generation = nextWithoutWork.Generation
+	previousWithoutWork.Sequence = nextWithoutWork.Sequence
+	previousWithoutWork.ExpectedPreviousCheckpointID =
+		nextWithoutWork.ExpectedPreviousCheckpointID
+	previousWithoutWork.PreviousCheckpointSHA256 =
+		nextWithoutWork.PreviousCheckpointSHA256
+	previousWithoutWork.Lease = nextWithoutWork.Lease
+	previousWithoutWork.Validation = nextWithoutWork.Validation
+	previousWithoutWork.Model = nextWithoutWork.Model
+	previousWithoutWork.Control = nextWithoutWork.Control
+	previousWithoutWork.NextAction = nextWithoutWork.NextAction
+	return reflect.DeepEqual(previousWithoutWork, nextWithoutWork) &&
+		budgetNondecreasing(previous.Budget, next.Budget)
 }
 
 func validateWorkSuccessor(previous, next *Work) error {

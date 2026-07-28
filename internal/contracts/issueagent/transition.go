@@ -10,6 +10,9 @@ func ValidateTransition(from, to State) error {
 	if humanTerminalState(to) && executionState(from) {
 		return nil
 	}
+	if to == StateReadyForHuman && executionState(from) {
+		return nil
+	}
 	var allowed bool
 	switch from {
 	case StateAwaitingTriage:
@@ -22,7 +25,8 @@ func ValidateTransition(from, to State) error {
 		allowed = to == StateReproducing
 	case StateReproducing:
 		allowed = to == StateNeedsInfo || to == StateAlreadyFixed ||
-			to == StateReproduced || to == StateVersionPinned
+			to == StateReproduced || to == StateVersionPinned ||
+			to == StateReadyForHuman
 	case StateReproduced:
 		allowed = to == StateDraftPROpen
 	case StateDraftPROpen:

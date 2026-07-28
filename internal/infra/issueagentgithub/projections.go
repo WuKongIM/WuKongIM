@@ -24,6 +24,7 @@ type pullResponse struct {
 	State       string `json:"state"`
 	Draft       bool   `json:"draft"`
 	Mergeable   *bool  `json:"mergeable"`
+	Merged      bool   `json:"merged"`
 	MergeCommit string `json:"merge_commit_sha"`
 	Base        struct {
 		Ref string `json:"ref"`
@@ -282,6 +283,94 @@ func (client *Client) EnsurePullRequestReady(
 	return ready, nil
 }
 
+// EnsurePullRequestDraft converts exact adopted human work back to Draft so
+// the Agent cannot expose it as review-ready before full revalidation.
+func (client *Client) EnsurePullRequestDraft(
+	ctx context.Context,
+	number int64,
+	expectedHeadSHA string,
+) (PullRequestFacts, error) {
+	current, err := client.PullRequest(ctx, number)
+	if err != nil || current.State != "open" ||
+		current.HeadSHA != expectedHeadSHA {
+		return PullRequestFacts{}, errors.New("pull request draft fence is stale")
+	}
+	if current.Draft {
+		return current, nil
+	}
+	parts := strings.Split(client.repository, "/")
+	var lookup struct {
+		Data struct {
+			Repository struct {
+				PullRequest struct {
+					ID         string `json:"id"`
+					IsDraft    bool   `json:"isDraft"`
+					HeadRefOID string `json:"headRefOid"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := client.requestJSON(
+		ctx, http.MethodPost, "/graphql",
+		struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}{
+			Query: `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){id isDraft headRefOid}}}`,
+			Variables: map[string]any{
+				"owner": parts[0], "name": parts[1], "number": number,
+			},
+		},
+		&lookup, http.StatusOK,
+	); err != nil {
+		return PullRequestFacts{}, err
+	}
+	pull := lookup.Data.Repository.PullRequest
+	if len(lookup.Errors) != 0 || pull.ID == "" ||
+		pull.HeadRefOID != expectedHeadSHA || pull.IsDraft {
+		return PullRequestFacts{}, errors.New("pull request draft lookup is inconsistent")
+	}
+	var converted struct {
+		Data struct {
+			Convert struct {
+				PullRequest struct {
+					IsDraft    bool   `json:"isDraft"`
+					HeadRefOID string `json:"headRefOid"`
+				} `json:"pullRequest"`
+			} `json:"convertPullRequestToDraft"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := client.requestJSON(
+		ctx, http.MethodPost, "/graphql",
+		struct {
+			Query     string         `json:"query"`
+			Variables map[string]any `json:"variables"`
+		}{
+			Query:     `mutation($id:ID!){convertPullRequestToDraft(input:{pullRequestId:$id}){pullRequest{isDraft headRefOid}}}`,
+			Variables: map[string]any{"id": pull.ID},
+		},
+		&converted, http.StatusOK,
+	); err != nil {
+		return PullRequestFacts{}, err
+	}
+	echo := converted.Data.Convert.PullRequest
+	if len(converted.Errors) != 0 || !echo.IsDraft ||
+		echo.HeadRefOID != expectedHeadSHA {
+		return PullRequestFacts{}, errors.New("pull request did not become exact Draft")
+	}
+	result, err := client.PullRequest(ctx, number)
+	if err != nil || !result.Draft || result.HeadSHA != expectedHeadSHA {
+		return PullRequestFacts{}, errors.New("pull request Draft re-read is inconsistent")
+	}
+	return result, nil
+}
+
 // CreateTrackingIssue creates a bounded child/backport tracking Issue.
 func (client *Client) CreateTrackingIssue(
 	ctx context.Context,
@@ -318,6 +407,56 @@ func (client *Client) CreateTrackingIssue(
 	return response.Number, nil
 }
 
+// EnsureTrackingIssue makes a deterministic backport projection idempotent.
+func (client *Client) EnsureTrackingIssue(
+	ctx context.Context,
+	title string,
+	body string,
+) (int64, error) {
+	if strings.TrimSpace(title) == "" || len(title) > 256 ||
+		strings.ContainsAny(title, "\"\r\n") || len(body) > 64<<10 {
+		return 0, errors.New("tracking Issue identity is invalid")
+	}
+	endpoint := client.endpoint("/search/issues")
+	query := endpoint.Query()
+	query.Set(
+		"q",
+		"repo:"+client.repository+" is:issue in:title \""+title+"\"",
+	)
+	query.Set("per_page", "100")
+	query.Set("page", "1")
+	endpoint.RawQuery = query.Encode()
+	var response struct {
+		TotalCount int `json:"total_count"`
+		Items      []struct {
+			Number int64  `json:"number"`
+			Title  string `json:"title"`
+			Body   string `json:"body"`
+		} `json:"items"`
+	}
+	next, err := client.getJSONPage(ctx, endpoint, &response)
+	if err != nil {
+		return 0, err
+	}
+	if next != nil || response.TotalCount > 100 || len(response.Items) > 100 {
+		return 0, errors.New("tracking Issue search exceeds bound")
+	}
+	var found int64
+	for _, item := range response.Items {
+		if item.Title != title || item.Body != body {
+			continue
+		}
+		if item.Number <= 0 || found != 0 {
+			return 0, errors.New("tracking Issue identity is ambiguous")
+		}
+		found = item.Number
+	}
+	if found != 0 {
+		return found, nil
+	}
+	return client.CreateTrackingIssue(ctx, title, body, []string{})
+}
+
 func validatePullResponse(response pullResponse) (PullRequestFacts, error) {
 	if response.Number <= 0 ||
 		(response.State != "open" && response.State != "closed") ||
@@ -325,12 +464,15 @@ func validatePullResponse(response pullResponse) (PullRequestFacts, error) {
 		!agentRefPattern.MatchString(response.Head.Ref) ||
 		!gitObjectPattern.MatchString(response.Base.SHA) ||
 		!gitObjectPattern.MatchString(response.Head.SHA) ||
-		response.MergeCommit != "" && !gitObjectPattern.MatchString(response.MergeCommit) {
+		response.MergeCommit != "" && !gitObjectPattern.MatchString(response.MergeCommit) ||
+		response.Merged &&
+			(response.State != "closed" || response.MergeCommit == "") {
 		return PullRequestFacts{}, errors.New("GitHub pull request response is invalid")
 	}
 	return PullRequestFacts{
 		Number: response.Number, State: response.State, Draft: response.Draft,
-		Mergeable: response.Mergeable, BaseRef: response.Base.Ref,
+		Mergeable: response.Mergeable, Merged: response.Merged,
+		BaseRef: response.Base.Ref,
 		BaseSHA: response.Base.SHA, HeadRef: response.Head.Ref,
 		HeadSHA: response.Head.SHA, MergeCommit: response.MergeCommit,
 	}, nil

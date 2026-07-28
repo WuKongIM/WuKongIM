@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -180,6 +181,22 @@ type ModelAttempt struct {
 	ModelChanged        bool     `json:"model_changed"`
 }
 
+// ControlAudit freezes one freshly authorized maintainer control operation.
+type ControlAudit struct {
+	Kind                    string   `json:"kind"`
+	EventID                 string   `json:"event_id"`
+	Actor                   string   `json:"actor"`
+	CommentID               int64    `json:"comment_id"`
+	ReviewThreadIDs         []string `json:"review_thread_ids"`
+	AdoptedHeadSHA          string   `json:"adopted_head_sha"`
+	BackportBranch          string   `json:"backport_branch"`
+	ChildIssueNumber        int64    `json:"child_issue_number"`
+	RecoveryAnchorCommentID int64    `json:"recovery_anchor_comment_id"`
+	RecoveryAnchorDigest    string   `json:"recovery_anchor_digest"`
+	QuarantinedCommentIDs   []int64  `json:"quarantined_comment_ids"`
+	QuarantineDigest        string   `json:"quarantine_digest"`
+}
+
 // Checkpoint is the complete durable workflow snapshot stored on the Issue.
 type Checkpoint struct {
 	SchemaVersion                int           `json:"schema_version"`
@@ -199,6 +216,7 @@ type Checkpoint struct {
 	Validation                   *Validation   `json:"validation"`
 	Budget                       Budget        `json:"budget"`
 	Model                        *ModelAttempt `json:"model"`
+	Control                      *ControlAudit `json:"control"`
 	NextAction                   Action        `json:"next_action"`
 }
 
@@ -259,6 +277,11 @@ func ValidateCheckpoint(checkpoint Checkpoint) error {
 	}
 	if checkpoint.Model != nil {
 		if err := validateModelAttempt(*checkpoint.Model); err != nil {
+			return err
+		}
+	}
+	if checkpoint.Control != nil {
+		if err := validateControlAudit(*checkpoint.Control); err != nil {
 			return err
 		}
 	}
@@ -413,8 +436,10 @@ func validateValidation(validation Validation) error {
 		!strictStrings(validation.RequiredSuites) ||
 		!slices.Contains(validation.RequiredSuites, "go-e2e") ||
 		!slices.Contains(validation.RequiredSuites, "go-fast") ||
-		validation.LocalPasses != 3 ||
-		validation.Conclusion != "success" {
+		(validation.Conclusion == "success" && validation.LocalPasses != 3) ||
+		(validation.Conclusion == "failure" && validation.LocalPasses > 3) ||
+		(validation.Conclusion != "success" &&
+			validation.Conclusion != "failure") {
 		return errors.New("invalid validation evidence")
 	}
 	return nil
@@ -431,6 +456,70 @@ func validateModelAttempt(model ModelAttempt) error {
 		strings.TrimSpace(model.TerminalResult) == "" ||
 		len(model.TerminalResult) > 256 {
 		return errors.New("invalid model attempt")
+	}
+	return nil
+}
+
+func validateControlAudit(control ControlAudit) error {
+	if control.EventID == "" || len(control.EventID) > 256 ||
+		control.Actor == "" || len(control.Actor) > 64 ||
+		strings.ContainsAny(control.EventID, "\r\n") ||
+		strings.ContainsAny(control.Actor, "\r\n") ||
+		control.CommentID <= 0 ||
+		!strictStrings(control.ReviewThreadIDs) {
+		return errors.New("invalid maintainer control audit")
+	}
+	hasRecoveryFacts := control.RecoveryAnchorCommentID != 0 ||
+		control.RecoveryAnchorDigest != "" ||
+		len(control.QuarantinedCommentIDs) != 0 ||
+		control.QuarantineDigest != ""
+	switch control.Kind {
+	case "revise", "cancel":
+		if len(control.ReviewThreadIDs) != 0 ||
+			control.AdoptedHeadSHA != "" || control.BackportBranch != "" ||
+			control.ChildIssueNumber != 0 || hasRecoveryFacts {
+			return errors.New("maintainer control carries unrelated facts")
+		}
+	case "address_review":
+		if len(control.ReviewThreadIDs) == 0 ||
+			control.AdoptedHeadSHA != "" || control.BackportBranch != "" ||
+			control.ChildIssueNumber != 0 || hasRecoveryFacts {
+			return errors.New("review control facts are invalid")
+		}
+	case "adopt_head":
+		if !gitSHAPattern.MatchString(control.AdoptedHeadSHA) ||
+			len(control.ReviewThreadIDs) != 0 || control.BackportBranch != "" ||
+			control.ChildIssueNumber != 0 || hasRecoveryFacts {
+			return errors.New("adopt-head control facts are invalid")
+		}
+	case "backport":
+		if control.BackportBranch == "" || len(control.BackportBranch) > 128 ||
+			path.Clean(control.BackportBranch) != control.BackportBranch ||
+			strings.HasPrefix(control.BackportBranch, "../") ||
+			control.ChildIssueNumber <= 0 || len(control.ReviewThreadIDs) != 0 ||
+			control.AdoptedHeadSHA != "" || hasRecoveryFacts {
+			return errors.New("backport control facts are invalid")
+		}
+	case "recover_chain":
+		if control.RecoveryAnchorCommentID <= 0 ||
+			!digestPattern.MatchString(control.RecoveryAnchorDigest) ||
+			len(control.QuarantinedCommentIDs) == 0 ||
+			len(control.QuarantinedCommentIDs) > 128 ||
+			!slices.IsSorted(control.QuarantinedCommentIDs) ||
+			!digestPattern.MatchString(control.QuarantineDigest) ||
+			len(control.ReviewThreadIDs) != 0 ||
+			control.AdoptedHeadSHA != "" || control.BackportBranch != "" ||
+			control.ChildIssueNumber != 0 {
+			return errors.New("recovery control facts are invalid")
+		}
+		for index, id := range control.QuarantinedCommentIDs {
+			if id <= control.RecoveryAnchorCommentID ||
+				index > 0 && control.QuarantinedCommentIDs[index-1] == id {
+				return errors.New("recovery quarantine identities are invalid")
+			}
+		}
+	default:
+		return errors.New("unknown maintainer control")
 	}
 	return nil
 }
@@ -482,7 +571,8 @@ func validateStateEvidence(checkpoint Checkpoint) error {
 		}
 	case StateFixing:
 		if checkpoint.Diagnosis == nil || checkpoint.Lease == nil ||
-			checkpoint.Lease.Phase != PhaseFix ||
+			(checkpoint.Lease.Phase != PhaseFix &&
+				checkpoint.Lease.Phase != PhaseAddressReview) ||
 			checkpoint.NextAction != ActionImplementFix {
 			return errors.New("fixing checkpoint lacks diagnosis or Worker lease")
 		}

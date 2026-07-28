@@ -139,6 +139,29 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.NotContains(t, raw, "permissions:\n      contents: write")
 	require.Contains(t, raw, "environment: issue-agent-publisher")
 	require.Contains(t, raw, "module_cache")
+	require.Contains(t, raw, ".enabled == true")
+	require.Contains(t, raw, "remediation_issue_allowlist")
+	require.Contains(t, raw, "docker pull \"$sandbox_image\"")
+	require.Contains(t, raw, "prompt_phase=address-review")
+}
+
+func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.Contains(t, raw, ".plan.operation")
+	require.Contains(t, raw, `case "$LIFECYCLE_OPERATION:$STATE"`)
+	require.Contains(t, raw, `"failure"`)
+	require.Contains(t, raw, "publish-command")
+	require.Contains(t, raw, "publish-merge")
+	require.Contains(t, raw, "observe_merge")
+	for _, command := range []string{
+		"revise", "cancel", "address-review", "adopt-head", "backport",
+		"recover-chain",
+	} {
+		require.Contains(t, raw, command)
+	}
+	require.Contains(t, raw, "repair_operation")
 }
 
 func validatePinnedIssueAgentAction(value string) error {

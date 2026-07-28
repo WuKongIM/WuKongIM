@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -347,6 +348,47 @@ func TestWorkerBindsDiagnosisToDerivedEvidence(t *testing.T) {
 		t, artifact.Result.Evidence.ArtifactSHA256,
 		artifact.Result.Diagnosis.EvidenceSHA256,
 	)
+}
+
+func TestWorkerTurnsAdapterFailureIntoSanitizedPublishableArtifact(t *testing.T) {
+	t.Parallel()
+
+	task := validWorkerTask()
+	prompt := []byte("fixed worker prompt")
+	policy := []byte(`{"enabled":true}`)
+	task.PromptDigest = digestForTest(prompt)
+	task.PolicyDigest = digestForTest(policy)
+	workspace := t.TempDir()
+	instruction := []byte("# Worker instructions\n")
+	require.NoError(t, os.WriteFile(
+		filepath.Join(workspace, "AGENTS.md"), instruction, 0o644,
+	))
+	task.InstructionDigests = []issueagent.FileDigest{{
+		Path: "AGENTS.md", SHA256: digestForTest(instruction),
+	}}
+	worker, err := issueagentworker.NewWorker(issueagentworker.WorkerConfig{
+		Task: task, Prompt: prompt, Policy: policy, Workspace: workspace,
+		Runner: &fakeRunner{},
+		Model: func(
+			context.Context,
+			issueagent.TaskEnvelope,
+			[]byte,
+			*issueagentworker.Broker,
+		) (issueagentworker.ModelOutput, error) {
+			return issueagentworker.ModelOutput{}, errors.New("secret provider detail")
+		},
+		MaxArtifactBytes: 1 << 20,
+	})
+	require.NoError(t, err)
+
+	artifact, err := worker.Run(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, issueagentworker.ValidateArtifact(artifact))
+	require.Equal(t, issueagent.ResultStatusFailed, artifact.Result.Status)
+	require.Equal(t, issueagent.FailureProvider, artifact.Result.Failure.Class)
+	require.Empty(t, artifact.Result.Evidence.Commands)
+	require.Empty(t, artifact.Result.ChangeSet.Files)
+	require.NotContains(t, artifact.Result.Failure.Summary, "secret")
 }
 
 func digestForTest(value []byte) string {

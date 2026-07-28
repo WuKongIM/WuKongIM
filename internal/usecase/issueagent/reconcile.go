@@ -68,18 +68,18 @@ type ReconcilePolicy struct {
 
 // Plan is an immutable proposal bound to the exact checkpoint predecessor.
 type Plan struct {
-	Operation                   Operation
-	Repository                  string
-	IssueNumber                 int64
-	Generation                  uint64
-	ExpectedSequence            uint64
-	ExpectedCheckpointCommentID int64
-	ExpectedCheckpointDigest    string
-	OperationID                 string
-	ArtifactRunID               int64
-	Phase                       issueagentcontract.Phase
-	WriteAllowed                bool
-	Reason                      string
+	Operation                   Operation                `json:"operation"`
+	Repository                  string                   `json:"repository"`
+	IssueNumber                 int64                    `json:"issue_number"`
+	Generation                  uint64                   `json:"generation"`
+	ExpectedSequence            uint64                   `json:"expected_sequence"`
+	ExpectedCheckpointCommentID int64                    `json:"expected_checkpoint_comment_id"`
+	ExpectedCheckpointDigest    string                   `json:"expected_checkpoint_digest"`
+	OperationID                 string                   `json:"operation_id"`
+	ArtifactRunID               int64                    `json:"artifact_run_id"`
+	Phase                       issueagentcontract.Phase `json:"phase"`
+	WriteAllowed                bool                     `json:"write_allowed"`
+	Reason                      string                   `json:"reason"`
 }
 
 // Reconcile derives one next operation solely from current verified facts.

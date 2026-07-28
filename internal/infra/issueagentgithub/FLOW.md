@@ -39,3 +39,10 @@ tracking Issues are projections of already-validated state. No method can
 merge a PR, close a Bug Issue, force-update a ref, or write a default branch or
 tag. A saturated inventory, paginated history, unknown response shape, corrupt
 checkpoint, stale lease, or object mismatch fails closed.
+
+An admin recovery is the only exception to ordinary contiguous history
+verification. A later valid signed recovery checkpoint must identify the exact
+last valid anchor, every intervening App marker, and a digest of those raw
+comments; only that enumerated segment is quarantined. Unresolved review
+threads are read through one bounded GraphQL page and frozen into the signed
+review task.

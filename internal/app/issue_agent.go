@@ -45,6 +45,8 @@ type IssueAgentDependencies struct {
 	PublishValidationRequest func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	PublishValidationResult  func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	PublishExpiredLease      func(context.Context, issueagentcli.DocumentRequest) (any, error)
+	PublishCommand           func(context.Context, issueagentcli.DocumentRequest) (any, error)
+	PublishMerge             func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	ReadCurrentCheckpoint    func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	ReadCurrentTask          func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	RunWorker                func(context.Context, issueagentcli.DocumentRequest) (any, error)
@@ -213,20 +215,50 @@ type publishValidationRequestPayload struct {
 }
 
 type publishValidationResultPayload struct {
-	BaseURL       string                  `json:"base_url"`
-	Repository    string                  `json:"repository"`
-	AppLogin      string                  `json:"app_login"`
-	IssueNumber   int64                   `json:"issue_number"`
-	WorkflowRunID int64                   `json:"workflow_run_id"`
-	KeySet        issueagentgithub.KeySet `json:"key_set"`
+	BaseURL            string                           `json:"base_url"`
+	Repository         string                           `json:"repository"`
+	AppLogin           string                           `json:"app_login"`
+	IssueNumber        int64                            `json:"issue_number"`
+	WorkflowRunID      int64                            `json:"workflow_run_id"`
+	KeySet             issueagentgithub.KeySet          `json:"key_set"`
+	PolicyBase64       string                           `json:"policy_base64"`
+	PromptBase64       string                           `json:"prompt_base64"`
+	InstructionDigests []issueagentcontract.FileDigest  `json:"instruction_digests"`
+	AllowedCommands    []issueagentcontract.CommandRule `json:"allowed_commands"`
+	Provider           issueagentcontract.Provider      `json:"provider"`
+	Model              string                           `json:"model"`
+}
+
+type publishCommandPayload struct {
+	BaseURL            string                           `json:"base_url"`
+	Repository         string                           `json:"repository"`
+	AppLogin           string                           `json:"app_login"`
+	IssueNumber        int64                            `json:"issue_number"`
+	CommentID          int64                            `json:"comment_id"`
+	KeySet             issueagentgithub.KeySet          `json:"key_set"`
+	PolicyBase64       string                           `json:"policy_base64"`
+	PromptBase64       string                           `json:"prompt_base64"`
+	InstructionDigests []issueagentcontract.FileDigest  `json:"instruction_digests"`
+	AllowedCommands    []issueagentcontract.CommandRule `json:"allowed_commands"`
+	Provider           issueagentcontract.Provider      `json:"provider"`
+	Model              string                           `json:"model"`
 }
 
 type readCurrentCheckpointPayload struct {
-	BaseURL     string                  `json:"base_url"`
-	Repository  string                  `json:"repository"`
-	AppLogin    string                  `json:"app_login"`
-	IssueNumber int64                   `json:"issue_number"`
-	KeySet      issueagentgithub.KeySet `json:"key_set"`
+	BaseURL      string                  `json:"base_url"`
+	Repository   string                  `json:"repository"`
+	AppLogin     string                  `json:"app_login"`
+	IssueNumber  int64                   `json:"issue_number"`
+	KeySet       issueagentgithub.KeySet `json:"key_set"`
+	PolicyBase64 string                  `json:"policy_base64,omitempty"`
+}
+
+type currentCheckpointResult struct {
+	CheckpointCommentID int64                         `json:"checkpoint_comment_id"`
+	CheckpointDigest    string                        `json:"checkpoint_digest"`
+	Checkpoint          issueagentcontract.Checkpoint `json:"checkpoint"`
+	IssueBodyChanged    bool                          `json:"issue_body_changed"`
+	Plan                *issueagentusecase.Plan       `json:"plan,omitempty"`
 }
 
 type readCurrentTaskPayload struct {
@@ -377,6 +409,26 @@ func NewIssueAgentGitHubDependencies(
 				return nil, err
 			}
 			return publishExpiredLease(ctx, config, payload)
+		},
+		PublishCommand: func(
+			ctx context.Context,
+			document issueagentcli.DocumentRequest,
+		) (any, error) {
+			var payload publishCommandPayload
+			if err := decodeIssueAgentDocument(document.Payload, &payload); err != nil {
+				return nil, err
+			}
+			return publishCommand(ctx, config, payload)
+		},
+		PublishMerge: func(
+			ctx context.Context,
+			document issueagentcli.DocumentRequest,
+		) (any, error) {
+			var payload readCurrentCheckpointPayload
+			if err := decodeIssueAgentDocument(document.Payload, &payload); err != nil {
+				return nil, err
+			}
+			return publishMerge(ctx, config, payload)
 		},
 		ReadCurrentCheckpoint: func(
 			ctx context.Context,
@@ -594,10 +646,52 @@ func readCurrentCheckpoint(
 	if err != nil {
 		return nil, err
 	}
-	if verified.Checkpoint.FrozenInput.IssueBodySHA256 != digestIssueBody(issue.Body) {
-		return nil, errors.New("current Issue body differs from its signed checkpoint")
+	result := currentCheckpointResult{
+		CheckpointCommentID: verified.CommentID,
+		CheckpointDigest:    verified.Digest,
+		Checkpoint:          verified.Checkpoint,
+		IssueBodyChanged: verified.Checkpoint.FrozenInput.IssueBodySHA256 !=
+			digestIssueBody(issue.Body),
 	}
-	return verified, nil
+	if payload.PolicyBase64 != "" {
+		policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+		if err != nil {
+			return nil, errors.New("current-checkpoint policy is invalid")
+		}
+		policy, err := issueagentusecase.DecodePolicy(
+			bytes.NewReader(policyBytes), int64(len(policyBytes)),
+		)
+		if err != nil {
+			return nil, err
+		}
+		var leaseFacts *issueagentusecase.LeaseFacts
+		if lease := verified.Checkpoint.Lease; lease != nil {
+			leaseFacts = &issueagentusecase.LeaseFacts{
+				OperationID: lease.OperationID,
+				TaskDigest:  lease.TaskSHA256,
+				Generation:  verified.Checkpoint.Generation,
+				ExpiresAt:   lease.ExpiresAt,
+			}
+		}
+		plan, err := issueagentusecase.Reconcile(
+			issueagentusecase.ReconcileInput{
+				Now:                 config.Now().UTC(),
+				ChainStatus:         issueagentusecase.ChainValid,
+				Checkpoint:          &verified.Checkpoint,
+				CheckpointCommentID: verified.CommentID,
+				CheckpointDigest:    verified.Digest,
+				Lease:               leaseFacts,
+			},
+			issueagentusecase.ReconcilePolicy{
+				Enabled: policy.Enabled, RolloutMode: policy.RolloutMode,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		result.Plan = &plan
+	}
+	return result, nil
 }
 
 func readCurrentTask(
@@ -611,9 +705,12 @@ func readCurrentTask(
 	if err != nil {
 		return nil, err
 	}
-	verified, ok := current.(issueagentgithub.VerifiedCheckpoint)
+	verified, ok := current.(currentCheckpointResult)
 	if !ok {
 		return nil, errors.New("current checkpoint projection is invalid")
+	}
+	if verified.IssueBodyChanged {
+		return nil, errors.New("current Issue body differs from its signed task")
 	}
 	lease := verified.Checkpoint.Lease
 	now := config.Now().UTC()
@@ -635,8 +732,8 @@ func readCurrentTask(
 		TaskSHA256          string                          `json:"task_sha256"`
 		ExpiresAt           time.Time                       `json:"expires_at"`
 	}{
-		CheckpointCommentID: verified.CommentID,
-		CheckpointDigest:    verified.Digest,
+		CheckpointCommentID: verified.CheckpointCommentID,
+		CheckpointDigest:    verified.CheckpointDigest,
 		Task:                lease.Task,
 		TaskSHA256:          lease.TaskSHA256,
 		ExpiresAt:           lease.ExpiresAt,
@@ -679,6 +776,16 @@ func publishExpiredLease(
 		previous.Checkpoint.Lease.ExpiresAt.After(now) {
 		return nil, errors.New("current signed Worker lease is not expired")
 	}
+	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+	if err != nil {
+		return nil, errors.New("expired-lease policy is invalid")
+	}
+	policy, err := issueagentusecase.DecodePolicy(
+		bytes.NewReader(policyBytes), int64(len(policyBytes)),
+	)
+	if err != nil {
+		return nil, errors.New("expired-lease policy is invalid")
+	}
 	next := previous.Checkpoint
 	next.Sequence++
 	next.ExpectedPreviousCheckpointID = &previous.CommentID
@@ -686,7 +793,8 @@ func publishExpiredLease(
 	next.Lease = nil
 	next.Model = nil
 	summary := "Recovered an expired Worker lease without accepting any untrusted output."
-	if next.Budget.InfrastructureRetries >= 3 {
+	if int(next.Budget.InfrastructureRetries) >=
+		policy.IssueBudget.MaxInfrastructureRetries {
 		next.State = issueagentcontract.StateReadyForHuman
 		next.NextAction = issueagentcontract.ActionWaitForHuman
 		summary = "Stopped automatic recovery after the bounded infrastructure retry budget."
@@ -713,6 +821,509 @@ func publishExpiredLease(
 		AppLogin: payload.AppLogin, IssueNumber: payload.IssueNumber,
 		Now: now, KeySet: payload.KeySet, Comments: comments,
 		Checkpoint: next, Summary: summary, Labels: slices.Compact(labels),
+	}
+	preparedClient, preparedStore, preparedPrevious, err :=
+		prepareCheckpointPublication(config, publication)
+	if err != nil {
+		return nil, err
+	}
+	return appendCheckpointProjection(
+		ctx, preparedClient, preparedStore, preparedPrevious, publication,
+	)
+}
+
+func publishCommand(
+	ctx context.Context,
+	config IssueAgentGitHubConfig,
+	payload publishCommandPayload,
+) (any, error) {
+	client, err := issueAgentGitHubClient(
+		config, payload.BaseURL, payload.Repository,
+	)
+	if err != nil {
+		return nil, err
+	}
+	issue, err := client.Issue(ctx, payload.IssueNumber)
+	if err != nil || issue.State != "open" && issue.State != "closed" {
+		return nil, errors.New("maintainer-command Issue is unavailable")
+	}
+	comment, err := client.IssueComment(
+		ctx, payload.CommentID, payload.IssueNumber,
+	)
+	if err != nil || !comment.CreatedAt.Equal(comment.UpdatedAt) {
+		return nil, errors.New("maintainer command is stale or edited")
+	}
+	permission, err := client.ActorPermission(ctx, comment.Author)
+	if err != nil {
+		return nil, err
+	}
+	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+	if err != nil {
+		return nil, errors.New("maintainer-command policy is invalid")
+	}
+	policy, err := issueagentusecase.DecodePolicy(
+		bytes.NewReader(policyBytes), int64(len(policyBytes)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	intent, err := issueagentusecase.ParseCommand(
+		comment.Body,
+		issueagentusecase.CommandActor{
+			Login: comment.Author, Type: comment.AuthorType,
+			Permission: issueagentusecase.Permission(permission),
+		},
+		issueagentusecase.CommandPolicy{
+			AllowedBackportBranches: policy.AllowedBackportBranches,
+		},
+	)
+	if err != nil || intent.Kind == issueagentusecase.CommandApproveRisk {
+		return nil, errors.New("maintainer command uses a different trusted route")
+	}
+	if issue.State != "open" &&
+		intent.Kind != issueagentusecase.CommandBackport &&
+		intent.Kind != issueagentusecase.CommandRecoverChain {
+		return nil, errors.New("maintainer command requires an open Issue")
+	}
+	comments, err := client.ListIssueComments(ctx, payload.IssueNumber)
+	if err != nil {
+		return nil, err
+	}
+	store, err := checkpointStoreForPublisher(
+		config, payload.Repository, payload.AppLogin, payload.KeySet,
+	)
+	if err != nil {
+		return nil, err
+	}
+	now := config.Now().UTC()
+	if intent.Kind == issueagentusecase.CommandRecoverChain {
+		return publishChainRecovery(
+			ctx, payload, issue, comment, comments, store, client, intent, now,
+		)
+	}
+	previous, err := store.VerifyChain(comments, payload.IssueNumber, now)
+	if err != nil {
+		return nil, err
+	}
+	if intent.Kind != issueagentusecase.CommandRevise &&
+		previous.Checkpoint.FrozenInput.IssueBodySHA256 != digestIssueBody(issue.Body) {
+		return nil, errors.New("edited Issue text requires /agent revise first")
+	}
+	eventID := "comment-" + strconv.FormatInt(comment.ID, 10)
+	facts := issueagentusecase.CommandFacts{
+		CommandEventID:   eventID,
+		CurrentCommentID: previous.CommentID,
+		CurrentDigest:    previous.Digest,
+	}
+	switch intent.Kind {
+	case issueagentusecase.CommandRevise:
+		intake, err := issueagentusecase.PlanIntake(issue.Body, nil)
+		if err != nil || !intake.Complete {
+			return nil, errors.New("revision requires a complete current Bug form")
+		}
+		main, err := client.DefaultBranchHead(ctx, "main")
+		if err != nil {
+			return nil, err
+		}
+		facts.IssueBodySHA256 = digestIssueBody(issue.Body)
+		facts.AffectedVersion = intake.Form.AffectedVersion
+		facts.AcceptedCommentIDs = []int64{comment.ID}
+		facts.DiagnosisBaseSHA = main.SHA
+	case issueagentusecase.CommandAddressReview:
+		if previous.Checkpoint.State != issueagentcontract.StateReadyForReview ||
+			previous.Checkpoint.Work == nil {
+			return nil, errors.New("address-review requires reviewed Agent work")
+		}
+		facts.UnresolvedThreadIDs, err = client.UnresolvedReviewThreadIDs(
+			ctx, previous.Checkpoint.Work.PRNumber,
+		)
+		if err != nil {
+			return nil, err
+		}
+	case issueagentusecase.CommandAdoptHead:
+		if previous.Checkpoint.Work == nil {
+			return nil, errors.New("adopt-head requires Agent work")
+		}
+		ref, err := client.Ref(ctx, previous.Checkpoint.Work.Branch)
+		if err != nil {
+			return nil, err
+		}
+		facts.CurrentExternalHead = ref.SHA
+	case issueagentusecase.CommandBackport:
+		if previous.Checkpoint.Work == nil {
+			return nil, errors.New("backport requires merged Agent work")
+		}
+		target, err := client.BranchHead(ctx, intent.BackportBranch)
+		if err != nil {
+			return nil, err
+		}
+		facts.MergedPRNumber = previous.Checkpoint.Work.PRNumber
+		facts.TargetBranch = target.Name
+		facts.TargetHeadSHA = target.SHA
+	case issueagentusecase.CommandCancel:
+	default:
+		return nil, errors.New("maintainer command is unsupported")
+	}
+	plan, err := issueagentusecase.PlanCommand(
+		previous.Checkpoint, intent, facts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	control := &issueagentcontract.ControlAudit{
+		Kind: string(intent.Kind), EventID: eventID, Actor: comment.Author,
+		CommentID: comment.ID,
+	}
+	next := previous.Checkpoint
+	next.Generation = plan.NewGeneration
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &previous.CommentID
+	next.PreviousCheckpointSHA256 = &previous.Digest
+	next.Lease = nil
+	next.Control = control
+	var task issueagentcontract.TaskEnvelope
+	summary := "Applied freshly authorized maintainer command /agent " +
+		strings.ReplaceAll(string(intent.Kind), "_", "-") + "."
+	switch intent.Kind {
+	case issueagentusecase.CommandRevise:
+		next = *plan.RevisedCheckpoint
+		next.Control = control
+	case issueagentusecase.CommandCancel:
+		next.State = issueagentcontract.StateCancelled
+		next.NextAction = issueagentcontract.ActionNone
+	case issueagentusecase.CommandAdoptHead:
+		if previous.Checkpoint.Work == nil {
+			return nil, errors.New("adopt-head work disappeared")
+		}
+		pull, err := client.PullRequest(
+			ctx, previous.Checkpoint.Work.PRNumber,
+		)
+		if err != nil || pull.State != "open" ||
+			pull.HeadRef != previous.Checkpoint.Work.Branch ||
+			pull.HeadSHA != plan.AdoptedHeadSHA {
+			return nil, errors.New("adopt-head Draft PR is not exact")
+		}
+		pull, err = client.EnsurePullRequestDraft(
+			ctx, pull.Number, plan.AdoptedHeadSHA,
+		)
+		if err != nil || !pull.Draft {
+			return nil, errors.New("adopt-head PR could not return to Draft")
+		}
+		control.AdoptedHeadSHA = plan.AdoptedHeadSHA
+		next.State = issueagentcontract.StateValidating
+		next.Work = &issueagentcontract.Work{
+			Branch:   previous.Checkpoint.Work.Branch,
+			HeadSHA:  plan.AdoptedHeadSHA,
+			PRNumber: previous.Checkpoint.Work.PRNumber,
+		}
+		next.Validation = nil
+		next.NextAction = issueagentcontract.ActionValidate
+	case issueagentusecase.CommandAddressReview:
+		if !policyAllowsAutomatedRemediation(policy, payload.IssueNumber) ||
+			previous.Checkpoint.Reproduction == nil ||
+			previous.Checkpoint.Diagnosis == nil ||
+			previous.Checkpoint.Work == nil {
+			return nil, errors.New("address-review is outside rollout or evidence policy")
+		}
+		prompt, err := decodeCanonicalBase64(payload.PromptBase64, 128<<10)
+		if err != nil {
+			return nil, errors.New("address-review prompt is invalid")
+		}
+		pull, err := client.EnsurePullRequestDraft(
+			ctx, previous.Checkpoint.Work.PRNumber,
+			previous.Checkpoint.Work.HeadSHA,
+		)
+		if err != nil || !pull.Draft ||
+			pull.HeadRef != previous.Checkpoint.Work.Branch {
+			return nil, errors.New("address-review PR could not return to exact Draft")
+		}
+		operationID := issueagentusecase.OperationID(
+			payload.Repository, payload.IssueNumber, next.Generation,
+			next.Sequence, issueagentcontract.PhaseAddressReview,
+		)
+		task, err = issueagentusecase.BuildAddressReviewTask(
+			issueagentusecase.PhaseTaskInput{
+				Repository: payload.Repository, IssueNumber: payload.IssueNumber,
+				Generation: next.Generation, Sequence: next.Sequence,
+				OperationID: operationID, CheckpointDigest: previous.Digest,
+				PolicyDigest:       digestPayload(policyBytes),
+				PromptDigest:       digestPayload(prompt),
+				Versions:           previous.Checkpoint.Versions,
+				CandidateSHA:       previous.Checkpoint.Work.HeadSHA,
+				FrozenIssue:        issue.Body,
+				AcceptedCommentIDs: previous.Checkpoint.FrozenInput.AcceptedCommentIDs,
+				InstructionDigests: payload.InstructionDigests,
+				Provider:           payload.Provider, Model: payload.Model,
+			},
+			*previous.Checkpoint.Diagnosis,
+			*previous.Checkpoint.Reproduction,
+			plan.ReviewThreadIDs,
+			payload.AllowedCommands,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureIssueWorkerBudget(
+			previous.Checkpoint, policy, 95*time.Minute,
+			previous.Checkpoint.Budget.RemediationAttempts,
+			policy.IssueBudget.MaxRemediationAttempts,
+		); err != nil {
+			return nil, err
+		}
+		if err := ensureRepositoryWorkerCapacity(
+			ctx, client, store, now, 95*time.Minute, true,
+		); err != nil {
+			return nil, err
+		}
+		taskDigest, err := issueagentcontract.TaskDigest(task)
+		if err != nil {
+			return nil, err
+		}
+		control.ReviewThreadIDs = append(
+			[]string(nil), plan.ReviewThreadIDs...,
+		)
+		next.State = issueagentcontract.StateFixing
+		next.Validation = nil
+		next.Lease = &issueagentcontract.Lease{
+			OperationID: operationID, Workflow: "issue-agent-run.yml",
+			DispatchRequestID: operationID,
+			Phase:             issueagentcontract.PhaseAddressReview,
+			IssuedAt:          now, ExpiresAt: now.Add(95 * time.Minute),
+			TaskSHA256: taskDigest, Task: task,
+			ReservedSeconds: uint64((95 * time.Minute).Seconds()), Heavy: true,
+		}
+		next.Budget.RemediationAttempts++
+		next.NextAction = issueagentcontract.ActionImplementFix
+	case issueagentusecase.CommandBackport:
+		title := "[Backport] Issue #" +
+			strconv.FormatInt(payload.IssueNumber, 10) + " to " +
+			plan.Backport.TargetBranch
+		body := "Backport the merged main fix from #" +
+			strconv.FormatInt(payload.IssueNumber, 10) + " / PR #" +
+			strconv.FormatInt(plan.Backport.SourcePR, 10) + " onto `" +
+			plan.Backport.TargetBranch + "` at `" +
+			plan.Backport.TargetHeadSHA + "`.\n\n" +
+			"This is an independent human-owned tracking Issue."
+		child, err := client.EnsureTrackingIssue(ctx, title, body)
+		if err != nil {
+			return nil, err
+		}
+		control.BackportBranch = plan.Backport.TargetBranch
+		control.ChildIssueNumber = child
+		next.State = issueagentcontract.StateMerged
+		next.NextAction = issueagentcontract.ActionNone
+		summary += " Created independent backport Issue #" +
+			strconv.FormatInt(child, 10) + "."
+	}
+	labels := append([]string(nil), issue.Labels...)
+	slices.Sort(labels)
+	publication := checkpointPayload{
+		BaseURL: payload.BaseURL, Repository: payload.Repository,
+		AppLogin: payload.AppLogin, IssueNumber: payload.IssueNumber,
+		Now: now, KeySet: payload.KeySet, Comments: comments,
+		Checkpoint: next, Summary: summary, Labels: slices.Compact(labels),
+	}
+	preparedClient, preparedStore, preparedPrevious, err :=
+		prepareCheckpointPublication(config, publication)
+	if err != nil {
+		return nil, err
+	}
+	projection, err := appendCheckpointProjection(
+		ctx, preparedClient, preparedStore, preparedPrevious, publication,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		Projection any                             `json:"projection"`
+		Task       issueagentcontract.TaskEnvelope `json:"task,omitempty"`
+	}{
+		Projection: projection, Task: task,
+	}, nil
+}
+
+func publishChainRecovery(
+	ctx context.Context,
+	payload publishCommandPayload,
+	issue issueagentgithub.IssueFacts,
+	command issueagentgithub.IssueComment,
+	comments []issueagentgithub.IssueComment,
+	store *issueagentgithub.CheckpointStore,
+	client *issueagentgithub.Client,
+	intent issueagentusecase.CommandIntent,
+	now time.Time,
+) (any, error) {
+	prefix := make([]issueagentgithub.IssueComment, 0)
+	quarantine := make([]issueagentgithub.IssueComment, 0)
+	for _, candidate := range comments {
+		switch {
+		case candidate.ID <= intent.CheckpointCommentID:
+			prefix = append(prefix, candidate)
+		case candidate.ID < command.ID &&
+			candidate.Author == payload.AppLogin &&
+			candidate.AuthorType == "Bot" &&
+			strings.Contains(
+				candidate.Body,
+				"<!-- wukongim-issue-agent-checkpoint:v1\n",
+			):
+			quarantine = append(quarantine, candidate)
+		}
+	}
+	anchor, err := store.VerifyChain(prefix, payload.IssueNumber, now)
+	if err != nil || anchor.CommentID != intent.CheckpointCommentID ||
+		anchor.Digest != intent.CheckpointDigest {
+		return nil, errors.New("recovery anchor is not the exact last valid checkpoint")
+	}
+	if anchor.Checkpoint.FrozenInput.IssueBodySHA256 != digestIssueBody(issue.Body) {
+		return nil, errors.New("recovery requires the frozen Issue body")
+	}
+	slices.SortFunc(quarantine, func(left, right issueagentgithub.IssueComment) int {
+		switch {
+		case left.ID < right.ID:
+			return -1
+		case left.ID > right.ID:
+			return 1
+		default:
+			return 0
+		}
+	})
+	quarantineIDs := make([]int64, 0, len(quarantine))
+	for _, candidate := range quarantine {
+		quarantineIDs = append(quarantineIDs, candidate.ID)
+	}
+	quarantineDigest, err := issueagentgithub.QuarantineDigest(quarantine)
+	if err != nil {
+		return nil, err
+	}
+	eventID := "comment-" + strconv.FormatInt(command.ID, 10)
+	plan, err := issueagentusecase.PlanCommand(
+		anchor.Checkpoint, intent, issueagentusecase.CommandFacts{
+			CommandEventID:        eventID,
+			LastValidCommentID:    anchor.CommentID,
+			LastValidDigest:       anchor.Digest,
+			QuarantinedCommentIDs: quarantineIDs,
+			QuarantineDigest:      quarantineDigest,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	next := anchor.Checkpoint
+	next.Generation++
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &anchor.CommentID
+	next.PreviousCheckpointSHA256 = &anchor.Digest
+	next.Lease = nil
+	next.Model = nil
+	next.Control = &issueagentcontract.ControlAudit{
+		Kind:    string(issueagentusecase.CommandRecoverChain),
+		EventID: eventID, Actor: command.Author, CommentID: command.ID,
+		RecoveryAnchorCommentID: plan.Recovery.AnchorCommentID,
+		RecoveryAnchorDigest:    plan.Recovery.AnchorDigest,
+		QuarantinedCommentIDs: append(
+			[]int64(nil), plan.Recovery.QuarantinedCommentIDs...,
+		),
+		QuarantineDigest: plan.Recovery.QuarantineDigest,
+	}
+	switch anchor.Checkpoint.State {
+	case issueagentcontract.StateReproducing:
+		next.State = issueagentcontract.StateVersionPinned
+		next.NextAction = issueagentcontract.ActionReproduce
+	case issueagentcontract.StateDiagnosing:
+		next.State = issueagentcontract.StateDraftPROpen
+		next.NextAction = issueagentcontract.ActionDiagnose
+	case issueagentcontract.StateFixing:
+		next.State = issueagentcontract.StateDiagnosed
+		next.NextAction = issueagentcontract.ActionImplementFix
+	}
+	body, digest, err := store.SignComment(
+		next,
+		"Admin recovered the signed chain from exact anchor #"+
+			strconv.FormatInt(anchor.CommentID, 10)+
+			" and quarantined "+strconv.Itoa(len(quarantine))+" App marker(s).",
+	)
+	if err != nil {
+		return nil, err
+	}
+	created, err := client.CreateIssueComment(ctx, payload.IssueNumber, body)
+	if err != nil {
+		return nil, err
+	}
+	labels := append([]string(nil), issue.Labels...)
+	slices.Sort(labels)
+	if err := client.SetIssueLabels(
+		ctx, payload.IssueNumber, slices.Compact(labels),
+	); err != nil {
+		return nil, err
+	}
+	return struct {
+		CommentID int64  `json:"comment_id"`
+		Digest    string `json:"digest"`
+	}{
+		CommentID: created.ID, Digest: digest,
+	}, nil
+}
+
+func publishMerge(
+	ctx context.Context,
+	config IssueAgentGitHubConfig,
+	payload readCurrentCheckpointPayload,
+) (any, error) {
+	client, err := issueAgentGitHubClient(
+		config, payload.BaseURL, payload.Repository,
+	)
+	if err != nil {
+		return nil, err
+	}
+	issue, err := client.Issue(ctx, payload.IssueNumber)
+	if err != nil || issue.State != "open" && issue.State != "closed" {
+		return nil, errors.New("merge-observation Issue is unavailable")
+	}
+	comments, err := client.ListIssueComments(ctx, payload.IssueNumber)
+	if err != nil {
+		return nil, err
+	}
+	store, err := checkpointStoreForPublisher(
+		config, payload.Repository, payload.AppLogin, payload.KeySet,
+	)
+	if err != nil {
+		return nil, err
+	}
+	now := config.Now().UTC()
+	previous, err := store.VerifyChain(comments, payload.IssueNumber, now)
+	if err != nil {
+		return nil, err
+	}
+	if previous.Checkpoint.State != issueagentcontract.StateReadyForReview ||
+		previous.Checkpoint.Work == nil ||
+		previous.Checkpoint.Validation == nil {
+		return nil, errors.New("merge observation requires validated review-ready work")
+	}
+	pull, err := client.PullRequest(
+		ctx, previous.Checkpoint.Work.PRNumber,
+	)
+	if err != nil || pull.State != "closed" || !pull.Merged ||
+		pull.HeadRef != previous.Checkpoint.Work.Branch ||
+		pull.HeadSHA != previous.Checkpoint.Work.HeadSHA ||
+		pull.MergeCommit == "" {
+		return nil, errors.New("GitHub does not report the exact Agent PR as merged")
+	}
+	next := previous.Checkpoint
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &previous.CommentID
+	next.PreviousCheckpointSHA256 = &previous.Digest
+	next.State = issueagentcontract.StateMerged
+	next.Lease = nil
+	next.NextAction = issueagentcontract.ActionNone
+	labels := append([]string(nil), issue.Labels...)
+	slices.Sort(labels)
+	publication := checkpointPayload{
+		BaseURL: payload.BaseURL, Repository: payload.Repository,
+		AppLogin: payload.AppLogin, IssueNumber: payload.IssueNumber,
+		Now: now, KeySet: payload.KeySet, Comments: comments,
+		Checkpoint: next,
+		Summary:    "Observed the exact human-merged Agent PR and recorded terminal merged state.",
+		Labels:     slices.Compact(labels),
 	}
 	preparedClient, preparedStore, preparedPrevious, err :=
 		prepareCheckpointPublication(config, publication)
@@ -843,14 +1454,31 @@ func publishReproductionLease(
 		previous.Checkpoint.FrozenInput.IssueBodySHA256 != digestIssueBody(issue.Body) {
 		return nil, errors.New("reproduction lease checkpoint or frozen Issue body is stale")
 	}
+	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+	if err != nil {
+		return nil, errors.New("reproduction policy is invalid")
+	}
+	policy, err := issueagentusecase.DecodePolicy(
+		bytes.NewReader(policyBytes), int64(len(policyBytes)),
+	)
+	if err != nil || !policyAllowsReproduction(policy) {
+		return nil, errors.New("reproduction is outside the current rollout policy")
+	}
+	if err := ensureIssueWorkerBudget(
+		previous.Checkpoint, policy, 95*time.Minute,
+		previous.Checkpoint.Budget.ReproductionAttempts,
+		policy.IssueBudget.MaxReproductionAttempts,
+	); err != nil {
+		return publishIssueWorkerBudgetStop(
+			ctx, config, payload.BaseURL, payload.Repository,
+			payload.AppLogin, payload.IssueNumber, payload.KeySet,
+			issue.Labels, comments, previous,
+		)
+	}
 	if err := ensureRepositoryWorkerCapacity(
 		ctx, client, store, now, 95*time.Minute, true,
 	); err != nil {
 		return nil, err
-	}
-	policy, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
-	if err != nil {
-		return nil, errors.New("reproduction policy is invalid")
 	}
 	prompt, err := decodeCanonicalBase64(payload.PromptBase64, 128<<10)
 	if err != nil {
@@ -867,7 +1495,7 @@ func publishReproductionLease(
 			Repository: payload.Repository, IssueNumber: payload.IssueNumber,
 			Generation: previous.Checkpoint.Generation, Sequence: nextSequence,
 			OperationID: operationID, CheckpointDigest: previous.Digest,
-			PolicyDigest: digestPayload(policy), PromptDigest: digestPayload(prompt),
+			PolicyDigest: digestPayload(policyBytes), PromptDigest: digestPayload(prompt),
 			Versions: previous.Checkpoint.Versions, FrozenIssue: issue.Body,
 			AcceptedCommentIDs: previous.Checkpoint.FrozenInput.AcceptedCommentIDs,
 			InstructionDigests: payload.InstructionDigests,
@@ -972,6 +1600,15 @@ func publishWorkerArtifact(
 		payload.ArtifactName != "issue-agent-result-"+lease.OperationID[7:23] {
 		return nil, errors.New("Worker Artifact run or name is not lease-bound")
 	}
+	if payload.Artifact.Result.Status == issueagentcontract.ResultStatusFailed &&
+		payload.Artifact.Result.Failure != nil &&
+		(payload.Artifact.Result.Failure.Class == issueagentcontract.FailureProvider ||
+			payload.Artifact.Result.Failure.Class ==
+				issueagentcontract.FailureWorkerInfrastructure) {
+		return publishFailedWorkerArtifact(
+			ctx, config, payload, issue.Labels, comments, previous, now,
+		)
+	}
 	switch payload.Artifact.Task.Phase {
 	case issueagentcontract.PhaseDiagnose:
 		if previous.Checkpoint.State != issueagentcontract.StateDiagnosing ||
@@ -985,6 +1622,14 @@ func publishWorkerArtifact(
 		if previous.Checkpoint.State != issueagentcontract.StateFixing ||
 			lease.Phase != issueagentcontract.PhaseFix {
 			return nil, errors.New("fix Artifact is outside a remediation lease")
+		}
+		return publishFixArtifact(
+			ctx, config, payload, issue.Labels, comments, previous, client, now,
+		)
+	case issueagentcontract.PhaseAddressReview:
+		if previous.Checkpoint.State != issueagentcontract.StateFixing ||
+			lease.Phase != issueagentcontract.PhaseAddressReview {
+			return nil, errors.New("review Artifact is outside its exact lease")
 		}
 		return publishFixArtifact(
 			ctx, config, payload, issue.Labels, comments, previous, client, now,
@@ -1097,6 +1742,57 @@ func publishWorkerArtifact(
 		Checkpoint: next,
 		Summary:    "Published an exact two-baseline, three-run E2E reproduction decision.",
 		Labels:     slices.Compact(labels),
+	}
+	preparedClient, preparedStore, preparedPrevious, err :=
+		prepareCheckpointPublication(config, publication)
+	if err != nil {
+		return nil, err
+	}
+	return appendCheckpointProjection(
+		ctx, preparedClient, preparedStore, preparedPrevious, publication,
+	)
+}
+
+func publishFailedWorkerArtifact(
+	ctx context.Context,
+	config IssueAgentGitHubConfig,
+	payload publishWorkerArtifactPayload,
+	issueLabels []string,
+	comments []issueagentgithub.IssueComment,
+	previous issueagentgithub.VerifiedCheckpoint,
+	now time.Time,
+) (any, error) {
+	result := payload.Artifact.Result
+	if result.Failure == nil || len(result.ChangeSet.Files) != 0 ||
+		result.RequestedState != issueagentcontract.StateReadyForHuman ||
+		result.RequestedAction != issueagentcontract.ActionWaitForHuman {
+		return nil, errors.New("failed Worker Artifact is not safely publishable")
+	}
+	if err := issueagentcontract.ValidateTransition(
+		previous.Checkpoint.State, issueagentcontract.StateReadyForHuman,
+	); err != nil {
+		return nil, err
+	}
+	next := previous.Checkpoint
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &previous.CommentID
+	next.PreviousCheckpointSHA256 = &previous.Digest
+	next.State = issueagentcontract.StateReadyForHuman
+	next.Lease = nil
+	next.Model = workerModelAttempt(
+		payload.Artifact, string(result.Failure.Class), &next.Budget,
+	)
+	next.NextAction = issueagentcontract.ActionWaitForHuman
+	labels := append([]string(nil), issueLabels...)
+	slices.Sort(labels)
+	publication := checkpointPayload{
+		BaseURL: payload.BaseURL, Repository: payload.Repository,
+		AppLogin: payload.AppLogin, IssueNumber: payload.IssueNumber,
+		Now: now, KeySet: payload.KeySet, Comments: comments,
+		Checkpoint: next,
+		Summary: "Recorded a classified " + string(result.Failure.Class) +
+			" Worker failure without treating it as an infrastructure lease expiry.",
+		Labels: slices.Compact(labels),
 	}
 	preparedClient, preparedStore, preparedPrevious, err :=
 		prepareCheckpointPublication(config, publication)
@@ -1223,7 +1919,10 @@ func publishFixArtifact(
 		},
 		ProtectedPaths: payload.ProtectedPaths,
 		AllowedPaths:   payload.Artifact.Task.AllowedPaths,
-		ExistingPaths:  existingPaths, FrozenFileSHA256: map[string]string{},
+		ExistingPaths:  existingPaths,
+		ImmutablePaths: reproductionPaths(
+			previous.Checkpoint.Reproduction.TestFiles,
+		),
 	}
 	if err := issueagentgithub.ValidatePublish(validation); err != nil {
 		return nil, err
@@ -1280,6 +1979,9 @@ func workerModelAttempt(
 	budget *issueagentcontract.Budget,
 ) *issueagentcontract.ModelAttempt {
 	elapsedMS := workerElapsedMilliseconds(artifact.Tools)
+	if elapsedMS == 0 {
+		elapsedMS = 1
+	}
 	if budget != nil {
 		budget.WorkerSeconds += (elapsedMS + 999) / 1000
 	}
@@ -1478,9 +2180,16 @@ func publishPhaseLease(
 		pull.HeadSHA != previous.Checkpoint.Work.HeadSHA {
 		return nil, errors.New("phase-lease Draft PR is inconsistent")
 	}
-	policy, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
 	if err != nil {
 		return nil, errors.New("phase policy is invalid")
+	}
+	policy, err := issueagentusecase.DecodePolicy(
+		bytes.NewReader(policyBytes), int64(len(policyBytes)),
+	)
+	if err != nil ||
+		!policyAllowsAutomatedRemediation(policy, payload.IssueNumber) {
+		return nil, errors.New("phase is outside the current remediation policy")
 	}
 	prompt, err := decodeCanonicalBase64(payload.PromptBase64, 128<<10)
 	if err != nil {
@@ -1495,7 +2204,7 @@ func publishPhaseLease(
 		Repository: payload.Repository, IssueNumber: payload.IssueNumber,
 		Generation: previous.Checkpoint.Generation, Sequence: nextSequence,
 		OperationID: operationID, CheckpointDigest: previous.Digest,
-		PolicyDigest: digestPayload(policy), PromptDigest: digestPayload(prompt),
+		PolicyDigest: digestPayload(policyBytes), PromptDigest: digestPayload(prompt),
 		Versions:           previous.Checkpoint.Versions,
 		CandidateSHA:       previous.Checkpoint.Work.HeadSHA,
 		FrozenIssue:        issue.Body,
@@ -1538,6 +2247,21 @@ func publishPhaseLease(
 	}
 	if err != nil {
 		return nil, err
+	}
+	attempts := uint32(0)
+	maxAttempts := 0
+	if payload.Phase == issueagentcontract.PhaseFix {
+		attempts = previous.Checkpoint.Budget.RemediationAttempts
+		maxAttempts = policy.IssueBudget.MaxRemediationAttempts
+	}
+	if err := ensureIssueWorkerBudget(
+		previous.Checkpoint, policy, leaseDuration, attempts, maxAttempts,
+	); err != nil {
+		return publishIssueWorkerBudgetStop(
+			ctx, config, payload.BaseURL, payload.Repository,
+			payload.AppLogin, payload.IssueNumber, payload.KeySet,
+			issue.Labels, comments, previous,
+		)
 	}
 	if err := ensureRepositoryWorkerCapacity(
 		ctx, client, store, now, leaseDuration, heavy,
@@ -1879,8 +2603,9 @@ func publishValidationResult(
 	if err != nil || run.Name != "Agent Tool - Validate PR" ||
 		run.Path != ".github/workflows/agent-pr-validation.yml" ||
 		run.Event != "repository_dispatch" || run.Status != "completed" ||
-		run.Conclusion != "success" || run.RunAttempt > 2 {
-		return nil, errors.New("validation Worker run is not a bounded success")
+		(run.Conclusion != "success" && run.Conclusion != "failure") ||
+		run.RunAttempt > 2 {
+		return nil, errors.New("validation Worker run is not a bounded completion")
 	}
 	matches := validationRunTitlePattern.FindStringSubmatch(run.DisplayTitle)
 	if matches == nil {
@@ -1929,6 +2654,12 @@ func publishValidationResult(
 	if err != nil {
 		return nil, err
 	}
+	if run.Conclusion == "failure" {
+		return publishValidationFailure(
+			ctx, config, payload, issue, comments, store, previous, client, now,
+			validationRequest, matches[2], matches[3], gateRunID, requestRunID,
+		)
+	}
 	ready, err := client.EnsurePullRequestReady(
 		ctx, prNumber, previous.Checkpoint.Work.HeadSHA,
 	)
@@ -1956,6 +2687,237 @@ func publishValidationResult(
 		Now: now, KeySet: payload.KeySet, Comments: comments,
 		Checkpoint: next,
 		Summary:    "Verified the exact Validation Gate generation and converted the Draft PR to Ready for human review.",
+		Labels:     slices.Compact(labels),
+	}
+	preparedClient, preparedStore, preparedPrevious, err :=
+		prepareCheckpointPublication(config, publication)
+	if err != nil {
+		return nil, err
+	}
+	return appendCheckpointProjection(
+		ctx, preparedClient, preparedStore, preparedPrevious, publication,
+	)
+}
+
+func publishValidationFailure(
+	ctx context.Context,
+	config IssueAgentGitHubConfig,
+	payload publishValidationResultPayload,
+	issue issueagentgithub.IssueFacts,
+	comments []issueagentgithub.IssueComment,
+	store *issueagentgithub.CheckpointStore,
+	previous issueagentgithub.VerifiedCheckpoint,
+	client *issueagentgithub.Client,
+	now time.Time,
+	validationRequest issueagentusecase.ValidationRequest,
+	headSHA string,
+	testMergeSHA string,
+	gateRunID int64,
+	requestRunID int64,
+) (any, error) {
+	next := previous.Checkpoint
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &previous.CommentID
+	next.PreviousCheckpointSHA256 = &previous.Digest
+	next.Lease = nil
+	next.Validation = &issueagentcontract.Validation{
+		HeadSHA: headSHA, TestMergeSHA: testMergeSHA,
+		GateGeneration: uint64(gateRunID), RequestRunID: requestRunID,
+		EvidenceRunID:  payload.WorkflowRunID,
+		RequiredSuites: validationRequest.Suites,
+		LocalPasses:    0, Conclusion: "failure",
+	}
+	summary := "Recorded an exact failed validation generation and returned it to bounded remediation."
+	var task issueagentcontract.TaskEnvelope
+	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
+	if err != nil {
+		return nil, errors.New("CI-repair policy is invalid")
+	}
+	policy, err := issueagentusecase.DecodePolicy(
+		bytes.NewReader(policyBytes), int64(len(policyBytes)),
+	)
+	if err != nil {
+		return nil, errors.New("CI-repair policy is invalid")
+	}
+	repairAllowed := policyAllowsAutomatedRemediation(
+		policy, payload.IssueNumber,
+	)
+	repairBudgetExhausted := int(next.Budget.CIRepairAttempts) >=
+		policy.IssueBudget.MaxCIRepairAttempts
+	issueBudgetErr := ensureIssueWorkerBudget(
+		previous.Checkpoint, policy, 95*time.Minute,
+		previous.Checkpoint.Budget.RemediationAttempts,
+		policy.IssueBudget.MaxRemediationAttempts,
+	)
+	if repairBudgetExhausted || issueBudgetErr != nil || !repairAllowed {
+		next.State = issueagentcontract.StateReadyForHuman
+		next.NextAction = issueagentcontract.ActionWaitForHuman
+		if repairBudgetExhausted {
+			summary = "Validation failed after the configured bounded CI repair attempts; human review is required."
+		} else if issueBudgetErr != nil {
+			summary = "Validation failed after the per-Issue remediation budget was exhausted; human review is required."
+		} else {
+			summary = "Validation failed while automated remediation was outside the current rollout policy; human review is required."
+		}
+	} else {
+		if previous.Checkpoint.Reproduction == nil ||
+			previous.Checkpoint.Diagnosis == nil ||
+			previous.Checkpoint.Work == nil {
+			return nil, errors.New("CI repair lacks frozen remediation evidence")
+		}
+		prompt, err := decodeCanonicalBase64(payload.PromptBase64, 128<<10)
+		if err != nil {
+			return nil, errors.New("CI-repair prompt is invalid")
+		}
+		operationID := issueagentusecase.OperationID(
+			payload.Repository, payload.IssueNumber,
+			previous.Checkpoint.Generation, next.Sequence,
+			issueagentcontract.PhaseFix,
+		)
+		task, err = issueagentusecase.BuildFixTask(
+			issueagentusecase.PhaseTaskInput{
+				Repository:  payload.Repository,
+				IssueNumber: payload.IssueNumber,
+				Generation:  previous.Checkpoint.Generation,
+				Sequence:    next.Sequence, OperationID: operationID,
+				CheckpointDigest:   previous.Digest,
+				PolicyDigest:       digestPayload(policyBytes),
+				PromptDigest:       digestPayload(prompt),
+				Versions:           previous.Checkpoint.Versions,
+				CandidateSHA:       previous.Checkpoint.Work.HeadSHA,
+				FrozenIssue:        issue.Body,
+				AcceptedCommentIDs: previous.Checkpoint.FrozenInput.AcceptedCommentIDs,
+				InstructionDigests: payload.InstructionDigests,
+				Provider:           payload.Provider, Model: payload.Model,
+			},
+			*previous.Checkpoint.Diagnosis,
+			*previous.Checkpoint.Reproduction,
+			payload.AllowedCommands,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := ensureRepositoryWorkerCapacity(
+			ctx, client, store, now, 95*time.Minute, true,
+		); err != nil {
+			return nil, err
+		}
+		taskDigest, err := issueagentcontract.TaskDigest(task)
+		if err != nil {
+			return nil, err
+		}
+		next.State = issueagentcontract.StateFixing
+		next.Lease = &issueagentcontract.Lease{
+			OperationID: operationID, Workflow: "issue-agent-run.yml",
+			DispatchRequestID: operationID, Phase: issueagentcontract.PhaseFix,
+			IssuedAt: now, ExpiresAt: now.Add(95 * time.Minute),
+			TaskSHA256: taskDigest, Task: task,
+			ReservedSeconds: uint64((95 * time.Minute).Seconds()), Heavy: true,
+		}
+		next.Budget.CIRepairAttempts++
+		next.Budget.RemediationAttempts++
+		next.NextAction = issueagentcontract.ActionImplementFix
+	}
+	labels := append([]string(nil), issue.Labels...)
+	slices.Sort(labels)
+	publication := checkpointPayload{
+		BaseURL: payload.BaseURL, Repository: payload.Repository,
+		AppLogin: payload.AppLogin, IssueNumber: payload.IssueNumber,
+		Now: now, KeySet: payload.KeySet, Comments: comments,
+		Checkpoint: next, Summary: summary, Labels: slices.Compact(labels),
+	}
+	preparedClient, preparedStore, preparedPrevious, err :=
+		prepareCheckpointPublication(config, publication)
+	if err != nil {
+		return nil, err
+	}
+	projection, err := appendCheckpointProjection(
+		ctx, preparedClient, preparedStore, preparedPrevious, publication,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		Projection any                             `json:"projection"`
+		Task       issueagentcontract.TaskEnvelope `json:"task,omitempty"`
+	}{
+		Projection: projection, Task: task,
+	}, nil
+}
+
+func policyAllowsAutomatedRemediation(
+	policy issueagentusecase.Policy,
+	issueNumber int64,
+) bool {
+	return policy.Enabled &&
+		(policy.RolloutMode == issueagentusecase.RolloutGeneral ||
+			policy.RolloutMode == issueagentusecase.RolloutRemediation &&
+				slices.Contains(policy.RemediationIssueAllowlist, issueNumber))
+}
+
+func policyAllowsReproduction(policy issueagentusecase.Policy) bool {
+	if !policy.Enabled {
+		return false
+	}
+	switch policy.RolloutMode {
+	case issueagentusecase.RolloutReproduction,
+		issueagentusecase.RolloutRemediation,
+		issueagentusecase.RolloutGeneral:
+		return true
+	default:
+		return false
+	}
+}
+
+func ensureIssueWorkerBudget(
+	checkpoint issueagentcontract.Checkpoint,
+	policy issueagentusecase.Policy,
+	reserved time.Duration,
+	attempts uint32,
+	maxAttempts int,
+) error {
+	if reserved <= 0 || maxAttempts < 0 {
+		return errors.New("per-Issue Worker reservation is invalid")
+	}
+	if maxAttempts > 0 && int(attempts) >= maxAttempts {
+		return errors.New("per-Issue Worker attempt budget is exhausted")
+	}
+	maxSeconds := uint64(policy.IssueBudget.MaxWorkerTime / time.Second)
+	reservedSeconds := uint64(reserved / time.Second)
+	if checkpoint.Budget.WorkerSeconds > maxSeconds ||
+		reservedSeconds > maxSeconds-checkpoint.Budget.WorkerSeconds {
+		return errors.New("per-Issue Worker-time budget is exhausted")
+	}
+	return nil
+}
+
+func publishIssueWorkerBudgetStop(
+	ctx context.Context,
+	config IssueAgentGitHubConfig,
+	baseURL string,
+	repository string,
+	appLogin string,
+	issueNumber int64,
+	keySet issueagentgithub.KeySet,
+	labels []string,
+	comments []issueagentgithub.IssueComment,
+	previous issueagentgithub.VerifiedCheckpoint,
+) (any, error) {
+	next := previous.Checkpoint
+	next.Sequence++
+	next.ExpectedPreviousCheckpointID = &previous.CommentID
+	next.PreviousCheckpointSHA256 = &previous.Digest
+	next.State = issueagentcontract.StateReadyForHuman
+	next.Lease = nil
+	next.NextAction = issueagentcontract.ActionWaitForHuman
+	labels = append([]string(nil), labels...)
+	slices.Sort(labels)
+	publication := checkpointPayload{
+		BaseURL: baseURL, Repository: repository,
+		AppLogin: appLogin, IssueNumber: issueNumber,
+		Now: config.Now().UTC(), KeySet: keySet, Comments: comments,
+		Checkpoint: next,
+		Summary:    "Stopped automatic work at the configured per-Issue Worker budget.",
 		Labels:     slices.Compact(labels),
 	}
 	preparedClient, preparedStore, preparedPrevious, err :=
@@ -2267,14 +3229,11 @@ func publishAuthorization(
 	case err != nil:
 		return nil, err
 	default:
-		if previous.Checkpoint.FrozenInput.IssueBodySHA256 ==
+		if previous.Checkpoint.FrozenInput.IssueBodySHA256 !=
 			checkpoint.FrozenInput.IssueBodySHA256 {
-			return nil, errors.New("Issue generation is already authorized")
+			return nil, errors.New("edited Issue text is supplemental until /agent revise")
 		}
-		checkpoint.Generation = previous.Checkpoint.Generation + 1
-		checkpoint.Sequence = previous.Checkpoint.Sequence + 1
-		checkpoint.ExpectedPreviousCheckpointID = &previous.CommentID
-		checkpoint.PreviousCheckpointSHA256 = &previous.Digest
+		return nil, errors.New("Issue generation is already authorized")
 	}
 	body, digest, err := store.SignComment(checkpoint, "Maintainer authorization accepted.")
 	if err != nil {
@@ -2332,13 +3291,23 @@ func reconcileIntakeLabels(existing []string, desired string) []string {
 	labels := make([]string, 0, len(existing)+1)
 	for _, label := range existing {
 		if label != "needs-triage" && label != "needs-info" &&
-			label != "ready-for-agent" && label != desired {
+			(label != "ready-for-agent" || desired != "ready-for-agent") &&
+			label != desired {
 			labels = append(labels, label)
 		}
 	}
 	labels = append(labels, desired)
 	slices.Sort(labels)
 	return slices.Compact(labels)
+}
+
+func reproductionPaths(files []issueagentcontract.TestFile) []string {
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		paths = append(paths, file.Path)
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths)
 }
 
 func digestIssueBody(body string) string {
@@ -2385,6 +3354,7 @@ func NewIssueAgentWorkerDependency(
 		if err != nil {
 			return nil, err
 		}
+		defer sandbox.Close()
 		binaries, err := reproductionBinaryEvidence(
 			payload.Task, payload.AffectedBinary, payload.DiagnosisBinary,
 		)
@@ -2825,6 +3795,8 @@ func NewIssueAgentOperations(dependencies IssueAgentDependencies) issueagentcli.
 		PublishValidationRequest: dependencies.PublishValidationRequest,
 		PublishValidationResult:  dependencies.PublishValidationResult,
 		PublishExpiredLease:      dependencies.PublishExpiredLease,
+		PublishCommand:           dependencies.PublishCommand,
+		PublishMerge:             dependencies.PublishMerge,
 		ReadCurrentCheckpoint:    dependencies.ReadCurrentCheckpoint,
 		ReadCurrentTask:          dependencies.ReadCurrentTask,
 		RunWorker:                dependencies.RunWorker,

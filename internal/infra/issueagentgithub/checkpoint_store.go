@@ -221,6 +221,15 @@ func (store *CheckpointStore) VerifyHistory(
 			return 0
 		}
 	})
+	for index, comment := range ordered {
+		if comment.ID <= 0 || index > 0 && comment.ID == ordered[index-1].ID {
+			return nil, errors.New("checkpoint comments have invalid identity")
+		}
+	}
+	recoverySkips, err := store.recoverySkips(ordered, issueNumber, now)
+	if err != nil {
+		return nil, err
+	}
 
 	var latest VerifiedCheckpoint
 	var found bool
@@ -229,9 +238,10 @@ func (store *CheckpointStore) VerifyHistory(
 	var previousGeneration uint64
 	var previousSequence uint64
 	history := make([]VerifiedCheckpoint, 0)
-	for index, comment := range ordered {
-		if comment.ID <= 0 || index > 0 && comment.ID == ordered[index-1].ID {
-			return nil, errors.New("checkpoint comments have invalid identity")
+	for _, comment := range ordered {
+		if recoveryCommentID, skipped := recoverySkips[comment.ID]; skipped &&
+			recoveryCommentID > comment.ID {
+			continue
 		}
 		if !strings.Contains(comment.Body, checkpointMarkerPrefix) {
 			continue
@@ -315,6 +325,149 @@ func (store *CheckpointStore) VerifyHistory(
 		return nil, ErrNoCheckpoint
 	}
 	return history, nil
+}
+
+// QuarantineDigest binds the exact App-marker comments an admin recovery skips.
+func QuarantineDigest(comments []IssueComment) (string, error) {
+	if len(comments) == 0 || len(comments) > 128 {
+		return "", errors.New("checkpoint quarantine is empty or oversized")
+	}
+	ordered := append([]IssueComment(nil), comments...)
+	slices.SortFunc(ordered, func(left, right IssueComment) int {
+		switch {
+		case left.ID < right.ID:
+			return -1
+		case left.ID > right.ID:
+			return 1
+		default:
+			return 0
+		}
+	})
+	records := make([]struct {
+		ID     int64  `json:"id"`
+		SHA256 string `json:"sha256"`
+	}, 0, len(ordered))
+	for index, comment := range ordered {
+		if comment.ID <= 0 || index > 0 && ordered[index-1].ID == comment.ID {
+			return "", errors.New("checkpoint quarantine identity is invalid")
+		}
+		records = append(records, struct {
+			ID     int64  `json:"id"`
+			SHA256 string `json:"sha256"`
+		}{ID: comment.ID, SHA256: digestBytes([]byte(comment.Body))})
+	}
+	encoded, err := json.Marshal(records)
+	if err != nil {
+		return "", errors.New("encode checkpoint quarantine")
+	}
+	return digestBytes(encoded), nil
+}
+
+func (store *CheckpointStore) recoverySkips(
+	ordered []IssueComment,
+	issueNumber int64,
+	now time.Time,
+) (map[int64]int64, error) {
+	byID := make(map[int64]IssueComment, len(ordered))
+	for _, comment := range ordered {
+		byID[comment.ID] = comment
+	}
+	skips := make(map[int64]int64)
+	for _, recoveryComment := range ordered {
+		if recoveryComment.Author != store.appLogin ||
+			recoveryComment.AuthorType != "Bot" ||
+			!strings.Contains(recoveryComment.Body, checkpointMarkerPrefix) {
+			continue
+		}
+		recovery, recoveryDigest, err := store.verifyOneCheckpoint(
+			recoveryComment, issueNumber, now,
+		)
+		if err != nil || recovery.Control == nil ||
+			recovery.Control.Kind != "recover_chain" {
+			continue
+		}
+		control := recovery.Control
+		anchorComment, ok := byID[control.RecoveryAnchorCommentID]
+		if !ok || anchorComment.ID >= recoveryComment.ID {
+			return nil, errors.New("recovery checkpoint anchor is unavailable")
+		}
+		anchor, anchorDigest, err := store.verifyOneCheckpoint(
+			anchorComment, issueNumber, now,
+		)
+		if err != nil || anchorDigest != control.RecoveryAnchorDigest ||
+			recoveryDigest == "" ||
+			recovery.Sequence != anchor.Sequence+1 ||
+			recovery.Generation != anchor.Generation+1 ||
+			recovery.ExpectedPreviousCheckpointID == nil ||
+			*recovery.ExpectedPreviousCheckpointID != anchorComment.ID ||
+			recovery.PreviousCheckpointSHA256 == nil ||
+			*recovery.PreviousCheckpointSHA256 != anchorDigest {
+			return nil, errors.New("recovery checkpoint does not bind its anchor")
+		}
+		quarantine := make([]IssueComment, 0)
+		ids := make([]int64, 0)
+		for _, candidate := range ordered {
+			if candidate.ID <= anchorComment.ID ||
+				candidate.ID >= recoveryComment.ID ||
+				candidate.Author != store.appLogin ||
+				candidate.AuthorType != "Bot" ||
+				!strings.Contains(candidate.Body, checkpointMarkerPrefix) {
+				continue
+			}
+			quarantine = append(quarantine, candidate)
+			ids = append(ids, candidate.ID)
+		}
+		if !slices.Equal(ids, control.QuarantinedCommentIDs) {
+			return nil, errors.New("recovery checkpoint omits an App marker")
+		}
+		digest, err := QuarantineDigest(quarantine)
+		if err != nil || digest != control.QuarantineDigest {
+			return nil, errors.New("recovery quarantine digest is invalid")
+		}
+		for _, id := range ids {
+			if existing, duplicate := skips[id]; duplicate &&
+				existing != recoveryComment.ID {
+				return nil, errors.New("checkpoint belongs to conflicting recoveries")
+			}
+			skips[id] = recoveryComment.ID
+		}
+	}
+	return skips, nil
+}
+
+func (store *CheckpointStore) verifyOneCheckpoint(
+	comment IssueComment,
+	issueNumber int64,
+	now time.Time,
+) (issueagentcontract.Checkpoint, string, error) {
+	if comment.CreatedAt.IsZero() || comment.UpdatedAt.IsZero() ||
+		!comment.CreatedAt.Equal(comment.UpdatedAt) ||
+		comment.CreatedAt.After(now) {
+		return issueagentcontract.Checkpoint{}, "", errors.New("checkpoint comment time is invalid")
+	}
+	envelope, err := parseCheckpointComment(comment.Body)
+	if err != nil {
+		return issueagentcontract.Checkpoint{}, "", err
+	}
+	key, ok := store.keys[envelope.KeyID]
+	if !ok || comment.CreatedAt.Before(key.NotBefore) ||
+		comment.CreatedAt.After(key.NotAfter) {
+		return issueagentcontract.Checkpoint{}, "", errors.New("checkpoint key is unavailable")
+	}
+	checkpoint := envelope.Checkpoint
+	if checkpoint.Repository != store.repository ||
+		checkpoint.IssueNumber != issueNumber {
+		return issueagentcontract.Checkpoint{}, "", errors.New("checkpoint identity is invalid")
+	}
+	canonical, err := issueagentcontract.CanonicalCheckpoint(checkpoint)
+	if err != nil {
+		return issueagentcontract.Checkpoint{}, "", err
+	}
+	signature, err := base64.RawStdEncoding.DecodeString(envelope.Signature)
+	if err != nil || !ed25519.Verify(key.PublicKey, canonical, signature) {
+		return issueagentcontract.Checkpoint{}, "", errors.New("checkpoint signature is invalid")
+	}
+	return checkpoint, digestBytes(canonical), nil
 }
 
 func parseCheckpointComment(body string) (issueagentcontract.CheckpointEnvelope, error) {

@@ -121,6 +121,28 @@ func TestModelProposalCannotClaimTrustedEvidenceOrUsage(t *testing.T) {
 	)
 }
 
+func TestProviderFailureMayCarryDigestWithoutCommandEvidence(t *testing.T) {
+	t.Parallel()
+
+	task := resultTestTask()
+	result := issueagent.AgentResult{
+		SchemaVersion: 1, Repository: task.Repository,
+		IssueNumber: task.IssueNumber, Generation: task.Generation,
+		Sequence: task.Sequence, OperationID: task.OperationID,
+		Phase: task.Phase, Status: issueagent.ResultStatusFailed,
+		RequestedState:  issueagent.StateReadyForHuman,
+		RequestedAction: issueagent.ActionWaitForHuman,
+		Failure: &issueagent.Failure{
+			Class: issueagent.FailureProvider, Summary: "provider unavailable",
+		},
+		Evidence: issueagent.EvidenceManifest{
+			ArtifactSHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		Usage: issueagent.ModelUsage{Provider: task.Provider, Model: task.Model},
+	}
+	require.NoError(t, issueagent.ValidateAgentResult(result, task))
+}
+
 func resultTestTask() issueagent.TaskEnvelope {
 	return issueagent.TaskEnvelope{
 		SchemaVersion:    1,

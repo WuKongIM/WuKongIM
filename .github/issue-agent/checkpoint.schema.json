@@ -242,6 +242,15 @@
                     "type": "integer"
                   }
                 },
+                "review_thread_ids": {
+                  "type": [
+                    "null",
+                    "array"
+                  ],
+                  "items": {
+                    "type": "string"
+                  }
+                },
                 "instruction_digests": {
                   "type": [
                     "null",
@@ -819,6 +828,78 @@
           ],
           "additionalProperties": false
         },
+        "control": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "event_id": {
+              "type": "string"
+            },
+            "actor": {
+              "type": "string"
+            },
+            "comment_id": {
+              "type": "integer"
+            },
+            "review_thread_ids": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "adopted_head_sha": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "backport_branch": {
+              "type": "string"
+            },
+            "child_issue_number": {
+              "type": "integer"
+            },
+            "recovery_anchor_comment_id": {
+              "type": "integer"
+            },
+            "recovery_anchor_digest": {
+              "type": "string"
+            },
+            "quarantined_comment_ids": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "integer"
+              }
+            },
+            "quarantine_digest": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "event_id",
+            "actor",
+            "comment_id",
+            "review_thread_ids",
+            "adopted_head_sha",
+            "backport_branch",
+            "child_issue_number",
+            "recovery_anchor_comment_id",
+            "recovery_anchor_digest",
+            "quarantined_comment_ids",
+            "quarantine_digest"
+          ],
+          "additionalProperties": false
+        },
         "next_action": {
           "type": "string",
           "enum": [
@@ -854,6 +935,7 @@
         "validation",
         "budget",
         "model",
+        "control",
         "next_action"
       ],
       "additionalProperties": false

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -36,7 +37,10 @@ type ReadOnlyFileMount struct {
 // DockerSandboxRunner launches target commands inside disposable containers.
 type DockerSandboxRunner struct {
 	config  DockerSandboxConfig
+	volume  string
+	runMu   sync.Mutex
 	counter atomic.Uint64
+	closed  atomic.Bool
 }
 
 // NewDockerSandboxRunner validates a digest-pinned sandbox image and limits.
@@ -99,7 +103,21 @@ func NewDockerSandboxRunner(config DockerSandboxConfig) (*DockerSandboxRunner, e
 		}
 		mount.HostPath = resolved
 	}
-	return &DockerSandboxRunner{config: config}, nil
+	volume := fmt.Sprintf("wk-issue-agent-workspace-%d", time.Now().UnixNano())
+	create := exec.Command(
+		config.DockerBinary, "volume", "create",
+		"--driver", "local",
+		"--opt", "type=tmpfs",
+		"--opt", "device=tmpfs",
+		"--opt", "o=size="+strconv.FormatInt(config.TempBytes, 10)+",mode=0755",
+		volume,
+	)
+	create.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+	if output, err := create.CombinedOutput(); err != nil ||
+		strings.TrimSpace(string(output)) != volume {
+		return nil, errors.New("create bounded Docker sandbox workspace")
+	}
+	return &DockerSandboxRunner{config: config, volume: volume}, nil
 }
 
 // Run executes one argv without exposing Docker or host control to the model.
@@ -108,9 +126,13 @@ func (runner *DockerSandboxRunner) Run(
 	request ExecRequest,
 ) (ExecResult, error) {
 	if runner == nil || request.Executable == "" ||
-		request.Timeout <= 0 || len(request.Arguments) > 32 {
+		request.Timeout <= 0 || request.OutputLimit <= 0 ||
+		request.OutputLimit > 16<<20 || len(request.Arguments) > 32 ||
+		runner.closed.Load() {
 		return ExecResult{}, errors.New("Docker sandbox request is invalid")
 	}
+	runner.runMu.Lock()
+	defer runner.runMu.Unlock()
 	relative, err := filepath.Rel(runner.config.Workspace, request.WorkingDir)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, "../") {
 		return ExecResult{}, errors.New("Docker sandbox working directory escapes workspace")
@@ -118,6 +140,11 @@ func (runner *DockerSandboxRunner) Run(
 	containerDir := "/workspace"
 	if relative != "." {
 		containerDir += "/" + filepath.ToSlash(relative)
+	}
+	runCtx, cancel := context.WithTimeout(ctx, request.Timeout)
+	defer cancel()
+	if err := runner.refreshWorkspace(runCtx); err != nil {
+		return ExecResult{}, err
 	}
 	name := fmt.Sprintf(
 		"wk-issue-agent-%d-%d", time.Now().UnixNano(), runner.counter.Add(1),
@@ -134,7 +161,7 @@ func (runner *DockerSandboxRunner) Run(
 		"--memory-swap", strconv.FormatInt(runner.config.MemoryBytes, 10),
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=" +
 			strconv.FormatInt(runner.config.TempBytes, 10),
-		"--mount", "type=bind,src=" + runner.config.Workspace +
+		"--mount", "type=volume,src=" + runner.volume +
 			",dst=/workspace",
 		"--mount", "type=tmpfs,dst=/workspace/.git,tmpfs-mode=0555",
 		"--mount", "type=bind,src=" + runner.config.ModuleCache +
@@ -159,12 +186,10 @@ func (runner *DockerSandboxRunner) Run(
 	args = append(args, runner.config.Image, request.Executable)
 	args = append(args, request.Arguments...)
 
-	runCtx, cancel := context.WithTimeout(ctx, request.Timeout)
-	defer cancel()
 	command := exec.CommandContext(runCtx, runner.config.DockerBinary, args...)
 	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	stdout := newLimitedBuffer(request.OutputLimit)
+	stderr := newLimitedBuffer(request.OutputLimit)
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	started := time.Now()
@@ -190,6 +215,99 @@ func (runner *DockerSandboxRunner) Run(
 	}
 	return ExecResult{
 		ExitCode: exitCode, Stdout: stdout.Bytes(), Stderr: stderr.Bytes(),
+		StdoutTruncated: stdout.Truncated(), StderrTruncated: stderr.Truncated(),
 		Duration: duration,
 	}, nil
+}
+
+// Close removes the per-job bounded tmpfs volume.
+func (runner *DockerSandboxRunner) Close() error {
+	if runner == nil || !runner.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	runner.runMu.Lock()
+	defer runner.runMu.Unlock()
+	remove := exec.Command(
+		runner.config.DockerBinary, "volume", "rm", "-f", runner.volume,
+	)
+	remove.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+	if err := remove.Run(); err != nil {
+		return errors.New("remove Docker sandbox workspace")
+	}
+	return nil
+}
+
+func (runner *DockerSandboxRunner) refreshWorkspace(ctx context.Context) error {
+	name := fmt.Sprintf(
+		"wk-issue-agent-sync-%d-%d", time.Now().UnixNano(), runner.counter.Add(1),
+	)
+	const script = `
+set -eu
+if [ -L /workspace/.issue-agent-tmp ] || [ ! -d /workspace/.issue-agent-tmp ]; then
+  rm -rf -- /workspace/.issue-agent-tmp
+  mkdir -p /workspace/.issue-agent-tmp
+fi
+find /workspace -mindepth 1 -maxdepth 1 \
+  ! -name .issue-agent-tmp -exec rm -rf -- {} +
+tar --exclude=.git --exclude=./.git --exclude=.issue-agent-tmp \
+  -C /host -cf - . | tar -C /workspace -xf -
+`
+	args := []string{
+		"run", "--rm", "--name", name,
+		"--network", "none", "--read-only",
+		"--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+		"--pids-limit", strconv.Itoa(runner.config.PIDs),
+		"--memory", strconv.FormatInt(runner.config.MemoryBytes, 10),
+		"--memory-swap", strconv.FormatInt(runner.config.MemoryBytes, 10),
+		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=67108864",
+		"--mount", "type=bind,src=" + runner.config.Workspace +
+			",dst=/host,readonly",
+		"--mount", "type=volume,src=" + runner.volume +
+			",dst=/workspace",
+		runner.config.Image, "sh", "-c", script,
+	}
+	command := exec.CommandContext(ctx, runner.config.DockerBinary, args...)
+	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+	output := newLimitedBuffer(64 << 10)
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Run(); err != nil {
+		return errors.New("refresh bounded Docker sandbox workspace")
+	}
+	return nil
+}
+
+type limitedBuffer struct {
+	buffer    bytes.Buffer
+	limit     int64
+	written   int64
+	truncated bool
+}
+
+func newLimitedBuffer(limit int64) limitedBuffer {
+	return limitedBuffer{limit: limit}
+}
+
+func (buffer *limitedBuffer) Write(value []byte) (int, error) {
+	original := len(value)
+	buffer.written += int64(original)
+	remaining := buffer.limit - int64(buffer.buffer.Len())
+	if remaining > 0 {
+		if int64(len(value)) > remaining {
+			value = value[:remaining]
+		}
+		_, _ = buffer.buffer.Write(value)
+	}
+	if buffer.written > buffer.limit {
+		buffer.truncated = true
+	}
+	return original, nil
+}
+
+func (buffer *limitedBuffer) Bytes() []byte {
+	return append([]byte(nil), buffer.buffer.Bytes()...)
+}
+
+func (buffer *limitedBuffer) Truncated() bool {
+	return buffer.truncated
 }

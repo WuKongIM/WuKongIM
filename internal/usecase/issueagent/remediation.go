@@ -64,6 +64,20 @@ func BuildFixTask(
 		return issueagentcontract.TaskEnvelope{},
 			errors.New("related-test command set is invalid")
 	}
+	for _, intendedPath := range diagnosis.IntendedPaths {
+		if intendedPath == "test/e2e" ||
+			strings.HasPrefix(intendedPath, "test/e2e/") {
+			return issueagentcontract.TaskEnvelope{},
+				errors.New("remediation cannot write frozen E2E paths")
+		}
+		for _, frozen := range reproduction.TestFiles {
+			if frozen.Path == intendedPath ||
+				strings.HasPrefix(frozen.Path, intendedPath+"/") {
+				return issueagentcontract.TaskEnvelope{},
+					errors.New("remediation scope contains frozen E2E paths")
+			}
+		}
+	}
 	task := phaseTaskBase(input)
 	task.Phase = issueagentcontract.PhaseFix
 	task.AllowedPaths = append([]string(nil), diagnosis.IntendedPaths...)
@@ -99,6 +113,33 @@ func BuildFixTask(
 	task.AllowedCommands = append(task.AllowedCommands, issueagentcontract.CommandRule{
 		Executable: "env", ArgvPrefix: e2eArguments, MaxArgs: len(e2eArguments),
 	})
+	if err := issueagentcontract.ValidateTaskEnvelope(task); err != nil {
+		return issueagentcontract.TaskEnvelope{}, err
+	}
+	return task, nil
+}
+
+// BuildAddressReviewTask freezes the exact unresolved review threads while
+// retaining the same diagnosis, path, build, and three-pass E2E contract.
+func BuildAddressReviewTask(
+	input PhaseTaskInput,
+	diagnosis issueagentcontract.Diagnosis,
+	reproduction issueagentcontract.Reproduction,
+	reviewThreadIDs []string,
+	relatedCommands []issueagentcontract.CommandRule,
+) (issueagentcontract.TaskEnvelope, error) {
+	if len(reviewThreadIDs) == 0 || !slices.IsSorted(reviewThreadIDs) {
+		return issueagentcontract.TaskEnvelope{},
+			errors.New("address-review thread set is invalid")
+	}
+	task, err := BuildFixTask(
+		input, diagnosis, reproduction, relatedCommands,
+	)
+	if err != nil {
+		return issueagentcontract.TaskEnvelope{}, err
+	}
+	task.Phase = issueagentcontract.PhaseAddressReview
+	task.ReviewThreadIDs = append([]string(nil), reviewThreadIDs...)
 	if err := issueagentcontract.ValidateTaskEnvelope(task); err != nil {
 		return issueagentcontract.TaskEnvelope{}, err
 	}

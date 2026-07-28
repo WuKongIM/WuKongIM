@@ -85,6 +85,25 @@ jobs:
           jq '.task' "$RUNNER_TEMP/current-task.json" >"$RUNNER_TEMP/task.json"
           phase="$(jq -er '.phase' "$RUNNER_TEMP/task.json")"
           provider="$(jq -er '.provider' "$RUNNER_TEMP/task.json")"
+          jq -e '.enabled == true' \
+            control/.github/issue-agent/policy.json >/dev/null
+          rollout="$(jq -er '.rollout_mode' \
+            control/.github/issue-agent/policy.json)"
+          case "$phase:$rollout" in
+            reproduce:reproduction|reproduce:remediation|reproduce:general)
+              ;;
+            diagnose:general|fix:general|address_review:general)
+              ;;
+            diagnose:remediation|fix:remediation|address_review:remediation)
+              jq -e --argjson issue_number "$ISSUE_NUMBER" \
+                '.remediation_issue_allowlist | index($issue_number) != null' \
+                control/.github/issue-agent/policy.json >/dev/null
+              ;;
+            *)
+              echo "Rollout policy rejects this credentialed Worker phase." >&2
+              exit 1
+              ;;
+          esac
           affected_sha="$(jq -er '.affected_sha' "$RUNNER_TEMP/task.json")"
           diagnosis_base_sha="$(jq -er '.diagnosis_base_sha' "$RUNNER_TEMP/task.json")"
           candidate_sha="$(jq -r '.candidate_sha // ""' "$RUNNER_TEMP/task.json")"
@@ -165,6 +184,12 @@ jobs:
           set -euo pipefail
           (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
           (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+      - name: Pull the digest-pinned sandbox without provider credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          docker pull "$sandbox_image"
       - name: Run the bounded Codex Worker
         shell: bash
         env:
@@ -176,7 +201,11 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$TASK_BASE64" | base64 -d >"$RUNNER_TEMP/task.json"
-          prompt="control/.github/issue-agent/prompts/${PHASE}.md"
+          prompt_phase="$PHASE"
+          if [[ "$prompt_phase" = address_review ]]; then
+            prompt_phase=address-review
+          fi
+          prompt="control/.github/issue-agent/prompts/${prompt_phase}.md"
           test -f "$prompt"
           sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
           module_cache="$(go env GOMODCACHE)"
@@ -251,6 +280,12 @@ jobs:
           set -euo pipefail
           (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
           (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+      - name: Pull the digest-pinned sandbox without provider credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          docker pull "$sandbox_image"
       - name: Run the bounded DeepSeek Worker
         shell: bash
         env:
@@ -260,7 +295,11 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$TASK_BASE64" | base64 -d >"$RUNNER_TEMP/task.json"
-          prompt="control/.github/issue-agent/prompts/${PHASE}.md"
+          prompt_phase="$PHASE"
+          if [[ "$prompt_phase" = address_review ]]; then
+            prompt_phase=address-review
+          fi
+          prompt="control/.github/issue-agent/prompts/${prompt_phase}.md"
           test -f "$prompt"
           sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
           module_cache="$(go env GOMODCACHE)"

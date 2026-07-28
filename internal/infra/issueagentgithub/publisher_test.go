@@ -96,3 +96,31 @@ func TestPublisherValidationAcceptsBoundedRegularFilesAndTrustedScenarioInstruct
 	}
 	require.NoError(t, issueagentgithub.ValidatePublish(input))
 }
+
+func TestPublisherValidationRejectsFrozenReproductionAndProtectedFilePrefixes(t *testing.T) {
+	t.Parallel()
+
+	for _, filePath := range []string{
+		"test/e2e/issue_agent/issue_42/reproduction_test.go",
+		"test/e2e/issue_agent/issue_42/helper.go",
+		"internal/app/issue_agent.go",
+		"scripts/issue_agent_schema_test.go",
+	} {
+		input := issueagentgithub.PublishValidation{
+			IssueNumber: 42, Branch: "agent/issue-42", BaseBranch: "main",
+			ExpectedParentSHA: fortyHex("a"),
+			ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
+				Path: filePath, Operation: issueagent.FileOperationUpsert,
+				Mode:          issueagent.FileModeRegular,
+				ContentBase64: issueagent.EncodeFileContent([]byte("changed")),
+			}}},
+			Limits: issueagent.ChangeSetLimits{
+				MaxFiles: 10, MaxFileBytes: 1024, MaxTotalBytes: 4096, MaxDeletions: 2,
+			},
+			ProtectedPaths: []string{"internal/app/issue_agent", "scripts/issue_agent"},
+			AllowedPaths:   []string{"internal", "scripts", "test/e2e"},
+			ImmutablePaths: []string{"test/e2e/issue_agent/issue_42"},
+		}
+		require.Error(t, issueagentgithub.ValidatePublish(input), filePath)
+	}
+}

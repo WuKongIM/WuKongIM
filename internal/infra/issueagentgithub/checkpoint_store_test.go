@@ -150,6 +150,75 @@ func TestCheckpointStoreFailsClosedOnMutationEditAndWrongAuthor(t *testing.T) {
 	require.ErrorIs(t, err, issueagentgithub.ErrNoCheckpoint)
 }
 
+func TestCheckpointStoreAcceptsSignedAdminRecoveryOverExactQuarantine(t *testing.T) {
+	t.Parallel()
+
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	store, err := issueagentgithub.NewCheckpointStore(
+		"WuKongIM/WuKongIM", "wukongim-issue-agent[bot]",
+		issueagentgithub.KeySet{SchemaVersion: 1, Keys: []issueagentgithub.PublicKey{{
+			ID: "key", PublicKey: publicKey,
+			NotBefore: now.Add(-time.Hour), NotAfter: now.Add(time.Hour),
+		}}},
+		issueagentgithub.Signer{KeyID: "key", PrivateKey: privateKey},
+	)
+	require.NoError(t, err)
+	first := checkpointStoreTestCheckpoint()
+	firstBody, firstDigest, err := store.SignComment(first, "Authorized.")
+	require.NoError(t, err)
+
+	fork := first
+	fork.Sequence = 2
+	fork.State = issueagent.StateVersionPinned
+	fork.Versions.AffectedSHA = "89abcdef0123456789abcdef0123456789abcdef"
+	fork.NextAction = issueagent.ActionReproduce
+	fork.ExpectedPreviousCheckpointID = pointer(int64(999))
+	fork.PreviousCheckpointSHA256 = pointer(firstDigest)
+	forkBody, _, err := store.SignComment(fork, "Forked marker.")
+	require.NoError(t, err)
+	forkComment := issueagentgithub.IssueComment{
+		ID: 502, Author: "wukongim-issue-agent[bot]", AuthorType: "Bot",
+		Body: forkBody, CreatedAt: now.Add(time.Minute),
+		UpdatedAt: now.Add(time.Minute),
+	}
+	quarantineDigest, err := issueagentgithub.QuarantineDigest(
+		[]issueagentgithub.IssueComment{forkComment},
+	)
+	require.NoError(t, err)
+	recovery := first
+	recovery.Generation = 2
+	recovery.Sequence = 2
+	recovery.ExpectedPreviousCheckpointID = pointer(int64(501))
+	recovery.PreviousCheckpointSHA256 = pointer(firstDigest)
+	recovery.Control = &issueagent.ControlAudit{
+		Kind: "recover_chain", EventID: "comment-700", Actor: "admin",
+		CommentID: 700, RecoveryAnchorCommentID: 501,
+		RecoveryAnchorDigest:  firstDigest,
+		QuarantinedCommentIDs: []int64{502},
+		QuarantineDigest:      quarantineDigest,
+	}
+	recoveryBody, _, err := store.SignComment(recovery, "Recovered.")
+	require.NoError(t, err)
+
+	verified, err := store.VerifyChain([]issueagentgithub.IssueComment{
+		{
+			ID: 501, Author: "wukongim-issue-agent[bot]", AuthorType: "Bot",
+			Body: firstBody, CreatedAt: now, UpdatedAt: now,
+		},
+		forkComment,
+		{
+			ID: 503, Author: "wukongim-issue-agent[bot]", AuthorType: "Bot",
+			Body: recoveryBody, CreatedAt: now.Add(2 * time.Minute),
+			UpdatedAt: now.Add(2 * time.Minute),
+		},
+	}, 42, now.Add(3*time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, int64(503), verified.CommentID)
+	require.Equal(t, "recover_chain", verified.Checkpoint.Control.Kind)
+}
+
 func checkpointStoreTestCheckpoint() issueagent.Checkpoint {
 	return issueagent.Checkpoint{
 		SchemaVersion: 1,

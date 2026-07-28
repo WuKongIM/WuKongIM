@@ -1126,3 +1126,8 @@ WuKongIM cluster, and owns no server lifecycle. Pure event reconciliation and
 repository scheduling are always available; GitHub publication, checkpoint
 verification, and App authentication are supplied as explicit standalone
 dependencies so Publisher credentials cannot enter the product process.
+The composition root also re-reads and publishes exact maintainer controls,
+bounded CI-repair leases, sanitized provider failures, and admin chain
+recovery. Lifecycle operation selection is returned by
+`internal/usecase/issueagent.Reconcile`; the workflow does not infer the next
+operation directly from raw event state.

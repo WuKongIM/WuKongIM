@@ -27,6 +27,17 @@ func TestRiskClassificationRequiresSecondAuthorizationAndFencesAgentPaths(t *tes
 	require.NoError(t, err)
 	require.True(t, protected.HumanOnly)
 	require.Contains(t, protected.Classes, issueagentusecase.RiskProtectedAgent)
+
+	for _, filePath := range []string{
+		"internal/app/issue_agent.go",
+		"scripts/issue_agent_schema_test.go",
+	} {
+		decision, err := issueagentusecase.ClassifyRisk(issueagentusecase.RiskInput{
+			Paths: []string{filePath},
+		})
+		require.NoError(t, err)
+		require.True(t, decision.HumanOnly, filePath)
+	}
 }
 
 func TestValidationRequestAlwaysIncludesFastAndE2EWithRiskSuites(t *testing.T) {

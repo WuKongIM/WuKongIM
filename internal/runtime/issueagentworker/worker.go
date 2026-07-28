@@ -130,11 +130,30 @@ func (worker *Worker) Run(ctx context.Context) (Artifact, error) {
 	modelOutput, err := worker.config.Model(
 		runCtx, worker.config.Task, append([]byte(nil), worker.config.Prompt...), broker,
 	)
+	providerFailed := false
 	if err != nil {
-		if runCtx.Err() != nil {
-			return Artifact{}, runCtx.Err()
+		providerFailed = true
+		modelOutput = ModelOutput{
+			Result: issueagent.AgentResult{
+				SchemaVersion: 1, Repository: worker.config.Task.Repository,
+				IssueNumber:     worker.config.Task.IssueNumber,
+				Generation:      worker.config.Task.Generation,
+				Sequence:        worker.config.Task.Sequence,
+				OperationID:     worker.config.Task.OperationID,
+				Phase:           worker.config.Task.Phase,
+				Status:          issueagent.ResultStatusFailed,
+				RequestedState:  issueagent.StateReadyForHuman,
+				RequestedAction: issueagent.ActionWaitForHuman,
+				Failure: &issueagent.Failure{
+					Class:   issueagent.FailureProvider,
+					Summary: "The selected model provider did not complete this bounded attempt.",
+				},
+			},
+			Usage: issueagent.ModelUsage{
+				Provider: worker.config.Task.Provider,
+				Model:    worker.config.Task.Model,
+			},
 		}
-		return Artifact{}, errors.New("selected model Adapter failed")
 	}
 	after, err := snapshotWorkspace(worker.root)
 	if err != nil {
@@ -143,6 +162,11 @@ func (worker *Worker) Run(ctx context.Context) (Artifact, error) {
 	changeSet, err := deriveChangeSet(before, after)
 	if err != nil {
 		return Artifact{}, err
+	}
+	if providerFailed {
+		// A partial provider attempt can mutate only its disposable workspace.
+		// No such mutation is eligible for trusted publication.
+		changeSet = issueagent.ChangeSet{}
 	}
 	if err := issueagent.ValidateChangeSet(changeSet, issueagent.ChangeSetLimits{
 		MaxFiles:      worker.config.Task.Limits.MaxFiles,
@@ -346,6 +370,12 @@ func validateReproductionEvidence(
 	evidence []ToolEvidence,
 ) error {
 	if task.Phase != issueagent.PhaseReproduce {
+		return nil
+	}
+	if result.Status == issueagent.ResultStatusFailed &&
+		result.Failure != nil &&
+		(result.Failure.Class == issueagent.FailureProvider ||
+			result.Failure.Class == issueagent.FailureWorkerInfrastructure) {
 		return nil
 	}
 	if len(changeSet.Files) == 0 {

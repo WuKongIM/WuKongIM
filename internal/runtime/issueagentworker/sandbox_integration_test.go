@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ func TestSandboxHasNoNetworkHostControlOrSupervisorSecrets(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, runner.Close()) })
 	result, err := runner.Run(context.Background(), issueagentworker.ExecRequest{
 		Executable: "sh",
 		Arguments: []string{"-c", `
@@ -43,11 +45,24 @@ if command -v wget >/dev/null 2>&1; then
   ! wget -T 2 -qO- http://169.254.169.254/
 fi
 `},
-		WorkingDir: workspace, Timeout: 20 * time.Second,
+		WorkingDir: workspace, Timeout: 20 * time.Second, OutputLimit: 64 << 10,
 		Environment: []string{"PATH=/usr/local/go/bin:/usr/bin:/bin"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, result.ExitCode, string(result.Stderr))
 	require.NotContains(t, strings.ToUpper(string(result.Stdout)), "TOKEN")
 	require.NotContains(t, strings.ToUpper(string(result.Stdout)), "API_KEY")
+
+	full, err := runner.Run(context.Background(), issueagentworker.ExecRequest{
+		Executable: "sh",
+		Arguments: []string{
+			"-c", "dd if=/dev/zero of=fill bs=1M count=80 status=none",
+		},
+		WorkingDir: workspace, Timeout: 20 * time.Second, OutputLimit: 64 << 10,
+		Environment: []string{"PATH=/usr/local/go/bin:/usr/bin:/bin"},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, 0, full.ExitCode, "bounded tmpfs unexpectedly accepted 80 MiB")
+	_, statErr := os.Stat(filepath.Join(workspace, "fill"))
+	require.ErrorIs(t, statErr, os.ErrNotExist)
 }

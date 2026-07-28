@@ -73,6 +73,8 @@ type Operations struct {
 	PublishValidationRequest func(context.Context, DocumentRequest) (any, error)
 	PublishValidationResult  func(context.Context, DocumentRequest) (any, error)
 	PublishExpiredLease      func(context.Context, DocumentRequest) (any, error)
+	PublishCommand           func(context.Context, DocumentRequest) (any, error)
+	PublishMerge             func(context.Context, DocumentRequest) (any, error)
 	ReadCurrentCheckpoint    func(context.Context, DocumentRequest) (any, error)
 	ReadCurrentTask          func(context.Context, DocumentRequest) (any, error)
 	RunWorker                func(context.Context, DocumentRequest) (any, error)
@@ -158,6 +160,10 @@ func Run(
 		result, err = runDocument(ctx, body, operations.PublishValidationResult)
 	case "publish-expired-lease":
 		result, err = runDocument(ctx, body, operations.PublishExpiredLease)
+	case "publish-command":
+		result, err = runDocument(ctx, body, operations.PublishCommand)
+	case "publish-merge":
+		result, err = runDocument(ctx, body, operations.PublishMerge)
 	case "read-current-checkpoint":
 		result, err = runDocument(ctx, body, operations.ReadCurrentCheckpoint)
 	case "read-current-task":

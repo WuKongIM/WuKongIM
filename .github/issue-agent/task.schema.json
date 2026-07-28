@@ -71,6 +71,15 @@
         "type": "integer"
       }
     },
+    "review_thread_ids": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
     "instruction_digests": {
       "type": [
         "null",

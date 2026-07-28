@@ -26,8 +26,11 @@ version pinning fails closed. Moving references such as `latest`, branch names,
 or abbreviated SHAs are rejected.
 
 Editing an authorized Issue does not alter the frozen input. Intake removes
-`ready-for-agent`, and a maintainer must review the changed report and add the
-label again. The fresh label event starts a new signed generation.
+neither the authorization label nor the signed generation; edited text is
+supplemental until a maintainer posts `/agent revise`. That command re-reads
+the current four-field Bug form, current permission, and current `main`, then
+starts a newly signed generation. Ordinary relabeling cannot replace frozen
+input.
 
 ## Authority and durable state
 
@@ -73,7 +76,11 @@ The Worker checks out protected control code from `main` and target code at an
 exact signed SHA with persisted credentials disabled. It prefetches Go modules,
 then runs approved typed tools inside the digest-pinned Docker image from
 `.github/issue-agent/policy.json` with no network, read-only module cache, and
-no GitHub, model, host, or Docker-socket credential.
+no GitHub, model, host, or Docker-socket credential. The untrusted command
+container receives a per-job size-capped tmpfs volume instead of a writable
+host bind; trusted broker edits are refreshed into that volume before each
+command, command output is capped while it is captured, and the volume is
+removed when the Worker exits.
 
 The model may return only a semantic proposal. The trusted Worker derives the
 complete file set, command transcript digests, diagnosis evidence digest, and
@@ -110,6 +117,38 @@ candidate, runs at least one approved related test, and passes the frozen E2E
 three times. The Publisher always requests the existing `go-fast` and `go-e2e`
 Agent PR suites, adds risk-selected suites, and marks the Draft Ready only
 after the exact-head, exact-test-merge `Agent Validation Gate` succeeds.
+The frozen reproduction directory is immutable during every fix and review
+cycle. A failed exact validation generation creates at most two new bounded
+fix leases; the third failure moves the Issue to `ready_for_human`.
+
+## Maintainer controls
+
+Only an exact first-line command from a freshly re-checked user with `write`,
+`maintain`, or `admin` permission is accepted. Every accepted command advances
+the signed generation and revokes an old lease:
+
+- `/agent revise` freezes the current Bug form and a new authorization-time
+  `main`;
+- `/agent cancel` terminates Agent work without merging or closing;
+- `/agent address-review` freezes the complete unresolved GitHub review-thread
+  ID set and starts one bounded review-fix lease;
+- `/agent adopt-head <40-hex-sha>` adopts only the current exact Agent branch
+  head and forces full validation again;
+- `/agent backport <allowed-branch>` creates an idempotent, independent
+  human-owned tracking Issue after the main fix is merged;
+- `/agent recover-chain <comment-id> <sha256-digest>` is admin-only and signs
+  the exact last-valid anchor, quarantined App-comment IDs, and quarantine
+  digest before the verifier can skip that damaged chain segment.
+
+`/agent approve-risk` remains the separate second-authorization command for a
+signed high-risk diagnosis. Commands never grant merge, Issue-close, protected
+path, or branch-protection bypass authority.
+
+When a human merges the validated PR, the control workflow treats the
+`pull_request.closed` event only as a wake-up signal. The trusted Publisher
+re-reads the exact PR head and merged state, then appends the signed `merged`
+checkpoint. It never merges or closes the Issue itself. This terminal
+checkpoint is what makes `/agent backport` eligible.
 
 ## Capacity, retries, and recovery
 
@@ -136,6 +175,8 @@ returns an expired lease to its last durable boundary:
 
 After the infrastructure retry budget is exhausted, the Issue becomes
 `ready_for_human`. No recovery path trusts runner disk or an event payload.
+Model-provider failures are emitted as sanitized signed Worker failures rather
+than being counted as lease-expiry infrastructure retries.
 
 For emergency shutdown, set `.github/issue-agent/policy.json` `enabled` to
 `false` in a reviewed PR. This prevents new work; existing GitHub records remain

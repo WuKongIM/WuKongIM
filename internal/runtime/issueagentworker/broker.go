@@ -31,15 +31,18 @@ type ExecRequest struct {
 	Arguments   []string
 	WorkingDir  string
 	Timeout     time.Duration
+	OutputLimit int64
 	Environment []string
 }
 
-// ExecResult is bounded only after it returns from a ToolRunner.
+// ExecResult is bounded while the ToolRunner captures process output.
 type ExecResult struct {
-	ExitCode int
-	Stdout   []byte
-	Stderr   []byte
-	Duration time.Duration
+	ExitCode        int
+	Stdout          []byte
+	Stderr          []byte
+	StdoutTruncated bool
+	StderrTruncated bool
+	Duration        time.Duration
 }
 
 // ToolRunner executes one command inside the untrusted no-network sandbox.
@@ -191,10 +194,11 @@ func (broker *Broker) RunCommand(
 	defer cancel()
 	started := time.Now()
 	result, err := broker.runner.Run(runCtx, ExecRequest{
-		Executable: request.Argv[0],
-		Arguments:  append([]string(nil), request.Argv[1:]...),
-		WorkingDir: workingDir,
-		Timeout:    request.Timeout,
+		Executable:  request.Argv[0],
+		Arguments:   append([]string(nil), request.Argv[1:]...),
+		WorkingDir:  workingDir,
+		Timeout:     request.Timeout,
+		OutputLimit: request.OutputLimit,
 		Environment: []string{
 			"HOME=/nonexistent",
 			"LANG=C.UTF-8",
@@ -216,6 +220,8 @@ func (broker *Broker) RunCommand(
 	}
 	stdout, stdoutTruncated := truncate(result.Stdout, request.OutputLimit)
 	stderr, stderrTruncated := truncate(result.Stderr, request.OutputLimit)
+	stdoutTruncated = stdoutTruncated || result.StdoutTruncated
+	stderrTruncated = stderrTruncated || result.StderrTruncated
 	evidence := ToolEvidence{
 		Tool: "command_run", Executable: request.Argv[0],
 		Arguments: append([]string(nil), request.Argv[1:]...),

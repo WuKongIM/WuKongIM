@@ -61,9 +61,11 @@ func TestReaderCollectsPullRequestAndActionsFacts(t *testing.T) {
 		switch request.URL.Path {
 		case "/repos/WuKongIM/WuKongIM/pulls/9":
 			writeJSON(t, writer, map[string]any{
-				"number": 9, "state": "open", "draft": true, "mergeable": true,
-				"base": map[string]any{"ref": "main", "sha": fortyHex("a")},
-				"head": map[string]any{"ref": "agent/issue-42", "sha": fortyHex("b")},
+				"number": 9, "state": "closed", "draft": false, "merged": true,
+				"mergeable":        true,
+				"merge_commit_sha": fortyHex("e"),
+				"base":             map[string]any{"ref": "main", "sha": fortyHex("a")},
+				"head":             map[string]any{"ref": "agent/issue-42", "sha": fortyHex("b")},
 			})
 		case "/repos/WuKongIM/WuKongIM/pulls/9/reviews":
 			writeJSON(t, writer, []map[string]any{{
@@ -113,6 +115,8 @@ func TestReaderCollectsPullRequestAndActionsFacts(t *testing.T) {
 	pull, err := reader.PullRequest(context.Background(), 9)
 	require.NoError(t, err)
 	require.Equal(t, "agent/issue-42", pull.HeadRef)
+	require.True(t, pull.Merged)
+	require.Equal(t, fortyHex("e"), pull.MergeCommit)
 	reviews, err := reader.PullRequestReviews(context.Background(), 9)
 	require.NoError(t, err)
 	require.Len(t, reviews, 1)

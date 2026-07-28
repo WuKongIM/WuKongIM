@@ -79,7 +79,8 @@ func ClassifyRisk(input RiskInput) (RiskDecision, error) {
 }
 
 func humanOnlyIssueAgentPath(filePath string) bool {
-	if path.Base(filePath) == "AGENTS.md" {
+	filePath = strings.ToLower(filePath)
+	if path.Base(filePath) == "agents.md" {
 		return true
 	}
 	for _, protected := range []string{
@@ -90,7 +91,7 @@ func humanOnlyIssueAgentPath(filePath string) bool {
 		"internal/infra/issueagentmodel", "internal/runtime/issueagentworker",
 		"internal/usecase/issueagent", "scripts/issue_agent",
 	} {
-		if filePath == protected || strings.HasPrefix(filePath, protected+"/") {
+		if strings.HasPrefix(filePath, protected) {
 			return true
 		}
 	}

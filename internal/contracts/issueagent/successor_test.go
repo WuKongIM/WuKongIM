@@ -58,6 +58,68 @@ func TestCheckpointSuccessorRejectsReproductionMutationAndBudgetRollback(t *test
 	require.Error(t, issueagent.ValidateCheckpointSuccessor(previous, rolledBack))
 }
 
+func TestMaintainerControlGenerationCannotRewriteDomainFacts(t *testing.T) {
+	t.Parallel()
+
+	previous := successorBaseCheckpoint()
+	next := previous
+	next.Generation++
+	next.Sequence++
+	next.State = issueagent.StateCancelled
+	next.NextAction = issueagent.ActionNone
+	previousID := int64(10)
+	previousDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	next.ExpectedPreviousCheckpointID = &previousID
+	next.PreviousCheckpointSHA256 = &previousDigest
+	next.Control = &issueagent.ControlAudit{
+		Kind: "cancel", EventID: "comment-11", Actor: "maintainer",
+		CommentID: 11,
+	}
+	require.NoError(t, issueagent.ValidateCheckpointSuccessor(previous, next))
+
+	next.Versions.AffectedSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.Error(t, issueagent.ValidateCheckpointSuccessor(previous, next))
+}
+
+func TestHumanMergeAndBudgetHandoffTransitions(t *testing.T) {
+	t.Parallel()
+
+	require.NoError(t, issueagent.ValidateTransition(
+		issueagent.StateReadyForReview, issueagent.StateMerged,
+	))
+	require.Error(t, issueagent.ValidateTransition(
+		issueagent.StateValidating, issueagent.StateMerged,
+	))
+	require.NoError(t, issueagent.ValidateTransition(
+		issueagent.StateVersionPinned, issueagent.StateReadyForHuman,
+	))
+}
+
+func TestRecoveryGenerationCanOnlyReturnToItsDurableBoundary(t *testing.T) {
+	t.Parallel()
+
+	previous := successorBaseCheckpoint()
+	next := previous
+	next.Generation++
+	next.Sequence++
+	previousID := int64(10)
+	previousDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	next.ExpectedPreviousCheckpointID = &previousID
+	next.PreviousCheckpointSHA256 = &previousDigest
+	next.Control = &issueagent.ControlAudit{
+		Kind: "recover_chain", EventID: "comment-12", Actor: "admin",
+		CommentID: 12, RecoveryAnchorCommentID: 10,
+		RecoveryAnchorDigest:  previousDigest,
+		QuarantinedCommentIDs: []int64{11},
+		QuarantineDigest:      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+	require.NoError(t, issueagent.ValidateCheckpointSuccessor(previous, next))
+
+	next.State = issueagent.StateVersionPinned
+	next.NextAction = issueagent.ActionReproduce
+	require.Error(t, issueagent.ValidateCheckpointSuccessor(previous, next))
+}
+
 func checkpointWithReproduction() issueagent.Checkpoint {
 	checkpoint := successorBaseCheckpoint()
 	checkpoint.Sequence = 2

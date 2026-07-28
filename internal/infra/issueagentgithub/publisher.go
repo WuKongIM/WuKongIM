@@ -24,6 +24,7 @@ type PublishValidation struct {
 	AllowedPaths                []string
 	ExistingPaths               map[string]bool
 	FrozenFileSHA256            map[string]string
+	ImmutablePaths              []string
 	AllowReproductionReset      bool
 	ScenarioInstructionTemplate []byte
 }
@@ -40,6 +41,10 @@ func ValidatePublish(input PublishValidation) error {
 		return err
 	}
 	for _, file := range input.ChangeSet.Files {
+		if matchesAnyPath(file.Path, input.ImmutablePaths, false, false) &&
+			!input.AllowReproductionReset {
+			return fmt.Errorf("frozen reproduction path %q is immutable", file.Path)
+		}
 		var content []byte
 		if file.Operation == issueagentcontract.FileOperationUpsert {
 			var err error
@@ -52,10 +57,10 @@ func ValidatePublish(input PublishValidation) error {
 			file.Mode != issueagentcontract.FileModeRegular {
 			return fmt.Errorf("Publisher rejects unexpected executable mode for %q", file.Path)
 		}
-		if matchesAnyPath(file.Path, input.ProtectedPaths, true) {
+		if matchesAnyPath(file.Path, input.ProtectedPaths, true, true) {
 			return fmt.Errorf("file %q is protected from Issue Agent writes", file.Path)
 		}
-		if !matchesAnyPath(file.Path, input.AllowedPaths, false) {
+		if !matchesAnyPath(file.Path, input.AllowedPaths, false, false) {
 			return fmt.Errorf("file %q is outside the current task scope", file.Path)
 		}
 		if path.Base(file.Path) == "AGENTS.md" {
@@ -80,13 +85,20 @@ func ValidatePublish(input PublishValidation) error {
 	return nil
 }
 
-func matchesAnyPath(filePath string, candidates []string, caseInsensitive bool) bool {
+func matchesAnyPath(
+	filePath string,
+	candidates []string,
+	caseInsensitive bool,
+	matchFileStem bool,
+) bool {
 	for _, candidate := range candidates {
 		left, right := filePath, candidate
 		if caseInsensitive {
 			left, right = strings.ToLower(left), strings.ToLower(right)
 		}
-		if left == right || strings.HasPrefix(left, strings.TrimSuffix(right, "/")+"/") {
+		right = strings.TrimSuffix(right, "/")
+		if left == right || strings.HasPrefix(left, right+"/") ||
+			matchFileStem && strings.HasPrefix(left, right) {
 			return true
 		}
 	}

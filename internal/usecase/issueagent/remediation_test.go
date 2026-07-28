@@ -79,6 +79,47 @@ func TestBuildFixTaskRequiresSecondAuthorizationAndRejectsAgentPaths(t *testing.
 		}},
 	)
 	require.Error(t, err)
+
+	diagnosis = validDiagnosis()
+	diagnosis.IntendedPaths = []string{"test/e2e/issue_agent/issue_42"}
+	_, err = issueagentusecase.BuildFixTask(
+		input, diagnosis, reproduction,
+		[]issueagent.CommandRule{{
+			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 1,
+		}},
+	)
+	require.Error(t, err)
+
+	diagnosis.IntendedPaths = []string{"test"}
+	_, err = issueagentusecase.BuildFixTask(
+		input, diagnosis, reproduction,
+		[]issueagent.CommandRule{{
+			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 1,
+		}},
+	)
+	require.Error(t, err)
+}
+
+func TestBuildAddressReviewTaskFreezesExactThreads(t *testing.T) {
+	t.Parallel()
+
+	task, err := issueagentusecase.BuildAddressReviewTask(
+		validPhaseTaskInput(), validDiagnosis(),
+		issueagent.Reproduction{
+			Topology: "single-node-cluster",
+			TestFiles: []issueagent.TestFile{{
+				Path:    "test/e2e/issue_agent/issue_42/reproduction_test.go",
+				BlobSHA: affectedSHA,
+			}},
+		},
+		[]string{"PRRT_1", "PRRT_2"},
+		[]issueagent.CommandRule{{
+			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 1,
+		}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.PhaseAddressReview, task.Phase)
+	require.Equal(t, []string{"PRRT_1", "PRRT_2"}, task.ReviewThreadIDs)
 }
 
 func validPhaseTaskInput() issueagentusecase.PhaseTaskInput {

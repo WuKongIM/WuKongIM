@@ -39,3 +39,9 @@ are always human-only; other high-risk classes require a fresh exact
 `/agent approve-risk` authorization before a fix lease. Expired leases return
 to their last durable phase boundary and consume bounded infrastructure retry
 budget; they never accept late output.
+
+Exact maintainer commands are planned from freshly checked permission and
+current GitHub facts. Revision, cancellation, review repair, head adoption,
+backport tracking, and signed chain recovery all advance generation. Review
+repair freezes unresolved thread IDs; CI failures create at most two new fix
+leases before returning to a human.

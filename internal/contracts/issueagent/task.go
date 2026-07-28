@@ -79,6 +79,7 @@ type TaskEnvelope struct {
 	CandidateSHA       string         `json:"candidate_sha,omitempty"`
 	FrozenIssue        string         `json:"frozen_issue"`
 	AcceptedCommentIDs []int64        `json:"accepted_comment_ids"`
+	ReviewThreadIDs    []string       `json:"review_thread_ids,omitempty"`
 	InstructionDigests []FileDigest   `json:"instruction_digests"`
 	AllowedPaths       []string       `json:"allowed_paths"`
 	AllowedCommands    []CommandRule  `json:"allowed_commands"`
@@ -143,6 +144,11 @@ func ValidateTaskEnvelope(task TaskEnvelope) error {
 	if err := validatePositiveSortedIDs(task.AcceptedCommentIDs); err != nil {
 		return fmt.Errorf("accepted comment IDs: %w", err)
 	}
+	if !strictBoundedStrings(task.ReviewThreadIDs, 256) ||
+		task.Phase == PhaseAddressReview && len(task.ReviewThreadIDs) == 0 ||
+		task.Phase != PhaseAddressReview && len(task.ReviewThreadIDs) != 0 {
+		return errors.New("task review-thread identity is invalid")
+	}
 	if err := validateInstructionDigests(task.InstructionDigests); err != nil {
 		return err
 	}
@@ -194,6 +200,19 @@ func ValidateTaskEnvelope(task TaskEnvelope) error {
 		return errors.New("model identity is empty or oversized")
 	}
 	return nil
+}
+
+func strictBoundedStrings(values []string, maxBytes int) bool {
+	if len(values) > maxTaskSliceItems || !slices.IsSorted(values) {
+		return false
+	}
+	for index, value := range values {
+		if value == "" || len(value) > maxBytes ||
+			index > 0 && values[index-1] == value {
+			return false
+		}
+	}
+	return true
 }
 
 func validPhase(phase Phase) bool {
