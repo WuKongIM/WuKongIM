@@ -1,6 +1,6 @@
-# Continuous Integration
+# Agent-Directed Validation
 
-WuKongIM is migrating test workflows into fixed, Agent-callable tools. The
+WuKongIM exposes test workflows as fixed, Agent-callable tools. The
 authoritative workflow catalog and invocation protocol live beside the
 workflows in [`.github/workflows/README.md`](../../.github/workflows/README.md).
 All Go commands use explicit repository roots and `GOWORK=off`;
@@ -8,7 +8,7 @@ repository-root `./...` is not a valid gate because Go package discovery
 ignores `.gitignore` and can include local packages below `tmp/` or
 `web/node_modules/`.
 
-## Agent-directed PR Validation (Migration Phase 1)
+## Agent-directed PR Validation
 
 `.github/workflows/agent-pr-validation-control.yml` is the trusted control
 plane. An authorized Agent publishes a versioned, commit-bound validation plan,
@@ -28,7 +28,7 @@ publishes the stable GitHub Actions check `Agent Validation Gate`. Its first
 PR-event attempt fails closed; the isolated terminal status job reruns that
 exact gate run after publishing generation-bound evidence, while the gate waits
 within a fixed bound for the worker to finish. This check, not the worker's
-commit status evidence, is the future
+commit status evidence, is the
 branch-protection target. Editing, opening, reopening, or adding a commit
 invalidates the old plan and gate. A failed validation attempt may be retried
 once within the same gate generation only when the new plan cites the prior
@@ -49,14 +49,14 @@ renamed paths are classified by both their old and new names, and fork pull
 requests use the same untrusted-code boundary. See the workflow catalog for
 labels, plan schema, retry rules, and fork approval policy.
 
-## Transitional Fast CI
+## Fixed Fast Validation
 
-`.github/workflows/ci.yml` runs for pull requests, pushes to `main`, and manual
-dispatches. Obsolete runs for the same pull request/ref are cancelled. It
-remains active during migration phase 1 so existing branch protection does not
-lose required checks. Remove it only after a remote Agent-validation pilot is
-green and branch protection requires the `Agent Validation Gate` check from
-the GitHub Actions app.
+There is no automatic pull-request or `main` push test Workflow. After
+inspecting the exact diff, an Agent selects `agent-ci/go-fast`,
+`agent-ci/web`, and `agent-ci/demo` when the path-to-suite rules or assessed
+risk require them. Branch protection waits for the stable
+`Agent Validation Gate`, so a PR cannot merge until the selected tools publish
+valid evidence for its exact head and test-merge commit.
 
 | Check | Timeout | Contract |
 | --- | ---: | --- |
@@ -76,7 +76,8 @@ Production behavior is proved by the shorter timeout passed to the script plus
 exit status, evidence, and descendant-cleanup assertions, so do not tighten an
 outer watchdog merely to make the test appear faster.
 
-The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn 1.22.22, matching CI:
+The local equivalent uses Go 1.25.11, Bun 1.3.11, Node 22.12.0, and Yarn
+1.22.22, matching the fixed Agent tools:
 
 ```bash
 export GOWORK=off
@@ -113,20 +114,21 @@ test -z "$changes"
 `bun run lint` compares current ESLint results with
 `web/eslint-baseline.json`. A new, changed, or removed finding fails. After a
 reviewed lint cleanup, run `bun run lint:update-baseline` and commit the smaller
-deterministic baseline in the same change. CI never updates the baseline.
+deterministic baseline in the same change. Agent validation never updates the
+baseline.
 The complete manager Web production bundle under
-`internal/access/manager/webui/dist` is also tracked and rebuilt in CI because
-ordinary Go compilation embeds it without invoking Bun.
+`internal/access/manager/webui/dist` is also tracked and rebuilt by the selected
+Web tool because ordinary Go compilation embeds it without invoking Bun.
 The complete chat Demo production bundle under
 `internal/access/api/demoui/dist` follows the same tracked-artifact contract;
 ordinary Go compilation embeds it without invoking Node or Yarn.
 
-## Transitional Nightly and Manual Coverage
+## Fixed Heavy Validation
 
-`.github/workflows/nightly.yml` starts daily at `18:00 UTC` (`02:00` in
-Asia/Shanghai) and supports manual dispatch. Its schedule remains active during
-migration phase 1 and is removed only after equivalent Agent-invoked heavy
-validation has been proven remotely.
+There is no scheduled test suite. An Agent selects `agent-ci/go-race`,
+`agent-ci/go-integration`, `agent-ci/go-e2e`, or
+`agent-ci/three-node-smoke` when the diff and risk assessment require heavier
+evidence.
 
 | Check | Timeout | Contract |
 | --- | ---: | --- |
@@ -137,8 +139,8 @@ validation has been proven remotely.
 | `Go e2e` | 60m | one prebuilt real `cmd/wukongim` binary and `test/e2e/...` |
 | `Three-node smoke` | 30m | base three-node cluster plus real `wkcli sim` traffic |
 
-Nightly failures remain failures; they do not retroactively block a merged pull
-request. Gofail dynamic-node faults and the 100K-subscriber scenario remain
+Selected heavy-suite failures fail Agent validation and keep the merge gate
+closed. Gofail dynamic-node faults and the 100K-subscriber scenario remain
 explicit opt-in stress paths rather than part of routine validation.
 
 ## Failure Evidence
@@ -171,13 +173,12 @@ authentication response and manager token.
 ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' .github/workflows/*.yml
 bash -n scripts/agent-pr-validation-plan.sh
 GOWORK=off go test ./scripts -run \
-  '^(TestAgentPRValidation.*|TestAgentWorkflowCatalogContract|TestCIWorkflowContract|TestNightlyWorkflowContract)$' \
+  '^(TestAgentPRValidation.*|TestAgentWorkflow.*|TestLegacyAutomaticTestWorkflowsAreAbsent)$' \
   -count=1
 ```
 
-Do not change branch protection or delete `ci.yml`/`nightly.yml` as part of
-phase 1. Repository administrators first observe a successful remote pilot,
-then replace the existing required checks with the single stable
-`Agent Validation Gate` check from the GitHub Actions app; the worker's
-PR/gate-generation evidence commit statuses must not be required. Legacy
-workflow removal is a separate final migration.
+The migration completed on 2026-07-28 after same-repository PR #654 and Fork PR
+#655 passed the full protocol. `main` branch protection requires the single
+stable `Agent Validation Gate` check from the GitHub Actions app; the worker's
+PR/gate-generation evidence commit statuses are not required. The former
+automatic `ci.yml` and scheduled `nightly.yml` Workflows must not be restored.

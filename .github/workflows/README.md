@@ -26,8 +26,6 @@ for discovery and may become more specific over time.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject | Explicit permission-change authorization required |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
-| `ci.yml` | `CI` | Transitional automatic PR/main fast CI retained while the Agent gate is proven | Migration compatibility only |
-| `nightly.yml` | `Nightly` | Transitional scheduled heavy suite retained while the Agent gate is proven | Migration compatibility only |
 
 ## Agent PR validation protocol
 
@@ -179,24 +177,32 @@ independent Code Owner review.
 
 ## Migration state
 
-This is migration phase 1. `ci.yml` and `nightly.yml` intentionally keep their
-existing automatic triggers and current branch-protection contexts until:
+Migration completed on 2026-07-28:
 
-1. these new Workflows are merged to the default branch;
-2. all fixed labels exist and the label protocol succeeds on a real
-   same-repository PR and a Fork PR;
-3. `Agent Validation Gate` is observed on the exact PR test-merge commit;
-4. branch protection is changed to require that check from the GitHub Actions
-   app, not a commit status; and
-5. the old required contexts are removed without a lockout window.
+1. the protocol Workflows were merged to the default branch in PR
+   [#652](https://github.com/WuKongIM/WuKongIM/pull/652);
+2. every fixed label was installed;
+3. the same-repository pilot
+   [#654](https://github.com/WuKongIM/WuKongIM/pull/654) and Fork pilot
+   [#655](https://github.com/WuKongIM/WuKongIM/pull/655) both proved the
+   fail-closed first attempt, exact request/evidence binding, and successful
+   rerun of the original `Agent Validation Gate`;
+4. `main` branch protection was atomically changed to require only
+   `Agent Validation Gate` from the GitHub Actions app (`app_id: 15368`); and
+5. the legacy required contexts were removed before the transitional
+   Workflows were deleted.
 
-Only then may a follow-up change delete `ci.yml` and `nightly.yml`.
+The former `ci.yml` and `nightly.yml` test Workflows no longer exist. Pull
+requests and pushes do not start tests automatically, and there is no scheduled
+test suite. An Agent inspects each change and selects the fixed validation tools
+above. Autonomous schedules remain only for resource and billing safety
+backstops.
 
 ## Contract checks
 
 ```bash
 ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f) }' .github/workflows/*.yml
 GOWORK=off go test ./scripts \
-  -run '^(TestAgentPRValidation.*|TestAgentWorkflowCatalogContract|TestCIWorkflowContract|TestNightlyWorkflowContract)$' \
+  -run '^(TestAgentPRValidation.*|TestAgentWorkflow.*|TestLegacyAutomaticTestWorkflowsAreAbsent)$' \
   -count=1
 ```
