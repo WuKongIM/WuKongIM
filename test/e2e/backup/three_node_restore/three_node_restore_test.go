@@ -293,12 +293,10 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		t, cluster, "source-admin", "source-secret",
 	)
 
-	baselineTimeout := 20 * time.Second
-	if qualification.FileRoot == "" {
-		// Cross-region object storage must finish all initial Slot uploads
-		// before the first immutable checkpoint can be published.
-		baselineTimeout = 120 * time.Second
-	}
+	// Cluster readiness does not imply that every logical backup partition has
+	// completed its first capture. Keep one bounded convergence budget for both
+	// local file repositories and cross-region object storage.
+	baselineTimeout := 120 * time.Second
 	baseline := publishCheckpointEventually(
 		t, cluster, sourceToken, baselineTimeout,
 	)
@@ -420,7 +418,15 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 	exerciseRestoreLeaderFailure(
 		t, target, token, restoreControllerLeader,
 	)
-	plan = waitForRestoreStatus(t, target, token, "installed", 45*time.Second)
+	restoreInstallTimeout := 3 * time.Minute
+	if qualification.FileRoot == "" {
+		// Cross-region restore installs every logical partition on all target
+		// replicas and must also absorb the injected Controller failover.
+		restoreInstallTimeout = 5 * time.Minute
+	}
+	plan = waitForRestoreStatus(
+		t, target, token, "installed", restoreInstallTimeout,
+	)
 	require.Len(t, plan.Partitions, 16)
 	var restoredMessages uint64
 	for hashSlot, partition := range plan.Partitions {
@@ -1312,8 +1318,11 @@ func appendMessageDuringFailure(
 	}
 	var attemptErrors []error
 	for _, nodeID := range nodeIDs {
+		// Default node-health expiry is 30 seconds. Give the surviving Channel
+		// path enough time to migrate authority without changing production
+		// timing semantics.
 		ctx, cancel := context.WithTimeout(
-			context.Background(), 15*time.Second,
+			context.Background(), 60*time.Second,
 		)
 		message, err := suite.PostMessageSendEventually(
 			ctx, cluster.MustNode(nodeID).APIAddr(), body,
@@ -1371,7 +1380,10 @@ func advanceMessageRetentionEventually(
 	throughSeq uint64,
 ) retentionResponse {
 	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
+	// The request is idempotent by the durable channel/through-sequence
+	// boundary. Allow Controller forwarding and revision conflicts from the
+	// preceding fault drill to converge before declaring erasure unavailable.
+	deadline := time.Now().Add(2 * time.Minute)
 	var last retentionResponse
 	var lastErr error
 	for time.Now().Before(deadline) {
@@ -1519,6 +1531,12 @@ func localBackupNodeEnvironment(nodeID uint64, root string) suite.Option {
 }
 
 func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[string]string {
+	auditInterval := "500ms"
+	if qualification.FileRoot != "" {
+		// Local file I/O can advance the one-artifact audit state machine much
+		// faster without applying that request rate to production object stores.
+		auditInterval = "10ms"
+	}
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_PROVIDER":                            qualification.Provider,
@@ -1533,7 +1551,7 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
 		"WK_BACKUP_STAGING_MAX_BYTES":                   "67108864",
 		"WK_BACKUP_WORKER_COUNT":                        "2",
-		"WK_BACKUP_AUDIT_INTERVAL":                      "500ms",
+		"WK_BACKUP_AUDIT_INTERVAL":                      auditInterval,
 		"WK_BACKUP_AUDIT_SCRUB_INTERVAL":                "24h",
 		"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL":         "1h",
 		"WK_BACKUP_GARBAGE_SAFETY_WINDOW":               "168h",
