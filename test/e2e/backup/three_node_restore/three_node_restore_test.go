@@ -45,7 +45,7 @@ type backupStatus struct {
 		MessageSourceWatermark          uint64 `json:"message_source_watermark"`
 		FrontierUpdatedUnixMillis       int64  `json:"frontier_updated_unix_millis"`
 	} `json:"capture_leases"`
-	CaptureStatuses []backupCaptureStatus `json:"local_capture_statuses"`
+	CaptureStatuses []backupCaptureStatus `json:"capture_statuses"`
 	IntegrityAudit  backupIntegrityAudit  `json:"integrity_audit"`
 }
 
@@ -203,6 +203,7 @@ type recoveryDrillResult struct {
 	RepositoryRepair     bool
 	DualCorruptionRebase bool
 	GarbageRoleProbe     bool
+	LeastPrivilegeRoles  bool
 }
 
 func TestThreeNodeBackupContinuousRestoresAndContinuesTraffic(t *testing.T) {
@@ -216,47 +217,49 @@ func TestProductionStorageQualification(t *testing.T) {
 	qualification := productionStorageQualification(t)
 	result := runThreeNodeRecoveryDrill(t, qualification)
 	evidence := struct {
-		Schema           string `json:"schema"`
-		Provider         string `json:"provider"`
-		KeyAuthority     string `json:"key_authority"`
-		RunID            string `json:"run_id"`
-		Commit           string `json:"commit"`
-		PrimaryRegion    string `json:"primary_region"`
-		SecondaryRegion  string `json:"secondary_region"`
-		ObjectLockDays   int    `json:"object_lock_days"`
-		CheckpointID     string `json:"checkpoint_id"`
-		RestoredMessages uint64 `json:"restored_messages"`
-		SourceStopped    bool   `json:"source_stopped"`
-		FreshTarget      bool   `json:"fresh_target"`
-		PostRestoreWrite bool   `json:"post_restore_write"`
-		ControllerFault  bool   `json:"controller_fault"`
-		SlotLeaderFault  bool   `json:"slot_leader_fault"`
-		DataNodeFault    bool   `json:"data_node_fault"`
-		RestoreFault     bool   `json:"restore_leader_fault"`
-		RepositoryRepair bool   `json:"repository_repair"`
-		DualRebase       bool   `json:"dual_corruption_rebase"`
-		GarbageRoleProbe bool   `json:"garbage_role_probe"`
+		Schema              string `json:"schema"`
+		Provider            string `json:"provider"`
+		KeyAuthority        string `json:"key_authority"`
+		RunID               string `json:"run_id"`
+		Commit              string `json:"commit"`
+		PrimaryRegion       string `json:"primary_region"`
+		SecondaryRegion     string `json:"secondary_region"`
+		ObjectLockDays      int    `json:"object_lock_days"`
+		CheckpointID        string `json:"checkpoint_id"`
+		RestoredMessages    uint64 `json:"restored_messages"`
+		SourceStopped       bool   `json:"source_stopped"`
+		FreshTarget         bool   `json:"fresh_target"`
+		PostRestoreWrite    bool   `json:"post_restore_write"`
+		ControllerFault     bool   `json:"controller_fault"`
+		SlotLeaderFault     bool   `json:"slot_leader_fault"`
+		DataNodeFault       bool   `json:"data_node_fault"`
+		RestoreFault        bool   `json:"restore_leader_fault"`
+		RepositoryRepair    bool   `json:"repository_repair"`
+		DualRebase          bool   `json:"dual_corruption_rebase"`
+		GarbageRoleProbe    bool   `json:"garbage_role_probe"`
+		LeastPrivilegeRoles bool   `json:"least_privilege_roles"`
 	}{
-		Schema:           "wukongim/backup-production-qualification/v3",
-		Provider:         qualification.Provider,
-		KeyAuthority:     "deployment-key-package/v1",
-		RunID:            qualification.ProductionRunID,
-		Commit:           qualification.ProductionCommit,
-		PrimaryRegion:    qualification.Primary.Region,
-		SecondaryRegion:  qualification.Secondary.Region,
-		ObjectLockDays:   qualification.ObjectLockDays,
-		CheckpointID:     result.CheckpointID,
-		RestoredMessages: result.RestoredMessages,
-		SourceStopped:    true,
-		FreshTarget:      true,
-		PostRestoreWrite: true,
-		ControllerFault:  result.ControllerFailover,
-		SlotLeaderFault:  result.SlotFailover,
-		DataNodeFault:    result.DataNodeFailover,
-		RestoreFault:     result.RestoreFailover,
-		RepositoryRepair: result.RepositoryRepair,
-		DualRebase:       result.DualCorruptionRebase,
-		GarbageRoleProbe: result.GarbageRoleProbe,
+		Schema:              "wukongim/backup-production-qualification/v3",
+		Provider:            qualification.Provider,
+		KeyAuthority:        "deployment-key-package/v1",
+		RunID:               qualification.ProductionRunID,
+		Commit:              qualification.ProductionCommit,
+		PrimaryRegion:       qualification.Primary.Region,
+		SecondaryRegion:     qualification.Secondary.Region,
+		ObjectLockDays:      qualification.ObjectLockDays,
+		CheckpointID:        result.CheckpointID,
+		RestoredMessages:    result.RestoredMessages,
+		SourceStopped:       true,
+		FreshTarget:         true,
+		PostRestoreWrite:    true,
+		ControllerFault:     result.ControllerFailover,
+		SlotLeaderFault:     result.SlotFailover,
+		DataNodeFault:       result.DataNodeFailover,
+		RestoreFault:        result.RestoreFailover,
+		RepositoryRepair:    result.RepositoryRepair,
+		DualRebase:          result.DualCorruptionRebase,
+		GarbageRoleProbe:    result.GarbageRoleProbe,
+		LeastPrivilegeRoles: result.LeastPrivilegeRoles,
 	}
 	encoded, err := json.Marshal(evidence)
 	require.NoError(t, err)
@@ -529,6 +532,7 @@ func runThreeNodeRecoveryDrill(t *testing.T, qualification storageQualification)
 		RepositoryRepair:     true,
 		DualCorruptionRebase: true,
 		GarbageRoleProbe:     true,
+		LeastPrivilegeRoles:  true,
 	}
 }
 
@@ -1518,7 +1522,6 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_PROVIDER":                            qualification.Provider,
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v3",
 		"WK_BACKUP_REPOSITORY_ID":                       qualification.RepositoryID,
 		"WK_BACKUP_SOURCE_GENERATION":                   qualification.SourceGeneration,
 		"WK_BACKUP_STAGING_DIR":                         qualificationStagingDir(qualification, "source", nodeID),
@@ -1526,6 +1529,7 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
 		"WK_BACKUP_TARGET_SEGMENT_BYTES":                "1048576",
+		"WK_BACKUP_MAX_SEGMENT_BYTES":                   "268435456",
 		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
 		"WK_BACKUP_STAGING_MAX_BYTES":                   "67108864",
 		"WK_BACKUP_WORKER_COUNT":                        "2",
@@ -2336,7 +2340,7 @@ func waitForDurableFrontiers(
 		}
 	}
 	t.Fatalf(
-		"backup capture frontiers did not advance: metadata_slots=%v message_slots=%v previous=%v last=%v local_capture_statuses=%+v node_statuses=%+v node_errors=%v err=%v\n%s",
+		"backup capture frontiers did not advance: metadata_slots=%v message_slots=%v previous=%v last=%v capture_statuses=%+v node_statuses=%+v node_errors=%v err=%v\n%s",
 		metadataHashSlots, messageHashSlots, previous, last,
 		lastStatus.CaptureStatuses, nodeStatuses, nodeErrors, lastErr,
 		cluster.DumpDiagnostics(),

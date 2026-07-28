@@ -77,7 +77,10 @@ jobs:
         run: test "$(go env GOVERSION)" = "go1.25.11"
       - name: Build e2e-tagged product binary
         shell: bash
-        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim
+        run: |
+          go build -tags=e2e \
+            -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+            -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim
       - name: Run backup qualification scenarios
         shell: bash
         env:
@@ -132,7 +135,10 @@ jobs:
         run: test "$(go env GOVERSION)" = "go1.25.11"
       - name: Build e2e-tagged product binary
         shell: bash
-        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim
+        run: |
+          go build -tags=e2e \
+            -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+            -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim
       - name: Run 256-Slot backup scale and latency gate
         shell: bash
         env:
@@ -199,7 +205,10 @@ jobs:
             >> "$GITHUB_ENV"
       - name: Build production-provider e2e binary
         shell: bash
-        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim
+        run: |
+          go build -tags=e2e \
+            -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+            -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim
       - name: Run production storage recovery drill
         shell: bash
         env:
@@ -276,7 +285,8 @@ jobs:
              (.restore_leader_fault == true) and
              (.repository_repair == true) and
              (.dual_corruption_rebase == true) and
-             (.garbage_role_probe == true)' \
+             (.garbage_role_probe == true) and
+             (.least_privilege_roles == true)' \
             >/dev/null <<<"$evidence_json"
       - name: Prepare bounded production evidence
         if: always()
@@ -362,8 +372,37 @@ jobs:
       - backup-scale-performance
       - production-storage
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Build commit-bound qualified binaries
+        shell: bash
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          QUALIFIED_DIR: ${{ runner.temp }}/backup-qualified
+        run: |
+          set -euo pipefail
+          mkdir -p "$QUALIFIED_DIR"
+          for architecture in amd64 arm64; do
+            output="$QUALIFIED_DIR/wukongim-linux-$architecture"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$architecture" go build \
+              -trimpath \
+              -ldflags="-s -w -X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=$COMMIT_SHA" \
+              -o "$output" ./cmd/wukongim
+            go version -m "$output" | grep -F "vcs.revision=$COMMIT_SHA"
+          done
+          (
+            cd "$QUALIFIED_DIR"
+            sha256sum wukongim-linux-amd64 wukongim-linux-arm64 \
+              > SHA256SUMS
+          )
       - name: Write recorded recovery drill verdict
         shell: bash
         env:
@@ -372,8 +411,11 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          QUALIFIED_DIR: ${{ runner.temp }}/backup-qualified
         run: |
           umask 077
+          amd64_sha="$(awk '$2 == "wukongim-linux-amd64" {print $1}' "$QUALIFIED_DIR/SHA256SUMS")"
+          arm64_sha="$(awk '$2 == "wukongim-linux-arm64" {print $1}' "$QUALIFIED_DIR/SHA256SUMS")"
           jq -n \
             --arg schema "wukongim/backup-release-qualification/v3" \
             --arg provider "aliyun" \
@@ -381,6 +423,8 @@ jobs:
             --arg run_id "$RUN_ID" \
             --arg run_attempt "$RUN_ATTEMPT" \
             --arg run_url "$RUN_URL" \
+            --arg amd64_sha "$amd64_sha" \
+            --arg arm64_sha "$arm64_sha" \
             '{
               schema: $schema,
               provider: $provider,
@@ -388,6 +432,10 @@ jobs:
               run_id: $run_id,
               run_attempt: $run_attempt,
               run_url: $run_url,
+              qualified_binaries: {
+                linux_amd64_sha256: $amd64_sha,
+                linux_arm64_sha256: $arm64_sha
+              },
               gates: {
                 portable_faults: "passed",
                 three_node_recovery: "passed",
@@ -396,6 +444,13 @@ jobs:
                 recorded_recovery_drill: "passed"
               }
             }' > "$EVIDENCE_FILE"
+      - name: Upload commit-bound qualified binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backup-qualified-binaries-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/backup-qualified
+          if-no-files-found: error
+          retention-days: 90
       - name: Upload release qualification verdict
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

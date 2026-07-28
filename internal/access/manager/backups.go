@@ -22,21 +22,53 @@ type BackupManagement interface {
 }
 
 type backupStatusDTO struct {
-	Enabled                 bool                     `json:"enabled"`
-	Health                  backupusecase.Health     `json:"health"`
-	CheckpointAgeSeconds    *int64                   `json:"checkpoint_age_seconds"`
-	LatestCheckpoint        *backupCheckpointDTO     `json:"latest_checkpoint,omitempty"`
-	FailureCategory         string                   `json:"failure_category,omitempty"`
-	CoordinatorNodeID       uint64                   `json:"coordinator_node_id"`
-	ObservedAtUnixMillis    int64                    `json:"observed_at_unix_millis"`
-	AuthEnabled             bool                     `json:"auth_enabled"`
-	Running                 bool                     `json:"running"`
-	MaxCheckpointAgeSeconds int64                    `json:"max_checkpoint_age_seconds"`
-	Policy                  backupPolicyDTO          `json:"policy"`
-	CaptureLeases           []backupCaptureLeaseDTO  `json:"capture_leases"`
-	LocalCaptureStatuses    []backupCaptureStatusDTO `json:"local_capture_statuses"`
-	IntegrityAudit          backupIntegrityAuditDTO  `json:"integrity_audit"`
-	ErasureStreams          []backupErasureStreamDTO `json:"erasure_streams"`
+	Enabled                     bool                       `json:"enabled"`
+	Health                      backupusecase.Health       `json:"health"`
+	CheckpointAgeSeconds        *int64                     `json:"checkpoint_age_seconds"`
+	LatestCheckpoint            *backupCheckpointDTO       `json:"latest_checkpoint,omitempty"`
+	FailureCategory             string                     `json:"failure_category,omitempty"`
+	CoordinatorNodeID           uint64                     `json:"coordinator_node_id"`
+	ObservedAtUnixMillis        int64                      `json:"observed_at_unix_millis"`
+	AuthEnabled                 bool                       `json:"auth_enabled"`
+	Running                     bool                       `json:"running"`
+	MaxCheckpointAgeSeconds     int64                      `json:"max_checkpoint_age_seconds"`
+	Policy                      backupPolicyDTO            `json:"policy"`
+	CaptureLeases               []backupCaptureLeaseDTO    `json:"capture_leases"`
+	CaptureStatuses             []backupCaptureStatusDTO   `json:"capture_statuses"`
+	CaptureStatusComplete       bool                       `json:"capture_status_complete"`
+	CaptureStatusMissingNodeIDs []uint64                   `json:"capture_status_missing_node_ids"`
+	CaptureStatusMissingSlots   []uint16                   `json:"capture_status_missing_slots"`
+	IntegrityAudit              backupIntegrityAuditDTO    `json:"integrity_audit"`
+	Compaction                  backupCompactionDTO        `json:"compaction"`
+	GarbageCollection           backupGarbageCollectionDTO `json:"garbage_collection"`
+	ErasureStreams              []backupErasureStreamDTO   `json:"erasure_streams"`
+	Restore                     *restoreProgressDTO        `json:"restore,omitempty"`
+}
+
+type backupCompactionDTO struct {
+	DebtSlots int                       `json:"debt_slots"`
+	Slots     []backupCompactionSlotDTO `json:"slots"`
+}
+
+type backupCompactionSlotDTO struct {
+	HashSlot            uint16 `json:"hash_slot"`
+	Generation          string `json:"generation"`
+	TargetGeneration    string `json:"target_generation"`
+	Reason              string `json:"reason"`
+	StartedAtUnixMillis int64  `json:"started_at_unix_millis"`
+}
+
+type backupGarbageCollectionDTO struct {
+	DebtRepositories int                           `json:"debt_repositories"`
+	Cursors          []backupGenerationGCCursorDTO `json:"cursors"`
+}
+
+type backupGenerationGCCursorDTO struct {
+	Repository          string `json:"repository"`
+	Revision            uint64 `json:"revision"`
+	CycleID             string `json:"cycle_id"`
+	Complete            bool   `json:"complete"`
+	UpdatedAtUnixMillis int64  `json:"updated_at_unix_millis"`
 }
 
 type backupIntegrityAuditDTO struct {
@@ -74,6 +106,9 @@ type backupPolicyDTO struct {
 	CaptureReconcileIntervalSeconds int64  `json:"capture_reconcile_interval_seconds"`
 	CheckpointIntervalSeconds       int64  `json:"checkpoint_interval_seconds"`
 	CaptureWorkerCount              int    `json:"capture_worker_count"`
+	TargetSegmentBytes              uint64 `json:"target_segment_bytes"`
+	MaxSegmentBytes                 uint64 `json:"max_segment_bytes"`
+	MaxSegmentOpenDurationSeconds   int64  `json:"max_segment_open_duration_seconds"`
 	StagingMaxBytes                 uint64 `json:"staging_max_bytes"`
 	SourcePinMaxAgeSeconds          int64  `json:"source_pin_max_age_seconds"`
 	MaxSourcePinnedBytes            uint64 `json:"max_source_pinned_bytes"`
@@ -115,6 +150,8 @@ type backupCaptureStatusDTO struct {
 	MessageSourceWatermark    uint64 `json:"message_source_watermark"`
 	MetadataFrontierWatermark uint64 `json:"metadata_frontier_watermark"`
 	MessageFrontierWatermark  uint64 `json:"message_frontier_watermark"`
+	MetadataLag               uint64 `json:"metadata_lag"`
+	MessageLag                uint64 `json:"message_lag"`
 	ObservedAtUnixMillis      int64  `json:"observed_at_unix_millis"`
 }
 
@@ -309,13 +346,60 @@ func backupStatusResponse(status backupusecase.StatusSnapshot) backupStatusDTO {
 		MaxCheckpointAgeSeconds: status.MaxCheckpointAgeSeconds,
 		Policy:                  backupPolicyResponse(status.Policy),
 		CaptureLeases:           backupCaptureLeaseResponses(status.CaptureLeases),
-		LocalCaptureStatuses:    backupCaptureStatusResponses(status.LocalCaptureStatuses),
-		IntegrityAudit:          backupIntegrityAuditResponse(status.IntegrityAudit),
-		ErasureStreams:          backupErasureStreamResponses(status.ErasureStreams),
+		CaptureStatuses:         backupCaptureStatusResponses(status.CaptureStatuses),
+		CaptureStatusComplete:   status.CaptureStatusComplete,
+		CaptureStatusMissingNodeIDs: append(
+			[]uint64{}, status.CaptureStatusMissingNodeIDs...,
+		),
+		CaptureStatusMissingSlots: append(
+			[]uint16{}, status.CaptureStatusMissingSlots...,
+		),
+		IntegrityAudit:    backupIntegrityAuditResponse(status.IntegrityAudit),
+		Compaction:        backupCompactionResponse(status.Compaction),
+		GarbageCollection: backupGarbageCollectionResponse(status.GarbageCollection),
+		ErasureStreams:    backupErasureStreamResponses(status.ErasureStreams),
 	}
 	if status.LatestCheckpoint != nil {
 		latest := backupCheckpointResponse(*status.LatestCheckpoint)
 		result.LatestCheckpoint = &latest
+	}
+	if status.Restore != nil {
+		restore := restoreProgressResponse(*status.Restore)
+		result.Restore = &restore
+	}
+	return result
+}
+
+func backupCompactionResponse(
+	compaction backupusecase.CompactionSnapshot,
+) backupCompactionDTO {
+	result := backupCompactionDTO{
+		DebtSlots: compaction.DebtSlots,
+		Slots:     make([]backupCompactionSlotDTO, len(compaction.Slots)),
+	}
+	for index, slot := range compaction.Slots {
+		result.Slots[index] = backupCompactionSlotDTO{
+			HashSlot: slot.HashSlot, Generation: slot.Generation,
+			TargetGeneration: slot.TargetGeneration, Reason: slot.Reason,
+			StartedAtUnixMillis: slot.StartedAtUnixMillis,
+		}
+	}
+	return result
+}
+
+func backupGarbageCollectionResponse(
+	gc backupusecase.GarbageCollectionSnapshot,
+) backupGarbageCollectionDTO {
+	result := backupGarbageCollectionDTO{
+		DebtRepositories: gc.DebtRepositories,
+		Cursors:          make([]backupGenerationGCCursorDTO, len(gc.Cursors)),
+	}
+	for index, cursor := range gc.Cursors {
+		result.Cursors[index] = backupGenerationGCCursorDTO{
+			Repository: cursor.Repository, Revision: cursor.Revision,
+			CycleID: cursor.CycleID, Complete: cursor.Complete,
+			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
+		}
 	}
 	return result
 }
@@ -360,6 +444,9 @@ func backupPolicyResponse(policy backupusecase.PolicySnapshot) backupPolicyDTO {
 		CaptureReconcileIntervalSeconds: policy.CaptureReconcileIntervalSeconds,
 		CheckpointIntervalSeconds:       policy.CheckpointIntervalSeconds,
 		CaptureWorkerCount:              policy.CaptureWorkerCount,
+		TargetSegmentBytes:              policy.TargetSegmentBytes,
+		MaxSegmentBytes:                 policy.MaxSegmentBytes,
+		MaxSegmentOpenDurationSeconds:   policy.MaxSegmentOpenDurationSeconds,
 		StagingMaxBytes:                 policy.StagingMaxBytes,
 		SourcePinMaxAgeSeconds:          policy.SourcePinMaxAgeSeconds,
 		MaxSourcePinnedBytes:            policy.MaxSourcePinnedBytes,
@@ -387,6 +474,8 @@ func backupCaptureStatusResponses(statuses []backupusecase.SlotCaptureStatus) []
 			MessageSourceWatermark:    status.MessageSourceWatermark,
 			MetadataFrontierWatermark: status.Frontier.Metadata.SourceHighWatermark,
 			MessageFrontierWatermark:  status.Frontier.Messages.SourceHighWatermark,
+			MetadataLag:               status.MetadataLag,
+			MessageLag:                status.MessageLag,
 			ObservedAtUnixMillis:      status.ObservedAtUnixMillis,
 		}
 	}

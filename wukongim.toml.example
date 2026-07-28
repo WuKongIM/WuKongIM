@@ -163,8 +163,8 @@ authority_admit_concurrency = 16
 enabled = false
 # Qualified external durability provider.
 provider = "aliyun"
-# Exact release qualification identity required when enabled=true.
-qualification_gate = ""
+# Only binaries emitted by the commit-bound backup qualification workflow may
+# start with enabled=true; there is no operator-entered bypass token.
 # Recovery mode is mutually exclusive with automatic backup and keeps ordinary
 # client/API traffic and side effects disabled until explicit activation.
 restore_mode = false
@@ -183,16 +183,18 @@ staging_dir = ""
 # Correctness polling and automatic durable checkpoint publication cadence.
 capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"
-# Replacement-baseline object size, continuous-segment target, and sparse-segment durability bound.
+# Replacement-baseline object size, continuous-segment target and hard ceiling,
+# and sparse-segment durability bound.
 baseline_chunk_bytes = 8388608
 target_segment_bytes = 67108864
+max_segment_bytes = 268435456
 max_segment_open_duration = "30s"
 # Hard node-local staging quota and bounded Hash Slot work concurrency.
 staging_max_bytes = 10737418240
 worker_count = 4
-# Rebase only the affected Hash Slot after one hour or when node-local retained Slot logs exceed 8 GiB.
-source_pin_max_age = "1h"
-max_source_pinned_bytes = 8589934592
+# Rebase only the affected Hash Slot after 30 minutes or when node-local retained Slot logs exceed 20 GiB.
+source_pin_max_age = "30m"
+max_source_pinned_bytes = 21474836480
 # Advance one bounded authenticated audit/repair step per second and force a
 # complete retained-catalog scrub at least once every 24 hours.
 audit_interval = "1s"

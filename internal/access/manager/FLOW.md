@@ -586,6 +586,17 @@ promotion reason, and promotion time make the exact rebase cause observable
 without exposing a segment or repository coordinate. It never
 exposes segment references or source cursors, so a three-node black-box test can
 observe takeover without reading node databases.
+The same status response is the unified operator surface: cluster-wide
+per-Slot rows carry metadata/message source lag, the integrity view carries
+audit and repair state,
+compaction carries bounded pending Generation replacements, garbage collection
+carries sanitized dual-repository cursor debt, and restore mode contributes the
+active plan progress and throughput. Repository keys and credentials remain
+absent. Failed lease-holder reads degrade the aggregate health and expose
+sorted missing node and Slot identities; absence is never rendered as a
+smaller healthy denominator. The embedded Overview summarizes all of these
+fields without requiring
+operators to correlate the separate restore endpoint.
 A disabled backup still returns an explicit disabled status through the app
 facade. Backup handlers preserve stable machine error codes and use retryable
 `controller_leader_unavailable` during Controller leadership transitions.
@@ -594,15 +605,17 @@ The Web publish action remains disabled until that status reports
 server will reject.
 
 The embedded Web UI exposes `/cluster/backups` with Overview and Checkpoints
-tabs. It never exposes restore mutation, repository selection, or cryptographic
+tabs. Overview shows checkpoint, capture lag, audit/repair, compaction, GC, and
+restore state. It never exposes restore mutation, repository selection, or cryptographic
 details. Web writes are forced read-only when Manager authentication is
 disabled, even though the ordinary auth-disabled HTTP behavior remains
 unchanged.
 
 Restore mode registers only permission discovery, the read-only
-`/manager/nodes` inventory needed to observe Controller leadership, plus the
-restricted `/manager/restore/*` plan, start, status, verify, and activate
-routes. Its node inventory uses `cluster.backup:r`; it does not register
+`/manager/nodes` inventory needed to observe Controller leadership, the
+unified read-only `/manager/backups/status` projection, plus the restricted
+`/manager/restore/*` plan, start, status, verify, and activate routes. Its node
+inventory and unified status use `cluster.backup:r`; it does not register
 ordinary cluster writes, node detail, user, message, plugin, or webhook
 operations.
 Activation always requires authenticated JWT identity plus an explicit

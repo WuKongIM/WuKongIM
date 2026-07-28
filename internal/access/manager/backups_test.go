@@ -59,6 +59,33 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 			}},
 			UpdatedAtUnixMillis: 456,
 		},
+		CaptureStatuses: []backupcontract.SlotCaptureStatus{{
+			HashSlot: 17, State: backupcontract.CaptureStateCapturing,
+			MetadataSourceWatermark: 30, MessageSourceWatermark: 50,
+			MetadataLag: 3, MessageLag: 7,
+		}},
+		CaptureStatusComplete:       false,
+		CaptureStatusMissingNodeIDs: []uint64{3},
+		CaptureStatusMissingSlots:   []uint16{18},
+		Compaction: backupusecase.CompactionSnapshot{
+			DebtSlots: 1,
+			Slots: []backupusecase.CompactionSlotSnapshot{{
+				HashSlot: 17, Generation: "slot-generation-1",
+				TargetGeneration: "slot-generation-2",
+				Reason:           "generation_age",
+			}},
+		},
+		GarbageCollection: backupusecase.GarbageCollectionSnapshot{
+			DebtRepositories: 1,
+			Cursors: []backupusecase.GenerationGCCursorSnapshot{{
+				Repository: "primary", CycleID: "gc-1",
+			}},
+		},
+		Restore: &backupusecase.RestoreProgress{
+			PlanID: "restore-1", Status: backupusecase.RestoreStatusInstalling,
+			TotalSlots: 256, InstalledSlots: 12,
+			ThroughputBytesPerSecond: 4096,
+		},
 	}}
 	srv := New(Options{Backup: provider})
 	recorder := httptest.NewRecorder()
@@ -87,6 +114,24 @@ func TestManagerBackupStatusExposesOnlyContinuousModel(t *testing.T) {
 	require.NotContains(t, cursor, "position")
 	slot := audit["slots"].([]any)[0].(map[string]any)
 	require.Equal(t, "rebase_required", slot["health"])
+	capture := decoded["capture_statuses"].([]any)[0].(map[string]any)
+	require.Equal(t, float64(3), capture["metadata_lag"])
+	require.Equal(t, float64(7), capture["message_lag"])
+	require.Equal(t, false, decoded["capture_status_complete"])
+	require.Equal(
+		t, []any{float64(3)},
+		decoded["capture_status_missing_node_ids"],
+	)
+	require.Equal(
+		t, []any{float64(18)},
+		decoded["capture_status_missing_slots"],
+	)
+	require.Equal(t, float64(1),
+		decoded["compaction"].(map[string]any)["debt_slots"])
+	require.Equal(t, float64(1),
+		decoded["garbage_collection"].(map[string]any)["debt_repositories"])
+	require.Equal(t, "restore-1",
+		decoded["restore"].(map[string]any)["plan_id"])
 	for _, removed := range []string{
 		"active", "latest", "verification", "dependencies", "capacity",
 		"recovery_point_age_seconds", "verification_age_seconds",

@@ -1392,22 +1392,7 @@ var requiredBackupRepositoryKeys = []string{
 }
 
 var requiredAutomaticBackupKeys = []string{
-	"WK_BACKUP_QUALIFICATION_GATE",
 	"WK_BACKUP_SOURCE_GENERATION",
-	"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL",
-	"WK_BACKUP_CHECKPOINT_INTERVAL",
-	"WK_BACKUP_BASELINE_CHUNK_BYTES",
-	"WK_BACKUP_TARGET_SEGMENT_BYTES",
-	"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION",
-	"WK_BACKUP_STAGING_MAX_BYTES",
-	"WK_BACKUP_WORKER_COUNT",
-	"WK_BACKUP_AUDIT_INTERVAL",
-	"WK_BACKUP_AUDIT_SCRUB_INTERVAL",
-	"WK_BACKUP_GARBAGE_COLLECTION_INTERVAL",
-	"WK_BACKUP_GARBAGE_SAFETY_WINDOW",
-	"WK_BACKUP_GARBAGE_MAX_REQUESTS_PER_REPOSITORY",
-	"WK_BACKUP_GARBAGE_MAX_BYTES_PER_REPOSITORY",
-	"WK_BACKUP_RETENTION_MONTHLY_MONTHS",
 	"WK_BACKUP_PRIMARY_REPAIR_ROLE_ARN",
 	"WK_BACKUP_PRIMARY_GARBAGE_ROLE_ARN",
 	"WK_BACKUP_SECONDARY_REPAIR_ROLE_ARN",
@@ -1419,10 +1404,7 @@ var requiredRestoreKeys = []string{"WK_BACKUP_TARGET_GENERATION"}
 
 func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	cfg := app.BackupConfig{
-		Provider: configValue(values, "WK_BACKUP_PROVIDER"),
-		QualificationGate: configValue(
-			values, "WK_BACKUP_QUALIFICATION_GATE",
-		),
+		Provider:         configValue(values, "WK_BACKUP_PROVIDER"),
 		RepositoryID:     configValue(values, "WK_BACKUP_REPOSITORY_ID"),
 		SourceGeneration: configValue(values, "WK_BACKUP_SOURCE_GENERATION"),
 		TargetGeneration: configValue(values, "WK_BACKUP_TARGET_GENERATION"),
@@ -1500,6 +1482,12 @@ func buildBackupConfig(values map[string]string) (app.BackupConfig, error) {
 	}
 	if configKeyPresent(values, "WK_BACKUP_TARGET_SEGMENT_BYTES") {
 		cfg.TargetSegmentBytes, err = parseUint64("WK_BACKUP_TARGET_SEGMENT_BYTES", configValue(values, "WK_BACKUP_TARGET_SEGMENT_BYTES"))
+		if err != nil {
+			return app.BackupConfig{}, err
+		}
+	}
+	if configKeyPresent(values, "WK_BACKUP_MAX_SEGMENT_BYTES") {
+		cfg.MaxSegmentBytes, err = parseUint64("WK_BACKUP_MAX_SEGMENT_BYTES", configValue(values, "WK_BACKUP_MAX_SEGMENT_BYTES"))
 		if err != nil {
 			return app.BackupConfig{}, err
 		}

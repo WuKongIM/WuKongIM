@@ -590,7 +590,7 @@ func (s *OpsObservationSource) BackupInspect(ctx context.Context, request observ
 			ObservedAtUnixMillis:      status.ObservedAtUnixMillis,
 			Running:                   status.Running,
 			CaptureLeaseCount:         len(status.CaptureLeases),
-			LocalCaptureStatusCount:   len(status.LocalCaptureStatuses),
+			CaptureStatusCount:        len(status.CaptureStatuses),
 			PendingErasureStreamCount: pendingErasureStreams,
 			LatestCheckpoint:          latestCheckpoint,
 			Checkpoints:               items,
@@ -1338,7 +1338,7 @@ type backupInspectData struct {
 	ObservedAtUnixMillis      int64                    `json:"observed_at_unix_millis"`
 	Running                   bool                     `json:"running"`
 	CaptureLeaseCount         int                      `json:"capture_lease_count"`
-	LocalCaptureStatusCount   int                      `json:"local_capture_status_count"`
+	CaptureStatusCount        int                      `json:"capture_status_count"`
 	IntegrityAudit            backupIntegrityAuditData `json:"integrity_audit"`
 	PendingErasureStreamCount int                      `json:"pending_erasure_stream_count"`
 	LatestCheckpoint          *backupCheckpointData    `json:"latest_checkpoint,omitempty"`

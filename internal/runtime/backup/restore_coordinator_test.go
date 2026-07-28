@@ -67,6 +67,40 @@ func TestRestoreCoordinatorBoundsParallelInstallation(t *testing.T) {
 	}
 }
 
+func TestRestoreCoordinatorClearsThroughputOutsideInstallingState(
+	t *testing.T,
+) {
+	app := newFakeRestoreCoordinatorApp(1, 0)
+	observer := &recordingRestoreThroughputObserver{}
+	coordinator, err := NewRestoreCoordinator(RestoreCoordinatorOptions{
+		App: app,
+		Leadership: &mutableRestoreLeadership{
+			local: 1, leader: 1,
+		},
+		Partitions:  &fakeRestoreCoordinatorInstaller{},
+		MaxParallel: 1, TickInterval: time.Hour, Now: time.Now,
+		Observer: observer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if observer.throughput != 321 {
+		t.Fatalf("installing throughput = %d, want 321", observer.throughput)
+	}
+	app.mu.Lock()
+	app.plan.Status = backupcontract.RestoreStatusVerified
+	app.mu.Unlock()
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if observer.throughput != 0 {
+		t.Fatalf("verified throughput = %d, want 0", observer.throughput)
+	}
+}
+
 func TestRestoreCoordinatorResumesCheckpointSlotAfterLeaderChange(t *testing.T) {
 	app := newFakeCheckpointRestoreCoordinatorApp()
 	installer := &fakeCheckpointRestoreCoordinatorInstaller{
@@ -169,6 +203,29 @@ type mutableRestoreLeadership struct{ local, leader uint64 }
 func (f *mutableRestoreLeadership) NodeID() uint64                   { return f.local }
 func (f *mutableRestoreLeadership) BackupControllerLeaderID() uint64 { return f.leader }
 
+type recordingRestoreThroughputObserver struct {
+	throughput uint64
+}
+
+func (*recordingRestoreThroughputObserver) SetBackupControllerLeader(bool) {}
+func (*recordingRestoreThroughputObserver) SetBackupDoctorHealth(string)   {}
+func (*recordingRestoreThroughputObserver) SetBackupCheckpointAgeSeconds(
+	*int64,
+) {
+}
+func (*recordingRestoreThroughputObserver) ObserveBackupFailure(string) {}
+func (*recordingRestoreThroughputObserver) SetBackupRestoreProgress(
+	int,
+	int,
+	int,
+) {
+}
+func (o *recordingRestoreThroughputObserver) SetBackupRestoreThroughput(
+	value uint64,
+) {
+	o.throughput = value
+}
+
 type fakeRestoreCoordinatorApp struct {
 	mu   sync.Mutex
 	plan backupcontract.RestorePlan
@@ -200,6 +257,12 @@ func (f *fakeRestoreCoordinatorApp) Status(context.Context) (*backupcontract.Res
 	plan := f.plan
 	plan.Partitions = append([]backupcontract.RestorePartition(nil), f.plan.Partitions...)
 	return &plan, nil
+}
+
+func (*fakeRestoreCoordinatorApp) RestoreThroughput(
+	backupcontract.RestorePlan,
+) (uint64, error) {
+	return 321, nil
 }
 
 func (f *fakeRestoreCoordinatorApp) BeginPartitionInstall(
@@ -331,6 +394,12 @@ func (f *fakeCheckpointRestoreCoordinatorApp) Status(
 	copy := f.plan
 	copy.Partitions = append([]backupcontract.RestorePartition(nil), f.plan.Partitions...)
 	return &copy, nil
+}
+
+func (*fakeCheckpointRestoreCoordinatorApp) RestoreThroughput(
+	backupcontract.RestorePlan,
+) (uint64, error) {
+	return 0, nil
 }
 
 func (f *fakeCheckpointRestoreCoordinatorApp) BeginPartitionInstall(

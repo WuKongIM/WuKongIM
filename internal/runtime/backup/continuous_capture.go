@@ -369,6 +369,14 @@ type CaptureObserver interface {
 	SetBackupCaptureOwnedSlots(int)
 }
 
+// CaptureProgressObserver receives bounded per-Slot RPO and maintenance debt.
+type CaptureProgressObserver interface {
+	// SetBackupCaptureSlot records source lag and the optional durable frontier age.
+	SetBackupCaptureSlot(uint16, uint64, uint64, *time.Duration)
+	// SetBackupCompactionDebt records locally observed pending replacements.
+	SetBackupCompactionDebt(int)
+}
+
 // CaptureClock supplies deterministic UTC time to rolling and status logic.
 type CaptureClock interface {
 	Now() time.Time

@@ -115,6 +115,8 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		MaxCheckpointAgeSeconds: int64(a.maxCheckpointAge / time.Second),
 		CaptureLeases:           captureLeaseSnapshots(state.SlotFrontiers),
 		IntegrityAudit:          integrityAuditSnapshot(state.IntegrityAudit),
+		Compaction:              compactionSnapshot(state.SlotFrontiers),
+		GarbageCollection:       garbageCollectionSnapshot(state.GenerationGCCursors),
 		ErasureStreams:          erasureStreamProgress(state.ErasureStreams),
 	}
 	if state.CatalogHead == nil || a.catalogBrowser == nil {
@@ -140,6 +142,49 @@ func (a *App) Status(ctx context.Context) (StatusSnapshot, error) {
 		snapshot.Health = HealthDegraded
 	}
 	return snapshot, nil
+}
+
+func compactionSnapshot(
+	frontiers []backupcontract.SlotFrontier,
+) CompactionSnapshot {
+	result := CompactionSnapshot{
+		Slots: make([]CompactionSlotSnapshot, 0),
+	}
+	for _, frontier := range frontiers {
+		if frontier.Rebase == nil {
+			continue
+		}
+		result.Slots = append(result.Slots, CompactionSlotSnapshot{
+			HashSlot:            frontier.HashSlot,
+			Generation:          frontier.Generation,
+			TargetGeneration:    frontier.Rebase.TargetGeneration,
+			Reason:              frontier.Rebase.Reason,
+			StartedAtUnixMillis: frontier.Rebase.StartedAtUnixMillis,
+		})
+	}
+	result.DebtSlots = len(result.Slots)
+	return result
+}
+
+func garbageCollectionSnapshot(
+	cursors []backupcontract.GenerationGCCursor,
+) GarbageCollectionSnapshot {
+	result := GarbageCollectionSnapshot{
+		Cursors: make([]GenerationGCCursorSnapshot, len(cursors)),
+	}
+	for index, cursor := range cursors {
+		result.Cursors[index] = GenerationGCCursorSnapshot{
+			Repository:          cursor.Repository,
+			Revision:            cursor.Revision,
+			CycleID:             cursor.CycleID,
+			Complete:            cursor.Complete,
+			UpdatedAtUnixMillis: cursor.UpdatedAtUnixMillis,
+		}
+		if !cursor.Complete {
+			result.DebtRepositories++
+		}
+	}
+	return result
 }
 
 func integrityAuditSnapshot(

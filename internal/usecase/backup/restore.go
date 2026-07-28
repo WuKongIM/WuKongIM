@@ -802,19 +802,14 @@ func (a *RestoreApp) Progress(ctx context.Context) (*RestoreProgress, error) {
 		PlanID: plan.ID, Status: plan.Status, TotalSlots: plan.HashSlotCount,
 		Partitions: append([]RestorePartition(nil), plan.Partitions...),
 	}
-	startedAtUnixMillis := int64(0)
+	downloaded, replicated, startedAtUnixMillis, err :=
+		restorePartitionByteProgress(plan.Partitions)
+	if err != nil {
+		return nil, err
+	}
+	progress.DownloadedBytes = downloaded
+	progress.ReplicatedBytes = replicated
 	for _, partition := range plan.Partitions {
-		if math.MaxUint64-progress.DownloadedBytes < partition.DownloadedBytes ||
-			math.MaxUint64-progress.ReplicatedBytes < partition.ReplicatedBytes {
-			return nil, ErrStateConflict
-		}
-		progress.DownloadedBytes += partition.DownloadedBytes
-		progress.ReplicatedBytes += partition.ReplicatedBytes
-		if partition.StartedAtUnixMillis > 0 &&
-			(startedAtUnixMillis == 0 ||
-				partition.StartedAtUnixMillis < startedAtUnixMillis) {
-			startedAtUnixMillis = partition.StartedAtUnixMillis
-		}
 		switch partition.Status {
 		case backupcontract.RestorePartitionPending, "":
 			progress.PendingSlots++
@@ -834,15 +829,9 @@ func (a *RestoreApp) Progress(ctx context.Context) (*RestoreProgress, error) {
 	if startedAtUnixMillis > 0 {
 		elapsedMillis = a.now().UTC().UnixMilli() - startedAtUnixMillis
 	}
-	if elapsedMillis > 0 && progress.DownloadedBytes > 0 {
-		elapsed := uint64(elapsedMillis)
-		if progress.DownloadedBytes > math.MaxUint64/1000 {
-			progress.ThroughputBytesPerSecond = math.MaxUint64
-		} else {
-			progress.ThroughputBytesPerSecond =
-				progress.DownloadedBytes * 1000 / elapsed
-		}
-	}
+	progress.ThroughputBytesPerSecond = restoreDownloadThroughput(
+		progress.DownloadedBytes, elapsedMillis,
+	)
 	if progress.ConvergedSlots > 0 && progress.ConvergedSlots < progress.TotalSlots &&
 		elapsedMillis > 0 {
 		remaining := uint64(progress.TotalSlots - progress.ConvergedSlots)
@@ -855,6 +844,56 @@ func (a *RestoreApp) Progress(ctx context.Context) (*RestoreProgress, error) {
 		progress.ETASeconds = &eta
 	}
 	return progress, nil
+}
+
+// RestoreThroughput returns the usecase-owned aggregate logical download rate
+// for one persisted plan projection.
+func (a *RestoreApp) RestoreThroughput(plan RestorePlan) (uint64, error) {
+	downloaded, _, startedAtUnixMillis, err :=
+		restorePartitionByteProgress(plan.Partitions)
+	if err != nil {
+		return 0, err
+	}
+	elapsedMillis := int64(0)
+	if startedAtUnixMillis > 0 {
+		elapsedMillis = a.now().UTC().UnixMilli() - startedAtUnixMillis
+	}
+	return restoreDownloadThroughput(downloaded, elapsedMillis), nil
+}
+
+func restorePartitionByteProgress(
+	partitions []RestorePartition,
+) (uint64, uint64, int64, error) {
+	var downloaded uint64
+	var replicated uint64
+	var startedAtUnixMillis int64
+	for _, partition := range partitions {
+		if math.MaxUint64-downloaded < partition.DownloadedBytes ||
+			math.MaxUint64-replicated < partition.ReplicatedBytes {
+			return 0, 0, 0, ErrStateConflict
+		}
+		downloaded += partition.DownloadedBytes
+		replicated += partition.ReplicatedBytes
+		if partition.StartedAtUnixMillis > 0 &&
+			(startedAtUnixMillis == 0 ||
+				partition.StartedAtUnixMillis < startedAtUnixMillis) {
+			startedAtUnixMillis = partition.StartedAtUnixMillis
+		}
+	}
+	return downloaded, replicated, startedAtUnixMillis, nil
+}
+
+func restoreDownloadThroughput(
+	downloaded uint64,
+	elapsedMillis int64,
+) uint64 {
+	if downloaded == 0 || elapsedMillis <= 0 {
+		return 0
+	}
+	if downloaded > math.MaxUint64/1000 {
+		return math.MaxUint64
+	}
+	return downloaded * 1000 / uint64(elapsedMillis)
 }
 
 func (a *RestoreApp) transition(ctx context.Context, planID string, mutate func(*RestorePlan) error) (RestorePlan, error) {

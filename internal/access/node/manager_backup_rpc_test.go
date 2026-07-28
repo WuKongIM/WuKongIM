@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
@@ -40,6 +41,34 @@ func TestManagerBackupRPCRejectsStaleLeaderAndRoutesWithoutReplay(t *testing.T) 
 	}
 	if raw.calls != 3 || local.publishCalls != 1 {
 		t.Fatalf("write was replayed: transport=%d local=%d", raw.calls, local.publishCalls)
+	}
+}
+
+func TestManagerBackupRPCLocalCaptureStatusDoesNotRequireControllerLeader(
+	t *testing.T,
+) {
+	want := []backupcontract.SlotCaptureStatus{{
+		HashSlot: 7, MetadataLag: 3, MessageLag: 5,
+	}}
+	local := &fakeManagerBackupRPC{status: backupusecase.StatusSnapshot{
+		CaptureStatuses: want,
+	}}
+	adapter := NewManagerBackupAdapter(ManagerBackupOptions{
+		Local: local,
+		Leadership: &mutableManagerBackupLeadership{
+			local: 2, leader: 1,
+		},
+	})
+	raw := &fakeManagerBackupRPCNode{handler: adapter.HandleRPC}
+	got, err := NewClient(raw).ManagerBackupLocalCaptureStatus(
+		context.Background(), 2,
+	)
+	if err != nil {
+		t.Fatalf("ManagerBackupLocalCaptureStatus() error = %v", err)
+	}
+	if len(got) != 1 || got[0].HashSlot != 7 ||
+		got[0].MetadataLag != 3 || got[0].MessageLag != 5 {
+		t.Fatalf("capture statuses = %#v", got)
 	}
 }
 
@@ -168,6 +197,12 @@ type fakeManagerBackupRPC struct {
 func (f *fakeManagerBackupRPC) Status(context.Context) (backupusecase.StatusSnapshot, error) {
 	f.statusCalls++
 	return f.status, nil
+}
+
+func (f *fakeManagerBackupRPC) LocalCaptureStatus(
+	context.Context,
+) []backupcontract.SlotCaptureStatus {
+	return f.status.CaptureStatuses
 }
 
 func (f *fakeManagerBackupRPC) PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error) {

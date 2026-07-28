@@ -80,7 +80,9 @@ logical Hash Slot has a matching applied command, so unrelated traffic in the
 shared physical Slot does not create cursor-only Controller updates.
 
 The default rolling policy targets 64 MiB, rejects plaintext above 256 MiB, and
-seals a non-empty sparse segment after 30 seconds even when that requires
+seals a non-empty sparse segment after 30 seconds. All three values are
+operator-configurable within the portable 256 MiB artifact ceiling. Sparse
+capture may still require
 retaining the accumulator across reconciliation cycles. A dynamic deadline
 timer wakes the exact Slot independently of the slower correctness poll.
 Pending accumulators are fenced to the durable payload head, cursor head, and
@@ -143,7 +145,9 @@ source scans before observing watermarks, forcing both layers to reread from
 the durable frontier. The final frontier CAS revalidates current local Slot leadership and
 the complete durable lease after uploads, leaving stale worker objects
 unreachable for later Generation GC. Status exposes the lease and a fenced
-state; metrics expose owned-Slot gauge plus takeover and fenced counters.
+state; metrics expose owned-Slot gauge, takeover and fenced counters, per-Slot
+stream lag/frontier age, pending compaction debt, GC debt, and restore
+throughput.
 
 Each Hash Slot floor has a hard age and all floors on one node share a hard
 physical retained-byte budget. Shared physical logs are counted once at their

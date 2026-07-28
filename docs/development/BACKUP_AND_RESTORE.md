@@ -5,26 +5,23 @@ deployment is handled as a single-node cluster. There is no periodic backup-job
 API, legacy full-backup job, or compatibility manifest chain.
 
 The feature is disabled by default. Production startup accepts
-`backup.enabled=true` only when the exact release qualification identity is
-present:
+`backup.enabled=true` only when the running binary embeds the exact clean Git
+revision that passed the complete qualification workflow:
 
 ```toml
 [backup]
 enabled = true
-qualification_gate = "backup-vnext-production-v3"
 ```
 
-The equivalent environment variables are:
+The equivalent environment variable is:
 
 ```sh
 export WK_BACKUP_ENABLED=true
-export WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v3
 ```
 
-Missing or different qualification values fail startup. This is a release
-fence, not a secret. The string is not a qualification result by itself:
-operators must keep `backup.enabled=false` until the exact deployed commit has
-a successful recorded verdict from the release workflow below.
+Ordinary source builds, dirty builds, and binaries from a different commit fail
+startup. There is no operator-entered bypass token. Deploy one of the
+commit-bound binaries emitted by the successful workflow below.
 
 ## Release qualification
 
@@ -49,7 +46,10 @@ independent jobs pass:
    and revalidate a new protected version. Each garbage role must also create,
    list, and remove an OSS delete marker at startup, proving list,
    `DeleteObject`, and exact-version delete permissions without touching a
-   data-object version. The probe uses one stable slot per node and clears any
+   data-object version. Negative probes additionally require ordinary and
+   repair roles to be denied exact-version deletion and require garbage roles
+   to be denied object-body reads; administrator or wildcard data roles fail
+   qualification. The positive garbage probe uses one stable slot per node and clears any
    stale marker before creating another, so failed startups cannot grow an
    unbounded marker history.
 
@@ -59,10 +59,12 @@ cannot satisfy the fourth job. The production job rejects
 generation for each run, and emits a bounded machine evidence line without
 endpoints, bucket names, role ARNs, key IDs, credentials, or catalog tokens.
 
-The final `backup-release-qualification.json` artifact exists only when all
-dependencies passed. Retain it with the production evidence artifact and the
-release commit SHA as the recorded recovery drill. A missing, failed, skipped,
-different-commit, or older-schema verdict leaves automatic backup disabled.
+The final `backup-release-qualification.json` and
+`backup-qualified-binaries-<commit>-...` artifacts exist only when all
+dependencies passed. The verdict records the SHA-256 of the Linux amd64 and
+arm64 binaries. Retain them with the production evidence artifact as the
+recorded recovery drill. A missing, failed, skipped, different-commit, modified,
+or ordinary source build leaves automatic backup disabled.
 
 ## Runtime model
 
@@ -107,7 +109,6 @@ ObjectWorm default retention.
 [backup]
 enabled = true
 provider = "aliyun"
-qualification_gate = "backup-vnext-production-v3"
 restore_mode = false
 repository_id = "prod-im-backup"
 source_generation = "prod-2026-07"
@@ -116,11 +117,12 @@ capture_reconcile_interval = "30s"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
 target_segment_bytes = 67108864
+max_segment_bytes = 268435456
 max_segment_open_duration = "30s"
 staging_max_bytes = 10737418240
 worker_count = 4
-source_pin_max_age = "1h"
-max_source_pinned_bytes = 8589934592
+source_pin_max_age = "30m"
+max_source_pinned_bytes = 21474836480
 audit_interval = "1s"
 audit_scrub_interval = "24h"
 garbage_collection_interval = "1h"
@@ -506,6 +508,10 @@ only:
 - `wukongim_backup_capture_owned_slots`
 - `wukongim_backup_capture_lease_takeovers_total`
 - `wukongim_backup_capture_lease_fenced_total`
+- `wukongim_backup_capture_source_lag{hash_slot,stream}`
+- `wukongim_backup_frontier_age_seconds{hash_slot}`
+- `wukongim_backup_compaction_debt_slots`
+- `wukongim_backup_gc_debt_repositories`
 - `wukongim_backup_source_pin_age_seconds{hash_slot}`
 - `wukongim_backup_source_pinned_bytes{hash_slot}`
 - `wukongim_backup_source_node_pinned_bytes`
@@ -517,10 +523,15 @@ only:
 - `wukongim_backup_audit_repair_bytes_total`
 - `wukongim_backup_audit_unrecoverable_failures_total`
 - `wukongim_backup_restore_partitions{phase}`
+- `wukongim_backup_restore_throughput_bytes_per_second`
 
 `wukongim_backup_checkpoint_age_seconds` is `NaN` before the first checkpoint;
-missing evidence is never reported as zero. Metrics do not expose repository
-copy names, regions, object keys, key identifiers, Channel IDs, or credentials.
+`wukongim_backup_frontier_age_seconds{hash_slot}` is `NaN` before that Slot has
+a durable frontier, and missing evidence is never reported as zero. The
+`stream` label is bounded to `metadata` and `messages`; `hash_slot` is bounded
+by the configured cluster Slot count. Restore throughput is zero outside the
+active `installing` phase. Metrics do not expose repository copy names,
+regions, object keys, key identifiers, Channel IDs, or credentials.
 
 ## Failure handling
 

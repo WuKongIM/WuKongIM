@@ -36,7 +36,16 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 				Reason:               backupcontract.RebaseReasonAuditCorruption,
 				PromotedAtUnixMillis: 1_753_056_299_000,
 			},
+			Rebase: &backupcontract.SlotRebase{
+				TargetGeneration:    "generation-8",
+				Reason:              backupcontract.RebaseReasonGenerationAge,
+				StartedAtUnixMillis: 1_753_056_355_000,
+			},
 		}},
+		GenerationGCCursors: []backupcontract.GenerationGCCursor{
+			{Repository: "primary", CycleID: "gc-1", Complete: false},
+			{Repository: "secondary", CycleID: "gc-1", Complete: true},
+		},
 		IntegrityAudit: backupcontract.IntegrityAuditState{
 			Revision: 8, DebtObjects: 3,
 			Cursor: &backupcontract.IntegrityAuditCursor{
@@ -99,6 +108,11 @@ func TestAppStatusUsesOnlyContinuousCoordinationState(t *testing.T) {
 		t, backupcontract.SlotAuditRebaseRequired,
 		status.IntegrityAudit.Slots[0].Health,
 	)
+	require.Equal(t, 1, status.Compaction.DebtSlots)
+	require.Len(t, status.Compaction.Slots, 1)
+	require.Equal(t, "generation-8", status.Compaction.Slots[0].TargetGeneration)
+	require.Equal(t, 1, status.GarbageCollection.DebtRepositories)
+	require.Len(t, status.GarbageCollection.Cursors, 2)
 }
 
 func TestAppDisabledStatusDoesNotReadState(t *testing.T) {

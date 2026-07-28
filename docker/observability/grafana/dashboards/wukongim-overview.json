@@ -787,6 +787,31 @@
           "expr": "sum(rate(wukongim_backup_audit_unrecoverable_failures_total{node_name=~\"$node_name\"}[$__rate_interval]))",
           "legendFormat": "audit unrecoverable failures",
           "refId": "O"
+        },
+        {
+          "expr": "max by (node_name, hash_slot, stream) (wukongim_backup_capture_source_lag{node_name=~\"$node_name\"})",
+          "legendFormat": "capture lag {{node_name}} slot {{hash_slot}} {{stream}}",
+          "refId": "P"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_frontier_age_seconds{node_name=~\"$node_name\"})",
+          "legendFormat": "frontier age {{node_name}}",
+          "refId": "Q"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_compaction_debt_slots{node_name=~\"$node_name\"})",
+          "legendFormat": "compaction debt slots {{node_name}}",
+          "refId": "R"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_gc_debt_repositories{node_name=~\"$node_name\"})",
+          "legendFormat": "GC debt repositories {{node_name}}",
+          "refId": "S"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_backup_restore_throughput_bytes_per_second{node_name=~\"$node_name\"})",
+          "legendFormat": "restore bytes/s {{node_name}}",
+          "refId": "T"
         }
       ],
       "title": "Backup Operations And Capture",

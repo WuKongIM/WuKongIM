@@ -2297,7 +2297,38 @@ export type ManagerBackupCaptureStatus = {
   message_source_watermark: number
   metadata_frontier_watermark: number
   message_frontier_watermark: number
+  metadata_lag: number
+  message_lag: number
   observed_at_unix_millis: number
+}
+
+export type ManagerBackupIntegrityAudit = {
+  revision: number
+  cursor?: {
+    phase: string
+  }
+  slots: Array<{
+    hash_slot: number
+    health: string
+  }>
+  debt_objects: number
+  last_success_at_unix_millis: number
+  updated_at_unix_millis: number
+}
+
+export type ManagerBackupRestoreProgress = {
+  plan_id: string
+  status: string
+  total_slots: number
+  pending_slots: number
+  installing_slots: number
+  installed_slots: number
+  converged_slots: number
+  failed_slots: number
+  downloaded_bytes: number
+  replicated_bytes: number
+  throughput_bytes_per_second: number
+  eta_seconds: number | null
 }
 
 export type ManagerBackupErasureStream = {
@@ -2321,13 +2352,41 @@ export type ManagerBackupStatusResponse = {
     capture_reconcile_interval_seconds: number
     checkpoint_interval_seconds: number
     capture_worker_count: number
+    target_segment_bytes: number
+    max_segment_bytes: number
+    max_segment_open_duration_seconds: number
     staging_max_bytes: number
     source_pin_max_age_seconds: number
     max_source_pinned_bytes: number
   }
   capture_leases: ManagerBackupCaptureLease[]
-  local_capture_statuses: ManagerBackupCaptureStatus[]
+  capture_statuses: ManagerBackupCaptureStatus[]
+  capture_status_complete: boolean
+  capture_status_missing_node_ids: number[]
+  capture_status_missing_slots: number[]
+  integrity_audit: ManagerBackupIntegrityAudit
+  compaction: {
+    debt_slots: number
+    slots: Array<{
+      hash_slot: number
+      generation: string
+      target_generation: string
+      reason: string
+      started_at_unix_millis: number
+    }>
+  }
+  garbage_collection: {
+    debt_repositories: number
+    cursors: Array<{
+      repository: string
+      revision: number
+      cycle_id: string
+      complete: boolean
+      updated_at_unix_millis: number
+    }>
+  }
   erasure_streams: ManagerBackupErasureStream[]
+  restore?: ManagerBackupRestoreProgress
 }
 
 export type ManagerBackupCheckpointPage = {

@@ -698,10 +698,15 @@ Delivery push and fanout responses currently use:
 
 Manager backup control uses the separate bounded `manager backup` RPC. Any
 Manager node resolves the current Controller Leader and sends exactly one
-status, checkpoint-publication, checkpoint hold/release, or irreversible
-source-fence request to that node.
+durable status, checkpoint-publication, checkpoint hold/release, or
+irreversible source-fence request to that node. A read-only local-capture
+operation is intentionally accepted by any target node; the app status router
+fans it out only to the bounded set of holder nodes named by durable Slot
+leases, then emits sorted observed Slot rows plus explicit missing holder-node
+and Hash-Slot lists when any bounded read fails or times out.
 Checkpoint catalog page/detail reads remain local immutable-repository reads.
-The receiver rechecks that it is still Leader before entering the usecase.
+The receiver rechecks that it is still Leader before entering leader-owned
+usecases; the local-capture read touches only node-local runtime evidence.
 Leadership transitions return a retryable unavailable error; writes are never
 blindly replayed because their outcome may already be durable.
 The versioned `WKBMQ2` request and `WKBMR2` response prefixes fence the

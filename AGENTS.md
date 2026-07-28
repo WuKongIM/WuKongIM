@@ -134,6 +134,7 @@ internal/
 
 pkg/
   backup/                版本化、加密、签名的集群备份制品与仓库合约
+    keypackage/          受保护部署密钥包、仓库 pin 与轮换信任根
   bench/
     model/               wkbench spec-shaped 配置、计划与 bench/v1 API 共享 DTO
   gateway/               通用客户端网关基础设施，提供 listener、transport、protocol、session、auth、dispatch、testkit

@@ -1081,6 +1081,12 @@ OSS adapter and one protected deployment key package, then wires two
 cross-region repositories, local AES-256-GCM envelope encryption, Ed25519
 signing with the package's retained verification keyring, and an immutable
 Package ID/activated-revision pin chain in both repositories. Repository
+startup first requires the running binary's clean Go VCS revision to equal the
+commit revision embedded only in artifacts emitted by the successful backup
+qualification workflow; no TOML or environment bypass token exists. RAM
+qualification uses positive provider operations plus negative probes: ordinary
+and repair roles must be denied version deletion, while garbage roles must be
+denied object-body reads.
 qualification runs before pin publication, only the configured lowest-ID
 Controller voter may publish a missing pin, and other nodes wait or fail closed
 while verifying. The implicit single-node cluster is normalized to its local
@@ -1108,11 +1114,19 @@ leader-fenced Manager backup RPC and do not automatically replay writes after
 a leadership transition.
 Immutable checkpoint catalog reads use the locally visible Controller head and
 the shared dual repositories, so each node can rebuild its own non-authoritative
-query index without a Leader hop. Status combines durable Slot capture leases
-and erasure progress with node-local continuous-coordinator evidence and the
-configured non-secret capture/checkpoint policy. Doctor dependencies and
+query index without a Leader hop. Status combines durable Slot capture leases,
+a managed, concurrency-bounded read-only fan-out with aggregate and per-holder
+deadlines to each distinct lease holder for cluster-wide
+per-Slot source lag, integrity audit/repair, pending Generation replacement,
+repository GC cursors, erasure progress, and restore throughput with node-local
+continuous-coordinator evidence and the configured non-secret
+capture/checkpoint policy. Failed holder reads produce bounded missing-node and
+missing-Slot evidence and degrade the aggregate status rather than shrinking
+the apparent cluster denominator. Capture is reported complete when backup is
+intentionally inactive, including restore-only mode. Doctor dependencies and
 repository/key-authority details remain internal. The non-secret policy exposes a
-per-Slot source-pin maximum age and a per-node retained-log byte budget.
+per-Slot source-pin maximum age, a per-node retained-log byte budget, and the
+configured segment target, hard maximum, and open-duration bounds.
 Every coordinator node hydrates checkpoint age and publication cadence from
 that authenticated durable catalog, so process restart or Controller Leader
 change does not reset the schedule. Audit projection runs on all nodes;
@@ -1131,7 +1145,9 @@ Retention fails closed before its Slot metadata command when ledger construction
 or publication is unavailable. With backup disabled, the existing
 cluster-authoritative retention path remains unchanged. The garbage collector
 uses separately assumed delete credentials while preserving the signed logical
-repository identities `primary` and `secondary`.
+repository identities `primary` and `secondary`. GC metrics begin from durable
+cursor debt and replace it with collection-result debt only after a successful
+sweep; a failed pre-sweep cannot clear the gauge.
 
 An `e2e`-tagged binary may replace repository, key, and clock adapters only
 when the explicit backup E2E file-root environment is present. Without that

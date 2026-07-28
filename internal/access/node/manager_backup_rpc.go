@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 )
@@ -23,12 +24,14 @@ var (
 	managerBackupResponseMagic = [...]byte{'W', 'K', 'B', 'M', 'R', 2}
 )
 
-// ManagerBackupRPCServiceID routes continuous-backup operations to the Controller leader.
+// ManagerBackupRPCServiceID routes bounded continuous-backup control and
+// node-local capture-status reads.
 const ManagerBackupRPCServiceID uint8 = clusternet.RPCManagerBackup
 
-// ManagerBackup is the narrow leader-owned continuous-backup mutation surface.
+// ManagerBackup is the narrow continuous-backup control and local-status surface.
 type ManagerBackup interface {
 	Status(context.Context) (backupusecase.StatusSnapshot, error)
+	LocalCaptureStatus(context.Context) []backupcontract.SlotCaptureStatus
 	PublishCheckpoint(context.Context) (backupusecase.CheckpointPublication, error)
 	SetCheckpointHold(context.Context, string, bool) (backupusecase.CheckpointSummary, error)
 	FenceSource(context.Context, backupusecase.SourceFenceRequest) (backupusecase.SourceFenceReceipt, error)
@@ -60,10 +63,11 @@ func NewManagerBackupAdapter(options ManagerBackupOptions) *ManagerBackupAdapter
 type managerBackupOperation string
 
 const (
-	managerBackupStatus            managerBackupOperation = "status"
-	managerBackupPublishCheckpoint managerBackupOperation = "publish_checkpoint"
-	managerBackupSetCheckpointHold managerBackupOperation = "set_checkpoint_hold"
-	managerBackupFenceSource       managerBackupOperation = "fence_source"
+	managerBackupStatus             managerBackupOperation = "status"
+	managerBackupLocalCaptureStatus managerBackupOperation = "local_capture_status"
+	managerBackupPublishCheckpoint  managerBackupOperation = "publish_checkpoint"
+	managerBackupSetCheckpointHold  managerBackupOperation = "set_checkpoint_hold"
+	managerBackupFenceSource        managerBackupOperation = "fence_source"
 )
 
 type managerBackupRequest struct {
@@ -81,7 +85,8 @@ type managerBackupResponse struct {
 	CheckpointState *backupusecase.CheckpointSummary     `json:"checkpoint_state,omitempty"`
 }
 
-// HandleRPC executes one request only while the receiver is the current Controller leader.
+// HandleRPC executes leader-owned control only on the current Controller
+// Leader and permits the explicit read-only local-capture operation everywhere.
 func (a *ManagerBackupAdapter) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
 	var request managerBackupRequest
 	if err := decodeManagerBackupRequest(payload, &request); err != nil {
@@ -89,8 +94,17 @@ func (a *ManagerBackupAdapter) HandleRPC(ctx context.Context, payload []byte) ([
 	}
 	response := managerBackupResponse{}
 	if a == nil || a.local == nil || a.leadership == nil ||
-		a.leadership.NodeID() == 0 ||
-		a.leadership.BackupControllerLeaderID() != a.leadership.NodeID() {
+		a.leadership.NodeID() == 0 {
+		response.Error = managerBackupErrorCode(backupusecase.ErrControllerLeaderUnavailable)
+		return encodeManagerBackupResponse(response)
+	}
+	if request.Operation == managerBackupLocalCaptureStatus {
+		response.Status = &backupusecase.StatusSnapshot{
+			CaptureStatuses: a.local.LocalCaptureStatus(ctx),
+		}
+		return encodeManagerBackupResponse(response)
+	}
+	if a.leadership.BackupControllerLeaderID() != a.leadership.NodeID() {
 		response.Error = managerBackupErrorCode(backupusecase.ErrControllerLeaderUnavailable)
 		return encodeManagerBackupResponse(response)
 	}
@@ -150,6 +164,23 @@ func (c *Client) ManagerBackupStatus(
 			firstManagerBackupError(err, response.Error)
 	}
 	return *response.Status, managerBackupError(response.Error)
+}
+
+// ManagerBackupLocalCaptureStatus reads bounded node-local capture evidence
+// without requiring the target node to be the Controller Leader.
+func (c *Client) ManagerBackupLocalCaptureStatus(
+	ctx context.Context,
+	nodeID uint64,
+) ([]backupcontract.SlotCaptureStatus, error) {
+	response, err := c.callManagerBackup(
+		ctx, nodeID,
+		managerBackupRequest{Operation: managerBackupLocalCaptureStatus},
+	)
+	if err != nil || response.Status == nil {
+		return nil, firstManagerBackupError(err, response.Error)
+	}
+	return response.Status.CaptureStatuses,
+		managerBackupError(response.Error)
 }
 
 // ManagerBackupPublishCheckpoint publishes one complete vector cut on one exact leader.

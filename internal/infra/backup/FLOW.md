@@ -423,6 +423,10 @@ retries. Object Lock rejection stops only the affected copy at the exact key,
 and a later run resumes there after retention expires. The fixed cutoff combines
 Object Lock with an additional safety window for in-flight immutable
 publication.
+After every collection attempt, GC debt is refreshed by reloading the
+Controller cursor state, so a persisted incomplete cursor is visible while a
+per-repository result before cursor creation cannot invent debt. If that
+durable reload fails, the prior observation is preserved.
 
 Continuous integrity audit uses `ControllerIntegrityAuditStateStore` to update
 only the independently revisioned audit cursor, sorted per-Slot health, and

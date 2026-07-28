@@ -34,6 +34,13 @@ type GenerationGCMaintenanceOptions struct {
 	Policy backupusecase.CheckpointRetentionPolicy
 	// Now supplies the UTC retention and cycle instant.
 	Now func() time.Time
+	// Observer receives low-cardinality repository sweep debt.
+	Observer GenerationGCDebtObserver
+}
+
+// GenerationGCDebtObserver receives incomplete repository sweep counts.
+type GenerationGCDebtObserver interface {
+	SetBackupGCDebt(int)
 }
 
 // GenerationGCMaintenance builds one external protection set and advances one
@@ -44,6 +51,7 @@ type GenerationGCMaintenance struct {
 	collector *GenerationGarbageCollector
 	policy    backupusecase.CheckpointRetentionPolicy
 	now       func() time.Time
+	observer  GenerationGCDebtObserver
 }
 
 // NewGenerationGCMaintenance creates the production retention coordinator.
@@ -64,7 +72,7 @@ func NewGenerationGCMaintenance(
 	return &GenerationGCMaintenance{
 		state: options.State, index: options.Index,
 		collector: options.Collector, policy: options.Policy,
-		now: options.Now,
+		now: options.Now, observer: options.Observer,
 	}, nil
 }
 
@@ -83,6 +91,7 @@ func (m *GenerationGCMaintenance) RunIfLeader(
 	if err != nil {
 		return true, err
 	}
+	m.observeDebt(state.GenerationGCCursors)
 	if state.CatalogHead == nil {
 		return true, nil
 	}
@@ -124,7 +133,39 @@ func (m *GenerationGCMaintenance) RunIfLeader(
 		return true, err
 	}
 	_, err = m.collector.Collect(ctx, cycleID, protection)
+	m.observeCollectedDebt(ctx)
 	return true, err
+}
+
+func (m *GenerationGCMaintenance) observeCollectedDebt(
+	ctx context.Context,
+) {
+	if m == nil || m.observer == nil {
+		return
+	}
+	// Repository results can precede cursor creation even without a collection
+	// error when the vector-cache budget is exhausted. Controller state is the
+	// only authority for this metric after every collection attempt.
+	state, err := m.state.Load(ctx)
+	if err != nil {
+		return
+	}
+	m.observeDebt(state.GenerationGCCursors)
+}
+
+func (m *GenerationGCMaintenance) observeDebt(
+	cursors []backupcontract.GenerationGCCursor,
+) {
+	if m.observer == nil {
+		return
+	}
+	debt := 0
+	for _, cursor := range cursors {
+		if !cursor.Complete {
+			debt++
+		}
+	}
+	m.observer.SetBackupGCDebt(debt)
 }
 
 func generationGCCycleID(

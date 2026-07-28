@@ -88,9 +88,6 @@ type BackupConfig struct {
 	Enabled bool
 	// Provider selects the qualified Alibaba OSS and RAM adapter.
 	Provider string
-	// QualificationGate must equal the release's recorded production
-	// qualification identity before automatic backup may start.
-	QualificationGate string
 	// RestoreMode starts only recovery, restricted Manager, metrics, and audit surfaces.
 	RestoreMode bool
 	// RepositoryID is the stable logical identity shared by both repository copies.
@@ -109,6 +106,9 @@ type BackupConfig struct {
 	BaselineChunkBytes uint64
 	// TargetSegmentBytes is the ordinary rolling target for one continuous-capture segment.
 	TargetSegmentBytes uint64
+	// MaxSegmentBytes is the hard plaintext ceiling for one continuous-capture
+	// segment and cannot exceed the portable artifact limit.
+	MaxSegmentBytes uint64
 	// MaxSegmentOpenDuration bounds the durability latency of a sparse non-empty segment.
 	MaxSegmentOpenDuration time.Duration
 	// StagingMaxBytes bounds node-local disk space reserved for backup staging.
@@ -165,17 +165,12 @@ const (
 	// BackupProviderAlibaba selects the qualified Alibaba OSS and RAM path.
 	BackupProviderAlibaba = "aliyun"
 
-	// BackupQualificationGateV3 is the exact production qualification identity
-	// admitted by this release. It is intentionally not a boolean so a future
-	// implementation change cannot reuse an older drill attestation.
-	BackupQualificationGateV3 = "backup-vnext-production-v3"
-
 	defaultBackupBaselineChunkBytes  = 8 * 1024 * 1024
 	defaultBackupTargetSegmentBytes  = 64 * 1024 * 1024
 	maximumBackupObjectBytes         = 256 * 1024 * 1024
 	defaultBackupStagingMaxBytes     = 10 * 1024 * 1024 * 1024
-	defaultBackupSourcePinMaxAge     = time.Hour
-	defaultBackupMaxPinnedBytes      = 8 * 1024 * 1024 * 1024
+	defaultBackupSourcePinMaxAge     = 30 * time.Minute
+	defaultBackupMaxPinnedBytes      = 20 * 1024 * 1024 * 1024
 	maximumBackupParallelWorkers     = 64
 	defaultBackupReconcileInterval   = 30 * time.Second
 	defaultBackupCheckpointInterval  = 5 * time.Minute
@@ -207,6 +202,9 @@ func NormalizeBackupConfig(cfg BackupConfig) (BackupConfig, error) {
 	}
 	if cfg.TargetSegmentBytes == 0 {
 		cfg.TargetSegmentBytes = defaultBackupTargetSegmentBytes
+	}
+	if cfg.MaxSegmentBytes == 0 {
+		cfg.MaxSegmentBytes = maximumBackupObjectBytes
 	}
 	if cfg.MaxSegmentOpenDuration == 0 {
 		cfg.MaxSegmentOpenDuration = defaultBackupSegmentOpenDuration
@@ -257,14 +255,6 @@ func validateBackupConfig(cfg BackupConfig) error {
 	if cfg.Enabled && cfg.RestoreMode {
 		return fmt.Errorf("%w: automatic backup and restore mode are mutually exclusive", ErrInvalidConfig)
 	}
-	if cfg.Enabled &&
-		strings.TrimSpace(cfg.QualificationGate) !=
-			BackupQualificationGateV3 {
-		return fmt.Errorf(
-			"%w: automatic backup requires qualification gate %q",
-			ErrInvalidConfig, BackupQualificationGateV3,
-		)
-	}
 	if cfg.CaptureReconcileInterval <= 0 {
 		return fmt.Errorf("%w: backup capture reconcile interval must be positive", ErrInvalidConfig)
 	}
@@ -279,6 +269,11 @@ func validateBackupConfig(cfg BackupConfig) error {
 	}
 	if cfg.TargetSegmentBytes < 1024*1024 || cfg.TargetSegmentBytes > maximumBackupObjectBytes {
 		return fmt.Errorf("%w: backup target segment bytes must be between 1 MiB and 256 MiB", ErrInvalidConfig)
+	}
+	if cfg.MaxSegmentBytes < 1024*1024 ||
+		cfg.MaxSegmentBytes > maximumBackupObjectBytes ||
+		cfg.TargetSegmentBytes > cfg.MaxSegmentBytes {
+		return fmt.Errorf("%w: backup max segment bytes must be between the target segment bytes and 256 MiB", ErrInvalidConfig)
 	}
 	if cfg.StagingMaxBytes < cfg.BaselineChunkBytes {
 		return fmt.Errorf("%w: backup staging quota must be at least one baseline chunk", ErrInvalidConfig)

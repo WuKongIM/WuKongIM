@@ -14,6 +14,7 @@ import (
 
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOSSRepositoryWritesChecksummedObjectWithoutReplacingExistingKey(t *testing.T) {
@@ -293,6 +294,65 @@ func TestOSSRepositoryGarbageQualificationRejectsMissingDeleteVersionPermission(
 	}
 }
 
+func TestOSSRepositoryLeastPrivilegeProbesRejectBroadRoles(t *testing.T) {
+	accessDenied := &oss.ServiceError{
+		Code: "AccessDenied", StatusCode: 403,
+	}
+	newRepository := func(t *testing.T, client *fakeOSSClient) *OSSRepository {
+		t.Helper()
+		repository, err := NewOSSRepository(OSSRepositoryOptions{
+			Name: "primary", Bucket: "backup-primary",
+			Prefix: "prod/cluster-a", ObjectLockDays: 7, Client: client,
+		})
+		require.NoError(t, err)
+		return repository
+	}
+
+	t.Run("ordinary role", func(t *testing.T) {
+		restricted := newRepository(t, &fakeOSSClient{
+			deleteVersionErr: accessDenied,
+		})
+		require.NoError(t,
+			restricted.QualifyOrdinaryRoleLeastPrivilege(context.Background()))
+
+		broad := newRepository(t, &fakeOSSClient{})
+		require.Error(t,
+			broad.QualifyOrdinaryRoleLeastPrivilege(context.Background()))
+	})
+
+	t.Run("repair role", func(t *testing.T) {
+		ordinary := newRepository(t, &fakeOSSClient{})
+		restricted, err := NewOSSRepairRepository(OSSRepairRepositoryOptions{
+			Repository: ordinary,
+			Client: &fakeOSSClient{
+				deleteVersionErr: accessDenied,
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t,
+			restricted.QualifyRepairRoleLeastPrivilege(context.Background()))
+
+		broad, err := NewOSSRepairRepository(OSSRepairRepositoryOptions{
+			Repository: ordinary, Client: &fakeOSSClient{},
+		})
+		require.NoError(t, err)
+		require.Error(t,
+			broad.QualifyRepairRoleLeastPrivilege(context.Background()))
+	})
+
+	t.Run("garbage role", func(t *testing.T) {
+		restricted := newRepository(t, &fakeOSSClient{
+			getErr: accessDenied,
+		})
+		require.NoError(t,
+			restricted.QualifyGarbageRoleLeastPrivilege(context.Background()))
+
+		broad := newRepository(t, &fakeOSSClient{})
+		require.Error(t,
+			broad.QualifyGarbageRoleLeastPrivilege(context.Background()))
+	})
+}
+
 type fakeOSSVersion struct {
 	body         []byte
 	checksum     string
@@ -316,6 +376,7 @@ type fakeOSSClient struct {
 	deleteMarkers        map[string][]string
 	lastDelete           *oss.DeleteObjectRequest
 	lastGet              *oss.GetObjectRequest
+	getErr               error
 	omitGetContentLength bool
 }
 
@@ -392,6 +453,9 @@ func (f *fakeOSSClient) GetObject(
 ) (*oss.GetObjectResult, error) {
 	f.ensureDefaults()
 	f.lastGet = input
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
 	version, ok := f.objects[derefOSSTest(input.Key)]
 	if !ok {
 		return nil, &oss.ServiceError{Code: "NoSuchKey", StatusCode: 404}

@@ -1030,7 +1030,6 @@ func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
 		"WK_BACKUP_PROVIDER":                            "aliyun",
-		"WK_BACKUP_QUALIFICATION_GATE":                  "backup-vnext-production-v3",
 		"WK_BACKUP_REPOSITORY_ID":                       "medium-backup-qualification",
 		"WK_BACKUP_SOURCE_GENERATION":                   "medium-source-generation",
 		"WK_BACKUP_STAGING_DIR":                         filepath.Join(root, fmt.Sprintf("staging-%d", nodeID)),
@@ -1038,6 +1037,7 @@ func mediumBackupOverrides(root string, nodeID uint64) map[string]string {
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
 		"WK_BACKUP_TARGET_SEGMENT_BYTES":                "1048576",
+		"WK_BACKUP_MAX_SEGMENT_BYTES":                   "268435456",
 		"WK_BACKUP_MAX_SEGMENT_OPEN_DURATION":           "500ms",
 		"WK_BACKUP_STAGING_MAX_BYTES":                   "536870912",
 		"WK_BACKUP_WORKER_COUNT":                        strconv.Itoa(backupScaleCaptureWorkers),

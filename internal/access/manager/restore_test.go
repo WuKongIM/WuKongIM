@@ -20,6 +20,12 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	server := New(Options{
 		RestoreMode: true,
 		Restore:     provider,
+		Backup: &fakeBackupManagement{status: backupusecase.StatusSnapshot{
+			Restore: &backupusecase.RestoreProgress{
+				PlanID: "plan-1",
+				Status: backupusecase.RestoreStatusInstalling,
+			},
+		}},
 		Management: managerNodesStub{nodes: managementusecase.NodeList{
 			ControllerLeaderID: 2,
 		}},
@@ -39,6 +45,21 @@ func TestRestoreModeRegistersOnlyRecoveryManagerSurface(t *testing.T) {
 	)
 	if ordinary.Code != http.StatusNotFound {
 		t.Fatalf("ordinary manager route status = %d, want 404", ordinary.Code)
+	}
+
+	status := httptest.NewRecorder()
+	server.Engine().ServeHTTP(
+		status,
+		httptest.NewRequest(
+			http.MethodGet, "/manager/backups/status", nil,
+		),
+	)
+	if status.Code != http.StatusOK ||
+		!bytes.Contains(status.Body.Bytes(), []byte(`"plan_id":"plan-1"`)) {
+		t.Fatalf(
+			"unified restore status=%d body=%s",
+			status.Code, status.Body.String(),
+		)
 	}
 
 	request := httptest.NewRequest(http.MethodPost, "/manager/restore/plan", bytes.NewBufferString(`{

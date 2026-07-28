@@ -73,6 +73,9 @@ type PolicySnapshot struct {
 	CaptureReconcileIntervalSeconds int64
 	CheckpointIntervalSeconds       int64
 	CaptureWorkerCount              int
+	TargetSegmentBytes              uint64
+	MaxSegmentBytes                 uint64
+	MaxSegmentOpenDurationSeconds   int64
 	StagingMaxBytes                 uint64
 	SourcePinMaxAgeSeconds          int64
 	MaxSourcePinnedBytes            uint64
@@ -184,6 +187,48 @@ type IntegrityAuditSnapshot struct {
 	UpdatedAtUnixMillis int64
 }
 
+// CompactionSlotSnapshot is one bounded pending Generation replacement.
+type CompactionSlotSnapshot struct {
+	// HashSlot identifies the independently replaceable partition.
+	HashSlot uint16
+	// Generation remains authoritative until TargetGeneration is validated.
+	Generation       string
+	TargetGeneration string
+	// Reason is the bounded replacement trigger.
+	Reason string
+	// StartedAtUnixMillis is preserved across retries.
+	StartedAtUnixMillis int64
+}
+
+// CompactionSnapshot is the cluster-wide pending Generation projection.
+type CompactionSnapshot struct {
+	// DebtSlots is the number of pending Slot replacements.
+	DebtSlots int
+	// Slots contains at most one sorted record per Hash Slot.
+	Slots []CompactionSlotSnapshot
+}
+
+// GenerationGCCursorSnapshot is one sanitized repository sweep projection.
+type GenerationGCCursorSnapshot struct {
+	// Repository identifies the explicit failure-domain copy.
+	Repository string
+	// Revision and CycleID identify the current bounded sweep.
+	Revision uint64
+	CycleID  string
+	// Complete reports whether this repository reached the fixed sweep cut.
+	Complete bool
+	// UpdatedAtUnixMillis is the latest durable cursor transition time.
+	UpdatedAtUnixMillis int64
+}
+
+// GarbageCollectionSnapshot is the bounded dual-repository GC projection.
+type GarbageCollectionSnapshot struct {
+	// DebtRepositories counts current repository sweeps that are incomplete.
+	DebtRepositories int
+	// Cursors contains no repository object keys or credentials.
+	Cursors []GenerationGCCursorSnapshot
+}
+
 // StatusSnapshot is the read-only backup status exposed to access adapters.
 type StatusSnapshot struct {
 	// Enabled reports whether backup coordination is configured.
@@ -208,11 +253,24 @@ type StatusSnapshot struct {
 	Policy PolicySnapshot
 	// CaptureLeases is the bounded sanitized durable lease view for every initialized Hash Slot.
 	CaptureLeases []CaptureLeaseSnapshot
-	// LocalCaptureStatuses is the bounded node-local worker projection used to
-	// diagnose capture progress independently from durable frontier authority.
-	LocalCaptureStatuses []backupcontract.SlotCaptureStatus
+	// CaptureStatuses is the bounded cluster-wide per-Slot worker projection
+	// assembled at the Manager boundary without entering Controller state.
+	CaptureStatuses []backupcontract.SlotCaptureStatus
+	// CaptureStatusComplete reports whether every durable lease holder returned
+	// one current observation for each Slot it owns.
+	CaptureStatusComplete bool
+	// CaptureStatusMissingNodeIDs identifies unreachable lease holders.
+	CaptureStatusMissingNodeIDs []uint64
+	// CaptureStatusMissingSlots identifies durable leases without an observation.
+	CaptureStatusMissingSlots []uint16
 	// IntegrityAudit is the bounded durable cursor and per-Slot health projection.
 	IntegrityAudit IntegrityAuditSnapshot
+	// Compaction exposes pending immutable Generation replacements.
+	Compaction CompactionSnapshot
+	// GarbageCollection exposes bounded per-repository sweep progress.
+	GarbageCollection GarbageCollectionSnapshot
 	// ErasureStreams exposes only per-Slot sequence and pending progress.
 	ErasureStreams []ErasureStreamProgress
+	// Restore is the active recovery projection when this process is in restore mode.
+	Restore *RestoreProgress
 }

@@ -370,6 +370,11 @@ func (s *Server) registerRoutes() {
 	}
 	permissions.GET("/permissions", s.handlePermissions)
 	s.registerRestoreStatusRoute()
+	backupStatusReads := s.engine.Group("/manager")
+	if s.auth.enabled() {
+		backupStatusReads.Use(s.requirePermission("cluster.backup", "r"))
+	}
+	backupStatusReads.GET("/backups/status", s.handleBackupStatus)
 	if s.restoreMode {
 		restoreNodes := s.engine.Group("/manager")
 		if s.auth.enabled() {
@@ -467,7 +472,6 @@ func (s *Server) registerRoutes() {
 	if s.auth.enabled() {
 		backupReads.Use(s.requirePermission("cluster.backup", "r"))
 	}
-	backupReads.GET("/backups/status", s.handleBackupStatus)
 	backupReads.GET("/backups/checkpoints", s.handleBackupCheckpoints)
 	backupReads.GET("/backups/checkpoints/:checkpoint_id", s.handleBackupCheckpoint)
 

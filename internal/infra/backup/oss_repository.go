@@ -18,6 +18,11 @@ import (
 
 const ossChecksumMetadataKey = "wukongim-sha256"
 
+const (
+	ossLeastPrivilegeProbeKey = "qualification/least-privilege/permission-probe"
+	ossLeastPrivilegeVersion  = "00000000000000000000000000000000"
+)
+
 // OSSClient is the narrow Alibaba Cloud OSS SDK surface required by backup.
 type OSSClient interface {
 	PutObject(context.Context, *oss.PutObjectRequest, ...func(*oss.Options)) (*oss.PutObjectResult, error)
@@ -129,6 +134,81 @@ func NewOSSRepairRepository(options OSSRepairRepositoryOptions) (*OSSRepairRepos
 		return nil, fmt.Errorf("backup OSS repair repository: repository and repair client are required")
 	}
 	return &OSSRepairRepository{repository: options.Repository, client: options.Client}, nil
+}
+
+// QualifyOrdinaryRoleLeastPrivilege proves that an ordinary capture/restore
+// role cannot delete immutable object versions.
+func (r *OSSRepository) QualifyOrdinaryRoleLeastPrivilege(
+	ctx context.Context,
+) error {
+	if r == nil {
+		return fmt.Errorf("backup OSS repository: ordinary role is unavailable")
+	}
+	return qualifyOSSVersionDeleteDenied(
+		ctx, r.client, r.bucket, r.prefix, "ordinary",
+	)
+}
+
+// QualifyRepairRoleLeastPrivilege proves that the repair writer cannot delete
+// immutable object versions.
+func (r *OSSRepairRepository) QualifyRepairRoleLeastPrivilege(
+	ctx context.Context,
+) error {
+	if r == nil || r.repository == nil {
+		return fmt.Errorf("backup OSS repair repository: repair role is unavailable")
+	}
+	return qualifyOSSVersionDeleteDenied(
+		ctx, r.client, r.repository.bucket, r.repository.prefix, "repair",
+	)
+}
+
+// QualifyGarbageRoleLeastPrivilege proves that the garbage collector cannot
+// read immutable backup object bodies.
+func (r *OSSRepository) QualifyGarbageRoleLeastPrivilege(
+	ctx context.Context,
+) error {
+	if r == nil || r.client == nil {
+		return fmt.Errorf("backup OSS repository: garbage role is unavailable")
+	}
+	fullKey := path.Join(r.prefix, ossLeastPrivilegeProbeKey)
+	output, err := r.client.GetObject(ctx, &oss.GetObjectRequest{
+		Bucket: ossString(r.bucket), Key: ossString(fullKey),
+	})
+	if output != nil && output.Body != nil {
+		_ = output.Body.Close()
+	}
+	if ossErrorCode(err) == "AccessDenied" {
+		return nil
+	}
+	return fmt.Errorf(
+		"backup OSS repository: garbage role is over-privileged: object reads must be denied",
+	)
+}
+
+func qualifyOSSVersionDeleteDenied(
+	ctx context.Context,
+	client OSSClient,
+	bucket string,
+	prefix string,
+	role string,
+) error {
+	if client == nil {
+		return fmt.Errorf("backup OSS repository: %s role is unavailable", role)
+	}
+	_, err := client.DeleteObject(ctx, &oss.DeleteObjectRequest{
+		Bucket: ossString(bucket),
+		Key:    ossString(path.Join(prefix, ossLeastPrivilegeProbeKey)),
+		// The probe targets a guaranteed-absent explicit version, so even an
+		// over-privileged role cannot create a delete marker or alter data.
+		VersionId: ossString(ossLeastPrivilegeVersion),
+	})
+	if ossErrorCode(err) == "AccessDenied" {
+		return nil
+	}
+	return fmt.Errorf(
+		"backup OSS repository: %s role is over-privileged: version deletion must be denied",
+		role,
+	)
 }
 
 // Name returns the underlying failure-domain identity.

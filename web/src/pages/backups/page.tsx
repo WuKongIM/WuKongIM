@@ -246,20 +246,37 @@ export function BackupsPage() {
 
 function BackupOverview({ status }: { status: ManagerBackupStatusResponse }) {
   const intl = useIntl()
-  const healthySlots = status.local_capture_statuses.filter((slot) =>
+  const healthySlots = status.capture_statuses.filter((slot) =>
     slot.lease_current && !slot.failure_category && ["idle", "reconciling"].includes(slot.state),
   ).length
   const pendingErasures = status.erasure_streams.filter((stream) => stream.pending).length
+  const maxMetadataLag = Math.max(0, ...status.capture_statuses.map((slot) => slot.metadata_lag))
+  const maxMessageLag = Math.max(0, ...status.capture_statuses.map((slot) => slot.message_lag))
+  const repairSlots = status.integrity_audit.slots.filter((slot) => slot.health !== "healthy").length
+  const expectedCaptureSlots = status.capture_leases.length || status.capture_statuses.length
 
   return (
     <>
       {!status.auth_enabled ? <ResourceState kind="unavailable" title={intl.formatMessage({ id: "backups.authReadonly" })} /> : null}
+      {status.enabled && !status.capture_status_complete ? (
+        <ResourceState
+          description={intl.formatMessage(
+            { id: "backups.capture.incomplete.description" },
+            {
+              nodes: status.capture_status_missing_node_ids.length,
+              slots: status.capture_status_missing_slots.length,
+            },
+          )}
+          kind="unavailable"
+          title={intl.formatMessage({ id: "backups.capture.incomplete" })}
+        />
+      ) : null}
       <SectionCard title={intl.formatMessage({ id: "backups.overview.status" })}>
         <div className="grid overflow-hidden rounded-md border border-border md:grid-cols-4">
           <Summary label={intl.formatMessage({ id: "backups.health" })} value={<StatusBadge value={status.health} />} />
           <Summary label={intl.formatMessage({ id: "backups.checkpointAge" })} value={`${formatDuration(status.checkpoint_age_seconds)} / ${formatDuration(status.max_checkpoint_age_seconds)}`} />
           <Summary label={intl.formatMessage({ id: "backups.coordinator" })} value={status.coordinator_node_id ? `#${status.coordinator_node_id}` : "—"} />
-          <Summary label={intl.formatMessage({ id: "backups.captureSlots" })} value={`${healthySlots} / ${status.local_capture_statuses.length}`} />
+          <Summary label={intl.formatMessage({ id: "backups.captureSlots" })} value={`${healthySlots} / ${expectedCaptureSlots}`} />
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           {intl.formatMessage({ id: "backups.observed" })}: <LocalTime value={status.observed_at_unix_millis} />
@@ -283,6 +300,9 @@ function BackupOverview({ status }: { status: ManagerBackupStatusResponse }) {
           <Policy label={intl.formatMessage({ id: "backups.policy.reconcile" })} value={formatDuration(status.policy.capture_reconcile_interval_seconds)} />
           <Policy label={intl.formatMessage({ id: "backups.policy.checkpoint" })} value={formatDuration(status.policy.checkpoint_interval_seconds)} />
           <Policy label={intl.formatMessage({ id: "backups.policy.workers" })} value={String(status.policy.capture_worker_count)} />
+          <Policy label={intl.formatMessage({ id: "backups.policy.segmentTarget" })} value={formatBytes(status.policy.target_segment_bytes)} />
+          <Policy label={intl.formatMessage({ id: "backups.policy.segmentMax" })} value={formatBytes(status.policy.max_segment_bytes)} />
+          <Policy label={intl.formatMessage({ id: "backups.policy.segmentOpen" })} value={formatDuration(status.policy.max_segment_open_duration_seconds)} />
           <Policy label={intl.formatMessage({ id: "backups.policy.stagingQuota" })} value={formatBytes(status.policy.staging_max_bytes)} />
           <Policy label={intl.formatMessage({ id: "backups.policy.pinAge" })} value={formatDuration(status.policy.source_pin_max_age_seconds)} />
           <Policy label={intl.formatMessage({ id: "backups.policy.pinBytes" })} value={formatBytes(status.policy.max_source_pinned_bytes)} />
@@ -292,8 +312,19 @@ function BackupOverview({ status }: { status: ManagerBackupStatusResponse }) {
       <SectionCard title={intl.formatMessage({ id: "backups.capture" })}>
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
           <Policy label={intl.formatMessage({ id: "backups.capture.leases" })} value={String(status.capture_leases.length)} />
-          <Policy label={intl.formatMessage({ id: "backups.capture.local" })} value={String(status.local_capture_statuses.length)} />
+          <Policy label={intl.formatMessage({ id: "backups.capture.local" })} value={String(status.capture_statuses.length)} />
           <Policy label={intl.formatMessage({ id: "backups.capture.pendingErasures" })} value={String(pendingErasures)} />
+        </dl>
+      </SectionCard>
+
+      <SectionCard title={intl.formatMessage({ id: "backups.operations" })}>
+        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <Policy label={intl.formatMessage({ id: "backups.operations.captureLag" })} value={`${maxMetadataLag} / ${maxMessageLag}`} />
+          <Policy label={intl.formatMessage({ id: "backups.operations.audit" })} value={`${status.integrity_audit.cursor?.phase ?? "idle"} · ${status.integrity_audit.debt_objects}`} />
+          <Policy label={intl.formatMessage({ id: "backups.operations.repair" })} value={String(repairSlots)} />
+          <Policy label={intl.formatMessage({ id: "backups.operations.compaction" })} value={String(status.compaction.debt_slots)} />
+          <Policy label={intl.formatMessage({ id: "backups.operations.gc" })} value={String(status.garbage_collection.debt_repositories)} />
+          <Policy label={intl.formatMessage({ id: "backups.operations.restore" })} value={status.restore ? `${status.restore.status} · ${formatBytes(status.restore.throughput_bytes_per_second)}/s` : "—"} />
         </dl>
       </SectionCard>
     </>

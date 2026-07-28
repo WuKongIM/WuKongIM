@@ -43,12 +43,15 @@ function status(authEnabled = true): ManagerBackupStatusResponse {
       capture_reconcile_interval_seconds: 5,
       checkpoint_interval_seconds: 300,
       capture_worker_count: 4,
+      target_segment_bytes: 64,
+      max_segment_bytes: 256,
+      max_segment_open_duration_seconds: 30,
       staging_max_bytes: 1024,
       source_pin_max_age_seconds: 3600,
       max_source_pinned_bytes: 4096,
     },
     capture_leases: [],
-    local_capture_statuses: [{
+    capture_statuses: [{
       hash_slot: 0,
       state: "idle",
       lease_current: true,
@@ -57,8 +60,22 @@ function status(authEnabled = true): ManagerBackupStatusResponse {
       message_source_watermark: 20,
       metadata_frontier_watermark: 10,
       message_frontier_watermark: 20,
+      metadata_lag: 0,
+      message_lag: 0,
       observed_at_unix_millis: 1_753_056_360_000,
     }],
+    capture_status_complete: true,
+    capture_status_missing_node_ids: [],
+    capture_status_missing_slots: [],
+    integrity_audit: {
+      revision: 1,
+      slots: [],
+      debt_objects: 0,
+      last_success_at_unix_millis: 1_753_056_350_000,
+      updated_at_unix_millis: 1_753_056_350_000,
+    },
+    compaction: { debt_slots: 0, slots: [] },
+    garbage_collection: { debt_repositories: 0, cursors: [] },
     erasure_streams: [],
   }
 }
@@ -114,6 +131,36 @@ test("forces checkpoint publication read-only when manager authentication is dis
   const publish = await screen.findByRole("button", { name: "Publish checkpoint" })
   expect(publish).toBeDisabled()
   await waitFor(() => expect(publish).toHaveAttribute("title", expect.stringMatching(/authentication/i)))
+})
+
+test("shows missing lease-holder capture evidence explicitly", async () => {
+  getBackupStatusMock.mockResolvedValue({
+    ...status(),
+    capture_status_complete: false,
+    capture_status_missing_node_ids: [3],
+    capture_status_missing_slots: [17, 18],
+  })
+  renderPage()
+
+  expect(await screen.findByText("Capture status is incomplete")).toBeInTheDocument()
+  expect(screen.getByText(
+    "2 Slot observations across 1 lease holders are unavailable.",
+  )).toBeInTheDocument()
+})
+
+test("does not report missing capture evidence when backup is disabled", async () => {
+  getBackupStatusMock.mockResolvedValue({
+    ...status(),
+    enabled: false,
+    health: "disabled",
+    capture_status_complete: false,
+    capture_status_missing_node_ids: [],
+    capture_status_missing_slots: [],
+  })
+  renderPage()
+
+  expect(await screen.findByText("Cluster backup status")).toBeInTheDocument()
+  expect(screen.queryByText("Capture status is incomplete")).not.toBeInTheDocument()
 })
 
 test("shows one forbidden state without calling backup APIs when read permission is missing", async () => {

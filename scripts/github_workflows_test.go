@@ -351,8 +351,21 @@ jq -e \
    (.restore_leader_fault == true) and
    (.repository_repair == true) and
    (.dual_corruption_rebase == true) and
-   (.garbage_role_probe == true)' \
+   (.garbage_role_probe == true) and
+   (.least_privilege_roles == true)' \
   >/dev/null <<<"$evidence_json"
+`
+	backupThreeNodeBuildCommand = `go build -tags=e2e \
+  -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+  -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim
+`
+	backupScaleBuildCommand = `go build -tags=e2e \
+  -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+  -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim
+`
+	backupProductionBuildCommand = `go build -tags=e2e \
+  -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${GITHUB_SHA}" \
+  -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim
 `
 	backupProductionEvidenceCommand = `if [[ ! -f "$LOG_FILE" ]]; then
   printf '%s\n' 'backup production storage log was not created' > "$EVIDENCE_FILE"
@@ -402,6 +415,8 @@ target.write_bytes(data)
 PY
 `
 	backupReleaseVerdictCommand = `umask 077
+amd64_sha="$(awk '$2 == "wukongim-linux-amd64" {print $1}' "$QUALIFIED_DIR/SHA256SUMS")"
+arm64_sha="$(awk '$2 == "wukongim-linux-arm64" {print $1}' "$QUALIFIED_DIR/SHA256SUMS")"
 jq -n \
   --arg schema "wukongim/backup-release-qualification/v3" \
   --arg provider "aliyun" \
@@ -409,6 +424,8 @@ jq -n \
   --arg run_id "$RUN_ID" \
   --arg run_attempt "$RUN_ATTEMPT" \
   --arg run_url "$RUN_URL" \
+  --arg amd64_sha "$amd64_sha" \
+  --arg arm64_sha "$arm64_sha" \
   '{
     schema: $schema,
     provider: $provider,
@@ -416,6 +433,10 @@ jq -n \
     run_id: $run_id,
     run_attempt: $run_attempt,
     run_url: $run_url,
+    qualified_binaries: {
+      linux_amd64_sha256: $amd64_sha,
+      linux_arm64_sha256: $arm64_sha
+    },
     gates: {
       portable_faults: "passed",
       three_node_recovery: "passed",
@@ -424,6 +445,22 @@ jq -n \
       recorded_recovery_drill: "passed"
     }
   }' > "$EVIDENCE_FILE"
+`
+	backupQualifiedBinaryBuildCommand = `set -euo pipefail
+mkdir -p "$QUALIFIED_DIR"
+for architecture in amd64 arm64; do
+  output="$QUALIFIED_DIR/wukongim-linux-$architecture"
+  CGO_ENABLED=0 GOOS=linux GOARCH="$architecture" go build \
+    -trimpath \
+    -ldflags="-s -w -X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=$COMMIT_SHA" \
+    -o "$output" ./cmd/wukongim
+  go version -m "$output" | grep -F "vcs.revision=$COMMIT_SHA"
+done
+(
+  cd "$QUALIFIED_DIR"
+  sha256sum wukongim-linux-amd64 wukongim-linux-arm64 \
+    > SHA256SUMS
+)
 `
 )
 
@@ -647,7 +684,7 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 			{
 				Name:  "Build e2e-tagged product binary",
 				Shell: "bash",
-				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
+				Run:   backupThreeNodeBuildCommand,
 			},
 			{
 				Name:  "Run backup qualification scenarios",
@@ -698,7 +735,7 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 			{
 				Name:  "Build e2e-tagged product binary",
 				Shell: "bash",
-				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-scale-e2e" ./cmd/wukongim`,
+				Run:   backupScaleBuildCommand,
 			},
 			{
 				Name:  "Run 256-Slot backup scale and latency gate",
@@ -754,7 +791,7 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 			{
 				Name:  "Build production-provider e2e binary",
 				Shell: "bash",
-				Run:   `go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-production-e2e" ./cmd/wukongim`,
+				Run:   backupProductionBuildCommand,
 			},
 			{
 				Name:  "Run production storage recovery drill",
@@ -834,8 +871,19 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 			"production-storage",
 		},
 		RunsOn:         "ubuntu-24.04",
-		TimeoutMinutes: 5,
+		TimeoutMinutes: 10,
 		Steps: []ciStep{
+			checkoutStep(),
+			setupGoStep(),
+			{
+				Name:  "Build commit-bound qualified binaries",
+				Shell: "bash",
+				Env: map[string]string{
+					"COMMIT_SHA":    "${{ github.sha }}",
+					"QUALIFIED_DIR": "${{ runner.temp }}/backup-qualified",
+				},
+				Run: backupQualifiedBinaryBuildCommand,
+			},
 			{
 				Name:  "Write recorded recovery drill verdict",
 				Shell: "bash",
@@ -845,8 +893,19 @@ var expectedBackupQualificationJobs = map[string]ciJob{
 					"RUN_ID":        "${{ github.run_id }}",
 					"RUN_ATTEMPT":   "${{ github.run_attempt }}",
 					"RUN_URL":       "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+					"QUALIFIED_DIR": "${{ runner.temp }}/backup-qualified",
 				},
 				Run: backupReleaseVerdictCommand,
+			},
+			{
+				Name: "Upload commit-bound qualified binaries",
+				Uses: "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+				With: map[string]any{
+					"name":              "backup-qualified-binaries-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+					"path":              "${{ runner.temp }}/backup-qualified",
+					"if-no-files-found": "error",
+					"retention-days":    90,
+				},
 			},
 			{
 				Name: "Upload release qualification verdict",
@@ -908,8 +967,8 @@ func TestBackupQualificationWorkflowContract(t *testing.T) {
 func TestBackupQualificationWorkflowRejectsUntaggedBinary(t *testing.T) {
 	raw := string(readWorkflow(t, "backup-qualification.yml"))
 	mutated := replaceWorkflowFirst(t, raw,
-		`        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
-		`        run: go build -o "$RUNNER_TEMP/wukongim-backup-e2e" ./cmd/wukongim`,
+		`          go build -tags=e2e \`,
+		`          go build \`,
 	)
 	if err := validateBackupQualificationWorkflow([]byte(mutated)); err == nil {
 		t.Fatal("validator accepted an untagged backup qualification binary")

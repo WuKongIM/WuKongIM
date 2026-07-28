@@ -177,7 +177,6 @@ listen_addr = "127.0.0.1:7001"
 [backup]
 enabled = true
 provider = "aliyun"
-qualification_gate = "backup-vnext-production-v3"
 repository_id = "cluster-a-dr"
 source_generation = "generation-1"
 staging_dir = "`+dir+`/backup-staging"
@@ -185,6 +184,7 @@ capture_reconcile_interval = "1m"
 checkpoint_interval = "5m"
 baseline_chunk_bytes = 8388608
 target_segment_bytes = 67108864
+max_segment_bytes = 268435456
 max_segment_open_duration = "30s"
 staging_max_bytes = 10737418240
 worker_count = 4
@@ -240,6 +240,9 @@ garbage_role_arn = "acs:ram::123456789:role/backup-secondary-garbage"
 	}
 	if cfg.Backup.CheckpointInterval.String() != "5m0s" || cfg.Backup.StagingMaxBytes != 10*1024*1024*1024 {
 		t.Fatalf("Backup schedule/quota = %#v", cfg.Backup)
+	}
+	if cfg.Backup.MaxSegmentBytes != 256*1024*1024 {
+		t.Fatalf("Backup.MaxSegmentBytes = %d, want 256 MiB", cfg.Backup.MaxSegmentBytes)
 	}
 }
 

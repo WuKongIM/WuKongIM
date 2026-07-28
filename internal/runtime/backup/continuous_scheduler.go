@@ -168,6 +168,7 @@ func (e *CaptureEngine) Run(ctx context.Context) error {
 }
 
 func (e *CaptureEngine) recordStatus(hashSlot uint16, state backupcontract.CaptureState, frontier backupcontract.SlotFrontier, watermarks SourceWatermarks, failureCategory string) {
+	now := e.options.Clock.Now()
 	leaseCurrent := frontier.Lease.Sequence > 0 && state != backupcontract.CaptureStateFenced
 	status := backupcontract.SlotCaptureStatus{
 		HashSlot: hashSlot, State: state, Frontier: backupcontract.CloneSlotFrontier(frontier),
@@ -175,21 +176,39 @@ func (e *CaptureEngine) recordStatus(hashSlot uint16, state backupcontract.Captu
 		MessageSourceWatermark:  watermarks.Messages.Position,
 		MetadataLag:             watermarkLag(watermarks.Metadata.Position, frontier.Metadata.SourceHighWatermark),
 		MessageLag:              watermarkLag(watermarks.Messages.Position, frontier.Messages.SourceHighWatermark),
-		ObservedAtUnixMillis:    e.options.Clock.Now().UnixMilli(),
+		ObservedAtUnixMillis:    now.UnixMilli(),
 		FailureCategory:         failureCategory,
 		LeaseCurrent:            leaseCurrent,
 	}
 	e.statusMu.Lock()
 	e.status[hashSlot] = status
 	ownedSlots := 0
+	compactionDebt := 0
 	for _, candidate := range e.status {
 		if candidate.LeaseCurrent {
 			ownedSlots++
+		}
+		if candidate.Frontier.Rebase != nil {
+			compactionDebt++
 		}
 	}
 	e.statusMu.Unlock()
 	if e.options.Observer != nil {
 		e.options.Observer.SetBackupCaptureOwnedSlots(ownedSlots)
+	}
+	if observer, ok := e.options.Observer.(CaptureProgressObserver); ok {
+		var frontierAge *time.Duration
+		if frontier.UpdatedAtUnixMillis > 0 {
+			age := now.Sub(time.UnixMilli(frontier.UpdatedAtUnixMillis))
+			if age < 0 {
+				age = 0
+			}
+			frontierAge = &age
+		}
+		observer.SetBackupCaptureSlot(
+			hashSlot, status.MetadataLag, status.MessageLag, frontierAge,
+		)
+		observer.SetBackupCompactionDebt(compactionDebt)
 	}
 }
 

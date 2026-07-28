@@ -65,10 +65,17 @@ func LoadOSSRepository(
 	objectLockDays int,
 	roleARN string,
 ) (*OSSRepository, error) {
-	return loadOSSRepository(
+	repository, err := loadOSSRepository(
 		ctx, name, endpoint, region, bucket, prefix, objectLockDays,
 		roleARN, "wukongim-backup-repository",
 	)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.QualifyOrdinaryRoleLeastPrivilege(ctx); err != nil {
+		return nil, err
+	}
+	return repository, nil
 }
 
 // LoadOSSGarbageRepository assumes the delete-capable garbage role.
@@ -105,6 +112,9 @@ func LoadOSSGarbageRepository(
 	); err != nil {
 		return nil, err
 	}
+	if err := repository.QualifyGarbageRoleLeastPrivilege(ctx); err != nil {
+		return nil, err
+	}
 	return repository, nil
 }
 
@@ -126,10 +136,17 @@ func LoadOSSRepairRepository(
 	if err != nil {
 		return nil, err
 	}
-	return NewOSSRepairRepository(OSSRepairRepositoryOptions{
+	repair, err := NewOSSRepairRepository(OSSRepairRepositoryOptions{
 		Repository: repository,
 		Client:     client,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if err := repair.QualifyRepairRoleLeastPrivilege(ctx); err != nil {
+		return nil, err
+	}
+	return repair, nil
 }
 
 func loadOSSRepository(

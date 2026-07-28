@@ -1,12 +1,88 @@
 package backup
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 )
+
+func TestGenerationGCDebtReloadsDurableCursorsAfterCollection(
+	t *testing.T,
+) {
+	observer := &generationGCDebtObserverStub{}
+	state := &generationGCDebtStateStore{
+		state: backupusecase.State{
+			GenerationGCCursors: []backupcontract.GenerationGCCursor{
+				{Repository: "primary", Complete: true},
+				{Repository: "secondary", Complete: true},
+			},
+		},
+	}
+	maintenance := &GenerationGCMaintenance{
+		state: state, observer: observer,
+	}
+
+	// A per-repository result can be emitted before cursor creation. Durable
+	// completed cursors remain authoritative, so this must not invent debt.
+	maintenance.observeCollectedDebt(context.Background())
+	if observer.debt != 0 {
+		t.Fatalf(
+			"debt after pre-cursor failure = %d, want 0",
+			observer.debt,
+		)
+	}
+
+	state.state.GenerationGCCursors[1].Complete = false
+	maintenance.observeCollectedDebt(context.Background())
+	if observer.debt != 1 {
+		t.Fatalf(
+			"debt after durable partial failure = %d, want 1",
+			observer.debt,
+		)
+	}
+
+	state.err = errors.New("Controller state unavailable")
+	observer.debt = 2
+	maintenance.observeCollectedDebt(context.Background())
+	if observer.debt != 2 {
+		t.Fatalf(
+			"debt after failed durable reload = %d, want 2",
+			observer.debt,
+		)
+	}
+}
+
+type generationGCDebtObserverStub struct {
+	debt int
+}
+
+func (o *generationGCDebtObserverStub) SetBackupGCDebt(debt int) {
+	o.debt = debt
+}
+
+type generationGCDebtStateStore struct {
+	state backupusecase.State
+	err   error
+}
+
+func (s *generationGCDebtStateStore) Load(
+	context.Context,
+) (backupusecase.State, error) {
+	return s.state.Clone(), s.err
+}
+
+func (*generationGCDebtStateStore) CompareAndSwap(
+	context.Context,
+	uint64,
+	backupusecase.State,
+) error {
+	return nil
+}
 
 func TestGenerationGCCycleIDResumesAcrossWindowsAndLeaderChanges(
 	t *testing.T,

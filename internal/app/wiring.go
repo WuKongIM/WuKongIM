@@ -46,6 +46,13 @@ func (a *App) applyConfigDefaults() error {
 	if err != nil {
 		return err
 	}
+	if a.cfg.Backup.Enabled {
+		if err := ValidateBackupBuildQualification(
+			CurrentBackupBuildQualification(),
+		); err != nil {
+			return err
+		}
+	}
 	a.cfg.Manager = defaultManagerConfig(a.cfg.Manager)
 	if err := validateManagerConfig(a.cfg.Manager); err != nil {
 		return err

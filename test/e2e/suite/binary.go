@@ -17,7 +17,7 @@ const (
 	e2eBinaryCacheFileName     = "wukongim-e2e"
 	e2eBinaryCacheDirNameGlob  = "wukongim-e2e-bin-*"
 	e2eBinaryBuildPackage      = "./cmd/wukongim"
-	e2eBinaryBuildCommandLabel = "go build -tags=e2e ./cmd/wukongim"
+	e2eBinaryBuildCommandLabel = "go build -tags=e2e with commit-bound backup qualification ./cmd/wukongim"
 )
 
 // BinaryCache builds and caches the e2e wukongim binary once per test process.
@@ -84,8 +84,20 @@ func defaultBinaryCacheRoot() (string, error) {
 }
 
 func buildBinary(dst string) error {
-	cmd := exec.Command("go", "build", "-tags=e2e", "-o", dst, e2eBinaryBuildPackage)
-	cmd.Dir = repoRoot()
+	root := repoRoot()
+	revisionCommand := exec.Command("git", "rev-parse", "HEAD")
+	revisionCommand.Dir = root
+	revisionOutput, err := revisionCommand.Output()
+	if err != nil {
+		return fmt.Errorf("resolve e2e source revision: %w", err)
+	}
+	revision := strings.TrimSpace(string(revisionOutput))
+	cmd := exec.Command(
+		"go", "build", "-tags=e2e",
+		"-ldflags=-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision="+revision,
+		"-o", dst, e2eBinaryBuildPackage,
+	)
+	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -80,6 +80,7 @@ const (
 	TaskAPIHTTPServe                       TaskID = "api/http_serve"
 	TaskManagerHTTPServe                   TaskID = "manager/http_serve"
 	TaskManagerSnapshotFanout              TaskID = "manager/goroutine_snapshot_fanout"
+	TaskManagerBackupStatusFanout          TaskID = "manager/backup_status_fanout"
 	TaskManagerDiagnosticsFanout           TaskID = "manager/diagnostics_fanout"
 	TaskManagerLatestMessagesFanout        TaskID = "manager/latest_messages_fanout"
 	TaskManagerOpsMCPAuditFanout           TaskID = "manager/ops_mcp_audit_fanout"
@@ -185,6 +186,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskAPIHTTPServe, Module: ModuleAPI, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerHTTPServe, Module: ModuleManager, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerSnapshotFanout, Module: ModuleManager, Name: "goroutine_snapshot_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskManagerBackupStatusFanout, Module: ModuleManager, Name: "backup_status_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerDiagnosticsFanout, Module: ModuleManager, Name: "diagnostics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerLatestMessagesFanout, Module: ModuleManager, Name: "latest_messages_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerOpsMCPAuditFanout, Module: ModuleManager, Name: "ops_mcp_audit_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},

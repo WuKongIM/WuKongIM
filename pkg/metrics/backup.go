@@ -37,6 +37,10 @@ type BackupMetrics struct {
 	captureOwnedSlots  prometheus.Gauge
 	captureTakeovers   prometheus.Counter
 	captureFenced      prometheus.Counter
+	captureSourceLag   *prometheus.GaugeVec
+	frontierAge        *prometheus.GaugeVec
+	compactionDebt     prometheus.Gauge
+	gcDebt             prometheus.Gauge
 	sourcePinAge       *prometheus.GaugeVec
 	sourcePinnedBytes  *prometheus.GaugeVec
 	sourceNodeBytes    prometheus.Gauge
@@ -47,6 +51,7 @@ type BackupMetrics struct {
 	auditCorruptions   *prometheus.CounterVec
 	auditRepairBytes   *prometheus.CounterVec
 	auditUnrecoverable prometheus.Counter
+	restoreThroughput  prometheus.Gauge
 }
 
 func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) *BackupMetrics {
@@ -74,6 +79,18 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 		}),
 		captureFenced: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "wukongim_backup_capture_lease_fenced_total", Help: "Capture attempts rejected by current Slot authority or durable lease fencing.", ConstLabels: labels,
+		}),
+		captureSourceLag: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "wukongim_backup_capture_source_lag", Help: "Committed source positions not yet represented by each Hash Slot backup frontier.", ConstLabels: labels,
+		}, []string{"hash_slot", "stream"}),
+		frontierAge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "wukongim_backup_frontier_age_seconds", Help: "Age of the latest durable frontier update for each locally observed Hash Slot; NaN means no durable frontier.", ConstLabels: labels,
+		}, []string{"hash_slot"}),
+		compactionDebt: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_compaction_debt_slots", Help: "Number of locally observed Hash Slots with a pending replacement Generation.", ConstLabels: labels,
+		}),
+		gcDebt: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_gc_debt_repositories", Help: "Number of repository Generation GC cursors whose current sweep is incomplete.", ConstLabels: labels,
 		}),
 		sourcePinAge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "wukongim_backup_source_pin_age_seconds", Help: "Age of each locally held backup source-log compaction pin.", ConstLabels: labels,
@@ -106,20 +123,77 @@ func newBackupMetrics(registry prometheus.Registerer, labels prometheus.Labels) 
 		auditUnrecoverable: prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "wukongim_backup_audit_unrecoverable_failures_total", Help: "Dual-repository audit failures that cannot rebase from live source.", ConstLabels: labels,
 		}),
+		restoreThroughput: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "wukongim_backup_restore_throughput_bytes_per_second", Help: "Aggregate logical backup bytes downloaded per second by the active restore plan.", ConstLabels: labels,
+		}),
 	}
 	registry.MustRegister(
 		m.checkpointAge, m.controllerLeader,
 		m.doctorHealth, m.failures, m.restoreProgress,
 		m.captureOwnedSlots, m.captureTakeovers, m.captureFenced,
+		m.captureSourceLag, m.frontierAge, m.compactionDebt, m.gcDebt,
 		m.sourcePinAge, m.sourcePinnedBytes, m.sourceNodeBytes,
 		m.slotRebases, m.slotRebaseSeconds,
 		m.auditDebt, m.auditLastSuccess, m.auditCorruptions,
-		m.auditRepairBytes, m.auditUnrecoverable,
+		m.auditRepairBytes, m.auditUnrecoverable, m.restoreThroughput,
 	)
 	m.checkpointAge.Set(math.NaN())
 	m.SetBackupDoctorHealth("unknown")
 	m.SetBackupRestoreProgress(0, 0, 0)
 	return m
+}
+
+// SetBackupCaptureSlot records bounded per-Slot source lag and frontier age.
+func (m *BackupMetrics) SetBackupCaptureSlot(
+	hashSlot uint16,
+	metadataLag uint64,
+	messageLag uint64,
+	frontierAge *time.Duration,
+) {
+	if m == nil {
+		return
+	}
+	slot := strconv.FormatUint(uint64(hashSlot), 10)
+	m.captureSourceLag.WithLabelValues(slot, "metadata").Set(float64(metadataLag))
+	m.captureSourceLag.WithLabelValues(slot, "messages").Set(float64(messageLag))
+	if frontierAge == nil {
+		m.frontierAge.WithLabelValues(slot).Set(math.NaN())
+		return
+	}
+	age := *frontierAge
+	if age < 0 {
+		age = 0
+	}
+	m.frontierAge.WithLabelValues(slot).Set(age.Seconds())
+}
+
+// SetBackupCompactionDebt records locally observed pending Slot replacements.
+func (m *BackupMetrics) SetBackupCompactionDebt(slots int) {
+	if m == nil {
+		return
+	}
+	if slots < 0 {
+		slots = 0
+	}
+	m.compactionDebt.Set(float64(slots))
+}
+
+// SetBackupGCDebt records repository sweeps that have not completed.
+func (m *BackupMetrics) SetBackupGCDebt(repositories int) {
+	if m == nil {
+		return
+	}
+	if repositories < 0 {
+		repositories = 0
+	}
+	m.gcDebt.Set(float64(repositories))
+}
+
+// SetBackupRestoreThroughput records aggregate logical download throughput.
+func (m *BackupMetrics) SetBackupRestoreThroughput(bytesPerSecond uint64) {
+	if m != nil {
+		m.restoreThroughput.Set(float64(bytesPerSecond))
+	}
 }
 
 // SetBackupAuditDebt records the bounded number of artifacts awaiting full validation.

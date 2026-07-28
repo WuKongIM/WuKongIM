@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"sync"
 	"time"
 
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
@@ -20,6 +22,7 @@ import (
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	backupkeys "github.com/WuKongIM/WuKongIM/pkg/backup/keypackage"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -28,6 +31,9 @@ const (
 	checkpointRestoreStagingDirectory       = "checkpoint-segments"
 	checkpointRestoreTargetStagingDirectory = "checkpoint-target"
 	backupKeyPinWaitInterval                = 100 * time.Millisecond
+	backupStatusFanoutConcurrency           = 8
+	backupStatusFanoutTimeout               = 2 * time.Second
+	backupStatusNodeTimeout                 = 750 * time.Millisecond
 )
 
 type appBackupNode interface {
@@ -210,10 +216,12 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	var observer runtimebackup.RuntimeObserver
 	var captureObserver runtimebackup.CaptureObserver
 	var auditObserver runtimebackup.IntegrityAuditObserver
+	var gcObserver backupinfra.GenerationGCDebtObserver
 	if a.metrics != nil {
 		observer = a.metrics.Backup
 		captureObserver = a.metrics.Backup
 		auditObserver = a.metrics.Backup
+		gcObserver = a.metrics.Backup
 	}
 	if a.cfg.Backup.RestoreMode {
 		a.wireRestore(
@@ -435,6 +443,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 	}
 	rollingPolicy := runtimebackup.DefaultRollingPolicy()
 	rollingPolicy.TargetSegmentBytes = int64(a.cfg.Backup.TargetSegmentBytes)
+	rollingPolicy.MaxSegmentBytes = int64(a.cfg.Backup.MaxSegmentBytes)
 	rollingPolicy.MaxOpenDuration = a.cfg.Backup.MaxSegmentOpenDuration
 	capture, err := runtimebackup.NewCaptureEngine(
 		runtimebackup.CaptureEngineOptions{
@@ -659,7 +668,7 @@ func (a *App) wireBackup(clusterCfg cluster.Config) {
 			Policy: backupusecase.CheckpointRetentionPolicy{
 				MonthlyMonths: a.cfg.Backup.RetentionMonthlyMonths,
 			},
-			Now: time.Now,
+			Now: time.Now, Observer: gcObserver,
 		},
 	)
 	if err != nil {
@@ -1036,6 +1045,7 @@ type backupManagerRouter struct {
 	local      backupManagerFacade
 	leadership runtimebackup.CoordinatorLeadership
 	client     *accessnode.Client
+	goroutines *goruntimeregistry.Registry
 }
 
 type backupRuntimeStatusProvider interface {
@@ -1048,7 +1058,10 @@ func (a *App) newBackupManagement() accessmanager.BackupManagement {
 	if !ok || a.backup == nil {
 		return local
 	}
-	return backupManagerRouter{local: local, leadership: node, client: accessnode.NewClient(node)}
+	return backupManagerRouter{
+		local: local, leadership: node, client: accessnode.NewClient(node),
+		goroutines: a.goroutines,
+	}
 }
 
 func (a *App) newRestoreManagement() accessmanager.RestoreManagement {
@@ -1110,13 +1123,36 @@ func (f restoreManagerFacade) RestoreProgress(ctx context.Context) (*backupuseca
 		return nil, restoreFacadeUnavailable(f.app)
 	}
 	if f.app.restore != nil {
-		return f.app.restore.Progress(ctx)
+		progress, err := f.app.restore.Progress(ctx)
+		f.observeRestoreProgress(progress)
+		return progress, err
 	}
 	plan, err := f.RestoreStatus(ctx)
 	if err != nil || plan == nil {
 		return nil, err
 	}
 	return nil, nil
+}
+
+func (f restoreManagerFacade) observeRestoreProgress(
+	progress *backupusecase.RestoreProgress,
+) {
+	if f.app == nil || f.app.metrics == nil || progress == nil {
+		return
+	}
+	f.app.metrics.Backup.SetBackupRestoreThroughput(
+		activeRestoreThroughput(progress),
+	)
+}
+
+func activeRestoreThroughput(
+	progress *backupusecase.RestoreProgress,
+) uint64 {
+	if progress == nil ||
+		progress.Status != backupcontract.RestoreStatusInstalling {
+		return 0
+	}
+	return progress.ThroughputBytesPerSecond
 }
 
 func (f restoreManagerFacade) VerifyRestore(ctx context.Context, planID string) (backupusecase.RestorePlan, error) {
@@ -1170,21 +1206,182 @@ func (r backupManagerRouter) Status(ctx context.Context) (backupusecase.StatusSn
 	if err != nil {
 		return backupusecase.StatusSnapshot{}, err
 	}
+	var status backupusecase.StatusSnapshot
 	if local {
-		return r.local.Status(ctx)
+		status, err = r.local.Status(ctx)
+	} else {
+		status, err = r.client.ManagerBackupStatus(ctx, leaderID)
 	}
-	status, err := r.client.ManagerBackupStatus(ctx, leaderID)
 	if err != nil {
 		return backupusecase.StatusSnapshot{}, err
 	}
-	// The durable backup projection is Controller-Leader scoped, but capture
-	// workers are node-local. Preserve the contacted node's worker evidence.
-	localStatus, err := r.local.Status(ctx)
-	if err != nil {
-		return backupusecase.StatusSnapshot{}, err
+	localCaptures := status.CaptureStatuses
+	if !local {
+		localCaptures = r.local.LocalCaptureStatus(ctx)
 	}
-	status.LocalCaptureStatuses = localStatus.LocalCaptureStatuses
+	status.CaptureStatuses,
+		status.CaptureStatusMissingNodeIDs,
+		status.CaptureStatusMissingSlots = r.clusterCaptureStatuses(
+		ctx, leaderID, status.CaptureLeases,
+		status.CaptureStatuses, localCaptures,
+	)
+	status.CaptureStatusComplete =
+		len(status.CaptureStatusMissingSlots) == 0
+	if !status.CaptureStatusComplete {
+		if status.Health == backupusecase.HealthHealthy {
+			status.Health = backupusecase.HealthDegraded
+		}
+		if status.FailureCategory == "" {
+			status.FailureCategory = "capture_status_unavailable"
+		}
+	}
 	return status, nil
+}
+
+func (r backupManagerRouter) clusterCaptureStatuses(
+	ctx context.Context,
+	leaderID uint64,
+	leases []backupusecase.CaptureLeaseSnapshot,
+	leaderCaptures []backupcontract.SlotCaptureStatus,
+	localCaptures []backupcontract.SlotCaptureStatus,
+) (
+	[]backupcontract.SlotCaptureStatus,
+	[]uint64,
+	[]uint16,
+) {
+	localID := r.leadership.NodeID()
+	holders := make(map[uint16]uint64, len(leases))
+	nodeIDs := make(map[uint64]struct{})
+	for _, lease := range leases {
+		if lease.HolderNodeID == 0 {
+			continue
+		}
+		holders[lease.HashSlot] = lease.HolderNodeID
+		nodeIDs[lease.HolderNodeID] = struct{}{}
+	}
+	// Durable capture leases, unlike node-local status, cover every initialized
+	// Slot and therefore define the bounded fan-out target set.
+	if len(nodeIDs) == 0 {
+		nodeIDs[leaderID] = struct{}{}
+		nodeIDs[localID] = struct{}{}
+	}
+
+	type nodeCaptureStatuses struct {
+		nodeID   uint64
+		statuses []backupcontract.SlotCaptureStatus
+	}
+	type remoteCaptureResult struct {
+		statuses []backupcontract.SlotCaptureStatus
+		received bool
+	}
+	results := make([]nodeCaptureStatuses, 0, len(nodeIDs))
+	appendResult := func(nodeID uint64, statuses []backupcontract.SlotCaptureStatus) {
+		results = append(results, nodeCaptureStatuses{
+			nodeID: nodeID, statuses: statuses,
+		})
+	}
+	if _, ok := nodeIDs[leaderID]; ok {
+		appendResult(leaderID, leaderCaptures)
+		delete(nodeIDs, leaderID)
+	}
+	if _, ok := nodeIDs[localID]; ok {
+		appendResult(localID, localCaptures)
+		delete(nodeIDs, localID)
+	}
+
+	fanoutContext, cancel := context.WithTimeout(
+		ctx, backupStatusFanoutTimeout,
+	)
+	defer cancel()
+	remoteNodeIDs := make([]uint64, 0, len(nodeIDs))
+	for nodeID := range nodeIDs {
+		remoteNodeIDs = append(remoteNodeIDs, nodeID)
+	}
+	sort.Slice(remoteNodeIDs, func(i, j int) bool {
+		return remoteNodeIDs[i] < remoteNodeIDs[j]
+	})
+	remoteResults := make([]remoteCaptureResult, len(remoteNodeIDs))
+	jobs := make(chan int)
+	workers := len(remoteNodeIDs)
+	if workers > backupStatusFanoutConcurrency {
+		workers = backupStatusFanoutConcurrency
+	}
+	var workersDone sync.WaitGroup
+	workersDone.Add(workers)
+	goruntimeregistry.SafeGoN(
+		r.goroutines,
+		goruntimeregistry.TaskManagerBackupStatusFanout,
+		workers,
+		func(_ int) {
+			defer workersDone.Done()
+			for index := range jobs {
+				callContext, cancelCall := context.WithTimeout(
+					fanoutContext, backupStatusNodeTimeout,
+				)
+				captures, callErr :=
+					r.client.ManagerBackupLocalCaptureStatus(
+						callContext, remoteNodeIDs[index],
+					)
+				cancelCall()
+				if callErr == nil {
+					remoteResults[index] = remoteCaptureResult{
+						statuses: captures, received: true,
+					}
+				}
+			}
+		},
+	)
+submitRemote:
+	for index := range remoteNodeIDs {
+		select {
+		case jobs <- index:
+		case <-fanoutContext.Done():
+			break submitRemote
+		}
+	}
+	close(jobs)
+	workersDone.Wait()
+
+	missingNodeIDs := make([]uint64, 0)
+	for index, nodeID := range remoteNodeIDs {
+		if !remoteResults[index].received {
+			missingNodeIDs = append(missingNodeIDs, nodeID)
+			continue
+		}
+		appendResult(nodeID, remoteResults[index].statuses)
+	}
+
+	bySlot := make(map[uint16]backupcontract.SlotCaptureStatus, len(holders))
+	for _, result := range results {
+		for _, candidate := range result.statuses {
+			holderID := holders[candidate.HashSlot]
+			if holderID != 0 && holderID != result.nodeID {
+				continue
+			}
+			existing, ok := bySlot[candidate.HashSlot]
+			if !ok || candidate.ObservedAtUnixMillis >
+				existing.ObservedAtUnixMillis {
+				bySlot[candidate.HashSlot] = candidate
+			}
+		}
+	}
+	captures := make([]backupcontract.SlotCaptureStatus, 0, len(bySlot))
+	for _, status := range bySlot {
+		captures = append(captures, status)
+	}
+	sort.Slice(captures, func(i, j int) bool {
+		return captures[i].HashSlot < captures[j].HashSlot
+	})
+	missingSlots := make([]uint16, 0)
+	for hashSlot := range holders {
+		if _, ok := bySlot[hashSlot]; !ok {
+			missingSlots = append(missingSlots, hashSlot)
+		}
+	}
+	sort.Slice(missingSlots, func(i, j int) bool {
+		return missingSlots[i] < missingSlots[j]
+	})
+	return captures, missingNodeIDs, missingSlots
 }
 
 func (r backupManagerRouter) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
@@ -1240,8 +1437,25 @@ func (r backupManagerRouter) FenceSource(
 }
 
 func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSnapshot, error) {
-	if f.app == nil || !f.app.cfg.Backup.Enabled {
-		return f.observeBackupStatus(backupusecase.StatusSnapshot{Enabled: false, Health: backupusecase.HealthDisabled}), nil
+	if f.app == nil {
+		return f.observeBackupStatus(backupusecase.StatusSnapshot{
+			Enabled: false, Health: backupusecase.HealthDisabled,
+			CaptureStatusComplete: true,
+		}), nil
+	}
+	if !f.app.cfg.Backup.Enabled {
+		status := backupusecase.StatusSnapshot{
+			Enabled: false, Health: backupusecase.HealthDisabled,
+			CaptureStatusComplete: true,
+		}
+		if f.app.cfg.Backup.RestoreMode {
+			progress, err := (restoreManagerFacade{app: f.app}).
+				RestoreProgress(ctx)
+			if err == nil {
+				status.Restore = progress
+			}
+		}
+		return f.observeBackupStatus(status), nil
 	}
 	if f.app.backupInitErr != nil || f.app.backup == nil {
 		status := backupusecase.StatusSnapshot{
@@ -1270,15 +1484,26 @@ func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSn
 			status.FailureCategory = operational.LastFailureCategory
 		}
 		status.Running = operational.Running
-		if captureProvider, ok := f.app.backupRuntime.(interface {
-			CaptureStatus() []backupcontract.SlotCaptureStatus
-		}); ok {
-			status.LocalCaptureStatuses = captureProvider.CaptureStatus()
-		}
+		status.CaptureStatuses = f.LocalCaptureStatus(ctx)
 	} else if status.Health == backupusecase.HealthHealthy {
 		status.Health = backupusecase.HealthUnknown
 	}
 	return f.observeBackupStatus(status), nil
+}
+
+func (f backupManagerFacade) LocalCaptureStatus(
+	context.Context,
+) []backupcontract.SlotCaptureStatus {
+	if f.app == nil {
+		return nil
+	}
+	captureProvider, ok := f.app.backupRuntime.(interface {
+		CaptureStatus() []backupcontract.SlotCaptureStatus
+	})
+	if !ok {
+		return nil
+	}
+	return captureProvider.CaptureStatus()
 }
 
 func (f backupManagerFacade) observeBackupStatus(status backupusecase.StatusSnapshot) backupusecase.StatusSnapshot {
@@ -1289,12 +1514,23 @@ func (f backupManagerFacade) observeBackupStatus(status backupusecase.StatusSnap
 			CaptureReconcileIntervalSeconds: int64(cfg.CaptureReconcileInterval / time.Second),
 			CheckpointIntervalSeconds:       int64(cfg.CheckpointInterval / time.Second),
 			CaptureWorkerCount:              cfg.WorkerCount,
+			TargetSegmentBytes:              cfg.TargetSegmentBytes,
+			MaxSegmentBytes:                 cfg.MaxSegmentBytes,
+			MaxSegmentOpenDurationSeconds:   int64(cfg.MaxSegmentOpenDuration / time.Second),
 			StagingMaxBytes:                 cfg.StagingMaxBytes,
 			SourcePinMaxAgeSeconds:          int64(cfg.SourcePinMaxAge / time.Second),
 			MaxSourcePinnedBytes:            cfg.MaxSourcePinnedBytes,
 		}
 		if leadership, ok := f.app.cluster.(runtimebackup.CoordinatorLeadership); ok {
 			status.CoordinatorNodeID = leadership.BackupControllerLeaderID()
+		}
+		if f.app.metrics != nil {
+			f.app.metrics.Backup.SetBackupGCDebt(
+				status.GarbageCollection.DebtRepositories,
+			)
+			f.app.metrics.Backup.SetBackupRestoreThroughput(
+				activeRestoreThroughput(status.Restore),
+			)
 		}
 	}
 	return status

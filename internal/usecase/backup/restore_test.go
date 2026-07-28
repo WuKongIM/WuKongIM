@@ -604,6 +604,13 @@ func TestCheckpointRestoreProgressReportsThroughputAndETA(t *testing.T) {
 		progress.ETASeconds == nil || *progress.ETASeconds != 30 {
 		t.Fatalf("progress = %#v", progress)
 	}
+	throughput, err := app.RestoreThroughput(*store.state.Plan)
+	if err != nil || throughput != progress.ThroughputBytesPerSecond {
+		t.Fatalf(
+			"RestoreThroughput() = %d, %v; progress throughput = %d",
+			throughput, err, progress.ThroughputBytesPerSecond,
+		)
+	}
 }
 
 func restoreTestCatalogProof() backupartifact.CheckpointCatalogProof {

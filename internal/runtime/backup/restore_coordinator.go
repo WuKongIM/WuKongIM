@@ -11,11 +11,16 @@ import (
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
+type restoreThroughputObserver interface {
+	SetBackupRestoreThroughput(uint64)
+}
+
 const defaultRestoreCoordinatorTickInterval = 5 * time.Second
 
 // RestoreCoordinatorApp exposes persisted restore progress to the runtime.
 type RestoreCoordinatorApp interface {
 	Status(context.Context) (*backupcontract.RestorePlan, error)
+	RestoreThroughput(backupcontract.RestorePlan) (uint64, error)
 	BeginPartitionInstall(
 		context.Context,
 		string,
@@ -167,6 +172,7 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 	c.status.ControllerLeader = leader
 	c.mu.Unlock()
 	if !leader {
+		c.observeRestoreThroughput(0)
 		return nil
 	}
 	plan, err := c.options.App.Status(ctx)
@@ -175,8 +181,11 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 		return err
 	}
 	if plan == nil || plan.Status != backupcontract.RestoreStatusInstalling {
-		if c.options.Observer != nil && plan == nil {
-			c.options.Observer.SetBackupRestoreProgress(0, 0, 0)
+		c.observeRestoreThroughput(0)
+		if c.options.Observer != nil {
+			if plan == nil {
+				c.options.Observer.SetBackupRestoreProgress(0, 0, 0)
+			}
 		}
 		return nil
 	}
@@ -203,6 +212,11 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 			}
 		}
 		c.options.Observer.SetBackupRestoreProgress(installed, verified, int(plan.HashSlotCount))
+		throughput, throughputErr := c.options.App.RestoreThroughput(*plan)
+		if throughputErr != nil {
+			throughput = 0
+		}
+		c.observeRestoreThroughput(throughput)
 	}
 	if len(missing) == 0 {
 		return nil
@@ -217,6 +231,12 @@ func (c *RestoreCoordinator) runOnce(ctx context.Context) error {
 	c.status.LastFailureCategory = ""
 	c.mu.Unlock()
 	return nil
+}
+
+func (c *RestoreCoordinator) observeRestoreThroughput(bytesPerSecond uint64) {
+	if observer, ok := c.options.Observer.(restoreThroughputObserver); ok {
+		observer.SetBackupRestoreThroughput(bytesPerSecond)
+	}
 }
 
 func (c *RestoreCoordinator) installMissing(ctx context.Context, plan backupcontract.RestorePlan, missing []uint16) error {

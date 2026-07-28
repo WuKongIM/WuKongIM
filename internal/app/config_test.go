@@ -17,10 +17,11 @@ func TestBackupConfigDefaultsStayDisabled(t *testing.T) {
 	require.Equal(t, 5*time.Minute, app.cfg.Backup.CheckpointInterval)
 	require.Equal(t, uint64(8*1024*1024), app.cfg.Backup.BaselineChunkBytes)
 	require.Equal(t, uint64(64*1024*1024), app.cfg.Backup.TargetSegmentBytes)
+	require.Equal(t, uint64(256*1024*1024), app.cfg.Backup.MaxSegmentBytes)
 	require.Equal(t, 30*time.Second, app.cfg.Backup.MaxSegmentOpenDuration)
 	require.Equal(t, 4, app.cfg.Backup.WorkerCount)
-	require.Equal(t, time.Hour, app.cfg.Backup.SourcePinMaxAge)
-	require.Equal(t, uint64(8*1024*1024*1024), app.cfg.Backup.MaxSourcePinnedBytes)
+	require.Equal(t, 30*time.Minute, app.cfg.Backup.SourcePinMaxAge)
+	require.Equal(t, uint64(20*1024*1024*1024), app.cfg.Backup.MaxSourcePinnedBytes)
 	require.Equal(t, time.Second, app.cfg.Backup.AuditInterval)
 	require.Equal(t, 24*time.Hour, app.cfg.Backup.AuditScrubInterval)
 	require.Equal(t, time.Hour, app.cfg.Backup.GarbageCollectionInterval)
@@ -61,25 +62,18 @@ func TestBackupConfigRequiresDistinctAlibabaRoles(t *testing.T) {
 	require.Contains(t, err.Error(), "roles must be distinct")
 }
 
-func TestBackupConfigRequiresExactReleaseQualificationGate(t *testing.T) {
+func TestBackupConfigRequiresSegmentTargetWithinConfiguredMaximum(t *testing.T) {
 	cfg := validEnabledBackupConfig(t)
-	cfg.QualificationGate = ""
+	cfg.TargetSegmentBytes = 4 << 20
+	cfg.MaxSegmentBytes = 3 << 20
 	_, err := NormalizeBackupConfig(cfg)
 	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV3)
+	require.Contains(t, err.Error(), "max segment bytes")
 
-	cfg.QualificationGate = "backup-vnext-production-v0"
-	_, err = NormalizeBackupConfig(cfg)
-	require.ErrorIs(t, err, ErrInvalidConfig)
-	require.Contains(t, err.Error(), BackupQualificationGateV3)
-
-	cfg.QualificationGate = BackupQualificationGateV3
+	cfg.MaxSegmentBytes = 8 << 20
 	normalized, err := NormalizeBackupConfig(cfg)
 	require.NoError(t, err)
-	require.True(t, normalized.Enabled)
-	require.Equal(
-		t, BackupQualificationGateV3, normalized.QualificationGate,
-	)
+	require.Equal(t, uint64(8<<20), normalized.MaxSegmentBytes)
 }
 
 func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
@@ -93,13 +87,12 @@ func TestBackupConfigRejectsSameRegionRepositories(t *testing.T) {
 func validEnabledBackupConfig(t *testing.T) BackupConfig {
 	t.Helper()
 	return BackupConfig{
-		Provider:          BackupProviderAlibaba,
-		Enabled:           true,
-		QualificationGate: BackupQualificationGateV3,
-		RepositoryID:      "cluster-a-dr",
-		SourceGeneration:  "generation-1",
-		StagingDir:        filepath.Join(t.TempDir(), "backup-staging"),
-		ObjectLockDays:    7,
+		Provider:         BackupProviderAlibaba,
+		Enabled:          true,
+		RepositoryID:     "cluster-a-dr",
+		SourceGeneration: "generation-1",
+		StagingDir:       filepath.Join(t.TempDir(), "backup-staging"),
+		ObjectLockDays:   7,
 		Primary: BackupRepositoryConfig{
 			Endpoint:       "https://oss-cn-hangzhou.aliyuncs.com",
 			Region:         "cn-hangzhou",

@@ -462,7 +462,6 @@ cluster_profile_env() {
       "WUKONGIM_BACKUP_E2E_FILE_ROOT=$(backup_repository_root)" \
       "WK_BACKUP_ENABLED=true" \
       "WK_BACKUP_PROVIDER=aliyun" \
-      "WK_BACKUP_QUALIFICATION_GATE=backup-vnext-production-v3" \
       "WK_BACKUP_REPOSITORY_ID=wkcli-sim-three-node-smoke" \
       "WK_BACKUP_SOURCE_GENERATION=local-smoke-generation" \
       "WK_BACKUP_CAPTURE_RECONCILE_INTERVAL=500ms" \
