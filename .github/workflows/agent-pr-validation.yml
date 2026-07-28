@@ -1,0 +1,716 @@
+name: Agent Tool - Validate PR
+run-name: "Agent PR #${{ github.event.client_payload.pr_number }} validation head ${{ github.event.client_payload.head_sha }} merge ${{ github.event.client_payload.merge_sha }} gate ${{ github.event.client_payload.gate_run_id }} request ${{ github.event.client_payload.request_run_id }}"
+
+on:
+  repository_dispatch:
+    types: [agent-pr-validation]
+
+permissions: {}
+
+concurrency:
+  group: agent-pr-validation-${{ github.event.client_payload.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Validate Agent plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+      pull-requests: read
+      statuses: read
+    outputs:
+      docs_only: ${{ steps.plan.outputs.docs_only }}
+      go_fast: ${{ steps.plan.outputs.go_fast }}
+      web: ${{ steps.plan.outputs.web }}
+      demo: ${{ steps.plan.outputs.demo }}
+      go_race: ${{ steps.plan.outputs.go_race }}
+      go_integration: ${{ steps.plan.outputs.go_integration }}
+      go_e2e: ${{ steps.plan.outputs.go_e2e }}
+      three_node_smoke: ${{ steps.plan.outputs.three_node_smoke }}
+      plan_comment_id: ${{ steps.plan.outputs.plan_comment_id }}
+      retry_of_run_id: ${{ steps.plan.outputs.retry_of_run_id }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Resolve and validate the Agent plan
+        id: plan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          EXPECTED_MERGE_SHA: ${{ github.event.client_payload.merge_sha }}
+          GATE_RUN_ID: ${{ github.event.client_payload.gate_run_id }}
+          TRIGGER_ACTOR: ${{ github.event.client_payload.trigger_actor }}
+          REQUEST_RUN_ID: ${{ github.event.client_payload.request_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          [[ "$EXPECTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$EXPECTED_MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GATE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          [[ "$REQUEST_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${REQUEST_RUN_ID}" \
+            >request-run.json
+          jq -e \
+            --argjson request_run_id "$REQUEST_RUN_ID" \
+            --arg actor "$TRIGGER_ACTOR" \
+            --arg title \
+              "Agent PR #${PR_NUMBER} validation labeled head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}" '
+              .id == $request_run_id and
+              .path == ".github/workflows/agent-pr-validation-control.yml" and
+              .event == "pull_request_target" and
+              .display_title == $title and
+              .actor.login == $actor
+            ' >/dev/null request-run.json
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" >pr.json
+          current_merge_sha="$(
+            jq -er \
+              '.merge_commit_sha | select(type == "string" and test("^[0-9a-f]{40}$"))' \
+              pr.json
+          )"
+          test "$current_merge_sha" = "$EXPECTED_MERGE_SHA"
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${GATE_RUN_ID}" \
+            >gate-run.json
+          jq -e \
+            --argjson gate_run_id "$GATE_RUN_ID" \
+            --arg head_sha "$EXPECTED_HEAD_SHA" \
+            --arg prefix "Agent PR #${PR_NUMBER} merge gate " \
+            --arg suffix " head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}" '
+              .id == $gate_run_id and
+              .path == ".github/workflows/agent-pr-merge-gate.yml" and
+              .event == "pull_request" and
+              .head_sha == $head_sha and
+              .status == "completed" and
+              .conclusion == "failure" and
+              (
+                .display_title == ($prefix + "edited" + $suffix) or
+                .display_title == ($prefix + "opened" + $suffix) or
+                .display_title == ($prefix + "reopened" + $suffix) or
+                .display_title == ($prefix + "synchronize" + $suffix)
+              )
+            ' >/dev/null gate-run.json
+          gh api --paginate --slurp -X GET \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f per_page=100 >comment-pages.json
+          jq '[.[][]]' comment-pages.json >comments.json
+          gh api --paginate --slurp -X GET \
+            "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            -f per_page=100 >file-pages.json
+          jq '[.[][]]' file-pages.json >files.json
+          gh api --paginate --slurp -X GET \
+            "repos/${GITHUB_REPOSITORY}/commits/${EXPECTED_HEAD_SHA}/statuses" \
+            -f per_page=100 >status-pages.json
+          jq '[.[][]]' status-pages.json >statuses.json
+          jq -r \
+            --arg context \
+              "Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" '
+            [
+              .[]
+              | select(.context == $context)
+              | .target_url
+              | select(type == "string")
+              | capture("/actions/runs/(?<run_id>[1-9][0-9]*)$").run_id
+            ]
+            | unique[]
+          ' statuses.json >attempt-run-ids.txt
+          attempt_run_count="$(wc -l <attempt-run-ids.txt)"
+          test "$attempt_run_count" -le 2
+          : >attempt-runs.jsonl
+          while IFS= read -r attempt_run_id; do
+            [[ "$attempt_run_id" =~ ^[1-9][0-9]{0,19}$ ]]
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${attempt_run_id}" \
+              >>attempt-runs.jsonl
+          done <attempt-run-ids.txt
+          jq -s . attempt-runs.jsonl >attempt-runs.json
+          jq -e \
+            --arg context \
+              "Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+            --arg suffix "/actions/runs/${REQUEST_RUN_ID}" '
+            first(
+              .[]
+              | select(.context == $context)
+              | select(.target_url | type == "string" and endswith($suffix))
+            )
+            | .state == "pending" and
+              (.target_url | type == "string" and endswith($suffix))
+          ' >/dev/null statuses.json
+          ./scripts/agent-pr-validation-plan.sh \
+            pr.json comments.json files.json statuses.json attempt-runs.json \
+            "$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA" \
+            "$GATE_RUN_ID" \
+            "$GITHUB_OUTPUT" validated-plan.json
+      - name: Write validated plan summary
+        shell: bash
+        run: |
+          {
+            echo '## Agent PR validation plan'
+            echo
+            echo "- PR: \`#${{ github.event.client_payload.pr_number }}\`"
+            echo "- Head SHA: \`${{ github.event.client_payload.head_sha }}\`"
+            echo "- Test-merge SHA: \`${{ github.event.client_payload.merge_sha }}\`"
+            echo "- Validation generation: gate run \`${{ github.event.client_payload.gate_run_id }}\`"
+            echo "- Trigger actor: \`${{ github.event.client_payload.trigger_actor }}\`"
+            echo "- Plan comment: \`${{ steps.plan.outputs.plan_comment_id }}\`"
+            echo
+            echo '```json'
+            jq . validated-plan.json
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  status-pending:
+    name: Publish pending Agent evidence
+    needs: [plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Bind pending status to the current PR head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          MERGE_SHA: ${{ github.event.client_payload.merge_sha }}
+          GATE_RUN_ID: ${{ github.event.client_payload.gate_run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GATE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" >current-pr.json
+          current_head="$(jq -er '.head.sha' current-pr.json)"
+          current_merge="$(jq -er '.merge_commit_sha' current-pr.json)"
+          test "$current_head" = "$HEAD_SHA"
+          test "$current_merge" = "$MERGE_SHA"
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state=pending \
+            -f "context=Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+            -f description='Agent-selected validation is running' \
+            -f target_url="$RUN_URL" >/dev/null
+
+  go-quality:
+    name: Agent / Go quality
+    if: needs.plan.outputs.go_fast == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Check tracked Go formatting
+        shell: bash
+        run: |
+          mapfile -t go_files < <(git ls-files '*.go')
+          test "${#go_files[@]}" -gt 0
+          unformatted="$(gofmt -l "${go_files[@]}")"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following tracked Go files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Check module metadata
+        run: go mod tidy -diff
+      - name: Vet explicit roots
+        run: go vet ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/...
+
+  go-unit:
+    name: Agent / Go unit (${{ matrix.name }})
+    if: needs.plan.outputs.go_fast == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cmd
+            packages: "./cmd/..."
+          - name: internal
+            packages: "./internal/..."
+          - name: pkg
+            packages: "./pkg/..."
+          - name: scripts-docker
+            packages: "./scripts/... ./docker/..."
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run unit group
+        shell: bash
+        env:
+          PACKAGES: ${{ matrix.packages }}
+        run: go test $PACKAGES -count=1 -timeout=14m
+
+  web:
+    name: Agent / Web
+    if: needs.plan.outputs.web == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.11"
+      - name: Verify Bun version
+        run: test "$(bun --version)" = "1.3.11"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Lint against baseline
+        run: bun run lint
+      - name: Test
+        run: bun run test
+      - name: Type check
+        run: bunx tsc -b
+      - name: Build
+        run: bun run build
+      - name: Check deterministic tracked build output
+        shell: bash
+        run: |
+          changes="$(git status --porcelain -- ../internal/access/manager/webui/dist)"
+          if [[ -n "$changes" ]]; then
+            echo "The embedded manager web bundle is stale:"
+            echo "$changes"
+            exit 1
+          fi
+
+  demo:
+    name: Agent / Demo
+    if: needs.plan.outputs.demo == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: demo/chatdemo
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22.12.0"
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Verify Node version
+        run: test "$(node --version)" = "v22.12.0"
+      - name: Verify Yarn version
+        run: test "$(yarn --version)" = "1.22.22"
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Test
+        run: yarn test
+      - name: Build
+        run: yarn build
+      - name: Check deterministic tracked build output
+        shell: bash
+        run: |
+          changes="$(git status --porcelain -- ../../internal/access/api/demoui/dist)"
+          if [[ -n "$changes" ]]; then
+            echo "The embedded chat Demo bundle is stale:"
+            echo "$changes"
+            exit 1
+          fi
+
+  go-race:
+    name: Agent / Go race (${{ matrix.name }})
+    if: needs.plan.outputs.go_race == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: internal-runtime
+            packages: "./internal/app ./internal/runtime/..."
+          - name: plugin-runtime
+            packages: "./pkg/plugin/pluginhost ./pkg/wklog"
+          - name: gateway-transport
+            packages: "./pkg/gateway/... ./pkg/transport/..."
+          - name: channel-cluster-slot
+            packages: "./pkg/channel/... ./pkg/cluster/... ./pkg/slot/..."
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run race group
+        shell: bash
+        env:
+          PACKAGES: ${{ matrix.packages }}
+          LOG_FILE: ${{ runner.temp }}/go-race-${{ matrix.name }}.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 40m go test -race $PACKAGES -count=1 -timeout=35m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Upload race failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-go-race-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-race-${{ matrix.name }}.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  go-integration:
+    name: Agent / Go integration
+    if: needs.plan.outputs.go_integration == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run integration packages
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-integration.log
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 25m go test -tags=integration ./internal/... ./pkg/... -count=1 -timeout=20m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Upload integration failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-go-integration-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-integration.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  go-e2e:
+    name: Agent / Go e2e
+    if: needs.plan.outputs.go_e2e == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Build e2e binary once
+        shell: bash
+        run: go build -tags=e2e -o "$RUNNER_TEMP/wukongim-e2e" ./cmd/wukongim
+      - name: Run e2e packages
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-e2e.log
+        run: |
+          set -o pipefail
+          WK_E2E_BINARY="$RUNNER_TEMP/wukongim-e2e" timeout --signal=TERM --kill-after=30s 50m go test -tags=e2e ./test/e2e/... -count=1 -timeout=45m -p=1 2>&1 | tee "$LOG_FILE"
+      - name: Run bounded Cloud Medium recipient gate
+        shell: bash
+        env:
+          LOG_FILE: ${{ runner.temp }}/go-e2e-medium-recipient.log
+          WK_E2E_BINARY: ${{ runner.temp }}/wukongim-e2e
+          WK_E2E_MEDIUM_RECIPIENT_HOTPATH: "1"
+          WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE: "1"
+          WK_E2E_MEDIUM_RECIPIENT_QPS: "500"
+          WK_E2E_MEDIUM_RECIPIENT_CI_SCALE: "1"
+        run: |
+          set -o pipefail
+          timeout --signal=TERM --kill-after=30s 5m \
+            go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+              -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout=4m -p=1 -v 2>&1 |
+            tee "$LOG_FILE"
+      - name: Upload Cloud Medium recipient evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-go-e2e-medium-recipient-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-e2e-medium-recipient.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Upload e2e failure log
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-go-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-e2e.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  three-node-smoke:
+    name: Agent / Three-node smoke
+    if: needs.plan.outputs.three_node_smoke == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      GOWORK: "off"
+      SMOKE_OUT: wkcli-sim-three-node-smoke
+      WK_WUKONGIM_THREE_NODES_PROMETHEUS_ENABLE: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_AUTO_PROMOTE_CONTROLLER_VOTER: "false"
+      WK_WKCLI_SIM_THREE_SMOKE_FAULT_KILL_NODE: "false"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Verify Go toolchain
+        run: test "$(go env GOVERSION)" = "go1.25.11"
+      - name: Run base three-node smoke
+        shell: bash
+        run: |
+          timeout --signal=TERM --kill-after=30s 25m bash scripts/smoke-wkcli-sim-wukongim-three-nodes.sh \
+            --out-dir "$RUNNER_TEMP/$SMOKE_OUT" \
+            --ready-timeout 180
+      - name: Upload allowlisted smoke failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-three-node-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/summary.md
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/cluster.log
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/sim.jsonl
+            ${{ runner.temp }}/${{ env.SMOKE_OUT }}/node-logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  gate:
+    name: Publish Agent validation evidence
+    if: always()
+    needs:
+      - plan
+      - status-pending
+      - go-quality
+      - go-unit
+      - web
+      - demo
+      - go-race
+      - go-integration
+      - go-e2e
+      - three-node-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      actions: write
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Publish the commit-bound gate verdict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          MERGE_SHA: ${{ github.event.client_payload.merge_sha }}
+          GATE_RUN_ID: ${{ github.event.client_payload.gate_run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REQUEST_RUN_ID: ${{ github.event.client_payload.request_run_id }}
+          REQUEST_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.event.client_payload.request_run_id }}
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PENDING_RESULT: ${{ needs.status-pending.result }}
+          SELECT_GO_FAST: ${{ needs.plan.outputs.go_fast }}
+          GO_QUALITY_RESULT: ${{ needs.go-quality.result }}
+          GO_UNIT_RESULT: ${{ needs.go-unit.result }}
+          SELECT_WEB: ${{ needs.plan.outputs.web }}
+          WEB_RESULT: ${{ needs.web.result }}
+          SELECT_DEMO: ${{ needs.plan.outputs.demo }}
+          DEMO_RESULT: ${{ needs.demo.result }}
+          SELECT_GO_RACE: ${{ needs.plan.outputs.go_race }}
+          GO_RACE_RESULT: ${{ needs.go-race.result }}
+          SELECT_GO_INTEGRATION: ${{ needs.plan.outputs.go_integration }}
+          GO_INTEGRATION_RESULT: ${{ needs.go-integration.result }}
+          SELECT_GO_E2E: ${{ needs.plan.outputs.go_e2e }}
+          GO_E2E_RESULT: ${{ needs.go-e2e.result }}
+          SELECT_THREE_NODE_SMOKE: ${{ needs.plan.outputs.three_node_smoke }}
+          THREE_NODE_SMOKE_RESULT: ${{ needs.three-node-smoke.result }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GATE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          state=success
+          description='Selected Agent validation passed'
+          if [[ "$PLAN_RESULT" != success || "$PENDING_RESULT" != success ]]; then
+            state=failure
+            description='Agent validation plan or status binding failed'
+          fi
+          check_result() {
+            local selected="$1"
+            local result="$2"
+            if [[ "$selected" == true && "$result" != success ]]; then
+              state=failure
+              description='One or more selected Agent validations failed'
+            elif [[ "$selected" != true && "$result" != skipped ]]; then
+              state=failure
+              description='An unselected Agent validation ran unexpectedly'
+            fi
+          }
+          check_result "$SELECT_GO_FAST" "$GO_QUALITY_RESULT"
+          check_result "$SELECT_GO_FAST" "$GO_UNIT_RESULT"
+          check_result "$SELECT_WEB" "$WEB_RESULT"
+          check_result "$SELECT_DEMO" "$DEMO_RESULT"
+          check_result "$SELECT_GO_RACE" "$GO_RACE_RESULT"
+          check_result "$SELECT_GO_INTEGRATION" "$GO_INTEGRATION_RESULT"
+          check_result "$SELECT_GO_E2E" "$GO_E2E_RESULT"
+          check_result "$SELECT_THREE_NODE_SMOKE" "$THREE_NODE_SMOKE_RESULT"
+
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" >current-pr.json
+          current_head="$(jq -er '.head.sha' current-pr.json)"
+          current_merge="$(jq -er '.merge_commit_sha' current-pr.json)"
+          should_rerun_gate=true
+          if [[ "$current_head" != "$HEAD_SHA" || "$current_merge" != "$MERGE_SHA" ]]; then
+            state=error
+            description='Agent validation became stale after the PR merge changed'
+            should_rerun_gate=false
+          else
+            gh api --paginate --slurp -X GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/agent-pr-merge-gate.yml/runs" \
+              -f event=pull_request \
+              -f per_page=100 >merge-gate-run-pages.json
+            latest_gate_run_id="$(
+              jq -er \
+                --arg head_sha "$HEAD_SHA" \
+                --arg prefix "Agent PR #${PR_NUMBER} merge gate " \
+                --arg suffix " head ${HEAD_SHA} merge ${MERGE_SHA}" '
+                  [
+                    .[].workflow_runs[]
+                    | select(.event == "pull_request")
+                    | select(.head_sha == $head_sha)
+                    | select(.path == ".github/workflows/agent-pr-merge-gate.yml")
+                    | select(
+                        .display_title == ($prefix + "edited" + $suffix) or
+                        .display_title == ($prefix + "opened" + $suffix) or
+                        .display_title == ($prefix + "reopened" + $suffix) or
+                        .display_title == ($prefix + "synchronize" + $suffix))
+                  ]
+                  | max_by(.id)
+                  | .id
+                ' merge-gate-run-pages.json
+            )"
+            if [[ "$latest_gate_run_id" != "$GATE_RUN_ID" ]]; then
+              state=error
+              description='Agent validation was superseded by a newer gate generation'
+              should_rerun_gate=false
+            fi
+          fi
+          publish_handoff_error() {
+            local exit_code="$?"
+            trap - ERR
+            if [[ "$state" == success ]]; then
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+                -f state=error \
+                -f "context=Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+                -f description='Agent merge-gate handoff failed' \
+                -f target_url="$RUN_URL" >/dev/null || true
+            fi
+            exit "$exit_code"
+          }
+          trap publish_handoff_error ERR
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" \
+            -f "context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+            -f description='Agent validation request consumed' \
+            -f target_url="$REQUEST_RUN_URL" >/dev/null
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" \
+            -f "context=Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+            -f description="$description" \
+            -f target_url="$RUN_URL" >/dev/null
+          if [[ "$should_rerun_gate" == true ]]; then
+            gh api -X POST \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${GATE_RUN_ID}/rerun" \
+              >/dev/null
+          fi
+          {
+            echo '## Agent validation verdict'
+            echo
+            echo "- PR: \`#${PR_NUMBER}\`"
+            echo "- Head SHA: \`${HEAD_SHA}\`"
+            echo "- Test-merge SHA: \`${MERGE_SHA}\`"
+            echo "- State: \`${state}\`"
+            echo "- Description: ${description}"
+            echo "- PR merge-gate run: \`${GATE_RUN_ID}\`"
+          } >>"$GITHUB_STEP_SUMMARY"
+          test "$state" = success
+          trap - ERR

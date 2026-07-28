@@ -1,0 +1,5 @@
+/.github/workflows/ @tangtaoit @No8blackball
+/.github/CODEOWNERS @tangtaoit @No8blackball
+/scripts/github_workflows_test.go @tangtaoit @No8blackball
+/scripts/agent-pr-validation-plan.sh @tangtaoit @No8blackball
+/scripts/agent_pr_validation_plan_test.go @tangtaoit @No8blackball

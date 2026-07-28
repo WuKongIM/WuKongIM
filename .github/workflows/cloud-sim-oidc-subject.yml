@@ -1,4 +1,4 @@
-name: Cloud Simulation - Configure OIDC Subject
+name: Agent Tool - Configure Cloud Simulation OIDC Subject
 run-name: Cloud Simulation OIDC Verification ${{ inputs.verification_id || github.run_id }}
 
 on:

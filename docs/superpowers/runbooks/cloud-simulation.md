@@ -142,8 +142,9 @@ reviewers on billable creation if desired, but never put a required reviewer on
 `cloud-sim-cleanup`; its 15-minute lease reconciliation must remain unattended.
 
 Alibaba RAM accepts only the OIDC `iss`, `aud`, and `sub` condition keys. After
-the manual RAM apply succeeds, manually dispatch `Cloud Simulation - Configure
-OIDC Subject` once from `main` and wait for both jobs to pass. The one-command
+the manual RAM apply succeeds, manually dispatch
+`.github/workflows/cloud-sim-oidc-subject.yml` once from `main` and wait for
+both jobs to pass. The one-command
 setup performs the same API mutation, dispatch, and live identity exchange
 automatically. Both paths configure the repository
 subject as `repo + context + job_workflow_ref`, allowing each RAM `oidc:sub` to
@@ -180,9 +181,9 @@ the Cleanup Workflow proves no remaining run inventory.
 
 ## 2. Provision a run
 
-Dispatch `Cloud Simulation - Provision` from `main`. The source SHA must be a
-40-character commit reachable from `origin/main` when explicitly supplied; an
-empty value selects the current remote `main`. Select a reviewed
+Dispatch `.github/workflows/cloud-sim-provision.yml` from `main`. The source
+SHA must be a 40-character commit reachable from `origin/main` when explicitly
+supplied; an empty value selects the current remote `main`. Select a reviewed
 `cloud-small`, `cloud-medium`, or `cloud-large` scenario, a compatible
 `small`, `medium`, or `large` infrastructure preset, `30m`, `2h`, `24h`,
 `48h`, or `168h` active duration, `2h` or `6h` analysis grace, and a hard CNY
@@ -279,11 +280,11 @@ join and independent released-state proof keep their whole-operation deadlines
 as the local backstop.
 
 The local command first dispatches a request-correlated, read-only `inspect`
-operation to `Cloud Simulation - Analysis Session`. The workflow resolves the
-unique 90-day Run Locator and compares it to current Alibaba inventory. Before empty inventory
-can mean `released`, STS verifies the current Alibaba caller's account hash
-and the adapter verifies the exact region against the locator; stale or
-cross-account configuration fails closed.
+operation to `.github/workflows/cloud-sim-analyze.yml`. The workflow resolves
+the unique 90-day Run Locator and compares it to current Alibaba inventory.
+Before empty inventory can mean `released`, STS verifies the current Alibaba
+caller's account hash and the adapter verifies the exact region against the
+locator; stale or cross-account configuration fails closed.
 
 - A missing or ambiguous locator reports `unknown_run`.
 - A valid locator plus empty provider inventory reports `released`, prints
@@ -358,10 +359,11 @@ operation if the validated diagnosis requires a product fix.
 
 ## 4. Destroy or sweep
 
-`Cloud Simulation - Cleanup` runs every 15 minutes. A manual dispatch with an
-exact Run Identity performs protected early destruction. Success means the
-adapter listed all supported tagged resource types after deletion and found
-zero residual resources; a remaining billable resource fails the workflow.
+`.github/workflows/cloud-sim-cleanup.yml` runs every 15 minutes. A manual
+dispatch with an exact Run Identity performs protected early destruction.
+Success means the adapter listed all supported tagged resource types after
+deletion and found zero residual resources; a remaining billable resource
+fails the workflow.
 
 The GitHub broker, provision, manual cleanup, and scheduled sweep share one
 repository-wide concurrency group. After the broker finishes, the local

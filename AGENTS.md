@@ -52,7 +52,7 @@
 
 .github/
   cloud-sim/              云模拟 bootstrap 示例、工具链版本与 Diagnosis JSON Schema
-  workflows/              PR/main 快速门禁与 nightly/manual 重型验证
+  workflows/              Agent 可调用验证工具、自主安全自动化及其调用目录
 
 cmd/
   wukongim/              官方产品入口，负责读取配置并启动 internal/app
@@ -241,3 +241,9 @@ learn_project/           调研/实验代码，非主执行路径
 
 - 发现重要的项目规则或业务知识时，记录到：**`docs/development/PROJECT_KNOWLEDGE.md`** 记录的内容需要简单，清晰，明确 不要啰嗦，保持整个文档内容不要太多
 - 在做任务过程中发现一些与此任务无关的代码质量问题可以先记录到 **`docs/development/CODE_QUALITY.md`** 然后继续任务不要中断当前任务
+
+## GitHub Actions tools
+
+GitHub Actions are Agent-callable tools or explicit safety automations. Before
+invoking or changing one, read `.github/workflows/README.md` and follow its
+authorization, validation-plan, label, retry, and monitoring contracts.
