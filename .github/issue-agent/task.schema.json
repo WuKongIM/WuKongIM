@@ -1,0 +1,174 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "issue_number": {
+      "type": "integer"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_id": {
+      "type": "string"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "checkpoint_digest": {
+      "type": "string"
+    },
+    "policy_digest": {
+      "type": "string"
+    },
+    "prompt_digest": {
+      "type": "string"
+    },
+    "affected_sha": {
+      "type": "string"
+    },
+    "diagnosis_base_sha": {
+      "type": "string"
+    },
+    "frozen_issue": {
+      "type": "string"
+    },
+    "accepted_comment_ids": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "integer"
+      }
+    },
+    "instruction_digests": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "allowed_paths": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowed_commands": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "executable": {
+            "type": "string"
+          },
+          "argv_prefix": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "max_args": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "executable",
+          "argv_prefix",
+          "max_args"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "wall_time": {
+          "type": "integer"
+        },
+        "max_output_bytes": {
+          "type": "integer"
+        },
+        "max_files": {
+          "type": "integer"
+        },
+        "max_total_bytes": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "wall_time",
+        "max_output_bytes",
+        "max_files",
+        "max_total_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "provider": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/task-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent task v1",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "generation",
+    "sequence",
+    "operation_id",
+    "phase",
+    "checkpoint_digest",
+    "policy_digest",
+    "prompt_digest",
+    "affected_sha",
+    "diagnosis_base_sha",
+    "frozen_issue",
+    "accepted_comment_ids",
+    "instruction_digests",
+    "allowed_paths",
+    "allowed_commands",
+    "limits",
+    "provider",
+    "model"
+  ],
+  "additionalProperties": false
+}

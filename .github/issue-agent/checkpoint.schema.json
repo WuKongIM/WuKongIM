@@ -1,0 +1,225 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "key_id": {
+      "type": "string"
+    },
+    "checkpoint": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "issue_number": {
+          "type": "integer"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_previous_checkpoint_id": {
+          "type": [
+            "null",
+            "integer"
+          ]
+        },
+        "previous_checkpoint_sha256": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
+        "state": {
+          "type": "string"
+        },
+        "frozen_input": {
+          "type": "object",
+          "properties": {
+            "issue_body_sha256": {
+              "type": "string"
+            },
+            "affected_version": {
+              "type": "string"
+            },
+            "accepted_comment_ids": {
+              "type": [
+                "null",
+                "array"
+              ],
+              "items": {
+                "type": "integer"
+              }
+            },
+            "authorization_event": {
+              "type": "string"
+            },
+            "authorized_by": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "issue_body_sha256",
+            "affected_version",
+            "accepted_comment_ids",
+            "authorization_event",
+            "authorized_by"
+          ],
+          "additionalProperties": false
+        },
+        "versions": {
+          "type": "object",
+          "properties": {
+            "reported_ref": {
+              "type": "string"
+            },
+            "affected_sha": {
+              "type": "string"
+            },
+            "diagnosis_base_sha": {
+              "type": "string"
+            },
+            "integration_base_sha": {
+              "type": [
+                "null",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "reported_ref",
+            "affected_sha",
+            "diagnosis_base_sha",
+            "integration_base_sha"
+          ],
+          "additionalProperties": false
+        },
+        "lease": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "reproduction": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "work": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "diagnosis": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "validation": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "reproduction_attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "remediation_attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "ci_repair_attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "infrastructure_attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "worker_seconds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "reproduction_attempts",
+            "remediation_attempts",
+            "ci_repair_attempts",
+            "infrastructure_attempts",
+            "worker_seconds"
+          ],
+          "additionalProperties": false
+        },
+        "model": {
+          "type": [
+            "null",
+            "object"
+          ],
+          "additionalProperties": false
+        },
+        "next_action": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "repository",
+        "issue_number",
+        "generation",
+        "sequence",
+        "expected_previous_checkpoint_id",
+        "previous_checkpoint_sha256",
+        "state",
+        "frozen_input",
+        "versions",
+        "lease",
+        "reproduction",
+        "work",
+        "diagnosis",
+        "validation",
+        "budget",
+        "model",
+        "next_action"
+      ],
+      "additionalProperties": false
+    },
+    "signature": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/checkpoint-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent checkpoint v1",
+  "required": [
+    "schema_version",
+    "key_id",
+    "checkpoint",
+    "signature"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,208 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "issue_number": {
+      "type": "integer"
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation_id": {
+      "type": "string"
+    },
+    "phase": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "requested_state": {
+      "type": "string"
+    },
+    "requested_action": {
+      "type": "string"
+    },
+    "change_set": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "content": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 255
+                }
+              }
+            },
+            "required": [
+              "path",
+              "operation"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "artifact_sha256": {
+          "type": "string"
+        },
+        "commands": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "executable": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "working_dir": {
+                "type": "string"
+              },
+              "exit_code": {
+                "type": "integer"
+              },
+              "stdout_sha256": {
+                "type": "string"
+              },
+              "stderr_sha256": {
+                "type": "string"
+              },
+              "duration_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "executable",
+              "arguments",
+              "working_dir",
+              "exit_code",
+              "stdout_sha256",
+              "stderr_sha256",
+              "duration_ms"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "artifact_sha256",
+        "commands"
+      ],
+      "additionalProperties": false
+    },
+    "usage": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "input_tokens",
+        "output_tokens"
+      ],
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "class": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "class",
+        "summary"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/result-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent result v1",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "generation",
+    "sequence",
+    "operation_id",
+    "phase",
+    "status",
+    "requested_state",
+    "requested_action",
+    "change_set",
+    "evidence",
+    "usage",
+    "failure"
+  ],
+  "additionalProperties": false
+}
