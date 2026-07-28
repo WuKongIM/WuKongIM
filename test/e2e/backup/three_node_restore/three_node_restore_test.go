@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/hashslot"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
@@ -733,15 +734,21 @@ func exerciseRepositoryIntegrityRepair(
 		t, cluster, token, root, "primary",
 		"backup-e2e-primary-repository-repair", repairTimeout,
 	)
-	exerciseSingleRepositoryIntegrityRepair(
+	barrierPublication := exerciseSingleRepositoryIntegrityRepair(
 		t, cluster, token, root, "secondary",
 		"backup-e2e-secondary-repository-repair", repairTimeout,
 	)
+	barrierHead, err := backupusecase.DecodeCatalogHeadToken(
+		barrierPublication.CatalogHeadToken,
+	)
+	require.NoError(t, err)
 	// Integrity audit cycles are bound to one immutable catalog window. Let the
-	// cycle containing both single-copy repairs finish before publishing the
-	// dual-copy fault, so the next cycle must include that exact new segment.
-	waitForIntegrityAuditCycleComplete(
-		t, cluster, token, 3*time.Second, repairTimeout,
+	// cycle containing both single-copy repairs cover the final published
+	// catalog page before publishing the dual-copy fault. This durable cursor
+	// barrier is independent of process-local metric projection and Leader
+	// changes.
+	waitForIntegrityAuditCatalogBarrier(
+		t, cluster, token, barrierHead.Sequence, repairTimeout,
 	)
 
 	frontiers := backupDurableFrontiers(t, cluster, token)
@@ -815,7 +822,7 @@ func exerciseSingleRepositoryIntegrityRepair(
 	repository string,
 	channelID string,
 	timeout time.Duration,
-) {
+) checkpointPublication {
 	t.Helper()
 	beforeCorruptions := backupMetricTotal(
 		t, cluster, "wukongim_backup_audit_corruptions_total",
@@ -861,7 +868,7 @@ func exerciseSingleRepositoryIntegrityRepair(
 		nil, beforeRepairBytes, timeout,
 	)
 	waitForBackupHealthy(t, cluster, token, timeout)
-	_ = publishCheckpointEventually(t, cluster, token, timeout)
+	return publishCheckpointEventually(t, cluster, token, timeout)
 }
 
 func setRepositoryCorruption(
@@ -1031,54 +1038,94 @@ func waitForBackupMetricIncrease(
 	)
 }
 
-func waitForIntegrityAuditCycleComplete(
+func waitForIntegrityAuditCatalogBarrier(
 	t *testing.T,
 	cluster *suite.StartedCluster,
 	token string,
-	stableFor time.Duration,
+	catalogSequence uint64,
 	timeout time.Duration,
 ) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
-	stableSince := time.Time{}
-	var stableLeader uint64
-	var lastLeader uint64
-	var lastDebt float64
+	var last backupStatus
 	var lastErr error
 	for time.Now().Before(deadline) {
-		var nodes managerNodesResponse
+		last = backupStatus{}
 		lastErr = managerRequestError(
-			cluster, token, http.MethodGet, "/manager/nodes", nil, &nodes,
+			cluster, token, http.MethodGet, "/manager/backups/status", nil, &last,
 		)
-		lastLeader = nodes.ControllerLeaderID
-		if lastErr != nil || lastLeader == 0 {
-			stableSince = time.Time{}
-			time.Sleep(100 * time.Millisecond)
-			continue
+		if lastErr == nil &&
+			integrityAuditReachedCatalogBarrier(
+				last.IntegrityAudit, catalogSequence,
+			) {
+			return
 		}
-		node := cluster.MustNode(lastLeader)
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		lastDebt, lastErr = suite.FetchMetricValue(
-			ctx, node.APIAddr(), "wukongim_backup_audit_debt_objects", nil,
-		)
-		cancel()
-		if lastErr == nil && lastDebt == 0 {
-			if stableSince.IsZero() || stableLeader != lastLeader {
-				stableSince = time.Now()
-				stableLeader = lastLeader
-			} else if time.Since(stableSince) >= stableFor {
-				return
-			}
-		} else {
-			stableSince = time.Time{}
-			stableLeader = 0
-		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 	}
 	t.Fatalf(
-		"integrity audit cycle did not become complete: leader=%d debt=%v err=%v\n%s",
-		lastLeader, lastDebt, lastErr, cluster.DumpDiagnostics(),
+		"integrity audit did not cover catalog sequence %d: audit=%+v err=%v\n%s",
+		catalogSequence, last.IntegrityAudit, lastErr,
+		cluster.DumpDiagnostics(),
 	)
+}
+
+func integrityAuditReachedCatalogBarrier(
+	audit backupIntegrityAudit,
+	catalogSequence uint64,
+) bool {
+	return audit.Cursor != nil &&
+		audit.Cursor.Phase == "complete" &&
+		audit.Cursor.CatalogSequence >= catalogSequence
+}
+
+func TestIntegrityAuditReachedCatalogBarrier(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name     string
+		cursor   *backupIntegrityAuditCursor
+		sequence uint64
+		want     bool
+	}{
+		{name: "missing cursor", sequence: 4},
+		{
+			name: "active covering cycle",
+			cursor: &backupIntegrityAuditCursor{
+				Phase: "inspect", CatalogSequence: 4,
+			},
+			sequence: 4,
+		},
+		{
+			name: "completed older cycle",
+			cursor: &backupIntegrityAuditCursor{
+				Phase: "complete", CatalogSequence: 3,
+			},
+			sequence: 4,
+		},
+		{
+			name: "completed exact cycle",
+			cursor: &backupIntegrityAuditCursor{
+				Phase: "complete", CatalogSequence: 4,
+			},
+			sequence: 4, want: true,
+		},
+		{
+			name: "completed newer cycle",
+			cursor: &backupIntegrityAuditCursor{
+				Phase: "complete", CatalogSequence: 5,
+			},
+			sequence: 4, want: true,
+		},
+	} {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			got := integrityAuditReachedCatalogBarrier(
+				backupIntegrityAudit{Cursor: testCase.cursor},
+				testCase.sequence,
+			)
+			require.Equal(t, testCase.want, got)
+		})
+	}
 }
 
 func backupMetricTotal(
@@ -1531,11 +1578,15 @@ func localBackupNodeEnvironment(nodeID uint64, root string) suite.Option {
 }
 
 func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[string]string {
+	captureReconcileInterval := "200ms"
 	auditInterval := "500ms"
 	if qualification.FileRoot != "" {
-		// Local file I/O can advance the one-artifact audit state machine much
-		// faster without applying that request rate to production object stores.
-		auditInterval = "10ms"
+		// The coordinator wakes maintenance only on capture reconciliation
+		// ticks. Keep both local intervals aligned so the one-artifact audit
+		// state machine advances quickly without applying that request rate to
+		// production object stores.
+		captureReconcileInterval = "25ms"
+		auditInterval = captureReconcileInterval
 	}
 	return map[string]string{
 		"WK_BACKUP_ENABLED":                             "true",
@@ -1543,7 +1594,7 @@ func sourceBackupConfig(qualification storageQualification, nodeID uint64) map[s
 		"WK_BACKUP_REPOSITORY_ID":                       qualification.RepositoryID,
 		"WK_BACKUP_SOURCE_GENERATION":                   qualification.SourceGeneration,
 		"WK_BACKUP_STAGING_DIR":                         qualificationStagingDir(qualification, "source", nodeID),
-		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          "200ms",
+		"WK_BACKUP_CAPTURE_RECONCILE_INTERVAL":          captureReconcileInterval,
 		"WK_BACKUP_CHECKPOINT_INTERVAL":                 "1h",
 		"WK_BACKUP_BASELINE_CHUNK_BYTES":                "1048576",
 		"WK_BACKUP_TARGET_SEGMENT_BYTES":                "1048576",
