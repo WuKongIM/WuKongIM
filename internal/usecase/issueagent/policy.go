@@ -43,6 +43,12 @@ type RepositoryBudget struct {
 	MaxStartedWorkerTime time.Duration
 }
 
+// WorkerReservation is the fixed lease shape for one Worker phase.
+type WorkerReservation struct {
+	Duration time.Duration
+	Heavy    bool
+}
+
 // ProviderPolicy contains non-secret Adapter selection configuration.
 type ProviderPolicy struct {
 	Provider           issueagentcontract.Provider `json:"provider"`
@@ -259,6 +265,77 @@ func ValidatePolicy(policy Policy) error {
 	}
 	if _, ok := seenProviders[policy.DefaultProvider]; !ok {
 		return errors.New("default provider is not configured")
+	}
+	return nil
+}
+
+// AllowsReproduction reports whether protected rollout permits no-fix E2E
+// reproduction.
+func AllowsReproduction(policy Policy) bool {
+	if !policy.Enabled {
+		return false
+	}
+	switch policy.RolloutMode {
+	case RolloutReproduction, RolloutRemediation, RolloutGeneral:
+		return true
+	default:
+		return false
+	}
+}
+
+// AllowsAutomatedRemediation applies the protected rollout allowlist.
+func AllowsAutomatedRemediation(policy Policy, issueNumber int64) bool {
+	return policy.Enabled && issueNumber > 0 &&
+		(policy.RolloutMode == RolloutGeneral ||
+			policy.RolloutMode == RolloutRemediation &&
+				slices.Contains(policy.RemediationIssueAllowlist, issueNumber))
+}
+
+// WorkerReservationForPhase returns the closed lease duration and weight.
+func WorkerReservationForPhase(
+	phase issueagentcontract.Phase,
+) (WorkerReservation, error) {
+	switch phase {
+	case issueagentcontract.PhaseReproduce:
+		return WorkerReservation{Duration: 95 * time.Minute, Heavy: true}, nil
+	case issueagentcontract.PhaseDiagnose:
+		return WorkerReservation{Duration: 65 * time.Minute}, nil
+	case issueagentcontract.PhaseFix, issueagentcontract.PhaseAddressReview:
+		return WorkerReservation{Duration: 95 * time.Minute, Heavy: true}, nil
+	default:
+		return WorkerReservation{}, errors.New("unsupported Worker reservation phase")
+	}
+}
+
+// CheckIssueWorkerBudget applies cumulative time and phase-attempt budgets
+// before a task is leased.
+func CheckIssueWorkerBudget(
+	checkpoint issueagentcontract.Checkpoint,
+	policy Policy,
+	phase issueagentcontract.Phase,
+) error {
+	reservation, err := WorkerReservationForPhase(phase)
+	if err != nil {
+		return err
+	}
+	var attempts uint32
+	var maxAttempts int
+	switch phase {
+	case issueagentcontract.PhaseReproduce:
+		attempts = checkpoint.Budget.ReproductionAttempts
+		maxAttempts = policy.IssueBudget.MaxReproductionAttempts
+	case issueagentcontract.PhaseFix, issueagentcontract.PhaseAddressReview:
+		attempts = checkpoint.Budget.RemediationAttempts
+		maxAttempts = policy.IssueBudget.MaxRemediationAttempts
+	}
+	if maxAttempts > 0 && int(attempts) >= maxAttempts {
+		return errors.New("per-Issue Worker attempt budget is exhausted")
+	}
+	maxSeconds := uint64(policy.IssueBudget.MaxWorkerTime / time.Second)
+	reservedSeconds := uint64(reservation.Duration / time.Second)
+	if maxSeconds == 0 || checkpoint.Budget.WorkerSeconds > maxSeconds ||
+		reservedSeconds > maxSeconds-checkpoint.Budget.WorkerSeconds {
+		return errors.New("per-Issue Worker-time budget is exhausted")
 	}
 	return nil
 }

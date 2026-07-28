@@ -120,6 +120,8 @@ func (worker *Worker) Run(ctx context.Context) (Artifact, error) {
 		AllowedWritePaths: allowedWrites,
 		AllowedCommands:   worker.config.Task.AllowedCommands,
 		MaxFileBytes:      worker.config.Task.Limits.MaxFileBytes,
+		MaxFiles:          worker.config.Task.Limits.MaxFiles,
+		MaxTotalBytes:     worker.config.Task.Limits.MaxTotalBytes,
 		MaxOutputBytes:    worker.config.Task.Limits.MaxOutputBytes,
 	}, worker.config.Runner)
 	if err != nil {

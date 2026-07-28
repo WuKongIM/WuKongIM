@@ -110,6 +110,14 @@ func ValidateCheckpointSuccessor(previous, next Checkpoint) error {
 	if err := validateWorkSuccessor(previous.Work, next.Work); err != nil {
 		return err
 	}
+	if previous.Work != nil && next.Work != nil &&
+		previous.Work.ExternalHeadSHA == nil &&
+		next.Work.ExternalHeadSHA != nil &&
+		(next.State != StateReadyForHuman ||
+			next.NextAction != ActionWaitForHuman ||
+			next.Validation != nil) {
+		return errors.New("external Agent head was recorded outside human handoff")
+	}
 	if previous.Diagnosis != nil &&
 		!reflect.DeepEqual(previous.Diagnosis, next.Diagnosis) {
 		return errors.New("diagnosis changed within a generation")
@@ -162,6 +170,11 @@ func adoptDomainPreserved(previous Checkpoint, next Checkpoint) bool {
 	if previous.Work == nil || next.Work == nil ||
 		previous.Work.Branch != next.Work.Branch ||
 		previous.Work.PRNumber != next.Work.PRNumber ||
+		previous.Work.MechanicalRebaseAttempts !=
+			next.Work.MechanicalRebaseAttempts ||
+		next.Work.ExternalHeadSHA != nil ||
+		(previous.Work.ExternalHeadSHA != nil &&
+			*previous.Work.ExternalHeadSHA != next.Work.HeadSHA) ||
 		next.Validation != nil {
 		return false
 	}
@@ -194,6 +207,21 @@ func validateWorkSuccessor(previous, next *Work) error {
 	}
 	if next == nil || previous.Branch != next.Branch {
 		return errors.New("Agent work branch changed or disappeared")
+	}
+	if next.MechanicalRebaseAttempts < previous.MechanicalRebaseAttempts ||
+		next.MechanicalRebaseAttempts > previous.MechanicalRebaseAttempts+1 {
+		return errors.New("Agent mechanical rebase attempts are not monotonic")
+	}
+	switch {
+	case previous.ExternalHeadSHA == nil && next.ExternalHeadSHA != nil:
+		if previous.HeadSHA != next.HeadSHA {
+			return errors.New("external Agent head observation rewrote the trusted head")
+		}
+	case previous.ExternalHeadSHA != nil && next.ExternalHeadSHA == nil:
+		return errors.New("external Agent head observation disappeared")
+	case previous.ExternalHeadSHA != nil && next.ExternalHeadSHA != nil &&
+		*previous.ExternalHeadSHA != *next.ExternalHeadSHA:
+		return errors.New("external Agent head observation changed")
 	}
 	if previous.PRNumber > 0 && previous.PRNumber != next.PRNumber {
 		return errors.New("Agent pull request identity changed")

@@ -112,9 +112,14 @@ func hardenIssueAgentSchema(schema *jsonschema.Schema) {
 			setMaxLength(property, 256)
 		case "issue_number", "generation", "sequence",
 			"expected_previous_checkpoint_id", "run_id", "artifact_run_id",
-			"pr_number", "request_run_id", "evidence_run_id",
+			"request_run_id", "evidence_run_id",
 			"gate_generation", "reserved_seconds":
 			setMinimum(property, 1)
+		case "pr_number":
+			setMinimum(property, 0)
+		case "mechanical_rebase_attempts":
+			setMinimum(property, 0)
+			setMaximum(property, 1)
 		case "state", "requested_state":
 			property.Enum = stringValues(
 				"awaiting_triage", "needs_info", "authorized", "version_pinned",
@@ -190,6 +195,10 @@ func hardenIssueAgentSchema(schema *jsonschema.Schema) {
 
 func setMinimum(schema *jsonschema.Schema, value float64) {
 	schema.Minimum = &value
+}
+
+func setMaximum(schema *jsonschema.Schema, value float64) {
+	schema.Maximum = &value
 }
 
 func setMaxLength(schema *jsonschema.Schema, value int) {

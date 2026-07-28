@@ -22,6 +22,7 @@ type DriftFacts struct {
 	ExpectedAgentHead string
 	CurrentAgentHead  string
 	CurrentMainSHA    string
+	MechanicalTreeSHA string
 	MainRuns          []RunObservation
 	AssertionSHA256   string
 	Topology          string
@@ -50,6 +51,9 @@ func PlanDriftRecovery(facts DriftFacts) (DriftDecision, error) {
 		for _, run := range facts.MainRuns {
 			if run.SourceSHA != facts.CurrentMainSHA ||
 				run.Outcome != RunPassed ||
+				run.RunID <= 0 ||
+				!scheduleDigestPattern.MatchString(run.BinarySHA256) ||
+				!scheduleDigestPattern.MatchString(run.CommandSHA256) ||
 				run.AssertionSHA256 != facts.AssertionSHA256 ||
 				run.Topology != facts.Topology {
 				return DriftNone, errors.New("moving-main E2E evidence is inconsistent")
@@ -61,6 +65,9 @@ func PlanDriftRecovery(facts DriftFacts) (DriftDecision, error) {
 	case "":
 		return DriftNone, nil
 	case "mechanical":
+		if !fullCommitPattern.MatchString(facts.MechanicalTreeSHA) {
+			return DriftNone, errors.New("mechanical drift lacks an exact merge tree")
+		}
 		if facts.ConflictAttempts == 0 {
 			return DriftMechanicalRebase, nil
 		}

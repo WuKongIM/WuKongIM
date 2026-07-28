@@ -3,11 +3,13 @@ package issueagentgithub_test
 import (
 	"context"
 	"crypto/sha1" // #nosec G505 -- test verifies Git blob identity.
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
@@ -64,7 +66,8 @@ func TestGitDatabasePublishesGitHubSignedExpectedHeadCommit(t *testing.T) {
 		case request.Method == http.MethodGet &&
 			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/commits/"+commit:
 			writeJSON(t, writer, map[string]any{
-				"sha": commit, "tree": map[string]any{"sha": tree},
+				"sha": commit, "message": "fix(agent): issue #42",
+				"tree":         map[string]any{"sha": tree},
 				"parents":      []map[string]any{{"sha": parent}},
 				"verification": map[string]any{"verified": true, "reason": "valid"},
 			})
@@ -90,7 +93,8 @@ func TestGitDatabasePublishesGitHubSignedExpectedHeadCommit(t *testing.T) {
 		issueagentgithub.CommitPlan{
 			Branch: "agent/issue-42", ExpectedParentSHA: parent,
 			BaseTreeSHA: baseTree, Message: "fix(agent): issue #42",
-			ExistingBranch: false,
+			ExpectedResultTreeSHA: tree,
+			ExistingBranch:        false,
 			ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
 				Path: "pkg/example/fix.go", Operation: issueagent.FileOperationUpsert,
 				Mode:          issueagent.FileModeRegular,
@@ -100,6 +104,58 @@ func TestGitDatabasePublishesGitHubSignedExpectedHeadCommit(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, commit, published.CommitSHA)
+	require.True(t, issueagentgithub.ExactRebasedIntegration(
+		issueagentgithub.CommitFacts{
+			SHA: commit, TreeSHA: tree, Parents: []string{parent},
+			Message:  "fix(agent): issue #42",
+			Verified: true, VerificationReason: "valid",
+		},
+		issueagentgithub.CommitAttributionFacts{
+			SHA: commit, AuthorLogin: "issue-agent[bot]", AuthorType: "Bot",
+			SignatureValid: true, SignatureState: "VALID",
+			WasSignedByGitHub: true,
+		},
+		parent, tree, "fix(agent): issue #42", "issue-agent[bot]",
+	))
+	require.False(t, issueagentgithub.ExactAppCommit(
+		issueagentgithub.CommitFacts{
+			SHA: commit, TreeSHA: tree, Parents: []string{parent},
+			Message:  "externally selected message",
+			Verified: true, VerificationReason: "valid",
+		},
+		issueagentgithub.CommitAttributionFacts{
+			SHA: commit, AuthorLogin: "issue-agent[bot]", AuthorType: "Bot",
+			SignatureValid: true, SignatureState: "VALID",
+			WasSignedByGitHub: true,
+		},
+		parent, "fix(agent): issue #42", "issue-agent[bot]",
+	))
+	require.False(t, issueagentgithub.ExactRebasedIntegration(
+		issueagentgithub.CommitFacts{
+			SHA: commit, TreeSHA: tree, Parents: []string{parent},
+			Message:  "fix(agent): issue #42",
+			Verified: false, VerificationReason: "unsigned",
+		},
+		issueagentgithub.CommitAttributionFacts{
+			SHA: commit, AuthorLogin: "issue-agent[bot]", AuthorType: "Bot",
+			SignatureValid: true, SignatureState: "VALID",
+			WasSignedByGitHub: true,
+		},
+		parent, tree, "fix(agent): issue #42", "issue-agent[bot]",
+	))
+	require.False(t, issueagentgithub.ExactRebasedIntegration(
+		issueagentgithub.CommitFacts{
+			SHA: commit, TreeSHA: tree, Parents: []string{parent},
+			Message:  "fix(agent): issue #42",
+			Verified: true, VerificationReason: "valid",
+		},
+		issueagentgithub.CommitAttributionFacts{
+			SHA: commit, AuthorLogin: "other-writer", AuthorType: "User",
+			SignatureValid: true, SignatureState: "VALID",
+			WasSignedByGitHub: true,
+		},
+		parent, tree, "fix(agent): issue #42", "issue-agent[bot]",
+	))
 	input := mutationInput["variables"].(map[string]any)["input"].(map[string]any)
 	require.Equal(t, parent, input["expectedHeadOid"])
 	require.Equal(t, "agent/issue-42", input["branch"].(map[string]any)["branchName"])
@@ -156,7 +212,8 @@ func TestGitDatabaseRejectsGraphQLErrorAndUnverifiedCommit(t *testing.T) {
 				case request.Method == http.MethodGet &&
 					request.URL.Path == "/repos/WuKongIM/WuKongIM/git/commits/"+commit:
 					writeJSON(t, writer, map[string]any{
-						"sha": commit, "tree": map[string]any{"sha": fortyHex("d")},
+						"sha": commit, "message": "fix",
+						"tree":    map[string]any{"sha": fortyHex("d")},
 						"parents": []map[string]any{{"sha": parent}},
 						"verification": map[string]any{
 							"verified": false, "reason": "unsigned",
@@ -185,6 +242,168 @@ func TestGitDatabaseRejectsGraphQLErrorAndUnverifiedCommit(t *testing.T) {
 		})
 	}
 }
+
+func TestMechanicalRebaseUsesAppSignedMainParentAndAtomicRefSwap(t *testing.T) {
+	t.Parallel()
+
+	oldHead := fortyHex("a")
+	mainSHA := fortyHex("b")
+	mainTree := fortyHex("c")
+	resultTree := fortyHex("d")
+	candidate := fortyHex("e")
+	content := []byte("package exact\n")
+	blob := testGitBlobSHA(content)
+	plan := issueagentgithub.RebasePlan{
+		Branch: "agent/issue-42", ExpectedOldHeadSHA: oldHead,
+		CurrentMainSHA: mainSHA, ExpectedResultTreeSHA: resultTree,
+		Message:             "chore(agent): rebase issue #42",
+		ExpectedAuthorLogin: "issue-agent[bot]",
+		ChangeSet: issueagent.ChangeSet{Files: []issueagent.FileChange{{
+			Path: "pkg/exact/fix.go", Operation: issueagent.FileOperationUpsert,
+			Mode:          issueagent.FileModeRegular,
+			ContentBase64: issueagent.EncodeFileContent(content),
+		}}},
+	}
+	encodedPlan, err := json.Marshal(plan)
+	require.NoError(t, err)
+	planDigest := sha256.Sum256(encodedPlan)
+	stageBranch := "agent/issue-42-rebase-" + hex.EncodeToString(planDigest[:])
+	agentSHA := oldHead
+	stageSHA := ""
+	updateInputs := make([]map[string]any, 0, 2)
+
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodPost && request.URL.Path == "/graphql":
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
+			query := body["query"].(string)
+			switch {
+			case strings.Contains(query, "object(oid:$oid)"):
+				writeJSON(t, writer, map[string]any{"data": map[string]any{
+					"repository": map[string]any{
+						"nameWithOwner": "WuKongIM/WuKongIM",
+						"object": map[string]any{
+							"oid": candidate,
+							"signature": map[string]any{
+								"isValid": true, "state": "VALID",
+								"wasSignedByGitHub": true,
+							},
+						},
+					},
+				}})
+			case strings.HasPrefix(query, "query("):
+				writeJSON(t, writer, map[string]any{"data": map[string]any{
+					"repository": map[string]any{
+						"id": "R_repo", "nameWithOwner": "WuKongIM/WuKongIM",
+					},
+				}})
+			case strings.Contains(query, "updateRefs"):
+				input := body["variables"].(map[string]any)["input"].(map[string]any)
+				updateInputs = append(updateInputs, input)
+				updates := input["refUpdates"].([]any)
+				if len(updates) == 1 {
+					stageSHA = mainSHA
+				} else {
+					require.Len(t, updates, 2)
+					agentSHA = candidate
+					stageSHA = ""
+				}
+				writeJSON(t, writer, map[string]any{"data": map[string]any{
+					"updateRefs": map[string]any{},
+				}})
+			case strings.Contains(query, "createCommitOnBranch"):
+				stageSHA = candidate
+				writeJSON(t, writer, map[string]any{"data": map[string]any{
+					"createCommitOnBranch": map[string]any{
+						"commit": map[string]any{"oid": candidate},
+					},
+				}})
+			default:
+				t.Fatalf("unexpected GraphQL operation: %s", query)
+			}
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/ref/heads/"+stageBranch:
+			if stageSHA == "" {
+				writer.WriteHeader(http.StatusNotFound)
+				writeJSON(t, writer, map[string]any{})
+				return
+			}
+			writeJSON(t, writer, map[string]any{
+				"ref": "refs/heads/" + stageBranch,
+				"object": map[string]any{
+					"type": "commit", "sha": stageSHA,
+				},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/ref/heads/agent/issue-42":
+			writeJSON(t, writer, map[string]any{
+				"ref": "refs/heads/agent/issue-42",
+				"object": map[string]any{
+					"type": "commit", "sha": agentSHA,
+				},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/commits/"+mainSHA:
+			writeJSON(t, writer, map[string]any{
+				"sha": mainSHA, "tree": map[string]any{"sha": mainTree},
+				"parents":      []map[string]any{{"sha": fortyHex("0")}},
+				"verification": map[string]any{"verified": true, "reason": "valid"},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/commits/"+candidate:
+			writeJSON(t, writer, map[string]any{
+				"sha": candidate, "message": "chore(agent): rebase issue #42",
+				"tree":         map[string]any{"sha": resultTree},
+				"parents":      []map[string]any{{"sha": mainSHA}},
+				"verification": map[string]any{"verified": true, "reason": "valid"},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/commits/"+candidate:
+			writeJSON(t, writer, map[string]any{
+				"sha": candidate,
+				"author": map[string]any{
+					"login": "issue-agent[bot]", "type": "Bot",
+				},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/compare/"+mainSHA+"..."+candidate:
+			writeJSON(t, writer, map[string]any{
+				"status": "ahead", "ahead_by": 1, "behind_by": 0,
+				"total_commits": 1,
+				"files": []map[string]any{{
+					"filename": "pkg/exact/fix.go",
+					"status":   "added", "sha": blob,
+				}},
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	published, err := client.PublishRebasedCommit(context.Background(), plan)
+	require.NoError(t, err)
+	require.Equal(t, candidate, published.CommitSHA)
+	require.Len(t, updateInputs, 2)
+	create := updateInputs[0]["refUpdates"].([]any)[0].(map[string]any)
+	require.Equal(t, zeroOIDForTest, create["beforeOid"])
+	require.Equal(t, mainSHA, create["afterOid"])
+	require.Equal(t, false, create["force"])
+	swap := updateInputs[1]["refUpdates"].([]any)
+	require.Equal(t, oldHead, swap[0].(map[string]any)["beforeOid"])
+	require.Equal(t, candidate, swap[0].(map[string]any)["afterOid"])
+	require.Equal(t, true, swap[0].(map[string]any)["force"])
+	require.Equal(t, candidate, swap[1].(map[string]any)["beforeOid"])
+	require.Equal(t, zeroOIDForTest, swap[1].(map[string]any)["afterOid"])
+}
+
+const zeroOIDForTest = "0000000000000000000000000000000000000000"
 
 func testGitBlobSHA(content []byte) string {
 	hasher := sha1.New() // #nosec G401 -- test verifies Git blob identity.

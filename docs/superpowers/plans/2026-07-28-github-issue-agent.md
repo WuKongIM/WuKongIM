@@ -1442,8 +1442,16 @@ Prove:
   records `already_fixed`;
 - Issue remains open for maintainer closure;
 - one mechanical conflict attempt is allowed;
+- its rebuilt commit has current `main` as parent, the exact merge-result tree,
+  a verified App Bot author, and reaches the PR branch only through an atomic
+  `updateRefs.beforeOid` swap;
 - semantic conflict enters `ready_for_human`;
 - an external branch write is never overwritten;
+- execution, Artifact publication, and reconciliation all fence active Agent
+  head/PR facts; a complete App-authored pending effect is recovered before
+  unknown heads are recorded for human handoff;
+- missing, closed-unmerged, and retargeted work objects enter a signed human
+  state, while same-head Draft projection drift is repaired;
 - adopted external head receives complete revalidation.
 
 ### Step 3: Complete the Sweeper

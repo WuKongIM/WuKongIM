@@ -97,6 +97,65 @@ func TestPublisherValidationAcceptsBoundedRegularFilesAndTrustedScenarioInstruct
 	require.NoError(t, issueagentgithub.ValidatePublish(input))
 }
 
+func TestPublisherInjectsExactTrustedScenarioInstructions(t *testing.T) {
+	t.Parallel()
+
+	template := []byte("# Trusted scenario instructions\n")
+	changeSet, err := issueagentgithub.InjectScenarioInstructions(
+		issueagent.ChangeSet{Files: []issueagent.FileChange{{
+			Path:          "test/e2e/issue_agent/issue_42/reproduction_test.go",
+			Operation:     issueagent.FileOperationUpsert,
+			Mode:          issueagent.FileModeRegular,
+			ContentBase64: issueagent.EncodeFileContent([]byte("package issue_42\n")),
+		}}},
+		42,
+		template,
+	)
+	require.NoError(t, err)
+	require.Len(t, changeSet.Files, 2)
+	require.Equal(t, "test/e2e/issue_agent/issue_42/AGENTS.md", changeSet.Files[0].Path)
+	content, err := issueagent.DecodeFileContent(changeSet.Files[0])
+	require.NoError(t, err)
+	require.Equal(t, template, content)
+
+	withoutInstructions := issueagentgithub.PublishValidation{
+		IssueNumber: 42, Branch: "agent/issue-42", BaseBranch: "main",
+		ExpectedParentSHA: fortyHex("a"),
+		ChangeSet:         issueagent.ChangeSet{Files: changeSet.Files[1:]},
+		Limits: issueagent.ChangeSetLimits{
+			MaxFiles: 2, MaxFileBytes: 1024, MaxTotalBytes: 4096,
+		},
+		ProtectedPaths:              []string{".github/issue-agent"},
+		AllowedPaths:                []string{"test/e2e/issue_agent"},
+		ScenarioInstructionTemplate: template,
+	}
+	require.ErrorContains(
+		t, issueagentgithub.ValidatePublish(withoutInstructions),
+		"trusted scenario instruction file is missing",
+	)
+}
+
+func TestPublisherReplacesModelAuthoredScenarioInstructions(t *testing.T) {
+	t.Parallel()
+
+	template := []byte("# Trusted\n")
+	changeSet, err := issueagentgithub.InjectScenarioInstructions(
+		issueagent.ChangeSet{Files: []issueagent.FileChange{{
+			Path:          "test/e2e/issue_agent/issue_42/AGENTS.md",
+			Operation:     issueagent.FileOperationUpsert,
+			Mode:          issueagent.FileModeRegular,
+			ContentBase64: issueagent.EncodeFileContent([]byte("# Untrusted\n")),
+		}}},
+		42,
+		template,
+	)
+	require.NoError(t, err)
+	require.Len(t, changeSet.Files, 1)
+	content, err := issueagent.DecodeFileContent(changeSet.Files[0])
+	require.NoError(t, err)
+	require.Equal(t, template, content)
+}
+
 func TestPublisherValidationRejectsFrozenReproductionAndProtectedFilePrefixes(t *testing.T) {
 	t.Parallel()
 

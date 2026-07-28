@@ -3,6 +3,7 @@ package issueagent
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	issueagentcontract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
@@ -32,6 +33,9 @@ const (
 	OperationCreateDraftPR       Operation = "create_draft_pr"
 	OperationRequestValidation   Operation = "request_validation"
 	OperationRecordMerge         Operation = "record_merge"
+	OperationRecordBranchDrift   Operation = "record_branch_drift"
+	OperationRecordWorkDrift     Operation = "record_work_drift"
+	OperationRepairProjection    Operation = "repair_projection"
 )
 
 // LeaseFacts are the exact signed lease fields needed by reconciliation.
@@ -48,6 +52,17 @@ type WorkerArtifact struct {
 	OperationID string
 	TaskDigest  string
 	Generation  uint64
+}
+
+// WorkHeadFacts bind the fresh Agent ref (and PR when present) to the durable
+// Work identity before any lease or publication can advance.
+type WorkHeadFacts struct {
+	PRNumber int64  `json:"pr_number"`
+	HeadSHA  string `json:"head_sha"`
+	PRState  string `json:"pr_state"`
+	Draft    bool   `json:"draft"`
+	BaseRef  string `json:"base_ref"`
+	HeadRef  string `json:"head_ref"`
 }
 
 // MergeFacts are a fresh exact PR projection used only to recover a missed
@@ -67,7 +82,10 @@ type ReconcileInput struct {
 	CheckpointDigest    string
 	Lease               *LeaseFacts
 	Artifacts           []WorkerArtifact
+	WorkHead            *WorkHeadFacts
+	WorkObjectMissing   bool
 	Merge               *MergeFacts
+	IssueLabels         []string
 }
 
 // ReconcilePolicy is the currently enabled capability ceiling.
@@ -87,6 +105,7 @@ type Plan struct {
 	ExpectedCheckpointDigest    string                   `json:"expected_checkpoint_digest"`
 	OperationID                 string                   `json:"operation_id"`
 	ArtifactRunID               int64                    `json:"artifact_run_id"`
+	ExternalHeadSHA             string                   `json:"external_head_sha"`
 	Phase                       issueagentcontract.Phase `json:"phase"`
 	WriteAllowed                bool                     `json:"write_allowed"`
 	Reason                      string                   `json:"reason"`
@@ -135,6 +154,7 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 		ExpectedCheckpointCommentID: input.CheckpointCommentID,
 		ExpectedCheckpointDigest:    input.CheckpointDigest,
 	}
+	var matchingArtifact *WorkerArtifact
 	if input.Lease != nil {
 		if input.Lease.Generation != input.Checkpoint.Generation ||
 			!scheduleDigestPattern.MatchString(input.Lease.OperationID) ||
@@ -143,13 +163,6 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 			return Plan{}, errors.New("current lease facts are invalid")
 		}
 		plan.OperationID = input.Lease.OperationID
-		if !input.Lease.ExpiresAt.After(input.Now) {
-			plan.Operation = OperationExpireLease
-			plan.WriteAllowed = true
-			plan.Reason = "current Worker lease expired"
-			return plan, nil
-		}
-		var match *WorkerArtifact
 		for index := range input.Artifacts {
 			artifact := &input.Artifacts[index]
 			if artifact.RunID <= 0 {
@@ -158,19 +171,98 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 			if artifact.OperationID == input.Lease.OperationID &&
 				artifact.TaskDigest == input.Lease.TaskDigest &&
 				artifact.Generation == input.Lease.Generation {
-				if match != nil {
+				if matchingArtifact != nil {
 					return Plan{}, errors.New("multiple Artifacts match the current lease")
 				}
-				match = artifact
+				matchingArtifact = artifact
 			}
 		}
-		if match == nil {
+	}
+	if issueagentcontract.IsActiveWorkState(input.Checkpoint.State) &&
+		input.Checkpoint.Work != nil {
+		if input.WorkObjectMissing {
+			plan.Operation = OperationRecordWorkDrift
+			plan.WriteAllowed = true
+			plan.Reason = "signed Agent work references a missing GitHub object"
+			return plan, nil
+		}
+		work := input.Checkpoint.Work
+		if input.WorkHead == nil ||
+			input.WorkHead.PRNumber != work.PRNumber ||
+			!fullCommitPattern.MatchString(input.WorkHead.HeadSHA) {
+			return Plan{}, errors.New("current Agent branch facts are stale")
+		}
+		mergedReview := work.PRNumber > 0 &&
+			input.Checkpoint.State == issueagentcontract.StateReadyForReview &&
+			input.WorkHead.PRState == "closed" &&
+			input.Merge != nil && input.Merge.Merged
+		if work.PRNumber > 0 &&
+			(input.WorkHead.BaseRef != "main" ||
+				input.WorkHead.HeadRef != work.Branch ||
+				input.WorkHead.PRState != "open" && !mergedReview) {
+			plan.Operation = OperationRecordWorkDrift
+			plan.WriteAllowed = true
+			plan.Reason = "Agent pull request target or state differs from signed work"
+			return plan, nil
+		}
+		if input.WorkHead.HeadSHA != work.HeadSHA {
+			if input.Checkpoint.State == issueagentcontract.StateValidating {
+				plan.Operation = OperationRequestValidation
+				plan.WriteAllowed = true
+				plan.Reason = "validation Publisher must classify a pending signed rebase or external head"
+				return plan, nil
+			}
+			if matchingArtifact != nil && input.Lease != nil &&
+				input.Lease.ExpiresAt.After(input.Now) {
+				plan.Operation = OperationPublishWorkerResult
+				plan.ArtifactRunID = matchingArtifact.RunID
+				plan.WriteAllowed = true
+				plan.Reason = "Artifact Publisher must recover an exact pending commit or record external drift"
+				return plan, nil
+			}
+			plan.Operation = OperationRecordBranchDrift
+			plan.ExternalHeadSHA = input.WorkHead.HeadSHA
+			plan.WriteAllowed = true
+			plan.Reason = "fresh GitHub facts report an external Agent branch update"
+			return plan, nil
+		}
+		if work.PRNumber > 0 {
+			expectedDraft := input.Checkpoint.State !=
+				issueagentcontract.StateReadyForReview
+			if input.WorkHead.PRState == "open" &&
+				input.WorkHead.Draft != expectedDraft {
+				plan.Operation = OperationRepairProjection
+				plan.WriteAllowed = true
+				plan.Reason = "Agent pull request Draft projection is incomplete"
+				return plan, nil
+			}
+		}
+	}
+	currentLabels := append([]string(nil), input.IssueLabels...)
+	slices.Sort(currentLabels)
+	expectedLabels := ProjectLifecycleLabels(
+		input.Checkpoint.State, currentLabels,
+	)
+	if !slices.Equal(expectedLabels, currentLabels) {
+		plan.Operation = OperationRepairProjection
+		plan.WriteAllowed = true
+		plan.Reason = "durable checkpoint label projection is incomplete"
+		return plan, nil
+	}
+	if input.Lease != nil {
+		if !input.Lease.ExpiresAt.After(input.Now) {
+			plan.Operation = OperationExpireLease
+			plan.WriteAllowed = true
+			plan.Reason = "current Worker lease expired"
+			return plan, nil
+		}
+		if matchingArtifact == nil {
 			plan.Operation = OperationWait
 			plan.Reason = "current Worker lease has no publishable Artifact"
 			return plan, nil
 		}
 		plan.Operation = OperationPublishWorkerResult
-		plan.ArtifactRunID = match.RunID
+		plan.ArtifactRunID = matchingArtifact.RunID
 		plan.WriteAllowed = true
 		plan.Reason = "current unexpired lease has one exact Artifact"
 		return plan, nil
@@ -178,8 +270,9 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 	if input.Checkpoint.State == issueagentcontract.StateReadyForReview &&
 		input.Checkpoint.Work != nil && input.Merge != nil {
 		if input.Merge.PRNumber != input.Checkpoint.Work.PRNumber ||
-			input.Merge.HeadSHA != input.Checkpoint.Work.HeadSHA ||
-			!fullCommitPattern.MatchString(input.Merge.HeadSHA) {
+			!fullCommitPattern.MatchString(input.Merge.HeadSHA) ||
+			input.WorkHead == nil ||
+			input.Merge.HeadSHA != input.WorkHead.HeadSHA {
 			return Plan{}, errors.New("current pull request merge facts are stale")
 		}
 		if input.Merge.Merged {

@@ -19,8 +19,15 @@ current GitHub snapshot + verified Issue checkpoint + injected time
 
 Events are hints only. Every plan is derived from a current snapshot.
 Duplicated, reordered, missing, or stale events must converge to the same plan.
-This includes recovering a missed PR-close event from a fresh exact
-review-ready PR head and merged-state projection.
+This includes checking every active Agent work head and PR projection at
+execution/publication/reconciliation boundaries, routing exact pending
+Publisher effects and a unique current-lease Worker Artifact back to their
+identity-verifying Publisher, and recovering a missed PR-close event from a
+fresh exact review-ready `base=main` PR projection.
+Artifact publication uses one typed boundary plan: structural work-object
+drift wins over head identity, a changed head wins over reversible Draft
+projection, and only a success Artifact with a pending commit may enter exact
+App-commit identity recovery.
 One Issue generation fences all in-flight work, and checkpoint sequence remains
 strictly increasing across generations.
 
@@ -47,3 +54,21 @@ current GitHub facts. Revision, cancellation, review repair, head adoption,
 backport tracking, and signed chain recovery all advance generation. Review
 repair freezes unresolved thread IDs; CI failures create at most two new fix
 leases before returning to a human.
+
+Moving-main planning accepts only the current exact Agent head and three
+same-assertion passes from one trusted validation run. It closes only the Agent
+Draft PR when main already passes. Conflict planning permits one signed
+mechanical-rebase attempt counter. The effect binds an independently computed
+exact merge tree and deterministic message; GitHub creates an App-authored,
+signed commit whose parent is current main, then atomically swaps the Agent ref
+only when its exact prior OID still matches. A
+semantic or repeated conflict returns a typed human-queue decision without
+overwriting an external head. Active-work external heads are recorded in the
+signed Work state before human handoff. Missing, closed-unmerged, or retargeted
+work objects use a separate human transition, while reversible Draft projection
+drift uses projection repair. Exact adopt-head commands resume at Draft-PR
+creation, diagnosis, or validation according to preserved facts.
+Terminal state label projection removes
+`ready-for-agent`, preventing the all-state recovery inventory from retaining
+completed Issues; reconciliation separately repairs an interrupted label
+projection from the durable checkpoint.

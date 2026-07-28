@@ -29,7 +29,8 @@ func TestWorkspaceToolsAreBoundedDeterministicAndFenced(t *testing.T) {
 		AllowedCommands: []issueagent.CommandRule{{
 			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 4,
 		}},
-		MaxFileBytes: 1024, MaxOutputBytes: 1024,
+		MaxFileBytes: 1024, MaxFiles: 2, MaxTotalBytes: 2048,
+		MaxOutputBytes: 1024,
 	}, &fakeRunner{})
 	require.NoError(t, err)
 
@@ -62,4 +63,35 @@ func TestWorkspaceToolsAreBoundedDeterministicAndFenced(t *testing.T) {
 		ContentBase64: issueagent.EncodeFileContent([]byte("outside")),
 	})
 	require.Error(t, err)
+}
+
+func TestWorkspaceApplyEnforcesOnlineFileAndByteBudgets(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "pkg"), 0o755))
+	broker, err := issueagentworker.NewBroker(issueagentworker.BrokerConfig{
+		Workspace: root, AllowedWritePaths: []string{"pkg"},
+		AllowedCommands: []issueagent.CommandRule{{
+			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 2,
+		}},
+		MaxFileBytes: 16, MaxFiles: 1, MaxTotalBytes: 10,
+		MaxOutputBytes: 64,
+	}, &fakeRunner{})
+	require.NoError(t, err)
+
+	first, err := broker.Apply(context.Background(), issueagentworker.ApplyRequest{
+		Path: "pkg/one.go", ContentBase64: issueagent.EncodeFileContent([]byte("12345678")),
+	})
+	require.NoError(t, err)
+	_, err = broker.Apply(context.Background(), issueagentworker.ApplyRequest{
+		Path: "pkg/two.go", ContentBase64: issueagent.EncodeFileContent([]byte("1")),
+	})
+	require.Error(t, err)
+	_, err = broker.Apply(context.Background(), issueagentworker.ApplyRequest{
+		Path: "pkg/one.go", ExpectedSHA256: first.SHA256,
+		ContentBase64: issueagent.EncodeFileContent([]byte("12345678901")),
+	})
+	require.Error(t, err)
+	require.NoFileExists(t, filepath.Join(root, "pkg", "two.go"))
 }

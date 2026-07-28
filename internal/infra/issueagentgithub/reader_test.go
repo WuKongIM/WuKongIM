@@ -5,11 +5,29 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReaderClassifiesMissingGitHubObjects(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusNotFound)
+		_, _ = writer.Write([]byte(`{"message":"Not Found"}`))
+	}))
+	t.Cleanup(server.Close)
+	_, err := newTestClient(t, server).PullRequest(context.Background(), 42)
+	require.ErrorIs(t, err, issueagentgithub.ErrNotFound)
+}
 
 func TestReaderCollectsRepositoryIssueAndPermissionFacts(t *testing.T) {
 	t.Parallel()
@@ -27,7 +45,9 @@ func TestReaderCollectsRepositoryIssueAndPermissionFacts(t *testing.T) {
 				"number": 42, "state": "open", "title": "broken", "body": "details",
 				"user":               map[string]any{"login": "reporter"},
 				"author_association": "CONTRIBUTOR",
-				"labels":             []map[string]any{{"name": "ready-for-agent"}},
+				"labels": []map[string]any{
+					{"name": "ready-for-agent"}, {"name": "bug"},
+				},
 			})
 		case "/repos/WuKongIM/WuKongIM/collaborators/maintainer/permission":
 			writeJSON(t, writer, map[string]any{
@@ -46,7 +66,7 @@ func TestReaderCollectsRepositoryIssueAndPermissionFacts(t *testing.T) {
 	require.Equal(t, "main", repository.DefaultBranch)
 	issue, err := reader.Issue(context.Background(), 42)
 	require.NoError(t, err)
-	require.Equal(t, []string{"ready-for-agent"}, issue.Labels)
+	require.Equal(t, []string{"bug", "ready-for-agent"}, issue.Labels)
 	permission, err := reader.ActorPermission(context.Background(), "maintainer")
 	require.NoError(t, err)
 	require.Equal(t, issueagentgithub.PermissionWrite, permission)
@@ -134,6 +154,81 @@ func TestReaderCollectsPullRequestAndActionsFacts(t *testing.T) {
 	artifacts, err := reader.RunArtifacts(context.Background(), 11)
 	require.NoError(t, err)
 	require.Len(t, artifacts, 1)
+}
+
+func TestReaderFindsCompleteBoundedWorkerRunInventorySinceLease(t *testing.T) {
+	t.Parallel()
+
+	since := time.Date(2026, 7, 28, 12, 0, 0, 500_000_000, time.UTC)
+	lowerBound := since.Truncate(time.Second)
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		require.Equal(t,
+			"/repos/WuKongIM/WuKongIM/actions/workflows/issue-agent-run.yml/runs",
+			request.URL.Path,
+		)
+		require.Equal(t, ">="+lowerBound.Format(time.RFC3339),
+			request.URL.Query().Get("created"))
+		require.Equal(t, "workflow_dispatch", request.URL.Query().Get("event"))
+		require.Equal(t, "completed", request.URL.Query().Get("status"))
+		require.Equal(t, "100", request.URL.Query().Get("per_page"))
+		require.Equal(t, "1", request.URL.Query().Get("page"))
+		writeJSON(t, writer, map[string]any{
+			"total_count": 1,
+			"workflow_runs": []map[string]any{{
+				"id": 11, "event": "workflow_dispatch", "status": "completed",
+				"conclusion": "failure", "head_branch": "main",
+				"head_sha": fortyHex("b"),
+				"name":     "Agent Tool - Issue Worker",
+				"path":     ".github/workflows/issue-agent-run.yml@main",
+				"display_title": "Issue Agent worker Issue 42 operation sha256:" +
+					strings.Repeat("a", 64),
+				"run_attempt": 1, "created_at": lowerBound,
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	runs, err := newTestClient(t, server).CompletedWorkflowRunsSince(
+		context.Background(), "issue-agent-run.yml", since,
+	)
+	require.NoError(t, err)
+	require.Len(t, runs, 1)
+	require.Equal(t, int64(11), runs[0].ID)
+	require.Equal(t, lowerBound, runs[0].CreatedAt)
+}
+
+func TestReaderRejectsRecoverableWorkerRunOutsideProtectedMainIdentity(t *testing.T) {
+	t.Parallel()
+
+	since := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		writeJSON(t, writer, map[string]any{
+			"total_count": 1,
+			"workflow_runs": []map[string]any{{
+				"id": 11, "event": "workflow_dispatch", "status": "completed",
+				"conclusion": "failure", "head_branch": "main",
+				"head_sha": fortyHex("b"), "name": "Agent Tool - Issue Worker",
+				"path": ".github/workflows/issue-agent-run.yml@evil",
+				"display_title": "Issue Agent worker Issue 42 operation sha256:" +
+					strings.Repeat("a", 64),
+				"run_attempt": 1, "created_at": since.Add(time.Minute),
+			}},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	_, err := newTestClient(t, server).CompletedWorkflowRunsSince(
+		context.Background(), "issue-agent-run.yml", since,
+	)
+	require.Error(t, err)
 }
 
 func TestReaderRejectsScopeAndCountMismatch(t *testing.T) {

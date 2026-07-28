@@ -10,13 +10,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
-	gitObjectPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
-	loginPattern     = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
-	agentRefPattern  = regexp.MustCompile(`^agent/issue-[1-9][0-9]*$`)
-	branchPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
+	gitObjectPattern     = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
+	loginPattern         = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$`)
+	agentRefPattern      = regexp.MustCompile(`^agent/issue-[1-9][0-9]*$`)
+	agentStageRefPattern = regexp.MustCompile(
+		`^agent/issue-[1-9][0-9]*-rebase-[0-9a-f]{64}$`,
+	)
+	branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
 )
 
 // RepositoryFacts binds all later reads and writes to one repository identity.
@@ -68,6 +72,19 @@ type ReviewFacts struct {
 	State    string
 	Author   string
 	CommitID string
+}
+
+// CommitStatusFacts is one exact status projection bound to a commit.
+type CommitStatusFacts struct {
+	ID          int64
+	State       string
+	Description string
+	TargetURL   string
+	Context     string
+	Creator     string
+	CreatorType string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // PullRequestFileFacts is GitHub's bounded changed-file projection.
@@ -231,8 +248,20 @@ type CommitFacts struct {
 	SHA                string
 	TreeSHA            string
 	Parents            []string
+	Message            string
 	Verified           bool
 	VerificationReason string
+}
+
+// CommitAttributionFacts binds one commit to the GitHub identity that authored
+// it through the authenticated web-commit surface.
+type CommitAttributionFacts struct {
+	SHA               string
+	AuthorLogin       string
+	AuthorType        string
+	SignatureValid    bool
+	SignatureState    string
+	WasSignedByGitHub bool
 }
 
 // WorkflowRunFacts binds validation evidence to one exact head SHA.
@@ -244,8 +273,10 @@ type WorkflowRunFacts struct {
 	Event        string
 	Status       string
 	Conclusion   string
+	HeadBranch   string
 	HeadSHA      string
 	RunAttempt   int
+	CreatedAt    time.Time
 }
 
 // ArtifactFacts is a metadata-only artifact identity. Downloading is separate.
@@ -318,6 +349,7 @@ func (client *Client) Issue(ctx context.Context, number int64) (IssueFacts, erro
 		seen[label.Name] = struct{}{}
 		labels = append(labels, label.Name)
 	}
+	slices.Sort(labels)
 	return IssueFacts{
 		Number: payload.Number, State: payload.State, Title: payload.Title,
 		Body: payload.Body, Author: payload.User.Login,
@@ -408,6 +440,73 @@ func (client *Client) IssueLabels(
 		}
 	}
 	return labels, nil
+}
+
+// ListCommitStatuses reads every bounded status page for one immutable commit.
+func (client *Client) ListCommitStatuses(
+	ctx context.Context,
+	sha string,
+) ([]CommitStatusFacts, error) {
+	if !gitObjectPattern.MatchString(sha) {
+		return nil, errors.New("commit status SHA is invalid")
+	}
+	result := make([]CommitStatusFacts, 0)
+	for page := 1; page <= client.maxPages; page++ {
+		endpoint := client.endpoint(
+			"/repos/" + client.repository + "/commits/" + sha + "/statuses",
+		)
+		query := endpoint.Query()
+		query.Set("per_page", "100")
+		query.Set("page", strconv.Itoa(page))
+		endpoint.RawQuery = query.Encode()
+		var payload []struct {
+			ID          int64  `json:"id"`
+			State       string `json:"state"`
+			Description string `json:"description"`
+			TargetURL   string `json:"target_url"`
+			Context     string `json:"context"`
+			Creator     struct {
+				Login string `json:"login"`
+				Type  string `json:"type"`
+			} `json:"creator"`
+			CreatedAt jsonTime `json:"created_at"`
+			UpdatedAt jsonTime `json:"updated_at"`
+		}
+		next, err := client.getJSONPage(ctx, endpoint, &payload)
+		if err != nil {
+			return nil, err
+		}
+		if len(payload) > 100 {
+			return nil, errors.New("GitHub status page exceeds item limit")
+		}
+		for _, status := range payload {
+			if status.ID <= 0 ||
+				(status.State != "error" && status.State != "failure" &&
+					status.State != "pending" && status.State != "success") ||
+				strings.TrimSpace(status.Context) == "" ||
+				len(status.Context) > 100 ||
+				len(status.Description) > 140 ||
+				status.TargetURL == "" || len(status.TargetURL) > 2048 ||
+				status.Creator.Login == "" || status.Creator.Type == "" ||
+				status.CreatedAt.Time.IsZero() || status.UpdatedAt.Time.IsZero() {
+				return nil, errors.New("GitHub commit status response is invalid")
+			}
+			result = append(result, CommitStatusFacts{
+				ID: status.ID, State: status.State,
+				Description: status.Description, TargetURL: status.TargetURL,
+				Context: status.Context, Creator: status.Creator.Login,
+				CreatorType: status.Creator.Type,
+				CreatedAt:   status.CreatedAt.Time, UpdatedAt: status.UpdatedAt.Time,
+			})
+		}
+		if next == nil {
+			return result, nil
+		}
+		if page == client.maxPages {
+			return nil, errors.New("GitHub status pagination exceeds page budget")
+		}
+	}
+	return nil, errors.New("GitHub status pagination did not terminate")
 }
 
 // ActorPermission resolves a fresh repository permission for an event actor.
@@ -571,7 +670,7 @@ func (client *Client) PullRequestFiles(
 
 // Ref reads one Agent branch. Other refs are outside this narrow port.
 func (client *Client) Ref(ctx context.Context, branch string) (RefFacts, error) {
-	if !agentRefPattern.MatchString(branch) {
+	if !isAgentManagedRef(branch) {
 		return RefFacts{}, errors.New("GitHub ref is not an Agent branch")
 	}
 	var payload struct {
@@ -601,7 +700,7 @@ func (client *Client) RefIfExists(
 	ctx context.Context,
 	branch string,
 ) (RefFacts, bool, error) {
-	if !agentRefPattern.MatchString(branch) {
+	if !isAgentManagedRef(branch) {
 		return RefFacts{}, false, errors.New("GitHub ref is not an Agent branch")
 	}
 	var payload struct {
@@ -627,6 +726,11 @@ func (client *Client) RefIfExists(
 		return RefFacts{}, false, errors.New("GitHub ref response is invalid")
 	}
 	return RefFacts{Name: branch, SHA: payload.Object.SHA}, true, nil
+}
+
+func isAgentManagedRef(branch string) bool {
+	return agentRefPattern.MatchString(branch) ||
+		agentStageRefPattern.MatchString(branch)
 }
 
 // ResolveTreePath walks exact non-recursive Git trees so publication never
@@ -757,8 +861,9 @@ func (client *Client) Commit(ctx context.Context, sha string) (CommitFacts, erro
 		return CommitFacts{}, errors.New("GitHub commit SHA is invalid")
 	}
 	var payload struct {
-		SHA  string `json:"sha"`
-		Tree struct {
+		SHA     string `json:"sha"`
+		Message string `json:"message"`
+		Tree    struct {
 			SHA string `json:"sha"`
 		} `json:"tree"`
 		Parents []struct {
@@ -776,7 +881,8 @@ func (client *Client) Commit(ctx context.Context, sha string) (CommitFacts, erro
 	); err != nil {
 		return CommitFacts{}, err
 	}
-	if payload.SHA != sha || !gitObjectPattern.MatchString(payload.Tree.SHA) ||
+	if payload.SHA != sha || len(payload.Message) > 4096 ||
+		!gitObjectPattern.MatchString(payload.Tree.SHA) ||
 		len(payload.Parents) > 2 {
 		return CommitFacts{}, errors.New("GitHub commit response is invalid")
 	}
@@ -789,8 +895,99 @@ func (client *Client) Commit(ctx context.Context, sha string) (CommitFacts, erro
 	}
 	return CommitFacts{
 		SHA: payload.SHA, TreeSHA: payload.Tree.SHA, Parents: parents,
+		Message:            payload.Message,
 		Verified:           payload.Verification.Verified,
 		VerificationReason: payload.Verification.Reason,
+	}, nil
+}
+
+// CommitAttribution reads the repository commit view because the raw Git
+// object endpoint does not expose the authenticated GitHub author identity.
+func (client *Client) CommitAttribution(
+	ctx context.Context,
+	sha string,
+) (CommitAttributionFacts, error) {
+	if !gitObjectPattern.MatchString(sha) {
+		return CommitAttributionFacts{}, errors.New("GitHub commit SHA is invalid")
+	}
+	var payload struct {
+		SHA    string `json:"sha"`
+		Author *struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		} `json:"author"`
+	}
+	if err := client.getJSON(
+		ctx, "/repos/"+client.repository+"/commits/"+sha, &payload,
+	); err != nil {
+		return CommitAttributionFacts{}, err
+	}
+	if payload.SHA != sha || payload.Author == nil ||
+		payload.Author.Login == "" || len(payload.Author.Login) > 256 ||
+		strings.ContainsAny(payload.Author.Login, "\r\n") ||
+		payload.Author.Type == "" || len(payload.Author.Type) > 32 {
+		return CommitAttributionFacts{},
+			fmt.Errorf("%w: attribution is invalid", ErrUntrustedCommit)
+	}
+	parts := strings.Split(client.repository, "/")
+	if len(parts) != 2 {
+		return CommitAttributionFacts{},
+			fmt.Errorf("%w: repository identity is invalid", ErrUntrustedCommit)
+	}
+	var signatureResponse struct {
+		Data struct {
+			Repository *struct {
+				NameWithOwner string `json:"nameWithOwner"`
+				Object        *struct {
+					OID       string `json:"oid"`
+					Signature *struct {
+						IsValid           bool   `json:"isValid"`
+						State             string `json:"state"`
+						WasSignedByGitHub bool   `json:"wasSignedByGitHub"`
+					} `json:"signature"`
+				} `json:"object"`
+			} `json:"repository"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	signatureRequest := struct {
+		Query     string `json:"query"`
+		Variables struct {
+			Owner string `json:"owner"`
+			Name  string `json:"name"`
+			OID   string `json:"oid"`
+		} `json:"variables"`
+	}{
+		Query: `query($owner:String!,$name:String!,$oid:GitObjectID!){` +
+			`repository(owner:$owner,name:$name){nameWithOwner ` +
+			`object(oid:$oid){... on Commit{oid signature{` +
+			`isValid state wasSignedByGitHub}}}}}`,
+	}
+	signatureRequest.Variables.Owner = parts[0]
+	signatureRequest.Variables.Name = parts[1]
+	signatureRequest.Variables.OID = sha
+	if err := client.requestJSON(
+		ctx, http.MethodPost, "/graphql", signatureRequest,
+		&signatureResponse, http.StatusOK,
+	); err != nil {
+		return CommitAttributionFacts{}, err
+	}
+	repository := signatureResponse.Data.Repository
+	if len(signatureResponse.Errors) != 0 || repository == nil ||
+		repository.NameWithOwner != client.repository ||
+		repository.Object == nil || repository.Object.OID != sha ||
+		repository.Object.Signature == nil {
+		return CommitAttributionFacts{},
+			fmt.Errorf("%w: signature attribution is invalid", ErrUntrustedCommit)
+	}
+	return CommitAttributionFacts{
+		SHA: payload.SHA, AuthorLogin: payload.Author.Login,
+		AuthorType:        payload.Author.Type,
+		SignatureValid:    repository.Object.Signature.IsValid,
+		SignatureState:    repository.Object.Signature.State,
+		WasSignedByGitHub: repository.Object.Signature.WasSignedByGitHub,
 	}, nil
 }
 
@@ -800,15 +997,17 @@ func (client *Client) WorkflowRun(ctx context.Context, id int64) (WorkflowRunFac
 		return WorkflowRunFacts{}, errors.New("workflow run ID is invalid")
 	}
 	var payload struct {
-		ID           int64  `json:"id"`
-		Name         string `json:"name"`
-		Path         string `json:"path"`
-		DisplayTitle string `json:"display_title"`
-		Event        string `json:"event"`
-		Status       string `json:"status"`
-		Conclusion   string `json:"conclusion"`
-		HeadSHA      string `json:"head_sha"`
-		RunAttempt   int    `json:"run_attempt"`
+		ID           int64    `json:"id"`
+		Name         string   `json:"name"`
+		Path         string   `json:"path"`
+		DisplayTitle string   `json:"display_title"`
+		Event        string   `json:"event"`
+		Status       string   `json:"status"`
+		Conclusion   string   `json:"conclusion"`
+		HeadBranch   string   `json:"head_branch"`
+		HeadSHA      string   `json:"head_sha"`
+		RunAttempt   int      `json:"run_attempt"`
+		CreatedAt    jsonTime `json:"created_at"`
 	}
 	if err := client.getJSON(
 		ctx,
@@ -827,7 +1026,113 @@ func (client *Client) WorkflowRun(ctx context.Context, id int64) (WorkflowRunFac
 	if !gitObjectPattern.MatchString(payload.HeadSHA) {
 		return WorkflowRunFacts{}, errors.New("GitHub workflow run head SHA is invalid")
 	}
-	return WorkflowRunFacts(payload), nil
+	return WorkflowRunFacts{
+		ID: payload.ID, Name: payload.Name, Path: payload.Path,
+		DisplayTitle: payload.DisplayTitle, Event: payload.Event,
+		Status: payload.Status, Conclusion: payload.Conclusion,
+		HeadBranch: payload.HeadBranch, HeadSHA: payload.HeadSHA,
+		RunAttempt: payload.RunAttempt,
+		CreatedAt:  payload.CreatedAt.Time,
+	}, nil
+}
+
+// CompletedWorkflowRunsSince returns a complete bounded inventory of completed
+// dispatches for one protected workflow since the current signed lease began.
+func (client *Client) CompletedWorkflowRunsSince(
+	ctx context.Context,
+	workflowFile string,
+	since time.Time,
+) ([]WorkflowRunFacts, error) {
+	if client == nil || workflowFile != "issue-agent-run.yml" ||
+		since.IsZero() || !since.Equal(since.UTC()) {
+		return nil, errors.New("workflow run inventory request is invalid")
+	}
+	lowerBound := since.UTC().Truncate(time.Second)
+	path := "/repos/" + client.repository + "/actions/workflows/" +
+		workflowFile + "/runs"
+	workflowPath := ".github/workflows/" + workflowFile
+	result := make([]WorkflowRunFacts, 0)
+	totalCount := -1
+	for page := 1; page <= client.maxPages; page++ {
+		endpoint := client.endpoint(path)
+		query := endpoint.Query()
+		query.Set("created", ">="+lowerBound.Format(time.RFC3339))
+		query.Set("event", "workflow_dispatch")
+		query.Set("status", "completed")
+		query.Set("per_page", "100")
+		query.Set("page", strconv.Itoa(page))
+		endpoint.RawQuery = query.Encode()
+		var payload struct {
+			TotalCount   int `json:"total_count"`
+			WorkflowRuns []struct {
+				ID           int64    `json:"id"`
+				Name         string   `json:"name"`
+				Path         string   `json:"path"`
+				DisplayTitle string   `json:"display_title"`
+				Event        string   `json:"event"`
+				Status       string   `json:"status"`
+				Conclusion   string   `json:"conclusion"`
+				HeadBranch   string   `json:"head_branch"`
+				HeadSHA      string   `json:"head_sha"`
+				RunAttempt   int      `json:"run_attempt"`
+				CreatedAt    jsonTime `json:"created_at"`
+			} `json:"workflow_runs"`
+		}
+		next, err := client.getJSONPage(ctx, endpoint, &payload)
+		if err != nil {
+			return nil, err
+		}
+		if payload.TotalCount < 0 || payload.TotalCount > 1000 ||
+			len(payload.WorkflowRuns) > 100 {
+			return nil, errors.New("GitHub workflow run inventory is invalid")
+		}
+		if totalCount < 0 {
+			totalCount = payload.TotalCount
+		} else if totalCount != payload.TotalCount {
+			return nil, errors.New("GitHub workflow run inventory changed during pagination")
+		}
+		for _, run := range payload.WorkflowRuns {
+			if run.ID <= 0 || run.Name == "" || run.Path == "" ||
+				run.DisplayTitle == "" || run.Event != "workflow_dispatch" ||
+				run.Status != "completed" || run.Conclusion == "" ||
+				run.HeadBranch != "main" ||
+				run.Path != workflowPath &&
+					run.Path != workflowPath+"@main" &&
+					run.Path != workflowPath+"@refs/heads/main" ||
+				!gitObjectPattern.MatchString(run.HeadSHA) ||
+				run.RunAttempt <= 0 ||
+				run.CreatedAt.Time.Before(lowerBound) {
+				return nil, errors.New("GitHub workflow run inventory item is invalid")
+			}
+			result = append(result, WorkflowRunFacts{
+				ID: run.ID, Name: run.Name, Path: run.Path,
+				DisplayTitle: run.DisplayTitle, Event: run.Event,
+				Status: run.Status, Conclusion: run.Conclusion,
+				HeadBranch: run.HeadBranch, HeadSHA: run.HeadSHA,
+				RunAttempt: run.RunAttempt,
+				CreatedAt:  run.CreatedAt.Time,
+			})
+		}
+		if next == nil {
+			if len(result) != totalCount {
+				return nil, errors.New("GitHub workflow run count mismatch")
+			}
+			return result, nil
+		}
+		if page == client.maxPages ||
+			next.Scheme != client.baseURL.Scheme ||
+			next.Host != client.baseURL.Host ||
+			next.Path != endpoint.Path ||
+			next.Query().Get("created") != query.Get("created") ||
+			next.Query().Get("event") != "workflow_dispatch" ||
+			next.Query().Get("status") != "completed" ||
+			next.Query().Get("per_page") != "100" ||
+			next.Query().Get("page") != strconv.Itoa(page+1) ||
+			len(next.Query()) != 5 {
+			return nil, errors.New("GitHub workflow run pagination is outside request scope")
+		}
+	}
+	return nil, errors.New("GitHub workflow run pagination did not terminate")
 }
 
 // RunArtifacts reads and count-checks one run's Artifact inventory.

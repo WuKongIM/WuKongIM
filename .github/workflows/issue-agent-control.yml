@@ -39,7 +39,10 @@ jobs:
       issues: read
       pull-requests: read
     outputs:
+      artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      artifact_run_id: ${{ steps.plan.outputs.artifact_run_id }}
       comment_id: ${{ steps.plan.outputs.comment_id }}
+      command_requires_target: ${{ steps.plan.outputs.command_requires_target }}
       issue_number: ${{ steps.plan.outputs.issue_number }}
       lease_expires_at: ${{ steps.plan.outputs.lease_expires_at }}
       lease_operation_id: ${{ steps.plan.outputs.lease_operation_id }}
@@ -90,6 +93,7 @@ jobs:
           action="$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")"
           issue_number=""
           comment_id=""
+          command_requires_target=false
           workflow_run_id=""
           operation=report_only
 
@@ -121,9 +125,12 @@ jobs:
                   first_line="${first_line%$'\r'}"
                   if [[ "$first_line" = "/agent approve-risk" ]]; then
                     operation=risk_authorize
-                  elif [[ "$first_line" =~ ^/agent\ recover-chain\ [1-9][0-9]*\ sha256:[0-9a-f]{64}$ ]]; then
+                  elif [[ "$first_line" =~ ^/agent\ recover-chain\ [1-9][0-9]*\ sha256:[0-9a-f]{64}\ sha256:[0-9a-f]{64}$ ]]; then
                     operation=recover_chain
-                  elif [[ "$first_line" =~ ^/agent\ (revise|cancel|address-review)$ ]] ||
+                  elif [[ "$first_line" = "/agent address-review" ]]; then
+                    operation=command
+                    command_requires_target=true
+                  elif [[ "$first_line" =~ ^/agent\ (revise|cancel)$ ]] ||
                     [[ "$first_line" =~ ^/agent\ adopt-head\ [0-9a-f]{40}$ ]]; then
                     operation=command
                   elif [[ "$first_line" =~ ^/agent\ backport\ [A-Za-z0-9][A-Za-z0-9._/-]{0,127}$ ]]; then
@@ -186,6 +193,8 @@ jobs:
           lease_expires_at=""
           lifecycle_operation=""
           lifecycle_phase=""
+          artifact_name=""
+          artifact_run_id=""
           if [[ "$operation" = reconcile || "$operation" = validation_result || "$operation" = command ]]; then
             jq -n \
               --arg repository "$GITHUB_REPOSITORY" \
@@ -197,13 +206,26 @@ jobs:
               >"$RUNNER_TEMP/read-current.json"
             if "$RUNNER_TEMP/wkissueagent" read-current-checkpoint \
               --input "$RUNNER_TEMP/read-current.json" >"$RUNNER_TEMP/current.json"; then
-              state="$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")"
-              target_sha="$(jq -r '.checkpoint.work.head_sha // .checkpoint.versions.diagnosis_base_sha // ""' "$RUNNER_TEMP/current.json")"
-              lease_operation_id="$(jq -r '.checkpoint.lease.operation_id // ""' "$RUNNER_TEMP/current.json")"
-              lease_expires_at="$(jq -r '.checkpoint.lease.expires_at // ""' "$RUNNER_TEMP/current.json")"
               lifecycle_operation="$(jq -r '.plan.operation // ""' "$RUNNER_TEMP/current.json")"
               lifecycle_phase="$(jq -r '.plan.phase // ""' "$RUNNER_TEMP/current.json")"
-              [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+              if [[ "$lifecycle_operation" = alert_audit_failure ]] &&
+                [[ "$(jq -r '.chain_invalid // false' "$RUNNER_TEMP/current.json")" = true ]]; then
+                state=chain_invalid
+              else
+                state="$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")"
+                target_sha="$(jq -r '.checkpoint.work.head_sha // .checkpoint.versions.diagnosis_base_sha // ""' "$RUNNER_TEMP/current.json")"
+                lease_operation_id="$(jq -r '.checkpoint.lease.operation_id // ""' "$RUNNER_TEMP/current.json")"
+                lease_expires_at="$(jq -r '.checkpoint.lease.expires_at // ""' "$RUNNER_TEMP/current.json")"
+                [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+                if [[ "$lifecycle_operation" = publish_worker_result ]]; then
+                  artifact_run_id="$(jq -er '.plan.artifact_run_id' \
+                    "$RUNNER_TEMP/current.json")"
+                  [[ "$artifact_run_id" =~ ^[1-9][0-9]*$ ]]
+                  [[ "$lease_operation_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+                  suffix="${lease_operation_id#sha256:}"
+                  artifact_name="issue-agent-result-${suffix:0:16}"
+                fi
+              fi
               if [[ "$operation" = reconcile ]] &&
                 [[ "$(jq -r '.issue_body_changed' "$RUNNER_TEMP/current.json")" = true ]]; then
                 operation=report_only
@@ -213,7 +235,10 @@ jobs:
             fi
           fi
           {
+            echo "artifact_name=$artifact_name"
+            echo "artifact_run_id=$artifact_run_id"
             echo "comment_id=$comment_id"
+            echo "command_requires_target=$command_requires_target"
             echo "issue_number=$issue_number"
             echo "lease_expires_at=$lease_expires_at"
             echo "lease_operation_id=$lease_operation_id"
@@ -316,6 +341,7 @@ jobs:
     timeout-minutes: 25
     environment: issue-agent-publisher
     permissions:
+      actions: read
       contents: read
     steps:
       - name: Check out protected Publisher source
@@ -326,13 +352,17 @@ jobs:
           persist-credentials: false
       - name: Check out exact frozen instruction source
         if: >-
-          needs.planner.outputs.operation == 'reconcile' ||
+          (needs.planner.outputs.operation == 'reconcile' &&
+           (needs.planner.outputs.lifecycle_operation == 'dispatch_worker' ||
+            needs.planner.outputs.lifecycle_operation == 'request_validation')) ||
           needs.planner.outputs.operation == 'validation_result' ||
-          needs.planner.outputs.operation == 'command'
+          (needs.planner.outputs.operation == 'command' &&
+           needs.planner.outputs.command_requires_target == 'true')
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.planner.outputs.target_sha }}
           path: target
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up reviewed Go toolchain
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -361,6 +391,17 @@ jobs:
           echo "::add-mask::$token"
           echo "ISSUE_AGENT_GITHUB_TOKEN=$token" >>"$GITHUB_ENV"
           echo "GH_TOKEN=$token" >>"$GITHUB_ENV"
+      - name: Download exact recoverable Worker Artifact
+        if: >-
+          needs.planner.outputs.operation == 'reconcile' &&
+          needs.planner.outputs.lifecycle_operation == 'publish_worker_result'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: ${{ needs.planner.outputs.artifact_name }}
+          path: recovered-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.planner.outputs.artifact_run_id }}
       - name: Publish the fenced transition
         shell: bash
         env:
@@ -442,12 +483,106 @@ jobs:
             fi
             return 1
           }
+          mechanical_merge_facts() {
+            mechanical_main_sha="$(git -C control rev-parse HEAD)"
+            signed_head_sha="$(git -C target rev-parse HEAD)"
+            [[ "$mechanical_main_sha" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$signed_head_sha" =~ ^[0-9a-f]{40}$ ]]
+            test "$signed_head_sha" = "$STATE_TARGET_SHA"
+            git -C target fetch --no-tags origin "$mechanical_main_sha"
+            mechanical_merge_tree_sha=""
+            mechanical_change_set_file="$RUNNER_TEMP/mechanical-change-set.json"
+            jq -n '{files:[]}' >"$mechanical_change_set_file"
+            if merge_tree="$(
+              git -C target merge-tree --write-tree \
+                "$signed_head_sha" "$mechanical_main_sha" 2>/dev/null
+            )" && [[ "$merge_tree" =~ ^[0-9a-f]{40}$ ]]; then
+              mechanical_merge_tree_sha="$merge_tree"
+            fi
+            if [[ -z "$mechanical_merge_tree_sha" ]]; then
+              return 0
+            fi
+            valid_change_set=true
+            change_count=0
+            total_bytes=0
+            while IFS= read -r -d '' status &&
+              IFS= read -r -d '' path; do
+              if [[ "$path" == *$'\n'* || "$path" == *$'\r'* ]]; then
+                valid_change_set=false
+                break
+              fi
+              change_count=$((change_count + 1))
+              if (( change_count > 128 )); then
+                valid_change_set=false
+                break
+              fi
+              case "$status" in
+                A|M)
+                  mode="$(git -C target ls-tree "$mechanical_merge_tree_sha" -- "$path" |
+                    awk 'NR == 1 {print $1}')"
+                  if [[ "$mode" != 100644 ]]; then
+                    valid_change_set=false
+                    break
+                  fi
+                  content_file="$RUNNER_TEMP/mechanical-content-${change_count}"
+                  git -C target show "${mechanical_merge_tree_sha}:${path}" >"$content_file"
+                  file_bytes="$(wc -c <"$content_file")"
+                  total_bytes=$((total_bytes + file_bytes))
+                  if (( file_bytes > 2097152 || total_bytes > 8388608 )); then
+                    valid_change_set=false
+                    break
+                  fi
+                  content_base64_file="${content_file}.base64"
+                  base64 -w0 "$content_file" >"$content_base64_file"
+                  jq \
+                    --arg path "$path" \
+                    --rawfile content_base64 "$content_base64_file" \
+                    '.files += [{
+                      path:$path,operation:"upsert",mode:"100644",
+                      content_base64:$content_base64
+                    }]' \
+                    "$mechanical_change_set_file" \
+                    >"$RUNNER_TEMP/mechanical-change-set.next"
+                  ;;
+                D)
+                  jq --arg path "$path" \
+                    '.files += [{path:$path,operation:"delete"}]' \
+                    "$mechanical_change_set_file" \
+                    >"$RUNNER_TEMP/mechanical-change-set.next"
+                  ;;
+                *)
+                  valid_change_set=false
+                  break
+                  ;;
+              esac
+              mv "$RUNNER_TEMP/mechanical-change-set.next" \
+                "$mechanical_change_set_file"
+            done < <(
+              git -C target diff-tree -r --no-commit-id --no-renames \
+                --name-status -z "$mechanical_main_sha" "$mechanical_merge_tree_sha"
+            )
+            if [[ "$valid_change_set" != true || "$change_count" = 0 ]]; then
+              mechanical_merge_tree_sha=""
+              jq -n '{files:[]}' >"$mechanical_change_set_file"
+              return 0
+            fi
+            jq '.files |= sort_by(.path)' "$mechanical_change_set_file" \
+              >"$RUNNER_TEMP/mechanical-change-set.sorted"
+            mv "$RUNNER_TEMP/mechanical-change-set.sorted" \
+              "$mechanical_change_set_file"
+          }
           if [[ "$OPERATION" = reconcile ]]; then
-            common_payload | jq '{schema_version:1,payload:.}' \
+            common_payload | jq \
+              --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+              '{schema_version:1,payload:(. + {policy_base64:$policy_base64})}' \
               >"$RUNNER_TEMP/read-current.json"
             "$RUNNER_TEMP/wkissueagent" read-current-checkpoint \
               --input "$RUNNER_TEMP/read-current.json" >"$RUNNER_TEMP/current.json"
-            test "$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")" = "$STATE"
+            if [[ "$LIFECYCLE_OPERATION" = alert_audit_failure ]]; then
+              test "$(jq -er '.chain_invalid' "$RUNNER_TEMP/current.json")" = true
+            else
+              test "$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")" = "$STATE"
+            fi
           fi
 
           case "$OPERATION" in
@@ -557,6 +692,19 @@ jobs:
               ;;
             reconcile)
               case "$LIFECYCLE_OPERATION:$STATE" in
+                alert_audit_failure:chain_invalid)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/audit-alert.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-audit-alert \
+                    --input "$RUNNER_TEMP/audit-alert.json" >"$RUNNER_TEMP/result.json"
+                  ;;
+                repair_projection:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/projection-repair.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-projection-repair \
+                    --input "$RUNNER_TEMP/projection-repair.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
                 resolve_versions:authorized)
                   if [[ "$ROLLOUT" = reproduction || "$ROLLOUT" = remediation || "$ROLLOUT" = general ]]; then
                     common_payload | jq '{schema_version:1,payload:.}' \
@@ -655,9 +803,42 @@ jobs:
                   "$RUNNER_TEMP/wkissueagent" publish-expired-lease \
                     --input "$RUNNER_TEMP/recover.json" >"$RUNNER_TEMP/result.json"
                   ;;
+                publish_worker_result:reproducing|publish_worker_result:diagnosing|publish_worker_result:fixing)
+                  artifact="recovered-artifact/worker-artifact.json"
+                  test -f "$artifact"
+                  jq -e '.schema_version == 1' "$artifact" >/dev/null
+                  common_payload | jq \
+                    --argjson artifact_run_id "${{ needs.planner.outputs.artifact_run_id }}" \
+                    --arg artifact_name "${{ needs.planner.outputs.artifact_name }}" \
+                    --slurpfile artifact "$artifact" \
+                    --slurpfile policy control/.github/issue-agent/policy.json \
+                    --arg template_base64 "$(base64 -w0 control/.github/issue-agent/templates/e2e-scenario-AGENTS.md)" \
+                    '{schema_version:1,payload:(. + {
+                      artifact_run_id:$artifact_run_id,
+                      artifact_name:$artifact_name,
+                      artifact:$artifact[0],
+                      protected_paths:$policy[0].protected_paths,
+                      scenario_instruction_template_base64:$template_base64
+                    })}' \
+                    >"$RUNNER_TEMP/recovered-worker.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-worker-artifact \
+                    --input "$RUNNER_TEMP/recovered-worker.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
                 request_validation:validating)
                   if remediation_enabled; then
-                    common_payload | jq '{schema_version:1,payload:.}' \
+                    STATE_TARGET_SHA="$(jq -er '.checkpoint.work.head_sha' \
+                      "$RUNNER_TEMP/current.json")"
+                    mechanical_merge_facts
+                    common_payload | jq \
+                      --arg mechanical_main_sha "$mechanical_main_sha" \
+                      --arg mechanical_merge_tree_sha "$mechanical_merge_tree_sha" \
+                      --slurpfile mechanical_change_set "$mechanical_change_set_file" \
+                      '{schema_version:1,payload:(. + {
+                        mechanical_main_sha:$mechanical_main_sha,
+                        mechanical_merge_tree_sha:$mechanical_merge_tree_sha,
+                        mechanical_change_set:$mechanical_change_set[0]
+                      })}' \
                       >"$RUNNER_TEMP/validate.json"
                     "$RUNNER_TEMP/wkissueagent" publish-validation-request \
                       --input "$RUNNER_TEMP/validate.json" >"$RUNNER_TEMP/result.json"
@@ -668,6 +849,20 @@ jobs:
                     >"$RUNNER_TEMP/merge.json"
                   "$RUNNER_TEMP/wkissueagent" publish-merge \
                     --input "$RUNNER_TEMP/merge.json" >"$RUNNER_TEMP/result.json"
+                  ;;
+                record_branch_drift:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/branch-drift.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-branch-drift \
+                    --input "$RUNNER_TEMP/branch-drift.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
+                record_work_drift:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/work-drift.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-work-drift \
+                    --input "$RUNNER_TEMP/work-drift.json" \
+                    >"$RUNNER_TEMP/result.json"
                   ;;
                 wait:*|report_only:*)
                   ;;

@@ -672,6 +672,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		"go-race",
 		"go-integration",
 		"go-e2e",
+		"moving-main",
 		"three-node-smoke",
 		"gate",
 	}
@@ -716,6 +717,8 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		"three_node_smoke": "${{ steps.plan.outputs.three_node_smoke }}",
 		"plan_comment_id":  "${{ steps.plan.outputs.plan_comment_id }}",
 		"retry_of_run_id":  "${{ steps.plan.outputs.retry_of_run_id }}",
+		"issue_number":     "${{ steps.plan.outputs.issue_number }}",
+		"current_main_sha": "${{ steps.plan.outputs.current_main_sha }}",
 	}
 	if !reflect.DeepEqual(plan.Outputs, wantPlanOutputs) {
 		return fmt.Errorf("Agent validation plan outputs = %#v, want %#v", plan.Outputs, wantPlanOutputs)
@@ -760,6 +763,8 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`test "$current_merge_sha" = "$EXPECTED_MERGE_SHA"`,
 		`"$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA"`,
 		`"$GATE_RUN_ID"`,
+		`^agent/issue-([1-9][0-9]{0,9})$`,
+		`current_main_sha`,
 	} {
 		if !strings.Contains(planScript.String(), required) {
 			return fmt.Errorf("Agent validation plan is missing request binding %q", required)
@@ -862,6 +867,60 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 			)
 		}
 	}
+	movingMain := workflow.Jobs["moving-main"]
+	if movingMain.If != "needs.plan.outputs.go_e2e == 'true'" ||
+		!reflect.DeepEqual(movingMain.Needs, []string{"plan", "status-pending"}) ||
+		!reflect.DeepEqual(movingMain.Permissions, map[string]string{"contents": "read"}) {
+		return fmt.Errorf("Agent moving-main job is not bound to the frozen E2E plan")
+	}
+	var movingMainScript strings.Builder
+	checkouts := 0
+	for _, step := range movingMain.Steps {
+		movingMainScript.WriteString(step.Run)
+		movingMainScript.WriteByte('\n')
+		if strings.HasPrefix(step.Uses, "actions/checkout@") {
+			checkouts++
+		}
+	}
+	if checkouts != 2 {
+		return fmt.Errorf("Agent moving-main job checkout count = %d, want 2", checkouts)
+	}
+	for _, required := range []string{
+		`"./test/e2e/issue_agent/issue_${ISSUE_NUMBER}"`,
+		"timeout --signal=TERM --kill-after=30s 50m",
+		"-count=3",
+		"-timeout=45m -p=1",
+		"binary_sha256",
+		"main_passed",
+		"main_sha",
+	} {
+		if !strings.Contains(movingMainScript.String(), required) {
+			return fmt.Errorf("Agent moving-main evidence is missing %q", required)
+		}
+	}
+	retentionOK := false
+	for _, step := range movingMain.Steps {
+		if strings.HasPrefix(step.Uses, "actions/upload-artifact@") &&
+			fmt.Sprint(step.With["retention-days"]) == "90" {
+			retentionOK = true
+		}
+	}
+	if !retentionOK {
+		return fmt.Errorf("Agent moving-main Artifact retention is not 90 days")
+	}
+	checkoutPaths := make([]string, 0, 2)
+	for _, step := range movingMain.Steps {
+		if strings.HasPrefix(step.Uses, "actions/checkout@") {
+			pathValue, ok := step.With["path"].(string)
+			if !ok {
+				return fmt.Errorf("Agent moving-main checkout has no path")
+			}
+			checkoutPaths = append(checkoutPaths, pathValue)
+		}
+	}
+	if !reflect.DeepEqual(checkoutPaths, []string{"scenario", "current-main"}) {
+		return fmt.Errorf("Agent moving-main checkout paths = %#v", checkoutPaths)
+	}
 	goE2EBuild := workflow.Jobs["go-e2e"]
 	var buildE2EBinary *ciStep
 	for index := range goE2EBuild.Steps {
@@ -929,6 +988,8 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`"$latest_gate_run_id" != "$GATE_RUN_ID"`,
 		`should_rerun_gate=false`,
 		`actions/runs/${GATE_RUN_ID}/rerun`,
+		`context=Agent Moving Main / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`description=main=${MOVING_MAIN_SHA};binary=${MOVING_MAIN_BINARY_SHA256};runs=3`,
 	} {
 		if !strings.Contains(gateScript.String(), required) {
 			return fmt.Errorf("Agent validation gate is missing request consumption %q", required)

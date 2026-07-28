@@ -233,6 +233,41 @@ func (client *Client) UpdatePullRequest(
 	return validatePullResponse(response)
 }
 
+// EnsurePullRequestClosed closes one exact unmerged Agent PR or reuses the
+// identical already-closed projection. It never merges the PR.
+func (client *Client) EnsurePullRequestClosed(
+	ctx context.Context,
+	number int64,
+	expectedHeadSHA string,
+) (PullRequestFacts, error) {
+	current, err := client.PullRequest(ctx, number)
+	if err != nil || current.HeadSHA != expectedHeadSHA || current.Merged {
+		return PullRequestFacts{}, errors.New("pull request close fence is stale")
+	}
+	if current.State == "closed" {
+		return current, nil
+	}
+	var response pullResponse
+	if err := client.requestJSON(
+		ctx,
+		http.MethodPatch,
+		"/repos/"+client.repository+"/pulls/"+strconv.FormatInt(number, 10),
+		struct {
+			State string `json:"state"`
+		}{State: "closed"},
+		&response,
+		http.StatusOK,
+	); err != nil {
+		return PullRequestFacts{}, err
+	}
+	closed, err := validatePullResponse(response)
+	if err != nil || closed.State != "closed" || closed.Merged ||
+		closed.HeadSHA != expectedHeadSHA {
+		return PullRequestFacts{}, errors.New("pull request did not close exactly")
+	}
+	return closed, nil
+}
+
 // MarkPullRequestReady converts one Draft PR without merging it.
 func (client *Client) MarkPullRequestReady(
 	ctx context.Context,

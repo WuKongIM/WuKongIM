@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 
 	issueagentcontract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
@@ -40,6 +41,8 @@ func ValidatePublish(input PublishValidation) error {
 	if err := issueagentcontract.ValidateChangeSet(input.ChangeSet, input.Limits); err != nil {
 		return err
 	}
+	expectedInstructionsPath := scenarioInstructionsPath(input.IssueNumber)
+	foundExpectedInstructions := false
 	for _, file := range input.ChangeSet.Files {
 		if matchesAnyPath(file.Path, input.ImmutablePaths, false, false) &&
 			!input.AllowReproductionReset {
@@ -67,12 +70,13 @@ func ValidatePublish(input PublishValidation) error {
 			if input.ExistingPaths[file.Path] {
 				return fmt.Errorf("existing instruction file %q is immutable", file.Path)
 			}
-			if !strings.HasPrefix(file.Path, "test/e2e/issue_agent/issue_") ||
+			if file.Path != expectedInstructionsPath ||
 				file.Operation != issueagentcontract.FileOperationUpsert ||
 				len(input.ScenarioInstructionTemplate) == 0 ||
 				!bytes.Equal(content, input.ScenarioInstructionTemplate) {
 				return fmt.Errorf("new instruction file %q is not the trusted scenario template", file.Path)
 			}
+			foundExpectedInstructions = true
 		}
 		if frozen, ok := input.FrozenFileSHA256[file.Path]; ok &&
 			!input.AllowReproductionReset {
@@ -82,7 +86,57 @@ func ValidatePublish(input PublishValidation) error {
 			}
 		}
 	}
+	if len(input.ScenarioInstructionTemplate) != 0 && !foundExpectedInstructions {
+		return errors.New("trusted scenario instruction file is missing")
+	}
 	return nil
+}
+
+// InjectScenarioInstructions replaces any model-authored scenario instructions
+// with the exact trusted Publisher template, or appends the template when the
+// Worker omitted it.
+func InjectScenarioInstructions(
+	changeSet issueagentcontract.ChangeSet,
+	issueNumber int64,
+	template []byte,
+) (issueagentcontract.ChangeSet, error) {
+	if issueNumber <= 0 || len(template) == 0 {
+		return issueagentcontract.ChangeSet{},
+			errors.New("trusted scenario instruction template is invalid")
+	}
+	result := issueagentcontract.ChangeSet{
+		Files: append([]issueagentcontract.FileChange(nil), changeSet.Files...),
+	}
+	expectedPath := scenarioInstructionsPath(issueNumber)
+	injected := issueagentcontract.FileChange{
+		Path:          expectedPath,
+		Operation:     issueagentcontract.FileOperationUpsert,
+		Mode:          issueagentcontract.FileModeRegular,
+		ContentBase64: issueagentcontract.EncodeFileContent(template),
+	}
+	found := false
+	for index := range result.Files {
+		if result.Files[index].Path != expectedPath {
+			continue
+		}
+		if found {
+			return issueagentcontract.ChangeSet{},
+				errors.New("scenario instruction path is duplicated")
+		}
+		result.Files[index] = injected
+		found = true
+	}
+	if !found {
+		result.Files = append(result.Files, injected)
+	}
+	slices.SortFunc(result.Files, func(left, right issueagentcontract.FileChange) int {
+		return strings.Compare(left.Path, right.Path)
+	})
+	return result, nil
+}
+
+func scenarioInstructionsPath(issueNumber int64) string {
+	return fmt.Sprintf("test/e2e/issue_agent/issue_%d/AGENTS.md", issueNumber)
 }
 
 func matchesAnyPath(

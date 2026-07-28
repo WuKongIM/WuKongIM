@@ -209,6 +209,16 @@ func (broker *Broker) Apply(
 	if err != nil || int64(len(content)) > broker.maxFileBytes {
 		return ApplyResult{}, errors.New("workspace_apply_patch content is invalid")
 	}
+	broker.applyMu.Lock()
+	defer broker.applyMu.Unlock()
+	previousSize, alreadyApplied := broker.appliedSizes[request.Path]
+	if !alreadyApplied && len(broker.appliedSizes) >= broker.maxFiles {
+		return ApplyResult{}, errors.New("workspace_apply_patch file budget is exhausted")
+	}
+	nextTotal := broker.appliedTotal - previousSize + int64(len(content))
+	if nextTotal < 0 || nextTotal > broker.maxTotalBytes {
+		return ApplyResult{}, errors.New("workspace_apply_patch byte budget is exhausted")
+	}
 	destination := filepath.Join(broker.root, request.Path)
 	parent, err := filepath.EvalSymlinks(filepath.Dir(destination))
 	if err != nil || !withinRoot(broker.root, parent) {
@@ -254,6 +264,8 @@ func (broker *Broker) Apply(
 	if err := os.Rename(tempName, destination); err != nil {
 		return ApplyResult{}, errors.New("install workspace file")
 	}
+	broker.appliedSizes[request.Path] = int64(len(content))
+	broker.appliedTotal = nextTotal
 	sha := digest(content)
 	id := broker.record(ToolEvidence{
 		Tool: "workspace_apply_patch", Path: request.Path,

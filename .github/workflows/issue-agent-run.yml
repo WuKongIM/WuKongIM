@@ -27,6 +27,7 @@ jobs:
     permissions:
       contents: read
       issues: read
+      pull-requests: read
     outputs:
       affected_sha: ${{ steps.task.outputs.affected_sha }}
       artifact_name: ${{ steps.task.outputs.artifact_name }}

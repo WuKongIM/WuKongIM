@@ -70,8 +70,15 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.Equal(t, "issue-agent-publisher", job.Environment)
 				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				if jobName == "state-publisher" {
+					require.Equal(t, map[string]string{
+						"actions": "read", "contents": "read",
+					}, job.Permissions)
 					require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				} else {
+					require.Equal(t,
+						map[string]string{"contents": "read"},
+						job.Permissions,
+					)
 					require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				}
 				require.NotContains(t, jobText, "CODEX_API_KEY")
@@ -143,6 +150,7 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "remediation_issue_allowlist")
 	require.Contains(t, raw, "docker pull \"$sandbox_image\"")
 	require.Contains(t, raw, "prompt_phase=address-review")
+	require.Contains(t, raw, "pull-requests: read")
 }
 
 func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
@@ -156,6 +164,40 @@ func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *t
 	require.Contains(t, raw, "publish-merge")
 	require.Contains(t, raw, "observe_merge")
 	require.Contains(t, raw, "record_merge:ready_for_review")
+	require.Contains(t, raw, "record_branch_drift:*")
+	require.Contains(t, raw, "publish-branch-drift")
+	require.Contains(t, raw, "record_work_drift:*")
+	require.Contains(t, raw, "publish-work-drift")
+	require.Contains(t, raw, "publish_worker_result:reproducing")
+	require.Contains(t, raw, "Download exact recoverable Worker Artifact")
+	require.Contains(t, raw, "needs.planner.outputs.artifact_run_id")
+	require.Contains(t, raw, "github-token: ${{ github.token }}")
+	require.Contains(t, raw, "git -C target merge-tree --write-tree")
+	require.Contains(t, raw,
+		`--name-status -z "$mechanical_main_sha" "$mechanical_merge_tree_sha"`,
+	)
+	require.Contains(t, raw, "mechanical_main_sha")
+	require.Contains(t, raw, "mechanical_merge_tree_sha")
+	require.Contains(t, raw, "mechanical_change_set")
+	require.Contains(t, raw, `--rawfile content_base64 "$content_base64_file"`)
+	require.NotContains(t, raw,
+		`--arg content_base64 "$(base64 -w0 "$content_file")"`,
+	)
+	require.Contains(t, raw, "fetch-depth: 0")
+	require.Contains(t, raw, "publish-projection-repair")
+	require.NotContains(t, raw, "/update-branch")
+	require.Contains(t, raw,
+		"needs.planner.outputs.lifecycle_operation == 'dispatch_worker'",
+	)
+	require.Contains(t, raw,
+		"needs.planner.outputs.lifecycle_operation == 'request_validation'",
+	)
+	require.NotContains(t, raw,
+		"needs.planner.outputs.lifecycle_operation != 'alert_audit_failure'",
+	)
+	require.Contains(t, raw,
+		"needs.planner.outputs.command_requires_target == 'true'",
+	)
 	for _, command := range []string{
 		"revise", "cancel", "address-review", "adopt-head", "backport",
 		"recover-chain",

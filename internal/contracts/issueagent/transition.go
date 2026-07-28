@@ -40,7 +40,7 @@ func ValidateTransition(from, to State) error {
 		allowed = to == StateValidating || to == StateAlreadyFixed ||
 			to == StateReadyForHuman || to == StateDiagnosed
 	case StateValidating:
-		allowed = to == StateFixing || to == StateAlreadyFixed ||
+		allowed = to == StateValidating || to == StateFixing || to == StateAlreadyFixed ||
 			to == StateReadyForReview || to == StateReadyForHuman
 	case StateReadyForReview:
 		allowed = to == StateMerged || to == StateReadyForHuman
@@ -79,4 +79,11 @@ func executionState(state State) bool {
 	default:
 		return false
 	}
+}
+
+// IsActiveWorkState reports lifecycle states in which an Agent branch may
+// still be advanced and must be checked for an external head before any
+// automated effect is accepted.
+func IsActiveWorkState(state State) bool {
+	return executionState(state)
 }

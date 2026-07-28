@@ -33,6 +33,8 @@ jobs:
       three_node_smoke: ${{ steps.plan.outputs.three_node_smoke }}
       plan_comment_id: ${{ steps.plan.outputs.plan_comment_id }}
       retry_of_run_id: ${{ steps.plan.outputs.retry_of_run_id }}
+      issue_number: ${{ steps.plan.outputs.issue_number }}
+      current_main_sha: ${{ steps.plan.outputs.current_main_sha }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -155,6 +157,18 @@ jobs:
             "$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA" \
             "$GATE_RUN_ID" \
             "$GITHUB_OUTPUT" validated-plan.json
+          head_ref="$(jq -er '.head.ref' pr.json)"
+          base_ref="$(jq -er '.base.ref' pr.json)"
+          current_main_sha="$(jq -er '.base.sha' pr.json)"
+          test "$base_ref" = "${{ github.event.repository.default_branch }}"
+          [[ "$current_main_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$head_ref" =~ ^agent/issue-([1-9][0-9]{0,9})$ ]]; then
+            echo "issue_number=${BASH_REMATCH[1]}" >>"$GITHUB_OUTPUT"
+            echo "current_main_sha=$current_main_sha" >>"$GITHUB_OUTPUT"
+          else
+            echo "::error::Agent validation PR head is not an Issue branch"
+            exit 1
+          fi
       - name: Write validated plan summary
         shell: bash
         run: |
@@ -524,6 +538,85 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  moving-main:
+    name: Agent / Frozen E2E on current main
+    if: needs.plan.outputs.go_e2e == 'true'
+    needs: [plan, status-pending]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      binary_sha256: ${{ steps.probe.outputs.binary_sha256 }}
+      main_passed: ${{ steps.probe.outputs.main_passed }}
+      main_sha: ${{ steps.probe.outputs.main_sha }}
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Check out the exact frozen scenario
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.client_payload.merge_sha }}
+          path: scenario
+          persist-credentials: false
+      - name: Check out current main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.plan.outputs.current_main_sha }}
+          path: current-main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: scenario/go.mod
+          cache: false
+      - name: Run the same frozen Issue E2E three times on main
+        id: probe
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ needs.plan.outputs.issue_number }}
+          LOG_FILE: ${{ runner.temp }}/moving-main.log
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          main_sha="$(git -C current-main rev-parse HEAD)"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+          (
+            cd current-main
+            go build -tags=e2e \
+              -ldflags="-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision=${main_sha}" \
+              -o "$RUNNER_TEMP/wukongim-current-main" ./cmd/wukongim
+          )
+          binary_sha256="$(sha256sum "$RUNNER_TEMP/wukongim-current-main" | cut -d' ' -f1)"
+          [[ "$binary_sha256" =~ ^[0-9a-f]{64}$ ]]
+          set +e
+          (
+            cd scenario
+            WK_E2E_BINARY="$RUNNER_TEMP/wukongim-current-main" \
+              timeout --signal=TERM --kill-after=30s 50m \
+              go test -tags=e2e \
+                "./test/e2e/issue_agent/issue_${ISSUE_NUMBER}" \
+                -count=3 -timeout=45m -p=1
+          ) 2>&1 | tee "$LOG_FILE"
+          probe_status="${PIPESTATUS[0]}"
+          set -e
+          main_passed=false
+          if [[ "$probe_status" -eq 0 ]]; then
+            main_passed=true
+          fi
+          {
+            echo "binary_sha256=$binary_sha256"
+            echo "main_passed=$main_passed"
+            echo "main_sha=$main_sha"
+          } >>"$GITHUB_OUTPUT"
+      - name: Upload moving-main evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-moving-main-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/moving-main.log
+          if-no-files-found: error
+          retention-days: 90
+
   three-node-smoke:
     name: Agent / Three-node smoke
     if: needs.plan.outputs.three_node_smoke == 'true'
@@ -582,6 +675,7 @@ jobs:
       - go-race
       - go-integration
       - go-e2e
+      - moving-main
       - three-node-smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -616,6 +710,10 @@ jobs:
           GO_INTEGRATION_RESULT: ${{ needs.go-integration.result }}
           SELECT_GO_E2E: ${{ needs.plan.outputs.go_e2e }}
           GO_E2E_RESULT: ${{ needs.go-e2e.result }}
+          MOVING_MAIN_RESULT: ${{ needs.moving-main.result }}
+          MOVING_MAIN_SHA: ${{ needs.moving-main.outputs.main_sha }}
+          MOVING_MAIN_BINARY_SHA256: ${{ needs.moving-main.outputs.binary_sha256 }}
+          MOVING_MAIN_PASSED: ${{ needs.moving-main.outputs.main_passed }}
           SELECT_THREE_NODE_SMOKE: ${{ needs.plan.outputs.three_node_smoke }}
           THREE_NODE_SMOKE_RESULT: ${{ needs.three-node-smoke.result }}
         run: |
@@ -647,6 +745,7 @@ jobs:
           check_result "$SELECT_GO_RACE" "$GO_RACE_RESULT"
           check_result "$SELECT_GO_INTEGRATION" "$GO_INTEGRATION_RESULT"
           check_result "$SELECT_GO_E2E" "$GO_E2E_RESULT"
+          check_result "$SELECT_GO_E2E" "$MOVING_MAIN_RESULT"
           check_result "$SELECT_THREE_NODE_SMOKE" "$THREE_NODE_SMOKE_RESULT"
 
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" >current-pr.json
@@ -710,6 +809,22 @@ jobs:
             -f state="$state" \
             -f "context=Agent Validation Evidence / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
             -f description="$description" \
+            -f target_url="$RUN_URL" >/dev/null
+          moving_main_state=error
+          if [[ "$MOVING_MAIN_RESULT" = success ]] &&
+            [[ "$MOVING_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] &&
+            [[ "$MOVING_MAIN_BINARY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            moving_main_state=failure
+            if [[ "$MOVING_MAIN_PASSED" = true ]]; then
+              moving_main_state=success
+            else
+              test "$MOVING_MAIN_PASSED" = false
+            fi
+          fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$moving_main_state" \
+            -f "context=Agent Moving Main / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}" \
+            -f "description=main=${MOVING_MAIN_SHA};binary=${MOVING_MAIN_BINARY_SHA256};runs=3" \
             -f target_url="$RUN_URL" >/dev/null
           if [[ "$should_rerun_gate" == true ]]; then
             gh api -X POST \

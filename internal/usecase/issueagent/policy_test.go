@@ -76,3 +76,35 @@ func TestDecodePolicyRejectsUnknownAndUnsafeExpansion(t *testing.T) {
 	}
 	require.Error(t, issueagentusecase.ValidatePolicy(policy))
 }
+
+func TestWorkerRolloutReservationAndIssueBudgetAreUsecaseOwned(t *testing.T) {
+	t.Parallel()
+
+	policy := issueagentusecase.Policy{
+		Enabled: true, RolloutMode: issueagentusecase.RolloutRemediation,
+		RemediationIssueAllowlist: []int64{42},
+		IssueBudget: issueagentusecase.IssueBudget{
+			MaxReproductionAttempts: 3,
+			MaxRemediationAttempts:  3,
+			MaxWorkerTime:           6 * time.Hour,
+		},
+	}
+	require.True(t, issueagentusecase.AllowsReproduction(policy))
+	require.True(t, issueagentusecase.AllowsAutomatedRemediation(policy, 42))
+	require.False(t, issueagentusecase.AllowsAutomatedRemediation(policy, 43))
+	reservation, err := issueagentusecase.WorkerReservationForPhase(
+		issueagent.PhaseDiagnose,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 65*time.Minute, reservation.Duration)
+	require.False(t, reservation.Heavy)
+
+	checkpoint := issueagent.Checkpoint{}
+	require.NoError(t, issueagentusecase.CheckIssueWorkerBudget(
+		checkpoint, policy, issueagent.PhaseFix,
+	))
+	checkpoint.Budget.RemediationAttempts = 3
+	require.Error(t, issueagentusecase.CheckIssueWorkerBudget(
+		checkpoint, policy, issueagent.PhaseFix,
+	))
+}

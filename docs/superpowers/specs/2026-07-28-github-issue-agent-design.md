@@ -260,8 +260,9 @@ Repository changes use GitHub GraphQL `createCommitOnBranch` with
 `expectedHeadOid`. The Publisher creates or reuses only
 `agent/issue-<number>`, requires the resulting GitHub signature to verify, and
 re-reads the ref, parent, and exact file content before advancing state. It
-never force-updates a ref or constructs a commit locally with model-selected
-identity.
+never constructs a commit locally with model-selected identity. Ordinary
+publication never force-updates a ref; the sole moving-main exception is the
+typed atomic rebase transaction described below.
 
 ### GitHub App without a server
 
@@ -713,7 +714,11 @@ The GitHub App may update only the configured Agent prefix and cannot bypass
 default-branch protection. Every branch update names the expected old SHA.
 Tags, default branches, and non-Agent branches are rejected.
 
-An unexpected update by another identity:
+An unexpected update by another identity is checked when a Worker reads its
+task, before Artifact publication, and in every active Agent work state during
+reconciliation. A lease-bound Artifact or validation Publisher first proves
+whether the new head is the complete App-authored, GitHub-signed deterministic
+effect left by a commit/checkpoint crash:
 
 1. invalidates the current lease and prior validation;
 2. preserves the external commit without overwrite;
@@ -721,6 +726,11 @@ An unexpected update by another identity:
 4. enters `ready_for_human`.
 
 Only `/agent adopt-head <sha>` accepts that exact head into a new generation.
+The preserved PR and diagnosis facts determine whether that generation resumes
+at Draft-PR creation, diagnosis, or complete validation.
+A missing branch/PR, closed-unmerged PR, or non-`main` retarget records a
+separate signed human transition. A same-head Draft/Ready mismatch is a
+reversible projection repaired from the checkpoint.
 
 ### Local Worker validation
 
@@ -765,7 +775,12 @@ Gate's current test-merge commit.
   closes its Draft PR as superseded and records `already_fixed`; a maintainer
   decides whether to close the Issue.
 - The Agent may attempt one mechanical conflict resolution and then rerun the
-  complete validation.
+  complete validation. The Publisher computes the exact merge-result tree,
+  creates an App-authored GitHub-signed commit whose parent is current `main`
+  on a deterministic staging ref keyed by the complete immutable effect, then
+  uses one GraphQL `updateRefs`
+  transaction to require the old Agent OID, swap the PR branch, and delete
+  staging atomically. This preserves current `main` as the PR merge-base.
 - A semantic conflict enters `ready_for_human`.
 
 ### Human handoff and closure
@@ -837,7 +852,10 @@ The scheduled Sweeper scans non-terminal Issues that retain
 - stale validation evidence after a PR event.
 
 The Sweeper is idempotent and uses the same Publisher checks as normal events.
-It has no private task database.
+For the current unexpired lease it lists only completed dispatches from the
+lease start time, requires one exact run-title and Artifact-name match, and
+downloads that Artifact from the exact run before re-entering the ordinary
+Publisher. It has no private task database.
 
 ## Retry and Resource Budgets
 

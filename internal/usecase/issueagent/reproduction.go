@@ -213,7 +213,9 @@ func BuildReproductionTask(input ReproductionTaskInput) (issueagentcontract.Task
 		},
 		Limits: issueagentcontract.ResourceLimits{
 			WallTime: 90 * time.Minute, MaxOutputBytes: 4 << 20,
-			MaxFiles: 16, MaxFileBytes: 2 << 20, MaxTotalBytes: 8 << 20,
+			// Reserve the sixteenth file for the trusted Publisher-injected
+			// scenario AGENTS.md.
+			MaxFiles: 15, MaxFileBytes: 2 << 20, MaxTotalBytes: 8 << 20,
 		},
 		RequiredTopology:         input.Topology,
 		RequiredRuns:             requiredReproductionRuns,

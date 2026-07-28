@@ -188,3 +188,13 @@ func TestCheckpointRejectsLifecycleStateWithoutRequiredEvidence(t *testing.T) {
 	}
 	require.Error(t, issueagent.ValidateCheckpoint(checkpoint))
 }
+
+func TestCheckpointBoundsMechanicalIntegrationAttempts(t *testing.T) {
+	t.Parallel()
+
+	checkpoint := checkpointWithReproduction()
+	require.NoError(t, issueagent.ValidateCheckpoint(checkpoint))
+
+	checkpoint.Work.MechanicalRebaseAttempts = 2
+	require.Error(t, issueagent.ValidateCheckpoint(checkpoint))
+}

@@ -42,7 +42,8 @@ func TestBrokerConfinesPathsAndRunsOnlyApprovedArgv(t *testing.T) {
 		AllowedCommands: []issueagent.CommandRule{{
 			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 4,
 		}},
-		MaxFileBytes: 1024, MaxOutputBytes: 1024,
+		MaxFileBytes: 1024, MaxFiles: 4, MaxTotalBytes: 4096,
+		MaxOutputBytes: 1024,
 	}, runner)
 	require.NoError(t, err)
 
@@ -82,7 +83,8 @@ func TestBrokerTruncatesOutputAndHonorsCancellation(t *testing.T) {
 		AllowedCommands: []issueagent.CommandRule{{
 			Executable: "go", ArgvPrefix: []string{"test"}, MaxArgs: 2,
 		}},
-		MaxFileBytes: 64, MaxOutputBytes: 64,
+		MaxFileBytes: 64, MaxFiles: 4, MaxTotalBytes: 256,
+		MaxOutputBytes: 64,
 	}, runner)
 	require.NoError(t, err)
 	result, err := broker.RunCommand(context.Background(), issueagentworker.CommandRequest{

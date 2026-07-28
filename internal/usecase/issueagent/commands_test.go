@@ -2,6 +2,7 @@ package issueagent_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 	issueagentusecase "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
@@ -114,6 +115,47 @@ func TestPlanCommandFreezesReviewThreadsAndExactAdoptedHead(t *testing.T) {
 	require.Equal(t, external, adopted.AdoptedHeadSHA)
 }
 
+func TestAdoptHeadClearsRecordedExternalDriftInFreshGeneration(t *testing.T) {
+	t.Parallel()
+
+	external := "234567890abcdef1234567890abcdef123456789"
+	current := commandCheckpoint()
+	current.State = issueagent.StateReadyForHuman
+	current.NextAction = issueagent.ActionWaitForHuman
+	diagnosis := validDiagnosis()
+	current.Diagnosis = &diagnosis
+	current.Work = &issueagent.Work{
+		Branch: "agent/issue-42", HeadSHA: affectedSHA, PRNumber: 9,
+		MechanicalRebaseAttempts: 1, ExternalHeadSHA: &external,
+	}
+	intent := issueagentusecase.CommandIntent{
+		Kind: issueagentusecase.CommandAdoptHead, Actor: "maintainer",
+		HeadSHA: external,
+	}
+	plan, err := issueagentusecase.PlanCommand(
+		current, intent,
+		issueagentusecase.CommandFacts{
+			CommandEventID: "comment-10", CurrentExternalHead: external,
+		},
+	)
+	require.NoError(t, err)
+	transition, err := issueagentusecase.FinalizeCommandTransition(
+		current,
+		issueagentusecase.TransitionAnchor{
+			CommentID: 9,
+			Digest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		intent, plan, "comment-10", "maintainer", 10,
+		nil, 0, time.Time{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, external, transition.Checkpoint.Work.HeadSHA)
+	require.Nil(t, transition.Checkpoint.Work.ExternalHeadSHA)
+	require.Equal(t, uint32(1),
+		transition.Checkpoint.Work.MechanicalRebaseAttempts,
+	)
+}
+
 func TestPlanCommandIsolatesBackportAndAuditedRecovery(t *testing.T) {
 	t.Parallel()
 
@@ -142,6 +184,7 @@ func TestPlanCommandIsolatesBackportAndAuditedRecovery(t *testing.T) {
 		issueagentusecase.CommandIntent{
 			Kind: issueagentusecase.CommandRecoverChain, Actor: "admin",
 			CheckpointCommentID: 100, CheckpointDigest: recoveryDigest,
+			QuarantineDigest: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		},
 		issueagentusecase.CommandFacts{
 			CommandEventID: "recover", LastValidCommentID: 100,
@@ -222,7 +265,7 @@ func TestParseCommandRejectsQuotedEmbeddedAndUnauthorizedText(t *testing.T) {
 func TestParseCommandRequiresAdminForAuditChainRecovery(t *testing.T) {
 	t.Parallel()
 
-	text := "/agent recover-chain 123 sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	text := "/agent recover-chain 123 sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	policy := issueagentusecase.CommandPolicy{}
 
 	_, err := issueagentusecase.ParseCommand(text, issueagentusecase.CommandActor{

@@ -1130,4 +1130,22 @@ The composition root also re-reads and publishes exact maintainer controls,
 bounded CI-repair leases, sanitized provider failures, and admin chain
 recovery. Lifecycle operation selection is returned by
 `internal/usecase/issueagent.Reconcile`; the workflow does not infer the next
-operation directly from raw event state.
+operation directly from raw event state. Invalid signed chains on open or
+closed Issues are surfaced by an unsigned, idempotent human alert without
+appending a false checkpoint. All signed successor state, action, lease, and
+budget decisions come from typed usecase transitions and effect-result
+binders. Moving-main and conflict outcomes are selected by the usecase drift
+planner; the protected workflow independently computes the exact merge tree,
+while the composition root verifies GitHub run/status/ref facts and applies
+only the returned App-authored staging-commit plus atomic expected-OID ref-swap
+effect. Every active Agent work head and PR projection is re-read when a Worker
+loads its task, before Artifact publication, and during reconciliation.
+Lease-bound exact App-authored/GitHub-signed commits are recovered before an
+unknown head is classified as external. Missing, closed-unmerged, and
+retargeted work objects become a signed human handoff; reversible Draft/Ready
+projection drift is repaired from signed state. External heads can be adopted
+only by a fresh exact maintainer command.
+For an unexpired lease, reconciliation also reads the bounded completed-run
+inventory since lease issuance. A unique operation-bound Artifact is downloaded
+from its exact run and re-enters the same lease-, task-, work-, and commit-fenced
+Publisher used by the original Worker workflow.

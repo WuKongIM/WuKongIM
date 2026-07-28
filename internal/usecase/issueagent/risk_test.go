@@ -29,6 +29,7 @@ func TestRiskClassificationRequiresSecondAuthorizationAndFencesAgentPaths(t *tes
 	require.Contains(t, protected.Classes, issueagentusecase.RiskProtectedAgent)
 
 	for _, filePath := range []string{
+		".github/ISSUE_TEMPLATE/bug_report.yml",
 		"internal/app/issue_agent.go",
 		"scripts/issue_agent_schema_test.go",
 	} {
@@ -38,6 +39,27 @@ func TestRiskClassificationRequiresSecondAuthorizationAndFencesAgentPaths(t *tes
 		require.NoError(t, err)
 		require.True(t, decision.HumanOnly, filePath)
 	}
+}
+
+func TestRiskFactsComeFromTrustedChangeSetPaths(t *testing.T) {
+	t.Parallel()
+
+	input := issueagentusecase.RiskInputFromChangeSet(issueagent.ChangeSet{
+		Files: []issueagent.FileChange{
+			{Path: "go.mod"},
+			{Path: "internal/infra/cluster/raft/node.go"},
+		},
+	})
+	decision, err := issueagentusecase.ClassifyRisk(input)
+	require.NoError(t, err)
+	require.Contains(t, decision.Classes, issueagentusecase.RiskConsensus)
+	require.Contains(t, decision.Classes, issueagentusecase.RiskDependency)
+	require.False(t, issueagentusecase.RiskClassesAuthorized(
+		decision.Classes, []string{issueagentusecase.RiskConsensus}, "event-1",
+	))
+	require.True(t, issueagentusecase.RiskClassesAuthorized(
+		decision.Classes, decision.Classes, "event-1",
+	))
 }
 
 func TestValidationRequestAlwaysIncludesFastAndE2EWithRiskSuites(t *testing.T) {

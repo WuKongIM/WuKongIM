@@ -7,6 +7,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	issueagentcontract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 )
 
 const (
@@ -78,13 +80,62 @@ func ClassifyRisk(input RiskInput) (RiskDecision, error) {
 	}, nil
 }
 
+// RiskInputFromChangeSet derives the closed risk vocabulary from trusted
+// Publisher-validated paths. Model prose cannot suppress these facts.
+func RiskInputFromChangeSet(
+	changeSet issueagentcontract.ChangeSet,
+) RiskInput {
+	input := RiskInput{Paths: make([]string, 0, len(changeSet.Files))}
+	for _, file := range changeSet.Files {
+		filePath := strings.ToLower(file.Path)
+		input.Paths = append(input.Paths, file.Path)
+		input.PublicProtocolChanged = input.PublicProtocolChanged ||
+			strings.HasPrefix(filePath, "pkg/wkproto/") ||
+			strings.HasPrefix(filePath, "pkg/wknet/")
+		input.PersistentFormatChanged = input.PersistentFormatChanged ||
+			strings.HasPrefix(filePath, "pkg/wkdb/") ||
+			strings.Contains(filePath, "migration")
+		input.ConsensusChanged = input.ConsensusChanged ||
+			strings.Contains(filePath, "/raft") ||
+			strings.HasPrefix(filePath, "pkg/cluster/") ||
+			strings.HasPrefix(filePath, "internal/infra/cluster/")
+		input.SecurityChanged = input.SecurityChanged ||
+			strings.Contains(filePath, "auth") ||
+			strings.Contains(filePath, "crypto") ||
+			strings.Contains(filePath, "tls")
+		input.DependencyAdded = input.DependencyAdded ||
+			filePath == "go.mod" || filePath == "go.sum"
+		input.ConfigDefaultChanged = input.ConfigDefaultChanged ||
+			strings.HasPrefix(filePath, "internal/config/") ||
+			filePath == "wukongim.toml" ||
+			filePath == "wukongim.toml.example"
+	}
+	slices.Sort(input.Paths)
+	return input
+}
+
+// RiskClassesAuthorized requires the actual trusted diff to remain within the
+// diagnosed class set and requires a fresh event for every non-empty set.
+func RiskClassesAuthorized(
+	actual []string,
+	diagnosed []string,
+	authorizationEvent string,
+) bool {
+	for _, class := range actual {
+		if !slices.Contains(diagnosed, class) {
+			return false
+		}
+	}
+	return len(actual) == 0 || authorizationEvent != ""
+}
+
 func humanOnlyIssueAgentPath(filePath string) bool {
 	filePath = strings.ToLower(filePath)
 	if path.Base(filePath) == "agents.md" {
 		return true
 	}
 	for _, protected := range []string{
-		".agents", ".github/ISSUE_TEMPLATE", ".github/issue-agent",
+		".agents", ".github/issue_template", ".github/issue-agent",
 		".github/workflows", "cmd/wkissueagent",
 		"internal/access/issueagentcli", "internal/app/issue_agent",
 		"internal/contracts/issueagent", "internal/infra/issueagentgithub",

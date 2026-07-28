@@ -22,6 +22,8 @@ type BrokerConfig struct {
 	AllowedWritePaths []string
 	AllowedCommands   []issueagent.CommandRule
 	MaxFileBytes      int64
+	MaxFiles          int
+	MaxTotalBytes     int64
 	MaxOutputBytes    int64
 }
 
@@ -84,19 +86,26 @@ type Broker struct {
 	allowedWrites   []string
 	allowedCommands []issueagent.CommandRule
 	maxFileBytes    int64
+	maxFiles        int
+	maxTotalBytes   int64
 	maxOutputBytes  int64
 	runner          ToolRunner
 
-	mu       sync.Mutex
-	nextID   uint64
-	evidence []ToolEvidence
+	applyMu      sync.Mutex
+	appliedSizes map[string]int64
+	appliedTotal int64
+	mu           sync.Mutex
+	nextID       uint64
+	evidence     []ToolEvidence
 }
 
 // NewBroker validates one workspace and returns a no-secret broker.
 func NewBroker(config BrokerConfig, runner ToolRunner) (*Broker, error) {
 	if runner == nil || config.MaxFileBytes <= 0 ||
 		config.MaxFileBytes > 8<<20 || config.MaxOutputBytes <= 0 ||
-		config.MaxOutputBytes > 16<<20 ||
+		config.MaxOutputBytes > 16<<20 || config.MaxFiles <= 0 ||
+		config.MaxFiles > 128 || config.MaxTotalBytes <= 0 ||
+		config.MaxTotalBytes > 64<<20 ||
 		len(config.AllowedCommands) == 0 {
 		return nil, errors.New("Worker broker configuration is invalid")
 	}
@@ -131,8 +140,11 @@ func NewBroker(config BrokerConfig, runner ToolRunner) (*Broker, error) {
 		allowedWrites:   append([]string(nil), config.AllowedWritePaths...),
 		allowedCommands: append([]issueagent.CommandRule(nil), config.AllowedCommands...),
 		maxFileBytes:    config.MaxFileBytes,
+		maxFiles:        config.MaxFiles,
+		maxTotalBytes:   config.MaxTotalBytes,
 		maxOutputBytes:  config.MaxOutputBytes,
 		runner:          runner,
+		appliedSizes:    make(map[string]int64),
 	}, nil
 }
 

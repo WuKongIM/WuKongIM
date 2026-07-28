@@ -28,7 +28,8 @@ func TestDriftRecoveryNeverOverwritesExternalHeadAndBoundsConflicts(t *testing.T
 			issueagentusecase.DriftFacts{
 				ExpectedAgentHead: affectedSHA, CurrentAgentHead: affectedSHA,
 				CurrentMainSHA: baseSHA, Conflict: "mechanical",
-				ConflictAttempts: attempts,
+				MechanicalTreeSHA: "34567890abcdef1234567890abcdef1234567890",
+				ConflictAttempts:  attempts,
 			},
 		)
 		require.NoError(t, err)

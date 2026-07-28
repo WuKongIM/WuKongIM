@@ -19,6 +19,14 @@ import (
 
 var repositoryNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
+// ErrNotFound distinguishes a deterministic missing GitHub object from a
+// transient transport or API failure so reconciliation can hand it to humans.
+var ErrNotFound = errors.New("GitHub object not found")
+
+// ErrUntrustedCommit marks a complete GitHub response whose immutable author
+// or signature facts cannot belong to the configured Publisher.
+var ErrUntrustedCommit = errors.New("untrusted GitHub commit")
+
 // ClientConfig bounds one repository-specific GitHub REST client.
 type ClientConfig struct {
 	BaseURL      string
@@ -221,6 +229,9 @@ func (client *Client) getJSONPage(
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		if response.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("%w: status %d", ErrNotFound, response.StatusCode)
+		}
 		return nil, fmt.Errorf("GitHub API returned status %d", response.StatusCode)
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
@@ -289,6 +300,9 @@ func (client *Client) requestJSON(
 	}
 	if !statusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+		if response.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("%w: status %d", ErrNotFound, response.StatusCode)
+		}
 		return fmt.Errorf("GitHub API returned status %d", response.StatusCode)
 	}
 	if output == nil {

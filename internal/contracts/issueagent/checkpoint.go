@@ -135,9 +135,11 @@ type Reproduction struct {
 
 // Work binds the deterministic Agent branch and optional Draft PR.
 type Work struct {
-	Branch   string `json:"branch"`
-	HeadSHA  string `json:"head_sha"`
-	PRNumber int64  `json:"pr_number"`
+	Branch                   string  `json:"branch"`
+	HeadSHA                  string  `json:"head_sha"`
+	PRNumber                 int64   `json:"pr_number"`
+	MechanicalRebaseAttempts uint32  `json:"mechanical_rebase_attempts"`
+	ExternalHeadSHA          *string `json:"external_head_sha"`
 }
 
 // Diagnosis records the required causal checkpoint before any production fix.
@@ -382,8 +384,14 @@ func validateReproduction(reproduction Reproduction) error {
 
 func validateWork(work Work, issueNumber int64) error {
 	if work.Branch != fmt.Sprintf("agent/issue-%d", issueNumber) ||
-		!gitSHAPattern.MatchString(work.HeadSHA) || work.PRNumber < 0 {
+		!gitSHAPattern.MatchString(work.HeadSHA) || work.PRNumber < 0 ||
+		work.MechanicalRebaseAttempts > 1 {
 		return errors.New("invalid Agent branch or pull request reference")
+	}
+	if work.ExternalHeadSHA != nil &&
+		(!gitSHAPattern.MatchString(*work.ExternalHeadSHA) ||
+			*work.ExternalHeadSHA == work.HeadSHA) {
+		return errors.New("invalid external Agent branch head")
 	}
 	return nil
 }

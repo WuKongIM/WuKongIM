@@ -41,7 +41,7 @@ jobs:
           rollout="$(jq -er '.rollout_mode' control/.github/issue-agent/policy.json)"
           enabled="$(jq -er '.enabled' control/.github/issue-agent/policy.json)"
           gh api -X GET "repos/${GITHUB_REPOSITORY}/issues" \
-            -f state=open -f labels=ready-for-agent -f per_page=100 -f page=1 \
+            -f state=all -f labels=ready-for-agent -f per_page=100 -f page=1 \
             >"$RUNNER_TEMP/issues.json"
           jq -e 'type == "array" and length < 100' "$RUNNER_TEMP/issues.json" >/dev/null
           jq -c '[.[] | select(has("pull_request") | not) | .number] | sort | unique' \

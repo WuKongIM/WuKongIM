@@ -50,6 +50,10 @@ are the sole workflow state authority. Every stateless run:
 GitHub events only wake the controller. Duplicate, reordered, or missed events
 therefore converge through the hourly Sweeper. A corrupt, edited, deleted,
 ambiguous, paginated, or saturated history fails closed.
+An invalid App-authored chain is projected once as an idempotent audit comment
+and `ready-for-human` label while all ordinary signed writes remain fenced.
+This alert is not a replacement checkpoint; only the explicit admin recovery
+boundary described below can resume the signed chain.
 
 The normal lifecycle is:
 
@@ -59,8 +63,10 @@ intake -> authorized -> version_pinned -> reproducing -> reproduced
        -> Ready for Review
 ```
 
-The Agent never merges a PR, closes the Bug Issue, force-pushes, writes
-`main`, or bypasses branch protection.
+The Agent never merges a PR, closes the Bug Issue, writes `main`, or bypasses
+branch protection. It never performs an unconstrained force-push; the sole
+non-fast-forward operation is the typed moving-main transaction whose
+`beforeOid` must equal the signed Agent head.
 
 ## Execution boundary
 
@@ -98,6 +104,10 @@ three times against each exact binary. Product reproduction succeeds only when
 all six runs fail the same named business assertion. Harness, startup,
 topology, infrastructure, and provider failures remain separate failure
 classes.
+The Worker may propose only test files. The Publisher independently injects
+the exact reviewed `.github/issue-agent/templates/e2e-scenario-AGENTS.md` as
+the scenario directory's `AGENTS.md`, replacing model-authored content and
+rejecting any other instruction-file write.
 
 After reproduction, the Agent immediately opens a Draft PR containing the
 frozen E2E. Diagnosis is read-only and must name the external symptom, causal
@@ -121,6 +131,26 @@ The frozen reproduction directory is immutable during every fix and review
 cycle. A failed exact validation generation creates at most two new bounded
 fix leases; the third failure moves the Issue to `ready_for_human`.
 
+The validation workflow also builds the current exact `main` SHA and runs the
+same frozen Issue E2E three consecutive times against that binary. Its commit
+status binds the main SHA, binary digest, run count, PR, Gate, and validation
+run. If all three pass, the Publisher records signed `already_fixed` state,
+closes only the unmerged Agent Draft PR, and leaves the Bug Issue open. A
+moving-main conflict permits one mechanical rebase of the Agent branch. The
+protected Publisher independently computes the exact merge tree from the
+signed head and current `main`, converts the bounded delta from `main` to that
+tree into a typed ChangeSet, and creates an App-authored, GitHub-signed commit
+on a deterministic staging ref keyed by the complete rebase effect whose sole
+parent is current `main`. A
+GraphQL `updateRefs` transaction then requires the original Agent ref's exact
+`beforeOid`, swaps it to the signed commit, and deletes the staging ref
+atomically. The returned commit must have the exact independently computed
+tree, current-main parent, App Bot author, verified signature, and deterministic
+message. This preserves the PR merge-base while preventing an unexpected head
+from being overwritten. A
+semantic conflict, stale head, unsupported tree shape, or later conflict
+enters `ready_for_human`.
+
 ## Maintainer controls
 
 Only an exact first-line command from a freshly re-checked user with `write`,
@@ -136,9 +166,10 @@ the signed generation and revokes an old lease:
   head and forces full validation again;
 - `/agent backport <allowed-branch>` creates an idempotent, independent
   human-owned tracking Issue after the main fix is merged;
-- `/agent recover-chain <comment-id> <sha256-digest>` is admin-only and signs
-  the exact last-valid anchor, quarantined App-comment IDs, and quarantine
-  digest before the verifier can skip that damaged chain segment.
+- `/agent recover-chain <comment-id> <sha256-digest> <quarantine-sha256>` is
+  admin-only and signs the exact last-valid anchor, quarantined App-comment
+  IDs, and matching quarantine digest before the verifier can skip that
+  damaged chain segment.
 
 `/agent approve-risk` remains the separate second-authorization command for a
 signed high-risk diagnosis. Commands never grant merge, Issue-close, protected
@@ -146,11 +177,27 @@ path, or branch-protection bypass authority.
 
 When a human merges the validated PR, the control workflow treats the
 `pull_request.closed` event only as a wake-up signal. The trusted Publisher
-re-reads the exact PR head and merged state, then appends the signed `merged`
-checkpoint. It never merges or closes the Issue itself. This terminal
+re-reads the exact PR head, `base=main`, and merged state, then appends the
+signed `merged` checkpoint. It never merges or closes the Issue itself. This terminal
 checkpoint is what makes `/agent backport` eligible. If the close event is
 missed, the hourly typed reconciliation re-reads the same exact PR facts and
-records the merge without trusting the stale event payload.
+records the merge without trusting the stale event payload. Terminal
+checkpoints remove `ready-for-agent`, so the all-state recovery inventory does
+not accumulate completed Issues. If checkpoint append succeeds but label
+projection is interrupted, reconciliation detects the mismatch and repairs
+only the labels without appending another state transition.
+An unexpected head on any active Agent branch is checked when the Worker reads
+its task, before Artifact publication, and during reconciliation. If a
+lease-bound Artifact or validation effect exists, the Publisher first requires
+the exact deterministic message, parent, content, configured App Bot author,
+and GitHub signature so a commit/checkpoint crash can resume. Every other head
+is recorded as signed `external_branch_update` state and handed to humans
+without overwrite. A deleted, closed-unmerged, or retargeted work object is
+recorded separately as `missing_or_changed_work_object`; a reversible Draft
+projection mismatch is repaired from signed state.
+`/agent adopt-head <sha>` remains usable and adopts only that exact current
+head in a fresh generation. The adopted generation resumes at Draft-PR
+creation, diagnosis, or complete validation according to the preserved work.
 
 ## Capacity, retries, and recovery
 
@@ -167,9 +214,13 @@ Admission verifies the complete signed state of every bounded
 `ready-for-agent` Issue. Incomplete inventory or any invalid chain blocks new
 leases.
 
-The Sweeper runs hourly and may also be started manually. It redispatches an
-unexpired operation by deterministic operation ID, rejects late output, and
-returns an expired lease to its last durable boundary:
+The Sweeper runs hourly and may also be started manually. For an unexpired
+lease it enumerates the complete bounded set of completed Worker runs since
+the signed lease timestamp. A unique operation-title and Artifact-name match
+is downloaded from its exact run and sent through the same trusted Artifact
+Publisher; if no Artifact exists, the deterministic operation ID prevents a
+duplicate dispatch. Late output is rejected. An expired lease returns to its
+last durable boundary:
 
 - `reproducing` to `version_pinned`;
 - `diagnosing` to `draft_pr_open`;
@@ -179,6 +230,13 @@ After the infrastructure retry budget is exhausted, the Issue becomes
 `ready_for_human`. No recovery path trusts runner disk or an event payload.
 Model-provider failures are emitted as sanitized signed Worker failures rather
 than being counted as lease-expiry infrastructure retries.
+An invalid chain on either an open or a just-closed Issue emits the same
+idempotent App audit comment and `ready-for-human` label; closure never hides a
+chain-integrity failure.
+Worker file writes enforce file-count, per-file, and cumulative final-byte
+limits online before each atomic host replacement; command output is streamed
+into bounded buffers. A Worker cannot exceed its signed task budget and rely
+on final Artifact validation to catch it later.
 
 For emergency shutdown, set `.github/issue-agent/policy.json` `enabled` to
 `false` in a reviewed PR. This prevents new work; existing GitHub records remain
@@ -194,8 +252,11 @@ branch.
 1. Create a GitHub App with exactly repository `Actions: write`,
    `Contents: write`, `Issues: write`, `Metadata: read`, and
    `Pull requests: write`. Disable organization permissions and webhooks.
-2. Install it only on `WuKongIM/WuKongIM` and confirm it has no branch/ruleset
-   bypass.
+2. Install it only on `WuKongIM/WuKongIM`, confirm it has no branch/ruleset
+   bypass, and keep `main` protected. Ensure rules for the dedicated
+   `agent/issue-*` and deterministic rebase-staging refs permit the App's
+   expected-OID update and staging deletion; otherwise mechanical recovery
+   fails closed without modifying the PR and requires administrator action.
 3. Create protected Environments:
    `issue-agent-publisher`, `issue-agent-codex`, and
    `issue-agent-deepseek`.

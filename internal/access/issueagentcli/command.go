@@ -37,6 +37,10 @@ type PlanEventRequest struct {
 	CheckpointDigest    string                             `json:"checkpoint_digest,omitempty"`
 	Lease               *issueagentusecase.LeaseFacts      `json:"lease,omitempty"`
 	Artifacts           []issueagentusecase.WorkerArtifact `json:"artifacts,omitempty"`
+	WorkHead            *issueagentusecase.WorkHeadFacts   `json:"work_head,omitempty"`
+	WorkObjectMissing   bool                               `json:"work_object_missing,omitempty"`
+	Merge               *issueagentusecase.MergeFacts      `json:"merge,omitempty"`
+	IssueLabels         []string                           `json:"issue_labels,omitempty"`
 }
 
 // PlanSweepRequest is the strict scheduler input for a repository sweep.
@@ -61,7 +65,6 @@ type Operations struct {
 	PlanSweep                func(context.Context, PlanSweepRequest) (any, error)
 	PublishLease             func(context.Context, DocumentRequest) (any, error)
 	PublishResult            func(context.Context, DocumentRequest) (any, error)
-	PublishDraft             func(context.Context, DocumentRequest) (any, error)
 	PublishIntake            func(context.Context, DocumentRequest) (any, error)
 	PublishAuthorization     func(context.Context, DocumentRequest) (any, error)
 	PublishVersionPin        func(context.Context, DocumentRequest) (any, error)
@@ -75,6 +78,10 @@ type Operations struct {
 	PublishExpiredLease      func(context.Context, DocumentRequest) (any, error)
 	PublishCommand           func(context.Context, DocumentRequest) (any, error)
 	PublishMerge             func(context.Context, DocumentRequest) (any, error)
+	PublishBranchDrift       func(context.Context, DocumentRequest) (any, error)
+	PublishWorkDrift         func(context.Context, DocumentRequest) (any, error)
+	PublishAuditAlert        func(context.Context, DocumentRequest) (any, error)
+	PublishProjectionRepair  func(context.Context, DocumentRequest) (any, error)
 	ReadCurrentCheckpoint    func(context.Context, DocumentRequest) (any, error)
 	ReadCurrentTask          func(context.Context, DocumentRequest) (any, error)
 	RunWorker                func(context.Context, DocumentRequest) (any, error)
@@ -136,8 +143,6 @@ func Run(
 		result, err = runDocument(ctx, body, operations.PublishLease)
 	case "publish-result":
 		result, err = runDocument(ctx, body, operations.PublishResult)
-	case "publish-draft":
-		result, err = runDocument(ctx, body, operations.PublishDraft)
 	case "publish-intake":
 		result, err = runDocument(ctx, body, operations.PublishIntake)
 	case "publish-authorization":
@@ -164,6 +169,14 @@ func Run(
 		result, err = runDocument(ctx, body, operations.PublishCommand)
 	case "publish-merge":
 		result, err = runDocument(ctx, body, operations.PublishMerge)
+	case "publish-branch-drift":
+		result, err = runDocument(ctx, body, operations.PublishBranchDrift)
+	case "publish-work-drift":
+		result, err = runDocument(ctx, body, operations.PublishWorkDrift)
+	case "publish-audit-alert":
+		result, err = runDocument(ctx, body, operations.PublishAuditAlert)
+	case "publish-projection-repair":
+		result, err = runDocument(ctx, body, operations.PublishProjectionRepair)
 	case "read-current-checkpoint":
 		result, err = runDocument(ctx, body, operations.ReadCurrentCheckpoint)
 	case "read-current-task":

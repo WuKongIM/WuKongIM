@@ -14,7 +14,7 @@ import (
 var (
 	adoptHeadCommandPattern = regexp.MustCompile(`^/agent adopt-head ([0-9a-f]{40})$`)
 	backportCommandPattern  = regexp.MustCompile(`^/agent backport ([A-Za-z0-9][A-Za-z0-9._/-]{0,127})$`)
-	recoverCommandPattern   = regexp.MustCompile(`^/agent recover-chain ([1-9][0-9]*) (sha256:[0-9a-f]{64})$`)
+	recoverCommandPattern   = regexp.MustCompile(`^/agent recover-chain ([1-9][0-9]*) (sha256:[0-9a-f]{64}) (sha256:[0-9a-f]{64})$`)
 )
 
 // CommandKind is one exact maintainer control command.
@@ -49,6 +49,7 @@ type CommandIntent struct {
 	BackportBranch      string
 	CheckpointCommentID int64
 	CheckpointDigest    string
+	QuarantineDigest    string
 	Actor               string
 }
 
@@ -150,6 +151,7 @@ func ParseCommand(
 			intent.Kind = CommandRecoverChain
 			intent.CheckpointCommentID = commentID
 			intent.CheckpointDigest = matches[2]
+			intent.QuarantineDigest = matches[3]
 		} else {
 			return CommandIntent{}, errors.New("comment does not begin with an exact Issue Agent command")
 		}
@@ -222,6 +224,7 @@ func PlanCommand(
 	case CommandRecoverChain:
 		if intent.CheckpointCommentID != facts.LastValidCommentID ||
 			intent.CheckpointDigest != facts.LastValidDigest ||
+			intent.QuarantineDigest != facts.QuarantineDigest ||
 			!strictPositiveIDs(facts.QuarantinedCommentIDs) ||
 			!scheduleDigestPattern.MatchString(facts.QuarantineDigest) {
 			return CommandPlan{}, errors.New("recover-chain does not match the audited anchor")
