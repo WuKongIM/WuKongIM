@@ -48,6 +48,34 @@ func DecodeCheckpointEnvelope(reader io.Reader, maxBytes int64) (CheckpointEnvel
 	return envelope, nil
 }
 
+// DecodeTaskEnvelope strictly decodes and validates one bounded Worker task.
+func DecodeTaskEnvelope(reader io.Reader, maxBytes int64) (TaskEnvelope, error) {
+	var task TaskEnvelope
+	if err := decodeStrictJSON(reader, maxBytes, &task); err != nil {
+		return TaskEnvelope{}, err
+	}
+	if err := ValidateTaskEnvelope(task); err != nil {
+		return TaskEnvelope{}, err
+	}
+	return task, nil
+}
+
+// DecodeAgentResult strictly decodes and binds one bounded result to its task.
+func DecodeAgentResult(
+	reader io.Reader,
+	maxBytes int64,
+	task TaskEnvelope,
+) (AgentResult, error) {
+	var result AgentResult
+	if err := decodeStrictJSON(reader, maxBytes, &result); err != nil {
+		return AgentResult{}, err
+	}
+	if err := ValidateAgentResult(result, task); err != nil {
+		return AgentResult{}, err
+	}
+	return result, nil
+}
+
 func decodeStrictJSON(reader io.Reader, maxBytes int64, output any) error {
 	if reader == nil || maxBytes <= 0 {
 		return errors.New("JSON input limit must be positive")

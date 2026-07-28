@@ -15,6 +15,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/access/issueagentcli"
 	issueagentcontract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 	issueagentgithub "github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub"
+	issueagentmodel "github.com/WuKongIM/WuKongIM/internal/infra/issueagentmodel"
+	issueagentworker "github.com/WuKongIM/WuKongIM/internal/runtime/issueagentworker"
 	issueagentusecase "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
 )
 
@@ -23,8 +25,28 @@ import (
 type IssueAgentDependencies struct {
 	PublishLease     func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	PublishResult    func(context.Context, issueagentcli.DocumentRequest) (any, error)
+	RunWorker        func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	VerifyCheckpoint func(context.Context, issueagentcli.DocumentRequest) (any, error)
 	MintAppToken     func(context.Context, issueagentcli.DocumentRequest) (any, error)
+}
+
+// IssueAgentWorkerConfig contains Supervisor-only provider inputs.
+type IssueAgentWorkerConfig struct {
+	HTTPClient             *http.Client
+	DeepSeekAPIKey         string
+	CodexAPIKey            string
+	CodexBinary            string
+	CodexMinimumVersion    string
+	SandboxImage           string
+	ForbiddenPublisherData bool
+}
+
+type runWorkerPayload struct {
+	Task             issueagentcontract.TaskEnvelope `json:"task"`
+	PromptBase64     string                          `json:"prompt_base64"`
+	PolicyBase64     string                          `json:"policy_base64"`
+	Workspace        string                          `json:"workspace"`
+	MaxArtifactBytes int64                           `json:"max_artifact_bytes"`
 }
 
 // IssueAgentGitHubConfig contains Publisher-only process dependencies.
@@ -199,6 +221,207 @@ func NewIssueAgentGitHubDependencies(
 	}
 }
 
+// NewIssueAgentWorkerDependency composes the credential-separated Supervisor.
+func NewIssueAgentWorkerDependency(
+	config IssueAgentWorkerConfig,
+) func(context.Context, issueagentcli.DocumentRequest) (any, error) {
+	if config.HTTPClient == nil {
+		config.HTTPClient = &http.Client{Timeout: 2 * time.Minute}
+	}
+	return func(
+		ctx context.Context,
+		document issueagentcli.DocumentRequest,
+	) (any, error) {
+		if config.ForbiddenPublisherData {
+			return nil, errors.New("Worker process contains Publisher credentials")
+		}
+		var payload runWorkerPayload
+		if err := decodeIssueAgentDocument(document.Payload, &payload); err != nil {
+			return nil, err
+		}
+		prompt, err := base64.StdEncoding.Strict().DecodeString(payload.PromptBase64)
+		if err != nil || base64.StdEncoding.EncodeToString(prompt) != payload.PromptBase64 {
+			return nil, errors.New("Worker prompt encoding is invalid")
+		}
+		policy, err := base64.StdEncoding.Strict().DecodeString(payload.PolicyBase64)
+		if err != nil || base64.StdEncoding.EncodeToString(policy) != payload.PolicyBase64 {
+			return nil, errors.New("Worker policy encoding is invalid")
+		}
+		sandbox, err := issueagentworker.NewDockerSandboxRunner(
+			issueagentworker.DockerSandboxConfig{
+				Image: config.SandboxImage, Workspace: payload.Workspace,
+				CPUs: 2, MemoryBytes: 4 << 30, PIDs: 256, TempBytes: 2 << 30,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		modelRunner, err := composeModelRunner(config, payload.Task)
+		if err != nil {
+			return nil, err
+		}
+		worker, err := issueagentworker.NewWorker(issueagentworker.WorkerConfig{
+			Task: payload.Task, Prompt: prompt, Policy: policy,
+			Workspace: payload.Workspace, Runner: sandbox,
+			Model: modelRunner, MaxArtifactBytes: payload.MaxArtifactBytes,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return worker.Run(ctx)
+	}
+}
+
+func composeModelRunner(
+	config IssueAgentWorkerConfig,
+	task issueagentcontract.TaskEnvelope,
+) (issueagentworker.ModelRunner, error) {
+	var adapter issueagentmodel.Adapter
+	switch task.Provider {
+	case issueagentcontract.ProviderDeepSeek:
+		selected, err := issueagentmodel.NewDeepSeekAdapter(
+			"https://api.deepseek.com", config.DeepSeekAPIKey, config.HTTPClient,
+		)
+		if err != nil {
+			return nil, err
+		}
+		adapter = selected
+	case issueagentcontract.ProviderCodex:
+		runner, err := issueagentmodel.NewCodexCLIRunner(
+			issueagentmodel.CodexCLIConfig{
+				Binary: config.CodexBinary, APIKey: config.CodexAPIKey,
+				MinVersion: config.CodexMinimumVersion,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		selected, err := issueagentmodel.NewCodexAdapter(runner)
+		if err != nil {
+			return nil, err
+		}
+		adapter = selected
+	default:
+		return nil, errors.New("Worker task selects an unsupported provider")
+	}
+	return func(
+		ctx context.Context,
+		task issueagentcontract.TaskEnvelope,
+		prompt []byte,
+		broker *issueagentworker.Broker,
+	) (issueagentworker.ModelOutput, error) {
+		outcome, err := adapter.Run(ctx, issueagentmodel.Request{
+			Task: task, SystemPrompt: string(prompt),
+			PromptSHA256: task.PromptDigest, MaxRounds: 16,
+			MaxBytes: task.Limits.MaxOutputBytes,
+		}, brokerToolExecutor{broker: broker})
+		if err != nil {
+			return issueagentworker.ModelOutput{}, err
+		}
+		return issueagentworker.ModelOutput{
+			Result: outcome.Result, Usage: outcome.Usage,
+		}, nil
+	}, nil
+}
+
+type brokerToolExecutor struct {
+	broker *issueagentworker.Broker
+}
+
+func (executor brokerToolExecutor) ExecuteTool(
+	ctx context.Context,
+	call issueagentmodel.ToolCall,
+) (issueagentmodel.ToolResult, error) {
+	if executor.broker == nil {
+		return issueagentmodel.ToolResult{}, errors.New("tool broker is unavailable")
+	}
+	var result any
+	switch call.Name {
+	case "workspace_list":
+		var input struct {
+			Path       string `json:"path"`
+			MaxEntries int    `json:"max_entries"`
+		}
+		if err := decodeIssueAgentDocument(call.Arguments, &input); err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		value, err := executor.broker.List(ctx, input.Path, input.MaxEntries)
+		if err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		result = value
+	case "workspace_read":
+		var input struct {
+			Path string `json:"path"`
+		}
+		if err := decodeIssueAgentDocument(call.Arguments, &input); err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		value, err := executor.broker.Read(ctx, input.Path)
+		if err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		result = value
+	case "workspace_search":
+		var input struct {
+			Literal    string `json:"literal"`
+			Path       string `json:"path"`
+			MaxMatches int    `json:"max_matches"`
+		}
+		if err := decodeIssueAgentDocument(call.Arguments, &input); err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		value, err := executor.broker.Search(
+			ctx, input.Literal, input.Path, input.MaxMatches,
+		)
+		if err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		result = value
+	case "workspace_apply_patch":
+		var input issueagentworker.ApplyRequest
+		if err := decodeIssueAgentDocument(call.Arguments, &input); err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		value, err := executor.broker.Apply(ctx, input)
+		if err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		result = value
+	case "command_run":
+		var input struct {
+			Argv        []string `json:"argv"`
+			WorkingDir  string   `json:"working_dir"`
+			TimeoutMS   int64    `json:"timeout_ms"`
+			OutputLimit int64    `json:"output_limit"`
+		}
+		if err := decodeIssueAgentDocument(call.Arguments, &input); err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		value, err := executor.broker.RunCommand(
+			ctx,
+			issueagentworker.CommandRequest{
+				Argv: input.Argv, WorkingDir: input.WorkingDir,
+				Timeout:     time.Duration(input.TimeoutMS) * time.Millisecond,
+				OutputLimit: input.OutputLimit,
+			},
+		)
+		if err != nil {
+			return issueagentmodel.ToolResult{}, err
+		}
+		result = value
+	default:
+		return issueagentmodel.ToolResult{}, errors.New("unknown broker tool")
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil || len(encoded) > 1<<20 {
+		return issueagentmodel.ToolResult{}, errors.New("tool result is oversized")
+	}
+	return issueagentmodel.ToolResult{
+		ID: call.ID, Content: json.RawMessage(encoded),
+	}, nil
+}
+
 func publishCheckpoint(
 	ctx context.Context,
 	config IssueAgentGitHubConfig,
@@ -325,6 +548,9 @@ func NewIssueAgentOperations(dependencies IssueAgentDependencies) issueagentcli.
 	if dependencies.PublishResult == nil {
 		dependencies.PublishResult = unavailable
 	}
+	if dependencies.RunWorker == nil {
+		dependencies.RunWorker = unavailable
+	}
 	if dependencies.VerifyCheckpoint == nil {
 		dependencies.VerifyCheckpoint = unavailable
 	}
@@ -357,6 +583,7 @@ func NewIssueAgentOperations(dependencies IssueAgentDependencies) issueagentcli.
 		},
 		PublishLease:     dependencies.PublishLease,
 		PublishResult:    dependencies.PublishResult,
+		RunWorker:        dependencies.RunWorker,
 		VerifyCheckpoint: dependencies.VerifyCheckpoint,
 		MintAppToken:     dependencies.MintAppToken,
 	}

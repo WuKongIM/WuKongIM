@@ -61,6 +61,7 @@ type Operations struct {
 	PlanSweep        func(context.Context, PlanSweepRequest) (any, error)
 	PublishLease     func(context.Context, DocumentRequest) (any, error)
 	PublishResult    func(context.Context, DocumentRequest) (any, error)
+	RunWorker        func(context.Context, DocumentRequest) (any, error)
 	VerifyCheckpoint func(context.Context, DocumentRequest) (any, error)
 	MintAppToken     func(context.Context, DocumentRequest) (any, error)
 }
@@ -119,6 +120,8 @@ func Run(
 		result, err = runDocument(ctx, body, operations.PublishLease)
 	case "publish-result":
 		result, err = runDocument(ctx, body, operations.PublishResult)
+	case "run-worker":
+		result, err = runDocument(ctx, body, operations.RunWorker)
 	case "verify-checkpoint":
 		result, err = runDocument(ctx, body, operations.VerifyCheckpoint)
 	case "mint-app-token":
