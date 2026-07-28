@@ -623,9 +623,30 @@ func verifyGoToolchainStep() ciStep {
 	return ciStep{Name: "Verify Go toolchain", Run: `test "$(go env GOVERSION)" = "go1.25.11"`}
 }
 
+var catalogedWorkflowNames = map[string]string{
+	"agent-pr-merge-gate.yml":         "Safety Automation - Agent PR Merge Gate",
+	"agent-pr-validation.yml":         "Agent Tool - Validate PR",
+	"agent-pr-validation-control.yml": "Safety Automation - Agent PR Validation Control",
+	"backup-qualification.yml":        "Agent Tool - Qualify Backup",
+	"cloud-sim-analyze.yml":           "Agent Tool - Analyze Cloud Simulation",
+	"cloud-sim-cleanup.yml":           "Safety Automation - Reconcile Cloud Simulation Resources",
+	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
+	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
+	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
+}
+
+var autonomousSafetyWorkflows = map[string]struct{}{
+	"agent-pr-merge-gate.yml":         {},
+	"agent-pr-validation-control.yml": {},
+	"cloud-sim-cleanup.yml":           {},
+	"cloud-sim-monitor.yml":           {},
+}
+
+var legacyAutomaticTestWorkflows = []string{"ci.yml", "nightly.yml"}
+
 func TestLegacyAutomaticTestWorkflowsAreAbsent(t *testing.T) {
 	root := repoRoot(t)
-	for _, name := range []string{"ci.yml", "nightly.yml"} {
+	for _, name := range legacyAutomaticTestWorkflows {
 		path := filepath.Join(root, ".github", "workflows", name)
 		if _, err := os.Stat(path); err == nil {
 			t.Errorf("%s still exists; tests must be selected through the Agent validation protocol", name)
@@ -778,18 +799,7 @@ func TestAgentWorkflowCatalogContract(t *testing.T) {
 	codeowners := readFile(t, filepath.Join(root, ".github", "CODEOWNERS"))
 	cloudRunbook := readFile(t, filepath.Join(root, "docs", "superpowers", "runbooks", "cloud-simulation.md"))
 
-	workflows := map[string]string{
-		"agent-pr-merge-gate.yml":         "Safety Automation - Agent PR Merge Gate",
-		"agent-pr-validation.yml":         "Agent Tool - Validate PR",
-		"agent-pr-validation-control.yml": "Safety Automation - Agent PR Validation Control",
-		"backup-qualification.yml":        "Agent Tool - Qualify Backup",
-		"cloud-sim-analyze.yml":           "Agent Tool - Analyze Cloud Simulation",
-		"cloud-sim-cleanup.yml":           "Safety Automation - Reconcile Cloud Simulation Resources",
-		"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
-		"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
-		"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
-	}
-	for file, name := range workflows {
+	for file, name := range catalogedWorkflowNames {
 		raw := readFile(t, filepath.Join(root, ".github", "workflows", file))
 		if !strings.HasPrefix(raw, "name: "+name+"\n") {
 			t.Errorf("%s does not use cataloged name %q", file, name)
@@ -799,7 +809,7 @@ func TestAgentWorkflowCatalogContract(t *testing.T) {
 			t.Errorf("workflow catalog does not map %s to %q", file, name)
 		}
 	}
-	for _, removed := range []string{"ci.yml", "nightly.yml"} {
+	for _, removed := range legacyAutomaticTestWorkflows {
 		if strings.Contains(catalog, "| `"+removed+"` |") {
 			t.Errorf("workflow catalog still lists removed automatic test workflow %s", removed)
 		}
@@ -862,39 +872,108 @@ func TestAgentWorkflowCatalogContract(t *testing.T) {
 
 func TestAgentWorkflowTriggerContract(t *testing.T) {
 	root := repoRoot(t)
-	paths, err := filepath.Glob(filepath.Join(root, ".github", "workflows", "*.yml"))
-	if err != nil {
-		t.Fatal(err)
+	var paths []string
+	for _, extension := range []string{"*.yml", "*.yaml"} {
+		matches, err := filepath.Glob(filepath.Join(root, ".github", "workflows", extension))
+		if err != nil {
+			t.Fatal(err)
+		}
+		paths = append(paths, matches...)
 	}
 	if len(paths) == 0 {
 		t.Fatal("workflow inventory is empty")
 	}
+	seen := make(map[string]struct{}, len(paths))
 	for _, path := range paths {
+		file := filepath.Base(path)
+		seen[file] = struct{}{}
 		raw := readFile(t, path)
 		var workflow struct {
 			Name string               `yaml:"name"`
 			On   map[string]yaml.Node `yaml:"on"`
 		}
 		if err := yaml.Unmarshal([]byte(raw), &workflow); err != nil {
-			t.Errorf("%s: %v", filepath.Base(path), err)
+			t.Errorf("%s: %v", file, err)
 			continue
 		}
-		if strings.HasPrefix(workflow.Name, "Agent Tool - ") {
-			if len(workflow.On) != 1 {
-				t.Errorf("%s Agent Tool triggers = %v, want one on-demand trigger", filepath.Base(path), workflow.On)
-				continue
-			}
-			for trigger := range workflow.On {
-				if trigger != "workflow_dispatch" && trigger != "repository_dispatch" {
-					t.Errorf("%s Agent Tool uses automatic trigger %q", filepath.Base(path), trigger)
-				}
-			}
-		}
-		if _, scheduled := workflow.On["schedule"]; scheduled &&
-			!strings.HasPrefix(workflow.Name, "Safety Automation - ") {
-			t.Errorf("%s schedules work without a Safety Automation name", filepath.Base(path))
+		if err := validateAgentWorkflowTrigger(file, workflow.Name, workflow.On); err != nil {
+			t.Error(err)
 		}
 	}
+	for file := range catalogedWorkflowNames {
+		if _, ok := seen[file]; !ok {
+			t.Errorf("cataloged workflow %s is missing from the workflow inventory", file)
+		}
+	}
+}
+
+func TestAgentWorkflowTriggerContractRejectsAutomaticTestBypasses(t *testing.T) {
+	automatic := map[string]yaml.Node{"pull_request": {}}
+	tests := []struct {
+		name  string
+		file  string
+		title string
+	}{
+		{
+			name:  "uncataloged yml",
+			file:  "ci.yml",
+			title: "CI",
+		},
+		{
+			name:  "uncataloged yaml extension",
+			file:  "ci.yaml",
+			title: "CI",
+		},
+		{
+			name:  "Agent Tool with automatic trigger",
+			file:  "agent-pr-validation.yml",
+			title: "Agent Tool - Validate PR",
+		},
+		{
+			name:  "unapproved Safety Automation",
+			file:  "automatic-tests.yml",
+			title: "Safety Automation - Automatic Tests",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateAgentWorkflowTrigger(tt.file, tt.title, automatic); err == nil {
+				t.Fatal("trigger contract accepted an automatic test bypass")
+			}
+		})
+	}
+}
+
+func validateAgentWorkflowTrigger(
+	file string,
+	name string,
+	triggers map[string]yaml.Node,
+) error {
+	catalogedName, ok := catalogedWorkflowNames[file]
+	if !ok {
+		return fmt.Errorf("%s is not in the authoritative workflow catalog", file)
+	}
+	if name != catalogedName {
+		return fmt.Errorf("%s name = %q, want cataloged name %q", file, name, catalogedName)
+	}
+	switch {
+	case strings.HasPrefix(name, "Agent Tool - "):
+		if len(triggers) != 1 {
+			return fmt.Errorf("%s Agent Tool triggers = %v, want one on-demand trigger", file, triggers)
+		}
+		for trigger := range triggers {
+			if trigger != "workflow_dispatch" && trigger != "repository_dispatch" {
+				return fmt.Errorf("%s Agent Tool uses automatic trigger %q", file, trigger)
+			}
+		}
+	case strings.HasPrefix(name, "Safety Automation - "):
+		if _, ok := autonomousSafetyWorkflows[file]; !ok {
+			return fmt.Errorf("%s is not an approved autonomous safety workflow", file)
+		}
+	default:
+		return fmt.Errorf("%s is neither an Agent Tool nor an approved Safety Automation", file)
+	}
+	return nil
 }
 
 func TestAgentPRValidationWorkflowRejectsWritableTestJob(t *testing.T) {
