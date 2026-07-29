@@ -98,6 +98,20 @@ host bind; trusted broker edits are refreshed into that volume before each
 command, command output is capped while it is captured, and the volume is
 removed when the Worker exits.
 
+For Codex, the pinned official `openai/codex-action` runs after checkout,
+build, dependency prefetch, reproduction-binary build, and Docker image pull.
+It receives no prompt: it installs Codex and the matching Responses proxy,
+allows only normally write-authorized actors or the exact
+`wukongim-issue-agent` App bot, writes an otherwise empty bootstrap home, and
+then drops `sudo` for the remainder of the job. The Workflow first rejects an
+existing bootstrap-home path or dangling symlink, so the Action cannot merge
+stale runner configuration. `wkissueagent` receives only
+`ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it rejects anything except the exact
+Action-generated `http://127.0.0.1:<port>/v1` Responses provider and converts
+that endpoint to canonical overrides in a fresh empty Codex home for each
+round. Codex subprocesses never receive `CODEX_API_KEY`, user/project config,
+native tools, or GitHub credentials.
+
 The model may return only a semantic proposal. The trusted Worker derives the
 complete file set, command transcript digests, diagnosis evidence digest, and
 provider-metered token use. The Publisher validates the sanitized Artifact
@@ -273,9 +287,10 @@ branch.
 4. Store `ISSUE_AGENT_APP_PRIVATE_KEY` and
    `ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY` only in
    `issue-agent-publisher`.
-5. Store `CODEX_API_KEY` only in `issue-agent-codex` and
-   `DEEPSEEK_API_KEY` only in `issue-agent-deepseek`. Configure independent
-   provider spend limits.
+5. Store `CODEX_API_KEY` only in `issue-agent-codex`; the official Action is
+   its only consumer and the bounded Worker receives only the generated
+   bootstrap-home path. Store `DEEPSEEK_API_KEY` only in
+   `issue-agent-deepseek`. Configure independent provider spend limits.
 6. Add repository variables:
    `ISSUE_AGENT_APP_ID`, `ISSUE_AGENT_INSTALLATION_ID`,
    `ISSUE_AGENT_APP_LOGIN`, `ISSUE_AGENT_CHECKPOINT_KEY_ID`,
@@ -334,7 +349,8 @@ Draft PR history, diagnosis, and exact Validation Gate.
 GOWORK=off go test ./internal/contracts/issueagent \
   ./internal/usecase/issueagent ./internal/runtime/issueagentworker \
   ./internal/infra/issueagentgithub ./internal/infra/issueagentmodel \
-  ./internal/access/issueagentcli ./internal/app ./scripts -count=1
+  ./internal/access/issueagentcli ./internal/app ./cmd/wkissueagent \
+  ./scripts -count=1
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   -ignore 'unexpected key "queue" for "concurrency" section' \

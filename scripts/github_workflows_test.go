@@ -109,6 +109,10 @@ var approvedActionPins = map[string]actionPin{
 		sha:     "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
 		release: "v6.0.0",
 	},
+	"openai/codex-action": {
+		sha:     "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+		release: "v1.11",
+	},
 }
 
 func checkoutStep() ciStep {

@@ -170,17 +170,19 @@ func (adapter *CodexAdapter) Run(
 	return Outcome{}, errors.New("Codex tool-round limit exhausted")
 }
 
-// CodexCLIConfig fixes one minimum-compatible Codex executable.
+// CodexCLIConfig fixes one minimum-compatible Codex executable and bootstrap.
 type CodexCLIConfig struct {
-	Binary     string
-	APIKey     string
-	MinVersion string
-	TempRoot   string
+	Binary string
+	// BootstrapHome is the absolute Action-created home parsed fail-closed.
+	BootstrapHome string
+	MinVersion    string
+	TempRoot      string
 }
 
 // CodexCLIRunner invokes real ephemeral Codex CLI processes.
 type CodexCLIRunner struct {
 	config CodexCLIConfig
+	proxy  codexActionProxyConfig
 }
 
 var codexVersionPattern = regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)`)
@@ -190,10 +192,12 @@ func NewCodexCLIRunner(config CodexCLIConfig) (*CodexCLIRunner, error) {
 	if config.Binary == "" {
 		config.Binary = "codex"
 	}
-	if config.APIKey == "" || len(config.APIKey) > 4096 ||
-		strings.ContainsAny(config.APIKey, "\r\n") ||
-		!codexVersionPattern.MatchString(config.MinVersion) {
+	if !codexVersionPattern.MatchString(config.MinVersion) {
 		return nil, errors.New("Codex CLI configuration is invalid")
+	}
+	proxy, err := loadCodexActionProxyConfig(config.BootstrapHome)
+	if err != nil {
+		return nil, err
 	}
 	command := exec.Command(config.Binary, "--version")
 	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
@@ -203,7 +207,7 @@ func NewCodexCLIRunner(config CodexCLIConfig) (*CodexCLIRunner, error) {
 	) {
 		return nil, errors.New("Codex CLI version is unavailable or too old")
 	}
-	return &CodexCLIRunner{config: config}, nil
+	return &CodexCLIRunner{config: config, proxy: proxy}, nil
 }
 
 // RunRound invokes Codex without user config, project rules, native tools, or persistence.
@@ -234,6 +238,13 @@ func (runner *CodexCLIRunner) RunRound(
 		"--strict-config", "--skip-git-repo-check",
 		"--sandbox", "read-only",
 		"-c", `approval_policy="never"`,
+		"-c", `model_provider=` + strconv.Quote(codexActionProviderName),
+		"-c", `model_providers.` + codexActionProviderName +
+			`.name=` + strconv.Quote(codexActionDisplayName),
+		"-c", `model_providers.` + codexActionProviderName + `.base_url=` +
+			strconv.Quote(runner.proxy.baseURL),
+		"-c", `model_providers.` + codexActionProviderName +
+			`.wire_api=` + strconv.Quote(codexActionWireAPI),
 		"--disable", "shell_tool",
 		"--disable", "unified_exec",
 		"--disable", "apps",
@@ -250,7 +261,6 @@ func (runner *CodexCLIRunner) RunRound(
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=" + tempRoot,
 		"CODEX_HOME=" + tempRoot,
-		"CODEX_API_KEY=" + runner.config.APIKey,
 	}
 	command.Stdin = strings.NewReader(request.Prompt)
 	stdout := &boundedBuffer{limit: request.MaxBytes}

@@ -60,9 +60,10 @@ type IssueAgentDependencies struct {
 
 // IssueAgentWorkerConfig contains Supervisor-only provider inputs.
 type IssueAgentWorkerConfig struct {
-	HTTPClient             *http.Client
-	DeepSeekAPIKey         string
-	CodexAPIKey            string
+	HTTPClient     *http.Client
+	DeepSeekAPIKey string
+	// CodexBootstrapHome contains only the official Action's local proxy config.
+	CodexBootstrapHome     string
 	CodexBinary            string
 	CodexMinimumVersion    string
 	SandboxImage           string
@@ -4287,8 +4288,9 @@ func composeModelRunner(
 	case issueagentcontract.ProviderCodex:
 		runner, err := issueagentmodel.NewCodexCLIRunner(
 			issueagentmodel.CodexCLIConfig{
-				Binary: config.CodexBinary, APIKey: config.CodexAPIKey,
-				MinVersion: config.CodexMinimumVersion,
+				Binary:        config.CodexBinary,
+				BootstrapHome: config.CodexBootstrapHome,
+				MinVersion:    config.CodexMinimumVersion,
 			},
 		)
 		if err != nil {

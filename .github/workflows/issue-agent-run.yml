@@ -167,12 +167,6 @@ jobs:
         with:
           go-version-file: control/go.mod
           cache: false
-      - name: Install the pinned Codex Adapter binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --global --ignore-scripts @openai/codex@0.145.0
-          codex --version | grep -F '0.145.0'
       - name: Build trusted Worker and prefetch immutable dependencies
         shell: bash
         run: |
@@ -192,10 +186,27 @@ jobs:
           set -euo pipefail
           sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
           docker pull "$sandbox_image"
+      - name: Verify Codex bootstrap home is absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap_home="$RUNNER_TEMP/issue-agent-codex-bootstrap"
+          if [[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]; then
+            echo "Codex bootstrap home already exists" >&2
+            exit 1
+          fi
+      - name: Bootstrap the pinned Codex CLI and Responses proxy
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        with:
+          openai-api-key: ${{ secrets.CODEX_API_KEY }}
+          codex-version: 0.145.0
+          codex-home: ${{ runner.temp }}/issue-agent-codex-bootstrap
+          safety-strategy: drop-sudo
+          allow-bot-users: wukongim-issue-agent
       - name: Run the bounded Codex Worker
         shell: bash
         env:
-          ISSUE_AGENT_CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+          ISSUE_AGENT_CODEX_BOOTSTRAP_HOME: ${{ runner.temp }}/issue-agent-codex-bootstrap
           ISSUE_AGENT_CODEX_BINARY: codex
           ISSUE_AGENT_CODEX_MIN_VERSION: 0.145.0
           TASK_BASE64: ${{ needs.planner.outputs.task_base64 }}
@@ -221,8 +232,7 @@ jobs:
             --arg diagnosis_binary "$RUNNER_TEMP/diagnosis-wukongim" \
             '{schema_version:1,payload:{task:$task[0],prompt_base64:$prompt_base64,policy_base64:$policy_base64,workspace:$workspace,module_cache:$module_cache,max_artifact_bytes:16777216,affected_binary:$affected_binary,diagnosis_binary:$diagnosis_binary}}' \
             >"$RUNNER_TEMP/run-worker.json"
-          CODEX_API_KEY="$ISSUE_AGENT_CODEX_API_KEY" \
-            ISSUE_AGENT_SANDBOX_IMAGE="$sandbox_image" \
+          ISSUE_AGENT_SANDBOX_IMAGE="$sandbox_image" \
             "$RUNNER_TEMP/wkissueagent" run-worker \
             --input "$RUNNER_TEMP/run-worker.json" >worker-artifact.json
           jq -e '.schema_version == 1 and (.sha256 | test("^sha256:[0-9a-f]{64}$"))' \
