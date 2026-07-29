@@ -186,6 +186,15 @@ jobs:
           set -euo pipefail
           sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
           docker pull "$sandbox_image"
+      - name: Verify Codex bootstrap home is absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          bootstrap_home="$RUNNER_TEMP/issue-agent-codex-bootstrap"
+          if [[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]; then
+            echo "Codex bootstrap home already exists" >&2
+            exit 1
+          fi
       - name: Bootstrap the pinned Codex CLI and Responses proxy
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:

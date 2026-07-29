@@ -194,15 +194,22 @@ func TestIssueAgentCodexWorkerUsesOfficialBootstrap(t *testing.T) {
 	pullIndex, _ := findIssueAgentStep(
 		t, job, "Pull the digest-pinned sandbox without provider credentials",
 	)
+	verifyIndex, verify := findIssueAgentStep(
+		t, job, "Verify Codex bootstrap home is absent",
+	)
 	bootstrapIndex, bootstrap := findIssueAgentStep(
 		t, job, "Bootstrap the pinned Codex CLI and Responses proxy",
 	)
 	workerIndex, worker := findIssueAgentStep(
 		t, job, "Run the bounded Codex Worker",
 	)
+	require.NoError(t, validateCodexWorkerBoundary(job))
 	require.NoError(t, validateCodexBootstrapStep(bootstrap))
-	require.Less(t, pullIndex, bootstrapIndex)
-	require.Less(t, bootstrapIndex, workerIndex)
+	require.Less(t, pullIndex, verifyIndex)
+	require.Equal(t, verifyIndex+1, bootstrapIndex)
+	require.Equal(t, bootstrapIndex+1, workerIndex)
+	require.Contains(t, verify.Run,
+		`[[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]`)
 	require.Equal(t, 1, strings.Count(string(raw), "secrets.CODEX_API_KEY"))
 	require.NotContains(t, worker.Env, "ISSUE_AGENT_CODEX_API_KEY")
 	require.NotContains(t, worker.Env, "CODEX_API_KEY")
@@ -245,6 +252,21 @@ func TestIssueAgentCodexBootstrapContractRejectsMutations(t *testing.T) {
 			require.Error(t, validateCodexBootstrapStep(step))
 		})
 	}
+}
+
+func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bootstrap before image pull", func(t *testing.T) {
+		job := canonicalCodexWorkerBoundary()
+		job.Steps[0], job.Steps[2] = job.Steps[2], job.Steps[0]
+		require.Error(t, validateCodexWorkerBoundary(job))
+	})
+	t.Run("forward API key", func(t *testing.T) {
+		job := canonicalCodexWorkerBoundary()
+		job.Steps[3].Env["CODEX_API_KEY"] = "${{ secrets.CODEX_API_KEY }}"
+		require.Error(t, validateCodexWorkerBoundary(job))
+	})
 }
 
 func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
@@ -376,13 +398,70 @@ func validateCodexBootstrapStep(step ciStep) error {
 	return nil
 }
 
+func canonicalCodexWorkerBoundary() ciJob {
+	return ciJob{Steps: []ciStep{
+		{Name: "Pull the digest-pinned sandbox without provider credentials"},
+		{
+			Name:  "Verify Codex bootstrap home is absent",
+			Shell: "bash",
+			Run: `if [[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]; then
+  exit 1
+fi`,
+		},
+		canonicalCodexBootstrapStep(),
+		{
+			Name: "Run the bounded Codex Worker",
+			Env: map[string]string{
+				"ISSUE_AGENT_CODEX_BOOTSTRAP_HOME": "${{ runner.temp }}/issue-agent-codex-bootstrap",
+			},
+		},
+	}}
+}
+
+func validateCodexWorkerBoundary(job ciJob) error {
+	pullIndex, _, pullOK := lookupIssueAgentStep(
+		job, "Pull the digest-pinned sandbox without provider credentials",
+	)
+	verifyIndex, verify, verifyOK := lookupIssueAgentStep(
+		job, "Verify Codex bootstrap home is absent",
+	)
+	bootstrapIndex, _, bootstrapOK := lookupIssueAgentStep(
+		job, "Bootstrap the pinned Codex CLI and Responses proxy",
+	)
+	workerIndex, worker, workerOK := lookupIssueAgentStep(
+		job, "Run the bounded Codex Worker",
+	)
+	if !pullOK || !verifyOK || !bootstrapOK || !workerOK ||
+		pullIndex >= verifyIndex || verifyIndex+1 != bootstrapIndex ||
+		bootstrapIndex+1 != workerIndex ||
+		!strings.Contains(
+			verify.Run, `[[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]`,
+		) ||
+		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"] !=
+			"${{ runner.temp }}/issue-agent-codex-bootstrap" ||
+		worker.Env["CODEX_API_KEY"] != "" ||
+		worker.Env["ISSUE_AGENT_CODEX_API_KEY"] != "" ||
+		strings.Contains(worker.Run, "CODEX_API_KEY") {
+		return fmt.Errorf("Codex Worker boundary is not exact")
+	}
+	return nil
+}
+
 func findIssueAgentStep(t *testing.T, job ciJob, name string) (int, ciStep) {
 	t.Helper()
-	for index, step := range job.Steps {
-		if step.Name == name {
-			return index, step
-		}
+	index, step, ok := lookupIssueAgentStep(job, name)
+	if ok {
+		return index, step
 	}
 	t.Fatalf("step %q is absent", name)
 	return -1, ciStep{}
+}
+
+func lookupIssueAgentStep(job ciJob, name string) (int, ciStep, bool) {
+	for index, step := range job.Steps {
+		if step.Name == name {
+			return index, step, true
+		}
+	}
+	return -1, ciStep{}, false
 }

@@ -123,14 +123,18 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	if err != nil || !homeInfo.IsDir() || homeInfo.Mode()&os.ModeSymlink != 0 {
 		return invalid()
 	}
-	path := filepath.Join(home, "config.toml")
-	info, err := os.Lstat(path)
+	file, err := openCodexActionProxyConfig(home)
+	if err != nil {
+		return invalid()
+	}
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() ||
 		info.Mode().Perm()&0o022 != 0 ||
 		info.Size() <= 0 || info.Size() > maxCodexProxyConfigSize {
 		return invalid()
 	}
-	body, err := os.ReadFile(path)
+	body, err := io.ReadAll(io.LimitReader(file, maxCodexProxyConfigSize+1))
 	if err != nil || int64(len(body)) != info.Size() {
 		return invalid()
 	}
@@ -157,6 +161,13 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	return codexActionProxyConfig{baseURL: baseURL}, nil
 }
 ```
+
+`openCodexActionProxyConfig` must open the absolute home directory with
+`unix.Open(..., O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC)`, then open only
+`config.toml` relative to that descriptor with
+`unix.Openat(..., O_NOFOLLOW|O_CLOEXEC)`. Convert that descriptor to one
+`os.File` and perform both `Stat` and bounded read through it; never reopen the
+validated pathname.
 
 `validCodexProxyURL` must use `net/url`, require the literal scheme `http`,
 hostname `127.0.0.1`, an explicit decimal port in `1..65535`, exact path `/v1`,
@@ -483,7 +494,9 @@ extra fields all fail.
 
 Add mutation subtests that alter the decoded bootstrap step to use a tag,
 `unsafe`, `allow-bots: true`, a prompt, or an additional bot. Each mutation
-must fail the shared `validateCodexBootstrapStep` helper.
+must fail the shared `validateCodexBootstrapStep` helper. Whole-job mutations
+that place the bootstrap before the image pull or forward `CODEX_API_KEY` to
+the Worker must fail `validateCodexWorkerBoundary`.
 
 - [ ] **Step 3: Run the Workflow test and verify RED**
 
@@ -517,7 +530,22 @@ both `@openai/codex@0.145.0` and its matching Responses proxy.
 
 - [ ] **Step 2: Add the bootstrap after all privileged setup**
 
-Immediately after the digest-pinned Docker pull, add:
+Immediately after the digest-pinned Docker pull, reject every existing path,
+including a dangling symlink:
+
+```yaml
+- name: Verify Codex bootstrap home is absent
+  shell: bash
+  run: |
+    set -euo pipefail
+    bootstrap_home="$RUNNER_TEMP/issue-agent-codex-bootstrap"
+    if [[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]; then
+      echo "Codex bootstrap home already exists" >&2
+      exit 1
+    fi
+```
+
+Place the bootstrap directly after that check:
 
 ```yaml
 - name: Bootstrap the pinned Codex CLI and Responses proxy

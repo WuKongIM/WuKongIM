@@ -69,9 +69,11 @@ The Codex Action is pinned by full commit SHA and runs without a prompt. It
 installs the pinned CLI and matching Responses proxy, writes one otherwise
 empty bootstrap home, accepts only the exact `wukongim-issue-agent` App bot in
 addition to normal write-authorized actors, and irreversibly drops `sudo`
-before the repository-owned Worker starts. Checkout, build, dependency
-prefetch, reproduction binaries, and digest-pinned Docker image pull must
-therefore complete before the Action. `wkissueagent` receives only
+before the repository-owned Worker starts. The immediately preceding step
+fails if that bootstrap-home path already exists or is a dangling symlink.
+Checkout, build, dependency prefetch, reproduction binaries, and digest-pinned
+Docker image pull must therefore complete before the Action. `wkissueagent`
+receives only
 `ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it strictly accepts the Action's
 `127.0.0.1` Responses provider and creates a new empty Codex home for every
 round. The API key must not appear in Worker arguments, environment dumps,

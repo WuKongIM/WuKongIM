@@ -103,7 +103,9 @@ build, dependency prefetch, reproduction-binary build, and Docker image pull.
 It receives no prompt: it installs Codex and the matching Responses proxy,
 allows only normally write-authorized actors or the exact
 `wukongim-issue-agent` App bot, writes an otherwise empty bootstrap home, and
-then drops `sudo` for the remainder of the job. `wkissueagent` receives only
+then drops `sudo` for the remainder of the job. The Workflow first rejects an
+existing bootstrap-home path or dangling symlink, so the Action cannot merge
+stale runner configuration. `wkissueagent` receives only
 `ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it rejects anything except the exact
 Action-generated `http://127.0.0.1:<port>/v1` Responses provider and converts
 that endpoint to canonical overrides in a fresh empty Codex home for each

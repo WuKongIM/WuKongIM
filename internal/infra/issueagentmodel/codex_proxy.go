@@ -3,6 +3,7 @@ package issueagentmodel
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/pelletier/go-toml/v2"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -27,18 +29,18 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	if home == "" || !filepath.IsAbs(home) || filepath.Clean(home) != home {
 		return invalidCodexActionProxyConfig()
 	}
-	homeInfo, err := os.Lstat(home)
-	if err != nil || !homeInfo.IsDir() || homeInfo.Mode()&os.ModeSymlink != 0 {
+	file, err := openCodexActionProxyConfig(home)
+	if err != nil {
 		return invalidCodexActionProxyConfig()
 	}
-	path := filepath.Join(home, "config.toml")
-	info, err := os.Lstat(path)
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() ||
 		info.Mode().Perm()&0o022 != 0 ||
 		info.Size() <= 0 || info.Size() > maxCodexProxyConfigSize {
 		return invalidCodexActionProxyConfig()
 	}
-	body, err := os.ReadFile(path)
+	body, err := io.ReadAll(io.LimitReader(file, maxCodexProxyConfigSize+1))
 	if err != nil || int64(len(body)) != info.Size() {
 		return invalidCodexActionProxyConfig()
 	}
@@ -63,6 +65,33 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 		return invalidCodexActionProxyConfig()
 	}
 	return codexActionProxyConfig{baseURL: baseURL}, nil
+}
+
+func openCodexActionProxyConfig(home string) (*os.File, error) {
+	directoryFD, err := unix.Open(
+		home,
+		unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+		0,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer unix.Close(directoryFD)
+	configFD, err := unix.Openat(
+		directoryFD,
+		"config.toml",
+		unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+		0,
+	)
+	if err != nil {
+		return nil, err
+	}
+	file := os.NewFile(uintptr(configFD), "config.toml")
+	if file == nil {
+		_ = unix.Close(configFD)
+		return nil, errors.New("open Codex Action proxy configuration")
+	}
+	return file, nil
 }
 
 func invalidCodexActionProxyConfig() (codexActionProxyConfig, error) {
