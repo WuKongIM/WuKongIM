@@ -12,6 +12,16 @@ import (
 
 const requiredReproductionRuns = 3
 
+var (
+	singleNodeTopologyMarkers = []string{
+		"single-node", "single node", "1-node", "1 node", "单节点",
+	}
+	multiNodeTopologyMarkers = []string{
+		"three-node", "three node", "3-node", "3 node",
+		"multi-node", "multi node", "三节点", "多节点",
+	}
+)
+
 // RunOutcome separates business failures from build and harness failures.
 type RunOutcome string
 
@@ -160,6 +170,21 @@ type ReproductionTaskInput struct {
 	Model              string
 }
 
+// ReproductionTopology derives the supported process topology from frozen Bug
+// facts. An omitted topology means a single-node cluster.
+func ReproductionTopology(environment string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(environment))
+	single := containsAny(normalized, singleNodeTopologyMarkers)
+	multi := containsAny(normalized, multiNodeTopologyMarkers)
+	if single && multi {
+		return "", errors.New("Bug environment names conflicting cluster topologies")
+	}
+	if multi {
+		return "three-node-cluster", nil
+	}
+	return "single-node-cluster", nil
+}
+
 // BuildReproductionTask creates the closed no-production-change Worker scope.
 func BuildReproductionTask(input ReproductionTaskInput) (issueagentcontract.TaskEnvelope, error) {
 	scenario := fmt.Sprintf("test/e2e/issue_agent/issue_%d", input.IssueNumber)
@@ -236,6 +261,15 @@ func stableOutcome(runs []RunObservation) (RunOutcome, bool) {
 		}
 	}
 	return first, true
+}
+
+func containsAny(value string, markers []string) bool {
+	for _, marker := range markers {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func allFromSHA(runs []RunObservation, expected string) bool {

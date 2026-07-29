@@ -159,7 +159,6 @@ type publishReproductionLeasePayload struct {
 	PolicyBase64       string                          `json:"policy_base64"`
 	PromptBase64       string                          `json:"prompt_base64"`
 	InstructionDigests []issueagentcontract.FileDigest `json:"instruction_digests"`
-	Topology           string                          `json:"topology"`
 	HarnessPaths       []string                        `json:"harness_paths"`
 	Provider           issueagentcontract.Provider     `json:"provider"`
 	Model              string                          `json:"model"`
@@ -1252,8 +1251,14 @@ func publishCommand(
 		if err != nil {
 			return nil, err
 		}
+		affectedVersion, err := issueagentusecase.AffectedVersionForAuthorization(
+			intake.Form.AffectedVersion, main.SHA,
+		)
+		if err != nil {
+			return nil, err
+		}
 		facts.IssueBodySHA256 = digestIssueBody(issue.Body)
-		facts.AffectedVersion = intake.Form.AffectedVersion
+		facts.AffectedVersion = affectedVersion
 		facts.AcceptedCommentIDs = []int64{comment.ID}
 		facts.DiagnosisBaseSHA = main.SHA
 	case issueagentusecase.CommandAddressReview:
@@ -1993,6 +1998,16 @@ func publishReproductionLease(
 		previous.Checkpoint.FrozenInput.IssueBodySHA256 != digestIssueBody(issue.Body) {
 		return nil, errors.New("reproduction lease checkpoint or frozen Issue body is stale")
 	}
+	intake, err := issueagentusecase.PlanIntake(issue.Body, nil)
+	if err != nil || !intake.Complete {
+		return nil, errors.New("reproduction requires complete frozen Bug facts")
+	}
+	topology, err := issueagentusecase.ReproductionTopology(
+		intake.Form.Environment,
+	)
+	if err != nil {
+		return nil, err
+	}
 	policyBytes, err := decodeCanonicalBase64(payload.PolicyBase64, 1<<20)
 	if err != nil {
 		return nil, errors.New("reproduction policy is invalid")
@@ -2042,7 +2057,7 @@ func publishReproductionLease(
 			Versions: previous.Checkpoint.Versions, FrozenIssue: issue.Body,
 			AcceptedCommentIDs: previous.Checkpoint.FrozenInput.AcceptedCommentIDs,
 			InstructionDigests: payload.InstructionDigests,
-			Topology:           payload.Topology, HarnessPaths: payload.HarnessPaths,
+			Topology:           topology, HarnessPaths: payload.HarnessPaths,
 			Provider: payload.Provider, Model: payload.Model,
 		},
 	)
@@ -4033,6 +4048,12 @@ func publishAuthorization(
 	if err != nil {
 		return nil, err
 	}
+	affectedVersion, err := issueagentusecase.AffectedVersionForAuthorization(
+		intake.Form.AffectedVersion, main.SHA,
+	)
+	if err != nil {
+		return nil, err
+	}
 	now := config.Now().UTC()
 	checkpoint, err := issueagentusecase.Authorize(
 		issueagentusecase.AuthorizationFacts{
@@ -4044,7 +4065,7 @@ func publishAuthorization(
 			Permission: issueagentusecase.Permission(permission),
 			EventAt:    payload.EventAt, PermissionCheckedAt: now,
 			IssueBodySHA256:    digestIssueBody(issue.Body),
-			AffectedVersion:    intake.Form.AffectedVersion,
+			AffectedVersion:    affectedVersion,
 			AcceptedCommentIDs: []int64{},
 			DiagnosisBaseSHA:   main.SHA,
 		},

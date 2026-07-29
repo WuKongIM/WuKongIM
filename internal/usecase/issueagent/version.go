@@ -24,6 +24,25 @@ type SourceResolver interface {
 	ResolveImageDigest(context.Context, string) (ImageSource, error)
 }
 
+// AffectedVersionForAuthorization converts an omitted version into the exact
+// default-branch commit observed by the trusted authorization Publisher.
+func AffectedVersionForAuthorization(
+	reportedVersion string,
+	mainSHA string,
+) (string, error) {
+	reportedVersion = strings.TrimSpace(reportedVersion)
+	if reportedVersion == "" {
+		if !fullCommitPattern.MatchString(mainSHA) {
+			return "", errors.New("authorization main commit is invalid")
+		}
+		return strings.ToLower(mainSHA), nil
+	}
+	if !validImmutableVersionSyntax(reportedVersion) {
+		return "", errors.New("reported version is moving or unsupported")
+	}
+	return reportedVersion, nil
+}
+
 // ResolveVersions converts an immutable reported reference and authorization
 // baseline into exact source SHAs.
 func ResolveVersions(

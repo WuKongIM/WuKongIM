@@ -31,10 +31,13 @@ App-commit identity recovery.
 One Issue generation fences all in-flight work, and checkpoint sequence remains
 strictly increasing across generations.
 
-Before authorization, deterministic Intake parses only the four required Bug
-Issue Form facts. It may propose `needs-triage` or `needs-info` and a bounded
-request for missing facts. It never resolves a version, runs a model or command,
-creates a branch, or opens a pull request.
+Before authorization, deterministic Intake parses only the three required Bug
+Issue Form facts plus the optional affected version. An omitted version becomes
+the exact `main` SHA observed by the trusted authorization Publisher; an
+omitted topology becomes `single-node-cluster`, while an explicit multi-node
+description selects `three-node-cluster`. Intake may propose `needs-triage` or
+`needs-info` and a bounded request for missing facts. It never resolves a tag
+or image, runs a model or command, creates a branch, or opens a pull request.
 The checked-in `reproduction` ceiling may advance authorized work only through
 version pinning, bounded E2E reproduction, an Agent branch, and a Draft PR.
 While rollout is capped at `intake`, every existing valid or invalid signed

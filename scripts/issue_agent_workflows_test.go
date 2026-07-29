@@ -13,7 +13,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestIssueAgentBugFormHasFourRequiredSemanticInputs(t *testing.T) {
+func TestIssueAgentBugFormKeepsVersionOptionalAndThreeRequiredSemanticInputs(
+	t *testing.T,
+) {
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "ISSUE_TEMPLATE", "bug.yml",
 	))
@@ -41,8 +43,11 @@ func TestIssueAgentBugFormHasFourRequiredSemanticInputs(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{
-		"affected_version", "environment", "reproduction", "expected_actual",
+		"environment", "reproduction", "expected_actual",
 	}, required)
+	require.Contains(t, string(raw), "id: affected_version")
+	require.Contains(t, strings.ToLower(string(raw)),
+		"leave blank to use the main commit")
 	require.Contains(t, strings.ToLower(string(raw)), "credential")
 	require.Contains(t, strings.ToLower(string(raw)), "private")
 }
@@ -189,23 +194,31 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "pull-requests: read")
 }
 
-func TestIssueAgentReproductionBuildSupportsHistoricalRootEntrypoint(t *testing.T) {
+func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
+	t *testing.T,
+) {
 	t.Parallel()
 
 	helperPath := filepath.Join(
-		repoRoot(t), ".github", "issue-agent", "build-reproduction-binary.sh",
+		repoRoot(t), ".github", "issue-agent",
+		"check-reproduction-compatibility.sh",
 	)
 	helperRaw, err := os.ReadFile(helperPath)
 	require.NoError(t, err)
 	helper := string(helperRaw)
-	require.Contains(t, helper, `if [[ -d "$source_dir/cmd/wukongim" ]]; then`)
-	require.Contains(t, helper, `entrypoint="./cmd/wukongim"`)
-	require.Contains(t, helper, `elif [[ -f "$source_dir/main.go" ]]; then`)
-	require.Contains(t, helper, `entrypoint="."`)
-	require.Contains(t, helper, `No supported WuKongIM entrypoint in $source_dir`)
+	require.Contains(t, helper, `.github/issue-agent/reproduction-contract`)
+	require.Contains(t, helper, `cmp -s`)
+	require.Contains(t, helper, `incompatible reproduction contracts`)
+	require.NotContains(t, helper, `main.go`)
 	helperInfo, err := os.Stat(helperPath)
 	require.NoError(t, err)
 	require.NotZero(t, helperInfo.Mode().Perm()&0o111)
+
+	marker, err := os.ReadFile(filepath.Join(
+		repoRoot(t), ".github", "issue-agent", "reproduction-contract",
+	))
+	require.NoError(t, err)
+	require.Equal(t, "wukongim-process-e2e-v1\n", string(marker))
 
 	raw := readWorkflow(t, "issue-agent-run.yml")
 	_, workflow, err := decodeWorkflow(raw)
@@ -214,13 +227,20 @@ func TestIssueAgentReproductionBuildSupportsHistoricalRootEntrypoint(t *testing.
 	for _, jobName := range []string{"codex-worker", "deepseek-worker"} {
 		job, ok := workflow.Jobs[jobName]
 		require.True(t, ok, jobName)
-		_, step := findIssueAgentStep(t, job, "Build exact reproduction binaries")
-		require.Contains(t, step.Run,
-			`control/.github/issue-agent/build-reproduction-binary.sh \
-  affected-source "$RUNNER_TEMP/affected-wukongim"`)
-		require.Contains(t, step.Run,
-			`control/.github/issue-agent/build-reproduction-binary.sh \
-  workspace "$RUNNER_TEMP/diagnosis-wukongim"`)
+		preflightIndex, preflight := findIssueAgentStep(
+			t, job, "Verify reproduction compatibility",
+		)
+		require.Contains(t, preflight.Run,
+			`control/.github/issue-agent/check-reproduction-compatibility.sh \`)
+		require.Contains(t, preflight.Run, `affected-source workspace`)
+		buildIndex, build := findIssueAgentStep(
+			t, job, "Build exact reproduction binaries",
+		)
+		require.Less(t, preflightIndex, buildIndex)
+		require.Contains(t, build.Run,
+			`go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim`)
+		require.Contains(t, build.Run,
+			`go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim`)
 	}
 }
 
@@ -374,6 +394,14 @@ func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
 	raw := string(readWorkflow(t, "issue-agent-control.yml"))
 	require.Contains(t, raw, `grep -F "vcs.revision=$revision"`)
 	require.NotContains(t, raw, `grep -F "vcs.revision\t$revision"`)
+}
+
+func TestIssueAgentControlDoesNotHardcodeReproductionTopology(t *testing.T) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.NotContains(t, raw, "--arg topology")
+	require.NotContains(t, raw, "topology:$topology")
 }
 
 func TestIssueAgentControlIntakeRolloutAdmitsOnlyIntakeAndAuthorization(

@@ -1136,7 +1136,11 @@ verification, and App authentication are supplied as explicit standalone
 dependencies so Publisher credentials cannot enter the product process.
 The composition root also re-reads and publishes exact maintainer controls,
 bounded CI-repair leases, sanitized provider failures, and admin chain
-recovery. Lifecycle operation selection is returned by
+recovery. Authorization converts an omitted affected version into the exact
+`main` SHA from the same trusted read used for the diagnosis baseline.
+Reproduction lease publication derives topology from the frozen Bug facts,
+defaulting an omission to `single-node-cluster` and rejecting conflicting
+single/multi-node descriptions. Lifecycle operation selection is returned by
 `internal/usecase/issueagent.Reconcile`; the workflow does not infer the next
 operation directly from raw event state. Invalid signed chains on open or
 closed Issues are surfaced by an unsigned, idempotent human alert without
