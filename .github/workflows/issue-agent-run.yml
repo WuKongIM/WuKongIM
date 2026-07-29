@@ -1,0 +1,418 @@
+name: Agent Tool - Issue Worker
+run-name: Issue Agent worker Issue ${{ inputs.issue_number }} operation ${{ inputs.operation_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Positive Issue number with a current signed lease
+        required: true
+        type: string
+      operation_id:
+        description: Exact signed Worker operation digest
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-${{ inputs.issue_number }}
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  planner:
+    name: Recover the current task from its signed Issue lease
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      affected_sha: ${{ steps.task.outputs.affected_sha }}
+      artifact_name: ${{ steps.task.outputs.artifact_name }}
+      candidate_sha: ${{ steps.task.outputs.candidate_sha }}
+      diagnosis_base_sha: ${{ steps.task.outputs.diagnosis_base_sha }}
+      operation_id: ${{ steps.task.outputs.operation_id }}
+      phase: ${{ steps.task.outputs.phase }}
+      provider: ${{ steps.task.outputs.provider }}
+      task_base64: ${{ steps.task.outputs.task_base64 }}
+      task_sha256: ${{ steps.task.outputs.task_sha256 }}
+      workspace_sha: ${{ steps.task.outputs.workspace_sha }}
+    steps:
+      - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build protected read-only planner
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+      - name: Verify the signed current task
+        id: task
+        shell: bash
+        env:
+          APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          ISSUE_AGENT_GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          OPERATION_ID: ${{ inputs.operation_id }}
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          [[ "$OPERATION_ID" =~ ^sha256:[0-9a-f]{64}$ ]]
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg app_login "$APP_LOGIN" \
+            --argjson issue_number "$ISSUE_NUMBER" \
+            --arg operation_id "$OPERATION_ID" \
+            --slurpfile key_set control/.github/issue-agent/checkpoint-public-keys.json \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",repository:$repository,app_login:$app_login,issue_number:$issue_number,key_set:$key_set[0],operation_id:$operation_id}}' \
+            >"$RUNNER_TEMP/read-task.json"
+          "$RUNNER_TEMP/wkissueagent" read-current-task \
+            --input "$RUNNER_TEMP/read-task.json" >"$RUNNER_TEMP/current-task.json"
+          jq -e \
+            --arg operation_id "$OPERATION_ID" \
+            '.task.operation_id == $operation_id and
+             (.task_sha256 | test("^sha256:[0-9a-f]{64}$"))' \
+            "$RUNNER_TEMP/current-task.json" >/dev/null
+          jq '.task' "$RUNNER_TEMP/current-task.json" >"$RUNNER_TEMP/task.json"
+          phase="$(jq -er '.phase' "$RUNNER_TEMP/task.json")"
+          provider="$(jq -er '.provider' "$RUNNER_TEMP/task.json")"
+          jq -e '.enabled == true' \
+            control/.github/issue-agent/policy.json >/dev/null
+          rollout="$(jq -er '.rollout_mode' \
+            control/.github/issue-agent/policy.json)"
+          case "$phase:$rollout" in
+            reproduce:reproduction|reproduce:remediation|reproduce:general)
+              ;;
+            diagnose:general|fix:general|address_review:general)
+              ;;
+            diagnose:remediation|fix:remediation|address_review:remediation)
+              jq -e --argjson issue_number "$ISSUE_NUMBER" \
+                '.remediation_issue_allowlist | index($issue_number) != null' \
+                control/.github/issue-agent/policy.json >/dev/null
+              ;;
+            *)
+              echo "Rollout policy rejects this credentialed Worker phase." >&2
+              exit 1
+              ;;
+          esac
+          affected_sha="$(jq -er '.affected_sha' "$RUNNER_TEMP/task.json")"
+          diagnosis_base_sha="$(jq -er '.diagnosis_base_sha' "$RUNNER_TEMP/task.json")"
+          candidate_sha="$(jq -r '.candidate_sha // ""' "$RUNNER_TEMP/task.json")"
+          case "$phase" in
+            reproduce) workspace_sha="$diagnosis_base_sha" ;;
+            diagnose|fix|address_review) workspace_sha="$candidate_sha" ;;
+            *) exit 1 ;;
+          esac
+          [[ "$affected_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$diagnosis_base_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$workspace_sha" =~ ^[0-9a-f]{40}$ ]]
+          case "$provider" in codex|deepseek) ;; *) exit 1 ;; esac
+          suffix="${OPERATION_ID#sha256:}"
+          artifact_name="issue-agent-result-${suffix:0:16}"
+          {
+            echo "affected_sha=$affected_sha"
+            echo "artifact_name=$artifact_name"
+            echo "candidate_sha=$candidate_sha"
+            echo "diagnosis_base_sha=$diagnosis_base_sha"
+            echo "operation_id=$OPERATION_ID"
+            echo "phase=$phase"
+            echo "provider=$provider"
+            echo "task_sha256=$(jq -er '.task_sha256' "$RUNNER_TEMP/current-task.json")"
+            echo "workspace_sha=$workspace_sha"
+            echo "task_base64=$(base64 -w0 "$RUNNER_TEMP/task.json")"
+          } >>"$GITHUB_OUTPUT"
+
+  codex-worker:
+    name: Run credential-separated Codex Worker
+    needs: [planner]
+    if: needs.planner.outputs.provider == 'codex'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: issue-agent-codex
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected Worker source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Check out exact Worker workspace without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.planner.outputs.workspace_sha }}
+          path: workspace
+          persist-credentials: false
+      - name: Check out exact affected source without credentials
+        if: needs.planner.outputs.phase == 'reproduce'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.planner.outputs.affected_sha }}
+          path: affected-source
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Install the pinned Codex Adapter binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts @openai/codex@0.145.0
+          codex --version | grep -F '0.145.0'
+      - name: Build trusted Worker and prefetch immutable dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+          (cd workspace && GOWORK=off go mod download all)
+      - name: Build exact reproduction binaries
+        if: needs.planner.outputs.phase == 'reproduce'
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
+          (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+      - name: Pull the digest-pinned sandbox without provider credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          docker pull "$sandbox_image"
+      - name: Run the bounded Codex Worker
+        shell: bash
+        env:
+          ISSUE_AGENT_CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+          ISSUE_AGENT_CODEX_BINARY: codex
+          ISSUE_AGENT_CODEX_MIN_VERSION: 0.145.0
+          TASK_BASE64: ${{ needs.planner.outputs.task_base64 }}
+          PHASE: ${{ needs.planner.outputs.phase }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TASK_BASE64" | base64 -d >"$RUNNER_TEMP/task.json"
+          prompt_phase="$PHASE"
+          if [[ "$prompt_phase" = address_review ]]; then
+            prompt_phase=address-review
+          fi
+          prompt="control/.github/issue-agent/prompts/${prompt_phase}.md"
+          test -f "$prompt"
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          module_cache="$(go env GOMODCACHE)"
+          jq -n \
+            --slurpfile task "$RUNNER_TEMP/task.json" \
+            --arg prompt_base64 "$(base64 -w0 "$prompt")" \
+            --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+            --arg workspace "$GITHUB_WORKSPACE/workspace" \
+            --arg module_cache "$module_cache" \
+            --arg affected_binary "$RUNNER_TEMP/affected-wukongim" \
+            --arg diagnosis_binary "$RUNNER_TEMP/diagnosis-wukongim" \
+            '{schema_version:1,payload:{task:$task[0],prompt_base64:$prompt_base64,policy_base64:$policy_base64,workspace:$workspace,module_cache:$module_cache,max_artifact_bytes:16777216,affected_binary:$affected_binary,diagnosis_binary:$diagnosis_binary}}' \
+            >"$RUNNER_TEMP/run-worker.json"
+          CODEX_API_KEY="$ISSUE_AGENT_CODEX_API_KEY" \
+            ISSUE_AGENT_SANDBOX_IMAGE="$sandbox_image" \
+            "$RUNNER_TEMP/wkissueagent" run-worker \
+            --input "$RUNNER_TEMP/run-worker.json" >worker-artifact.json
+          jq -e '.schema_version == 1 and (.sha256 | test("^sha256:[0-9a-f]{64}$"))' \
+            worker-artifact.json >/dev/null
+      - name: Upload the exact sanitized Worker Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ needs.planner.outputs.artifact_name }}
+          path: worker-artifact.json
+          if-no-files-found: error
+          retention-days: 90
+
+  deepseek-worker:
+    name: Run credential-separated DeepSeek Worker
+    needs: [planner]
+    if: needs.planner.outputs.provider == 'deepseek'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    environment: issue-agent-deepseek
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected Worker source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Check out exact Worker workspace without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.planner.outputs.workspace_sha }}
+          path: workspace
+          persist-credentials: false
+      - name: Check out exact affected source without credentials
+        if: needs.planner.outputs.phase == 'reproduce'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.planner.outputs.affected_sha }}
+          path: affected-source
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build trusted Worker and prefetch immutable dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+          (cd workspace && GOWORK=off go mod download all)
+      - name: Build exact reproduction binaries
+        if: needs.planner.outputs.phase == 'reproduce'
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
+          (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+      - name: Pull the digest-pinned sandbox without provider credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          docker pull "$sandbox_image"
+      - name: Run the bounded DeepSeek Worker
+        shell: bash
+        env:
+          ISSUE_AGENT_DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TASK_BASE64: ${{ needs.planner.outputs.task_base64 }}
+          PHASE: ${{ needs.planner.outputs.phase }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TASK_BASE64" | base64 -d >"$RUNNER_TEMP/task.json"
+          prompt_phase="$PHASE"
+          if [[ "$prompt_phase" = address_review ]]; then
+            prompt_phase=address-review
+          fi
+          prompt="control/.github/issue-agent/prompts/${prompt_phase}.md"
+          test -f "$prompt"
+          sandbox_image="$(jq -er '.sandbox_image' control/.github/issue-agent/policy.json)"
+          module_cache="$(go env GOMODCACHE)"
+          jq -n \
+            --slurpfile task "$RUNNER_TEMP/task.json" \
+            --arg prompt_base64 "$(base64 -w0 "$prompt")" \
+            --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+            --arg workspace "$GITHUB_WORKSPACE/workspace" \
+            --arg module_cache "$module_cache" \
+            --arg affected_binary "$RUNNER_TEMP/affected-wukongim" \
+            --arg diagnosis_binary "$RUNNER_TEMP/diagnosis-wukongim" \
+            '{schema_version:1,payload:{task:$task[0],prompt_base64:$prompt_base64,policy_base64:$policy_base64,workspace:$workspace,module_cache:$module_cache,max_artifact_bytes:16777216,affected_binary:$affected_binary,diagnosis_binary:$diagnosis_binary}}' \
+            >"$RUNNER_TEMP/run-worker.json"
+          DEEPSEEK_API_KEY="$ISSUE_AGENT_DEEPSEEK_API_KEY" \
+            ISSUE_AGENT_SANDBOX_IMAGE="$sandbox_image" \
+            "$RUNNER_TEMP/wkissueagent" run-worker \
+            --input "$RUNNER_TEMP/run-worker.json" >worker-artifact.json
+          jq -e '.schema_version == 1 and (.sha256 | test("^sha256:[0-9a-f]{64}$"))' \
+            worker-artifact.json >/dev/null
+      - name: Upload the exact sanitized Worker Artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ needs.planner.outputs.artifact_name }}
+          path: worker-artifact.json
+          if-no-files-found: error
+          retention-days: 90
+
+  publisher:
+    name: Validate and publish the exact Worker Artifact
+    needs: [planner, codex-worker, deepseek-worker]
+    if: >-
+      always() &&
+      needs.planner.result == 'success' &&
+      ((needs.planner.outputs.provider == 'codex' && needs.codex-worker.result == 'success') ||
+       (needs.planner.outputs.provider == 'deepseek' && needs.deepseek-worker.result == 'success'))
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ inputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: issue-agent-publisher
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected Publisher source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Download only the operation-bound Artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: ${{ needs.planner.outputs.artifact_name }}
+          path: published-artifact
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build protected Publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+      - name: Mint repository-scoped App token
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          INSTALLATION_ID: ${{ vars.ISSUE_AGENT_INSTALLATION_ID }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --argjson app_id "$APP_ID" \
+            --argjson installation_id "$INSTALLATION_ID" \
+            --argjson repository_id "$REPOSITORY_ID" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",app_id:$app_id,installation_id:$installation_id,repository_id:$repository_id,repository:$repository}}' \
+            >"$RUNNER_TEMP/mint.json"
+          token="$("$RUNNER_TEMP/wkissueagent" mint-app-token --input "$RUNNER_TEMP/mint.json" | jq -er '.token')"
+          echo "::add-mask::$token"
+          echo "ISSUE_AGENT_GITHUB_TOKEN=$token" >>"$GITHUB_ENV"
+      - name: Revalidate and publish the Worker result
+        shell: bash
+        env:
+          APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          ISSUE_AGENT_CHECKPOINT_KEY_ID: ${{ vars.ISSUE_AGENT_CHECKPOINT_KEY_ID }}
+          ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          ARTIFACT_NAME: ${{ needs.planner.outputs.artifact_name }}
+        run: |
+          set -euo pipefail
+          artifact="published-artifact/worker-artifact.json"
+          test -f "$artifact"
+          jq -e '.schema_version == 1' "$artifact" >/dev/null
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg app_login "$APP_LOGIN" \
+            --argjson issue_number "$ISSUE_NUMBER" \
+            --argjson artifact_run_id "$GITHUB_RUN_ID" \
+            --arg artifact_name "$ARTIFACT_NAME" \
+            --slurpfile key_set control/.github/issue-agent/checkpoint-public-keys.json \
+            --slurpfile artifact "$artifact" \
+            --slurpfile policy control/.github/issue-agent/policy.json \
+            --arg template_base64 "$(base64 -w0 control/.github/issue-agent/templates/e2e-scenario-AGENTS.md)" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",repository:$repository,app_login:$app_login,issue_number:$issue_number,key_set:$key_set[0],artifact_run_id:$artifact_run_id,artifact_name:$artifact_name,artifact:$artifact[0],protected_paths:$policy[0].protected_paths,scenario_instruction_template_base64:$template_base64}}' \
+            >"$RUNNER_TEMP/publish-worker.json"
+          "$RUNNER_TEMP/wkissueagent" publish-worker-artifact \
+            --input "$RUNNER_TEMP/publish-worker.json" >"$RUNNER_TEMP/published.json"
+          jq -e '.comment_id > 0 or .projection.comment_id > 0' \
+            "$RUNNER_TEMP/published.json" >/dev/null

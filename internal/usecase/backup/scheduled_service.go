@@ -157,6 +157,27 @@ func (s *ScheduledService) AcquireArchiveOperation(
 	kind string,
 	archiveID string,
 ) (backupcontract.ArchiveOperation, error) {
+	return s.acquireArchiveOperation(ctx, kind, archiveID, false)
+}
+
+// resumeArchiveOperation lets the leader-only backup runner reuse its exact
+// retention lease after a transient state conflict. A successor coordinator
+// waits for the previous worker to release the lease or for it to expire, so
+// their repository side effects cannot overlap.
+func (s *ScheduledService) resumeArchiveOperation(
+	ctx context.Context,
+	kind string,
+	archiveID string,
+) (backupcontract.ArchiveOperation, error) {
+	return s.acquireArchiveOperation(ctx, kind, archiveID, true)
+}
+
+func (s *ScheduledService) acquireArchiveOperation(
+	ctx context.Context,
+	kind string,
+	archiveID string,
+	resumeMatching bool,
+) (backupcontract.ArchiveOperation, error) {
 	kind = strings.TrimSpace(kind)
 	archiveID = strings.TrimSpace(archiveID)
 	switch kind {
@@ -167,33 +188,66 @@ func (s *ScheduledService) AcquireArchiveOperation(
 	if len(archiveID) > 128 || strings.Contains(archiveID, "/") {
 		return backupcontract.ArchiveOperation{}, ErrInvalidRequest
 	}
-	current, err := s.store.Load(ctx)
-	if err != nil {
-		return backupcontract.ArchiveOperation{}, err
+	for range 16 {
+		current, err := s.store.Load(ctx)
+		if err != nil {
+			return backupcontract.ArchiveOperation{}, err
+		}
+		now := s.now().UTC()
+		if current.ActiveArchiveOperation != nil &&
+			now.Before(time.UnixMilli(
+				current.ActiveArchiveOperation.ExpiresUnixMillis,
+			)) {
+			if resumeMatching &&
+				current.ActiveArchiveOperation.Kind == kind &&
+				current.ActiveArchiveOperation.ArchiveID == archiveID &&
+				archiveOperationCoordinatorMatches(
+					ctx, *current.ActiveArchiveOperation,
+				) {
+				return *current.ActiveArchiveOperation, nil
+			}
+			return backupcontract.ArchiveOperation{},
+				ErrArchiveOperationActive
+		}
+		token := strings.TrimSpace(s.newID())
+		if token == "" || len(token) > 128 {
+			return backupcontract.ArchiveOperation{}, ErrInvalidRequest
+		}
+		operation := backupcontract.ArchiveOperation{
+			Token: token, Kind: kind, ArchiveID: archiveID,
+			StartedUnixMillis: now.UnixMilli(),
+			ExpiresUnixMillis: now.Add(archiveOperationLeaseDuration).UnixMilli(),
+		}
+		if fence, ok := backupcontract.CoordinatorFenceFromContext(ctx); ok {
+			operation.CoordinatorNodeID = fence.NodeID
+			operation.CoordinatorTerm = fence.Term
+		}
+		next := current.Clone()
+		next.Revision++
+		next.ActiveArchiveOperation = &operation
+		err = s.store.CompareAndSwap(ctx, current.Revision, next)
+		if errors.Is(err, ErrStateConflict) {
+			continue
+		}
+		if err != nil {
+			return backupcontract.ArchiveOperation{}, err
+		}
+		return operation, nil
 	}
-	now := s.now().UTC()
-	if current.ActiveArchiveOperation != nil &&
-		now.Before(time.UnixMilli(
-			current.ActiveArchiveOperation.ExpiresUnixMillis,
-		)) {
-		return backupcontract.ArchiveOperation{}, ErrArchiveOperationActive
+	return backupcontract.ArchiveOperation{}, ErrStateConflict
+}
+
+func archiveOperationCoordinatorMatches(
+	ctx context.Context,
+	operation backupcontract.ArchiveOperation,
+) bool {
+	fence, ok := backupcontract.CoordinatorFenceFromContext(ctx)
+	if !ok {
+		return operation.CoordinatorNodeID == 0 &&
+			operation.CoordinatorTerm == 0
 	}
-	token := strings.TrimSpace(s.newID())
-	if token == "" || len(token) > 128 {
-		return backupcontract.ArchiveOperation{}, ErrInvalidRequest
-	}
-	operation := backupcontract.ArchiveOperation{
-		Token: token, Kind: kind, ArchiveID: archiveID,
-		StartedUnixMillis: now.UnixMilli(),
-		ExpiresUnixMillis: now.Add(archiveOperationLeaseDuration).UnixMilli(),
-	}
-	next := current.Clone()
-	next.Revision++
-	next.ActiveArchiveOperation = &operation
-	if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-		return backupcontract.ArchiveOperation{}, err
-	}
-	return operation, nil
+	return operation.CoordinatorNodeID == fence.NodeID &&
+		operation.CoordinatorTerm == fence.Term
 }
 
 // ReleaseArchiveOperation clears only the exact operation lease held by the
@@ -308,82 +362,91 @@ func (s *ScheduledService) Configure(
 	if err := validateConfigureRequest(request, s.now()); err != nil {
 		return ConfigureResult{}, err
 	}
-	current, err := s.store.Load(ctx)
-	if err != nil {
-		return ConfigureResult{}, err
-	}
-	currentPlanRevision := uint64(0)
-	wasEnabled := false
-	if current.Plan != nil {
-		currentPlanRevision = current.Plan.Revision
-		wasEnabled = current.Plan.Enabled
-	}
-	if request.ExpectedRevision != currentPlanRevision {
-		return ConfigureResult{}, ErrStateConflict
-	}
-	if current.ActiveRestore != nil {
-		return ConfigureResult{}, ErrRestoreJobActive
-	}
-	if current.ActiveArchiveOperation != nil &&
-		s.now().UTC().Before(time.UnixMilli(
-			current.ActiveArchiveOperation.ExpiresUnixMillis,
-		)) {
-		return ConfigureResult{}, ErrArchiveOperationActive
-	}
-	if current.ActiveBackup != nil {
-		disableOnly := current.Plan != nil && current.Plan.Enabled &&
-			!request.Enabled &&
-			equalPlanConfiguration(*current.Plan, request)
-		if !disableOnly {
-			return ConfigureResult{}, ErrBackupJobActive
-		}
-		now := s.now().UTC()
-		next := current.Clone()
-		next.Revision++
-		next.Plan.Enabled = false
-		next.Plan.UpdatedUnixMillis = now.UnixMilli()
-		if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-			return ConfigureResult{}, err
-		}
-		return ConfigureResult{Plan: *next.Plan}, nil
-	}
-
-	now := s.now().UTC()
-	createdAt := now.UnixMilli()
-	if current.Plan != nil {
-		createdAt = current.Plan.CreatedUnixMillis
-	}
-	plan := backupcontract.Plan{
-		Revision:                 currentPlanRevision + 1,
-		Enabled:                  request.Enabled,
-		Store:                    cloneStoreConfig(request.Store),
-		RepositoryVerification:   cloneRepositoryVerification(request.RepositoryVerification),
-		Cron:                     strings.TrimSpace(request.Cron),
-		TimeZone:                 request.TimeZone,
-		RetentionCount:           request.RetentionCount,
-		RateBytesPerSec:          request.RateBytesPerSec,
-		WorkersPerNode:           request.WorkersPerNode,
-		MaxDurationMillis:        request.MaxDuration.Milliseconds(),
-		ScheduleCursorUnixMillis: now.UnixMilli(),
-		CreatedUnixMillis:        createdAt,
-		UpdatedUnixMillis:        now.UnixMilli(),
-	}
-	next := current.Clone()
-	next.Revision++
-	next.Plan = &plan
-	var initial *backupcontract.BackupJob
-	if request.Enabled && !wasEnabled {
-		job, err := s.newBackupJob(plan, backupcontract.TriggerInitial, time.Time{}, now)
+	for range 16 {
+		current, err := s.store.Load(ctx)
 		if err != nil {
 			return ConfigureResult{}, err
 		}
-		next.ActiveBackup = &job
-		initial = &job
+		currentPlanRevision := uint64(0)
+		wasEnabled := false
+		if current.Plan != nil {
+			currentPlanRevision = current.Plan.Revision
+			wasEnabled = current.Plan.Enabled
+		}
+		if request.ExpectedRevision != currentPlanRevision {
+			return ConfigureResult{}, ErrStateConflict
+		}
+		if current.ActiveRestore != nil {
+			return ConfigureResult{}, ErrRestoreJobActive
+		}
+		if current.ActiveArchiveOperation != nil &&
+			s.now().UTC().Before(time.UnixMilli(
+				current.ActiveArchiveOperation.ExpiresUnixMillis,
+			)) {
+			return ConfigureResult{}, ErrArchiveOperationActive
+		}
+		if current.ActiveBackup != nil {
+			disableOnly := current.Plan != nil && current.Plan.Enabled &&
+				!request.Enabled &&
+				equalPlanConfiguration(*current.Plan, request)
+			if !disableOnly {
+				return ConfigureResult{}, ErrBackupJobActive
+			}
+			now := s.now().UTC()
+			next := current.Clone()
+			next.Revision++
+			next.Plan.Enabled = false
+			next.Plan.UpdatedUnixMillis = now.UnixMilli()
+			if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
+				if errors.Is(err, ErrStateConflict) {
+					continue
+				}
+				return ConfigureResult{}, err
+			}
+			return ConfigureResult{Plan: *next.Plan}, nil
+		}
+
+		now := s.now().UTC()
+		createdAt := now.UnixMilli()
+		if current.Plan != nil {
+			createdAt = current.Plan.CreatedUnixMillis
+		}
+		plan := backupcontract.Plan{
+			Revision:                 currentPlanRevision + 1,
+			Enabled:                  request.Enabled,
+			Store:                    cloneStoreConfig(request.Store),
+			RepositoryVerification:   cloneRepositoryVerification(request.RepositoryVerification),
+			Cron:                     strings.TrimSpace(request.Cron),
+			TimeZone:                 request.TimeZone,
+			RetentionCount:           request.RetentionCount,
+			RateBytesPerSec:          request.RateBytesPerSec,
+			WorkersPerNode:           request.WorkersPerNode,
+			MaxDurationMillis:        request.MaxDuration.Milliseconds(),
+			ScheduleCursorUnixMillis: now.UnixMilli(),
+			CreatedUnixMillis:        createdAt,
+			UpdatedUnixMillis:        now.UnixMilli(),
+		}
+		next := current.Clone()
+		next.Revision++
+		next.Plan = &plan
+		var initial *backupcontract.BackupJob
+		if request.Enabled && !wasEnabled {
+			job, err := s.newBackupJob(plan, backupcontract.TriggerInitial, time.Time{}, now)
+			if err != nil {
+				return ConfigureResult{}, err
+			}
+			next.ActiveBackup = &job
+			initial = &job
+		}
+		if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
+			if errors.Is(err, ErrStateConflict) {
+				continue
+			}
+			return ConfigureResult{}, err
+		}
+		return ConfigureResult{Plan: plan, InitialJob: initial}, nil
 	}
-	if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-		return ConfigureResult{}, err
-	}
-	return ConfigureResult{Plan: plan, InitialJob: initial}, nil
+	return ConfigureResult{}, ErrStateConflict
 }
 
 // MarkRepositoryVerified records successful testing for one exact saved plan

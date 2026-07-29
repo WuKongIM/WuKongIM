@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"net"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -605,10 +604,7 @@ func TestClientPublishFrameResultEvictsRecvForSendack(t *testing.T) {
 }
 
 func TestClientSessionPublishKeepsConcurrentPriorityResults(t *testing.T) {
-	oldProcs := runtime.GOMAXPROCS(2)
-	defer runtime.GOMAXPROCS(oldProcs)
-
-	const queueSize = 20000
+	const queueSize = 8
 	session := &clientSession{
 		frameCh: make(chan frameResult, queueSize),
 		stopCh:  make(chan struct{}),
@@ -618,27 +614,22 @@ func TestClientSessionPublishKeepsConcurrentPriorityResults(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		session.publishFrameResult(frameResult{frame: &frame.SendackPacket{ClientSeq: 1}})
-	}()
-
-	deadline := time.After(time.Second)
-	for len(session.frameCh) == queueSize {
-		select {
-		case <-deadline:
-			t.Fatal("first publisher did not start draining")
-		default:
-			runtime.Gosched()
-		}
+	start := make(chan struct{})
+	started := make(chan struct{}, 2)
+	session.publishMu.Lock()
+	for _, clientSeq := range []uint64{1, 2} {
+		wg.Add(1)
+		go func(clientSeq uint64) {
+			defer wg.Done()
+			<-start
+			started <- struct{}{}
+			session.publishFrameResult(frameResult{frame: &frame.SendackPacket{ClientSeq: clientSeq}})
+		}(clientSeq)
 	}
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		session.publishFrameResult(frameResult{frame: &frame.SendackPacket{ClientSeq: 2}})
-	}()
+	close(start)
+	<-started
+	<-started
+	session.publishMu.Unlock()
 	wg.Wait()
 
 	seen := map[uint64]bool{}

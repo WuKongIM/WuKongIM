@@ -25,6 +25,58 @@ for discovery and may become more specific over time.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject | Explicit permission-change authorization required |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
+| `issue-agent-control.yml` | `Safety Automation - Issue Agent Control` | Reconciles Issue, comment, PR, Review, validation-completion, and recovery hints against protected policy and signed Issue state | Autonomous stateless controller; capability is capped by reviewed rollout mode |
+| `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Sweeper` | Hourly bounded scan for missed authorized Issue work and expired leases | Autonomous recovery dispatcher; a saturated inventory fails closed |
+| `issue-agent-run.yml` | `Agent Tool - Issue Worker` | Runs one exact signed reproduction, diagnosis, or remediation task, then publishes its validated Artifact | Model Supervisor and GitHub Publisher use separate protected Environments |
+
+## GitHub Issue Agent rollout
+
+The checked-in Issue Agent policy currently runs in `shadow` mode.
+`issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
+non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
+non-cancelling group per Issue. Both use the bounded maximum pending queue so
+control hints and dispatched work are not replaced while waiting. Every
+Issue-writing Publisher job also shares a non-cancelling
+`issue-agent-publisher-<repository>-<issue>` group across the control and
+Worker workflows. Its bounded maximum pending queue keeps waiting Publisher
+jobs instead of replacing them. This keeps the final checkpoint re-read and
+append serial without blocking an in-flight model job, so a cancellation or
+new generation can publish first and fence the later stale Worker result.
+Every job builds `cmd/wkissueagent` from protected `main` control source or
+checks its embedded revision. Target source uses a distinct exact-SHA checkout
+with persisted Git credentials disabled.
+
+In `shadow`, no Publisher or model job is eligible, so no App, checkpoint, or
+provider secret is consumed and no GitHub object is mutated. The scheduled scan
+reads at most one page below 100 records; saturation or any invalid signed
+chain blocks admission rather than assuming capacity.
+
+Write-capable modes retain three credential boundaries:
+
+- `issue-agent-codex` exposes only `CODEX_API_KEY` to the selected Codex
+  Supervisor;
+- `issue-agent-deepseek` exposes only `DEEPSEEK_API_KEY` to the selected
+  DeepSeek Supervisor;
+- `issue-agent-publisher` exposes repository-scoped App and checkpoint signing
+  material only to Publisher/dispatcher jobs that never execute target code.
+
+The model calls only typed tools in a digest-pinned, no-network Docker sandbox.
+It cannot author trusted file/evidence/usage fields. The Publisher revalidates
+the sanitized Artifact, uses an expected-head GraphQL commit on
+`agent/issue-<number>`, requires verified commit signing, and never merges,
+closes the Bug, or writes `main`. Bulk Artifacts retain 90 days; signed
+append-only Issue checkpoints are the durable state.
+
+The validation worker classifies only an exact `agent/issue-<number>` head as
+an Issue Agent PR. Its moving-`main` frozen-scenario probe runs only for that
+typed branch and only when `go-e2e` is selected. Ordinary PRs keep the generic
+fixed-suite protocol even when they select `go-e2e`; they are never required to
+contain an Issue Agent scenario.
+
+See `docs/agents/issue-agent.md` for setup, rollout, budgets, key rotation,
+provider selection, and recovery. Every rollout promotion must pass
+`scripts/issue_agent_workflows_test.go` and occur separately from the code that
+introduces the capability.
 
 ## Agent PR validation protocol
 

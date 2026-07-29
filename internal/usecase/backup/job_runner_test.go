@@ -3,6 +3,7 @@ package backup_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -87,6 +88,229 @@ func TestJobRunnerExportsEveryHashSlotThenPublishesAndFinishes(t *testing.T) {
 			"finalizer published=%d retention=%d",
 			finalizer.published, finalizer.retentionCount,
 		)
+	}
+}
+
+func TestJobRunnerWaitsForPreviousCoordinatorRetentionRelease(
+	t *testing.T,
+) {
+	stateStore := &memoryScheduledStateStore{}
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	idMu := sync.Mutex{}
+	nextID := 0
+	scheduled, err := backupusecase.NewScheduledService(backupusecase.ScheduledOptions{
+		StateStore: stateStore,
+		Now:        func() time.Time { return now },
+		NewID: func() string {
+			idMu.Lock()
+			defer idMu.Unlock()
+			nextID++
+			return fmt.Sprintf("backup-retention-overlap-%d", nextID)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	_, err = scheduled.Configure(
+		context.Background(), validConfigureRequest(),
+	)
+	if err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	stateStore.mu.Lock()
+	stateStore.state.ActiveBackup.Status = backupcontract.JobStatusCleaning
+	for index := range stateStore.state.ActiveBackup.Slots {
+		stateStore.state.ActiveBackup.Slots[index].Status =
+			backupcontract.SlotStatusComplete
+	}
+	stateStore.mu.Unlock()
+
+	store, err := backupinfra.NewFileArchiveStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore(): %v", err)
+	}
+	finalizer := newOverlappingRetentionFinalizer()
+	oldRunner, err := backupusecase.NewJobRunner(backupusecase.JobRunnerOptions{
+		Scheduled: scheduled, Repository: fixedRepositoryProvider{store: store},
+		Slots: &recordingSlotExecutor{}, Finalizer: finalizer,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewJobRunner(): %v", err)
+	}
+	newRunner, err := backupusecase.NewJobRunner(backupusecase.JobRunnerOptions{
+		Scheduled: scheduled, Repository: fixedRepositoryProvider{store: store},
+		Slots: &recordingSlotExecutor{}, Finalizer: finalizer,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewJobRunner(resumed): %v", err)
+	}
+	type runResult struct {
+		advanced bool
+		err      error
+	}
+	oldContext := backupcontract.WithCoordinatorFence(
+		context.Background(), 1, 2,
+	)
+	oldResult := make(chan runResult, 1)
+	go func() {
+		advanced, runErr := oldRunner.RunOnce(oldContext)
+		oldResult <- runResult{advanced: advanced, err: runErr}
+	}()
+	if call := <-finalizer.started; call != 0 {
+		t.Fatalf("first retention call = %d", call)
+	}
+	state, err := scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(old leader): %v", err)
+	}
+	if state.ActiveArchiveOperation == nil {
+		t.Fatalf("old leader did not acquire retention lease: %#v", state)
+	}
+	if state.ActiveArchiveOperation.CoordinatorNodeID != 1 ||
+		state.ActiveArchiveOperation.CoordinatorTerm != 2 {
+		t.Fatalf("old leader lease owner = %#v", state.ActiveArchiveOperation)
+	}
+	stateStore.mu.Lock()
+	stateStore.coordinatorNodeID = 2
+	stateStore.coordinatorTerm = 3
+	stateStore.mu.Unlock()
+	newContext := backupcontract.WithCoordinatorFence(
+		context.Background(), 2, 3,
+	)
+	advanced, err := newRunner.RunOnce(newContext)
+	if !advanced || !errors.Is(err, backupusecase.ErrArchiveOperationActive) {
+		t.Fatalf(
+			"new leader overlapped retention: advanced=%v error=%v",
+			advanced, err,
+		)
+	}
+	finalizer.mu.Lock()
+	calls := finalizer.calls
+	finalizer.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("retention calls while previous leader active = %d", calls)
+	}
+
+	close(finalizer.release[0])
+	result := <-oldResult
+	if !result.advanced ||
+		!errors.Is(result.err, backupusecase.ErrStateConflict) {
+		t.Fatalf(
+			"old leader result advanced=%v error=%v",
+			result.advanced, result.err,
+		)
+	}
+	state, err = scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(after old release): %v", err)
+	}
+	if state.ActiveArchiveOperation != nil || state.ActiveBackup == nil ||
+		state.ActiveBackup.Status != backupcontract.JobStatusCleaning {
+		t.Fatalf("previous coordinator completion state = %#v", state)
+	}
+
+	newResult := make(chan runResult, 1)
+	go func() {
+		resumed, runErr := newRunner.RunOnce(newContext)
+		newResult <- runResult{advanced: resumed, err: runErr}
+	}()
+	if call := <-finalizer.started; call != 1 {
+		t.Fatalf("successor retention call = %d", call)
+	}
+	state, err = scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(successor lease): %v", err)
+	}
+	if state.ActiveArchiveOperation == nil ||
+		state.ActiveArchiveOperation.CoordinatorNodeID != 2 ||
+		state.ActiveArchiveOperation.CoordinatorTerm != 3 {
+		t.Fatalf("successor lease owner = %#v", state.ActiveArchiveOperation)
+	}
+	close(finalizer.release[1])
+	result = <-newResult
+	if result.err != nil || !result.advanced {
+		t.Fatalf(
+			"new leader result advanced=%v error=%v",
+			result.advanced, result.err,
+		)
+	}
+	state, err = scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(completed): %v", err)
+	}
+	if state.ActiveBackup != nil || state.ActiveArchiveOperation != nil {
+		t.Fatalf("completed cleanup state = %#v", state)
+	}
+}
+
+func TestJobRunnerKeepsCleaningActiveUntilRetentionLeaseReleases(t *testing.T) {
+	stateStore := &memoryScheduledStateStore{}
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	scheduled, err := backupusecase.NewScheduledService(backupusecase.ScheduledOptions{
+		StateStore: stateStore,
+		Now:        func() time.Time { return now },
+		NewID:      func() string { return "backup-retention-release" },
+	})
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	configured, err := scheduled.Configure(
+		context.Background(), validConfigureRequest(),
+	)
+	if err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	stateStore.mu.Lock()
+	stateStore.state.ActiveBackup.Status = backupcontract.JobStatusCleaning
+	for index := range stateStore.state.ActiveBackup.Slots {
+		stateStore.state.ActiveBackup.Slots[index].Status =
+			backupcontract.SlotStatusComplete
+	}
+	stateStore.state.ActiveArchiveOperation = &backupcontract.ArchiveOperation{
+		Token: "retention-release-retry", Kind: "retention",
+		ArchiveID:         configured.InitialJob.ID,
+		StartedUnixMillis: now.UnixMilli(),
+		ExpiresUnixMillis: now.Add(48 * time.Hour).UnixMilli(),
+	}
+	stateStore.interveningStateUpdates = 16
+	stateStore.mu.Unlock()
+
+	store, err := backupinfra.NewFileArchiveStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore(): %v", err)
+	}
+	runner, err := backupusecase.NewJobRunner(backupusecase.JobRunnerOptions{
+		Scheduled: scheduled, Repository: fixedRepositoryProvider{store: store},
+		Slots: &recordingSlotExecutor{}, Finalizer: &recordingArchiveFinalizer{},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewJobRunner(): %v", err)
+	}
+	if advanced, err := runner.RunOnce(context.Background()); !advanced ||
+		!errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("RunOnce(conflicted) advanced=%v error=%v", advanced, err)
+	}
+	state, err := scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(conflicted): %v", err)
+	}
+	if state.ActiveBackup == nil ||
+		state.ActiveBackup.Status != backupcontract.JobStatusCleaning ||
+		state.ActiveArchiveOperation == nil {
+		t.Fatalf("conflicted cleanup state = %#v", state)
+	}
+	if advanced, err := runner.RunOnce(context.Background()); err != nil || !advanced {
+		t.Fatalf("RunOnce(resumed) advanced=%v error=%v", advanced, err)
+	}
+	state, err = scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(resumed): %v", err)
+	}
+	if state.ActiveBackup != nil || state.ActiveArchiveOperation != nil {
+		t.Fatalf("resumed cleanup state = %#v", state)
 	}
 }
 
@@ -420,6 +644,46 @@ func (e *recordingSlotExecutor) ExportSlot(
 type recordingArchiveFinalizer struct {
 	published      int
 	retentionCount int
+}
+
+type overlappingRetentionFinalizer struct {
+	mu      sync.Mutex
+	calls   int
+	started chan int
+	release [2]chan struct{}
+}
+
+func newOverlappingRetentionFinalizer() *overlappingRetentionFinalizer {
+	return &overlappingRetentionFinalizer{
+		started: make(chan int, 2),
+		release: [2]chan struct{}{make(chan struct{}), make(chan struct{})},
+	}
+}
+
+func (f *overlappingRetentionFinalizer) Publish(
+	context.Context,
+	backupartifact.ArchiveStore,
+	backupcontract.BackupJob,
+) error {
+	return nil
+}
+
+func (f *overlappingRetentionFinalizer) ApplyRetention(
+	ctx context.Context,
+	_ backupartifact.ArchiveStore,
+	_ int,
+) error {
+	f.mu.Lock()
+	call := f.calls
+	f.calls++
+	f.mu.Unlock()
+	f.started <- call
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-f.release[call]:
+		return nil
+	}
 }
 
 func (f *recordingArchiveFinalizer) Publish(

@@ -1,0 +1,892 @@
+name: Safety Automation - Issue Agent Control
+run-name: Issue Agent control ${{ github.event_name }} ${{ github.run_id }}
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request:
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled, closed]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  workflow_run:
+    workflows: [Agent Tool - Validate PR]
+    types: [completed]
+  repository_dispatch:
+    types: [issue-agent-reconcile]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing Issue to reconcile
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-scheduler-${{ github.repository }}
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  planner:
+    name: Derive one operation from protected policy and signed state
+    if: >-
+      (github.event_name != 'pull_request' &&
+       github.event_name != 'pull_request_review') ||
+      startsWith(github.event.pull_request.head.ref, 'agent/issue-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      actions: read
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      artifact_name: ${{ steps.plan.outputs.artifact_name }}
+      artifact_run_id: ${{ steps.plan.outputs.artifact_run_id }}
+      comment_id: ${{ steps.plan.outputs.comment_id }}
+      command_requires_target: ${{ steps.plan.outputs.command_requires_target }}
+      issue_number: ${{ steps.plan.outputs.issue_number }}
+      lease_expires_at: ${{ steps.plan.outputs.lease_expires_at }}
+      lease_operation_id: ${{ steps.plan.outputs.lease_operation_id }}
+      lifecycle_operation: ${{ steps.plan.outputs.lifecycle_operation }}
+      lifecycle_phase: ${{ steps.plan.outputs.lifecycle_phase }}
+      operation: ${{ steps.plan.outputs.operation }}
+      rollout: ${{ steps.plan.outputs.rollout }}
+      state: ${{ steps.plan.outputs.state }}
+      target_sha: ${{ steps.plan.outputs.target_sha }}
+      workflow_run_id: ${{ steps.plan.outputs.workflow_run_id }}
+    steps:
+      - name: Check out protected control source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build and verify protected controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(git -C control rev-parse HEAD)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+          go version -m "$RUNNER_TEMP/wkissueagent" >"$RUNNER_TEMP/wkissueagent.buildinfo"
+          grep -F "vcs.revision=$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
+      - name: Plan bounded event
+        id: plan
+        shell: bash
+        env:
+          APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_AGENT_GITHUB_TOKEN: ${{ github.token }}
+          MANUAL_ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          rollout="$(jq -er '.rollout_mode' control/.github/issue-agent/policy.json)"
+          enabled="$(jq -er '.enabled' control/.github/issue-agent/policy.json)"
+          event_name="$(jq -r '.event_name' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
+          if [[ -z "$event_name" ]]; then
+            event_name="$GITHUB_EVENT_NAME"
+          fi
+          action="$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")"
+          issue_number=""
+          comment_id=""
+          command_requires_target=false
+          workflow_run_id=""
+          operation=report_only
+
+          case "$event_name" in
+            issues)
+              issue_number="$(jq -r '.issue.number // ""' "$GITHUB_EVENT_PATH")"
+              if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow ]]; then
+                case "$action" in
+                  opened|edited|reopened) operation=intake ;;
+                  labeled)
+                    if [[ "$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")" = ready-for-agent ]]; then
+                      operation=authorize
+                    else
+                      operation=intake
+                    fi
+                    ;;
+                esac
+              fi
+              ;;
+            issue_comment)
+              if jq -e '.issue.pull_request == null' "$GITHUB_EVENT_PATH" >/dev/null; then
+                issue_number="$(jq -r '.issue.number // ""' "$GITHUB_EVENT_PATH")"
+                comment_id="$(jq -r '.comment.id // ""' "$GITHUB_EVENT_PATH")"
+                if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow && "$action" = created ]]; then
+                  author="$(jq -r '.comment.user.login // ""' "$GITHUB_EVENT_PATH")"
+                  author_type="$(jq -r '.comment.user.type // ""' "$GITHUB_EVENT_PATH")"
+                  body="$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")"
+                  first_line="${body%%$'\n'*}"
+                  first_line="${first_line%$'\r'}"
+                  if [[ "$first_line" = "/agent approve-risk" ]]; then
+                    operation=risk_authorize
+                  elif [[ "$first_line" =~ ^/agent\ recover-chain\ [1-9][0-9]*\ sha256:[0-9a-f]{64}\ sha256:[0-9a-f]{64}$ ]]; then
+                    operation=recover_chain
+                  elif [[ "$first_line" = "/agent address-review" ]]; then
+                    operation=command
+                    command_requires_target=true
+                  elif [[ "$first_line" =~ ^/agent\ (revise|cancel)$ ]] ||
+                    [[ "$first_line" =~ ^/agent\ adopt-head\ [0-9a-f]{40}$ ]]; then
+                    operation=command
+                  elif [[ "$first_line" =~ ^/agent\ backport\ [A-Za-z0-9][A-Za-z0-9._/-]{0,127}$ ]]; then
+                    operation=backport
+                  elif [[ "$author" = "$APP_LOGIN" && "$author_type" = Bot ]]; then
+                    operation=reconcile
+                  fi
+                fi
+              fi
+              ;;
+            pull_request|pull_request_review)
+              head_ref="$(jq -r '.pull_request.head.ref // ""' "$GITHUB_EVENT_PATH")"
+              if [[ "$head_ref" =~ ^agent/issue-([1-9][0-9]{0,9})$ ]]; then
+                issue_number="${BASH_REMATCH[1]}"
+                if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow ]]; then
+                  if [[ "$event_name" = pull_request && "$action" = closed ]] &&
+                    [[ "$(jq -r '.pull_request.merged // false' "$GITHUB_EVENT_PATH")" = true ]]; then
+                    operation=observe_merge
+                  else
+                    operation=reconcile
+                  fi
+                fi
+              fi
+              ;;
+            workflow_run)
+              title="$(jq -r '.workflow_run.display_title // ""' "$GITHUB_EVENT_PATH")"
+              conclusion="$(jq -r '.workflow_run.conclusion // ""' "$GITHUB_EVENT_PATH")"
+              if [[ "$title" =~ ^Agent\ PR\ \#([1-9][0-9]*)\ validation\ head\ [0-9a-f]{40}\ merge\ [0-9a-f]{40}\ gate\ [1-9][0-9]*\ request\ [1-9][0-9]*$ && ( "$conclusion" = success || "$conclusion" = failure ) ]]; then
+                pr_number="${BASH_REMATCH[1]}"
+                head_ref="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}" --jq '.head.ref')"
+                if [[ "$head_ref" =~ ^agent/issue-([1-9][0-9]{0,9})$ ]]; then
+                  issue_number="${BASH_REMATCH[1]}"
+                  workflow_run_id="$(jq -r '.workflow_run.id' "$GITHUB_EVENT_PATH")"
+                  if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow ]]; then
+                    operation=validation_result
+                  fi
+                fi
+              fi
+              ;;
+            repository_dispatch)
+              issue_number="$(jq -r '.client_payload.issue_number // ""' "$GITHUB_EVENT_PATH")"
+              if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow ]]; then
+                operation=reconcile
+              fi
+              ;;
+            workflow_dispatch)
+              issue_number="$MANUAL_ISSUE_NUMBER"
+              if [[ "$enabled" = true && "$rollout" != disabled && "$rollout" != shadow ]]; then
+                operation=reconcile
+              fi
+              ;;
+          esac
+
+          if [[ -n "$issue_number" ]]; then
+            [[ "$issue_number" =~ ^[1-9][0-9]{0,9}$ ]]
+          fi
+          state=""
+          target_sha=""
+          lease_operation_id=""
+          lease_expires_at=""
+          lifecycle_operation=""
+          lifecycle_phase=""
+          artifact_name=""
+          artifact_run_id=""
+          if [[ "$operation" = reconcile || "$operation" = validation_result || "$operation" = command ]]; then
+            jq -n \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg app_login "$APP_LOGIN" \
+              --argjson issue_number "$issue_number" \
+              --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+              --slurpfile key_set control/.github/issue-agent/checkpoint-public-keys.json \
+              '{schema_version:1,payload:{base_url:"https://api.github.com",repository:$repository,app_login:$app_login,issue_number:$issue_number,key_set:$key_set[0],policy_base64:$policy_base64}}' \
+              >"$RUNNER_TEMP/read-current.json"
+            if "$RUNNER_TEMP/wkissueagent" read-current-checkpoint \
+              --input "$RUNNER_TEMP/read-current.json" >"$RUNNER_TEMP/current.json"; then
+              lifecycle_operation="$(jq -r '.plan.operation // ""' "$RUNNER_TEMP/current.json")"
+              lifecycle_phase="$(jq -r '.plan.phase // ""' "$RUNNER_TEMP/current.json")"
+              if [[ "$lifecycle_operation" = alert_audit_failure ]] &&
+                [[ "$(jq -r '.chain_invalid // false' "$RUNNER_TEMP/current.json")" = true ]]; then
+                state=chain_invalid
+              else
+                state="$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")"
+                target_sha="$(jq -r '.checkpoint.work.head_sha // .checkpoint.versions.diagnosis_base_sha // ""' "$RUNNER_TEMP/current.json")"
+                lease_operation_id="$(jq -r '.checkpoint.lease.operation_id // ""' "$RUNNER_TEMP/current.json")"
+                lease_expires_at="$(jq -r '.checkpoint.lease.expires_at // ""' "$RUNNER_TEMP/current.json")"
+                [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+                if [[ "$lifecycle_operation" = publish_worker_result ]]; then
+                  artifact_run_id="$(jq -er '.plan.artifact_run_id' \
+                    "$RUNNER_TEMP/current.json")"
+                  [[ "$artifact_run_id" =~ ^[1-9][0-9]*$ ]]
+                  [[ "$lease_operation_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+                  suffix="${lease_operation_id#sha256:}"
+                  artifact_name="issue-agent-result-${suffix:0:16}"
+                fi
+              fi
+              if [[ "$operation" = reconcile ]] &&
+                [[ "$(jq -r '.issue_body_changed' "$RUNNER_TEMP/current.json")" = true ]]; then
+                operation=report_only
+              fi
+            else
+              operation=report_only
+            fi
+          fi
+          {
+            echo "artifact_name=$artifact_name"
+            echo "artifact_run_id=$artifact_run_id"
+            echo "comment_id=$comment_id"
+            echo "command_requires_target=$command_requires_target"
+            echo "issue_number=$issue_number"
+            echo "lease_expires_at=$lease_expires_at"
+            echo "lease_operation_id=$lease_operation_id"
+            echo "lifecycle_operation=$lifecycle_operation"
+            echo "lifecycle_phase=$lifecycle_phase"
+            echo "operation=$operation"
+            echo "rollout=$rollout"
+            echo "state=$state"
+            echo "target_sha=$target_sha"
+            echo "workflow_run_id=$workflow_run_id"
+          } >>"$GITHUB_OUTPUT"
+          jq -n \
+            --arg operation "$operation" \
+            --arg rollout "$rollout" \
+            --arg issue_number "$issue_number" \
+            --arg state "$state" \
+            '{operation:$operation,rollout:$rollout,issue_number:$issue_number,state:$state}' \
+            >"$RUNNER_TEMP/control-plan.json"
+      - name: Report controller decision
+        shell: bash
+        run: |
+          {
+            echo '## Issue Agent control'
+            echo
+            echo '```json'
+            jq -cS . "$RUNNER_TEMP/control-plan.json"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  intake-publisher:
+    name: Publish deterministic intake
+    needs: [planner]
+    if: needs.planner.outputs.operation == 'intake'
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: issue-agent-publisher
+    permissions:
+      contents: read
+    steps:
+      - name: Check out protected Publisher source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build protected intake Publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+      - name: Mint repository-scoped App token
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          INSTALLATION_ID: ${{ vars.ISSUE_AGENT_INSTALLATION_ID }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+        run: |
+          set -euo pipefail
+          jq -n --argjson app_id "$APP_ID" --argjson installation_id "$INSTALLATION_ID" \
+            --argjson repository_id "$REPOSITORY_ID" --arg repository "$GITHUB_REPOSITORY" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",app_id:$app_id,installation_id:$installation_id,repository_id:$repository_id,repository:$repository}}' \
+            >"$RUNNER_TEMP/mint.json"
+          token="$("$RUNNER_TEMP/wkissueagent" mint-app-token --input "$RUNNER_TEMP/mint.json" | jq -er '.token')"
+          echo "::add-mask::$token"
+          echo "ISSUE_AGENT_GITHUB_TOKEN=$token" >>"$GITHUB_ENV"
+      - name: Publish intake from current Issue
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ needs.planner.outputs.issue_number }}
+          APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          jq -n --arg repository "$GITHUB_REPOSITORY" --arg app_login "$APP_LOGIN" \
+            --argjson issue_number "$ISSUE_NUMBER" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",repository:$repository,app_login:$app_login,issue_number:$issue_number,possible_duplicates:[]}}' \
+            >"$RUNNER_TEMP/intake.json"
+          "$RUNNER_TEMP/wkissueagent" publish-intake --input "$RUNNER_TEMP/intake.json" \
+            >"$RUNNER_TEMP/intake-result.json"
+          jq -e '.complete == true or .complete == false' "$RUNNER_TEMP/intake-result.json" >/dev/null
+
+  state-publisher:
+    name: Publish one signed lifecycle transition
+    needs: [planner]
+    if: >-
+      needs.planner.outputs.operation == 'authorize' ||
+      needs.planner.outputs.operation == 'risk_authorize' ||
+      needs.planner.outputs.operation == 'reconcile' ||
+      needs.planner.outputs.operation == 'validation_result' ||
+      needs.planner.outputs.operation == 'command' ||
+      needs.planner.outputs.operation == 'recover_chain' ||
+      needs.planner.outputs.operation == 'backport' ||
+      needs.planner.outputs.operation == 'observe_merge'
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    environment: issue-agent-publisher
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out protected Publisher source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          path: control
+          persist-credentials: false
+      - name: Check out exact frozen instruction source
+        if: >-
+          (needs.planner.outputs.operation == 'reconcile' &&
+           (needs.planner.outputs.lifecycle_operation == 'dispatch_worker' ||
+            needs.planner.outputs.lifecycle_operation == 'request_validation')) ||
+          needs.planner.outputs.operation == 'validation_result' ||
+          (needs.planner.outputs.operation == 'command' &&
+           needs.planner.outputs.command_requires_target == 'true')
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.planner.outputs.target_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up reviewed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: control/go.mod
+          cache: false
+      - name: Build protected state Publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
+      - name: Mint repository-scoped App token
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          INSTALLATION_ID: ${{ vars.ISSUE_AGENT_INSTALLATION_ID }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+        run: |
+          set -euo pipefail
+          jq -n --argjson app_id "$APP_ID" --argjson installation_id "$INSTALLATION_ID" \
+            --argjson repository_id "$REPOSITORY_ID" --arg repository "$GITHUB_REPOSITORY" \
+            '{schema_version:1,payload:{base_url:"https://api.github.com",app_id:$app_id,installation_id:$installation_id,repository_id:$repository_id,repository:$repository}}' \
+            >"$RUNNER_TEMP/mint.json"
+          token="$("$RUNNER_TEMP/wkissueagent" mint-app-token --input "$RUNNER_TEMP/mint.json" | jq -er '.token')"
+          echo "::add-mask::$token"
+          echo "ISSUE_AGENT_GITHUB_TOKEN=$token" >>"$GITHUB_ENV"
+          echo "GH_TOKEN=$token" >>"$GITHUB_ENV"
+      - name: Download exact recoverable Worker Artifact
+        if: >-
+          needs.planner.outputs.operation == 'reconcile' &&
+          needs.planner.outputs.lifecycle_operation == 'publish_worker_result'
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: ${{ needs.planner.outputs.artifact_name }}
+          path: recovered-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.planner.outputs.artifact_run_id }}
+      - name: Publish the fenced transition
+        shell: bash
+        env:
+          APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          ARTIFACT_NAME: ${{ needs.planner.outputs.artifact_name }}
+          ARTIFACT_RUN_ID: ${{ needs.planner.outputs.artifact_run_id }}
+          CODEX_MODEL: ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
+          COMMENT_ID: ${{ needs.planner.outputs.comment_id }}
+          DEEPSEEK_MODEL: ${{ vars.ISSUE_AGENT_DEEPSEEK_MODEL }}
+          ISSUE_AGENT_CHECKPOINT_KEY_ID: ${{ vars.ISSUE_AGENT_CHECKPOINT_KEY_ID }}
+          ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY }}
+          ISSUE_NUMBER: ${{ needs.planner.outputs.issue_number }}
+          LEASE_EXPIRES_AT: ${{ needs.planner.outputs.lease_expires_at }}
+          LEASE_OPERATION_ID: ${{ needs.planner.outputs.lease_operation_id }}
+          LIFECYCLE_OPERATION: ${{ needs.planner.outputs.lifecycle_operation }}
+          LIFECYCLE_PHASE: ${{ needs.planner.outputs.lifecycle_phase }}
+          OPERATION: ${{ needs.planner.outputs.operation }}
+          ROLLOUT: ${{ needs.planner.outputs.rollout }}
+          STATE: ${{ needs.planner.outputs.state }}
+          WORKFLOW_RUN_ID: ${{ needs.planner.outputs.workflow_run_id }}
+        run: |
+          set -euo pipefail
+          common_payload() {
+            jq -n \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg app_login "$APP_LOGIN" \
+              --argjson issue_number "$ISSUE_NUMBER" \
+              --slurpfile key_set control/.github/issue-agent/checkpoint-public-keys.json \
+              '{base_url:"https://api.github.com",repository:$repository,app_login:$app_login,issue_number:$issue_number,key_set:$key_set[0]}'
+          }
+          dispatch_worker() {
+            local operation_id="$1"
+            [[ "$operation_id" =~ ^sha256:[0-9a-f]{64}$ ]]
+            local title="Issue Agent worker Issue ${ISSUE_NUMBER} operation ${operation_id}"
+            local found
+            found="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/issue-agent-run.yml/runs?event=workflow_dispatch&per_page=100" |
+              jq --arg title "$title" '[.workflow_runs[] | select(.display_title == $title)] | length')"
+            if [[ "$found" = 0 ]]; then
+              gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/issue-agent-run.yml/dispatches" \
+                -f ref=main \
+                -f "inputs[issue_number]=$ISSUE_NUMBER" \
+                -f "inputs[operation_id]=$operation_id"
+            fi
+          }
+          instruction_digests() {
+            jq -n '[]' >"$RUNNER_TEMP/instructions.json"
+            while IFS= read -r -d '' path; do
+              relative="${path#target/}"
+              digest="sha256:$(sha256sum -- "$path" | cut -d' ' -f1)"
+              jq --arg path "$relative" --arg digest "$digest" \
+                '. + [{path:$path,sha256:$digest}]' \
+                "$RUNNER_TEMP/instructions.json" >"$RUNNER_TEMP/instructions.next"
+              mv "$RUNNER_TEMP/instructions.next" "$RUNNER_TEMP/instructions.json"
+            done < <(
+              find target \
+                -path target/.git -prune -o \
+                -path target/web/node_modules -prune -o \
+                \( -name AGENTS.md -o -name FLOW.md \) -type f -print0 |
+                sort -z
+            )
+            jq -e 'length > 0 and length <= 128' "$RUNNER_TEMP/instructions.json" >/dev/null
+          }
+          selected_provider() {
+            provider="$(jq -er '.default_provider' control/.github/issue-agent/policy.json)"
+            case "$provider" in
+              codex) model="$CODEX_MODEL" ;;
+              deepseek) model="$DEEPSEEK_MODEL" ;;
+              *) return 1 ;;
+            esac
+            test -n "$model"
+          }
+          remediation_enabled() {
+            if [[ "$ROLLOUT" = general ]]; then
+              return 0
+            fi
+            if [[ "$ROLLOUT" = remediation ]] &&
+              jq -e --argjson issue "$ISSUE_NUMBER" \
+                '.remediation_issue_allowlist | index($issue) != null' \
+                control/.github/issue-agent/policy.json >/dev/null; then
+              return 0
+            fi
+            return 1
+          }
+          mechanical_merge_facts() {
+            mechanical_main_sha="$(git -C control rev-parse HEAD)"
+            signed_head_sha="$(git -C target rev-parse HEAD)"
+            [[ "$mechanical_main_sha" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$signed_head_sha" =~ ^[0-9a-f]{40}$ ]]
+            test "$signed_head_sha" = "$STATE_TARGET_SHA"
+            git -C target fetch --no-tags origin "$mechanical_main_sha"
+            mechanical_merge_tree_sha=""
+            mechanical_change_set_file="$RUNNER_TEMP/mechanical-change-set.json"
+            jq -n '{files:[]}' >"$mechanical_change_set_file"
+            if merge_tree="$(
+              git -C target merge-tree --write-tree \
+                "$signed_head_sha" "$mechanical_main_sha" 2>/dev/null
+            )" && [[ "$merge_tree" =~ ^[0-9a-f]{40}$ ]]; then
+              mechanical_merge_tree_sha="$merge_tree"
+            fi
+            if [[ -z "$mechanical_merge_tree_sha" ]]; then
+              return 0
+            fi
+            valid_change_set=true
+            change_count=0
+            total_bytes=0
+            while IFS= read -r -d '' status &&
+              IFS= read -r -d '' path; do
+              if [[ "$path" == *$'\n'* || "$path" == *$'\r'* ]]; then
+                valid_change_set=false
+                break
+              fi
+              change_count=$((change_count + 1))
+              if (( change_count > 128 )); then
+                valid_change_set=false
+                break
+              fi
+              case "$status" in
+                A|M)
+                  mode="$(git -C target ls-tree "$mechanical_merge_tree_sha" -- "$path" |
+                    awk 'NR == 1 {print $1}')"
+                  if [[ "$mode" != 100644 ]]; then
+                    valid_change_set=false
+                    break
+                  fi
+                  content_file="$RUNNER_TEMP/mechanical-content-${change_count}"
+                  git -C target show "${mechanical_merge_tree_sha}:${path}" >"$content_file"
+                  file_bytes="$(wc -c <"$content_file")"
+                  total_bytes=$((total_bytes + file_bytes))
+                  if (( file_bytes > 2097152 || total_bytes > 8388608 )); then
+                    valid_change_set=false
+                    break
+                  fi
+                  content_base64_file="${content_file}.base64"
+                  base64 -w0 "$content_file" >"$content_base64_file"
+                  jq \
+                    --arg path "$path" \
+                    --rawfile content_base64 "$content_base64_file" \
+                    '.files += [{
+                      path:$path,operation:"upsert",mode:"100644",
+                      content_base64:$content_base64
+                    }]' \
+                    "$mechanical_change_set_file" \
+                    >"$RUNNER_TEMP/mechanical-change-set.next"
+                  ;;
+                D)
+                  jq --arg path "$path" \
+                    '.files += [{path:$path,operation:"delete"}]' \
+                    "$mechanical_change_set_file" \
+                    >"$RUNNER_TEMP/mechanical-change-set.next"
+                  ;;
+                *)
+                  valid_change_set=false
+                  break
+                  ;;
+              esac
+              mv "$RUNNER_TEMP/mechanical-change-set.next" \
+                "$mechanical_change_set_file"
+            done < <(
+              git -C target diff-tree -r --no-commit-id --no-renames \
+                --name-status -z "$mechanical_main_sha" "$mechanical_merge_tree_sha"
+            )
+            if [[ "$valid_change_set" != true || "$change_count" = 0 ]]; then
+              mechanical_merge_tree_sha=""
+              jq -n '{files:[]}' >"$mechanical_change_set_file"
+              return 0
+            fi
+            jq '.files |= sort_by(.path)' "$mechanical_change_set_file" \
+              >"$RUNNER_TEMP/mechanical-change-set.sorted"
+            mv "$RUNNER_TEMP/mechanical-change-set.sorted" \
+              "$mechanical_change_set_file"
+          }
+          if [[ "$OPERATION" = reconcile ]]; then
+            common_payload | jq \
+              --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+              '{schema_version:1,payload:(. + {policy_base64:$policy_base64})}' \
+              >"$RUNNER_TEMP/read-current.json"
+            "$RUNNER_TEMP/wkissueagent" read-current-checkpoint \
+              --input "$RUNNER_TEMP/read-current.json" >"$RUNNER_TEMP/current.json"
+            if [[ "$LIFECYCLE_OPERATION" = alert_audit_failure ]]; then
+              test "$(jq -er '.chain_invalid' "$RUNNER_TEMP/current.json")" = true
+            else
+              test "$(jq -er '.checkpoint.state' "$RUNNER_TEMP/current.json")" = "$STATE"
+            fi
+          fi
+
+          case "$OPERATION" in
+            authorize)
+              actor="$(jq -er '.sender.login' "$GITHUB_EVENT_PATH")"
+              actor_type="$(jq -er '.sender.type' "$GITHUB_EVENT_PATH")"
+              event_action="$(jq -er '.action' "$GITHUB_EVENT_PATH")"
+              event_label="$(jq -er '.label.name' "$GITHUB_EVENT_PATH")"
+              event_at="$(jq -er '.issue.updated_at' "$GITHUB_EVENT_PATH")"
+              event_id="${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:${event_action}"
+              common_payload | jq \
+                --arg event_id "$event_id" --arg event_action "$event_action" \
+                --arg label "$event_label" --arg actor "$actor" \
+                --arg actor_type "$actor_type" --arg event_at "$event_at" \
+                '{schema_version:1,payload:(. + {event_id:$event_id,event_action:$event_action,label:$label,before_labels:[],actor:$actor,actor_type:$actor_type,event_at:$event_at})}' \
+                >"$RUNNER_TEMP/authorize.json"
+              "$RUNNER_TEMP/wkissueagent" publish-authorization \
+                --input "$RUNNER_TEMP/authorize.json" >"$RUNNER_TEMP/result.json"
+              ;;
+            risk_authorize)
+              common_payload | jq --argjson comment_id "$COMMENT_ID" \
+                '{schema_version:1,payload:(. + {comment_id:$comment_id})}' \
+                >"$RUNNER_TEMP/risk.json"
+              "$RUNNER_TEMP/wkissueagent" publish-risk-authorization \
+                --input "$RUNNER_TEMP/risk.json" >"$RUNNER_TEMP/result.json"
+              ;;
+            validation_result)
+              if [[ "$(jq -r '.workflow_run.conclusion' "$GITHUB_EVENT_PATH")" = failure ]]; then
+                instruction_digests
+                selected_provider
+                allowed='[{"executable":"go","argv_prefix":["test","./internal/...","./pkg/...","-count=1"],"max_args":4}]'
+                common_payload | jq \
+                  --argjson workflow_run_id "$WORKFLOW_RUN_ID" \
+                  --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                  --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/fix.md)" \
+                  --arg provider "$provider" --arg model "$model" \
+                  --argjson allowed_commands "$allowed" \
+                  --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
+                  '{schema_version:1,payload:(. + {workflow_run_id:$workflow_run_id,policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],allowed_commands:$allowed_commands,provider:$provider,model:$model})}' \
+                  >"$RUNNER_TEMP/validation-result.json"
+              else
+                common_payload | jq --argjson workflow_run_id "$WORKFLOW_RUN_ID" \
+                  '{schema_version:1,payload:(. + {workflow_run_id:$workflow_run_id,policy_base64:"",prompt_base64:"",instruction_digests:[],allowed_commands:[],provider:"",model:""})}' \
+                  >"$RUNNER_TEMP/validation-result.json"
+              fi
+              "$RUNNER_TEMP/wkissueagent" publish-validation-result \
+                --input "$RUNNER_TEMP/validation-result.json" >"$RUNNER_TEMP/result.json"
+              repair_operation="$(jq -r '.task.operation_id // ""' \
+                "$RUNNER_TEMP/result.json")"
+              if [[ -n "$repair_operation" ]]; then
+                dispatch_worker "$repair_operation"
+              fi
+              ;;
+            command)
+              common_payload | jq \
+                --argjson comment_id "$COMMENT_ID" \
+                --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                '{schema_version:1,payload:(. + {comment_id:$comment_id,policy_base64:$policy_base64,prompt_base64:"",instruction_digests:[],allowed_commands:[],provider:"",model:""})}' \
+                >"$RUNNER_TEMP/command.json"
+              command_line="$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")"
+              command_line="${command_line%%$'\n'*}"
+              command_line="${command_line%$'\r'}"
+              if [[ "$command_line" = "/agent address-review" ]]; then
+                instruction_digests
+                selected_provider
+                allowed='[{"executable":"go","argv_prefix":["test","./internal/...","./pkg/...","-count=1"],"max_args":4}]'
+                jq \
+                  --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/address-review.md)" \
+                  --arg provider "$provider" --arg model "$model" \
+                  --argjson allowed_commands "$allowed" \
+                  --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
+                  '.payload += {prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],allowed_commands:$allowed_commands,provider:$provider,model:$model}' \
+                  "$RUNNER_TEMP/command.json" >"$RUNNER_TEMP/command.with-worker.json"
+                mv "$RUNNER_TEMP/command.with-worker.json" "$RUNNER_TEMP/command.json"
+              fi
+              "$RUNNER_TEMP/wkissueagent" publish-command \
+                --input "$RUNNER_TEMP/command.json" >"$RUNNER_TEMP/result.json"
+              command_operation="$(jq -r '.task.operation_id // ""' \
+                "$RUNNER_TEMP/result.json")"
+              if [[ -n "$command_operation" ]]; then
+                dispatch_worker "$command_operation"
+              fi
+              ;;
+            recover_chain)
+              common_payload | jq \
+                --argjson comment_id "$COMMENT_ID" \
+                --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                '{schema_version:1,payload:(. + {comment_id:$comment_id,policy_base64:$policy_base64,prompt_base64:"",instruction_digests:[],allowed_commands:[],provider:"",model:""})}' \
+                >"$RUNNER_TEMP/recover-chain.json"
+              "$RUNNER_TEMP/wkissueagent" publish-command \
+                --input "$RUNNER_TEMP/recover-chain.json" >"$RUNNER_TEMP/result.json"
+              ;;
+            backport)
+              common_payload | jq \
+                --argjson comment_id "$COMMENT_ID" \
+                --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                '{schema_version:1,payload:(. + {comment_id:$comment_id,policy_base64:$policy_base64,prompt_base64:"",instruction_digests:[],allowed_commands:[],provider:"",model:""})}' \
+                >"$RUNNER_TEMP/backport.json"
+              "$RUNNER_TEMP/wkissueagent" publish-command \
+                --input "$RUNNER_TEMP/backport.json" >"$RUNNER_TEMP/result.json"
+              ;;
+            observe_merge)
+              common_payload | jq '{schema_version:1,payload:.}' \
+                >"$RUNNER_TEMP/merge.json"
+              "$RUNNER_TEMP/wkissueagent" publish-merge \
+                --input "$RUNNER_TEMP/merge.json" >"$RUNNER_TEMP/result.json"
+              ;;
+            reconcile)
+              case "$LIFECYCLE_OPERATION:$STATE" in
+                alert_audit_failure:chain_invalid)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/audit-alert.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-audit-alert \
+                    --input "$RUNNER_TEMP/audit-alert.json" >"$RUNNER_TEMP/result.json"
+                  ;;
+                repair_projection:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/projection-repair.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-projection-repair \
+                    --input "$RUNNER_TEMP/projection-repair.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
+                resolve_versions:authorized)
+                  if [[ "$ROLLOUT" = reproduction || "$ROLLOUT" = remediation || "$ROLLOUT" = general ]]; then
+                    common_payload | jq '{schema_version:1,payload:.}' \
+                      >"$RUNNER_TEMP/version.json"
+                    "$RUNNER_TEMP/wkissueagent" publish-version-pin \
+                      --input "$RUNNER_TEMP/version.json" >"$RUNNER_TEMP/result.json"
+                  fi
+                  ;;
+                dispatch_worker:version_pinned)
+                  if [[ "$ROLLOUT" = reproduction || "$ROLLOUT" = remediation || "$ROLLOUT" = general ]]; then
+                    instruction_digests
+                    selected_provider
+                    common_payload | jq \
+                      --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                      --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/reproduce.md)" \
+                      --arg topology single-node-cluster \
+                      --arg provider "$provider" --arg model "$model" \
+                      --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
+                      '{schema_version:1,payload:(. + {policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],topology:$topology,harness_paths:[],provider:$provider,model:$model})}' \
+                      >"$RUNNER_TEMP/lease.json"
+                    "$RUNNER_TEMP/wkissueagent" publish-reproduction-lease \
+                      --input "$RUNNER_TEMP/lease.json" >"$RUNNER_TEMP/result.json"
+                    lease_operation="$(jq -r '.task.operation_id // ""' "$RUNNER_TEMP/result.json")"
+                    if [[ -n "$lease_operation" ]]; then
+                      dispatch_worker "$lease_operation"
+                    fi
+                  fi
+                  ;;
+                create_draft_pr:reproduced)
+                  if [[ "$ROLLOUT" = reproduction || "$ROLLOUT" = remediation || "$ROLLOUT" = general ]]; then
+                    common_payload | jq '{schema_version:1,payload:.}' \
+                      >"$RUNNER_TEMP/draft.json"
+                    "$RUNNER_TEMP/wkissueagent" publish-draft-pr \
+                      --input "$RUNNER_TEMP/draft.json" >"$RUNNER_TEMP/result.json"
+                  fi
+                  ;;
+                dispatch_worker:draft_pr_open)
+                  if remediation_enabled; then
+                    instruction_digests
+                    selected_provider
+                    allowed='[{"executable":"go","argv_prefix":["list","./internal/...","./pkg/..."],"max_args":3}]'
+                    common_payload | jq \
+                      --arg phase diagnose \
+                      --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                      --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/diagnose.md)" \
+                      --arg provider "$provider" --arg model "$model" \
+                      --argjson allowed_commands "$allowed" \
+                      --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
+                      '{schema_version:1,payload:(. + {phase:$phase,policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],allowed_commands:$allowed_commands,provider:$provider,model:$model})}' \
+                      >"$RUNNER_TEMP/lease.json"
+                    "$RUNNER_TEMP/wkissueagent" publish-phase-lease \
+                      --input "$RUNNER_TEMP/lease.json" >"$RUNNER_TEMP/result.json"
+                    lease_operation="$(jq -r '.task.operation_id // ""' "$RUNNER_TEMP/result.json")"
+                    if [[ -n "$lease_operation" ]]; then
+                      dispatch_worker "$lease_operation"
+                    fi
+                  fi
+                  ;;
+                dispatch_worker:diagnosed)
+                  if remediation_enabled; then
+                    authorization="$(jq -r '.checkpoint.diagnosis.authorization_event // ""' "$RUNNER_TEMP/current.json" 2>/dev/null || true)"
+                    risks="$(jq -r '.checkpoint.diagnosis.risk_classes | length' "$RUNNER_TEMP/current.json" 2>/dev/null || echo 1)"
+                    if [[ "$risks" = 0 || -n "$authorization" ]]; then
+                      instruction_digests
+                      selected_provider
+                      allowed='[{"executable":"go","argv_prefix":["test","./internal/...","./pkg/...","-count=1"],"max_args":4}]'
+                      common_payload | jq \
+                        --arg phase fix \
+                        --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                        --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/fix.md)" \
+                        --arg provider "$provider" --arg model "$model" \
+                        --argjson allowed_commands "$allowed" \
+                        --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
+                        '{schema_version:1,payload:(. + {phase:$phase,policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],allowed_commands:$allowed_commands,provider:$provider,model:$model})}' \
+                        >"$RUNNER_TEMP/lease.json"
+                      "$RUNNER_TEMP/wkissueagent" publish-phase-lease \
+                        --input "$RUNNER_TEMP/lease.json" >"$RUNNER_TEMP/result.json"
+                      lease_operation="$(jq -r '.task.operation_id // ""' "$RUNNER_TEMP/result.json")"
+                      if [[ -n "$lease_operation" ]]; then
+                        dispatch_worker "$lease_operation"
+                      fi
+                    fi
+                  fi
+                  ;;
+                expire_lease:reproducing|expire_lease:diagnosing|expire_lease:fixing)
+                  if [[ -z "$LEASE_OPERATION_ID" || -z "$LEASE_EXPIRES_AT" ]]; then
+                    exit 1
+                  fi
+                  expires_epoch="$(date -u -d "$LEASE_EXPIRES_AT" +%s)"
+                  now_epoch="$(date -u +%s)"
+                  (( expires_epoch <= now_epoch ))
+                  common_payload | jq \
+                    --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
+                    '{schema_version:1,payload:(. + {policy_base64:$policy_base64})}' \
+                    >"$RUNNER_TEMP/recover.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-expired-lease \
+                    --input "$RUNNER_TEMP/recover.json" >"$RUNNER_TEMP/result.json"
+                  ;;
+                publish_worker_result:reproducing|publish_worker_result:diagnosing|publish_worker_result:fixing)
+                  artifact="recovered-artifact/worker-artifact.json"
+                  test -f "$artifact"
+                  jq -e '.schema_version == 1' "$artifact" >/dev/null
+                  common_payload | jq \
+                    --argjson artifact_run_id "$ARTIFACT_RUN_ID" \
+                    --arg artifact_name "$ARTIFACT_NAME" \
+                    --slurpfile artifact "$artifact" \
+                    --slurpfile policy control/.github/issue-agent/policy.json \
+                    --arg template_base64 "$(base64 -w0 control/.github/issue-agent/templates/e2e-scenario-AGENTS.md)" \
+                    '{schema_version:1,payload:(. + {
+                      artifact_run_id:$artifact_run_id,
+                      artifact_name:$artifact_name,
+                      artifact:$artifact[0],
+                      protected_paths:$policy[0].protected_paths,
+                      scenario_instruction_template_base64:$template_base64
+                    })}' \
+                    >"$RUNNER_TEMP/recovered-worker.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-worker-artifact \
+                    --input "$RUNNER_TEMP/recovered-worker.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
+                request_validation:validating)
+                  if remediation_enabled; then
+                    STATE_TARGET_SHA="$(jq -er '.checkpoint.work.head_sha' \
+                      "$RUNNER_TEMP/current.json")"
+                    mechanical_merge_facts
+                    common_payload | jq \
+                      --arg mechanical_main_sha "$mechanical_main_sha" \
+                      --arg mechanical_merge_tree_sha "$mechanical_merge_tree_sha" \
+                      --slurpfile mechanical_change_set "$mechanical_change_set_file" \
+                      '{schema_version:1,payload:(. + {
+                        mechanical_main_sha:$mechanical_main_sha,
+                        mechanical_merge_tree_sha:$mechanical_merge_tree_sha,
+                        mechanical_change_set:$mechanical_change_set[0]
+                      })}' \
+                      >"$RUNNER_TEMP/validate.json"
+                    "$RUNNER_TEMP/wkissueagent" publish-validation-request \
+                      --input "$RUNNER_TEMP/validate.json" >"$RUNNER_TEMP/result.json"
+                  fi
+                  ;;
+                record_merge:ready_for_review)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/merge.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-merge \
+                    --input "$RUNNER_TEMP/merge.json" >"$RUNNER_TEMP/result.json"
+                  ;;
+                record_branch_drift:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/branch-drift.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-branch-drift \
+                    --input "$RUNNER_TEMP/branch-drift.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
+                record_work_drift:*)
+                  common_payload | jq '{schema_version:1,payload:.}' \
+                    >"$RUNNER_TEMP/work-drift.json"
+                  "$RUNNER_TEMP/wkissueagent" publish-work-drift \
+                    --input "$RUNNER_TEMP/work-drift.json" \
+                    >"$RUNNER_TEMP/result.json"
+                  ;;
+                wait:*|report_only:*)
+                  ;;
+                *)
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              exit 1
+              ;;
+          esac

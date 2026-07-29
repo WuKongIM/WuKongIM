@@ -36,8 +36,11 @@ legacy verified state until the effective repository changes.
    data node.
 3. Accept completion only for the exact job, attempt, owner, and term.
 4. After all 256 Slots complete, verify and publish the archive.
-5. Apply retention and move the terminal result into the newest-first,
-   100-record history.
+5. Apply retention under a durable operation lease owned by the current
+   Controller node and term. A successor waits for the previous worker's
+   token-fenced completion release (or lease expiry) before it starts repository
+   side effects. Release the lease before moving the terminal result into the
+   newest-first, 100-record history.
 
 Cancellation and deadline expiry finish without publishing `COMPLETE`.
 Process or Controller leader failover reuses the durable active job and retries

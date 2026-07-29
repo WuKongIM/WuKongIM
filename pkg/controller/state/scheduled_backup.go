@@ -191,6 +191,8 @@ type BackupArchiveOperation struct {
 	Token             string `json:"token"`
 	Kind              string `json:"kind"`
 	ArchiveID         string `json:"archive_id,omitempty"`
+	CoordinatorNodeID uint64 `json:"coordinator_node_id,omitempty"`
+	CoordinatorTerm   uint64 `json:"coordinator_term,omitempty"`
 	StartedUnixMillis int64  `json:"started_unix_ms"`
 	ExpiresUnixMillis int64  `json:"expires_unix_ms"`
 }
@@ -263,6 +265,8 @@ func validateScheduledBackup(value *ScheduledBackupState) error {
 		}
 		if operation.Token == "" || len(operation.Token) > 128 ||
 			len(operation.ArchiveID) > 128 ||
+			(operation.CoordinatorNodeID == 0) !=
+				(operation.CoordinatorTerm == 0) ||
 			operation.StartedUnixMillis <= 0 ||
 			operation.ExpiresUnixMillis <= operation.StartedUnixMillis {
 			return invalid("scheduled backup archive operation is invalid")

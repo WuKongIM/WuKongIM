@@ -1125,3 +1125,35 @@ maintenance-only local read, rebuilds side-effect runtimes, retargets the
 stable Channel RPC gateway, and restarts paused Channel background loops.
 Controller clears maintenance only after every current data node acknowledges
 that resume path.
+
+## Standalone Issue Agent Composition
+
+`issue_agent.go` composes the JSON command operations used only by
+`cmd/wkissueagent`. It intentionally is not called by `app.New`, does not join a
+WuKongIM cluster, and owns no server lifecycle. Pure event reconciliation and
+repository scheduling are always available; GitHub publication, checkpoint
+verification, and App authentication are supplied as explicit standalone
+dependencies so Publisher credentials cannot enter the product process.
+The composition root also re-reads and publishes exact maintainer controls,
+bounded CI-repair leases, sanitized provider failures, and admin chain
+recovery. Lifecycle operation selection is returned by
+`internal/usecase/issueagent.Reconcile`; the workflow does not infer the next
+operation directly from raw event state. Invalid signed chains on open or
+closed Issues are surfaced by an unsigned, idempotent human alert without
+appending a false checkpoint. All signed successor state, action, lease, and
+budget decisions come from typed usecase transitions and effect-result
+binders. Moving-main and conflict outcomes are selected by the usecase drift
+planner; the protected workflow independently computes the exact merge tree,
+while the composition root verifies GitHub run/status/ref facts and applies
+only the returned App-authored staging-commit plus atomic expected-OID ref-swap
+effect. Every active Agent work head and PR projection is re-read when a Worker
+loads its task, before Artifact publication, and during reconciliation.
+Lease-bound exact App-authored/GitHub-signed commits are recovered before an
+unknown head is classified as external. Missing, closed-unmerged, and
+retargeted work objects become a signed human handoff; reversible Draft/Ready
+projection drift is repaired from signed state. External heads can be adopted
+only by a fresh exact maintainer command.
+For an unexpired lease, reconciliation also reads the bounded completed-run
+inventory since lease issuance. A unique operation-bound Artifact is downloaded
+from its exact run and re-enters the same lease-, task-, work-, and commit-fenced
+Publisher used by the original Worker workflow.

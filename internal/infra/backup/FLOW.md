@@ -49,8 +49,9 @@ boundary.
 
 `ScheduledStateStore` maps the complete bounded backup state to the
 `ScheduledBackup` section of Controller state and uses revision-fenced
-compare-and-swap commands. It never stores manifests, object lists, plaintext
-credentials, or Channel identities.
+compare-and-swap commands, including archive-operation Controller node and term
+ownership. It never stores manifests, object lists, plaintext credentials, or
+Channel identities.
 
 ## Online export
 

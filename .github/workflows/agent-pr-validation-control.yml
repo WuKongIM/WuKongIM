@@ -1,5 +1,5 @@
 name: Safety Automation - Agent PR Validation Control
-run-name: "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }} merge ${{ github.event.pull_request.merge_commit_sha }}"
+run-name: "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }}"
 
 on:
   pull_request_target:
@@ -26,16 +26,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          EVENT_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
           TRIGGER_ACTOR: ${{ github.actor }}
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
           REQUEST_RUN_ID: ${{ github.run_id }}
           REQUEST_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$EVENT_MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          if [[ "$TRIGGER_ACTOR" = "$ISSUE_AGENT_APP_LOGIN" ]]; then
+            [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}\[bot\]$ ]]
+          else
+            [[ "$TRIGGER_ACTOR" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+          fi
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" >current-pr.json
           current_head="$(jq -er '.head.sha | select(test("^[0-9a-f]{40}$"))' current-pr.json)"
           merge_sha="$(
@@ -44,7 +47,6 @@ jobs:
               current-pr.json
           )"
           test "$current_head" = "$HEAD_SHA"
-          test "$merge_sha" = "$EVENT_MERGE_SHA"
           gh api --paginate --slurp -X GET \
             "repos/${GITHUB_REPOSITORY}/actions/workflows/agent-pr-merge-gate.yml/runs" \
             -f event=pull_request \
@@ -71,17 +73,19 @@ jobs:
               ' merge-gate-run-pages.json
           )"
           [[ "$gate_run_id" =~ ^[1-9][0-9]{0,19}$ ]]
-          permission="$(
-            gh api "repos/${GITHUB_REPOSITORY}/collaborators/${TRIGGER_ACTOR}/permission" \
-              --jq .permission
-          )"
-          case "$permission" in
-            admin|maintain|write) ;;
-            *)
-              echo "::error::${TRIGGER_ACTOR} is not authorized to request Agent validation"
-              exit 1
-              ;;
-          esac
+          if [[ "$TRIGGER_ACTOR" != "$ISSUE_AGENT_APP_LOGIN" ]]; then
+            permission="$(
+              gh api "repos/${GITHUB_REPOSITORY}/collaborators/${TRIGGER_ACTOR}/permission" \
+                --jq .permission
+            )"
+            case "$permission" in
+              admin|maintain|write) ;;
+              *)
+                echo "::error::${TRIGGER_ACTOR} is not authorized to request Agent validation"
+                exit 1
+                ;;
+            esac
+          fi
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
             -f state=pending \
             -f "context=Agent Validation Request / PR #${PR_NUMBER} / Gate #${gate_run_id}" \

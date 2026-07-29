@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "keys": [
+    {
+      "id": "checkpoint-d0b5aa688ddc48bb",
+      "public_key": "ywLBynJmfEz03D0Ngx6rIipIeMnkNDEyY2J3DQP8/ek=",
+      "not_before": "2026-07-29T12:36:24Z",
+      "not_after": "2027-07-29T12:36:24Z"
+    }
+  ]
+}

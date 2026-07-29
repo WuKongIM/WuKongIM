@@ -23,7 +23,7 @@ validated_plan_json="${11}"
 for input in "$pr_json" "$comments_json" "$files_json" "$statuses_json" "$attempt_runs_json"; do
   test -f "$input"
 done
-[[ "$trigger_actor" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]
+[[ "$trigger_actor" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]]
 [[ "$expected_head_sha" =~ ^[0-9a-f]{40}$ ]]
 [[ "$expected_merge_sha" =~ ^[0-9a-f]{40}$ ]]
 [[ "$gate_run_id" =~ ^[1-9][0-9]{0,19}$ ]]

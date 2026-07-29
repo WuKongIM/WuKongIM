@@ -38,7 +38,10 @@ func TestScheduledControllerStateStoreRoundTripsDetachedState(t *testing.T) {
 			backupcontract.RepositoryVerificationVerified ||
 		loaded.Plan.RepositoryVerification.VerifiedAtUnixMillis !=
 			1_800_000_000_500 ||
-		len(loaded.ActiveBackup.Slots) != backupcontract.HashSlotCount {
+		len(loaded.ActiveBackup.Slots) != backupcontract.HashSlotCount ||
+		loaded.ActiveArchiveOperation == nil ||
+		loaded.ActiveArchiveOperation.CoordinatorNodeID != 2 ||
+		loaded.ActiveArchiveOperation.CoordinatorTerm != 11 {
 		t.Fatalf("round trip lost state: %#v", loaded)
 	}
 
@@ -150,6 +153,13 @@ func scheduledSystemState() backupcontract.SystemState {
 			DeadlineUnixMillis:  1_800_043_200_000,
 			UpdatedUnixMillis:   1_800_000_000_000,
 			Slots:               slots,
+		},
+		ActiveArchiveOperation: &backupcontract.ArchiveOperation{
+			Token: "archive-operation-1", Kind: "retention",
+			ArchiveID: "backup-1", CoordinatorNodeID: 2,
+			CoordinatorTerm:   11,
+			StartedUnixMillis: 1_800_000_000_000,
+			ExpiresUnixMillis: 1_800_172_800_000,
 		},
 		History: []backupcontract.TaskRecord{},
 	}
