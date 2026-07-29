@@ -122,7 +122,11 @@ function errorKind(error: Error | null) {
   return "error" as const
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error: unknown, repositoryUnavailable: string) {
+  if (error instanceof ManagerApiError &&
+    error.error === "backup_store_unreachable") {
+    return repositoryUnavailable
+  }
   return error instanceof Error ? error.message : "Backup operation failed"
 }
 
@@ -225,12 +229,15 @@ export function BackupsPage() {
       await load()
       return true
     } catch (mutationFailure) {
-      setMutationError(errorMessage(mutationFailure))
+      setMutationError(errorMessage(
+        mutationFailure,
+        intl.formatMessage({ id: "backups.error.repositoryUnavailable" }),
+      ))
       return false
     } finally {
       setBusy("")
     }
-  }, [load])
+  }, [intl, load])
 
   if (!canRead) {
     return (

@@ -322,13 +322,17 @@ under the Stop context after the periodic loop is canceled and before
 Controller/watch shutdown. Controller fills the leader-side report timestamp,
 stores the report durably, and control snapshots derive `fresh`, `stale`, or
 `missing` health from the configured TTL.
-When the Controller snapshot first carries restore maintenance, the node
-publishes foreground rejection before slower placement reconciliation and
-reports `runtime_ready=false`. The admission RW-lock linearizes the
-maintenance edge with local and forwarded writes, so no caller that passed an
-earlier API check can enqueue after the fence. The app-level observer then
-disconnects Gateway clients and suspends delivery, Webhooks, and plugin side
-effects while Manager and internal restore RPC remain available.
+When the Controller snapshot first carries restore maintenance, the node first
+invokes the app-level observer synchronously. The observer closes Gateway and
+business admissions, drains already-admitted work, persists dirty node-local
+projections, and suspends delivery, Webhooks, and plugin side effects. The node
+then publishes foreground rejection before slower placement reconciliation and
+reports `runtime_ready=false`. This ordering lets quiescence finish its required
+cluster writes before the maintenance fence rejects them. Once the observer
+returns, the admission RW-lock linearizes the fence with local and forwarded
+writes. Manager and internal restore RPC remain available. When maintenance is
+cleared, the node removes the cluster fence before notifying the observer to
+restart node-local runtimes and reopen business entry.
 The default Channel runtime runtime also receives a node-local data-plane lease guard.
 A successful health report refreshes the lease only when `runtime_ready` is
 still true. The local lease records the report attempt start after success so

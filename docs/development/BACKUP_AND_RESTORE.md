@@ -51,6 +51,15 @@ credential fields rotates them; leaving both blank keeps the saved credential.
 Backup archives themselves are not encrypted by WuKongIM. Use storage-side
 encryption and access policy when required.
 
+If **Test storage** fails, Manager reports that the backup storage is
+unreachable and asks the operator to check the endpoint, credentials,
+read/write/delete permissions, and free space. The stable Manager API error
+code is `backup_store_unreachable`; provider details remain in server or
+storage-service logs instead of being exposed to the browser. Some
+S3-compatible services reject writes before a volume is completely full, so
+check the provider's minimum-free-space threshold as well as its reported free
+bytes.
+
 ## Archive format and retention
 
 Each run creates one independent full archive:
@@ -126,9 +135,10 @@ archive's logical size, and 1 GiB of headroom for staging and rollback.
 
 The restore coordinator:
 
-1. enters durable maintenance, stops new sessions, disconnects existing
-   clients, drains Channel appends, and suspends delivery, Webhooks, and plugin
-   side effects;
+1. propagates durable maintenance; each node first stops new sessions,
+   disconnects existing clients, drains accepted writes and dirty projections,
+   suspends delivery, Webhooks, and plugin side effects, and then installs its
+   local cluster write fence;
 2. captures a local rollback image on every target replica;
 3. stages and fully verifies all 256 Hash Slots on every current replica;
 4. checks that physical Slot placement has not changed;

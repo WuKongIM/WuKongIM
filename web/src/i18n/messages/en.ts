@@ -2008,6 +2008,7 @@ export const enMessages: AppMessages = {
   "backups.repository.pathStyle": "Use path-style addressing",
   "backups.repository.encryptionWarning": "Backup archives are not encrypted by WuKongIM. Protect the repository with strict access controls and storage-side encryption.",
   "backups.repository.unavailable": "The repository is currently unavailable. Plan and task controls remain available; archive inventory may be stale or empty.",
+  "backups.error.repositoryUnavailable": "Cannot access the backup storage. Check its address, credentials, permissions, and free space, then try again.",
   "backups.advanced": "Advanced limits",
   "backups.plan.retention": "Archives to keep",
   "backups.plan.rate": "Rate limit (MiB/s per node)",

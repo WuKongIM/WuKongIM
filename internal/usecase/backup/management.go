@@ -182,10 +182,10 @@ func (s *ManagementService) Configure(
 	}
 	store, err := s.repository.Open(ctx, storeConfig)
 	if err != nil {
-		return ConfigureResult{}, err
+		return ConfigureResult{}, normalizeStoreAccessError(err)
 	}
 	if err := s.probe.ProbeRepository(ctx, storeConfig, store); err != nil {
-		return ConfigureResult{}, err
+		return ConfigureResult{}, normalizeStoreAccessError(err)
 	}
 	if _, err := backupartifact.EnsureRepository(
 		ctx, store, s.clusterID, s.now().UTC().UnixMilli(),
@@ -222,9 +222,11 @@ func (s *ManagementService) TestRepository(
 	}
 	store, err := s.repository.Open(ctx, config)
 	if err != nil {
-		return err
+		return normalizeStoreAccessError(err)
 	}
-	return normalizeArtifactError(s.probe.ProbeRepository(ctx, config, store))
+	return normalizeStoreAccessError(
+		s.probe.ProbeRepository(ctx, config, store),
+	)
 }
 
 // StartBackup admits one immediate manual full backup.

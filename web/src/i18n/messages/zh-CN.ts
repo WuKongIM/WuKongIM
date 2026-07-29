@@ -2007,6 +2007,7 @@ export const zhCNMessages: AppMessages = {
   "backups.repository.pathStyle": "使用 Path-style 地址",
   "backups.repository.encryptionWarning": "WuKongIM 暂不加密备份归档。请使用严格的存储访问控制，并启用存储侧加密。",
   "backups.repository.unavailable": "备份仓库当前不可用。计划与任务控制仍可使用，归档列表可能为空或不是最新状态。",
+  "backups.error.repositoryUnavailable": "无法访问备份存储。请检查地址、凭据、读写权限和可用空间后重试。",
   "backups.advanced": "高级限制",
   "backups.plan.retention": "保留备份数",
   "backups.plan.rate": "限速（每节点 MiB/s）",

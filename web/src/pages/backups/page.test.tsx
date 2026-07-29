@@ -6,6 +6,7 @@ import { beforeEach, expect, test, vi } from "vitest"
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { I18nProvider } from "@/i18n/provider"
 import { resetLocale } from "@/i18n/locale-store"
+import { ManagerApiError } from "@/lib/manager-api"
 import type { ManagerBackupDashboard } from "@/lib/manager-api.types"
 import { BackupsPage } from "@/pages/backups/page"
 
@@ -142,6 +143,22 @@ test("saves a 12-hour plan using the current plan revision", async () => {
     max_duration_hours: 12,
     store: { kind: "file" },
   })))
+})
+
+test("explains how to recover when backup storage is unreachable", async () => {
+  const user = userEvent.setup()
+  testBackupRepositoryMock.mockRejectedValue(new ManagerApiError(
+    503,
+    "backup_store_unreachable",
+    "server detail",
+  ))
+  renderPage()
+
+  await user.click(await screen.findByRole("button", { name: "Test storage" }))
+
+  expect(await screen.findByText(
+    "Cannot access the backup storage. Check its address, credentials, permissions, and free space, then try again.",
+  )).toBeInTheDocument()
 })
 
 test("keeps backup writes disabled when Manager is read-only", async () => {

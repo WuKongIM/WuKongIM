@@ -341,6 +341,8 @@ func writeBackupError(c *gin.Context, err error) {
 		jsonError(c, http.StatusNotFound, "archive_not_found", "backup archive not found")
 	case errors.Is(err, backupusecase.ErrArchiveCorrupt):
 		jsonError(c, http.StatusUnprocessableEntity, "archive_corrupt", "backup archive verification failed")
+	case errors.Is(err, backupusecase.ErrStoreUnreachable):
+		jsonError(c, http.StatusServiceUnavailable, "backup_store_unreachable", "backup repository is unreachable or lacks required access")
 	default:
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup operation failed")
 	}

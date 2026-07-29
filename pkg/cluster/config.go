@@ -53,8 +53,10 @@ type Config struct {
 	Goroutines *gorutine.Registry
 	// Logger receives structured logs from cluster-owned runtimes and storage dependencies.
 	Logger wklog.Logger
-	// MaintenanceObserver receives Controller-owned restore maintenance edges
-	// after local write admission has been fenced.
+	// MaintenanceObserver receives Controller-owned restore maintenance edges.
+	// Enablement is delivered before the local cluster write fence so the app
+	// can close entries and drain accepted work; disablement is delivered after
+	// the fence is removed so node-local runtimes can restart.
 	MaintenanceObserver RestoreMaintenanceObserver
 }
 

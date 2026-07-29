@@ -3,6 +3,7 @@ package manager
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,6 +109,43 @@ func TestManagerBackupWritesRequireAuthenticationAndPermission(t *testing.T) {
 	}
 }
 
+func TestManagerBackupRepositoryFailureIsActionable(t *testing.T) {
+	provider := &fakeBackupManagement{
+		testRepositoryErr: errors.Join(
+			backupusecase.ErrStoreUnreachable,
+			errors.New("storage free-space threshold reached"),
+		),
+	}
+	server := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "writer", Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.backup", Actions: []string{"w"},
+			}},
+		}}),
+		Backup: provider,
+	})
+	recorder := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/repository/test",
+		[]byte(`{
+			"expected_revision":0,
+			"enabled":true,
+			"store":{"kind":"file"},
+			"cron":"0 1 * * *",
+			"time_zone":"Asia/Shanghai",
+			"retention_count":7,
+			"rate_mib_per_second":50,
+			"workers_per_node":1,
+			"max_duration_hours":12
+		}`),
+		mustIssueTestToken(t, server, "writer"),
+	)
+	if recorder.Code != http.StatusServiceUnavailable ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"error":"backup_store_unreachable"`)) {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
+	}
+}
+
 func TestManagerBackupManualJobAndArchiveOperations(t *testing.T) {
 	provider := &fakeBackupManagement{
 		job: backupcontract.BackupJob{ID: "backup-1"},
@@ -191,12 +229,13 @@ func performBackupRequest(
 }
 
 type fakeBackupManagement struct {
-	dashboard backupusecase.Dashboard
-	configure backupusecase.ConfigureRequest
-	job       backupcontract.BackupJob
-	archive   backupusecase.ArchiveDetail
-	canceled  string
-	deleted   string
+	dashboard         backupusecase.Dashboard
+	configure         backupusecase.ConfigureRequest
+	job               backupcontract.BackupJob
+	archive           backupusecase.ArchiveDetail
+	canceled          string
+	deleted           string
+	testRepositoryErr error
 }
 
 func (f *fakeBackupManagement) Dashboard(
@@ -219,7 +258,7 @@ func (f *fakeBackupManagement) TestRepository(
 	context.Context,
 	backupusecase.ConfigureManagementRequest,
 ) error {
-	return nil
+	return f.testRepositoryErr
 }
 
 func (f *fakeBackupManagement) StartBackup(

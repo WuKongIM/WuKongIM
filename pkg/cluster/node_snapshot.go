@@ -343,13 +343,21 @@ func (n *Node) setMaintenance(enabled bool) {
 	if n == nil {
 		return
 	}
-	n.maintenanceAdmissionMu.Lock()
 	changed := n.maintenance.Load() != enabled
+	if !changed {
+		return
+	}
+	if enabled && n.cfg.MaintenanceObserver != nil {
+		// Close app entries and drain already-admitted work before the cluster
+		// fence rejects the internal writes required by that drain.
+		n.cfg.MaintenanceObserver.RestoreMaintenanceChanged(true)
+	}
+	n.maintenanceAdmissionMu.Lock()
 	n.maintenance.Store(enabled)
 	n.channelDataPlaneLease.setMaintenance(enabled)
 	n.maintenanceAdmissionMu.Unlock()
-	if changed && n.cfg.MaintenanceObserver != nil {
-		n.cfg.MaintenanceObserver.RestoreMaintenanceChanged(enabled)
+	if !enabled && n.cfg.MaintenanceObserver != nil {
+		n.cfg.MaintenanceObserver.RestoreMaintenanceChanged(false)
 	}
 }
 

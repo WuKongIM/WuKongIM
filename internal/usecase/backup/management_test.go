@@ -83,6 +83,55 @@ func TestManagementServiceEnablesFilePlanAfterRepositoryProbe(t *testing.T) {
 	}
 }
 
+func TestManagementRepositoryProbeClassifiesStoreAccessFailure(t *testing.T) {
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	scheduled, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: &memoryScheduledStateStore{},
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "unused" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	cipher, err := backupinfra.NewCredentialCipher(
+		"manager-installation-secret", "cluster-a",
+	)
+	if err != nil {
+		t.Fatalf("NewCredentialCipher(): %v", err)
+	}
+	provider, err := backupinfra.NewRepositoryProvider(t.TempDir(), cipher)
+	if err != nil {
+		t.Fatalf("NewRepositoryProvider(): %v", err)
+	}
+	management, err := backupusecase.NewManagementService(
+		backupusecase.ManagementOptions{
+			Scheduled:  scheduled,
+			Repository: provider,
+			Sealer:     provider,
+			Probe: failingRepositoryProbe{
+				err: errors.New("storage free-space threshold reached"),
+			},
+			ClusterID: "cluster-a",
+			Now:       func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewManagementService(): %v", err)
+	}
+
+	err = management.TestRepository(
+		context.Background(),
+		backupusecase.ConfigureManagementRequest{
+			ConfigureRequest: validConfigureRequest(),
+		},
+	)
+	if !errors.Is(err, backupusecase.ErrStoreUnreachable) {
+		t.Fatalf("TestRepository() error = %v", err)
+	}
+}
+
 func TestManagementDeletePreservesLastHealthyArchiveAndActiveRestoreSource(t *testing.T) {
 	management, scheduled, stateStore, store := newArchiveManagement(t)
 	writeCatalogArchive(t, store, "backup-one", true, 1_800_000_001_000)
@@ -131,6 +180,18 @@ func TestManagementVerifyMarksIntegrityFailureCorrupt(t *testing.T) {
 	if detail.Archive.Health != backupusecase.ArchiveHealthCorrupt {
 		t.Fatalf("archive = %#v", detail.Archive)
 	}
+}
+
+type failingRepositoryProbe struct {
+	err error
+}
+
+func (f failingRepositoryProbe) ProbeRepository(
+	context.Context,
+	backupcontract.StoreConfig,
+	backupartifact.ArchiveStore,
+) error {
+	return f.err
 }
 
 func newArchiveManagement(

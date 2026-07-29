@@ -25,6 +25,8 @@ var (
 	ErrArchiveCorrupt = errors.New("backup usecase: archive is corrupt")
 	// ErrArchiveOperationActive reports a serialized repository operation in progress.
 	ErrArchiveOperationActive = errors.New("backup usecase: archive operation is active")
+	// ErrStoreUnreachable reports a repository that cannot satisfy required access.
+	ErrStoreUnreachable = errors.New("backup usecase: backup store is unreachable")
 )
 
 func normalizeArtifactError(err error) error {
@@ -43,4 +45,12 @@ func normalizeArtifactError(err error) error {
 	default:
 		return err
 	}
+}
+
+func normalizeStoreAccessError(err error) error {
+	normalized := normalizeArtifactError(err)
+	if normalized == nil || errors.Is(normalized, ErrInvalidRequest) {
+		return normalized
+	}
+	return errors.Join(ErrStoreUnreachable, normalized)
 }
