@@ -181,6 +181,14 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "pull-requests: read")
 }
 
+func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.Contains(t, raw, `grep -F "vcs.revision=$revision"`)
+	require.NotContains(t, raw, `grep -F "vcs.revision\t$revision"`)
+}
+
 func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
 	t.Parallel()
 
