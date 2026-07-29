@@ -133,32 +133,17 @@ jobs:
     if: github.event.action == 'edited' || github.event.action == 'opened' || github.event.action == 'reopened' || github.event.action == 'synchronize'
     runs-on: ubuntu-24.04
     timeout-minutes: 1
-    permissions:
-      statuses: write
     concurrency:
       group: agent-pr-validation-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      - name: Publish PR-bound invalidation
+      - name: Write invalidation summary
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          INVALIDATION_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -euo pipefail
-          [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
-            -f state=failure \
-            -f "context=Agent Validation Request / PR #${PR_NUMBER}" \
-            -f description='A new Agent validation request is required' \
-            -f target_url="$INVALIDATION_RUN_URL" >/dev/null
           {
             echo '## Agent validation invalidated'
             echo
             echo "- PR: \`#${{ github.event.pull_request.number }}\`"
             echo "- New head SHA: \`${{ github.event.pull_request.head.sha }}\`"
-            echo '- Previous validation was cancelled; an Agent must publish a new plan.'
+            echo '- A fresh Agent validation plan is required.'
           } >>"$GITHUB_STEP_SUMMARY"

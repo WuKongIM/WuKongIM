@@ -1106,21 +1106,29 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if !reflect.DeepEqual(invalidate.Concurrency, wantConcurrency) {
 		return fmt.Errorf("Agent validation invalidation concurrency = %#v, want %#v", invalidate.Concurrency, wantConcurrency)
 	}
-	if !reflect.DeepEqual(invalidate.Permissions, map[string]string{"statuses": "write"}) {
-		return fmt.Errorf("Agent validation invalidation permissions = %#v, want statuses: write", invalidate.Permissions)
+	if len(invalidate.Permissions) != 0 {
+		return fmt.Errorf("Agent validation invalidation permissions = %#v, want none", invalidate.Permissions)
 	}
 	var invalidateScript strings.Builder
 	for _, step := range invalidate.Steps {
 		invalidateScript.WriteString(step.Run)
 		invalidateScript.WriteByte('\n')
 	}
-	for _, required := range []string{
+	for _, forbidden := range []string{
+		`repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}`,
 		`context=Agent Validation Request / PR #${PR_NUMBER}`,
 		`state=failure`,
-		`target_url="$INVALIDATION_RUN_URL"`,
+	} {
+		if strings.Contains(invalidateScript.String(), forbidden) {
+			return fmt.Errorf("Agent validation invalidation must not publish %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		`## Agent validation invalidated`,
+		`A fresh Agent validation plan is required.`,
 	} {
 		if !strings.Contains(invalidateScript.String(), required) {
-			return fmt.Errorf("Agent validation invalidation is missing %q", required)
+			return fmt.Errorf("Agent validation invalidation summary is missing %q", required)
 		}
 	}
 	if strings.Contains(string(raw), "actions/checkout") ||
