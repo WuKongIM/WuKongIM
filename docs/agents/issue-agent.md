@@ -6,10 +6,10 @@ there is no control-plane server, self-hosted runner, external workflow
 database, or persistent Worker disk.
 
 The checked-in policy is intentionally `intake`. It permits only deterministic
-classification, a bounded request for missing information, and maintainer-
-triggered signed authorization; it does not run a model or create a branch or
-pull request. An administrator must promote each higher rollout stage in a
-separate protected-path change.
+classification, a bounded request for missing information, and
+maintainer-triggered signed authorization; it does not run a model or create a
+branch or pull request. An administrator must promote each higher rollout stage
+in a separate protected-path change.
 
 ## User intake
 
