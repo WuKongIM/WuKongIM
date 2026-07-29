@@ -72,7 +72,7 @@ jobs:
             --argjson request_run_id "$REQUEST_RUN_ID" \
             --arg actor "$TRIGGER_ACTOR" \
             --arg title \
-              "Agent PR #${PR_NUMBER} validation labeled head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}" '
+              "Agent PR #${PR_NUMBER} validation labeled head ${EXPECTED_HEAD_SHA}" '
               .id == $request_run_id and
               .path == ".github/workflows/agent-pr-validation-control.yml" and
               .event == "pull_request_target" and

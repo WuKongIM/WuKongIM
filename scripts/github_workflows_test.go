@@ -754,7 +754,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
 		`.event == "pull_request_target"`,
 		`.display_title == $title`,
-		`validation labeled head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}`,
+		`validation labeled head ${EXPECTED_HEAD_SHA}`,
 		`.actor.login == $actor`,
 		`actions/runs/${GATE_RUN_ID}`,
 		`.path == ".github/workflows/agent-pr-merge-gate.yml"`,
@@ -1026,8 +1026,11 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if workflow.Name != "Safety Automation - Agent PR Validation Control" {
 		return fmt.Errorf("control workflow name = %q", workflow.Name)
 	}
-	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }} merge ${{ github.event.pull_request.merge_commit_sha }}" {
-		return fmt.Errorf("control workflow run-name does not identify the PR event, head, and test-merge")
+	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }}" {
+		return fmt.Errorf("control workflow run-name does not identify the PR event and head")
+	}
+	if strings.Contains(string(raw), "github.event.pull_request.merge_commit_sha") || strings.Contains(string(raw), "EVENT_MERGE_SHA") {
+		return fmt.Errorf("control workflow must resolve the test-merge SHA from the trusted PR API response")
 	}
 	if err := validateAgentControlTriggers(workflow.On); err != nil {
 		return err
@@ -1072,7 +1075,6 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	}
 	for _, required := range []string{
 		`test "$current_head" = "$HEAD_SHA"`,
-		`test "$merge_sha" = "$EVENT_MERGE_SHA"`,
 		`.merge_commit_sha`,
 		`actions/workflows/agent-pr-merge-gate.yml/runs`,
 		`.conclusion == "failure"`,
@@ -1218,7 +1220,7 @@ func validateAgentPRValidationMergeGateWorkflow(raw []byte) error {
 		`.created_at >= $event_updated_at`,
 		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
 		`.event == "pull_request_target"`,
-		`Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA} merge ${MERGE_SHA}`,
+		`Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA}`,
 		`.path == ".github/workflows/agent-pr-validation.yml"`,
 		`.event == "repository_dispatch"`,
 		`validation head ${HEAD_SHA} merge ${MERGE_SHA} gate ${GATE_RUN_ID} request ${request_run_id}`,
