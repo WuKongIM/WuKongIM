@@ -25,6 +25,7 @@ type codexActionProxyConfig struct {
 	baseURL string
 }
 
+// loadCodexActionProxyConfig accepts only the Action's closed loopback provider.
 func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	if home == "" || !filepath.IsAbs(home) || filepath.Clean(home) != home {
 		return invalidCodexActionProxyConfig()
@@ -67,6 +68,7 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	return codexActionProxyConfig{baseURL: baseURL}, nil
 }
 
+// openCodexActionProxyConfig prevents path and symlink substitution with openat.
 func openCodexActionProxyConfig(home string) (*os.File, error) {
 	directoryFD, err := unix.Open(
 		home,
