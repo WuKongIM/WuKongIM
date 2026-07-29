@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -83,7 +84,10 @@ func (p *RepositoryProvider) Open(
 			PathStyle: config.PathStyle,
 			VirtualHost: config.Kind == backupcontract.StoreKindOSS ||
 				config.Kind == backupcontract.StoreKindCOS,
-			AccessKey: credentials.AccessKey, SecretKey: credentials.SecretKey,
+			OSS:               config.Kind == backupcontract.StoreKindOSS,
+			OSSNativeEndpoint: repositoryOSSNativeEndpoint(config),
+			COS:               config.Kind == backupcontract.StoreKindCOS,
+			AccessKey:         credentials.AccessKey, SecretKey: credentials.SecretKey,
 		})
 		return store, classifyRepositoryError(
 			config.Kind, backupcontract.RepositoryAccessOpen, err,
@@ -105,12 +109,22 @@ func repositoryEndpoint(config backupcontract.StoreConfig) string {
 	}
 	switch config.Kind {
 	case backupcontract.StoreKindOSS:
-		return "https://oss-" + config.Region + ".aliyuncs.com"
+		return "https://s3.oss-" + config.Region + ".aliyuncs.com"
 	case backupcontract.StoreKindCOS:
 		return "https://cos." + config.Region + ".myqcloud.com"
 	default:
 		return ""
 	}
+}
+
+func repositoryOSSNativeEndpoint(config backupcontract.StoreConfig) string {
+	if config.Kind != backupcontract.StoreKindOSS {
+		return ""
+	}
+	if config.Endpoint == "" {
+		return "https://oss-" + config.Region + ".aliyuncs.com"
+	}
+	return strings.Replace(config.Endpoint, "://s3.oss-", "://oss-", 1)
 }
 
 // SealObjectStoreCredentials encrypts a replacement credential before plan

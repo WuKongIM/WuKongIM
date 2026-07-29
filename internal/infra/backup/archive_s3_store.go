@@ -2,14 +2,18 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"path"
 	"sort"
 	"strings"
 	"time"
 
+	aliyunoss "github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	aliyuncredentials "github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
@@ -34,6 +38,12 @@ type S3ArchiveStoreOptions struct {
 	PathStyle bool
 	// VirtualHost forces DNS bucket addressing required by OSS and COS.
 	VirtualHost bool
+	// OSS selects the provider-native atomic create-only request header.
+	OSS bool
+	// OSSNativeEndpoint is the native OSS API endpoint for create-only writes.
+	OSSNativeEndpoint string
+	// COS adds Tencent COS's native atomic overwrite-prevention header.
+	COS bool
 }
 
 // S3ArchiveStore stores archive objects in one S3-compatible bucket prefix.
@@ -66,19 +76,52 @@ func NewS3ArchiveStore(options S3ArchiveStoreOptions) (*S3ArchiveStore, error) {
 	} else if options.VirtualHost {
 		lookup = minio.BucketLookupDNS
 	}
-	client, err := minio.New(endpoint, &minio.Options{
+	minioOptions := &minio.Options{
 		Creds:        credentials.NewStaticV4(accessKey, options.SecretKey, ""),
 		Secure:       secure,
 		Region:       strings.TrimSpace(options.Region),
 		BucketLookup: lookup,
 		MaxRetries:   3,
-	})
+	}
+	if options.COS {
+		transport, transportErr := minio.DefaultTransport(secure)
+		if transportErr != nil {
+			return nil, fmt.Errorf(
+				"backup COS store: create transport: %w",
+				transportErr,
+			)
+		}
+		minioOptions.Transport = &cosForbidOverwriteTransport{
+			next: transport,
+		}
+	}
+	client, err := minio.New(endpoint, minioOptions)
 	if err != nil {
 		return nil, fmt.Errorf("backup S3 store: create client: %w", err)
 	}
-	return newS3ArchiveStore(&minioArchiveAPI{
+	minioAPI := &minioArchiveAPI{
 		client: client, bucket: bucket,
-	}, prefix), nil
+	}
+	var api s3ArchiveAPI = minioAPI
+	if options.OSS {
+		ossConfig := aliyunoss.LoadDefaultConfig().
+			WithCredentialsProvider(
+				aliyuncredentials.NewStaticCredentialsProvider(
+					accessKey,
+					options.SecretKey,
+				),
+			).
+			WithRegion(strings.TrimSpace(options.Region)).
+			WithEndpoint(strings.TrimSpace(options.OSSNativeEndpoint))
+		api = &ossArchiveAPI{
+			minioArchiveAPI: minioAPI,
+			createOnly: &ossCreateOnlyWriter{
+				client: aliyunoss.NewClient(ossConfig),
+				bucket: bucket,
+			},
+		}
+	}
+	return newS3ArchiveStore(api, prefix), nil
 }
 
 func newS3ArchiveStore(api s3ArchiveAPI, prefix string) *S3ArchiveStore {
@@ -229,6 +272,101 @@ type minioArchiveAPI struct {
 	bucket string
 }
 
+// cosForbidOverwriteTransport adds COS's native atomic create-only header to
+// requests already marked with the generic S3 create-only condition. The
+// original condition remains because the S3 signer included it in the request
+// signature before the transport sees the request.
+type cosForbidOverwriteTransport struct {
+	next http.RoundTripper
+}
+
+func (t *cosForbidOverwriteTransport) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	next := t.next
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	if request.Header.Get("If-None-Match") != "*" {
+		return next.RoundTrip(request)
+	}
+	cosRequest := request.Clone(request.Context())
+	cosRequest.Header = request.Header.Clone()
+	cosRequest.Header.Set("x-cos-forbid-overwrite", "true")
+	return next.RoundTrip(cosRequest)
+}
+
+type ossArchiveAPI struct {
+	*minioArchiveAPI
+	createOnly *ossCreateOnlyWriter
+}
+
+func (a *ossArchiveAPI) put(
+	ctx context.Context,
+	key string,
+	body io.Reader,
+	bytes uint64,
+	ifAbsent bool,
+) error {
+	if !ifAbsent {
+		return a.minioArchiveAPI.put(ctx, key, body, bytes, false)
+	}
+	return a.createOnly.put(ctx, key, body, bytes)
+}
+
+type ossCreateOnlyWriter struct {
+	client ossPutObjectClient
+	bucket string
+}
+
+func (w *ossCreateOnlyWriter) put(
+	ctx context.Context,
+	key string,
+	body io.Reader,
+	bytes uint64,
+) error {
+	if w == nil || w.client == nil {
+		return fmt.Errorf("backup OSS store: create-only writer unavailable")
+	}
+	if bytes > uint64(^uint64(0)>>1) {
+		return backupartifact.ErrInvalidObject
+	}
+	_, err := w.client.PutObject(ctx, &aliyunoss.PutObjectRequest{
+		Bucket:          aliyunoss.Ptr(w.bucket),
+		Key:             aliyunoss.Ptr(key),
+		Body:            body,
+		ContentLength:   aliyunoss.Ptr(int64(bytes)),
+		ContentType:     aliyunoss.Ptr("application/octet-stream"),
+		ForbidOverwrite: aliyunoss.Ptr("true"),
+	})
+	if err == nil {
+		return nil
+	}
+	var serviceErr *aliyunoss.ServiceError
+	if !errors.As(err, &serviceErr) {
+		return err
+	}
+	if serviceErr.Code == "FileAlreadyExists" {
+		return backupartifact.ErrObjectExists
+	}
+	return minio.ErrorResponse{
+		Code:       serviceErr.Code,
+		Message:    serviceErr.Message,
+		BucketName: w.bucket,
+		Key:        key,
+		RequestID:  serviceErr.RequestID,
+		StatusCode: serviceErr.StatusCode,
+	}
+}
+
+type ossPutObjectClient interface {
+	PutObject(
+		context.Context,
+		*aliyunoss.PutObjectRequest,
+		...func(*aliyunoss.Options),
+	) (*aliyunoss.PutObjectResult, error)
+}
+
 func (a *minioArchiveAPI) put(
 	ctx context.Context,
 	key string,
@@ -247,9 +385,8 @@ func (a *minioArchiveAPI) put(
 		ctx, a.bucket, key, body, int64(bytes), options,
 	)
 	if err != nil {
-		response := minio.ToErrorResponse(err)
-		if response.Code == "PreconditionFailed" {
-			return backupartifact.ErrObjectExists
+		if ifAbsent {
+			return mapCreateOnlyS3Error(err)
 		}
 		return err
 	}
@@ -257,6 +394,19 @@ func (a *minioArchiveAPI) put(
 		return fmt.Errorf("%w: S3 upload size mismatch", backupartifact.ErrObjectCorrupt)
 	}
 	return nil
+}
+
+func mapCreateOnlyS3Error(err error) error {
+	if err == nil {
+		return nil
+	}
+	response := minio.ToErrorResponse(err)
+	if response.Code == "PreconditionFailed" ||
+		response.StatusCode == http.StatusPreconditionFailed ||
+		response.StatusCode == http.StatusNotModified {
+		return backupartifact.ErrObjectExists
+	}
+	return err
 }
 
 func (a *minioArchiveAPI) open(

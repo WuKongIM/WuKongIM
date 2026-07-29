@@ -40,7 +40,7 @@ func TestRepositoryProviderForcesCloudVirtualHostAddressing(t *testing.T) {
 			kind:     backupcontract.StoreKindOSS,
 			region:   "cn-hangzhou",
 			bucket:   "wukongim-backups",
-			wantHost: "wukongim-backups.oss-cn-hangzhou.aliyuncs.com",
+			wantHost: "wukongim-backups.s3.oss-cn-hangzhou.aliyuncs.com",
 		},
 		{
 			name:     "Tencent COS",
@@ -77,8 +77,13 @@ func TestRepositoryProviderForcesCloudVirtualHostAddressing(t *testing.T) {
 			if !ok {
 				t.Fatalf("store type = %T", store)
 			}
-			api, ok := s3Store.api.(*minioArchiveAPI)
-			if !ok {
+			var api *minioArchiveAPI
+			switch value := s3Store.api.(type) {
+			case *minioArchiveAPI:
+				api = value
+			case *ossArchiveAPI:
+				api = value.minioArchiveAPI
+			default:
 				t.Fatalf("api type = %T", s3Store.api)
 			}
 			objectURL, err := api.client.PresignedGetObject(
