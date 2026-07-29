@@ -288,6 +288,154 @@ func TestScheduledServiceAcceptsCloudObjectStores(t *testing.T) {
 	}
 }
 
+func TestScheduledServiceRejectsEnablingUnverifiedRepository(t *testing.T) {
+	service, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: &memoryScheduledStateStore{},
+			Now: func() time.Time {
+				return time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+			},
+			NewID: func() string { return "backup-unverified" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.RepositoryVerification = &backupcontract.RepositoryVerification{
+		Status: backupcontract.RepositoryVerificationUnverified,
+	}
+
+	if _, err := service.Configure(
+		context.Background(), request,
+	); !errors.Is(err, backupusecase.ErrRepositoryUnverified) {
+		t.Fatalf("Configure() error = %v", err)
+	}
+}
+
+func TestScheduledServiceBlocksJobsForUnverifiedRepository(t *testing.T) {
+	store := &memoryScheduledStateStore{}
+	now := time.Date(2026, 7, 29, 0, 30, 0, 0, time.UTC)
+	service, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: store,
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "backup-unverified" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.Enabled = false
+	request.TimeZone = "UTC"
+	request.RepositoryVerification = &backupcontract.RepositoryVerification{
+		Status: backupcontract.RepositoryVerificationUnverified,
+	}
+	if _, err := service.Configure(context.Background(), request); err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	store.mu.Lock()
+	store.state.Plan.Enabled = true
+	store.mu.Unlock()
+
+	if _, err := service.StartBackup(
+		context.Background(),
+		backupusecase.StartBackupRequest{
+			Trigger: backupcontract.TriggerManual,
+		},
+	); !errors.Is(err, backupusecase.ErrRepositoryUnverified) {
+		t.Fatalf("StartBackup() error = %v", err)
+	}
+
+	now = time.Date(2026, 7, 29, 1, 0, 30, 0, time.UTC)
+	result, err := service.EvaluateSchedule(
+		context.Background(), 2*time.Minute,
+	)
+	if err != nil {
+		t.Fatalf("EvaluateSchedule(): %v", err)
+	}
+	if result.Job != nil || !result.Occurrence.IsZero() {
+		t.Fatalf("EvaluateSchedule() = %#v", result)
+	}
+	state, err := service.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(): %v", err)
+	}
+	if state.ActiveBackup != nil {
+		t.Fatalf("active backup = %#v", state.ActiveBackup)
+	}
+}
+
+func TestScheduledServiceMarksExactRepositoryRevisionVerified(t *testing.T) {
+	store := &memoryScheduledStateStore{}
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	service, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: store,
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "backup-verified" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.Enabled = false
+	request.RepositoryVerification = &backupcontract.RepositoryVerification{
+		Status: backupcontract.RepositoryVerificationUnverified,
+	}
+	if _, err := service.Configure(context.Background(), request); err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+
+	verified, err := service.MarkRepositoryVerified(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("MarkRepositoryVerified(): %v", err)
+	}
+	if verified.Revision != 1 ||
+		verified.RepositoryVerification == nil ||
+		verified.RepositoryVerification.Status !=
+			backupcontract.RepositoryVerificationVerified ||
+		verified.RepositoryVerification.VerifiedAtUnixMillis != now.UnixMilli() {
+		t.Fatalf("verified plan = %#v", verified)
+	}
+	state, err := service.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(): %v", err)
+	}
+	if state.Revision != 2 {
+		t.Fatalf("state revision = %d", state.Revision)
+	}
+
+	now = now.Add(time.Hour)
+	idempotent, err := service.MarkRepositoryVerified(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("MarkRepositoryVerified(idempotent): %v", err)
+	}
+	if idempotent.RepositoryVerification.VerifiedAtUnixMillis !=
+		verified.RepositoryVerification.VerifiedAtUnixMillis {
+		t.Fatalf(
+			"verification time changed from %d to %d",
+			verified.RepositoryVerification.VerifiedAtUnixMillis,
+			idempotent.RepositoryVerification.VerifiedAtUnixMillis,
+		)
+	}
+	state, err = service.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(second): %v", err)
+	}
+	if state.Revision != 2 {
+		t.Fatalf("idempotent state revision = %d", state.Revision)
+	}
+
+	if _, err := service.MarkRepositoryVerified(
+		context.Background(), 2,
+	); !errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("MarkRepositoryVerified(stale) error = %v", err)
+	}
+}
+
 func TestScheduledServiceSerializesArchiveOperations(t *testing.T) {
 	store := &memoryScheduledStateStore{}
 	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)

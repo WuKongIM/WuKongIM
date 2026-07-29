@@ -27,6 +27,8 @@ var (
 	ErrArchiveOperationActive = errors.New("backup usecase: archive operation is active")
 	// ErrStoreUnreachable reports a repository that cannot satisfy required access.
 	ErrStoreUnreachable = errors.New("backup usecase: backup store is unreachable")
+	// ErrRepositoryUnverified blocks backup admission for an untested repository.
+	ErrRepositoryUnverified = errors.New("backup usecase: repository is not verified")
 )
 
 func normalizeArtifactError(err error) error {
