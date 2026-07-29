@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
@@ -49,33 +50,56 @@ func (p *RepositoryProvider) Open(
 	config backupcontract.StoreConfig,
 ) (backupartifact.ArchiveStore, error) {
 	if p == nil {
-		return nil, fmt.Errorf("backup repository provider: unavailable")
+		return nil, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen,
+			fmt.Errorf("backup repository provider: unavailable"),
+		)
 	}
 	switch config.Kind {
 	case backupcontract.StoreKindFile:
-		return NewFileArchiveStore(p.fileRoot)
+		store, err := NewFileArchiveStore(p.fileRoot)
+		return store, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen, err,
+		)
 	case backupcontract.StoreKindOSS,
 		backupcontract.StoreKindCOS,
 		backupcontract.StoreKindS3:
 		if p.cipher == nil {
-			return nil, fmt.Errorf(
-				"backup repository provider: Manager authentication secret is required for object storage credentials",
+			return nil, classifyRepositoryError(
+				config.Kind, backupcontract.RepositoryAccessOpen,
+				fmt.Errorf(
+					"backup repository provider: Manager authentication secret is required for object storage credentials",
+				),
 			)
 		}
 		credentials, err := p.cipher.Open(config.CredentialCiphertext)
 		if err != nil {
-			return nil, err
+			return nil, classifyRepositoryError(
+				config.Kind, backupcontract.RepositoryAccessOpen, err,
+			)
 		}
-		return NewS3ArchiveStore(S3ArchiveStoreOptions{
+		store, err := NewS3ArchiveStore(S3ArchiveStoreOptions{
 			Endpoint: repositoryEndpoint(config), Region: config.Region,
 			Bucket: config.Bucket, Prefix: config.Prefix,
 			PathStyle: config.PathStyle,
 			VirtualHost: config.Kind == backupcontract.StoreKindOSS ||
 				config.Kind == backupcontract.StoreKindCOS,
-			AccessKey: credentials.AccessKey, SecretKey: credentials.SecretKey,
+			OSS:               config.Kind == backupcontract.StoreKindOSS,
+			OSSNativeEndpoint: repositoryOSSNativeEndpoint(config),
+			COS:               config.Kind == backupcontract.StoreKindCOS,
+			AccessKey:         credentials.AccessKey, SecretKey: credentials.SecretKey,
 		})
+		return store, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen, err,
+		)
 	default:
-		return nil, fmt.Errorf("backup repository provider: unsupported store kind %q", config.Kind)
+		return nil, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen,
+			fmt.Errorf(
+				"backup repository provider: unsupported store kind %q",
+				config.Kind,
+			),
+		)
 	}
 }
 
@@ -85,12 +109,22 @@ func repositoryEndpoint(config backupcontract.StoreConfig) string {
 	}
 	switch config.Kind {
 	case backupcontract.StoreKindOSS:
-		return "https://oss-" + config.Region + ".aliyuncs.com"
+		return "https://s3.oss-" + config.Region + ".aliyuncs.com"
 	case backupcontract.StoreKindCOS:
 		return "https://cos." + config.Region + ".myqcloud.com"
 	default:
 		return ""
 	}
+}
+
+func repositoryOSSNativeEndpoint(config backupcontract.StoreConfig) string {
+	if config.Kind != backupcontract.StoreKindOSS {
+		return ""
+	}
+	if config.Endpoint == "" {
+		return "https://oss-" + config.Region + ".aliyuncs.com"
+	}
+	return strings.Replace(config.Endpoint, "://s3.oss-", "://oss-", 1)
 }
 
 // SealObjectStoreCredentials encrypts a replacement credential before plan

@@ -2,7 +2,10 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -21,8 +24,8 @@ type BackupManagement interface {
 	) (backupusecase.ConfigureResult, error)
 	TestRepository(
 		context.Context,
-		backupusecase.ConfigureManagementRequest,
-	) error
+		backupusecase.TestRepositoryRequest,
+	) (backupcontract.Plan, error)
 	StartBackup(context.Context) (backupcontract.BackupJob, error)
 	CancelBackup(context.Context, string) error
 	Archive(context.Context, string) (backupusecase.ArchiveDetail, error)
@@ -57,6 +60,25 @@ type backupPlanRequest struct {
 	RateMiBPerSecond uint64             `json:"rate_mib_per_second"`
 	WorkersPerNode   int                `json:"workers_per_node"`
 	MaxDurationHours int                `json:"max_duration_hours"`
+}
+
+type backupRepositoryTestRequest struct {
+	ExpectedPlanRevision uint64 `json:"expected_plan_revision"`
+}
+
+type backupConfigureResponse struct {
+	Plan                  backupcontract.Plan       `json:"plan"`
+	InitialJob            *backupcontract.BackupJob `json:"initial_job,omitempty"`
+	CredentialsConfigured bool                      `json:"credentials_configured"`
+}
+
+type backupRepositoryErrorDetail struct {
+	Provider     backupcontract.StoreKind              `json:"provider"`
+	Stage        backupcontract.RepositoryAccessStage  `json:"stage"`
+	Reason       backupcontract.RepositoryAccessReason `json:"reason"`
+	ProviderCode string                                `json:"provider_code,omitempty"`
+	RequestID    string                                `json:"request_id,omitempty"`
+	NodeID       uint64                                `json:"node_id,omitempty"`
 }
 
 type backupHoldRequest struct {
@@ -145,24 +167,34 @@ func (s *Server) handleBackupPlan(c *gin.Context) {
 		writeBackupError(c, err)
 		return
 	}
+	credentialsConfigured :=
+		len(result.Plan.Store.CredentialCiphertext) > 0
 	result.Plan.Store.CredentialCiphertext = nil
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, backupConfigureResponse{
+		Plan:                  result.Plan,
+		InitialJob:            result.InitialJob,
+		CredentialsConfigured: credentialsConfigured,
+	})
 }
 
 func (s *Server) handleBackupRepositoryTest(c *gin.Context) {
-	request, ok := bindBackupPlanRequest(c)
+	request, ok := bindBackupRepositoryTestRequest(c)
 	if !ok {
 		return
 	}
-	err := s.backup.TestRepository(
-		c.Request.Context(), managementConfigureRequest(request),
+	plan, err := s.backup.TestRepository(
+		c.Request.Context(),
+		backupusecase.TestRepositoryRequest{
+			ExpectedPlanRevision: request.ExpectedPlanRevision,
+		},
 	)
 	s.auditBackupMutation(c, "test_repository", "", err)
 	if err != nil {
 		writeBackupError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	plan.Store.CredentialCiphertext = nil
+	c.JSON(http.StatusOK, gin.H{"ok": true, "plan": plan})
 }
 
 func (s *Server) handleBackupStart(c *gin.Context) {
@@ -283,6 +315,35 @@ func bindBackupPlanRequest(c *gin.Context) (backupPlanRequest, bool) {
 	return request, true
 }
 
+func bindBackupRepositoryTestRequest(
+	c *gin.Context,
+) (backupRepositoryTestRequest, bool) {
+	limitBackupJSONBody(c, maxBackupActionRequestBytes)
+	var request backupRepositoryTestRequest
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		jsonError(
+			c,
+			http.StatusBadRequest,
+			"backup_bad_request",
+			"invalid repository test request",
+		)
+		return backupRepositoryTestRequest{}, false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) ||
+		request.ExpectedPlanRevision == 0 {
+		jsonError(
+			c,
+			http.StatusBadRequest,
+			"backup_bad_request",
+			"invalid repository test request",
+		)
+		return backupRepositoryTestRequest{}, false
+	}
+	return request, true
+}
+
 func validBackupStoreRequest(store backupStoreRequest) bool {
 	endpoint := strings.TrimSpace(store.Endpoint)
 	region := strings.TrimSpace(store.Region)
@@ -349,9 +410,24 @@ func managementConfigureRequest(
 }
 
 func writeBackupError(c *gin.Context, err error) {
+	if presentation, ok := backupRepositoryErrorForResponse(err); ok {
+		c.AbortWithStatusJSON(presentation.status, errorResponse{
+			Error:   presentation.code,
+			Message: presentation.message,
+			Detail:  presentation.detail,
+		})
+		return
+	}
 	switch {
 	case errors.Is(err, backupusecase.ErrInvalidRequest):
 		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid backup request")
+	case errors.Is(err, backupusecase.ErrRepositoryUnverified):
+		jsonError(
+			c,
+			http.StatusConflict,
+			"backup_repository_unverified",
+			"Save and test the repository before enabling or starting backups.",
+		)
 	case errors.Is(err, backupusecase.ErrDisabled):
 		jsonError(c, http.StatusConflict, "backup_not_configured", "backup is not configured")
 	case errors.Is(err, backupusecase.ErrBackupJobActive):
@@ -377,4 +453,152 @@ func writeBackupError(c *gin.Context, err error) {
 	default:
 		jsonError(c, http.StatusServiceUnavailable, "backup_service_unavailable", "backup operation failed")
 	}
+}
+
+type backupRepositoryErrorPresentation struct {
+	status  int
+	code    string
+	message string
+	detail  backupRepositoryErrorDetail
+}
+
+func backupRepositoryErrorForResponse(
+	err error,
+) (backupRepositoryErrorPresentation, bool) {
+	var accessErr *backupcontract.RepositoryAccessError
+	if !errors.As(err, &accessErr) {
+		return backupRepositoryErrorPresentation{}, false
+	}
+	presentation := backupRepositoryErrorPresentation{
+		status: http.StatusServiceUnavailable,
+		detail: backupRepositoryErrorDetail{
+			Provider: accessErr.Provider,
+			Stage:    accessErr.Stage,
+			Reason:   accessErr.Reason,
+			ProviderCode: safeBackupRepositoryDiagnostic(
+				accessErr.ProviderCode,
+			),
+			RequestID: safeBackupRepositoryDiagnostic(accessErr.RequestID),
+			NodeID:    accessErr.NodeID,
+		},
+	}
+	provider := backupRepositoryProviderName(accessErr.Provider)
+	switch accessErr.Reason {
+	case backupcontract.RepositoryAccessInvalidAccessKey:
+		presentation.code = "backup_repository_auth_failed"
+		presentation.message = provider + " rejected the AccessKey ID."
+	case backupcontract.RepositoryAccessSignatureMismatch:
+		presentation.code = "backup_repository_auth_failed"
+		presentation.message =
+			provider + " rejected the request signature. Check the AccessKey secret."
+	case backupcontract.RepositoryAccessDenied:
+		presentation.code = "backup_repository_permission_denied"
+		presentation.message =
+			provider + " denied a required repository operation."
+	case backupcontract.RepositoryAccessBucketNotFound:
+		presentation.code = "backup_repository_bucket_not_found"
+		presentation.message = provider + " bucket was not found."
+	case backupcontract.RepositoryAccessRegionMismatch:
+		presentation.code = "backup_repository_region_mismatch"
+		presentation.message =
+			provider + " region or endpoint does not match the bucket."
+	case backupcontract.RepositoryAccessEndpointUnreachable:
+		presentation.code = "backup_repository_endpoint_unreachable"
+		presentation.message = "Cannot reach the " + provider + " endpoint."
+	case backupcontract.RepositoryAccessTLSFailure:
+		presentation.code = "backup_repository_tls_failed"
+		presentation.message =
+			"TLS validation failed while connecting to " + provider + "."
+	case backupcontract.RepositoryAccessTimeout:
+		presentation.code = "backup_repository_timeout"
+		presentation.message = "Timed out while accessing " + provider + "."
+	case backupcontract.RepositoryAccessReadFailed,
+		backupcontract.RepositoryAccessWriteFailed,
+		backupcontract.RepositoryAccessListFailed,
+		backupcontract.RepositoryAccessDeleteFailed:
+		presentation.code = "backup_repository_operation_failed"
+		presentation.message = fmt.Sprintf(
+			"%s repository test failed during %s.",
+			provider,
+			backupRepositoryStageName(accessErr.Stage),
+		)
+	case backupcontract.RepositoryAccessRepositoryInUse:
+		presentation.status = http.StatusConflict
+		presentation.code = "backup_repository_identity_conflict"
+		presentation.message =
+			"The repository is already bound to another WuKongIM cluster."
+	case backupcontract.RepositoryAccessNodeUnreachable:
+		presentation.code = "backup_repository_node_unreachable"
+		if accessErr.NodeID != 0 {
+			presentation.message = fmt.Sprintf(
+				"Cluster node %d could not access %s.",
+				accessErr.NodeID,
+				provider,
+			)
+		} else {
+			presentation.message =
+				"A cluster node could not access " + provider + "."
+		}
+	default:
+		presentation.code = "backup_repository_unknown"
+		presentation.message = provider + " repository test failed."
+	}
+	return presentation, true
+}
+
+func backupRepositoryProviderName(
+	provider backupcontract.StoreKind,
+) string {
+	switch provider {
+	case backupcontract.StoreKindOSS:
+		return "Alibaba Cloud OSS"
+	case backupcontract.StoreKindCOS:
+		return "Tencent Cloud COS"
+	case backupcontract.StoreKindS3:
+		return "S3-compatible storage"
+	case backupcontract.StoreKindFile:
+		return "the file repository"
+	default:
+		return "the backup repository"
+	}
+}
+
+func backupRepositoryStageName(
+	stage backupcontract.RepositoryAccessStage,
+) string {
+	switch stage {
+	case backupcontract.RepositoryAccessOpen:
+		return "opening the repository"
+	case backupcontract.RepositoryAccessWriteMarker:
+		return "writing the test marker"
+	case backupcontract.RepositoryAccessReadMarker:
+		return "reading the test marker"
+	case backupcontract.RepositoryAccessWriteReceipt:
+		return "writing a node receipt"
+	case backupcontract.RepositoryAccessReadReceipt:
+		return "reading a node receipt"
+	case backupcontract.RepositoryAccessList:
+		return "listing test objects"
+	case backupcontract.RepositoryAccessDelete:
+		return "deleting test objects"
+	case backupcontract.RepositoryAccessBindIdentity:
+		return "validating repository identity"
+	case backupcontract.RepositoryAccessMarkVerified:
+		return "saving verification state"
+	default:
+		return "an unknown operation"
+	}
+}
+
+func safeBackupRepositoryDiagnostic(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 256 {
+		value = value[:256]
+	}
+	return strings.Map(func(char rune) rune {
+		if char < 0x20 || char == 0x7f {
+			return -1
+		}
+		return char
+	}, value)
 }

@@ -14,6 +14,7 @@ require (
 	github.com/alibabacloud-go/sts-20150401/v2 v2.1.0
 	github.com/alibabacloud-go/tea v1.5.1
 	github.com/alibabacloud-go/vpc-20160428/v6 v6.16.0
+	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1
 	github.com/aliyun/credentials-go v1.4.5
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble/v2 v2.1.4

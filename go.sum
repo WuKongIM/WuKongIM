@@ -69,6 +69,8 @@ github.com/alibabacloud-go/tea-utils/v2 v2.0.9 h1:y6pUIlhjxbZl9ObDAcmA1H3c21eaAx
 github.com/alibabacloud-go/tea-utils/v2 v2.0.9/go.mod h1:qxn986l+q33J5VkialKMqT/TTs3E+U9MJpd001iWQ9I=
 github.com/alibabacloud-go/vpc-20160428/v6 v6.16.0 h1:O+qApEyIhT1vRVB9fVghLcNXjYfeJ4dj+HHzuzPmdZY=
 github.com/alibabacloud-go/vpc-20160428/v6 v6.16.0/go.mod h1:PYvT1pH4GZEXRYkmV7Hhqyqk69BjPf/AVaGvWb1bEsA=
+github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1 h1:vtiFd0hhPAbyYJjztl0wYUq/PqEGkIlDmVuTIy6zw8Y=
+github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1/go.mod h1:FTzydeQVmR24FI0D6XWUOMKckjXehM/jgMn1xC+DA9M=
 github.com/aliyun/credentials-go v1.1.2/go.mod h1:ozcZaMR5kLM7pwtCMEpVmQ242suV6qTJya2bDq4X1Tw=
 github.com/aliyun/credentials-go v1.3.1/go.mod h1:8jKYhQuDawt8x2+fusqa1Y6mPxemTsBEN04dgcAcYz0=
 github.com/aliyun/credentials-go v1.3.6/go.mod h1:1LxUuX7L5YrZUWzBrRyk0SwSdH4OmPrib8NVePL3fxM=

@@ -127,6 +127,15 @@ credentials, reject path-style addressing, and allow Endpoint to remain blank
 for the provider's standard public address. COS requires the full Bucket name
 including its numeric APPID suffix.
 
+Saving and testing are distinct mutations. `PUT /manager/backups/plan`
+durably saves and returns the redacted plan without repository I/O.
+`POST /manager/backups/repository/test` accepts only
+`expected_plan_revision`, probes that exact saved repository from every active
+data node, and marks only that revision verified. Repository or credential
+changes become unverified; schedule-only saves retain verification. Blank
+credential fields reuse the saved same-provider credential and all reads keep
+those inputs blank.
+
 `/manager/login` preserves the legacy manager response shape migrated from
 `internal/access/manager`: successful responses include `username`,
 `token_type`, `access_token`, `expires_in`, `expires_at`, and `permissions`;
@@ -617,6 +626,15 @@ current progress, archive verify/hold/delete, and in-place restore. It offers
 daily 01:00, every 12 hours, or custom Cron/`@every` schedules. The previous
 checkpoint tabs and recovery-command page do not exist. Auth-disabled Manager
 may view this page read-only and cannot perform writes or restore.
+
+Repository test failures use specific stable codes for authentication,
+permission, bucket, region, endpoint, TLS, timeout, repository identity, node,
+and operation failures. The optional error detail contains only provider,
+stage, reason, bounded provider code, bounded request ID, and node ID. The Web
+page renders test success or failure in a live region immediately below the
+Save/Test action row, so feedback stays visible without scrolling to the page
+header. The same response never contains credentials or an unbounded raw
+provider message.
 
 A successful restore increments Controller's Manager session epoch. JWT
 validation compares that epoch, so all pre-restore Manager sessions are forced

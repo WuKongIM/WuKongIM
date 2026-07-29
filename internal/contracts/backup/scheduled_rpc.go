@@ -81,6 +81,17 @@ type RepositoryProbeCommand struct {
 	ReceiptContent string      `json:"receipt_content"`
 }
 
+// RepositoryAccessFailure is the bounded, secret-safe portion of a
+// RepositoryAccessError that may cross node RPC.
+type RepositoryAccessFailure struct {
+	Reason       RepositoryAccessReason `json:"reason"`
+	Stage        RepositoryAccessStage  `json:"stage"`
+	Provider     StoreKind              `json:"provider"`
+	ProviderCode string                 `json:"provider_code,omitempty"`
+	RequestID    string                 `json:"request_id,omitempty"`
+	NodeID       uint64                 `json:"node_id,omitempty"`
+}
+
 // RestoreNodeAction is one idempotent node-local maintenance restore step.
 type RestoreNodeAction string
 

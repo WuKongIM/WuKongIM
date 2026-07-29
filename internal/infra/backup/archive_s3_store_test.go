@@ -3,12 +3,144 @@ package backup
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"net/http"
 	"sort"
 	"testing"
 
+	aliyunoss "github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	"github.com/minio/minio-go/v7"
+
 	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 )
+
+func TestOSSCreateOnlyWriterUsesForbidOverwriteHeader(t *testing.T) {
+	client := &recordingOSSPutObjectClient{}
+	writer := &ossCreateOnlyWriter{
+		client: client,
+		bucket: "wukongim-backups",
+	}
+
+	body := []byte("marker")
+	if err := writer.put(
+		context.Background(),
+		"cluster-a/probes/marker",
+		bytes.NewReader(body),
+		uint64(len(body)),
+	); err != nil {
+		t.Fatalf("put(): %v", err)
+	}
+	if client.request == nil {
+		t.Fatal("request was not sent")
+	}
+	if got := aliyunoss.ToString(client.request.ForbidOverwrite); got != "true" {
+		t.Fatalf("ForbidOverwrite = %q", got)
+	}
+	if got := aliyunoss.ToString(client.request.Bucket); got !=
+		"wukongim-backups" {
+		t.Fatalf("Bucket = %q", got)
+	}
+	if got := aliyunoss.ToString(client.request.Key); got !=
+		"cluster-a/probes/marker" {
+		t.Fatalf("Key = %q", got)
+	}
+}
+
+func TestOSSCreateOnlyWriterMapsExistingObject(t *testing.T) {
+	writer := &ossCreateOnlyWriter{
+		client: &recordingOSSPutObjectClient{
+			err: &aliyunoss.ServiceError{
+				StatusCode: 409,
+				Code:       "FileAlreadyExists",
+				Message:    "object exists",
+				RequestID:  "request-1",
+			},
+		},
+		bucket: "wukongim-backups",
+	}
+
+	body := []byte("marker")
+	err := writer.put(
+		context.Background(),
+		"cluster-a/probes/marker",
+		bytes.NewReader(body),
+		uint64(len(body)),
+	)
+	if !errors.Is(err, backupartifact.ErrObjectExists) {
+		t.Fatalf("put() error = %v", err)
+	}
+}
+
+func TestCOSForbidOverwriteTransportAddsNativeHeader(t *testing.T) {
+	recorder := &recordingRoundTripper{}
+	transport := &cosForbidOverwriteTransport{next: recorder}
+	request, err := http.NewRequest(
+		http.MethodPut,
+		"https://bucket.cos.ap-guangzhou.myqcloud.com/object",
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("If-None-Match", "*")
+
+	if _, err := transport.RoundTrip(request); err != nil {
+		t.Fatalf("RoundTrip(): %v", err)
+	}
+	if recorder.request == nil {
+		t.Fatal("request was not forwarded")
+	}
+	if got := recorder.request.Header.Get("x-cos-forbid-overwrite"); got != "true" {
+		t.Fatalf("x-cos-forbid-overwrite = %q", got)
+	}
+	if got := recorder.request.Header.Get("If-None-Match"); got != "*" {
+		t.Fatalf("If-None-Match = %q", got)
+	}
+	if request.Header.Get("x-cos-forbid-overwrite") != "" {
+		t.Fatal("caller request was mutated")
+	}
+}
+
+func TestCOSForbidOverwriteTransportLeavesOrdinaryWritesUnchanged(t *testing.T) {
+	recorder := &recordingRoundTripper{}
+	transport := &cosForbidOverwriteTransport{next: recorder}
+	request, err := http.NewRequest(
+		http.MethodPut,
+		"https://bucket.cos.ap-guangzhou.myqcloud.com/object",
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := transport.RoundTrip(request); err != nil {
+		t.Fatalf("RoundTrip(): %v", err)
+	}
+	if got := recorder.request.Header.Get("x-cos-forbid-overwrite"); got != "" {
+		t.Fatalf("x-cos-forbid-overwrite = %q", got)
+	}
+}
+
+func TestMapCreateOnlyS3ErrorMapsCOSNotModified(t *testing.T) {
+	err := mapCreateOnlyS3Error(minio.ErrorResponse{
+		StatusCode: http.StatusNotModified,
+		Code:       "Not Modified",
+	})
+	if !errors.Is(err, backupartifact.ErrObjectExists) {
+		t.Fatalf("mapCreateOnlyS3Error() = %v", err)
+	}
+}
+
+func TestMapCreateOnlyS3ErrorMapsS3PreconditionFailed(t *testing.T) {
+	err := mapCreateOnlyS3Error(minio.ErrorResponse{
+		StatusCode: http.StatusPreconditionFailed,
+		Code:       "PreconditionFailed",
+	})
+	if !errors.Is(err, backupartifact.ErrObjectExists) {
+		t.Fatalf("mapCreateOnlyS3Error() = %v", err)
+	}
+}
 
 func TestS3ArchiveStoreKeepsKeysInsideConfiguredPrefix(t *testing.T) {
 	api := &memoryS3ArchiveAPI{objects: map[string][]byte{}}
@@ -79,6 +211,39 @@ func TestS3ArchiveStoreDeletePrefixDoesNotMatchSiblingPrefix(t *testing.T) {
 
 type memoryS3ArchiveAPI struct {
 	objects map[string][]byte
+}
+
+type recordingOSSPutObjectClient struct {
+	request *aliyunoss.PutObjectRequest
+	err     error
+}
+
+type recordingRoundTripper struct {
+	request *http.Request
+}
+
+func (r *recordingRoundTripper) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	r.request = request
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(nil)),
+		Request:    request,
+	}, nil
+}
+
+func (c *recordingOSSPutObjectClient) PutObject(
+	_ context.Context,
+	request *aliyunoss.PutObjectRequest,
+	_ ...func(*aliyunoss.Options),
+) (*aliyunoss.PutObjectResult, error) {
+	c.request = request
+	if c.err != nil {
+		return nil, c.err
+	}
+	return &aliyunoss.PutObjectResult{}, nil
 }
 
 func (m *memoryS3ArchiveAPI) put(

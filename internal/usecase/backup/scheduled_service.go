@@ -51,15 +51,16 @@ func (s *ScheduledService) State(
 
 // ConfigureRequest replaces the only cluster backup plan.
 type ConfigureRequest struct {
-	ExpectedRevision uint64
-	Enabled          bool
-	Store            backupcontract.StoreConfig
-	Cron             string
-	TimeZone         string
-	RetentionCount   int
-	RateBytesPerSec  uint64
-	WorkersPerNode   int
-	MaxDuration      time.Duration
+	ExpectedRevision       uint64
+	Enabled                bool
+	Store                  backupcontract.StoreConfig
+	RepositoryVerification *backupcontract.RepositoryVerification
+	Cron                   string
+	TimeZone               string
+	RetentionCount         int
+	RateBytesPerSec        uint64
+	WorkersPerNode         int
+	MaxDuration            time.Duration
 }
 
 // ConfigureResult returns the published plan and optional immediate first job.
@@ -414,6 +415,7 @@ func (s *ScheduledService) Configure(
 			Revision:                 currentPlanRevision + 1,
 			Enabled:                  request.Enabled,
 			Store:                    cloneStoreConfig(request.Store),
+			RepositoryVerification:   cloneRepositoryVerification(request.RepositoryVerification),
 			Cron:                     strings.TrimSpace(request.Cron),
 			TimeZone:                 request.TimeZone,
 			RetentionCount:           request.RetentionCount,
@@ -445,6 +447,41 @@ func (s *ScheduledService) Configure(
 		return ConfigureResult{Plan: plan, InitialJob: initial}, nil
 	}
 	return ConfigureResult{}, ErrStateConflict
+}
+
+// MarkRepositoryVerified records successful testing for one exact saved plan
+// revision without changing the configuration revision itself.
+func (s *ScheduledService) MarkRepositoryVerified(
+	ctx context.Context,
+	expectedPlanRevision uint64,
+) (backupcontract.Plan, error) {
+	current, err := s.store.Load(ctx)
+	if err != nil {
+		return backupcontract.Plan{}, err
+	}
+	if current.Plan == nil {
+		return backupcontract.Plan{}, ErrDisabled
+	}
+	if current.Plan.Revision != expectedPlanRevision {
+		return backupcontract.Plan{}, ErrStateConflict
+	}
+	if current.Plan.RepositoryVerification != nil &&
+		current.Plan.RepositoryVerification.Status ==
+			backupcontract.RepositoryVerificationVerified {
+		return *current.Clone().Plan, nil
+	}
+	now := s.now().UTC()
+	next := current.Clone()
+	next.Revision++
+	next.Plan.RepositoryVerification = &backupcontract.RepositoryVerification{
+		Status:               backupcontract.RepositoryVerificationVerified,
+		VerifiedAtUnixMillis: now.UnixMilli(),
+	}
+	next.Plan.UpdatedUnixMillis = now.UnixMilli()
+	if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
+		return backupcontract.Plan{}, err
+	}
+	return *next.Plan, nil
 }
 
 // AdvanceBackupPhase performs a fenced, idempotent one-way publication
@@ -506,6 +543,9 @@ func (s *ScheduledService) StartBackup(
 	if current.Plan == nil {
 		return backupcontract.BackupJob{}, ErrDisabled
 	}
+	if !repositoryIsVerified(*current.Plan) {
+		return backupcontract.BackupJob{}, ErrRepositoryUnverified
+	}
 	if current.ActiveBackup != nil {
 		return backupcontract.BackupJob{}, ErrBackupJobActive
 	}
@@ -540,6 +580,9 @@ func (s *ScheduledService) EvaluateSchedule(
 		return ScheduleResult{}, err
 	}
 	if current.Plan == nil || !current.Plan.Enabled {
+		return ScheduleResult{}, nil
+	}
+	if !repositoryIsVerified(*current.Plan) {
 		return ScheduleResult{}, nil
 	}
 	location, schedule, err := parsePlanSchedule(*current.Plan)
@@ -879,6 +922,25 @@ func validateConfigureRequest(request ConfigureRequest, now time.Time) error {
 	default:
 		return ErrInvalidRequest
 	}
+	if verification := request.RepositoryVerification; verification != nil {
+		switch verification.Status {
+		case backupcontract.RepositoryVerificationUnverified:
+			if verification.VerifiedAtUnixMillis != 0 {
+				return ErrInvalidRequest
+			}
+		case backupcontract.RepositoryVerificationVerified:
+			if verification.VerifiedAtUnixMillis <= 0 {
+				return ErrInvalidRequest
+			}
+		default:
+			return ErrInvalidRequest
+		}
+	}
+	if request.Enabled && request.RepositoryVerification != nil &&
+		request.RepositoryVerification.Status !=
+			backupcontract.RepositoryVerificationVerified {
+		return ErrRepositoryUnverified
+	}
 	location, err := time.LoadLocation(request.TimeZone)
 	if err != nil {
 		return fmt.Errorf("%w: time zone: %v", ErrInvalidRequest, err)
@@ -926,6 +988,22 @@ func cloneStoreConfig(store backupcontract.StoreConfig) backupcontract.StoreConf
 	clone := store
 	clone.CredentialCiphertext = append([]byte(nil), store.CredentialCiphertext...)
 	return clone
+}
+
+func cloneRepositoryVerification(
+	verification *backupcontract.RepositoryVerification,
+) *backupcontract.RepositoryVerification {
+	if verification == nil {
+		return nil
+	}
+	clone := *verification
+	return &clone
+}
+
+func repositoryIsVerified(plan backupcontract.Plan) bool {
+	return plan.RepositoryVerification == nil ||
+		plan.RepositoryVerification.Status ==
+			backupcontract.RepositoryVerificationVerified
 }
 
 func validBackupPhaseTransition(
