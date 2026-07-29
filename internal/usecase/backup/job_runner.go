@@ -390,8 +390,9 @@ func (r *JobRunner) runBatch(
 	job backupcontract.BackupJob,
 	claims []claimedSlot,
 ) error {
-	runContext, cancel := context.WithDeadline(
-		ctx, time.UnixMilli(job.DeadlineUnixMillis),
+	remaining := time.UnixMilli(job.DeadlineUnixMillis).Sub(r.now().UTC())
+	runContext, cancel := context.WithTimeout(
+		ctx, remaining,
 	)
 	defer cancel()
 	outcomes := make([]slotOutcome, len(claims))
