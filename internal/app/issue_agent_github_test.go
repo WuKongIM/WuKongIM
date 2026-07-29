@@ -285,11 +285,7 @@ func TestPublisherProjectsClosedInvalidChainAsIdempotentHumanAlert(t *testing.T)
 	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	now := time.Date(2026, 7, 28, 14, 0, 0, 0, time.UTC)
-	policy, err := os.ReadFile("../../.github/issue-agent/policy.json")
-	require.NoError(t, err)
-	policy = []byte(strings.Replace(
-		string(policy), `"rollout_mode": "shadow"`, `"rollout_mode": "general"`, 1,
-	))
+	policy := issueAgentPolicyForRollout(t, issueagentusecase.RolloutGeneral)
 	keySet := issueagentgithub.KeySet{
 		SchemaVersion: 1,
 		Keys: []issueagentgithub.PublicKey{{
@@ -514,11 +510,7 @@ func TestActiveDraftPRExternalHeadDoesNotBlockControlReadAndIsRecorded(t *testin
 	require.NoError(t, err)
 	signed, _, err := store.SignComment(checkpoint, "Ready.")
 	require.NoError(t, err)
-	policy, err := os.ReadFile("../../.github/issue-agent/policy.json")
-	require.NoError(t, err)
-	policy = []byte(strings.Replace(
-		string(policy), `"rollout_mode": "shadow"`, `"rollout_mode": "general"`, 1,
-	))
+	policy := issueAgentPolicyForRollout(t, issueagentusecase.RolloutGeneral)
 	var driftComment string
 	var requestedLabels []string
 	server := httptest.NewServer(http.HandlerFunc(func(
@@ -887,4 +879,20 @@ Expected delivery; observed timeout.
 func writeAppJSON(t *testing.T, writer http.ResponseWriter, value any) {
 	t.Helper()
 	require.NoError(t, json.NewEncoder(writer).Encode(value))
+}
+
+func issueAgentPolicyForRollout(
+	t *testing.T,
+	mode issueagentusecase.RolloutMode,
+) []byte {
+	t.Helper()
+
+	policyBytes, err := os.ReadFile("../../.github/issue-agent/policy.json")
+	require.NoError(t, err)
+	var policy map[string]any
+	require.NoError(t, json.Unmarshal(policyBytes, &policy))
+	policy["rollout_mode"] = mode
+	encoded, err := json.Marshal(policy)
+	require.NoError(t, err)
+	return encoded
 }

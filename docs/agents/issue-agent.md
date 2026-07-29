@@ -308,7 +308,7 @@ window remains verifiable. Never rewrite old checkpoint comments.
 | --- | --- |
 | `disabled` | No intake or execution |
 | `shadow` | Read and report only; no App/model secret is consumed |
-| `intake` | Deterministic form labels and signed authorization only |
+| `intake` | Deterministic form classification, bounded missing-information request, and signed authorization only |
 | `reproduction` | Version pin, E2E Worker, branch, and Draft PR |
 | `remediation` | Complete path only for `remediation_issue_allowlist` |
 | `general` | Complete path for every explicitly authorized eligible Bug |
