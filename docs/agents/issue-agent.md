@@ -101,16 +101,18 @@ removed when the Worker exits.
 For Codex, the pinned official `openai/codex-action` runs after checkout,
 build, dependency prefetch, reproduction-binary build, and Docker image pull.
 It receives no prompt: it installs Codex and the matching Responses proxy,
-allows only normally write-authorized actors or the exact
-`wukongim-issue-agent` App bot, writes an otherwise empty bootstrap home, and
-then drops `sudo` for the remainder of the job. The Workflow first rejects an
-existing bootstrap-home path or dangling symlink, so the Action cannot merge
-stale runner configuration. `wkissueagent` receives only
+sends upstream requests only to the fixed
+`https://openrouter.ai/api/v1/responses` endpoint, allows only normally
+write-authorized actors or the exact `wukongim-issue-agent` App bot, writes an
+otherwise empty bootstrap home, and then drops `sudo` for the remainder of the
+job. The Workflow first rejects an existing bootstrap-home path or dangling
+symlink, so the Action cannot merge stale runner configuration. `wkissueagent`
+receives only
 `ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it rejects anything except the exact
 Action-generated `http://127.0.0.1:<port>/v1` Responses provider and converts
 that endpoint to canonical overrides in a fresh empty Codex home for each
-round. Codex subprocesses never receive `CODEX_API_KEY`, user/project config,
-native tools, or GitHub credentials.
+round. Codex subprocesses never receive `OPENROUTER_API_KEY`, user/project
+config, native tools, or GitHub credentials.
 
 The model may return only a semantic proposal. The trusted Worker derives the
 complete file set, command transcript digests, diagnosis evidence digest, and
@@ -287,14 +289,16 @@ branch.
 4. Store `ISSUE_AGENT_APP_PRIVATE_KEY` and
    `ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY` only in
    `issue-agent-publisher`.
-5. Store `CODEX_API_KEY` only in `issue-agent-codex`; the official Action is
-   its only consumer and the bounded Worker receives only the generated
+5. Store `OPENROUTER_API_KEY` only in `issue-agent-codex`; the official Action
+   is its only consumer and the bounded Worker receives only the generated
    bootstrap-home path. Store `DEEPSEEK_API_KEY` only in
    `issue-agent-deepseek`. Configure independent provider spend limits.
 6. Add repository variables:
    `ISSUE_AGENT_APP_ID`, `ISSUE_AGENT_INSTALLATION_ID`,
    `ISSUE_AGENT_APP_LOGIN`, `ISSUE_AGENT_CHECKPOINT_KEY_ID`,
-   `ISSUE_AGENT_CODEX_MODEL`, and `ISSUE_AGENT_DEEPSEEK_MODEL`.
+   `ISSUE_AGENT_CODEX_MODEL`, and `ISSUE_AGENT_DEEPSEEK_MODEL`. Set
+   `ISSUE_AGENT_CODEX_MODEL` to an exact OpenRouter model slug such as
+   `openai/gpt-5.6-sol`.
 7. Create or verify `needs-triage`, `needs-info`, `ready-for-agent`,
    `agent-priority/high`, and the Agent PR validation labels documented in
    `.github/workflows/README.md`.
