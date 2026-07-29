@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 type errorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message"`
+	Detail  any    `json:"detail,omitempty"`
 }
 
 func jsonError(c *gin.Context, status int, code, message string) {

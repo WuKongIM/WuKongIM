@@ -312,7 +312,8 @@ func validRepositoryAccessFailure(
 	switch failure.Provider {
 	case backupcontract.StoreKindFile,
 		backupcontract.StoreKindOSS,
-		backupcontract.StoreKindCOS:
+		backupcontract.StoreKindCOS,
+		backupcontract.StoreKindS3:
 	default:
 		return false
 	}

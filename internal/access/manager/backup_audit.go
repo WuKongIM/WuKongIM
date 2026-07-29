@@ -1,8 +1,10 @@
 package manager
 
 import (
+	"errors"
 	"strings"
 
+	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
 )
@@ -32,9 +34,25 @@ func (s *Server) auditBackupMutation(
 		wklog.String("result", result),
 	}
 	if err != nil {
-		// Keep audit records useful but bounded. Repository and SDK errors may
-		// contain endpoints, object keys, or credential-adjacent request data.
-		fields = append(fields, wklog.String("error_code", "backup_operation_failed"))
+		errorCode := "backup_operation_failed"
+		if presentation, ok := backupRepositoryErrorForResponse(err); ok {
+			errorCode = presentation.code
+		}
+		fields = append(fields, wklog.String("error_code", errorCode))
+		var accessErr *backupcontract.RepositoryAccessError
+		if errors.As(err, &accessErr) {
+			fields = append(
+				fields,
+				wklog.String("provider", string(accessErr.Provider)),
+				wklog.String("stage", string(accessErr.Stage)),
+			)
+			if accessErr.NodeID != 0 {
+				fields = append(
+					fields,
+					wklog.Uint64("node_id", accessErr.NodeID),
+				)
+			}
+		}
 	}
 	s.logger.Info("Manager backup mutation", fields...)
 }
