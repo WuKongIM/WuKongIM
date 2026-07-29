@@ -21,8 +21,8 @@ type BackupManagement interface {
 	) (backupusecase.ConfigureResult, error)
 	TestRepository(
 		context.Context,
-		backupusecase.ConfigureManagementRequest,
-	) error
+		backupusecase.TestRepositoryRequest,
+	) (backupcontract.Plan, error)
 	StartBackup(context.Context) (backupcontract.BackupJob, error)
 	CancelBackup(context.Context, string) error
 	Archive(context.Context, string) (backupusecase.ArchiveDetail, error)
@@ -154,8 +154,11 @@ func (s *Server) handleBackupRepositoryTest(c *gin.Context) {
 	if !ok {
 		return
 	}
-	err := s.backup.TestRepository(
-		c.Request.Context(), managementConfigureRequest(request),
+	_, err := s.backup.TestRepository(
+		c.Request.Context(),
+		backupusecase.TestRepositoryRequest{
+			ExpectedPlanRevision: request.ExpectedRevision,
+		},
 	)
 	s.auditBackupMutation(c, "test_repository", "", err)
 	if err != nil {

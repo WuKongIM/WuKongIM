@@ -419,9 +419,9 @@ func (f *fakeBackupManagement) Configure(
 
 func (f *fakeBackupManagement) TestRepository(
 	context.Context,
-	backupusecase.ConfigureManagementRequest,
-) error {
-	return f.testRepositoryErr
+	backupusecase.TestRepositoryRequest,
+) (backupcontract.Plan, error) {
+	return backupcontract.Plan{}, f.testRepositoryErr
 }
 
 func (f *fakeBackupManagement) StartBackup(
