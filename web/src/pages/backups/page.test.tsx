@@ -114,10 +114,13 @@ beforeEach(() => {
 })
 
 test("shows one simple scheduled full-backup page", async () => {
+  getBackupDashboardMock.mockImplementationOnce(() => new Promise((resolve) => {
+    setTimeout(() => resolve(dashboard()), 25)
+  }))
   renderPage()
 
   expect(await screen.findByRole("heading", { name: "Backups" })).toBeInTheDocument()
-  expect(screen.getByText("Automatic backup")).toBeInTheDocument()
+  expect(await screen.findByText("Automatic backup")).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "Backup frequency" })).toHaveValue("daily")
   expect(screen.getByText("backup-20260729-010000")).toBeInTheDocument()
   expect(screen.queryByText(/continuous/i)).not.toBeInTheDocument()

@@ -86,7 +86,7 @@ test("renders unhealthy channel rows with reason tags and inspect links", async 
   renderUnhealthyPage()
 
   expect(await screen.findByRole("heading", { name: "Unhealthy Channels" })).toBeInTheDocument()
-  const row = screen.getByRole("row", { name: /room-1/ })
+  const row = await screen.findByRole("row", { name: /room-1/ })
   expect(within(row).getByText("room-1")).toBeInTheDocument()
   expect(within(row).getByText("2")).toBeInTheDocument()
   expect(within(row).getByText("9")).toBeInTheDocument()
