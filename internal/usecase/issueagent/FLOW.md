@@ -35,6 +35,8 @@ Before authorization, deterministic Intake parses only the four required Bug
 Issue Form facts. It may propose `needs-triage` or `needs-info` and a bounded
 request for missing facts. It never resolves a version, runs a model or command,
 creates a branch, or opens a pull request.
+The checked-in `reproduction` ceiling may advance authorized work only through
+version pinning, bounded E2E reproduction, an Agent branch, and a Draft PR.
 While rollout is capped at `intake`, every existing valid or invalid signed
 chain is read-only: Worker recovery, drift recording, projection repair, audit
 alerts, and later lifecycle transitions all return `wait`. This makes a
