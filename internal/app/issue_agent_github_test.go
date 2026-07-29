@@ -62,6 +62,9 @@ func TestPublisherPerformsDeterministicIntakeWithoutModelOrExecution(t *testing.
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"complete":true}`, string(encoded))
 }
 
 func TestPublisherCreatesFirstSignedCheckpointOnlyForFreshMaintainerLabel(t *testing.T) {

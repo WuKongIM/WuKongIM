@@ -27,6 +27,7 @@ func TestAppTokenMinterRequestsExactRepositoryAndPermissions(t *testing.T) {
 	const appID int64 = 1234
 	const installationID int64 = 5678
 	const repositoryID int64 = 9012
+	repositorySelection := "selected"
 
 	server := httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -70,11 +71,13 @@ func TestAppTokenMinterRequestsExactRepositoryAndPermissions(t *testing.T) {
 
 		writer.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(writer).Encode(map[string]any{
-			"token":       "installation-secret-token",
-			"expires_at":  now.Add(55 * time.Minute).Format(time.RFC3339),
-			"permissions": body.Permissions,
+			"token":                "installation-secret-token",
+			"expires_at":           now.Add(55 * time.Minute).Format(time.RFC3339),
+			"permissions":          body.Permissions,
+			"repository_selection": repositorySelection,
 			"repositories": []map[string]any{{
 				"id": repositoryID, "full_name": "WuKongIM/WuKongIM",
+				"private": false,
 			}},
 		}))
 	}))
@@ -102,6 +105,10 @@ func TestAppTokenMinterRequestsExactRepositoryAndPermissions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "installation-secret-token", token.Token)
 	require.Equal(t, now.Add(55*time.Minute), token.ExpiresAt)
+
+	repositorySelection = "all"
+	_, err = minter.Mint(context.Background())
+	require.Error(t, err)
 }
 
 func TestAppTokenMinterRedactsSecretsFromErrors(t *testing.T) {
