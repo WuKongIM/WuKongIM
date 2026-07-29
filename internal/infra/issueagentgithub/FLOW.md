@@ -68,7 +68,9 @@ Completed Worker-run inventory is filtered to the signed lease time window and
 bounded to GitHub's documented 1,000-result search ceiling. Reconciliation
 accepts only a unique exact display-title and Artifact-name match, then the
 ordinary Publisher revalidates the downloaded task and result against the
-current signed lease.
+current signed lease. Workflow identity is bound to the protected workflow
+path, dispatch event, and `main` head; GitHub's `name` is presentation metadata
+because a configured `run-name` replaces it with the dynamic run title.
 
 An admin recovery is the only exception to ordinary contiguous history
 verification. A later valid signed recovery checkpoint must identify the exact
