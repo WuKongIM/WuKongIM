@@ -51,7 +51,7 @@
       "provider": "codex",
       "endpoint": "",
       "model_variable": "ISSUE_AGENT_CODEX_MODEL",
-      "credential_variable": "CODEX_API_KEY"
+      "credential_variable": "OPENROUTER_API_KEY"
     },
     {
       "provider": "deepseek",

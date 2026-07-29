@@ -58,22 +58,24 @@ blocks admission rather than assuming capacity.
 
 Write-capable modes retain three credential boundaries:
 
-- `issue-agent-codex` exposes `CODEX_API_KEY` only to the pinned official
-  Codex Action bootstrap;
+- `issue-agent-codex` exposes `OPENROUTER_API_KEY` only to the pinned official
+  Codex Action bootstrap, which sends Responses requests only to the fixed
+  OpenRouter endpoint;
 - `issue-agent-deepseek` exposes only `DEEPSEEK_API_KEY` to the selected
   DeepSeek Supervisor;
 - `issue-agent-publisher` exposes repository-scoped App and checkpoint signing
   material only to Publisher/dispatcher jobs that never execute target code.
 
 The Codex Action is pinned by full commit SHA and runs without a prompt. It
-installs the pinned CLI and matching Responses proxy, writes one otherwise
-empty bootstrap home, accepts only the exact `wukongim-issue-agent` App bot in
-addition to normal write-authorized actors, and irreversibly drops `sudo`
-before the repository-owned Worker starts. The immediately preceding step
-fails if that bootstrap-home path already exists or is a dangling symlink.
-Checkout, build, dependency prefetch, reproduction binaries, and digest-pinned
-Docker image pull must therefore complete before the Action. `wkissueagent`
-receives only
+installs the pinned CLI and matching Responses proxy, sends upstream requests
+only to the fixed `https://openrouter.ai/api/v1/responses` endpoint, writes one
+otherwise empty bootstrap home, accepts only the exact
+`wukongim-issue-agent` App bot in addition to normal write-authorized actors,
+and irreversibly drops `sudo` before the repository-owned Worker starts. The
+immediately preceding step fails if that bootstrap-home path already exists or
+is a dangling symlink. Checkout, build, dependency prefetch, reproduction
+binaries, and digest-pinned Docker image pull must therefore complete before
+the Action. `wkissueagent` receives only
 `ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it strictly accepts the Action's
 `127.0.0.1` Responses provider and creates a new empty Codex home for every
 round. The API key must not appear in Worker arguments, environment dumps,
