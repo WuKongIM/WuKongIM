@@ -34,20 +34,24 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int
 		Now:              time.Now,
 	})
 	dependencies.RunWorker = app.NewIssueAgentWorkerDependency(
-		app.IssueAgentWorkerConfig{
-			HTTPClient:          &http.Client{Timeout: 2 * time.Minute},
-			DeepSeekAPIKey:      os.Getenv("DEEPSEEK_API_KEY"),
-			CodexAPIKey:         os.Getenv("CODEX_API_KEY"),
-			CodexBinary:         os.Getenv("ISSUE_AGENT_CODEX_BINARY"),
-			CodexMinimumVersion: os.Getenv("ISSUE_AGENT_CODEX_MIN_VERSION"),
-			SandboxImage:        os.Getenv("ISSUE_AGENT_SANDBOX_IMAGE"),
-			ForbiddenPublisherData: os.Getenv("ISSUE_AGENT_GITHUB_TOKEN") != "" ||
-				os.Getenv("ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY") != "" ||
-				os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY") != "",
-		},
+		issueAgentWorkerConfigFromEnv(),
 	)
 	return issueagentcli.Run(
 		ctx, args, stdin, stdout, stderr,
 		app.NewIssueAgentOperations(dependencies),
 	)
+}
+
+func issueAgentWorkerConfigFromEnv() app.IssueAgentWorkerConfig {
+	return app.IssueAgentWorkerConfig{
+		HTTPClient:          &http.Client{Timeout: 2 * time.Minute},
+		DeepSeekAPIKey:      os.Getenv("DEEPSEEK_API_KEY"),
+		CodexBootstrapHome:  os.Getenv("ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"),
+		CodexBinary:         os.Getenv("ISSUE_AGENT_CODEX_BINARY"),
+		CodexMinimumVersion: os.Getenv("ISSUE_AGENT_CODEX_MIN_VERSION"),
+		SandboxImage:        os.Getenv("ISSUE_AGENT_SANDBOX_IMAGE"),
+		ForbiddenPublisherData: os.Getenv("ISSUE_AGENT_GITHUB_TOKEN") != "" ||
+			os.Getenv("ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY") != "" ||
+			os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY") != "",
+	}
 }
