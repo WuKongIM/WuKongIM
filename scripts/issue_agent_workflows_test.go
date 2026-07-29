@@ -291,7 +291,7 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 	})
 }
 
-func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
+func TestIssueAgentPolicyUsesReproductionAndOpenRouterCredential(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile(filepath.Join(
@@ -299,7 +299,8 @@ func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
 	))
 	require.NoError(t, err)
 	var policy struct {
-		Providers []struct {
+		RolloutMode string `json:"rollout_mode"`
+		Providers   []struct {
 			Provider           string `json:"provider"`
 			Endpoint           string `json:"endpoint"`
 			ModelVariable      string `json:"model_variable"`
@@ -307,6 +308,7 @@ func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
 		} `json:"providers"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &policy))
+	require.Equal(t, "reproduction", policy.RolloutMode)
 	require.Contains(t, policy.Providers, struct {
 		Provider           string `json:"provider"`
 		Endpoint           string `json:"endpoint"`
