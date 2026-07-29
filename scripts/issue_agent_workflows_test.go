@@ -292,8 +292,6 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 }
 
 func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
-	t.Parallel()
-
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "issue-agent", "policy.json",
 	))
