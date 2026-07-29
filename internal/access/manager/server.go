@@ -211,8 +211,12 @@ type Options struct {
 	Backup BackupManagement
 	// Restore provides explicit disaster-recovery control operations.
 	Restore RestoreManagement
-	// RestoreMode restricts the Manager API to recovery-only routes.
-	RestoreMode bool
+	// SessionEpoch returns the durable Manager JWT invalidation generation.
+	SessionEpoch func() (uint64, error)
+	// Maintenance reports restore maintenance. Manager control-plane backup
+	// routes remain available while business data and mutation routes fail
+	// closed.
+	Maintenance func() bool
 	// RealtimeMonitor provides unified realtime monitor snapshots.
 	RealtimeMonitor RealtimeMonitorProvider
 	// Top provides local runtime pressure snapshots for read-only runtime views.
@@ -236,7 +240,8 @@ type Server struct {
 	opsMCPHandler   http.Handler
 	backup          BackupManagement
 	restore         RestoreManagement
-	restoreMode     bool
+	sessionEpoch    func() (uint64, error)
+	maintenance     func() bool
 	realtimeMonitor RealtimeMonitorProvider
 	top             accessapi.TopSnapshotProvider
 	webhookConfig   WebhookConfigProvider
@@ -263,13 +268,15 @@ func New(opts Options) *Server {
 		opsMCPHandler:   opts.OpsMCPHandler,
 		backup:          opts.Backup,
 		restore:         opts.Restore,
-		restoreMode:     opts.RestoreMode,
+		sessionEpoch:    opts.SessionEpoch,
+		maintenance:     opts.Maintenance,
 		realtimeMonitor: opts.RealtimeMonitor,
 		top:             opts.Top,
 		webhookConfig:   opts.WebhookConfig,
 		auth:            newAuthState(opts.Auth),
 		logger:          opts.Logger,
 	}
+	engine.Use(srv.restoreMaintenanceGate())
 	srv.registerRoutes()
 	engine.NoRoute(func(c *gin.Context) {
 		// Gin presets NoRoute responses to 404 before running the handler. Reset
@@ -278,6 +285,50 @@ func New(opts Options) *Server {
 		webui.Handler().ServeHTTP(c.Writer, c.Request)
 	})
 	return srv
+}
+
+func (s *Server) restoreMaintenanceGate() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if s == nil || s.maintenance == nil || !s.maintenance() ||
+			managerMaintenanceAllowed(c.Request.Method, c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+		jsonError(
+			c, http.StatusServiceUnavailable,
+			"restore_maintenance", "restore maintenance is active",
+		)
+		c.Abort()
+	}
+}
+
+func managerMaintenanceAllowed(method, path string) bool {
+	if method == http.MethodOptions || path == "/manager/login" ||
+		path == "/mcp" || strings.HasPrefix(path, "/manager/backups") ||
+		path == "/manager/permissions" {
+		return true
+	}
+	if !strings.HasPrefix(path, "/manager/") {
+		return true
+	}
+	for _, businessPrefix := range []string{
+		"/manager/channels", "/manager/conversations",
+		"/manager/messages", "/manager/connections",
+		"/manager/users", "/manager/system-users", "/manager/db/inspect",
+		"/manager/channel-runtime-meta", "/manager/channel-migrations",
+	} {
+		if strings.HasPrefix(path, businessPrefix) {
+			return false
+		}
+	}
+	return method == http.MethodGet || method == http.MethodHead
+}
+
+func (s *Server) currentManagerSessionEpoch() (uint64, error) {
+	if s == nil || s.sessionEpoch == nil {
+		return 0, nil
+	}
+	return s.sessionEpoch()
 }
 
 // Engine returns the underlying gin engine.
@@ -358,7 +409,7 @@ func (s *Server) registerRoutes() {
 	if s == nil || s.engine == nil {
 		return
 	}
-	if !s.restoreMode && s.opsMCPHandler != nil {
+	if s.opsMCPHandler != nil {
 		s.engine.Any("/mcp", gin.WrapH(s.opsMCPHandler))
 	}
 	if s.auth.enabled() {
@@ -369,21 +420,8 @@ func (s *Server) registerRoutes() {
 		permissions.Use(s.requirePermission("cluster.permission", "r"))
 	}
 	permissions.GET("/permissions", s.handlePermissions)
-	s.registerRestoreStatusRoute()
-	backupStatusReads := s.engine.Group("/manager")
-	if s.auth.enabled() {
-		backupStatusReads.Use(s.requirePermission("cluster.backup", "r"))
-	}
-	backupStatusReads.GET("/backups/status", s.handleBackupStatus)
-	if s.restoreMode {
-		restoreNodes := s.engine.Group("/manager")
-		if s.auth.enabled() {
-			restoreNodes.Use(s.requirePermission("cluster.backup", "r"))
-		}
-		restoreNodes.GET("/nodes", s.handleNodes)
-		s.registerRestoreRoutes()
-		return
-	}
+	s.registerBackupRoutes()
+	s.registerRestoreRoutes()
 
 	mcpReads := s.engine.Group("/manager")
 	mcpReads.Use(s.requireMCPAdministrationReady())
@@ -467,24 +505,6 @@ func (s *Server) registerRoutes() {
 	controllerRaftWrites.POST("/nodes/:node_id/controller-raft/compact", s.handleCompactControllerRaftLog)
 	controllerRaftWrites.POST("/nodes/:node_id/controller-voter/promote", s.handlePromoteControllerVoter)
 	controllerRaftWrites.POST("/controller-raft/compact", s.handleCompactControllerRaftLogs)
-
-	backupReads := s.engine.Group("/manager")
-	if s.auth.enabled() {
-		backupReads.Use(s.requirePermission("cluster.backup", "r"))
-	}
-	backupReads.GET("/backups/checkpoints", s.handleBackupCheckpoints)
-	backupReads.GET("/backups/checkpoints/:checkpoint_id", s.handleBackupCheckpoint)
-
-	backupWrites := s.engine.Group("/manager")
-	if s.auth.enabled() {
-		backupWrites.Use(s.requirePermission("cluster.backup", "w"))
-	}
-	backupWrites.POST("/backups/checkpoints", s.handleBackupCheckpointPublish)
-	backupWrites.POST("/backups/checkpoints/:checkpoint_id/hold", s.handleBackupCheckpointHold)
-
-	sourceFence := s.engine.Group("/manager")
-	sourceFence.Use(s.requireExplicitPermission("cluster.backup.source_fence", "w"))
-	sourceFence.POST("/backups/source-fence", s.handleBackupSourceFence)
 
 	diagnostics := s.engine.Group("/manager")
 	if s.auth.enabled() {

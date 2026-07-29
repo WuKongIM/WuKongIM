@@ -41,7 +41,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=env GOWORK=off go build -o " + outputBin + " ./cmd/wukongim",
 		"prometheus_enable=true",
 		"prometheus_listen_addr=127.0.0.1:9091",
 		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
@@ -61,15 +61,13 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 }
 
-func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuildAndIsolatedBackupStaging(t *testing.T) {
+func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuild(t *testing.T) {
 	root := repoRoot(t)
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
-	stagingRoot := filepath.Join(t.TempDir(), "backup-staging")
 
 	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--build-tags", "e2e",
-		"--backup-staging-root", stagingRoot,
 		"--bin", outputBin,
 	)
 	cmd.Dir = root
@@ -79,66 +77,13 @@ func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuildAndIsolatedBackupStaging(
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=go build -tags=e2e -o " + outputBin + " ./cmd/wukongim",
-		"node1_backup_staging=" + filepath.Join(stagingRoot, "node-1"),
-		"node2_backup_staging=" + filepath.Join(stagingRoot, "node-2"),
-		"node3_backup_staging=" + filepath.Join(stagingRoot, "node-3"),
+		"build_cmd=env GOWORK=off go build -tags=e2e -o " + outputBin + " ./cmd/wukongim",
 		"node1_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=true",
-		"WK_BACKUP_STAGING_DIR=" + filepath.Join(stagingRoot, "node-1"),
-		"node3_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false WK_BACKUP_STAGING_DIR=" + filepath.Join(stagingRoot, "node-3"),
+		"node3_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
 		}
-	}
-}
-
-func TestWukongIMThreeNodeScriptDryRunPrintsLocalE2EBackupBuild(t *testing.T) {
-	root := repoRoot(t)
-	outputBin := filepath.Join(t.TempDir(), "wukongim")
-	const revision = "0123456789abcdef0123456789abcdef01234567"
-	gitDirCommand := exec.Command("git", "rev-parse", "--absolute-git-dir")
-	gitDirCommand.Dir = root
-	gitDirOutput, err := gitDirCommand.Output()
-	if err != nil {
-		t.Fatalf("resolve worktree Git directory: %v", err)
-	}
-	gitDir := strings.TrimSpace(string(gitDirOutput))
-
-	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
-		"--dry-run",
-		"--build-tags", "e2e",
-		"--backup-e2e-revision", revision,
-		"--bin", outputBin,
-	)
-	cmd.Dir = root
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("dry-run failed: %v\n%s", err, output)
-	}
-	want := "build_cmd=env GOWORK=off GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root +
-		" go build -tags=e2e -ldflags=-X=github.com/WuKongIM/WuKongIM/internal/app.backupLocalE2ERevision=" +
-		revision + " -o " + outputBin + " ./cmd/wukongim"
-	if text := string(output); !strings.Contains(text, want) {
-		t.Fatalf("dry-run output missing %q:\n%s", want, text)
-	}
-}
-
-func TestWukongIMThreeNodeScriptRejectsLocalBackupRevisionWithoutE2ETag(t *testing.T) {
-	root := repoRoot(t)
-	const revision = "0123456789abcdef0123456789abcdef01234567"
-
-	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
-		"--dry-run",
-		"--backup-e2e-revision", revision,
-	)
-	cmd.Dir = root
-	output, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("qualified backup build without e2e tag should fail:\n%s", output)
-	}
-	if text := string(output); !strings.Contains(text, "--backup-e2e-revision requires the e2e build tag") {
-		t.Fatalf("unexpected qualification error:\n%s", text)
 	}
 }
 

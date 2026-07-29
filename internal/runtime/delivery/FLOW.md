@@ -66,8 +66,10 @@ Async manager flow:
 6. Every accepted command emits exactly one terminal observation.
 7. `Manager.Stop` rejects new admission and drains accepted work until the
    caller context expires.
-8. Stop is terminal for the manager lifecycle; app composition should create a
-   new `Manager` for a new lifecycle instead of restarting a stopped instance.
+8. A successful `Manager.Stop` returns the manager to a closed, restartable
+   state so maintenance restore can quiesce and resume the same composed
+   runtime. A stop whose drain context expires remains terminal because an old
+   handler may still be executing and must never overlap a replacement queue.
 
 Retry scheduler lifecycle:
 

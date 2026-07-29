@@ -56,12 +56,9 @@ func emptyControlSnapshot(snapshot control.Snapshot) bool {
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
 	n.controlApplyMu.Lock()
 	defer n.controlApplyMu.Unlock()
-	// The fence is one-way in Controller state. Publish it before any slower
-	// placement reconciliation so no foreground write can race a node-health
-	// acknowledgement of this revision.
-	if snapshot.SourceFence != nil {
-		n.fenceSourceWrites(snapshot.SourceFence.FenceControllerRevision, snapshot.SourceFence.ConvergedAtUnixMillis > 0)
-	}
+	// Publish restore maintenance before slower placement reconciliation so no
+	// business write races an archive installation.
+	n.setMaintenance(snapshot.Maintenance)
 	// Cancel the previously published placement generation before applying any
 	// newer Controller state. Strict Slot-worker requests use this cancellation
 	// as their nonblocking fence against an apply-in-progress stale intent.
@@ -324,38 +321,44 @@ func (n *Node) ensureForeground() error {
 	if !n.started.Load() {
 		return ErrNotStarted
 	}
-	if n.sourceFenced.Load() {
-		return ErrSourceFenced
+	if n.maintenance.Load() {
+		return ErrMaintenance
 	}
 	return nil
 }
 
-func (n *Node) acquireSourceWriteAdmission() (func(), error) {
+func (n *Node) acquireWriteAdmission() (func(), error) {
 	if n == nil {
 		return nil, ErrNotStarted
 	}
-	n.sourceFenceAdmissionMu.RLock()
-	if n.sourceFenced.Load() {
-		n.sourceFenceAdmissionMu.RUnlock()
-		return nil, ErrSourceFenced
+	n.maintenanceAdmissionMu.RLock()
+	if n.maintenance.Load() {
+		n.maintenanceAdmissionMu.RUnlock()
+		return nil, ErrMaintenance
 	}
-	return n.sourceFenceAdmissionMu.RUnlock, nil
+	return n.maintenanceAdmissionMu.RUnlock, nil
 }
 
-func (n *Node) fenceSourceWrites(revision uint64, alreadyConverged bool) {
+func (n *Node) setMaintenance(enabled bool) {
 	if n == nil {
 		return
 	}
-	n.sourceFenceAdmissionMu.Lock()
-	n.sourceFenced.Store(true)
-	if revision > 0 {
-		n.sourceFenceRevision.CompareAndSwap(0, revision)
+	changed := n.maintenance.Load() != enabled
+	if !changed {
+		return
 	}
-	if alreadyConverged {
-		n.sourceFenceConverged.Store(true)
+	if enabled && n.cfg.MaintenanceObserver != nil {
+		// Close app entries and drain already-admitted work before the cluster
+		// fence rejects the internal writes required by that drain.
+		n.cfg.MaintenanceObserver.RestoreMaintenanceChanged(true)
 	}
-	n.channelDataPlaneLease.fenceSource()
-	n.sourceFenceAdmissionMu.Unlock()
+	n.maintenanceAdmissionMu.Lock()
+	n.maintenance.Store(enabled)
+	n.channelDataPlaneLease.setMaintenance(enabled)
+	n.maintenanceAdmissionMu.Unlock()
+	if !enabled && n.cfg.MaintenanceObserver != nil {
+		n.cfg.MaintenanceObserver.RestoreMaintenanceChanged(false)
+	}
 }
 
 func ctxErr(ctx context.Context) error {

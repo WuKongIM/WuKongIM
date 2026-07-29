@@ -55,24 +55,3 @@ func TestWireOpsMCPMountsEndpointAndRegistersTypedRPC(t *testing.T) {
 		t.Fatalf("RPC service %d was not registered", accessnode.OpsMCPRPCServiceID)
 	}
 }
-
-func TestWireOpsMCPRestoreModeDoesNotRegisterEndpointOrRPC(t *testing.T) {
-	clusterRuntime := &opsMCPWiringCluster{}
-	app := &App{
-		cfg: Config{
-			Log:     LogConfig{Dir: t.TempDir()},
-			Backup:  BackupConfig{RestoreMode: true},
-			Cluster: cluster.Config{Control: cluster.ControlConfig{ClusterID: "cluster-ops-mcp"}},
-		},
-		cluster: clusterRuntime,
-	}
-	app.ensureOpsMCPCallControl()
-	t.Cleanup(func() { _ = app.closeOpsMCPCalls() })
-	management := app.newManagerManagement()
-
-	app.wireOpsMCP(management)
-
-	if app.opsMCPEndpoint != nil || clusterRuntime.handlers[accessnode.OpsMCPRPCServiceID] != nil {
-		t.Fatal("restore-only Manager wired Operations MCP")
-	}
-}

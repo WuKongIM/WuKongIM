@@ -161,21 +161,20 @@ type App struct {
 	diagnosticsRestore func()
 	// controllerTaskAudit stores retained Controller task history for manager reads.
 	controllerTaskAudit *controllerTaskAuditRuntime
-	// backup owns the entry-independent cluster backup state machine when enabled.
-	backup *backupusecase.App
-	// permanentErasureRecorder makes explicit message deletion durable in the backup ledger before live metadata advances.
-	permanentErasureRecorder clusterinfra.PermanentMessageErasureRecorder
-	// restore owns the explicit disaster-recovery state machine in restore mode.
-	restore *backupusecase.RestoreApp
-	// backupRuntime owns backup-only doctor, scheduling, and failover resume work.
+	// backup owns Manager-facing scheduled full-backup operations.
+	backup *backupusecase.ManagementService
+	// scheduledBackup owns the durable plan and job state machine.
+	scheduledBackup *backupusecase.ScheduledService
+	// restore owns current-cluster maintenance restore admission.
+	restore *backupusecase.RestoreService
+	// backupRuntime owns leader-only scheduling and resumable backup/restore work.
 	backupRuntime WorkerRuntime
-	// backupKeyStartupCheck verifies repositories before restore-mode pin publication.
-	backupKeyStartupCheck func(context.Context) error
-	// restoreRuntime owns restore-only leader coordination and resumable installation.
-	restoreRuntime WorkerRuntime
-	// backupInitErr records enabled-mode construction failure without failing message startup.
-	backupInitErr error
-	logger        wklog.Logger
+	// restoreMaintenance mirrors the Controller fence for entry quiescence.
+	restoreMaintenance atomic.Bool
+	// restoreSideEffectsMu serializes drain/suspend/resume around one restore.
+	restoreSideEffectsMu        sync.Mutex
+	restoreSideEffectsSuspended bool
+	logger                      wklog.Logger
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 
@@ -193,7 +192,6 @@ type App struct {
 	pluginHookStarted         bool
 	webhookStarted            bool
 	backupRuntimeStarted      bool
-	restoreRuntimeStarted     bool
 	apiStarted                bool
 	managerStarted            bool
 	prometheusStarted         bool
@@ -224,12 +222,20 @@ func New(cfg Config, opts ...Option) (*App, error) {
 
 	clusterCfg := defaultClusterConfig(app.cfg)
 	clusterCfg.Logger = app.logger.Named("cluster")
+	clusterCfg.MaintenanceObserver = appMaintenanceObserver{
+		app: app, next: clusterCfg.MaintenanceObserver,
+	}
 	app.wireControllerTaskAudit(&clusterCfg)
 	app.configureObservability(&clusterCfg)
 	app.goroutineBaseline = app.goroutines.Baseline()
 	if err := app.ensureCluster(clusterCfg); err != nil {
 		return nil, err
 	}
+	messageIDs, err := newNodeMessageIDs(clusterCfg.NodeID)
+	if err != nil {
+		return nil, fmt.Errorf("internal/app: create message id generator: %w", err)
+	}
+	app.messageIDs = messageIDs
 
 	app.ensureOnlineRegistry()
 	if err := app.wireWebhook(); err != nil {
@@ -241,8 +247,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireConversationAuthority()
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()
-	app.wireBackup(clusterCfg)
-	app.logBackupInitializationFailure()
+	if err := app.wireBackup(clusterCfg); err != nil {
+		return nil, err
+	}
 	app.wireManagerConnectionRPC()
 	app.wireManagerLogRPC()
 	app.wireManagerControllerRaftRPC()
@@ -531,7 +538,6 @@ func defaultClusterConfig(cfg Config) cluster.Config {
 	if clusterCfg.DataDir == "" {
 		clusterCfg.DataDir = cfg.DataDir
 	}
-	clusterCfg.RestoreMode = cfg.Backup.RestoreMode
 	clusterCfg.ChannelRetention = cluster.ChannelRetentionConfig{
 		PhysicalGCEnabled: cfg.ChannelMessageRetention.PhysicalGCEnabled,
 		ScanInterval:      cfg.ChannelMessageRetention.ScanInterval,

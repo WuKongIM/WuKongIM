@@ -63,6 +63,17 @@ func New(opts Options) *App {
 	}
 }
 
+// ResetAfterRestore invalidates optional read-through authorization results so
+// the restored membership and channel metadata are authoritative immediately.
+func (a *App) ResetAfterRestore() {
+	if a == nil {
+		return
+	}
+	if cache, ok := a.permissions.(*permissionCache); ok {
+		cache.resetAfterRestore()
+	}
+}
+
 // PermissionStore provides authoritative membership and channel reads for send authorization.
 type PermissionStore interface {
 	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)

@@ -67,12 +67,13 @@ func (f optionFunc) apply(options *suiteOptions) {
 }
 
 type suiteOptions struct {
-	workspaceRootDir    string
-	nodeLogRootDir      string
-	managerHTTP         bool
-	dynamicJoinToken    string
-	nodeConfigOverrides map[uint64]map[string]string
-	nodeEnv             map[uint64][]string
+	workspaceRootDir       string
+	nodeLogRootDir         string
+	managerHTTP            bool
+	sharedBackupRepository bool
+	dynamicJoinToken       string
+	nodeConfigOverrides    map[uint64]map[string]string
+	nodeEnv                map[uint64][]string
 }
 
 // WithWorkspaceRootDir stores one test workspace under the provided parent directory.
@@ -93,6 +94,14 @@ func WithNodeLogRootDir(rootDir string) Option {
 func WithManagerHTTP() Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.managerHTTP = true
+	})
+}
+
+// WithSharedBackupRepository mounts one workspace-scoped file repository at
+// data_dir/backup-repository for every node before any process starts.
+func WithSharedBackupRepository() Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.sharedBackupRepository = true
 	})
 }
 
@@ -174,6 +183,9 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	ports := ReserveLoopbackPorts(s.t)
 	spec := buildNodeSpec(1, ports, workspace, options)
 	require.NoError(s.t, workspace.ensureNodeDirs(spec.ID))
+	if options.sharedBackupRepository {
+		require.NoError(s.t, workspace.ensureSharedBackupRepository(spec.ID))
+	}
 	renderedConfig := RenderSingleNodeConfig(spec)
 	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
 	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
@@ -213,6 +225,9 @@ func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
 			setSpecConfigOverride(&spec, "WK_CLUSTER_JOIN_TOKEN", options.dynamicJoinToken)
 		}
 		require.NoError(s.t, workspace.ensureNodeDirs(nodeID))
+		if options.sharedBackupRepository {
+			require.NoError(s.t, workspace.ensureSharedBackupRepository(nodeID))
+		}
 		specs = append(specs, spec)
 	}
 
@@ -318,6 +333,9 @@ func (c *StartedCluster) StartSeedJoinNodeNoWait(t testing.TB, cfg SeedJoinNodeC
 	}
 
 	require.NoError(t, c.workspace.ensureNodeDirs(spec.ID))
+	if c.options.sharedBackupRepository {
+		require.NoError(t, c.workspace.ensureSharedBackupRepository(spec.ID))
+	}
 	renderedConfig := RenderSeedJoinNodeConfig(spec, cfg)
 	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
 	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
@@ -642,6 +660,32 @@ func (w Workspace) ensureNodeDirs(nodeID uint64) error {
 		return err
 	}
 	return os.MkdirAll(w.NodeLogDir(nodeID), 0o755)
+}
+
+func (w Workspace) ensureSharedBackupRepository(nodeID uint64) error {
+	sharedPath := filepath.Join(w.RootDir, "shared-backup-repository")
+	if err := os.MkdirAll(sharedPath, 0o755); err != nil {
+		return err
+	}
+	linkPath := filepath.Join(w.NodeDataDir(nodeID), "backup-repository")
+	info, err := os.Lstat(linkPath)
+	if err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			return fmt.Errorf("backup repository path exists and is not a symlink")
+		}
+		target, readErr := os.Readlink(linkPath)
+		if readErr != nil {
+			return readErr
+		}
+		if target != sharedPath {
+			return fmt.Errorf("backup repository symlink target changed")
+		}
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return err
+	}
+	return os.Symlink(sharedPath, linkPath)
 }
 
 // NodeRootDir returns the root directory for one node.

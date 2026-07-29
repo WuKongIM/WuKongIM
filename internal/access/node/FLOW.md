@@ -694,55 +694,23 @@ Delivery push and fanout responses currently use:
   manager diagnostics reader/operator, and manager application log reader
   adapter interfaces.
 
-## Backup RPC
+## Scheduled Backup RPC
 
-Manager backup control uses the separate bounded `manager backup` RPC. Any
-Manager node resolves the current Controller Leader and sends exactly one
-durable status, checkpoint-publication, checkpoint hold/release, or
-irreversible source-fence request to that node. A read-only local-capture
-operation is intentionally accepted by any target node; the app status router
-fans it out only to the bounded set of holder nodes named by durable Slot
-leases, then emits sorted observed Slot rows plus explicit missing holder-node
-and Hash-Slot lists when any bounded read fails or times out.
-Checkpoint catalog page/detail reads remain local immutable-repository reads.
-The receiver rechecks that it is still Leader before entering leader-owned
-usecases; the local-capture read touches only node-local runtime evidence.
-Leadership transitions return a retryable unavailable error; writes are never
-blindly replayed because their outcome may already be durable.
-The versioned `WKBMQ2` request and `WKBMR2` response prefixes fence the
-strict, bounded JSON control envelope; unversioned or unknown-version payloads
-are rejected before operation dispatch.
+Scheduled backup uses fixed, versioned, bounded node RPCs:
 
-Backup RPCs carry only bounded control requests, logical cut summaries, and
-opaque catalog tokens; they do not expose raw repository coordinates. Message
-payload capture executes on the selected source
-node and uploads directly to both repositories. Each message-shard response
-also returns the exact record count and greatest message ID computed from the
-same pinned snapshot, so the partition worker can publish cumulative signed
-evidence without rescanning the uploaded stream. Restore target inspection,
-checkpoint installation, and target-snapshot replica transfer are registered
-only for explicit restore mode. `WKVS1/WKVs1` carries one strict begin,
-at-most-3-MiB chunk, commit, or status operation under the exact
-Slot/Leader/configuration fence. Followers receive no repository or KMS handle.
-Status revalidates the durable local receipt against live metadata and bounded
-Channel cuts before final verification accepts that replica.
-The same restore replica protocol has an exact `cleanup` action. It is accepted
-only when the local Controller mirror proves the same plan is `activating` or
-`activated`, and only for the current partition/Slot/Leader/config/attempt
-fence. It removes that attempt's plaintext subtree and settles its quota claim;
-unrelated staging is never traversed or removed.
+- repository probe asks every active data node to observe a shared marker and
+  publish its own receipt;
+- Slot export dispatches to the current physical Slot leader;
+- message export dispatches bounded Channel shards to their current leaders;
+- restore dispatches one idempotent prepare, stage, verify, switch, rollback,
+  or cleanup command to a physical Slot replica.
 
-The materialized-baseline message-shard request remains `WKVB1`; its
-evidence-bearing response is `WKVb2`. Restore install uses `WKVI2/WKVi2`
-because the plan/report wire shape
-contains record counts and the message-ID fence. Target inspection remains
-`WKVR1/WKVr1`. Decoders reject
-unknown JSON fields, trailing bytes, invalid digests, unused action fields,
-oversized batches, and older evidence-free response/install versions.
+Large archive and restore payloads never cross node RPC. Producing nodes read
+or write the shared repository directly; responses carry only byte/record
+counts and fixed-size references to authenticated, repository-resident chunk
+indexes. Decoders reject unknown fields, trailing bytes, unsafe identifiers,
+invalid Hash Slots, oversized frames, and unsupported versions.
 
-The restore install request also carries the immutable permanent-erasure ledger
-version, sorted per-Hash-Slot heads, aggregate event count, and SHA-256 from the
-Controller plan. Every node rejects missing, malformed, duplicate, or
-non-contiguous ledger evidence before entering the restore-only installer.
-Restore verification batches carry each Channel's independently verified
-physical-erasure prefix in addition to checkpoint/LEO boundaries.
+Restore handlers require the local Controller mirror to show the same active
+restore and maintenance state before touching local files. Commands are fenced
+by job ID, backup ID, Hash Slot, and attempt.

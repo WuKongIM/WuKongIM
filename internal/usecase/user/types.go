@@ -62,6 +62,12 @@ type SystemUIDStore interface {
 	ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
 }
 
+// RestoreSystemUIDStore exposes a maintenance-only local read used to rebuild
+// the system-account cache before ordinary foreground admission resumes.
+type RestoreSystemUIDStore interface {
+	ListChannelSubscribersForRestore(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
+}
+
 // Options configures the user usecase dependencies.
 type Options struct {
 	// Users stores durable UID metadata.

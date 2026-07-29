@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"sync"
 	"testing"
@@ -13,6 +14,55 @@ import (
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFullBackupSnapshotDoesNotHideLaterCommittedAppends(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "online-backup-append", Type: 2}
+	key := ch.ChannelKeyForID(id)
+	store, err := factory.ChannelStore(key, id)
+	require.NoError(t, err)
+	closeChannelStoreOnCleanup(t, store)
+
+	_, err = store.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{
+			ID: 1, ClientMsgNo: "before", Payload: []byte("before"),
+			SizeBytes: len("before"),
+		}},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	snapshot, _, err := factory.OpenBackupSnapshotWithStats(
+		ctx,
+		BackupSnapshotRequest{
+			HashSlot: 7,
+			Channels: []BackupChannelCut{{
+				Key: key, ID: id, Epoch: 1, HW: 1,
+			}},
+		},
+	)
+	require.NoError(t, err)
+	_, err = io.Copy(io.Discard, snapshot)
+	require.NoError(t, err)
+	require.NoError(t, snapshot.Close())
+
+	_, err = store.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{{
+			ID: 2, ClientMsgNo: "after", Payload: []byte("after"),
+			SizeBytes: len("after"),
+		}},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	committed, err := store.ReadCommitted(ctx, ReadCommittedRequest{
+		FromSeq: 1, Limit: 10, MaxBytes: 1024,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1, 2}, messageSeqs(committed.Messages))
+}
 
 func TestMessageDBStoreAdapterContract(t *testing.T) {
 	factory := NewMessageDBFactory(t.TempDir())
@@ -40,26 +90,6 @@ func TestMessageDBStoreAdapterCheckpointPreservesExistingFields(t *testing.T) {
 	current, err = adapter.store.LoadCheckpoint()
 	require.NoError(t, err)
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 2, HW: 8}, current)
-}
-
-func TestMessageDBFactoryVerifyRestoreBoundariesRequiresExactCheckpointAndLEO(t *testing.T) {
-	ctx := context.Background()
-	factory := NewMessageDBFactory(t.TempDir())
-	t.Cleanup(func() { _ = factory.Close() })
-	id := ch.ChannelID{ID: "restored-room", Type: 2}
-	key := ch.ChannelKeyForID(id)
-	cs, err := factory.ChannelStore(key, id)
-	require.NoError(t, err)
-	adapter := cs.(*messageDBChannelStoreAdapter)
-	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Epoch: 3, Payload: []byte("one"), SizeBytes: 3}}, Sync: true})
-	require.NoError(t, err)
-	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 3, HW: 1}))
-	require.NoError(t, cs.Close())
-
-	expected := []BackupChannelCut{{Key: key, ID: id, Epoch: 3, HW: 1}}
-	require.NoError(t, factory.VerifyRestoreBoundaries(ctx, expected))
-	expected[0].HW = 2
-	require.Error(t, factory.VerifyRestoreBoundaries(ctx, expected))
 }
 
 func TestMessageDBTraceMetadataIsNotStoredInDBCompatibleMessage(t *testing.T) {
@@ -712,97 +742,6 @@ func TestFollowerApplyCheckpointPreservesEpochAndLogStart(t *testing.T) {
 	checkpoint, err := adapter.store.LoadCheckpoint()
 	require.NoError(t, err)
 	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 1, HW: 3}, checkpoint)
-}
-
-func TestMessageDBFactoryAppliesRestorePermanentErasureToRowsAndCheckpoint(t *testing.T) {
-	ctx := context.Background()
-	factory := NewMessageDBFactory(t.TempDir())
-	t.Cleanup(func() { _ = factory.Close() })
-	id := ch.ChannelID{ID: "restore-erasure", Type: 2}
-	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
-	require.NoError(t, err)
-	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Index: 1}, {ID: 2, Index: 2}, {ID: 3, Index: 3}, {ID: 4, Index: 4}}, Sync: true})
-	require.NoError(t, err)
-	adapter := cs.(*messageDBChannelStoreAdapter)
-	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 7, LogStartOffset: 0, HW: 4}))
-	require.NoError(t, cs.Close())
-
-	err = factory.ApplyRestorePermanentErasures(ctx, []RestorePermanentErasure{{ID: id, Epoch: 7, ThroughSeq: 3}})
-	require.NoError(t, err)
-
-	verified, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
-	require.NoError(t, err)
-	defer verified.Close()
-	read, err := verified.ReadLog(ctx, ReadLogRequest{FromOffset: 1, MaxOffset: 4, MaxBytes: 1 << 20})
-	require.NoError(t, err)
-	require.Len(t, read.Records, 1)
-	require.Equal(t, uint64(4), read.Records[0].ID)
-	require.Equal(t, uint64(4), read.Records[0].Index)
-	retention, err := verified.LoadRetentionState(ctx)
-	require.NoError(t, err)
-	require.Equal(t, uint64(3), retention.LocalRetentionThroughSeq)
-	require.Equal(t, uint64(3), retention.PhysicalRetentionThroughSeq)
-	checkpoint, err := verified.(*messageDBChannelStoreAdapter).store.LoadCheckpoint()
-	require.NoError(t, err)
-	require.Equal(t, channel.Checkpoint{Epoch: 7, LogStartOffset: 3, HW: 4}, checkpoint)
-	require.NoError(t, factory.VerifyRestoreBoundaries(ctx, []BackupChannelCut{{
-		Key: ch.ChannelKeyForID(id), ID: id, Epoch: 7, LogStartOffset: 3, HW: 4, PermanentEraseThroughSeq: 3,
-	}}))
-}
-
-func TestMessageDBFactoryRejectsRestoreVerificationWithoutPhysicalErasure(t *testing.T) {
-	ctx := context.Background()
-	factory := NewMessageDBFactory(t.TempDir())
-	t.Cleanup(func() { _ = factory.Close() })
-	id := ch.ChannelID{ID: "restore-erasure-required", Type: 2}
-	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
-	require.NoError(t, err)
-	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Index: 1}, {ID: 2, Index: 2}, {ID: 3, Index: 3}, {ID: 4, Index: 4}}, Sync: true})
-	require.NoError(t, err)
-	adapter := cs.(*messageDBChannelStoreAdapter)
-	require.NoError(t, adapter.store.StoreCheckpoint(channel.Checkpoint{Epoch: 7, LogStartOffset: 3, HW: 4}))
-	require.NoError(t, cs.Close())
-
-	err = factory.VerifyRestoreBoundaries(ctx, []BackupChannelCut{{
-		Key: ch.ChannelKeyForID(id), ID: id, Epoch: 7, LogStartOffset: 3, HW: 4, PermanentEraseThroughSeq: 3,
-	}})
-	require.ErrorIs(t, err, channel.ErrCorruptState)
-}
-
-func TestMessageDBFactoryCompletesRestoreErasurePastImportedTailAndForLedgerOnlyChannel(t *testing.T) {
-	ctx := context.Background()
-	for _, testCase := range []struct {
-		name        string
-		withRecords bool
-	}{
-		{name: "imported tail below erasure", withRecords: true},
-		{name: "ledger only channel"},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			factory := NewMessageDBFactory(t.TempDir())
-			t.Cleanup(func() { _ = factory.Close() })
-			id := ch.ChannelID{ID: "restore-erasure-gap", Type: 2}
-			if testCase.withRecords {
-				cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
-				require.NoError(t, err)
-				_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{{ID: 1, Index: 1}, {ID: 2, Index: 2}}, Sync: true})
-				require.NoError(t, err)
-				require.NoError(t, cs.(*messageDBChannelStoreAdapter).store.StoreCheckpoint(channel.Checkpoint{Epoch: 7, HW: 2}))
-				require.NoError(t, cs.Close())
-			}
-
-			require.NoError(t, factory.ApplyRestorePermanentErasures(ctx, []RestorePermanentErasure{{ID: id, Epoch: 7, ThroughSeq: 5}}))
-			require.NoError(t, factory.VerifyRestoreBoundaries(ctx, []BackupChannelCut{{
-				Key: ch.ChannelKeyForID(id), ID: id, Epoch: 7, LogStartOffset: 5, HW: 5, PermanentEraseThroughSeq: 5,
-			}}))
-			verified, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
-			require.NoError(t, err)
-			defer verified.Close()
-			retention, err := verified.LoadRetentionState(ctx)
-			require.NoError(t, err)
-			require.Equal(t, uint64(5), retention.PhysicalRetentionThroughSeq)
-		})
-	}
 }
 
 type trustedApplyFetchRecorder struct {

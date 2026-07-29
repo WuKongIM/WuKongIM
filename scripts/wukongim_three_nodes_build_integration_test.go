@@ -23,7 +23,6 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 	dryRunCommand := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
 		"--build-tags", "e2e",
-		"--backup-e2e-revision", revision,
 		"--bin", outputBin,
 	)
 	dryRunCommand.Dir = root

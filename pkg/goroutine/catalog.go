@@ -80,7 +80,6 @@ const (
 	TaskAPIHTTPServe                       TaskID = "api/http_serve"
 	TaskManagerHTTPServe                   TaskID = "manager/http_serve"
 	TaskManagerSnapshotFanout              TaskID = "manager/goroutine_snapshot_fanout"
-	TaskManagerBackupStatusFanout          TaskID = "manager/backup_status_fanout"
 	TaskManagerDiagnosticsFanout           TaskID = "manager/diagnostics_fanout"
 	TaskManagerLatestMessagesFanout        TaskID = "manager/latest_messages_fanout"
 	TaskManagerOpsMCPAuditFanout           TaskID = "manager/ops_mcp_audit_fanout"
@@ -121,7 +120,6 @@ const (
 	TaskSlotRaftTicker                     TaskID = "slot/raft_ticker"
 	TaskSlotRaftApplyWorker                TaskID = "slot/raft_apply_worker"
 	TaskSlotConditionWaiter                TaskID = "slot/condition_waiter"
-	TaskSlotArchiveTrimRetry               TaskID = "slot/archive_trim_retry"
 	TaskChannelReactor                     TaskID = "channel/reactor"
 	TaskChannelReactorClose                TaskID = "channel/reactor_close"
 	TaskChannelStoreClose                  TaskID = "channel/store_close"
@@ -155,19 +153,9 @@ const (
 	TaskPluginWatcher                      TaskID = "plugin/watcher"
 	TaskPluginProcessWait                  TaskID = "plugin/process_wait"
 	TaskPluginStopCallback                 TaskID = "plugin/stop_callback"
-	TaskBackupCoordinator                  TaskID = "backup/coordinator"
-	TaskBackupPartitionWorker              TaskID = "backup/partition_worker"
-	TaskBackupPartitionProducer            TaskID = "backup/partition_producer"
-	TaskBackupRestoreCoordinator           TaskID = "backup/restore_coordinator"
-	TaskBackupRestoreWorker                TaskID = "backup/restore_worker"
-	TaskBackupRestoreProducer              TaskID = "backup/restore_producer"
-	TaskBackupContinuousCapture            TaskID = "backup/continuous_capture"
-	TaskBackupContinuousProjection         TaskID = "backup/continuous_projection"
-	TaskBackupCaptureWorker                TaskID = "backup/capture_worker"
-	TaskBackupCheckpointProofWorker        TaskID = "backup/checkpoint_proof_worker"
-	TaskBackupRestoreCleanupWorker         TaskID = "backup/restore_cleanup_worker"
-	TaskBackupRestoreReplicaTransfer       TaskID = "backup/restore_replica_transfer"
-	TaskBackupRestoreVerifyWorker          TaskID = "backup/restore_verify_worker"
+	TaskBackupScheduledCoordinator         TaskID = "backup/scheduled_coordinator"
+	TaskBackupCoordinatorFenceMonitor      TaskID = "backup/coordinator_fence_monitor"
+	TaskBackupScheduledSlotExport          TaskID = "backup/scheduled_slot_export"
 	TaskObservabilityDashboard             TaskID = "observability/dashboard"
 	TaskObservabilityOpsMCPMetricsFanout   TaskID = "observability/ops_mcp_metrics_fanout"
 )
@@ -186,7 +174,6 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskAPIHTTPServe, Module: ModuleAPI, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerHTTPServe, Module: ModuleManager, Name: "http_serve", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskManagerSnapshotFanout, Module: ModuleManager, Name: "goroutine_snapshot_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskManagerBackupStatusFanout, Module: ModuleManager, Name: "backup_status_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerDiagnosticsFanout, Module: ModuleManager, Name: "diagnostics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerLatestMessagesFanout, Module: ModuleManager, Name: "latest_messages_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskManagerOpsMCPAuditFanout, Module: ModuleManager, Name: "ops_mcp_audit_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -227,7 +214,6 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskSlotRaftTicker, Module: ModuleSlot, Name: "raft_ticker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskSlotRaftApplyWorker, Module: ModuleSlot, Name: "raft_apply_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotConditionWaiter, Module: ModuleSlot, Name: "condition_waiter", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskSlotArchiveTrimRetry, Module: ModuleSlot, Name: "archive_trim_retry", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactor, Module: ModuleChannel, Name: "reactor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactorClose, Module: ModuleChannel, Name: "reactor_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelStoreClose, Module: ModuleChannel, Name: "store_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -261,19 +247,9 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskPluginWatcher, Module: ModulePlugin, Name: "watcher", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskPluginProcessWait, Module: ModulePlugin, Name: "process_wait", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskPluginStopCallback, Module: ModulePlugin, Name: "stop_callback", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskBackupCoordinator, Module: ModuleBackup, Name: "coordinator", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskBackupPartitionWorker, Module: ModuleBackup, Name: "partition_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskBackupPartitionProducer, Module: ModuleBackup, Name: "partition_producer", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskBackupRestoreCoordinator, Module: ModuleBackup, Name: "restore_coordinator", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskBackupRestoreWorker, Module: ModuleBackup, Name: "restore_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskBackupRestoreProducer, Module: ModuleBackup, Name: "restore_producer", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskBackupContinuousCapture, Module: ModuleBackup, Name: "continuous_capture", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskBackupContinuousProjection, Module: ModuleBackup, Name: "continuous_projection", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskBackupCaptureWorker, Module: ModuleBackup, Name: "capture_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskBackupCheckpointProofWorker, Module: ModuleBackup, Name: "checkpoint_proof_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskBackupRestoreCleanupWorker, Module: ModuleBackup, Name: "restore_cleanup_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskBackupRestoreReplicaTransfer, Module: ModuleBackup, Name: "restore_replica_transfer", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskBackupRestoreVerifyWorker, Module: ModuleBackup, Name: "restore_verify_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskBackupScheduledCoordinator, Module: ModuleBackup, Name: "scheduled_coordinator", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskBackupCoordinatorFenceMonitor, Module: ModuleBackup, Name: "coordinator_fence_monitor", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskBackupScheduledSlotExport, Module: ModuleBackup, Name: "scheduled_slot_export", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskObservabilityDashboard, Module: ModuleObservability, Name: "dashboard", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskObservabilityOpsMCPMetricsFanout, Module: ModuleObservability, Name: "ops_mcp_metrics_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 }

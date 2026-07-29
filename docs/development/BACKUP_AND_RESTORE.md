@@ -1,579 +1,184 @@
-# Continuous Backup and Restore
+# Scheduled Full Backup and Restore
 
-WuKongIM backup is a cluster-semantic continuous-capture system. A single-node
-deployment is handled as a single-node cluster. There is no periodic backup-job
-API, legacy full-backup job, or compatibility manifest chain.
+WuKongIM backup is configured and operated from Manager. There are no
+`wukongim.toml` or `WK_BACKUP_*` settings. The Controller stores one
+cluster-wide plan, the current task, bounded task history, and restore
+maintenance state.
 
-The feature is disabled by default. Production startup accepts
-`backup.enabled=true` only when the running binary embeds the exact clean Git
-revision that passed the complete qualification workflow:
+## Operator workflow
 
-```toml
-[backup]
-enabled = true
-```
+Open **Cluster → Backups** in Manager:
 
-The equivalent environment variable is:
+1. Select a repository and test it.
+2. Choose **Daily at 01:00**, **Every 12 hours**, or a custom Cron expression
+   and time zone.
+3. Keep the default retention of seven archives or choose another value.
+4. Save and enable the plan.
 
-```sh
-export WK_BACKUP_ENABLED=true
-```
+Enabling a new plan starts one initial full backup. Later runs follow the
+schedule. A missed occurrence is not replayed after downtime. If another
+backup or a restore is active, the occurrence is recorded as skipped instead
+of overlapping.
 
-Ordinary source builds, dirty builds, and binaries from a different commit fail
-startup. There is no operator-entered bypass token. Deploy one of the
-commit-bound binaries emitted by the successful workflow below.
+The page shows the current task, progress across all 256 Hash Slots, task
+history, and every published archive. An operator can also start one immediate
+backup, cancel the active backup, verify an archive, place or remove a
+retention hold, and delete an unheld archive. The archive list refreshes every
+30 seconds and also has an explicit refresh button, avoiding continuous
+full-prefix scans of large repositories.
 
-## Release qualification
+## Repository choices
 
-Run `.github/workflows/backup-qualification.yml` manually for the exact release
-commit. It is fail-closed and publishes a final verdict only after all four
-independent jobs pass:
+### Shared file repository
 
-1. portable artifact, failure-injection, audit, rebase, restore, and application
-   wiring tests;
-2. a local real-process three-node recovery drill with Controller, Slot/data,
-   and restore-leader failures plus opaque repository corruption;
-3. the 256-Hash-Slot, 5,000-channel, 100,000-member scale gate with an executable
-   SENDACK p99 threshold under injected repository/key-authority latency, a 1.2-second
-   continuous-backup foreground p99 ceiling, and bounded process allocation
-   and heap ceilings; it records capture catchup separately before enforcing
-   two already-caught-up checkpoint publications below ten seconds each;
-4. the same source-stop, fresh-target restore, activation, and post-write drill
-   through real cross-region Alibaba OSS repositories, a protected deployment
-   key package, RAM roles, versioning, and COMPLIANCE ObjectWorm in the protected
-   `backup-production` environment. It injects a corrupt read into each
-   repository in turn and requires the corresponding repair role to publish
-   and revalidate a new protected version. Each garbage role must also create,
-   list, and remove an OSS delete marker at startup, proving list,
-   `DeleteObject`, and exact-version delete permissions without touching a
-   data-object version. Negative probes additionally require ordinary and
-   repair roles to be denied `DeleteObject` entirely and require garbage roles
-   to be denied object-body reads; administrator or wildcard data roles fail
-   qualification. This stronger separation also covers providers that authorize
-   version-qualified deletion as `DeleteObject`. The positive garbage probe uses
-   one stable slot per node and clears any
-   stale marker before creating another, so failed startups cannot grow an
-   unbounded marker history.
-
-The first three jobs use e2e-only file/key substitutes where appropriate. They
-cannot satisfy the fourth job. The production job rejects
-`WUKONGIM_BACKUP_E2E_FILE_ROOT`, uses a unique object prefix and source/target
-generation for each run, and emits a bounded machine evidence line without
-endpoints, bucket names, role ARNs, key IDs, credentials, or catalog tokens.
-
-The final `backup-release-qualification.json` and
-`backup-qualified-binaries-<commit>-...` artifacts exist only when all
-dependencies passed. The verdict records the SHA-256 of the Linux amd64 and
-arm64 binaries. Retain them with the production evidence artifact as the
-recorded recovery drill. A missing, failed, skipped, different-commit, modified,
-or ordinary source build leaves automatic backup disabled.
-
-## Local E2E backup smoke
-
-The local three-node simulator can exercise automatic backup against isolated
-file-backed repositories:
-
-```sh
-./scripts/smoke-wkcli-sim-wukongim-three-nodes.sh --backup
-```
-
-When it builds the cluster binary, the helper resolves the current Git `HEAD`
-and injects that exact revision into its `e2e`-tagged test binary. The runtime
-still rejects tracked source modifications through Go's VCS build metadata.
-`--no-build` never stamps a binary; it requires the caller to place an already
-qualified executable at the smoke output path.
-
-This local test stamp is not a release qualification. Do not deploy the
-generated binary. Production deployments must use the commit-bound binaries
-and matching verdict emitted by the complete workflow above.
-
-## Runtime model
-
-Each logical Hash Slot continuously captures two ordered streams:
-
-- metadata commands;
-- committed message rows plus cursor sidecars.
-
-The current Slot Leader owns a fenced capture lease and advances one durable
-Slot frontier. Payloads, Channel cursors, and object identities stay in the
-repositories; Controller state stores only bounded frontiers, leases, catalog
-head, audit state, Generation GC cursors, and permanent-erasure heads.
-
-The Controller Leader periodically publishes one immutable checkpoint that
-contains exactly one healthy frontier for every configured Hash Slot. A
-checkpoint is discoverable only through the signed hash-linked catalog. If any
-Slot is fenced, degraded, awaiting rebase, or missing a complete frontier,
-publication fails closed.
-
-A Slot replaces only its own Generation when source-log pin limits or
-Generation limits are reached. Replacement creates one materialized baseline
-and one complete message-cursor baseline; it does not create a cluster-wide
-full backup.
-
-## Required configuration
-
-Use two distinct cross-region provider-native repositories with versioning and
-COMPLIANCE retention enabled. The qualified Alibaba path uses OSS ObjectWorm
-with a default retention period no shorter than `object_lock_days`; ObjectWorm
-is not silently replaced by BucketWorm. A protected deployment key package
-performs AES-256-GCM envelope encryption and Ed25519 signing locally. The
-package is not represented by TOML fields and is never accepted through a
-Manager request. Base cloud credentials come from the Alibaba provider chain
-and may only assume the separately configured repository RAM roles. The
-ordinary, repair, and garbage roles for both repositories must be six distinct
-role ARNs. Enable bucket versioning before ObjectWorm. ObjectWorm is
-irreversible, must use the default `COMPLIANCE` mode, and cannot coexist with
-BucketWorm. Qualification fails until both buckets report the required
-ObjectWorm default retention.
-
-```toml
-[backup]
-enabled = true
-provider = "aliyun"
-restore_mode = false
-repository_id = "prod-im-backup"
-source_generation = "prod-2026-07"
-staging_dir = "/var/lib/wukongim/backup-staging"
-capture_reconcile_interval = "30s"
-checkpoint_interval = "5m"
-baseline_chunk_bytes = 8388608
-target_segment_bytes = 67108864
-max_segment_bytes = 268435456
-max_segment_open_duration = "30s"
-staging_max_bytes = 10737418240
-worker_count = 4
-source_pin_max_age = "30m"
-max_source_pinned_bytes = 21474836480
-audit_interval = "1s"
-audit_scrub_interval = "24h"
-garbage_collection_interval = "1h"
-garbage_safety_window = "168h"
-garbage_max_requests_per_repository = 256
-garbage_max_bytes_per_repository = 1073741824
-retention_monthly_months = 0
-object_lock_days = 7
-
-[backup.primary]
-endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
-region = "cn-hangzhou"
-bucket = "wukongim-backup-primary"
-prefix = "prod"
-access_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary"
-repair_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary-repair"
-garbage_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-primary-garbage"
-
-[backup.secondary]
-endpoint = "https://oss-cn-beijing.aliyuncs.com"
-region = "cn-beijing"
-bucket = "wukongim-backup-secondary"
-prefix = "prod"
-access_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary"
-repair_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary-repair"
-garbage_role_arn = "acs:ram::1234567890123456:role/wukongim-backup-secondary-garbage"
-```
-
-Keep `wukongim.toml.example` aligned when fields change. TOML keys use grouped
-snake_case; environment keys use the `WK_BACKUP_` prefix.
-Ordinary repository access, repair, and garbage capabilities use separate RAM
-roles. The application refreshes one-hour STS sessions and never gives
-ordinary capture credentials a delete capability. All three repository roles
-are required for each Alibaba copy when automatic backup is enabled; restore
-requires only ordinary repository access plus the same deployment key package.
-Ordinary and repair policies must explicitly deny both `oss:DeleteObject` and
-`oss:DeleteObjectVersion`; only the garbage role receives delete permissions.
-Each ordinary access role needs `oss:GetObjectVersion` in addition to
-`oss:GetObject`: reads first obtain authoritative current-version metadata and
-then pin the body request to that exact `versionId`, preventing a concurrent
-repair from mixing metadata and bytes from different versions.
-Garbage-role startup
-qualification uses a stable per-node delete-marker slot, which ObjectWorm does
-not retain, clears any stale marker first, and removes the new exact marker
-before startup completes.
-
-## Deployment key package
-
-Developers do not configure a key ID, signing key, KMS region, or KMS role.
-Every node discovers one protected credential with the fixed name
-`wukongim-backup-key-package`. The package is bound to
-`backup.repository_id`, contains one active AES-256 wrapping key, one active
-Ed25519 signing seed, an independent HMAC-SHA256 package-integrity key, and the
-retained keyring needed to read historical artifacts. The HMAC detects partial
-writes and edits to package metadata or key material before any key is
-accepted. Startup fails closed when the credential is missing, is a symlink,
-is not a private regular file, changes while being opened, is malformed, fails
-package authentication, or is bound to another repository. The deployment
-secret store protects package confidentiality; the immutable repositories
-anchor its identity and freshness. Replacing only the deployment credential
-cannot establish a different trust root.
-
-The two immutable repositories provide the external identity and freshness
-anchor that the self-contained package cannot provide by itself. On the first
-revision, after both repositories pass versioning/ObjectWorm qualification,
-only the configured Controller voter with the lowest stable node ID may create
-the signed root pin for the package ID in each repository. Other nodes wait and
-verify; they never race a root write. An implicit single-node cluster is
-normalized to its local Controller voter. Seed-join mirrors have no admitted
-voter identity, never publish pins, and remain read-only until their admitted
-configuration is persisted. The same deterministic voter publishes
-odd activation revisions, so a Raft term change cannot create a second writer
-between OSS `HEAD` and `PUT`. Staging does not advance the signed immutable
-chain. Startup checks both copies and rejects a second bootstrap package, a
-superseded staged package, or recovery from an older kit. The pin objects are
-permanent control records and are never generation-GC candidates. This adds no
-TOML or environment setting.
-
-The runtime cryptographic gate remains closed until both repository controls,
-both pins, staging capacity, and UTC checks are healthy. Any later Doctor
-failure closes it again. This applies to every data-key and signature call,
-including permanent-erasure paths outside the continuous coordinator.
-
-Generate the package once from a trusted operator workstation:
-
-```sh
-umask 077
-wkcli backup keys bootstrap \
-  --repository-id prod-im-backup \
-  --out-dir /secure/offline/wukongim-backup-bootstrap-2026-07
-```
-
-The command refuses an existing output directory and creates only private
-files:
+The file option uses:
 
 ```text
-wukongim-backup-key-package  # runtime credential; deploy to every source/target node
-wukongim-backup-recovery.wkr # encrypted exact-package recovery kit
-wukongim-backup-recovery.key # independent 256-bit recovery key
+<node data_dir>/backup-repository
 ```
 
-Standard output contains only package ID, repository ID, revision, and active
-key IDs. It never contains secret material. Before production use, put the
-runtime package in the deployment secret store and move the recovery kit and
-recovery key to two separate offline locations with separate access control.
-Do not leave all three bootstrap files on the workstation.
+Every active data node must see the same filesystem contents at that path.
+Use a shared mount for a multi-node cluster. Manager tests read, write, list,
+and delete access from every active data node before enabling the plan.
 
-### Minimal node deployment
+### S3-compatible repository
 
-For systemd, encrypt the raw package to the host or TPM and use the standard
-credential name:
+Provide an endpoint, region, bucket, prefix, path-style choice, access key,
+and secret key in Manager. Credentials are encrypted before publication to
+Controller state and are never returned by Manager APIs. Re-entering both
+credential fields rotates them; leaving both blank keeps the saved credential.
 
-```sh
-sudo systemd-creds encrypt \
-  --name=wukongim-backup-key-package \
-  /secure/runtime/wukongim-backup-key-package \
-  /etc/credstore.encrypted/wukongim-backup-key-package
-```
+Backup archives themselves are not encrypted by WuKongIM. Use storage-side
+encryption and access policy when required.
 
-Add only this line to the service unit:
+If **Test storage** fails, Manager reports that the backup storage is
+unreachable and asks the operator to check the endpoint, credentials,
+read/write/delete permissions, and free space. The stable Manager API error
+code is `backup_store_unreachable`; provider details remain in server or
+storage-service logs instead of being exposed to the browser. Some
+S3-compatible services reject writes before a volume is completely full, so
+check the provider's minimum-free-space threshold as well as its reported free
+bytes.
 
-```ini
-[Service]
-LoadCredentialEncrypted=wukongim-backup-key-package
-```
+## Archive format and retention
 
-systemd supplies `CREDENTIALS_DIRECTORY`; WuKongIM discovers the named file
-without any backup key configuration. Restrict the encrypted credential and
-unit to the WuKongIM service identity.
-
-For Kubernetes, use an encrypted-at-rest Secret provider and mount the key
-under the standard directory:
-
-```yaml
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-    - name: wukongim
-      volumeMounts:
-        - name: backup-keys
-          mountPath: /run/secrets/wukongim
-          readOnly: true
-  volumes:
-    - name: backup-keys
-      secret:
-        secretName: wukongim-backup-keys
-        defaultMode: 0400
-```
-
-The Secret must expose a key named `wukongim-backup-key-package`. Limit RBAC
-read access to the workload service account and enable Secret encryption at
-rest; a plain Secret manifest in Git is not acceptable.
-
-For Docker or another container runtime, bind the private file read-only at:
+Each run creates one independent full archive:
 
 ```text
-/run/secrets/wukongim/wukongim-backup-key-package
+catalog/<archive-id>             compact published-archive index
+pending/<archive-id>             incomplete-job marker
+backups/<archive-id>/
+  manifest.json
+  COMPLETE
+  HOLD                          optional
+  CORRUPT                       optional
+  slots/<hash-slot>/
+    attempts/<attempt>/
+      manifest.json
+      meta-<sequence>.zst
+      messages-<sequence>.zst
 ```
 
-As a last-resort integration fallback, set
-`WK_BACKUP_KEY_PACKAGE_FILE=/absolute/private/path`. The file receives the same
-regular-file, anti-symlink, size, and permission checks. The standard systemd
-or container locations are preferred because they need no application key
-setting.
+Data is split into 64 MiB logical chunks, compressed with Zstandard, and bound
+to stored/logical SHA-256 digests. The top-level manifest selects exactly one
+immutable attempt for every Hash Slot. An archive is invisible until its
+manifest and all chunks have been verified and the `COMPLETE` marker has been
+published. Verification reads and validates every compressed chunk.
 
-The protected GitHub `backup-production` environment stores the runtime
-package as one masked base64 secret named `BACKUP_KEY_PACKAGE_B64`; the
-qualification workflow materializes it as a `0600` credential in the runner's
-temporary directory. For example:
+`catalog/` keeps listing bounded on S3 and is not exposed as an operator
+concept. A retry after `COMPLETE` publication checks the immutable identity and
+repairs a missing catalog entry without changing the archive. Incomplete
+`pending/` output is removed when a task fails and orphaned output older than
+72 hours is pruned. Failed manual verification writes `CORRUPT`, preventing
+later restore until the archive is deleted and replaced.
 
-```sh
-base64 < /secure/runtime/wukongim-backup-key-package | tr -d '\n'
-```
+Automatic retention keeps the newest successful archives and every held
+archive. The default count is seven. A held archive is never removed by
+retention and cannot be deleted until its hold is released. Manager also
+prevents deletion of an archive used by the active restore or the last healthy
+archive. Deletion requires the exact confirmation `DELETE <archive-id>`.
 
-Paste that single line into the environment secret. Never print it in CI logs
-or save it as a repository variable.
+## Scheduling and limits
 
-### Safe rolling rotation
+The simple presets are:
 
-Rotation is deliberately two-phase so mixed revisions remain readable:
+- Daily at 01:00 in the selected time zone: `0 1 * * *`
+- Every 12 hours: `@every 12h`
 
-```sh
-wkcli backup keys rotate stage \
-  --package /secure/runtime/wukongim-backup-key-package \
-  --recovery-key /offline-b/wukongim-backup-recovery.key \
-  --out-dir /secure/rotation/staged-r2
-```
+Custom five-field Cron expressions and `@every` intervals are accepted.
+Intervals shorter than 12 hours are rejected. Per-node export defaults are
+50 MiB/s, one worker, and a 12-hour task deadline. Manager allows one through
+four workers and a deadline from one through 48 hours.
 
-Deploy `staged-r2/wukongim-backup-key-package` to every node and roll all
-processes. The old keys remain active while every node learns the pending
-keys. After every node is on the staged revision:
+Only the Controller leader admits and coordinates work. Slot ownership is
+resolved from current cluster state. A leader change resumes unfinished work
+from Controller state; stale worker completions are fenced by term and
+revision.
 
-```sh
-wkcli backup keys rotate activate \
-  --package /secure/rotation/staged-r2/wukongim-backup-key-package \
-  --recovery-key /offline-b/wukongim-backup-recovery.key \
-  --out-dir /secure/rotation/active-r3
-```
+## Restore
 
-Deploy the active revision with another rolling restart. Nodes still on the
-staged revision already know the new keys, so they can read and verify objects
-written by an activated node. The first activated node publishes the new
-revision pin in both repositories; a later restart with the staged or older
-package then fails closed. The activated package retains the old wrapping key
-for historical decryption and only the old signing public key for historical
-verification; the old signing seed is removed.
+Restore is an online administrative operation, not a special startup mode.
+Manager remains available while business traffic is placed in cluster-wide
+maintenance.
 
-Each phase emits a refreshed `wukongim-backup-recovery.wkr`. After activation,
-replace the offline recovery kit with the active revision, verify its metadata,
-and destroy superseded runtime copies according to the deployment secret
-store's retention policy. Keep the recovery key separate; it does not rotate
-implicitly.
+Starting restore requires all of the following:
 
-### Recovery example
+- an authenticated Manager session;
+- explicit `cluster.restore:w` permission (a wildcard alone is insufficient);
+- the current administrator username and password;
+- exact confirmation text `RESTORE <archive-id>`.
 
-If the deployment secret is lost, restore it only on a trusted offline host:
+Before changing maintenance state, the coordinator fully verifies the archive
+from every active data node, rejects stale or unhealthy topology, and checks
+that each node has enough free space for the current business data, twice the
+archive's logical size, and 1 GiB of headroom for staging and rollback.
 
-```sh
-mkdir -m 0700 /secure/recovered
-wkcli backup keys recover \
-  --recovery-kit /offline-a/wukongim-backup-recovery.wkr \
-  --recovery-key /offline-b/wukongim-backup-recovery.key \
-  --out /secure/recovered/wukongim-backup-key-package
-wkcli backup keys inspect \
-  --package /secure/recovered/wukongim-backup-key-package
-```
+The restore coordinator:
 
-Recovery authenticates the kit before writing and refuses to overwrite an
-existing output. A wrong key, changed ciphertext, repository mismatch, or
-invalid permission fails closed. The repository pins also reject a
-cryptographically valid but superseded kit. Restore nodes must receive the
-current package revision that can verify and open the selected checkpoint
-history.
+1. propagates durable maintenance; each node first stops new sessions,
+   disconnects existing clients, drains accepted writes and dirty projections,
+   suspends delivery, Webhooks, and plugin side effects, and then installs its
+   local cluster write fence;
+2. captures a local rollback image on every target replica;
+3. stages and fully verifies all 256 Hash Slots on every current replica;
+4. checks that physical Slot placement has not changed;
+5. writes durable switching markers and imports the verified logical streams
+   into every live replica while maintenance hides partial state;
+6. rolls back every switched replica if any switch fails;
+7. reloads durable Slot/Raft state, advances each node's message-ID allocator
+   above the archive high-water mark, and resumes side effects;
+8. exits maintenance only after success or completed rollback;
+9. invalidates Manager sessions after success;
+10. removes staging and rollback files.
 
-## Normal operations
+Client authentication tokens are preserved because the restore reinstalls the
+backup point-in-time metadata without generating a token invalidation
+revision. Manager sessions are invalidated when restore succeeds, forcing
+administrators to sign in again.
 
-Configure a `wkcli` context or pass `--server` and `--token` explicitly.
+Canceling before the switch discards staged work. A timeout or execution
+failure also enters the same durable rollback path. Do not terminate all
+Controller voters during restore; the surviving leader resumes the recorded
+phase.
 
-```sh
-wkcli backup status --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-wkcli backup checkpoint list --limit 50 --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-wkcli backup checkpoint show "$CHECKPOINT_ID" --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-```
+Restore is intentionally limited to the current cluster identity. Portable
+Hash Slot artifacts allow the current cluster's node placement to change, but
+`v1` does not adopt a repository's identity into a separately bootstrapped
+replacement cluster.
 
-The continuous coordinator normally publishes on
-`backup.checkpoint_interval`. An operator can request publication of the current
-complete vector:
+## Access control
 
-```sh
-wkcli backup checkpoint publish --server "$MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-```
+Use these Manager resources:
 
-This does not start a full capture. It freezes the already durable current
-frontiers and fails if the vector is incomplete or unhealthy.
+- `cluster.backup:r` to view plans, tasks, and archives;
+- `cluster.backup:w` to configure, run, verify, hold, or delete backups;
+- `cluster.restore:w` to start or cancel restore.
 
-For a restore, preserve the opaque catalog-head token returned with the
-selected checkpoint and hold that checkpoint before the source can stop:
+Backup write routes require authentication even when the rest of Manager is
+configured without authentication. Restore always requires explicit
+permission and password reauthentication.
 
-```sh
-wkcli backup checkpoint list --id "$CHECKPOINT_ID" --json \
-  --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN" > checkpoint-page.json
-CATALOG_HEAD_TOKEN="$(jq -r '.catalog_head_token' checkpoint-page.json)"
-test -n "$CATALOG_HEAD_TOKEN" && test "$CATALOG_HEAD_TOKEN" != "null"
-wkcli backup checkpoint hold "$CHECKPOINT_ID" \
-  --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-```
-
-The token is immutable admission evidence but intentionally hides repository
-object coordinates. Do not replace it with a later `latest` value. The hold is
-also mandatory for drills that stop the source: automatic backup and explicit
-restore mode cannot run in one process, so there is no live source-side restore
-plan for Generation GC to discover.
-
-## Restore runbook
-
-Restore requires a fresh empty target cluster in explicit restore mode. Use a
-new cluster ID and a `backup.target_generation` different from the source
-generation. Restore mode keeps Gateway, business APIs, plugins, webhooks, and
-ordinary workers closed. Its restricted Manager exposes restore operations and
-the read-only node inventory under `cluster.backup:r`, allowing operators to
-observe Controller leadership without reading process logs.
-
-1. Start the empty target cluster with:
-
-   ```toml
-   [backup]
-   enabled = false
-   restore_mode = true
-   target_generation = "successor-2026-07"
-   ```
-
-   Configure the same repository identity, repository endpoints, deployment
-   key package, staging directory, and authenticated Manager.
-
-2. Create one immutable target plan from the exact checkpoint and catalog-head
-   token:
-
-   ```sh
-     wkcli backup restore plan \
-       --checkpoint "$CHECKPOINT_ID" \
-     --catalog-head "$CATALOG_HEAD_TOKEN" \
-     --server "$TARGET_MANAGER_URL" \
-     --token "$TARGET_MANAGER_TOKEN"
-   ```
-
-   Add `--invalidate-tokens` if restored client tokens must not remain valid.
-   Record the returned `PLAN_ID`, target cluster ID, and target generation.
-
-3. Irreversibly fence the old source generation and save its signed receipt:
-
-   ```sh
-   wkcli backup fence-source \
-     --restore-plan "$PLAN_ID" \
-     --checkpoint "$CHECKPOINT_ID" \
-     --target-cluster "$TARGET_CLUSTER_ID" \
-     --target-generation "$TARGET_GENERATION" \
-     --server "$SOURCE_MANAGER_URL" \
-     --token "$SOURCE_FENCE_TOKEN" \
-     --json > source-fence-receipt.json
-   ```
-
-   Source fencing requires the exact
-   `cluster.backup.source_fence:w` permission. Wildcard and ordinary backup
-   grants do not satisfy this boundary. After convergence, the fenced source
-   cannot reopen normal service.
-
-4. Install and verify the target:
-
-   ```sh
-   wkcli backup restore start "$PLAN_ID" \
-     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
-   wkcli backup restore status \
-     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
-   wkcli backup restore verify "$PLAN_ID" \
-     --server "$TARGET_MANAGER_URL" --token "$TARGET_MANAGER_TOKEN"
-   ```
-
-5. Activate with the exact signed source-fence receipt:
-
-   ```sh
-   wkcli backup restore activate "$PLAN_ID" \
-     --source-fence-receipt ./source-fence-receipt.json \
-     --server "$TARGET_MANAGER_URL" \
-     --token "$RESTORE_ACTIVATION_TOKEN"
-   ```
-
-   Activation requires an authenticated principal with the exact
-   `cluster.restore.activation:w` permission. It first persists immutable
-   activation evidence, then removes plan-bound plaintext staging from every
-   target replica, and only then publishes `activated`.
-
-6. Keep the source checkpoint held until the drill or migration no longer
-   depends on it and the checkpoint/token/plan/fence evidence set is archived.
-   If the source Manager is intentionally still available, release it
-   explicitly:
-
-   ```sh
-   wkcli backup checkpoint release "$CHECKPOINT_ID" \
-     --server "$SOURCE_MANAGER_URL" --token "$WK_MANAGER_TOKEN"
-   ```
-
-   Never release merely because target installation started.
-
-Break glass is reserved for a permanently unrecoverable source:
-
-```sh
-wkcli backup restore activate "$PLAN_ID" \
-  --break-glass-reason "reviewed incident reference and reason" \
-  --server "$TARGET_MANAGER_URL" \
-  --token "$RESTORE_ACTIVATION_TOKEN"
-```
-
-The reason and authenticated operator identity become immutable audit evidence.
-
-## Metrics
-
-The public metrics intentionally expose the continuous model and bounded health
-only:
-
-- `wukongim_backup_checkpoint_age_seconds`
-- `wukongim_backup_controller_leader`
-- `wukongim_backup_doctor_health{state}`
-- `wukongim_backup_failures_total{category}`
-- `wukongim_backup_capture_owned_slots`
-- `wukongim_backup_capture_lease_takeovers_total`
-- `wukongim_backup_capture_lease_fenced_total`
-- `wukongim_backup_capture_source_lag{hash_slot,stream}`
-- `wukongim_backup_frontier_age_seconds{hash_slot}`
-- `wukongim_backup_compaction_debt_slots`
-- `wukongim_backup_gc_debt_repositories`
-- `wukongim_backup_source_pin_age_seconds{hash_slot}`
-- `wukongim_backup_source_pinned_bytes{hash_slot}`
-- `wukongim_backup_source_node_pinned_bytes`
-- `wukongim_backup_slot_rebases_total{hash_slot,reason,outcome,failure_category}`
-- `wukongim_backup_slot_rebase_duration_seconds`
-- `wukongim_backup_audit_debt_objects`
-- `wukongim_backup_audit_last_success_timestamp_seconds`
-- `wukongim_backup_audit_corruptions_total{category}`
-- `wukongim_backup_audit_repair_bytes_total`
-- `wukongim_backup_audit_unrecoverable_failures_total`
-- `wukongim_backup_restore_partitions{phase}`
-- `wukongim_backup_restore_throughput_bytes_per_second`
-
-`wukongim_backup_checkpoint_age_seconds` is `NaN` before the first checkpoint;
-`wukongim_backup_frontier_age_seconds{hash_slot}` is `NaN` before that Slot has
-a durable frontier, and missing evidence is never reported as zero. The
-`stream` label is bounded to `metadata` and `messages`; `hash_slot` is bounded
-by the configured cluster Slot count. Restore throughput is zero outside the
-active `installing` phase. Metrics do not expose repository copy names,
-regions, object keys, key identifiers, Channel IDs, or credentials.
-
-## Failure handling
-
-- A stale Slot lease or leadership change fences the worker; periodic
-  reconciliation resumes from the durable frontier.
-- A failed checkpoint publication leaves immutable orphans unreachable; it
-  does not advance the catalog head.
-- One damaged repository copy is repaired only through the explicit integrity
-  repair capability and must pass complete revalidation.
-- Dual-copy loss freezes only the affected Slot. If live source data still
-  exists, the Slot rebases into a new Generation; otherwise the audit state
-  remains failed for operator action.
-- Generation GC protects retained and held checkpoints, the active restore,
-  current/pending frontiers, and audit-frozen Slots. Object Lock rejection
-  defers only the affected repository cursor.
-- A hold/release transition conflicts with any live Generation-GC delete guard.
-  Each delete also compares the durable catalog-retention revision, so the
-  operator can safely retry after the bounded collection step.
-
-Never delete repository objects manually to resolve a failed audit or restore.
-Preserve the catalog head, checkpoint ID, restore plan, and source-fence receipt
-as one incident evidence set.
+Every backup and restore mutation emits one structured audit event containing
+the actor, action, target, result, and sanitized error. Repository credentials
+and archive payloads are never included. Restore jobs and their terminal
+history also retain the initiating Manager username.

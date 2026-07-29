@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -9,6 +10,26 @@ import (
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestRestoreMaintenanceObserverQuiescesBeforeWriteFence(t *testing.T) {
+	node := &Node{}
+	observer := &maintenanceOrderObserver{node: node}
+	node.cfg.MaintenanceObserver = observer
+
+	node.setMaintenance(true)
+
+	if observer.enabledSawMaintenance {
+		t.Fatal("enabled observer saw maintenance fence before local quiescence")
+	}
+	if !node.maintenance.Load() {
+		t.Fatal("maintenance fence is disabled after enabled observer returns")
+	}
+
+	node.setMaintenance(false)
+	if observer.disabledSawMaintenance {
+		t.Fatal("disabled observer saw maintenance fence after local resume")
+	}
+}
 
 func TestClusterSingleNodeChannelMetadataFacadeDeletesAndRemovesSubscribers(t *testing.T) {
 	node := newDefaultSingleNode(t)
@@ -47,6 +68,52 @@ func TestClusterSingleNodeChannelMetadataFacadeDeletesAndRemovesSubscribers(t *t
 	_, err = node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannel(ctx, "g1", 2)
 	if err == nil {
 		t.Fatalf("GetChannel() error = nil, want deleted channel missing")
+	}
+}
+
+type maintenanceOrderObserver struct {
+	node                   *Node
+	enabledSawMaintenance  bool
+	disabledSawMaintenance bool
+}
+
+func (o *maintenanceOrderObserver) RestoreMaintenanceChanged(enabled bool) {
+	if enabled {
+		o.enabledSawMaintenance = o.node.maintenance.Load()
+		return
+	}
+	o.disabledSawMaintenance = o.node.maintenance.Load()
+}
+
+func TestRestoreSubscriberReadBypassesOnlyActiveMaintenanceFence(t *testing.T) {
+	node := newDefaultSingleNode(t)
+	startNode(t, node)
+	t.Cleanup(func() { stopNodes(t, node) })
+
+	_ = waitRouteKeyLeaderReady(t, node, "system-uids")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := node.AddChannelSubscribers(
+		ctx, "system-uids", 250, []string{"system-1"}, 1,
+	); err != nil {
+		t.Fatalf("AddChannelSubscribers() error = %v", err)
+	}
+	node.setMaintenance(true)
+	defer node.setMaintenance(false)
+	if _, _, _, err := node.ListChannelSubscribersPage(
+		ctx, "system-uids", 250, "", 10,
+	); !errors.Is(err, ErrMaintenance) {
+		t.Fatalf("foreground ListChannelSubscribersPage() error = %v", err)
+	}
+
+	uids, _, done, err := node.ListRestoreChannelSubscribersPage(
+		ctx, "system-uids", 250, "", 10,
+	)
+	if err != nil {
+		t.Fatalf("ListRestoreChannelSubscribersPage() error = %v", err)
+	}
+	if len(uids) != 1 || uids[0] != "system-1" || !done {
+		t.Fatalf("restore uids = %#v done=%t", uids, done)
 	}
 }
 

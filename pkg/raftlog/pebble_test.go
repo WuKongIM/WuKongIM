@@ -244,94 +244,6 @@ func TestPebbleControllerSnapshotTrimsCoveredEntries(t *testing.T) {
 	}
 }
 
-func TestPebbleSnapshotPreservesAndIndependentlyTrimsBackupLogArchive(t *testing.T) {
-	ctx := context.Background()
-	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
-	if err != nil {
-		t.Fatalf("Open() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close() error = %v", err)
-		}
-	})
-	store := db.ForSlot(9)
-	entries := benchEntries(1, 5, 2, 8)
-	hs := raftpb.HardState{Term: 2, Vote: 1, Commit: 5}
-	if err := store.Save(ctx, multiraft.PersistentState{
-		HardState: &hs, Entries: entries,
-	}); err != nil {
-		t.Fatalf("Save(entries) error = %v", err)
-	}
-	snapshot := raftpb.Snapshot{
-		Data: []byte("state-through-five"),
-		Metadata: raftpb.SnapshotMetadata{
-			Index: 5, Term: 2, ConfState: raftpb.ConfState{Voters: []uint64{1}},
-		},
-	}
-	retainAfter := uint64(2)
-	if err := store.Save(ctx, multiraft.PersistentState{
-		Snapshot: &snapshot, RetainLogAfter: &retainAfter,
-	}); err != nil {
-		t.Fatalf("Save(retained snapshot) error = %v", err)
-	}
-	if first, err := store.FirstIndex(ctx); err != nil || first != 3 {
-		t.Fatalf("FirstIndex() = %d, %v, want retained index 3", first, err)
-	}
-	if cached := db.stateCache[SlotScope(9)].entries; len(cached) != 0 {
-		t.Fatalf("writer cached retained archive = %#v, want no entries at or before recovery snapshot", cached)
-	}
-	if err := store.Save(ctx, multiraft.PersistentState{
-		Entries: []raftpb.Entry{{Index: 6, Term: 2}},
-	}); err != nil {
-		t.Fatalf("Save(post-snapshot append) error = %v", err)
-	}
-	if cached := db.stateCache[SlotScope(9)].entries; len(cached) != 1 || cached[0].Index != 6 {
-		t.Fatalf("writer active cache = %#v, want only post-snapshot index 6", cached)
-	}
-	if first, err := store.FirstIndex(ctx); err != nil || first != 3 {
-		t.Fatalf("FirstIndex(after append) = %d, %v, want retained index 3", first, err)
-	}
-	gotSnapshot, err := store.Snapshot(ctx)
-	if err != nil || gotSnapshot.Metadata.Index != 5 {
-		t.Fatalf("Snapshot() = %#v, %v, want recovery index 5", gotSnapshot, err)
-	}
-	trimmer := store.(multiraft.RetainedLogStorage)
-	trimWrites := 0
-	db.writeCommitTestHook = func() error {
-		trimWrites++
-		return nil
-	}
-	if err := trimmer.TrimRetainedLog(ctx, 1); err != nil {
-		t.Fatalf("TrimRetainedLog(already trimmed) error = %v", err)
-	}
-	if trimWrites != 0 {
-		t.Fatalf("already-satisfied trim issued %d Sync writes, want 0", trimWrites)
-	}
-	if err := trimmer.TrimRetainedLog(ctx, 4); err != nil {
-		t.Fatalf("TrimRetainedLog(4) error = %v", err)
-	}
-	db.writeCommitTestHook = nil
-	if first, err := store.FirstIndex(ctx); err != nil || first != 5 {
-		t.Fatalf("FirstIndex(after trim) = %d, %v, want 5", first, err)
-	}
-	if err := trimmer.TrimRetainedLog(ctx, 9); err != nil {
-		t.Fatalf("TrimRetainedLog(past snapshot) error = %v", err)
-	}
-	if first, err := store.FirstIndex(ctx); err != nil || first != 6 {
-		t.Fatalf("FirstIndex(final) = %d, %v, want snapshot+1", first, err)
-	}
-}
-
-func TestScopeString(t *testing.T) {
-	if got := SlotScope(7).String(); got != "slot/7" {
-		t.Fatalf("SlotScope(7).String() = %q, want slot/7", got)
-	}
-	if got := ControllerScope().String(); got != "controller/1" {
-		t.Fatalf("ControllerScope().String() = %q, want controller/1", got)
-	}
-}
-
 func TestPebbleStateRoundTripAcrossReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "raft")
 
@@ -1035,6 +947,88 @@ func TestPebbleSameIndexSnapshotIsIdempotentOnlyWhenManifestMatches(t *testing.T
 	}
 	if after := mustGetRawPebbleValue(t, db.db, encodeSnapshotKey(SlotScope(15))); !bytes.Equal(after, before) {
 		t.Fatalf("same-index mismatched snapshot mutated manifest")
+	}
+}
+
+func TestPebbleReplaceSnapshotAtomicallyRewritesAppliedBoundary(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	path := filepath.Join(root, "raft")
+	snapshotPath := filepath.Join(root, "snapshots")
+	db, err := Open(path, Options{
+		SnapshotPath: snapshotPath, SnapshotChunkSize: 8,
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	store := db.ForSlot(115)
+	hardState := raftpb.HardState{Term: 2, Vote: 1, Commit: 7}
+	if err := store.Save(ctx, multiraft.PersistentState{
+		HardState: &hardState,
+		Entries:   benchEntries(1, 7, 2, 8),
+	}); err != nil {
+		t.Fatalf("Save(entries) error = %v", err)
+	}
+	if err := store.MarkApplied(ctx, 7); err != nil {
+		t.Fatalf("MarkApplied() error = %v", err)
+	}
+	initial := raftpb.Snapshot{
+		Data: []byte("before-restore"),
+		Metadata: raftpb.SnapshotMetadata{
+			Index: 7, Term: 2,
+			ConfState: raftpb.ConfState{Voters: []uint64{1}},
+		},
+	}
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Snapshot: &initial,
+	}); err != nil {
+		t.Fatalf("Save(snapshot) error = %v", err)
+	}
+	replacement := initial
+	replacement.Data = []byte("after-restore")
+	if err := store.Save(ctx, multiraft.PersistentState{
+		Snapshot: &replacement,
+	}); err == nil {
+		t.Fatal("ordinary Save(same-index replacement) error = nil")
+	}
+	replacer, ok := store.(multiraft.ExternalSnapshotStorage)
+	if !ok {
+		t.Fatal("slot storage does not implement ExternalSnapshotStorage")
+	}
+	if err := replacer.ReplaceSnapshot(ctx, replacement); err != nil {
+		t.Fatalf("ReplaceSnapshot() error = %v", err)
+	}
+	got, err := store.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v", err)
+	}
+	if !bytes.Equal(got.Data, replacement.Data) {
+		t.Fatalf("Snapshot().Data = %q, want %q", got.Data, replacement.Data)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	reopened, err := Open(path, Options{
+		SnapshotPath: snapshotPath, SnapshotChunkSize: 8,
+	})
+	if err != nil {
+		t.Fatalf("reopen error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reopened.Close(); err != nil {
+			t.Fatalf("reopened Close() error = %v", err)
+		}
+	})
+	got, err = reopened.ForSlot(115).Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("reopened Snapshot() error = %v", err)
+	}
+	if !bytes.Equal(got.Data, replacement.Data) {
+		t.Fatalf(
+			"reopened Snapshot().Data = %q, want %q",
+			got.Data, replacement.Data,
+		)
 	}
 }
 

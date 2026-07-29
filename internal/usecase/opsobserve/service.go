@@ -203,8 +203,8 @@ func (s *Service) ConfigReadRedacted(ctx context.Context, req ConfigReadRedacted
 
 // BackupInspect returns bounded backup evidence.
 func (s *Service) BackupInspect(ctx context.Context, req BackupInspectRequest) (Observation, error) {
-	req.CheckpointID = strings.TrimSpace(req.CheckpointID)
-	if !validOptionalSelector(req.CheckpointID) {
+	req.ArchiveID = strings.TrimSpace(req.ArchiveID)
+	if !validOptionalSelector(req.ArchiveID) {
 		return Observation{}, ErrInvalidToolInput
 	}
 	if req.Limit == 0 {

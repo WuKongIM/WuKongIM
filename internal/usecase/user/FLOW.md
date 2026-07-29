@@ -27,7 +27,13 @@ frames, or concrete cluster types.
 /user/systemuids*
   -> persist reserved system UIDs through the configured system UID store
   -> maintain the process-local cache used by callers that need fast checks
+
+restore resume
+  -> use the optional restore-only system UID read port
+  -> replace the complete process-local cache before foreground admission
 ```
 
 The usecase treats a single node as a single-node cluster. Durable metadata
-access happens through injected ports supplied by `internal/app`.
+access happens through injected ports supplied by `internal/app`. The
+restore-only read is selected only by `ReloadSystemUIDCache`; ordinary user
+operations continue through the foreground-fenced store methods.

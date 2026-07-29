@@ -14,7 +14,7 @@ const (
 	channelDataPlaneLeaseReasonMissing      channelDataPlaneLeaseFailureReason = "data_plane_lease_missing"
 	channelDataPlaneLeaseReasonExpired      channelDataPlaneLeaseFailureReason = "data_plane_lease_expired"
 	channelDataPlaneLeaseReasonClockInvalid channelDataPlaneLeaseFailureReason = "data_plane_lease_clock_invalid"
-	channelDataPlaneLeaseReasonSourceFenced channelDataPlaneLeaseFailureReason = "source_generation_fenced"
+	channelDataPlaneLeaseReasonMaintenance  channelDataPlaneLeaseFailureReason = "restore_maintenance"
 )
 
 // channelDataPlaneLeaseError preserves the not-ready contract with a stable diagnostic reason.
@@ -40,8 +40,8 @@ type channelDataPlaneLeaseGuard struct {
 
 	// lastOK stores the latest successful visibility timestamp, including Go's monotonic clock reading.
 	lastOK atomic.Pointer[time.Time]
-	// sourceFenced is one-way and rejects both local and forwarded Channel appends.
-	sourceFenced atomic.Bool
+	// maintenance rejects both local and forwarded Channel appends during restore.
+	maintenance atomic.Bool
 }
 
 // channelDataPlaneLeaseSnapshot is the package-private management view of the lease guard.
@@ -93,8 +93,8 @@ func (g *channelDataPlaneLeaseGuard) AllowChannelAppend(ctx context.Context, _ c
 	if g == nil {
 		return &channelDataPlaneLeaseError{reason: channelDataPlaneLeaseReasonMissing}
 	}
-	if g.sourceFenced.Load() {
-		return &channelDataPlaneLeaseError{reason: channelDataPlaneLeaseReasonSourceFenced}
+	if g.maintenance.Load() {
+		return &channelDataPlaneLeaseError{reason: channelDataPlaneLeaseReasonMaintenance}
 	}
 	last := g.lastOK.Load()
 	now := g.now()
@@ -104,9 +104,9 @@ func (g *channelDataPlaneLeaseGuard) AllowChannelAppend(ctx context.Context, _ c
 	return nil
 }
 
-func (g *channelDataPlaneLeaseGuard) fenceSource() {
+func (g *channelDataPlaneLeaseGuard) setMaintenance(enabled bool) {
 	if g != nil {
-		g.sourceFenced.Store(true)
+		g.maintenance.Store(enabled)
 	}
 }
 

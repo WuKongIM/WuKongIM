@@ -118,21 +118,6 @@ func (m *memoryStore) LogRangeBytes(ctx context.Context, lo, hi uint64) (uint64,
 	return bytes, nil
 }
 
-// TrimRetainedLog removes backup-readable entries only through the recovery
-// snapshot boundary.
-func (m *memoryStore) TrimRetainedLog(ctx context.Context, through uint64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if through > m.snapshot.Metadata.Index {
-		through = m.snapshot.Metadata.Index
-	}
-	m.entries = trimEntriesAfterSnapshot(m.entries, through)
-	return nil
-}
-
 func (m *memoryStore) Snapshot(ctx context.Context) (raftpb.Snapshot, error) {
 	_ = ctx
 
@@ -153,11 +138,7 @@ func (m *memoryStore) Save(ctx context.Context, st multiraft.PersistentState) er
 	}
 	if st.Snapshot != nil {
 		m.snapshot = cloneSnapshot(*st.Snapshot)
-		retainAfter := st.Snapshot.Metadata.Index
-		if st.RetainLogAfter != nil && *st.RetainLogAfter <= retainAfter {
-			retainAfter = *st.RetainLogAfter
-		}
-		m.entries = trimEntriesAfterSnapshot(m.entries, retainAfter)
+		m.entries = trimEntriesAfterSnapshot(m.entries, st.Snapshot.Metadata.Index)
 		if m.state.HardState.Commit < st.Snapshot.Metadata.Index {
 			m.state.HardState.Commit = st.Snapshot.Metadata.Index
 		}

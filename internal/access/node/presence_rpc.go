@@ -8,15 +8,12 @@ import (
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
-	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
@@ -216,28 +213,33 @@ type ManagerLatestMessageReader interface {
 	ListLocalLatestMessages(context.Context, uint64, int) (managementusecase.ListMessagesResponse, error)
 }
 
-// BackupMessageShardCapturer uploads one bounded local committed-message shard.
-type BackupMessageShardCapturer interface {
-	CaptureMessageShard(context.Context, runtimebackup.CaptureRequest, runtimebackup.MessageShard) (runtimebackup.MessageShardCapture, error)
-}
-
-// BackupRestoreTargetInspector checks this node's durable semantic storage.
-type BackupRestoreTargetInspector interface {
-	InspectLocalRestoreTarget(context.Context) (clusterpkg.RestoreTargetLocalState, error)
-}
-
-// BackupRestorePartitionInstaller installs one authenticated partition locally.
-type BackupRestorePartitionInstaller interface {
-	InstallPartition(context.Context, backupusecase.RestorePlan, uint16) (backupusecase.RestorePartition, error)
-}
-
-// BackupCheckpointReplicaReceiver stages and installs one plaintext target
-// snapshot received from the current restore Leader.
-type BackupCheckpointReplicaReceiver interface {
-	HandleCheckpointReplica(
+// ScheduledFullBackupExporter writes Slot and message streams directly into
+// the configured archive repository.
+type ScheduledFullBackupExporter interface {
+	ExportSlot(
 		context.Context,
-		backupcontract.CheckpointReplicaRequest,
-	) (backupcontract.CheckpointReplicaResponse, error)
+		backupcontract.SlotExportCommand,
+	) (backupcontract.SlotExportReceipt, error)
+	ExportMessages(
+		context.Context,
+		backupcontract.MessageExportCommand,
+	) (backupcontract.MessageExportReceipt, error)
+}
+
+// ScheduledBackupRepositoryProbe verifies one cross-node repository marker.
+type ScheduledBackupRepositoryProbe interface {
+	ObserveRepositoryProbe(
+		context.Context,
+		backupcontract.RepositoryProbeCommand,
+	) error
+}
+
+// ScheduledBackupRestore performs replica-local staged restore steps.
+type ScheduledBackupRestore interface {
+	Run(
+		context.Context,
+		backupcontract.RestoreNodeCommand,
+	) (backupcontract.RestoreNodeReceipt, error)
 }
 
 // Options configures the internal node RPC adapter.
@@ -294,14 +296,12 @@ type Options struct {
 	NodeLifecycleJoinToken string
 	// PluginHTTPRoutes handles node-local plugin HTTP route requests.
 	PluginHTTPRoutes PluginHTTPRouter
-	// BackupMessages captures bounded committed-message shards on this node.
-	BackupMessages BackupMessageShardCapturer
-	// BackupRestoreTarget inspects local semantic storage during explicit restore mode.
-	BackupRestoreTarget BackupRestoreTargetInspector
-	// BackupRestoreInstaller installs authenticated recovery partitions locally.
-	BackupRestoreInstaller BackupRestorePartitionInstaller
-	// BackupCheckpointReplica receives final target snapshots from a restore Leader.
-	BackupCheckpointReplica BackupCheckpointReplicaReceiver
+	// ScheduledBackup exports full-backup payloads on their current owners.
+	ScheduledBackup ScheduledFullBackupExporter
+	// ScheduledBackupProbe proves that every active node sees one repository.
+	ScheduledBackupProbe ScheduledBackupRepositoryProbe
+	// ScheduledRestore owns node-local staged restore files and storage changes.
+	ScheduledRestore ScheduledBackupRestore
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -360,14 +360,12 @@ type Adapter struct {
 	nodeLifecycleJoinToken string
 	// pluginHTTPRoutes invokes node-local plugin HTTP route hooks.
 	pluginHTTPRoutes PluginHTTPRouter
-	// backupMessages uploads local committed-message shards.
-	backupMessages BackupMessageShardCapturer
-	// backupRestoreTarget checks this node's semantic storage emptiness.
-	backupRestoreTarget BackupRestoreTargetInspector
-	// backupRestoreInstaller installs authenticated recovery partitions locally.
-	backupRestoreInstaller BackupRestorePartitionInstaller
-	// backupCheckpointReplica stages final target snapshots without repository access.
-	backupCheckpointReplica BackupCheckpointReplicaReceiver
+	// scheduledBackup owns simplified full-backup node-local exports.
+	scheduledBackup ScheduledFullBackupExporter
+	// scheduledBackupProbe verifies shared repository visibility.
+	scheduledBackupProbe ScheduledBackupRepositoryProbe
+	// scheduledRestore owns node-local staged restore files and storage changes.
+	scheduledRestore ScheduledBackupRestore
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -404,10 +402,9 @@ func New(opts Options) *Adapter {
 		nodeLifecycleClusterID:   opts.NodeLifecycleClusterID,
 		nodeLifecycleJoinToken:   opts.NodeLifecycleJoinToken,
 		pluginHTTPRoutes:         opts.PluginHTTPRoutes,
-		backupMessages:           opts.BackupMessages,
-		backupRestoreTarget:      opts.BackupRestoreTarget,
-		backupRestoreInstaller:   opts.BackupRestoreInstaller,
-		backupCheckpointReplica:  opts.BackupCheckpointReplica,
+		scheduledBackup:          opts.ScheduledBackup,
+		scheduledBackupProbe:     opts.ScheduledBackupProbe,
+		scheduledRestore:         opts.ScheduledRestore,
 		logger:                   opts.Logger,
 	}
 }

@@ -124,12 +124,14 @@ import type {
   BusinessChannelMemberListKind,
   BusinessChannelMembersParams,
   BusinessChannelMembersResponse,
-  BackupCheckpointListParams,
-  ManagerBackupCheckpoint,
-  ManagerBackupCheckpointDetail,
-  ManagerBackupCheckpointPage,
-  ManagerBackupCheckpointPublication,
-  ManagerBackupStatusResponse,
+  ManagerBackupArchive,
+  ManagerBackupArchiveDetail,
+  ManagerBackupConfigureResult,
+  ManagerBackupDashboard,
+  ManagerBackupJob,
+  ManagerBackupPlanInput,
+  ManagerRestoreInput,
+  ManagerRestoreJob,
   ManagerApplicationLogEntriesResponse,
   ManagerApplicationLogSourcesResponse,
   ManagerBusinessChannelDetailResponse,
@@ -1323,47 +1325,82 @@ export function getDashboardMetrics(params?: { window?: string; step?: string })
   return jsonManagerFetch<DashboardMetricsResponse>(`/manager/dashboard/metrics${query ? `?${query}` : ""}`)
 }
 
-export function getBackupStatus() {
-  return jsonManagerFetch<ManagerBackupStatusResponse>("/manager/backups/status")
+export function getBackupDashboard() {
+  return jsonManagerFetch<ManagerBackupDashboard>("/manager/backups")
 }
 
-export function getBackupCheckpoints(params?: BackupCheckpointListParams) {
-  const search = new URLSearchParams()
-  if (params?.limit) search.set("limit", String(params.limit))
-  if (params?.cursor) search.set("cursor", params.cursor)
-  if (params?.id) search.set("id", params.id)
-  if (params?.held !== undefined) search.set("held", String(params.held))
-  if (params?.effectiveFrom !== undefined) {
-    search.set("effective_from", String(params.effectiveFrom))
-  }
-  if (params?.effectiveTo !== undefined) {
-    search.set("effective_to", String(params.effectiveTo))
-  }
-  const query = search.toString()
-  return jsonManagerFetch<ManagerBackupCheckpointPage>(
-    `/manager/backups/checkpoints${query ? `?${query}` : ""}`,
-  )
+export function saveBackupPlan(input: ManagerBackupPlanInput) {
+  return jsonManagerFetch<ManagerBackupConfigureResult>("/manager/backups/plan", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  })
 }
 
-export function getBackupCheckpoint(checkpointID: string) {
-  return jsonManagerFetch<ManagerBackupCheckpointDetail>(
-    `/manager/backups/checkpoints/${encodeURIComponent(checkpointID)}`,
-  )
+export function testBackupRepository(input: ManagerBackupPlanInput) {
+  return jsonManagerFetch<{ ok: boolean }>("/manager/backups/repository/test", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
 }
 
-export function publishBackupCheckpoint() {
-  return jsonManagerFetch<ManagerBackupCheckpointPublication>("/manager/backups/checkpoints", {
+export function startBackupJob() {
+  return jsonManagerFetch<ManagerBackupJob>("/manager/backups/jobs", {
     method: "POST",
     body: JSON.stringify({}),
   })
 }
 
-export function setBackupCheckpointHold(checkpointID: string, held: boolean) {
-  return jsonManagerFetch<ManagerBackupCheckpoint>(
-    `/manager/backups/checkpoints/${encodeURIComponent(checkpointID)}/hold`,
+export async function cancelBackupJob(jobID: string) {
+  await managerFetch(`/manager/backups/jobs/${encodeURIComponent(jobID)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
+}
+
+export function getBackupArchive(archiveID: string) {
+  return jsonManagerFetch<ManagerBackupArchiveDetail>(
+    `/manager/backups/archives/${encodeURIComponent(archiveID)}`,
+  )
+}
+
+export function verifyBackupArchive(archiveID: string) {
+  return jsonManagerFetch<ManagerBackupArchiveDetail>(
+    `/manager/backups/archives/${encodeURIComponent(archiveID)}/verify`,
+    { method: "POST", body: JSON.stringify({}) },
+  )
+}
+
+export function setBackupArchiveHold(archiveID: string, held: boolean, note = "") {
+  return jsonManagerFetch<ManagerBackupArchive>(
+    `/manager/backups/archives/${encodeURIComponent(archiveID)}/hold`,
     {
-      method: "POST",
-      body: JSON.stringify({ held }),
+      method: "PUT",
+      body: JSON.stringify({ held, note }),
     },
   )
+}
+
+export async function deleteBackupArchive(archiveID: string) {
+  await managerFetch(`/manager/backups/archives/${encodeURIComponent(archiveID)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: `DELETE ${archiveID}` }),
+  })
+}
+
+export function startBackupRestore(archiveID: string, input: ManagerRestoreInput) {
+  return jsonManagerFetch<ManagerRestoreJob>(
+    `/manager/backups/archives/${encodeURIComponent(archiveID)}/restore`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export async function cancelBackupRestore(jobID: string) {
+  await managerFetch(`/manager/backups/restores/${encodeURIComponent(jobID)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
 }

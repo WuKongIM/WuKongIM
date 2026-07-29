@@ -54,13 +54,11 @@ type persistentWriteState struct {
 	Snapshot *raftpb.SnapshotMetadata
 	// SnapshotManifest is the final external payload manifest written to Pebble.
 	SnapshotManifest *SnapshotManifest
-	// RetainLogAfter preserves older entries for backup readers while Snapshot
-	// remains the authoritative recovery boundary.
-	RetainLogAfter *uint64
 }
 
 type saveOp struct {
-	state persistentWriteState
+	state                persistentWriteState
+	allowSnapshotReplace bool
 }
 
 type markAppliedOp struct {
@@ -71,17 +69,11 @@ type markConfigAppliedOp struct {
 	index uint64
 }
 
-type trimRetainedLogOp struct {
-	through uint64
-}
-
 type scopeWriteState struct {
 	hardState        raftpb.HardState
 	snapshot         raftpb.Snapshot
 	snapshotManifest *SnapshotManifest
 	// entries contains only the active Raft tail after the recovery snapshot.
-	// Older backup-readable archive entries remain in Pebble and are tracked by
-	// meta.FirstIndex, never in this append-path cache.
 	entries []raftpb.Entry
 	meta    logMeta
 }
@@ -278,7 +270,11 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		if st.Snapshot.Index < state.snapshot.Metadata.Index {
 			return raft.ErrSnapOutOfDate
 		}
-		if st.Snapshot.Index == state.snapshot.Metadata.Index && state.snapshotManifest != nil && !snapshotManifestEquivalent(*state.snapshotManifest, *st.SnapshotManifest) {
+		if st.Snapshot.Index == state.snapshot.Metadata.Index &&
+			state.snapshotManifest != nil &&
+			!snapshotManifestEquivalent(*state.snapshotManifest, *st.SnapshotManifest) &&
+			(!op.allowSnapshotReplace ||
+				st.Snapshot.Index != state.meta.AppliedIndex) {
 			return errors.New("raftstorage: same-index snapshot manifest mismatch")
 		}
 		encoded, err := encodeSnapshotManifest(scope, *st.SnapshotManifest)
@@ -288,15 +284,8 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		if err := batch.Set(encodeSnapshotKey(scope), encoded, nil); err != nil {
 			return err
 		}
-		retainAfter := st.Snapshot.Index
-		if st.RetainLogAfter != nil {
-			if *st.RetainLogAfter > st.Snapshot.Index {
-				return errors.New("raftstorage: retention floor exceeds snapshot index")
-			}
-			retainAfter = *st.RetainLogAfter
-		}
-		if retainAfter < math.MaxUint64 {
-			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryKey(scope, retainAfter+1), nil); err != nil {
+		if st.Snapshot.Index < math.MaxUint64 {
+			if err := batch.DeleteRange(encodeEntryPrefix(scope), encodeEntryKey(scope, st.Snapshot.Index+1), nil); err != nil {
 				return err
 			}
 		} else {
@@ -304,13 +293,7 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 				return err
 			}
 		}
-		oldFirst, oldLast := state.meta.FirstIndex, state.meta.LastIndex
-		retainedArchive := oldLast >= oldFirst &&
-			oldFirst <= st.Snapshot.Index &&
-			oldLast > retainAfter
-		if retainedArchive {
-			state.meta.FirstIndex = max(oldFirst, retainAfter+1)
-		} else if st.Snapshot.Index < math.MaxUint64 {
+		if st.Snapshot.Index < math.MaxUint64 {
 			state.meta.FirstIndex = st.Snapshot.Index + 1
 		} else {
 			state.meta.FirstIndex = math.MaxUint64
@@ -361,44 +344,6 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 	state.hardState = hs
 	if err := updateScopeWriteMeta(state); err != nil {
 		return err
-	}
-	return store.setMeta(batch, state.meta)
-}
-
-func (op trimRetainedLogOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbleStore) error {
-	through := op.through
-	if through > state.snapshot.Metadata.Index {
-		through = state.snapshot.Metadata.Index
-	}
-	if through == 0 || state.meta.FirstIndex > through {
-		return nil
-	}
-	if through < math.MaxUint64 {
-		if err := batch.DeleteRange(
-			encodeEntryPrefix(store.scope),
-			encodeEntryKey(store.scope, through+1),
-			nil,
-		); err != nil {
-			return err
-		}
-	} else if err := batch.DeleteRange(
-		encodeEntryPrefix(store.scope),
-		encodeEntryPrefixEnd(store.scope),
-		nil,
-	); err != nil {
-		return err
-	}
-	if through < math.MaxUint64 {
-		state.meta.FirstIndex = through + 1
-	} else {
-		state.meta.FirstIndex = math.MaxUint64
-	}
-	if state.meta.LastIndex < state.meta.FirstIndex {
-		if state.meta.LastIndex < math.MaxUint64 {
-			state.meta.FirstIndex = state.meta.LastIndex + 1
-		} else {
-			state.meta.FirstIndex = math.MaxUint64
-		}
 	}
 	return store.setMeta(batch, state.meta)
 }
@@ -535,10 +480,6 @@ func withoutSnapshotData(st multiraft.PersistentState) persistentWriteState {
 	if st.Snapshot != nil {
 		metadata := cloneSnapshotMetadata(st.Snapshot.Metadata)
 		out.Snapshot = &metadata
-	}
-	if st.RetainLogAfter != nil {
-		retainAfter := *st.RetainLogAfter
-		out.RetainLogAfter = &retainAfter
 	}
 	return out
 }

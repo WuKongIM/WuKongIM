@@ -73,11 +73,12 @@ func newMessageEventFinishCoalescer(window time.Duration) *messageEventFinishCoa
 
 // messageEventStreamCache keeps in-flight stream projections on the Slot leader.
 type messageEventStreamCache struct {
-	mu           sync.Mutex
-	maxSessions  int
-	sessions     map[messageEventStreamCacheKey]*messageEventStreamCacheSession
-	openLanes    int
-	payloadBytes int64
+	mu            sync.Mutex
+	restorePaused bool
+	maxSessions   int
+	sessions      map[messageEventStreamCacheKey]*messageEventStreamCacheSession
+	openLanes     int
+	payloadBytes  int64
 }
 
 func newMessageEventStreamCache(maxSessions int) *messageEventStreamCache {
@@ -88,6 +89,41 @@ func newMessageEventStreamCache(maxSessions int) *messageEventStreamCache {
 		maxSessions: maxSessions,
 		sessions:    make(map[messageEventStreamCacheKey]*messageEventStreamCacheSession),
 	}
+}
+
+func (c *messageEventStreamCache) resetAfterRestore() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessions = make(map[messageEventStreamCacheKey]*messageEventStreamCacheSession)
+	c.openLanes = 0
+	c.payloadBytes = 0
+}
+
+func (c *messageEventStreamCache) pauseForRestore() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.restorePaused = true
+	c.sessions = make(map[messageEventStreamCacheKey]*messageEventStreamCacheSession)
+	c.openLanes = 0
+	c.payloadBytes = 0
+}
+
+func (c *messageEventStreamCache) resumeAfterRestore() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessions = make(map[messageEventStreamCacheKey]*messageEventStreamCacheSession)
+	c.openLanes = 0
+	c.payloadBytes = 0
+	c.restorePaused = false
 }
 
 func (c *messageEventStreamCache) appendCached(event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
@@ -103,6 +139,9 @@ func (c *messageEventStreamCache) appendCachedObserved(event metadb.MessageEvent
 	now := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.restorePaused {
+		return metadb.MessageEventAppendResult{}, c.observationLocked(), ErrMaintenance
+	}
 
 	session, err := c.sessionLocked(key, now)
 	if err != nil {
@@ -536,7 +575,12 @@ func normalizeClusterMessageEventAppend(event metadb.MessageEventAppend) (metadb
 }
 
 func (n *Node) appendMessageEventLocal(ctx context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {
-	event, err := normalizeClusterMessageEventAppend(event)
+	releaseAdmission, err := n.acquireWriteAdmission()
+	if err != nil {
+		return metadb.MessageEventAppendResult{}, err
+	}
+	defer releaseAdmission()
+	event, err = normalizeClusterMessageEventAppend(event)
 	if err != nil {
 		return metadb.MessageEventAppendResult{}, err
 	}

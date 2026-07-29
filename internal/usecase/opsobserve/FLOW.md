@@ -33,6 +33,10 @@ runtime state never scan the channel catalog. Short inventory reads use a
 three-second singleflight cache and redacted configuration uses a 30-second
 cache; logs, diagnostics, and pprof are not cached.
 
+`backup_inspect` exposes the scheduled full-backup plan, active backup or
+restore state, and a bounded archive inventory. It never exposes repository
+credentials.
+
 `pprof_analyze` is the only active observation. Its request is still
 closed-world and bounded to one node, one supported profile kind, at most 30
 CPU seconds, and at most 100 parsed rows.

@@ -31,13 +31,13 @@ module Start / bounded async operation
 goroutines launched by lower-level packages before or without an explicit
 registry remain in the same node snapshot. Dynamic node, Slot, channel, UID,
 connection, plugin, error, and function values are never task labels.
-Operations MCP audit, backup-status holder reads, and metric fanouts use fixed
-Manager and Observability burst task IDs; request, node, and metric identifiers
-remain ordinary data rather than registry labels.
-Continuous backup uses singleton coordinator/capture/projection identities and
-dynamic bounded worker identities for capture, checkpoint proof validation,
-restore verification, cleanup, and replica transfer. Slot archive-trim retry
-uses one dynamic Slot-module identity; physical Slot IDs never become labels.
+Operations MCP audit and metric fanouts use fixed Manager and Observability
+burst task IDs; request, node, and metric identifiers remain ordinary data
+rather than registry labels. Scheduled full backup uses one singleton
+coordinator identity plus one dynamic Slot-export identity; Hash Slot and
+archive identifiers never become labels.
+Slot archive-trim retry uses one dynamic Slot-module identity; physical Slot
+IDs never become labels.
 
 ## Pool Accounting
 

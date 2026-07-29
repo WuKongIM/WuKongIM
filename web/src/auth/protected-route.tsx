@@ -10,8 +10,7 @@ type RouteGateProps = {
 }
 
 function isReadonlyBackupPath(pathname: string) {
-  return pathname === "/cluster/backups" ||
-    /^\/cluster\/backups\/recovery\/[^/]+$/.test(pathname)
+  return pathname === "/cluster/backups"
 }
 
 export function ProtectedRoute({ children }: RouteGateProps) {

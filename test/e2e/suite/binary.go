@@ -19,7 +19,7 @@ const (
 	e2eBinaryCacheNamespace    = "wukongim"
 	e2eBinaryCacheDirectory    = "e2e-binary"
 	e2eBinaryBuildPackage      = "./cmd/wukongim"
-	e2eBinaryBuildCommandLabel = "go build -tags=e2e with commit-bound backup qualification ./cmd/wukongim"
+	e2eBinaryBuildCommandLabel = "go build -tags=e2e ./cmd/wukongim"
 )
 
 // BinaryCache builds and caches the e2e wukongim binary once per test process.
@@ -126,16 +126,8 @@ func buildBinaryAtomically(dst string, build func(string) error) error {
 
 func buildBinary(dst string) error {
 	root := repoRoot()
-	revisionCommand := exec.Command("git", "rev-parse", "HEAD")
-	revisionCommand.Dir = root
-	revisionOutput, err := revisionCommand.Output()
-	if err != nil {
-		return fmt.Errorf("resolve e2e source revision: %w", err)
-	}
-	revision := strings.TrimSpace(string(revisionOutput))
 	cmd := exec.Command(
 		"go", "build", "-tags=e2e",
-		"-ldflags=-X github.com/WuKongIM/WuKongIM/internal/app.backupQualifiedRevision="+revision,
 		"-o", dst, e2eBinaryBuildPackage,
 	)
 	cmd.Dir = root

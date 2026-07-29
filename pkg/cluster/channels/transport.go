@@ -497,8 +497,18 @@ func RegisterHandlers(network *clusternet.LocalNetwork, nodeID uint64, server ch
 	RegisterHandlersOn(localNetworkRegistrar{network: network, nodeID: nodeID}, server)
 }
 
-// RegisterServiceHandlersOn registers Channel replication and append-forward handlers on registrar.
-func RegisterServiceHandlersOn(registrar HandlerRegistrar, service *Service) {
+type serviceRPCServer interface {
+	Server() channeltransport.Server
+	Append(context.Context, ch.AppendRequest) (ch.AppendResult, error)
+	AppendBatch(context.Context, ch.AppendBatchRequest) (ch.AppendBatchResult, error)
+	observeAppendStage(string, error, time.Duration)
+	handleForwardLastVisible(context.Context, LastVisibleRequest) (LastVisibleResponse, error)
+}
+
+// RegisterServiceHandlersOn registers Channel replication and append-forward
+// handlers on registrar. A stable ServiceGateway may be supplied when the
+// underlying runtime must be rebuilt without replacing transport services.
+func RegisterServiceHandlersOn(registrar HandlerRegistrar, service serviceRPCServer) {
 	RegisterHandlersOn(registrar, service.Server())
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		started := time.Now()

@@ -42,20 +42,8 @@ import (
 
 func (a *App) applyConfigDefaults() error {
 	var err error
-	a.cfg.Backup, err = NormalizeBackupConfig(a.cfg.Backup)
-	if err != nil {
-		return err
-	}
-	if a.cfg.Backup.Enabled {
-		if err := validateCurrentBackupBuildQualification(); err != nil {
-			return err
-		}
-	}
 	a.cfg.Manager = defaultManagerConfig(a.cfg.Manager)
 	if err := validateManagerConfig(a.cfg.Manager); err != nil {
-		return err
-	}
-	if err := validateRestoreModeManagerConfig(a.cfg.Backup, a.cfg.Manager); err != nil {
 		return err
 	}
 	a.cfg.Message = defaultMessageConfig(a.cfg.Message)
@@ -546,7 +534,7 @@ func (a *App) wireManagerMessageRetentionRPC() {
 		return
 	}
 	service := managementusecase.New(managementusecase.Options{
-		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node, a.managerPermanentErasureRecorder()),
+		MessageRetention: clusterinfra.NewLocalManagementMessageRetentionOperator(node),
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerMessageRetention: service, Logger: a.logger.Named("node")})
 	registrar.RegisterRPC(accessnode.ManagerMessageRetentionRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerMessageRetentionRPC))
@@ -798,11 +786,15 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ChannelAppendAuthorityNode)
 		if hasAppendNode && hasAuthorityNode {
 			metadata := a.ensureChannelAppendMetadataCache()
-			messageIDs, err := newNodeMessageIDs(nodeID)
-			if err != nil {
-				return fmt.Errorf("internal/app: create message id generator: %w", err)
+			messageIDs := a.messageIDs
+			if messageIDs == nil {
+				var err error
+				messageIDs, err = newNodeMessageIDs(nodeID)
+				if err != nil {
+					return fmt.Errorf("internal/app: create message id generator: %w", err)
+				}
+				a.messageIDs = messageIDs
 			}
-			a.messageIDs = messageIDs
 			opts := channelappend.Options{
 				LocalNodeID:                           nodeID,
 				Appender:                              clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
@@ -977,6 +969,7 @@ func (a *App) wireAPI() {
 		a.api = accessapi.New(accessapi.Options{
 			ListenAddr:               a.cfg.API.ListenAddr,
 			Readyz:                   a.readyzReport,
+			Maintenance:              a.restoreMaintenance.Load,
 			BenchEnabled:             a.cfg.Bench.APIEnabled,
 			BenchToken:               a.cfg.Bench.APIToken,
 			BenchMaxBatchSize:        a.cfg.Bench.APIMaxBatchSize,
@@ -1035,7 +1028,8 @@ func (a *App) wireManager() {
 			WebhookConfig:   a,
 			Backup:          a.newBackupManagement(),
 			Restore:         a.newRestoreManagement(),
-			RestoreMode:     a.cfg.Backup.RestoreMode,
+			SessionEpoch:    a.managerSessionEpoch,
+			Maintenance:     a.restoreMaintenance.Load,
 			Logger:          a.logger.Named("access.manager"),
 		})
 	}
@@ -1081,7 +1075,7 @@ func opsMCPMetrics(registry *obsmetrics.Registry) runtimeops.CallObserver {
 }
 
 func (a *App) wireOpsMCP(management accessmanager.Management) {
-	if a == nil || a.cfg.Backup.RestoreMode || a.opsMCPEndpoint != nil || management == nil {
+	if a == nil || a.opsMCPEndpoint != nil || management == nil {
 		return
 	}
 	node, hasNode := a.cluster.(opsMCPRPCNode)
@@ -1236,7 +1230,7 @@ func (a *App) newManagerManagement() accessmanager.Management {
 			opts.LatestMessages = reader
 		}
 		if retentionNode, ok := a.cluster.(clusterinfra.MessageRetentionNode); ok {
-			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode, a.managerPermanentErasureRecorder())
+			opts.MessageRetention = clusterinfra.NewManagementMessageRetentionOperator(retentionNode)
 		}
 		if a.online != nil {
 			opts.Connections = a.online

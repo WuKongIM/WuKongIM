@@ -315,7 +315,7 @@ func registerTools(server *mcp.Server, service *observe.Service, calls CallContr
 		}, service.DiagnosticsQuery)
 	addObservedTool(server, &mcp.Tool{Name: "config_read_redacted", Description: "Read one exact node's allowlisted and already-redacted effective configuration.", Annotations: readOnly}, calls,
 		func(input observe.ConfigReadRedactedRequest) CallMetadata { return CallMetadata{NodeID: input.NodeID} }, service.ConfigReadRedacted)
-	addObservedTool(server, &mcp.Tool{Name: "backup_inspect", Description: "Read bounded continuous-capture health, integrity-audit, retention, and immutable checkpoint evidence.", Annotations: readOnly}, calls,
+	addObservedTool(server, &mcp.Tool{Name: "backup_inspect", Description: "Read the scheduled full-backup plan, active task state, and bounded immutable archive evidence.", Annotations: readOnly}, calls,
 		func(observe.BackupInspectRequest) CallMetadata { return CallMetadata{} }, service.BackupInspect)
 	addObservedTool(server, &mcp.Tool{Name: "pprof_analyze", Description: "Capture and parse one bounded CPU, heap, or goroutine profile in memory and return top rows only.", Annotations: active}, calls,
 		func(input observe.PprofAnalyzeRequest) CallMetadata {

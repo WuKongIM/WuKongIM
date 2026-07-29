@@ -20,6 +20,7 @@ type managerState uint8
 const (
 	managerStateClosed managerState = iota
 	managerStateOpen
+	managerStateStopping
 	managerStateStopped
 )
 
@@ -44,6 +45,8 @@ type managerAsync struct {
 	state managerState
 	// queue owns bounded admission and direct worker execution while started.
 	queue *workqueue.BoundedWorkerQueue[managerCommand]
+	// stopDone closes after the current queue has finished a successful stop.
+	stopDone chan struct{}
 }
 
 func newManagerAsync(manager *Manager, queueSize, workers int, observer ManagerObserver, goroutines *goruntimeregistry.Registry) *managerAsync {
@@ -73,7 +76,7 @@ func (a *managerAsync) start(context.Context) error {
 	switch a.state {
 	case managerStateOpen:
 		return nil
-	case managerStateStopped:
+	case managerStateStopping, managerStateStopped:
 		return ErrManagerClosed
 	}
 
@@ -105,19 +108,50 @@ func (a *managerAsync) stop(ctx context.Context) error {
 	case managerStateClosed:
 		a.mu.Unlock()
 		return nil
+	case managerStateStopping:
+		done := a.stopDone
+		a.mu.Unlock()
+		if done == nil {
+			return ErrManagerClosed
+		}
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	case managerStateStopped:
 		a.mu.Unlock()
-		return nil
+		return ErrManagerClosed
 	}
 	queue := a.queue
 	a.queue = nil
-	a.state = managerStateStopped
+	done := make(chan struct{})
+	a.stopDone = done
+	a.state = managerStateStopping
 	a.mu.Unlock()
 
 	if queue == nil {
+		a.mu.Lock()
+		a.state = managerStateClosed
+		a.stopDone = nil
+		close(done)
+		a.mu.Unlock()
 		return nil
 	}
-	return queue.Close(ctx)
+	err := queue.Close(ctx)
+	a.mu.Lock()
+	if err == nil {
+		a.state = managerStateClosed
+	} else {
+		// A timed-out drain may still have an old handler executing. Keep this
+		// instance terminal so a replacement queue cannot overlap it.
+		a.state = managerStateStopped
+	}
+	a.stopDone = nil
+	close(done)
+	a.mu.Unlock()
+	return err
 }
 
 func (a *managerAsync) submit(ctx context.Context, env Envelope) error {

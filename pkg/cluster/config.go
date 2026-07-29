@@ -27,10 +27,6 @@ type Config struct {
 	ListenAddr string
 	// DataDir is the root directory for cluster data files.
 	DataDir string
-	// RestoreMode permits only explicit recovery installation APIs. Ordinary
-	// entry runtimes remain disabled by the application composition root.
-	RestoreMode bool
-
 	// Control contains Controller adapter configuration.
 	Control ControlConfig
 	// Join contains dynamic data-node join bootstrap settings.
@@ -57,6 +53,17 @@ type Config struct {
 	Goroutines *gorutine.Registry
 	// Logger receives structured logs from cluster-owned runtimes and storage dependencies.
 	Logger wklog.Logger
+	// MaintenanceObserver receives Controller-owned restore maintenance edges.
+	// Enablement is delivered before the local cluster write fence so the app
+	// can close entries and drain accepted work; disablement is delivered after
+	// the fence is removed so node-local runtimes can restart.
+	MaintenanceObserver RestoreMaintenanceObserver
+}
+
+// RestoreMaintenanceObserver coordinates entry/runtime quiescence outside the
+// reusable cluster package.
+type RestoreMaintenanceObserver interface {
+	RestoreMaintenanceChanged(bool)
 }
 
 // ControlConfig contains Controller adapter configuration.

@@ -33,12 +33,7 @@ type slot struct {
 	cond         *sync.Cond
 	processing   bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying int
-	// pinOperations counts external mutations and autonomous cleanup through I/O.
-	pinOperations int
-	// pinCleanupCtx is canceled when this Slot closes so dirty trim retries exit.
-	pinCleanupCtx               context.Context
-	pinCleanupCancel            context.CancelFunc
+	applying                    int
 	rawNode                     *raft.RawNode
 	requests                    []raftpb.Message
 	requestWorkBuf              []raftpb.Message
@@ -196,8 +191,9 @@ func (r *strictLeaderTransferRequest) beginExecution() bool {
 }
 
 type logCompactionRequest struct {
-	ctx  context.Context
-	resp chan logCompactionResponse
+	ctx      context.Context
+	external bool
+	resp     chan logCompactionResponse
 }
 
 type logCompactionResponse struct {
@@ -206,10 +202,11 @@ type logCompactionResponse struct {
 }
 
 type hashSlotSnapshotRequest struct {
-	ctx      context.Context
-	hashSlot uint16
-	resp     chan hashSlotSnapshotResponse
-	done     atomic.Bool
+	ctx                context.Context
+	hashSlot           uint16
+	expectedLeaderTerm uint64
+	resp               chan hashSlotSnapshotResponse
+	done               atomic.Bool
 }
 
 type hashSlotSnapshotResponse struct {
@@ -314,7 +311,6 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		return nil, err
 	}
 
-	pinCleanupCtx, pinCleanupCancel := context.WithCancel(context.Background())
 	g := &slot{
 		id:           opts.ID,
 		storage:      opts.Storage,
@@ -336,8 +332,6 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		durableAppliedIndex:         appliedIndex,
 		durableConfigAppliedIndex:   configAppliedIndex,
 		compactor:                   newLogCompactor(raftOpts.LogCompaction, snapshot.Metadata.Index),
-		pinCleanupCtx:               pinCleanupCtx,
-		pinCleanupCancel:            pinCleanupCancel,
 		maxQueuedRequests:           raftOpts.MaxQueuedRequests,
 		maxQueuedControls:           raftOpts.MaxQueuedControls,
 		maxQueuedBackgroundControls: raftOpts.MaxQueuedBackgroundControls,
@@ -351,7 +345,6 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			Term:  snapshot.Metadata.Term,
 			Data:  snapshotData,
 		}); err != nil {
-			pinCleanupCancel()
 			return nil, err
 		}
 	}
@@ -521,7 +514,27 @@ func (g *slot) processControls(ctx context.Context) bool {
 				continue
 			}
 			applied := g.appliedIndex()
-			result, err := g.compactLogManually(action.compact.ctx, applied)
+			var result LogCompactionResult
+			var err error
+			if action.compact.external {
+				result = LogCompactionResult{
+					NodeID:       g.nodeID(),
+					SlotID:       g.id,
+					AppliedIndex: applied,
+				}
+				if applied == 0 {
+					err = ErrHashSlotSnapshotUnavailable
+				} else {
+					err = g.compactLogAt(action.compact.ctx, applied, true)
+					if err == nil {
+						result.Compacted = true
+						result.AfterSnapshotIndex = applied
+						g.compactor.recordSnapshot(applied)
+					}
+				}
+			} else {
+				result, err = g.compactLogManually(action.compact.ctx, applied)
+			}
 			action.compact.resp <- logCompactionResponse{result: result, err: err}
 		case controlCaptureHashSlotSnapshot:
 			request := action.backupSnapshot
@@ -540,6 +553,14 @@ func (g *slot) processControls(ctx context.Context) bool {
 				request.finish(hashSlotSnapshotResponse{err: err})
 				continue
 			}
+			status := g.rawNode.Status()
+			if status.ID != uint64(g.nodeID()) ||
+				status.Lead != uint64(g.nodeID()) ||
+				status.Term != request.expectedLeaderTerm ||
+				status.RaftState != raft.StateLeader {
+				request.finish(hashSlotSnapshotResponse{err: ErrNotLeader})
+				continue
+			}
 			snapshotter, ok := g.stateMachine.(HashSlotSnapshotter)
 			if !ok {
 				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnsupported})
@@ -555,7 +576,7 @@ func (g *slot) processControls(ctx context.Context) bool {
 				request.finish(hashSlotSnapshotResponse{err: ErrHashSlotSnapshotUnavailable})
 				continue
 			}
-			term, err := g.storageView.memory.Term(applied)
+			appliedTerm, err := g.storageView.memory.Term(applied)
 			if err != nil {
 				request.finish(hashSlotSnapshotResponse{err: err})
 				continue
@@ -570,7 +591,8 @@ func (g *slot) processControls(ctx context.Context) bool {
 				HashSlot:             request.hashSlot,
 				AppliedIndex:         applied,
 				CommitIndex:          commit,
-				Term:                 term,
+				AppliedTerm:          appliedTerm,
+				LeaderTerm:           status.Term,
 				CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
 				Reader:               reader,
 			}})
@@ -1733,7 +1755,7 @@ func (g *slot) finishApply() {
 }
 
 func (g *slot) waitIdleLocked() {
-	for g.processing || g.applying > 0 || g.pinOperations > 0 {
+	for g.processing || g.applying > 0 {
 		g.cond.Wait()
 	}
 }
@@ -1753,27 +1775,6 @@ func (g *slot) proposalsQuiescent() bool {
 		}
 	}
 	return true
-}
-
-func (g *slot) beginPinOperation() error {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if err := g.admissionErrLocked(); err != nil {
-		return err
-	}
-	g.pinOperations++
-	return nil
-}
-
-func (g *slot) finishPinOperation() {
-	g.mu.Lock()
-	if g.pinOperations > 0 {
-		g.pinOperations--
-	}
-	if g.cond != nil {
-		g.cond.Broadcast()
-	}
-	g.mu.Unlock()
 }
 
 func (g *slot) waitApplyIdle(ctx context.Context) error {

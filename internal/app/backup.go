@@ -3,1672 +3,278 @@ package app
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"path/filepath"
-	"sort"
-	"sync"
+	"strings"
 	"time"
 
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupinfra "github.com/WuKongIM/WuKongIM/internal/infra/backup"
-	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtimebackup "github.com/WuKongIM/WuKongIM/internal/runtime/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
-	backupkeys "github.com/WuKongIM/WuKongIM/pkg/backup/keypackage"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-const (
-	defaultCheckpointRestoreMemoryMaxBytes  = 512 << 20
-	checkpointRestoreStagingDirectory       = "checkpoint-segments"
-	checkpointRestoreTargetStagingDirectory = "checkpoint-target"
-	backupKeyPinWaitInterval                = 100 * time.Millisecond
-	backupStatusFanoutConcurrency           = 8
-	backupStatusFanoutTimeout               = 2 * time.Second
-	backupStatusNodeTimeout                 = 750 * time.Millisecond
-)
-
-type appBackupNode interface {
-	backupinfra.CoordinationController
-	backupinfra.PartitionPlanNode
-	backupinfra.LocalMessageSnapshotNode
-	backupinfra.CaptureAuthorityNode
-	backupinfra.MetadataLogNode
-	backupinfra.MessageLogNode
-	backupinfra.SourcePinNode
-	runtimebackup.CoordinatorLeadership
+type appScheduledBackupNode interface {
+	backupinfra.ScheduledBackupController
+	backupinfra.FullExportNode
+	backupinfra.RepositoryProbeCluster
+	backupinfra.RestoreCluster
+	backupinfra.RestorePartitionNode
+	runtimebackup.ScheduledLeadership
 	accessnode.PresenceRPCNode
 	nodeRPCRegistrar
 }
 
-type appRestoreNode interface {
-	backupinfra.RestoreCoordinationController
-	backupinfra.RestoreTargetClusterNode
-	backupinfra.RestoreInstallClusterNode
-	backupinfra.CheckpointRestoreReplicaNode
-	runtimebackup.CoordinatorLeadership
-	accessnode.PresenceRPCNode
-	nodeRPCRegistrar
-}
-
-type appBackupRepository interface {
-	backupartifact.Repository
-	backupinfra.RepositoryDoctor
-}
-
-type appBackupKeyService interface {
-	backupartifact.DataKeyManager
-	backupartifact.ManifestSigner
-	backupinfra.KeyAuthorityDoctor
-}
-
-var (
-	loadAppBackupRepository = func(
-		ctx context.Context,
-		name, endpoint, region, bucket, prefix string,
-		objectLockDays int,
-		accessRoleARN string,
-	) (appBackupRepository, error) {
-		return backupinfra.LoadOSSRepository(
-			ctx, name, endpoint, region, bucket, prefix, objectLockDays,
-			accessRoleARN,
-		)
-	}
-	loadAppBackupKeyService = func(
-		ctx context.Context,
-		repositoryID string,
-	) (appBackupKeyService, error) {
-		return backupkeys.LoadDeploymentKeyAuthority(ctx, repositoryID)
-	}
-	bindAppBackupKeyService = func(
-		service appBackupKeyService,
-		primary backupartifact.Repository,
-		secondary backupartifact.Repository,
-		canPublish func() bool,
-	) (appBackupKeyService, error) {
-		authority, ok := service.(*backupkeys.DeploymentKeyAuthority)
-		if !ok {
-			return nil, fmt.Errorf(
-				"backup app: deployment key authority type is invalid",
-			)
-		}
-		return backupkeys.NewRepositoryPinnedAuthority(
-			authority, primary, secondary, canPublish,
-		)
-	}
-	decorateAppBackupSourcePinManager = func(
-		manager runtimebackup.SourcePinManager,
-	) runtimebackup.SourcePinManager {
-		return manager
-	}
-	loadAppBackupRepairRepository = func(
-		ctx context.Context,
-		repository appBackupRepository,
-		endpoint, region, roleARN string,
-	) (backupartifact.RepairRepository, error) {
-		ossRepository, ok := repository.(*backupinfra.OSSRepository)
-		if !ok {
-			return nil, fmt.Errorf(
-				"backup app: Alibaba repair requires an OSS repository",
-			)
-		}
-		return backupinfra.LoadOSSRepairRepository(
-			ctx, ossRepository, endpoint, region, roleARN,
-		)
-	}
-	loadAppBackupGarbageRepository = func(
-		ctx context.Context,
-		name, endpoint, region, bucket, prefix string,
-		objectLockDays int,
-		roleARN string,
-		probeSlot uint64,
-	) (backupinfra.GenerationGarbageRepository, error) {
-		return backupinfra.LoadOSSGarbageRepository(
-			ctx, name, endpoint, region, bucket, prefix,
-			objectLockDays, roleARN, probeSlot,
-		)
-	}
-	newAppBackupClockProbe = func(endpoint string) (backupinfra.ClockProbe, error) {
-		return backupinfra.NewEndpointClockProbe(endpoint, nil)
-	}
-)
-
-func (a *App) wireBackup(clusterCfg cluster.Config) {
-	if a == nil || (!a.cfg.Backup.Enabled && !a.cfg.Backup.RestoreMode) {
-		return
-	}
-	primary, err := loadAppBackupRepository(
-		context.Background(), "primary",
-		a.cfg.Backup.Primary.Endpoint, a.cfg.Backup.Primary.Region,
-		a.cfg.Backup.Primary.Bucket, a.cfg.Backup.Primary.Prefix,
-		a.cfg.Backup.ObjectLockDays, a.cfg.Backup.Primary.AccessRoleARN,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	secondary, err := loadAppBackupRepository(
-		context.Background(), "secondary",
-		a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region,
-		a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix,
-		a.cfg.Backup.ObjectLockDays, a.cfg.Backup.Secondary.AccessRoleARN,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	pinPublisherNodeID := backupKeyPinPublisherNodeID(clusterCfg)
-	keyAuthority, err := loadAppBackupKeyService(
-		context.Background(), a.cfg.Backup.RepositoryID,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	keyAuthority, err = bindAppBackupKeyService(
-		keyAuthority, primary, secondary,
-		func() bool {
-			return pinPublisherNodeID != 0 &&
-				clusterCfg.NodeID == pinPublisherNodeID
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	codec := backupartifact.NewObjectCodec(keyAuthority, rand.Reader)
-	primaryClock, err := newAppBackupClockProbe(
-		a.cfg.Backup.Primary.Endpoint,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	secondaryClock, err := newAppBackupClockProbe(
-		a.cfg.Backup.Secondary.Endpoint,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	doctor, err := backupinfra.NewDoctor(backupinfra.DoctorOptions{
-		Primary: primary, Secondary: secondary,
-		KeyAuthority: keyAuthority,
-		StagingDir:   a.cfg.Backup.StagingDir, ApplicationDir: a.cfg.DataDir, StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-		ClockProbes: []backupinfra.ClockProbe{primaryClock, secondaryClock}, Now: time.Now,
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	a.backupKeyStartupCheck = func(ctx context.Context) error {
-		_, err := doctor.Check(ctx)
-		return err
-	}
-	var observer runtimebackup.RuntimeObserver
-	var captureObserver runtimebackup.CaptureObserver
-	var auditObserver runtimebackup.IntegrityAuditObserver
-	var gcObserver backupinfra.GenerationGCDebtObserver
-	if a.metrics != nil {
-		observer = a.metrics.Backup
-		captureObserver = a.metrics.Backup
-		auditObserver = a.metrics.Backup
-		gcObserver = a.metrics.Backup
-	}
-	if a.cfg.Backup.RestoreMode {
-		a.wireRestore(
-			clusterCfg, primary, secondary,
-			keyAuthority, keyAuthority, codec, observer,
-		)
-		return
-	}
-	node, ok := a.cluster.(appBackupNode)
-	if !ok {
-		a.backupInitErr = fmt.Errorf("backup app: cluster runtime does not expose backup seams")
-		return
-	}
-	stateStore, err := backupinfra.NewControllerStateStore(node)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	primaryRepair, err := loadAppBackupRepairRepository(
-		context.Background(), primary,
-		a.cfg.Backup.Primary.Endpoint,
-		a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.RepairRoleARN,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	secondaryRepair, err := loadAppBackupRepairRepository(
-		context.Background(), secondary,
-		a.cfg.Backup.Secondary.Endpoint,
-		a.cfg.Backup.Secondary.Region,
-		a.cfg.Backup.Secondary.RepairRoleARN,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	primaryGarbage, err := loadAppBackupGarbageRepository(
-		context.Background(), "primary",
-		a.cfg.Backup.Primary.Endpoint,
-		a.cfg.Backup.Primary.Region, a.cfg.Backup.Primary.Bucket,
-		a.cfg.Backup.Primary.Prefix, a.cfg.Backup.ObjectLockDays,
-		a.cfg.Backup.Primary.GarbageRoleARN, clusterCfg.NodeID,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	secondaryGarbage, err := loadAppBackupGarbageRepository(
-		context.Background(), "secondary",
-		a.cfg.Backup.Secondary.Endpoint, a.cfg.Backup.Secondary.Region,
-		a.cfg.Backup.Secondary.Bucket, a.cfg.Backup.Secondary.Prefix,
-		a.cfg.Backup.ObjectLockDays,
-		a.cfg.Backup.Secondary.GarbageRoleARN, clusterCfg.NodeID,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	segments, err := backupartifact.NewReplicatedSegmentStoreWithRepair(
-		primary, secondary, primaryRepair, secondaryRepair,
-		backupartifact.NewSegmentCodec(keyAuthority, rand.Reader),
-		keyAuthority,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	checkpointCatalog, err :=
-		backupinfra.NewReplicatedCheckpointCatalogWithRepair(
-			primary, secondary, primaryRepair, secondaryRepair,
-			keyAuthority,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	checkpointIndex, err := backupinfra.NewCheckpointCatalogIndex(
-		checkpointCatalog, filepath.Join(a.cfg.Backup.StagingDir, "checkpoint-catalog-index.json"),
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	authority, err := backupinfra.NewClusterSlotCaptureAuthority(node)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	frontiers, err := backupinfra.NewControllerSlotFrontierStore(
-		stateStore, authority,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	memoryBudget, err := runtimebackup.NewCaptureMemoryBudget(
-		runtimebackup.DefaultCaptureMemoryBudgetBytes,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	cursorResolver, err := backupinfra.NewMessageCursorResolver(
-		segments, memoryBudget,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	messageSource, err := backupinfra.NewMessageLogSource(node, cursorResolver)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	metadataSource, err := backupinfra.NewMetadataLogSource(node)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	source, err := backupinfra.NewContinuousSource(metadataSource, messageSource)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	clusterPins, err := backupinfra.NewClusterSourcePinManager(node, time.Now)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	pins := decorateAppBackupSourcePinManager(clusterPins)
-	replicator, err := backupinfra.NewChunkReplicator(
-		backupinfra.ChunkReplicatorOptions{
-			Codec: codec,
-			Publisher: backupartifact.NewReplicatedPublisher(
-				primary, secondary,
-			),
-			ChunkBytes: int(a.cfg.Backup.BaselineChunkBytes),
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	manifestStore, err := backupinfra.NewReplicatedManifestStore(primary, secondary)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	localMessages, err := backupinfra.NewLocalMessageShardCapturer(node, replicator)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	client := accessnode.NewClient(node)
-	messageRouter, err := backupinfra.NewMessageShardRouter(localMessages, client)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	planner, err := backupinfra.NewPartitionPlanner(
-		backupinfra.PartitionPlannerOptions{Node: node},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	worker, err := runtimebackup.NewDistributedWorker(
-		runtimebackup.DistributedWorkerOptions{
-			Planner: planner, Messages: messageRouter,
-			Replicator: replicator, Manifests: manifestStore,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	baselines, err := runtimebackup.NewDistributedBaselineCapturer(
-		runtimebackup.MaterializedBaselineOptions{
-			Worker: worker, Segments: segments,
-			RepositoryID:     a.cfg.Backup.RepositoryID,
-			SourceClusterID:  clusterCfg.Control.ClusterID,
-			SourceGeneration: a.cfg.Backup.SourceGeneration,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	generationValidator, err :=
-		backupinfra.NewGenerationReplacementValidator(segments)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	generationCostPlanner, err :=
-		backupinfra.NewConservativeGenerationCostPlanner(
-			runtimebackup.DefaultGenerationCompactionIOBytes,
-			runtimebackup.DefaultGenerationCompactionNetworkBytes,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	generationBudget, err := runtimebackup.NewGenerationCompactionBudget(
-		runtimebackup.DefaultGenerationCompactionConcurrency,
-		runtimebackup.DefaultGenerationCompactionIOBytes,
-		runtimebackup.DefaultGenerationCompactionNetworkBytes,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditGate, err :=
-		backupinfra.NewControllerIntegrityAuditStateStore(stateStore)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	rollingPolicy := runtimebackup.DefaultRollingPolicy()
-	rollingPolicy.TargetSegmentBytes = int64(a.cfg.Backup.TargetSegmentBytes)
-	rollingPolicy.MaxSegmentBytes = int64(a.cfg.Backup.MaxSegmentBytes)
-	rollingPolicy.MaxOpenDuration = a.cfg.Backup.MaxSegmentOpenDuration
-	capture, err := runtimebackup.NewCaptureEngine(
-		runtimebackup.CaptureEngineOptions{
-			RepositoryID:      a.cfg.Backup.RepositoryID,
-			SourceClusterID:   clusterCfg.Control.ClusterID,
-			SourceGeneration:  a.cfg.Backup.SourceGeneration,
-			InitialGeneration: a.cfg.Backup.SourceGeneration,
-			HashSlotCount:     clusterCfg.Slots.HashSlotCount,
-			Source:            source, Frontiers: frontiers, Segments: segments,
-			CursorLoader:      segments,
-			Policy:            rollingPolicy,
-			ReconcileInterval: a.cfg.Backup.CaptureReconcileInterval,
-			WorkerCount:       a.cfg.Backup.WorkerCount,
-			MemoryBudget:      memoryBudget, Observer: captureObserver,
-			AuditGate: auditGate,
-			Rebase: &runtimebackup.RebaseOptions{
-				Policy: runtimebackup.SourcePinPolicy{
-					MaxAge:       a.cfg.Backup.SourcePinMaxAge,
-					MaxNodeBytes: a.cfg.Backup.MaxSourcePinnedBytes,
-				},
-				Pins: pins, Baselines: baselines,
-				Validator:   generationValidator,
-				CostPlanner: generationCostPlanner,
-				Budget:      generationBudget,
-			},
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	checkpoints, err := backupusecase.NewCheckpointCoordinator(
-		backupusecase.CheckpointOptions{
-			Enabled: true, HashSlotCount: clusterCfg.Slots.HashSlotCount,
-			RepositoryID:     a.cfg.Backup.RepositoryID,
-			SourceClusterID:  clusterCfg.Control.ClusterID,
-			SourceGeneration: a.cfg.Backup.SourceGeneration,
-			Store:            stateStore, Catalog: checkpointCatalog,
-			Proofs: segments,
-			Now:    time.Now,
-			NewCheckpointID: func() string {
-				return newBackupID("checkpoint")
-			},
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	sourceFenceConvergence, err :=
-		backupinfra.NewControllerSourceFenceConvergence(node)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	a.backup, err = backupusecase.NewApp(backupusecase.Options{
-		Enabled: true, HashSlotCount: clusterCfg.Slots.HashSlotCount,
-		Store: stateStore, Checkpoints: checkpoints,
-		CatalogBrowser:   checkpointIndex,
-		CatalogRetention: checkpointIndex,
-		SourceClusterID:  clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
-		SourceFenceConvergence: sourceFenceConvergence,
-		SourceFenceSigner:      keyAuthority,
-		NewSourceFenceID:       func() string { return newBackupID("source-fence") },
-		Now:                    time.Now, MaxCheckpointAge: a.cfg.Backup.CheckpointInterval,
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	erasureLedger, err := backupinfra.NewPermanentErasureLedger(backupinfra.PermanentErasureLedgerOptions{
-		Primary: primary, Secondary: secondary, Codec: codec, Coordinator: a.backup,
-		Signer:       keyAuthority,
-		RepositoryID: a.cfg.Backup.RepositoryID, SourceClusterID: clusterCfg.Control.ClusterID, SourceGeneration: a.cfg.Backup.SourceGeneration,
-		HashSlotCount: clusterCfg.Slots.HashSlotCount, Now: time.Now, NewAttemptID: func() string { return newBackupID("erasure") },
-	})
-	if err != nil {
-		a.backupInitErr = err
-		a.backup = nil
-		return
-	}
-	a.permanentErasureRecorder = erasureLedger
-	catalogWindow, err :=
-		backupinfra.NewCoordinationIntegrityAuditCatalogWindowSource(
-			stateStore,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	retentionSource, err :=
-		backupinfra.NewCheckpointIndexIntegrityAuditRetentionSource(
-			backupinfra.CheckpointIndexIntegrityAuditRetentionSourceOptions{
-				Index: checkpointIndex,
-				Policy: backupusecase.CheckpointRetentionPolicy{
-					MonthlyMonths: a.cfg.Backup.RetentionMonthlyMonths,
-				},
-				ActiveRestore: backupinfra.NoActiveRestoreSource{},
-			},
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditPlan, err := backupinfra.NewCatalogSegmentIntegrityAuditPlan(
-		backupinfra.CatalogSegmentIntegrityAuditPlanOptions{
-			Window: catalogWindow, Selection: retentionSource,
-			Catalog:       checkpointCatalog,
-			HashSlotCount: clusterCfg.Slots.HashSlotCount,
-			ScrubInterval: a.cfg.Backup.AuditScrubInterval,
-			Now:           time.Now,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditBackend, err := backupinfra.NewSegmentIntegrityAuditBackend(
-		auditPlan, segments, segments,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	erasureAuditor, err :=
-		backupinfra.NewReplicatedErasureIntegrityAuditor(
-			backupinfra.ReplicatedErasureIntegrityAuditorOptions{
-				Primary: primary, Secondary: secondary,
-				PrimaryRepair:   primaryRepair,
-				SecondaryRepair: secondaryRepair,
-				Codec:           codec, Signer: keyAuthority,
-				RepositoryID:     a.cfg.Backup.RepositoryID,
-				SourceClusterID:  clusterCfg.Control.ClusterID,
-				SourceGeneration: a.cfg.Backup.SourceGeneration,
-				HashSlotCount:    clusterCfg.Slots.HashSlotCount,
-			},
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditBackend, err = auditBackend.WithErasureAuditor(erasureAuditor)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	sourceProbe, err :=
-		runtimebackup.NewFrontierIntegrityAuditSourceProbe(
-			frontiers, source,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditRecovery, err :=
-		runtimebackup.NewCaptureIntegrityAuditRecovery(
-			sourceProbe, frontiers,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	integrityAuditor, err := runtimebackup.NewIntegrityAuditor(
-		runtimebackup.IntegrityAuditorOptions{
-			Backend: auditBackend, State: auditGate,
-			Recovery: auditRecovery, Observer: auditObserver,
-			Now: time.Now,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	gcCursors, err :=
-		backupinfra.NewControllerGenerationGCCursorStore(stateStore)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	vectorCache, err := backupinfra.NewFileGenerationVectorCache(
-		filepath.Join(
-			a.cfg.Backup.StagingDir, "generation-vector-cache",
-		),
-		keyAuthority,
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditRoots, err :=
-		backupinfra.NewControllerCatalogAuditRootStore(stateStore)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	generationCollector, err :=
-		backupinfra.NewGenerationGarbageCollector(
-			backupinfra.GenerationGarbageCollectorOptions{
-				Primary: primaryGarbage, Secondary: secondaryGarbage,
-				Catalog: checkpointCatalog, Signer: keyAuthority,
-				Cursors: gcCursors, VectorCache: vectorCache,
-				IntegrityGuard:  auditGate,
-				AuditProtection: auditPlan, AuditRoots: auditRoots,
-				HashSlotCount: clusterCfg.Slots.HashSlotCount,
-				SafetyWindow:  a.cfg.Backup.GarbageSafetyWindow,
-				MaxRequestsPerRepository: a.cfg.Backup.
-					GarbageMaxRequestsPerRepository,
-				MaxBytesPerRepository: int64(
-					a.cfg.Backup.GarbageMaxBytesPerRepository,
-				),
-				Now: time.Now,
-			},
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	gcMaintenance, err := backupinfra.NewGenerationGCMaintenance(
-		backupinfra.GenerationGCMaintenanceOptions{
-			State: stateStore, Index: checkpointIndex,
-			Collector: generationCollector,
-			Policy: backupusecase.CheckpointRetentionPolicy{
-				MonthlyMonths: a.cfg.Backup.RetentionMonthlyMonths,
-			},
-			Now: time.Now, Observer: gcObserver,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	checkpointObservation, err :=
-		backupinfra.NewCheckpointObservationSource(
-			stateStore, checkpointIndex,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	auditProjection, err :=
-		backupinfra.NewIntegrityAuditProjectionRunner(
-			auditGate, a.cfg.Backup.CaptureReconcileInterval,
-		)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	coordinator, err := runtimebackup.NewContinuousCoordinator(
-		runtimebackup.ContinuousCoordinatorOptions{
-			Capture: capture, Checkpoints: checkpoints,
-			LatestCheckpoint: checkpointObservation,
-			Doctor:           doctor, Leadership: node,
-			CheckpointInterval: a.cfg.Backup.CheckpointInterval,
-			TickInterval:       a.cfg.Backup.CaptureReconcileInterval,
-			Auditor:            integrityAuditor,
-			AuditInterval:      a.cfg.Backup.AuditInterval,
-			GarbageCollector:   gcMaintenance,
-			GarbageCollectionInterval: a.cfg.Backup.
-				GarbageCollectionInterval,
-			Projection: auditProjection,
-			Now:        time.Now, Observer: observer,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		a.backup = nil
-		return
-	}
-	a.backupRuntime = coordinator
-	adapter := accessnode.New(accessnode.Options{
-		BackupMessages: localMessages, Logger: a.logger.Named("node"),
-	})
-	node.RegisterRPC(accessnode.BackupMessageShardRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupMessageShardRPC))
-	managerBackupAdapter := accessnode.NewManagerBackupAdapter(accessnode.ManagerBackupOptions{
-		Local: backupManagerFacade{app: a}, Leadership: node,
-	})
-	node.RegisterRPC(accessnode.ManagerBackupRPCServiceID, nodeRPCHandlerFunc(managerBackupAdapter.HandleRPC))
-}
-
-// logBackupInitializationFailure preserves exact operator diagnostics while
-// the Manager API exposes only a bounded failure category.
-func (a *App) logBackupInitializationFailure() {
-	if a == nil || a.backupInitErr == nil || a.logger == nil {
-		return
-	}
-	a.logger.Error(
-		"backup initialization failed",
-		wklog.Event("internal.app.backup_initialization"),
-		wklog.Result("failed"),
-		wklog.Error(a.backupInitErr),
-	)
-}
-
-// backupKeyPinPublisherNodeID selects one normalized Controller voter so OSS
-// root publication never depends on a potentially stale Raft-term observation.
-// Normalization admits the implicit single-node cluster while seed-join
-// mirrors remain read-only until their admitted configuration is persisted.
-func backupKeyPinPublisherNodeID(config cluster.Config) uint64 {
-	config = config.WithDefaults()
-	if config.Control.Role != cluster.ControlRoleVoter {
-		return 0
-	}
-	var publisher uint64
-	for _, voter := range config.Control.Voters {
-		if voter.NodeID != 0 &&
-			(publisher == 0 || voter.NodeID < publisher) {
-			publisher = voter.NodeID
-		}
-	}
-	return publisher
-}
-
-// waitBackupKeyStartupCheck lets the deterministic Controller voter publish a
-// missing pin while other restore nodes wait without racing repository writes.
-func (a *App) waitBackupKeyStartupCheck(ctx context.Context) error {
-	if a == nil || a.backupKeyStartupCheck == nil {
+// wireBackup builds one clean scheduled-full-backup subsystem. Configuration
+// lives exclusively in Controller state and is managed through Manager.
+func (a *App) wireBackup(clusterCfg cluster.Config) error {
+	if a == nil {
 		return nil
 	}
-	waitContext, cancel := context.WithTimeout(
-		ctx, defaultClusterWriteReadyTimeout,
-	)
-	defer cancel()
-	ticker := time.NewTicker(backupKeyPinWaitInterval)
-	defer ticker.Stop()
-	for {
-		err := a.backupKeyStartupCheck(waitContext)
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, backupkeys.ErrRepositoryPinPending) {
+	node, ok := a.cluster.(appScheduledBackupNode)
+	if !ok {
+		// Tests and narrow embeddings may replace the production cluster with a
+		// deliberately smaller lifecycle stub.
+		return nil
+	}
+	clusterCfg = clusterCfg.WithDefaults()
+	dataDir := strings.TrimSpace(a.cfg.DataDir)
+	if dataDir == "" {
+		dataDir = strings.TrimSpace(clusterCfg.DataDir)
+	}
+	if dataDir == "" || strings.TrimSpace(clusterCfg.Control.ClusterID) == "" {
+		return fmt.Errorf("backup app: data directory and cluster identity are required")
+	}
+	var cipher *backupinfra.CredentialCipher
+	installationSecret := strings.TrimSpace(a.cfg.Manager.JWTSecret)
+	if installationSecret != "" {
+		var err error
+		cipher, err = backupinfra.NewCredentialCipher(
+			installationSecret, clusterCfg.Control.ClusterID,
+		)
+		if err != nil {
 			return err
 		}
-		select {
-		case <-waitContext.Done():
-			return fmt.Errorf(
-				"backup app: key pin startup: %w", waitContext.Err(),
-			)
-		case <-ticker.C:
-		}
 	}
-}
-
-type unavailablePermanentErasureRecorder struct {
-	err error
-}
-
-func (r unavailablePermanentErasureRecorder) RecordPermanentMessageErasure(context.Context, backupinfra.PermanentMessageErasure) (backupinfra.ErasureLedgerReceipt, error) {
-	if r.err != nil {
-		return backupinfra.ErasureLedgerReceipt{}, fmt.Errorf("backup permanent erasure ledger unavailable: %w", r.err)
+	repository, err := backupinfra.NewRepositoryProvider(dataDir, cipher)
+	if err != nil {
+		return err
 	}
-	return backupinfra.ErasureLedgerReceipt{}, fmt.Errorf("backup permanent erasure ledger unavailable")
-}
-
-func (a *App) managerPermanentErasureRecorder() clusterinfra.PermanentMessageErasureRecorder {
-	if a == nil || !a.cfg.Backup.Enabled {
-		return nil
+	stateStore, err := backupinfra.NewScheduledControllerStateStore(node)
+	if err != nil {
+		return err
 	}
-	if a.permanentErasureRecorder != nil {
-		return a.permanentErasureRecorder
-	}
-	return unavailablePermanentErasureRecorder{err: a.backupInitErr}
-}
-
-func (a *App) wireRestore(
-	clusterCfg cluster.Config,
-	primary, secondary backupartifact.Repository,
-	keys backupartifact.DataKeyManager,
-	signer backupartifact.ManifestSigner,
-	codec *backupartifact.ObjectCodec,
-	observer runtimebackup.RuntimeObserver,
-) {
-	node, ok := a.cluster.(appRestoreNode)
-	if !ok {
-		a.backupInitErr = fmt.Errorf("backup restore app: cluster runtime does not expose restore seams")
-		return
-	}
-	stagingQuota, err := backupinfra.NewCheckpointRestoreStagingQuota(
-		a.cfg.Backup.StagingDir, a.cfg.Backup.StagingMaxBytes,
+	scheduled, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: stateStore,
+			Now:        time.Now,
+			NewID:      func() string { return newBackupIdentity("backup") },
+		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
 	client := accessnode.NewClient(node)
-	target, err := backupinfra.NewClusterRestoreTargetProbe(backupinfra.ClusterRestoreTargetProbeOptions{
-		Node: node, Remote: client, ClusterID: clusterCfg.Control.ClusterID,
-		Generation: a.cfg.Backup.TargetGeneration, HashSlotCount: clusterCfg.Slots.HashSlotCount,
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	segments, err := backupartifact.NewReplicatedSegmentStore(
-		primary, secondary,
-		backupartifact.NewSegmentCodec(keys, rand.Reader),
-		signer,
+	exporter, err := backupinfra.NewFullExportService(
+		node, repository, client, filepath.Join(dataDir, "backup-staging"),
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	catalog, err := backupinfra.NewReplicatedCheckpointCatalog(
-		primary, secondary, signer,
+	probe, err := backupinfra.NewClusterRepositoryProbe(
+		node, repository, client,
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	auditor, err := backupinfra.NewCheckpointRestoreGraphAuditor(segments)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	inspector, err := backupinfra.NewCheckpointRestoreInspector(
-		backupinfra.CheckpointRestoreInspectorOptions{
-			Primary: primary, Secondary: secondary,
-			Signer: signer, Codec: codec,
-			RepositoryID: a.cfg.Backup.RepositoryID,
-			Target:       target, Catalog: catalog, Auditor: auditor,
+	management, err := backupusecase.NewManagementService(
+		backupusecase.ManagementOptions{
+			Scheduled: scheduled, Repository: repository,
+			Sealer: repository, Probe: probe,
+			ClusterID: clusterCfg.Control.ClusterID, Now: time.Now,
 		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	store, err := backupinfra.NewControllerRestoreStateStore(node)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	targetStagingDir := filepath.Join(
-		a.cfg.Backup.StagingDir, checkpointRestoreTargetStagingDirectory,
+	slots, err := backupinfra.NewDistributedSlotExecutor(
+		node, exporter, client,
 	)
-	replicaReceiver, err := backupinfra.NewCheckpointRestoreReplicaReceiver(
-		backupinfra.CheckpointRestoreReplicaReceiverOptions{
-			Node: node, StagingDir: targetStagingDir,
-			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-			StagingQuota:    stagingQuota,
-			ActivationState: node,
+	if err != nil {
+		return err
+	}
+	finalizer, err := backupinfra.NewArchiveFinalizer(
+		backupinfra.ArchiveFinalizerOptions{
+			ClusterID:   clusterCfg.Control.ClusterID,
+			Application: "wukongim",
+			Now:         time.Now,
 		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	distributor, err := backupinfra.NewCheckpointRestoreReplicaDistributor(
-		backupinfra.CheckpointRestoreReplicaDistributorOptions{
-			Node: node, Local: replicaReceiver, Remote: client,
+	jobRunner, err := backupusecase.NewJobRunner(
+		backupusecase.JobRunnerOptions{
+			Scheduled: scheduled, Repository: repository,
+			Slots: slots, Finalizer: finalizer, Now: time.Now,
 		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	restoreTarget, err := backupinfra.NewDurableCheckpointRestoreTarget(
-		backupinfra.DurableCheckpointRestoreTargetOptions{
-			StagingDir:      targetStagingDir,
-			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-			StagingQuota:    stagingQuota,
-			Distributor:     distributor, Now: time.Now,
+	localRestore, err := backupinfra.NewStagedRestoreNodeService(
+		node, repository, dataDir,
+	)
+	if err != nil {
+		return err
+	}
+	if a.messageIDs == nil {
+		return fmt.Errorf("backup app: message ID allocator is required")
+	}
+	localRestore.SetMessageIDFloor(a.messageIDs.SetFloor)
+	localRestore.SetMaintenanceQuiescer(a.suspendRestoreSideEffects)
+	localRestore.SetMaintenanceResumer(a.resumeRestoreSideEffects)
+	restoreExecutor, err := backupinfra.NewDistributedRestoreExecutor(
+		node, localRestore, client,
+	)
+	if err != nil {
+		return err
+	}
+	executor := appRestoreExecutor{app: a, delegate: restoreExecutor}
+	restoreService, err := backupusecase.NewRestoreService(
+		backupusecase.RestoreServiceOptions{
+			StateStore: stateStore, Repository: repository,
+			Preflight: executor, Now: time.Now,
+			NewID: func() string { return newBackupIdentity("restore") },
+			NewActivation: func() string {
+				return newBackupIdentity("generation")
+			},
 		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	baseline, err := backupinfra.NewMaterializedCheckpointBaselineReplayer(
-		backupinfra.MaterializedCheckpointBaselineReplayerOptions{
-			Codec: codec, Segments: segments,
-		},
+	restoreRunner, err := backupusecase.NewRestoreRunner(
+		scheduled, restoreService, executor, time.Now,
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	localInstaller, err := backupinfra.NewCheckpointSlotInstaller(
-		backupinfra.CheckpointSlotInstallerOptions{
-			Primary: primary, Secondary: secondary,
-			Catalog: catalog, Segments: segments,
-			Signer: signer, Codec: codec,
-			RepositoryID: a.cfg.Backup.RepositoryID,
-			Baseline:     baseline, Target: restoreTarget,
-			StagingDir: filepath.Join(
-				a.cfg.Backup.StagingDir,
-				checkpointRestoreStagingDirectory,
-			),
-			StagingMaxBytes: a.cfg.Backup.StagingMaxBytes,
-			StagingQuota:    stagingQuota,
-			MemoryMaxBytes:  defaultCheckpointRestoreMemoryMaxBytes,
-			Progress: func(
-				ctx context.Context,
-				planID string,
-				progress backupusecase.RestorePartition,
-			) error {
-				// A remote Slot Leader receives the current fenced plan in the
-				// install RPC, but its local Controller mirror may not yet have
-				// applied the preceding BeginPartitionInstall CAS. Only the
-				// Controller Leader persists intermediate byte progress; the
-				// coordinator always persists the returned terminal report.
-				if node.BackupControllerLeaderID() != node.NodeID() {
-					return nil
-				}
-				if a.restore == nil {
-					return fmt.Errorf(
-						"backup checkpoint restore app is unavailable",
+	worker, err := runtimebackup.NewScheduledRuntime(
+		runtimebackup.ScheduledRuntimeOptions{
+			Scheduled: scheduled, State: scheduled,
+			Runner: jobRunner, Restore: restoreRunner,
+			Leadership: node, Tick: time.Second,
+			OnError: func(err error) {
+				if a.logger != nil {
+					a.logger.Warn(
+						"scheduled backup worker step failed",
+						wklog.Event("internal.app.scheduled_backup_step_failed"),
+						wklog.Error(err),
 					)
 				}
-				_, err := a.restore.ReportPartitionProgress(
-					ctx, planID, progress,
-				)
-				return err
 			},
-			Now: time.Now,
 		},
 	)
 	if err != nil {
-		a.backupInitErr = err
-		return
+		return err
 	}
-	partitionInstaller, err := backupinfra.NewClusterRestorePartitionInstaller(backupinfra.ClusterRestorePartitionInstallerOptions{
-		Node: node, Local: localInstaller, Remote: client,
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	verifier, err := backupinfra.NewCheckpointRestoreFinalVerifier(
-		backupinfra.CheckpointRestoreFinalVerifierOptions{
-			Node: node, Local: replicaReceiver, Remote: client,
-			MaxParallel: a.cfg.Backup.WorkerCount,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	cleaner, err := backupinfra.NewCheckpointRestoreActivationCleaner(
-		backupinfra.CheckpointRestoreActivationCleanerOptions{
-			Node: node, Local: replicaReceiver, Remote: client,
-			MaxParallel: a.cfg.Backup.WorkerCount,
-		},
-	)
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	a.restore, err = backupusecase.NewRestoreApp(backupusecase.RestoreOptions{
-		Enabled: true, Store: store, Inspector: inspector,
-		Verifier: verifier, Cleaner: cleaner,
-		ActivationVerifier: signer,
-		Now:                time.Now, NewPlanID: func() string { return newBackupID("restore-plan") },
-		NewAuditID: func() string { return newBackupID("break-glass") },
-	})
-	if err != nil {
-		a.backupInitErr = err
-		return
-	}
-	restoreRuntime, err := runtimebackup.NewRestoreCoordinator(runtimebackup.RestoreCoordinatorOptions{
-		App: a.restore, Leadership: node, Partitions: partitionInstaller,
-		MaxParallel: a.cfg.Backup.WorkerCount, Now: time.Now, Observer: observer,
-		OnFailure: func(category string, err error) {
-			a.logger.Warn(
-				"backup restore coordinator retry",
-				wklog.Event("internal.app.backup_restore_retry"),
-				wklog.String("category", category),
-				wklog.Error(err),
-			)
-		},
-	})
-	if err != nil {
-		a.backupInitErr = err
-		a.restore = nil
-		return
-	}
-	a.restoreRuntime = restoreRuntime
 	adapter := accessnode.New(accessnode.Options{
-		BackupRestoreTarget:     node,
-		BackupRestoreInstaller:  localInstaller,
-		BackupCheckpointReplica: replicaReceiver,
-		Logger:                  a.logger.Named("node"),
+		ScheduledBackup: exporter, ScheduledBackupProbe: probe,
+		ScheduledRestore: localRestore,
+		Logger:           a.logger.Named("access.node.backup"),
 	})
-	node.RegisterRPC(accessnode.BackupRestoreTargetRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupRestoreTargetRPC))
-	node.RegisterRPC(accessnode.BackupRestoreInstallRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupRestoreInstallRPC))
-	node.RegisterRPC(accessnode.BackupCheckpointReplicaRPCServiceID, nodeRPCHandlerFunc(adapter.HandleBackupCheckpointReplicaRPC))
-}
-
-func newBackupID(prefix string) string {
-	var value [16]byte
-	if _, err := rand.Read(value[:]); err != nil {
-		hash := sha256.Sum256([]byte(fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())))
-		copy(value[:], hash[:len(value)])
-	}
-	return prefix + "-" + hex.EncodeToString(value[:])
-}
-
-type backupManagerFacade struct{ app *App }
-
-type backupManagerRouter struct {
-	local      backupManagerFacade
-	leadership runtimebackup.CoordinatorLeadership
-	client     *accessnode.Client
-	goroutines *goruntimeregistry.Registry
-}
-
-type backupRuntimeStatusProvider interface {
-	Status() runtimebackup.CoordinatorStatus
+	node.RegisterRPC(
+		accessnode.ScheduledBackupSlotRPCServiceID,
+		nodeRPCHandlerFunc(adapter.HandleScheduledBackupSlotRPC),
+	)
+	node.RegisterRPC(
+		accessnode.ScheduledBackupMessageRPCServiceID,
+		nodeRPCHandlerFunc(adapter.HandleScheduledBackupMessageRPC),
+	)
+	node.RegisterRPC(
+		accessnode.ScheduledBackupRepositoryProbeRPCServiceID,
+		nodeRPCHandlerFunc(adapter.HandleScheduledBackupRepositoryProbeRPC),
+	)
+	node.RegisterRPC(
+		accessnode.ScheduledBackupRestoreRPCServiceID,
+		nodeRPCHandlerFunc(adapter.HandleScheduledBackupRestoreRPC),
+	)
+	a.backup = management
+	a.scheduledBackup = scheduled
+	a.restore = restoreService
+	a.backupRuntime = worker
+	return nil
 }
 
 func (a *App) newBackupManagement() accessmanager.BackupManagement {
-	local := backupManagerFacade{app: a}
-	node, ok := a.cluster.(appBackupNode)
-	if !ok || a.backup == nil {
-		return local
+	if a == nil {
+		return nil
 	}
-	return backupManagerRouter{
-		local: local, leadership: node, client: accessnode.NewClient(node),
-		goroutines: a.goroutines,
+	return a.backup
+}
+
+type restoreManagerFacade struct {
+	service *backupusecase.RestoreService
+}
+
+func (f restoreManagerFacade) StartRestore(
+	ctx context.Context,
+	archiveID string,
+	initiator string,
+) (job backupcontract.RestoreJob, err error) {
+	if f.service == nil {
+		return job, backupusecase.ErrDisabled
 	}
+	return f.service.StartRestore(ctx, archiveID, initiator)
+}
+
+func (f restoreManagerFacade) CancelRestore(
+	ctx context.Context,
+	jobID string,
+) error {
+	if f.service == nil {
+		return backupusecase.ErrDisabled
+	}
+	return f.service.RequestCancellation(ctx, jobID)
 }
 
 func (a *App) newRestoreManagement() accessmanager.RestoreManagement {
-	return restoreManagerFacade{app: a}
+	if a == nil || a.restore == nil {
+		return nil
+	}
+	return restoreManagerFacade{service: a.restore}
 }
 
-type restoreManagerFacade struct{ app *App }
-
-func (f restoreManagerFacade) PlanRestore(ctx context.Context, request backupusecase.RestorePlanRequest) (backupusecase.RestorePlan, error) {
-	if f.app == nil || f.app.restore == nil {
-		return backupusecase.RestorePlan{}, restoreFacadeUnavailable(f.app)
+func (a *App) managerSessionEpoch() (uint64, error) {
+	if a == nil || a.scheduledBackup == nil {
+		return 0, nil
 	}
-	plan, err := f.app.restore.Plan(ctx, request)
-	f.app.logBackupAudit("restore_plan", plan.ID, err,
-		wklog.String("checkpointID", plan.CheckpointID), wklog.Bool("invalidateTokens", request.InvalidateTokens))
-	return plan, err
-}
-
-func (f restoreManagerFacade) StartRestore(ctx context.Context, planID string) (backupusecase.RestorePlan, error) {
-	if f.app == nil || f.app.restore == nil {
-		return backupusecase.RestorePlan{}, restoreFacadeUnavailable(f.app)
-	}
-	plan, err := f.app.restore.Start(ctx, planID)
-	f.app.logBackupAudit("restore_start", planID, err)
-	return plan, err
-}
-
-func (f restoreManagerFacade) RestoreStatus(
-	ctx context.Context,
-) (*backupusecase.RestorePlan, error) {
-	if f.app == nil {
-		return nil, restoreFacadeUnavailable(f.app)
-	}
-	if f.app.restore != nil {
-		return f.app.restore.Status(ctx)
-	}
-	controller, ok :=
-		f.app.cluster.(backupinfra.RestoreCoordinationController)
-	if !ok {
-		return nil, restoreFacadeUnavailable(f.app)
-	}
-	store, err := backupinfra.NewControllerRestoreStateStore(controller)
-	if err != nil {
-		return nil, err
-	}
-	state, err := store.Load(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if state.Plan == nil ||
-		state.Plan.Status != backupusecase.RestoreStatusActivated {
-		return nil, restoreFacadeUnavailable(f.app)
-	}
-	return state.Plan, nil
-}
-
-func (f restoreManagerFacade) RestoreProgress(ctx context.Context) (*backupusecase.RestoreProgress, error) {
-	if f.app == nil {
-		return nil, restoreFacadeUnavailable(f.app)
-	}
-	if f.app.restore != nil {
-		progress, err := f.app.restore.Progress(ctx)
-		f.observeRestoreProgress(progress)
-		return progress, err
-	}
-	plan, err := f.RestoreStatus(ctx)
-	if err != nil || plan == nil {
-		return nil, err
-	}
-	return nil, nil
-}
-
-func (f restoreManagerFacade) observeRestoreProgress(
-	progress *backupusecase.RestoreProgress,
-) {
-	if f.app == nil || f.app.metrics == nil || progress == nil {
-		return
-	}
-	f.app.metrics.Backup.SetBackupRestoreThroughput(
-		activeRestoreThroughput(progress),
-	)
-}
-
-func activeRestoreThroughput(
-	progress *backupusecase.RestoreProgress,
-) uint64 {
-	if progress == nil ||
-		progress.Status != backupcontract.RestoreStatusInstalling {
-		return 0
-	}
-	return progress.ThroughputBytesPerSecond
-}
-
-func (f restoreManagerFacade) VerifyRestore(ctx context.Context, planID string) (backupusecase.RestorePlan, error) {
-	if f.app == nil || f.app.restore == nil {
-		return backupusecase.RestorePlan{}, restoreFacadeUnavailable(f.app)
-	}
-	plan, err := f.app.restore.Verify(ctx, planID)
-	f.app.logBackupAudit("restore_verify", planID, err)
-	return plan, err
-}
-
-func (f restoreManagerFacade) ActivateRestore(
-	ctx context.Context,
-	planID string,
-	request backupusecase.RestoreActivationRequest,
-) (backupusecase.RestorePlan, error) {
-	if f.app == nil || f.app.restore == nil {
-		return backupusecase.RestorePlan{}, restoreFacadeUnavailable(f.app)
-	}
-	plan, err := f.app.restore.Activate(ctx, planID, request)
-	f.app.logBackupAudit(
-		"restore_activate", planID, err,
-		wklog.String("operator", request.Operator),
-	)
-	return plan, err
-}
-
-func restoreFacadeUnavailable(app *App) error {
-	if app == nil || !app.cfg.Backup.RestoreMode {
-		return backupusecase.ErrRestoreModeRequired
-	}
-	if app.backupInitErr != nil {
-		return app.backupInitErr
-	}
-	return fmt.Errorf("backup restore runtime is unavailable")
-}
-
-func (r backupManagerRouter) leader() (uint64, bool, error) {
-	if r.leadership == nil {
-		return 0, false, backupusecase.ErrControllerLeaderUnavailable
-	}
-	leaderID := r.leadership.BackupControllerLeaderID()
-	if leaderID == 0 {
-		return 0, false, backupusecase.ErrControllerLeaderUnavailable
-	}
-	return leaderID, leaderID == r.leadership.NodeID(), nil
-}
-
-func (r backupManagerRouter) Status(ctx context.Context) (backupusecase.StatusSnapshot, error) {
-	leaderID, local, err := r.leader()
-	if err != nil {
-		return backupusecase.StatusSnapshot{}, err
-	}
-	var status backupusecase.StatusSnapshot
-	if local {
-		status, err = r.local.Status(ctx)
-	} else {
-		status, err = r.client.ManagerBackupStatus(ctx, leaderID)
-	}
-	if err != nil {
-		return backupusecase.StatusSnapshot{}, err
-	}
-	localCaptures := status.CaptureStatuses
-	if !local {
-		localCaptures = r.local.LocalCaptureStatus(ctx)
-	}
-	status.CaptureStatuses,
-		status.CaptureStatusMissingNodeIDs,
-		status.CaptureStatusMissingSlots = r.clusterCaptureStatuses(
-		ctx, leaderID, status.CaptureLeases,
-		status.CaptureStatuses, localCaptures,
-	)
-	status.CaptureStatusComplete =
-		len(status.CaptureStatusMissingSlots) == 0
-	if !status.CaptureStatusComplete {
-		if status.Health == backupusecase.HealthHealthy {
-			status.Health = backupusecase.HealthDegraded
-		}
-		if status.FailureCategory == "" {
-			status.FailureCategory = "capture_status_unavailable"
-		}
-	}
-	return status, nil
-}
-
-func (r backupManagerRouter) clusterCaptureStatuses(
-	ctx context.Context,
-	leaderID uint64,
-	leases []backupusecase.CaptureLeaseSnapshot,
-	leaderCaptures []backupcontract.SlotCaptureStatus,
-	localCaptures []backupcontract.SlotCaptureStatus,
-) (
-	[]backupcontract.SlotCaptureStatus,
-	[]uint64,
-	[]uint16,
-) {
-	localID := r.leadership.NodeID()
-	holders := make(map[uint16]uint64, len(leases))
-	nodeIDs := make(map[uint64]struct{})
-	for _, lease := range leases {
-		if lease.HolderNodeID == 0 {
-			continue
-		}
-		holders[lease.HashSlot] = lease.HolderNodeID
-		nodeIDs[lease.HolderNodeID] = struct{}{}
-	}
-	// Durable capture leases, unlike node-local status, cover every initialized
-	// Slot and therefore define the bounded fan-out target set.
-	if len(nodeIDs) == 0 {
-		nodeIDs[leaderID] = struct{}{}
-		nodeIDs[localID] = struct{}{}
-	}
-
-	type nodeCaptureStatuses struct {
-		nodeID   uint64
-		statuses []backupcontract.SlotCaptureStatus
-	}
-	type remoteCaptureResult struct {
-		statuses []backupcontract.SlotCaptureStatus
-		received bool
-	}
-	results := make([]nodeCaptureStatuses, 0, len(nodeIDs))
-	appendResult := func(nodeID uint64, statuses []backupcontract.SlotCaptureStatus) {
-		results = append(results, nodeCaptureStatuses{
-			nodeID: nodeID, statuses: statuses,
-		})
-	}
-	if _, ok := nodeIDs[leaderID]; ok {
-		appendResult(leaderID, leaderCaptures)
-		delete(nodeIDs, leaderID)
-	}
-	if _, ok := nodeIDs[localID]; ok {
-		appendResult(localID, localCaptures)
-		delete(nodeIDs, localID)
-	}
-
-	fanoutContext, cancel := context.WithTimeout(
-		ctx, backupStatusFanoutTimeout,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	remoteNodeIDs := make([]uint64, 0, len(nodeIDs))
-	for nodeID := range nodeIDs {
-		remoteNodeIDs = append(remoteNodeIDs, nodeID)
-	}
-	sort.Slice(remoteNodeIDs, func(i, j int) bool {
-		return remoteNodeIDs[i] < remoteNodeIDs[j]
-	})
-	remoteResults := make([]remoteCaptureResult, len(remoteNodeIDs))
-	jobs := make(chan int)
-	workers := len(remoteNodeIDs)
-	if workers > backupStatusFanoutConcurrency {
-		workers = backupStatusFanoutConcurrency
-	}
-	var workersDone sync.WaitGroup
-	workersDone.Add(workers)
-	goruntimeregistry.SafeGoN(
-		r.goroutines,
-		goruntimeregistry.TaskManagerBackupStatusFanout,
-		workers,
-		func(_ int) {
-			defer workersDone.Done()
-			for index := range jobs {
-				callContext, cancelCall := context.WithTimeout(
-					fanoutContext, backupStatusNodeTimeout,
-				)
-				captures, callErr :=
-					r.client.ManagerBackupLocalCaptureStatus(
-						callContext, remoteNodeIDs[index],
-					)
-				cancelCall()
-				if callErr == nil {
-					remoteResults[index] = remoteCaptureResult{
-						statuses: captures, received: true,
-					}
-				}
-			}
-		},
-	)
-submitRemote:
-	for index := range remoteNodeIDs {
-		select {
-		case jobs <- index:
-		case <-fanoutContext.Done():
-			break submitRemote
-		}
-	}
-	close(jobs)
-	workersDone.Wait()
-
-	missingNodeIDs := make([]uint64, 0)
-	for index, nodeID := range remoteNodeIDs {
-		if !remoteResults[index].received {
-			missingNodeIDs = append(missingNodeIDs, nodeID)
-			continue
-		}
-		appendResult(nodeID, remoteResults[index].statuses)
-	}
-
-	bySlot := make(map[uint16]backupcontract.SlotCaptureStatus, len(holders))
-	for _, result := range results {
-		for _, candidate := range result.statuses {
-			holderID := holders[candidate.HashSlot]
-			if holderID != 0 && holderID != result.nodeID {
-				continue
-			}
-			existing, ok := bySlot[candidate.HashSlot]
-			if !ok || candidate.ObservedAtUnixMillis >
-				existing.ObservedAtUnixMillis {
-				bySlot[candidate.HashSlot] = candidate
-			}
-		}
-	}
-	captures := make([]backupcontract.SlotCaptureStatus, 0, len(bySlot))
-	for _, status := range bySlot {
-		captures = append(captures, status)
-	}
-	sort.Slice(captures, func(i, j int) bool {
-		return captures[i].HashSlot < captures[j].HashSlot
-	})
-	missingSlots := make([]uint16, 0)
-	for hashSlot := range holders {
-		if _, ok := bySlot[hashSlot]; !ok {
-			missingSlots = append(missingSlots, hashSlot)
-		}
-	}
-	sort.Slice(missingSlots, func(i, j int) bool {
-		return missingSlots[i] < missingSlots[j]
-	})
-	return captures, missingNodeIDs, missingSlots
-}
-
-func (r backupManagerRouter) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
-	return r.local.ListCheckpointsPage(ctx, request)
-}
-
-func (r backupManagerRouter) CheckpointByID(ctx context.Context, checkpointID string) (backupusecase.CheckpointDetail, error) {
-	return r.local.CheckpointByID(ctx, checkpointID)
-}
-
-func (r backupManagerRouter) PublishCheckpoint(
-	ctx context.Context,
-) (backupusecase.CheckpointPublication, error) {
-	leaderID, local, err := r.leader()
+	state, err := a.scheduledBackup.State(ctx)
 	if err != nil {
-		return backupusecase.CheckpointPublication{}, err
+		return 0, err
 	}
-	if local {
-		return r.local.PublishCheckpoint(ctx)
-	}
-	return r.client.ManagerBackupPublishCheckpoint(ctx, leaderID)
+	return state.ManagerSessionEpoch, nil
 }
 
-func (r backupManagerRouter) SetCheckpointHold(
-	ctx context.Context,
-	checkpointID string,
-	held bool,
-) (backupusecase.CheckpointSummary, error) {
-	leaderID, local, err := r.leader()
-	if err != nil {
-		return backupusecase.CheckpointSummary{}, err
+func newBackupIdentity(prefix string) string {
+	var body [16]byte
+	if _, err := rand.Read(body[:]); err != nil {
+		// The process cannot safely publish an identity without OS entropy.
+		panic(fmt.Sprintf("backup app: random identity: %v", err))
 	}
-	if local {
-		return r.local.SetCheckpointHold(ctx, checkpointID, held)
-	}
-	return r.client.ManagerBackupSetCheckpointHold(
-		ctx, leaderID, checkpointID, held,
-	)
+	return prefix + "-" + hex.EncodeToString(body[:])
 }
 
-func (r backupManagerRouter) FenceSource(
-	ctx context.Context,
-	request backupusecase.SourceFenceRequest,
-) (backupusecase.SourceFenceReceipt, error) {
-	leaderID, local, err := r.leader()
-	if err != nil {
-		return backupusecase.SourceFenceReceipt{}, err
-	}
-	if local {
-		return r.local.FenceSource(ctx, request)
-	}
-	return r.client.ManagerBackupFenceSource(ctx, leaderID, request)
-}
-
-func (f backupManagerFacade) Status(ctx context.Context) (backupusecase.StatusSnapshot, error) {
-	if f.app == nil {
-		return f.observeBackupStatus(backupusecase.StatusSnapshot{
-			Enabled: false, Health: backupusecase.HealthDisabled,
-			CaptureStatusComplete: true,
-		}), nil
-	}
-	if !f.app.cfg.Backup.Enabled {
-		status := backupusecase.StatusSnapshot{
-			Enabled: false, Health: backupusecase.HealthDisabled,
-			CaptureStatusComplete: true,
-		}
-		if f.app.cfg.Backup.RestoreMode {
-			progress, err := (restoreManagerFacade{app: f.app}).
-				RestoreProgress(ctx)
-			if err == nil {
-				status.Restore = progress
-			}
-		}
-		return f.observeBackupStatus(status), nil
-	}
-	if f.app.backupInitErr != nil || f.app.backup == nil {
-		status := backupusecase.StatusSnapshot{
-			Enabled: true,
-			Health:  backupusecase.HealthFailed,
-		}
-		if f.app.backupInitErr != nil {
-			status.FailureCategory = "initialization"
-		}
-		return f.observeBackupStatus(status), nil
-	}
-	status, err := f.app.backup.Status(ctx)
-	if err != nil {
-		return backupusecase.StatusSnapshot{}, err
-	}
-	if provider, ok := f.app.backupRuntime.(backupRuntimeStatusProvider); ok {
-		operational := provider.Status()
-		if operational.DoctorHealth == backupusecase.HealthFailed {
-			status.Health = backupusecase.HealthFailed
-		} else if operational.LastFailureCategory != "" && status.Health == backupusecase.HealthHealthy {
-			status.Health = backupusecase.HealthDegraded
-		} else if operational.DoctorHealth != backupusecase.HealthHealthy && status.Health == backupusecase.HealthHealthy {
-			status.Health = backupusecase.HealthUnknown
-		}
-		if operational.LastFailureCategory != "" {
-			status.FailureCategory = operational.LastFailureCategory
-		}
-		status.Running = operational.Running
-		status.CaptureStatuses = f.LocalCaptureStatus(ctx)
-	} else if status.Health == backupusecase.HealthHealthy {
-		status.Health = backupusecase.HealthUnknown
-	}
-	return f.observeBackupStatus(status), nil
-}
-
-func (f backupManagerFacade) LocalCaptureStatus(
-	context.Context,
-) []backupcontract.SlotCaptureStatus {
-	if f.app == nil {
-		return nil
-	}
-	captureProvider, ok := f.app.backupRuntime.(interface {
-		CaptureStatus() []backupcontract.SlotCaptureStatus
-	})
-	if !ok {
-		return nil
-	}
-	return captureProvider.CaptureStatus()
-}
-
-func (f backupManagerFacade) observeBackupStatus(status backupusecase.StatusSnapshot) backupusecase.StatusSnapshot {
-	status.ObservedAtUnixMillis = time.Now().UTC().UnixMilli()
-	if f.app != nil {
-		cfg := f.app.cfg.Backup
-		status.Policy = backupusecase.PolicySnapshot{
-			CaptureReconcileIntervalSeconds: int64(cfg.CaptureReconcileInterval / time.Second),
-			CheckpointIntervalSeconds:       int64(cfg.CheckpointInterval / time.Second),
-			CaptureWorkerCount:              cfg.WorkerCount,
-			TargetSegmentBytes:              cfg.TargetSegmentBytes,
-			MaxSegmentBytes:                 cfg.MaxSegmentBytes,
-			MaxSegmentOpenDurationSeconds:   int64(cfg.MaxSegmentOpenDuration / time.Second),
-			StagingMaxBytes:                 cfg.StagingMaxBytes,
-			SourcePinMaxAgeSeconds:          int64(cfg.SourcePinMaxAge / time.Second),
-			MaxSourcePinnedBytes:            cfg.MaxSourcePinnedBytes,
-		}
-		if leadership, ok := f.app.cluster.(runtimebackup.CoordinatorLeadership); ok {
-			status.CoordinatorNodeID = leadership.BackupControllerLeaderID()
-		}
-		if f.app.metrics != nil {
-			f.app.metrics.Backup.SetBackupGCDebt(
-				status.GarbageCollection.DebtRepositories,
-			)
-			f.app.metrics.Backup.SetBackupRestoreThroughput(
-				activeRestoreThroughput(status.Restore),
-			)
-		}
-	}
-	return status
-}
-
-func (f backupManagerFacade) ListCheckpointsPage(ctx context.Context, request backupusecase.CheckpointListRequest) (backupusecase.CheckpointPage, error) {
-	if f.app == nil || f.app.backup == nil {
-		return backupusecase.CheckpointPage{}, backupFacadeUnavailable(f.app)
-	}
-	return f.app.backup.ListCheckpointsPage(ctx, request)
-}
-
-func (f backupManagerFacade) CheckpointByID(ctx context.Context, checkpointID string) (backupusecase.CheckpointDetail, error) {
-	if f.app == nil || f.app.backup == nil {
-		return backupusecase.CheckpointDetail{}, backupFacadeUnavailable(f.app)
-	}
-	return f.app.backup.CheckpointByID(ctx, checkpointID)
-}
-
-func (f backupManagerFacade) PublishCheckpoint(
-	ctx context.Context,
-) (backupusecase.CheckpointPublication, error) {
-	if f.app == nil || f.app.backup == nil {
-		return backupusecase.CheckpointPublication{}, backupFacadeUnavailable(f.app)
-	}
-	if coordinator, ok :=
-		f.app.backupRuntime.(interface {
-			PublishCheckpoint(context.Context) (
-				backupartifact.CheckpointCatalogCommit,
-				error,
-			)
-		}); ok {
-		commit, err := coordinator.PublishCheckpoint(ctx)
-		if err != nil {
-			f.app.logBackupAudit(
-				"backup_checkpoint_publish", "", err,
-			)
-			if errors.Is(err, runtimebackup.ErrContinuousDoctorUnhealthy) {
-				return backupusecase.CheckpointPublication{},
-					backupusecase.ErrDoctorUnhealthy
-			}
-			if errors.Is(err, runtimebackup.ErrCaptureNotLeader) {
-				return backupusecase.CheckpointPublication{},
-					backupusecase.ErrControllerLeaderUnavailable
-			}
-			return backupusecase.CheckpointPublication{}, err
-		}
-		publication := backupusecase.CheckpointPublication{
-			Checkpoint: backupusecase.CheckpointSummary{
-				ID:                    commit.Checkpoint.ID,
-				CreatedAtUnixMillis:   commit.Checkpoint.CreatedAtUnixMillis,
-				EffectiveAtUnixMillis: commit.Checkpoint.EffectiveAtUnixMillis,
-			},
-			CheckpointSHA256: commit.Checkpoint.SHA256,
-		}
-		publication.CatalogHeadToken, err =
-			backupusecase.EncodeCatalogHeadToken(commit.Head)
-		if err != nil {
-			return backupusecase.CheckpointPublication{}, err
-		}
-		f.app.logBackupAudit(
-			"backup_checkpoint_publish", publication.Checkpoint.ID, nil,
-		)
-		return publication, nil
-	}
-	publication, err := f.app.backup.PublishCheckpoint(ctx)
-	f.app.logBackupAudit(
-		"backup_checkpoint_publish", publication.Checkpoint.ID, err,
-	)
-	return publication, err
-}
-
-func (f backupManagerFacade) SetCheckpointHold(
-	ctx context.Context,
-	checkpointID string,
-	held bool,
-) (backupusecase.CheckpointSummary, error) {
-	if f.app == nil || f.app.backup == nil {
-		return backupusecase.CheckpointSummary{},
-			backupFacadeUnavailable(f.app)
-	}
-	checkpoint, err := f.app.backup.SetCheckpointHold(
-		ctx, checkpointID, held,
-	)
-	action := "backup_checkpoint_release"
-	if held {
-		action = "backup_checkpoint_hold"
-	}
-	f.app.logBackupAudit(action, checkpointID, err)
-	return checkpoint, err
-}
-
-func (f backupManagerFacade) FenceSource(
-	ctx context.Context,
-	request backupusecase.SourceFenceRequest,
-) (backupusecase.SourceFenceReceipt, error) {
-	if f.app == nil || f.app.backup == nil {
-		return backupusecase.SourceFenceReceipt{}, backupFacadeUnavailable(f.app)
-	}
-	receipt, err := f.app.backup.FenceSource(ctx, request)
-	f.app.logBackupAudit(
-		"backup_source_fence", request.RestorePlanID, err,
-		wklog.String("checkpointID", request.CheckpointID),
-		wklog.String("targetClusterID", request.TargetClusterID),
-		wklog.String("targetGeneration", request.TargetGeneration),
-	)
-	return receipt, err
-}
-
-func (a *App) logBackupAudit(action, entityID string, err error, fields ...wklog.Field) {
-	if a == nil || a.logger == nil {
-		return
-	}
-	result := "succeeded"
-	if err != nil {
-		result = "failed"
-	}
-	base := []wklog.Field{
-		wklog.Event("internal.app.backup_audit"), wklog.String("action", action), wklog.Result(result),
-	}
-	if entityID != "" {
-		base = append(base, wklog.String("entityID", entityID))
-	}
-	base = append(base, fields...)
-	if err != nil {
-		a.logger.Warn("backup audit action failed", append(base, wklog.Error(err))...)
-		return
-	}
-	a.logger.Info("backup audit action completed", base...)
-}
-
-func backupFacadeUnavailable(app *App) error {
-	if app == nil || !app.cfg.Backup.Enabled {
-		return backupusecase.ErrDisabled
-	}
-	return fmt.Errorf("backup runtime is unavailable")
-}
-
-var _ accessmanager.BackupManagement = backupManagerFacade{}
-var _ accessmanager.RestoreManagement = restoreManagerFacade{}
-var _ appRestoreNode = (*cluster.Node)(nil)
+var (
+	_ accessmanager.BackupManagement  = (*backupusecase.ManagementService)(nil)
+	_ accessmanager.RestoreManagement = restoreManagerFacade{}
+	_ appScheduledBackupNode          = (*cluster.Node)(nil)
+)

@@ -69,22 +69,22 @@ func TestDefaultSlotProposerPassesBackgroundProposalClass(t *testing.T) {
 	}
 }
 
-func TestDefaultSlotProposerRejectsAtRuntimeEnqueueFence(t *testing.T) {
+func TestDefaultSlotProposerRejectsDuringMaintenance(t *testing.T) {
 	runtime := &recordingSlotRuntime{future: recordingSlotFuture{}}
 	proposer := defaultSlotProposer{
 		runtime: runtime,
 		acquireAdmission: func() (func(), error) {
-			return nil, ErrSourceFenced
+			return nil, ErrMaintenance
 		},
 	}
 
 	err := proposer.Propose(context.Background(), 7, propose.EncodePayload(11, []byte("cmd")))
 
-	if !errors.Is(err, ErrSourceFenced) {
-		t.Fatalf("Propose() error = %v, want ErrSourceFenced", err)
+	if !errors.Is(err, ErrMaintenance) {
+		t.Fatalf("Propose() error = %v, want ErrMaintenance", err)
 	}
 	if runtime.proposeCalls != 0 {
-		t.Fatalf("runtime propose calls = %d, want 0 after source fence", runtime.proposeCalls)
+		t.Fatalf("runtime propose calls = %d, want 0 during maintenance", runtime.proposeCalls)
 	}
 }
 

@@ -189,7 +189,7 @@ type Source interface {
 	DiagnosticsQuery(context.Context, DiagnosticsQueryRequest) (SourceResult, error)
 	// ConfigReadRedacted returns one allowlisted redacted node config.
 	ConfigReadRedacted(context.Context, ConfigReadRedactedRequest) (SourceResult, error)
-	// BackupInspect returns bounded continuous-backup and checkpoint evidence.
+	// BackupInspect returns bounded scheduled full-backup and archive evidence.
 	BackupInspect(context.Context, BackupInspectRequest) (SourceResult, error)
 	// PprofAnalyze captures and parses one bounded runtime profile in memory.
 	PprofAnalyze(context.Context, PprofAnalyzeRequest) (SourceResult, error)
@@ -277,10 +277,10 @@ type ConfigReadRedactedRequest struct {
 	NodeID uint64 `json:"node_id" jsonschema:"exact positive cluster node ID"`
 }
 
-// BackupInspectRequest selects bounded continuous-backup history.
+// BackupInspectRequest selects bounded full-backup archive history.
 type BackupInspectRequest struct {
-	CheckpointID string `json:"checkpoint_id,omitempty" jsonschema:"optional exact immutable checkpoint ID"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"default 50 and maximum 100"`
+	ArchiveID string `json:"archive_id,omitempty" jsonschema:"optional exact immutable full-backup archive ID"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"default 50 and maximum 100"`
 }
 
 // PprofAnalyzeRequest selects one bounded active runtime profile.

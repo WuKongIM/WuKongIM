@@ -75,6 +75,7 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 		applyChannelAppendMetadata(&target, metadata)
 		return target, nil
 	}
+	cacheGeneration := c.metadata.Generation()
 	channel, err := c.node.GetChannelMetadata(ctx, id.ID, int64(id.Type))
 	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
 		return channelappend.AuthorityTarget{}, mapChannelAppendRouteError(err)
@@ -85,7 +86,7 @@ func (c *ChannelAppendClient) ResolveAppendAuthority(ctx context.Context, id cha
 			SubscriberMutationVersion: channel.SubscriberMutationVersion,
 		}
 		applyChannelAppendMetadata(&target, metadata)
-		c.metadata.Store(id, metadata)
+		c.metadata.StoreIfGeneration(id, metadata, cacheGeneration)
 	}
 	return target, nil
 }

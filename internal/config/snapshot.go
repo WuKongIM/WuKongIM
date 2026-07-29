@@ -175,7 +175,6 @@ func orderedSnapshotGroups(groups map[string][]managementusecase.NodeConfigItem)
 	order := []string{
 		"node",
 		"cluster",
-		"backup",
 		"api",
 		"manager",
 		"gateway",
@@ -245,7 +244,6 @@ func isPathLikeField(tomlPath string) bool {
 		strings.Contains(path, "plugin.dir") ||
 		strings.Contains(path, "plugin.sandbox_dir") ||
 		strings.Contains(path, "plugin.state_dir") ||
-		strings.Contains(path, "backup.staging_dir") ||
 		strings.Contains(path, "plugin.socket_path")
 }
 
@@ -253,7 +251,6 @@ func groupTitle(id string) string {
 	titles := map[string]string{
 		"node":              "Node",
 		"cluster":           "Cluster",
-		"backup":            "Backup",
 		"api":               "API",
 		"manager":           "Manager",
 		"gateway":           "Gateway",

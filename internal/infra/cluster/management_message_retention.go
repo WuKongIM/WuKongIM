@@ -7,7 +7,6 @@ import (
 	"time"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
-	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -28,22 +27,16 @@ type messageRetentionRPCNode interface {
 	CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error)
 }
 
-// PermanentMessageErasureRecorder durably records a deletion before live retention advances.
-type PermanentMessageErasureRecorder interface {
-	RecordPermanentMessageErasure(context.Context, backupcontract.PermanentMessageErasure) (backupcontract.ErasureLedgerReceipt, error)
-}
-
 // ManagementMessageRetentionOperator advances channel message retention through Slot metadata.
 type ManagementMessageRetentionOperator struct {
-	node            MessageRetentionNode
-	remote          *accessnode.Client
-	erasureRecorder PermanentMessageErasureRecorder
-	now             func() time.Time
+	node   MessageRetentionNode
+	remote *accessnode.Client
+	now    func() time.Time
 }
 
 // NewManagementMessageRetentionOperator creates a Slot-backed manager retention operator that may forward to the channel leader.
-func NewManagementMessageRetentionOperator(node MessageRetentionNode, erasureRecorders ...PermanentMessageErasureRecorder) *ManagementMessageRetentionOperator {
-	operator := NewLocalManagementMessageRetentionOperator(node, erasureRecorders...)
+func NewManagementMessageRetentionOperator(node MessageRetentionNode) *ManagementMessageRetentionOperator {
+	operator := NewLocalManagementMessageRetentionOperator(node)
 	if rpcNode, ok := node.(messageRetentionRPCNode); ok {
 		operator.remote = accessnode.NewClient(rpcNode)
 	}
@@ -51,12 +44,8 @@ func NewManagementMessageRetentionOperator(node MessageRetentionNode, erasureRec
 }
 
 // NewLocalManagementMessageRetentionOperator creates a Slot-backed retention operator without remote forwarding.
-func NewLocalManagementMessageRetentionOperator(node MessageRetentionNode, erasureRecorders ...PermanentMessageErasureRecorder) *ManagementMessageRetentionOperator {
-	operator := &ManagementMessageRetentionOperator{node: node, now: time.Now}
-	if len(erasureRecorders) > 0 {
-		operator.erasureRecorder = erasureRecorders[0]
-	}
-	return operator
+func NewLocalManagementMessageRetentionOperator(node MessageRetentionNode) *ManagementMessageRetentionOperator {
+	return &ManagementMessageRetentionOperator{node: node, now: time.Now}
 }
 
 // AdvanceMessageRetention evaluates and advances one channel's logical compaction boundary.
@@ -109,14 +98,6 @@ func (o *ManagementMessageRetentionOperator) AdvanceMessageRetention(ctx context
 		return retentionResponse(req, safeSeq, managementusecase.MessageRetentionStatusWouldAdvance, managementusecase.MessageRetentionBlockedReasonNone), nil
 	}
 	acceptedAt := o.currentTime().UTC()
-	if o.erasureRecorder != nil {
-		if _, err := o.erasureRecorder.RecordPermanentMessageErasure(ctx, backupcontract.PermanentMessageErasure{
-			ChannelID: req.ChannelID, ChannelType: uint8(req.ChannelType), ThroughSeq: safeSeq, RequestedAtUnixMillis: acceptedAt.UnixMilli(),
-		}); err != nil {
-			return managementusecase.AdvanceMessageRetentionResponse{}, err
-		}
-	}
-
 	advance := metadb.ChannelRetentionAdvance{
 		ChannelID:            req.ChannelID,
 		ChannelType:          req.ChannelType,

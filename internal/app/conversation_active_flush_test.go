@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 )
 
 func TestConversationActiveFlushWorkerFlushesPeriodicallyAndOnStop(t *testing.T) {
@@ -228,6 +229,30 @@ func TestConversationActiveFlushWorkerStopReturnsFinalFlushError(t *testing.T) {
 	}
 }
 
+func TestConversationActiveFlushWorkerRepeatedStopDoesNotFlushAfterMaintenance(t *testing.T) {
+	flusher := &recordingConversationActiveFlusher{}
+	worker := newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
+		Authority:     flusher,
+		FlushInterval: time.Hour,
+		BatchRows:     3,
+	})
+
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if err := worker.Stop(context.Background()); err != nil {
+		t.Fatalf("first Stop() error = %v", err)
+	}
+	flusher.setError(cluster.ErrMaintenance)
+
+	if err := worker.Stop(context.Background()); err != nil {
+		t.Fatalf("second Stop() error = %v, want already-stopped worker to remain quiesced", err)
+	}
+	if got := flusher.batchRows(); len(got) != 1 {
+		t.Fatalf("flush calls = %d, want only the first Stop() drain before maintenance", len(got))
+	}
+}
+
 func TestConversationActiveFlushWorkerStopDrainsDirtyRows(t *testing.T) {
 	flusher := &recordingConversationActiveFlusher{
 		results: []conversationactive.FlushResult{
@@ -343,6 +368,7 @@ func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, 
 	if len(f.results) > len(f.batches) {
 		result = f.results[len(f.batches)]
 	}
+	flushErr := f.err
 	f.batches = append(f.batches, batchRows)
 	f.callTimes = append(f.callTimes, time.Now())
 	f.mu.Unlock()
@@ -354,7 +380,13 @@ func (f *recordingConversationActiveFlusher) FlushActiveRows(_ context.Context, 
 	if f.blockFlush != nil {
 		<-f.blockFlush
 	}
-	return result, f.err
+	return result, flushErr
+}
+
+func (f *recordingConversationActiveFlusher) setError(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.err = err
 }
 
 func (f *recordingConversationActiveFlusher) batchRows() []int {

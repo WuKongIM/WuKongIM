@@ -236,10 +236,11 @@ func TestRuntimeAdmissionBeforeStartAndStopAreSafe(t *testing.T) {
 	}
 }
 
-func TestRuntimeRejectsStartAndAdmissionAfterStop(t *testing.T) {
+func TestRuntimeRestartsAfterMaintenanceStop(t *testing.T) {
 	observer := &recordingObserver{}
+	sender := &recordingSender{requests: make(chan SendRequest, 1)}
 	rt, err := New(RuntimeOptions{
-		Sender:              &recordingSender{requests: make(chan SendRequest, 1)},
+		Sender:              sender,
 		Observer:            observer,
 		QueueSize:           4,
 		Workers:             1,
@@ -260,13 +261,18 @@ func TestRuntimeRejectsStartAndAdmissionAfterStop(t *testing.T) {
 	if err := rt.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if err := rt.Start(context.Background()); err == nil {
-		t.Fatalf("Start() after Stop error = nil, want error")
+	if err := rt.Start(context.Background()); err != nil {
+		t.Fatalf("Start() after Stop error = %v", err)
 	}
 
 	rt.Notify(context.Background(), Message{MessageID: 1, MessageSeq: 1})
-	if !observer.hasResult(EventMsgNotify, "closed") {
-		t.Fatalf("post-stop admission was not observed as closed: %#v", observer.snapshot())
+	select {
+	case <-sender.requests:
+	case <-time.After(time.Second):
+		t.Fatal("restarted runtime did not deliver admitted event")
+	}
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("final Stop() error = %v", err)
 	}
 }
 

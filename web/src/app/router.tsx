@@ -4,7 +4,6 @@ import { AppShell } from "@/app/layout/app-shell"
 import { ProtectedRoute, PublicOnlyRoute } from "@/auth/protected-route"
 import { AppLogsPage } from "@/pages/app-logs/page"
 import { BackupsPage } from "@/pages/backups/page"
-import { BackupRecoveryPage } from "@/pages/backups/recovery-page"
 import { BusinessDashboardPage } from "@/pages/business-dashboard/page"
 import { ChannelsBizPage } from "@/pages/channels-biz/page"
 import { ClusterChannelsPage } from "@/pages/cluster/channels/page"
@@ -70,7 +69,6 @@ export const routes: RouteObject[] = [
       { path: "cluster/system-logs", element: <AppLogsPage /> },
       { path: "cluster/diagnostics", element: <ClusterDiagnosticsPage /> },
       { path: "cluster/backups", element: <BackupsPage /> },
-      { path: "cluster/backups/recovery/:checkpointId", element: <BackupRecoveryPage /> },
       // Business management
       { path: "business/dashboard", element: <BusinessDashboardPage /> },
       { path: "business/users", element: <UsersPage /> },

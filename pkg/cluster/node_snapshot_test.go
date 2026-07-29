@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	backupartifact "github.com/WuKongIM/WuKongIM/pkg/backup"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
@@ -104,7 +103,7 @@ func TestNodeControlWatchUpdatesRouteRevision(t *testing.T) {
 	})
 }
 
-func TestNodeSourceFenceImmediatelyAndPermanentlyClosesForeground(t *testing.T) {
+func TestNodeMaintenanceClosesAndReopensForeground(t *testing.T) {
 	controllerRuntime := control.NewStaticController(nodeControlSnapshot())
 	node, err := New(
 		validNodeConfig(t), withController(controllerRuntime),
@@ -121,41 +120,30 @@ func TestNodeSourceFenceImmediatelyAndPermanentlyClosesForeground(t *testing.T) 
 	next := nodeControlSnapshot()
 	next.Revision = 2
 	next.HashSlots.Revision = 2
-	next.SourceFence = &backupartifact.SourceFenceRecord{
-		Format:  backupartifact.SourceFenceReceiptFormat,
-		Version: backupartifact.SourceFenceReceiptVersion,
-		ID:      "source-fence-1", SourceClusterID: next.ClusterID,
-		SourceGeneration: "source-generation-1",
-		RestorePlanID:    "plan-1", CheckpointID: "checkpoint-1",
-		CheckpointSHA256:        strings.Repeat("a", 64),
-		TargetClusterID:         "target-cluster",
-		TargetGeneration:        "target-generation-1",
-		FenceControllerRevision: 2,
-		RequestedAtUnixMillis:   time.Now().UTC().UnixMilli(),
-	}
+	next.Maintenance = true
 	if err := controllerRuntime.Publish(next); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, func() bool { return node.sourceFenced.Load() })
-	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrSourceFenced) {
-		t.Fatalf("RouteHashSlot() error = %v, want ErrSourceFenced", err)
+	waitUntil(t, func() bool { return node.maintenance.Load() })
+	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrMaintenance) {
+		t.Fatalf("RouteHashSlot() error = %v, want ErrMaintenance", err)
 	}
 	if node.runtimeReadyForHealthReport() {
-		t.Fatal("runtimeReadyForHealthReport() = true after source fence")
+		t.Fatal("runtimeReadyForHealthReport() = true during maintenance")
 	}
 
-	withoutFence := next.Clone()
-	withoutFence.Revision = 3
-	withoutFence.HashSlots.Revision = 3
-	withoutFence.SourceFence = nil
-	if err := controllerRuntime.Publish(withoutFence); err != nil {
+	normal := next.Clone()
+	normal.Revision = 3
+	normal.HashSlots.Revision = 3
+	normal.Maintenance = false
+	if err := controllerRuntime.Publish(normal); err != nil {
 		t.Fatal(err)
 	}
 	waitUntil(t, func() bool {
 		return node.Snapshot().StateRevision == 3
 	})
-	if _, err := node.RouteHashSlot(0); !errors.Is(err, ErrSourceFenced) {
-		t.Fatalf("RouteHashSlot(after stale snapshot) error = %v", err)
+	if err := node.ensureForeground(); err != nil {
+		t.Fatalf("ensureForeground(after maintenance) error = %v", err)
 	}
 }
 
