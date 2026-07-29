@@ -205,6 +205,17 @@ func TestIssueAgentControlIntakeRolloutAdmitsOnlyIntakeAndAuthorization(
        needs.planner.outputs.operation == 'authorize'`)
 }
 
+func TestIssueAgentControlUsesTrustedGitHubEventName(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.Contains(t, raw, `event_name="$GITHUB_EVENT_NAME"`)
+	require.NotContains(t, raw, `jq -r '.event_name`)
+	require.NotContains(t, raw, `if [[ -z "$event_name" ]]`)
+}
+
 func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
 	t.Parallel()
 
