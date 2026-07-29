@@ -307,7 +307,13 @@ func safeRelativePath(value string) bool {
 
 func withinRoot(root string, candidate string) bool {
 	relative, err := filepath.Rel(root, candidate)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, "../") &&
+	return err == nil && relativeWithinRoot(relative)
+}
+
+func relativeWithinRoot(relative string) bool {
+	return relative != ".." &&
+		!strings.HasPrefix(relative, "../") &&
+		!strings.HasPrefix(relative, `..\`) &&
 		!filepath.IsAbs(relative)
 }
 

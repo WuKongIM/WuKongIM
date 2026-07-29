@@ -391,6 +391,97 @@ func TestWorkerTurnsAdapterFailureIntoSanitizedPublishableArtifact(t *testing.T)
 	require.NotContains(t, artifact.Result.Failure.Summary, "secret")
 }
 
+func TestWorkerFreezesSafeInternalSymlinks(t *testing.T) {
+	t.Parallel()
+
+	newWorker := func(
+		t *testing.T,
+		initialTarget func(string) string,
+		mutate func(string) error,
+	) *issueagentworker.Worker {
+		t.Helper()
+		task := validWorkerTask()
+		prompt := []byte("fixed worker prompt")
+		policy := []byte(`{"enabled":true}`)
+		task.PromptDigest = digestForTest(prompt)
+		task.PolicyDigest = digestForTest(policy)
+		workspace := filepath.Join(t.TempDir(), "workspace")
+		require.NoError(t, os.Mkdir(workspace, 0o755))
+		instruction := []byte("# Worker instructions\n")
+		require.NoError(t, os.WriteFile(
+			filepath.Join(workspace, "AGENTS.md"), instruction, 0o644,
+		))
+		task.InstructionDigests = []issueagent.FileDigest{{
+			Path: "AGENTS.md", SHA256: digestForTest(instruction),
+		}}
+		require.NoError(t, os.WriteFile(
+			filepath.Join(workspace, "channel-metrics-summary.awk"),
+			[]byte("BEGIN { print \"ok\" }\n"), 0o644,
+		))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(workspace, "other.awk"),
+			[]byte("BEGIN { print \"other\" }\n"), 0o644,
+		))
+		link := filepath.Join(workspace, "channelv2-metrics-summary.awk")
+		target := "channel-metrics-summary.awk"
+		if initialTarget != nil {
+			target = initialTarget(workspace)
+		}
+		require.NoError(t, os.Symlink(target, link))
+		worker, err := issueagentworker.NewWorker(issueagentworker.WorkerConfig{
+			Task: task, Prompt: prompt, Policy: policy, Workspace: workspace,
+			Runner: &fakeRunner{},
+			Model: func(
+				context.Context,
+				issueagent.TaskEnvelope,
+				[]byte,
+				*issueagentworker.Broker,
+			) (issueagentworker.ModelOutput, error) {
+				if mutate != nil {
+					require.NoError(t, mutate(link))
+				}
+				return issueagentworker.ModelOutput{},
+					errors.New("secret provider detail")
+			},
+			MaxArtifactBytes: 1 << 20,
+		})
+		require.NoError(t, err)
+		return worker
+	}
+
+	t.Run("unchanged internal link", func(t *testing.T) {
+		worker := newWorker(t, nil, nil)
+		artifact, err := worker.Run(context.Background())
+		require.NoError(t, err)
+		require.NoError(t, issueagentworker.ValidateArtifact(artifact))
+		require.Equal(t, issueagent.ResultStatusFailed, artifact.Result.Status)
+	})
+
+	t.Run("changed internal link", func(t *testing.T) {
+		worker := newWorker(t, nil, func(link string) error {
+			if err := os.Remove(link); err != nil {
+				return err
+			}
+			return os.Symlink("other.awk", link)
+		})
+		_, err := worker.Run(context.Background())
+		require.EqualError(t, err, "Worker workspace symlink changed")
+	})
+
+	t.Run("escaping relative link", func(t *testing.T) {
+		worker := newWorker(t, func(workspace string) string {
+			outsideName := filepath.Base(workspace) + "-outside.awk"
+			require.NoError(t, os.WriteFile(
+				filepath.Join(filepath.Dir(workspace), outsideName),
+				[]byte("outside\n"), 0o644,
+			))
+			return filepath.Join("..", outsideName)
+		}, nil)
+		_, err := worker.Run(context.Background())
+		require.EqualError(t, err, "Worker workspace symlink escapes root")
+	})
+}
+
 func digestForTest(value []byte) string {
 	sum := sha256.Sum256(value)
 	return "sha256:" + hex.EncodeToString(sum[:])

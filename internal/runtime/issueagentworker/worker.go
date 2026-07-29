@@ -478,8 +478,9 @@ func requireAssertionFailures(expected string, groups ...[]ToolEvidence) error {
 }
 
 type workspaceFile struct {
-	mode    issueagent.FileMode
-	content []byte
+	mode          issueagent.FileMode
+	content       []byte
+	symlinkTarget string
 }
 
 func snapshotWorkspace(root string) (map[string]workspaceFile, error) {
@@ -500,7 +501,37 @@ func snapshotWorkspace(root string) (map[string]workspaceFile, error) {
 			return nil
 		}
 		if entry.Type()&os.ModeSymlink != 0 {
-			return errors.New("Worker workspace contains a symlink")
+			target, err := os.Readlink(current)
+			if err != nil || target == "" || filepath.IsAbs(target) ||
+				strings.ContainsRune(target, 0) {
+				return errors.New("Worker workspace contains an unsafe symlink")
+			}
+			directTarget := filepath.Clean(
+				filepath.Join(filepath.Dir(current), target),
+			)
+			if !withinRoot(root, directTarget) {
+				return errors.New("Worker workspace symlink escapes root")
+			}
+			targetRelative, err := filepath.Rel(root, directTarget)
+			targetRelative = filepath.ToSlash(targetRelative)
+			if err != nil || targetRelative == ".git" ||
+				strings.HasPrefix(targetRelative, ".git/") ||
+				targetRelative == ".issue-agent-tmp" ||
+				strings.HasPrefix(targetRelative, ".issue-agent-tmp/") {
+				return errors.New("Worker workspace symlink target is unsafe")
+			}
+			info, err := os.Lstat(directTarget)
+			if err != nil || info.Mode()&os.ModeSymlink != 0 ||
+				!info.Mode().IsRegular() ||
+				len(result) >= 200000 ||
+				totalBytes+int64(len(target)) > 2<<30 {
+				return errors.New("Worker workspace symlink target is invalid")
+			}
+			result[filepath.ToSlash(relative)] = workspaceFile{
+				symlinkTarget: target,
+			}
+			totalBytes += int64(len(target))
+			return nil
 		}
 		info, err := entry.Info()
 		if err != nil || !info.Mode().IsRegular() {
@@ -547,6 +578,15 @@ func deriveChangeSet(
 	for _, filePath := range paths {
 		oldFile, existed := before[filePath]
 		newFile, exists := after[filePath]
+		if oldFile.symlinkTarget != "" || newFile.symlinkTarget != "" {
+			if existed && exists &&
+				oldFile.symlinkTarget != "" &&
+				oldFile.symlinkTarget == newFile.symlinkTarget {
+				continue
+			}
+			return issueagent.ChangeSet{},
+				errors.New("Worker workspace symlink changed")
+		}
 		switch {
 		case existed && !exists:
 			changes = append(changes, issueagent.FileChange{

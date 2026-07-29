@@ -22,6 +22,11 @@ evidence, Artifact digest, diagnosis evidence digest, and token counts empty.
 The trusted Worker derives those values from the workspace, broker transcript,
 and Adapter response and validates the completed Artifact again. The Publisher
 replays the same validations before any GitHub write.
+Pre-existing relative symlinks may point in one hop only to regular files
+inside the workspace, outside `.git` and Worker scratch state. The Worker
+freezes each link path-to-target mapping across its before/after snapshots and
+rejects any added, removed, file-type-replaced, retargeted, escaping, chained,
+or otherwise unsafe symlink.
 
 On Linux CI the workspace is placed in a digest-pinned, no-network container
 with a read-only root, PID/memory/CPU constraints, temporary build caches, and
