@@ -623,7 +623,8 @@ Run:
 
 ```bash
 rg -n 'CodexAPIKey|ISSUE_AGENT_CODEX_API_KEY|rollout remains `shadow`' \
-  internal cmd .github docs
+  internal cmd .github/workflows .github/workflows/README.md \
+  docs/agents docs/development
 ```
 
 Expected: no matches.
