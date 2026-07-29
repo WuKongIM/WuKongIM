@@ -307,6 +307,48 @@ func TestAgentPRValidationControlWorkflowRejectsMissingRequestStatus(t *testing.
 	}
 }
 
+func TestAgentPRValidationControlWorkflowRejectsNonSummaryInvalidation(t *testing.T) {
+	raw := string(readWorkflow(t, "agent-pr-validation-control.yml"))
+	tests := []struct {
+		name        string
+		oldFragment string
+		newFragment string
+	}{
+		{
+			name: "extra action",
+			oldFragment: `      - name: Write invalidation summary
+        shell: bash`,
+			newFragment: `      - name: Unexpected action
+        uses: attacker/example@0123456789abcdef0123456789abcdef01234567
+      - name: Write invalidation summary
+        shell: bash`,
+		},
+		{
+			name: "alternate status write",
+			oldFragment: `      - name: Write invalidation summary
+        shell: bash
+        run: |
+          {
+`,
+			newFragment: `      - name: Write invalidation summary
+        shell: bash
+        run: |
+          printf '%s' '{"state":"failure","context":"Agent Validation Request / PR #999"}' | gh api --method POST "repos/${GITHUB_REPOSITORY}/commits/${{ github.event.pull_request.head.sha }}/statuses" --input -
+          {
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mutated := replaceWorkflowFirst(t, raw, tt.oldFragment, tt.newFragment)
+			if err := validateAgentPRValidationControlWorkflow([]byte(mutated)); err == nil {
+				t.Fatal("control validator accepted non-summary invalidation behavior")
+			}
+		})
+	}
+}
+
 func TestAgentWorkflowCatalogContract(t *testing.T) {
 	root := repoRoot(t)
 	catalog := readFile(t, filepath.Join(root, ".github", "workflows", "README.md"))
@@ -1109,27 +1151,41 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if len(invalidate.Permissions) != 0 {
 		return fmt.Errorf("Agent validation invalidation permissions = %#v, want none", invalidate.Permissions)
 	}
-	var invalidateScript strings.Builder
-	for _, step := range invalidate.Steps {
-		invalidateScript.WriteString(step.Run)
-		invalidateScript.WriteByte('\n')
+	invalidateNode, ok := mappingValue(jobs, "invalidate")
+	if !ok {
+		return fmt.Errorf("Agent validation invalidation job is missing")
 	}
-	for _, forbidden := range []string{
-		`repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}`,
-		`context=Agent Validation Request / PR #${PR_NUMBER}`,
-		`state=failure`,
-	} {
-		if strings.Contains(invalidateScript.String(), forbidden) {
-			return fmt.Errorf("Agent validation invalidation must not publish %q", forbidden)
-		}
+	if err := validateMappingKeys(
+		invalidateNode,
+		[]string{"name", "if", "runs-on", "timeout-minutes", "concurrency", "steps"},
+		"Agent validation invalidation job",
+	); err != nil {
+		return err
 	}
-	for _, required := range []string{
-		`## Agent validation invalidated`,
-		`A fresh Agent validation plan is required.`,
-	} {
-		if !strings.Contains(invalidateScript.String(), required) {
-			return fmt.Errorf("Agent validation invalidation summary is missing %q", required)
-		}
+	wantInvalidateStep := ciStep{
+		Name:  "Write invalidation summary",
+		Shell: "bash",
+		Run: "{\n" +
+			"  echo '## Agent validation invalidated'\n" +
+			"  echo\n" +
+			"  echo \"- PR: \\`#${{ github.event.pull_request.number }}\\`\"\n" +
+			"  echo \"- New head SHA: \\`${{ github.event.pull_request.head.sha }}\\`\"\n" +
+			"  echo '- A fresh Agent validation plan is required.'\n" +
+			"} >>\"$GITHUB_STEP_SUMMARY\"\n",
+	}
+	if len(invalidate.Steps) != 1 || !reflect.DeepEqual(invalidate.Steps[0], wantInvalidateStep) {
+		return fmt.Errorf("Agent validation invalidation must contain exactly one summary-only step")
+	}
+	invalidateSteps, ok := mappingValue(invalidateNode, "steps")
+	if !ok || invalidateSteps.Kind != yaml.SequenceNode || len(invalidateSteps.Content) != 1 {
+		return fmt.Errorf("Agent validation invalidation steps must contain exactly one entry")
+	}
+	if err := validateMappingKeys(
+		invalidateSteps.Content[0],
+		[]string{"name", "shell", "run"},
+		"Agent validation invalidation summary step",
+	); err != nil {
+		return err
 	}
 	if strings.Contains(string(raw), "actions/checkout") ||
 		strings.Contains(string(raw), "github.event.pull_request.head.repo") {
