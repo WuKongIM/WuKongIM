@@ -717,6 +717,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		"three_node_smoke": "${{ steps.plan.outputs.three_node_smoke }}",
 		"plan_comment_id":  "${{ steps.plan.outputs.plan_comment_id }}",
 		"retry_of_run_id":  "${{ steps.plan.outputs.retry_of_run_id }}",
+		"issue_agent_pr":   "${{ steps.plan.outputs.issue_agent_pr }}",
 		"issue_number":     "${{ steps.plan.outputs.issue_number }}",
 		"current_main_sha": "${{ steps.plan.outputs.current_main_sha }}",
 	}
@@ -764,11 +765,17 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`"$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA"`,
 		`"$GATE_RUN_ID"`,
 		`^agent/issue-([1-9][0-9]{0,9})$`,
+		`echo "issue_agent_pr=true"`,
+		`echo "issue_agent_pr=false"`,
+		`echo "issue_number="`,
 		`current_main_sha`,
 	} {
 		if !strings.Contains(planScript.String(), required) {
 			return fmt.Errorf("Agent validation plan is missing request binding %q", required)
 		}
+	}
+	if strings.Contains(planScript.String(), "Agent validation PR head is not an Issue branch") {
+		return fmt.Errorf("ordinary Agent PRs must not be rejected by Issue-only plan classification")
 	}
 	pending := workflow.Jobs["status-pending"]
 	if !reflect.DeepEqual(pending.Needs, []string{"plan"}) {
@@ -868,7 +875,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		}
 	}
 	movingMain := workflow.Jobs["moving-main"]
-	if movingMain.If != "needs.plan.outputs.go_e2e == 'true'" ||
+	if movingMain.If != "needs.plan.outputs.go_e2e == 'true' && needs.plan.outputs.issue_agent_pr == 'true'" ||
 		!reflect.DeepEqual(movingMain.Needs, []string{"plan", "status-pending"}) ||
 		!reflect.DeepEqual(movingMain.Permissions, map[string]string{"contents": "read"}) {
 		return fmt.Errorf("Agent moving-main job is not bound to the frozen E2E plan")
@@ -954,6 +961,11 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 	if gate.If != "always()" {
 		return fmt.Errorf("Agent validation gate must run with always()")
 	}
+	if len(gate.Steps) == 0 ||
+		gate.Steps[0].Env["ISSUE_AGENT_PR"] != "${{ needs.plan.outputs.issue_agent_pr }}" ||
+		gate.Steps[0].Env["ISSUE_NUMBER"] != "${{ needs.plan.outputs.issue_number }}" {
+		return fmt.Errorf("Agent validation gate does not receive the typed Issue PR classification")
+	}
 	wantGateNeeds := jobNames[:len(jobNames)-1]
 	if !reflect.DeepEqual(gate.Needs, wantGateNeeds) {
 		return fmt.Errorf("Agent validation gate needs = %#v, want %#v", gate.Needs, wantGateNeeds)
@@ -988,6 +1000,10 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`"$latest_gate_run_id" != "$GATE_RUN_ID"`,
 		`should_rerun_gate=false`,
 		`actions/runs/${GATE_RUN_ID}/rerun`,
+		`moving_main_selected=false`,
+		`moving_main_selected=true`,
+		`check_result "$moving_main_selected" "$MOVING_MAIN_RESULT"`,
+		`if [[ "$ISSUE_AGENT_PR" == true ]]; then`,
 		`context=Agent Moving Main / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
 		`description=main=${MOVING_MAIN_SHA};binary=${MOVING_MAIN_BINARY_SHA256};runs=3`,
 	} {

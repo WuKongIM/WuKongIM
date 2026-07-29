@@ -59,6 +59,12 @@ the sanitized Artifact, uses an expected-head GraphQL commit on
 closes the Bug, or writes `main`. Bulk Artifacts retain 90 days; signed
 append-only Issue checkpoints are the durable state.
 
+The validation worker classifies only an exact `agent/issue-<number>` head as
+an Issue Agent PR. Its moving-`main` frozen-scenario probe runs only for that
+typed branch and only when `go-e2e` is selected. Ordinary PRs keep the generic
+fixed-suite protocol even when they select `go-e2e`; they are never required to
+contain an Issue Agent scenario.
+
 See `docs/agents/issue-agent.md` for setup, rollout, budgets, key rotation,
 provider selection, and recovery. Every rollout promotion must pass
 `scripts/issue_agent_workflows_test.go` and occur separately from the code that
