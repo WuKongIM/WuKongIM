@@ -45,6 +45,21 @@ func TestParseS3EndpointRejectsEmbeddedPathOrCredentials(t *testing.T) {
 	}
 }
 
+func TestS3ArchiveStoreRejectsConflictingAddressingStyles(t *testing.T) {
+	_, err := NewS3ArchiveStore(S3ArchiveStoreOptions{
+		Endpoint:    "https://s3.example.com",
+		Bucket:      "backups",
+		Prefix:      "cluster-a",
+		AccessKey:   "access-key",
+		SecretKey:   "secret-key",
+		PathStyle:   true,
+		VirtualHost: true,
+	})
+	if err == nil {
+		t.Fatal("NewS3ArchiveStore() error = nil")
+	}
+}
+
 func TestS3ArchiveStoreDeletePrefixDoesNotMatchSiblingPrefix(t *testing.T) {
 	api := &memoryS3ArchiveAPI{objects: map[string][]byte{
 		"root/backups/abc/manifest.json":  []byte("abc"),

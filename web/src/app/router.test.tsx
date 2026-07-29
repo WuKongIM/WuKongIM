@@ -109,7 +109,7 @@ test("opens backup management read-only for a fresh auth-disabled browser", asyn
 
   expect(await screen.findByRole("heading", { name: "Backups" })).toBeInTheDocument()
   expect(screen.getByText("Manager authentication is disabled. Backup changes and restores are unavailable.")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled()
+  expect(await screen.findByRole("button", { name: "Save settings" })).toBeDisabled()
   expect(useAuthStore.getState()).toMatchObject({
     status: "readonly",
     permissions: [{ resource: "cluster.backup", actions: ["r"] }],

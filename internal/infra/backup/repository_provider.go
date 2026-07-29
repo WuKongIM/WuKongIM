@@ -54,10 +54,12 @@ func (p *RepositoryProvider) Open(
 	switch config.Kind {
 	case backupcontract.StoreKindFile:
 		return NewFileArchiveStore(p.fileRoot)
-	case backupcontract.StoreKindS3:
+	case backupcontract.StoreKindOSS,
+		backupcontract.StoreKindCOS,
+		backupcontract.StoreKindS3:
 		if p.cipher == nil {
 			return nil, fmt.Errorf(
-				"backup repository provider: Manager authentication secret is required for S3 credentials",
+				"backup repository provider: Manager authentication secret is required for object storage credentials",
 			)
 		}
 		credentials, err := p.cipher.Open(config.CredentialCiphertext)
@@ -65,9 +67,11 @@ func (p *RepositoryProvider) Open(
 			return nil, err
 		}
 		return NewS3ArchiveStore(S3ArchiveStoreOptions{
-			Endpoint: config.Endpoint, Region: config.Region,
+			Endpoint: repositoryEndpoint(config), Region: config.Region,
 			Bucket: config.Bucket, Prefix: config.Prefix,
 			PathStyle: config.PathStyle,
+			VirtualHost: config.Kind == backupcontract.StoreKindOSS ||
+				config.Kind == backupcontract.StoreKindCOS,
 			AccessKey: credentials.AccessKey, SecretKey: credentials.SecretKey,
 		})
 	default:
@@ -75,15 +79,30 @@ func (p *RepositoryProvider) Open(
 	}
 }
 
-// SealS3Credentials encrypts a replacement credential before plan publication.
-func (p *RepositoryProvider) SealS3Credentials(
+func repositoryEndpoint(config backupcontract.StoreConfig) string {
+	if config.Endpoint != "" {
+		return config.Endpoint
+	}
+	switch config.Kind {
+	case backupcontract.StoreKindOSS:
+		return "https://oss-" + config.Region + ".aliyuncs.com"
+	case backupcontract.StoreKindCOS:
+		return "https://cos." + config.Region + ".myqcloud.com"
+	default:
+		return ""
+	}
+}
+
+// SealObjectStoreCredentials encrypts a replacement credential before plan
+// publication.
+func (p *RepositoryProvider) SealObjectStoreCredentials(
 	accessKey string,
 	secretKey string,
 ) ([]byte, error) {
 	if p == nil || p.cipher == nil {
 		return nil, fmt.Errorf("backup repository provider: unavailable")
 	}
-	return p.cipher.Seal(S3Credentials{
+	return p.cipher.Seal(ObjectStoreCredentials{
 		AccessKey: accessKey, SecretKey: secretKey,
 	})
 }

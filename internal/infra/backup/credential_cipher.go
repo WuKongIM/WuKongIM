@@ -17,13 +17,15 @@ import (
 
 const credentialCipherVersion uint32 = 1
 
-// S3Credentials is the short-lived plaintext credential supplied by Manager.
-type S3Credentials struct {
+// ObjectStoreCredentials is the short-lived plaintext credential supplied by
+// Manager for an OSS, COS, or S3-compatible repository.
+type ObjectStoreCredentials struct {
 	AccessKey string `json:"access_key"`
 	SecretKey string `json:"secret_key"`
 }
 
-// CredentialCipher protects S3 credentials before they enter Controller state.
+// CredentialCipher protects object storage credentials before they enter
+// Controller state.
 type CredentialCipher struct {
 	aead cipher.AEAD
 }
@@ -41,7 +43,7 @@ func NewCredentialCipher(
 		sha256.New,
 		[]byte(managerSecret),
 		[]byte(clusterID),
-		[]byte("wukongim/scheduled-backup/s3-credentials/v1"),
+		[]byte("wukongim/scheduled-backup/object-store-credentials/v1"),
 	)
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(reader, key); err != nil {
@@ -59,7 +61,9 @@ func NewCredentialCipher(
 }
 
 // Seal encodes and encrypts one credential pair.
-func (c *CredentialCipher) Seal(credentials S3Credentials) ([]byte, error) {
+func (c *CredentialCipher) Seal(
+	credentials ObjectStoreCredentials,
+) ([]byte, error) {
 	if c == nil || c.aead == nil ||
 		strings.TrimSpace(credentials.AccessKey) == "" ||
 		credentials.SecretKey == "" ||
@@ -81,30 +85,32 @@ func (c *CredentialCipher) Seal(credentials S3Credentials) ([]byte, error) {
 }
 
 // Open authenticates and decodes one Controller-stored credential blob.
-func (c *CredentialCipher) Open(ciphertext []byte) (S3Credentials, error) {
+func (c *CredentialCipher) Open(
+	ciphertext []byte,
+) (ObjectStoreCredentials, error) {
 	if c == nil || c.aead == nil ||
 		len(ciphertext) < 4+c.aead.NonceSize()+c.aead.Overhead() ||
 		binary.BigEndian.Uint32(ciphertext[:4]) != credentialCipherVersion {
-		return S3Credentials{}, fmt.Errorf("backup credentials: invalid ciphertext")
+		return ObjectStoreCredentials{}, fmt.Errorf("backup credentials: invalid ciphertext")
 	}
 	nonce := ciphertext[4 : 4+c.aead.NonceSize()]
 	body, err := c.aead.Open(
 		nil, nonce, ciphertext[4+c.aead.NonceSize():], ciphertext[:4],
 	)
 	if err != nil {
-		return S3Credentials{}, fmt.Errorf("backup credentials: authenticate ciphertext: %w", err)
+		return ObjectStoreCredentials{}, fmt.Errorf("backup credentials: authenticate ciphertext: %w", err)
 	}
-	var credentials S3Credentials
+	var credentials ObjectStoreCredentials
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&credentials); err != nil {
-		return S3Credentials{}, fmt.Errorf("backup credentials: decode: %w", err)
+		return ObjectStoreCredentials{}, fmt.Errorf("backup credentials: decode: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return S3Credentials{}, fmt.Errorf("backup credentials: trailing data")
+		return ObjectStoreCredentials{}, fmt.Errorf("backup credentials: trailing data")
 	}
 	if strings.TrimSpace(credentials.AccessKey) == "" || credentials.SecretKey == "" {
-		return S3Credentials{}, fmt.Errorf("backup credentials: incomplete plaintext")
+		return ObjectStoreCredentials{}, fmt.Errorf("backup credentials: incomplete plaintext")
 	}
 	return credentials, nil
 }

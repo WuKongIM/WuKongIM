@@ -42,9 +42,12 @@ unfinished Slots.
 `ManagementService` returns one redacted dashboard containing plan, active
 task, bounded history, and published archives. Configuration probes every
 active node before publication, binds the repository to the source cluster,
-and preserves existing S3 credentials when replacement fields are blank.
-Archive verify, hold/release, and delete operate only through the current plan
-repository.
+and preserves existing object-storage credentials when replacement fields are
+blank and the provider kind is unchanged. Alibaba OSS and Tencent COS derive
+their standard public endpoint from Region when no override is supplied; the
+plan keeps that default selection as an empty Endpoint so later Region changes
+cannot retain a stale derived address. Archive verify, hold/release, and delete
+operate only through the current plan repository.
 
 ## Restore execution
 
