@@ -700,13 +700,13 @@ func TestSweeperFindsExactCompletedWorkerArtifactForCurrentLease(t *testing.T) {
 		case "/repos/WuKongIM/WuKongIM/actions/workflows/issue-agent-run.yml/runs":
 			writeAppJSON(t, writer, map[string]any{
 				"total_count": 1,
-					"workflow_runs": []map[string]any{{
-						"id": 77, "event": "workflow_dispatch",
-						"status": "completed", "conclusion": "failure",
-						"head_branch": "main",
-						"head_sha": "0123456789abcdef0123456789abcdef01234567",
-					"name":     "Agent Tool - Issue Worker",
-					"path":     ".github/workflows/issue-agent-run.yml@main",
+				"workflow_runs": []map[string]any{{
+					"id": 77, "event": "workflow_dispatch",
+					"status": "completed", "conclusion": "failure",
+					"head_branch": "main",
+					"head_sha":    "0123456789abcdef0123456789abcdef01234567",
+					"name":        "Agent Tool - Issue Worker",
+					"path":        ".github/workflows/issue-agent-run.yml@main",
 					"display_title": "Issue Agent worker Issue 42 operation " +
 						operationID,
 					"run_attempt": 1,
