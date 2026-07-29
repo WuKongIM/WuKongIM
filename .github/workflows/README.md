@@ -175,7 +175,9 @@ The validator enforces these minimums:
 
 ### Validation-plan schema
 
-The comment begins with exactly one hidden, single-line JSON object:
+The comment's first three lines MUST be the hidden marker, one single-line JSON
+object, and the closing marker shown below. Do not put a title or other preamble
+before the hidden marker; human-readable explanation MAY follow it.
 
 ```markdown
 <!-- agent-validation-plan:v1
