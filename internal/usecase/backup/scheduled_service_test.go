@@ -71,6 +71,34 @@ func TestScheduledServiceEnablesPlanAndAdmitsInitialFullBackupAtomically(t *test
 	}
 }
 
+func TestScheduledServiceConfigureRetriesUnrelatedStateConflict(t *testing.T) {
+	store := &memoryScheduledStateStore{interveningStateUpdates: 1}
+	service, err := backupusecase.NewScheduledService(backupusecase.ScheduledOptions{
+		StateStore: store,
+		Now:        func() time.Time { return time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC) },
+		NewID:      func() string { return "backup-after-state-update" },
+	})
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+
+	result, err := service.Configure(context.Background(), validConfigureRequest())
+	if err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	if result.Plan.Revision != 1 || result.InitialJob == nil ||
+		result.InitialJob.ID != "backup-after-state-update" {
+		t.Fatalf("Configure() result = %#v", result)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if state.Revision != 2 || state.Plan == nil || state.Plan.Revision != 1 {
+		t.Fatalf("state after retried configure = %#v", state)
+	}
+}
+
 func TestScheduledServiceFencesResumedSlotAttempt(t *testing.T) {
 	store := &memoryScheduledStateStore{}
 	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
@@ -312,8 +340,9 @@ func validConfigureRequest() backupusecase.ConfigureRequest {
 }
 
 type memoryScheduledStateStore struct {
-	mu    sync.Mutex
-	state backupcontract.SystemState
+	mu                      sync.Mutex
+	state                   backupcontract.SystemState
+	interveningStateUpdates int
 }
 
 func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.SystemState, error) {
@@ -329,6 +358,11 @@ func (s *memoryScheduledStateStore) CompareAndSwap(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.interveningStateUpdates > 0 {
+		s.interveningStateUpdates--
+		s.state.Revision++
+		return backupusecase.ErrStateConflict
+	}
 	if s.state.Revision != expectedRevision {
 		return backupusecase.ErrStateConflict
 	}

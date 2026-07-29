@@ -511,19 +511,25 @@ func (s *RestoreService) mutate(
 	if strings.TrimSpace(jobID) == "" {
 		return ErrInvalidRequest
 	}
-	current, err := s.store.Load(ctx)
-	if err != nil {
-		return err
+	for range 16 {
+		current, err := s.store.Load(ctx)
+		if err != nil {
+			return err
+		}
+		if current.ActiveRestore == nil || current.ActiveRestore.ID != jobID {
+			return ErrStateConflict
+		}
+		next := current.Clone()
+		now := s.now().UTC().UnixMilli()
+		if err := change(next.ActiveRestore, now); err != nil {
+			return err
+		}
+		next.Revision++
+		next.ActiveRestore.UpdatedUnixMillis = now
+		err = s.store.CompareAndSwap(ctx, current.Revision, next)
+		if !errors.Is(err, ErrStateConflict) {
+			return err
+		}
 	}
-	if current.ActiveRestore == nil || current.ActiveRestore.ID != jobID {
-		return ErrStateConflict
-	}
-	next := current.Clone()
-	now := s.now().UTC().UnixMilli()
-	if err := change(next.ActiveRestore, now); err != nil {
-		return err
-	}
-	next.Revision++
-	next.ActiveRestore.UpdatedUnixMillis = now
-	return s.store.CompareAndSwap(ctx, current.Revision, next)
+	return ErrStateConflict
 }

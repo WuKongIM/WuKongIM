@@ -307,81 +307,90 @@ func (s *ScheduledService) Configure(
 	if err := validateConfigureRequest(request, s.now()); err != nil {
 		return ConfigureResult{}, err
 	}
-	current, err := s.store.Load(ctx)
-	if err != nil {
-		return ConfigureResult{}, err
-	}
-	currentPlanRevision := uint64(0)
-	wasEnabled := false
-	if current.Plan != nil {
-		currentPlanRevision = current.Plan.Revision
-		wasEnabled = current.Plan.Enabled
-	}
-	if request.ExpectedRevision != currentPlanRevision {
-		return ConfigureResult{}, ErrStateConflict
-	}
-	if current.ActiveRestore != nil {
-		return ConfigureResult{}, ErrRestoreJobActive
-	}
-	if current.ActiveArchiveOperation != nil &&
-		s.now().UTC().Before(time.UnixMilli(
-			current.ActiveArchiveOperation.ExpiresUnixMillis,
-		)) {
-		return ConfigureResult{}, ErrArchiveOperationActive
-	}
-	if current.ActiveBackup != nil {
-		disableOnly := current.Plan != nil && current.Plan.Enabled &&
-			!request.Enabled &&
-			equalPlanConfiguration(*current.Plan, request)
-		if !disableOnly {
-			return ConfigureResult{}, ErrBackupJobActive
-		}
-		now := s.now().UTC()
-		next := current.Clone()
-		next.Revision++
-		next.Plan.Enabled = false
-		next.Plan.UpdatedUnixMillis = now.UnixMilli()
-		if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-			return ConfigureResult{}, err
-		}
-		return ConfigureResult{Plan: *next.Plan}, nil
-	}
-
-	now := s.now().UTC()
-	createdAt := now.UnixMilli()
-	if current.Plan != nil {
-		createdAt = current.Plan.CreatedUnixMillis
-	}
-	plan := backupcontract.Plan{
-		Revision:                 currentPlanRevision + 1,
-		Enabled:                  request.Enabled,
-		Store:                    cloneStoreConfig(request.Store),
-		Cron:                     strings.TrimSpace(request.Cron),
-		TimeZone:                 request.TimeZone,
-		RetentionCount:           request.RetentionCount,
-		RateBytesPerSec:          request.RateBytesPerSec,
-		WorkersPerNode:           request.WorkersPerNode,
-		MaxDurationMillis:        request.MaxDuration.Milliseconds(),
-		ScheduleCursorUnixMillis: now.UnixMilli(),
-		CreatedUnixMillis:        createdAt,
-		UpdatedUnixMillis:        now.UnixMilli(),
-	}
-	next := current.Clone()
-	next.Revision++
-	next.Plan = &plan
-	var initial *backupcontract.BackupJob
-	if request.Enabled && !wasEnabled {
-		job, err := s.newBackupJob(plan, backupcontract.TriggerInitial, time.Time{}, now)
+	for range 16 {
+		current, err := s.store.Load(ctx)
 		if err != nil {
 			return ConfigureResult{}, err
 		}
-		next.ActiveBackup = &job
-		initial = &job
+		currentPlanRevision := uint64(0)
+		wasEnabled := false
+		if current.Plan != nil {
+			currentPlanRevision = current.Plan.Revision
+			wasEnabled = current.Plan.Enabled
+		}
+		if request.ExpectedRevision != currentPlanRevision {
+			return ConfigureResult{}, ErrStateConflict
+		}
+		if current.ActiveRestore != nil {
+			return ConfigureResult{}, ErrRestoreJobActive
+		}
+		if current.ActiveArchiveOperation != nil &&
+			s.now().UTC().Before(time.UnixMilli(
+				current.ActiveArchiveOperation.ExpiresUnixMillis,
+			)) {
+			return ConfigureResult{}, ErrArchiveOperationActive
+		}
+		if current.ActiveBackup != nil {
+			disableOnly := current.Plan != nil && current.Plan.Enabled &&
+				!request.Enabled &&
+				equalPlanConfiguration(*current.Plan, request)
+			if !disableOnly {
+				return ConfigureResult{}, ErrBackupJobActive
+			}
+			now := s.now().UTC()
+			next := current.Clone()
+			next.Revision++
+			next.Plan.Enabled = false
+			next.Plan.UpdatedUnixMillis = now.UnixMilli()
+			if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
+				if errors.Is(err, ErrStateConflict) {
+					continue
+				}
+				return ConfigureResult{}, err
+			}
+			return ConfigureResult{Plan: *next.Plan}, nil
+		}
+
+		now := s.now().UTC()
+		createdAt := now.UnixMilli()
+		if current.Plan != nil {
+			createdAt = current.Plan.CreatedUnixMillis
+		}
+		plan := backupcontract.Plan{
+			Revision:                 currentPlanRevision + 1,
+			Enabled:                  request.Enabled,
+			Store:                    cloneStoreConfig(request.Store),
+			Cron:                     strings.TrimSpace(request.Cron),
+			TimeZone:                 request.TimeZone,
+			RetentionCount:           request.RetentionCount,
+			RateBytesPerSec:          request.RateBytesPerSec,
+			WorkersPerNode:           request.WorkersPerNode,
+			MaxDurationMillis:        request.MaxDuration.Milliseconds(),
+			ScheduleCursorUnixMillis: now.UnixMilli(),
+			CreatedUnixMillis:        createdAt,
+			UpdatedUnixMillis:        now.UnixMilli(),
+		}
+		next := current.Clone()
+		next.Revision++
+		next.Plan = &plan
+		var initial *backupcontract.BackupJob
+		if request.Enabled && !wasEnabled {
+			job, err := s.newBackupJob(plan, backupcontract.TriggerInitial, time.Time{}, now)
+			if err != nil {
+				return ConfigureResult{}, err
+			}
+			next.ActiveBackup = &job
+			initial = &job
+		}
+		if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
+			if errors.Is(err, ErrStateConflict) {
+				continue
+			}
+			return ConfigureResult{}, err
+		}
+		return ConfigureResult{Plan: plan, InitialJob: initial}, nil
 	}
-	if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-		return ConfigureResult{}, err
-	}
-	return ConfigureResult{Plan: plan, InitialJob: initial}, nil
+	return ConfigureResult{}, ErrStateConflict
 }
 
 // AdvanceBackupPhase performs a fenced, idempotent one-way publication
