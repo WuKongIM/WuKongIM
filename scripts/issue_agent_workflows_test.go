@@ -186,6 +186,8 @@ func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *t
 
 	raw := string(readWorkflow(t, "issue-agent-control.yml"))
 	require.Contains(t, raw, ".plan.operation")
+	require.Contains(t, raw,
+		"startsWith(github.event.pull_request.head.ref, 'agent/issue-')")
 	require.Contains(t, raw, `case "$LIFECYCLE_OPERATION:$STATE"`)
 	require.Contains(t, raw, `"$conclusion" = failure`)
 	require.Contains(t, raw, "publish-command")

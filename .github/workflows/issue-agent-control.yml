@@ -32,6 +32,10 @@ concurrency:
 jobs:
   planner:
     name: Derive one operation from protected policy and signed state
+    if: >-
+      (github.event_name != 'pull_request' &&
+       github.event_name != 'pull_request_review') ||
+      startsWith(github.event.pull_request.head.ref, 'agent/issue-')
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     permissions:
