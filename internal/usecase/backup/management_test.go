@@ -484,6 +484,83 @@ func TestManagementRepositoryProbeClassifiesStoreAccessFailure(t *testing.T) {
 	}
 }
 
+func TestManagementRepositoryTestClassifiesIdentityConflict(t *testing.T) {
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	stateStore := &memoryScheduledStateStore{}
+	scheduled, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: stateStore,
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "unused" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	cipher, err := backupinfra.NewCredentialCipher(
+		"manager-installation-secret", "cluster-a",
+	)
+	if err != nil {
+		t.Fatalf("NewCredentialCipher(): %v", err)
+	}
+	sealer, err := backupinfra.NewRepositoryProvider(t.TempDir(), cipher)
+	if err != nil {
+		t.Fatalf("NewRepositoryProvider(): %v", err)
+	}
+	store, err := backupinfra.NewFileArchiveStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore(): %v", err)
+	}
+	if _, err := backupartifact.EnsureRepository(
+		context.Background(), store, "another-cluster", now.UnixMilli(),
+	); err != nil {
+		t.Fatalf("EnsureRepository(other cluster): %v", err)
+	}
+	management, err := backupusecase.NewManagementService(
+		backupusecase.ManagementOptions{
+			Scheduled: scheduled,
+			Repository: &recordingArchiveRepository{
+				store: store,
+			},
+			Sealer: sealer,
+			Probe: backupusecase.DirectRepositoryProbe{
+				NewID: func() string { return "identity-conflict" },
+			},
+			ClusterID: "cluster-a",
+			Now:       func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewManagementService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.Enabled = false
+	if _, err := management.Configure(
+		context.Background(),
+		backupusecase.ConfigureManagementRequest{
+			ConfigureRequest: request,
+		},
+	); err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+
+	_, err = management.TestRepository(
+		context.Background(),
+		backupusecase.TestRepositoryRequest{ExpectedPlanRevision: 1},
+	)
+	if !errors.Is(err, backupusecase.ErrStoreUnreachable) {
+		t.Fatalf("TestRepository() error = %v", err)
+	}
+	var accessErr *backupcontract.RepositoryAccessError
+	if !errors.As(err, &accessErr) ||
+		accessErr.Provider != backupcontract.StoreKindFile ||
+		accessErr.Stage != backupcontract.RepositoryAccessBindIdentity ||
+		accessErr.Reason !=
+			backupcontract.RepositoryAccessRepositoryInUse {
+		t.Fatalf("repository access error = %#v", accessErr)
+	}
+}
+
 func TestManagementDashboardReportsBackupHealth(t *testing.T) {
 	testCases := []struct {
 		name       string

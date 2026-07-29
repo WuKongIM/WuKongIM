@@ -49,24 +49,35 @@ func (p *RepositoryProvider) Open(
 	config backupcontract.StoreConfig,
 ) (backupartifact.ArchiveStore, error) {
 	if p == nil {
-		return nil, fmt.Errorf("backup repository provider: unavailable")
+		return nil, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen,
+			fmt.Errorf("backup repository provider: unavailable"),
+		)
 	}
 	switch config.Kind {
 	case backupcontract.StoreKindFile:
-		return NewFileArchiveStore(p.fileRoot)
+		store, err := NewFileArchiveStore(p.fileRoot)
+		return store, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen, err,
+		)
 	case backupcontract.StoreKindOSS,
 		backupcontract.StoreKindCOS,
 		backupcontract.StoreKindS3:
 		if p.cipher == nil {
-			return nil, fmt.Errorf(
-				"backup repository provider: Manager authentication secret is required for object storage credentials",
+			return nil, classifyRepositoryError(
+				config.Kind, backupcontract.RepositoryAccessOpen,
+				fmt.Errorf(
+					"backup repository provider: Manager authentication secret is required for object storage credentials",
+				),
 			)
 		}
 		credentials, err := p.cipher.Open(config.CredentialCiphertext)
 		if err != nil {
-			return nil, err
+			return nil, classifyRepositoryError(
+				config.Kind, backupcontract.RepositoryAccessOpen, err,
+			)
 		}
-		return NewS3ArchiveStore(S3ArchiveStoreOptions{
+		store, err := NewS3ArchiveStore(S3ArchiveStoreOptions{
 			Endpoint: repositoryEndpoint(config), Region: config.Region,
 			Bucket: config.Bucket, Prefix: config.Prefix,
 			PathStyle: config.PathStyle,
@@ -74,8 +85,17 @@ func (p *RepositoryProvider) Open(
 				config.Kind == backupcontract.StoreKindCOS,
 			AccessKey: credentials.AccessKey, SecretKey: credentials.SecretKey,
 		})
+		return store, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen, err,
+		)
 	default:
-		return nil, fmt.Errorf("backup repository provider: unsupported store kind %q", config.Kind)
+		return nil, classifyRepositoryError(
+			config.Kind, backupcontract.RepositoryAccessOpen,
+			fmt.Errorf(
+				"backup repository provider: unsupported store kind %q",
+				config.Kind,
+			),
+		)
 	}
 }
 

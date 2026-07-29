@@ -287,15 +287,33 @@ func (s *ManagementService) TestRepository(
 	config := cloneStoreConfig(current.Plan.Store)
 	store, err := s.repository.Open(ctx, config)
 	if err != nil {
-		return backupcontract.Plan{}, normalizeStoreAccessError(err)
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, backupcontract.RepositoryAccessOpen,
+				backupcontract.RepositoryAccessUnknown, err,
+			),
+		)
 	}
 	if err := s.probe.ProbeRepository(ctx, config, store); err != nil {
-		return backupcontract.Plan{}, normalizeStoreAccessError(err)
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, "", backupcontract.RepositoryAccessUnknown, err,
+			),
+		)
 	}
 	if _, err := backupartifact.EnsureRepository(
 		ctx, store, s.clusterID, s.now().UTC().UnixMilli(),
 	); err != nil {
-		return backupcontract.Plan{}, normalizeArtifactError(err)
+		reason := backupcontract.RepositoryAccessUnknown
+		if errors.Is(err, backupartifact.ErrRepositoryIncomplete) {
+			reason = backupcontract.RepositoryAccessRepositoryInUse
+		}
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, backupcontract.RepositoryAccessBindIdentity,
+				reason, err,
+			),
+		)
 	}
 	return s.scheduled.MarkRepositoryVerified(
 		ctx, request.ExpectedPlanRevision,
