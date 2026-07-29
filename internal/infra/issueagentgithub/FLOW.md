@@ -23,6 +23,12 @@ Publisher Environment Secret
   -> signed append-only checkpoint and deterministic Issue/PR projections
 ```
 
+Installation-token responses remain strict at the top level. GitHub returns a
+complete repository object for each selected repository, so the adapter treats
+that bounded metadata as opaque except for `id` and `full_name`. It still
+requires `repository_selection=selected`, one exact repository, the reviewed
+permission set, and a bounded future expiry before accepting the token.
+
 The adapter never executes target code, Worker files, Artifact executables, or
 model-authored shell. Every write names one exact repository, Issue, generation,
 sequence, predecessor, Agent branch, and expected old ref. Default branches,
@@ -56,8 +62,8 @@ tracking Issues are projections of already-validated state. No method can
 merge a PR, close a Bug Issue, or write a default branch or tag. No method can
 force-update a ref except the typed mechanical-rebase transaction above, which
 must atomically match both managed refs by exact `beforeOid`. A saturated
-inventory, paginated history, unknown response shape, corrupt checkpoint,
-stale lease, or object mismatch fails closed.
+inventory, paginated history, unknown security-relevant response shape, corrupt
+checkpoint, stale lease, or object mismatch fails closed.
 Completed Worker-run inventory is filtered to the signed lease time window and
 bounded to GitHub's documented 1,000-result search ceiling. Reconciliation
 accepts only a unique exact display-title and Artifact-name match, then the

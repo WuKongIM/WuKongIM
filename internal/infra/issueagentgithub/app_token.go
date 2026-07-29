@@ -163,27 +163,33 @@ func (minter *AppTokenMinter) Mint(ctx context.Context) (InstallationToken, erro
 		return InstallationToken{}, errors.New("GitHub App token response has unexpected content type")
 	}
 	var payload struct {
-		Token        string            `json:"token"`
-		ExpiresAt    time.Time         `json:"expires_at"`
-		Permissions  map[string]string `json:"permissions"`
-		Repositories []struct {
-			ID       int64  `json:"id"`
-			FullName string `json:"full_name"`
-		} `json:"repositories"`
+		Token               string            `json:"token"`
+		ExpiresAt           time.Time         `json:"expires_at"`
+		Permissions         map[string]string `json:"permissions"`
+		RepositorySelection string            `json:"repository_selection"`
+		Repositories        []json.RawMessage `json:"repositories"`
 	}
 	decoder := json.NewDecoder(io.LimitReader(response.Body, 64<<10))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
 		return InstallationToken{}, errors.New("decode GitHub App token response")
 	}
+	var repository struct {
+		ID       int64  `json:"id"`
+		FullName string `json:"full_name"`
+	}
+	if len(payload.Repositories) != 1 ||
+		json.Unmarshal(payload.Repositories[0], &repository) != nil {
+		return InstallationToken{}, errors.New("GitHub App token response scope is invalid")
+	}
 	if payload.Token == "" ||
 		len(payload.Token) > 4096 ||
 		!payload.ExpiresAt.After(now) ||
 		payload.ExpiresAt.After(now.Add(65*time.Minute)) ||
 		!samePermissions(payload.Permissions, issueAgentAppPermissions) ||
-		len(payload.Repositories) != 1 ||
-		payload.Repositories[0].ID != minter.config.RepositoryID ||
-		payload.Repositories[0].FullName != minter.config.Repository {
+		payload.RepositorySelection != "selected" ||
+		repository.ID != minter.config.RepositoryID ||
+		repository.FullName != minter.config.Repository {
 		return InstallationToken{}, errors.New("GitHub App token response scope is invalid")
 	}
 	return InstallationToken{
