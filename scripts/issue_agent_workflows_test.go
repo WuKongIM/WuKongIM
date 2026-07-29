@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,12 +92,14 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 					require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				}
 				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 			case name == "issue-agent-reconcile.yml" && jobName == "dispatcher":
 				require.Equal(t, "issue-agent-publisher", job.Environment)
 				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 			case name == "issue-agent-run.yml" && jobName == "publisher":
 				require.Equal(t, "issue-agent-publisher", job.Environment)
@@ -111,10 +114,12 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 			case name == "issue-agent-run.yml" && jobName == "codex-worker":
 				require.Equal(t, "issue-agent-codex", job.Environment)
-				require.Contains(t, jobText, "CODEX_API_KEY")
+				require.Contains(t, jobText, "OPENROUTER_API_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
@@ -122,6 +127,7 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.Equal(t, "issue-agent-deepseek", job.Environment)
 				require.Contains(t, jobText, "DEEPSEEK_API_KEY")
 				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 			default:
@@ -129,6 +135,7 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 			}
 			for _, step := range job.Steps {
@@ -210,15 +217,19 @@ func TestIssueAgentCodexWorkerUsesOfficialBootstrap(t *testing.T) {
 	require.Equal(t, bootstrapIndex+1, workerIndex)
 	require.Contains(t, verify.Run,
 		`[[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]`)
-	require.Equal(t, 1, strings.Count(string(raw), "secrets.CODEX_API_KEY"))
+	require.Equal(t, 1,
+		strings.Count(string(raw), "secrets.OPENROUTER_API_KEY"))
+	require.NotContains(t, string(raw), "secrets.CODEX_API_KEY")
 	require.NotContains(t, worker.Env, "ISSUE_AGENT_CODEX_API_KEY")
 	require.NotContains(t, worker.Env, "CODEX_API_KEY")
+	require.NotContains(t, worker.Env, "OPENROUTER_API_KEY")
 	require.Equal(t,
 		"${{ runner.temp }}/issue-agent-codex-bootstrap",
 		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"],
 	)
 	require.NotContains(t, worker.Run, "CODEX_API_KEY")
 	require.NotContains(t, worker.Run, "ISSUE_AGENT_CODEX_API_KEY")
+	require.NotContains(t, worker.Run, "OPENROUTER_API_KEY")
 }
 
 func TestIssueAgentCodexBootstrapContractRejectsMutations(t *testing.T) {
@@ -236,6 +247,16 @@ func TestIssueAgentCodexBootstrapContractRejectsMutations(t *testing.T) {
 		},
 		"prompt": func(step *ciStep) {
 			step.With["prompt"] = "inspect the repository"
+		},
+		"missing OpenRouter endpoint": func(step *ciStep) {
+			delete(step.With, "responses-api-endpoint")
+		},
+		"alternate Responses endpoint": func(step *ciStep) {
+			step.With["responses-api-endpoint"] =
+				"https://example.com/v1/responses"
+		},
+		"legacy API key": func(step *ciStep) {
+			step.With["openai-api-key"] = "${{ secrets.CODEX_API_KEY }}"
 		},
 		"extra bot": func(step *ciStep) {
 			step.With["allow-bot-users"] =
@@ -264,8 +285,37 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 	})
 	t.Run("forward API key", func(t *testing.T) {
 		job := canonicalCodexWorkerBoundary()
-		job.Steps[3].Env["CODEX_API_KEY"] = "${{ secrets.CODEX_API_KEY }}"
+		job.Steps[3].Env["OPENROUTER_API_KEY"] =
+			"${{ secrets.OPENROUTER_API_KEY }}"
 		require.Error(t, validateCodexWorkerBoundary(job))
+	})
+}
+
+func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join(
+		repoRoot(t), ".github", "issue-agent", "policy.json",
+	))
+	require.NoError(t, err)
+	var policy struct {
+		Providers []struct {
+			Provider           string `json:"provider"`
+			Endpoint           string `json:"endpoint"`
+			ModelVariable      string `json:"model_variable"`
+			CredentialVariable string `json:"credential_variable"`
+		} `json:"providers"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &policy))
+	require.Contains(t, policy.Providers, struct {
+		Provider           string `json:"provider"`
+		Endpoint           string `json:"endpoint"`
+		ModelVariable      string `json:"model_variable"`
+		CredentialVariable string `json:"credential_variable"`
+	}{
+		Provider:           "codex",
+		ModelVariable:      "ISSUE_AGENT_CODEX_MODEL",
+		CredentialVariable: "OPENROUTER_API_KEY",
 	})
 }
 
@@ -378,11 +428,12 @@ func canonicalCodexBootstrapStep() ciStep {
 		Uses: "openai/codex-action@" +
 			"52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
 		With: map[string]any{
-			"openai-api-key":  "${{ secrets.CODEX_API_KEY }}",
-			"codex-version":   "0.145.0",
-			"codex-home":      "${{ runner.temp }}/issue-agent-codex-bootstrap",
-			"safety-strategy": "drop-sudo",
-			"allow-bot-users": "wukongim-issue-agent",
+			"openai-api-key":         "${{ secrets.OPENROUTER_API_KEY }}",
+			"responses-api-endpoint": "https://openrouter.ai/api/v1/responses",
+			"codex-version":          "0.145.0",
+			"codex-home":             "${{ runner.temp }}/issue-agent-codex-bootstrap",
+			"safety-strategy":        "drop-sudo",
+			"allow-bot-users":        "wukongim-issue-agent",
 		},
 	}
 }
@@ -440,8 +491,10 @@ func validateCodexWorkerBoundary(job ciJob) error {
 		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"] !=
 			"${{ runner.temp }}/issue-agent-codex-bootstrap" ||
 		worker.Env["CODEX_API_KEY"] != "" ||
+		worker.Env["OPENROUTER_API_KEY"] != "" ||
 		worker.Env["ISSUE_AGENT_CODEX_API_KEY"] != "" ||
-		strings.Contains(worker.Run, "CODEX_API_KEY") {
+		strings.Contains(worker.Run, "CODEX_API_KEY") ||
+		strings.Contains(worker.Run, "OPENROUTER_API_KEY") {
 		return fmt.Errorf("Codex Worker boundary is not exact")
 	}
 	return nil

@@ -198,7 +198,8 @@ jobs:
       - name: Bootstrap the pinned Codex CLI and Responses proxy
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
-          openai-api-key: ${{ secrets.CODEX_API_KEY }}
+          openai-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          responses-api-endpoint: https://openrouter.ai/api/v1/responses
           codex-version: 0.145.0
           codex-home: ${{ runner.temp }}/issue-agent-codex-bootstrap
           safety-strategy: drop-sudo
