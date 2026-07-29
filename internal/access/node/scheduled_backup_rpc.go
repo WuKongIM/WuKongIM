@@ -2,7 +2,9 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
@@ -43,7 +45,8 @@ type scheduledBackupMessageResponse struct {
 }
 
 type scheduledBackupProbeResponse struct {
-	Status string `json:"status"`
+	Status  string                                  `json:"status"`
+	Failure *backupcontract.RepositoryAccessFailure `json:"failure,omitempty"`
 }
 
 type scheduledBackupRestoreResponse struct {
@@ -124,7 +127,10 @@ func (a *Adapter) HandleScheduledBackupRepositoryProbeRPC(
 	err := a.scheduledBackupProbe.ObserveRepositoryProbe(ctx, command)
 	return encodeBackupJSON(
 		scheduledBackupProbeResponseMagic[:],
-		scheduledBackupProbeResponse{Status: backupMessageStatusForError(err)},
+		scheduledBackupProbeResponse{
+			Status:  backupMessageStatusForError(err),
+			Failure: repositoryAccessFailureForRPC(err),
+		},
 	)
 }
 
@@ -252,7 +258,111 @@ func (c *Client) ProbeBackupRepository(
 	); err != nil {
 		return err
 	}
-	return backupMessageErrorForStatus(response.Status)
+	statusErr := backupMessageErrorForStatus(response.Status)
+	if statusErr == nil || response.Failure == nil {
+		return statusErr
+	}
+	if !validRepositoryAccessFailure(*response.Failure) {
+		return fmt.Errorf(
+			"internal/access/node: invalid repository probe failure",
+		)
+	}
+	nodeFailure := *response.Failure
+	if nodeFailure.NodeID == 0 {
+		nodeFailure.NodeID = nodeID
+	}
+	nodeFailure.ProviderCode = boundedRepositoryRPCField(
+		nodeFailure.ProviderCode,
+	)
+	nodeFailure.RequestID = boundedRepositoryRPCField(nodeFailure.RequestID)
+	return &backupcontract.RepositoryAccessError{
+		Reason:       nodeFailure.Reason,
+		Stage:        nodeFailure.Stage,
+		Provider:     nodeFailure.Provider,
+		ProviderCode: nodeFailure.ProviderCode,
+		RequestID:    nodeFailure.RequestID,
+		NodeID:       nodeFailure.NodeID,
+		Cause:        statusErr,
+	}
+}
+
+func repositoryAccessFailureForRPC(
+	err error,
+) *backupcontract.RepositoryAccessFailure {
+	var accessErr *backupcontract.RepositoryAccessError
+	if !errors.As(err, &accessErr) {
+		return nil
+	}
+	return &backupcontract.RepositoryAccessFailure{
+		Reason:       accessErr.Reason,
+		Stage:        accessErr.Stage,
+		Provider:     accessErr.Provider,
+		ProviderCode: boundedRepositoryRPCField(accessErr.ProviderCode),
+		RequestID:    boundedRepositoryRPCField(accessErr.RequestID),
+		NodeID:       accessErr.NodeID,
+	}
+}
+
+func validRepositoryAccessFailure(
+	failure backupcontract.RepositoryAccessFailure,
+) bool {
+	if len(failure.ProviderCode) > 256 || len(failure.RequestID) > 256 {
+		return false
+	}
+	switch failure.Provider {
+	case backupcontract.StoreKindFile,
+		backupcontract.StoreKindOSS,
+		backupcontract.StoreKindCOS,
+		backupcontract.StoreKindS3:
+	default:
+		return false
+	}
+	switch failure.Reason {
+	case backupcontract.RepositoryAccessInvalidAccessKey,
+		backupcontract.RepositoryAccessSignatureMismatch,
+		backupcontract.RepositoryAccessDenied,
+		backupcontract.RepositoryAccessBucketNotFound,
+		backupcontract.RepositoryAccessRegionMismatch,
+		backupcontract.RepositoryAccessEndpointUnreachable,
+		backupcontract.RepositoryAccessTLSFailure,
+		backupcontract.RepositoryAccessTimeout,
+		backupcontract.RepositoryAccessReadFailed,
+		backupcontract.RepositoryAccessWriteFailed,
+		backupcontract.RepositoryAccessListFailed,
+		backupcontract.RepositoryAccessDeleteFailed,
+		backupcontract.RepositoryAccessRepositoryInUse,
+		backupcontract.RepositoryAccessNodeUnreachable,
+		backupcontract.RepositoryAccessUnknown:
+	default:
+		return false
+	}
+	switch failure.Stage {
+	case backupcontract.RepositoryAccessOpen,
+		backupcontract.RepositoryAccessWriteMarker,
+		backupcontract.RepositoryAccessReadMarker,
+		backupcontract.RepositoryAccessWriteReceipt,
+		backupcontract.RepositoryAccessReadReceipt,
+		backupcontract.RepositoryAccessList,
+		backupcontract.RepositoryAccessDelete,
+		backupcontract.RepositoryAccessBindIdentity,
+		backupcontract.RepositoryAccessMarkVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+func boundedRepositoryRPCField(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) > 256 {
+		value = value[:256]
+	}
+	return strings.Map(func(char rune) rune {
+		if char < 0x20 || char == 0x7f {
+			return -1
+		}
+		return char
+	}, value)
 }
 
 // RunBackupRestoreNode forwards one bounded staged restore command.

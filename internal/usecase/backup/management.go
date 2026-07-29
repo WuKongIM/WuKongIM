@@ -87,6 +87,11 @@ type ConfigureManagementRequest struct {
 	SecretKey string
 }
 
+// TestRepositoryRequest identifies the exact saved plan to verify.
+type TestRepositoryRequest struct {
+	ExpectedPlanRevision uint64
+}
+
 // NewManagementService creates the Manager-facing backup application service.
 func NewManagementService(options ManagementOptions) (*ManagementService, error) {
 	if options.Scheduled == nil || options.Repository == nil ||
@@ -199,8 +204,8 @@ func backupHealthReason(health BackupHealth) string {
 	return ""
 }
 
-// Configure validates repository access, binds its identity, then atomically
-// publishes the plan and optional initial job.
+// Configure encrypts credentials and atomically publishes the plan without
+// contacting the selected repository.
 func (s *ManagementService) Configure(
 	ctx context.Context,
 	request ConfigureManagementRequest,
@@ -250,68 +255,82 @@ func (s *ManagementService) Configure(
 		return ConfigureResult{}, ErrInvalidRequest
 	}
 	request.ConfigureRequest.Store = storeConfig
-	if current.Plan != nil && current.Plan.Enabled && !request.Enabled &&
-		equalPlanConfiguration(*current.Plan, request.ConfigureRequest) {
-		return s.scheduled.Configure(ctx, request.ConfigureRequest)
-	}
-	store, err := s.repository.Open(ctx, storeConfig)
-	if err != nil {
-		return ConfigureResult{}, normalizeStoreAccessError(err)
-	}
-	if err := s.probe.ProbeRepository(ctx, storeConfig, store); err != nil {
-		return ConfigureResult{}, normalizeStoreAccessError(err)
-	}
-	if _, err := backupartifact.EnsureRepository(
-		ctx, store, s.clusterID, s.now().UTC().UnixMilli(),
-	); err != nil {
-		return ConfigureResult{}, normalizeArtifactError(err)
+	request.ConfigureRequest.RepositoryVerification =
+		&backupcontract.RepositoryVerification{
+			Status: backupcontract.RepositoryVerificationUnverified,
+		}
+	if current.Plan != nil &&
+		equalEffectiveRepository(current.Plan.Store, storeConfig) {
+		request.ConfigureRequest.RepositoryVerification =
+			cloneRepositoryVerification(
+				current.Plan.RepositoryVerification,
+			)
 	}
 	return s.scheduled.Configure(ctx, request.ConfigureRequest)
 }
 
-// TestRepository validates credentials and read/write/delete access without saving a plan.
+// TestRepository verifies read/write/delete access for one exact saved plan.
 func (s *ManagementService) TestRepository(
 	ctx context.Context,
-	request ConfigureManagementRequest,
-) error {
+	request TestRepositoryRequest,
+) (backupcontract.Plan, error) {
 	current, err := s.scheduled.State(ctx)
 	if err != nil {
-		return err
+		return backupcontract.Plan{}, err
 	}
-	config, err := normalizeManagementStoreConfig(request.Store)
-	if err != nil {
-		return err
+	if current.Plan == nil {
+		return backupcontract.Plan{}, ErrDisabled
 	}
-	if isObjectStoreKind(config.Kind) {
-		accessKey := strings.TrimSpace(request.AccessKey)
-		if accessKey != "" || request.SecretKey != "" {
-			if accessKey == "" || request.SecretKey == "" {
-				return ErrInvalidRequest
-			}
-			ciphertext, err := s.sealer.SealObjectStoreCredentials(
-				accessKey, request.SecretKey,
-			)
-			if err != nil {
-				return err
-			}
-			config.CredentialCiphertext = ciphertext
-		} else if current.Plan != nil &&
-			current.Plan.Store.Kind == config.Kind {
-			config.CredentialCiphertext = append(
-				[]byte(nil), current.Plan.Store.CredentialCiphertext...,
-			)
-		}
-		if len(config.CredentialCiphertext) == 0 {
-			return ErrInvalidRequest
-		}
+	if current.Plan.Revision != request.ExpectedPlanRevision {
+		return backupcontract.Plan{}, ErrStateConflict
 	}
+	config := cloneStoreConfig(current.Plan.Store)
 	store, err := s.repository.Open(ctx, config)
 	if err != nil {
-		return normalizeStoreAccessError(err)
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, backupcontract.RepositoryAccessOpen,
+				backupcontract.RepositoryAccessUnknown, err,
+			),
+		)
 	}
-	return normalizeStoreAccessError(
-		s.probe.ProbeRepository(ctx, config, store),
+	if err := s.probe.ProbeRepository(ctx, config, store); err != nil {
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, "", backupcontract.RepositoryAccessUnknown, err,
+			),
+		)
+	}
+	if _, err := backupartifact.EnsureRepository(
+		ctx, store, s.clusterID, s.now().UTC().UnixMilli(),
+	); err != nil {
+		reason := backupcontract.RepositoryAccessUnknown
+		if errors.Is(err, backupartifact.ErrRepositoryIncomplete) {
+			reason = backupcontract.RepositoryAccessRepositoryInUse
+		}
+		return backupcontract.Plan{}, normalizeStoreAccessError(
+			repositoryAccessError(
+				config.Kind, backupcontract.RepositoryAccessBindIdentity,
+				reason, err,
+			),
+		)
+	}
+	return s.scheduled.MarkRepositoryVerified(
+		ctx, request.ExpectedPlanRevision,
 	)
+}
+
+func equalEffectiveRepository(
+	current backupcontract.StoreConfig,
+	next backupcontract.StoreConfig,
+) bool {
+	return current.Kind == next.Kind &&
+		current.Endpoint == next.Endpoint &&
+		current.Region == next.Region &&
+		current.Bucket == next.Bucket &&
+		current.Prefix == next.Prefix &&
+		current.PathStyle == next.PathStyle &&
+		current.CredentialRevision == next.CredentialRevision
 }
 
 func normalizeManagementStoreConfig(
@@ -346,12 +365,6 @@ func normalizeManagementStoreConfig(
 		return backupcontract.StoreConfig{}, ErrInvalidRequest
 	}
 	return config, nil
-}
-
-func isObjectStoreKind(kind backupcontract.StoreKind) bool {
-	return kind == backupcontract.StoreKindOSS ||
-		kind == backupcontract.StoreKindCOS ||
-		kind == backupcontract.StoreKindS3
 }
 
 // StartBackup admits one immediate manual full backup.

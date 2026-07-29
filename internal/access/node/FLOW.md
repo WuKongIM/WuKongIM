@@ -711,6 +711,12 @@ counts and fixed-size references to authenticated, repository-resident chunk
 indexes. Decoders reject unknown fields, trailing bytes, unsafe identifiers,
 invalid Hash Slots, oversized frames, and unsupported versions.
 
+Repository probe failures return a bounded, secret-safe DTO containing only
+provider, operation stage, stable reason, provider code, request ID, and node
+ID. The receiving adapter validates every enum before reconstructing the typed
+repository error. Raw provider messages, request bodies, credentials, and
+credential ciphertext never cross this RPC.
+
 Restore handlers require the local Controller mirror to show the same active
 restore and maintenance state before touching local files. Commands are fenced
 by job ID, backup ID, Hash Slot, and attempt.

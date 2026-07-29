@@ -67,20 +67,39 @@ type StoreConfig struct {
 	CredentialRevision   uint64    `json:"credential_revision,omitempty"`
 }
 
+// RepositoryVerificationStatus records whether the exact saved repository
+// configuration completed the required access and cluster-visibility probe.
+type RepositoryVerificationStatus string
+
+const (
+	// RepositoryVerificationUnverified blocks backup admission until tested.
+	RepositoryVerificationUnverified RepositoryVerificationStatus = "unverified"
+	// RepositoryVerificationVerified admits the exact saved repository.
+	RepositoryVerificationVerified RepositoryVerificationStatus = "verified"
+)
+
+// RepositoryVerification is optional only for plans published before
+// verification metadata existed.
+type RepositoryVerification struct {
+	Status               RepositoryVerificationStatus `json:"status"`
+	VerifiedAtUnixMillis int64                        `json:"verified_at_unix_ms,omitempty"`
+}
+
 // Plan is the only cluster-scoped scheduled full-backup policy.
 type Plan struct {
-	Revision                 uint64      `json:"revision"`
-	Enabled                  bool        `json:"enabled"`
-	Store                    StoreConfig `json:"store"`
-	Cron                     string      `json:"cron"`
-	TimeZone                 string      `json:"time_zone"`
-	RetentionCount           int         `json:"retention_count"`
-	RateBytesPerSec          uint64      `json:"rate_bytes_per_sec"`
-	WorkersPerNode           int         `json:"workers_per_node"`
-	MaxDurationMillis        int64       `json:"max_duration_ms"`
-	ScheduleCursorUnixMillis int64       `json:"schedule_cursor_unix_ms"`
-	CreatedUnixMillis        int64       `json:"created_unix_ms"`
-	UpdatedUnixMillis        int64       `json:"updated_unix_ms"`
+	Revision                 uint64                  `json:"revision"`
+	Enabled                  bool                    `json:"enabled"`
+	Store                    StoreConfig             `json:"store"`
+	RepositoryVerification   *RepositoryVerification `json:"repository_verification,omitempty"`
+	Cron                     string                  `json:"cron"`
+	TimeZone                 string                  `json:"time_zone"`
+	RetentionCount           int                     `json:"retention_count"`
+	RateBytesPerSec          uint64                  `json:"rate_bytes_per_sec"`
+	WorkersPerNode           int                     `json:"workers_per_node"`
+	MaxDurationMillis        int64                   `json:"max_duration_ms"`
+	ScheduleCursorUnixMillis int64                   `json:"schedule_cursor_unix_ms"`
+	CreatedUnixMillis        int64                   `json:"created_unix_ms"`
+	UpdatedUnixMillis        int64                   `json:"updated_unix_ms"`
 }
 
 // Trigger identifies why a backup job was admitted.
@@ -254,6 +273,10 @@ func (s SystemState) Clone() SystemState {
 	if s.Plan != nil {
 		plan := *s.Plan
 		plan.Store.CredentialCiphertext = append([]byte(nil), s.Plan.Store.CredentialCiphertext...)
+		if s.Plan.RepositoryVerification != nil {
+			verification := *s.Plan.RepositoryVerification
+			plan.RepositoryVerification = &verification
+		}
 		clone.Plan = &plan
 	}
 	if s.ActiveBackup != nil {

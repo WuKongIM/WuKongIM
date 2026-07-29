@@ -2273,10 +2273,49 @@ export type ManagerBackupStore = {
   credential_revision?: number
 }
 
+export type ManagerBackupRepositoryVerification = {
+  status: "unverified" | "verified"
+  verified_at_unix_ms?: number
+}
+
+export type ManagerBackupRepositoryErrorDetail = {
+  provider: ManagerBackupStoreKind
+  stage:
+    | "open"
+    | "write_marker"
+    | "read_marker"
+    | "write_receipt"
+    | "read_receipt"
+    | "list"
+    | "delete"
+    | "bind_identity"
+    | "mark_verified"
+  reason:
+    | "invalid_access_key"
+    | "signature_mismatch"
+    | "access_denied"
+    | "bucket_not_found"
+    | "region_mismatch"
+    | "endpoint_unreachable"
+    | "tls_failure"
+    | "timeout"
+    | "read_failed"
+    | "write_failed"
+    | "list_failed"
+    | "delete_failed"
+    | "repository_in_use"
+    | "node_unreachable"
+    | "unknown"
+  provider_code?: string
+  request_id?: string
+  node_id?: number
+}
+
 export type ManagerBackupPlan = {
   revision: number
   enabled: boolean
   store: ManagerBackupStore
+  repository_verification?: ManagerBackupRepositoryVerification
   cron: string
   time_zone: string
   retention_count: number
@@ -2420,6 +2459,12 @@ export type ManagerBackupPlanInput = {
 export type ManagerBackupConfigureResult = {
   plan: ManagerBackupPlan
   initial_job?: ManagerBackupJob
+  credentials_configured: boolean
+}
+
+export type ManagerBackupRepositoryTestResult = {
+  ok: boolean
+  plan: ManagerBackupPlan
 }
 
 export type ManagerRestoreInput = {

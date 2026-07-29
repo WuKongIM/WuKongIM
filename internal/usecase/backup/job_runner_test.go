@@ -440,6 +440,80 @@ func TestJobRunnerStopsAfterThreeSlotAttemptsAndCleansPartialObjects(t *testing.
 	}
 }
 
+func TestJobRunnerStopsUnverifiedJobWithoutOpeningRepository(t *testing.T) {
+	stateStore := &memoryScheduledStateStore{}
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	scheduled, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: stateStore,
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "backup-unverified-runner" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.Enabled = false
+	request.RepositoryVerification = &backupcontract.RepositoryVerification{
+		Status: backupcontract.RepositoryVerificationUnverified,
+	}
+	if _, err := scheduled.Configure(context.Background(), request); err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	slots := make([]backupcontract.SlotProgress, backupcontract.HashSlotCount)
+	for hashSlot := range slots {
+		slots[hashSlot] = backupcontract.SlotProgress{
+			HashSlot: uint16(hashSlot),
+			Status:   backupcontract.SlotStatusPending,
+		}
+	}
+	stateStore.mu.Lock()
+	stateStore.state.ActiveBackup = &backupcontract.BackupJob{
+		ID:                  "backup-unverified-runner",
+		Trigger:             backupcontract.TriggerManual,
+		Status:              backupcontract.JobStatusPreparing,
+		PlanRevision:        1,
+		StartedAtUnixMillis: now.UnixMilli(),
+		DeadlineUnixMillis:  now.Add(12 * time.Hour).UnixMilli(),
+		UpdatedUnixMillis:   now.UnixMilli(),
+		Slots:               slots,
+	}
+	stateStore.mu.Unlock()
+	repository := &recordingRepositoryProvider{}
+	runner, err := backupusecase.NewJobRunner(
+		backupusecase.JobRunnerOptions{
+			Scheduled:  scheduled,
+			Repository: repository,
+			Slots:      &recordingSlotExecutor{},
+			Finalizer:  &recordingArchiveFinalizer{},
+			Now:        func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewJobRunner(): %v", err)
+	}
+
+	advanced, err := runner.RunOnce(context.Background())
+	if err != nil {
+		t.Fatalf("RunOnce(): %v", err)
+	}
+	if !advanced {
+		t.Fatal("RunOnce() advanced = false")
+	}
+	if repository.opens != 0 {
+		t.Fatalf("repository opens = %d", repository.opens)
+	}
+	state, err := scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(): %v", err)
+	}
+	if state.ActiveBackup != nil || len(state.History) != 1 ||
+		state.History[0].ErrorCode != "repository_unverified" {
+		t.Fatalf("state = %#v", state)
+	}
+}
+
 type fixedRepositoryProvider struct {
 	store backupartifact.ArchiveStore
 }
@@ -449,6 +523,18 @@ func (p fixedRepositoryProvider) Open(
 	backupcontract.StoreConfig,
 ) (backupartifact.ArchiveStore, error) {
 	return p.store, nil
+}
+
+type recordingRepositoryProvider struct {
+	opens int
+}
+
+func (p *recordingRepositoryProvider) Open(
+	context.Context,
+	backupcontract.StoreConfig,
+) (backupartifact.ArchiveStore, error) {
+	p.opens++
+	return nil, fmt.Errorf("repository must not be opened")
 }
 
 type recordingSlotExecutor struct {

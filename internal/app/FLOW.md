@@ -1086,11 +1086,18 @@ The composition root creates:
 - a cluster-bound credential cipher and shared-file/OSS/COS/S3-compatible
   repository provider;
 - a Controller-backed scheduled state store;
-- Manager plan/archive and restore services;
+- Manager save-only plan, exact-revision repository test, archive, and restore
+  services;
 - repository visibility probes for every active data node;
 - current-authority Slot/message export RPC adapters;
 - one Controller-leader scheduled runtime;
 - node-local staged restore plus distributed all-replica coordination.
+
+Plan saving never opens the repository. The separately invoked test uses the
+saved credential and repository provider, runs the coordinator and node-local
+probe adapters against every active data node, and publishes verified state
+only for the same saved plan revision. Backup admission and runner wiring share
+that durable verification gate.
 
 The scheduled runtime starts after cluster control and stops before cluster
 storage. Only the current Controller Leader evaluates schedules, advances

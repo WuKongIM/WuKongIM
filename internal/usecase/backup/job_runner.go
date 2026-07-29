@@ -115,6 +115,16 @@ func (r *JobRunner) RunOnce(ctx context.Context) (bool, error) {
 	if job.PlanRevision != state.Plan.Revision {
 		return true, r.abort(ctx, *state.Plan, job, backupcontract.JobStatusFailed, "plan_revision_changed")
 	}
+	if !repositoryIsVerified(*state.Plan) {
+		return true, r.scheduled.FinishBackup(
+			ctx,
+			FinishBackupRequest{
+				JobID:     job.ID,
+				Status:    backupcontract.JobStatusFailed,
+				ErrorCode: "repository_unverified",
+			},
+		)
+	}
 	switch job.Status {
 	case backupcontract.JobStatusPublishing:
 		return true, r.publish(ctx, *state.Plan, job)

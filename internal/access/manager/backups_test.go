@@ -7,12 +7,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
+	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 func TestManagerBackupDashboardNeverReturnsStoredCredentials(t *testing.T) {
@@ -182,7 +184,17 @@ func TestManagerBackupRejectsInvalidCloudRepositoryShape(t *testing.T) {
 }
 
 func TestManagerBackupMapsCloudRepositoryCredentials(t *testing.T) {
-	provider := &fakeBackupManagement{}
+	provider := &fakeBackupManagement{
+		configureResult: backupusecase.ConfigureResult{
+			Plan: backupcontract.Plan{
+				Revision: 3,
+				Store: backupcontract.StoreConfig{
+					Kind:                 backupcontract.StoreKindOSS,
+					CredentialCiphertext: []byte("sealed-credential"),
+				},
+			},
+		},
+	}
 	server := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "writer", Password: "secret",
@@ -226,13 +238,256 @@ func TestManagerBackupMapsCloudRepositoryCredentials(t *testing.T) {
 		request.SecretKey != "access-key-secret" {
 		t.Fatalf("configure request = %#v", request)
 	}
+	if bytes.Contains(recorder.Body.Bytes(), []byte("sealed-credential")) ||
+		bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte("credential_ciphertext"),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"credentials_configured":true`),
+		) {
+		t.Fatalf("configure response = %s", recorder.Body)
+	}
 }
 
-func TestManagerBackupRepositoryFailureIsActionable(t *testing.T) {
+func TestManagerBackupRepositoryTestUsesOnlySavedPlanRevision(t *testing.T) {
+	provider := &fakeBackupManagement{
+		testRepositoryPlan: backupcontract.Plan{
+			Revision: 4,
+			Store: backupcontract.StoreConfig{
+				Kind:                 backupcontract.StoreKindOSS,
+				CredentialCiphertext: []byte("secret-ciphertext"),
+			},
+			RepositoryVerification: &backupcontract.RepositoryVerification{
+				Status: backupcontract.RepositoryVerificationVerified,
+			},
+		},
+	}
+	server := newBackupWriterServer(provider)
+	token := mustIssueTestToken(t, server, "writer")
+
+	recorder := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/repository/test",
+		[]byte(`{"expected_plan_revision":4}`), token,
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
+	}
+	if provider.testRepositoryRequest.ExpectedPlanRevision != 4 ||
+		provider.testRepositoryCalls != 1 {
+		t.Fatalf(
+			"request=%#v calls=%d",
+			provider.testRepositoryRequest,
+			provider.testRepositoryCalls,
+		)
+	}
+	if bytes.Contains(recorder.Body.Bytes(), []byte("secret-ciphertext")) ||
+		bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte("credential_ciphertext"),
+		) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"ok":true`)) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"revision":4`)) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"verified"`)) {
+		t.Fatalf("response = %s", recorder.Body)
+	}
+
+	for _, body := range [][]byte{
+		[]byte(`{"expected_plan_revision":0}`),
+		[]byte(`{
+			"expected_plan_revision":4,
+			"store":{
+				"kind":"oss",
+				"access_key":"must-not-be-accepted",
+				"secret_key":"must-not-be-accepted"
+			}
+		}`),
+	} {
+		rejected := performBackupRequest(
+			server, http.MethodPost, "/manager/backups/repository/test",
+			body, token,
+		)
+		if rejected.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"body=%s status=%d response=%s",
+				body, rejected.Code, rejected.Body,
+			)
+		}
+	}
+	if provider.testRepositoryCalls != 1 {
+		t.Fatalf("rejected request reached usecase: calls=%d", provider.testRepositoryCalls)
+	}
+}
+
+func TestManagerBackupRepositoryTestRejectsStaleSavedRevision(t *testing.T) {
+	provider := &fakeBackupManagement{
+		testRepositoryErr: backupusecase.ErrStateConflict,
+	}
+	server := newBackupWriterServer(provider)
+	recorder := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/repository/test",
+		[]byte(`{"expected_plan_revision":3}`),
+		mustIssueTestToken(t, server, "writer"),
+	)
+	if recorder.Code != http.StatusConflict ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"error":"backup_plan_conflict"`),
+		) ||
+		provider.testRepositoryRequest.ExpectedPlanRevision != 3 {
+		t.Fatalf(
+			"status=%d request=%#v body=%s",
+			recorder.Code,
+			provider.testRepositoryRequest,
+			recorder.Body,
+		)
+	}
+}
+
+func TestManagerBackupRepositoryFailureIsActionableAndSecretSafe(t *testing.T) {
 	provider := &fakeBackupManagement{
 		testRepositoryErr: errors.Join(
 			backupusecase.ErrStoreUnreachable,
-			errors.New("storage free-space threshold reached"),
+			&backupcontract.RepositoryAccessError{
+				Reason:       backupcontract.RepositoryAccessInvalidAccessKey,
+				Stage:        backupcontract.RepositoryAccessWriteMarker,
+				Provider:     backupcontract.StoreKindOSS,
+				ProviderCode: "InvalidAccessKeyId",
+				RequestID:    "request-1",
+				NodeID:       1,
+				Cause: errors.New(
+					"Authorization=secret-access-key must never be returned",
+				),
+			},
+		),
+	}
+	server := newBackupWriterServer(provider)
+	recorder := performBackupRequest(
+		server, http.MethodPost, "/manager/backups/repository/test",
+		[]byte(`{"expected_plan_revision":4}`),
+		mustIssueTestToken(t, server, "writer"),
+	)
+	if recorder.Code != http.StatusServiceUnavailable ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"error":"backup_repository_auth_failed"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"message":"Alibaba Cloud OSS rejected the AccessKey ID."`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"provider":"oss"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"stage":"write_marker"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"reason":"invalid_access_key"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"provider_code":"InvalidAccessKeyId"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"request_id":"request-1"`),
+		) ||
+		!bytes.Contains(recorder.Body.Bytes(), []byte(`"node_id":1`)) ||
+		bytes.Contains(recorder.Body.Bytes(), []byte("secret-access-key")) {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
+	}
+}
+
+func TestManagerBackupRepositoryErrorFamilies(t *testing.T) {
+	testCases := []struct {
+		reason backupcontract.RepositoryAccessReason
+		code   string
+		status int
+	}{
+		{backupcontract.RepositoryAccessInvalidAccessKey, "backup_repository_auth_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessSignatureMismatch, "backup_repository_auth_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessDenied, "backup_repository_permission_denied", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessBucketNotFound, "backup_repository_bucket_not_found", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessRegionMismatch, "backup_repository_region_mismatch", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessEndpointUnreachable, "backup_repository_endpoint_unreachable", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessTLSFailure, "backup_repository_tls_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessTimeout, "backup_repository_timeout", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessReadFailed, "backup_repository_operation_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessWriteFailed, "backup_repository_operation_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessListFailed, "backup_repository_operation_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessDeleteFailed, "backup_repository_operation_failed", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessNodeUnreachable, "backup_repository_node_unreachable", http.StatusServiceUnavailable},
+		{backupcontract.RepositoryAccessRepositoryInUse, "backup_repository_identity_conflict", http.StatusConflict},
+		{backupcontract.RepositoryAccessUnknown, "backup_repository_unknown", http.StatusServiceUnavailable},
+	}
+	for _, testCase := range testCases {
+		t.Run(string(testCase.reason), func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			writeBackupError(context, errors.Join(
+				backupusecase.ErrStoreUnreachable,
+				&backupcontract.RepositoryAccessError{
+					Reason:   testCase.reason,
+					Stage:    backupcontract.RepositoryAccessReadMarker,
+					Provider: backupcontract.StoreKindCOS,
+				},
+			))
+			var response errorResponse
+			if err := json.Unmarshal(
+				recorder.Body.Bytes(),
+				&response,
+			); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if recorder.Code != testCase.status ||
+				response.Error != testCase.code ||
+				response.Detail == nil {
+				t.Fatalf(
+					"status=%d response=%#v",
+					recorder.Code,
+					response,
+				)
+			}
+		})
+	}
+}
+
+func TestManagerBackupRepositoryUnverifiedIsConflict(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	writeBackupError(context, backupusecase.ErrRepositoryUnverified)
+	if recorder.Code != http.StatusConflict ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte(`"error":"backup_repository_unverified"`),
+		) ||
+		!bytes.Contains(
+			recorder.Body.Bytes(),
+			[]byte("Save and test the repository"),
+		) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body)
+	}
+}
+
+func TestManagerBackupRepositoryAuditKeepsOnlyStableSafeFields(t *testing.T) {
+	logger := &recordingBackupAuditLogger{}
+	provider := &fakeBackupManagement{
+		testRepositoryErr: errors.Join(
+			backupusecase.ErrStoreUnreachable,
+			&backupcontract.RepositoryAccessError{
+				Reason:       backupcontract.RepositoryAccessDenied,
+				Stage:        backupcontract.RepositoryAccessWriteReceipt,
+				Provider:     backupcontract.StoreKindCOS,
+				ProviderCode: "AccessDenied",
+				RequestID:    "request-secret-adjacent",
+				NodeID:       3,
+				Cause:        errors.New("SecretKey=never-log-this"),
+			},
 		),
 	}
 	server := New(Options{
@@ -243,25 +498,43 @@ func TestManagerBackupRepositoryFailureIsActionable(t *testing.T) {
 			}},
 		}}),
 		Backup: provider,
+		Logger: logger,
 	})
 	recorder := performBackupRequest(
 		server, http.MethodPost, "/manager/backups/repository/test",
-		[]byte(`{
-			"expected_revision":0,
-			"enabled":true,
-			"store":{"kind":"file"},
-			"cron":"0 1 * * *",
-			"time_zone":"Asia/Shanghai",
-			"retention_count":7,
-			"rate_mib_per_second":50,
-			"workers_per_node":1,
-			"max_duration_hours":12
-		}`),
+		[]byte(`{"expected_plan_revision":4}`),
 		mustIssueTestToken(t, server, "writer"),
 	)
-	if recorder.Code != http.StatusServiceUnavailable ||
-		!bytes.Contains(recorder.Body.Bytes(), []byte(`"error":"backup_store_unreachable"`)) {
-		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body)
+	}
+	fields := logger.stringFields()
+	for _, expected := range []string{
+		"error_code=backup_repository_permission_denied",
+		"provider=cos",
+		"stage=write_receipt",
+	} {
+		if !strings.Contains(fields, expected) {
+			t.Fatalf("audit fields missing %q:\n%s", expected, fields)
+		}
+	}
+	for _, forbidden := range []string{
+		"never-log-this",
+		"AccessDenied",
+		"request-secret-adjacent",
+	} {
+		if strings.Contains(fields, forbidden) {
+			t.Fatalf("audit fields leaked %q:\n%s", forbidden, fields)
+		}
+	}
+	nodeFound := false
+	for _, field := range logger.fields {
+		if field.Key == "node_id" && field.Value == uint64(3) {
+			nodeFound = true
+		}
+	}
+	if !nodeFound {
+		t.Fatalf("audit fields missing node_id=3: %#v", logger.fields)
 	}
 }
 
@@ -282,6 +555,7 @@ func TestWriteBackupErrorUsesStableBackupDomainCodes(t *testing.T) {
 		{backupusecase.ErrArchiveNotFound, "backup_archive_not_found"},
 		{backupusecase.ErrArchiveCorrupt, "backup_archive_corrupt"},
 		{backupusecase.ErrStoreUnreachable, "backup_store_unreachable"},
+		{backupusecase.ErrRepositoryUnverified, "backup_repository_unverified"},
 		{errors.New("unknown"), "backup_service_unavailable"},
 	}
 	for _, testCase := range testCases {
@@ -300,6 +574,18 @@ func TestWriteBackupErrorUsesStableBackupDomainCodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newBackupWriterServer(provider BackupManagement) *Server {
+	return New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "writer", Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.backup", Actions: []string{"w"},
+			}},
+		}}),
+		Backup: provider,
+	})
 }
 
 func TestManagerBackupManualJobAndArchiveOperations(t *testing.T) {
@@ -390,14 +676,18 @@ func performBackupRequest(
 }
 
 type fakeBackupManagement struct {
-	dashboard           backupusecase.Dashboard
-	configure           backupusecase.ConfigureRequest
-	managementConfigure backupusecase.ConfigureManagementRequest
-	job                 backupcontract.BackupJob
-	archive             backupusecase.ArchiveDetail
-	canceled            string
-	deleted             string
-	testRepositoryErr   error
+	dashboard             backupusecase.Dashboard
+	configure             backupusecase.ConfigureRequest
+	managementConfigure   backupusecase.ConfigureManagementRequest
+	job                   backupcontract.BackupJob
+	archive               backupusecase.ArchiveDetail
+	canceled              string
+	deleted               string
+	configureResult       backupusecase.ConfigureResult
+	testRepositoryPlan    backupcontract.Plan
+	testRepositoryRequest backupusecase.TestRepositoryRequest
+	testRepositoryCalls   int
+	testRepositoryErr     error
 }
 
 func (f *fakeBackupManagement) Dashboard(
@@ -412,16 +702,21 @@ func (f *fakeBackupManagement) Configure(
 ) (backupusecase.ConfigureResult, error) {
 	f.configure = request.ConfigureRequest
 	f.managementConfigure = request
+	if f.configureResult.Plan.Revision != 0 {
+		return f.configureResult, nil
+	}
 	return backupusecase.ConfigureResult{
 		Plan: backupcontract.Plan{Revision: 1},
 	}, nil
 }
 
 func (f *fakeBackupManagement) TestRepository(
-	context.Context,
-	backupusecase.ConfigureManagementRequest,
-) error {
-	return f.testRepositoryErr
+	_ context.Context,
+	request backupusecase.TestRepositoryRequest,
+) (backupcontract.Plan, error) {
+	f.testRepositoryRequest = request
+	f.testRepositoryCalls++
+	return f.testRepositoryPlan, f.testRepositoryErr
 }
 
 func (f *fakeBackupManagement) StartBackup(
@@ -467,4 +762,37 @@ func (f *fakeBackupManagement) DeleteArchive(
 ) error {
 	f.deleted = archiveID
 	return nil
+}
+
+type recordingBackupAuditLogger struct {
+	fields []wklog.Field
+}
+
+func (l *recordingBackupAuditLogger) Debug(string, ...wklog.Field) {}
+func (l *recordingBackupAuditLogger) Info(
+	_ string,
+	fields ...wklog.Field,
+) {
+	l.fields = append([]wklog.Field(nil), fields...)
+}
+func (l *recordingBackupAuditLogger) Warn(string, ...wklog.Field)  {}
+func (l *recordingBackupAuditLogger) Error(string, ...wklog.Field) {}
+func (l *recordingBackupAuditLogger) Fatal(string, ...wklog.Field) {}
+func (l *recordingBackupAuditLogger) Named(string) wklog.Logger    { return l }
+func (l *recordingBackupAuditLogger) With(...wklog.Field) wklog.Logger {
+	return l
+}
+func (l *recordingBackupAuditLogger) Sync() error { return nil }
+
+func (l *recordingBackupAuditLogger) stringFields() string {
+	var result strings.Builder
+	for _, field := range l.fields {
+		if value, ok := field.Value.(string); ok {
+			result.WriteString(field.Key)
+			result.WriteByte('=')
+			result.WriteString(value)
+			result.WriteByte('\n')
+		}
+	}
+	return result.String()
 }

@@ -14,6 +14,11 @@ func TestFSMReplacesScheduledBackupStateWithRevisionFence(t *testing.T) {
 	sm, _ := initializedStateMachine(t, 1)
 	expected := uint64(1)
 	replacement := scheduledBackupState()
+	replacement.Plan.RepositoryVerification =
+		&state.BackupRepositoryVerification{
+			Status:               state.BackupRepositoryVerificationVerified,
+			VerifiedAtUnixMillis: 1_800_000_000_500,
+		}
 
 	result, err := sm.Apply(ctx, 2, command.Command{
 		Kind:             command.KindReplaceScheduledBackupState,
@@ -23,9 +28,18 @@ func TestFSMReplacesScheduledBackupStateWithRevisionFence(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ApplyResult{Changed: true, Revision: 2, AppliedRaftIndex: 2}, result)
 	require.Equal(t, &replacement, sm.Snapshot(ctx).ScheduledBackup)
+	replacement.Plan.RepositoryVerification.Status =
+		state.BackupRepositoryVerificationUnverified
+	require.Equal(
+		t,
+		state.BackupRepositoryVerificationVerified,
+		sm.Snapshot(ctx).ScheduledBackup.Plan.RepositoryVerification.Status,
+	)
+	replacement.Plan.RepositoryVerification.Status =
+		state.BackupRepositoryVerificationVerified
 
 	stale := uint64(1)
-	changed := replacement.Clone()
+	changed := sm.Snapshot(ctx).ScheduledBackup.Clone()
 	changed.ActiveBackup.Slots[0].Status = state.BackupSlotStatusRunning
 	result, err = sm.Apply(ctx, 3, command.Command{
 		Kind:             command.KindReplaceScheduledBackupState,

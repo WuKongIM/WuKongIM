@@ -9,16 +9,23 @@ maintenance state.
 
 Open **Cluster → Backups** in Manager:
 
-1. Select a repository and test it.
-2. Choose **Daily at 01:00**, **Every 12 hours**, or a custom Cron expression
+1. Select a repository, enter its settings, and click **Save settings**.
+   Saving is durable and the non-secret settings reload after a refresh; it
+   does not contact the repository.
+2. Click **Test storage**. The test always uses the exact saved plan revision,
+   not unsaved form values.
+3. Choose **Daily at 01:00**, **Every 12 hours**, or a custom Cron expression
    and time zone.
-3. Keep the default retention of seven archives or choose another value.
-4. Save and enable the plan.
+4. Keep the default retention of seven archives or choose another value.
+5. Enable automatic backup and save the plan.
 
 Enabling a new plan starts one initial full backup. Later runs follow the
 schedule. A missed occurrence is not replayed after downtime. If another
 backup or a restore is active, the occurrence is recorded as skipped instead
-of overlapping.
+of overlapping. Enabling, **Back up now**, and scheduled execution are blocked
+until an explicitly unverified repository passes **Test storage**. Changing the
+provider, endpoint, region, bucket, prefix, addressing mode, or credential
+marks it unverified again. Schedule-only changes preserve verification.
 
 The page shows the current task, progress across all 256 Hash Slots, task
 history, and every published archive. An operator can also start one immediate
@@ -38,27 +45,46 @@ The file option uses:
 ```
 
 Every active data node must see the same filesystem contents at that path.
-Use a shared mount for a multi-node cluster. Manager tests read, write, list,
-and delete access from every active data node before enabling the plan.
+Use a shared mount for a multi-node cluster. **Test storage** makes every
+active data node independently open the repository, read a coordinator marker,
+and write its receipt; the coordinator verifies all receipts, lists the probe,
+and removes it.
 
-### S3-compatible repository
+### Object-storage repositories
 
-Provide an endpoint, region, bucket, prefix, path-style choice, access key,
-and secret key in Manager. Credentials are encrypted before publication to
-Controller state and are never returned by Manager APIs. Re-entering both
-credential fields rotates them; leaving both blank keeps the saved credential.
+Alibaba OSS and Tencent COS use Region, Bucket, Prefix, AccessKey, and secret
+fields. COS Bucket must include its APPID suffix. Their Endpoint may remain
+blank to use the provider's standard public endpoint, and both use virtual-host
+addressing. Generic S3-compatible storage also accepts its endpoint and
+addressing choice.
+
+Credentials are encrypted before publication to Controller state and are
+never returned by Manager APIs. After save or page refresh, non-secret fields
+are restored while the AccessKey and secret inputs remain blank. Re-entering
+both credential fields rotates them; leaving both blank keeps the saved
+same-provider credential.
 
 Backup archives themselves are not encrypted by WuKongIM. Use storage-side
 encryption and access policy when required.
 
-If **Test storage** fails, Manager reports that the backup storage is
-unreachable and asks the operator to check the endpoint, credentials,
-read/write/delete permissions, and free space. The stable Manager API error
-code is `backup_store_unreachable`; provider details remain in server or
-storage-service logs instead of being exposed to the browser. Some
-S3-compatible services reject writes before a volume is completely full, so
-check the provider's minimum-free-space threshold as well as its reported free
-bytes.
+**Test storage** performs real create-only write, read, list, and delete
+operations and proves visibility from every active data node before binding the
+repository to this cluster. OSS uses its native forbid-overwrite request and
+COS uses `x-cos-forbid-overwrite`, preserving immutable archive publication
+semantics rather than relying on a non-atomic read-before-write check.
+
+If the test fails, Manager returns a specific stable reason such as invalid
+AccessKey, signature mismatch, permission denied, missing bucket, region
+mismatch, unreachable endpoint, TLS failure, timeout, failed read/write/list/
+delete, repository identity conflict, or an inaccessible cluster node. The
+page displays this feedback immediately below the **Save settings** and
+**Test storage** buttons, so no scroll to the page header is required. Safe
+details may include provider, failed stage, provider code, request ID, and node
+ID; credentials and raw provider bodies are never returned.
+
+Some S3-compatible services reject writes before a volume is completely full,
+so check the provider's minimum-free-space threshold as well as its reported
+free bytes.
 
 ## Archive format and retention
 

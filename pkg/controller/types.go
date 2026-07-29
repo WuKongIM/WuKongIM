@@ -55,6 +55,10 @@ type (
 	BackupStoreKind = state.BackupStoreKind
 	// BackupStoreConfig stores archive repository settings.
 	BackupStoreConfig = state.BackupStoreConfig
+	// BackupRepositoryVerificationStatus describes durable repository verification.
+	BackupRepositoryVerificationStatus = state.BackupRepositoryVerificationStatus
+	// BackupRepositoryVerification records verification for one exact repository.
+	BackupRepositoryVerification = state.BackupRepositoryVerification
 	// BackupPlan is the single cluster-scoped scheduled full-backup policy.
 	BackupPlan = state.BackupPlan
 	// BackupTrigger identifies why a full-backup job was admitted.

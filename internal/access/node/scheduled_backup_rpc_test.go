@@ -2,6 +2,8 @@ package node
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
@@ -74,6 +76,52 @@ func TestScheduledBackupRPCForwardsOnlyBoundedReceipts(t *testing.T) {
 	}
 }
 
+func TestScheduledBackupRepositoryProbeRPCRetainsSafeFailure(t *testing.T) {
+	probe := &fakeScheduledBackupRepositoryProbe{
+		err: &backupcontract.RepositoryAccessError{
+			Reason:       backupcontract.RepositoryAccessInvalidAccessKey,
+			Stage:        backupcontract.RepositoryAccessReadMarker,
+			Provider:     backupcontract.StoreKindOSS,
+			ProviderCode: "InvalidAccessKeyId",
+			RequestID:    "request-1",
+			Cause:        errors.New("AccessKeyId=secret-access-key"),
+		},
+	}
+	adapter := New(Options{ScheduledBackupProbe: probe})
+	node := &fakeManagerConnectionRPCNode{
+		handler: adapter.HandleScheduledBackupRepositoryProbeRPC,
+	}
+
+	err := NewClient(node).ProbeBackupRepository(
+		context.Background(),
+		2,
+		backupcontract.RepositoryProbeCommand{
+			Store: backupcontract.StoreConfig{
+				Kind: backupcontract.StoreKindOSS,
+			},
+			MarkerKey:      "probes/one/marker",
+			MarkerSHA256:   strings.Repeat("a", 64),
+			ReceiptKey:     "probes/one/node-2",
+			ReceiptContent: "2:one",
+		},
+	)
+	var accessErr *backupcontract.RepositoryAccessError
+	if !errors.As(err, &accessErr) {
+		t.Fatalf("ProbeBackupRepository() error = %T %v", err, err)
+	}
+	if accessErr.Reason != backupcontract.RepositoryAccessInvalidAccessKey ||
+		accessErr.Stage != backupcontract.RepositoryAccessReadMarker ||
+		accessErr.Provider != backupcontract.StoreKindOSS ||
+		accessErr.ProviderCode != "InvalidAccessKeyId" ||
+		accessErr.RequestID != "request-1" ||
+		accessErr.NodeID != 2 {
+		t.Fatalf("repository access error = %#v", accessErr)
+	}
+	if strings.Contains(err.Error(), "secret-access-key") {
+		t.Fatalf("RPC error leaked secret: %v", err)
+	}
+}
+
 type fakeScheduledBackupExporter struct {
 	slot    backupcontract.SlotExportCommand
 	message backupcontract.MessageExportCommand
@@ -95,4 +143,15 @@ func (e *fakeScheduledBackupExporter) ExportMessages(
 ) (backupcontract.MessageExportReceipt, error) {
 	e.message = command
 	return backupcontract.MessageExportReceipt{Records: 3}, nil
+}
+
+type fakeScheduledBackupRepositoryProbe struct {
+	err error
+}
+
+func (p *fakeScheduledBackupRepositoryProbe) ObserveRepositoryProbe(
+	context.Context,
+	backupcontract.RepositoryProbeCommand,
+) error {
+	return p.err
 }
