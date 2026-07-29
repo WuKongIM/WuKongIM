@@ -830,7 +830,11 @@ func readCurrentLeaseArtifacts(
 	result := make([]issueagentusecase.WorkerArtifact, 0, 1)
 	for _, run := range runs {
 		workflowPath := ".github/workflows/" + lease.Workflow
-		if run.Name != "Agent Tool - Issue Worker" ||
+		// GitHub exposes a workflow's dynamic run-name through both Name and
+		// DisplayTitle. Bind identity to the protected workflow path and dispatch
+		// context, then use the lease-specific title to select the exact run.
+		if run.Event != "workflow_dispatch" ||
+			run.Status != "completed" ||
 			run.HeadBranch != "main" ||
 			run.Path != workflowPath &&
 				run.Path != workflowPath+"@main" &&

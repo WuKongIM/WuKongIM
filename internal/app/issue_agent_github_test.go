@@ -682,13 +682,14 @@ func TestMovingMainDecisionReadsProtectedDefaultBranchHead(t *testing.T) {
 	require.Len(t, facts.MainRuns, 3)
 }
 
-func TestSweeperFindsExactCompletedWorkerArtifactForCurrentLease(t *testing.T) {
+func TestSweeperFindsExactCompletedWorkerArtifactWithDynamicRunName(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 7, 28, 18, 0, 0, 0, time.UTC)
 	operationID := "sha256:" + strings.Repeat("a", 64)
 	taskDigest := "sha256:" + strings.Repeat("b", 64)
 	artifactName := "issue-agent-result-" + strings.Repeat("a", 16)
+	runTitle := "Issue Agent worker Issue 42 operation " + operationID
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -702,14 +703,13 @@ func TestSweeperFindsExactCompletedWorkerArtifactForCurrentLease(t *testing.T) {
 				"workflow_runs": []map[string]any{{
 					"id": 77, "event": "workflow_dispatch",
 					"status": "completed", "conclusion": "failure",
-					"head_branch": "main",
-					"head_sha":    "0123456789abcdef0123456789abcdef01234567",
-					"name":        "Agent Tool - Issue Worker",
-					"path":        ".github/workflows/issue-agent-run.yml@main",
-					"display_title": "Issue Agent worker Issue 42 operation " +
-						operationID,
-					"run_attempt": 1,
-					"created_at":  now.Add(-30 * time.Minute).Format(time.RFC3339),
+					"head_branch":   "main",
+					"head_sha":      "0123456789abcdef0123456789abcdef01234567",
+					"name":          runTitle,
+					"path":          ".github/workflows/issue-agent-run.yml@main",
+					"display_title": runTitle,
+					"run_attempt":   1,
+					"created_at":    now.Add(-30 * time.Minute).Format(time.RFC3339),
 				}},
 			})
 		case "/repos/WuKongIM/WuKongIM/actions/runs/77/artifacts":

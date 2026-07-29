@@ -161,6 +161,8 @@ func TestReaderFindsCompleteBoundedWorkerRunInventorySinceLease(t *testing.T) {
 
 	since := time.Date(2026, 7, 28, 12, 0, 0, 500_000_000, time.UTC)
 	lowerBound := since.Truncate(time.Second)
+	runTitle := "Issue Agent worker Issue 42 operation sha256:" +
+		strings.Repeat("a", 64)
 	server := httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
 		request *http.Request,
@@ -181,12 +183,11 @@ func TestReaderFindsCompleteBoundedWorkerRunInventorySinceLease(t *testing.T) {
 			"workflow_runs": []map[string]any{{
 				"id": 11, "event": "workflow_dispatch", "status": "completed",
 				"conclusion": "failure", "head_branch": "main",
-				"head_sha": fortyHex("b"),
-				"name":     "Agent Tool - Issue Worker",
-				"path":     ".github/workflows/issue-agent-run.yml@main",
-				"display_title": "Issue Agent worker Issue 42 operation sha256:" +
-					strings.Repeat("a", 64),
-				"run_attempt": 1, "created_at": lowerBound,
+				"head_sha":      fortyHex("b"),
+				"name":          runTitle,
+				"path":          ".github/workflows/issue-agent-run.yml@main",
+				"display_title": runTitle,
+				"run_attempt":   1, "created_at": lowerBound,
 			}},
 		})
 	}))
@@ -199,6 +200,7 @@ func TestReaderFindsCompleteBoundedWorkerRunInventorySinceLease(t *testing.T) {
 	require.Len(t, runs, 1)
 	require.Equal(t, int64(11), runs[0].ID)
 	require.Equal(t, lowerBound, runs[0].CreatedAt)
+	require.Equal(t, runTitle, runs[0].Name)
 }
 
 func TestReaderRejectsRecoverableWorkerRunOutsideProtectedMainIdentity(t *testing.T) {
