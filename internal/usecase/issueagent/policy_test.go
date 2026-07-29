@@ -23,7 +23,7 @@ func TestDecodePolicyLocksApprovedSafetyDefaults(t *testing.T) {
 
 	policy, err := issueagentusecase.DecodePolicy(file, 64<<10)
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.RolloutIntake, policy.RolloutMode)
+	require.Equal(t, issueagentusecase.RolloutReproduction, policy.RolloutMode)
 	require.True(t, policy.Enabled)
 	require.Contains(t, policy.SandboxImage, "@sha256:")
 	require.Equal(t, 3, policy.IssueBudget.MaxReproductionAttempts)
