@@ -189,6 +189,41 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "pull-requests: read")
 }
 
+func TestIssueAgentReproductionBuildSupportsHistoricalRootEntrypoint(t *testing.T) {
+	t.Parallel()
+
+	helperPath := filepath.Join(
+		repoRoot(t), ".github", "issue-agent", "build-reproduction-binary.sh",
+	)
+	helperRaw, err := os.ReadFile(helperPath)
+	require.NoError(t, err)
+	helper := string(helperRaw)
+	require.Contains(t, helper, `if [[ -d "$source_dir/cmd/wukongim" ]]; then`)
+	require.Contains(t, helper, `entrypoint="./cmd/wukongim"`)
+	require.Contains(t, helper, `elif [[ -f "$source_dir/main.go" ]]; then`)
+	require.Contains(t, helper, `entrypoint="."`)
+	require.Contains(t, helper, `No supported WuKongIM entrypoint in $source_dir`)
+	helperInfo, err := os.Stat(helperPath)
+	require.NoError(t, err)
+	require.NotZero(t, helperInfo.Mode().Perm()&0o111)
+
+	raw := readWorkflow(t, "issue-agent-run.yml")
+	_, workflow, err := decodeWorkflow(raw)
+	require.NoError(t, err)
+
+	for _, jobName := range []string{"codex-worker", "deepseek-worker"} {
+		job, ok := workflow.Jobs[jobName]
+		require.True(t, ok, jobName)
+		_, step := findIssueAgentStep(t, job, "Build exact reproduction binaries")
+		require.Contains(t, step.Run,
+			`control/.github/issue-agent/build-reproduction-binary.sh \
+  affected-source "$RUNNER_TEMP/affected-wukongim"`)
+		require.Contains(t, step.Run,
+			`control/.github/issue-agent/build-reproduction-binary.sh \
+  workspace "$RUNNER_TEMP/diagnosis-wukongim"`)
+	}
+}
+
 func TestIssueAgentCodexWorkerUsesOfficialBootstrap(t *testing.T) {
 	t.Parallel()
 

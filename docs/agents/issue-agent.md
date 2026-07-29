@@ -91,7 +91,10 @@ stale predecessor before writing.
 
 The Worker checks out protected control code from `main` and target code at an
 exact signed SHA with persisted credentials disabled. It prefetches Go modules,
-then runs approved typed tools inside the digest-pinned Docker image from
+then builds exact reproduction binaries from the current `cmd/wukongim`
+entrypoint or the historical root `main.go` entrypoint; any other source layout
+fails closed. It runs approved typed tools inside the digest-pinned Docker
+image from
 `.github/issue-agent/policy.json` with no network, read-only module cache, and
 no GitHub, model, host, or Docker-socket credential. The untrusted command
 container receives a per-job size-capped tmpfs volume instead of a writable
