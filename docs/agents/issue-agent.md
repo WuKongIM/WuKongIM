@@ -14,24 +14,27 @@ protected-path change.
 
 ## User intake
 
-The Bug Issue Form asks for only four required facts:
+The Bug Issue Form asks for only three required facts:
 
-1. exact affected version;
-2. environment, cluster topology, and client version;
-3. reproduction steps;
-4. expected and actual result.
+1. environment and client version;
+2. reproduction steps;
+3. expected and actual result.
 
-Frequency and redacted logs or configuration are optional. Intake is
-deterministic and does not call a model. It accepts an exact release tag, full
-40-character commit SHA, or immutable image digest. An image digest also needs
-a trusted source-commit lookup; without that reviewed metadata integration,
-version pinning fails closed. Moving references such as `latest`, branch names,
-or abbreviated SHAs are rejected.
+The affected version, cluster topology, frequency, and redacted logs or
+configuration are optional. An omitted affected version is frozen as the exact
+`main` SHA read at maintainer authorization time. An omitted topology selects a
+single-node cluster; an explicit multi-node description selects the supported
+three-node-cluster harness. Intake is deterministic and does not call a model.
+When supplied, the version accepts an exact release tag, full 40-character
+commit SHA, or immutable image digest. An image digest also needs a trusted
+source-commit lookup; without that reviewed metadata integration, version
+pinning fails closed. Moving references such as `latest`, branch names, or
+abbreviated SHAs are rejected.
 
 Editing an authorized Issue does not alter the frozen input. Intake removes
 neither the authorization label nor the signed generation; edited text is
 supplemental until a maintainer posts `/agent revise`. That command re-reads
-the current four-field Bug form, current permission, and current `main`, then
+the current Bug form, current permission, and current `main`, then
 starts a newly signed generation. Ordinary relabeling cannot replace frozen
 input.
 
@@ -90,8 +93,13 @@ Worker Publisher acquires the same group, re-reads the chain, and rejects its
 stale predecessor before writing.
 
 The Worker checks out protected control code from `main` and target code at an
-exact signed SHA with persisted credentials disabled. It prefetches Go modules,
-then runs approved typed tools inside the digest-pinned Docker image from
+exact signed SHA with persisted credentials disabled. It first requires the
+affected commit and diagnosis baseline to carry the same reviewed process-E2E
+reproduction-contract marker. Missing or different markers fail before Go
+setup or provider bootstrap, so a current harness is never applied blindly to
+an incompatible historical runtime generation. Compatible sources then
+prefetch Go modules and build only the current `cmd/wukongim` entrypoint. The
+Worker runs approved typed tools inside the digest-pinned Docker image from
 `.github/issue-agent/policy.json` with no network, read-only module cache, and
 no GitHub, model, host, or Docker-socket credential. The untrusted command
 container receives a per-job size-capped tmpfs volume instead of a writable

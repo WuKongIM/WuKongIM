@@ -48,7 +48,14 @@ append serial without blocking an in-flight model job, so a cancellation or
 new generation can publish first and fence the later stale Worker result.
 Every job builds `cmd/wkissueagent` from protected `main` control source or
 checks its embedded revision. Target source uses a distinct exact-SHA checkout
-with persisted Git credentials disabled.
+with persisted Git credentials disabled. An omitted affected version freezes
+to the exact authorization-time `main` SHA, and an omitted topology freezes to
+`single-node-cluster`; explicit multi-node reports use the supported
+`three-node-cluster` harness. Before provider bootstrap, the affected and
+diagnosis checkouts must carry identical reviewed
+`.github/issue-agent/reproduction-contract` markers and the compatible
+`cmd/wukongim` entrypoint. Missing or different markers fail closed without
+applying the current process-E2E harness to an older runtime generation.
 
 In `reproduction`, only the frozen reproduction phase may consume one selected
 provider secret or model quota. The scheduled scan reads at most one page below

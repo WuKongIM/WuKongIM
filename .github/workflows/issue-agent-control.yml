@@ -741,10 +741,9 @@ jobs:
                     common_payload | jq \
                       --arg policy_base64 "$(base64 -w0 control/.github/issue-agent/policy.json)" \
                       --arg prompt_base64 "$(base64 -w0 control/.github/issue-agent/prompts/reproduce.md)" \
-                      --arg topology single-node-cluster \
                       --arg provider "$provider" --arg model "$model" \
                       --slurpfile instruction_digests "$RUNNER_TEMP/instructions.json" \
-                      '{schema_version:1,payload:(. + {policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],topology:$topology,harness_paths:[],provider:$provider,model:$model})}' \
+                      '{schema_version:1,payload:(. + {policy_base64:$policy_base64,prompt_base64:$prompt_base64,instruction_digests:$instruction_digests[0],harness_paths:[],provider:$provider,model:$model})}' \
                       >"$RUNNER_TEMP/lease.json"
                     "$RUNNER_TEMP/wkissueagent" publish-reproduction-lease \
                       --input "$RUNNER_TEMP/lease.json" >"$RUNNER_TEMP/result.json"

@@ -16,10 +16,12 @@ Pull requests are not a request or triage surface for this repository.
 
 ## Bug Issue Agent
 
-Bug reports use `.github/ISSUE_TEMPLATE/bug.yml`. Keep its four required
-semantic inputs approachable; diagnostics remain optional. The Issue Agent
-workflow, authorization boundary, signed state, and rollout requirements are
-documented in `docs/agents/issue-agent.md`.
+Bug reports use `.github/ISSUE_TEMPLATE/bug.yml`. Keep its three required
+semantic inputs approachable; affected version, topology, and diagnostics
+remain optional. A missing version defaults to the exact `main` commit at
+maintainer authorization, and a missing topology defaults to a single-node
+cluster. The Issue Agent workflow, authorization boundary, signed state, and
+rollout requirements are documented in `docs/agents/issue-agent.md`.
 
 Adding `ready-for-agent` is an execution authorization, not ordinary
 classification. Only a maintainer with write, maintain, or admin permission
