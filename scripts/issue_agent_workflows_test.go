@@ -189,6 +189,22 @@ func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
 	require.NotContains(t, raw, `grep -F "vcs.revision\t$revision"`)
 }
 
+func TestIssueAgentControlIntakeRolloutAdmitsOnlyIntakeAndAuthorization(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.Contains(t, raw, `if [[ "$rollout" = intake ]]; then
+            case "$operation" in
+              intake|authorize) ;;
+              *) operation=report_only ;;
+            esac
+          fi`)
+	require.Contains(t, raw, `needs.planner.outputs.rollout != 'intake' ||
+       needs.planner.outputs.operation == 'authorize'`)
+}
+
 func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
 	t.Parallel()
 

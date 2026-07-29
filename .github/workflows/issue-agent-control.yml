@@ -189,6 +189,13 @@ jobs:
               ;;
           esac
 
+          if [[ "$rollout" = intake ]]; then
+            case "$operation" in
+              intake|authorize) ;;
+              *) operation=report_only ;;
+            esac
+          fi
+
           if [[ -n "$issue_number" ]]; then
             [[ "$issue_number" =~ ^[1-9][0-9]{0,9}$ ]]
           fi
@@ -338,14 +345,16 @@ jobs:
     name: Publish one signed lifecycle transition
     needs: [planner]
     if: >-
-      needs.planner.outputs.operation == 'authorize' ||
-      needs.planner.outputs.operation == 'risk_authorize' ||
-      needs.planner.outputs.operation == 'reconcile' ||
-      needs.planner.outputs.operation == 'validation_result' ||
-      needs.planner.outputs.operation == 'command' ||
-      needs.planner.outputs.operation == 'recover_chain' ||
-      needs.planner.outputs.operation == 'backport' ||
-      needs.planner.outputs.operation == 'observe_merge'
+      (needs.planner.outputs.rollout != 'intake' ||
+       needs.planner.outputs.operation == 'authorize') &&
+      (needs.planner.outputs.operation == 'authorize' ||
+       needs.planner.outputs.operation == 'risk_authorize' ||
+       needs.planner.outputs.operation == 'reconcile' ||
+       needs.planner.outputs.operation == 'validation_result' ||
+       needs.planner.outputs.operation == 'command' ||
+       needs.planner.outputs.operation == 'recover_chain' ||
+       needs.planner.outputs.operation == 'backport' ||
+       needs.planner.outputs.operation == 'observe_merge')
     concurrency:
       group: issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}
       queue: max

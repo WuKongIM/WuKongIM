@@ -31,7 +31,11 @@ for discovery and may become more specific over time.
 
 ## GitHub Issue Agent rollout
 
-The checked-in Issue Agent policy currently runs in `intake` mode.
+The checked-in Issue Agent policy currently runs in `shadow` mode.
+When policy is promoted to `intake`, the trusted control planner admits only
+deterministic `intake` and fresh `authorize` operations; every command,
+reconciliation, PR, Review, validation-result, merge, and recovery hint becomes
+`report_only` before any signed-state Publisher is selected.
 `issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
 non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
 non-cancelling group per Issue. Both use the bounded maximum pending queue so
