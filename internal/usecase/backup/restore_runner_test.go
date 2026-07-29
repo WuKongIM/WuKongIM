@@ -164,6 +164,53 @@ func TestRestoreServiceRetriesUnrelatedStateConflict(t *testing.T) {
 	}
 }
 
+func TestRestoreServiceRejectsRetryAfterRestoreJobAdvances(t *testing.T) {
+	now := time.Date(2026, 7, 29, 3, 0, 0, 0, time.UTC)
+	store := &memoryScheduledStateStore{
+		interveningStateUpdates: 1,
+		onInterveningStateUpdate: func(state *backupcontract.SystemState) {
+			state.ActiveRestore.Status = backupcontract.RestoreStatusSwitching
+		},
+		state: backupcontract.SystemState{
+			Revision: 1,
+			Plan:     &backupcontract.Plan{Revision: 1},
+			ActiveRestore: &backupcontract.RestoreJob{
+				ID: "restore-stale", Status: backupcontract.RestoreStatusStaging,
+				StartedUnixMillis:  now.UnixMilli(),
+				DeadlineUnixMillis: now.Add(48 * time.Hour).UnixMilli(),
+			},
+		},
+	}
+	restore, err := backupusecase.NewRestoreService(
+		backupusecase.RestoreServiceOptions{
+			StateStore:    store,
+			Repository:    fixedRepositoryProvider{},
+			Preflight:     noopRestorePreflight{},
+			Now:           func() time.Time { return now },
+			NewID:         func() string { return "unused" },
+			NewActivation: func() string { return "unused" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewRestoreService(): %v", err)
+	}
+
+	err = restore.SetRestorePhase(
+		context.Background(), "restore-stale", backupcontract.RestoreStatusVerifying,
+	)
+	if !errors.Is(err, backupusecase.ErrStateConflict) {
+		t.Fatalf("SetRestorePhase() error = %v, want %v", err, backupusecase.ErrStateConflict)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if state.ActiveRestore == nil ||
+		state.ActiveRestore.Status != backupcontract.RestoreStatusSwitching {
+		t.Fatalf("stale retry regressed state = %#v", state)
+	}
+}
+
 func TestRestoreRunnerCanceledBeforeMaintenanceDoesNotEnterMaintenance(t *testing.T) {
 	now := time.Date(2026, 7, 29, 3, 0, 0, 0, time.UTC)
 	runner, scheduled, executor := newPreparingRestoreRunnerForTest(

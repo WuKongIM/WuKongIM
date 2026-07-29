@@ -340,9 +340,10 @@ func validConfigureRequest() backupusecase.ConfigureRequest {
 }
 
 type memoryScheduledStateStore struct {
-	mu                      sync.Mutex
-	state                   backupcontract.SystemState
-	interveningStateUpdates int
+	mu                       sync.Mutex
+	state                    backupcontract.SystemState
+	interveningStateUpdates  int
+	onInterveningStateUpdate func(*backupcontract.SystemState)
 }
 
 func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.SystemState, error) {
@@ -361,6 +362,9 @@ func (s *memoryScheduledStateStore) CompareAndSwap(
 	if s.interveningStateUpdates > 0 {
 		s.interveningStateUpdates--
 		s.state.Revision++
+		if s.onInterveningStateUpdate != nil {
+			s.onInterveningStateUpdate(&s.state)
+		}
 		return backupusecase.ErrStateConflict
 	}
 	if s.state.Revision != expectedRevision {

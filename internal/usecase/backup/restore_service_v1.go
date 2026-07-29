@@ -511,12 +511,18 @@ func (s *RestoreService) mutate(
 	if strings.TrimSpace(jobID) == "" {
 		return ErrInvalidRequest
 	}
+	var expected *backupcontract.RestoreJob
 	for range 16 {
 		current, err := s.store.Load(ctx)
 		if err != nil {
 			return err
 		}
 		if current.ActiveRestore == nil || current.ActiveRestore.ID != jobID {
+			return ErrStateConflict
+		}
+		if expected == nil {
+			expected = current.Clone().ActiveRestore
+		} else if !reflect.DeepEqual(current.ActiveRestore, expected) {
 			return ErrStateConflict
 		}
 		next := current.Clone()
