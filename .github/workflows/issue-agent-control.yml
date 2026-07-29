@@ -91,10 +91,7 @@ jobs:
           set -euo pipefail
           rollout="$(jq -er '.rollout_mode' control/.github/issue-agent/policy.json)"
           enabled="$(jq -er '.enabled' control/.github/issue-agent/policy.json)"
-          event_name="$(jq -r '.event_name' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
-          if [[ -z "$event_name" ]]; then
-            event_name="$GITHUB_EVENT_NAME"
-          fi
+          event_name="$GITHUB_EVENT_NAME"
           action="$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")"
           issue_number=""
           comment_id=""
