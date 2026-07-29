@@ -40,6 +40,12 @@ peer nodes without adding manager-specific logic to cluster. Internal
 manager distributed log pages use the same surface to ask a selected peer to
 read its own local Controller or Slot Raft log page, and manager channel list
 pages use it to ask a selected peer to scan its local Slot metadata pages.
+Controller restore maintenance rejects ordinary `Node.CallRPC` traffic.
+`RPCScheduledBackupRestore` is the only exception so the fenced coordinator can
+continue node-local prepare, stage, verify, switch, activate, rollback, health,
+cleanup, and resume steps. Its receiving service revalidates the durable
+coordinator, restore phase, topology, and per-Slot attempt fences before local
+storage work.
 
 `Config.Goroutines` carries the process supervisor into the default cluster
 composition. Controller, Slot, Channel, Transport, database, control-watch,

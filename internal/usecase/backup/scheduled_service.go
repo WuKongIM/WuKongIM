@@ -114,6 +114,22 @@ type FinishBackupRequest struct {
 	ErrorCode string
 }
 
+// RecordTaskRequest appends one completed auxiliary backup operation.
+type RecordTaskRequest struct {
+	// ID is stable across retries of the same logical operation.
+	ID string
+	// Kind identifies verification or retention history.
+	Kind string
+	// Status is the terminal succeeded or failed result.
+	Status backupcontract.JobStatus
+	// StartedUnixMillis is the operation start time in UTC Unix milliseconds.
+	StartedUnixMillis int64
+	// CompletedUnixMillis is the terminal time in UTC Unix milliseconds.
+	CompletedUnixMillis int64
+	// ErrorCode is a bounded stable operator-facing failure code.
+	ErrorCode string
+}
+
 // AdvanceBackupPhaseRequest durably moves publication through its one-way
 // phases. Keeping these phases in Controller state makes COMPLETE publication
 // resumable without ever treating a published archive as cancelable work.
@@ -203,6 +219,59 @@ func (s *ScheduledService) ReleaseArchiveOperation(
 		next := current.Clone()
 		next.Revision++
 		next.ActiveArchiveOperation = nil
+		err = s.store.CompareAndSwap(ctx, current.Revision, next)
+		if !errors.Is(err, ErrStateConflict) {
+			return err
+		}
+	}
+	return ErrStateConflict
+}
+
+// RecordTask durably records a bounded verification or retention result. The
+// (kind, ID) pair is idempotent so resumed cleanup does not duplicate history.
+func (s *ScheduledService) RecordTask(
+	ctx context.Context,
+	request RecordTaskRequest,
+) error {
+	request.ID = strings.TrimSpace(request.ID)
+	request.Kind = strings.TrimSpace(request.Kind)
+	if request.ID == "" || len(request.ID) > 128 ||
+		(request.Kind != "verification" && request.Kind != "retention") ||
+		request.StartedUnixMillis <= 0 ||
+		request.CompletedUnixMillis < request.StartedUnixMillis ||
+		len(request.ErrorCode) > 128 {
+		return ErrInvalidRequest
+	}
+	switch request.Status {
+	case backupcontract.JobStatusSucceeded, backupcontract.JobStatusFailed:
+	default:
+		return ErrInvalidRequest
+	}
+	record := backupcontract.TaskRecord{
+		ID: request.ID, Kind: request.Kind,
+		Status:              string(request.Status),
+		StartedUnixMillis:   request.StartedUnixMillis,
+		CompletedUnixMillis: request.CompletedUnixMillis,
+		ErrorCode:           request.ErrorCode,
+	}
+	for range 16 {
+		current, err := s.store.Load(ctx)
+		if err != nil {
+			return err
+		}
+		for _, existing := range current.History {
+			if existing.ID == record.ID && existing.Kind == record.Kind {
+				return nil
+			}
+		}
+		next := current.Clone()
+		next.Revision++
+		next.History = append(
+			[]backupcontract.TaskRecord{record}, next.History...,
+		)
+		if len(next.History) > backupcontract.MaxTaskHistory {
+			next.History = next.History[:backupcontract.MaxTaskHistory]
+		}
 		err = s.store.CompareAndSwap(ctx, current.Revision, next)
 		if !errors.Is(err, ErrStateConflict) {
 			return err

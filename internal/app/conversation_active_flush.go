@@ -42,9 +42,11 @@ type conversationActiveFlushWorkerOptions struct {
 type conversationActiveFlushWorker struct {
 	opts conversationActiveFlushWorkerOptions
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	lifecycleMu sync.Mutex
+	mu          sync.Mutex
+	cancel      context.CancelFunc
+	stopped     bool
+	wg          sync.WaitGroup
 }
 
 func newConversationActiveFlushWorker(opts conversationActiveFlushWorkerOptions) *conversationActiveFlushWorker {
@@ -77,6 +79,8 @@ func (w *conversationActiveFlushWorker) Start(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -88,6 +92,7 @@ func (w *conversationActiveFlushWorker) Start(ctx context.Context) error {
 		return nil
 	}
 	w.cancel = cancel
+	w.stopped = false
 	w.wg.Add(1)
 	w.mu.Unlock()
 
@@ -100,10 +105,16 @@ func (w *conversationActiveFlushWorker) Stop(ctx context.Context) error {
 	if w == nil {
 		return nil
 	}
+	w.lifecycleMu.Lock()
+	defer w.lifecycleMu.Unlock()
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	w.mu.Lock()
+	if w.stopped {
+		w.mu.Unlock()
+		return nil
+	}
 	cancel := w.cancel
 	w.cancel = nil
 	w.mu.Unlock()
@@ -120,7 +131,13 @@ func (w *conversationActiveFlushWorker) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return w.flushFinal(ctx)
+	if err := w.flushFinal(ctx); err != nil {
+		return err
+	}
+	w.mu.Lock()
+	w.stopped = true
+	w.mu.Unlock()
+	return nil
 }
 
 func (w *conversationActiveFlushWorker) tick(ctx context.Context) {

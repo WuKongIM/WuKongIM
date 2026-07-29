@@ -44,6 +44,26 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 	}
 }
 
+func TestStartThreeNodeClusterCanShareBackupRepository(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
+
+	cluster := New(t).StartThreeNodeCluster(WithSharedBackupRepository())
+
+	var target string
+	for _, node := range cluster.Nodes {
+		repositoryPath := filepath.Join(node.Spec.DataDir, "backup-repository")
+		info, err := os.Lstat(repositoryPath)
+		require.NoError(t, err)
+		require.NotZero(t, info.Mode()&os.ModeSymlink)
+		resolved, err := filepath.EvalSymlinks(repositoryPath)
+		require.NoError(t, err)
+		if target == "" {
+			target = resolved
+		}
+		require.Equal(t, target, resolved)
+	}
+}
+
 func TestStartThreeNodeClusterWritesManagerConfigWhenEnabled(t *testing.T) {
 	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 
@@ -515,7 +535,7 @@ func TestStartedClusterReconfigureStoppedNodesReplacesConfigEnvironmentAndKeepsE
 		require.Contains(t, node.Spec.Env, "EXTERNAL_SENTINEL=preserved")
 		body, err := os.ReadFile(node.Spec.ConfigPath)
 		require.NoError(t, err)
-		require.Contains(t, string(body), "level = 'info'")
+		require.Contains(t, string(body), `level = "info"`)
 	}
 }
 

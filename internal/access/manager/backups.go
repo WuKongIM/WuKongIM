@@ -117,7 +117,7 @@ func (s *Server) handleBackupDashboard(c *gin.Context) {
 	if s == nil || s.backup == nil {
 		jsonError(
 			c, http.StatusServiceUnavailable,
-			"service_unavailable", "backup management is unavailable",
+			"backup_service_unavailable", "backup management is unavailable",
 		)
 		return
 	}
@@ -219,7 +219,7 @@ func (s *Server) handleBackupHold(c *gin.Context) {
 	limitBackupJSONBody(c, maxBackupActionRequestBytes)
 	var request backupHoldRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid hold request")
+		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid hold request")
 		return
 	}
 	archive, err := s.backup.HoldArchive(
@@ -246,7 +246,7 @@ func (s *Server) handleBackupDelete(c *gin.Context) {
 		request.Confirmation != "DELETE "+archiveID {
 		s.auditBackupMutation(c, "delete_archive", archiveID, errBackupConfirmation)
 		jsonError(
-			c, http.StatusBadRequest, "confirmation_mismatch",
+			c, http.StatusBadRequest, "backup_confirmation_mismatch",
 			"confirmation must exactly match DELETE <archive id>",
 		)
 		return
@@ -264,7 +264,7 @@ func bindBackupPlanRequest(c *gin.Context) (backupPlanRequest, bool) {
 	limitBackupJSONBody(c, maxBackupPlanRequestBytes)
 	var request backupPlanRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup plan")
+		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid backup plan")
 		return backupPlanRequest{}, false
 	}
 	if request.RateMiBPerSecond < 1 || request.RateMiBPerSecond > 10_240 ||
@@ -276,7 +276,7 @@ func bindBackupPlanRequest(c *gin.Context) (backupPlanRequest, bool) {
 		len(request.Store.Prefix) > 1024 ||
 		len(request.Store.AccessKey) > 1024 ||
 		len(request.Store.SecretKey) > 8192 {
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup plan")
+		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid backup plan")
 		return backupPlanRequest{}, false
 	}
 	return request, true
@@ -320,30 +320,30 @@ func managementConfigureRequest(
 func writeBackupError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, backupusecase.ErrInvalidRequest):
-		jsonError(c, http.StatusBadRequest, "bad_request", "invalid backup request")
+		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid backup request")
 	case errors.Is(err, backupusecase.ErrDisabled):
 		jsonError(c, http.StatusConflict, "backup_not_configured", "backup is not configured")
 	case errors.Is(err, backupusecase.ErrBackupJobActive):
 		jsonError(c, http.StatusConflict, "backup_job_active", "a full backup is already running")
 	case errors.Is(err, backupusecase.ErrRestoreJobActive):
-		jsonError(c, http.StatusConflict, "restore_job_active", "a restore is already running")
+		jsonError(c, http.StatusConflict, "backup_restore_active", "a restore is already running")
 	case errors.Is(err, backupusecase.ErrStateConflict):
-		jsonError(c, http.StatusConflict, "state_conflict", "backup state changed; refresh and retry")
+		jsonError(c, http.StatusConflict, "backup_plan_conflict", "backup state changed; refresh and retry")
 	case errors.Is(err, backupusecase.ErrArchiveOperationActive):
-		jsonError(c, http.StatusConflict, "archive_operation_active", "another backup archive operation is running")
+		jsonError(c, http.StatusConflict, "backup_archive_operation_active", "another backup archive operation is running")
 	case errors.Is(err, backupusecase.ErrArchiveHeld):
-		jsonError(c, http.StatusConflict, "archive_held", "held backup archives cannot be deleted")
+		jsonError(c, http.StatusConflict, "backup_archive_held", "held backup archives cannot be deleted")
 	case errors.Is(err, backupusecase.ErrArchiveInUse):
-		jsonError(c, http.StatusConflict, "archive_in_use", "the archive is used by the active restore")
+		jsonError(c, http.StatusConflict, "backup_archive_in_use", "the archive is used by the active restore")
 	case errors.Is(err, backupusecase.ErrLastUsableArchive):
-		jsonError(c, http.StatusConflict, "last_usable_archive", "the last healthy backup archive cannot be deleted")
+		jsonError(c, http.StatusConflict, "backup_last_archive", "the last healthy backup archive cannot be deleted")
 	case errors.Is(err, backupusecase.ErrArchiveNotFound):
-		jsonError(c, http.StatusNotFound, "archive_not_found", "backup archive not found")
+		jsonError(c, http.StatusNotFound, "backup_archive_not_found", "backup archive not found")
 	case errors.Is(err, backupusecase.ErrArchiveCorrupt):
-		jsonError(c, http.StatusUnprocessableEntity, "archive_corrupt", "backup archive verification failed")
+		jsonError(c, http.StatusUnprocessableEntity, "backup_archive_corrupt", "backup archive verification failed")
 	case errors.Is(err, backupusecase.ErrStoreUnreachable):
 		jsonError(c, http.StatusServiceUnavailable, "backup_store_unreachable", "backup repository is unreachable or lacks required access")
 	default:
-		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "backup operation failed")
+		jsonError(c, http.StatusServiceUnavailable, "backup_service_unavailable", "backup operation failed")
 	}
 }

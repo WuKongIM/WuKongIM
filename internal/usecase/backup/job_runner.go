@@ -18,18 +18,26 @@ const maximumSlotExportAttempts uint32 = 3
 
 // SlotAuthority identifies the current distributed owner of one Hash Slot export.
 type SlotAuthority struct {
+	// NodeID is the current physical Hash Slot leader.
 	NodeID uint64
-	Term   uint64
+	// Term fences output to that exact leader tenure.
+	Term uint64
 }
 
 // SlotExportResult summarizes one fully stored and verified Slot artifact.
 type SlotExportResult struct {
-	ManifestKey    string
+	// ManifestKey selects the immutable attempt-scoped Slot manifest.
+	ManifestKey string
+	// ManifestSHA256 binds the completed Slot result to its stored manifest.
 	ManifestSHA256 string
-	LogicalBytes   uint64
-	StoredBytes    uint64
-	Records        uint64
-	MaxMessageID   uint64
+	// LogicalBytes is the decoded size represented by the Slot artifact.
+	LogicalBytes uint64
+	// StoredBytes is the compressed repository size.
+	StoredBytes uint64
+	// Records is the exact logical record count in the Slot artifact.
+	Records uint64
+	// MaxMessageID is the Slot's durable allocator evidence.
+	MaxMessageID uint64
 }
 
 // ScheduledSlotExecutor resolves and executes one distributed Slot export.
@@ -61,11 +69,16 @@ type ScheduledArchiveFinalizer interface {
 
 // JobRunnerOptions configures resumable scheduled full-backup execution.
 type JobRunnerOptions struct {
-	Scheduled  *ScheduledService
+	// Scheduled owns durable admission, progress, and terminal transitions.
+	Scheduled *ScheduledService
+	// Repository resolves the current plan store for every resumable step.
 	Repository ArchiveRepositoryProvider
-	Slots      ScheduledSlotExecutor
-	Finalizer  ScheduledArchiveFinalizer
-	Now        func() time.Time
+	// Slots executes authority-fenced exports with bounded node concurrency.
+	Slots ScheduledSlotExecutor
+	// Finalizer verifies publication and applies serialized retention.
+	Finalizer ScheduledArchiveFinalizer
+	// Now supplies deterministic deadline checks.
+	Now func() time.Time
 }
 
 // JobRunner advances one per-node-bounded Slot batch or terminal transition.
@@ -224,11 +237,17 @@ func (r *JobRunner) clean(
 	job backupcontract.BackupJob,
 ) error {
 	cleanupCode := ""
+	startedUnixMillis := r.now().UTC().UnixMilli()
 	operation, err := r.scheduled.AcquireArchiveOperation(
 		ctx, "retention", job.ID,
 	)
 	if err != nil {
 		cleanupCode = "cleanup_deferred"
+		if recordErr := r.recordRetention(
+			ctx, job.ID, startedUnixMillis, cleanupCode,
+		); recordErr != nil {
+			return recordErr
+		}
 		return r.scheduled.FinishBackup(ctx, FinishBackupRequest{
 			JobID: job.ID, Status: backupcontract.JobStatusSucceeded,
 			ErrorCode: cleanupCode,
@@ -254,9 +273,32 @@ func (r *JobRunner) clean(
 	if err != nil {
 		cleanupCode = "cleanup_deferred"
 	}
+	if recordErr := r.recordRetention(
+		ctx, job.ID, startedUnixMillis, cleanupCode,
+	); recordErr != nil {
+		return recordErr
+	}
 	return r.scheduled.FinishBackup(ctx, FinishBackupRequest{
 		JobID: job.ID, Status: backupcontract.JobStatusSucceeded,
 		ErrorCode: cleanupCode,
+	})
+}
+
+func (r *JobRunner) recordRetention(
+	ctx context.Context,
+	jobID string,
+	startedUnixMillis int64,
+	errorCode string,
+) error {
+	status := backupcontract.JobStatusSucceeded
+	if errorCode != "" {
+		status = backupcontract.JobStatusFailed
+	}
+	return r.scheduled.RecordTask(ctx, RecordTaskRequest{
+		ID: jobID, Kind: "retention", Status: status,
+		StartedUnixMillis:   startedUnixMillis,
+		CompletedUnixMillis: r.now().UTC().UnixMilli(),
+		ErrorCode:           errorCode,
 	})
 }
 

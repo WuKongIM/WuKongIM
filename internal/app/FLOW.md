@@ -983,6 +983,9 @@ Stop(ctx)
   -> cancel the periodic loop
   -> drain remaining dirty active rows in bounded batches with the caller's stop context
      and the same per-attempt timeout
+  -> after a successful drain, repeated Stop calls return without flushing
+     again under the restore maintenance fence; a timed-out or failed drain
+     remains retryable
 ```
 
 The flush worker does not construct conversation rows and does not read message

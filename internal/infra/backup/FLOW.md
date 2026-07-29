@@ -12,7 +12,9 @@ maintenance restore. Scheduling and state-machine policy remain in
 `RepositoryProvider` resolves one `ArchiveStore`:
 
 - `file` uses `<data_dir>/backup-repository`; all active data nodes must see
-  the same mount.
+  the same mount. A repository-root alias that already exists at process start
+  is resolved once to its real directory; object operations remain anchored
+  there and reject every symlink inside the repository.
 - `s3` uses one endpoint, region, bucket, and prefix. Access/secret keys are
   authenticated-encrypted before Controller publication and decrypted only
   while opening a client.

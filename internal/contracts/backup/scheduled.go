@@ -206,7 +206,8 @@ type RestoreJob struct {
 	ErrorCode          string                `json:"error_code,omitempty"`
 }
 
-// TaskRecord is one bounded terminal backup or restore observation.
+// TaskRecord is one bounded terminal backup, restore, verification, or
+// retention observation.
 type TaskRecord struct {
 	ID                  string  `json:"id"`
 	Kind                string  `json:"kind"`

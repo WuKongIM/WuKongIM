@@ -149,7 +149,8 @@ type RestoreSlotProgress struct {
 	ErrorCode         string   `json:"error_code,omitempty"`
 }
 
-// BackupTaskRecord is one bounded terminal backup or restore observation.
+// BackupTaskRecord is one bounded terminal backup, restore, verification, or
+// retention observation.
 type BackupTaskRecord struct {
 	ID                  string        `json:"id"`
 	Kind                string        `json:"kind"`
@@ -262,7 +263,9 @@ func validateScheduledBackup(value *ScheduledBackupState) error {
 		}
 	}
 	for i, record := range value.History {
-		if record.ID == "" || (record.Kind != "backup" && record.Kind != "restore") ||
+		if record.ID == "" ||
+			(record.Kind != "backup" && record.Kind != "restore" &&
+				record.Kind != "verification" && record.Kind != "retention") ||
 			len(record.Initiator) > 128 ||
 			record.Kind == "restore" && strings.TrimSpace(record.Initiator) == "" ||
 			record.StartedUnixMillis <= 0 || record.CompletedUnixMillis < record.StartedUnixMillis {

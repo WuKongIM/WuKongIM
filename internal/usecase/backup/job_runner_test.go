@@ -67,8 +67,11 @@ func TestJobRunnerExportsEveryHashSlotThenPublishesAndFinishes(t *testing.T) {
 	if state.ActiveBackup != nil {
 		t.Fatalf("active backup = %#v", state.ActiveBackup)
 	}
-	if len(state.History) != 1 ||
-		state.History[0].Status != string(backupcontract.JobStatusSucceeded) {
+	if len(state.History) != 2 ||
+		state.History[0].Kind != "backup" ||
+		state.History[0].Status != string(backupcontract.JobStatusSucceeded) ||
+		state.History[1].Kind != "retention" ||
+		state.History[1].Status != string(backupcontract.JobStatusSucceeded) {
 		t.Fatalf("history = %#v", state.History)
 	}
 	if len(slots.exported) != backupcontract.HashSlotCount {

@@ -516,7 +516,12 @@ func (n *Node) CallRPC(ctx context.Context, nodeID uint64, serviceID uint8, payl
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
-	if err := n.ensureForeground(); err != nil {
+	// Restore coordination must keep reaching peer nodes after Controller has
+	// fenced foreground traffic. The restore handler independently validates
+	// the durable coordinator, phase, topology, and per-Slot attempt fences.
+	if err := n.ensureForeground(); err != nil &&
+		!(err == ErrMaintenance &&
+			serviceID == clusternet.RPCScheduledBackupRestore) {
 		return nil, err
 	}
 	n.mu.RLock()

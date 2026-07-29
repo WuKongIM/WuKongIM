@@ -18,12 +18,19 @@ import (
 
 // S3ArchiveStoreOptions configures one S3-compatible repository prefix.
 type S3ArchiveStoreOptions struct {
-	Endpoint  string
-	Region    string
-	Bucket    string
-	Prefix    string
+	// Endpoint is the HTTP(S) S3-compatible service address.
+	Endpoint string
+	// Region is optional only when the target service does not require one.
+	Region string
+	// Bucket is the existing repository bucket; this adapter never creates it.
+	Bucket string
+	// Prefix isolates one cluster-bound repository within Bucket.
+	Prefix string
+	// AccessKey is the decrypted runtime credential and must never be logged.
 	AccessKey string
+	// SecretKey is the decrypted runtime credential and must never be returned.
 	SecretKey string
+	// PathStyle selects compatibility addressing for services such as MinIO.
 	PathStyle bool
 }
 

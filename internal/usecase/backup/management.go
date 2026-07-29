@@ -55,12 +55,28 @@ type ManagementService struct {
 
 // Dashboard is the single Manager read model for plan, task, and archive state.
 type Dashboard struct {
-	State                 backupcontract.SystemState `json:"state"`
-	Archives              []ArchiveSummary           `json:"archives"`
-	CredentialsConfigured bool                       `json:"credentials_configured"`
-	NextScheduledUnixMS   int64                      `json:"next_scheduled_unix_ms,omitempty"`
-	RepositoryError       string                     `json:"repository_error,omitempty"`
+	State                      backupcontract.SystemState `json:"state"`
+	Archives                   []ArchiveSummary           `json:"archives"`
+	CredentialsConfigured      bool                       `json:"credentials_configured"`
+	NextScheduledUnixMS        int64                      `json:"next_scheduled_unix_ms,omitempty"`
+	BackupHealth               BackupHealth               `json:"backup_health,omitempty"`
+	BackupHealthReason         string                     `json:"backup_health_reason,omitempty"`
+	LastSuccessfulBackupUnixMS int64                      `json:"last_successful_backup_unix_ms,omitempty"`
+	RepositoryError            string                     `json:"repository_error,omitempty"`
 }
+
+// BackupHealth summarizes whether the enabled plan is producing recoverable
+// archives at its expected cadence.
+type BackupHealth string
+
+const (
+	// BackupHealthHealthy means no expected backup coverage is missing.
+	BackupHealthHealthy BackupHealth = "healthy"
+	// BackupHealthWarning means the latest backup attempt failed.
+	BackupHealthWarning BackupHealth = "warning"
+	// BackupHealthCritical means two expected runs passed without a success.
+	BackupHealthCritical BackupHealth = "critical"
+)
 
 // ConfigureManagementRequest contains a plan plus an optional replacement S3 credential.
 type ConfigureManagementRequest struct {
@@ -96,6 +112,10 @@ func (s *ManagementService) Dashboard(ctx context.Context) (Dashboard, error) {
 		return result, nil
 	}
 	if state.Plan.Enabled {
+		result.BackupHealth, result.BackupHealthReason,
+			result.LastSuccessfulBackupUnixMS = planBackupHealth(
+			*state.Plan, state.History, s.now(),
+		)
 		location, schedule, scheduleErr := parsePlanSchedule(*state.Plan)
 		if scheduleErr == nil {
 			now := s.now().In(location)
@@ -127,6 +147,54 @@ func (s *ManagementService) Dashboard(ctx context.Context) (Dashboard, error) {
 		result.RepositoryError = "repository_unavailable"
 	}
 	return result, nil
+}
+
+func planBackupHealth(
+	plan backupcontract.Plan,
+	history []backupcontract.TaskRecord,
+	now time.Time,
+) (BackupHealth, string, int64) {
+	health := BackupHealthHealthy
+	var latestBackup backupcontract.TaskRecord
+	var latestSuccess int64
+	for _, record := range history {
+		if record.Kind != "backup" {
+			continue
+		}
+		if record.CompletedUnixMillis > latestBackup.CompletedUnixMillis {
+			latestBackup = record
+		}
+		if record.Status == string(backupcontract.JobStatusSucceeded) &&
+			record.CompletedUnixMillis > latestSuccess {
+			latestSuccess = record.CompletedUnixMillis
+		}
+	}
+	if latestBackup.Status == string(backupcontract.JobStatusFailed) {
+		health = BackupHealthWarning
+	}
+	location, schedule, err := parsePlanSchedule(plan)
+	if err != nil {
+		return health, backupHealthReason(health), latestSuccess
+	}
+	baseline := plan.CreatedUnixMillis
+	if latestSuccess > baseline {
+		baseline = latestSuccess
+	}
+	occurrence := schedule.Next(time.UnixMilli(baseline).In(location))
+	for range 2 {
+		if occurrence.After(now.In(location)) {
+			return health, backupHealthReason(health), latestSuccess
+		}
+		occurrence = schedule.Next(occurrence)
+	}
+	return BackupHealthCritical, "successful_backup_stale", latestSuccess
+}
+
+func backupHealthReason(health BackupHealth) string {
+	if health == BackupHealthWarning {
+		return "latest_backup_failed"
+	}
+	return ""
 }
 
 // Configure validates repository access, binds its identity, then atomically
@@ -268,8 +336,24 @@ func (s *ManagementService) VerifyArchive(
 		return ArchiveDetail{}, err
 	}
 	defer func() {
+		recordContext, cancel := context.WithTimeout(
+			context.WithoutCancel(ctx), 10*time.Second,
+		)
+		defer cancel()
+		status := backupcontract.JobStatusSucceeded
+		errorCode := ""
+		if resultErr != nil {
+			status = backupcontract.JobStatusFailed
+			errorCode = verificationErrorCode(resultErr)
+		}
 		resultErr = errors.Join(
 			resultErr,
+			s.scheduled.RecordTask(recordContext, RecordTaskRequest{
+				ID: operation.Token, Kind: "verification", Status: status,
+				StartedUnixMillis:   operation.StartedUnixMillis,
+				CompletedUnixMillis: s.now().UTC().UnixMilli(),
+				ErrorCode:           errorCode,
+			}),
 			s.releaseArchiveOperation(operation.Token),
 		)
 	}()
@@ -283,6 +367,19 @@ func (s *ManagementService) VerifyArchive(
 	}
 	markErr := MarkArchiveCorrupt(ctx, store, archiveID, s.now())
 	return ArchiveDetail{}, errors.Join(ErrArchiveCorrupt, err, markErr)
+}
+
+func verificationErrorCode(err error) string {
+	switch {
+	case errors.Is(err, ErrArchiveCorrupt):
+		return "archive_corrupt"
+	case errors.Is(err, ErrArchiveNotFound):
+		return "archive_not_found"
+	case errors.Is(err, ErrStoreUnreachable):
+		return "store_unreachable"
+	default:
+		return "verification_failed"
+	}
 }
 
 // HoldArchive creates or removes one retention hold marker.

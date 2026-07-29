@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
@@ -29,6 +30,33 @@ func TestNodeCallRPCRequiresStartedTransport(t *testing.T) {
 	_, err = node.CallRPC(context.Background(), 2, clusternet.RPCPresenceAuthority, []byte("ping"))
 	if err == nil {
 		t.Fatal("CallRPC() error = nil, want not started")
+	}
+}
+
+func TestNodeCallRPCAllowsScheduledRestoreDuringMaintenance(t *testing.T) {
+	node, err := New(Config{
+		NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	node.started.Store(true)
+	node.maintenance.Store(true)
+
+	_, err = node.CallRPC(
+		context.Background(), 2, clusternet.RPCScheduledBackupRestore, nil,
+	)
+	if !errors.Is(err, ErrNotStarted) {
+		t.Fatalf(
+			"restore CallRPC() error = %v, want transport not started after maintenance bypass",
+			err,
+		)
+	}
+	_, err = node.CallRPC(
+		context.Background(), 2, clusternet.RPCPresenceAuthority, nil,
+	)
+	if !errors.Is(err, ErrMaintenance) {
+		t.Fatalf("business CallRPC() error = %v, want ErrMaintenance", err)
 	}
 }
 

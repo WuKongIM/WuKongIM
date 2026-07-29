@@ -2,7 +2,7 @@
 
 Date: 2026-07-29
 
-Candidate base revision: `219562550`
+Candidate branch: `codex/scheduled-full-backup`
 
 ## Decision
 
@@ -12,7 +12,7 @@ pre-production deployment work.**
 The Manager workflow, daily/12-hour/custom scheduling, shared-file and
 S3-compatible repositories, full verification, point-in-time restore, session
 invalidation, retention safety, and failure recovery passed local acceptance.
-Two defects found during acceptance were fixed and covered by regression
+Review and multi-node acceptance defects were fixed and covered by regression
 tests.
 
 This is not a production RPO/RTO certification. Before launch, repeat the
@@ -24,6 +24,8 @@ behavior and catch large regressions; they do not predict production duration.
 
 - Apple silicon development machine, macOS, local loopback networking.
 - One real `cmd/wukongim` process configured as a single-node cluster.
+- One real static three-node cluster using a shared-file repository, including
+  Controller Leader failure and restart.
 - 256 physical Hash Slots and 10 logical Slot Raft groups.
 - Manager authentication enabled with explicit `cluster.backup:r/w` and
   `cluster.restore:w` permissions.
@@ -77,6 +79,12 @@ An independent process-level E2E test also wrote state before and after a
 backup cut, restored the archive, and proved only the pre-cut state survived.
 It passed in 226.29 seconds.
 
+A second process-level E2E used three real nodes and 256 Hash Slots. It stopped
+the current Controller Leader after backup progress was durable, observed a
+survivor resume and publish a healthy archive, restarted the old Leader,
+restored every current replica, and proved that only the pre-cut message
+remained. It passed in 261.83 seconds.
+
 ## Failure Evidence And Repairs
 
 ### S3 minimum-free-space rejection
@@ -108,6 +116,41 @@ test failed before the change and passes afterward. Repeating the same restore
 with 1,001 additional post-cut writes succeeded, and no new side-effect
 transition or conversation flush error was logged.
 
+### Restore control RPC maintenance admission
+
+The first three-node restore entered Controller maintenance but then failed
+before node-local prepare with `cluster: restore maintenance`. The coordinator
+used the ordinary foreground `Node.CallRPC` path, so its own maintenance fence
+blocked the only RPC that could advance or roll back restore.
+
+`RPCScheduledBackupRestore` is now the only typed node RPC allowed through
+maintenance. The receiving restore service still validates the durable
+coordinator, phase, topology, and per-Slot attempt fences. Ordinary business
+RPCs remain rejected. A focused regression test proves both sides of that
+boundary, and the original three-node restore now passes.
+
+The conversation-active flush worker was also made lifecycle-idempotent:
+repeated quiescence after a successful final drain does not issue a second
+write under maintenance, while timed-out or failed drains remain retryable.
+
+### Auxiliary history validation
+
+Archive verification and retention cleanup now appear in the same bounded task
+history as backup and restore. The first real backup reached cleanup, but
+Controller rejected the new `verification` and `retention` record kinds with
+`invalid_state`. Controller validation and FLOW documentation now explicitly
+accept those two bounded terminal kinds. A State Machine regression test and
+the multi-node backup both pass.
+
+### Operator health and restore progress
+
+The Manager dashboard now reports `healthy`, `warning`, or `critical` backup
+coverage. A latest failed attempt is a warning; two expected schedule
+occurrences without a successful archive is critical. Manager backup failures
+use stable `backup_*` codes. The Web UI shows those health warnings plus
+localized restore phases, restored bytes, stable failure code, rollback state,
+and per-node replica verification progress.
+
 ### Other fault paths
 
 Focused tests passed for:
@@ -132,7 +175,11 @@ Focused tests passed for:
 - Real MinIO `Put`/conditional `Put`/`Open`/`List`/`Delete` integration:
   passed.
 - Scheduled backup point-in-time process E2E: passed.
-- Manager web tests: 536 passed.
+- Three-node backup Leader-failover and all-replica restore E2E: passed in
+  261.83 seconds.
+- Full Go unit gate across `cmd`, `internal`, `pkg`, `scripts`, and `docker`:
+  passed with package concurrency limited to two.
+- Manager web tests: 539 passed.
 - Manager ESLint baseline: passed.
 - Manager TypeScript/Vite production build: passed.
 - Focused Go vet: passed.
@@ -145,7 +192,7 @@ linking; all affected binaries linked and all tests passed.
 
 Before production launch:
 
-1. run the same backup and restore measurement on the intended multi-node
+1. run the same backup and restore measurement on the intended production
    topology and target S3 service;
 2. use a data snapshot representative of expected launch size and compression;
 3. set the backup timeout and per-node rate/worker limits from the measured

@@ -60,6 +60,32 @@ func TestFSMRejectsScheduledBackupWithIncompleteSlotTable(t *testing.T) {
 	require.Nil(t, sm.Snapshot(ctx).ScheduledBackup)
 }
 
+func TestFSMAcceptsAuxiliaryBackupTaskHistory(t *testing.T) {
+	for _, kind := range []string{"verification", "retention"} {
+		t.Run(kind, func(t *testing.T) {
+			ctx := context.Background()
+			sm, _ := initializedStateMachine(t, 1)
+			expected := uint64(1)
+			replacement := scheduledBackupState()
+			replacement.ActiveBackup = nil
+			replacement.History = []state.BackupTaskRecord{{
+				ID: kind + "-1", Kind: kind, Status: "succeeded",
+				StartedUnixMillis:   1_800_000_000_000,
+				CompletedUnixMillis: 1_800_000_001_000,
+			}}
+
+			result, err := sm.Apply(ctx, 2, command.Command{
+				Kind:             command.KindReplaceScheduledBackupState,
+				ExpectedRevision: &expected,
+				ScheduledBackup:  &replacement,
+			})
+			require.NoError(t, err)
+			require.False(t, result.Rejected, result.Reason)
+			require.Equal(t, &replacement, sm.Snapshot(ctx).ScheduledBackup)
+		})
+	}
+}
+
 func scheduledBackupState() state.ScheduledBackupState {
 	slots := make([]state.BackupSlotProgress, state.BackupHashSlotCount)
 	for hashSlot := range slots {

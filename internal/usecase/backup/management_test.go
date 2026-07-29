@@ -132,6 +132,74 @@ func TestManagementRepositoryProbeClassifiesStoreAccessFailure(t *testing.T) {
 	}
 }
 
+func TestManagementDashboardReportsBackupHealth(t *testing.T) {
+	testCases := []struct {
+		name       string
+		createdAt  time.Time
+		history    []backupcontract.TaskRecord
+		wantHealth backupusecase.BackupHealth
+		wantReason string
+	}{
+		{
+			name:      "healthy after latest expected backup",
+			createdAt: time.Date(2026, 7, 27, 17, 0, 0, 0, time.UTC),
+			history: []backupcontract.TaskRecord{{
+				ID: "backup-success", Kind: "backup",
+				Status: string(backupcontract.JobStatusSucceeded),
+				CompletedUnixMillis: time.Date(
+					2026, 7, 28, 17, 10, 0, 0, time.UTC,
+				).UnixMilli(),
+			}},
+			wantHealth: backupusecase.BackupHealthHealthy,
+		},
+		{
+			name:      "warning immediately after failure",
+			createdAt: time.Date(2026, 7, 27, 17, 0, 0, 0, time.UTC),
+			history: []backupcontract.TaskRecord{{
+				ID: "backup-failed", Kind: "backup",
+				Status: string(backupcontract.JobStatusFailed),
+				CompletedUnixMillis: time.Date(
+					2026, 7, 28, 18, 0, 0, 0, time.UTC,
+				).UnixMilli(),
+			}},
+			wantHealth: backupusecase.BackupHealthWarning,
+			wantReason: "latest_backup_failed",
+		},
+		{
+			name:       "critical after two expected runs without success",
+			createdAt:  time.Date(2026, 7, 26, 16, 0, 0, 0, time.UTC),
+			wantHealth: backupusecase.BackupHealthCritical,
+			wantReason: "successful_backup_stale",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			management, _, stateStore, _ := newArchiveManagement(t)
+			stateStore.mu.Lock()
+			stateStore.state.Plan.Enabled = true
+			stateStore.state.Plan.CreatedUnixMillis =
+				testCase.createdAt.UnixMilli()
+			stateStore.state.History = append(
+				[]backupcontract.TaskRecord(nil), testCase.history...,
+			)
+			stateStore.mu.Unlock()
+
+			dashboard, err := management.Dashboard(context.Background())
+			if err != nil {
+				t.Fatalf("Dashboard(): %v", err)
+			}
+			if dashboard.BackupHealth != testCase.wantHealth ||
+				dashboard.BackupHealthReason != testCase.wantReason {
+				t.Fatalf(
+					"health = %q, reason = %q, want %q, %q",
+					dashboard.BackupHealth, dashboard.BackupHealthReason,
+					testCase.wantHealth, testCase.wantReason,
+				)
+			}
+		})
+	}
+}
+
 func TestManagementDeletePreservesLastHealthyArchiveAndActiveRestoreSource(t *testing.T) {
 	management, scheduled, stateStore, store := newArchiveManagement(t)
 	writeCatalogArchive(t, store, "backup-one", true, 1_800_000_001_000)
@@ -166,7 +234,7 @@ func TestManagementDeletePreservesLastHealthyArchiveAndActiveRestoreSource(t *te
 }
 
 func TestManagementVerifyMarksIntegrityFailureCorrupt(t *testing.T) {
-	management, _, _, store := newArchiveManagement(t)
+	management, scheduled, _, store := newArchiveManagement(t)
 	writeCatalogArchive(t, store, "backup-corrupt", true, 1_800_000_001_000)
 	if _, err := management.VerifyArchive(
 		context.Background(), "backup-corrupt",
@@ -179,6 +247,16 @@ func TestManagementVerifyMarksIntegrityFailureCorrupt(t *testing.T) {
 	}
 	if detail.Archive.Health != backupusecase.ArchiveHealthCorrupt {
 		t.Fatalf("archive = %#v", detail.Archive)
+	}
+	state, err := scheduled.State(context.Background())
+	if err != nil {
+		t.Fatalf("State(): %v", err)
+	}
+	if len(state.History) != 1 ||
+		state.History[0].Kind != "verification" ||
+		state.History[0].Status != string(backupcontract.JobStatusFailed) ||
+		state.History[0].ErrorCode != "archive_corrupt" {
+		t.Fatalf("history = %#v", state.History)
 	}
 }
 

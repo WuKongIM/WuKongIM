@@ -26,11 +26,17 @@ type RestorePreflight interface {
 
 // RestoreServiceOptions configures current-cluster point-in-time restore.
 type RestoreServiceOptions struct {
-	StateStore    ScheduledStateStore
-	Repository    ArchiveRepositoryProvider
-	Preflight     RestorePreflight
-	Now           func() time.Time
-	NewID         func() string
+	// StateStore persists the bounded Controller-owned restore state machine.
+	StateStore ScheduledStateStore
+	// Repository resolves the plan's single durable archive store.
+	Repository ArchiveRepositoryProvider
+	// Preflight proves lineage, topology, health, and capacity before admission.
+	Preflight RestorePreflight
+	// Now supplies deterministic UTC transition timestamps.
+	Now func() time.Time
+	// NewID creates bounded restore and archive-operation identities.
+	NewID func() string
+	// NewActivation creates the durable target generation installed on success.
 	NewActivation func() string
 }
 

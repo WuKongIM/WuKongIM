@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
@@ -27,6 +28,17 @@ func NewRepositoryProvider(
 	root, err := filepath.Abs(filepath.Join(dataDir, "backup-repository"))
 	if err != nil {
 		return nil, err
+	}
+	// Resolve a pre-mounted repository alias once at startup. The resulting
+	// store remains anchored to the real directory and still refuses every
+	// symlink below that root.
+	resolved, resolveErr := filepath.EvalSymlinks(root)
+	if resolveErr == nil {
+		root = resolved
+	} else if !os.IsNotExist(resolveErr) {
+		return nil, fmt.Errorf(
+			"backup repository provider: resolve file root: %w", resolveErr,
+		)
 	}
 	return &RepositoryProvider{fileRoot: root, cipher: cipher}, nil
 }

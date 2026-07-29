@@ -3,10 +3,13 @@ package manager
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -146,6 +149,43 @@ func TestManagerBackupRepositoryFailureIsActionable(t *testing.T) {
 	}
 }
 
+func TestWriteBackupErrorUsesStableBackupDomainCodes(t *testing.T) {
+	testCases := []struct {
+		err      error
+		wantCode string
+	}{
+		{backupusecase.ErrInvalidRequest, "backup_bad_request"},
+		{backupusecase.ErrDisabled, "backup_not_configured"},
+		{backupusecase.ErrBackupJobActive, "backup_job_active"},
+		{backupusecase.ErrRestoreJobActive, "backup_restore_active"},
+		{backupusecase.ErrStateConflict, "backup_plan_conflict"},
+		{backupusecase.ErrArchiveOperationActive, "backup_archive_operation_active"},
+		{backupusecase.ErrArchiveHeld, "backup_archive_held"},
+		{backupusecase.ErrArchiveInUse, "backup_archive_in_use"},
+		{backupusecase.ErrLastUsableArchive, "backup_last_archive"},
+		{backupusecase.ErrArchiveNotFound, "backup_archive_not_found"},
+		{backupusecase.ErrArchiveCorrupt, "backup_archive_corrupt"},
+		{backupusecase.ErrStoreUnreachable, "backup_store_unreachable"},
+		{errors.New("unknown"), "backup_service_unavailable"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.wantCode, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			writeBackupError(context, testCase.err)
+			var response struct {
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if response.Error != testCase.wantCode {
+				t.Fatalf("error code = %q, want %q", response.Error, testCase.wantCode)
+			}
+		})
+	}
+}
+
 func TestManagerBackupManualJobAndArchiveOperations(t *testing.T) {
 	provider := &fakeBackupManagement{
 		job: backupcontract.BackupJob{ID: "backup-1"},
@@ -189,7 +229,12 @@ func TestManagerBackupManualJobAndArchiveOperations(t *testing.T) {
 		"/manager/backups/archives/backup-1",
 		[]byte(`{"confirmation":"DELETE another-backup"}`), token,
 	)
-	if rejectedDelete.Code != http.StatusBadRequest || provider.deleted != "" {
+	if rejectedDelete.Code != http.StatusBadRequest ||
+		!bytes.Contains(
+			rejectedDelete.Body.Bytes(),
+			[]byte(`"error":"backup_confirmation_mismatch"`),
+		) ||
+		provider.deleted != "" {
 		t.Fatalf(
 			"rejected delete status=%d deleted=%q body=%s",
 			rejectedDelete.Code, provider.deleted, rejectedDelete.Body,

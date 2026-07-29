@@ -19,9 +19,13 @@ import (
 // FullSlotStream is one portable metadata or message snapshot emitted by a
 // stable Hash Slot capture. Multiple message streams are allowed.
 type FullSlotStream struct {
-	Kind         backupartifact.ChunkKind
-	Reader       io.ReadCloser
-	Records      uint64
+	// Kind selects the portable metadata or message chunk format.
+	Kind backupartifact.ChunkKind
+	// Reader owns one bounded logical stream and must be closed by the exporter.
+	Reader io.ReadCloser
+	// Records is the exact logical record count covered by Reader.
+	Records uint64
+	// MaxMessageID is the highest durable message identifier in this stream.
 	MaxMessageID uint64
 }
 
@@ -40,8 +44,11 @@ type FullSlotSource interface {
 
 // FullExporterOptions configures one node-local bounded full-backup exporter.
 type FullExporterOptions struct {
-	Store   backupartifact.ArchiveStore
-	Source  FullSlotSource
+	// Store is the single repository receiving immutable attempt objects.
+	Store backupartifact.ArchiveStore
+	// Source opens authority-fenced online Hash Slot snapshots.
+	Source FullSlotSource
+	// TempDir holds bounded compression buffers outside active product data.
 	TempDir string
 }
 
@@ -69,7 +76,9 @@ func NewFullExporter(options FullExporterOptions) (*FullExporter, error) {
 
 // FullStreamWriterOptions configures direct node-local chunk publication.
 type FullStreamWriterOptions struct {
-	Store   backupartifact.ArchiveStore
+	// Store is the repository receiving immutable compressed chunks.
+	Store backupartifact.ArchiveStore
+	// TempDir holds one bounded chunk buffer per active writer.
 	TempDir string
 }
 

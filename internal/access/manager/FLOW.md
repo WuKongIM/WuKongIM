@@ -115,8 +115,10 @@ POST /manager/system-users/remove (remove system UIDs; requires cluster.user:w w
 ```
 
 Backup responses expose only the redacted scheduled-full-backup plan, bounded
-task progress/history, archive health/hold state, and aggregate byte/record
-counts. They never expose repository object paths, encrypted credential bytes,
+task progress/history, archive health/hold state, aggregate byte/record counts,
+and the fixed `healthy`, `warning`, or `critical` schedule-health projection.
+History covers full backup, restore, archive verification, and retention
+cleanup. They never expose repository object paths, encrypted credential bytes,
 plaintext secrets, Channel identities, or restore staging paths.
 
 `/manager/login` preserves the legacy manager response shape migrated from
@@ -597,9 +599,12 @@ Restore routes remain available while cluster business traffic is in
 maintenance.
 
 The dashboard projection contains only the redacted plan, active task, bounded
-history, credential-present boolean, and published archive summaries. It never
-returns credential ciphertext, plaintext secrets, object keys, Channel
-identities, or staging paths.
+history, credential-present boolean, published archive summaries, and schedule
+health. A latest failed backup is `warning`; two expected schedule occurrences
+without a successful archive is `critical`. It never returns credential
+ciphertext, plaintext secrets, object keys, Channel identities, or staging
+paths. Backup route failures use stable `backup_*` error codes so the Web UI
+does not infer behavior from messages.
 
 The embedded Web UI uses one `/cluster/backups` page for configuration,
 current progress, archive verify/hold/delete, and in-place restore. It offers

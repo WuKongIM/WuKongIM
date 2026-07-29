@@ -161,6 +161,49 @@ test("explains how to recover when backup storage is unreachable", async () => {
   )).toBeInTheDocument()
 })
 
+test("shows a critical warning after two expected backups produce no success", async () => {
+  const current = dashboard()
+  current.backup_health = "critical"
+  current.backup_health_reason = "successful_backup_stale"
+  getBackupDashboardMock.mockResolvedValue(current)
+
+  renderPage()
+
+  expect(await screen.findByText(
+    "No successful backup was produced across two expected runs. Recovery coverage is stale.",
+  )).toBeInTheDocument()
+})
+
+test("shows verification and retention results in recent task history", async () => {
+  const current = dashboard()
+  current.state.history = [
+    {
+      id: "verify-1",
+      kind: "verification",
+      status: "failed",
+      started_at_unix_ms: 1_785_260_000_000,
+      completed_at_unix_ms: 1_785_260_001_000,
+      error_code: "archive_corrupt",
+    },
+    {
+      id: "backup-1",
+      kind: "retention",
+      status: "succeeded",
+      started_at_unix_ms: 1_785_260_002_000,
+      completed_at_unix_ms: 1_785_260_003_000,
+    },
+  ]
+  getBackupDashboardMock.mockResolvedValue(current)
+
+  renderPage()
+
+  expect(await screen.findByText("Archive verification")).toBeInTheDocument()
+  expect(screen.getByText("Retention cleanup")).toBeInTheDocument()
+  expect(screen.getByText("archive_corrupt")).toBeInTheDocument()
+  expect(screen.getByText("Succeeded")).toBeInTheDocument()
+  expect(screen.getByText("Failed")).toBeInTheDocument()
+})
+
 test("keeps backup writes disabled when Manager is read-only", async () => {
   useAuthStore.setState({
     ...createAnonymousAuthState(),
@@ -235,6 +278,38 @@ test("renders durable Hash Slot progress for an active backup", async () => {
 
   expect(await screen.findByTestId("backup-task-progress")).toHaveTextContent("1/2 Hash Slots")
   expect(screen.getByRole("button", { name: "Back up now" })).toBeDisabled()
+})
+
+test("renders restore bytes, rollback state, error, and per-node replica progress", async () => {
+  const active = dashboard()
+  active.state.active_restore = {
+    id: "restore-job-1",
+    backup_id: archive.id,
+    initiator: "admin",
+    status: "rolling_back",
+    started_at_unix_ms: 1,
+    deadline_unix_ms: 2,
+    updated_unix_ms: 1,
+    maintenance_entered: true,
+    target_activation: "restore-target",
+    logical_bytes: 4096,
+    error_code: "switch_failed",
+    slots: [
+      { hash_slot: 0, status: "verified", attempt: 1, replica_node_ids: [1, 2] },
+      { hash_slot: 1, status: "staged", attempt: 1, replica_node_ids: [2, 3] },
+    ],
+  }
+  getBackupDashboardMock.mockResolvedValue(active)
+
+  renderPage()
+
+  const progress = await screen.findByTestId("backup-task-progress")
+  expect(progress).toHaveTextContent("Rolling back")
+  expect(progress).toHaveTextContent("Restored data: 4.0 KiB")
+  expect(progress).toHaveTextContent("Failure: switch_failed")
+  expect(progress).toHaveTextContent("Node 1: 1/1 verified slots")
+  expect(progress).toHaveTextContent("Node 2: 1/2 verified slots")
+  expect(progress).toHaveTextContent("Node 3: 0/1 verified slots")
 })
 
 test("does not call backup APIs without read permission", async () => {

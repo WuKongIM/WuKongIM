@@ -29,6 +29,7 @@ import type {
   ManagerBackupDashboard,
   ManagerBackupPlan,
   ManagerBackupPlanInput,
+  ManagerRestoreSlotProgress,
 } from "@/lib/manager-api.types"
 
 type ScheduleMode = "daily" | "half_day" | "custom"
@@ -144,6 +145,54 @@ function formatDate(value: number) {
 function taskProgress(slots: { status: string }[]) {
   const complete = slots.filter((slot) => slot.status === "complete" || slot.status === "verified").length
   return { complete, total: slots.length, percent: slots.length === 0 ? 0 : Math.round((complete / slots.length) * 100) }
+}
+
+function restoreNodeProgress(slots: ManagerRestoreSlotProgress[]) {
+  const nodes = new Map<number, { total: number; verified: number }>()
+  for (const slot of slots) {
+    for (const nodeID of slot.replica_node_ids ?? []) {
+      const progress = nodes.get(nodeID) ?? { total: 0, verified: 0 }
+      progress.total++
+      if (slot.status === "verified") progress.verified++
+      nodes.set(nodeID, progress)
+    }
+  }
+  return [...nodes.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([nodeID, progress]) => ({ nodeID, ...progress }))
+}
+
+function restorePhaseMessageID(status: string) {
+  const phases: Record<string, string> = {
+    preparing: "backups.task.phase.preparing",
+    validated: "backups.task.phase.validated",
+    maintenance: "backups.task.phase.maintenance",
+    staging: "backups.task.phase.staging",
+    verifying: "backups.task.phase.verifying",
+    switching: "backups.task.phase.switching",
+    finalizing: "backups.task.phase.finalizing",
+    rolling_back: "backups.task.phase.rollingBack",
+  }
+  return phases[status]
+}
+
+function taskKindMessageID(kind: string) {
+  const kinds: Record<string, string> = {
+    backup: "backups.task.backup",
+    restore: "backups.task.restore",
+    verification: "backups.task.verification",
+    retention: "backups.task.retention",
+  }
+  return kinds[kind]
+}
+
+function taskStatusMessageID(status: string) {
+  const statuses: Record<string, string> = {
+    succeeded: "backups.history.succeeded",
+    failed: "backups.history.failed",
+    canceled: "backups.history.canceled",
+  }
+  return statuses[status]
 }
 
 function exactRestorePermission(permissions: { resource: string; actions: string[] }[]) {
@@ -262,6 +311,7 @@ export function BackupsPage() {
     ? ["preparing", "validated", "maintenance", "staging", "verifying"].includes(activeRestore.status)
     : false
   const progress = activeTask ? taskProgress(activeTask.slots) : null
+  const restoreNodes = activeRestore ? restoreNodeProgress(activeRestore.slots) : []
   const writeDisabled = !canWrite || busy !== ""
 
   return (
@@ -291,6 +341,16 @@ export function BackupsPage() {
       {mutationError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {mutationError}
+        </div>
+      ) : null}
+      {dashboard?.backup_health === "warning" ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+          {intl.formatMessage({ id: "backups.health.warning" })}
+        </div>
+      ) : null}
+      {dashboard?.backup_health === "critical" ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {intl.formatMessage({ id: "backups.health.critical" })}
         </div>
       ) : null}
 
@@ -517,15 +577,87 @@ export function BackupsPage() {
               <div className="space-y-3" data-testid="backup-task-progress">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="font-medium">{activeRestore ? intl.formatMessage({ id: "backups.task.restore" }) : intl.formatMessage({ id: "backups.task.backup" })}</span>
-                  <span className="text-muted-foreground">{activeTask.status} · {progress.complete}/{progress.total} Hash Slots</span>
+                  <span className="text-muted-foreground">
+                    {activeRestore && restorePhaseMessageID(activeRestore.status)
+                      ? intl.formatMessage({ id: restorePhaseMessageID(activeRestore.status) })
+                      : activeTask.status} · {progress.complete}/{progress.total} Hash Slots
+                  </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">
                   <div className="h-full bg-primary transition-all" style={{ width: `${progress.percent}%` }} />
                 </div>
+                {activeRestore ? (
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <div>{intl.formatMessage(
+                      { id: "backups.task.restoredBytes" },
+                      { size: formatBytes(activeRestore.logical_bytes ?? 0) },
+                    )}</div>
+                    {activeRestore.error_code ? (
+                      <div className="text-destructive">{intl.formatMessage(
+                        { id: "backups.task.failure" },
+                        { code: activeRestore.error_code },
+                      )}</div>
+                    ) : null}
+                    {restoreNodes.map((node) => (
+                      <div key={node.nodeID}>{intl.formatMessage(
+                        { id: "backups.task.nodeProgress" },
+                        {
+                          node: node.nodeID,
+                          verified: node.verified,
+                          total: node.total,
+                        },
+                      )}</div>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="font-mono text-xs text-muted-foreground">{activeTask.id}</div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">{intl.formatMessage({ id: "backups.task.idle" })}</p>
+            )}
+          </SectionCard>
+
+          <SectionCard
+            title={intl.formatMessage({ id: "backups.history.title" })}
+            description={intl.formatMessage({ id: "backups.history.description" })}
+          >
+            {(dashboard.state.history ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {intl.formatMessage({ id: "backups.history.empty" })}
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="bg-muted/40 text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.history.operation" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.history.completed" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.history.result" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "backups.history.error" })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dashboard.state.history ?? []).map((record) => (
+                      <tr className="border-t border-border" key={`${record.kind}-${record.id}`}>
+                        <td className="px-3 py-3">
+                          {taskKindMessageID(record.kind)
+                            ? intl.formatMessage({ id: taskKindMessageID(record.kind) })
+                            : record.kind}
+                        </td>
+                        <td className="px-3 py-3">{formatDate(record.completed_at_unix_ms)}</td>
+                        <td className="px-3 py-3">
+                          {taskStatusMessageID(record.status)
+                            ? intl.formatMessage({ id: taskStatusMessageID(record.status) })
+                            : record.status}
+                        </td>
+                        <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
+                          {record.error_code || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </SectionCard>
 

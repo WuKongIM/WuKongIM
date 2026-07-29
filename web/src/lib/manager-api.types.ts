@@ -2385,6 +2385,9 @@ export type ManagerBackupDashboard = {
   archives: ManagerBackupArchive[]
   credentials_configured: boolean
   next_scheduled_unix_ms?: number
+  backup_health?: "healthy" | "warning" | "critical"
+  backup_health_reason?: "latest_backup_failed" | "successful_backup_stale"
+  last_successful_backup_unix_ms?: number
   repository_error?: string
 }
 

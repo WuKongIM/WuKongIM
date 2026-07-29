@@ -35,13 +35,20 @@ type ScheduledLeadership interface {
 
 // ScheduledRuntimeOptions configures leader-only scheduling and resumable work.
 type ScheduledRuntimeOptions struct {
-	Scheduled  ScheduleEvaluator
-	State      ScheduledStateReader
-	Runner     ResumableJobRunner
-	Restore    ResumableJobRunner
+	// Scheduled advances only the durable Controller-owned schedule cursor.
+	Scheduled ScheduleEvaluator
+	// State exposes active-job identity for cancellation propagation.
+	State ScheduledStateReader
+	// Runner advances the single active full-backup state machine.
+	Runner ResumableJobRunner
+	// Restore advances the single active restore state machine.
+	Restore ResumableJobRunner
+	// Leadership provides the current Controller leader and term fence.
 	Leadership ScheduledLeadership
-	Tick       time.Duration
-	OnError    func(error)
+	// Tick bounds leader polling frequency and must be between one second and one minute.
+	Tick time.Duration
+	// OnError receives sanitized background-step failures without stopping the loop.
+	OnError func(error)
 }
 
 // ScheduledRuntime evaluates Cron and resumes one durable full backup only on
