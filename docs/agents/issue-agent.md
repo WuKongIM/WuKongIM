@@ -5,9 +5,11 @@ human-reviewed pull request. It runs entirely on GitHub-hosted Actions runners:
 there is no control-plane server, self-hosted runner, external workflow
 database, or persistent Worker disk.
 
-The checked-in policy is intentionally `shadow`. Merging the implementation
-does not enable writes or spend model quota; an administrator must complete the
-setup and promote each rollout stage in a separate protected-path change.
+The checked-in policy is intentionally `intake`. It permits only deterministic
+classification, a bounded request for missing information, and maintainer-
+triggered signed authorization; it does not run a model or create a branch or
+pull request. An administrator must promote each higher rollout stage in a
+separate protected-path change.
 
 ## User intake
 
@@ -319,8 +321,8 @@ Issue, PR, Workflow-run, commit, Artifact, and Gate links for: low-risk success,
 recovery, expired result rejection, broken-chain fail-closed behavior, and one
 no-publish smoke for each enabled provider. This repository has its first
 checkpoint public-key epoch configured while the remediation allowlist remains
-empty and rollout remains in `shadow` mode; those pilot references do not yet
-exist.
+empty and rollout remains in `intake` mode; higher-stage pilot references do
+not yet exist.
 
 Worker Artifacts retain bounded sanitized evidence for 90 days. The permanent
 audit record is the signed Issue chain, frozen regression, verified Git commit,
