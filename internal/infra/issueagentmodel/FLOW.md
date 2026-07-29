@@ -28,8 +28,10 @@ The Codex Adapter accepts only the Action's exact
 `http://127.0.0.1:<port>/v1` Responses provider from a regular bootstrap config
 that is not group- or world-writable. It rejects every extra setting, then
 passes canonical provider overrides to one ephemeral, user-config-free
-`codex exec` per round. Each round receives a fresh empty home and workspace,
-retains read-only/never-approval policy with native tools disabled, and uses
+`codex exec` per round. Each round receives a fresh empty home and workspace
+while retaining the trusted Action-established executable path so the
+npm-installed Codex launcher can reach its pinned Node runtime. It retains
+read-only/never-approval policy with native tools disabled and uses
 only the authoritative `turn.completed` usage record. DeepSeek uses the
 OpenAI-compatible tool-call protocol with strict bounded JSON or SSE decoding.
 Neither Adapter permits the model to supply a repository `ChangeSet`, command

@@ -115,6 +115,55 @@ func TestCodexCLIRunnerRejectsOldBinary(t *testing.T) {
 	require.EqualError(t, err, "Codex CLI version is unavailable or too old")
 }
 
+func TestCodexCLIRunnerPreservesActionRuntimePath(t *testing.T) {
+	toolDirectory := t.TempDir()
+	node := filepath.Join(toolDirectory, "node")
+	require.NoError(t, os.WriteFile(
+		node,
+		[]byte(`#!/bin/sh
+set -eu
+if [ "${2:-}" = "--version" ]; then
+  printf 'codex-cli 0.145.0\n'
+  exit 0
+fi
+shift
+output=
+previous=
+for argument in "$@"; do
+  if [ "$previous" = "--output-last-message" ]; then
+    output=$argument
+  fi
+  previous=$argument
+done
+test -n "$output"
+cat >/dev/null
+printf '%s' '{"schema_version":1,"kind":"final","tool_calls":[],"result":null}' >"$output"
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":25,"output_tokens":7}}'
+`),
+		0o700,
+	))
+	codex := filepath.Join(toolDirectory, "codex")
+	require.NoError(t, os.WriteFile(
+		codex,
+		[]byte("#!/usr/bin/env node\n"),
+		0o700,
+	))
+	t.Setenv("PATH", toolDirectory+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	runner, err := NewCodexCLIRunner(CodexCLIConfig{
+		Binary: codex,
+		BootstrapHome: writeCodexBootstrapHome(
+			t, validCodexActionProxyConfig, 0o644,
+		),
+		MinVersion: "0.145.0",
+	})
+	require.NoError(t, err)
+	_, err = runner.RunRound(context.Background(), CodexRoundRequest{
+		Model: "gpt-5.6-sol", Prompt: "strict prompt", MaxBytes: 1 << 20,
+	})
+	require.NoError(t, err)
+}
+
 func TestCodexCLIRunnerDoesNotLeakProcessFailure(t *testing.T) {
 	t.Parallel()
 
