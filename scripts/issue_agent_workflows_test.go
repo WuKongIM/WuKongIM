@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -181,6 +182,71 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "pull-requests: read")
 }
 
+func TestIssueAgentCodexWorkerUsesOfficialBootstrap(t *testing.T) {
+	t.Parallel()
+
+	raw := readWorkflow(t, "issue-agent-run.yml")
+	_, workflow, err := decodeWorkflow(raw)
+	require.NoError(t, err)
+	job, ok := workflow.Jobs["codex-worker"]
+	require.True(t, ok)
+
+	pullIndex, _ := findIssueAgentStep(
+		t, job, "Pull the digest-pinned sandbox without provider credentials",
+	)
+	bootstrapIndex, bootstrap := findIssueAgentStep(
+		t, job, "Bootstrap the pinned Codex CLI and Responses proxy",
+	)
+	workerIndex, worker := findIssueAgentStep(
+		t, job, "Run the bounded Codex Worker",
+	)
+	require.NoError(t, validateCodexBootstrapStep(bootstrap))
+	require.Less(t, pullIndex, bootstrapIndex)
+	require.Less(t, bootstrapIndex, workerIndex)
+	require.Equal(t, 1, strings.Count(string(raw), "secrets.CODEX_API_KEY"))
+	require.NotContains(t, worker.Env, "ISSUE_AGENT_CODEX_API_KEY")
+	require.NotContains(t, worker.Env, "CODEX_API_KEY")
+	require.Equal(t,
+		"${{ runner.temp }}/issue-agent-codex-bootstrap",
+		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"],
+	)
+	require.NotContains(t, worker.Run, "CODEX_API_KEY")
+	require.NotContains(t, worker.Run, "ISSUE_AGENT_CODEX_API_KEY")
+}
+
+func TestIssueAgentCodexBootstrapContractRejectsMutations(t *testing.T) {
+	t.Parallel()
+
+	mutations := map[string]func(*ciStep){
+		"moving tag": func(step *ciStep) {
+			step.Uses = "openai/codex-action@v1"
+		},
+		"unsafe strategy": func(step *ciStep) {
+			step.With["safety-strategy"] = "unsafe"
+		},
+		"broad bots": func(step *ciStep) {
+			step.With["allow-bots"] = true
+		},
+		"prompt": func(step *ciStep) {
+			step.With["prompt"] = "inspect the repository"
+		},
+		"extra bot": func(step *ciStep) {
+			step.With["allow-bot-users"] =
+				"wukongim-issue-agent,github-actions"
+		},
+	}
+	require.NoError(t, validateCodexBootstrapStep(canonicalCodexBootstrapStep()))
+	for name, mutate := range mutations {
+		name, mutate := name, mutate
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			step := canonicalCodexBootstrapStep()
+			mutate(&step)
+			require.Error(t, validateCodexBootstrapStep(step))
+		})
+	}
+}
+
 func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
 	t.Parallel()
 
@@ -282,4 +348,41 @@ func validatePinnedIssueAgentAction(value string) error {
 		return fmt.Errorf("Action %q is not an approved pin", value)
 	}
 	return nil
+}
+
+func canonicalCodexBootstrapStep() ciStep {
+	return ciStep{
+		Name: "Bootstrap the pinned Codex CLI and Responses proxy",
+		Uses: "openai/codex-action@" +
+			"52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+		With: map[string]any{
+			"openai-api-key":  "${{ secrets.CODEX_API_KEY }}",
+			"codex-version":   "0.145.0",
+			"codex-home":      "${{ runner.temp }}/issue-agent-codex-bootstrap",
+			"safety-strategy": "drop-sudo",
+			"allow-bot-users": "wukongim-issue-agent",
+		},
+	}
+}
+
+func validateCodexBootstrapStep(step ciStep) error {
+	expected := canonicalCodexBootstrapStep()
+	if step.Name != expected.Name || step.Uses != expected.Uses ||
+		!reflect.DeepEqual(step.With, expected.With) ||
+		step.Run != "" || step.Shell != "" || step.If != "" ||
+		len(step.Env) != 0 {
+		return fmt.Errorf("Codex Action bootstrap step is not exact")
+	}
+	return nil
+}
+
+func findIssueAgentStep(t *testing.T, job ciJob, name string) (int, ciStep) {
+	t.Helper()
+	for index, step := range job.Steps {
+		if step.Name == name {
+			return index, step
+		}
+	}
+	t.Fatalf("step %q is absent", name)
+	return -1, ciStep{}
 }
