@@ -21,6 +21,9 @@ import (
 const (
 	managerUsername = "backup-admin"
 	managerPassword = "backup-admin-password"
+
+	backupPhaseTimeout  = 6 * time.Minute
+	restorePhaseTimeout = 8 * time.Minute
 )
 
 type managerLoginResponse struct {
@@ -42,7 +45,13 @@ type backupJob struct {
 }
 
 type restoreJob struct {
-	ID     string `json:"id"`
+	ID                string        `json:"id"`
+	Status            string        `json:"status"`
+	UpdatedUnixMillis int64         `json:"updated_unix_ms"`
+	Slots             []restoreSlot `json:"slots"`
+}
+
+type restoreSlot struct {
 	Status string `json:"status"`
 }
 
@@ -83,36 +92,43 @@ func TestScheduledFullBackupRestoresPointInTimeBusinessState(t *testing.T) {
 		}),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
-	defer cancel()
-	token := managerLogin(t, ctx, *node)
+	backupCtx, cancelBackup := context.WithTimeout(
+		context.Background(), backupPhaseTimeout,
+	)
+	defer cancelBackup()
+	token := managerLogin(t, backupCtx, *node)
 
 	const (
 		channelID       = "backup-restore-e2e-group"
 		firstClientMsg  = "backup-restore-before"
 		secondClientMsg = "backup-restore-after"
 	)
-	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
+	require.NoError(t, suite.PostChannel(backupCtx, node.APIAddr(), map[string]any{
 		"channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
 		"subscribers": []string{"backup-sender", "backup-reader"},
 	}), node.DumpDiagnostics())
-	sendBackupMessage(t, ctx, *node, channelID, firstClientMsg, "before backup")
+	sendBackupMessage(t, backupCtx, *node, channelID, firstClientMsg, "before backup")
 
-	configureDailyFileBackup(t, ctx, *node, token)
-	dashboard := waitForHealthyArchive(t, ctx, *node, &token)
+	configureDailyFileBackup(t, backupCtx, *node, token)
+	dashboard := waitForHealthyArchive(t, backupCtx, *node, &token)
 	require.Len(t, dashboard.Archives, 1, node.DumpDiagnostics())
 	archiveID := dashboard.Archives[0].ID
 	t.Logf("healthy archive published: %s", archiveID)
 
-	sendBackupMessage(t, ctx, *node, channelID, secondClientMsg, "after backup")
+	sendBackupMessage(t, backupCtx, *node, channelID, secondClientMsg, "after backup")
 	t.Log("post-backup message accepted")
 	requireMessageClientNumbers(
-		t, ctx, *node, channelID, []string{firstClientMsg, secondClientMsg},
+		t, backupCtx, *node, channelID, []string{firstClientMsg, secondClientMsg},
 	)
 	t.Log("pre-restore business state verified")
+	cancelBackup()
 
+	restoreCtx, cancelRestore := context.WithTimeout(
+		context.Background(), restorePhaseTimeout,
+	)
+	defer cancelRestore()
 	var admitted restoreJob
-	managerJSON(t, ctx, *node, token, http.MethodPost,
+	managerJSON(t, restoreCtx, *node, token, http.MethodPost,
 		"/manager/backups/archives/"+archiveID+"/restore",
 		map[string]any{
 			"username": managerUsername, "password": managerPassword,
@@ -121,10 +137,10 @@ func TestScheduledFullBackupRestoresPointInTimeBusinessState(t *testing.T) {
 	require.NotEmpty(t, admitted.ID)
 	t.Logf("restore admitted: %s", admitted.ID)
 
-	waitForRestoreSuccess(t, ctx, *node, &token)
+	waitForRestoreSuccess(t, restoreCtx, *node, &token)
 	t.Log("restore completed")
 	requireMessageClientNumbers(
-		t, ctx, *node, channelID, []string{firstClientMsg},
+		t, restoreCtx, *node, channelID, []string{firstClientMsg},
 	)
 }
 
@@ -228,10 +244,28 @@ func waitForRestoreSuccess(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("restore did not succeed: last=%#v err=%v\n%s", last, err, node.DumpDiagnostics())
+			t.Fatalf(
+				"restore did not succeed: progress=%s history=%#v archives=%#v err=%v\n%s",
+				describeRestoreProgress(last.State.ActiveRestore),
+				last.State.History, last.Archives, err, node.DumpDiagnostics(),
+			)
 		case <-ticker.C:
 		}
 	}
+}
+
+func describeRestoreProgress(job *restoreJob) string {
+	if job == nil {
+		return "none"
+	}
+	counts := map[string]int{}
+	for _, slot := range job.Slots {
+		counts[slot.Status]++
+	}
+	return fmt.Sprintf(
+		"id=%s status=%s updated_unix_ms=%d slots=%v",
+		job.ID, job.Status, job.UpdatedUnixMillis, counts,
+	)
 }
 
 func requireMessageClientNumbers(
