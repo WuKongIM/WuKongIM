@@ -3,6 +3,7 @@ package issueagentgithub_test
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/base64"
 	"os"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckpointPublicKeyFileIsStrictAndSafeWhileDisabled(t *testing.T) {
+func TestCheckpointPublicKeyFileIsStrictAndContainsConfiguredEpoch(t *testing.T) {
 	t.Parallel()
 
 	file, err := os.Open("../../../.github/issue-agent/checkpoint-public-keys.json")
@@ -23,7 +24,22 @@ func TestCheckpointPublicKeyFileIsStrictAndSafeWhileDisabled(t *testing.T) {
 	keySet, err := issueagentgithub.DecodeKeySet(file, 64<<10)
 	require.NoError(t, err)
 	require.Equal(t, 1, keySet.SchemaVersion)
-	require.Empty(t, keySet.Keys)
+	require.NotEmpty(t, keySet.Keys)
+	var key *issueagentgithub.PublicKey
+	for index := range keySet.Keys {
+		if keySet.Keys[index].ID == "checkpoint-d0b5aa688ddc48bb" {
+			key = &keySet.Keys[index]
+			break
+		}
+	}
+	require.NotNil(t, key)
+	require.Equal(
+		t,
+		"ywLBynJmfEz03D0Ngx6rIipIeMnkNDEyY2J3DQP8/ek=",
+		base64.StdEncoding.EncodeToString(key.PublicKey),
+	)
+	require.Equal(t, time.Date(2026, 7, 29, 12, 36, 24, 0, time.UTC), key.NotBefore)
+	require.Equal(t, time.Date(2027, 7, 29, 12, 36, 24, 0, time.UTC), key.NotAfter)
 }
 
 func TestCheckpointStoreVerifiesAppendOnlySignedChain(t *testing.T) {
