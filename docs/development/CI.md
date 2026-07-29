@@ -78,6 +78,11 @@ Gate generations use separate concurrency groups, and both the worker handoff
 and the gate's final verdict reject a run ID that is no longer the newest
 generation for the exact head and test-merge.
 
+The first failing `Agent Validation Gate` attempt is the only PR-event
+invalidation verdict. The control Workflow's invalidation job writes an audit
+summary only; it must not publish an unscoped classic commit status that cannot
+be consumed by a terminal gate generation.
+
 The bootstrap PR that first adds the merge-gate Workflow is the sole initial
 attempt exception. It passes only after a complete, non-truncated base Git tree
 proves that `agent-pr-merge-gate.yml` is not yet present; after merge, all first

@@ -4,6 +4,7 @@
 
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
+- Agent PR invalidation is represented only by the generation-bound `Agent Validation Gate`; the control invalidation job may deduplicate events and write an audit summary, but must not publish an unscoped classic commit status.
 - Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
 - Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository`, Alibaba OSS, Tencent COS, or a generic S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and object-storage credentials are encrypted in Controller state while archive payloads are not encrypted.
 - Restore is a same-identity, current-cluster maintenance operation: business traffic stops, every current replica stages and verifies the full archive, verified logical streams activate only after all peers acknowledge, and an all-replica rollback image restores the original state if activation fails. `v1` does not adopt a repository identity into a separately bootstrapped cluster.
