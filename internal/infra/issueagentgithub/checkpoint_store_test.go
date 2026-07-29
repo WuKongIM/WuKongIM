@@ -24,9 +24,15 @@ func TestCheckpointPublicKeyFileIsStrictAndContainsConfiguredEpoch(t *testing.T)
 	keySet, err := issueagentgithub.DecodeKeySet(file, 64<<10)
 	require.NoError(t, err)
 	require.Equal(t, 1, keySet.SchemaVersion)
-	require.Len(t, keySet.Keys, 1)
-	key := keySet.Keys[0]
-	require.Equal(t, "checkpoint-d0b5aa688ddc48bb", key.ID)
+	require.NotEmpty(t, keySet.Keys)
+	var key *issueagentgithub.PublicKey
+	for index := range keySet.Keys {
+		if keySet.Keys[index].ID == "checkpoint-d0b5aa688ddc48bb" {
+			key = &keySet.Keys[index]
+			break
+		}
+	}
+	require.NotNil(t, key)
 	require.Equal(
 		t,
 		"ywLBynJmfEz03D0Ngx6rIipIeMnkNDEyY2J3DQP8/ek=",

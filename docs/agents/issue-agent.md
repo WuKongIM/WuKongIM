@@ -317,9 +317,10 @@ Promote one mode per separate PR. Before `general`, record real immutable
 Issue, PR, Workflow-run, commit, Artifact, and Gate links for: low-risk success,
 `already_fixed`, `needs_info`, budget exhaustion, duplicate/missed event
 recovery, expired result rejection, broken-chain fail-closed behavior, and one
-no-publish smoke for each enabled provider. This repository intentionally ships
-with an empty public-key set, empty remediation allowlist, and `shadow` mode;
-those pilot references do not yet exist.
+no-publish smoke for each enabled provider. This repository has its first
+checkpoint public-key epoch configured while the remediation allowlist remains
+empty and rollout remains in `shadow` mode; those pilot references do not yet
+exist.
 
 Worker Artifacts retain bounded sanitized evidence for 90 days. The permanent
 audit record is the signed Issue chain, frozen regression, verified Git commit,
