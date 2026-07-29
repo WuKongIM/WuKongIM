@@ -33,17 +33,27 @@ func TestScheduledControllerStateStoreRoundTripsDetachedState(t *testing.T) {
 	}
 	if loaded.Plan.Store.Kind != backupcontract.StoreKindS3 ||
 		string(loaded.Plan.Store.CredentialCiphertext) != "ciphertext" ||
+		loaded.Plan.RepositoryVerification == nil ||
+		loaded.Plan.RepositoryVerification.Status !=
+			backupcontract.RepositoryVerificationVerified ||
+		loaded.Plan.RepositoryVerification.VerifiedAtUnixMillis !=
+			1_800_000_000_500 ||
 		len(loaded.ActiveBackup.Slots) != backupcontract.HashSlotCount {
 		t.Fatalf("round trip lost state: %#v", loaded)
 	}
 
 	loaded.Plan.Store.CredentialCiphertext[0] = 'X'
+	loaded.Plan.RepositoryVerification.Status =
+		backupcontract.RepositoryVerificationUnverified
 	loaded.ActiveBackup.Slots[0].Status = backupcontract.SlotStatusComplete
 	reloaded, err := store.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load(second): %v", err)
 	}
 	if string(reloaded.Plan.Store.CredentialCiphertext) != "ciphertext" ||
+		reloaded.Plan.RepositoryVerification == nil ||
+		reloaded.Plan.RepositoryVerification.Status !=
+			backupcontract.RepositoryVerificationVerified ||
 		reloaded.ActiveBackup.Slots[0].Status != backupcontract.SlotStatusPending {
 		t.Fatal("Load returned state aliased to Controller storage")
 	}
@@ -126,6 +136,10 @@ func scheduledSystemState() backupcontract.SystemState {
 			ScheduleCursorUnixMillis: 1_800_000_000_000,
 			CreatedUnixMillis:        1_800_000_000_000,
 			UpdatedUnixMillis:        1_800_000_000_000,
+			RepositoryVerification: &backupcontract.RepositoryVerification{
+				Status:               backupcontract.RepositoryVerificationVerified,
+				VerifiedAtUnixMillis: 1_800_000_000_500,
+			},
 		},
 		ActiveBackup: &backupcontract.BackupJob{
 			ID:                  "backup-1",

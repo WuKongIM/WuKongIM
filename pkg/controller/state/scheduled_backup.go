@@ -18,6 +18,10 @@ type BackupStoreKind string
 const (
 	// BackupStoreKindFile uses the fixed repository path below the node data directory.
 	BackupStoreKindFile BackupStoreKind = "file"
+	// BackupStoreKindOSS uses one Alibaba Cloud OSS bucket prefix.
+	BackupStoreKindOSS BackupStoreKind = "oss"
+	// BackupStoreKindCOS uses one Tencent Cloud COS bucket prefix.
+	BackupStoreKindCOS BackupStoreKind = "cos"
 	// BackupStoreKindS3 uses one S3-compatible bucket prefix.
 	BackupStoreKindS3 BackupStoreKind = "s3"
 )
@@ -34,20 +38,39 @@ type BackupStoreConfig struct {
 	CredentialRevision   uint64          `json:"credential_revision,omitempty"`
 }
 
+// BackupRepositoryVerificationStatus records whether the exact saved
+// repository completed its access and cluster-visibility probe.
+type BackupRepositoryVerificationStatus string
+
+const (
+	// BackupRepositoryVerificationUnverified blocks backup admission.
+	BackupRepositoryVerificationUnverified BackupRepositoryVerificationStatus = "unverified"
+	// BackupRepositoryVerificationVerified admits the exact repository.
+	BackupRepositoryVerificationVerified BackupRepositoryVerificationStatus = "verified"
+)
+
+// BackupRepositoryVerification is optional only for plans published before
+// repository verification metadata existed.
+type BackupRepositoryVerification struct {
+	Status               BackupRepositoryVerificationStatus `json:"status"`
+	VerifiedAtUnixMillis int64                              `json:"verified_at_unix_ms,omitempty"`
+}
+
 // BackupPlan is the only cluster-scoped scheduled full-backup policy.
 type BackupPlan struct {
-	Revision                 uint64            `json:"revision"`
-	Enabled                  bool              `json:"enabled"`
-	Store                    BackupStoreConfig `json:"store"`
-	Cron                     string            `json:"cron"`
-	TimeZone                 string            `json:"time_zone"`
-	RetentionCount           int               `json:"retention_count"`
-	RateBytesPerSec          uint64            `json:"rate_bytes_per_sec"`
-	WorkersPerNode           int               `json:"workers_per_node"`
-	MaxDurationMillis        int64             `json:"max_duration_ms"`
-	ScheduleCursorUnixMillis int64             `json:"schedule_cursor_unix_ms"`
-	CreatedUnixMillis        int64             `json:"created_unix_ms"`
-	UpdatedUnixMillis        int64             `json:"updated_unix_ms"`
+	Revision                 uint64                        `json:"revision"`
+	Enabled                  bool                          `json:"enabled"`
+	Store                    BackupStoreConfig             `json:"store"`
+	RepositoryVerification   *BackupRepositoryVerification `json:"repository_verification,omitempty"`
+	Cron                     string                        `json:"cron"`
+	TimeZone                 string                        `json:"time_zone"`
+	RetentionCount           int                           `json:"retention_count"`
+	RateBytesPerSec          uint64                        `json:"rate_bytes_per_sec"`
+	WorkersPerNode           int                           `json:"workers_per_node"`
+	MaxDurationMillis        int64                         `json:"max_duration_ms"`
+	ScheduleCursorUnixMillis int64                         `json:"schedule_cursor_unix_ms"`
+	CreatedUnixMillis        int64                         `json:"created_unix_ms"`
+	UpdatedUnixMillis        int64                         `json:"updated_unix_ms"`
 }
 
 // BackupTrigger identifies why a full-backup job was admitted.
@@ -189,6 +212,10 @@ func (s ScheduledBackupState) Clone() ScheduledBackupState {
 	if s.Plan != nil {
 		plan := *s.Plan
 		plan.Store.CredentialCiphertext = cloneSlice(s.Plan.Store.CredentialCiphertext)
+		if s.Plan.RepositoryVerification != nil {
+			verification := *s.Plan.RepositoryVerification
+			plan.RepositoryVerification = &verification
+		}
 		out.Plan = &plan
 	}
 	if s.ActiveBackup != nil {
@@ -338,10 +365,62 @@ func validateBackupPlan(plan BackupPlan) error {
 		if strings.TrimSpace(plan.Store.Endpoint) == "" || strings.TrimSpace(plan.Store.Bucket) == "" {
 			return invalid("S3 backup store requires endpoint and bucket")
 		}
+	case BackupStoreKindOSS, BackupStoreKindCOS:
+		if !validBackupCloudRegion(plan.Store.Region) ||
+			strings.TrimSpace(plan.Store.Bucket) == "" ||
+			strings.TrimSpace(plan.Store.Prefix) == "" ||
+			plan.Store.PathStyle ||
+			len(plan.Store.CredentialCiphertext) == 0 {
+			return invalid("cloud backup store is invalid")
+		}
+		if plan.Store.Kind == BackupStoreKindCOS &&
+			!backupCOSBucketHasAPPID(plan.Store.Bucket) {
+			return invalid("COS backup store requires the full bucket name")
+		}
 	default:
 		return invalid("backup store kind is invalid")
 	}
+	if verification := plan.RepositoryVerification; verification != nil {
+		switch verification.Status {
+		case BackupRepositoryVerificationUnverified:
+			if verification.VerifiedAtUnixMillis != 0 {
+				return invalid("unverified backup repository has verification time")
+			}
+		case BackupRepositoryVerificationVerified:
+			if verification.VerifiedAtUnixMillis <= 0 {
+				return invalid("verified backup repository requires verification time")
+			}
+		default:
+			return invalid("backup repository verification status is invalid")
+		}
+	}
 	return nil
+}
+
+func validBackupCloudRegion(region string) bool {
+	if region == "" || len(region) > 63 {
+		return false
+	}
+	for _, char := range region {
+		if (char < 'a' || char > 'z') &&
+			(char < '0' || char > '9') && char != '-' {
+			return false
+		}
+	}
+	return region[0] != '-' && region[len(region)-1] != '-'
+}
+
+func backupCOSBucketHasAPPID(bucket string) bool {
+	separator := strings.LastIndexByte(bucket, '-')
+	if separator <= 0 || separator == len(bucket)-1 {
+		return false
+	}
+	for _, char := range bucket[separator+1:] {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func validateScheduledBackupJob(job ScheduledBackupJob) error {

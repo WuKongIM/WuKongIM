@@ -232,7 +232,7 @@ func scheduledStateToController(
 }
 
 func planFromController(value controller.BackupPlan) backupcontract.Plan {
-	return backupcontract.Plan{
+	result := backupcontract.Plan{
 		Revision: value.Revision,
 		Enabled:  value.Enabled,
 		Store: backupcontract.StoreConfig{
@@ -255,10 +255,19 @@ func planFromController(value controller.BackupPlan) backupcontract.Plan {
 		CreatedUnixMillis:        value.CreatedUnixMillis,
 		UpdatedUnixMillis:        value.UpdatedUnixMillis,
 	}
+	if value.RepositoryVerification != nil {
+		result.RepositoryVerification = &backupcontract.RepositoryVerification{
+			Status: backupcontract.RepositoryVerificationStatus(
+				value.RepositoryVerification.Status,
+			),
+			VerifiedAtUnixMillis: value.RepositoryVerification.VerifiedAtUnixMillis,
+		}
+	}
+	return result
 }
 
 func planToController(value backupcontract.Plan) controller.BackupPlan {
-	return controller.BackupPlan{
+	result := controller.BackupPlan{
 		Revision: value.Revision,
 		Enabled:  value.Enabled,
 		Store: controller.BackupStoreConfig{
@@ -281,6 +290,15 @@ func planToController(value backupcontract.Plan) controller.BackupPlan {
 		CreatedUnixMillis:        value.CreatedUnixMillis,
 		UpdatedUnixMillis:        value.UpdatedUnixMillis,
 	}
+	if value.RepositoryVerification != nil {
+		result.RepositoryVerification = &controller.BackupRepositoryVerification{
+			Status: controller.BackupRepositoryVerificationStatus(
+				value.RepositoryVerification.Status,
+			),
+			VerifiedAtUnixMillis: value.RepositoryVerification.VerifiedAtUnixMillis,
+		}
+	}
+	return result
 }
 
 func backupJobFromController(
