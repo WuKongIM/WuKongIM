@@ -360,14 +360,6 @@ func (s *Store) loadChannelRuntimeMetaMergeItem(ctx context.Context, hashSlot ui
 	}, true, nil
 }
 
-func (s *Store) singleLocalPeerSlot(slotID multiraft.SlotID) bool {
-	if s.cluster == nil {
-		return false
-	}
-	peers := s.cluster.PeersForSlot(slotID)
-	return len(peers) == 1 && s.cluster.IsLocal(peers[0])
-}
-
 func encodeRuntimeMetaRPCResponse(resp runtimeMetaRPCResponse) ([]byte, error) {
 	return encodeRuntimeMetaRPCResponseBinary(resp)
 }

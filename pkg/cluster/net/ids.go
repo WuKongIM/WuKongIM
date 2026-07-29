@@ -103,6 +103,10 @@ const (
 	RPCOpsMCP
 	// RPCManagerGoroutines serves node-local managed goroutine snapshots.
 	RPCManagerGoroutines
+	// RPCSlotSubscriberMetadata serves Slot-leader subscriber set reads.
+	RPCSlotSubscriberMetadata
+	// RPCSlotChannelMetadata serves Slot-leader channel metadata point reads.
+	RPCSlotChannelMetadata
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -199,6 +203,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "manager task audit"
 	case RPCManagerGoroutines:
 		return "manager goroutines"
+	case RPCSlotSubscriberMetadata:
+		return "slot subscriber metadata"
+	case RPCSlotChannelMetadata:
+		return "slot channel metadata"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

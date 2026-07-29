@@ -29,8 +29,8 @@ var defaultAuthoritativeRPCStatuses = map[string]struct{}{
 }
 
 func (s *Store) shouldServeSlotLocally(slotID multiraft.SlotID) bool {
-	if s.cluster == nil || s.singleLocalPeerSlot(slotID) {
-		return true
+	if s == nil || s.cluster == nil {
+		return false
 	}
 	leaderID, err := s.cluster.LeaderOf(slotID)
 	return err == nil && s.cluster.IsLocal(leaderID)

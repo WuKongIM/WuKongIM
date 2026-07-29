@@ -157,6 +157,8 @@ type Options struct {
 	ChannelMigration ChannelMigrationStore
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
 	ChannelBusinessReader ChannelBusinessReader
+	// ChannelBusinessOperator reads and mutates authoritative business channel state.
+	ChannelBusinessOperator ChannelBusinessOperator
 	// RemoteBusinessChannels reads manager channel pages from peer nodes.
 	RemoteBusinessChannels RemoteBusinessChannelReader
 	// Users scans durable UID and device metadata for manager user pages.
@@ -259,6 +261,8 @@ type channelManagementDeps struct {
 	channelMigration ChannelMigrationStore
 	// channelBusinessReader reads durable channel business metadata.
 	channelBusinessReader ChannelBusinessReader
+	// channelBusinessOperator reads and mutates one business channel and its member sets.
+	channelBusinessOperator ChannelBusinessOperator
 	// remoteBusinessChannels reads channel pages from peer nodes.
 	remoteBusinessChannels RemoteBusinessChannelReader
 }
@@ -364,7 +368,8 @@ func New(opts Options) *App {
 		channelManagementDeps: channelManagementDeps{
 			channelRuntimeMeta: opts.ChannelRuntimeMeta, channelMigration: opts.ChannelMigration,
 			channelRuntimeMetaPoint: opts.ChannelRuntimeMetaPoint,
-			channelBusinessReader:   opts.ChannelBusinessReader, remoteBusinessChannels: opts.RemoteBusinessChannels,
+			channelBusinessReader:   opts.ChannelBusinessReader, channelBusinessOperator: opts.ChannelBusinessOperator,
+			remoteBusinessChannels: opts.RemoteBusinessChannels,
 		},
 		userManagementDeps: userManagementDeps{
 			users: opts.Users, userOperator: opts.UserOperator, userPresence: opts.UserPresence,

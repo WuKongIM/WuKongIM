@@ -20,10 +20,14 @@ func registerStoreRPCHandlers(cluster Cluster, store *Store) {
 	if cluster == nil || store == nil {
 		return
 	}
-	handlers := storeRPCHandlers(store)
-	if registerPromotedStoreRPCHandlers(cluster, handlers) {
+	registerSelectedStoreRPCHandlers(cluster, storeRPCHandlers(store))
+}
+
+func registerSelectedStoreRPCHandlers(cluster Cluster, handlers []storeRPCRegistration) {
+	if cluster == nil {
 		return
 	}
+	registerPromotedStoreRPCHandlers(cluster, handlers)
 }
 
 // RegisterRPCHandlers exposes Store-owned RPC handlers to composition roots.

@@ -57,6 +57,96 @@ func TestChannelCRUDAndIDIndex(t *testing.T) {
 	}
 }
 
+func TestWriteBatchConditionalChannelCreateAndFlagPatch(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer db.Close()
+
+	createBatch := db.NewWriteBatch()
+	createResult, err := createBatch.CreateChannelConditionally(7, Channel{
+		ChannelID:   "managed",
+		ChannelType: 2,
+		Ban:         1,
+	})
+	if err != nil {
+		t.Fatalf("CreateChannelConditionally(): %v", err)
+	}
+	if err := createBatch.Commit(); err != nil {
+		t.Fatalf("Commit(create): %v", err)
+	}
+	if !createResult.Applied {
+		t.Fatal("first create was not applied")
+	}
+
+	duplicateBatch := db.NewWriteBatch()
+	duplicateResult, err := duplicateBatch.CreateChannelConditionally(7, Channel{
+		ChannelID:   "managed",
+		ChannelType: 2,
+		Ban:         0,
+	})
+	if err != nil {
+		t.Fatalf("CreateChannelConditionally(duplicate): %v", err)
+	}
+	if err := duplicateBatch.Commit(); err != nil {
+		t.Fatalf("Commit(duplicate): %v", err)
+	}
+	if duplicateResult.Applied {
+		t.Fatal("duplicate create was applied")
+	}
+
+	if err := db.ForHashSlot(7).UpsertChannel(ctx, Channel{
+		ChannelID:                 "managed",
+		ChannelType:               2,
+		Ban:                       1,
+		AllowStranger:             1,
+		Large:                     1,
+		SubscriberMutationVersion: 9,
+	}); err != nil {
+		t.Fatalf("seed channel metadata: %v", err)
+	}
+	if err := db.ForHashSlot(7).AddSubscribers(ctx, "managed", 2, []string{"u1", "u2"}, 9); err != nil {
+		t.Fatalf("seed subscribers: %v", err)
+	}
+	patchBatch := db.NewWriteBatch()
+	patchResult, err := patchBatch.PatchChannelBusinessFlags(7, "managed", 2, ChannelBusinessFlags{
+		Ban: 0, Disband: 1, SendBan: 1,
+	})
+	if err != nil {
+		t.Fatalf("PatchChannelBusinessFlags(): %v", err)
+	}
+	if err := patchBatch.Commit(); err != nil {
+		t.Fatalf("Commit(patch): %v", err)
+	}
+	if !patchResult.Applied {
+		t.Fatal("existing patch was not applied")
+	}
+	got, err := db.ForHashSlot(7).GetChannel(ctx, "managed", 2)
+	if err != nil {
+		t.Fatalf("GetChannel(): %v", err)
+	}
+	if got.Ban != 0 || got.Disband != 1 || got.SendBan != 1 {
+		t.Fatalf("patched flags = %+v", got)
+	}
+	if got.AllowStranger != 1 || got.Large != 1 || got.SubscriberMutationVersion != 9 || got.SubscriberCount != 2 {
+		t.Fatalf("patch replaced unrelated metadata: %+v", got)
+	}
+
+	missingBatch := db.NewWriteBatch()
+	missingResult, err := missingBatch.PatchChannelBusinessFlags(7, "missing", 2, ChannelBusinessFlags{Ban: 1})
+	if err != nil {
+		t.Fatalf("PatchChannelBusinessFlags(missing): %v", err)
+	}
+	if err := missingBatch.Commit(); err != nil {
+		t.Fatalf("Commit(missing): %v", err)
+	}
+	if missingResult.Applied {
+		t.Fatal("missing patch was applied")
+	}
+}
+
 func TestChannelListByChannelIDSkipsStaleRuntimeIndex(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

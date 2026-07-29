@@ -1,6 +1,7 @@
 package fsm
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"sort"
@@ -49,6 +50,8 @@ const (
 	cmdTypeUpsertChannelLatestBatch             uint8 = 47
 	cmdTypeAppendMessageEvent                   uint8 = 48
 	cmdTypeAppendMessageEventsBatch             uint8 = 49
+	cmdTypeCreateChannel                        uint8 = 50
+	cmdTypePatchChannelBusinessFlags            uint8 = 51
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -253,6 +256,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeUpsertChannelLatestBatch:             decodeUpsertChannelLatestBatch,
 	cmdTypeAppendMessageEvent:                   decodeAppendMessageEvent,
 	cmdTypeAppendMessageEventsBatch:             decodeAppendMessageEventsBatch,
+	cmdTypeCreateChannel:                        decodeCreateChannel,
+	cmdTypePatchChannelBusinessFlags:            decodePatchChannelBusinessFlags,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,
@@ -334,6 +339,38 @@ func (c *upsertChannelCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	return wb.UpsertChannel(hashSlot, c.channel)
 }
 
+type createChannelCmd struct {
+	channel metadb.Channel
+	result  *metadb.ChannelConditionalMutationResult
+}
+
+func (c *createChannelCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	result, err := wb.CreateChannelConditionally(hashSlot, c.channel)
+	c.result = result
+	return err
+}
+
+func (c *createChannelCmd) applyResult() []byte {
+	return EncodeChannelConditionalMutationResult(c.result)
+}
+
+type patchChannelBusinessFlagsCmd struct {
+	channelID   string
+	channelType int64
+	flags       metadb.ChannelBusinessFlags
+	result      *metadb.ChannelConditionalMutationResult
+}
+
+func (c *patchChannelBusinessFlagsCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	result, err := wb.PatchChannelBusinessFlags(hashSlot, c.channelID, c.channelType, c.flags)
+	c.result = result
+	return err
+}
+
+func (c *patchChannelBusinessFlagsCmd) applyResult() []byte {
+	return EncodeChannelConditionalMutationResult(c.result)
+}
+
 // --- DeleteChannel ---
 
 type deleteChannelCmd struct {
@@ -383,10 +420,17 @@ type addSubscribersCmd struct {
 	channelType               int64
 	uids                      []string
 	subscriberMutationVersion uint64
+	result                    *metadb.SubscriberMutationResult
 }
 
 func (c *addSubscribersCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.AddSubscribers(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
+	result, err := wb.AddSubscribersCounted(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
+	c.result = result
+	return err
+}
+
+func (c *addSubscribersCmd) applyResult() []byte {
+	return EncodeSubscriberMutationResult(c.result)
 }
 
 // --- RemoveSubscribers ---
@@ -396,10 +440,75 @@ type removeSubscribersCmd struct {
 	channelType               int64
 	uids                      []string
 	subscriberMutationVersion uint64
+	result                    *metadb.SubscriberMutationResult
 }
 
 func (c *removeSubscribersCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
-	return wb.RemoveSubscribers(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
+	result, err := wb.RemoveSubscribersCounted(hashSlot, c.channelID, c.channelType, c.uids, c.subscriberMutationVersion)
+	c.result = result
+	return err
+}
+
+func (c *removeSubscribersCmd) applyResult() []byte {
+	return EncodeSubscriberMutationResult(c.result)
+}
+
+var (
+	subscriberMutationResultMagic         = [...]byte{'W', 'K', 'S', 'M', 1}
+	channelConditionalMutationResultMagic = [...]byte{'W', 'K', 'C', 'M', 1}
+)
+
+// EncodeChannelConditionalMutationResult encodes whether a conditional channel mutation applied.
+func EncodeChannelConditionalMutationResult(result *metadb.ChannelConditionalMutationResult) []byte {
+	applied := byte(0)
+	if result != nil && result.Applied {
+		applied = 1
+	}
+	return append(append([]byte(nil), channelConditionalMutationResultMagic[:]...), applied)
+}
+
+// DecodeChannelConditionalMutationResult decodes whether a conditional channel mutation applied.
+func DecodeChannelConditionalMutationResult(data []byte) (bool, error) {
+	if len(data) != len(channelConditionalMutationResultMagic)+1 ||
+		!bytes.HasPrefix(data, channelConditionalMutationResultMagic[:]) {
+		return false, fmt.Errorf("%w: conditional channel mutation result", metadb.ErrCorruptValue)
+	}
+	switch data[len(channelConditionalMutationResultMagic)] {
+	case 0:
+		return false, nil
+	case 1:
+		return true, nil
+	default:
+		return false, fmt.Errorf("%w: conditional channel mutation applied value", metadb.ErrCorruptValue)
+	}
+}
+
+// EncodeSubscriberMutationResult encodes a durable subscriber-set apply result.
+func EncodeSubscriberMutationResult(result *metadb.SubscriberMutationResult) []byte {
+	buf := append([]byte(nil), subscriberMutationResultMagic[:]...)
+	if result == nil {
+		return append(buf, 0, 0)
+	}
+	buf = binary.AppendUvarint(buf, uint64(result.RequestedCount))
+	return binary.AppendUvarint(buf, uint64(result.ChangedCount))
+}
+
+// DecodeSubscriberMutationResult decodes a subscriber-set apply result.
+func DecodeSubscriberMutationResult(data []byte) (metadb.SubscriberMutationResult, error) {
+	if !bytes.HasPrefix(data, subscriberMutationResultMagic[:]) {
+		return metadb.SubscriberMutationResult{}, fmt.Errorf("%w: subscriber mutation result", metadb.ErrCorruptValue)
+	}
+	remaining := data[len(subscriberMutationResultMagic):]
+	requested, n := binary.Uvarint(remaining)
+	if n <= 0 {
+		return metadb.SubscriberMutationResult{}, fmt.Errorf("%w: subscriber mutation requested count", metadb.ErrCorruptValue)
+	}
+	remaining = remaining[n:]
+	changed, n := binary.Uvarint(remaining)
+	if n <= 0 || n != len(remaining) {
+		return metadb.SubscriberMutationResult{}, fmt.Errorf("%w: subscriber mutation changed count", metadb.ErrCorruptValue)
+	}
+	return metadb.SubscriberMutationResult{RequestedCount: int(requested), ChangedCount: int(changed)}, nil
 }
 
 // --- UserChannelMemberships ---
@@ -803,6 +912,26 @@ func EncodeUpsertDeviceCommand(d metadb.Device) []byte {
 
 // EncodeUpsertChannelCommand encodes a Channel into a binary command.
 func EncodeUpsertChannelCommand(ch metadb.Channel) []byte {
+	return encodeChannelCommand(cmdTypeUpsertChannel, ch)
+}
+
+// EncodeCreateChannelCommand encodes a create-only Channel mutation.
+func EncodeCreateChannelCommand(ch metadb.Channel) []byte {
+	return encodeChannelCommand(cmdTypeCreateChannel, ch)
+}
+
+// EncodePatchChannelBusinessFlagsCommand encodes an existing-only partial flag mutation.
+func EncodePatchChannelBusinessFlagsCommand(channelID string, channelType int64, flags metadb.ChannelBusinessFlags) []byte {
+	return encodeChannelCommand(cmdTypePatchChannelBusinessFlags, metadb.Channel{
+		ChannelID:   channelID,
+		ChannelType: channelType,
+		Ban:         flags.Ban,
+		Disband:     flags.Disband,
+		SendBan:     flags.SendBan,
+	})
+}
+
+func encodeChannelCommand(commandType uint8, ch metadb.Channel) []byte {
 	idLen := len(ch.ChannelID)
 	// header + 1 string field + 6 int64 fields
 	size := headerSize +
@@ -819,7 +948,7 @@ func EncodeUpsertChannelCommand(ch metadb.Channel) []byte {
 
 	buf[off] = commandVersion
 	off++
-	buf[off] = cmdTypeUpsertChannel
+	buf[off] = commandType
 	off++
 
 	off = putStringField(buf, off, tagChannelID, ch.ChannelID)
@@ -2214,12 +2343,44 @@ func decodeDevice(data []byte) (metadb.Device, error) {
 }
 
 func decodeUpsertChannel(data []byte) (command, error) {
+	ch, err := decodeChannel(data)
+	if err != nil {
+		return nil, err
+	}
+	return &upsertChannelCmd{channel: ch}, nil
+}
+
+func decodeCreateChannel(data []byte) (command, error) {
+	ch, err := decodeChannel(data)
+	if err != nil {
+		return nil, err
+	}
+	return &createChannelCmd{channel: ch}, nil
+}
+
+func decodePatchChannelBusinessFlags(data []byte) (command, error) {
+	ch, err := decodeChannel(data)
+	if err != nil {
+		return nil, err
+	}
+	return &patchChannelBusinessFlagsCmd{
+		channelID:   ch.ChannelID,
+		channelType: ch.ChannelType,
+		flags: metadb.ChannelBusinessFlags{
+			Ban:     ch.Ban,
+			Disband: ch.Disband,
+			SendBan: ch.SendBan,
+		},
+	}, nil
+}
+
+func decodeChannel(data []byte) (metadb.Channel, error) {
 	var ch metadb.Channel
 	off := 0
 	for off < len(data) {
 		tag, value, n, err := readTLV(data[off:])
 		if err != nil {
-			return nil, err
+			return metadb.Channel{}, err
 		}
 		off += n
 		switch tag {
@@ -2227,39 +2388,39 @@ func decodeUpsertChannel(data []byte) (command, error) {
 			ch.ChannelID = string(value)
 		case tagChannelType:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad ChannelType length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad ChannelType length", metadb.ErrCorruptValue)
 			}
 			ch.ChannelType = int64(binary.BigEndian.Uint64(value))
 		case tagChannelBan:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad Ban length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad Ban length", metadb.ErrCorruptValue)
 			}
 			ch.Ban = int64(binary.BigEndian.Uint64(value))
 		case tagChannelDisband:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad Disband length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad Disband length", metadb.ErrCorruptValue)
 			}
 			ch.Disband = int64(binary.BigEndian.Uint64(value))
 		case tagChannelSendBan:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad SendBan length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad SendBan length", metadb.ErrCorruptValue)
 			}
 			ch.SendBan = int64(binary.BigEndian.Uint64(value))
 		case tagChannelAllowStranger:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad AllowStranger length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad AllowStranger length", metadb.ErrCorruptValue)
 			}
 			ch.AllowStranger = int64(binary.BigEndian.Uint64(value))
 		case tagChannelLarge:
 			if len(value) != 8 {
-				return nil, fmt.Errorf("%w: bad Large length", metadb.ErrCorruptValue)
+				return metadb.Channel{}, fmt.Errorf("%w: bad Large length", metadb.ErrCorruptValue)
 			}
 			ch.Large = int64(binary.BigEndian.Uint64(value))
 		default:
 			// Unknown tag — skip for forward compatibility.
 		}
 	}
-	return &upsertChannelCmd{channel: ch}, nil
+	return ch, nil
 }
 
 func decodeDeleteChannel(data []byte) (command, error) {

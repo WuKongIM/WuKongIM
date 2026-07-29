@@ -27,7 +27,8 @@ Current flow:
 9. Subscriber mutations sort and de-duplicate UIDs, keep channel-owned
    subscriber rows through the table runtime, update the channel subscriber
    count and mutation version in the same commit, and invalidate the channel
-   cache.
+   cache. Counted batch mutations populate exact requested and changed counts
+   only while the same atomic commit evaluates set membership.
 10. User channel membership rows are UID-owned reverse membership records keyed
     by `(uid, channel_id, channel_type)`, providing stable per-user channel
     paging without touching rows on ordinary group message commits.
@@ -76,6 +77,9 @@ Current flow:
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
    tasks, commits once, then publishes or invalidates channel cache entries.
+   Conditional channel create returns not-applied for an existing row, and the
+   business-flag patch returns not-applied for a missing row while preserving
+   every stored field except `Ban`, `Disband`, and `SendBan`.
 18. Hash-slot snapshots export row, index, and system spans for selected hash
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,

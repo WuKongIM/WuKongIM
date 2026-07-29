@@ -297,6 +297,9 @@ New(Config)
      `/manager/nodes/:node_id/plugins*`, `/manager/plugin-bindings`,
      `/manager/users*`, and
      `/manager/system-users*`;
+     business channel detail/member operations cross the composition root
+     through `managerChannelBusinessOperator`, which adapts management-owned
+     DTOs to the sibling channel usecase without coupling those usecases;
      channel, conversation, message, and user lists are attached only when the
      cluster also exposes the corresponding metadata/message page scans, while
      local connection list/detail reads use the owner-local online registry,

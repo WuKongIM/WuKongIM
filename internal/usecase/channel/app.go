@@ -27,6 +27,21 @@ type Store interface {
 	ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
 }
 
+type countedSubscriberStore interface {
+	AddChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error)
+	RemoveChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error)
+}
+
+type subscriberLookupStore interface {
+	ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error)
+	HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error)
+}
+
+type conditionalChannelStore interface {
+	CreateChannelStrict(context.Context, metadb.Channel) error
+	PatchChannelBusinessFlags(context.Context, string, int64, metadb.ChannelBusinessFlags) error
+}
+
 // MembershipIndex maintains the UID-owned reverse channel membership index.
 type MembershipIndex interface {
 	// UpsertChannelMemberships records that uids belong to a normal channel.
@@ -142,6 +157,54 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 	return a.store.UpsertChannel(ctx, channel)
 }
 
+// GetMetadata returns one authoritative channel metadata row.
+func (a *App) GetMetadata(ctx context.Context, key ChannelKey) (metadb.Channel, error) {
+	if err := a.requireStore(); err != nil {
+		return metadb.Channel{}, err
+	}
+	return a.store.GetChannel(ctx, key.ChannelID, int64(key.ChannelType))
+}
+
+// CreateMetadata creates a channel and fails when it already exists.
+func (a *App) CreateMetadata(ctx context.Context, info Info) error {
+	if err := a.requireStore(); err != nil {
+		return err
+	}
+	channel := metadb.Channel{
+		ChannelID:   info.ChannelID,
+		ChannelType: int64(info.ChannelType),
+		Ban:         boolToInt64(info.Ban),
+		Disband:     boolToInt64(info.Disband),
+		SendBan:     boolToInt64(info.SendBan),
+	}
+	store, ok := a.store.(conditionalChannelStore)
+	if !ok {
+		return ErrStoreRequired
+	}
+	return store.CreateChannelStrict(ctx, channel)
+}
+
+// PatchMetadataFlags updates only the three Manager-editable flags.
+func (a *App) PatchMetadataFlags(ctx context.Context, key ChannelKey, flags BusinessFlags) error {
+	if err := a.requireStore(); err != nil {
+		return err
+	}
+	store, ok := a.store.(conditionalChannelStore)
+	if !ok {
+		return ErrStoreRequired
+	}
+	return store.PatchChannelBusinessFlags(
+		ctx,
+		key.ChannelID,
+		int64(key.ChannelType),
+		metadb.ChannelBusinessFlags{
+			Ban:     boolToInt64(flags.Ban),
+			Disband: boolToInt64(flags.Disband),
+			SendBan: boolToInt64(flags.SendBan),
+		},
+	)
+}
+
 // Delete removes channel metadata.
 func (a *App) Delete(ctx context.Context, key ChannelKey) error {
 	if err := a.requireStore(); err != nil {
@@ -210,6 +273,50 @@ func (a *App) RemoveSubscribers(ctx context.Context, cmd SubscriberCommand) erro
 	}
 	a.notifySubscriberMutation(ctx, channel, false, nil, cmd.Subscribers)
 	return nil
+}
+
+// MutateSubscribersCounted applies one bounded ordinary subscriber-set mutation.
+func (a *App) MutateSubscribersCounted(ctx context.Context, cmd SubscriberCommand, add bool) (metadb.SubscriberMutationResult, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, cmd.ChannelID, int64(cmd.ChannelType)); err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	store, ok := a.store.(countedSubscriberStore)
+	if !ok {
+		return metadb.SubscriberMutationResult{}, ErrStoreRequired
+	}
+	version, err := a.subscriberMutationVersionFor(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	if err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	var result metadb.SubscriberMutationResult
+	if add {
+		result, err = store.AddChannelSubscribersCounted(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, version)
+	} else {
+		result, err = store.RemoveChannelSubscribersCounted(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, version)
+	}
+	if err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	if a.membershipIndex != nil {
+		if add {
+			err = a.membershipIndex.UpsertChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, 0, a.now().UnixNano())
+		} else {
+			err = a.membershipIndex.DeleteChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, a.now().UnixNano())
+		}
+		if err != nil {
+			return result, err
+		}
+	}
+	channel, err := a.refreshLargeGroupFlag(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	if err != nil {
+		return result, err
+	}
+	if add {
+		a.notifySubscriberMutation(ctx, channel, false, cmd.Subscribers, nil)
+	} else {
+		a.notifySubscriberMutation(ctx, channel, false, nil, cmd.Subscribers)
+	}
+	return result, nil
 }
 
 // RemoveAllSubscribers removes every ordinary subscriber for the channel.
@@ -303,6 +410,125 @@ func (a *App) ListAllowlistPage(ctx context.Context, req MemberListPageRequest) 
 // ListDenylistPage returns one denylist page.
 func (a *App) ListDenylistPage(ctx context.Context, req MemberListPageRequest) (MemberListPageResult, error) {
 	return a.listMemberListPage(ctx, namespacedListChannelID(denyListKind, req.ChannelKey), int64(req.ChannelType), req.AfterUID, req.Limit)
+}
+
+// MutateAllowlistCounted applies one bounded allowlist set mutation.
+func (a *App) MutateAllowlistCounted(ctx context.Context, cmd MemberCommand, add bool) (metadb.SubscriberMutationResult, error) {
+	return a.mutateMemberListCounted(ctx, allowListKind, cmd, add)
+}
+
+// MutateDenylistCounted applies one bounded denylist set mutation.
+func (a *App) MutateDenylistCounted(ctx context.Context, cmd MemberCommand, add bool) (metadb.SubscriberMutationResult, error) {
+	return a.mutateMemberListCounted(ctx, denyListKind, cmd, add)
+}
+
+// ContainsSubscriber reports exact ordinary subscriber membership.
+func (a *App) ContainsSubscriber(ctx context.Context, key ChannelKey, uid string) (bool, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, key.ChannelID, int64(key.ChannelType)); err != nil {
+		return false, err
+	}
+	return a.containsSubscriberFor(ctx, key.ChannelID, int64(key.ChannelType), uid)
+}
+
+// ContainsAllowlistMember reports exact allowlist membership.
+func (a *App) ContainsAllowlistMember(ctx context.Context, key ChannelKey, uid string) (bool, error) {
+	return a.containsMemberList(ctx, allowListKind, key, uid)
+}
+
+// ContainsDenylistMember reports exact denylist membership.
+func (a *App) ContainsDenylistMember(ctx context.Context, key ChannelKey, uid string) (bool, error) {
+	return a.containsMemberList(ctx, denyListKind, key, uid)
+}
+
+// HasSubscribers reports whether the ordinary subscriber set is non-empty.
+func (a *App) HasSubscribers(ctx context.Context, key ChannelKey) (bool, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, key.ChannelID, int64(key.ChannelType)); err != nil {
+		return false, err
+	}
+	return a.hasSubscribersFor(ctx, key.ChannelID, int64(key.ChannelType))
+}
+
+// HasAllowlist reports whether the allowlist is non-empty.
+func (a *App) HasAllowlist(ctx context.Context, key ChannelKey) (bool, error) {
+	return a.hasMemberList(ctx, allowListKind, key)
+}
+
+// HasDenylist reports whether the denylist is non-empty.
+func (a *App) HasDenylist(ctx context.Context, key ChannelKey) (bool, error) {
+	return a.hasMemberList(ctx, denyListKind, key)
+}
+
+func (a *App) mutateMemberListCounted(ctx context.Context, kind memberListKind, cmd MemberCommand, add bool) (metadb.SubscriberMutationResult, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, cmd.ChannelID, int64(cmd.ChannelType)); err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	store, ok := a.store.(countedSubscriberStore)
+	if !ok {
+		return metadb.SubscriberMutationResult{}, ErrStoreRequired
+	}
+	listChannelID := namespacedListChannelID(kind, cmd.ChannelKey)
+	if add {
+		if err := a.ensureChannelExistsStrict(ctx, listChannelID, int64(cmd.ChannelType)); err != nil {
+			return metadb.SubscriberMutationResult{}, err
+		}
+	} else if _, err := a.store.GetChannel(ctx, listChannelID, int64(cmd.ChannelType)); err != nil {
+		if errors.Is(err, metadb.ErrNotFound) {
+			return metadb.SubscriberMutationResult{RequestedCount: len(cmd.UIDs)}, nil
+		}
+		return metadb.SubscriberMutationResult{}, err
+	}
+	version, err := a.subscriberMutationVersionFor(ctx, listChannelID, int64(cmd.ChannelType))
+	if err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	if add {
+		return store.AddChannelSubscribersCounted(ctx, listChannelID, int64(cmd.ChannelType), cmd.UIDs, version)
+	}
+	return store.RemoveChannelSubscribersCounted(ctx, listChannelID, int64(cmd.ChannelType), cmd.UIDs, version)
+}
+
+func (a *App) containsMemberList(ctx context.Context, kind memberListKind, key ChannelKey, uid string) (bool, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, key.ChannelID, int64(key.ChannelType)); err != nil {
+		return false, err
+	}
+	listChannelID := namespacedListChannelID(kind, key)
+	if _, err := a.store.GetChannel(ctx, listChannelID, int64(key.ChannelType)); err != nil {
+		if errors.Is(err, metadb.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return a.containsSubscriberFor(ctx, listChannelID, int64(key.ChannelType), uid)
+}
+
+func (a *App) hasMemberList(ctx context.Context, kind memberListKind, key ChannelKey) (bool, error) {
+	if err := a.ensureChannelExistsWithoutCreate(ctx, key.ChannelID, int64(key.ChannelType)); err != nil {
+		return false, err
+	}
+	listChannelID := namespacedListChannelID(kind, key)
+	if _, err := a.store.GetChannel(ctx, listChannelID, int64(key.ChannelType)); err != nil {
+		if errors.Is(err, metadb.ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return a.hasSubscribersFor(ctx, listChannelID, int64(key.ChannelType))
+}
+
+func (a *App) containsSubscriberFor(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	lookup, ok := a.store.(subscriberLookupStore)
+	if !ok {
+		return false, ErrStoreRequired
+	}
+	return lookup.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+}
+
+func (a *App) hasSubscribersFor(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	lookup, ok := a.store.(subscriberLookupStore)
+	if !ok {
+		return false, ErrStoreRequired
+	}
+	return lookup.HasChannelSubscribers(ctx, channelID, channelType)
 }
 
 func (a *App) addMemberList(ctx context.Context, kind memberListKind, key ChannelKey, uids []string) error {
@@ -506,6 +732,26 @@ func (a *App) ensureChannelExists(ctx context.Context, channelID string, channel
 		return err
 	}
 	return a.store.UpsertChannel(ctx, metadb.Channel{ChannelID: channelID, ChannelType: channelType})
+}
+
+func (a *App) ensureChannelExistsStrict(ctx context.Context, channelID string, channelType int64) error {
+	store, ok := a.store.(conditionalChannelStore)
+	if !ok {
+		return ErrStoreRequired
+	}
+	err := store.CreateChannelStrict(ctx, metadb.Channel{ChannelID: channelID, ChannelType: channelType})
+	if errors.Is(err, metadb.ErrAlreadyExists) {
+		return nil
+	}
+	return err
+}
+
+func (a *App) ensureChannelExistsWithoutCreate(ctx context.Context, channelID string, channelType int64) error {
+	if err := a.requireStore(); err != nil {
+		return err
+	}
+	_, err := a.store.GetChannel(ctx, channelID, channelType)
+	return err
 }
 
 func (a *App) subscriberMutationVersionFor(ctx context.Context, channelID string, channelType int64) (uint64, error) {

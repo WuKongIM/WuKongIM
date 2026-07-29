@@ -576,10 +576,15 @@ subscriber mutation version into the required cluster facade argument. The
 membership facade is separate from the channel metadata facade so tests and
 future adapters can expose read/write channel metadata without implicitly
 claiming support for the reverse membership index.
+The Manager path requires the conditional metadata facade. Create-only channel
+writes and existing-only business-flag patches are proposed to the Slot leader;
+the flag patch invalidates append metadata cache state because the FSM preserves
+unrelated channel fields and returns only an applied/not-applied result.
 For message permission checks, the adapter exposes channel metadata reads,
-subscriber point lookups, and subscriber-set non-emptiness. It uses direct
-cluster lookup facades when available and falls back to bounded subscriber
-page scans only for test or alternate nodes that do not expose point lookups.
+subscriber point lookups, subscriber-set non-emptiness, and exact durable
+subscriber mutation counts. Production node reads use authoritative Slot-leader
+facades; alternate nodes must expose point lookups explicitly because the
+adapter never substitutes an unbounded page scan.
 When configured with `ChannelAppendMetadataCache`, successful channel metadata
 upserts refresh append fanout metadata and deletes remove cached entries; final
 subscriber mutation versions are still refreshed by the channel usecase

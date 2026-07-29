@@ -374,15 +374,96 @@ func TestListSubscribersPageValidatesStoreAndLimit(t *testing.T) {
 	}
 }
 
+func TestPatchMetadataFlagsPreservesUnrelatedMetadata(t *testing.T) {
+	store := &recordingStore{channels: map[string]metadb.Channel{
+		recordingChannelKey("g1", 2): {
+			ChannelID:                 "g1",
+			ChannelType:               2,
+			Large:                     1,
+			AllowStranger:             1,
+			SubscriberCount:           77,
+			SubscriberMutationVersion: 9,
+		},
+	}}
+	app := New(Options{Store: store})
+
+	if err := app.PatchMetadataFlags(context.Background(), ChannelKey{ChannelID: "g1", ChannelType: 2}, BusinessFlags{
+		Ban: true, Disband: true, SendBan: true,
+	}); err != nil {
+		t.Fatalf("PatchMetadataFlags(): %v", err)
+	}
+
+	got := store.upsertChannels[len(store.upsertChannels)-1]
+	if got.Large != 1 || got.AllowStranger != 1 || got.SubscriberCount != 77 || got.SubscriberMutationVersion != 9 {
+		t.Fatalf("patched channel lost unrelated metadata: %#v", got)
+	}
+	if got.Ban != 1 || got.Disband != 1 || got.SendBan != 1 {
+		t.Fatalf("patched flags = %#v", got)
+	}
+}
+
+func TestMutateAllowlistCountedValidatesParentAndCreatesDerivedChannel(t *testing.T) {
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2},
+		},
+		countedAddResult:    metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
+		strictChannelLookup: true,
+	}
+	app := New(Options{Store: store})
+
+	result, err := app.MutateAllowlistCounted(context.Background(), MemberCommand{
+		ChannelKey: ChannelKey{ChannelID: "g1", ChannelType: 2},
+		UIDs:       []string{"u1", "u2"},
+	}, true)
+	if err != nil {
+		t.Fatalf("MutateAllowlistCounted(): %v", err)
+	}
+	if result != store.countedAddResult {
+		t.Fatalf("result = %#v, want %#v", result, store.countedAddResult)
+	}
+	derivedID := "__wk_internal_memberlist__/allow/2/ZzE"
+	if _, ok := store.channels[recordingChannelKey(derivedID, 2)]; !ok {
+		t.Fatalf("derived allowlist channel %q was not created", derivedID)
+	}
+}
+
+func TestMutateSubscribersCountedMaintainsReverseProjection(t *testing.T) {
+	store := &recordingStore{
+		channels: map[string]metadb.Channel{
+			recordingChannelKey("g1", 2): {ChannelID: "g1", ChannelType: 2},
+		},
+		countedAddResult: metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
+	}
+	memberships := &recordingMembershipIndex{}
+	app := New(Options{Store: store, MembershipIndex: memberships})
+
+	result, err := app.MutateSubscribersCounted(context.Background(), SubscriberCommand{
+		ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1", "u2"},
+	}, true)
+	if err != nil {
+		t.Fatalf("MutateSubscribersCounted(): %v", err)
+	}
+	if result != store.countedAddResult {
+		t.Fatalf("result = %#v, want %#v", result, store.countedAddResult)
+	}
+	if len(memberships.upserts) != 1 || !equalStrings(memberships.upserts[0].uids, []string{"u1", "u2"}) {
+		t.Fatalf("membership upserts = %#v", memberships.upserts)
+	}
+}
+
 type recordingStore struct {
-	upsertChannels    []metadb.Channel
-	deleteChannels    []channelKeyCall
-	addSubscribers    []subscriberCall
-	removeSubscribers []subscriberCall
-	listSubscribers   []listSubscribersCall
-	listPages         []listPage
-	channels          map[string]metadb.Channel
-	getChannelErr     error
+	upsertChannels      []metadb.Channel
+	deleteChannels      []channelKeyCall
+	addSubscribers      []subscriberCall
+	removeSubscribers   []subscriberCall
+	listSubscribers     []listSubscribersCall
+	listPages           []listPage
+	channels            map[string]metadb.Channel
+	getChannelErr       error
+	countedAddResult    metadb.SubscriberMutationResult
+	countedRemoveResult metadb.SubscriberMutationResult
+	strictChannelLookup bool
 }
 
 type channelKeyCall struct {
@@ -473,6 +554,26 @@ func (r *recordingStore) UpsertChannel(_ context.Context, ch metadb.Channel) err
 	return nil
 }
 
+func (r *recordingStore) CreateChannelStrict(ctx context.Context, ch metadb.Channel) error {
+	if r.channels != nil {
+		if _, exists := r.channels[recordingChannelKey(ch.ChannelID, ch.ChannelType)]; exists {
+			return metadb.ErrAlreadyExists
+		}
+	}
+	return r.UpsertChannel(ctx, ch)
+}
+
+func (r *recordingStore) PatchChannelBusinessFlags(ctx context.Context, channelID string, channelType int64, flags metadb.ChannelBusinessFlags) error {
+	ch, err := r.GetChannel(ctx, channelID, channelType)
+	if err != nil {
+		return err
+	}
+	ch.Ban = flags.Ban
+	ch.Disband = flags.Disband
+	ch.SendBan = flags.SendBan
+	return r.UpsertChannel(ctx, ch)
+}
+
 func (r *recordingStore) DeleteChannel(_ context.Context, channelID string, channelType int64) error {
 	r.deleteChannels = append(r.deleteChannels, channelKeyCall{channelID: channelID, channelType: channelType})
 	return nil
@@ -494,6 +595,20 @@ func (r *recordingStore) RemoveChannelSubscribers(_ context.Context, channelID s
 	return nil
 }
 
+func (r *recordingStore) AddChannelSubscribersCounted(_ context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	if err := r.AddChannelSubscribers(context.Background(), channelID, channelType, uids, subscriberMutationVersion...); err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	return r.countedAddResult, nil
+}
+
+func (r *recordingStore) RemoveChannelSubscribersCounted(_ context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	if err := r.RemoveChannelSubscribers(context.Background(), channelID, channelType, uids, subscriberMutationVersion...); err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	return r.countedRemoveResult, nil
+}
+
 func (r *recordingStore) ListChannelSubscribers(_ context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
 	r.listSubscribers = append(r.listSubscribers, listSubscribersCall{channelID: channelID, channelType: channelType, afterUID: afterUID, limit: limit})
 	if len(r.listPages) == 0 {
@@ -504,6 +619,14 @@ func (r *recordingStore) ListChannelSubscribers(_ context.Context, channelID str
 	return append([]string(nil), page.uids...), page.cursor, page.done, nil
 }
 
+func (r *recordingStore) ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error) {
+	return false, nil
+}
+
+func (r *recordingStore) HasChannelSubscribers(context.Context, string, int64) (bool, error) {
+	return false, nil
+}
+
 func (r *recordingStore) GetChannel(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	if r.getChannelErr != nil {
 		return metadb.Channel{}, r.getChannelErr
@@ -512,6 +635,9 @@ func (r *recordingStore) GetChannel(_ context.Context, channelID string, channel
 		if ch, ok := r.channels[recordingChannelKey(channelID, channelType)]; ok {
 			return ch, nil
 		}
+	}
+	if r.strictChannelLookup {
+		return metadb.Channel{}, metadb.ErrNotFound
 	}
 	return metadb.Channel{ChannelID: channelID, ChannelType: channelType}, nil
 }

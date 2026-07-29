@@ -4,7 +4,8 @@
 
 `internal/usecase/management` builds entry-independent read models for the
 new manager API. It currently owns the node list, Slot list, business channel
-list, channel runtime metadata list, Controller/Slot distributed log pages,
+list/detail/create/flag-patch and subscriber/allowlist/denylist page, exact-read,
+and mutation orchestration, channel runtime metadata list, Controller/Slot distributed log pages,
 Controller task audit history, Controller Raft status and explicit compaction orchestration,
 Controller voter promotion validation, Slot Raft
 explicit compaction orchestration, Slot leader-transfer intent
@@ -34,7 +35,10 @@ user management, and system UID projections/actions used by
 `GET /manager/nodes/:node_id/diagnostics`,
 `GET /manager/nodes/:node_id/config`,
 `GET /manager/slots`, `POST /manager/slots/:slot_id/leader-transfer`,
-`GET /manager/channels`,
+`GET /manager/channels`, `POST /manager/channels`,
+`GET|PATCH /manager/channels/:channel_type/:channel_id`,
+`GET /manager/channels/:channel_type/:channel_id/{subscribers|allowlist|denylist}`,
+`POST /manager/channels/:channel_type/:channel_id/{subscribers|allowlist|denylist}/{add|remove}`,
 `GET /manager/channel-runtime-meta`, `GET /manager/controller/logs`,
 `/manager/channel-migrations*`,
 `GET /manager/controller/tasks`, `GET /manager/controller/tasks/:task_id`,
@@ -569,17 +573,19 @@ a 30-second profile transition fence. Status and audit results expose no token
 digest. The audit page is a bounded newest-first aggregate of available
 alive/suspect nodes' local ingress/owner records.
 
-## Business Channel List Flow
+## Business Channel Management Flow
 
 ```text
 manager HTTP handler
-  -> management.App.ListBusinessChannels
+  -> management.App.ListBusinessChannels/GetBusinessChannel
+  -> management.App.CreateBusinessChannel/UpdateBusinessChannel
+  -> management.App.ListBusinessChannelMembers/MutateBusinessChannelMembers
   -> local node_id: ControlSnapshotReader.LocalControlSnapshot
   -> remote node_id: RemoteBusinessChannelReader.NodeBusinessChannels
-  -> ControlSnapshotReader.LocalControlSnapshot
-  -> ChannelBusinessReader.ScanChannelsSlotPage
-  -> Slot metadata channel rows
-  -> filtered manager channel DTO rows
+  -> ChannelBusinessReader.ScanChannelsSlotPage (list)
+  -> ChannelBusinessOperator (detail, create, flag patch, member sets)
+     using management-owned DTOs adapted only in internal/app
+  -> authoritative Slot metadata
 ```
 
 The business channel projection scans channel metadata by physical Slot,
@@ -589,8 +595,21 @@ or local `node_id` requests scan this node's Slot metadata; non-local requests
 delegate the whole page request to a narrow remote channel reader port. The read
 model derives display `slot_id` and `hash_slot` values from the selected node's
 cluster control snapshot and keeps cursor state bound to the requested filter
-values. Channel detail, member, and mutation operation routes are outside this
-migration step.
+values.
+
+Detail validates the parent channel and joins subscriber/allowlist/denylist
+non-emptiness. Member reads either page by UID cursor or perform one exact UID
+point lookup; cursors are bound to channel ID, type, and list kind. Member
+writes normalize and de-duplicate at most 500 UIDs, reject the complete batch
+when any UID is invalid, reject ordinary subscriber writes for person
+channels, and return exact requested/changed set counts. Parent metadata must
+already exist. The first allowlist or denylist add may create its internal
+derived channel only after that validation; a remove from a missing derived
+list is a no-op and does not create it. Ordinary subscriber writes keep the
+existing synchronous UID-owned reverse membership projection; access-list
+writes do not. Create-only and existing-only flag patch semantics are enforced
+inside the Slot FSM so concurrent requests cannot turn create into upsert or
+replace unrelated channel/subscriber metadata.
 
 ## Channel Runtime Metadata Flow
 

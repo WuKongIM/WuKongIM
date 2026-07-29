@@ -144,6 +144,7 @@ func (n *Node) Stop(ctx context.Context) error {
 			}
 			n.defaultSlotMetaDB = nil
 		}
+		n.defaultSlotProxy = nil
 		n.defaultSlotProposer = nil
 		n.slots = nil
 		if n.defaultPreferredLeaderReconciler {

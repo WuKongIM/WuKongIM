@@ -18,6 +18,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 // Option customizes Node construction.
@@ -123,6 +124,8 @@ type Node struct {
 	defaultSlotRaftDB *raftlog.DB
 	// defaultSlotMetaDB owns the Node-created Slot metadata store.
 	defaultSlotMetaDB *metadb.DB
+	// defaultSlotProxy provides authoritative Slot-owner metadata operations.
+	defaultSlotProxy *slotproxy.Store
 	// defaultSlotProposer adapts the default Slot runtime to the propose service.
 	defaultSlotProposer propose.SlotRuntime
 	// messageEventStreamCache keeps in-flight stream event projections on the Slot leader.

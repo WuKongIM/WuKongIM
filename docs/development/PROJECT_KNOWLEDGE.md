@@ -62,6 +62,8 @@
 - Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
 - Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
 - Legacy channel allowlist, denylist, and temporary-subscriber APIs are backed by namespaced slot subscriber lists until dedicated metadata tables exist.
+- Manager business-channel detail and subscriber/allowlist/denylist reads are Slot-Leader authoritative and fail closed when no leader is confirmed; exact UID lookup is a point read, never a full member scan.
+- Manager channel create and flag patch are distinct conditional Slot-FSM commands: create is create-only, while patch changes only `Ban`, `Disband`, and `SendBan`. First allowlist/denylist add creates its derived list only after validating the parent channel and uses the same create-only primitive.
 - Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.

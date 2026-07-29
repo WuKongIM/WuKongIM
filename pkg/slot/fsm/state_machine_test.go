@@ -772,8 +772,12 @@ func TestStateMachineAppliesAddAndRemoveSubscribers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Apply(add subscribers) error = %v", err)
 	}
-	if string(result) != ApplyResultOK {
-		t.Fatalf("Apply(add subscribers) result = %q, want %q", result, ApplyResultOK)
+	mutationResult, err := DecodeSubscriberMutationResult(result)
+	if err != nil {
+		t.Fatalf("DecodeSubscriberMutationResult(add): %v", err)
+	}
+	if mutationResult.RequestedCount != 3 || mutationResult.ChangedCount != 3 {
+		t.Fatalf("add mutation result = %#v, want requested=3 changed=3", mutationResult)
 	}
 
 	shard, ok := any(db.ForSlot(11)).(interface {
@@ -794,13 +798,21 @@ func TestStateMachineAppliesAddAndRemoveSubscribers(t *testing.T) {
 		t.Fatalf("done after add = false, want true")
 	}
 
-	if _, err := sm.Apply(ctx, multiraft.Command{
+	result, err = sm.Apply(ctx, multiraft.Command{
 		SlotID: 11,
 		Index:  2,
 		Term:   1,
-		Data:   encodeTestRemoveSubscribersCommand("slot-1", 2, []string{"u2"}),
-	}); err != nil {
+		Data:   encodeTestRemoveSubscribersCommand("slot-1", 2, []string{"u2", "missing"}),
+	})
+	if err != nil {
 		t.Fatalf("Apply(remove subscribers) error = %v", err)
+	}
+	mutationResult, err = DecodeSubscriberMutationResult(result)
+	if err != nil {
+		t.Fatalf("DecodeSubscriberMutationResult(remove): %v", err)
+	}
+	if mutationResult.RequestedCount != 2 || mutationResult.ChangedCount != 1 {
+		t.Fatalf("remove mutation result = %#v, want requested=2 changed=1", mutationResult)
 	}
 
 	got, _, done, err = shard.ListSubscribersPage(ctx, "slot-1", 2, "", 10)
@@ -3953,6 +3965,73 @@ func TestEncodeDecodeChannelStatusFlags(t *testing.T) {
 	}
 	if cmd.channel != want {
 		t.Fatalf("decoded channel = %#v, want %#v", cmd.channel, want)
+	}
+}
+
+func TestApplyConditionalChannelCreateAndFlagPatch(t *testing.T) {
+	db := openTestDB(t)
+	sm := mustNewStateMachine(t, db, 1)
+	ctx := context.Background()
+
+	create := EncodeCreateChannelCommand(metadb.Channel{
+		ChannelID:   "managed",
+		ChannelType: 2,
+		Ban:         1,
+	})
+	result, err := sm.Apply(ctx, multiraft.Command{SlotID: 1, Data: create})
+	if err != nil {
+		t.Fatalf("Apply(create): %v", err)
+	}
+	applied, err := DecodeChannelConditionalMutationResult(result)
+	if err != nil || !applied {
+		t.Fatalf("create result = %v, %v", applied, err)
+	}
+	result, err = sm.Apply(ctx, multiraft.Command{SlotID: 1, Data: create})
+	if err != nil {
+		t.Fatalf("Apply(duplicate create): %v", err)
+	}
+	applied, err = DecodeChannelConditionalMutationResult(result)
+	if err != nil || applied {
+		t.Fatalf("duplicate create result = %v, %v", applied, err)
+	}
+
+	if _, err := sm.Apply(ctx, multiraft.Command{
+		SlotID: 1,
+		Data:   EncodeAddSubscribersCommand("managed", 2, []string{"u1"}, 7),
+	}); err != nil {
+		t.Fatalf("Apply(add subscriber): %v", err)
+	}
+	result, err = sm.Apply(ctx, multiraft.Command{
+		SlotID: 1,
+		Data: EncodePatchChannelBusinessFlagsCommand("managed", 2, metadb.ChannelBusinessFlags{
+			Ban: 0, Disband: 1, SendBan: 1,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(patch): %v", err)
+	}
+	applied, err = DecodeChannelConditionalMutationResult(result)
+	if err != nil || !applied {
+		t.Fatalf("patch result = %v, %v", applied, err)
+	}
+	channel, err := db.ForSlot(1).GetChannel(ctx, "managed", 2)
+	if err != nil {
+		t.Fatalf("GetChannel(): %v", err)
+	}
+	if channel.SubscriberMutationVersion != 7 || channel.SubscriberCount != 1 {
+		t.Fatalf("patch replaced subscriber metadata: %+v", channel)
+	}
+
+	result, err = sm.Apply(ctx, multiraft.Command{
+		SlotID: 1,
+		Data:   EncodePatchChannelBusinessFlagsCommand("missing", 2, metadb.ChannelBusinessFlags{Ban: 1}),
+	})
+	if err != nil {
+		t.Fatalf("Apply(missing patch): %v", err)
+	}
+	applied, err = DecodeChannelConditionalMutationResult(result)
+	if err != nil || applied {
+		t.Fatalf("missing patch result = %v, %v", applied, err)
 	}
 }
 

@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
@@ -79,11 +80,13 @@ beforeEach(() => {
   })
 })
 
-function renderUsersPage() {
+function renderUsersPage(initialEntry = "/business/users") {
   return render(
-    <I18nProvider>
-      <UsersPage />
-    </I18nProvider>,
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <I18nProvider>
+        <UsersPage />
+      </I18nProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -176,4 +179,14 @@ test("maps permission and availability errors", async () => {
   renderUsersPage()
 
   expect(await screen.findByText("The manager service is currently unavailable.")).toBeInTheDocument()
+})
+
+test("opens a user detail deep link from a member UID", async () => {
+  getUsersMock.mockResolvedValue({ items: [userRow], has_more: false })
+  getUserMock.mockResolvedValue(detail)
+
+  renderUsersPage("/business/users?uid=u1")
+
+  expect(await screen.findByText("Device and route state for u1.")).toBeInTheDocument()
+  expect(getUserMock).toHaveBeenCalledWith("u1")
 })

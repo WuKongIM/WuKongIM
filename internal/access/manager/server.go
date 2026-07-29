@@ -129,6 +129,16 @@ type Management interface {
 	DeleteDiagnosticsTrackingRule(ctx context.Context, ruleID string) (managementusecase.DiagnosticsTrackingDeleteResponse, error)
 	// ListBusinessChannels returns manager-facing channel metadata rows.
 	ListBusinessChannels(ctx context.Context, req managementusecase.ListBusinessChannelsRequest) (managementusecase.ListBusinessChannelsResponse, error)
+	// GetBusinessChannel returns one authoritative business channel detail.
+	GetBusinessChannel(ctx context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error)
+	// CreateBusinessChannel creates one new business channel.
+	CreateBusinessChannel(ctx context.Context, req managementusecase.CreateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error)
+	// UpdateBusinessChannel patches one existing business channel.
+	UpdateBusinessChannel(ctx context.Context, req managementusecase.UpdateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error)
+	// ListBusinessChannelMembers returns one member page or exact UID hit.
+	ListBusinessChannelMembers(ctx context.Context, req managementusecase.ListBusinessChannelMembersRequest) (managementusecase.ListBusinessChannelMembersResponse, error)
+	// MutateBusinessChannelMembers applies one bounded member-set mutation.
+	MutateBusinessChannelMembers(ctx context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
 	// RequestChannelLeaderTransfer submits a manual Channel leader transfer.
@@ -544,6 +554,10 @@ func (s *Server) registerRoutes() {
 	}
 	channels.GET("/channel-runtime-meta", s.handleChannelRuntimeMeta)
 	channels.GET("/channels", s.handleBusinessChannels)
+	channels.GET("/channels/:channel_type/:channel_id", s.handleBusinessChannel)
+	channels.GET("/channels/:channel_type/:channel_id/subscribers", s.handleBusinessChannelSubscribers)
+	channels.GET("/channels/:channel_type/:channel_id/allowlist", s.handleBusinessChannelAllowlist)
+	channels.GET("/channels/:channel_type/:channel_id/denylist", s.handleBusinessChannelDenylist)
 	channels.GET("/conversations", s.handleConversations)
 	channels.GET("/messages", s.handleMessages)
 
@@ -583,6 +597,14 @@ func (s *Server) registerRoutes() {
 		channelWrites.Use(s.requirePermission("cluster.channel", "w"))
 	}
 	channelWrites.POST("/messages/retention", s.handleAdvanceMessageRetention)
+	channelWrites.POST("/channels", s.handleBusinessChannelCreate)
+	channelWrites.PATCH("/channels/:channel_type/:channel_id", s.handleBusinessChannelUpdate)
+	channelWrites.POST("/channels/:channel_type/:channel_id/subscribers/add", s.handleBusinessChannelSubscribersAdd)
+	channelWrites.POST("/channels/:channel_type/:channel_id/subscribers/remove", s.handleBusinessChannelSubscribersRemove)
+	channelWrites.POST("/channels/:channel_type/:channel_id/allowlist/add", s.handleBusinessChannelAllowlistAdd)
+	channelWrites.POST("/channels/:channel_type/:channel_id/allowlist/remove", s.handleBusinessChannelAllowlistRemove)
+	channelWrites.POST("/channels/:channel_type/:channel_id/denylist/add", s.handleBusinessChannelDenylistAdd)
+	channelWrites.POST("/channels/:channel_type/:channel_id/denylist/remove", s.handleBusinessChannelDenylistRemove)
 	channelWrites.POST("/channel-migrations/leader-transfer", s.handleChannelMigrationLeaderTransfer)
 	channelWrites.POST("/channel-migrations/replica-replace", s.handleChannelMigrationReplicaReplace)
 	channelWrites.POST("/channel-migrations/:task_id/abort", s.handleChannelMigrationAbort)

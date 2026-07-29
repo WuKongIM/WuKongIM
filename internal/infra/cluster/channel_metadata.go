@@ -22,6 +22,23 @@ type channelSubscriberLookupNode interface {
 	HasChannelSubscribers(context.Context, string, int64) (bool, error)
 }
 
+type authoritativeChannelMetadataNode interface {
+	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
+	ListChannelSubscribersAuthoritative(context.Context, string, int64, string, int) ([]string, string, bool, error)
+	ContainsChannelSubscriberAuthoritative(context.Context, string, int64, string) (bool, error)
+	HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error)
+}
+
+type countedChannelSubscriberMutationNode interface {
+	AddChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error)
+	RemoveChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error)
+}
+
+type conditionalChannelMetadataNode interface {
+	CreateChannelMetadataStrict(context.Context, metadb.Channel) error
+	PatchChannelBusinessFlags(context.Context, string, int64, metadb.ChannelBusinessFlags) error
+}
+
 type restoreChannelSubscriberNode interface {
 	ListRestoreChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
 }
@@ -50,6 +67,9 @@ func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string,
 	if s == nil || s.node == nil {
 		return metadb.Channel{}, metadb.ErrNotFound
 	}
+	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
+		return node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
+	}
 	return s.node.GetChannelMetadata(ctx, channelID, channelType)
 }
 
@@ -67,6 +87,38 @@ func (s *ChannelMetadataStore) UpsertChannel(ctx context.Context, ch metadb.Chan
 		return err
 	}
 	s.appendMetadataCache.storeChannel(ch)
+	return nil
+}
+
+// CreateChannelStrict creates channel metadata exactly once at the Slot leader.
+func (s *ChannelMetadataStore) CreateChannelStrict(ctx context.Context, ch metadb.Channel) error {
+	if s == nil || s.node == nil {
+		return metadb.ErrNotFound
+	}
+	node, ok := s.node.(conditionalChannelMetadataNode)
+	if !ok {
+		return metadb.ErrInvalidArgument
+	}
+	if err := node.CreateChannelMetadataStrict(ctx, ch); err != nil {
+		return err
+	}
+	s.appendMetadataCache.storeChannel(ch)
+	return nil
+}
+
+// PatchChannelBusinessFlags atomically patches only Manager-editable flags.
+func (s *ChannelMetadataStore) PatchChannelBusinessFlags(ctx context.Context, channelID string, channelType int64, flags metadb.ChannelBusinessFlags) error {
+	if s == nil || s.node == nil {
+		return metadb.ErrNotFound
+	}
+	node, ok := s.node.(conditionalChannelMetadataNode)
+	if !ok {
+		return metadb.ErrInvalidArgument
+	}
+	if err := node.PatchChannelBusinessFlags(ctx, channelID, channelType, flags); err != nil {
+		return err
+	}
+	s.appendMetadataCache.Delete(channelappend.ChannelID{ID: channelID, Type: uint8(channelType)})
 	return nil
 }
 
@@ -98,10 +150,37 @@ func (s *ChannelMetadataStore) RemoveChannelSubscribers(ctx context.Context, cha
 	return s.node.RemoveChannelSubscribers(ctx, channelID, channelType, append([]string(nil), uids...), firstSubscriberMutationVersion(subscriberMutationVersion))
 }
 
+// AddChannelSubscribersCounted adds subscribers and returns the exact durable set changes.
+func (s *ChannelMetadataStore) AddChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	if s == nil || s.node == nil {
+		return metadb.SubscriberMutationResult{}, metadb.ErrNotFound
+	}
+	node, ok := s.node.(countedChannelSubscriberMutationNode)
+	if !ok {
+		return metadb.SubscriberMutationResult{}, metadb.ErrInvalidArgument
+	}
+	return node.AddChannelSubscribersCounted(ctx, channelID, channelType, append([]string(nil), uids...), firstSubscriberMutationVersion(subscriberMutationVersion))
+}
+
+// RemoveChannelSubscribersCounted removes subscribers and returns the exact durable set changes.
+func (s *ChannelMetadataStore) RemoveChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	if s == nil || s.node == nil {
+		return metadb.SubscriberMutationResult{}, metadb.ErrNotFound
+	}
+	node, ok := s.node.(countedChannelSubscriberMutationNode)
+	if !ok {
+		return metadb.SubscriberMutationResult{}, metadb.ErrInvalidArgument
+	}
+	return node.RemoveChannelSubscribersCounted(ctx, channelID, channelType, append([]string(nil), uids...), firstSubscriberMutationVersion(subscriberMutationVersion))
+}
+
 // ListChannelSubscribers reads one channel subscriber page from Slot metadata.
 func (s *ChannelMetadataStore) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
 	if s == nil || s.node == nil {
 		return nil, "", true, nil
+	}
+	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
+		return node.ListChannelSubscribersAuthoritative(ctx, channelID, channelType, afterUID, limit)
 	}
 	return s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
 }
@@ -128,25 +207,14 @@ func (s *ChannelMetadataStore) ContainsChannelSubscriber(ctx context.Context, ch
 	if s == nil || s.node == nil || uid == "" {
 		return false, nil
 	}
-	if lookup, ok := s.node.(channelSubscriberLookupNode); ok {
-		return lookup.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
+		return node.ContainsChannelSubscriberAuthoritative(ctx, channelID, channelType, uid)
 	}
-	afterUID := ""
-	for {
-		uids, cursor, done, err := s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, 512)
-		if err != nil {
-			return false, err
-		}
-		for _, next := range uids {
-			if next == uid {
-				return true, nil
-			}
-		}
-		if done || cursor == "" || cursor == afterUID {
-			return false, nil
-		}
-		afterUID = cursor
+	lookup, ok := s.node.(channelSubscriberLookupNode)
+	if !ok {
+		return false, metadb.ErrInvalidArgument
 	}
+	return lookup.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
 }
 
 // HasChannelSubscribers reports whether the channel has at least one subscriber row.
@@ -154,14 +222,14 @@ func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channe
 	if s == nil || s.node == nil {
 		return false, nil
 	}
-	if lookup, ok := s.node.(channelSubscriberLookupNode); ok {
-		return lookup.HasChannelSubscribers(ctx, channelID, channelType)
+	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
+		return node.HasChannelSubscribersAuthoritative(ctx, channelID, channelType)
 	}
-	uids, _, _, err := s.node.ListChannelSubscribersPage(ctx, channelID, channelType, "", 1)
-	if err != nil {
-		return false, err
+	lookup, ok := s.node.(channelSubscriberLookupNode)
+	if !ok {
+		return false, metadb.ErrInvalidArgument
 	}
-	return len(uids) > 0, nil
+	return lookup.HasChannelSubscribers(ctx, channelID, channelType)
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.

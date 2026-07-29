@@ -1,6 +1,7 @@
 import type { FormEvent } from "react"
 import { useCallback, useEffect, useState } from "react"
 import { useIntl } from "react-intl"
+import { useSearchParams } from "react-router-dom"
 
 import { ActionFormDialog } from "@/components/manager/action-form-dialog"
 import { ConfirmDialog } from "@/components/manager/confirm-dialog"
@@ -73,10 +74,12 @@ function mergeUsers(current: ManagerUserListItem[], page: ManagerUsersResponse, 
 
 export function UsersPage() {
   const intl = useIntl()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedUID = searchParams.get("uid")?.trim() ?? ""
   const [state, setState] = useState<UsersState>(emptyUsersState)
   const [keywordInput, setKeywordInput] = useState("")
   const [activeKeyword, setActiveKeyword] = useState("")
-  const [selectedUID, setSelectedUID] = useState<string | null>(null)
+  const [selectedUID, setSelectedUID] = useState<string | null>(() => linkedUID || null)
   const [detail, setDetail] = useState<ManagerUserDetailResponse | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<Error | null>(null)
@@ -140,6 +143,9 @@ export function UsersPage() {
 
   useEffect(() => {
     void runQuery({ keyword: "", refreshing: false })
+    if (linkedUID) {
+      void loadDetail(linkedUID)
+    }
     // Run once on mount; follow-up queries are user driven.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -149,10 +155,15 @@ export function UsersPage() {
     void runQuery({ keyword: keywordInput })
   }
 
-  const openDetail = async (uid: string) => {
+  const openDetail = async (uid: string, updateURL = true) => {
     setSelectedUID(uid)
     setDetail(null)
     setResetResult(null)
+    if (updateURL) {
+      const next = new URLSearchParams(searchParams)
+      next.set("uid", uid)
+      setSearchParams(next)
+    }
     await loadDetail(uid)
   }
 
@@ -166,6 +177,9 @@ export function UsersPage() {
     setKickOpen(false)
     setResetOpen(false)
     setResetResult(null)
+    const next = new URLSearchParams(searchParams)
+    next.delete("uid")
+    setSearchParams(next, { replace: true })
   }
 
   const confirmKick = async () => {

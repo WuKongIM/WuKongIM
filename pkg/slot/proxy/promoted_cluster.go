@@ -1,9 +1,9 @@
 package proxy
 
-import promotedcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+import "context"
 
 type promotedRPCRegistrar interface {
-	RegisterRPC(uint8, promotedcluster.NodeRPCHandler)
+	RegisterSlotProxyRPC(uint8, func(context.Context, []byte) ([]byte, error))
 }
 
 func registerPromotedStoreRPCHandlers(cluster Cluster, handlers []storeRPCRegistration) bool {
@@ -12,7 +12,7 @@ func registerPromotedStoreRPCHandlers(cluster Cluster, handlers []storeRPCRegist
 		return false
 	}
 	for _, handler := range handlers {
-		registrar.RegisterRPC(handler.serviceID, handler.handler)
+		registrar.RegisterSlotProxyRPC(handler.serviceID, handler.handler)
 	}
 	return true
 }

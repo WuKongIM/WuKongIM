@@ -13,12 +13,20 @@ bounded subscriber page/chunk iteration.
 ```text
 App command
   -> Store.GetChannel / UpsertChannel / DeleteChannel
+  -> required-for-Manager conditional CreateChannelStrict / PatchChannelBusinessFlags
   -> Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
+  -> required-for-exact-reads ContainsChannelSubscriber / HasChannelSubscribers
 ```
 
 The store is expected to represent cluster-authoritative Slot metadata. The
 usecase does not add single-node-only branches; single-node deployment is still
 handled by the store implementation as a single-node cluster.
+Manager create, derived-list first creation, and flag patch fail closed unless
+the conditional store extension is present:
+create fails if the row exists, while the partial patch fails if it is missing
+and preserves every field except `Ban`, `Disband`, and `SendBan`.
+Exact membership and non-empty reads likewise require point-lookup capability;
+they never scan a 100,000-member list as a compatibility fallback.
 
 ## Membership Projection Port
 
@@ -59,6 +67,9 @@ Allowlist, denylist, and temporary subscribers are represented as subscriber
 rows on stable internal member-list channel IDs derived by
 `internal/contracts/channelmembers`. This preserves compatibility with the
 legacy metadata layout while keeping the HTTP adapter thin.
+Counted Manager mutations first require the parent channel without creating it.
+The first allowlist/denylist add creates the derived channel; removing from a
+missing derived list returns zero changes without creating storage.
 
 ## Subscriber Mutation Versioning
 
@@ -66,3 +77,5 @@ For ordinary subscribers, each logical mutation reads the current channel
 `SubscriberMutationVersion` and forwards one next version across all chunks in
 that logical operation. Reset operations use the same version for removal of the
 old snapshot and addition of the replacement snapshot.
+Counted mutations return the exact de-duplicated requested count and the exact
+number of durable set changes produced by the Slot FSM apply.

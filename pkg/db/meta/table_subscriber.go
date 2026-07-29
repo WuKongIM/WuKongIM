@@ -45,6 +45,13 @@ var subscriberTable = registerMetaTable(TableSpec[Subscriber]{
 // SubscriberTable describes the subscriber table schema.
 var SubscriberTable = subscriberTable.Schema()
 
+// SubscriberMutationResult reports the distinct requested UIDs and rows that
+// changed in one committed subscriber-set mutation.
+type SubscriberMutationResult struct {
+	RequestedCount int
+	ChangedCount   int
+}
+
 // AddSubscribers adds sorted unique subscribers and advances channel mutation version.
 func (s *Shard) AddSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) error {
 	return s.mutateSubscribers(ctx, channelID, channelType, uids, mutationVersion, true)

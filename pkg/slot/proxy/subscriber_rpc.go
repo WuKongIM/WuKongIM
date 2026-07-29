@@ -3,10 +3,11 @@ package proxy
 import (
 	"context"
 
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const subscriberRPCServiceID uint8 = 10
+const subscriberRPCServiceID uint8 = clusternet.RPCSlotSubscriberMetadata
 
 type subscriberRPCRequest struct {
 	SlotID      uint64 `json:"slot_id"`

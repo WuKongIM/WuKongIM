@@ -1,6 +1,13 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, expect, test, vi } from "vitest"
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom"
 
 import { createAnonymousAuthState, useAuthStore } from "@/auth/auth-store"
 import { resetLocale } from "@/i18n/locale-store"
@@ -10,7 +17,8 @@ import { ChannelsBizPage } from "@/pages/channels-biz/page"
 
 const getBusinessChannelsMock = vi.fn()
 const getBusinessChannelMock = vi.fn()
-const upsertBusinessChannelMock = vi.fn()
+const createBusinessChannelMock = vi.fn()
+const updateBusinessChannelMock = vi.fn()
 const getBusinessChannelMembersMock = vi.fn()
 const addBusinessChannelMembersMock = vi.fn()
 const removeBusinessChannelMembersMock = vi.fn()
@@ -21,7 +29,8 @@ vi.mock("@/lib/manager-api", async (importOriginal) => {
     ...actual,
     getBusinessChannels: (...args: unknown[]) => getBusinessChannelsMock(...args),
     getBusinessChannel: (...args: unknown[]) => getBusinessChannelMock(...args),
-    upsertBusinessChannel: (...args: unknown[]) => upsertBusinessChannelMock(...args),
+    createBusinessChannel: (...args: unknown[]) => createBusinessChannelMock(...args),
+    updateBusinessChannel: (...args: unknown[]) => updateBusinessChannelMock(...args),
     getBusinessChannelMembers: (...args: unknown[]) => getBusinessChannelMembersMock(...args),
     addBusinessChannelMembers: (...args: unknown[]) => addBusinessChannelMembersMock(...args),
     removeBusinessChannelMembers: (...args: unknown[]) => removeBusinessChannelMembersMock(...args),
@@ -65,7 +74,8 @@ beforeEach(() => {
   resetLocale()
   getBusinessChannelsMock.mockReset()
   getBusinessChannelMock.mockReset()
-  upsertBusinessChannelMock.mockReset()
+  createBusinessChannelMock.mockReset()
+  updateBusinessChannelMock.mockReset()
   getBusinessChannelMembersMock.mockReset()
   addBusinessChannelMembersMock.mockReset()
   removeBusinessChannelMembersMock.mockReset()
@@ -81,11 +91,34 @@ beforeEach(() => {
   })
 })
 
-function renderChannelsBizPage() {
+function LocationProbe() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  return (
+    <>
+      <output data-testid="location-search">{location.search}</output>
+      <button onClick={() => navigate(-1)} type="button">Back in history</button>
+    </>
+  )
+}
+
+function renderChannelsBizPage(initialEntry = "/business/channels") {
   return render(
-    <I18nProvider>
-      <ChannelsBizPage />
-    </I18nProvider>,
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <I18nProvider>
+        <Routes>
+          <Route
+            path="/business/channels"
+            element={(
+              <>
+                <ChannelsBizPage />
+                <LocationProbe />
+              </>
+            )}
+          />
+        </Routes>
+      </I18nProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -117,7 +150,7 @@ test("uses editorial business channel inventory and member surfaces", async () =
   expect(within(toolbar).getByPlaceholderText("Search channel ID")).toBeInTheDocument()
   expect(within(toolbar).getByLabelText("Channel type")).toBeInTheDocument()
 
-  await user.click(screen.getByRole("button", { name: "Inspect channel g1" }))
+  await user.click(screen.getByRole("button", { name: "View member data for channel g1" }))
 
   const memberToolbar = await screen.findByTestId("channels-biz-member-toolbar")
   expect(memberToolbar).toHaveClass("rounded-md", "border", "border-border", "bg-muted/30", "p-2")
@@ -169,9 +202,10 @@ test("opens detail and switches member tabs", async () => {
   const user = userEvent.setup()
   renderChannelsBizPage()
 
-  await user.click(await screen.findByRole("button", { name: "Inspect channel g1" }))
+  await user.click(await screen.findByRole("button", { name: "View details for channel g1" }))
 
   expect(await screen.findByText("Subscriber mutation version")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Member data" }))
   expect(await screen.findByText("u1")).toBeInTheDocument()
   expect(getBusinessChannelMock).toHaveBeenCalledWith(2, "g1")
   expect(getBusinessChannelMembersMock).toHaveBeenCalledWith(2, "g1", "subscribers", { limit: 100 })
@@ -183,7 +217,7 @@ test("opens detail and switches member tabs", async () => {
 
 test("creates or updates channel metadata and refreshes the list", async () => {
   getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
-  upsertBusinessChannelMock.mockResolvedValue({
+  createBusinessChannelMock.mockResolvedValue({
     ...groupDetail,
     channel_id: "new-room",
     ban: true,
@@ -199,7 +233,7 @@ test("creates or updates channel metadata and refreshes the list", async () => {
   await user.click(screen.getByLabelText("Ban channel"))
   await user.click(screen.getByRole("button", { name: "Save channel" }))
 
-  expect(upsertBusinessChannelMock).toHaveBeenCalledWith({
+  expect(createBusinessChannelMock).toHaveBeenCalledWith({
     channelId: "new-room",
     channelType: 2,
     ban: true,
@@ -217,19 +251,21 @@ test("adds normalized members and removes one member", async () => {
     channel_id: "g1",
     channel_type: 2,
     list: "subscribers",
-    changed: true,
+    requested_count: 2,
+    changed_count: 2,
   })
   removeBusinessChannelMembersMock.mockResolvedValue({
     channel_id: "g1",
     channel_type: 2,
     list: "subscribers",
-    changed: true,
+    requested_count: 1,
+    changed_count: 1,
   })
 
   const user = userEvent.setup()
   renderChannelsBizPage()
 
-  await user.click(await screen.findByRole("button", { name: "Inspect channel g1" }))
+  await user.click(await screen.findByRole("button", { name: "View member data for channel g1" }))
   expect(await screen.findByText("u1")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Add members" }))
@@ -253,7 +289,7 @@ test("disables ordinary subscriber edits for person channels", async () => {
   const user = userEvent.setup()
   renderChannelsBizPage()
 
-  await user.click(await screen.findByRole("button", { name: "Inspect channel p1" }))
+  await user.click(await screen.findByRole("button", { name: "View member data for channel p1" }))
 
   expect(await screen.findByText("Person channels do not support ordinary subscriber edits.")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Add members" })).toBeDisabled()
@@ -271,4 +307,226 @@ test("maps permission and availability errors", async () => {
   renderChannelsBizPage()
 
   expect(await screen.findByText("The manager service is currently unavailable.")).toBeInTheDocument()
+})
+
+test("opens member data through URL state and browser back closes the sheet", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage()
+
+  await user.click(await screen.findByRole("button", { name: "View member data for channel g1" }))
+  expect(screen.getByTestId("location-search")).toHaveTextContent(
+    "?channel_id=g1&channel_type=2&member_list=subscribers",
+  )
+  expect(await screen.findByRole("table", { name: "Subscribers" })).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Back in history" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("table", { name: "Subscribers" })).not.toBeInTheDocument()
+  })
+})
+
+test("restores a denylist deep link and keeps the member tab order", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "blocked-u1" }], has_more: false })
+
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=denylist")
+
+  expect(await screen.findByText("blocked-u1")).toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenCalledWith(2, "g1", "denylist", { limit: 100 })
+  const toolbar = screen.getByTestId("channels-biz-member-toolbar")
+  expect(
+    within(toolbar)
+      .getAllByRole("button")
+      .map((button) => button.textContent)
+      .filter((label) => ["Subscribers", "Denylist", "Allowlist"].includes(label ?? "")),
+  ).toEqual(["Subscribers", "Denylist", "Allowlist"])
+})
+
+test("preserves an exact legacy channel ID from the deep link", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+
+  renderChannelsBizPage("/business/channels?channel_id=%20legacy%20&channel_type=2&member_list=allowlist")
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenCalledWith(2, " legacy ", "allowlist", { limit: 100 })
+})
+
+test("performs exact UID hit and miss searches and clear returns to page one", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock
+    .mockResolvedValueOnce({ items: [{ uid: "u1" }], has_more: false })
+    .mockResolvedValueOnce({ items: [{ uid: "exact-u" }], has_more: false })
+    .mockResolvedValueOnce({ items: [], has_more: false })
+    .mockResolvedValueOnce({ items: [{ uid: "u1" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("u1")
+  const search = screen.getByLabelText("Exact UID")
+  const memberSearchForm = search.closest("form")
+  expect(memberSearchForm).not.toBeNull()
+  await user.type(search, "exact-u")
+  await user.click(within(memberSearchForm as HTMLFormElement).getByRole("button", { name: "Search" }))
+  expect(await screen.findByText("UID exact-u is in this list.")).toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenLastCalledWith(2, "g1", "subscribers", {
+    limit: 100,
+    uid: "exact-u",
+  })
+
+  await user.clear(search)
+  await user.type(search, "missing-u")
+  await user.click(within(memberSearchForm as HTMLFormElement).getByRole("button", { name: "Search" }))
+  expect(await screen.findByText("UID missing-u is not in this list.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Add missing-u" }))
+  const addDialog = screen.getAllByRole("dialog").at(-1)
+  expect(addDialog).toBeDefined()
+  expect(within(addDialog as HTMLElement).getByLabelText("UIDs")).toHaveValue("missing-u")
+  await user.click(within(addDialog as HTMLElement).getByRole("button", { name: "Cancel" }))
+
+  await user.click(screen.getByRole("button", { name: "Clear search" }))
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenLastCalledWith(2, "g1", "subscribers", {
+    limit: 100,
+  })
+})
+
+test("manually refreshes the active authoritative member page", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock
+    .mockResolvedValueOnce({ items: [{ uid: "before-refresh" }], has_more: false })
+    .mockResolvedValueOnce({ items: [{ uid: "after-refresh" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("before-refresh")
+  await user.click(screen.getByRole("button", { name: "Refresh member data" }))
+  expect(await screen.findByText("after-refresh")).toBeInTheDocument()
+  expect(screen.queryByText("before-refresh")).not.toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenLastCalledWith(2, "g1", "subscribers", {
+    limit: 100,
+  })
+})
+
+test("retries an exact-mode refresh without losing the exact UID query", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock
+    .mockResolvedValueOnce({ items: [{ uid: "u1" }], has_more: false })
+    .mockResolvedValueOnce({ items: [{ uid: "exact-u" }], has_more: false })
+    .mockRejectedValueOnce(new Error("exact refresh failed"))
+    .mockResolvedValueOnce({ items: [{ uid: "exact-u" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("u1")
+  const search = screen.getByLabelText("Exact UID")
+  const memberSearchForm = search.closest("form")
+  await user.type(search, "exact-u")
+  await user.click(within(memberSearchForm as HTMLFormElement).getByRole("button", { name: "Search" }))
+  await screen.findByText("UID exact-u is in this list.")
+
+  await user.click(screen.getByRole("button", { name: "Refresh member data" }))
+  await screen.findByText("exact refresh failed")
+  await user.click(screen.getByRole("button", { name: "Retry" }))
+
+  await waitFor(() => {
+    expect(getBusinessChannelMembersMock).toHaveBeenLastCalledWith(2, "g1", "subscribers", {
+      limit: 100,
+      uid: "exact-u",
+    })
+  })
+})
+
+test("uses current-page cursor navigation and preserves the page after a next read failure", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock
+    .mockResolvedValueOnce({ items: [{ uid: "page-1" }], has_more: true, next_cursor: "cursor-2" })
+    .mockResolvedValueOnce({ items: [{ uid: "page-2" }], has_more: true, next_cursor: "cursor-3" })
+    .mockRejectedValueOnce(new Error("next failed"))
+    .mockResolvedValueOnce({ items: [{ uid: "page-1" }], has_more: true, next_cursor: "cursor-2" })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("page-1")
+  await user.click(screen.getByRole("button", { name: "Next" }))
+  expect(await screen.findByText("page-2")).toBeInTheDocument()
+  expect(screen.queryByText("page-1")).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Next" }))
+  expect(await screen.findByText("next failed")).toBeInTheDocument()
+  expect(screen.getByText("page-2")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Previous" }))
+  expect(await screen.findByText("page-1")).toBeInTheDocument()
+  expect(getBusinessChannelMembersMock).toHaveBeenLastCalledWith(2, "g1", "subscribers", {
+    limit: 100,
+  })
+})
+
+test("hides every channel write control for read-only permissions", async () => {
+  useAuthStore.setState({
+    permissions: [{ resource: "cluster.channel", actions: ["r"] }],
+  })
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  expect(await screen.findByText("u1")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "New channel" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Add members" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Remove members" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Remove member u1" })).not.toBeInTheDocument()
+})
+
+test("rejects an invalid UID batch before writing", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("u1")
+  await user.click(screen.getByRole("button", { name: "Add members" }))
+  await user.type(screen.getByLabelText("UIDs"), "valid-u, invalid uid")
+  const dialog = screen.getAllByRole("dialog").at(-1)
+  expect(dialog).toBeDefined()
+  await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Add members" }))
+
+  expect(await screen.findByText(/These UIDs are invalid: invalid uid/)).toBeInTheDocument()
+  expect(addBusinessChannelMembersMock).not.toHaveBeenCalled()
+})
+
+test("bulk removal requires a channel-list-count-preview confirmation", async () => {
+  getBusinessChannelsMock.mockResolvedValue({ items: [groupChannel], has_more: false })
+  getBusinessChannelMembersMock.mockResolvedValue({ items: [{ uid: "u1" }], has_more: false })
+  removeBusinessChannelMembersMock.mockResolvedValue({
+    channel_id: "g1",
+    channel_type: 2,
+    list: "subscribers",
+    requested_count: 2,
+    changed_count: 1,
+  })
+
+  const user = userEvent.setup()
+  renderChannelsBizPage("/business/channels?channel_id=g1&channel_type=2&member_list=subscribers")
+
+  await screen.findByText("u1")
+  await user.click(screen.getByRole("button", { name: "Remove members" }))
+  await user.type(screen.getByLabelText("UIDs to remove"), "u1;u2")
+  await user.click(screen.getByRole("button", { name: "Review removal" }))
+
+  expect(screen.getByText(/Channel: g1 \(2\).*List: Subscribers.*Remove 2 UID\(s\).*u1, u2/)).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Confirm remove" }))
+  expect(removeBusinessChannelMembersMock).toHaveBeenCalledWith(2, "g1", "subscribers", {
+    uids: ["u1", "u2"],
+  })
+  expect(await screen.findByText("Processed 2; changed 1.")).toBeInTheDocument()
 })

@@ -42,6 +42,16 @@ type Info struct {
 	AllowStranger bool
 }
 
+// BusinessFlags contains the Manager-editable channel flags.
+type BusinessFlags struct {
+	// Ban blocks all channel messaging.
+	Ban bool
+	// Disband marks the channel as disbanded.
+	Disband bool
+	// SendBan blocks sends while preserving receive semantics.
+	SendBan bool
+}
+
 // UpsertCommand updates channel metadata and optionally applies subscribers.
 type UpsertCommand struct {
 	// Info contains the metadata to persist.
