@@ -205,6 +205,23 @@ func TestIssueAgentControlIntakeRolloutAdmitsOnlyIntakeAndAuthorization(
        needs.planner.outputs.operation == 'authorize'`)
 }
 
+func TestIssueAgentControlFallsBackToGitHubEventNameWhenPayloadHasNoOverride(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	raw := string(readWorkflow(t, "issue-agent-control.yml"))
+	require.Contains(t, raw,
+		`event_name="$(jq -r '.event_name // ""' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"`,
+	)
+	require.Contains(t, raw, `if [[ -z "$event_name" ]]; then
+            event_name="$GITHUB_EVENT_NAME"
+          fi`)
+	require.NotContains(t, raw,
+		`event_name="$(jq -r '.event_name' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"`,
+	)
+}
+
 func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
 	t.Parallel()
 
