@@ -2,9 +2,11 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -82,6 +84,27 @@ func TestChannelMetadataStoreUsesAuthoritativeChannelReads(t *testing.T) {
 	}
 }
 
+func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
+	node := &localOnlyChannelMetadataNode{}
+	store := NewChannelMetadataStore(node, nil)
+
+	if _, err := store.GetChannel(context.Background(), "g1", 2); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("GetChannel() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, _, _, err := store.ListChannelSubscribers(context.Background(), "g1", 2, "", 100); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("ListChannelSubscribers() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, err := store.ContainsChannelSubscriber(context.Background(), "g1", 2, "u1"); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("ContainsChannelSubscriber() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, err := store.HasChannelSubscribers(context.Background(), "g1", 2); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("HasChannelSubscribers() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if node.localReadCalls != 0 {
+		t.Fatalf("local read calls = %d, want 0", node.localReadCalls)
+	}
+}
+
 func TestChannelMetadataStoreReturnsCountedMutationResults(t *testing.T) {
 	node := &recordingChannelMetadataNode{
 		addResult:    metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
@@ -97,6 +120,36 @@ func TestChannelMetadataStoreReturnsCountedMutationResults(t *testing.T) {
 	if err != nil || removed != node.removeResult {
 		t.Fatalf("RemoveChannelSubscribersCounted() = %#v err=%v", removed, err)
 	}
+}
+
+type localOnlyChannelMetadataNode struct {
+	localReadCalls int
+}
+
+func (n *localOnlyChannelMetadataNode) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
+	n.localReadCalls++
+	return metadb.Channel{}, nil
+}
+
+func (*localOnlyChannelMetadataNode) UpsertChannelMetadata(context.Context, metadb.Channel) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) DeleteChannelMetadata(context.Context, string, int64) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) AddChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) RemoveChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (n *localOnlyChannelMetadataNode) ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	n.localReadCalls++
+	return nil, "", true, nil
 }
 
 type recordingChannelMetadataNode struct {

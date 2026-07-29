@@ -2,7 +2,6 @@ package manager
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -13,7 +12,6 @@ import (
 	"unicode/utf8"
 
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
-	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/gin-gonic/gin"
@@ -423,7 +421,7 @@ func writeBusinessChannelListError(c *gin.Context, err error) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
 	case errors.Is(err, managementusecase.ErrBusinessChannelReaderUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel reader unavailable")
-	case controlSnapshotUnavailable(err):
+	case errors.Is(err, managementusecase.ErrBusinessChannelControlUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller snapshot unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())
@@ -438,15 +436,11 @@ func writeBusinessChannelError(c *gin.Context, err error) {
 		jsonError(c, http.StatusNotFound, "not_found", "channel not found")
 	case errors.Is(err, metadb.ErrAlreadyExists):
 		jsonError(c, http.StatusConflict, "conflict", "channel state conflict")
+	case errors.Is(err, managementusecase.ErrBusinessChannelControlUnavailable):
+		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "controller snapshot unavailable")
 	case errors.Is(err, managementusecase.ErrBusinessChannelOperatorUnavailable),
 		errors.Is(err, managementusecase.ErrBusinessChannelReaderUnavailable),
-		errors.Is(err, cluster.ErrNotStarted),
-		errors.Is(err, cluster.ErrStopping),
-		errors.Is(err, cluster.ErrRouteNotReady),
-		errors.Is(err, cluster.ErrNoSlotLeader),
-		errors.Is(err, cluster.ErrNotLeader),
-		errors.Is(err, cluster.ErrSlotNotFound),
-		errors.Is(err, context.DeadlineExceeded):
+		errors.Is(err, managementusecase.ErrBusinessChannelAuthorityUnavailable):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "slot leader authoritative operation unavailable")
 	default:
 		jsonError(c, http.StatusInternalServerError, "internal_error", err.Error())

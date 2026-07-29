@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -95,6 +96,42 @@ func TestBusinessChannelMemberValidationRejectsWholeBatch(t *testing.T) {
 		if !errors.Is(err, metadb.ErrInvalidArgument) {
 			t.Fatalf("MutateBusinessChannelMembers(%q) error = %v", uids, err)
 		}
+	}
+}
+
+func TestBusinessChannelOperationsNormalizeClusterAuthorityErrors(t *testing.T) {
+	app := New(Options{ChannelBusinessOperator: &fakeBusinessChannelOperator{
+		err: clusterpkg.ErrRouteNotReady,
+	}})
+
+	_, err := app.ListBusinessChannelMembers(context.Background(), ListBusinessChannelMembersRequest{
+		ChannelID: "g1", ChannelType: 2, ListKind: "subscribers", Limit: 100,
+	})
+	if !errors.Is(err, ErrBusinessChannelAuthorityUnavailable) || !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("ListBusinessChannelMembers() error = %v, want authority and route-not-ready errors", err)
+	}
+}
+
+func TestBusinessChannelOperationsNormalizeControlSnapshotErrors(t *testing.T) {
+	snapshotErr := clusterpkg.ErrNotStarted
+	cluster := fakeNodeSnapshotReader{err: snapshotErr}
+
+	listApp := New(Options{
+		Cluster:               cluster,
+		ChannelBusinessReader: newFakeBusinessChannelReader(),
+	})
+	if _, err := listApp.ListBusinessChannels(context.Background(), ListBusinessChannelsRequest{Limit: 10}); !errors.Is(err, ErrBusinessChannelControlUnavailable) || !errors.Is(err, snapshotErr) {
+		t.Fatalf("ListBusinessChannels() error = %v, want control-unavailable and cluster errors", err)
+	}
+
+	detailApp := New(Options{
+		Cluster: cluster,
+		ChannelBusinessOperator: &fakeBusinessChannelOperator{
+			channel: metadb.Channel{ChannelID: "g1", ChannelType: 2},
+		},
+	})
+	if _, err := detailApp.GetBusinessChannel(context.Background(), "g1", 2); !errors.Is(err, ErrBusinessChannelControlUnavailable) || !errors.Is(err, snapshotErr) {
+		t.Fatalf("GetBusinessChannel() error = %v, want control-unavailable and cluster errors", err)
 	}
 }
 
@@ -281,6 +318,7 @@ type fakeRemoteBusinessChannelReader struct {
 
 type fakeBusinessChannelOperator struct {
 	channel        metadb.Channel
+	err            error
 	hasSubscribers bool
 	hasAllowlist   bool
 	hasDenylist    bool
@@ -290,6 +328,9 @@ type fakeBusinessChannelOperator struct {
 }
 
 func (f *fakeBusinessChannelOperator) GetMetadata(context.Context, BusinessChannelKey) (metadb.Channel, error) {
+	if f.err != nil {
+		return metadb.Channel{}, f.err
+	}
 	if f.channel.ChannelID == "" {
 		return metadb.Channel{}, metadb.ErrNotFound
 	}

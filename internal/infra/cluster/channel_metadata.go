@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -15,11 +16,6 @@ type ChannelMetadataNode interface {
 	AddChannelSubscribers(context.Context, string, int64, []string, uint64) error
 	RemoveChannelSubscribers(context.Context, string, int64, []string, uint64) error
 	ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error)
-}
-
-type channelSubscriberLookupNode interface {
-	ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error)
-	HasChannelSubscribers(context.Context, string, int64) (bool, error)
 }
 
 type authoritativeChannelMetadataNode interface {
@@ -62,15 +58,16 @@ func NewChannelMetadataStore(node ChannelMetadataNode, appendMetadataCache *Chan
 	return &ChannelMetadataStore{node: node, membershipNode: membershipNode, appendMetadataCache: appendMetadataCache}
 }
 
-// GetChannel reads channel metadata from the current Slot route.
+// GetChannel reads channel metadata from the authoritative Slot leader.
 func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	if s == nil || s.node == nil {
-		return metadb.Channel{}, metadb.ErrNotFound
+		return metadb.Channel{}, clusterpkg.ErrRouteNotReady
 	}
-	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
-		return node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
+	node, ok := s.node.(authoritativeChannelMetadataNode)
+	if !ok {
+		return metadb.Channel{}, clusterpkg.ErrRouteNotReady
 	}
-	return s.node.GetChannelMetadata(ctx, channelID, channelType)
+	return node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
 }
 
 // GetChannelForPermission reads channel metadata for send authorization.
@@ -174,15 +171,16 @@ func (s *ChannelMetadataStore) RemoveChannelSubscribersCounted(ctx context.Conte
 	return node.RemoveChannelSubscribersCounted(ctx, channelID, channelType, append([]string(nil), uids...), firstSubscriberMutationVersion(subscriberMutationVersion))
 }
 
-// ListChannelSubscribers reads one channel subscriber page from Slot metadata.
+// ListChannelSubscribers reads one channel subscriber page from the authoritative Slot leader.
 func (s *ChannelMetadataStore) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
 	if s == nil || s.node == nil {
-		return nil, "", true, nil
+		return nil, "", false, clusterpkg.ErrRouteNotReady
 	}
-	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
-		return node.ListChannelSubscribersAuthoritative(ctx, channelID, channelType, afterUID, limit)
+	node, ok := s.node.(authoritativeChannelMetadataNode)
+	if !ok {
+		return nil, "", false, clusterpkg.ErrRouteNotReady
 	}
-	return s.node.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+	return node.ListChannelSubscribersAuthoritative(ctx, channelID, channelType, afterUID, limit)
 }
 
 // ListChannelSubscribersForRestore reads the restored local Slot metadata
@@ -204,32 +202,29 @@ func (s *ChannelMetadataStore) ListChannelSubscribersForRestore(ctx context.Cont
 
 // ContainsChannelSubscriber performs a subscriber point lookup for send authorization.
 func (s *ChannelMetadataStore) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
-	if s == nil || s.node == nil || uid == "" {
+	if uid == "" {
 		return false, nil
 	}
-	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
-		return node.ContainsChannelSubscriberAuthoritative(ctx, channelID, channelType, uid)
+	if s == nil || s.node == nil {
+		return false, clusterpkg.ErrRouteNotReady
 	}
-	lookup, ok := s.node.(channelSubscriberLookupNode)
+	node, ok := s.node.(authoritativeChannelMetadataNode)
 	if !ok {
-		return false, metadb.ErrInvalidArgument
+		return false, clusterpkg.ErrRouteNotReady
 	}
-	return lookup.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+	return node.ContainsChannelSubscriberAuthoritative(ctx, channelID, channelType, uid)
 }
 
 // HasChannelSubscribers reports whether the channel has at least one subscriber row.
 func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
 	if s == nil || s.node == nil {
-		return false, nil
+		return false, clusterpkg.ErrRouteNotReady
 	}
-	if node, ok := s.node.(authoritativeChannelMetadataNode); ok {
-		return node.HasChannelSubscribersAuthoritative(ctx, channelID, channelType)
-	}
-	lookup, ok := s.node.(channelSubscriberLookupNode)
+	node, ok := s.node.(authoritativeChannelMetadataNode)
 	if !ok {
-		return false, metadb.ErrInvalidArgument
+		return false, clusterpkg.ErrRouteNotReady
 	}
-	return lookup.HasChannelSubscribers(ctx, channelID, channelType)
+	return node.HasChannelSubscribersAuthoritative(ctx, channelID, channelType)
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.
