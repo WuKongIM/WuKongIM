@@ -197,8 +197,6 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
 	t *testing.T,
 ) {
-	t.Parallel()
-
 	helperPath := filepath.Join(
 		repoRoot(t), ".github", "issue-agent",
 		"check-reproduction-compatibility.sh",

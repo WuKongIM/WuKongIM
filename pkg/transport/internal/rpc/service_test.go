@@ -57,8 +57,11 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 		t.Fatalf("reply payload = %q, want ok", resp.Payload)
 	}
 
-	events := waitForEvent(t, observer, func(event core.Event) bool {
+	waitForEvent(t, observer, func(event core.Event) bool {
 		return event.Name == "service_task" && event.ServiceID == 42 && event.Result == "ok"
+	})
+	events := waitForEvent(t, observer, func(event core.Event) bool {
+		return event.Name == "service_inflight" && event.ServiceID == 42 && event.Inflight == 0
 	})
 	okAdmission := findEvent(events, "service_admission", "ok")
 	if okAdmission == nil {
