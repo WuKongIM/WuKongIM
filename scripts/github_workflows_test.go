@@ -30,6 +30,7 @@ type ciWorkflow struct {
 
 type ciConcurrency struct {
 	Group            string `yaml:"group"`
+	Queue            string `yaml:"queue"`
 	CancelInProgress *bool  `yaml:"cancel-in-progress"`
 }
 

@@ -78,6 +78,14 @@ The three Actions workflows have separate responsibilities:
 | `issue-agent-run.yml` | Recover an exact task, run one model and sandbox, then publish its Artifact | One provider key in its provider Environment; App/checkpoint keys only in the later Publisher job |
 | `issue-agent-reconcile.yml` | Hourly bounded recovery and dispatch | App key only in the dispatcher |
 
+All Issue-writing Publisher jobs in the control and Worker workflows share one
+non-cancelling concurrency group per repository and Issue, with the maximum
+bounded pending queue so later jobs do not replace earlier waiters. Model jobs
+execute outside that Publisher group. A cancellation or new generation can
+therefore append its checkpoint while a model is still running; the later
+Worker Publisher acquires the same group, re-reads the chain, and rejects its
+stale predecessor before writing.
+
 The Worker checks out protected control code from `main` and target code at an
 exact signed SHA with persisted credentials disabled. It prefetches Go modules,
 then runs approved typed tools inside the digest-pinned Docker image from

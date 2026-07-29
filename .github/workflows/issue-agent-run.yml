@@ -336,6 +336,10 @@ jobs:
       needs.planner.result == 'success' &&
       ((needs.planner.outputs.provider == 'codex' && needs.codex-worker.result == 'success') ||
        (needs.planner.outputs.provider == 'deepseek' && needs.deepseek-worker.result == 'success'))
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ inputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: issue-agent-publisher

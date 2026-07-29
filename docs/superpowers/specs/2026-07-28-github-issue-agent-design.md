@@ -820,7 +820,13 @@ The global scheduling portion uses one non-cancelling Actions concurrency
 group so competing repository events cannot allocate capacity concurrently.
 It selects eligible Issues, asks the Publisher to append lease checkpoints,
 and dispatches per-Issue runs. Each per-Issue execution uses its own
-non-cancelling concurrency group.
+non-cancelling concurrency group. Every Issue-writing Publisher job in both
+the control and Worker workflows additionally shares one non-cancelling group
+per repository and Issue. That group uses the maximum bounded pending queue so
+later Publishers cannot replace earlier waiters. The model runs outside that
+Publisher group, allowing a cancellation or generation change to append first;
+a later Worker Publisher must acquire the group and re-read the new predecessor
+before any write.
 
 ### Lease
 

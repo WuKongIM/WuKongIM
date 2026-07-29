@@ -272,6 +272,10 @@ jobs:
     name: Publish deterministic intake
     needs: [planner]
     if: needs.planner.outputs.operation == 'intake'
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: issue-agent-publisher
@@ -337,6 +341,10 @@ jobs:
       needs.planner.outputs.operation == 'recover_chain' ||
       needs.planner.outputs.operation == 'backport' ||
       needs.planner.outputs.operation == 'observe_merge'
+    concurrency:
+      group: issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}
+      queue: max
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     environment: issue-agent-publisher

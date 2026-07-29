@@ -68,6 +68,14 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 			case name == "issue-agent-control.yml" &&
 				(jobName == "intake-publisher" || jobName == "state-publisher"):
 				require.Equal(t, "issue-agent-publisher", job.Environment)
+				require.NotNil(t, job.Concurrency)
+				require.Equal(t,
+					"issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}",
+					job.Concurrency.Group,
+				)
+				require.Equal(t, "max", job.Concurrency.Queue)
+				require.NotNil(t, job.Concurrency.CancelInProgress)
+				require.False(t, *job.Concurrency.CancelInProgress)
 				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				if jobName == "state-publisher" {
 					require.Equal(t, map[string]string{
@@ -91,6 +99,14 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 			case name == "issue-agent-run.yml" && jobName == "publisher":
 				require.Equal(t, "issue-agent-publisher", job.Environment)
+				require.NotNil(t, job.Concurrency)
+				require.Equal(t,
+					"issue-agent-publisher-${{ github.repository }}-${{ inputs.issue_number }}",
+					job.Concurrency.Group,
+				)
+				require.Equal(t, "max", job.Concurrency.Queue)
+				require.NotNil(t, job.Concurrency.CancelInProgress)
+				require.False(t, *job.Concurrency.CancelInProgress)
 				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 				require.NotContains(t, jobText, "CODEX_API_KEY")
