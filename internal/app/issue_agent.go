@@ -122,6 +122,10 @@ type publishIntakePayload struct {
 	PossibleDuplicates []string `json:"possible_duplicates"`
 }
 
+type publishIntakeResult struct {
+	Complete bool `json:"complete"`
+}
+
 type publishAuthorizationPayload struct {
 	BaseURL      string                  `json:"base_url"`
 	Repository   string                  `json:"repository"`
@@ -3996,7 +4000,7 @@ func publishIntake(
 	if err := client.SetIssueLabels(ctx, payload.IssueNumber, labels); err != nil {
 		return nil, err
 	}
-	return plan, nil
+	return publishIntakeResult{Complete: plan.Complete}, nil
 }
 
 func publishAuthorization(
