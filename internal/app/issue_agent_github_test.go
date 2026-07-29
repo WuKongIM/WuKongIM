@@ -23,7 +23,7 @@ import (
 func TestPublisherPerformsDeterministicIntakeWithoutModelOrExecution(t *testing.T) {
 	t.Parallel()
 
-	body := renderedCompleteBugForm()
+	body := renderedCompleteBugFormWithoutAffectedVersion()
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -73,7 +73,7 @@ func TestPublisherCreatesFirstSignedCheckpointOnlyForFreshMaintainerLabel(t *tes
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	body := renderedCompleteBugForm()
+	body := renderedCompleteBugFormWithoutAffectedVersion()
 	var postedComment string
 	server := httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -163,6 +163,10 @@ func TestPublisherCreatesFirstSignedCheckpointOnlyForFreshMaintainerLabel(t *tes
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Contains(t, postedComment, "wukongim-issue-agent-checkpoint:v1")
+	require.Contains(t, postedComment,
+		`"affected_version":"0123456789abcdef0123456789abcdef01234567"`)
+	require.Contains(t, postedComment,
+		`"reported_ref":"0123456789abcdef0123456789abcdef01234567"`)
 }
 
 func TestPublisherPinsReleaseAndBaselineFromFreshGitHubFacts(t *testing.T) {
@@ -876,6 +880,26 @@ Linux; three-node-cluster; Go SDK
 ### Expected and actual result
 
 Expected delivery; observed timeout.
+`
+}
+
+func renderedCompleteBugFormWithoutAffectedVersion() string {
+	return `### Affected version
+
+_No response_
+
+### Environment, topology, and client
+
+Linux; HTTP API
+
+### Reproduction steps
+
+1. create channels under load
+2. send personal messages
+
+### Expected and actual result
+
+Expected successful requests; observed low QPS and authority cache pressure.
 `
 }
 

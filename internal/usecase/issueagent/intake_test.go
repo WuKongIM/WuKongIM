@@ -47,6 +47,33 @@ No credentials included.
 	require.False(t, plan.CreateBranch)
 }
 
+func TestIntakeAllowsAffectedVersionToDefaultAtAuthorization(t *testing.T) {
+	t.Parallel()
+
+	body := `### Affected version
+
+_No response_
+
+### Environment, topology, and client
+
+Linux; HTTP API
+
+### Reproduction steps
+
+1. create channels under load
+2. send personal messages
+
+### Expected and actual result
+
+Expected successful requests; observed low QPS and authority cache pressure.
+`
+	plan, err := issueagentusecase.PlanIntake(body, nil)
+	require.NoError(t, err)
+	require.True(t, plan.Complete)
+	require.Empty(t, plan.Form.AffectedVersion)
+	require.NotContains(t, plan.Missing, "affected version")
+}
+
 func TestIntakeRequestsOnlyMissingOrUnusableRequiredFields(t *testing.T) {
 	t.Parallel()
 

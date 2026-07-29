@@ -171,6 +171,44 @@ func TestBuildReproductionTaskOnlyAllowsFocusedE2EChanges(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestReproductionTopologyDefaultsToSingleNodeAndHonorsExplicitMultiNode(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	for _, environment := range []string{
+		"",
+		"Linux; HTTP API",
+		"Linux; single-node cluster; Go SDK",
+		"Linux; 单节点集群; HTTP API",
+	} {
+		topology, err := issueagentusecase.ReproductionTopology(environment)
+		require.NoError(t, err)
+		require.Equal(t, "single-node-cluster", topology)
+	}
+	for _, environment := range []string{
+		"Linux; three-node cluster; Go SDK",
+		"Linux; multi-node cluster; HTTP API",
+		"Linux; 2-node cluster; HTTP API",
+		"Linux; cluster has 5 nodes; HTTP API",
+		"Linux；三节点集群；HTTP API",
+		"Linux；2节点集群；HTTP API",
+		"Linux；多节点；HTTP API",
+	} {
+		topology, err := issueagentusecase.ReproductionTopology(environment)
+		require.NoError(t, err)
+		require.Equal(t, "three-node-cluster", topology)
+	}
+
+	_, err := issueagentusecase.ReproductionTopology(
+		"single-node cluster upgraded to three-node cluster",
+	)
+	require.Error(t, err)
+
+	_, err = issueagentusecase.ReproductionTopology("Linux; 0-node cluster")
+	require.Error(t, err)
+}
+
 func observedRuns(
 	firstID int64,
 	sha string,

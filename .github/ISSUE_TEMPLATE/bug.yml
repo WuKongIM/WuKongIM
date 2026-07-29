@@ -14,16 +14,16 @@ body:
     id: affected_version
     attributes:
       label: Affected version
-      description: Use an exact release tag, full commit SHA, or image digest—not "latest".
+      description: Optional. Use an exact release tag, full commit SHA, or image digest—not "latest"; leave blank to use the main commit at maintainer authorization time.
       placeholder: v2.1.0
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: environment
     attributes:
       label: Environment, topology, and client
-      description: Briefly include deployment method, cluster size, operating system, and client/SDK version.
+      description: Briefly include deployment method, operating system, and client/SDK version. Topology is optional and defaults to a single-node cluster.
       placeholder: Docker; three-node cluster; Linux; Go SDK v1.2.3
     validations:
       required: true

@@ -95,4 +95,32 @@ func TestResolveVersionsRejectsMovingMissingAmbiguousAndUnverifiedRefs(t *testin
 	require.NotContains(t, err.Error(), "backend secret")
 }
 
+func TestAffectedVersionForAuthorizationDefaultsToExactMainSHA(t *testing.T) {
+	t.Parallel()
+
+	reported, err := issueagentusecase.AffectedVersionForAuthorization("", baseSHA)
+	require.NoError(t, err)
+	require.Equal(t, baseSHA, reported)
+
+	reported, err = issueagentusecase.AffectedVersionForAuthorization(
+		"v2.1.0", baseSHA,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "v2.1.0", reported)
+
+	for _, input := range []struct {
+		reported string
+		mainSHA  string
+	}{
+		{reported: "latest", mainSHA: baseSHA},
+		{reported: "main", mainSHA: baseSHA},
+		{reported: "", mainSHA: "not-a-sha"},
+	} {
+		_, err := issueagentusecase.AffectedVersionForAuthorization(
+			input.reported, input.mainSHA,
+		)
+		require.Error(t, err)
+	}
+}
+
 var _ issueagentusecase.SourceResolver = fakeSourceResolver{}

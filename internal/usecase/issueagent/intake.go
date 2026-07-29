@@ -154,7 +154,8 @@ func cleanFormValue(value string) string {
 
 func requiredBugFacts(form BugForm) []string {
 	var missing []string
-	if !validImmutableVersionSyntax(form.AffectedVersion) {
+	if form.AffectedVersion != "" &&
+		!validImmutableVersionSyntax(form.AffectedVersion) {
 		missing = append(missing, "affected version")
 	}
 	if form.Environment == "" {
@@ -193,7 +194,7 @@ func intakeRequest(missing, candidates []string) string {
 	var builder strings.Builder
 	builder.WriteString("Thanks for the report. Before a maintainer can authorize the Issue Agent, please update: ")
 	builder.WriteString(strings.Join(missing, "; "))
-	builder.WriteString(". Use an exact release tag, full commit SHA, or image digest for the affected version.")
+	builder.WriteString(". If supplied, the affected version must be an exact release tag, full commit SHA, or image digest; leave it blank to use the main commit at authorization time.")
 	duplicates := validDuplicateLinks(candidates)
 	if len(duplicates) > 0 {
 		builder.WriteString("\n\npossible duplicate")
