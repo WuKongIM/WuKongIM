@@ -17,11 +17,14 @@ and maintenance restore. Scheduling and state-machine policy remain in
   there and reject every symlink inside the repository.
 - `oss` uses an Alibaba Cloud OSS region, bucket, prefix, and optional endpoint
   override. When the override is empty, the provider derives the standard
-  public endpoint from Region. It forces virtual-host addressing.
+  public S3-compatible endpoint from Region. It forces virtual-host addressing.
+  Atomic create-only writes use OSS's native `x-oss-forbid-overwrite` behavior.
 - `cos` uses a Tencent Cloud COS region, full bucket name including APPID,
   prefix, and optional endpoint override. When the override is empty, the
   provider derives the standard public endpoint from Region. It forces
-  virtual-host addressing.
+  virtual-host addressing. Atomic create-only writes add COS's native
+  `x-cos-forbid-overwrite` behavior and map both 304 and 412 conflicts to the
+  repository's immutable-object result.
 - `s3` uses one generic S3-compatible endpoint, optional region, bucket, prefix,
   and automatic or path-style addressing.
 
@@ -29,8 +32,18 @@ All object-storage access/secret key pairs are authenticated-encrypted before
 Controller publication and decrypted only while opening a client.
 
 `SharedRepositoryProbe` writes one coordinator marker, asks every active data
-node to observe it and write a receipt, verifies all receipts, then removes the
-probe subtree. Configuration is not published if any node lacks access.
+node to open the independently configured repository, observe the marker, and
+write a receipt, verifies every receipt plus the bounded listing, then removes
+the probe subtree. This probe runs only for the separately requested test of an
+exact saved plan revision; saving configuration performs no repository I/O.
+
+Open, marker read/write, receipt read/write, list, delete, identity binding, and
+verification-publication failures are classified into stable
+`RepositoryAccessError` stages and reasons. Provider codes and request IDs are
+retained only after bounded control-character filtering. Remote node failures
+cross RPC as the secret-safe failure DTO and regain the exact node ID at the
+coordinator; credentials and raw provider error bodies never cross that
+boundary.
 
 ## Controller state
 

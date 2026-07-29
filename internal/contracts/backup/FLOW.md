@@ -22,6 +22,14 @@ Repository credentials cross this package only as encrypted values. Public
 projections use a credential-present boolean and never expose ciphertext or
 plaintext secrets.
 
+`RepositoryVerification` records whether the exact effective repository saved
+in that plan revision completed the cluster visibility probe. New or changed
+repositories are explicitly `unverified`; an absent record is accepted only as
+legacy verified state for plans published before this contract existed. The
+effective repository includes provider, endpoint, region, bucket, prefix,
+addressing mode, and credential revision, so rotating credentials invalidates
+verification without exposing the credential itself.
+
 Each backup job contains exactly one bounded `SlotBackupProgress` entry for
 every logical Hash Slot. Jobs are resumable and Controller-Leader-fenced by
 owner node and term. A complete archive is independent; jobs never carry prior
@@ -48,6 +56,12 @@ Repository probes exchange only a generated marker and its digest. Restore
 RPCs carry exact archive and Slot identities, expected topology, repository
 configuration, target activation, and bounded per-replica evidence. They do
 not carry repository credentials back through Manager responses.
+
+Repository probe failures may cross node RPC only as the bounded
+`RepositoryAccessFailure` DTO: provider, operation stage, stable reason,
+provider code, request ID, and data-node ID. The internal cause and all
+credentials, endpoints with embedded secrets, payloads, and response bodies
+remain node-local.
 
 ## Boundary Rules
 
