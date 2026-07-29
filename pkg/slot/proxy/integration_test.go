@@ -585,6 +585,57 @@ func TestStoreListChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	require.True(t, done)
 }
 
+func TestStoreCountedSubscriberMutationsReturnDurableSetChanges(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-counted-subscribers")
+	require.NoError(t, nodes[0].store.UpsertChannel(ctx, metadb.Channel{ChannelID: channelID, ChannelType: 2}))
+
+	added, err := nodes[0].store.AddChannelSubscribersCounted(ctx, channelID, 2, []string{"u1", "u1", "u2"}, 1)
+	require.NoError(t, err)
+	require.Equal(t, metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 2}, added)
+
+	added, err = nodes[0].store.AddChannelSubscribersCounted(ctx, channelID, 2, []string{"u1", "u3"}, 2)
+	require.NoError(t, err)
+	require.Equal(t, metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1}, added)
+
+	removed, err := nodes[0].store.RemoveChannelSubscribersCounted(ctx, channelID, 2, []string{"missing", "u2"}, 3)
+	require.NoError(t, err)
+	require.Equal(t, metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1}, removed)
+}
+
+func TestStoreConditionalChannelMutationsAreAuthoritativeAndPreserveSubscriberMetadata(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	channelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-conditional-channel")
+	channel := metadb.Channel{
+		ChannelID: channelID, ChannelType: 2, Ban: 1, AllowStranger: 1,
+	}
+	require.NoError(t, nodes[0].store.CreateChannelMetadata(ctx, channel))
+	require.ErrorIs(t, nodes[0].store.CreateChannelMetadata(ctx, channel), metadb.ErrAlreadyExists)
+	_, err := nodes[0].store.AddChannelSubscribersCounted(ctx, channelID, 2, []string{"u1"}, 7)
+	require.NoError(t, err)
+
+	require.NoError(t, nodes[0].store.PatchChannelBusinessFlags(ctx, channelID, 2, metadb.ChannelBusinessFlags{
+		Disband: 1, SendBan: 1,
+	}))
+	got, err := nodes[0].store.GetChannelForPermission(ctx, channelID, 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), got.Ban)
+	require.Equal(t, int64(1), got.Disband)
+	require.Equal(t, int64(1), got.SendBan)
+	require.Equal(t, int64(1), got.AllowStranger)
+	require.Equal(t, uint64(7), got.SubscriberMutationVersion)
+	require.Equal(t, uint64(1), got.SubscriberCount)
+	require.ErrorIs(
+		t,
+		nodes[0].store.PatchChannelBusinessFlags(ctx, "missing-channel", 2, metadb.ChannelBusinessFlags{Ban: 1}),
+		metadb.ErrNotFound,
+	)
+}
+
 func TestStoreSnapshotChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)

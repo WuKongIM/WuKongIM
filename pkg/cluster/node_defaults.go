@@ -407,6 +407,7 @@ func (n *Node) discardDefaultSlots() {
 		_ = n.defaultSlotMetaDB.Close()
 		n.defaultSlotMetaDB = nil
 	}
+	n.defaultSlotProxy = nil
 	n.defaultSlotProposer = nil
 	n.slots = nil
 	if n.defaultPreferredLeaderReconciler {

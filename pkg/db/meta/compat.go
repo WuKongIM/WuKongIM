@@ -1441,6 +1441,71 @@ func (b *WriteBatch) UpsertChannel(hashSlot uint16, channel Channel) error {
 	return b.batch.UpsertChannel(HashSlot(hashSlot), channel)
 }
 
+// CreateChannelConditionally stages a create-only channel mutation.
+func (b *WriteBatch) CreateChannelConditionally(hashSlot uint16, channel Channel) (*ChannelConditionalMutationResult, error) {
+	if err := b.ensure(); err != nil {
+		return nil, err
+	}
+	if err := validateChannel(channel); err != nil {
+		return nil, err
+	}
+	hs := HashSlot(hashSlot)
+	primaryKey := encodeChannelRowKey(hs, channel.ChannelID, channel.ChannelType, channelPrimaryFamilyID)
+	result := &ChannelConditionalMutationResult{}
+	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		_, exists, err := state.loadChannel(ctx, primaryKey, channel.ChannelID, channel.ChannelType)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+		shard := &Shard{db: state.db, hashSlot: hs}
+		if err := shard.stageChannel(batch, primaryKey, channel); err != nil {
+			return err
+		}
+		state.channelPublishes[string(primaryKey)] = channel
+		delete(state.channelDeletes, string(primaryKey))
+		result.Applied = true
+		return nil
+	})
+	return result, nil
+}
+
+// PatchChannelBusinessFlags stages an existing-only partial flag update.
+func (b *WriteBatch) PatchChannelBusinessFlags(hashSlot uint16, channelID string, channelType int64, flags ChannelBusinessFlags) (*ChannelConditionalMutationResult, error) {
+	if err := b.ensure(); err != nil {
+		return nil, err
+	}
+	if err := validateKeyString(channelID); err != nil {
+		return nil, err
+	}
+	hs := HashSlot(hashSlot)
+	primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
+	result := &ChannelConditionalMutationResult{}
+	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		channel, exists, err := state.loadChannel(ctx, primaryKey, channelID, channelType)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return nil
+		}
+		channel.Ban = flags.Ban
+		channel.Disband = flags.Disband
+		channel.SendBan = flags.SendBan
+		shard := &Shard{db: state.db, hashSlot: hs}
+		if err := shard.stageChannel(batch, primaryKey, channel); err != nil {
+			return err
+		}
+		state.channelPublishes[string(primaryKey)] = channel
+		delete(state.channelDeletes, string(primaryKey))
+		result.Applied = true
+		return nil
+	})
+	return result, nil
+}
+
 func (b *WriteBatch) DeleteChannel(hashSlot uint16, channelID string, channelType int64) error {
 	if err := b.ensure(); err != nil {
 		return err
@@ -1524,10 +1589,22 @@ func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req Chan
 }
 
 func (b *WriteBatch) AddSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion ...uint64) error {
-	return b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), true)
+	_, err := b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), true)
+	return err
 }
 
 func (b *WriteBatch) RemoveSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion ...uint64) error {
+	_, err := b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), false)
+	return err
+}
+
+// AddSubscribersCounted stages a set add and returns a result populated by Commit.
+func (b *WriteBatch) AddSubscribersCounted(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion ...uint64) (*SubscriberMutationResult, error) {
+	return b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), true)
+}
+
+// RemoveSubscribersCounted stages a set removal and returns a result populated by Commit.
+func (b *WriteBatch) RemoveSubscribersCounted(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion ...uint64) (*SubscriberMutationResult, error) {
 	return b.stageSubscribers(hashSlot, channelID, channelType, uids, optionalVersion(mutationVersion), false)
 }
 
@@ -1559,14 +1636,15 @@ func (b *WriteBatch) AppendMessageEvent(hashSlot uint16, event MessageEventAppen
 	return b.batch.AppendMessageEvent(HashSlot(hashSlot), event)
 }
 
-func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) error {
+func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channelType int64, uids []string, mutationVersion uint64, add bool) (*SubscriberMutationResult, error) {
 	if err := b.ensure(); err != nil {
-		return err
+		return nil, err
 	}
 	normalized, err := normalizeSubscriberUIDs(uids)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	result := &SubscriberMutationResult{RequestedCount: len(normalized)}
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
 		primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
@@ -1595,6 +1673,7 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 			if add {
 				if !exists {
 					channel.SubscriberCount++
+					result.ChangedCount++
 				}
 				if err := batch.Set(key, nil); err != nil {
 					return err
@@ -1603,6 +1682,9 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 			} else {
 				if exists && channel.SubscriberCount > 0 {
 					channel.SubscriberCount--
+				}
+				if exists {
+					result.ChangedCount++
 				}
 				if err := batch.Delete(key); err != nil {
 					return err
@@ -1619,7 +1701,7 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 		}
 		return nil
 	})
-	return nil
+	return result, nil
 }
 
 func (b *WriteBatch) UpsertConversationState(hashSlot uint16, state ConversationState) error {

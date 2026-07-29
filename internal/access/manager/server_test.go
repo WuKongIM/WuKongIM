@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1260,7 +1261,7 @@ func TestManagerBusinessChannelsRequiresChannelReadPermission(t *testing.T) {
 	}
 }
 
-func TestManagerBusinessChannelOperationRoutesStayUnmigrated(t *testing.T) {
+func TestManagerBusinessChannelCreateRouteUsesWritePermission(t *testing.T) {
 	srv := New(Options{
 		Auth: testAuthConfig([]UserConfig{{
 			Username: "admin",
@@ -1280,8 +1281,90 @@ func TestManagerBusinessChannelOperationRoutesStayUnmigrated(t *testing.T) {
 
 	srv.Engine().ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+}
+
+func TestManagerBusinessChannelMemberExactLookupAndMutationContracts(t *testing.T) {
+	var listReq managementusecase.ListBusinessChannelMembersRequest
+	var mutationReq managementusecase.MutateBusinessChannelMembersRequest
+	srv := New(Options{Management: managerNodesStub{
+		lastBusinessChannelMembersRequest:  &listReq,
+		lastBusinessChannelMutationRequest: &mutationReq,
+		businessChannelMembers: managementusecase.ListBusinessChannelMembersResponse{
+			Items: []managementusecase.BusinessChannelMember{{UID: "u1"}},
+		},
+		businessChannelMutation: managementusecase.MutateBusinessChannelMembersResponse{
+			ChannelID: "g1", ChannelType: 2, ListKind: "denylist", RequestedCount: 2, ChangedCount: 1,
+		},
+	}})
+
+	rec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manager/channels/2/g1/subscribers?uid=u1&limit=100", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("exact lookup status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if listReq.UID != "u1" || listReq.ListKind != "subscribers" || listReq.Limit != 100 {
+		t.Fatalf("list request = %#v", listReq)
+	}
+
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/manager/channels/2/g1/denylist/remove", bytes.NewBufferString(`{"uids":["u1","u2"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"requested_count":2`) || !strings.Contains(rec.Body.String(), `"changed_count":1`) {
+		t.Fatalf("mutation status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if mutationReq.ListKind != "denylist" || mutationReq.Add || len(mutationReq.UIDs) != 2 {
+		t.Fatalf("mutation request = %#v", mutationReq)
+	}
+}
+
+func TestManagerBusinessChannelMemberLookupRejectsUIDWithCursor(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{}})
+	rec := httptest.NewRecorder()
+	srv.Engine().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/manager/channels/2/g1/subscribers?uid=u1&cursor=opaque", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestManagerBusinessChannelMutationDecodesLegacySlashID(t *testing.T) {
+	var mutationReq managementusecase.MutateBusinessChannelMembersRequest
+	srv := New(Options{Management: managerNodesStub{
+		lastBusinessChannelMutationRequest: &mutationReq,
+	}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/manager/channels/2/legacy%252Fchannel/allowlist/add",
+		bytes.NewBufferString(`{"uids":["u1"]}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if mutationReq.ChannelID != "legacy/channel" {
+		t.Fatalf("channel_id=%q, want %q", mutationReq.ChannelID, "legacy/channel")
+	}
+}
+
+func TestManagerBusinessChannelMutationRejectsMalformedUTF8(t *testing.T) {
+	srv := New(Options{Management: managerNodesStub{}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/manager/channels/2/g1/allowlist/add",
+		bytes.NewReader([]byte{'{', '"', 'u', 'i', 'd', 's', '"', ':', '[', '"', 0xff, '"', ']', '}'}),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -1382,6 +1465,8 @@ type managerNodesStub struct {
 	channelMigrationSummary            managementusecase.ChannelMigrationSummary
 	channelMigrationList               managementusecase.ChannelMigrationListResponse
 	businessChannels                   managementusecase.ListBusinessChannelsResponse
+	businessChannelMembers             managementusecase.ListBusinessChannelMembersResponse
+	businessChannelMutation            managementusecase.MutateBusinessChannelMembersResponse
 	recentConversations                managementusecase.RecentConversationsResponse
 	messagesPage                       managementusecase.ListMessagesResponse
 	connections                        []managementusecase.Connection
@@ -1439,6 +1524,8 @@ type managerNodesStub struct {
 	lastChannelMigrationLookupRequest  *managementusecase.ChannelMigrationLookupInput
 	lastChannelMigrationAbortRequest   *managementusecase.ChannelMigrationAbortInput
 	lastBusinessChannelsRequest        *managementusecase.ListBusinessChannelsRequest
+	lastBusinessChannelMembersRequest  *managementusecase.ListBusinessChannelMembersRequest
+	lastBusinessChannelMutationRequest *managementusecase.MutateBusinessChannelMembersRequest
 	nodeConfigNodeSink                 *uint64
 	nodeConfigCallCount                *int
 	recentConversationsReqSink         *managementusecase.RecentConversationsRequest
@@ -1889,6 +1976,44 @@ func (s managerNodesStub) ListBusinessChannels(_ context.Context, req management
 		*s.lastBusinessChannelsRequest = req
 	}
 	return s.businessChannels, s.businessChannelsErr
+}
+
+func (s managerNodesStub) GetBusinessChannel(_ context.Context, channelID string, channelType int64) (managementusecase.BusinessChannelDetail, error) {
+	return managementusecase.BusinessChannelDetail{
+		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: channelID, ChannelType: channelType},
+	}, nil
+}
+
+func (s managerNodesStub) CreateBusinessChannel(_ context.Context, req managementusecase.CreateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
+	return managementusecase.BusinessChannelDetail{
+		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: req.ChannelID, ChannelType: req.ChannelType, Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
+	}, nil
+}
+
+func (s managerNodesStub) UpdateBusinessChannel(_ context.Context, req managementusecase.UpdateBusinessChannelRequest) (managementusecase.BusinessChannelDetail, error) {
+	return managementusecase.BusinessChannelDetail{
+		BusinessChannelListItem: managementusecase.BusinessChannelListItem{ChannelID: req.ChannelID, ChannelType: req.ChannelType, Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
+	}, nil
+}
+
+func (s managerNodesStub) ListBusinessChannelMembers(_ context.Context, req managementusecase.ListBusinessChannelMembersRequest) (managementusecase.ListBusinessChannelMembersResponse, error) {
+	if s.lastBusinessChannelMembersRequest != nil {
+		*s.lastBusinessChannelMembersRequest = req
+	}
+	return s.businessChannelMembers, nil
+}
+
+func (s managerNodesStub) MutateBusinessChannelMembers(_ context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error) {
+	if s.lastBusinessChannelMutationRequest != nil {
+		*s.lastBusinessChannelMutationRequest = req
+	}
+	if s.businessChannelMutation.ChannelID != "" {
+		return s.businessChannelMutation, nil
+	}
+	return managementusecase.MutateBusinessChannelMembersResponse{
+		ChannelID: req.ChannelID, ChannelType: req.ChannelType, ListKind: req.ListKind,
+		RequestedCount: len(req.UIDs), ChangedCount: len(req.UIDs),
+	}, nil
 }
 
 func (s managerNodesStub) ListRecentConversations(_ context.Context, req managementusecase.RecentConversationsRequest) (managementusecase.RecentConversationsResponse, error) {

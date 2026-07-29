@@ -1689,9 +1689,15 @@ export type ManagerBusinessChannelDetailResponse = ManagerBusinessChannelListIte
   has_denylist: boolean
 }
 
-export type UpsertBusinessChannelInput = {
+export type CreateBusinessChannelInput = {
   channelId: string
   channelType: number
+  ban?: boolean
+  disband?: boolean
+  sendBan?: boolean
+}
+
+export type UpdateBusinessChannelInput = {
   ban?: boolean
   disband?: boolean
   sendBan?: boolean
@@ -1702,6 +1708,7 @@ export type BusinessChannelMemberListKind = "subscribers" | "allowlist" | "denyl
 export type BusinessChannelMembersParams = {
   limit?: number
   cursor?: string
+  uid?: string
 }
 
 export type ManagerBusinessChannelMember = {
@@ -1722,7 +1729,8 @@ export type MutateBusinessChannelMembersResponse = {
   channel_id: string
   channel_type: number
   list: BusinessChannelMemberListKind
-  changed: boolean
+  requested_count: number
+  changed_count: number
 }
 
 export type ManagerChannelClusterSummaryResponse = {

@@ -17,6 +17,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"go.etcd.io/raft/v3/raftpb"
 )
 
@@ -114,6 +115,7 @@ func (n *Node) ensureDefaultSlots() error {
 	n.defaultSlotMetaDB = metaDB
 	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireWriteAdmission}
 	n.slotStatusRuntime = runtime
+	n.defaultSlotProxy = slotproxy.NewChannelMetadataStore(n, metaDB)
 	n.registerDefaultSlotHandlers(runtime)
 	n.defaultSlots = true
 	return nil

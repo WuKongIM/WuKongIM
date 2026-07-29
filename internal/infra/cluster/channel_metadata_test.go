@@ -2,9 +2,11 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -54,9 +56,111 @@ func TestChannelMetadataStoreRefreshesAppendMetadataCache(t *testing.T) {
 	}
 }
 
+func TestChannelMetadataStoreUsesAuthoritativeChannelReads(t *testing.T) {
+	node := &recordingChannelMetadataNode{
+		authoritativeChannel: metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1},
+		authoritativeUIDs:    []string{"u1"},
+	}
+	store := NewChannelMetadataStore(node, nil)
+
+	channel, err := store.GetChannel(context.Background(), "g1", 2)
+	if err != nil || channel.Ban != 1 {
+		t.Fatalf("GetChannel() = %#v err=%v, want authoritative channel", channel, err)
+	}
+	uids, _, done, err := store.ListChannelSubscribers(context.Background(), "g1", 2, "", 100)
+	if err != nil || !done || len(uids) != 1 || uids[0] != "u1" {
+		t.Fatalf("ListChannelSubscribers() = %#v done=%v err=%v", uids, done, err)
+	}
+	ok, err := store.ContainsChannelSubscriber(context.Background(), "g1", 2, "u1")
+	if err != nil || !ok {
+		t.Fatalf("ContainsChannelSubscriber() = %v err=%v", ok, err)
+	}
+	ok, err = store.HasChannelSubscribers(context.Background(), "g1", 2)
+	if err != nil || !ok {
+		t.Fatalf("HasChannelSubscribers() = %v err=%v", ok, err)
+	}
+	if node.localReadCalls != 0 || node.authoritativeReadCalls != 4 {
+		t.Fatalf("read calls local=%d authoritative=%d, want local=0 authoritative=4", node.localReadCalls, node.authoritativeReadCalls)
+	}
+}
+
+func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
+	node := &localOnlyChannelMetadataNode{}
+	store := NewChannelMetadataStore(node, nil)
+
+	if _, err := store.GetChannel(context.Background(), "g1", 2); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("GetChannel() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, _, _, err := store.ListChannelSubscribers(context.Background(), "g1", 2, "", 100); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("ListChannelSubscribers() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, err := store.ContainsChannelSubscriber(context.Background(), "g1", 2, "u1"); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("ContainsChannelSubscriber() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if _, err := store.HasChannelSubscribers(context.Background(), "g1", 2); !errors.Is(err, clusterpkg.ErrRouteNotReady) {
+		t.Fatalf("HasChannelSubscribers() error = %v, want %v", err, clusterpkg.ErrRouteNotReady)
+	}
+	if node.localReadCalls != 0 {
+		t.Fatalf("local read calls = %d, want 0", node.localReadCalls)
+	}
+}
+
+func TestChannelMetadataStoreReturnsCountedMutationResults(t *testing.T) {
+	node := &recordingChannelMetadataNode{
+		addResult:    metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
+		removeResult: metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 0},
+	}
+	store := NewChannelMetadataStore(node, nil)
+
+	added, err := store.AddChannelSubscribersCounted(context.Background(), "g1", 2, []string{"u1", "u2"}, 3)
+	if err != nil || added != node.addResult {
+		t.Fatalf("AddChannelSubscribersCounted() = %#v err=%v", added, err)
+	}
+	removed, err := store.RemoveChannelSubscribersCounted(context.Background(), "g1", 2, []string{"u1", "u2"}, 4)
+	if err != nil || removed != node.removeResult {
+		t.Fatalf("RemoveChannelSubscribersCounted() = %#v err=%v", removed, err)
+	}
+}
+
+type localOnlyChannelMetadataNode struct {
+	localReadCalls int
+}
+
+func (n *localOnlyChannelMetadataNode) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
+	n.localReadCalls++
+	return metadb.Channel{}, nil
+}
+
+func (*localOnlyChannelMetadataNode) UpsertChannelMetadata(context.Context, metadb.Channel) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) DeleteChannelMetadata(context.Context, string, int64) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) AddChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (*localOnlyChannelMetadataNode) RemoveChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (n *localOnlyChannelMetadataNode) ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	n.localReadCalls++
+	return nil, "", true, nil
+}
+
 type recordingChannelMetadataNode struct {
-	membershipUpserts []membershipUpsertNodeCall
-	membershipDeletes []membershipDeleteNodeCall
+	membershipUpserts      []membershipUpsertNodeCall
+	membershipDeletes      []membershipDeleteNodeCall
+	authoritativeChannel   metadb.Channel
+	authoritativeUIDs      []string
+	authoritativeReadCalls int
+	localReadCalls         int
+	addResult              metadb.SubscriberMutationResult
+	removeResult           metadb.SubscriberMutationResult
 }
 
 type membershipUpsertNodeCall struct {
@@ -75,6 +179,7 @@ type membershipDeleteNodeCall struct {
 }
 
 func (r *recordingChannelMetadataNode) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
+	r.localReadCalls++
 	return metadb.Channel{}, nil
 }
 
@@ -95,7 +200,46 @@ func (r *recordingChannelMetadataNode) RemoveChannelSubscribers(context.Context,
 }
 
 func (r *recordingChannelMetadataNode) ListChannelSubscribersPage(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	r.localReadCalls++
 	return nil, "", true, nil
+}
+
+func (r *recordingChannelMetadataNode) ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error) {
+	r.localReadCalls++
+	return false, nil
+}
+
+func (r *recordingChannelMetadataNode) HasChannelSubscribers(context.Context, string, int64) (bool, error) {
+	r.localReadCalls++
+	return false, nil
+}
+
+func (r *recordingChannelMetadataNode) GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error) {
+	r.authoritativeReadCalls++
+	return r.authoritativeChannel, nil
+}
+
+func (r *recordingChannelMetadataNode) ListChannelSubscribersAuthoritative(context.Context, string, int64, string, int) ([]string, string, bool, error) {
+	r.authoritativeReadCalls++
+	return append([]string(nil), r.authoritativeUIDs...), "", true, nil
+}
+
+func (r *recordingChannelMetadataNode) ContainsChannelSubscriberAuthoritative(_ context.Context, _ string, _ int64, uid string) (bool, error) {
+	r.authoritativeReadCalls++
+	return uid == "u1", nil
+}
+
+func (r *recordingChannelMetadataNode) HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error) {
+	r.authoritativeReadCalls++
+	return len(r.authoritativeUIDs) > 0, nil
+}
+
+func (r *recordingChannelMetadataNode) AddChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error) {
+	return r.addResult, nil
+}
+
+func (r *recordingChannelMetadataNode) RemoveChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error) {
+	return r.removeResult, nil
 }
 
 func (r *recordingChannelMetadataNode) UpsertUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {

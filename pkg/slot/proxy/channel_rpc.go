@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const channelRPCServiceID uint8 = 12
+const channelRPCServiceID uint8 = clusternet.RPCSlotChannelMetadata
 
 const (
 	channelRPCGetForPermission = "get_for_permission"

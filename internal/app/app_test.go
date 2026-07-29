@@ -7099,6 +7099,10 @@ func (f *fakeManagerCluster) GetChannelMetadata(_ context.Context, channelID str
 	return metadb.Channel{}, metadb.ErrNotFound
 }
 
+func (f *fakeManagerCluster) GetChannelMetadataAuthoritative(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return f.GetChannelMetadata(ctx, channelID, channelType)
+}
+
 func (f *fakeManagerCluster) UpsertChannelMetadata(_ context.Context, channel metadb.Channel) error {
 	f.channelPages[1] = append(f.channelPages[1], channel)
 	return nil
@@ -7162,6 +7166,23 @@ func (f *fakeManagerCluster) ListChannelSubscribersPage(_ context.Context, _ str
 		next = page[len(page)-1]
 	}
 	return page, next, end >= len(f.systemUIDs), nil
+}
+
+func (f *fakeManagerCluster) ListChannelSubscribersAuthoritative(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	return f.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+}
+
+func (f *fakeManagerCluster) ContainsChannelSubscriberAuthoritative(_ context.Context, _ string, _ int64, uid string) (bool, error) {
+	for _, existing := range f.systemUIDs {
+		if existing == uid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeManagerCluster) HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error) {
+	return len(f.systemUIDs) > 0, nil
 }
 
 func (f *fakeManagerCluster) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
@@ -7848,6 +7869,10 @@ func (n *recordingDeliveryMetaNode) GetChannelMetadata(_ context.Context, channe
 	return metadb.Channel{}, metadb.ErrNotFound
 }
 
+func (n *recordingDeliveryMetaNode) GetChannelMetadataAuthoritative(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return n.GetChannelMetadata(ctx, channelID, channelType)
+}
+
 func (n *recordingDeliveryMetaNode) DeleteChannelMetadata(_ context.Context, channelID string, channelType int64) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -7911,6 +7936,27 @@ func (n *recordingDeliveryMetaNode) ListChannelSubscribersPage(_ context.Context
 		return page, "", true, nil
 	}
 	return page, page[len(page)-1], false, nil
+}
+
+func (n *recordingDeliveryMetaNode) ListChannelSubscribersAuthoritative(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	return n.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+}
+
+func (n *recordingDeliveryMetaNode) ContainsChannelSubscriberAuthoritative(_ context.Context, channelID string, _ int64, uid string) (bool, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	for _, existing := range n.subscribers[channelID] {
+		if existing == uid {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (n *recordingDeliveryMetaNode) HasChannelSubscribersAuthoritative(_ context.Context, channelID string, _ int64) (bool, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return len(n.subscribers[channelID]) > 0, nil
 }
 
 func (n *recordingDeliveryMetaNode) UpsertUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {

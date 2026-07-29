@@ -87,7 +87,11 @@ POST /manager/channel-migrations/replica-replace (manual Channel replica-replace
 GET  /manager/channel-migrations/active (active Channel migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
 GET  /manager/channel-migrations/:task_id (Channel migration task detail scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
 POST /manager/channel-migrations/:task_id/abort (abort Channel migration task scoped by channel_id/channel_type; requires cluster.channel:w when Auth.On=true)
-GET  /manager/channels (read-only business channel list; requires cluster.channel:r when Auth.On=true)
+GET  /manager/channels (business channel list; requires cluster.channel:r when Auth.On=true)
+GET  /manager/channels/:channel_type/:channel_id (authoritative detail; cluster.channel:r)
+GET  /manager/channels/:channel_type/:channel_id/{subscribers,allowlist,denylist} (page or exact UID; cluster.channel:r)
+POST /manager/channels and PATCH /manager/channels/:channel_type/:channel_id (create/flag patch; cluster.channel:w)
+POST /manager/channels/:channel_type/:channel_id/{subscribers,allowlist,denylist}/{add,remove} (bounded set mutation; cluster.channel:w)
 GET  /manager/conversations (recent conversation list; requires cluster.channel:r when Auth.On=true)
 GET  /manager/messages (channel message list; requires cluster.channel:r when Auth.On=true)
 POST /manager/messages/retention (message retention request; requires cluster.channel:w when Auth.On=true)
@@ -483,12 +487,18 @@ The event route accepts an optional positive physical `slot_id` and returns
 explicit PreferredLeader decision, actual/preferred leader, Raft term, and
 config epoch fields without repurposing generic peer, retry, or error fields.
 
-`/manager/channels` preserves the legacy business channel list response shape
-for the web channel list view, including `node_id`, `type`, `keyword`, `limit`,
-and `cursor` query parameters. It only exposes the list display route; channel
-detail, member, and mutation operation routes remain unmigrated. Non-local
-`node_id` reads are delegated below the HTTP layer through the management
-usecase.
+`/manager/channels` preserves the business channel list response shape for the
+web channel list view, including `node_id`, `type`, `keyword`, `limit`, and
+`cursor` query parameters. Typed detail and member-list routes read through the
+authoritative Slot leader. Member pages default to 100 rows and cap at 500;
+`uid` performs one exact lookup and is mutually exclusive with `cursor`.
+Create is create-only (`409` for an existing row), PATCH changes only
+`ban`/`disband`/`send_ban`, and member writes accept at most 500 distinct UIDs.
+Subscriber writes on person channels are rejected. Member writes emit one
+bounded audit record with the operator, channel, list, operation,
+requested/changed counts, result, timestamp, and at most one redacted UID
+sample; the complete UID list is never logged. Non-local list `node_id` reads
+remain delegated below the HTTP layer through the management usecase.
 
 `/manager/channel-runtime-meta` preserves the legacy channel cluster list
 response shape for the web cluster channel page, including `node_id`,

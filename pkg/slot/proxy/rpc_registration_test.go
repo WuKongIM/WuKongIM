@@ -6,7 +6,6 @@ import (
 	"sort"
 	"testing"
 
-	promotedcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -36,13 +35,32 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 	}
 }
 
-type promotedRPCRegistrationCluster struct {
-	handlers map[uint8]promotedcluster.NodeRPCHandler
+func TestAuthoritativeReadsRequireConfirmedLocalLeaderForSinglePeerSlot(t *testing.T) {
+	cluster := &promotedRPCRegistrationCluster{localNodeID: 1}
+	store := &Store{cluster: cluster}
+
+	if store.shouldServeSlotLocally(1) {
+		t.Fatal("shouldServeSlotLocally() = true without a confirmed leader")
+	}
+	cluster.leaderID = 1
+	if !store.shouldServeSlotLocally(1) {
+		t.Fatal("shouldServeSlotLocally() = false for confirmed local leader")
+	}
+	cluster.leaderID = 2
+	if store.shouldServeSlotLocally(1) {
+		t.Fatal("shouldServeSlotLocally() = true for a remote leader")
+	}
 }
 
-func (c *promotedRPCRegistrationCluster) RegisterRPC(serviceID uint8, handler promotedcluster.NodeRPCHandler) {
+type promotedRPCRegistrationCluster struct {
+	handlers    map[uint8]func(context.Context, []byte) ([]byte, error)
+	leaderID    multiraft.NodeID
+	localNodeID multiraft.NodeID
+}
+
+func (c *promotedRPCRegistrationCluster) RegisterSlotProxyRPC(serviceID uint8, handler func(context.Context, []byte) ([]byte, error)) {
 	if c.handlers == nil {
-		c.handlers = make(map[uint8]promotedcluster.NodeRPCHandler)
+		c.handlers = make(map[uint8]func(context.Context, []byte) ([]byte, error))
 	}
 	c.handlers[serviceID] = handler
 }
@@ -58,10 +76,15 @@ func (c *promotedRPCRegistrationCluster) HashSlotsOf(multiraft.SlotID) []uint16 
 func (c *promotedRPCRegistrationCluster) HashSlotTableVersion() uint64 { return 0 }
 
 func (c *promotedRPCRegistrationCluster) LeaderOf(multiraft.SlotID) (multiraft.NodeID, error) {
-	return 0, errNoLeader
+	if c.leaderID == 0 {
+		return 0, errNoLeader
+	}
+	return c.leaderID, nil
 }
 
-func (c *promotedRPCRegistrationCluster) IsLocal(multiraft.NodeID) bool { return false }
+func (c *promotedRPCRegistrationCluster) IsLocal(nodeID multiraft.NodeID) bool {
+	return c.localNodeID != 0 && nodeID == c.localNodeID
+}
 
 func (c *promotedRPCRegistrationCluster) PeersForSlot(multiraft.SlotID) []multiraft.NodeID {
 	return nil

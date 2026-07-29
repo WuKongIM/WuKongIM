@@ -2,14 +2,159 @@ package management
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/crc32"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+func TestBusinessChannelDetailAndExactMemberLookupUseAuthoritativeOperator(t *testing.T) {
+	cluster := fakeNodeSnapshotReader{snapshot: control.Snapshot{
+		HashSlots: control.HashSlotTable{Count: 4, Ranges: []control.HashSlotRange{{From: 0, To: 3, SlotID: 1}}},
+	}}
+	operator := &fakeBusinessChannelOperator{
+		channel:        metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, SubscriberMutationVersion: 7},
+		hasSubscribers: true,
+		containsUID:    "u1",
+	}
+	app := New(Options{Cluster: cluster, ChannelBusinessOperator: operator})
+
+	detail, err := app.GetBusinessChannel(context.Background(), "g1", 2)
+	if err != nil {
+		t.Fatalf("GetBusinessChannel(): %v", err)
+	}
+	if !detail.Ban || !detail.HasSubscribers || detail.HasAllowlist || detail.HasDenylist {
+		t.Fatalf("detail = %#v", detail)
+	}
+
+	page, err := app.ListBusinessChannelMembers(context.Background(), ListBusinessChannelMembersRequest{
+		ChannelID: "g1", ChannelType: 2, ListKind: "subscribers", Limit: 100, UID: "u1",
+	})
+	if err != nil {
+		t.Fatalf("ListBusinessChannelMembers(exact): %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].UID != "u1" || page.HasMore {
+		t.Fatalf("exact page = %#v", page)
+	}
+}
+
+func TestBusinessChannelCreatePatchAndCountedMutation(t *testing.T) {
+	operator := &fakeBusinessChannelOperator{
+		channel: metadb.Channel{
+			ChannelID: "g1", ChannelType: 2, Large: 1, AllowStranger: 1,
+			SubscriberCount: 20, SubscriberMutationVersion: 8,
+		},
+		mutationResult: metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
+	}
+	app := New(Options{
+		Cluster:                 fakeNodeSnapshotReader{snapshot: control.Snapshot{HashSlots: control.HashSlotTable{Count: 4}}},
+		ChannelBusinessOperator: operator,
+	})
+
+	if _, err := app.CreateBusinessChannel(context.Background(), CreateBusinessChannelRequest{
+		ChannelID: "bad#id", ChannelType: 2,
+	}); !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("CreateBusinessChannel(invalid) error = %v", err)
+	}
+	if _, err := app.UpdateBusinessChannel(context.Background(), UpdateBusinessChannelRequest{
+		ChannelID: "g1", ChannelType: 2, Ban: true,
+	}); err != nil {
+		t.Fatalf("UpdateBusinessChannel(): %v", err)
+	}
+	if !operator.patchFlags.Ban {
+		t.Fatalf("patch flags = %#v", operator.patchFlags)
+	}
+
+	resp, err := app.MutateBusinessChannelMembers(context.Background(), MutateBusinessChannelMembersRequest{
+		ChannelID: "g1", ChannelType: 2, ListKind: "allowlist", UIDs: []string{" u1 ", "u1", "u2"}, Add: true,
+	})
+	if err != nil {
+		t.Fatalf("MutateBusinessChannelMembers(): %v", err)
+	}
+	if resp.RequestedCount != 2 || resp.ChangedCount != 1 {
+		t.Fatalf("mutation response = %#v", resp)
+	}
+}
+
+func TestBusinessChannelMemberValidationRejectsWholeBatch(t *testing.T) {
+	app := New(Options{ChannelBusinessOperator: &fakeBusinessChannelOperator{
+		channel: metadb.Channel{ChannelID: "g1", ChannelType: 2},
+	}})
+	for _, uids := range [][]string{
+		{"ok", "bad uid"},
+		{"ok", string([]byte{0xff})},
+	} {
+		_, err := app.MutateBusinessChannelMembers(context.Background(), MutateBusinessChannelMembersRequest{
+			ChannelID: "g1", ChannelType: 2, ListKind: "denylist", UIDs: uids, Add: true,
+		})
+		if !errors.Is(err, metadb.ErrInvalidArgument) {
+			t.Fatalf("MutateBusinessChannelMembers(%q) error = %v", uids, err)
+		}
+	}
+}
+
+func TestBusinessChannelOperationsPreserveAuthorityErrors(t *testing.T) {
+	authorityCause := errors.New("route not ready")
+	authorityErr := fmt.Errorf("%w: %w", ErrBusinessChannelAuthorityUnavailable, authorityCause)
+	app := New(Options{ChannelBusinessOperator: &fakeBusinessChannelOperator{
+		err: authorityErr,
+	}})
+
+	_, err := app.ListBusinessChannelMembers(context.Background(), ListBusinessChannelMembersRequest{
+		ChannelID: "g1", ChannelType: 2, ListKind: "subscribers", Limit: 100,
+	})
+	if !errors.Is(err, ErrBusinessChannelAuthorityUnavailable) || !errors.Is(err, authorityCause) {
+		t.Fatalf("ListBusinessChannelMembers() error = %v, want authority and cause errors", err)
+	}
+}
+
+func TestBusinessChannelOperationsNormalizeControlSnapshotErrors(t *testing.T) {
+	snapshotErr := errors.New("controller not started")
+	cluster := fakeNodeSnapshotReader{err: snapshotErr}
+
+	listApp := New(Options{
+		Cluster:               cluster,
+		ChannelBusinessReader: newFakeBusinessChannelReader(),
+	})
+	if _, err := listApp.ListBusinessChannels(context.Background(), ListBusinessChannelsRequest{Limit: 10}); !errors.Is(err, ErrBusinessChannelControlUnavailable) || !errors.Is(err, snapshotErr) {
+		t.Fatalf("ListBusinessChannels() error = %v, want control-unavailable and cluster errors", err)
+	}
+
+	detailApp := New(Options{
+		Cluster: cluster,
+		ChannelBusinessOperator: &fakeBusinessChannelOperator{
+			channel: metadb.Channel{ChannelID: "g1", ChannelType: 2},
+		},
+	})
+	if _, err := detailApp.GetBusinessChannel(context.Background(), "g1", 2); !errors.Is(err, ErrBusinessChannelControlUnavailable) || !errors.Is(err, snapshotErr) {
+		t.Fatalf("GetBusinessChannel() error = %v, want control-unavailable and cluster errors", err)
+	}
+}
+
+func TestBusinessChannelKeyValidationKeepsLegacyStorageValidIDs(t *testing.T) {
+	legacyID := " legacy#channel@" + strings.Repeat("x", 300) + " "
+	got, channelType, err := validateExistingBusinessChannelKey(legacyID, 2)
+	if err != nil {
+		t.Fatalf("validateExistingBusinessChannelKey(): %v", err)
+	}
+	if got != legacyID || channelType != 2 {
+		t.Fatalf("existing key = (%q, %d), want exact legacy key", got, channelType)
+	}
+	if _, _, err := validateNewBusinessChannelKey(legacyID, 2); !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("validateNewBusinessChannelKey(legacy) error = %v", err)
+	}
+	if got, _, err := validateNewBusinessChannelKey(" new-channel ", 2); err != nil || got != "new-channel" {
+		t.Fatalf("validateNewBusinessChannelKey(trim) = (%q, %v)", got, err)
+	}
+	if _, _, err := validateExistingBusinessChannelKey("__wk_internal_memberlist__/allow/2/ZzE", 2); !errors.Is(err, metadb.ErrInvalidArgument) {
+		t.Fatalf("validateExistingBusinessChannelKey(internal) error = %v", err)
+	}
+}
 
 func TestListBusinessChannelsAggregatesAndFiltersBusinessRows(t *testing.T) {
 	snapshot := control.Snapshot{
@@ -170,6 +315,91 @@ type fakeRemoteBusinessChannelReader struct {
 	req      ListBusinessChannelsRequest
 	response ListBusinessChannelsResponse
 	err      error
+}
+
+type fakeBusinessChannelOperator struct {
+	channel        metadb.Channel
+	err            error
+	hasSubscribers bool
+	hasAllowlist   bool
+	hasDenylist    bool
+	containsUID    string
+	patchFlags     BusinessChannelFlags
+	mutationResult metadb.SubscriberMutationResult
+}
+
+func (f *fakeBusinessChannelOperator) GetMetadata(context.Context, BusinessChannelKey) (metadb.Channel, error) {
+	if f.err != nil {
+		return metadb.Channel{}, f.err
+	}
+	if f.channel.ChannelID == "" {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return f.channel, nil
+}
+
+func (f *fakeBusinessChannelOperator) CreateMetadata(_ context.Context, info BusinessChannelInfo) error {
+	if f.channel.ChannelID != "" {
+		return metadb.ErrAlreadyExists
+	}
+	f.channel = metadb.Channel{ChannelID: info.ChannelID, ChannelType: int64(info.ChannelType)}
+	return nil
+}
+
+func (f *fakeBusinessChannelOperator) PatchMetadataFlags(_ context.Context, _ BusinessChannelKey, flags BusinessChannelFlags) error {
+	if f.channel.ChannelID == "" {
+		return metadb.ErrNotFound
+	}
+	f.patchFlags = flags
+	return nil
+}
+
+func (f *fakeBusinessChannelOperator) HasSubscribers(context.Context, BusinessChannelKey) (bool, error) {
+	return f.hasSubscribers, nil
+}
+
+func (f *fakeBusinessChannelOperator) HasAllowlist(context.Context, BusinessChannelKey) (bool, error) {
+	return f.hasAllowlist, nil
+}
+
+func (f *fakeBusinessChannelOperator) HasDenylist(context.Context, BusinessChannelKey) (bool, error) {
+	return f.hasDenylist, nil
+}
+
+func (f *fakeBusinessChannelOperator) ContainsSubscriber(_ context.Context, _ BusinessChannelKey, uid string) (bool, error) {
+	return uid == f.containsUID, nil
+}
+
+func (f *fakeBusinessChannelOperator) ContainsAllowlistMember(_ context.Context, _ BusinessChannelKey, uid string) (bool, error) {
+	return uid == f.containsUID, nil
+}
+
+func (f *fakeBusinessChannelOperator) ContainsDenylistMember(_ context.Context, _ BusinessChannelKey, uid string) (bool, error) {
+	return uid == f.containsUID, nil
+}
+
+func (f *fakeBusinessChannelOperator) ListSubscribersPage(context.Context, BusinessChannelMemberPageRequest) (BusinessChannelMemberPageResult, error) {
+	return BusinessChannelMemberPageResult{}, nil
+}
+
+func (f *fakeBusinessChannelOperator) ListAllowlistPage(context.Context, BusinessChannelMemberPageRequest) (BusinessChannelMemberPageResult, error) {
+	return BusinessChannelMemberPageResult{}, nil
+}
+
+func (f *fakeBusinessChannelOperator) ListDenylistPage(context.Context, BusinessChannelMemberPageRequest) (BusinessChannelMemberPageResult, error) {
+	return BusinessChannelMemberPageResult{}, nil
+}
+
+func (f *fakeBusinessChannelOperator) MutateSubscribersCounted(context.Context, BusinessChannelKey, []string, bool) (metadb.SubscriberMutationResult, error) {
+	return f.mutationResult, nil
+}
+
+func (f *fakeBusinessChannelOperator) MutateAllowlistCounted(context.Context, BusinessChannelKey, []string, bool) (metadb.SubscriberMutationResult, error) {
+	return f.mutationResult, nil
+}
+
+func (f *fakeBusinessChannelOperator) MutateDenylistCounted(context.Context, BusinessChannelKey, []string, bool) (metadb.SubscriberMutationResult, error) {
+	return f.mutationResult, nil
 }
 
 func (f *fakeRemoteBusinessChannelReader) NodeBusinessChannels(_ context.Context, req ListBusinessChannelsRequest) (ListBusinessChannelsResponse, error) {

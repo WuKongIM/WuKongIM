@@ -153,6 +153,48 @@ func TestWriteBatchSubscriberMutationsMaintainChannelSubscriberCount(t *testing.
 	}
 }
 
+func TestWriteBatchSubscriberMutationsReportExactChangedCount(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("Open(): %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close(): %v", err)
+		}
+	}()
+	shard := db.ForHashSlot(5)
+	channel := Channel{ChannelID: "group-batch-changed-count", ChannelType: 2}
+	if err := shard.CreateChannel(ctx, channel); err != nil {
+		t.Fatalf("CreateChannel(): %v", err)
+	}
+	if err := shard.AddSubscribers(ctx, channel.ChannelID, channel.ChannelType, []string{"existing"}, 1); err != nil {
+		t.Fatalf("seed AddSubscribers(): %v", err)
+	}
+
+	batch := db.NewWriteBatch()
+	defer batch.Close()
+	addResult, err := batch.AddSubscribersCounted(5, channel.ChannelID, channel.ChannelType, []string{"existing", "new", "new"}, 2)
+	if err != nil {
+		t.Fatalf("AddSubscribersCounted(): %v", err)
+	}
+	removeResult, err := batch.RemoveSubscribersCounted(5, channel.ChannelID, channel.ChannelType, []string{"missing", "existing", "missing"}, 3)
+	if err != nil {
+		t.Fatalf("RemoveSubscribersCounted(): %v", err)
+	}
+	if err := batch.Commit(); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+
+	if addResult.RequestedCount != 2 || addResult.ChangedCount != 1 {
+		t.Fatalf("add result = %#v, want requested=2 changed=1", addResult)
+	}
+	if removeResult.RequestedCount != 2 || removeResult.ChangedCount != 1 {
+		t.Fatalf("remove result = %#v, want requested=2 changed=1", removeResult)
+	}
+}
+
 func TestSubscriberTableKeepsLegacyRowLayout(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

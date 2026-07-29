@@ -31,6 +31,18 @@ type Channel struct {
 	SubscriberCount uint64
 }
 
+// ChannelBusinessFlags contains the Manager-editable channel flags.
+type ChannelBusinessFlags struct {
+	Ban     int64
+	Disband int64
+	SendBan int64
+}
+
+// ChannelConditionalMutationResult is populated after a conditional batch commit.
+type ChannelConditionalMutationResult struct {
+	Applied bool
+}
+
 var channelTable = registerMetaTable(TableSpec[Channel]{
 	ID:   TableIDChannel,
 	Name: "channel",

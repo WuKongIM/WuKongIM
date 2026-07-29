@@ -34,6 +34,17 @@ func New(cluster Cluster, db *metadb.DB) *Store {
 	return store
 }
 
+// NewChannelMetadataStore creates the channel/member subset and registers only
+// its non-conflicting authoritative RPC services.
+func NewChannelMetadataStore(cluster Cluster, db *metadb.DB) *Store {
+	store := &Store{cluster: cluster, db: db}
+	registerSelectedStoreRPCHandlers(cluster, []storeRPCRegistration{
+		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
+		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
+	})
+	return store
+}
+
 func (s *Store) RegisterUserConversationActiveOverlay(overlay UserConversationActiveOverlay) {
 	if s == nil {
 		return
@@ -69,6 +80,54 @@ func (s *Store) UpsertChannel(ctx context.Context, ch metadb.Channel) error {
 	hashSlot := hashSlotForKey(s.cluster, ch.ChannelID)
 	cmd := metafsm.EncodeUpsertChannelCommand(ch)
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
+}
+
+// CreateChannelMetadata applies a create-only channel metadata mutation.
+func (s *Store) CreateChannelMetadata(ctx context.Context, ch metadb.Channel) error {
+	slotID := s.cluster.SlotForKey(ch.ChannelID)
+	hashSlot := hashSlotForKey(s.cluster, ch.ChannelID)
+	result, err := proposeWithHashSlotResult(
+		ctx,
+		s.cluster,
+		slotID,
+		hashSlot,
+		metafsm.EncodeCreateChannelCommand(ch),
+	)
+	if err != nil {
+		return err
+	}
+	applied, err := metafsm.DecodeChannelConditionalMutationResult(result)
+	if err != nil {
+		return err
+	}
+	if !applied {
+		return metadb.ErrAlreadyExists
+	}
+	return nil
+}
+
+// PatchChannelBusinessFlags applies an existing-only partial channel flag mutation.
+func (s *Store) PatchChannelBusinessFlags(ctx context.Context, channelID string, channelType int64, flags metadb.ChannelBusinessFlags) error {
+	slotID := s.cluster.SlotForKey(channelID)
+	hashSlot := hashSlotForKey(s.cluster, channelID)
+	result, err := proposeWithHashSlotResult(
+		ctx,
+		s.cluster,
+		slotID,
+		hashSlot,
+		metafsm.EncodePatchChannelBusinessFlagsCommand(channelID, channelType, flags),
+	)
+	if err != nil {
+		return err
+	}
+	applied, err := metafsm.DecodeChannelConditionalMutationResult(result)
+	if err != nil {
+		return err
+	}
+	if !applied {
+		return metadb.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) DeleteChannel(ctx context.Context, channelID string, channelType int64) error {
@@ -108,6 +167,11 @@ func (s *Store) AddChannelSubscribers(ctx context.Context, channelID string, cha
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
 }
 
+// AddChannelSubscribersCounted adds a UID set and returns the exact committed row count.
+func (s *Store) AddChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	return s.mutateChannelSubscribersCounted(ctx, channelID, channelType, uids, true, subscriberMutationVersion...)
+}
+
 func (s *Store) RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error {
 	slotID := s.cluster.SlotForKey(channelID)
 	hashSlot := hashSlotForKey(s.cluster, channelID)
@@ -116,6 +180,33 @@ func (s *Store) RemoveChannelSubscribers(ctx context.Context, channelID string, 
 		return err
 	}
 	return proposeWithHashSlot(ctx, s.cluster, slotID, hashSlot, cmd)
+}
+
+// RemoveChannelSubscribersCounted removes a UID set and returns the exact committed row count.
+func (s *Store) RemoveChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	return s.mutateChannelSubscribersCounted(ctx, channelID, channelType, uids, false, subscriberMutationVersion...)
+}
+
+func (s *Store) mutateChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, add bool, subscriberMutationVersion ...uint64) (metadb.SubscriberMutationResult, error) {
+	slotID := s.cluster.SlotForKey(channelID)
+	hashSlot := hashSlotForKey(s.cluster, channelID)
+	var (
+		cmd []byte
+		err error
+	)
+	if add {
+		cmd, err = metafsm.EncodeAddSubscribersCommandChecked(channelID, channelType, uids, subscriberMutationVersion...)
+	} else {
+		cmd, err = metafsm.EncodeRemoveSubscribersCommandChecked(channelID, channelType, uids, subscriberMutationVersion...)
+	}
+	if err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	resultBytes, err := proposeWithHashSlotResult(ctx, s.cluster, slotID, hashSlot, cmd)
+	if err != nil {
+		return metadb.SubscriberMutationResult{}, err
+	}
+	return metafsm.DecodeSubscriberMutationResult(resultBytes)
 }
 
 func (s *Store) ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {

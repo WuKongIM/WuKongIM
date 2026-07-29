@@ -197,8 +197,6 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
 	t *testing.T,
 ) {
-	t.Parallel()
-
 	helperPath := filepath.Join(
 		repoRoot(t), ".github", "issue-agent",
 		"check-reproduction-compatibility.sh",
@@ -367,8 +365,6 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 }
 
 func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
-	t.Parallel()
-
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "issue-agent", "policy.json",
 	))
@@ -381,8 +377,6 @@ func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
 }
 
 func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
-	t.Parallel()
-
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "issue-agent", "policy.json",
 	))

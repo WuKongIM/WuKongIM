@@ -1166,8 +1166,9 @@ func managerPrometheusBaseURL(cfg PrometheusConfig) string {
 func (a *App) newManagerManagement() accessmanager.Management {
 	if node, ok := a.cluster.(clusterinfra.ManagementNode); ok {
 		opts := managementusecase.Options{
-			Cluster:       clusterinfra.NewManagementSnapshotReader(node),
-			Conversations: a.conversations,
+			Cluster:                 clusterinfra.NewManagementSnapshotReader(node),
+			Conversations:           a.conversations,
+			ChannelBusinessOperator: newManagerChannelBusinessOperator(a.channels),
 		}
 		if a.metrics != nil {
 			observer := &nodeLifecycleMetricsObserver{metrics: a.metrics}

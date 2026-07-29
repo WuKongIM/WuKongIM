@@ -177,6 +177,7 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	defer wb.Close()
 
 	results := make([][]byte, len(cmds))
+	appliedCommands := make([]command, len(cmds))
 	var pendingDeltaKeys []deltaReplayKey
 	var pendingForwardDeltas []pendingForwardDelta
 	pendingDeltaRecords := make(map[metadb.AppliedHashSlotDelta]struct{})
@@ -279,6 +280,7 @@ commandLoop:
 			return nil, fmt.Errorf("%w: stage migration maintenance slot=%d hash_slot=%d command_type=%d", err, m.slot, hashSlot, commandTypeForDiagnostics(cmd.Data))
 		}
 		pendingForwardDeltas = append(pendingForwardDeltas, pendingForwards...)
+		appliedCommands[i] = decoded
 		results[i] = commandApplyResult(decoded)
 	}
 
@@ -296,6 +298,11 @@ commandLoop:
 	}
 	m.markAppliedDeltas(pendingDeltaKeys)
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
+	for i, decoded := range appliedCommands {
+		if decoded != nil {
+			results[i] = commandApplyResult(decoded)
+		}
+	}
 	return results, nil
 }
 

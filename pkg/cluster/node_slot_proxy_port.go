@@ -4,8 +4,15 @@ import (
 	"context"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
+
+type slotProxyRPCHandlerFunc func(context.Context, []byte) ([]byte, error)
+
+func (f slotProxyRPCHandlerFunc) HandleRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	return f(ctx, payload)
+}
 
 // SlotIDs returns the physical Slots visible in the local control snapshot.
 func (n *Node) SlotIDs() []multiraft.SlotID {
@@ -140,6 +147,91 @@ func (n *Node) ProposeWithHashSlot(ctx context.Context, slotID multiraft.SlotID,
 			HasSlotID:   true,
 		},
 	})
+}
+
+// ProposeWithHashSlotResult submits an explicit Slot command and returns its FSM result.
+func (n *Node) ProposeWithHashSlotResult(ctx context.Context, slotID multiraft.SlotID, hashSlot uint16, cmd []byte) ([]byte, error) {
+	return n.ProposeResult(ctx, ProposeRequest{
+		Command: cmd,
+		Target: ProposeTarget{
+			HashSlot:    hashSlot,
+			HasHashSlot: true,
+			SlotID:      uint32(slotID),
+			HasSlotID:   true,
+		},
+	})
+}
+
+// RegisterSlotProxyRPC registers one function-style Slot proxy handler.
+func (n *Node) RegisterSlotProxyRPC(serviceID uint8, handler func(context.Context, []byte) ([]byte, error)) {
+	if handler == nil {
+		return
+	}
+	n.RegisterRPC(serviceID, slotProxyRPCHandlerFunc(handler))
+}
+
+// GetChannelMetadataAuthoritative reads channel metadata from the current Slot leader.
+func (n *Node) GetChannelMetadataAuthoritative(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return metadb.Channel{}, ErrNotStarted
+	}
+	return n.defaultSlotProxy.GetChannelForPermission(ctx, channelID, channelType)
+}
+
+// CreateChannelMetadataStrict applies a create-only mutation at the Slot leader.
+func (n *Node) CreateChannelMetadataStrict(ctx context.Context, channel metadb.Channel) error {
+	if n == nil || n.defaultSlotProxy == nil {
+		return ErrNotStarted
+	}
+	return n.defaultSlotProxy.CreateChannelMetadata(ctx, channel)
+}
+
+// PatchChannelBusinessFlags applies an existing-only partial flag mutation at the Slot leader.
+func (n *Node) PatchChannelBusinessFlags(ctx context.Context, channelID string, channelType int64, flags metadb.ChannelBusinessFlags) error {
+	if n == nil || n.defaultSlotProxy == nil {
+		return ErrNotStarted
+	}
+	return n.defaultSlotProxy.PatchChannelBusinessFlags(ctx, channelID, channelType, flags)
+}
+
+// ListChannelSubscribersAuthoritative reads one subscriber page from the current Slot leader.
+func (n *Node) ListChannelSubscribersAuthoritative(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return nil, "", false, ErrNotStarted
+	}
+	return n.defaultSlotProxy.ListChannelSubscribers(ctx, channelID, channelType, afterUID, limit)
+}
+
+// ContainsChannelSubscriberAuthoritative performs a Slot-leader point lookup.
+func (n *Node) ContainsChannelSubscriberAuthoritative(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return false, ErrNotStarted
+	}
+	return n.defaultSlotProxy.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+}
+
+// HasChannelSubscribersAuthoritative checks set non-emptiness on the Slot leader.
+func (n *Node) HasChannelSubscribersAuthoritative(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return false, ErrNotStarted
+	}
+	return n.defaultSlotProxy.HasChannelSubscribers(ctx, channelID, channelType)
+}
+
+// AddChannelSubscribersCounted applies a set add and returns its durable change count.
+func (n *Node) AddChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) (metadb.SubscriberMutationResult, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return metadb.SubscriberMutationResult{}, ErrNotStarted
+	}
+	return n.defaultSlotProxy.AddChannelSubscribersCounted(ctx, channelID, channelType, uids, mutationVersion)
+}
+
+// RemoveChannelSubscribersCounted applies a set removal and returns its durable change count.
+func (n *Node) RemoveChannelSubscribersCounted(ctx context.Context, channelID string, channelType int64, uids []string, mutationVersion uint64) (metadb.SubscriberMutationResult, error) {
+	if n == nil || n.defaultSlotProxy == nil {
+		return metadb.SubscriberMutationResult{}, ErrNotStarted
+	}
+	return n.defaultSlotProxy.RemoveChannelSubscribersCounted(ctx, channelID, channelType, uids, mutationVersion)
 }
 
 // ProposeLocalWithHashSlot submits only when this node is the current Slot leader.

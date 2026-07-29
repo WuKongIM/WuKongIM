@@ -19,6 +19,7 @@ const (
 var (
 	messageCursorMagic         = [...]byte{'W', 'K', 'M', 'C'}
 	businessChannelCursorMagic = [...]byte{'W', 'K', 'C', 'L'}
+	businessChannelMemberMagic = [...]byte{'W', 'K', 'C', 'M'}
 	channelRuntimeCursorMagic  = [...]byte{'W', 'K', 'R', 'M'}
 	userListCursorMagic        = [...]byte{'W', 'K', 'U', 'L'}
 )
@@ -187,6 +188,45 @@ func decodeBusinessChannelCursorBinary(payload []byte) (managementusecase.Channe
 		return managementusecase.ChannelListCursor{}, strconv.ErrSyntax
 	}
 	cursor.ChannelID = channelID
+	return cursor, nil
+}
+
+func encodeBusinessChannelMemberCursor(cursor managementusecase.ChannelMemberCursor) (string, error) {
+	if cursor == (managementusecase.ChannelMemberCursor{}) {
+		return "", nil
+	}
+	data := make([]byte, 0, len(businessChannelMemberMagic)+1+4+8+1+binary.MaxVarintLen64+len(cursor.UID))
+	data = append(data, businessChannelMemberMagic[:]...)
+	data = append(data, managerCursorVersion)
+	data = binary.BigEndian.AppendUint32(data, cursor.ChannelIDHash)
+	data = binary.BigEndian.AppendUint64(data, uint64(cursor.ChannelType))
+	data = append(data, cursor.ListKind)
+	data = appendCursorString(data, cursor.UID)
+	return base64.RawURLEncoding.EncodeToString(data), nil
+}
+
+func decodeBusinessChannelMemberCursor(raw string) (managementusecase.ChannelMemberCursor, error) {
+	if raw == "" {
+		return managementusecase.ChannelMemberCursor{}, nil
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return managementusecase.ChannelMemberCursor{}, err
+	}
+	if !hasCursorMagic(payload, businessChannelMemberMagic) || len(payload) < len(businessChannelMemberMagic)+1+4+8+1 || payload[len(businessChannelMemberMagic)] != managerCursorVersion {
+		return managementusecase.ChannelMemberCursor{}, strconv.ErrSyntax
+	}
+	rest := payload[len(businessChannelMemberMagic)+1:]
+	cursor := managementusecase.ChannelMemberCursor{
+		ChannelIDHash: binary.BigEndian.Uint32(rest[:4]),
+		ChannelType:   int64(binary.BigEndian.Uint64(rest[4:12])),
+		ListKind:      rest[12],
+	}
+	uid, rest, err := readCursorString(rest[13:])
+	if err != nil || len(rest) != 0 || uid == "" || cursor.ChannelType <= 0 {
+		return managementusecase.ChannelMemberCursor{}, strconv.ErrSyntax
+	}
+	cursor.UID = uid
 	return cursor, nil
 }
 

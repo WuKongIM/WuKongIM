@@ -142,7 +142,8 @@ import type {
   PromoteControllerVoterResponse,
   RepairChannelClusterLeaderInput,
   TransferChannelClusterLeaderInput,
-  UpsertBusinessChannelInput,
+  CreateBusinessChannelInput,
+  UpdateBusinessChannelInput,
   UserListParams,
 } from "@/lib/manager-api.types"
 
@@ -375,6 +376,10 @@ function buildBusinessChannelsPath(params?: BusinessChannelListParams) {
   return query ? `/manager/channels?${query}` : "/manager/channels"
 }
 
+function encodeBusinessChannelPathID(channelId: string) {
+  return encodeURIComponent(encodeURIComponent(channelId))
+}
+
 function buildBusinessChannelMembersPath(
   channelType: number,
   channelId: string,
@@ -388,7 +393,10 @@ function buildBusinessChannelMembersPath(
   if (params?.cursor) {
     search.set("cursor", params.cursor)
   }
-  const path = `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}`
+  if (params?.uid) {
+    search.set("uid", params.uid)
+  }
+  const path = `/manager/channels/${channelType}/${encodeBusinessChannelPathID(channelId)}/${listKind}`
   const query = search.toString()
   return query ? `${path}?${query}` : path
 }
@@ -1093,11 +1101,11 @@ export function getBusinessChannels(params?: BusinessChannelListParams) {
 
 export function getBusinessChannel(channelType: number, channelId: string) {
   return jsonManagerFetch<ManagerBusinessChannelDetailResponse>(
-    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}`,
+    `/manager/channels/${channelType}/${encodeBusinessChannelPathID(channelId)}`,
   )
 }
 
-export function upsertBusinessChannel(input: UpsertBusinessChannelInput) {
+export function createBusinessChannel(input: CreateBusinessChannelInput) {
   return jsonManagerFetch<ManagerBusinessChannelDetailResponse>("/manager/channels", {
     method: "POST",
     body: JSON.stringify({
@@ -1108,6 +1116,24 @@ export function upsertBusinessChannel(input: UpsertBusinessChannelInput) {
       send_ban: input.sendBan,
     }),
   })
+}
+
+export function updateBusinessChannel(
+  channelType: number,
+  channelId: string,
+  input: UpdateBusinessChannelInput,
+) {
+  return jsonManagerFetch<ManagerBusinessChannelDetailResponse>(
+    `/manager/channels/${channelType}/${encodeBusinessChannelPathID(channelId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        ban: input.ban,
+        disband: input.disband,
+        send_ban: input.sendBan,
+      }),
+    },
+  )
 }
 
 export function getBusinessChannelMembers(
@@ -1128,7 +1154,7 @@ export function addBusinessChannelMembers(
   input: MutateBusinessChannelMembersInput,
 ) {
   return jsonManagerFetch<MutateBusinessChannelMembersResponse>(
-    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}/add`,
+    `/manager/channels/${channelType}/${encodeBusinessChannelPathID(channelId)}/${listKind}/add`,
     {
       method: "POST",
       body: JSON.stringify({ uids: input.uids }),
@@ -1143,7 +1169,7 @@ export function removeBusinessChannelMembers(
   input: MutateBusinessChannelMembersInput,
 ) {
   return jsonManagerFetch<MutateBusinessChannelMembersResponse>(
-    `/manager/channels/${channelType}/${encodeURIComponent(channelId)}/${listKind}/remove`,
+    `/manager/channels/${channelType}/${encodeBusinessChannelPathID(channelId)}/${listKind}/remove`,
     {
       method: "POST",
       body: JSON.stringify({ uids: input.uids }),
