@@ -78,7 +78,7 @@ jobs:
           [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
           (cd control && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent)
           go version -m "$RUNNER_TEMP/wkissueagent" >"$RUNNER_TEMP/wkissueagent.buildinfo"
-          grep -F "vcs.revision	$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
+          grep -F "vcs.revision=$revision" "$RUNNER_TEMP/wkissueagent.buildinfo"
       - name: Plan bounded event
         id: plan
         shell: bash
