@@ -4,7 +4,7 @@
 
 **Goal:** Remove the permanent unscoped Agent validation failure status while preserving the generation-bound fail-closed merge gate.
 
-**Architecture:** Keep the control Workflow's PR-event invalidation job as a summary-only audit job with job-scoped deduplication. Make the generation-bound `Agent Validation Gate` the only invalidation verdict, and enforce that boundary through the existing static Workflow contract parser.
+**Architecture:** Keep the control Workflow's PR-event invalidation job in the repository-wide PR-numbered concurrency group so it still cancels a running same-PR validation worker, but reduce the job body to an audit summary with no write permission. Make the generation-bound `Agent Validation Gate` the only invalidation verdict, and enforce that boundary through the existing static Workflow contract parser.
 
 **Tech Stack:** GitHub Actions YAML, Go static contract tests, Markdown operational documentation.
 
@@ -62,7 +62,7 @@ GOWORK=off go test ./scripts \
 Expected: FAIL with
 `Agent validation invalidation permissions = map[string]string{"statuses":"write"}, want none`.
 
-### Task 2: Make invalidation summary-only
+### Task 2: Remove the stale status while preserving worker cancellation
 
 **Files:**
 - Modify: `.github/workflows/agent-pr-validation-control.yml:131-164`
@@ -94,6 +94,9 @@ Replace the invalidation job's permissions and step with:
           } >>"$GITHUB_STEP_SUMMARY"
 ```
 
+The unchanged concurrency key intentionally matches the validation worker's
+workflow-level key and preserves cancellation of a running same-PR worker.
+
 - [ ] **Step 2: Run the focused contract test and verify GREEN**
 
 Run:
@@ -114,7 +117,117 @@ git add .github/workflows/agent-pr-validation-control.yml \
 git commit -m "fix(ci): remove stale Agent validation status"
 ```
 
-### Task 3: Correct the operational documentation
+### Task 3: Harden the summary-only contract
+
+**Files:**
+- Modify: `scripts/github_workflows_test.go`
+- Test: `scripts/github_workflows_test.go`
+
+- [ ] **Step 1: Add negative mutation cases**
+
+Add a table-driven
+`TestAgentPRValidationControlWorkflowRejectsNonSummaryInvalidation` that
+mutates the invalidation job in two ways:
+
+```go
+tests := []struct {
+	name        string
+	oldFragment string
+	newFragment string
+}{
+	{
+		name: "extra action",
+		oldFragment: `      - name: Write invalidation summary
+        shell: bash`,
+		newFragment: `      - name: Unexpected action
+        uses: attacker/example@0123456789abcdef0123456789abcdef01234567
+      - name: Write invalidation summary
+        shell: bash`,
+	},
+	{
+		name: "alternate status write",
+		oldFragment: `      - name: Write invalidation summary
+        shell: bash
+        run: |
+          {
+`,
+		newFragment: `      - name: Write invalidation summary
+        shell: bash
+        run: |
+          printf '%s' '{"state":"failure","context":"Agent Validation Request / PR #999"}' | gh api --method POST "repos/${GITHUB_REPOSITORY}/commits/${{ github.event.pull_request.head.sha }}/statuses" --input -
+          {
+`,
+	},
+}
+```
+
+For each case, require `validateAgentPRValidationControlWorkflow` to return an
+error.
+
+- [ ] **Step 2: Verify both mutations fail RED**
+
+Run:
+
+```bash
+GOWORK=off go test ./scripts \
+  -run '^TestAgentPRValidationControlWorkflowRejectsNonSummaryInvalidation$' \
+  -count=1
+```
+
+Expected: FAIL because both mutations are accepted by the text-fragment
+contract.
+
+- [ ] **Step 3: Require one exact script-only summary step**
+
+Replace the fragment checks with:
+
+```go
+invalidateNode, ok := mappingValue(jobs, "invalidate")
+if !ok {
+	return fmt.Errorf("Agent validation invalidation job is missing")
+}
+if err := validateMappingKeys(
+	invalidateNode,
+	[]string{"name", "if", "runs-on", "timeout-minutes", "concurrency", "steps"},
+	"Agent validation invalidation job",
+); err != nil {
+	return err
+}
+wantInvalidateStep := ciStep{
+	Name:  "Write invalidation summary",
+	Shell: "bash",
+	Run: "{\n" +
+		"  echo '## Agent validation invalidated'\n" +
+		"  echo\n" +
+		"  echo \"- PR: \\`#${{ github.event.pull_request.number }}\\`\"\n" +
+		"  echo \"- New head SHA: \\`${{ github.event.pull_request.head.sha }}\\`\"\n" +
+		"  echo '- A fresh Agent validation plan is required.'\n" +
+		"} >>\"$GITHUB_STEP_SUMMARY\"\n",
+}
+if len(invalidate.Steps) != 1 ||
+	!reflect.DeepEqual(invalidate.Steps[0], wantInvalidateStep) {
+	return fmt.Errorf(
+		"Agent validation invalidation must contain exactly one summary-only step",
+	)
+}
+```
+
+Also require the rendered `steps` YAML node to contain exactly one entry with
+only `name`, `shell`, and `run` keys.
+
+- [ ] **Step 4: Verify the hardened contract GREEN**
+
+Run:
+
+```bash
+GOWORK=off go test ./scripts \
+  -run '^TestAgentPRValidationControlWorkflow(Contract|RejectsNonSummaryInvalidation)$' \
+  -count=1
+```
+
+Expected: PASS.
+
+### Task 4: Correct the operational documentation
 
 **Files:**
 - Modify: `.github/workflows/README.md:127-131`
@@ -127,12 +240,11 @@ Replace the invalidation paragraph with:
 
 ```markdown
 Editing, opening, reopening, or adding another commit triggers both safety
-Workflows. The control Workflow records an invalidation audit summary and
-deduplicates overlapping invalidation jobs; it does not publish an unscoped
-classic commit status. The merge-gate check fails closed until the Agent
-reassesses the diff and publishes a fresh request. Each such PR event creates a
-new merge-gate run ID, which is the validation generation: evidence from an
-older generation cannot consume retries or satisfy the new gate.
+Workflows. The control Workflow's invalidation job shares the validation
+worker's repository-wide PR-numbered concurrency group, so it cancels a running
+same-PR worker and records an audit summary without publishing an unscoped
+classic commit status. Wait for that invalidation job to finish before applying
+`agent-ci/run`.
 ```
 
 - [ ] **Step 2: Document the single authoritative invalidation signal**
@@ -141,9 +253,9 @@ Add this paragraph to `docs/development/CI.md` after the merge-gate overview:
 
 ```markdown
 The first failing `Agent Validation Gate` attempt is the only PR-event
-invalidation verdict. The control Workflow's invalidation job writes an audit
-summary only; it must not publish an unscoped classic commit status that cannot
-be consumed by a terminal gate generation.
+invalidation verdict. The control Workflow's invalidation job shares the
+validation worker's PR-numbered concurrency group, cancels a running same-PR
+worker, and writes an audit summary without publishing an unscoped status.
 ```
 
 - [ ] **Step 3: Record the stable repository rule**
@@ -151,7 +263,7 @@ be consumed by a terminal gate generation.
 Add this bullet to `docs/development/PROJECT_KNOWLEDGE.md` under `## Internal`:
 
 ```markdown
-- Agent PR invalidation is represented only by the generation-bound `Agent Validation Gate`; the control invalidation job may deduplicate events and write an audit summary, but must not publish an unscoped classic commit status.
+- Agent PR invalidation is represented only by the generation-bound `Agent Validation Gate`; the control invalidation job shares the worker's PR-numbered concurrency group to cancel a running same-PR validation and write an audit summary, but must not publish an unscoped classic commit status.
 ```
 
 - [ ] **Step 4: Commit the documentation**
@@ -164,7 +276,7 @@ git add .github/workflows/README.md \
 git commit -m "docs: clarify Agent validation invalidation"
 ```
 
-### Task 4: Verify the complete contract
+### Task 5: Verify the complete contract
 
 **Files:**
 - Verify: `.github/workflows/*.yml`

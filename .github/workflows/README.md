@@ -125,12 +125,15 @@ For each PR head:
    code or follow the evidence-bound retry rule, and publish a final PR summary.
 
 Editing, opening, reopening, or adding another commit triggers both safety
-Workflows. The control Workflow records an invalidation audit summary and
-deduplicates overlapping invalidation jobs; it does not publish an unscoped
-classic commit status. The merge-gate check fails closed until the Agent
-reassesses the diff and publishes a fresh request. Each such PR event creates a
-new merge-gate run ID, which is the validation generation: evidence from an
-older generation cannot consume retries or satisfy the new gate.
+Workflows. The control Workflow's invalidation job shares the validation
+worker's repository-wide PR-numbered concurrency group, so it cancels a running
+same-PR worker and records an audit summary without publishing an unscoped
+classic commit status. Wait for that invalidation job to finish before applying
+`agent-ci/run`; otherwise the shared concurrency group may cancel the fresh
+worker. The merge-gate check fails closed until the Agent reassesses the diff
+and publishes a fresh request. Each such PR event creates a new merge-gate run
+ID, which is the validation generation: evidence from an older generation
+cannot consume retries or satisfy the new gate.
 
 ### Fixed selection labels
 
