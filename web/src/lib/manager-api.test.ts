@@ -2458,6 +2458,31 @@ describe("manager api client", () => {
     })
   })
 
+  it("keeps repository failure detail on ManagerApiError", async () => {
+    const detail = {
+      provider: "oss",
+      stage: "write_marker",
+      reason: "invalid_access_key",
+      provider_code: "InvalidAccessKeyId",
+      request_id: "request-1",
+      node_id: 2,
+    }
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({
+        error: "backup_repository_auth_failed",
+        message: "Alibaba Cloud OSS rejected the AccessKey ID.",
+        detail,
+      }), { status: 503 }),
+    )
+
+    await expect(testBackupRepository(4)).rejects.toMatchObject({
+      status: 503,
+      error: "backup_repository_auth_failed",
+      message: "Alibaba Cloud OSS rejected the AccessKey ID.",
+      detail,
+    })
+  })
+
   it("calls the scheduled full-backup and in-place restore endpoints", async () => {
     fetchMock.mockImplementation(async () =>
       new Response(JSON.stringify({ state: {}, archives: [] }), { status: 200 }))
@@ -2475,7 +2500,7 @@ describe("manager api client", () => {
 
     await getBackupDashboard()
     await saveBackupPlan(plan)
-    await testBackupRepository(plan)
+    await testBackupRepository(3)
     await startBackupJob()
     await cancelBackupJob("job 1")
     await verifyBackupArchive("archive/1")
@@ -2507,6 +2532,9 @@ describe("manager api client", () => {
       "POST", "PUT", "DELETE", "POST", "POST",
     ])
     expect(JSON.parse((fetchMock.mock.calls[1]?.[1] as { body: string }).body)).toEqual(plan)
+    expect(JSON.parse((fetchMock.mock.calls[2]?.[1] as { body: string }).body)).toEqual({
+      expected_plan_revision: 3,
+    })
     expect(JSON.parse((fetchMock.mock.calls[7]?.[1] as { body: string }).body)).toEqual({
       confirmation: "DELETE archive/1",
     })

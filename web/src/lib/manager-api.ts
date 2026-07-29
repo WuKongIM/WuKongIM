@@ -130,6 +130,7 @@ import type {
   ManagerBackupDashboard,
   ManagerBackupJob,
   ManagerBackupPlanInput,
+  ManagerBackupRepositoryTestResult,
   ManagerRestoreInput,
   ManagerRestoreJob,
   ManagerApplicationLogEntriesResponse,
@@ -167,19 +168,28 @@ type ManagerErrorResponse = {
   error?: string
   message?: string
   report?: unknown
+  detail?: unknown
 }
 
 export class ManagerApiError extends Error {
   status: number
   error: string
   report?: unknown
+  detail?: unknown
 
-  constructor(status: number, error: string, message: string, report?: unknown) {
+  constructor(
+    status: number,
+    error: string,
+    message: string,
+    report?: unknown,
+    detail?: unknown,
+  ) {
     super(message)
     this.name = "ManagerApiError"
     this.status = status
     this.error = error
     this.report = report
+    this.detail = detail
   }
 }
 
@@ -216,6 +226,7 @@ async function parseManagerError(response: Response) {
     payload?.error ?? "request_failed",
     payload?.message ?? `Request failed with status ${response.status}`,
     payload?.report,
+    payload?.detail,
   )
 }
 
@@ -1336,10 +1347,12 @@ export function saveBackupPlan(input: ManagerBackupPlanInput) {
   })
 }
 
-export function testBackupRepository(input: ManagerBackupPlanInput) {
-  return jsonManagerFetch<{ ok: boolean }>("/manager/backups/repository/test", {
+export function testBackupRepository(expectedPlanRevision: number) {
+  return jsonManagerFetch<ManagerBackupRepositoryTestResult>("/manager/backups/repository/test", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      expected_plan_revision: expectedPlanRevision,
+    }),
   })
 }
 
