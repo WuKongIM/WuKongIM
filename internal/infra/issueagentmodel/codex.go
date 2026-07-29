@@ -172,7 +172,8 @@ func (adapter *CodexAdapter) Run(
 
 // CodexCLIConfig fixes one minimum-compatible Codex executable and bootstrap.
 type CodexCLIConfig struct {
-	Binary        string
+	Binary string
+	// BootstrapHome is the absolute Action-created home parsed fail-closed.
 	BootstrapHome string
 	MinVersion    string
 	TempRoot      string
@@ -237,11 +238,13 @@ func (runner *CodexCLIRunner) RunRound(
 		"--strict-config", "--skip-git-repo-check",
 		"--sandbox", "read-only",
 		"-c", `approval_policy="never"`,
-		"-c", `model_provider="codex-action-responses-proxy"`,
-		"-c", `model_providers.codex-action-responses-proxy.name="Codex Action Responses Proxy"`,
-		"-c", `model_providers.codex-action-responses-proxy.base_url=` +
+		"-c", `model_provider=` + strconv.Quote(codexActionProviderName),
+		"-c", `model_providers.` + codexActionProviderName +
+			`.name=` + strconv.Quote(codexActionDisplayName),
+		"-c", `model_providers.` + codexActionProviderName + `.base_url=` +
 			strconv.Quote(runner.proxy.baseURL),
-		"-c", `model_providers.codex-action-responses-proxy.wire_api="responses"`,
+		"-c", `model_providers.` + codexActionProviderName +
+			`.wire_api=` + strconv.Quote(codexActionWireAPI),
 		"--disable", "shell_tool",
 		"--disable", "unified_exec",
 		"--disable", "apps",

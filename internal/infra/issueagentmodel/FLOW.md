@@ -25,13 +25,14 @@ model/provider changes fail closed. The state machine and Worker do not
 interpret provider-specific messages.
 
 The Codex Adapter accepts only the Action's exact
-`http://127.0.0.1:<port>/v1` Responses provider from a regular,
-non-writable bootstrap config. It rejects every extra setting, then passes
-canonical provider overrides to one ephemeral, user-config-free `codex exec`
-per round. Each round receives a fresh empty home and workspace, retains
-read-only/never-approval policy with native tools disabled, and uses only the
-authoritative `turn.completed` usage record. DeepSeek uses the OpenAI-compatible
-tool-call protocol with strict bounded JSON or SSE decoding. Neither Adapter
-permits the model to supply a repository `ChangeSet`, command evidence,
-Artifact digest, diagnosis evidence digest, or token count. There is no
-automatic provider fallback: a provider change requires a new signed attempt.
+`http://127.0.0.1:<port>/v1` Responses provider from a regular bootstrap config
+that is not group- or world-writable. It rejects every extra setting, then
+passes canonical provider overrides to one ephemeral, user-config-free
+`codex exec` per round. Each round receives a fresh empty home and workspace,
+retains read-only/never-approval policy with native tools disabled, and uses
+only the authoritative `turn.completed` usage record. DeepSeek uses the
+OpenAI-compatible tool-call protocol with strict bounded JSON or SSE decoding.
+Neither Adapter permits the model to supply a repository `ChangeSet`, command
+evidence, Artifact digest, diagnosis evidence digest, or token count. There is
+no automatic provider fallback: a provider change requires a new signed
+attempt.

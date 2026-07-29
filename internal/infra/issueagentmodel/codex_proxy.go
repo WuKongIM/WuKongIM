@@ -15,6 +15,7 @@ import (
 const (
 	codexActionProviderName = "codex-action-responses-proxy"
 	codexActionDisplayName  = "Codex Action Responses Proxy"
+	codexActionWireAPI      = "responses"
 	maxCodexProxyConfigSize = 16 << 10
 )
 
@@ -54,7 +55,7 @@ func loadCodexActionProxyConfig(home string) (codexActionProxyConfig, error) {
 	provider, ok := providers[codexActionProviderName].(map[string]any)
 	if !ok || !hasExactKeys(provider, "name", "base_url", "wire_api") ||
 		provider["name"] != codexActionDisplayName ||
-		provider["wire_api"] != "responses" {
+		provider["wire_api"] != codexActionWireAPI {
 		return invalidCodexActionProxyConfig()
 	}
 	baseURL, ok := provider["base_url"].(string)
