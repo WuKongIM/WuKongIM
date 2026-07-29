@@ -35,6 +35,11 @@ Before authorization, deterministic Intake parses only the four required Bug
 Issue Form facts. It may propose `needs-triage` or `needs-info` and a bounded
 request for missing facts. It never resolves a version, runs a model or command,
 creates a branch, or opens a pull request.
+While rollout is capped at `intake`, every existing valid or invalid signed
+chain is read-only: Worker recovery, drift recording, projection repair, audit
+alerts, and later lifecycle transitions all return `wait`. This makes a
+downgrade to `intake` a real capability reduction rather than only blocking the
+normal next-state path.
 
 Every Worker lease is fenced by repository, Issue, generation, sequence,
 checkpoint digest, operation ID, phase, exact source SHAs, instruction and
