@@ -260,6 +260,62 @@ func TestScheduledServiceAcceptsTwelveHourIntervalSchedule(t *testing.T) {
 	}
 }
 
+func TestScheduledServiceAcceptsCloudObjectStores(t *testing.T) {
+	testCases := []struct {
+		name     string
+		kind     backupcontract.StoreKind
+		endpoint string
+		region   string
+		bucket   string
+	}{
+		{
+			name: "Alibaba OSS", kind: backupcontract.StoreKindOSS,
+			endpoint: "https://oss-cn-hangzhou.aliyuncs.com",
+			region:   "cn-hangzhou", bucket: "wukongim-backups",
+		},
+		{
+			name: "Tencent COS", kind: backupcontract.StoreKindCOS,
+			endpoint: "https://cos.ap-shanghai.myqcloud.com",
+			region:   "ap-shanghai", bucket: "wukongim-backups-1250000000",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			service, err := backupusecase.NewScheduledService(
+				backupusecase.ScheduledOptions{
+					StateStore: &memoryScheduledStateStore{},
+					Now: func() time.Time {
+						return time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+					},
+					NewID: func() string { return "backup-cloud" },
+				},
+			)
+			if err != nil {
+				t.Fatalf("NewScheduledService(): %v", err)
+			}
+			request := validConfigureRequest()
+			request.Store = backupcontract.StoreConfig{
+				Kind: testCase.kind, Endpoint: testCase.endpoint,
+				Region: testCase.region, Bucket: testCase.bucket,
+				Prefix:               "cluster-a",
+				CredentialCiphertext: []byte("sealed-credential"),
+			}
+			if _, err := service.Configure(
+				context.Background(), request,
+			); err != nil {
+				t.Fatalf("Configure(): %v", err)
+			}
+			request.ExpectedRevision = 1
+			request.Store.PathStyle = true
+			if _, err := service.Configure(
+				context.Background(), request,
+			); !errors.Is(err, backupusecase.ErrInvalidRequest) {
+				t.Fatalf("Configure(path style) error = %v", err)
+			}
+		})
+	}
+}
+
 func TestScheduledServiceSerializesArchiveOperations(t *testing.T) {
 	store := &memoryScheduledStateStore{}
 	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)

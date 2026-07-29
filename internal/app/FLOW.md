@@ -1083,7 +1083,8 @@ TOML or environment policy. Manager stores the only plan in Controller state.
 
 The composition root creates:
 
-- a cluster-bound credential cipher and file/S3 repository provider;
+- a cluster-bound credential cipher and shared-file/OSS/COS/S3-compatible
+  repository provider;
 - a Controller-backed scheduled state store;
 - Manager plan/archive and restore services;
 - repository visibility probes for every active data node;

@@ -2,9 +2,9 @@
 
 ## Responsibility
 
-`internal/infra/backup` adapts scheduled backup ports to file/S3 storage,
-Controller state, current cluster routing, node RPC, online export, and
-maintenance restore. Scheduling and state-machine policy remain in
+`internal/infra/backup` adapts scheduled backup ports to shared-file and object
+storage, Controller state, current cluster routing, node RPC, online export,
+and maintenance restore. Scheduling and state-machine policy remain in
 `internal/usecase/backup`.
 
 ## Repository adapters
@@ -15,9 +15,18 @@ maintenance restore. Scheduling and state-machine policy remain in
   the same mount. A repository-root alias that already exists at process start
   is resolved once to its real directory; object operations remain anchored
   there and reject every symlink inside the repository.
-- `s3` uses one endpoint, region, bucket, and prefix. Access/secret keys are
-  authenticated-encrypted before Controller publication and decrypted only
-  while opening a client.
+- `oss` uses an Alibaba Cloud OSS region, bucket, prefix, and optional endpoint
+  override. When the override is empty, the provider derives the standard
+  public endpoint from Region. It forces virtual-host addressing.
+- `cos` uses a Tencent Cloud COS region, full bucket name including APPID,
+  prefix, and optional endpoint override. When the override is empty, the
+  provider derives the standard public endpoint from Region. It forces
+  virtual-host addressing.
+- `s3` uses one generic S3-compatible endpoint, optional region, bucket, prefix,
+  and automatic or path-style addressing.
+
+All object-storage access/secret key pairs are authenticated-encrypted before
+Controller publication and decrypted only while opening a client.
 
 `SharedRepositoryProbe` writes one coordinator marker, asks every active data
 node to observe it and write a receipt, verifies all receipts, then removes the

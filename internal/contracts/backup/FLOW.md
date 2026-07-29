@@ -17,11 +17,12 @@ contains:
 - bounded completed job history;
 - the Manager session epoch used to invalidate pre-restore JWTs.
 
-The plan selects one file or S3-compatible repository, one Cron or `@every`
-schedule and time zone, retention count, per-node rate limit, workers per node,
-and maximum duration. Repository credentials cross this package only as
-encrypted values. Public projections use a credential-present boolean and
-never expose ciphertext or plaintext secrets.
+The plan selects one shared-file, Alibaba OSS, Tencent COS, or generic
+S3-compatible repository, one Cron or `@every` schedule and time zone,
+retention count, per-node rate limit, workers per node, and maximum duration.
+Repository credentials cross this package only as encrypted values. Public
+projections use a credential-present boolean and never expose ciphertext or
+plaintext secrets.
 
 Each backup job contains exactly one bounded `SlotBackupProgress` entry for
 every logical Hash Slot. Jobs are resumable and Controller-Leader-fenced by

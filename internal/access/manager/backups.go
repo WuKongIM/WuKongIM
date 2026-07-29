@@ -275,11 +275,42 @@ func bindBackupPlanRequest(c *gin.Context) (backupPlanRequest, bool) {
 		len(request.Store.Bucket) > 255 ||
 		len(request.Store.Prefix) > 1024 ||
 		len(request.Store.AccessKey) > 1024 ||
-		len(request.Store.SecretKey) > 8192 {
+		len(request.Store.SecretKey) > 8192 ||
+		!validBackupStoreRequest(request.Store) {
 		jsonError(c, http.StatusBadRequest, "backup_bad_request", "invalid backup plan")
 		return backupPlanRequest{}, false
 	}
 	return request, true
+}
+
+func validBackupStoreRequest(store backupStoreRequest) bool {
+	endpoint := strings.TrimSpace(store.Endpoint)
+	region := strings.TrimSpace(store.Region)
+	bucket := strings.TrimSpace(store.Bucket)
+	prefix := strings.Trim(strings.TrimSpace(store.Prefix), "/")
+	accessKey := strings.TrimSpace(store.AccessKey)
+	credentialsPaired :=
+		(accessKey == "" && store.SecretKey == "") ||
+			(accessKey != "" && store.SecretKey != "")
+	if !credentialsPaired {
+		return false
+	}
+	switch store.Kind {
+	case backupcontract.StoreKindFile:
+		return endpoint == "" && region == "" && bucket == "" && prefix == "" &&
+			!store.PathStyle && accessKey == "" && store.SecretKey == ""
+	case backupcontract.StoreKindS3:
+		return endpoint != "" && bucket != "" && prefix != ""
+	case backupcontract.StoreKindOSS:
+		return backupusecase.ValidCloudRegion(region) &&
+			bucket != "" && prefix != "" && !store.PathStyle
+	case backupcontract.StoreKindCOS:
+		return backupusecase.ValidCloudRegion(region) &&
+			backupusecase.COSBucketHasAPPID(bucket) &&
+			prefix != "" && !store.PathStyle
+	default:
+		return false
+	}
 }
 
 func limitBackupJSONBody(c *gin.Context, limit int64) {
@@ -312,8 +343,8 @@ func managementConfigureRequest(
 			MaxDuration: time.Duration(request.MaxDurationHours) *
 				time.Hour,
 		},
-		S3AccessKey: strings.TrimSpace(request.Store.AccessKey),
-		S3SecretKey: request.Store.SecretKey,
+		AccessKey: strings.TrimSpace(request.Store.AccessKey),
+		SecretKey: request.Store.SecretKey,
 	}
 }
 

@@ -14,7 +14,7 @@ func TestCredentialCipherRoundTripIsClusterAndSecretBound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewCredentialCipher(): %v", err)
 	}
-	credentials := backupinfra.S3Credentials{
+	credentials := backupinfra.ObjectStoreCredentials{
 		AccessKey: "access-key", SecretKey: "secret-key",
 	}
 	sealed, err := cipher.Seal(credentials)

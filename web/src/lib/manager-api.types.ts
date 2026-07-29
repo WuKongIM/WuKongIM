@@ -2261,7 +2261,7 @@ export type ManagerDBInspectQueryInput = {
   query: string
 }
 
-export type ManagerBackupStoreKind = "file" | "s3"
+export type ManagerBackupStoreKind = "file" | "oss" | "cos" | "s3"
 
 export type ManagerBackupStore = {
   kind: ManagerBackupStoreKind
