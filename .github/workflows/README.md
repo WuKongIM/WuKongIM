@@ -31,11 +31,11 @@ for discovery and may become more specific over time.
 
 ## GitHub Issue Agent rollout
 
-The checked-in Issue Agent policy currently runs in `intake` mode.
-In `intake`, the trusted control planner admits only
-deterministic `intake` and fresh `authorize` operations; every command,
-reconciliation, PR, Review, validation-result, merge, and recovery hint becomes
-`report_only` before any signed-state Publisher is selected.
+The checked-in Issue Agent policy currently runs in `reproduction` mode.
+It permits deterministic Intake and authorization followed by exact version
+pinning, one bounded E2E reproduction Worker, an Agent branch, and a Draft PR.
+Diagnosis, remediation, Ready-for-Review promotion, and merge remain outside
+the rollout ceiling.
 `issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
 non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
 non-cancelling group per Issue. Both use the bounded maximum pending queue so
@@ -50,11 +50,10 @@ Every job builds `cmd/wkissueagent` from protected `main` control source or
 checks its embedded revision. Target source uses a distinct exact-SHA checkout
 with persisted Git credentials disabled.
 
-In `intake`, no model job is eligible, so no provider secret or model quota is
-consumed. Publisher access to the App and checkpoint key is limited to
-deterministic intake and fresh authorization writes. The scheduled scan reads
-at most one page below 100 records; saturation or any invalid signed chain
-blocks admission rather than assuming capacity.
+In `reproduction`, only the frozen reproduction phase may consume one selected
+provider secret or model quota. The scheduled scan reads at most one page below
+100 records; saturation or any invalid signed chain blocks admission rather
+than assuming capacity.
 
 Write-capable modes retain three credential boundaries:
 

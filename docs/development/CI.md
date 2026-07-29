@@ -14,8 +14,10 @@ The repository includes three serverless GitHub-hosted Actions for the Issue
 Agent. `issue-agent-control.yml` handles bounded event hints,
 `issue-agent-reconcile.yml` performs the scheduled bounded sweep, and
 `issue-agent-run.yml` executes one signed per-Issue task. The checked-in rollout
-is `shadow`, so only read/report paths are eligible and no Publisher or provider
-secret is consumed.
+is `reproduction`, so deterministic Intake and authorization may advance
+through version pinning, one bounded E2E reproduction phase, an Agent branch,
+and a Draft PR. Diagnosis, remediation, Ready-for-Review promotion, and merge
+remain outside the capability ceiling.
 
 Every job builds `cmd/wkissueagent` from protected `main` control source.
 Control and exact target source use separate checkouts with persisted
@@ -23,7 +25,7 @@ credentials disabled. Event payload text is parsed as bounded data, never
 interpolated into a command. The Sweeper accepts only a complete inventory
 below 100 open `ready-for-agent` Issues.
 
-In later reviewed modes, provider keys are isolated in
+Provider keys are isolated in
 `issue-agent-codex`/`issue-agent-deepseek`; App and checkpoint keys are isolated
 in `issue-agent-publisher`. Target commands run only inside the no-network
 digest-pinned sandbox. Worker output is an untrusted semantic proposal until

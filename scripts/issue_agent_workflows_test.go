@@ -291,6 +291,20 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 	})
 }
 
+func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(filepath.Join(
+		repoRoot(t), ".github", "issue-agent", "policy.json",
+	))
+	require.NoError(t, err)
+	var policy struct {
+		RolloutMode string `json:"rollout_mode"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &policy))
+	require.Equal(t, "reproduction", policy.RolloutMode)
+}
+
 func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
 	t.Parallel()
 
