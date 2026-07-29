@@ -112,6 +112,122 @@ func TestManagerBackupWritesRequireAuthenticationAndPermission(t *testing.T) {
 	}
 }
 
+func TestManagerBackupRejectsInvalidCloudRepositoryShape(t *testing.T) {
+	testCases := []struct {
+		name  string
+		store string
+	}{
+		{
+			name: "OSS path style",
+			store: `{
+				"kind":"oss",
+				"region":"cn-hangzhou",
+				"bucket":"wukongim-backups",
+				"prefix":"cluster-a",
+				"path_style":true
+			}`,
+		},
+		{
+			name: "COS bucket without APPID",
+			store: `{
+				"kind":"cos",
+				"region":"ap-shanghai",
+				"bucket":"wukongim-backups",
+				"prefix":"cluster-a"
+			}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			provider := &fakeBackupManagement{}
+			server := New(Options{
+				Auth: testAuthConfig([]UserConfig{{
+					Username: "writer", Password: "secret",
+					Permissions: []PermissionConfig{{
+						Resource: "cluster.backup", Actions: []string{"w"},
+					}},
+				}}),
+				Backup: provider,
+			})
+			body := []byte(`{
+				"expected_revision":0,
+				"enabled":true,
+				"store":` + testCase.store + `,
+				"cron":"0 1 * * *",
+				"time_zone":"Asia/Shanghai",
+				"retention_count":7,
+				"rate_mib_per_second":50,
+				"workers_per_node":1,
+				"max_duration_hours":12
+			}`)
+			recorder := performBackupRequest(
+				server, http.MethodPut, "/manager/backups/plan", body,
+				mustIssueTestToken(t, server, "writer"),
+			)
+			if recorder.Code != http.StatusBadRequest ||
+				!bytes.Contains(
+					recorder.Body.Bytes(),
+					[]byte(`"error":"backup_bad_request"`),
+				) {
+				t.Fatalf(
+					"status = %d body=%s",
+					recorder.Code, recorder.Body,
+				)
+			}
+			if provider.configure.Store.Kind != "" {
+				t.Fatalf("Configure() called with %#v", provider.configure)
+			}
+		})
+	}
+}
+
+func TestManagerBackupMapsCloudRepositoryCredentials(t *testing.T) {
+	provider := &fakeBackupManagement{}
+	server := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "writer", Password: "secret",
+			Permissions: []PermissionConfig{{
+				Resource: "cluster.backup", Actions: []string{"w"},
+			}},
+		}}),
+		Backup: provider,
+	})
+	body := []byte(`{
+		"expected_revision":2,
+		"enabled":true,
+		"store":{
+			"kind":"oss",
+			"region":"cn-hangzhou",
+			"bucket":"wukongim-backups",
+			"prefix":"cluster-a",
+			"access_key":"access-key-id",
+			"secret_key":"access-key-secret"
+		},
+		"cron":"0 1 * * *",
+		"time_zone":"Asia/Shanghai",
+		"retention_count":7,
+		"rate_mib_per_second":50,
+		"workers_per_node":1,
+		"max_duration_hours":12
+	}`)
+	recorder := performBackupRequest(
+		server, http.MethodPut, "/manager/backups/plan", body,
+		mustIssueTestToken(t, server, "writer"),
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body)
+	}
+	request := provider.managementConfigure
+	if request.Store.Kind != backupcontract.StoreKindOSS ||
+		request.Store.Region != "cn-hangzhou" ||
+		request.Store.Bucket != "wukongim-backups" ||
+		request.Store.Prefix != "cluster-a" ||
+		request.AccessKey != "access-key-id" ||
+		request.SecretKey != "access-key-secret" {
+		t.Fatalf("configure request = %#v", request)
+	}
+}
+
 func TestManagerBackupRepositoryFailureIsActionable(t *testing.T) {
 	provider := &fakeBackupManagement{
 		testRepositoryErr: errors.Join(
@@ -274,13 +390,14 @@ func performBackupRequest(
 }
 
 type fakeBackupManagement struct {
-	dashboard         backupusecase.Dashboard
-	configure         backupusecase.ConfigureRequest
-	job               backupcontract.BackupJob
-	archive           backupusecase.ArchiveDetail
-	canceled          string
-	deleted           string
-	testRepositoryErr error
+	dashboard           backupusecase.Dashboard
+	configure           backupusecase.ConfigureRequest
+	managementConfigure backupusecase.ConfigureManagementRequest
+	job                 backupcontract.BackupJob
+	archive             backupusecase.ArchiveDetail
+	canceled            string
+	deleted             string
+	testRepositoryErr   error
 }
 
 func (f *fakeBackupManagement) Dashboard(
@@ -294,6 +411,7 @@ func (f *fakeBackupManagement) Configure(
 	request backupusecase.ConfigureManagementRequest,
 ) (backupusecase.ConfigureResult, error) {
 	f.configure = request.ConfigureRequest
+	f.managementConfigure = request
 	return backupusecase.ConfigureResult{
 		Plan: backupcontract.Plan{Revision: 1},
 	}, nil

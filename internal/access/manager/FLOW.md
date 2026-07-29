@@ -121,6 +121,12 @@ History covers full backup, restore, archive verification, and retention
 cleanup. They never expose repository object paths, encrypted credential bytes,
 plaintext secrets, Channel identities, or restore staging paths.
 
+Backup plan requests select `file`, `oss`, `cos`, or generic `s3` storage.
+Alibaba OSS and Tencent COS require Region, Bucket, Prefix, and provider
+credentials, reject path-style addressing, and allow Endpoint to remain blank
+for the provider's standard public address. COS requires the full Bucket name
+including its numeric APPID suffix.
+
 `/manager/login` preserves the legacy manager response shape migrated from
 `internal/access/manager`: successful responses include `username`,
 `token_type`, `access_token`, `expires_in`, `expires_at`, and `permissions`;

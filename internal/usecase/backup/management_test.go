@@ -83,6 +83,158 @@ func TestManagementServiceEnablesFilePlanAfterRepositoryProbe(t *testing.T) {
 	}
 }
 
+func TestManagementServicePreservesCloudDefaultEndpointSelection(t *testing.T) {
+	testCases := []struct {
+		name   string
+		kind   backupcontract.StoreKind
+		region string
+		bucket string
+	}{
+		{
+			name: "Alibaba OSS", kind: backupcontract.StoreKindOSS,
+			region: "cn-hangzhou", bucket: "wukongim-backups",
+		},
+		{
+			name: "Tencent COS", kind: backupcontract.StoreKindCOS,
+			region: "ap-shanghai", bucket: "wukongim-backups-1250000000",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+			stateStore := &memoryScheduledStateStore{}
+			scheduled, err := backupusecase.NewScheduledService(
+				backupusecase.ScheduledOptions{
+					StateStore: stateStore,
+					Now:        func() time.Time { return now },
+					NewID:      func() string { return "unused" },
+				},
+			)
+			if err != nil {
+				t.Fatalf("NewScheduledService(): %v", err)
+			}
+			cipher, err := backupinfra.NewCredentialCipher(
+				"manager-installation-secret", "cluster-a",
+			)
+			if err != nil {
+				t.Fatalf("NewCredentialCipher(): %v", err)
+			}
+			sealer, err := backupinfra.NewRepositoryProvider(t.TempDir(), cipher)
+			if err != nil {
+				t.Fatalf("NewRepositoryProvider(): %v", err)
+			}
+			fileStore, err := backupinfra.NewFileArchiveStore(t.TempDir())
+			if err != nil {
+				t.Fatalf("NewFileArchiveStore(): %v", err)
+			}
+			repository := &recordingArchiveRepository{store: fileStore}
+			management, err := backupusecase.NewManagementService(
+				backupusecase.ManagementOptions{
+					Scheduled: scheduled, Repository: repository, Sealer: sealer,
+					Probe: backupusecase.DirectRepositoryProbe{
+						NewID: func() string { return "probe-cloud" },
+					},
+					ClusterID: "cluster-a", Now: func() time.Time { return now },
+				},
+			)
+			if err != nil {
+				t.Fatalf("NewManagementService(): %v", err)
+			}
+			request := validConfigureRequest()
+			request.Store = backupcontract.StoreConfig{
+				Kind: testCase.kind, Region: testCase.region,
+				Bucket: testCase.bucket, Prefix: "cluster-a",
+			}
+
+			result, err := management.Configure(
+				context.Background(),
+				backupusecase.ConfigureManagementRequest{
+					ConfigureRequest: request,
+					AccessKey:        "access-key-id",
+					SecretKey:        "access-key-secret",
+				},
+			)
+			if err != nil {
+				t.Fatalf("Configure(): %v", err)
+			}
+			if repository.config.Kind != testCase.kind ||
+				repository.config.Endpoint != "" ||
+				repository.config.PathStyle ||
+				len(repository.config.CredentialCiphertext) == 0 {
+				t.Fatalf("repository config = %#v", repository.config)
+			}
+			if result.Plan.Store.Endpoint != "" ||
+				len(result.Plan.Store.CredentialCiphertext) == 0 {
+				t.Fatalf("plan store = %#v", result.Plan.Store)
+			}
+		})
+	}
+}
+
+func TestManagementServiceRejectsCallerSuppliedCredentialCiphertext(
+	t *testing.T,
+) {
+	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
+	scheduled, err := backupusecase.NewScheduledService(
+		backupusecase.ScheduledOptions{
+			StateStore: &memoryScheduledStateStore{},
+			Now:        func() time.Time { return now },
+			NewID:      func() string { return "unused" },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+	cipher, err := backupinfra.NewCredentialCipher(
+		"manager-installation-secret", "cluster-a",
+	)
+	if err != nil {
+		t.Fatalf("NewCredentialCipher(): %v", err)
+	}
+	sealer, err := backupinfra.NewRepositoryProvider(t.TempDir(), cipher)
+	if err != nil {
+		t.Fatalf("NewRepositoryProvider(): %v", err)
+	}
+	fileStore, err := backupinfra.NewFileArchiveStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewFileArchiveStore(): %v", err)
+	}
+	repository := &recordingArchiveRepository{store: fileStore}
+	management, err := backupusecase.NewManagementService(
+		backupusecase.ManagementOptions{
+			Scheduled: scheduled, Repository: repository, Sealer: sealer,
+			Probe: backupusecase.DirectRepositoryProbe{
+				NewID: func() string { return "probe-untrusted" },
+			},
+			ClusterID: "cluster-a", Now: func() time.Time { return now },
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewManagementService(): %v", err)
+	}
+	request := validConfigureRequest()
+	request.Store = backupcontract.StoreConfig{
+		Kind: backupcontract.StoreKindOSS, Region: "cn-hangzhou",
+		Endpoint: "https://oss-cn-hangzhou.aliyuncs.com",
+		Bucket:   "wukongim-backups", Prefix: "cluster-a",
+		CredentialCiphertext: []byte("caller-controlled"),
+		CredentialRevision:   99,
+	}
+
+	_, err = management.Configure(
+		context.Background(),
+		backupusecase.ConfigureManagementRequest{
+			ConfigureRequest: request,
+		},
+	)
+	if !errors.Is(err, backupusecase.ErrInvalidRequest) {
+		t.Fatalf("Configure() error = %v", err)
+	}
+	if repository.config.Kind != "" {
+		t.Fatalf("repository opened with %#v", repository.config)
+	}
+}
+
 func TestManagementRepositoryProbeClassifiesStoreAccessFailure(t *testing.T) {
 	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
 	scheduled, err := backupusecase.NewScheduledService(
@@ -262,6 +414,19 @@ func TestManagementVerifyMarksIntegrityFailureCorrupt(t *testing.T) {
 
 type failingRepositoryProbe struct {
 	err error
+}
+
+type recordingArchiveRepository struct {
+	store  backupartifact.ArchiveStore
+	config backupcontract.StoreConfig
+}
+
+func (r *recordingArchiveRepository) Open(
+	_ context.Context,
+	config backupcontract.StoreConfig,
+) (backupartifact.ArchiveStore, error) {
+	r.config = config
+	return r.store, nil
 }
 
 func (f failingRepositoryProbe) ProbeRepository(

@@ -46,6 +46,10 @@ type StoreKind string
 const (
 	// StoreKindFile uses the fixed node data-dir repository mount.
 	StoreKindFile StoreKind = "file"
+	// StoreKindOSS uses one Alibaba Cloud OSS bucket prefix.
+	StoreKindOSS StoreKind = "oss"
+	// StoreKindCOS uses one Tencent Cloud COS bucket prefix.
+	StoreKindCOS StoreKind = "cos"
 	// StoreKindS3 uses one S3-compatible bucket prefix.
 	StoreKindS3 StoreKind = "s3"
 )

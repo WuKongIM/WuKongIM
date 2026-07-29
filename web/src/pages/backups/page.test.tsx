@@ -148,6 +148,112 @@ test("saves a 12-hour plan using the current plan revision", async () => {
   })))
 })
 
+test("configures Alibaba OSS without requiring a custom endpoint", async () => {
+  const user = userEvent.setup()
+  renderPage()
+
+  const storage = await screen.findByRole("combobox", { name: "Storage" })
+  expect(screen.getByRole("option", { name: "Alibaba Cloud OSS" })).toBeInTheDocument()
+  expect(screen.getByRole("option", { name: "Tencent Cloud COS" })).toBeInTheDocument()
+  await user.selectOptions(storage, "oss")
+  await user.type(screen.getByRole("textbox", { name: "Region" }), "cn-hangzhou")
+  await user.type(screen.getByRole("textbox", { name: "Bucket" }), "wukongim-backups")
+  const prefix = screen.getByRole("textbox", { name: "Prefix" })
+  expect(prefix).toHaveValue("wukongim")
+  await user.clear(prefix)
+  await user.type(prefix, "cluster-a")
+  await user.type(screen.getByRole("textbox", { name: "AccessKey ID" }), "access-key-id")
+  await user.type(screen.getByLabelText("AccessKey Secret"), "access-key-secret")
+  expect(screen.getByRole("textbox", { name: "Endpoint (optional)" })).toHaveAttribute(
+    "placeholder",
+    "https://oss-<region>.aliyuncs.com",
+  )
+  expect(screen.queryByText("Use path-style addressing")).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Save settings" }))
+
+  await waitFor(() => expect(saveBackupPlanMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      store: {
+        kind: "oss",
+        endpoint: "",
+        region: "cn-hangzhou",
+        bucket: "wukongim-backups",
+        prefix: "cluster-a",
+        access_key: "access-key-id",
+        secret_key: "access-key-secret",
+      },
+    }),
+  ))
+})
+
+test("uses Tencent COS names and submits the full Bucket name", async () => {
+  const user = userEvent.setup()
+  renderPage()
+
+  const storage = await screen.findByRole("combobox", { name: "Storage" })
+  await user.selectOptions(storage, "cos")
+  expect(screen.getByText(/full Bucket name including APPID/)).toBeInTheDocument()
+  await user.type(screen.getByRole("textbox", { name: "Region" }), "ap-shanghai")
+  await user.type(
+    screen.getByRole("textbox", { name: "Bucket" }),
+    "wukongim-backups-1250000000",
+  )
+  const prefix = screen.getByRole("textbox", { name: "Prefix" })
+  await user.clear(prefix)
+  await user.type(prefix, "cluster-a")
+  await user.type(screen.getByRole("textbox", { name: "SecretId" }), "secret-id")
+  await user.type(screen.getByLabelText("SecretKey"), "secret-key")
+  expect(screen.getByRole("textbox", { name: "Endpoint (optional)" })).toHaveAttribute(
+    "placeholder",
+    "https://cos.<region>.myqcloud.com",
+  )
+  await user.click(screen.getByRole("button", { name: "Save settings" }))
+
+  await waitFor(() => expect(saveBackupPlanMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      store: {
+        kind: "cos",
+        endpoint: "",
+        region: "ap-shanghai",
+        bucket: "wukongim-backups-1250000000",
+        prefix: "cluster-a",
+        access_key: "secret-id",
+        secret_key: "secret-key",
+      },
+    }),
+  ))
+})
+
+test("changing a cloud Region keeps the provider default endpoint selected", async () => {
+  const user = userEvent.setup()
+  const current = dashboard()
+  current.credentials_configured = true
+  current.state.plan!.store = {
+    kind: "oss",
+    region: "cn-hangzhou",
+    bucket: "wukongim-backups",
+    prefix: "cluster-a",
+  }
+  getBackupDashboardMock.mockResolvedValue(current)
+  renderPage()
+
+  const region = await screen.findByRole("textbox", { name: "Region" })
+  await user.clear(region)
+  await user.type(region, "cn-shanghai")
+  await user.click(screen.getByRole("button", { name: "Save settings" }))
+
+  await waitFor(() => expect(saveBackupPlanMock).toHaveBeenCalledWith(
+    expect.objectContaining({
+      store: expect.objectContaining({
+        kind: "oss",
+        endpoint: "",
+        region: "cn-shanghai",
+      }),
+    }),
+  ))
+})
+
 test("explains how to recover when backup storage is unreachable", async () => {
   const user = userEvent.setup()
   testBackupRepositoryMock.mockRejectedValue(new ManagerApiError(

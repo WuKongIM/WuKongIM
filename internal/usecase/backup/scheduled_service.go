@@ -802,6 +802,17 @@ func validateConfigureRequest(request ConfigureRequest, now time.Time) error {
 			request.Store.Prefix == "" || len(request.Store.CredentialCiphertext) == 0 {
 			return ErrInvalidRequest
 		}
+	case backupcontract.StoreKindOSS, backupcontract.StoreKindCOS:
+		if request.Store.Region == "" || request.Store.Bucket == "" ||
+			request.Store.Prefix == "" ||
+			request.Store.PathStyle || !ValidCloudRegion(request.Store.Region) ||
+			len(request.Store.CredentialCiphertext) == 0 {
+			return ErrInvalidRequest
+		}
+		if request.Store.Kind == backupcontract.StoreKindCOS &&
+			!COSBucketHasAPPID(request.Store.Bucket) {
+			return ErrInvalidRequest
+		}
 	default:
 		return ErrInvalidRequest
 	}

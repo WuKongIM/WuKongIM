@@ -43,7 +43,7 @@ storage, or routing branches that bypass cluster semantics.
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
 | `runtime/backup` | Leader-only schedule evaluation plus portable full-archive stream publication. |
 | `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
-| `infra/backup` | File/S3 repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
+| `infra/backup` | File/OSS/COS/S3-compatible repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
 | `contracts/backup` | Bounded Controller/RPC DTOs for one scheduled full-backup subsystem. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
 | `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |

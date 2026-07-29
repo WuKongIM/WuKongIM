@@ -32,6 +32,8 @@ type S3ArchiveStoreOptions struct {
 	SecretKey string
 	// PathStyle selects compatibility addressing for services such as MinIO.
 	PathStyle bool
+	// VirtualHost forces DNS bucket addressing required by OSS and COS.
+	VirtualHost bool
 }
 
 // S3ArchiveStore stores archive objects in one S3-compatible bucket prefix.
@@ -42,6 +44,9 @@ type S3ArchiveStore struct {
 
 // NewS3ArchiveStore creates a bounded S3-compatible archive store.
 func NewS3ArchiveStore(options S3ArchiveStoreOptions) (*S3ArchiveStore, error) {
+	if options.PathStyle && options.VirtualHost {
+		return nil, fmt.Errorf("backup S3 store: addressing styles conflict")
+	}
 	endpoint, secure, err := parseS3Endpoint(options.Endpoint)
 	if err != nil {
 		return nil, err
@@ -58,6 +63,8 @@ func NewS3ArchiveStore(options S3ArchiveStoreOptions) (*S3ArchiveStore, error) {
 	lookup := minio.BucketLookupAuto
 	if options.PathStyle {
 		lookup = minio.BucketLookupPath
+	} else if options.VirtualHost {
+		lookup = minio.BucketLookupDNS
 	}
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(accessKey, options.SecretKey, ""),

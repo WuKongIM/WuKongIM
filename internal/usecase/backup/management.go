@@ -18,9 +18,10 @@ type ArchiveRepositoryProvider interface {
 	Open(context.Context, backupcontract.StoreConfig) (backupartifact.ArchiveStore, error)
 }
 
-// S3CredentialSealer protects credentials before Controller publication.
-type S3CredentialSealer interface {
-	SealS3Credentials(accessKey string, secretKey string) ([]byte, error)
+// ObjectStoreCredentialSealer protects credentials before Controller
+// publication.
+type ObjectStoreCredentialSealer interface {
+	SealObjectStoreCredentials(accessKey string, secretKey string) ([]byte, error)
 }
 
 // SharedRepositoryProbe lets app wiring prove file visibility across every
@@ -37,7 +38,7 @@ type SharedRepositoryProbe interface {
 type ManagementOptions struct {
 	Scheduled  *ScheduledService
 	Repository ArchiveRepositoryProvider
-	Sealer     S3CredentialSealer
+	Sealer     ObjectStoreCredentialSealer
 	Probe      SharedRepositoryProbe
 	ClusterID  string
 	Now        func() time.Time
@@ -47,7 +48,7 @@ type ManagementOptions struct {
 type ManagementService struct {
 	scheduled  *ScheduledService
 	repository ArchiveRepositoryProvider
-	sealer     S3CredentialSealer
+	sealer     ObjectStoreCredentialSealer
 	probe      SharedRepositoryProbe
 	clusterID  string
 	now        func() time.Time
@@ -78,11 +79,12 @@ const (
 	BackupHealthCritical BackupHealth = "critical"
 )
 
-// ConfigureManagementRequest contains a plan plus an optional replacement S3 credential.
+// ConfigureManagementRequest contains a plan plus an optional replacement
+// object storage credential.
 type ConfigureManagementRequest struct {
 	ConfigureRequest
-	S3AccessKey string
-	S3SecretKey string
+	AccessKey string
+	SecretKey string
 }
 
 // NewManagementService creates the Manager-facing backup application service.
@@ -207,18 +209,22 @@ func (s *ManagementService) Configure(
 	if err != nil {
 		return ConfigureResult{}, err
 	}
-	storeConfig := cloneStoreConfig(request.Store)
+	storeConfig, err := normalizeManagementStoreConfig(request.Store)
+	if err != nil {
+		return ConfigureResult{}, err
+	}
 	switch storeConfig.Kind {
 	case backupcontract.StoreKindFile:
-		storeConfig = backupcontract.StoreConfig{Kind: backupcontract.StoreKindFile}
-	case backupcontract.StoreKindS3:
-		accessKey := strings.TrimSpace(request.S3AccessKey)
-		if accessKey != "" || request.S3SecretKey != "" {
-			if accessKey == "" || request.S3SecretKey == "" {
+	case backupcontract.StoreKindOSS,
+		backupcontract.StoreKindCOS,
+		backupcontract.StoreKindS3:
+		accessKey := strings.TrimSpace(request.AccessKey)
+		if accessKey != "" || request.SecretKey != "" {
+			if accessKey == "" || request.SecretKey == "" {
 				return ConfigureResult{}, ErrInvalidRequest
 			}
-			ciphertext, err := s.sealer.SealS3Credentials(
-				accessKey, request.S3SecretKey,
+			ciphertext, err := s.sealer.SealObjectStoreCredentials(
+				accessKey, request.SecretKey,
 			)
 			if err != nil {
 				return ConfigureResult{}, err
@@ -230,7 +236,7 @@ func (s *ManagementService) Configure(
 					current.Plan.Store.CredentialRevision + 1
 			}
 		} else if current.Plan != nil &&
-			current.Plan.Store.Kind == backupcontract.StoreKindS3 {
+			current.Plan.Store.Kind == storeConfig.Kind {
 			storeConfig.CredentialCiphertext = append(
 				[]byte(nil), current.Plan.Store.CredentialCiphertext...,
 			)
@@ -272,20 +278,31 @@ func (s *ManagementService) TestRepository(
 	if err != nil {
 		return err
 	}
-	config := cloneStoreConfig(request.Store)
-	if config.Kind == backupcontract.StoreKindS3 {
-		if request.S3AccessKey != "" || request.S3SecretKey != "" {
-			ciphertext, err := s.sealer.SealS3Credentials(
-				strings.TrimSpace(request.S3AccessKey), request.S3SecretKey,
+	config, err := normalizeManagementStoreConfig(request.Store)
+	if err != nil {
+		return err
+	}
+	if isObjectStoreKind(config.Kind) {
+		accessKey := strings.TrimSpace(request.AccessKey)
+		if accessKey != "" || request.SecretKey != "" {
+			if accessKey == "" || request.SecretKey == "" {
+				return ErrInvalidRequest
+			}
+			ciphertext, err := s.sealer.SealObjectStoreCredentials(
+				accessKey, request.SecretKey,
 			)
 			if err != nil {
 				return err
 			}
 			config.CredentialCiphertext = ciphertext
-		} else if current.Plan != nil {
+		} else if current.Plan != nil &&
+			current.Plan.Store.Kind == config.Kind {
 			config.CredentialCiphertext = append(
 				[]byte(nil), current.Plan.Store.CredentialCiphertext...,
 			)
+		}
+		if len(config.CredentialCiphertext) == 0 {
+			return ErrInvalidRequest
 		}
 	}
 	store, err := s.repository.Open(ctx, config)
@@ -295,6 +312,46 @@ func (s *ManagementService) TestRepository(
 	return normalizeStoreAccessError(
 		s.probe.ProbeRepository(ctx, config, store),
 	)
+}
+
+func normalizeManagementStoreConfig(
+	input backupcontract.StoreConfig,
+) (backupcontract.StoreConfig, error) {
+	config := cloneStoreConfig(input)
+	config.Endpoint = strings.TrimSpace(config.Endpoint)
+	config.Region = strings.TrimSpace(config.Region)
+	config.Bucket = strings.TrimSpace(config.Bucket)
+	config.Prefix = strings.Trim(strings.TrimSpace(config.Prefix), "/")
+	// Access callers never choose durable ciphertext or its revision. Those
+	// values come only from the credential sealer or the same-provider plan.
+	config.CredentialCiphertext = nil
+	config.CredentialRevision = 0
+	switch config.Kind {
+	case backupcontract.StoreKindFile:
+		return backupcontract.StoreConfig{Kind: backupcontract.StoreKindFile}, nil
+	case backupcontract.StoreKindS3:
+		if config.Endpoint == "" || config.Bucket == "" || config.Prefix == "" {
+			return backupcontract.StoreConfig{}, ErrInvalidRequest
+		}
+	case backupcontract.StoreKindOSS, backupcontract.StoreKindCOS:
+		if config.Region == "" || config.Bucket == "" || config.Prefix == "" ||
+			config.PathStyle || !ValidCloudRegion(config.Region) {
+			return backupcontract.StoreConfig{}, ErrInvalidRequest
+		}
+		if config.Kind == backupcontract.StoreKindCOS &&
+			!COSBucketHasAPPID(config.Bucket) {
+			return backupcontract.StoreConfig{}, ErrInvalidRequest
+		}
+	default:
+		return backupcontract.StoreConfig{}, ErrInvalidRequest
+	}
+	return config, nil
+}
+
+func isObjectStoreKind(kind backupcontract.StoreKind) bool {
+	return kind == backupcontract.StoreKindOSS ||
+		kind == backupcontract.StoreKindCOS ||
+		kind == backupcontract.StoreKindS3
 }
 
 // StartBackup admits one immediate manual full backup.

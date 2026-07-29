@@ -29,17 +29,58 @@ import type {
   ManagerBackupDashboard,
   ManagerBackupPlan,
   ManagerBackupPlanInput,
+  ManagerBackupStoreKind,
   ManagerRestoreSlotProgress,
 } from "@/lib/manager-api.types"
 
 type ScheduleMode = "daily" | "half_day" | "custom"
+type ObjectStoreKind = Exclude<ManagerBackupStoreKind, "file">
+
+type RepositoryFormMeta = {
+  endpointOptional: boolean
+  endpointPlaceholder: string
+  accessKeyMessage: string
+  secretKeyMessage: string
+  descriptionMessage?: string
+  supportsPathStyle: boolean
+}
+
+const repositoryFormMeta: Record<ObjectStoreKind, RepositoryFormMeta> = {
+  oss: {
+    endpointOptional: true,
+    endpointPlaceholder: "https://oss-<region>.aliyuncs.com",
+    accessKeyMessage: "backups.repository.ossAccessKey",
+    secretKeyMessage: "backups.repository.ossSecretKey",
+    descriptionMessage: "backups.repository.ossDescription",
+    supportsPathStyle: false,
+  },
+  cos: {
+    endpointOptional: true,
+    endpointPlaceholder: "https://cos.<region>.myqcloud.com",
+    accessKeyMessage: "backups.repository.cosAccessKey",
+    secretKeyMessage: "backups.repository.cosSecretKey",
+    descriptionMessage: "backups.repository.cosDescription",
+    supportsPathStyle: false,
+  },
+  s3: {
+    endpointOptional: false,
+    endpointPlaceholder: "https://s3.example.com",
+    accessKeyMessage: "backups.repository.accessKey",
+    secretKeyMessage: "backups.repository.secretKey",
+    supportsPathStyle: true,
+  },
+}
+
+function objectStoreFormMeta(kind: ManagerBackupStoreKind) {
+  return kind === "file" ? null : repositoryFormMeta[kind]
+}
 
 type PlanDraft = {
   enabled: boolean
   scheduleMode: ScheduleMode
   cron: string
   timeZone: string
-  storeKind: "file" | "s3"
+  storeKind: ManagerBackupStoreKind
   endpoint: string
   region: string
   bucket: string
@@ -97,12 +138,12 @@ function planInput(
     enabled: draft.enabled,
     store: {
       kind: draft.storeKind,
-      ...(draft.storeKind === "s3" ? {
+      ...(draft.storeKind !== "file" ? {
         endpoint: draft.endpoint.trim(),
         region: draft.region.trim(),
         bucket: draft.bucket.trim(),
         prefix: draft.prefix.trim(),
-        path_style: draft.pathStyle,
+        ...(draft.storeKind === "s3" ? { path_style: draft.pathStyle } : {}),
         access_key: draft.accessKey.trim() || undefined,
         secret_key: draft.secretKey || undefined,
       } : {}),
@@ -313,6 +354,10 @@ export function BackupsPage() {
   const progress = activeTask ? taskProgress(activeTask.slots) : null
   const restoreNodes = activeRestore ? restoreNodeProgress(activeRestore.slots) : []
   const writeDisabled = !canWrite || busy !== ""
+  const credentialsReusable = Boolean(
+    dashboard?.credentials_configured && plan?.store.kind === draft.storeKind,
+  )
+  const storeFormMeta = objectStoreFormMeta(draft.storeKind)
 
   return (
     <PageContainer>
@@ -445,26 +490,52 @@ export function BackupsPage() {
                 <select
                   className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                   disabled={writeDisabled}
-                  onChange={(event) => setDraft((current) => ({
-                    ...current, storeKind: event.target.value as "file" | "s3",
-                  }))}
+                  onChange={(event) => {
+                    const storeKind = event.target.value as ManagerBackupStoreKind
+                    const nextStoreFormMeta = objectStoreFormMeta(storeKind)
+                    setDraft((current) => ({
+                      ...current,
+                      storeKind,
+                      endpoint: "",
+                      prefix: nextStoreFormMeta === null
+                        ? ""
+                        : current.prefix || "wukongim",
+                      pathStyle: nextStoreFormMeta?.supportsPathStyle
+                        ? current.pathStyle
+                        : false,
+                      accessKey: "",
+                      secretKey: "",
+                    }))
+                  }}
                   value={draft.storeKind}
                 >
                   <option value="file">{intl.formatMessage({ id: "backups.repository.file" })}</option>
+                  <option value="oss">{intl.formatMessage({ id: "backups.repository.oss" })}</option>
+                  <option value="cos">{intl.formatMessage({ id: "backups.repository.cos" })}</option>
                   <option value="s3">{intl.formatMessage({ id: "backups.repository.s3" })}</option>
                 </select>
               </Field>
             </div>
 
-            {draft.storeKind === "file" ? (
+            {storeFormMeta === null ? (
               <p className="mt-3 text-sm text-muted-foreground">
                 {intl.formatMessage({ id: "backups.repository.fileDescription" })}
               </p>
             ) : (
               <div className="mt-4 grid gap-4 rounded-md border border-border p-4 lg:grid-cols-2">
-                <Field label={intl.formatMessage({ id: "backups.repository.endpoint" })}>
+                {storeFormMeta.descriptionMessage ? (
+                  <p className="text-sm text-muted-foreground lg:col-span-2">
+                    {intl.formatMessage({ id: storeFormMeta.descriptionMessage })}
+                  </p>
+                ) : null}
+                <Field label={intl.formatMessage({
+                  id: storeFormMeta.endpointOptional
+                    ? "backups.repository.endpointOptional"
+                    : "backups.repository.endpoint",
+                })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, endpoint: event.target.value }))} value={draft.endpoint} />
+                    onChange={(event) => setDraft((current) => ({ ...current, endpoint: event.target.value }))}
+                    placeholder={storeFormMeta.endpointPlaceholder} value={draft.endpoint} />
                 </Field>
                 <Field label={intl.formatMessage({ id: "backups.repository.region" })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
@@ -478,23 +549,25 @@ export function BackupsPage() {
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
                     onChange={(event) => setDraft((current) => ({ ...current, prefix: event.target.value }))} value={draft.prefix} />
                 </Field>
-                <Field label={intl.formatMessage({ id: "backups.repository.accessKey" })}>
+                <Field label={intl.formatMessage({ id: storeFormMeta.accessKeyMessage })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
                     onChange={(event) => setDraft((current) => ({ ...current, accessKey: event.target.value }))}
-                    placeholder={dashboard.credentials_configured ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
+                    placeholder={credentialsReusable ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
                     value={draft.accessKey} />
                 </Field>
-                <Field label={intl.formatMessage({ id: "backups.repository.secretKey" })}>
+                <Field label={intl.formatMessage({ id: storeFormMeta.secretKeyMessage })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
                     onChange={(event) => setDraft((current) => ({ ...current, secretKey: event.target.value }))}
-                    placeholder={dashboard.credentials_configured ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
+                    placeholder={credentialsReusable ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
                     type="password" value={draft.secretKey} />
                 </Field>
-                <label className="flex items-center gap-2 text-sm">
-                  <input checked={draft.pathStyle} disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, pathStyle: event.target.checked }))} type="checkbox" />
-                  {intl.formatMessage({ id: "backups.repository.pathStyle" })}
-                </label>
+                {storeFormMeta.supportsPathStyle ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input checked={draft.pathStyle} disabled={writeDisabled}
+                      onChange={(event) => setDraft((current) => ({ ...current, pathStyle: event.target.checked }))} type="checkbox" />
+                    {intl.formatMessage({ id: "backups.repository.pathStyle" })}
+                  </label>
+                ) : null}
               </div>
             )}
             <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
