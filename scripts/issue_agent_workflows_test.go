@@ -291,7 +291,7 @@ func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) 
 	})
 }
 
-func TestIssueAgentPolicyUsesReproductionRollout(t *testing.T) {
+func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile(filepath.Join(
