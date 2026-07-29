@@ -12,6 +12,8 @@ contains:
 
 - one revisioned `Plan`;
 - at most one active full-backup job and one active restore job;
+- at most one archive-operation lease, with Controller node and term ownership
+  for leader-run retention;
 - bounded completed job history;
 - the Manager session epoch used to invalidate pre-restore JWTs.
 

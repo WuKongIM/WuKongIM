@@ -8,6 +8,46 @@ repository-root `./...` is not a valid gate because Go package discovery
 ignores `.gitignore` and can include local packages below `tmp/` or
 `web/node_modules/`.
 
+## GitHub Issue Agent automation
+
+The repository includes three serverless GitHub-hosted Actions for the Issue
+Agent. `issue-agent-control.yml` handles bounded event hints,
+`issue-agent-reconcile.yml` performs the scheduled bounded sweep, and
+`issue-agent-run.yml` executes one signed per-Issue task. The checked-in rollout
+is `shadow`, so only read/report paths are eligible and no Publisher or provider
+secret is consumed.
+
+Every job builds `cmd/wkissueagent` from protected `main` control source.
+Control and exact target source use separate checkouts with persisted
+credentials disabled. Event payload text is parsed as bounded data, never
+interpolated into a command. The Sweeper accepts only a complete inventory
+below 100 open `ready-for-agent` Issues.
+
+In later reviewed modes, provider keys are isolated in
+`issue-agent-codex`/`issue-agent-deepseek`; App and checkpoint keys are isolated
+in `issue-agent-publisher`. Target commands run only inside the no-network
+digest-pinned sandbox. Worker output is an untrusted semantic proposal until
+the Worker derives file/evidence/usage fields and the Publisher revalidates the
+Artifact against current signed state.
+
+Before changing rollout mode, run:
+
+```bash
+GOWORK=off go test ./scripts -run '^TestIssueAgentWorkflow' -count=1
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
+  -ignore 'unexpected key "queue" for "concurrency" section' \
+  .github/workflows/issue-agent-*.yml
+```
+
+The exact ignore is a temporary compatibility exception for GitHub's
+documented `concurrency.queue` field, which actionlint v1.7.9 does not yet
+recognize. `TestIssueAgentWorkflowSecurityContracts` parses the workflows and
+requires `queue: max`; every other actionlint finding remains fatal.
+
+Setup, key rotation, budgets, lifecycle, emergency disable, and pilot evidence
+requirements are documented in
+[`docs/agents/issue-agent.md`](../agents/issue-agent.md).
+
 ## Agent-directed PR Validation
 
 `.github/workflows/agent-pr-validation-control.yml` is the trusted control

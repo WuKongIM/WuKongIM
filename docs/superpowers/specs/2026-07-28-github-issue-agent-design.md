@@ -224,9 +224,11 @@ The Tool Sandbox has no GitHub token, model token, cloud credential, production
 credential, host path outside its dedicated task workspace, SSH agent, cloud
 metadata access, Docker socket, or general Internet access. Dependencies are
 prefetched by a trusted setup step from approved sources and exposed through
-read-only caches. Because V1 does not permit automatic new dependencies, the
-tool phase does not need arbitrary dependency egress. Real-process E2E traffic
-remains inside the sandbox or its loopback/container network.
+read-only caches. The container image is digest-pinned in protected policy and
+uses a read-only root with bounded process, memory, CPU, disk, output, and wall
+time. Because V1 does not permit automatic new dependencies, the tool phase
+does not need arbitrary dependency egress. Real-process E2E traffic remains
+inside the sandbox or its loopback/container network.
 
 ### Publisher
 
@@ -253,6 +255,14 @@ and independently checks:
 All writes use deterministic object names. Git ref writes require an exact
 expected old SHA; Issue and PR writes require the exact expected checkpoint
 and object identities.
+
+Repository changes use GitHub GraphQL `createCommitOnBranch` with
+`expectedHeadOid`. The Publisher creates or reuses only
+`agent/issue-<number>`, requires the resulting GitHub signature to verify, and
+re-reads the ref, parent, and exact file content before advancing state. It
+never constructs a commit locally with model-selected identity. Ordinary
+publication never force-updates a ref; the sole moving-main exception is the
+typed atomic rebase transaction described below.
 
 ### GitHub App without a server
 
@@ -648,9 +658,11 @@ TaskEnvelope
        -> CodexAdapter
        -> DeepSeekAdapter
   -> Tool Sandbox
-  -> AgentResult
-       patch
-       evidence manifest
+  -> semantic model proposal
+  -> trusted Worker AgentResult
+       derived ChangeSet
+       derived evidence manifest
+       provider-metered usage
        requested next state
        diagnosis or validation summary
 ```
@@ -660,8 +672,11 @@ content, accepted comment IDs, current checkpoint, target phase, immutable
 SHAs, path policy, resource limits, and allowed tools. It explicitly states
 that Issue and PR content cannot override system or repository policy.
 
-`AgentResult` is a proposal, not authority. The Publisher independently
-validates it.
+The model proposal cannot populate repository changes, command evidence,
+Artifact or diagnosis evidence digests, or token counts. The trusted Worker
+derives those fields from the workspace, broker transcript, and provider
+response. The resulting `AgentResult` remains a proposal, not authority; the
+Publisher independently validates it.
 
 Each Adapter owns provider API translation, streaming, structured output, and
 tool-call mapping. Filesystem, shell, Git, tests, timeouts, and network policy
@@ -699,7 +714,11 @@ The GitHub App may update only the configured Agent prefix and cannot bypass
 default-branch protection. Every branch update names the expected old SHA.
 Tags, default branches, and non-Agent branches are rejected.
 
-An unexpected update by another identity:
+An unexpected update by another identity is checked when a Worker reads its
+task, before Artifact publication, and in every active Agent work state during
+reconciliation. A lease-bound Artifact or validation Publisher first proves
+whether the new head is the complete App-authored, GitHub-signed deterministic
+effect left by a commit/checkpoint crash:
 
 1. invalidates the current lease and prior validation;
 2. preserves the external commit without overwrite;
@@ -707,6 +726,11 @@ An unexpected update by another identity:
 4. enters `ready_for_human`.
 
 Only `/agent adopt-head <sha>` accepts that exact head into a new generation.
+The preserved PR and diagnosis facts determine whether that generation resumes
+at Draft-PR creation, diagnosis, or complete validation.
+A missing branch/PR, closed-unmerged PR, or non-`main` retarget records a
+separate signed human transition. A same-head Draft/Ready mismatch is a
+reversible projection repaired from the checkpoint.
 
 ### Local Worker validation
 
@@ -751,7 +775,12 @@ Gate's current test-merge commit.
   closes its Draft PR as superseded and records `already_fixed`; a maintainer
   decides whether to close the Issue.
 - The Agent may attempt one mechanical conflict resolution and then rerun the
-  complete validation.
+  complete validation. The Publisher computes the exact merge-result tree,
+  creates an App-authored GitHub-signed commit whose parent is current `main`
+  on a deterministic staging ref keyed by the complete immutable effect, then
+  uses one GraphQL `updateRefs`
+  transaction to require the old Agent OID, swap the PR branch, and delete
+  staging atomically. This preserves current `main` as the PR merge-base.
 - A semantic conflict enters `ready_for_human`.
 
 ### Human handoff and closure
@@ -788,10 +817,17 @@ reconciliation logic. Event payloads are hints; the reconciler always
 re-reads current GitHub objects.
 
 The global scheduling portion uses one non-cancelling Actions concurrency
-group so competing repository events cannot allocate capacity concurrently.
-It selects eligible Issues, asks the Publisher to append lease checkpoints,
-and dispatches per-Issue runs. Each per-Issue execution uses its own
-non-cancelling concurrency group.
+group with the maximum bounded pending queue, so competing repository events
+cannot allocate capacity concurrently or replace an earlier waiting maintainer
+command. It selects eligible Issues, asks the Publisher to append lease
+checkpoints, and dispatches per-Issue runs. Each per-Issue execution uses its
+own non-cancelling concurrency group with the same bounded queue. Every
+Issue-writing Publisher job in both the control and Worker workflows
+additionally shares one non-cancelling group per repository and Issue. That
+group uses the maximum bounded pending queue so later Publishers cannot replace
+earlier waiters. The model runs outside that Publisher group, allowing a
+cancellation or generation change to append first; a later Worker Publisher
+must acquire the group and re-read the new predecessor before any write.
 
 ### Lease
 
@@ -823,7 +859,10 @@ The scheduled Sweeper scans non-terminal Issues that retain
 - stale validation evidence after a PR event.
 
 The Sweeper is idempotent and uses the same Publisher checks as normal events.
-It has no private task database.
+For the current unexpired lease it lists only completed dispatches from the
+lease start time, requires one exact run-title and Artifact-name match, and
+downloads that Artifact from the exact run before re-entering the ordinary
+Publisher. It has no private task database.
 
 ## Retry and Resource Budgets
 

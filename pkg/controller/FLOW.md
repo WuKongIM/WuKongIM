@@ -129,6 +129,8 @@ one unambiguous durable revision.
 
 - one revisioned Manager-owned plan;
 - at most one active full-backup job or one active restore job;
+- at most one repository-operation lease, including the owning Controller node
+  and term for leader-run retention;
 - exactly 256 bounded per-Hash-Slot progress rows in an active job;
 - a newest-first backup, restore, verification, and retention history capped
   at 100 records;

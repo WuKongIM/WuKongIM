@@ -30,6 +30,7 @@ type ciWorkflow struct {
 
 type ciConcurrency struct {
 	Group            string `yaml:"group"`
+	Queue            string `yaml:"queue"`
 	CancelInProgress *bool  `yaml:"cancel-in-progress"`
 }
 
@@ -104,6 +105,10 @@ var approvedActionPins = map[string]actionPin{
 		sha:     "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 		release: "v7.0.1",
 	},
+	"actions/download-artifact": {
+		sha:     "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+		release: "v6.0.0",
+	},
 }
 
 func checkoutStep() ciStep {
@@ -137,6 +142,9 @@ var catalogedWorkflowNames = map[string]string{
 	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
 	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
+	"issue-agent-control.yml":         "Safety Automation - Issue Agent Control",
+	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Sweeper",
+	"issue-agent-run.yml":             "Agent Tool - Issue Worker",
 }
 
 var autonomousSafetyWorkflows = map[string]struct{}{
@@ -144,6 +152,8 @@ var autonomousSafetyWorkflows = map[string]struct{}{
 	"agent-pr-validation-control.yml": {},
 	"cloud-sim-cleanup.yml":           {},
 	"cloud-sim-monitor.yml":           {},
+	"issue-agent-control.yml":         {},
+	"issue-agent-reconcile.yml":       {},
 }
 
 var legacyAutomaticTestWorkflows = []string{"ci.yml", "nightly.yml"}
@@ -663,6 +673,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		"go-race",
 		"go-integration",
 		"go-e2e",
+		"moving-main",
 		"three-node-smoke",
 		"gate",
 	}
@@ -707,6 +718,9 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		"three_node_smoke": "${{ steps.plan.outputs.three_node_smoke }}",
 		"plan_comment_id":  "${{ steps.plan.outputs.plan_comment_id }}",
 		"retry_of_run_id":  "${{ steps.plan.outputs.retry_of_run_id }}",
+		"issue_agent_pr":   "${{ steps.plan.outputs.issue_agent_pr }}",
+		"issue_number":     "${{ steps.plan.outputs.issue_number }}",
+		"current_main_sha": "${{ steps.plan.outputs.current_main_sha }}",
 	}
 	if !reflect.DeepEqual(plan.Outputs, wantPlanOutputs) {
 		return fmt.Errorf("Agent validation plan outputs = %#v, want %#v", plan.Outputs, wantPlanOutputs)
@@ -740,7 +754,7 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
 		`.event == "pull_request_target"`,
 		`.display_title == $title`,
-		`validation labeled head ${EXPECTED_HEAD_SHA} merge ${EXPECTED_MERGE_SHA}`,
+		`validation labeled head ${EXPECTED_HEAD_SHA}`,
 		`.actor.login == $actor`,
 		`actions/runs/${GATE_RUN_ID}`,
 		`.path == ".github/workflows/agent-pr-merge-gate.yml"`,
@@ -751,10 +765,18 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`test "$current_merge_sha" = "$EXPECTED_MERGE_SHA"`,
 		`"$TRIGGER_ACTOR" "$EXPECTED_HEAD_SHA" "$EXPECTED_MERGE_SHA"`,
 		`"$GATE_RUN_ID"`,
+		`^agent/issue-([1-9][0-9]{0,9})$`,
+		`echo "issue_agent_pr=true"`,
+		`echo "issue_agent_pr=false"`,
+		`echo "issue_number="`,
+		`current_main_sha`,
 	} {
 		if !strings.Contains(planScript.String(), required) {
 			return fmt.Errorf("Agent validation plan is missing request binding %q", required)
 		}
+	}
+	if strings.Contains(planScript.String(), "Agent validation PR head is not an Issue branch") {
+		return fmt.Errorf("ordinary Agent PRs must not be rejected by Issue-only plan classification")
 	}
 	pending := workflow.Jobs["status-pending"]
 	if !reflect.DeepEqual(pending.Needs, []string{"plan"}) {
@@ -853,6 +875,60 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 			)
 		}
 	}
+	movingMain := workflow.Jobs["moving-main"]
+	if movingMain.If != "needs.plan.outputs.go_e2e == 'true' && needs.plan.outputs.issue_agent_pr == 'true'" ||
+		!reflect.DeepEqual(movingMain.Needs, []string{"plan", "status-pending"}) ||
+		!reflect.DeepEqual(movingMain.Permissions, map[string]string{"contents": "read"}) {
+		return fmt.Errorf("Agent moving-main job is not bound to the frozen E2E plan")
+	}
+	var movingMainScript strings.Builder
+	checkouts := 0
+	for _, step := range movingMain.Steps {
+		movingMainScript.WriteString(step.Run)
+		movingMainScript.WriteByte('\n')
+		if strings.HasPrefix(step.Uses, "actions/checkout@") {
+			checkouts++
+		}
+	}
+	if checkouts != 2 {
+		return fmt.Errorf("Agent moving-main job checkout count = %d, want 2", checkouts)
+	}
+	for _, required := range []string{
+		`"./test/e2e/issue_agent/issue_${ISSUE_NUMBER}"`,
+		"timeout --signal=TERM --kill-after=30s 50m",
+		"-count=3",
+		"-timeout=45m -p=1",
+		"binary_sha256",
+		"main_passed",
+		"main_sha",
+	} {
+		if !strings.Contains(movingMainScript.String(), required) {
+			return fmt.Errorf("Agent moving-main evidence is missing %q", required)
+		}
+	}
+	retentionOK := false
+	for _, step := range movingMain.Steps {
+		if strings.HasPrefix(step.Uses, "actions/upload-artifact@") &&
+			fmt.Sprint(step.With["retention-days"]) == "90" {
+			retentionOK = true
+		}
+	}
+	if !retentionOK {
+		return fmt.Errorf("Agent moving-main Artifact retention is not 90 days")
+	}
+	checkoutPaths := make([]string, 0, 2)
+	for _, step := range movingMain.Steps {
+		if strings.HasPrefix(step.Uses, "actions/checkout@") {
+			pathValue, ok := step.With["path"].(string)
+			if !ok {
+				return fmt.Errorf("Agent moving-main checkout has no path")
+			}
+			checkoutPaths = append(checkoutPaths, pathValue)
+		}
+	}
+	if !reflect.DeepEqual(checkoutPaths, []string{"scenario", "current-main"}) {
+		return fmt.Errorf("Agent moving-main checkout paths = %#v", checkoutPaths)
+	}
 	goE2EBuild := workflow.Jobs["go-e2e"]
 	var buildE2EBinary *ciStep
 	for index := range goE2EBuild.Steps {
@@ -885,6 +961,11 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 	}
 	if gate.If != "always()" {
 		return fmt.Errorf("Agent validation gate must run with always()")
+	}
+	if len(gate.Steps) == 0 ||
+		gate.Steps[0].Env["ISSUE_AGENT_PR"] != "${{ needs.plan.outputs.issue_agent_pr }}" ||
+		gate.Steps[0].Env["ISSUE_NUMBER"] != "${{ needs.plan.outputs.issue_number }}" {
+		return fmt.Errorf("Agent validation gate does not receive the typed Issue PR classification")
 	}
 	wantGateNeeds := jobNames[:len(jobNames)-1]
 	if !reflect.DeepEqual(gate.Needs, wantGateNeeds) {
@@ -920,6 +1001,12 @@ func validateAgentPRValidationWorkflow(raw []byte) error {
 		`"$latest_gate_run_id" != "$GATE_RUN_ID"`,
 		`should_rerun_gate=false`,
 		`actions/runs/${GATE_RUN_ID}/rerun`,
+		`moving_main_selected=false`,
+		`moving_main_selected=true`,
+		`check_result "$moving_main_selected" "$MOVING_MAIN_RESULT"`,
+		`if [[ "$ISSUE_AGENT_PR" == true ]]; then`,
+		`context=Agent Moving Main / PR #${PR_NUMBER} / Gate #${GATE_RUN_ID}`,
+		`description=main=${MOVING_MAIN_SHA};binary=${MOVING_MAIN_BINARY_SHA256};runs=3`,
 	} {
 		if !strings.Contains(gateScript.String(), required) {
 			return fmt.Errorf("Agent validation gate is missing request consumption %q", required)
@@ -939,8 +1026,11 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if workflow.Name != "Safety Automation - Agent PR Validation Control" {
 		return fmt.Errorf("control workflow name = %q", workflow.Name)
 	}
-	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }} merge ${{ github.event.pull_request.merge_commit_sha }}" {
-		return fmt.Errorf("control workflow run-name does not identify the PR event, head, and test-merge")
+	if workflow.RunName != "Agent PR #${{ github.event.pull_request.number }} validation ${{ github.event.action }} head ${{ github.event.pull_request.head.sha }}" {
+		return fmt.Errorf("control workflow run-name does not identify the PR event and head")
+	}
+	if strings.Contains(string(raw), "github.event.pull_request.merge_commit_sha") || strings.Contains(string(raw), "EVENT_MERGE_SHA") {
+		return fmt.Errorf("control workflow must resolve the test-merge SHA from the trusted PR API response")
 	}
 	if err := validateAgentControlTriggers(workflow.On); err != nil {
 		return err
@@ -985,7 +1075,6 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	}
 	for _, required := range []string{
 		`test "$current_head" = "$HEAD_SHA"`,
-		`test "$merge_sha" = "$EVENT_MERGE_SHA"`,
 		`.merge_commit_sha`,
 		`actions/workflows/agent-pr-merge-gate.yml/runs`,
 		`.conclusion == "failure"`,
@@ -1131,7 +1220,10 @@ func validateAgentPRValidationMergeGateWorkflow(raw []byte) error {
 		`.created_at >= $event_updated_at`,
 		`.path == ".github/workflows/agent-pr-validation-control.yml"`,
 		`.event == "pull_request_target"`,
+		`Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA}`,
 		`Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA} merge ${MERGE_SHA}`,
+		`.display_title == $title or`,
+		`.display_title == $legacy_title`,
 		`.path == ".github/workflows/agent-pr-validation.yml"`,
 		`.event == "repository_dispatch"`,
 		`validation head ${HEAD_SHA} merge ${MERGE_SHA} gate ${GATE_RUN_ID} request ${request_run_id}`,

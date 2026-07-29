@@ -143,10 +143,15 @@ func TestServiceQueueFullReturnsBusy(t *testing.T) {
 
 func TestServiceAdmissionUsesChannelCapacityDuringDequeueWindow(t *testing.T) {
 	observer := &recordingObserver{}
-	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
-		return nil, nil
-	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, observer)
-	defer svc.Stop()
+	opts := normalizeServiceOptions(core.ServiceOptions{
+		Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024,
+	})
+	svc := &Service{
+		ID:       1,
+		opts:     opts,
+		observer: observer,
+		queue:    make(chan Request, opts.QueueSize),
+	}
 
 	req := Request{Payload: core.CopyOwnedBuffer([]byte("queued"))}
 	svc.queue <- req
@@ -170,6 +175,8 @@ func TestServiceAdmissionUsesChannelCapacityDuringDequeueWindow(t *testing.T) {
 	if queueEvent.Items > queueEvent.Capacity {
 		t.Fatalf("service_queue items = %d, capacity = %d; want depth capped to capacity", queueEvent.Items, queueEvent.Capacity)
 	}
+	next := <-svc.queue
+	next.Payload.Release()
 }
 
 func TestServiceTimeout(t *testing.T) {

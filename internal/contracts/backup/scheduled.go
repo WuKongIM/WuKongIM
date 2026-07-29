@@ -231,6 +231,8 @@ type ArchiveOperation struct {
 	Token             string `json:"token"`
 	Kind              string `json:"kind"`
 	ArchiveID         string `json:"archive_id,omitempty"`
+	CoordinatorNodeID uint64 `json:"coordinator_node_id,omitempty"`
+	CoordinatorTerm   uint64 `json:"coordinator_term,omitempty"`
 	StartedUnixMillis int64  `json:"started_unix_ms"`
 	ExpiresUnixMillis int64  `json:"expires_unix_ms"`
 }

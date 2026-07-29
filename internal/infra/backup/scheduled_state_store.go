@@ -134,6 +134,8 @@ func scheduledStateFromController(
 			Token:             value.ActiveArchiveOperation.Token,
 			Kind:              value.ActiveArchiveOperation.Kind,
 			ArchiveID:         value.ActiveArchiveOperation.ArchiveID,
+			CoordinatorNodeID: value.ActiveArchiveOperation.CoordinatorNodeID,
+			CoordinatorTerm:   value.ActiveArchiveOperation.CoordinatorTerm,
 			StartedUnixMillis: value.ActiveArchiveOperation.StartedUnixMillis,
 			ExpiresUnixMillis: value.ActiveArchiveOperation.ExpiresUnixMillis,
 		}
@@ -211,6 +213,8 @@ func scheduledStateToController(
 			Token:             value.ActiveArchiveOperation.Token,
 			Kind:              value.ActiveArchiveOperation.Kind,
 			ArchiveID:         value.ActiveArchiveOperation.ArchiveID,
+			CoordinatorNodeID: value.ActiveArchiveOperation.CoordinatorNodeID,
+			CoordinatorTerm:   value.ActiveArchiveOperation.CoordinatorTerm,
 			StartedUnixMillis: value.ActiveArchiveOperation.StartedUnixMillis,
 			ExpiresUnixMillis: value.ActiveArchiveOperation.ExpiresUnixMillis,
 		}

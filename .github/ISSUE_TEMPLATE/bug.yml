@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible WuKongIM behavior problem
+title: "[BUG] "
+labels:
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve WuKongIM. Please do not include credentials,
+        access tokens, private messages, or other private data.
+
+  - type: input
+    id: affected_version
+    attributes:
+      label: Affected version
+      description: Use an exact release tag, full commit SHA, or image digest—not "latest".
+      placeholder: v2.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment, topology, and client
+      description: Briefly include deployment method, cluster size, operating system, and client/SDK version.
+      placeholder: Docker; three-node cluster; Linux; Go SDK v1.2.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Give the shortest sequence that consistently demonstrates the problem.
+      placeholder: |
+        1. Start...
+        2. Connect...
+        3. Send...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual result
+      description: State what you expected and what happened instead.
+      placeholder: Expected...; actually observed...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Every time
+        - Intermittent
+        - Happened once
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Logs or configuration
+      description: Optional. Redact credentials, tokens, private messages, and other private data.
+      render: shell
+    validations:
+      required: false

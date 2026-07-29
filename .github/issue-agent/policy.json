@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "rollout_mode": "shadow",
+  "default_provider": "codex",
+  "sandbox_image": "golang:1.25.12-bookworm@sha256:ea341baa9bd5ba6784f6d7161ace70544349a6242d54d34a0fbfd2c4d51c9d58",
+  "issue_budget": {
+    "max_reproduction_attempts": 3,
+    "max_remediation_attempts": 3,
+    "max_ci_repair_attempts": 2,
+    "max_infrastructure_retries": 3,
+    "max_worker_time": "6h"
+  },
+  "repository_budget": {
+    "max_active_workers": 3,
+    "max_heavy_workers": 1,
+    "rolling_window": "24h",
+    "max_started_worker_time": "24h"
+  },
+  "protected_paths": [
+    ".agents",
+    ".github/ISSUE_TEMPLATE",
+    ".github/issue-agent",
+    ".github/workflows",
+    "AGENTS.md",
+    "cmd/wkissueagent",
+    "internal/access/issueagentcli",
+    "internal/app/issue_agent",
+    "internal/contracts/issueagent",
+    "internal/infra/issueagentgithub",
+    "internal/infra/issueagentmodel",
+    "internal/runtime/issueagentworker",
+    "internal/usecase/issueagent",
+    "scripts/issue_agent"
+  ],
+  "generated_files": [
+    "test/e2e/AGENTS.md"
+  ],
+  "high_risk_classes": [
+    "authentication_authorization_cryptography",
+    "configuration_default",
+    "external_dependency",
+    "persistent_format_migration",
+    "protected_agent_path",
+    "public_protocol_api",
+    "raft_quorum_consistency",
+    "scope_expansion"
+  ],
+  "providers": [
+    {
+      "provider": "codex",
+      "endpoint": "",
+      "model_variable": "ISSUE_AGENT_CODEX_MODEL",
+      "credential_variable": "CODEX_API_KEY"
+    },
+    {
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "model_variable": "ISSUE_AGENT_DEEPSEEK_MODEL",
+      "credential_variable": "DEEPSEEK_API_KEY"
+    }
+  ],
+  "remediation_issue_allowlist": [],
+  "allowed_backport_branches": []
+}

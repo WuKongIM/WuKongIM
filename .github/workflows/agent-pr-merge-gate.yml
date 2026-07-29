@@ -139,10 +139,15 @@ jobs:
             >request-run.json
           jq -e \
             --arg title \
+              "Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA}" \
+            --arg legacy_title \
               "Agent PR #${PR_NUMBER} validation labeled head ${HEAD_SHA} merge ${MERGE_SHA}" '
               .path == ".github/workflows/agent-pr-validation-control.yml" and
               .event == "pull_request_target" and
-              .display_title == $title and
+              (
+                .display_title == $title or
+                .display_title == $legacy_title
+              ) and
               .status == "completed" and
               .conclusion == "success"
             ' >/dev/null request-run.json

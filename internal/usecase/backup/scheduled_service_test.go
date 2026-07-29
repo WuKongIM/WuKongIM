@@ -71,6 +71,34 @@ func TestScheduledServiceEnablesPlanAndAdmitsInitialFullBackupAtomically(t *test
 	}
 }
 
+func TestScheduledServiceConfigureRetriesUnrelatedStateConflict(t *testing.T) {
+	store := &memoryScheduledStateStore{interveningStateUpdates: 1}
+	service, err := backupusecase.NewScheduledService(backupusecase.ScheduledOptions{
+		StateStore: store,
+		Now:        func() time.Time { return time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC) },
+		NewID:      func() string { return "backup-after-state-update" },
+	})
+	if err != nil {
+		t.Fatalf("NewScheduledService(): %v", err)
+	}
+
+	result, err := service.Configure(context.Background(), validConfigureRequest())
+	if err != nil {
+		t.Fatalf("Configure(): %v", err)
+	}
+	if result.Plan.Revision != 1 || result.InitialJob == nil ||
+		result.InitialJob.ID != "backup-after-state-update" {
+		t.Fatalf("Configure() result = %#v", result)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if state.Revision != 2 || state.Plan == nil || state.Plan.Revision != 1 {
+		t.Fatalf("state after retried configure = %#v", state)
+	}
+}
+
 func TestScheduledServiceFencesResumedSlotAttempt(t *testing.T) {
 	store := &memoryScheduledStateStore{}
 	now := time.Date(2026, 7, 29, 1, 0, 0, 0, time.UTC)
@@ -368,8 +396,12 @@ func validConfigureRequest() backupusecase.ConfigureRequest {
 }
 
 type memoryScheduledStateStore struct {
-	mu    sync.Mutex
-	state backupcontract.SystemState
+	mu                       sync.Mutex
+	state                    backupcontract.SystemState
+	interveningStateUpdates  int
+	onInterveningStateUpdate func(*backupcontract.SystemState)
+	coordinatorNodeID        uint64
+	coordinatorTerm          uint64
 }
 
 func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.SystemState, error) {
@@ -379,12 +411,26 @@ func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.System
 }
 
 func (s *memoryScheduledStateStore) CompareAndSwap(
-	_ context.Context,
+	ctx context.Context,
 	expectedRevision uint64,
 	next backupcontract.SystemState,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if fence, ok := backupcontract.CoordinatorFenceFromContext(ctx); ok &&
+		s.coordinatorNodeID != 0 &&
+		(fence.NodeID != s.coordinatorNodeID ||
+			fence.Term != s.coordinatorTerm) {
+		return backupusecase.ErrStateConflict
+	}
+	if s.interveningStateUpdates > 0 {
+		s.interveningStateUpdates--
+		s.state.Revision++
+		if s.onInterveningStateUpdate != nil {
+			s.onInterveningStateUpdate(&s.state)
+		}
+		return backupusecase.ErrStateConflict
+	}
 	if s.state.Revision != expectedRevision {
 		return backupusecase.ErrStateConflict
 	}

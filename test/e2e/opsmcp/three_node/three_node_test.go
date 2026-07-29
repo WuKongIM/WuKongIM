@@ -40,6 +40,11 @@ type tokenCreate struct {
 	Revision     uint64 `json:"revision"`
 }
 
+type managerError struct {
+	Error   string `json:"error"`
+	Message string `json:"message"`
+}
+
 func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
 	cluster := suite.New(t).StartThreeNodeCluster(opsMCPOptions()...)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -50,12 +55,8 @@ func TestThreeNodeOperationsMCPIngressProfileAndOwnerRestart(t *testing.T) {
 	}
 
 	managerJWT := loginManager(t, cluster.MustNode(1))
+	eventuallySetMCPOwner(t, cluster.MustNode(1), managerJWT, 1)
 	status := readMCPStatus(t, cluster.MustNode(1), managerJWT)
-	managerRequest(t, cluster.MustNode(1), managerJWT, http.MethodPut, "/manager/mcp/owner", map[string]any{
-		"expected_revision": status.Revision,
-		"owner_node_id":     1,
-	}, http.StatusAccepted, nil)
-	status = readMCPStatus(t, cluster.MustNode(1), managerJWT)
 	require.Equal(t, uint64(1), status.OwnerNodeID)
 
 	var created tokenCreate
@@ -177,6 +178,39 @@ func readMCPStatus(t *testing.T, node *suite.StartedNode, token string) mcpStatu
 	return status
 }
 
+func eventuallySetMCPOwner(t *testing.T, node *suite.StartedNode, token string, ownerNodeID uint64) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	var lastStatus int
+	var lastPayload []byte
+	for time.Now().Before(deadline) {
+		status := readMCPStatus(t, node, token)
+		lastStatus, lastPayload = sendManagerRequest(t, node, token, http.MethodPut, "/manager/mcp/owner", map[string]any{
+			"expected_revision": status.Revision,
+			"owner_node_id":     ownerNodeID,
+		})
+		if lastStatus == http.StatusAccepted {
+			return
+		}
+		if lastStatus != http.StatusConflict {
+			require.Equal(t, http.StatusAccepted, lastStatus, "body=%s\n%s", lastPayload, node.DumpDiagnostics())
+		}
+		var conflict managerError
+		require.NoError(t, json.Unmarshal(lastPayload, &conflict), "body=%s", lastPayload)
+		require.Equal(t, managerError{
+			Error:   "conflict",
+			Message: "operations MCP conflict: state revision changed",
+		}, conflict, "status=%d body=%s\n%s", lastStatus, lastPayload, node.DumpDiagnostics())
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf(
+		"MCP owner update did not survive revision convergence: status=%d body=%s\n%s",
+		lastStatus,
+		lastPayload,
+		node.DumpDiagnostics(),
+	)
+}
+
 func eventuallyMCPReady(t *testing.T, cluster *suite.StartedCluster, token string, minimumRevision uint64) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
@@ -252,6 +286,22 @@ func managerRequest(
 	out any,
 ) {
 	t.Helper()
+	responseStatus, payload := sendManagerRequest(t, node, token, method, path, body)
+	require.Equal(t, wantStatus, responseStatus, "body=%s\n%s", payload, node.DumpDiagnostics())
+	if out != nil {
+		require.NoError(t, json.Unmarshal(payload, out), "body=%s", payload)
+	}
+}
+
+func sendManagerRequest(
+	t *testing.T,
+	node *suite.StartedNode,
+	token string,
+	method string,
+	path string,
+	body any,
+) (int, []byte) {
+	t.Helper()
 	var reader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -276,10 +326,7 @@ func managerRequest(
 	defer response.Body.Close()
 	payload, err := io.ReadAll(response.Body)
 	require.NoError(t, err)
-	require.Equal(t, wantStatus, response.StatusCode, "body=%s\n%s", payload, node.DumpDiagnostics())
-	if out != nil {
-		require.NoError(t, json.Unmarshal(payload, out), "body=%s", payload)
-	}
+	return response.StatusCode, payload
 }
 
 func connectMCP(t *testing.T, node *suite.StartedNode, token string) *mcp.ClientSession {
