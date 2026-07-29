@@ -81,6 +81,27 @@ type runWorkerPayload struct {
 	DiagnosisBinary  string                          `json:"diagnosis_binary,omitempty"`
 }
 
+type issueAgentWorkerStageError struct {
+	code  string
+	cause error
+}
+
+func (failure issueAgentWorkerStageError) Error() string {
+	return "Issue Agent Worker stage failed"
+}
+
+func (failure issueAgentWorkerStageError) Unwrap() error {
+	return failure.cause
+}
+
+func (failure issueAgentWorkerStageError) SafeDiagnosticCode() string {
+	return failure.code
+}
+
+func workerStageFailure(code string, cause error) error {
+	return issueAgentWorkerStageError{code: code, cause: cause}
+}
+
 // IssueAgentGitHubConfig contains Publisher-only process dependencies.
 type IssueAgentGitHubConfig struct {
 	HTTPClient                 *http.Client
@@ -4193,19 +4214,30 @@ func NewIssueAgentWorkerDependency(
 		document issueagentcli.DocumentRequest,
 	) (any, error) {
 		if config.ForbiddenPublisherData {
-			return nil, errors.New("Worker process contains Publisher credentials")
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticCredentialBoundary,
+				errors.New("Worker process contains Publisher credentials"),
+			)
 		}
 		var payload runWorkerPayload
 		if err := decodeIssueAgentDocument(document.Payload, &payload); err != nil {
-			return nil, err
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticInputValidation, err,
+			)
 		}
 		prompt, err := base64.StdEncoding.Strict().DecodeString(payload.PromptBase64)
 		if err != nil || base64.StdEncoding.EncodeToString(prompt) != payload.PromptBase64 {
-			return nil, errors.New("Worker prompt encoding is invalid")
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticInputValidation,
+				errors.New("Worker prompt encoding is invalid"),
+			)
 		}
 		policy, err := base64.StdEncoding.Strict().DecodeString(payload.PolicyBase64)
 		if err != nil || base64.StdEncoding.EncodeToString(policy) != payload.PolicyBase64 {
-			return nil, errors.New("Worker policy encoding is invalid")
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticInputValidation,
+				errors.New("Worker policy encoding is invalid"),
+			)
 		}
 		sandbox, err := issueagentworker.NewDockerSandboxRunner(
 			issueagentworker.DockerSandboxConfig{
@@ -4218,18 +4250,24 @@ func NewIssueAgentWorkerDependency(
 			},
 		)
 		if err != nil {
-			return nil, err
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticSandboxSetup, err,
+			)
 		}
 		defer sandbox.Close()
 		binaries, err := reproductionBinaryEvidence(
 			payload.Task, payload.AffectedBinary, payload.DiagnosisBinary,
 		)
 		if err != nil {
-			return nil, err
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticBinaryEvidence, err,
+			)
 		}
 		modelRunner, err := composeModelRunner(config, payload.Task)
 		if err != nil {
-			return nil, err
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticModelSetup, err,
+			)
 		}
 		worker, err := issueagentworker.NewWorker(issueagentworker.WorkerConfig{
 			Task: payload.Task, Prompt: prompt, Policy: policy,
@@ -4238,9 +4276,17 @@ func NewIssueAgentWorkerDependency(
 			Binaries: binaries,
 		})
 		if err != nil {
-			return nil, err
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticTaskSetup, err,
+			)
 		}
-		return worker.Run(ctx)
+		artifact, err := worker.Run(ctx)
+		if err != nil {
+			return nil, workerStageFailure(
+				issueagentcli.WorkerDiagnosticExecution, err,
+			)
+		}
+		return artifact, nil
 	}
 }
 
