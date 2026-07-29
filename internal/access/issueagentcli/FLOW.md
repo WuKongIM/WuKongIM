@@ -18,7 +18,9 @@ generate-checkpoint-key --private-key-file <new path>
 ```
 
 Diagnostics go only to stderr and must not include JSON input, credentials, or
-private-key bytes. The command is independent of the WuKongIM server lifecycle.
+private-key bytes. `run-worker` may append only one fixed, allowlisted stage
+code to its generic failure diagnostic; unknown codes and every other command
+remain generic. The command is independent of the WuKongIM server lifecycle.
 
 Read commands re-fetch and verify the complete signed Issue history before
 returning a current checkpoint or unexpired task. Publish commands mint no

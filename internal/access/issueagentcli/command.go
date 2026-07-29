@@ -24,6 +24,16 @@ import (
 const (
 	maxCommandInput  = 20 << 20
 	maxCommandOutput = 20 << 20
+
+	// WorkerDiagnostic* values are the complete public-safe stage vocabulary
+	// accepted from the credential-separated Worker composition boundary.
+	WorkerDiagnosticCredentialBoundary = "worker-credential-boundary"
+	WorkerDiagnosticInputValidation    = "worker-input-validation"
+	WorkerDiagnosticSandboxSetup       = "worker-sandbox-setup"
+	WorkerDiagnosticBinaryEvidence     = "worker-binary-evidence"
+	WorkerDiagnosticModelSetup         = "worker-model-setup"
+	WorkerDiagnosticTaskSetup          = "worker-task-setup"
+	WorkerDiagnosticExecution          = "worker-execution"
 )
 
 // PlanEventRequest is the flattened strict CLI input for reconciliation.
@@ -192,7 +202,7 @@ func Run(
 		return 2
 	}
 	if err != nil {
-		writeDiagnostic(stderr, "command failed")
+		writeDiagnostic(stderr, commandFailureDiagnostic(args[0], err))
 		return 1
 	}
 	if err := writeResult(stdout, result); err != nil {
@@ -200,6 +210,31 @@ func Run(
 		return 1
 	}
 	return 0
+}
+
+func commandFailureDiagnostic(command string, err error) string {
+	if command != "run-worker" {
+		return "command failed"
+	}
+	var diagnostic interface {
+		SafeDiagnosticCode() string
+	}
+	if !errors.As(err, &diagnostic) {
+		return "command failed"
+	}
+	code := diagnostic.SafeDiagnosticCode()
+	switch code {
+	case WorkerDiagnosticCredentialBoundary,
+		WorkerDiagnosticInputValidation,
+		WorkerDiagnosticSandboxSetup,
+		WorkerDiagnosticBinaryEvidence,
+		WorkerDiagnosticModelSetup,
+		WorkerDiagnosticTaskSetup,
+		WorkerDiagnosticExecution:
+		return "command failed: " + code
+	default:
+		return "command failed"
+	}
 }
 
 func runDocument(

@@ -117,3 +117,117 @@ func TestCommandRejectsUnknownCommandCancellationAndSecretDiagnostics(t *testing
 	))
 	require.NotContains(t, stderr.String(), secret)
 }
+
+func TestCommandReportsOnlyAllowlistedWorkerStageDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	secret := "provider-secret-detail"
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	exitCode := issueagentcli.Run(
+		context.Background(), []string{"run-worker", "--input", "-"},
+		bytes.NewBufferString(`{"schema_version":1,"payload":{}}`),
+		&stdout, &stderr,
+		issueagentcli.Operations{
+			RunWorker: func(
+				context.Context,
+				issueagentcli.DocumentRequest,
+			) (any, error) {
+				return nil, testSafeDiagnosticError{
+					code: "worker-model-setup", detail: secret,
+				}
+			},
+		},
+	)
+	require.Equal(t, 1, exitCode)
+	require.Empty(t, stdout.String())
+	require.Equal(t, "command failed: worker-model-setup\n", stderr.String())
+	require.NotContains(t, stderr.String(), secret)
+
+	stderr.Reset()
+	exitCode = issueagentcli.Run(
+		context.Background(), []string{"run-worker", "--input", "-"},
+		bytes.NewBufferString(`{"schema_version":1,"payload":{}}`),
+		&stdout, &stderr,
+		issueagentcli.Operations{
+			RunWorker: func(
+				context.Context,
+				issueagentcli.DocumentRequest,
+			) (any, error) {
+				return nil, testSafeDiagnosticError{
+					code: "untrusted-value", detail: secret,
+				}
+			},
+		},
+	)
+	require.Equal(t, 1, exitCode)
+	require.Equal(t, "command failed\n", stderr.String())
+	require.NotContains(t, stderr.String(), secret)
+
+	stderr.Reset()
+	exitCode = issueagentcli.Run(
+		context.Background(), []string{"run-worker", "--input", "-"},
+		bytes.NewBufferString(`{"schema_version":1,"payload":{}}`),
+		&stdout, &stderr,
+		issueagentcli.Operations{
+			RunWorker: func(
+				context.Context,
+				issueagentcli.DocumentRequest,
+			) (any, error) {
+				return nil, &testChangingSafeDiagnosticError{secret: secret}
+			},
+		},
+	)
+	require.Equal(t, 1, exitCode)
+	require.Equal(t, "command failed: worker-model-setup\n", stderr.String())
+	require.NotContains(t, stderr.String(), secret)
+
+	stderr.Reset()
+	exitCode = issueagentcli.Run(
+		context.Background(), []string{"plan-event", "--input", "-"},
+		bytes.NewBufferString(`{}`), &stdout, &stderr,
+		issueagentcli.Operations{
+			PlanEvent: func(
+				context.Context,
+				issueagentcli.PlanEventRequest,
+			) (any, error) {
+				return nil, testSafeDiagnosticError{
+					code: "worker-model-setup", detail: secret,
+				}
+			},
+		},
+	)
+	require.Equal(t, 1, exitCode)
+	require.Equal(t, "command failed\n", stderr.String())
+	require.NotContains(t, stderr.String(), secret)
+}
+
+type testSafeDiagnosticError struct {
+	code   string
+	detail string
+}
+
+func (failure testSafeDiagnosticError) Error() string {
+	return failure.detail
+}
+
+func (failure testSafeDiagnosticError) SafeDiagnosticCode() string {
+	return failure.code
+}
+
+type testChangingSafeDiagnosticError struct {
+	calls  int
+	secret string
+}
+
+func (failure *testChangingSafeDiagnosticError) Error() string {
+	return failure.secret
+}
+
+func (failure *testChangingSafeDiagnosticError) SafeDiagnosticCode() string {
+	failure.calls++
+	if failure.calls == 1 {
+		return "worker-model-setup"
+	}
+	return failure.secret
+}

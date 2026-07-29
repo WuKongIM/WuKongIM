@@ -1139,7 +1139,9 @@ verification, and App authentication are supplied as explicit standalone
 dependencies so Publisher credentials cannot enter the product process.
 The composition root also re-reads and publishes exact maintainer controls,
 bounded CI-repair leases, sanitized provider failures, and admin chain
-recovery. Authorization converts an omitted affected version into the exact
+recovery. The credential-separated Worker maps setup and execution failures to
+the CLI's fixed public-safe stage vocabulary while preserving the underlying
+error only inside the process. Authorization converts an omitted affected version into the exact
 `main` SHA from the same trusted read used for the diagnosis baseline.
 Reproduction lease publication derives topology from the frozen Bug facts,
 defaulting an omission to `single-node-cluster` and rejecting conflicting
