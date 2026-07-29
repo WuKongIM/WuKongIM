@@ -334,7 +334,13 @@ GOWORK=off go test ./internal/contracts/issueagent \
   ./internal/access/issueagentcli ./internal/app ./scripts -count=1
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
+  -ignore 'unexpected key "queue" for "concurrency" section' \
   .github/workflows/issue-agent-control.yml \
   .github/workflows/issue-agent-reconcile.yml \
   .github/workflows/issue-agent-run.yml
 ```
+
+The narrow ignore covers GitHub's documented `concurrency.queue` field until
+actionlint releases support for it. The parsed Workflow contract tests above
+require `queue: max` on every scheduler, per-Issue run, and Publisher group;
+all other actionlint findings remain fatal.

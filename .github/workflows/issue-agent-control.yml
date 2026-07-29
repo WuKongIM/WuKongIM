@@ -26,6 +26,7 @@ permissions: {}
 
 concurrency:
   group: issue-agent-scheduler-${{ github.repository }}
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -414,6 +415,8 @@ jobs:
         shell: bash
         env:
           APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          ARTIFACT_NAME: ${{ needs.planner.outputs.artifact_name }}
+          ARTIFACT_RUN_ID: ${{ needs.planner.outputs.artifact_run_id }}
           CODEX_MODEL: ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
           COMMENT_ID: ${{ needs.planner.outputs.comment_id }}
           DEEPSEEK_MODEL: ${{ vars.ISSUE_AGENT_DEEPSEEK_MODEL }}
@@ -816,8 +819,8 @@ jobs:
                   test -f "$artifact"
                   jq -e '.schema_version == 1' "$artifact" >/dev/null
                   common_payload | jq \
-                    --argjson artifact_run_id "${{ needs.planner.outputs.artifact_run_id }}" \
-                    --arg artifact_name "${{ needs.planner.outputs.artifact_name }}" \
+                    --argjson artifact_run_id "$ARTIFACT_RUN_ID" \
+                    --arg artifact_name "$ARTIFACT_NAME" \
                     --slurpfile artifact "$artifact" \
                     --slurpfile policy control/.github/issue-agent/policy.json \
                     --arg template_base64 "$(base64 -w0 control/.github/issue-agent/templates/e2e-scenario-AGENTS.md)" \

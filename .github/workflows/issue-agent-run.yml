@@ -17,6 +17,7 @@ permissions: {}
 
 concurrency:
   group: issue-agent-${{ inputs.issue_number }}
+  queue: max
   cancel-in-progress: false
 
 jobs:

@@ -134,19 +134,30 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				if step.Uses != "" {
 					require.NoError(t, validatePinnedIssueAgentAction(step.Uses))
 				}
+				if name == "issue-agent-control.yml" &&
+					jobName == "state-publisher" {
+					require.NotContains(t, step.Run, "${{",
+						"large Publisher scripts must receive expressions through env")
+				}
 				require.NotContains(t, step.Run, "github.event.issue.body")
 				require.NotContains(t, step.Run, "github.event.comment.body")
 				require.NotContains(t, step.Run, "github.event.pull_request.title")
 			}
 		}
-		if name != "issue-agent-run.yml" {
+		if name == "issue-agent-run.yml" {
+			require.Equal(t,
+				"issue-agent-${{ inputs.issue_number }}",
+				workflow.Concurrency.Group,
+			)
+		} else {
 			require.Equal(t,
 				"issue-agent-scheduler-${{ github.repository }}",
 				workflow.Concurrency.Group,
 			)
-			require.NotNil(t, workflow.Concurrency.CancelInProgress)
-			require.False(t, *workflow.Concurrency.CancelInProgress)
 		}
+		require.Equal(t, "max", workflow.Concurrency.Queue)
+		require.NotNil(t, workflow.Concurrency.CancelInProgress)
+		require.False(t, *workflow.Concurrency.CancelInProgress)
 	}
 }
 
@@ -158,6 +169,7 @@ func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
 	require.Contains(t, raw, "path: workspace")
 	require.Contains(t, raw, "persist-credentials: false")
 	require.Contains(t, raw, "group: issue-agent-${{ inputs.issue_number }}")
+	require.Contains(t, raw, "queue: max")
 	require.Contains(t, raw, "cancel-in-progress: false")
 	require.NotContains(t, raw, "permissions:\n      contents: write")
 	require.Contains(t, raw, "environment: issue-agent-publisher")

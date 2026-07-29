@@ -35,8 +35,14 @@ Before changing rollout mode, run:
 ```bash
 GOWORK=off go test ./scripts -run '^TestIssueAgentWorkflow' -count=1
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
+  -ignore 'unexpected key "queue" for "concurrency" section' \
   .github/workflows/issue-agent-*.yml
 ```
+
+The exact ignore is a temporary compatibility exception for GitHub's
+documented `concurrency.queue` field, which actionlint v1.7.9 does not yet
+recognize. `TestIssueAgentWorkflowSecurityContracts` parses the workflows and
+requires `queue: max`; every other actionlint finding remains fatal.
 
 Setup, key rotation, budgets, lifecycle, emergency disable, and pilot evidence
 requirements are documented in

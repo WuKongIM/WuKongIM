@@ -10,6 +10,7 @@ permissions: {}
 
 concurrency:
   group: issue-agent-scheduler-${{ github.repository }}
+  queue: max
   cancel-in-progress: false
 
 jobs:

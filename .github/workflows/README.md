@@ -34,13 +34,14 @@ for discovery and may become more specific over time.
 The checked-in Issue Agent policy currently runs in `shadow` mode.
 `issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
 non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
-non-cancelling group per Issue. Every Issue-writing Publisher job also shares a
-non-cancelling `issue-agent-publisher-<repository>-<issue>` group across the
-control and Worker workflows. Its bounded maximum pending queue keeps waiting
-Publisher jobs instead of replacing them. This keeps the final checkpoint
-re-read and append serial without blocking an in-flight model job, so a
-cancellation or new generation can publish first and fence the later stale
-Worker result.
+non-cancelling group per Issue. Both use the bounded maximum pending queue so
+control hints and dispatched work are not replaced while waiting. Every
+Issue-writing Publisher job also shares a non-cancelling
+`issue-agent-publisher-<repository>-<issue>` group across the control and
+Worker workflows. Its bounded maximum pending queue keeps waiting Publisher
+jobs instead of replacing them. This keeps the final checkpoint re-read and
+append serial without blocking an in-flight model job, so a cancellation or
+new generation can publish first and fence the later stale Worker result.
 Every job builds `cmd/wkissueagent` from protected `main` control source or
 checks its embedded revision. Target source uses a distinct exact-SHA checkout
 with persisted Git credentials disabled.
