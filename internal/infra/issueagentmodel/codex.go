@@ -183,6 +183,9 @@ type CodexCLIConfig struct {
 type CodexCLIRunner struct {
 	config CodexCLIConfig
 	proxy  codexActionProxyConfig
+	// executableSearchPath freezes the trusted Action-established PATH without
+	// inheriting any other environment variable into Codex subprocesses.
+	executableSearchPath string
 }
 
 var codexVersionPattern = regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)`)
@@ -199,15 +202,21 @@ func NewCodexCLIRunner(config CodexCLIConfig) (*CodexCLIRunner, error) {
 	if err != nil {
 		return nil, err
 	}
+	runtimePath := os.Getenv("PATH")
+	if strings.TrimSpace(runtimePath) == "" {
+		return nil, errors.New("Codex CLI version is unavailable or too old")
+	}
 	command := exec.Command(config.Binary, "--version")
-	command.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin"}
+	command.Env = []string{"PATH=" + runtimePath}
 	output, err := command.Output()
 	if err != nil || !versionAtLeast(
 		codexVersionPattern.FindString(string(output)), config.MinVersion,
 	) {
 		return nil, errors.New("Codex CLI version is unavailable or too old")
 	}
-	return &CodexCLIRunner{config: config, proxy: proxy}, nil
+	return &CodexCLIRunner{
+		config: config, proxy: proxy, executableSearchPath: runtimePath,
+	}, nil
 }
 
 // RunRound invokes Codex without user config, project rules, native tools, or persistence.
@@ -258,7 +267,7 @@ func (runner *CodexCLIRunner) RunRound(
 	}
 	command := exec.CommandContext(ctx, runner.config.Binary, args...)
 	command.Env = []string{
-		"PATH=/usr/local/bin:/usr/bin:/bin",
+		"PATH=" + runner.executableSearchPath,
 		"HOME=" + tempRoot,
 		"CODEX_HOME=" + tempRoot,
 	}
