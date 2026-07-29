@@ -156,6 +156,27 @@ func (s *ScheduledService) AcquireArchiveOperation(
 	kind string,
 	archiveID string,
 ) (backupcontract.ArchiveOperation, error) {
+	return s.acquireArchiveOperation(ctx, kind, archiveID, false)
+}
+
+// resumeArchiveOperation lets the leader-only backup runner reuse its exact
+// retention lease after a transient state conflict. A successor coordinator
+// waits for the previous worker to release the lease or for it to expire, so
+// their repository side effects cannot overlap.
+func (s *ScheduledService) resumeArchiveOperation(
+	ctx context.Context,
+	kind string,
+	archiveID string,
+) (backupcontract.ArchiveOperation, error) {
+	return s.acquireArchiveOperation(ctx, kind, archiveID, true)
+}
+
+func (s *ScheduledService) acquireArchiveOperation(
+	ctx context.Context,
+	kind string,
+	archiveID string,
+	resumeMatching bool,
+) (backupcontract.ArchiveOperation, error) {
 	kind = strings.TrimSpace(kind)
 	archiveID = strings.TrimSpace(archiveID)
 	switch kind {
@@ -166,33 +187,66 @@ func (s *ScheduledService) AcquireArchiveOperation(
 	if len(archiveID) > 128 || strings.Contains(archiveID, "/") {
 		return backupcontract.ArchiveOperation{}, ErrInvalidRequest
 	}
-	current, err := s.store.Load(ctx)
-	if err != nil {
-		return backupcontract.ArchiveOperation{}, err
+	for range 16 {
+		current, err := s.store.Load(ctx)
+		if err != nil {
+			return backupcontract.ArchiveOperation{}, err
+		}
+		now := s.now().UTC()
+		if current.ActiveArchiveOperation != nil &&
+			now.Before(time.UnixMilli(
+				current.ActiveArchiveOperation.ExpiresUnixMillis,
+			)) {
+			if resumeMatching &&
+				current.ActiveArchiveOperation.Kind == kind &&
+				current.ActiveArchiveOperation.ArchiveID == archiveID &&
+				archiveOperationCoordinatorMatches(
+					ctx, *current.ActiveArchiveOperation,
+				) {
+				return *current.ActiveArchiveOperation, nil
+			}
+			return backupcontract.ArchiveOperation{},
+				ErrArchiveOperationActive
+		}
+		token := strings.TrimSpace(s.newID())
+		if token == "" || len(token) > 128 {
+			return backupcontract.ArchiveOperation{}, ErrInvalidRequest
+		}
+		operation := backupcontract.ArchiveOperation{
+			Token: token, Kind: kind, ArchiveID: archiveID,
+			StartedUnixMillis: now.UnixMilli(),
+			ExpiresUnixMillis: now.Add(archiveOperationLeaseDuration).UnixMilli(),
+		}
+		if fence, ok := backupcontract.CoordinatorFenceFromContext(ctx); ok {
+			operation.CoordinatorNodeID = fence.NodeID
+			operation.CoordinatorTerm = fence.Term
+		}
+		next := current.Clone()
+		next.Revision++
+		next.ActiveArchiveOperation = &operation
+		err = s.store.CompareAndSwap(ctx, current.Revision, next)
+		if errors.Is(err, ErrStateConflict) {
+			continue
+		}
+		if err != nil {
+			return backupcontract.ArchiveOperation{}, err
+		}
+		return operation, nil
 	}
-	now := s.now().UTC()
-	if current.ActiveArchiveOperation != nil &&
-		now.Before(time.UnixMilli(
-			current.ActiveArchiveOperation.ExpiresUnixMillis,
-		)) {
-		return backupcontract.ArchiveOperation{}, ErrArchiveOperationActive
+	return backupcontract.ArchiveOperation{}, ErrStateConflict
+}
+
+func archiveOperationCoordinatorMatches(
+	ctx context.Context,
+	operation backupcontract.ArchiveOperation,
+) bool {
+	fence, ok := backupcontract.CoordinatorFenceFromContext(ctx)
+	if !ok {
+		return operation.CoordinatorNodeID == 0 &&
+			operation.CoordinatorTerm == 0
 	}
-	token := strings.TrimSpace(s.newID())
-	if token == "" || len(token) > 128 {
-		return backupcontract.ArchiveOperation{}, ErrInvalidRequest
-	}
-	operation := backupcontract.ArchiveOperation{
-		Token: token, Kind: kind, ArchiveID: archiveID,
-		StartedUnixMillis: now.UnixMilli(),
-		ExpiresUnixMillis: now.Add(archiveOperationLeaseDuration).UnixMilli(),
-	}
-	next := current.Clone()
-	next.Revision++
-	next.ActiveArchiveOperation = &operation
-	if err := s.store.CompareAndSwap(ctx, current.Revision, next); err != nil {
-		return backupcontract.ArchiveOperation{}, err
-	}
-	return operation, nil
+	return operation.CoordinatorNodeID == fence.NodeID &&
+		operation.CoordinatorTerm == fence.Term
 }
 
 // ReleaseArchiveOperation clears only the exact operation lease held by the

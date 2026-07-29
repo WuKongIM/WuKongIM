@@ -238,20 +238,11 @@ func (r *JobRunner) clean(
 ) error {
 	cleanupCode := ""
 	startedUnixMillis := r.now().UTC().UnixMilli()
-	operation, err := r.scheduled.AcquireArchiveOperation(
+	operation, err := r.scheduled.resumeArchiveOperation(
 		ctx, "retention", job.ID,
 	)
 	if err != nil {
-		cleanupCode = "cleanup_deferred"
-		if recordErr := r.recordRetention(
-			ctx, job.ID, startedUnixMillis, cleanupCode,
-		); recordErr != nil {
-			return recordErr
-		}
-		return r.scheduled.FinishBackup(ctx, FinishBackupRequest{
-			JobID: job.ID, Status: backupcontract.JobStatusSucceeded,
-			ErrorCode: cleanupCode,
-		})
+		return err
 	}
 	store, err := r.repository.Open(ctx, plan.Store)
 	if err == nil {
@@ -260,16 +251,19 @@ func (r *JobRunner) clean(
 			store.Delete(ctx, "pending/"+job.ID),
 		)
 	}
+	// Lease release is the previous coordinator's completion acknowledgement.
+	// It is token-fenced rather than term-fenced so a successor never starts
+	// retention before the previous worker has stopped its repository I/O.
 	releaseContext, releaseCancel := context.WithTimeout(
-		context.WithoutCancel(ctx), 10*time.Second,
+		context.Background(), 10*time.Second,
 	)
-	err = errors.Join(
-		err,
-		r.scheduled.ReleaseArchiveOperation(
-			releaseContext, operation.Token,
-		),
+	releaseErr := r.scheduled.ReleaseArchiveOperation(
+		releaseContext, operation.Token,
 	)
 	releaseCancel()
+	if releaseErr != nil {
+		return errors.Join(err, releaseErr)
+	}
 	if err != nil {
 		cleanupCode = "cleanup_deferred"
 	}

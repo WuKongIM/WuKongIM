@@ -344,6 +344,8 @@ type memoryScheduledStateStore struct {
 	state                    backupcontract.SystemState
 	interveningStateUpdates  int
 	onInterveningStateUpdate func(*backupcontract.SystemState)
+	coordinatorNodeID        uint64
+	coordinatorTerm          uint64
 }
 
 func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.SystemState, error) {
@@ -353,12 +355,18 @@ func (s *memoryScheduledStateStore) Load(context.Context) (backupcontract.System
 }
 
 func (s *memoryScheduledStateStore) CompareAndSwap(
-	_ context.Context,
+	ctx context.Context,
 	expectedRevision uint64,
 	next backupcontract.SystemState,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if fence, ok := backupcontract.CoordinatorFenceFromContext(ctx); ok &&
+		s.coordinatorNodeID != 0 &&
+		(fence.NodeID != s.coordinatorNodeID ||
+			fence.Term != s.coordinatorTerm) {
+		return backupusecase.ErrStateConflict
+	}
 	if s.interveningStateUpdates > 0 {
 		s.interveningStateUpdates--
 		s.state.Revision++
