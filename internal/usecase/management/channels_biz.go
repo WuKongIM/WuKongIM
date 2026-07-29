@@ -12,7 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
-	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -55,6 +54,8 @@ type ChannelBusinessReader interface {
 }
 
 // ChannelBusinessOperator exposes authoritative detail, member, and mutation operations.
+// Implementations must wrap temporarily unavailable authority errors with
+// ErrBusinessChannelAuthorityUnavailable.
 type ChannelBusinessOperator interface {
 	// GetMetadata returns the authoritative channel metadata row.
 	GetMetadata(context.Context, BusinessChannelKey) (metadb.Channel, error)
@@ -395,7 +396,7 @@ func (a *App) GetBusinessChannel(ctx context.Context, channelID string, channelT
 	key := BusinessChannelKey{ChannelID: channelID, ChannelType: typed}
 	ch, err := a.channelBusinessOperator.GetMetadata(ctx, key)
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	snapshot, err := a.cluster.LocalControlSnapshot(ctx)
 	if err != nil {
@@ -403,15 +404,15 @@ func (a *App) GetBusinessChannel(ctx context.Context, channelID string, channelT
 	}
 	hasSubscribers, err := a.channelBusinessOperator.HasSubscribers(ctx, key)
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	hasAllowlist, err := a.channelBusinessOperator.HasAllowlist(ctx, key)
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	hasDenylist, err := a.channelBusinessOperator.HasDenylist(ctx, key)
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	return BusinessChannelDetail{
 		BusinessChannelListItem: businessChannelListItem(snapshot.HashSlots, ch),
@@ -435,7 +436,7 @@ func (a *App) CreateBusinessChannel(ctx context.Context, req CreateBusinessChann
 		Ban:                req.Ban, Disband: req.Disband, SendBan: req.SendBan,
 	})
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	return a.GetBusinessChannel(ctx, channelID, int64(channelType))
 }
@@ -455,7 +456,7 @@ func (a *App) UpdateBusinessChannel(ctx context.Context, req UpdateBusinessChann
 		BusinessChannelFlags{Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
 	)
 	if err != nil {
-		return BusinessChannelDetail{}, normalizeBusinessChannelOperationError(err)
+		return BusinessChannelDetail{}, err
 	}
 	return a.GetBusinessChannel(ctx, channelID, int64(channelType))
 }
@@ -481,7 +482,7 @@ func (a *App) ListBusinessChannelMembers(ctx context.Context, req ListBusinessCh
 	}
 	key := BusinessChannelKey{ChannelID: channelID, ChannelType: channelType}
 	if _, err := a.channelBusinessOperator.GetMetadata(ctx, key); err != nil {
-		return ListBusinessChannelMembersResponse{}, normalizeBusinessChannelOperationError(err)
+		return ListBusinessChannelMembersResponse{}, err
 	}
 	if req.UID != "" {
 		uids, err := normalizeBusinessMemberUIDs([]string{req.UID})
@@ -490,7 +491,7 @@ func (a *App) ListBusinessChannelMembers(ctx context.Context, req ListBusinessCh
 		}
 		found, err := a.containsBusinessMember(ctx, kind, key, uids[0])
 		if err != nil {
-			return ListBusinessChannelMembersResponse{}, normalizeBusinessChannelOperationError(err)
+			return ListBusinessChannelMembersResponse{}, err
 		}
 		resp := ListBusinessChannelMembersResponse{Items: make([]BusinessChannelMember, 0, 1)}
 		if found {
@@ -506,7 +507,7 @@ func (a *App) ListBusinessChannelMembers(ctx context.Context, req ListBusinessCh
 	}
 	page, err := a.listBusinessMemberPage(ctx, kind, pageReq)
 	if err != nil {
-		return ListBusinessChannelMembersResponse{}, normalizeBusinessChannelOperationError(err)
+		return ListBusinessChannelMembersResponse{}, err
 	}
 	resp := ListBusinessChannelMembersResponse{
 		Items:   make([]BusinessChannelMember, 0, len(page.UIDs)),
@@ -554,7 +555,7 @@ func (a *App) MutateBusinessChannelMembers(ctx context.Context, req MutateBusine
 	}
 	key := BusinessChannelKey{ChannelID: channelID, ChannelType: channelType}
 	if _, err := a.channelBusinessOperator.GetMetadata(ctx, key); err != nil {
-		return resp, normalizeBusinessChannelOperationError(err)
+		return resp, err
 	}
 	var result metadb.SubscriberMutationResult
 	switch kind {
@@ -566,28 +567,11 @@ func (a *App) MutateBusinessChannelMembers(ctx context.Context, req MutateBusine
 		result, err = a.channelBusinessOperator.MutateDenylistCounted(ctx, key, uids, req.Add)
 	}
 	if err != nil {
-		return resp, normalizeBusinessChannelOperationError(err)
+		return resp, err
 	}
 	resp.RequestedCount = result.RequestedCount
 	resp.ChangedCount = result.ChangedCount
 	return resp, nil
-}
-
-func normalizeBusinessChannelOperationError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, clusterpkg.ErrNotStarted),
-		errors.Is(err, clusterpkg.ErrStopping),
-		errors.Is(err, clusterpkg.ErrRouteNotReady),
-		errors.Is(err, clusterpkg.ErrNoSlotLeader),
-		errors.Is(err, clusterpkg.ErrNotLeader),
-		errors.Is(err, clusterpkg.ErrSlotNotFound),
-		errors.Is(err, context.DeadlineExceeded):
-		return fmt.Errorf("%w: %w", ErrBusinessChannelAuthorityUnavailable, err)
-	default:
-		return err
-	}
 }
 
 func (a *App) containsBusinessMember(ctx context.Context, kind string, key BusinessChannelKey, uid string) (bool, error) {

@@ -8,6 +8,7 @@ import (
 
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
+	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -37,6 +38,28 @@ func TestNewManagerManagementWiresBusinessChannelOperatorToChannelUsecase(t *tes
 	}
 	if detail.Ban || !detail.SendBan {
 		t.Fatalf("patched detail = %#v", detail)
+	}
+}
+
+func TestNormalizeManagerChannelBusinessError(t *testing.T) {
+	for _, cause := range []error{
+		clusterpkg.ErrNotStarted,
+		clusterpkg.ErrStopping,
+		clusterpkg.ErrRouteNotReady,
+		clusterpkg.ErrNoSlotLeader,
+		clusterpkg.ErrNotLeader,
+		clusterpkg.ErrSlotNotFound,
+		context.DeadlineExceeded,
+	} {
+		err := normalizeManagerChannelBusinessError(cause)
+		if !errors.Is(err, managementusecase.ErrBusinessChannelAuthorityUnavailable) || !errors.Is(err, cause) {
+			t.Fatalf("normalizeManagerChannelBusinessError(%v) = %v, want authority-unavailable and cause", cause, err)
+		}
+	}
+
+	other := errors.New("other")
+	if got := normalizeManagerChannelBusinessError(other); got != other {
+		t.Fatalf("normalizeManagerChannelBusinessError(other) = %v, want original error", got)
 	}
 }
 

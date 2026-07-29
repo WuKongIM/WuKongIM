@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -99,21 +98,23 @@ func TestBusinessChannelMemberValidationRejectsWholeBatch(t *testing.T) {
 	}
 }
 
-func TestBusinessChannelOperationsNormalizeClusterAuthorityErrors(t *testing.T) {
+func TestBusinessChannelOperationsPreserveAuthorityErrors(t *testing.T) {
+	authorityCause := errors.New("route not ready")
+	authorityErr := fmt.Errorf("%w: %w", ErrBusinessChannelAuthorityUnavailable, authorityCause)
 	app := New(Options{ChannelBusinessOperator: &fakeBusinessChannelOperator{
-		err: clusterpkg.ErrRouteNotReady,
+		err: authorityErr,
 	}})
 
 	_, err := app.ListBusinessChannelMembers(context.Background(), ListBusinessChannelMembersRequest{
 		ChannelID: "g1", ChannelType: 2, ListKind: "subscribers", Limit: 100,
 	})
-	if !errors.Is(err, ErrBusinessChannelAuthorityUnavailable) || !errors.Is(err, clusterpkg.ErrRouteNotReady) {
-		t.Fatalf("ListBusinessChannelMembers() error = %v, want authority and route-not-ready errors", err)
+	if !errors.Is(err, ErrBusinessChannelAuthorityUnavailable) || !errors.Is(err, authorityCause) {
+		t.Fatalf("ListBusinessChannelMembers() error = %v, want authority and cause errors", err)
 	}
 }
 
 func TestBusinessChannelOperationsNormalizeControlSnapshotErrors(t *testing.T) {
-	snapshotErr := clusterpkg.ErrNotStarted
+	snapshotErr := errors.New("controller not started")
 	cluster := fakeNodeSnapshotReader{err: snapshotErr}
 
 	listApp := New(Options{
