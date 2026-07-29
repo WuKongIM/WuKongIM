@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react"
 import { ArchiveRestore, Pause, Play, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
-import { useIntl } from "react-intl"
+import { useIntl, type IntlShape } from "react-intl"
 
 import { useAuthStore } from "@/auth/auth-store"
 import { hasManagerPermission } from "@/auth/permissions"
@@ -29,12 +29,21 @@ import type {
   ManagerBackupDashboard,
   ManagerBackupPlan,
   ManagerBackupPlanInput,
+  ManagerBackupRepositoryErrorDetail,
   ManagerBackupStoreKind,
   ManagerRestoreSlotProgress,
 } from "@/lib/manager-api.types"
 
 type ScheduleMode = "daily" | "half_day" | "custom"
 type ObjectStoreKind = Exclude<ManagerBackupStoreKind, "file">
+type PlanFeedback =
+  | { kind: "success"; message: string }
+  | {
+    kind: "error"
+    message: string
+    detail?: ManagerBackupRepositoryErrorDetail
+  }
+  | null
 
 type RepositoryFormMeta = {
   endpointOptional: boolean
@@ -157,6 +166,57 @@ function planInput(
   }
 }
 
+function repositoryDraftIsDirty(
+  draft: PlanDraft,
+  plan?: ManagerBackupPlan,
+) {
+  if (!plan || draft.storeKind !== plan.store.kind) return true
+  if (draft.accessKey.trim() !== "" || draft.secretKey !== "") return true
+  if (draft.storeKind === "file") return false
+  return draft.endpoint.trim() !== (plan.store.endpoint ?? "") ||
+    draft.region.trim() !== (plan.store.region ?? "") ||
+    draft.bucket.trim() !== (plan.store.bucket ?? "") ||
+    draft.prefix.trim() !== (plan.store.prefix ?? "") ||
+    (draft.storeKind === "s3" && draft.pathStyle !== Boolean(plan.store.path_style))
+}
+
+function repositoryErrorDetail(
+  error: unknown,
+): ManagerBackupRepositoryErrorDetail | undefined {
+  if (!(error instanceof ManagerApiError) ||
+    !error.detail ||
+    typeof error.detail !== "object") {
+    return undefined
+  }
+  const detail = error.detail as Partial<ManagerBackupRepositoryErrorDetail>
+  if (typeof detail.provider !== "string" ||
+    typeof detail.stage !== "string" ||
+    typeof detail.reason !== "string") {
+    return undefined
+  }
+  return detail as ManagerBackupRepositoryErrorDetail
+}
+
+function repositoryFailureMessage(
+  intl: IntlShape,
+  detail: ManagerBackupRepositoryErrorDetail,
+) {
+  return intl.formatMessage(
+    { id: "backups.repository.error.summary" },
+    {
+      provider: intl.formatMessage({
+        id: `backups.repository.provider.${detail.provider}`,
+      }),
+      reason: intl.formatMessage({
+        id: `backups.repository.reason.${detail.reason}`,
+      }),
+      stage: intl.formatMessage({
+        id: `backups.repository.stage.${detail.stage}`,
+      }),
+    },
+  )
+}
+
 function errorKind(error: Error | null) {
   if (!(error instanceof ManagerApiError)) return "error" as const
   if (error.status === 403) return "forbidden" as const
@@ -267,6 +327,7 @@ export function BackupsPage() {
   const [error, setError] = useState<Error | null>(null)
   const [notice, setNotice] = useState("")
   const [mutationError, setMutationError] = useState("")
+  const [planFeedback, setPlanFeedback] = useState<PlanFeedback>(null)
   const [busy, setBusy] = useState("")
   const [deleteArchive, setDeleteArchive] = useState<ManagerBackupArchive | null>(null)
   const [restoreArchive, setRestoreArchive] = useState<ManagerBackupArchive | null>(null)
@@ -329,6 +390,44 @@ export function BackupsPage() {
     }
   }, [intl, load])
 
+  const mutatePlan = useCallback(async (
+    operation: string,
+    action: () => Promise<void>,
+    successMessage: string,
+  ) => {
+    setBusy(operation)
+    setPlanFeedback(null)
+    try {
+      await action()
+      setPlanFeedback({ kind: "success", message: successMessage })
+      return true
+    } catch (mutationFailure) {
+      const detail = repositoryErrorDetail(mutationFailure)
+      setPlanFeedback({
+        kind: "error",
+        message: detail
+          ? repositoryFailureMessage(intl, detail)
+          : mutationFailure instanceof Error
+            ? mutationFailure.message
+            : "Backup operation failed",
+        detail,
+      })
+      return false
+    } finally {
+      setBusy("")
+    }
+  }, [intl])
+
+  const updateRepositoryDraft = useCallback((
+    update: (current: PlanDraft) => PlanDraft,
+  ) => {
+    setDraft((current) => ({
+      ...update(current),
+      enabled: false,
+    }))
+    setPlanFeedback(null)
+  }, [])
+
   if (!canRead) {
     return (
       <PageContainer>
@@ -354,6 +453,19 @@ export function BackupsPage() {
   const progress = activeTask ? taskProgress(activeTask.slots) : null
   const restoreNodes = activeRestore ? restoreNodeProgress(activeRestore.slots) : []
   const writeDisabled = !canWrite || busy !== ""
+  const repositoryDirty = repositoryDraftIsDirty(draft, plan)
+  const repositoryVerified = Boolean(
+    plan &&
+    !repositoryDirty &&
+    (plan.repository_verification === undefined ||
+      plan.repository_verification.status === "verified"),
+  )
+  const verificationKind = repositoryDirty || !plan ||
+    plan.repository_verification?.status === "unverified"
+    ? "unverified"
+    : plan.repository_verification === undefined
+      ? "legacy"
+      : "verified"
   const credentialsReusable = Boolean(
     dashboard?.credentials_configured && plan?.store.kind === draft.storeKind,
   )
@@ -436,7 +548,7 @@ export function BackupsPage() {
                 </span>
                 <input
                   checked={draft.enabled}
-                  disabled={writeDisabled}
+                  disabled={writeDisabled || !repositoryVerified}
                   onChange={(event) => setDraft((current) => ({ ...current, enabled: event.target.checked }))}
                   type="checkbox"
                 />
@@ -493,7 +605,7 @@ export function BackupsPage() {
                   onChange={(event) => {
                     const storeKind = event.target.value as ManagerBackupStoreKind
                     const nextStoreFormMeta = objectStoreFormMeta(storeKind)
-                    setDraft((current) => ({
+                    updateRepositoryDraft((current) => ({
                       ...current,
                       storeKind,
                       endpoint: "",
@@ -534,42 +646,79 @@ export function BackupsPage() {
                     : "backups.repository.endpoint",
                 })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, endpoint: event.target.value }))}
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, endpoint: event.target.value,
+                    }))}
                     placeholder={storeFormMeta.endpointPlaceholder} value={draft.endpoint} />
                 </Field>
                 <Field label={intl.formatMessage({ id: "backups.repository.region" })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, region: event.target.value }))} value={draft.region} />
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, region: event.target.value,
+                    }))} value={draft.region} />
                 </Field>
                 <Field label={intl.formatMessage({ id: "backups.repository.bucket" })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, bucket: event.target.value }))} value={draft.bucket} />
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, bucket: event.target.value,
+                    }))} value={draft.bucket} />
                 </Field>
                 <Field label={intl.formatMessage({ id: "backups.repository.prefix" })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, prefix: event.target.value }))} value={draft.prefix} />
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, prefix: event.target.value,
+                    }))} value={draft.prefix} />
                 </Field>
                 <Field label={intl.formatMessage({ id: storeFormMeta.accessKeyMessage })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, accessKey: event.target.value }))}
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, accessKey: event.target.value,
+                    }))}
                     placeholder={credentialsReusable ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
                     value={draft.accessKey} />
                 </Field>
                 <Field label={intl.formatMessage({ id: storeFormMeta.secretKeyMessage })}>
                   <input className="h-9 rounded-md border border-input bg-background px-3 text-sm" disabled={writeDisabled}
-                    onChange={(event) => setDraft((current) => ({ ...current, secretKey: event.target.value }))}
+                    onChange={(event) => updateRepositoryDraft((current) => ({
+                      ...current, secretKey: event.target.value,
+                    }))}
                     placeholder={credentialsReusable ? intl.formatMessage({ id: "backups.repository.keepCredential" }) : ""}
                     type="password" value={draft.secretKey} />
                 </Field>
                 {storeFormMeta.supportsPathStyle ? (
                   <label className="flex items-center gap-2 text-sm">
                     <input checked={draft.pathStyle} disabled={writeDisabled}
-                      onChange={(event) => setDraft((current) => ({ ...current, pathStyle: event.target.checked }))} type="checkbox" />
+                      onChange={(event) => updateRepositoryDraft((current) => ({
+                        ...current, pathStyle: event.target.checked,
+                      }))} type="checkbox" />
                     {intl.formatMessage({ id: "backups.repository.pathStyle" })}
                   </label>
                 ) : null}
               </div>
             )}
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {intl.formatMessage({ id: "backups.repository.verificationLabel" })}
+              </span>
+              <span
+                className={verificationKind === "verified" || verificationKind === "legacy"
+                  ? "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300"
+                  : "rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-foreground"}
+                data-testid="backup-repository-verification"
+              >
+                {verificationKind === "verified"
+                  ? intl.formatMessage({ id: "backups.repository.verified" })
+                  : verificationKind === "legacy"
+                    ? intl.formatMessage({ id: "backups.repository.verifiedLegacy" })
+                    : intl.formatMessage({ id: "backups.repository.notTested" })}
+              </span>
+              {verificationKind === "verified" &&
+                plan?.repository_verification?.verified_at_unix_ms ? (
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(plan.repository_verification.verified_at_unix_ms)}
+                  </span>
+                ) : null}
+            </div>
             <p className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
               {intl.formatMessage({ id: "backups.repository.encryptionWarning" })}
             </p>
@@ -588,23 +737,44 @@ export function BackupsPage() {
               </div>
             </details>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2" data-testid="backup-plan-actions">
               <Button
                 disabled={writeDisabled}
                 onClick={() => {
-                  void mutate("save", async () => {
-                    await saveBackupPlan(planInput(draft, plan, draftRevision.current))
-                    initialized.current = false
+                  void mutatePlan("save", async () => {
+                    const result = await saveBackupPlan(
+                      planInput(draft, plan, draftRevision.current),
+                    )
+                    setDashboard((current) => current ? {
+                      ...current,
+                      credentials_configured: result.credentials_configured,
+                      state: {
+                        ...current.state,
+                        plan: result.plan,
+                      },
+                    } : current)
+                    setDraft(draftFromPlan(result.plan))
+                    draftRevision.current = result.plan.revision
+                    initialized.current = true
+                    await load()
                   }, intl.formatMessage({ id: "backups.notice.saved" }))
                 }}
               >
                 {intl.formatMessage({ id: busy === "save" ? "backups.saving" : "backups.save" })}
               </Button>
               <Button
-                disabled={writeDisabled}
+                disabled={writeDisabled || !plan || repositoryDirty}
                 onClick={() => {
-                  void mutate("test", async () => {
-                    await testBackupRepository(planInput(draft, plan))
+                  void mutatePlan("test", async () => {
+                    if (!plan) return
+                    const result = await testBackupRepository(plan.revision)
+                    setDashboard((current) => current ? {
+                      ...current,
+                      state: {
+                        ...current.state,
+                        plan: result.plan,
+                      },
+                    } : current)
                   }, intl.formatMessage({ id: "backups.notice.repositoryReady" }))
                 }}
                 variant="outline"
@@ -612,7 +782,8 @@ export function BackupsPage() {
                 <ShieldCheck /> {intl.formatMessage({ id: "backups.testRepository" })}
               </Button>
               <Button
-                disabled={writeDisabled || !plan || Boolean(activeBackup) || Boolean(activeRestore)}
+                disabled={writeDisabled || !repositoryVerified ||
+                  Boolean(activeBackup) || Boolean(activeRestore)}
                 onClick={() => {
                   void mutate("start", async () => { await startBackupJob() },
                     intl.formatMessage({ id: "backups.notice.started" }))
@@ -622,6 +793,61 @@ export function BackupsPage() {
                 <Play /> {intl.formatMessage({ id: "backups.startNow" })}
               </Button>
             </div>
+            {planFeedback ? (
+              <div
+                aria-live={planFeedback.kind === "success" ? "polite" : undefined}
+                className={planFeedback.kind === "error"
+                  ? "mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-3 text-sm text-destructive"
+                  : "mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-3 text-sm text-foreground"}
+                data-testid="backup-plan-feedback"
+                role={planFeedback.kind === "error" ? "alert" : undefined}
+              >
+                <p>{planFeedback.message}</p>
+                {planFeedback.kind === "error" && planFeedback.detail ? (
+                  <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                    {planFeedback.detail.provider_code ? (
+                      <div>
+                        <dt className="inline font-medium">
+                          {intl.formatMessage({ id: "backups.repository.providerCode" })}:{" "}
+                        </dt>
+                        <dd className="inline font-mono">
+                          {planFeedback.detail.provider_code}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {planFeedback.detail.request_id ? (
+                      <div>
+                        <dt className="inline font-medium">
+                          {intl.formatMessage({ id: "backups.repository.requestID" })}:{" "}
+                        </dt>
+                        <dd className="inline font-mono">
+                          {planFeedback.detail.request_id}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {planFeedback.detail.node_id ? (
+                      <div>
+                        <dt className="inline font-medium">
+                          {intl.formatMessage({ id: "backups.repository.nodeID" })}:{" "}
+                        </dt>
+                        <dd className="inline font-mono">
+                          {planFeedback.detail.node_id}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                ) : null}
+              </div>
+            ) : null}
+            {repositoryDirty ? (
+              <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                {intl.formatMessage({ id: "backups.repository.saveBeforeTest" })}
+              </p>
+            ) : verificationKind === "unverified" ? (
+              <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                {intl.formatMessage({ id: "backups.repository.testRequired" })}
+              </p>
+            ) : null}
           </SectionCard>
 
           <SectionCard

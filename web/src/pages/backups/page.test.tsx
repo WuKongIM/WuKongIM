@@ -77,6 +77,38 @@ function dashboard(): ManagerBackupDashboard {
   }
 }
 
+function cloudDashboard(
+  kind: "oss" | "cos",
+  bucket: string,
+  verification: "verified" | "unverified" = "unverified",
+): ManagerBackupDashboard {
+  const current = dashboard()
+  current.credentials_configured = true
+  current.state.revision = 8
+  current.state.plan = {
+    ...current.state.plan!,
+    revision: 4,
+    enabled: false,
+    store: {
+      kind,
+      endpoint: kind === "oss"
+        ? "https://oss-cn-hangzhou.aliyuncs.com"
+        : "https://cos.ap-shanghai.myqcloud.com",
+      region: kind === "oss" ? "cn-hangzhou" : "ap-shanghai",
+      bucket,
+      prefix: "cluster-a",
+      credential_revision: 1,
+    },
+    repository_verification: {
+      status: verification,
+      ...(verification === "verified"
+        ? { verified_at_unix_ms: 1_785_260_800_000 }
+        : {}),
+    },
+  }
+  return current
+}
+
 function renderPage() {
   return render(
     <I18nProvider>
@@ -104,8 +136,14 @@ beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
   getBackupDashboardMock.mockResolvedValue(dashboard())
-  saveBackupPlanMock.mockResolvedValue({ plan: dashboard().state.plan })
-  testBackupRepositoryMock.mockResolvedValue({ ok: true })
+  saveBackupPlanMock.mockResolvedValue({
+    plan: dashboard().state.plan,
+    credentials_configured: false,
+  })
+  testBackupRepositoryMock.mockResolvedValue({
+    ok: true,
+    plan: dashboard().state.plan,
+  })
   startBackupJobMock.mockResolvedValue({ id: "job-1" })
   verifyBackupArchiveMock.mockResolvedValue({ archive, manifest: {} })
   setBackupArchiveHoldMock.mockResolvedValue({ ...archive, held: true })
@@ -150,6 +188,14 @@ test("saves a 12-hour plan using the current plan revision", async () => {
 
 test("configures Alibaba OSS without requiring a custom endpoint", async () => {
   const user = userEvent.setup()
+  const saved = cloudDashboard("oss", "wukongim-backups")
+  getBackupDashboardMock
+    .mockResolvedValueOnce(dashboard())
+    .mockResolvedValue(saved)
+  saveBackupPlanMock.mockResolvedValue({
+    plan: saved.state.plan,
+    credentials_configured: true,
+  })
   renderPage()
 
   const storage = await screen.findByRole("combobox", { name: "Storage" })
@@ -185,10 +231,32 @@ test("configures Alibaba OSS without requiring a custom endpoint", async () => {
       },
     }),
   ))
+  await waitFor(() => {
+    expect(screen.getByRole("textbox", { name: "Region" })).toHaveValue("cn-hangzhou")
+    expect(screen.getByRole("textbox", { name: "Bucket" })).toHaveValue("wukongim-backups")
+    expect(screen.getByRole("textbox", { name: "Prefix" })).toHaveValue("cluster-a")
+    expect(screen.getByRole("textbox", { name: "Endpoint (optional)" })).toHaveValue(
+      "https://oss-cn-hangzhou.aliyuncs.com",
+    )
+    expect(screen.getByRole("textbox", { name: "AccessKey ID" })).toHaveValue("")
+    expect(screen.getByRole("textbox", { name: "AccessKey ID" })).toHaveAttribute(
+      "placeholder",
+      "Leave blank to keep saved credentials",
+    )
+    expect(screen.getByLabelText("AccessKey Secret")).toHaveValue("")
+  })
 })
 
 test("uses Tencent COS names and submits the full Bucket name", async () => {
   const user = userEvent.setup()
+  const saved = cloudDashboard("cos", "wukongim-backups-1250000000")
+  getBackupDashboardMock
+    .mockResolvedValueOnce(dashboard())
+    .mockResolvedValue(saved)
+  saveBackupPlanMock.mockResolvedValue({
+    plan: saved.state.plan,
+    credentials_configured: true,
+  })
   renderPage()
 
   const storage = await screen.findByRole("combobox", { name: "Storage" })
@@ -223,6 +291,22 @@ test("uses Tencent COS names and submits the full Bucket name", async () => {
       },
     }),
   ))
+  await waitFor(() => {
+    expect(screen.getByRole("textbox", { name: "Region" })).toHaveValue("ap-shanghai")
+    expect(screen.getByRole("textbox", { name: "Bucket" })).toHaveValue(
+      "wukongim-backups-1250000000",
+    )
+    expect(screen.getByRole("textbox", { name: "Prefix" })).toHaveValue("cluster-a")
+    expect(screen.getByRole("textbox", { name: "Endpoint (optional)" })).toHaveValue(
+      "https://cos.ap-shanghai.myqcloud.com",
+    )
+    expect(screen.getByRole("textbox", { name: "SecretId" })).toHaveValue("")
+    expect(screen.getByRole("textbox", { name: "SecretId" })).toHaveAttribute(
+      "placeholder",
+      "Leave blank to keep saved credentials",
+    )
+    expect(screen.getByLabelText("SecretKey")).toHaveValue("")
+  })
 })
 
 test("changing a cloud Region keeps the provider default endpoint selected", async () => {
@@ -254,20 +338,124 @@ test("changing a cloud Region keeps the provider default endpoint selected", asy
   ))
 })
 
-test("explains how to recover when backup storage is unreachable", async () => {
+test("shows repository dirtiness and blocks testing and backup until saved and verified", async () => {
+  const user = userEvent.setup()
+  const current = cloudDashboard("oss", "wukongim-backups", "verified")
+  current.state.plan!.enabled = true
+  getBackupDashboardMock.mockResolvedValue(current)
+  renderPage()
+
+  expect(await screen.findByText(/Verified/)).toBeInTheDocument()
+  const automatic = screen.getByRole("checkbox", { name: /Enable automatic backup/ })
+  expect(automatic).toBeChecked()
+  expect(screen.getByRole("button", { name: "Test storage" })).toBeEnabled()
+  expect(screen.getByRole("button", { name: "Back up now" })).toBeEnabled()
+
+  const region = screen.getByRole("textbox", { name: "Region" })
+  await user.clear(region)
+  await user.type(region, "cn-shanghai")
+
+  expect(automatic).not.toBeChecked()
+  expect(automatic).toBeDisabled()
+  expect(screen.getByText("Not tested")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Test storage" })).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Back up now" })).toBeDisabled()
+  expect(screen.getByText("Save the repository settings before testing.")).toBeInTheDocument()
+})
+
+test("treats new credentials as an unsaved repository change", async () => {
+  const user = userEvent.setup()
+  const current = cloudDashboard("cos", "wukongim-backups-1250000000", "verified")
+  getBackupDashboardMock.mockResolvedValue(current)
+  renderPage()
+
+  const testButton = await screen.findByRole("button", { name: "Test storage" })
+  expect(testButton).toBeEnabled()
+  await user.type(screen.getByRole("textbox", { name: "SecretId" }), "replacement-id")
+  expect(testButton).toBeDisabled()
+  expect(screen.getByText("Not tested")).toBeInTheDocument()
+})
+
+test("requires explicit unverified repositories to be tested before backup", async () => {
+  const user = userEvent.setup()
+  const current = cloudDashboard("oss", "wukongim-backups", "unverified")
+  getBackupDashboardMock.mockResolvedValue(current)
+  testBackupRepositoryMock.mockResolvedValue({
+    ok: true,
+    plan: {
+      ...current.state.plan!,
+      repository_verification: {
+        status: "verified",
+        verified_at_unix_ms: 1_785_260_900_000,
+      },
+    },
+  })
+  renderPage()
+
+  const automatic = await screen.findByRole("checkbox", {
+    name: /Enable automatic backup/,
+  })
+  expect(automatic).toBeDisabled()
+  expect(screen.getByRole("button", { name: "Back up now" })).toBeDisabled()
+  expect(screen.getByText("Not tested")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Test storage" }))
+  await waitFor(() => expect(testBackupRepositoryMock).toHaveBeenCalledWith(4))
+  expect(await screen.findByText(/Verified/)).toBeInTheDocument()
+})
+
+test("shows legacy repository verification state without blocking backup", async () => {
+  renderPage()
+
+  expect(await screen.findByText("Verified before upgrade")).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Back up now" })).toBeEnabled()
+})
+
+test("renders actionable repository errors directly below the plan actions", async () => {
   const user = userEvent.setup()
   testBackupRepositoryMock.mockRejectedValue(new ManagerApiError(
     503,
-    "backup_store_unreachable",
-    "server detail",
+    "backup_repository_auth_failed",
+    "Alibaba Cloud OSS rejected the AccessKey ID.",
+    undefined,
+    {
+      provider: "oss",
+      stage: "write_marker",
+      reason: "invalid_access_key",
+      provider_code: "InvalidAccessKeyId",
+      request_id: "request-1",
+      node_id: 2,
+    },
   ))
   renderPage()
 
   await user.click(await screen.findByRole("button", { name: "Test storage" }))
 
-  expect(await screen.findByText(
+  const feedback = await screen.findByRole("alert")
+  expect(feedback).toHaveTextContent("Alibaba Cloud OSS")
+  expect(feedback).toHaveTextContent("AccessKey ID is invalid")
+  expect(feedback).toHaveTextContent("Write test marker")
+  expect(feedback).toHaveTextContent("InvalidAccessKeyId")
+  expect(feedback).toHaveTextContent("request-1")
+  expect(feedback).toHaveTextContent("2")
+  expect(feedback).not.toHaveTextContent(
     "Cannot access the backup storage. Check its address, credentials, permissions, and free space, then try again.",
-  )).toBeInTheDocument()
+  )
+  const actionRow = screen.getByTestId("backup-plan-actions")
+  expect(
+    actionRow.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
+})
+
+test("renders repository test success in the inline live region", async () => {
+  const user = userEvent.setup()
+  renderPage()
+
+  await user.click(await screen.findByRole("button", { name: "Test storage" }))
+
+  const feedback = await screen.findByTestId("backup-plan-feedback")
+  expect(feedback).toHaveAttribute("aria-live", "polite")
+  expect(feedback).toHaveTextContent("Storage test succeeded.")
 })
 
 test("shows a critical warning after two expected backups produce no success", async () => {
