@@ -389,6 +389,104 @@ func TestReconcileIntakeModeOnlyAdmitsDeterministicIntake(t *testing.T) {
 	require.False(t, blocked.WriteAllowed)
 }
 
+func TestReconcileIntakeModeBlocksRecoveryWritesFromEarlierRollouts(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	operationID := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	taskDigest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+
+	reproducing := reconcileCheckpoint(issueagent.StateReproducing)
+	draftPR := reconcileCheckpoint(issueagent.StateDraftPROpen)
+	draftPR.Work = &issueagent.Work{
+		Branch:   "agent/issue-42",
+		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
+		PRNumber: 9,
+	}
+	ready := reconcileCheckpoint(issueagent.StateReadyForReview)
+	ready.Work = &issueagent.Work{
+		Branch:   "agent/issue-42",
+		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
+		PRNumber: 9,
+	}
+	merged := reconcileCheckpoint(issueagent.StateMerged)
+
+	tests := []struct {
+		name  string
+		input issueagentusecase.ReconcileInput
+	}{
+		{
+			name: "invalid chain audit alert",
+			input: issueagentusecase.ReconcileInput{
+				Now: now, ChainStatus: issueagentusecase.ChainInvalid,
+			},
+		},
+		{
+			name: "Worker Artifact publication",
+			input: issueagentusecase.ReconcileInput{
+				Now: now, ChainStatus: issueagentusecase.ChainValid,
+				Checkpoint: reproducing, CheckpointCommentID: 10,
+				CheckpointDigest: digest,
+				Lease: &issueagentusecase.LeaseFacts{
+					OperationID: operationID, TaskDigest: taskDigest,
+					Generation: 1, ExpiresAt: now.Add(time.Hour),
+				},
+				Artifacts: []issueagentusecase.WorkerArtifact{{
+					RunID: 20, OperationID: operationID,
+					TaskDigest: taskDigest, Generation: 1,
+				}},
+			},
+		},
+		{
+			name: "missing work object transition",
+			input: issueagentusecase.ReconcileInput{
+				Now: now, ChainStatus: issueagentusecase.ChainValid,
+				Checkpoint: draftPR, CheckpointCommentID: 10,
+				CheckpointDigest: digest, WorkObjectMissing: true,
+			},
+		},
+		{
+			name: "merged PR transition",
+			input: issueagentusecase.ReconcileInput{
+				Now: now, ChainStatus: issueagentusecase.ChainValid,
+				Checkpoint: ready, CheckpointCommentID: 10,
+				CheckpointDigest: digest,
+				WorkHead: &issueagentusecase.WorkHeadFacts{
+					PRNumber: 9, HeadSHA: ready.Work.HeadSHA,
+					PRState: "closed", BaseRef: "main",
+					HeadRef: ready.Work.Branch,
+				},
+				Merge: &issueagentusecase.MergeFacts{
+					PRNumber: 9, HeadSHA: ready.Work.HeadSHA, Merged: true,
+				},
+			},
+		},
+		{
+			name: "terminal label projection repair",
+			input: issueagentusecase.ReconcileInput{
+				Now: now, ChainStatus: issueagentusecase.ChainValid,
+				Checkpoint: merged, CheckpointCommentID: 10,
+				CheckpointDigest: digest,
+				IssueLabels:      []string{"bug", "ready-for-agent"},
+			},
+		},
+	}
+	policy := issueagentusecase.ReconcilePolicy{
+		Enabled: true, RolloutMode: issueagentusecase.RolloutIntake,
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			plan, err := issueagentusecase.Reconcile(test.input, policy)
+			require.NoError(t, err)
+			require.Equal(t, issueagentusecase.OperationWait, plan.Operation)
+			require.False(t, plan.WriteAllowed)
+		})
+	}
+}
+
 func reconcileCheckpoint(state issueagent.State) *issueagent.Checkpoint {
 	return &issueagent.Checkpoint{
 		SchemaVersion: 1,

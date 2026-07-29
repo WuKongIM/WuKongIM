@@ -31,7 +31,7 @@ for discovery and may become more specific over time.
 
 ## GitHub Issue Agent rollout
 
-The checked-in Issue Agent policy currently runs in `shadow` mode.
+The checked-in Issue Agent policy currently runs in `intake` mode.
 `issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
 non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
 non-cancelling group per Issue. Both use the bounded maximum pending queue so

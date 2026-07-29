@@ -125,17 +125,23 @@ func Reconcile(input ReconcileInput, policy ReconcilePolicy) (Plan, error) {
 			Reason:    "shadow mode records no GitHub write",
 		}, nil
 	}
-	if input.ChainStatus == ChainInvalid {
-		return Plan{
-			Operation: OperationAlertAuditFailure,
-			Reason:    "signed checkpoint chain is invalid; automatic writes are fenced",
-		}, nil
-	}
 	if input.ChainStatus == ChainMissing {
 		return Plan{
 			Operation:    OperationIntakeIssue,
 			WriteAllowed: true,
 			Reason:       "Issue has no Agent checkpoint and is eligible for deterministic intake",
+		}, nil
+	}
+	if policy.RolloutMode == RolloutIntake {
+		return Plan{
+			Operation: OperationWait,
+			Reason:    "intake mode admits only missing-chain intake and authorization",
+		}, nil
+	}
+	if input.ChainStatus == ChainInvalid {
+		return Plan{
+			Operation: OperationAlertAuditFailure,
+			Reason:    "signed checkpoint chain is invalid; automatic writes are fenced",
 		}, nil
 	}
 	if input.ChainStatus != ChainValid || input.Checkpoint == nil {

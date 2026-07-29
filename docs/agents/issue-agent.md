@@ -6,9 +6,9 @@ there is no control-plane server, self-hosted runner, external workflow
 database, or persistent Worker disk.
 
 The checked-in policy is intentionally limited to `intake`. It permits only
-deterministic Bug-form labeling and signed maintainer authorization; it does
-not start a Worker or spend model quota. Each later rollout stage requires a
-separate protected-path change.
+deterministic Bug-form classification, a bounded missing-information request,
+and signed maintainer authorization; it does not start a Worker or spend model
+quota. Each later rollout stage requires a separate protected-path change.
 
 ## User intake
 
