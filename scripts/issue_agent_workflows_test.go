@@ -220,6 +220,22 @@ func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
 	require.NoError(t, err)
 	require.Equal(t, "wukongim-process-e2e-v1\n", string(marker))
 
+	buildHelperPath := filepath.Join(
+		repoRoot(t), ".github", "issue-agent",
+		"build-reproduction-binaries.sh",
+	)
+	buildHelperRaw, err := os.ReadFile(buildHelperPath)
+	require.NoError(t, err)
+	buildHelper := string(buildHelperRaw)
+	require.Contains(t, buildHelper,
+		`GOWORK=off go build -trimpath -o "$affected_output" ./cmd/wukongim`)
+	require.Contains(t, buildHelper,
+		`GOWORK=off go build -trimpath -o "$diagnosis_output" ./cmd/wukongim`)
+	require.NotContains(t, buildHelper, `main.go`)
+	buildHelperInfo, err := os.Stat(buildHelperPath)
+	require.NoError(t, err)
+	require.NotZero(t, buildHelperInfo.Mode().Perm()&0o111)
+
 	raw := readWorkflow(t, "issue-agent-run.yml")
 	_, workflow, err := decodeWorkflow(raw)
 	require.NoError(t, err)
@@ -238,9 +254,13 @@ func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
 		)
 		require.Less(t, preflightIndex, buildIndex)
 		require.Contains(t, build.Run,
-			`go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim`)
+			`control/.github/issue-agent/build-reproduction-binaries.sh \`)
 		require.Contains(t, build.Run,
-			`go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim`)
+			`affected-source workspace \`)
+		require.Contains(t, build.Run,
+			`"$RUNNER_TEMP/affected-wukongim" \`)
+		require.Contains(t, build.Run,
+			`"$RUNNER_TEMP/diagnosis-wukongim"`)
 	}
 }
 

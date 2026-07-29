@@ -3,7 +3,9 @@ package issueagent
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +20,12 @@ var (
 	}
 	multiNodeTopologyMarkers = []string{
 		"three-node", "three node", "3-node", "3 node",
-		"multi-node", "multi node", "三节点", "多节点",
+		"multi-node", "multi node", "two-node", "two node",
+		"三节点", "多节点",
+	}
+	nodeCountPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?:^|[^0-9])([0-9]+)\s*(?:-\s*)?nodes?(?:[^a-z]|$)`),
+		regexp.MustCompile(`(?:^|[^0-9])([0-9]+)\s*节点`),
 	}
 )
 
@@ -176,6 +183,12 @@ func ReproductionTopology(environment string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(environment))
 	single := containsAny(normalized, singleNodeTopologyMarkers)
 	multi := containsAny(normalized, multiNodeTopologyMarkers)
+	countSingle, countMulti, err := topologyFromNodeCounts(normalized)
+	if err != nil {
+		return "", err
+	}
+	single = single || countSingle
+	multi = multi || countMulti
 	if single && multi {
 		return "", errors.New("Bug environment names conflicting cluster topologies")
 	}
@@ -270,6 +283,24 @@ func containsAny(value string, markers []string) bool {
 		}
 	}
 	return false
+}
+
+func topologyFromNodeCounts(value string) (bool, bool, error) {
+	var single, multi bool
+	for _, pattern := range nodeCountPatterns {
+		for _, match := range pattern.FindAllStringSubmatch(value, -1) {
+			count, err := strconv.Atoi(match[1])
+			if err != nil || count == 0 {
+				return false, false, errors.New("Bug environment has an invalid cluster size")
+			}
+			if count == 1 {
+				single = true
+			} else {
+				multi = true
+			}
+		}
+	}
+	return single, multi, nil
 }
 
 func allFromSHA(runs []RunObservation, expected string) bool {

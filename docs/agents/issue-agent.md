@@ -93,13 +93,13 @@ Worker Publisher acquires the same group, re-reads the chain, and rejects its
 stale predecessor before writing.
 
 The Worker checks out protected control code from `main` and target code at an
-exact signed SHA with persisted credentials disabled. It prefetches Go modules,
-then requires the affected commit and diagnosis baseline to carry the same
-reviewed process-E2E reproduction-contract marker. Missing or different
-markers fail before provider bootstrap, so a current harness is never applied
-blindly to an incompatible historical runtime generation. Compatible sources
-build only the current `cmd/wukongim` entrypoint. The Worker runs approved typed
-tools inside the digest-pinned Docker image from
+exact signed SHA with persisted credentials disabled. It first requires the
+affected commit and diagnosis baseline to carry the same reviewed process-E2E
+reproduction-contract marker. Missing or different markers fail before Go
+setup or provider bootstrap, so a current harness is never applied blindly to
+an incompatible historical runtime generation. Compatible sources then
+prefetch Go modules and build only the current `cmd/wukongim` entrypoint. The
+Worker runs approved typed tools inside the digest-pinned Docker image from
 `.github/issue-agent/policy.json` with no network, read-only module cache, and
 no GitHub, model, host, or Docker-socket credential. The untrusted command
 container receives a per-job size-capped tmpfs volume instead of a writable

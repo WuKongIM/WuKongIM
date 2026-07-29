@@ -185,8 +185,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
-          (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+          control/.github/issue-agent/build-reproduction-binaries.sh \
+            affected-source workspace \
+            "$RUNNER_TEMP/affected-wukongim" \
+            "$RUNNER_TEMP/diagnosis-wukongim"
       - name: Pull the digest-pinned sandbox without provider credentials
         shell: bash
         run: |
@@ -305,8 +307,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          (cd affected-source && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/affected-wukongim" ./cmd/wukongim)
-          (cd workspace && GOWORK=off go build -trimpath -o "$RUNNER_TEMP/diagnosis-wukongim" ./cmd/wukongim)
+          control/.github/issue-agent/build-reproduction-binaries.sh \
+            affected-source workspace \
+            "$RUNNER_TEMP/affected-wukongim" \
+            "$RUNNER_TEMP/diagnosis-wukongim"
       - name: Pull the digest-pinned sandbox without provider credentials
         shell: bash
         run: |
