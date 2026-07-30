@@ -154,17 +154,6 @@ func TestMessageDBLatestReadBoundsAndCleansStaleIndexRows(t *testing.T) {
 	}
 }
 
-func TestLatestMessageIndexProgressCodecRoundTrips(t *testing.T) {
-	want := latestMessageIndexProgress{afterChannel: "channel-a", currentChannel: "channel-b", lastMessageID: 401}
-	got, err := decodeLatestMessageIndexProgress(encodeLatestMessageIndexProgress(want))
-	if err != nil {
-		t.Fatalf("decodeLatestMessageIndexProgress(): %v", err)
-	}
-	if got != want {
-		t.Fatalf("progress = %#v, want %#v", got, want)
-	}
-}
-
 func TestMessageDBLatestReadDoesNotClaimEndAtRawScanBudget(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

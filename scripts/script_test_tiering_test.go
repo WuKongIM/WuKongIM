@@ -1,6 +1,7 @@
 package scripts_test
 
 import (
+	"go/build/constraint"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,7 +18,7 @@ func assertRepositoryIntegrationTestFilesUseBuildTag(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range violations {
-		t.Errorf("%s must start with the integration build constraint", path)
+		t.Errorf("%s must use both the _integration_test.go suffix and a positive integration build constraint", path)
 	}
 }
 
@@ -28,7 +29,7 @@ func findIntegrationTestTagViolations(root string, roots []string) ([]string, er
 			if err != nil {
 				return err
 			}
-			if info.IsDir() || !strings.HasSuffix(info.Name(), "_integration_test.go") {
+			if info.IsDir() || !strings.HasSuffix(info.Name(), "_test.go") {
 				return nil
 			}
 			source, err := os.ReadFile(path)
@@ -36,7 +37,16 @@ func findIntegrationTestTagViolations(root string, roots []string) ([]string, er
 				return err
 			}
 			firstLine, _, _ := strings.Cut(string(source), "\n")
-			if !strings.HasPrefix(firstLine, "//go:build ") || !strings.Contains(firstLine, "integration") {
+			requiresIntegration := false
+			if strings.HasPrefix(firstLine, "//go:build ") {
+				expr, err := constraint.Parse(firstLine)
+				if err != nil {
+					return err
+				}
+				requiresIntegration = buildConstraintRequiresTag(expr, "integration")
+			}
+			namedIntegration := strings.HasSuffix(info.Name(), "_integration_test.go")
+			if namedIntegration != requiresIntegration {
 				relativePath, err := filepath.Rel(root, path)
 				if err != nil {
 					return err
@@ -53,21 +63,51 @@ func findIntegrationTestTagViolations(root string, roots []string) ([]string, er
 	return violations, nil
 }
 
-func TestFindIntegrationTestTagViolationsRejectsMissingBuildTag(t *testing.T) {
+func buildConstraintRequiresTag(expr constraint.Expr, tag string) bool {
+	switch expr := expr.(type) {
+	case *constraint.TagExpr:
+		return expr.Tag == tag
+	case *constraint.AndExpr:
+		return buildConstraintRequiresTag(expr.X, tag) || buildConstraintRequiresTag(expr.Y, tag)
+	case *constraint.OrExpr:
+		return buildConstraintRequiresTag(expr.X, tag) && buildConstraintRequiresTag(expr.Y, tag)
+	case *constraint.NotExpr:
+		return false
+	default:
+		return false
+	}
+}
+
+func TestFindIntegrationTestTagViolationsRejectsMismatchedNameAndBuildTag(t *testing.T) {
 	root := t.TempDir()
-	path := filepath.Join(root, "pkg", "example", "slow_integration_test.go")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Join(root, "pkg", "example")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte("package example\n"), 0o644); err != nil {
-		t.Fatal(err)
+	files := map[string]string{
+		"missing_integration_test.go":  "package example\n",
+		"negative_integration_test.go": "//go:build !integration\n\npackage example\n",
+		"typo_integration_test.go":     "//go:build integration_typo\n\npackage example\n",
+		"hidden_test.go":               "//go:build integration\n\npackage example\n",
+		"valid_integration_test.go":    "//go:build integration && !windows\n\npackage example\n",
+	}
+	for name, source := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	violations, err := findIntegrationTestTagViolations(root, []string{"pkg"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(violations) != 1 || violations[0] != "pkg/example/slow_integration_test.go" {
-		t.Fatalf("violations = %v, want the untagged integration test", violations)
+	want := []string{
+		"pkg/example/hidden_test.go",
+		"pkg/example/missing_integration_test.go",
+		"pkg/example/negative_integration_test.go",
+		"pkg/example/typo_integration_test.go",
+	}
+	if strings.Join(violations, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("violations = %v, want %v", violations, want)
 	}
 }

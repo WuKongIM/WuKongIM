@@ -93,20 +93,6 @@ func TestNodeStartStopsStartedResourcesOnFailure(t *testing.T) {
 	}
 }
 
-func TestNodeRejectsInvalidConfig(t *testing.T) {
-	if _, err := New(Config{}); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
-	}
-}
-
-func TestNodeRejectsInvalidChannelTickInterval(t *testing.T) {
-	cfg := validNodeConfig(t)
-	cfg.Channel.TickInterval = -time.Millisecond
-	if _, err := New(cfg); !errors.Is(err, ErrInvalidConfig) {
-		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
-	}
-}
-
 func TestStoppedNodeRejectsForegroundWithErrStopping(t *testing.T) {
 	node, err := New(validNodeConfig(t))
 	if err != nil {

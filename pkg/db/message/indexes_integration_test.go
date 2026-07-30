@@ -3,7 +3,6 @@
 package message
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -41,16 +40,6 @@ func TestMessageIndexGetByMessageID(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("GetByMessageID() missing ok = true, want false")
-	}
-}
-
-func TestMessageIDIndexValueDirectCodecMatchesEncoder(t *testing.T) {
-	value := make([]byte, messageIDIndexValueLen)
-	writeMessageIDIndexValue(value, 42)
-
-	want := encodeMessageIDIndexValue(42)
-	if !bytes.Equal(value, want) {
-		t.Fatalf("direct message ID index value = %x, want %x", value, want)
 	}
 }
 

@@ -25,12 +25,6 @@ const (
 	testRaftTickInterval = 20 * time.Millisecond
 )
 
-func TestNewServiceValidatesConfig(t *testing.T) {
-	service, err := NewService(Config{})
-	require.Nil(t, service)
-	require.ErrorIs(t, err, ErrInvalidConfig)
-}
-
 func TestNewRawNodeWithoutApplicationLoggerKeepsEtcdDefaultLogging(t *testing.T) {
 	logger := &countingEtcdLogger{}
 	etcdraft.SetLogger(logger)

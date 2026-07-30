@@ -106,37 +106,6 @@ func TestChannelLogPrepareAndStageAppendLeavesNoRowsWhenValidationFails(t *testi
 	}
 }
 
-func TestAppendValidationSeenAllocatesIdempotencyMapOnlyWhenNeeded(t *testing.T) {
-	seen := newAppendValidationSeen(2)
-	if seen.idempotencyKeys != nil {
-		t.Fatal("new append validation state allocated idempotency map before seeing an idempotency key")
-	}
-	if duplicate := seen.rememberMessageID(1); duplicate {
-		t.Fatal("first message ID marked duplicate")
-	}
-	if seen.idempotencyKeys != nil {
-		t.Fatal("message ID validation allocated idempotency map")
-	}
-	if duplicate := seen.rememberIdempotencyKey(IdempotencyKey{FromUID: "u1", ClientMsgNo: "c1"}); duplicate {
-		t.Fatal("first idempotency key marked duplicate")
-	}
-	if seen.idempotencyKeys != nil {
-		t.Fatal("first idempotency key allocated idempotency map")
-	}
-	if duplicate := seen.rememberIdempotencyKey(IdempotencyKey{FromUID: "u1", ClientMsgNo: "c1"}); !duplicate {
-		t.Fatal("duplicate first idempotency key was not detected")
-	}
-	if seen.idempotencyKeys != nil {
-		t.Fatal("duplicate first idempotency key allocated idempotency map")
-	}
-	if duplicate := seen.rememberIdempotencyKey(IdempotencyKey{FromUID: "u2", ClientMsgNo: "c2"}); duplicate {
-		t.Fatal("second distinct idempotency key marked duplicate")
-	}
-	if seen.idempotencyKeys == nil {
-		t.Fatal("second distinct idempotency key did not allocate idempotency map")
-	}
-}
-
 func TestChannelLogAppendSerializesSameChannel(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

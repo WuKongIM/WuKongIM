@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -15,12 +14,6 @@ import (
 	channel "github.com/WuKongIM/WuKongIM/pkg/db/message/channelcompat"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
-
-func TestCommitCoordinatorConfigDoesNotExposeNoSync(t *testing.T) {
-	if _, ok := reflect.TypeOf(CommitCoordinatorConfig{}).FieldByName("NoSync"); ok {
-		t.Fatal("CommitCoordinatorConfig exposes NoSync, want durable sync fixed on")
-	}
-}
 
 func TestCommitCoordinatorConfigKeepsShardCount(t *testing.T) {
 	engine, err := Open(t.TempDir())

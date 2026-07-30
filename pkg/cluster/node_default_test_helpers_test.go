@@ -22,7 +22,7 @@ func newDefaultSingleNode(t testing.TB) *Node {
 	cfg.Channel.TickInterval = time.Millisecond
 	node, err := New(cfg)
 	if err != nil {
-		t.Fatalf("New(single node) error = %v", err)
+		t.Fatalf("New(single-node cluster) error = %v", err)
 	}
 	return node
 }
