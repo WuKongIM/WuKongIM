@@ -1,0 +1,55 @@
+---
+title: Send the First Message
+description: Use the embedded Chat Demo to create two test identities and verify two-way messaging.
+---
+
+Before starting, make sure the single-node cluster [readiness check](/en/guide/quick-start/single-node-cluster) succeeds.
+
+## 1. Sign in the first test user
+
+1. Open `http://127.0.0.1:5001/demo/` in a browser.
+2. Keep the API base URL at `http://127.0.0.1:5001`.
+3. Enter a unique UID such as `quickstart-alice`.
+4. Enter a local-only token such as `alice-local-token`.
+5. Sign in and wait for the page header to report a successful connection.
+
+## 2. Sign in the second test user
+
+Use another browser profile, private window, or different browser to open the Chat Demo again:
+
+- UID: `quickstart-bob`
+- Token: `bob-local-token`
+
+Wait for the second page to report a successful connection. Separate browser sessions prevent the two test identities from overwriting each other's page state.
+
+## 3. Send from Alice to Bob
+
+1. Return to the `quickstart-alice` page.
+2. Open the conversation selector in the top-right corner.
+3. Select direct chat and enter `quickstart-bob` as the other user's login name.
+4. Enter `hello from alice` and send.
+5. Confirm the sending indicator clears on Alice's page and the same message appears on Bob's page.
+
+## 4. Verify the reverse direction
+
+On Bob's page, open a direct chat with `quickstart-alice` and reply with `hello from bob`. The first two-way message check is complete when Alice receives it.
+
+<Callout type="info" title="What this verifies">
+  This path covers demo token registration, route discovery, a WebSocket connection, channel message commit, and online delivery. It proves the local development path works, but it does not replace production authentication, TLS, capacity, recovery, or durability validation.
+</Callout>
+
+## Troubleshooting
+
+### The page stays disconnected
+
+Run `/readyz` again, confirm port `5200` is available, and inspect the server terminal for authentication or WebSocket errors.
+
+### The recipient does not receive the message
+
+Confirm both pages report a successful connection, the recipient UID exactly matches its login UID, and the selected conversation is a direct chat.
+
+### The two pages disconnect each other
+
+Use separate browser profiles or private sessions and different UIDs for the two users.
+
+Next: [understand the Chat Demo boundary](/en/guide/quick-start/chat-demo).

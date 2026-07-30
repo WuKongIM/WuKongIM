@@ -1,0 +1,29 @@
+---
+title: 快速开始
+description: 从源码启动单节点集群，检查就绪状态，并完成第一次双向消息验证。
+---
+
+这条路径面向第一次接触 WuKongIM 的开发者。完成后，你将拥有一个本地单节点集群、可访问的 Manager 和 Chat Demo，以及两个能够互相收发消息的测试用户。
+
+<Callout type="warn" title="仅用于本地验证">
+  示例配置包含固定开发凭据，并把多个管理和诊断入口绑定到本机。它适合学习和功能验证，不是生产部署模板。
+</Callout>
+
+## 最短路径
+
+1. [检查环境](/zh/guide/quick-start/prerequisites)：准备 Git、Go 1.25.11、终端和可用端口。
+2. [启动单节点集群](/zh/guide/quick-start/single-node-cluster)：复制示例配置并运行服务。
+3. [发送第一条消息](/zh/guide/quick-start/first-message)：用两个测试 UID 完成双向消息验证。
+4. [了解 Chat Demo](/zh/guide/quick-start/chat-demo)：理解演示接口与生产集成的边界。
+5. [选择下一步](/zh/guide/quick-start/next-steps)：进入配置、SDK、API 或运维文档。
+
+## 完成标准
+
+完成快速开始后，应能确认：
+
+- `http://127.0.0.1:5001/readyz` 返回成功。
+- `http://127.0.0.1:5301` 能打开 Manager。
+- `http://127.0.0.1:5001/demo/` 能让两个唯一 UID 连接。
+- 任一测试用户发送的消息能被另一个用户收到。
+
+预计操作时间约 5–10 分钟，不包含首次下载 Go 依赖的时间。

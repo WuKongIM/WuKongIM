@@ -1,0 +1,50 @@
+---
+title: Core Concepts
+description: Establish the shared vocabulary required to understand integration, message flow, and cluster behavior.
+---
+
+## Product and connection concepts
+
+| Concept | Meaning |
+| --- | --- |
+| User | A stable identity defined by the business system and identified by a UID |
+| Device | A class of client identity for a user, distinguished by device flag and level |
+| Connection | One online transport session from a client to a node |
+| Channel | The primary unit of message routing, ordering, and storage, identified by channel ID and type |
+| Message | An ordered record published to a channel, with a client number, content, and message settings |
+| Conversation | A user's recent-interaction view, including latest message, read position, and unread state |
+
+A user can have multiple devices, and each device can create many connections over time. Do not treat a connection ID as the business identity or assume that a user is online on only one node.
+
+## Cluster and storage concepts
+
+| Concept | Meaning |
+| --- | --- |
+| Cluster | The unified runtime model for every WuKongIM deployment; one node is a single-node cluster |
+| Node | A process instance that runs access, runtime, storage, and node-transport capabilities |
+| Controller | The control plane for membership, node health, hash-slot tables, physical Slot placement, and operator tasks |
+| Hash slot | A fixed partition that routes user and channel keys to logical Slots; the default count is 256 |
+| Slot | A distributed Raft group holding user, channel, membership, conversation, and related metadata |
+| Channel | The runtime that owns an ordered message log, leaders and replicas, and commit progress for one channel |
+
+## A message path
+
+1. A client connects with a UID, device information, and token.
+2. A send request names a channel ID, channel type, and client message number.
+3. Hash-slot and cluster metadata route the request to the correct Channel leader.
+4. The Channel appends the message in order and waits for durable commit.
+5. After commit, the sender receives an acknowledgement and online recipients receive delivery.
+6. Offline or reconnecting devices synchronize missing committed messages, and conversation state advances.
+
+<Callout type="info" title="Ordering boundary">
+  Understand WuKongIM message ordering at the channel boundary. Do not assume a global order across different channels.
+</Callout>
+
+## Boundaries to preserve in a design
+
+- Business accounts and authorization belong to the business service; connections and message transport belong to WuKongIM.
+- Message commit and online delivery are separate stages. A temporarily offline recipient does not change the committed message.
+- Single-node clusters and multi-node clusters use the same path; integrations must not add a single-node-cluster bypass.
+- Designs for 100,000-member groups, many online users, and high message rates must consider fan-out, queue bounds, backpressure, memory, and storage latency together.
+
+Next, run the [quick start](/en/guide/quick-start) or review [basic configuration](/en/server/configuration).

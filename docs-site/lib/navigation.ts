@@ -41,7 +41,8 @@ function text(zh: string, en: string): LocalizedText {
   return { zh, en };
 }
 
-function plannedPage(
+function navigationPage(
+  status: PublicationStatus,
   slug: string,
   zhLabel: string,
   enLabel: string,
@@ -52,7 +53,56 @@ function plannedPage(
     slug,
     label: text(zhLabel, enLabel),
     description: text(zhDescription, enDescription),
-    status: 'planned',
+    status,
+  };
+}
+
+function plannedPage(
+  slug: string,
+  zhLabel: string,
+  enLabel: string,
+  zhDescription: string,
+  enDescription: string,
+): NavigationPage {
+  return navigationPage(
+    'planned',
+    slug,
+    zhLabel,
+    enLabel,
+    zhDescription,
+    enDescription,
+  );
+}
+
+function publishedPage(
+  slug: string,
+  zhLabel: string,
+  enLabel: string,
+  zhDescription: string,
+  enDescription: string,
+): NavigationPage {
+  return navigationPage(
+    'published',
+    slug,
+    zhLabel,
+    enLabel,
+    zhDescription,
+    enDescription,
+  );
+}
+
+function navigationGroup(
+  status: PublicationStatus,
+  slug: string,
+  zhLabel: string,
+  enLabel: string,
+  zhDescription: string,
+  enDescription: string,
+  children: NavigationPage[],
+): NavigationGroup {
+  return {
+    ...navigationPage(status, slug, zhLabel, enLabel, zhDescription, enDescription),
+    children,
   };
 }
 
@@ -64,10 +114,34 @@ function plannedGroup(
   enDescription: string,
   children: NavigationPage[],
 ): NavigationGroup {
-  return {
-    ...plannedPage(slug, zhLabel, enLabel, zhDescription, enDescription),
+  return navigationGroup(
+    'planned',
+    slug,
+    zhLabel,
+    enLabel,
+    zhDescription,
+    enDescription,
     children,
-  };
+  );
+}
+
+function publishedGroup(
+  slug: string,
+  zhLabel: string,
+  enLabel: string,
+  zhDescription: string,
+  enDescription: string,
+  children: NavigationPage[],
+): NavigationGroup {
+  return navigationGroup(
+    'published',
+    slug,
+    zhLabel,
+    enLabel,
+    zhDescription,
+    enDescription,
+    children,
+  );
 }
 
 function platformGroup(
@@ -126,14 +200,14 @@ export const domains: DocumentationDomain[] = [
     status: 'published',
     pages: [],
     groups: [
-      plannedGroup(
+      publishedGroup(
         'product-overview',
         '产品概览',
         'Product Overview',
         '建立产品定位、能力边界和适用场景的整体认识。',
         'Understand the product position, capability boundaries, and use cases.',
         [
-          plannedPage(
+          publishedPage(
             'what-is-wukongim',
             'WuKongIM 是什么',
             'What is WuKongIM?',
@@ -156,42 +230,42 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'quick-start',
         '快速开始',
         'Quick Start',
         '沿最短路径启动集群、发送消息并验证结果。',
         'Follow the shortest path to start a cluster, send a message, and verify the result.',
         [
-          plannedPage(
+          publishedPage(
             'prerequisites',
             '环境准备',
             'Prerequisites',
-            '列出 Docker、系统、端口、资源和测试工具要求。',
-            'Lists Docker, operating system, ports, resources, and test tool requirements.',
+            '列出 Git、Go、端口、本地目录和测试工具要求。',
+            'Lists Git, Go, ports, local directories, and test tool requirements.',
           ),
-          plannedPage(
+          publishedPage(
             'single-node-cluster',
             '启动单节点集群',
             'Start a Single-node Cluster',
             '启动单节点集群并验证就绪状态与 Manager。',
             'Starts a single-node cluster and verifies readiness and Manager access.',
           ),
-          plannedPage(
+          publishedPage(
             'first-message',
             '发送第一条消息',
             'Send the First Message',
             '创建测试身份并完成一次最小消息收发。',
             'Creates test identities and completes a minimal message exchange.',
           ),
-          plannedPage(
+          publishedPage(
             'chat-demo',
             '运行聊天演示',
             'Run the Chat Demo',
             '使用内置聊天演示验证两个测试用户之间的通信。',
             'Uses the embedded chat demo to verify communication between two test users.',
           ),
-          plannedPage(
+          publishedPage(
             'next-steps',
             '下一步',
             'Next Steps',
@@ -200,7 +274,7 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'core-concepts',
         '核心概念',
         'Core Concepts',
@@ -355,8 +429,8 @@ export const domains: DocumentationDomain[] = [
             'docker',
             'Docker 部署',
             'Docker',
-            '使用镜像部署单节点或多节点集群。',
-            'Deploys single-node or multi-node clusters from container images.',
+            '使用镜像部署单节点集群或多节点集群。',
+            'Deploys single-node clusters or multi-node clusters from container images.',
           ),
           plannedPage(
             'linux',
@@ -388,7 +462,7 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'configuration',
         '配置',
         'Configuration',

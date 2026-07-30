@@ -1,0 +1,46 @@
+---
+title: Next Steps
+description: Choose the next reading path for integration, configuration, deployment, or operations.
+---
+
+If readiness succeeds, both test UIDs connect, and messages flow in both directions, you have completed the local development loop.
+
+## Choose a path
+
+<Cards>
+  <Card title="Core Concepts" description="Learn channel ordering, message commits, users, devices, conversations, nodes, and Slots." href="/en/guide/core-concepts" />
+  <Card title="Basic Configuration" description="Understand TOML, configuration search order, WK_ environment variables, and development credentials." href="/en/server/configuration" />
+  <Card title="Choose an SDK" description="Plan client integration by platform and access method." href="/en/sdk" />
+  <Card title="API & Protocols" description="Review the plan for server APIs, webhooks, client protocols, and shared dictionaries." href="/en/api" />
+  <Card title="Server" description="Continue to deployment, operations, tooling, and architecture menus." href="/en/server" />
+</Cards>
+
+## Frequently asked questions
+
+### Is a single-node cluster a standalone mode?
+
+No. It is a cluster with one node and still uses the Controller, Slot, Channel, routing, and persistence paths.
+
+### Can I use the example configuration in production?
+
+No. At minimum, replace fixed credentials, plan TLS and access control, place data on managed durable storage, and validate capacity, failure recovery, and tail latency with the real workload.
+
+### Why does data remain after a restart?
+
+The example stores node data in `./data/wukongim-single-node-data`. Stopping the process does not delete that directory.
+
+### How do I change ports?
+
+After copying `wukongim.toml.example`, edit the API, Manager, Gateway, and cluster listeners in the local `wukongim.toml`, then restart the node. Do not store machine-specific changes in the example template.
+
+### Why must production clients not call `/user/token`?
+
+It is a demo identity endpoint. A trusted business backend must issue or update production tokens after real identity and authorization checks.
+
+### Where is the three-node environment?
+
+The repository-root `docker-compose.yml` provides a three-node development environment. It exposes development credentials and benchmark capabilities, so it is not a production template either.
+
+<Callout type="info" title="Documentation status">
+  The sidebar still shows planned pages. A page enters search, sitemap, and LLM outputs only after both language versions are complete and pass publication checks.
+</Callout>

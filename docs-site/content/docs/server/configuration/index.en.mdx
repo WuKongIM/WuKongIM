@@ -1,0 +1,68 @@
+---
+title: Configuration
+description: Understand WuKongIM TOML configuration, lookup order, environment overrides, and basic local settings.
+---
+
+WuKongIM uses TOML as its primary configuration format. Start by copying `wukongim.toml.example` from the repository root, and keep the example file as the commented reference.
+
+## Select a configuration file
+
+An explicit path is the easiest option to reproduce:
+
+```bash
+cp wukongim.toml.example wukongim.toml
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+Without `-config`, the server searches these locations in order and stops at the first match:
+
+1. `./wukongim.toml`
+2. `./conf/wukongim.toml`
+3. `/etc/wukongim/wukongim.toml`
+
+## Environment overrides
+
+Environment variables use the `WK_` prefix with uppercase underscore-separated names and override the matching file values. For example:
+
+```bash
+WK_API_LISTEN_ADDR=127.0.0.1:6001 \
+WK_LOG_LEVEL=debug \
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+List values must use JSON to replace the complete list; they cannot append one item:
+
+```bash
+WK_CLUSTER_NODES='[{"id":1,"addr":"127.0.0.1:7001"}]' \
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+<Callout type="info" title="Replacement rule">
+  An environment-supplied list replaces the whole list. Deployment tooling should write the complete target list as one valid JSON string.
+</Callout>
+
+## Configuration areas used by the quick start
+
+| TOML section | Responsibility |
+| --- | --- |
+| `[node]` | Node ID and data directory |
+| `[cluster]` | Cluster ID, node addresses, Slots, replication, and inter-node listener |
+| `[api]` | HTTP API and external TCP/WebSocket addresses |
+| `[manager]` | Manager listener, authentication, JWT, and administrative users |
+| `[gateway]` | TCP/WebSocket listeners and asynchronous queues |
+| `[observability]`, `[log]` | Metrics switches and logs |
+| `[diagnostics]` | Diagnostic sampling, buffering, and slow-request thresholds |
+
+Restart the node after changing configuration. Node IDs and advertised addresses must be unique in a multi-node cluster. `0.0.0.0` is a listen address only and must not be advertised for other nodes to connect to.
+
+## Local security check
+
+The example configuration is for development only. Before production use, at minimum:
+
+- Replace Manager accounts, JWT secrets, cluster join tokens, and other fixed capability credentials.
+- Restrict Manager, metrics, debug, benchmark, and diagnostic surfaces to trusted networks.
+- Configure TLS and access policies for client and administrative traffic.
+- Put each node's data on independent, durable, monitored storage.
+- Tune queues, concurrency, retention, and capacity against real traffic, group sizes, and online-user counts.
+
+The exhaustive field reference is still planned. For now, use the commented repository `wukongim.toml.example` as the source of truth.

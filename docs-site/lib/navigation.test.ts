@@ -89,11 +89,36 @@ describe('documentation navigation contract', () => {
 
       expect(indexed.map((entry) => entry.url)).toEqual([
         `/${locale}/guide`,
+        `/${locale}/guide/product-overview`,
+        `/${locale}/guide/product-overview/what-is-wukongim`,
+        `/${locale}/guide/quick-start`,
+        `/${locale}/guide/quick-start/prerequisites`,
+        `/${locale}/guide/quick-start/single-node-cluster`,
+        `/${locale}/guide/quick-start/first-message`,
+        `/${locale}/guide/quick-start/chat-demo`,
+        `/${locale}/guide/quick-start/next-steps`,
+        `/${locale}/guide/core-concepts`,
         `/${locale}/server`,
+        `/${locale}/server/configuration`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
       expect(indexed.every((entry) => entry.status === 'published')).toBe(true);
+    }
+  });
+
+  test('backs every published route with matching Chinese and English MDX', async () => {
+    for (const entry of getIndexedNavigationEntries('zh')) {
+      const segments = [entry.domain, ...entry.slugs];
+      if (entry.kind !== 'page') segments.push('index');
+      const stem = segments.join('/');
+
+      expect(await Bun.file(new URL(`../content/docs/${stem}.mdx`, import.meta.url)).exists()).toBe(
+        true,
+      );
+      expect(
+        await Bun.file(new URL(`../content/docs/${stem}.en.mdx`, import.meta.url)).exists(),
+      ).toBe(true);
     }
   });
 
@@ -124,8 +149,10 @@ describe('documentation navigation contract', () => {
     expect(parseLocale('fr')).toBeUndefined();
     expect(isPublishedContentPath('guide/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/index.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
   });
 });

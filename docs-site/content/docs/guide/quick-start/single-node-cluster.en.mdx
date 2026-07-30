@@ -1,0 +1,54 @@
+---
+title: Start a Single-node Cluster
+description: Run the complete cluster path from source and check readiness and local entry points.
+---
+
+## 1. Fetch the source
+
+```bash
+git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
+```
+
+Skip this step if you are already at the repository root.
+
+## 2. Create a local configuration
+
+```bash
+cp wukongim.toml.example wukongim.toml
+```
+
+`wukongim.toml` is the local runtime configuration. Do not carry its development credentials into production. The example uses node ID `1`, one replica, and 256 hash slots while still running full cluster semantics.
+
+## 3. Start the server
+
+```bash
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+Leave this terminal running. In another terminal, check readiness:
+
+```bash
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+A successful exit means the node finished startup and can accept traffic. If the process is still running but readiness fails, inspect the startup terminal for configuration, port, or storage errors.
+
+## 4. Open the local entry points
+
+| Purpose | Address |
+| --- | --- |
+| Chat Demo | `http://127.0.0.1:5001/demo/` |
+| Manager | `http://127.0.0.1:5301` |
+| HTTP API, readiness, and metrics | `http://127.0.0.1:5001` |
+| WKProto TCP | `127.0.0.1:5100` |
+| WebSocket | `ws://127.0.0.1:5200` |
+| Node transport | `127.0.0.1:7001` |
+
+The Manager development account is `admin` with password `a1234567`. These fixed credentials are only for local verification.
+
+## Stop and restart
+
+Press `Ctrl+C` in the server terminal to stop the node. Data is stored in `./data/wukongim-single-node-data` by default and is reused when the same configuration starts again.
+
+Next: [send the first message](/en/guide/quick-start/first-message).

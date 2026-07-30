@@ -1,0 +1,46 @@
+---
+title: 下一步
+description: 根据接入、配置、部署和运维目标选择后续阅读路径。
+---
+
+如果就绪检查成功、两个测试 UID 都已连接，并且能够双向收发消息，你已经完成本地开发闭环。
+
+## 选择阅读路径
+
+<Cards>
+  <Card title="核心概念" description="理解频道顺序、消息提交、用户、设备、会话、节点和 Slot。" href="/zh/guide/core-concepts" />
+  <Card title="基础配置" description="理解 TOML、配置搜索顺序、WK_ 环境变量和开发凭据。" href="/zh/server/configuration" />
+  <Card title="选择 SDK" description="从平台和接入方式出发规划客户端集成。" href="/zh/sdk" />
+  <Card title="API 与协议" description="了解服务端接口、Webhook、客户端协议和公共字典的规划。" href="/zh/api" />
+  <Card title="服务端" description="继续阅读部署、运维、工具和架构菜单。" href="/zh/server" />
+</Cards>
+
+## 常见问题
+
+### 单节点集群是不是独立模式？
+
+不是。它是只有一个节点的集群，仍使用 Controller、Slot、Channel、路由和持久化路径。
+
+### 可以把示例配置直接用于生产吗？
+
+不可以。至少需要替换固定凭据，规划 TLS 和访问控制，把数据放在受管理的持久化存储上，并按真实负载验证容量、故障恢复和尾延迟。
+
+### 为什么重启后还能看到数据？
+
+示例配置把节点数据保存在 `./data/wukongim-single-node-data`。停止进程不会删除这个目录。
+
+### 如何修改端口？
+
+复制 `wukongim.toml.example` 后，修改本地 `wukongim.toml` 中的 API、Manager、Gateway 和集群监听地址，再重启节点。不要改动示例模板来保存本机差异。
+
+### 为什么生产客户端不能调用 `/user/token`？
+
+这是演示身份接口。生产 Token 必须由受信任的业务后端在完成真实身份和权限校验后签发或更新。
+
+### 三节点环境在哪里？
+
+仓库根目录的 `docker-compose.yml` 提供三节点开发环境。它会暴露开发凭据和 Benchmark 能力，同样不能作为生产模板。
+
+<Callout type="info" title="文档状态">
+  侧栏仍会显示后续规划页面。只有已完成中英文正文并通过发布校验的页面才会进入搜索、Sitemap 和 LLM 输出。
+</Callout>
