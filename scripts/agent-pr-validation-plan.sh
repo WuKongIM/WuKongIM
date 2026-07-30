@@ -183,9 +183,11 @@ elif [[ "$attempt_count" -eq 1 ]]; then
       (ltrimstr($prefix) | test("^[1-9][0-9]*$")))
   ' >/dev/null <<<"$prior_run"
   prior_conclusion="$(jq -er '.conclusion' <<<"$prior_run")"
-  if [[ "$latest_prior_state" == failure || "$latest_prior_state" == error ]]; then
-    test "$prior_conclusion" = failure
-  elif [[ "$latest_prior_state" == pending ]]; then
+  if [[
+    "$latest_prior_state" == failure ||
+      "$latest_prior_state" == error ||
+      "$latest_prior_state" == pending
+  ]]; then
     [[
       "$prior_conclusion" == failure ||
         "$prior_conclusion" == cancelled ||

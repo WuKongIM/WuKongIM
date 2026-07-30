@@ -574,6 +574,34 @@ func TestAgentPRValidationPlanAcceptsSingleEvidenceBoundRetry(t *testing.T) {
 	if output, err := newCommand().CombinedOutput(); err != nil {
 		t.Fatalf("validation rejected a terminally cancelled evidence-bound retry: %v\n%s", err, output)
 	}
+
+	failedStatuses := agentValidationStatuses(t, 47, `[
+  {
+    "state": "failure",
+    "context": "Agent Validation Evidence / PR #47 / Gate #7001",
+    "target_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/555"
+  }
+]`)
+	if err := os.WriteFile(statusesPath, []byte(failedStatuses), 0o600); err != nil {
+		t.Fatalf("write failed retry status fixture: %v", err)
+	}
+	cancelledRunCommand := newCommand()
+	attemptRuns, err = os.ReadFile(attemptRunsPath)
+	if err != nil {
+		t.Fatalf("read failed retry run metadata: %v", err)
+	}
+	cancelledRun := strings.Replace(
+		string(attemptRuns),
+		`"conclusion":"failure"`,
+		`"conclusion":"cancelled"`,
+		1,
+	)
+	if err := os.WriteFile(attemptRunsPath, []byte(cancelledRun), 0o600); err != nil {
+		t.Fatalf("write cancelled retry run metadata: %v", err)
+	}
+	if output, err := cancelledRunCommand.CombinedOutput(); err != nil {
+		t.Fatalf("validation rejected failed evidence from a cancelled run: %v\n%s", err, output)
+	}
 }
 
 func TestAgentPRValidationPlanRejectsThirdAttemptAfterSuccessfulRetry(t *testing.T) {
