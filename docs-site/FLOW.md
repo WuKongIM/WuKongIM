@@ -43,6 +43,12 @@ content/docs/**/*.mdx
   not validate stored tokens, product HTTP routes require an external trust
   boundary, and webhook delivery is bounded and best-effort without a built-in
   signature header.
+- Phase 4 publishes deployment selection, Docker, Linux, static multi-node,
+  and production-checklist guidance. These pages MUST keep the repository
+  Compose stack development-only, build artifacts from reviewed source without
+  inventing an official image channel, use `/readyz` for traffic admission,
+  preserve 256 hash slots and cluster-only semantics, and leave Kubernetes
+  planned.
 
 ## Static delivery
 

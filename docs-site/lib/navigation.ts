@@ -411,28 +411,28 @@ export const domains: DocumentationDomain[] = [
     status: 'published',
     pages: [],
     groups: [
-      plannedGroup(
+      publishedGroup(
         'deployment',
         '部署',
         'Deployment',
         '选择并实施适合环境的服务端部署方式。',
         'Choose and implement the server deployment method appropriate for the environment.',
         [
-          plannedPage(
+          publishedPage(
             'choosing',
             '部署方式选择',
             'Choose a Deployment',
             '比较 Docker、Linux 二进制和 Kubernetes 的适用边界。',
             'Compares the suitability of Docker, Linux binaries, and Kubernetes.',
           ),
-          plannedPage(
+          publishedPage(
             'docker',
             'Docker 部署',
             'Docker',
             '使用镜像部署单节点集群或多节点集群。',
             'Deploys single-node clusters or multi-node clusters from container images.',
           ),
-          plannedPage(
+          publishedPage(
             'linux',
             'Linux 部署',
             'Linux',
@@ -446,14 +446,14 @@ export const domains: DocumentationDomain[] = [
             '说明持久化、服务发现、资源规划和 Beta 边界。',
             'Covers persistence, discovery, resource planning, and Beta limitations.',
           ),
-          plannedPage(
+          publishedPage(
             'multi-node',
             '多节点集群',
             'Multi-node Cluster',
             '规划并引导多节点集群完成启动和就绪检查。',
             'Plans and bootstraps a multi-node cluster through readiness verification.',
           ),
-          plannedPage(
+          publishedPage(
             'production-checklist',
             '生产检查清单',
             'Production Checklist',

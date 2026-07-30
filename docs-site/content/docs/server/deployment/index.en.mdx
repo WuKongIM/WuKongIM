@@ -1,0 +1,58 @@
+---
+title: Deployment
+description: Choose, build, and verify a WuKongIM cluster deployment for the current environment.
+---
+
+Deployment is not merely starting a process. It establishes a reproducible, persistent, observable cluster unit that can accept traffic safely.
+
+```text
+Clients / product services
+  -> TLS, access control, and load balancing
+  -> WuKongIM API / Gateway
+
+WuKongIM nodes
+  <-> node transport
+  -> independent persistent storage per node
+  -> metrics, logs, and alerting
+```
+
+<Callout type="warn" title="Every deployment is a cluster">
+  A one-node deployment is a single-node cluster. It still uses the Controller, Slot, Channel, routing, and storage paths. Do not create a one-node runtime that bypasses cluster semantics.
+</Callout>
+
+## Choose a path
+
+| Goal | Recommended entry | Primary boundary |
+| --- | --- | --- |
+| Local development and functional checks | Repository three-node Docker Compose | Exposes development credentials and benchmark/debug capabilities |
+| Container platform | Build a Docker image from the current source | These docs promise no official registry or tag |
+| Linux host | Build the binary and supervise it with systemd | The operator owns the service unit |
+| Highly available production | Multi-node cluster across failure domains | Requires external TLS, load balancing, monitoring, backups, and drills |
+| Kubernetes | Not published yet | The Beta page remains planned |
+
+Start with [Choose a Deployment](/en/server/deployment/choosing). After selecting the environment, continue to [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux).
+
+## Contract shared by every deployment
+
+- Build every node from the same reviewed commit and record the commit SHA, Go toolchain, and artifact digest.
+- Use an explicit `-config /path/to/wukongim.toml`; do not depend on a service manager working directory.
+- Give every node a unique node ID, data directory, and reachable transport address.
+- Keep the physical hash-slot count at `256`; replica counts must fit the available nodes and independent failure domains.
+- Use `0.0.0.0` only for listening, never as a node or client advertisement.
+- Plan persistence and capacity limits for data, logs, plugin state, and Prometheus data.
+- Place Manager, metrics, debug, benchmark, diagnostics, and node transport in separate controlled network boundaries.
+
+## Readiness is not liveness
+
+```bash
+curl --fail http://127.0.0.1:5001/healthz
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+A successful `/healthz` only proves that the HTTP process responds. `/readyz` returns `503` while cluster write routing is unavailable or restore maintenance is active. Load balancers, rollout gates, and traffic switches must use `/readyz`.
+
+## What this phase does not do
+
+These pages document the current source deployment contract and reference steps. They do not perform DNS, certificate, cloud-resource, secret-distribution, firewall, or production-cutover changes, and they do not present the development Compose stack, reference systemd unit, or planned Kubernetes page as an official production solution.
+
+Before deployment, work through the [Production Checklist](/en/server/deployment/production-checklist).

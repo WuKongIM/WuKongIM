@@ -1,0 +1,112 @@
+---
+title: Linux
+description: Build the WuKongIM binary and supervise a node with explicit configuration, persistent directories, and systemd.
+---
+
+The Linux path fits teams that want direct control over hosts, filesystems, networking, and service lifecycle. The systemd unit below is an operator-owned reference template, not a repository release package.
+
+## 1. Build and record the artifact
+
+The repository currently requires Go `1.25.11`:
+
+```bash
+git rev-parse HEAD
+go version
+GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
+sha256sum ./bin/wukongim
+```
+
+Build in an isolated environment and record the commit SHA, Go version, and SHA-256 in the release record. Do not build independently from a moving branch on every production node.
+
+## 2. Install the account, binary, and configuration
+
+```bash
+sudo useradd --system \
+  --home-dir /var/lib/wukongim \
+  --shell /usr/sbin/nologin \
+  wukongim
+
+sudo install -m 0755 ./bin/wukongim /usr/local/bin/wukongim
+sudo install -d -o root -g wukongim -m 0750 /etc/wukongim
+sudo install -o root -g wukongim -m 0640 \
+  ./wukongim.toml.example \
+  /etc/wukongim/wukongim.toml
+```
+
+Edit `/etc/wukongim/wukongim.toml`:
+
+- set `node.data_dir = "/var/lib/wukongim"`;
+- set `log.dir = "/var/log/wukongim"`;
+- set `plugin.socket_path = "/run/wukongim/plugin.sock"`;
+- give the node a unique `node.id` and reachable cluster address;
+- replace the join token, Manager JWT secret, users, and every example credential;
+- set `api.external_tcp_addr`, `external_ws_addr`, or `external_wss_addr` to client-reachable addresses;
+- disable benchmark and debug APIs by default in production.
+
+The loader rejects unknown TOML keys and unknown `WK_*` environment variables. An explicit `-config` avoids lookup changes caused by the systemd working directory.
+
+## 3. Create the systemd unit
+
+Write `/etc/systemd/system/wukongim.service`:
+
+```ini
+[Unit]
+Description=WuKongIM cluster node
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+ExecStart=/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+LimitNOFILE=1048576
+StateDirectory=wukongim
+LogsDirectory=wukongim
+RuntimeDirectory=wukongim
+StateDirectoryMode=0750
+LogsDirectoryMode=0750
+RuntimeDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`StateDirectory`, `LogsDirectory`, and `RuntimeDirectory` create `/var/lib/wukongim`, `/var/log/wukongim`, and `/run/wukongim`. If data lives on a separate mounted disk, complete the mount and permissions before starting the service.
+
+## 4. Start and verify
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now wukongim
+sudo systemctl status wukongim
+sudo journalctl -u wukongim -n 100 --no-pager
+
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+On `SIGTERM`, the process performs a graceful shutdown using the configured cluster stop budget; the reference unit provides a 30-second external ceiling. If `/healthz` succeeds while `/readyz` returns `503`, do not add the node to the load balancer. Inspect the response `reason` and service logs first.
+
+## Network and permissions
+
+| Surface | Default policy |
+| --- | --- |
+| API / Gateway | Expose only to product services, client ingress, or controlled load balancers |
+| Manager | Management network with strong authentication; never direct public exposure |
+| `/metrics` | Monitoring collection network only |
+| Debug / benchmark / diagnostics | Disabled in production or limited to a temporary diagnostic window |
+| Node transport | Cluster nodes only |
+
+WuKongIM does not replace production TLS termination or the external authentication boundary for product HTTP APIs. Use a reverse proxy, load balancer, or service mesh for certificates and access policy.
+
+## Upgrade boundary
+
+Do not overwrite a running binary. Validate the target commit and configuration outside production, stage the new binary, then remove one node at a time from traffic, stop it, replace the binary atomically, start it, and wait for `/readyz`. The complete rolling-upgrade, data-compatibility, and rollback matrix remains part of the planned upgrade documentation.
+
+For multi-node configuration, continue to [Multi-node Cluster](/en/server/deployment/multi-node).

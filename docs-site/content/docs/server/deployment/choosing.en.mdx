@@ -1,0 +1,44 @@
+---
+title: Choose a Deployment
+description: Choose Docker, Linux, or a future Kubernetes path by environment, upgrade ownership, failure domains, and operating capability.
+---
+
+First decide who owns builds, process lifecycle, networking, storage, and upgrades. Then choose the deployment tool. A runtime medium does not provide high availability or production security by itself.
+
+## Comparison
+
+| Dimension | Docker | Linux + systemd | Kubernetes (Beta, planned) |
+| --- | --- | --- | --- |
+| Artifact | Local image built from the current source | Binary built from the current source | No published contract in this phase |
+| Process management | Container runtime | systemd | Orchestration controller |
+| State | Independent volumes/disks | Independent host directories/disks | Requires a stable persistent-volume design |
+| Network | Explicit ports and container networks | Host listeners and firewall | Requires Service, ingress, and node-transport design |
+| Fit | Teams with a container platform | Teams comfortable operating Linux | Wait for calibrated Beta assets and boundaries |
+
+The repository-root Compose stack is only for development and validation. It is not the production Docker option in this table.
+
+## Decision questions
+
+1. Can every node be pinned to the same commit and artifact digest?
+2. Does every node have a unique, stable, reachable transport address?
+3. Can data live on independently monitored persistent devices?
+4. Who owns TLS, API access control, Manager isolation, and secret rotation?
+5. Who blocks traffic and rolls back when `/readyz` fails?
+6. Have backup recovery and target-load capacity been exercised?
+
+Choosing a more complex orchestrator does not close a question that has no owner.
+
+## One node or multiple nodes
+
+A single-node cluster is suitable for development, functional checks, and environments that explicitly accept a single point of failure. It has one Slot/Channel replica, so a node or disk failure makes the service unavailable.
+
+A multi-node cluster supports cross-node replication and failure handling, but only when nodes, disks, power, or availability zones form real failure domains. Three containers on one disk are not three independent replicas.
+
+## Recommendation
+
+- **First evaluation:** use repository Compose to verify the three-node configuration, readiness, and observability surfaces.
+- **Existing container platform:** build an immutable image and own the production orchestration, secrets, and persistent volumes separately.
+- **Traditional hosts:** use the Linux binary with systemd and keep configuration, state, and log paths explicit.
+- **Kubernetes required:** keep the route planned for now; do not derive a production StatefulSet from development Compose.
+
+After choosing the medium, continue to [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux).

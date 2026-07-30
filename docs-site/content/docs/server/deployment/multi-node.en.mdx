@@ -1,0 +1,99 @@
+---
+title: Multi-node Cluster
+description: Plan identities, addresses, replicas, storage, startup, and readiness for a static multi-node cluster.
+---
+
+The value of a multi-node deployment comes from replicas across failure domains, not process count. Nodes share one artifact and cluster inventory while keeping unique identities, independent state, and reachable transport addresses.
+
+```text
+                 Clients / product services
+                           |
+               TLS and controlled load balancing
+                    /      |      \
+                Node 1   Node 2   Node 3
+                    \      |      /
+                  private node transport
+
+          Disk/failure domain 1, 2, and 3 (independent)
+```
+
+## Static cluster inventory
+
+All three node configurations must contain the same ordered node inventory:
+
+```toml
+[cluster]
+id = "prod-im-a"
+listen_addr = "0.0.0.0:7000"
+join_token = "inject from a secret system"
+initial_slot_count = 10
+hash_slot_count = 256
+slot_replica_n = 3
+channel_replica_n = 3
+nodes = [
+  { id = 1, addr = "10.0.0.11:7000" },
+  { id = 2, addr = "10.0.0.12:7000" },
+  { id = 3, addr = "10.0.0.13:7000" }
+]
+```
+
+`listen_addr` is the local bind address; `nodes[].addr` is what peers actually dial. Do not put `0.0.0.0`, loopback, short-lived Pod IPs, or names resolvable only on one host into a production inventory.
+
+Set per node:
+
+```toml
+[node]
+id = 1 # nodes 2 and 3 use 2 and 3
+data_dir = "/var/lib/wukongim"
+
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "im.example.com:5100"
+external_wss_addr = "wss://im.example.com/ws"
+```
+
+A shared load-balancer address can appear in every node's `external_*` fields. If addresses are node-specific, every value must be reachable from the intended client network.
+
+## Shared and unique values
+
+| Must match | Must be unique |
+| --- | --- |
+| Cluster ID, node inventory, hash-slot count | Node ID |
+| Replica policy, protocol, and artifact version | Data directory and persistent volume |
+| Effective join token | Transport listener instance and advertised address |
+| Production security and observability policy | Node-level logs, metric identity, and failure domain |
+
+After data exists, do not casually change cluster ID, node IDs, hash-slot count, or replica settings. Joining, migration, scale-out, and scale-in are controlled operations, not a TOML edit followed by restarting every node.
+
+## Before startup
+
+1. Confirm that every node uses the same artifact digest and configuration version.
+2. Verify bidirectional connectivity to every peer's transport port `7000`.
+3. Verify that API, Gateway, and Manager listeners do not conflict and that external addresses are reachable from consumer networks.
+4. Mount and inspect each node's independent persistent disk, including capacity, permissions, and alerts.
+5. Replace fixed credentials, disable benchmark/debug, and restrict Manager, metrics, and diagnostics networks.
+6. Start services after every node is prepared; a static three-replica cluster needs a majority to establish write routing.
+
+## Readiness and traffic
+
+Check every node independently:
+
+```bash
+curl --fail http://10.0.0.11:5001/readyz
+curl --fail http://10.0.0.12:5001/readyz
+curl --fail http://10.0.0.13:5001/readyz
+```
+
+Only nodes returning `200` with `{"ready":true}` belong in API/Gateway backend pools. `/healthz` is not a substitute. After rollout, also verify:
+
+- `/route` returns addresses that clients can actually reach;
+- all three nodes appear in Manager/metrics with no duplicate identities;
+- one end-to-end message completes send, persistence, receive, and reconnect sync;
+- stopping one node in pre-production produces behavior within the capacity and failure objectives;
+- routing and replica state return to expectations after the node recovers.
+
+## Compose proves configuration, not production
+
+The repository `docker-compose.yml` and `docker/conf/node*.toml` are executable three-node development references for inventory, ports, readiness, and observability. Their fixed credentials, benchmark/debug capabilities, same-host containers, and local directories do not prove independent failure domains, production security, or capacity.
+
+Before traffic cutover, finish the [Production Checklist](/en/server/deployment/production-checklist).

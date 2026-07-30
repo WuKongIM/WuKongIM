@@ -6,7 +6,7 @@ function label(name: string, planned: boolean, locale: Locale) {
   if (!planned) return name;
 
   return (
-    <span className="flex min-w-0 items-center gap-2">
+    <span key={`planned:${locale}:${name}`} className="flex min-w-0 items-center gap-2">
       <span className="truncate">{name}</span>
       <span className="rounded-full border border-fd-border bg-fd-muted px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-fd-muted-foreground">
         {locale === 'zh' ? '规划中' : 'Planned'}

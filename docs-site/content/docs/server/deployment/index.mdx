@@ -1,0 +1,58 @@
+---
+title: 部署
+description: 选择、构建并验证适合当前环境的 WuKongIM 集群部署。
+---
+
+部署的目标不是“让进程跑起来”，而是建立一个可重复构建、可持久化、可观测并能安全接收流量的集群运行单元。
+
+```text
+客户端 / 业务服务
+  -> TLS、访问控制与负载均衡
+  -> WuKongIM API / Gateway
+
+WuKongIM 节点
+  <-> 节点间 Transport
+  -> 每个节点的独立持久化存储
+  -> 指标、日志与告警系统
+```
+
+<Callout type="warn" title="每个部署都是集群">
+  单节点部署是单节点集群，仍然经过 Controller、Slot、Channel、路由和存储路径。不要为单节点建立绕过集群语义的运行方式。
+</Callout>
+
+## 选择路径
+
+| 目标 | 建议入口 | 主要边界 |
+| --- | --- | --- |
+| 本地开发、功能验证 | 仓库三节点 Docker Compose | 暴露开发凭据和 Benchmark/Debug 能力 |
+| 容器化环境 | 从当前源码构建 Docker 镜像 | 仓库未在此文档中承诺官方镜像仓库或标签 |
+| Linux 主机 | 构建二进制并由 systemd 托管 | 服务单元由部署者维护 |
+| 高可用生产环境 | 多节点集群 + 独立故障域 | 需要外部 TLS、负载均衡、监控、备份和演练 |
+| Kubernetes | 暂不发布 | Beta 页面仍处于规划状态 |
+
+先阅读[部署方式选择](/zh/server/deployment/choosing)。确定运行环境后，再进入 [Docker](/zh/server/deployment/docker) 或 [Linux](/zh/server/deployment/linux)。
+
+## 所有部署共享的合同
+
+- 从同一个已审阅提交构建所有节点，记录提交 SHA、Go 工具链和制品摘要。
+- 使用显式 `-config /path/to/wukongim.toml`，不要依赖服务管理器的工作目录。
+- 每个节点使用唯一的节点 ID、数据目录和可达的节点间地址。
+- 物理 Hash Slot 数保持 `256`；副本数必须与可用节点和独立故障域匹配。
+- `0.0.0.0` 只能用于监听，不能作为节点或客户端的广告地址。
+- 为数据、日志、插件状态和 Prometheus 数据规划持久化与容量上限。
+- 把 Manager、指标、Debug、Benchmark、诊断和节点 Transport 放入各自的受控网络边界。
+
+## 就绪不是存活
+
+```bash
+curl --fail http://127.0.0.1:5001/healthz
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+`/healthz` 返回成功只说明 HTTP 进程能够响应。`/readyz` 会在集群写路由未就绪或恢复维护期间返回 `503`。负载均衡、发布门禁和切流判断必须使用 `/readyz`。
+
+## 本阶段不替你完成的工作
+
+这些页面提供当前源码的部署合同和参考步骤，但不会执行 DNS、证书、云资源、密钥分发、防火墙或生产切流，也不会把开发 Compose、参考 systemd 单元或规划中的 Kubernetes 页面包装成官方生产方案。
+
+完成部署前，逐项执行[生产检查清单](/zh/server/deployment/production-checklist)。

@@ -1,0 +1,112 @@
+---
+title: Linux 部署
+description: 构建 WuKongIM 二进制，并用显式配置、持久化目录和 systemd 托管节点。
+---
+
+Linux 路径适合希望直接控制主机、文件系统、网络和服务生命周期的团队。以下 systemd 单元是参考模板，由部署者维护，不是仓库发布的安装包。
+
+## 1. 构建并记录制品
+
+仓库当前要求 Go `1.25.11`：
+
+```bash
+git rev-parse HEAD
+go version
+GOWORK=off go build -trimpath -o ./bin/wukongim ./cmd/wukongim
+sha256sum ./bin/wukongim
+```
+
+在隔离的构建环境中完成构建，把提交 SHA、Go 版本和 SHA-256 写入发布记录。不要在每台生产节点上分别从移动分支构建。
+
+## 2. 安装账号、二进制和配置
+
+```bash
+sudo useradd --system \
+  --home-dir /var/lib/wukongim \
+  --shell /usr/sbin/nologin \
+  wukongim
+
+sudo install -m 0755 ./bin/wukongim /usr/local/bin/wukongim
+sudo install -d -o root -g wukongim -m 0750 /etc/wukongim
+sudo install -o root -g wukongim -m 0640 \
+  ./wukongim.toml.example \
+  /etc/wukongim/wukongim.toml
+```
+
+编辑 `/etc/wukongim/wukongim.toml`：
+
+- `node.data_dir = "/var/lib/wukongim"`；
+- `log.dir = "/var/log/wukongim"`；
+- `plugin.socket_path = "/run/wukongim/plugin.sock"`；
+- 为该节点设置唯一 `node.id` 和可达的集群地址；
+- 替换 Join Token、Manager JWT Secret、账号和其他示例凭据；
+- 设置客户端真正可达的 `api.external_tcp_addr`、`external_ws_addr` 或 `external_wss_addr`；
+- 生产默认关闭 Benchmark 和 Debug API。
+
+配置加载器会拒绝未知 TOML 键和未知 `WK_*` 环境变量。显式 `-config` 可以避免 systemd 工作目录改变查找结果。
+
+## 3. 创建 systemd 单元
+
+写入 `/etc/systemd/system/wukongim.service`：
+
+```ini
+[Unit]
+Description=WuKongIM cluster node
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+ExecStart=/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+LimitNOFILE=1048576
+StateDirectory=wukongim
+LogsDirectory=wukongim
+RuntimeDirectory=wukongim
+StateDirectoryMode=0750
+LogsDirectoryMode=0750
+RuntimeDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+`StateDirectory`、`LogsDirectory` 和 `RuntimeDirectory` 分别创建 `/var/lib/wukongim`、`/var/log/wukongim` 和 `/run/wukongim`。如果数据放在独立挂载盘，先完成挂载和权限，再启动服务。
+
+## 4. 启动并验证
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now wukongim
+sudo systemctl status wukongim
+sudo journalctl -u wukongim -n 100 --no-pager
+
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+进程收到 `SIGTERM` 后会按配置的集群停止预算执行优雅停止；参考单元给出 30 秒的外部上限。若 `/healthz` 成功而 `/readyz` 返回 `503`，不要把节点加入负载均衡，先检查返回的 `reason` 和服务日志。
+
+## 网络与权限
+
+| 表面 | 默认策略 |
+| --- | --- |
+| API / Gateway | 只开放给业务服务、客户端入口或受控负载均衡 |
+| Manager | 管理网，强认证，不直接暴露公网 |
+| `/metrics` | 仅监控采集网 |
+| Debug / Benchmark / Diagnostics | 生产关闭或限制到临时诊断窗口 |
+| 节点 Transport | 仅集群节点互通 |
+
+WuKongIM 不替代生产 TLS 终止或产品 HTTP API 的外部鉴权边界。使用反向代理、负载均衡或服务网格完成证书和访问策略。
+
+## 升级边界
+
+不要直接覆盖正在运行的二进制。先在非生产环境验证目标提交和配置，暂存新二进制，按节点逐个从流量中摘除、停止、原子替换、启动并等待 `/readyz` 成功。完整的滚动升级、数据兼容和回滚矩阵仍属于规划中的升级文档。
+
+多节点配置继续阅读[多节点集群](/zh/server/deployment/multi-node)。
