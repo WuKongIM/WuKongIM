@@ -18,8 +18,10 @@ PR or trusted Review event
   -> Candidate capture: filesystem diff against immutable baseline
   -> clean Verifier: apply diff, classify risk, rerun trusted tests
   -> Publisher: exact App-signed commit, Draft PR, state, status
-  -> maintainer marks Ready and runs the existing PR validation protocol
-  -> human review and merge
+  -> maintainer marks Ready
+  -> independent Review Agent adjudication
+  -> Review Agent findings may wake at most two bounded repair loops
+  -> human merge
 ```
 
 The Controller derives decisions from current GitHub facts; event payloads are
@@ -42,6 +44,14 @@ The Controller requires its checkout SHA to equal the freshly read protected
 `main` head. That exact control SHA is then used by task recovery, Context
 Builder, capture, Verifier, and Publisher; candidate code is checked out
 separately at the signed task's exact `base_sha`.
+
+For an Issue Agent pull request, the Controller accepts repair authority only
+from the latest exact-head formal `CHANGES_REQUESTED` Review authored by the
+configured Review Agent Bot. It includes that Review's bounded body and only
+unresolved threads started by the same Bot. Human Reviews remain human
+authority and cannot be converted into an automatic repair request. A review
+digest is durable in Issue Agent state, so the same Review cannot create
+unbounded repair attempts.
 
 ## Authorization
 
@@ -147,11 +157,14 @@ Configure:
 - Environment secret `ISSUE_AGENT_APP_PRIVATE_KEY`;
 - Repository secret `OPENAI_API_KEY` containing the dedicated OpenRouter key;
 - variables `ISSUE_AGENT_APP_ID`, `ISSUE_AGENT_APP_INSTALLATION_ID`, and
-  `ISSUE_AGENT_APP_LOGIN`.
+  `ISSUE_AGENT_APP_LOGIN`; and
+- repository variable `REVIEW_AGENT_APP_LOGIN`, set to the exact dedicated
+  Review Agent Bot login.
 
 The App installation is limited to this repository and the exact permissions
 validated by `internal/infra/issueagentgithub/app_token.go`. Branch protection
-must require the existing `Agent Validation Gate`; the Agent cannot merge.
+must require the dedicated App-owned `Review Agent Verdict`; neither Agent can
+merge.
 
 Action or Codex upgrades require a reviewed policy/workflow change updating
 the full Action SHA, exact CLI version, contract tests, and this document.
@@ -169,5 +182,6 @@ GOWORK=off go test -tags=integration \
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/issue-agent.yml \
-  .github/workflows/issue-agent-engineer.yml
+  .github/workflows/issue-agent-engineer.yml \
+  .github/workflows/issue-agent-pr-signal.yml
 ```

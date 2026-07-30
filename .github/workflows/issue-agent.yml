@@ -61,6 +61,7 @@ jobs:
           ISSUE_AGENT_APP_INSTALLATION_ID: ${{ vars.ISSUE_AGENT_APP_INSTALLATION_ID }}
           ISSUE_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
           ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          REVIEW_AGENT_APP_LOGIN: ${{ vars.REVIEW_AGENT_APP_LOGIN }}
           ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
           ISSUE_NUMBER_INPUT: ${{ inputs.issue_number }}
         run: |

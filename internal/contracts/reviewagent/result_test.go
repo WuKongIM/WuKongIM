@@ -82,6 +82,66 @@ func TestReviewResultLimitsFindingsAndRequiresCompleteInventory(t *testing.T) {
 	)
 }
 
+func TestReviewResultBoundsFindingEvidenceBytes(t *testing.T) {
+	t.Parallel()
+
+	result, err := reviewagent.DecodeReviewResult(
+		strings.NewReader(validResultJSON()),
+		32<<10,
+	)
+	require.NoError(t, err)
+	result.Findings[0].Evidence = []string{
+		strings.Repeat("x", reviewagent.MaxFindingEvidenceBytes+1),
+	}
+	require.EqualError(
+		t,
+		reviewagent.ValidateReviewResult(result),
+		"invalid Review finding detail",
+	)
+}
+
+func TestReviewResultMustDispositionEveryPriorFinding(t *testing.T) {
+	t.Parallel()
+
+	result, err := reviewagent.DecodeReviewResult(
+		strings.NewReader(validResultJSON()),
+		32<<10,
+	)
+	require.NoError(t, err)
+	prior := result.Findings[0]
+	require.Error(
+		t,
+		reviewagent.ValidatePriorFindingDispositions(
+			[]reviewagent.Finding{prior},
+			result,
+		),
+	)
+
+	priorDigest, err := reviewagent.FindingDigest(prior)
+	require.NoError(t, err)
+	result.PriorFindingDispositions = []reviewagent.PriorFindingDisposition{{
+		FindingDigest: priorDigest,
+		Status:        "retained",
+		Reason:        "The same race remains.",
+	}}
+	require.NoError(
+		t,
+		reviewagent.ValidatePriorFindingDispositions(
+			[]reviewagent.Finding{prior},
+			result,
+		),
+	)
+
+	result.PriorFindingDispositions[0].Status = "withdrawn"
+	require.Error(
+		t,
+		reviewagent.ValidatePriorFindingDispositions(
+			[]reviewagent.Finding{prior},
+			result,
+		),
+	)
+}
+
 func validResultJSON() string {
 	identity := validGeneration()
 	return fmt.Sprintf(`{
@@ -116,6 +176,7 @@ func validResultJSON() string {
 			"evidence":["check:go-race"],
 			"resolution":"serialize close and enqueue"
 		}],
+		"prior_finding_dispositions":[],
 		"sources":["check:go-race"],
 		"unresolved_uncertainty":""
 	}`,

@@ -39,17 +39,18 @@ var (
 
 // IssueAgentConfig contains only composition and credential inputs.
 type IssueAgentConfig struct {
-	HTTPClient        *http.Client
-	APIBaseURL        string
-	Repository        string
-	GitHubToken       string
-	AppLogin          string
-	AppID             int64
-	AppInstallationID int64
-	RepositoryID      int64
-	AppPrivateKeyPEM  []byte
-	WorkingDirectory  string
-	Now               func() time.Time
+	HTTPClient          *http.Client
+	APIBaseURL          string
+	Repository          string
+	GitHubToken         string
+	AppLogin            string
+	AppID               int64
+	AppInstallationID   int64
+	RepositoryID        int64
+	AppPrivateKeyPEM    []byte
+	ReviewAgentAppLogin string
+	WorkingDirectory    string
+	Now                 func() time.Time
 }
 
 type issueAgentPolicy struct {
@@ -340,6 +341,7 @@ func reconcileGitHub(
 		client,
 		request,
 		current,
+		config.ReviewAgentAppLogin,
 	)
 	if err != nil {
 		return reconcileResult{}, err
@@ -859,7 +861,20 @@ func buildContextForState(
 			"task state lacks trusted authorization",
 		)
 	}
-	builder, err := issueagentgithub.NewContextBuilder(client)
+	var source issueagentgithub.ContextSource = client
+	if state.Task.Kind == contract.TaskKindReview {
+		if config.ReviewAgentAppLogin == "" {
+			return contract.ContextBundle{}, errors.New(
+				"Review Agent App identity is not configured",
+			)
+		}
+		source = issueAgentReviewContextSource{
+			Client:   client,
+			AppLogin: config.ReviewAgentAppLogin,
+			HeadSHA:  state.Task.BaseSHA,
+		}
+	}
+	builder, err := issueagentgithub.NewContextBuilder(source)
 	if err != nil {
 		return contract.ContextBundle{}, err
 	}
@@ -958,6 +973,7 @@ func currentReviewAuthorization(
 	client *issueagentgithub.Client,
 	request issueagentcli.ReconcileGitHubRequest,
 	current *contract.IssueAgentState,
+	reviewAgentAppLogin string,
 ) (*contract.AuthorizationRecord, string, error) {
 	if current == nil || current.Work == nil ||
 		current.State != contract.IssueStateDraft &&
@@ -980,18 +996,20 @@ func currentReviewAuthorization(
 		wakeup.PullRequest.Head.Ref != current.Work.Branch {
 		return nil, "", errors.New("Review event does not match Agent work")
 	}
-	permission, err := client.ActorPermission(ctx, wakeup.Actor)
-	if err != nil || !issueagent.WritePermission(string(permission)) {
+	if reviewAgentAppLogin == "" ||
+		wakeup.Actor != reviewAgentAppLogin {
 		return nil, "", nil
 	}
-	threads, err := client.ReadContextReviewThreads(
+	threads, requested, err := client.ReadReviewAgentFindings(
 		ctx,
 		current.Work.PullRequest,
+		current.Work.HeadSHA,
+		reviewAgentAppLogin,
 	)
 	if err != nil {
 		return nil, "", err
 	}
-	if len(threads) == 0 {
+	if !requested {
 		return nil, "", nil
 	}
 	digest, err := digestJSON(threads)
@@ -1003,9 +1021,46 @@ func currentReviewAuthorization(
 	}
 	return &contract.AuthorizationRecord{
 		Actor:      wakeup.Actor,
-		Permission: string(permission),
+		Permission: "review_agent",
 		EventID:    wakeup.EventID,
 	}, digest, nil
+}
+
+type issueAgentReviewContextSource struct {
+	*issueagentgithub.Client
+	AppLogin string
+	HeadSHA  string
+}
+
+func (source issueAgentReviewContextSource) ReadContextReviewThreads(
+	ctx context.Context,
+	pullRequest int64,
+) ([]contract.ReviewThreadSnapshot, error) {
+	threads, requested, err := source.Client.ReadReviewAgentFindings(
+		ctx,
+		pullRequest,
+		source.HeadSHA,
+		source.AppLogin,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !requested {
+		return nil, errors.New(
+			"Review Agent change request is no longer current",
+		)
+	}
+	return threads, nil
+}
+
+func (source issueAgentReviewContextSource) ReadActorPermission(
+	ctx context.Context,
+	actor string,
+) (issueagentgithub.Permission, error) {
+	if actor == source.AppLogin {
+		return issueagentgithub.Permission("review_agent"), nil
+	}
+	return source.Client.ReadActorPermission(ctx, actor)
 }
 
 type issueAgentReviewWakeup struct {

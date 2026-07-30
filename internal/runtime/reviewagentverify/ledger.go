@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -59,6 +60,26 @@ func NewFileLedger(pathValue, workspaceRoot string) (*FileLedger, error) {
 	}
 	if err := os.MkdirAll(filepath.Dir(absolutePath), 0o700); err != nil {
 		return nil, errors.New("create evidence ledger directory")
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(absoluteRoot)
+	if err != nil {
+		return nil, errors.New("resolve evidence workspace symlinks")
+	}
+	resolvedParent, err := filepath.EvalSymlinks(filepath.Dir(absolutePath))
+	if err != nil {
+		return nil, errors.New("resolve evidence ledger symlinks")
+	}
+	resolvedRelative, err := filepath.Rel(resolvedRoot, resolvedParent)
+	if err != nil ||
+		resolvedRelative == "." ||
+		!startsWithParent(resolvedRelative) {
+		return nil, errors.New("evidence ledger symlink escapes are unsafe")
+	}
+	if info, statErr := os.Lstat(absolutePath); statErr == nil &&
+		info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("evidence ledger path is a symlink")
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return nil, errors.New("inspect evidence ledger path")
 	}
 	return &FileLedger{path: absolutePath}, nil
 }
@@ -162,7 +183,7 @@ func (ledger *FileLedger) readAll() (
 			return nil, nil, errors.New("decode evidence ledger")
 		}
 		var trailing any
-		if err := decoder.Decode(&trailing); err == nil {
+		if err := decoder.Decode(&trailing); err != io.EOF {
 			return nil, nil, errors.New("evidence ledger has trailing JSON")
 		}
 		if err := validateLedgerRecord(record); err != nil {

@@ -11,7 +11,7 @@ App publishes the sole required `Review Agent Verdict`.
 
 **Architecture:** A zero-permission event Signal wakes a protected
 default-branch Controller. Pure usecase logic reconciles fresh GitHub facts and
-signed per-PR/scheduler state. A reusable Workflow builds a bounded Context
+signed per-PR/scheduler state. A protected dispatched Workflow builds a bounded Context
 Bundle, runs deterministic minimum checks, gives their evidence and a named
 Check MCP to one ephemeral Codex reviewer, validates the complete result, then
 uses separate State Writer and Review Publisher Apps to persist authority and
@@ -105,8 +105,9 @@ Expected: RED until the policy, prompt, and schemas are complete.
 Before enabling the Workflow, benchmark representative documentation-only,
 Go, Web, large refactor, and generated-bundle changes. Record conservative
 limits for changed files/bytes/lines, Context Bundle bytes, model response,
-tokens, cost, processes, connections, and public-network bytes in
-`policy.json`. Every boundary must fail closed as `inconclusive`.
+context tokens, per-process CPU/memory, per-command processes,
+per-address-family connections/public-network bytes in `policy.json`. Every
+boundary must fail closed as `inconclusive`.
 
 - [ ] **Step 5: Commit the contract foundation**
 
@@ -188,9 +189,9 @@ current `write`, `maintain`, or `admin`.
 
 - [ ] **Step 3a: Separate status, explanation, and reconsideration effects**
 
-`status` renders signed state without a model. A direct reply in an
-App-owned Review thread or explicit `explain` command may schedule one bounded
-read-only explanation session. It cannot run checks or change findings/state/
+`status` renders signed state without a model. An explicit `explain` command
+may schedule one bounded read-only explanation session. It cannot run checks
+or change findings/state/
 Verdict; signed state records only the interaction budget and projection.
 Only `reconsider` can create another same-head decision attempt.
 
@@ -402,7 +403,7 @@ check_result(name)
 
 The protected policy resolves each name to a fixed executable, argument list,
 timeout, output limit, and network/process budget. The MCP writes an
-append-only evidence ledger outside the model-writable workspace. Free-form
+append-only evidence ledger outside the read-only model session. Free-form
 commands, paths, URLs, environments, and test patterns are rejected.
 
 - [ ] **Step 3: Validate the final model result against real evidence**
@@ -543,7 +544,7 @@ git commit -m "feat(review-agent): compose standalone reviewer"
 Require the Signal to:
 
 - use `pull_request_target` for lifecycle events;
-- include Review, review-comment, and pull-request comment events;
+- include formal Review events and newly created top-level command comments;
 - have exact empty permissions;
 - contain no `uses`, checkout, cache, artifact, secret, Environment, API call,
   candidate execution, or scheduled trigger;
@@ -584,7 +585,7 @@ Jobs:
 read/reconcile
   -> state-writer acquire/append in review-agent-state-writer Environment
   -> status-publisher update in review-agent-publisher Environment
-  -> reusable review-agent-run call when a lease is acquired
+  -> protected review-agent-run dispatch when a lease is acquired
   -> terminal release/next-queue state append
   -> bounded self-dispatch when signed scheduler state has more work
 ```
@@ -616,7 +617,7 @@ git add .github/workflows/review-agent-pr-signal.yml \
 git commit -m "feat(review-agent): add event-driven review control"
 ```
 
-### Task 8: Add the reusable Review Agent execution Workflow
+### Task 8: Add the dispatched Review Agent execution Workflow
 
 **Files:**
 
@@ -665,7 +666,7 @@ Use the protected policy's exact:
 - official Action full SHA;
 - Codex CLI version;
 - model and high effort;
-- ephemeral workspace-write sandbox;
+- trusted read-only model session plus per-check disposable worktrees;
 - output JSON Schema;
 - system prompt and Context Bundle;
 - local stdio Check MCP.
@@ -676,7 +677,7 @@ generation deadline.
 
 - [ ] **Step 3a: Add the bounded explanation mode**
 
-The reusable Workflow accepts only a protected Controller-selected
+The dispatched Workflow accepts only a protected Controller-selected
 `review` or `explain` operation. `explain` skips baseline execution, the Check
 MCP, decision publication, and decision-state transition. The State Writer
 still records its reserved/consumed explanation budget and reply identity. It

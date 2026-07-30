@@ -51,6 +51,7 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 	for _, test := range tests {
 		state := testReviewingState()
 		state.Phase = test.phase
+		state.DecisionSource = contract.DecisionSourceModel
 		state.EvidenceDigest = digest("a")
 		state.ResultDigest = digest("b")
 		plan, err := reviewagent.PlanPublication(
@@ -74,6 +75,7 @@ func TestPlanPublicationDoesNotOverrideHumanChangesRequest(t *testing.T) {
 
 	state := testReviewingState()
 	state.Phase = contract.PhaseApproved
+	state.DecisionSource = contract.DecisionSourceModel
 	state.EvidenceDigest = digest("a")
 	state.ResultDigest = digest("b")
 	plan, err := reviewagent.PlanPublication(
@@ -83,4 +85,20 @@ func TestPlanPublicationDoesNotOverrideHumanChangesRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.CheckSuccess, plan.Conclusion)
 	require.True(t, plan.HumanReviewStillBlocks)
+}
+
+func TestPlanPublicationMapsDeterministicConflictWithoutArtifacts(t *testing.T) {
+	t.Parallel()
+
+	state := testReviewingState()
+	state.Phase = contract.PhaseChangesRequired
+	state.DecisionSource = contract.DecisionSourceMergeConflict
+	state.Reason = "pull request has merge conflicts"
+	plan, err := reviewagent.PlanPublication(
+		state,
+		reviewagent.GovernanceFacts{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.FormalReviewRequestChanges, plan.Review)
+	require.Equal(t, reviewagent.CheckFailure, plan.Conclusion)
 }

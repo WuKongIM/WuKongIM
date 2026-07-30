@@ -8,7 +8,7 @@
     "codex_version": "0.146.0",
     "model": "openai/gpt-5.6-sol",
     "reasoning_effort": "high",
-    "sandbox": "workspace-write",
+    "sandbox": "read-only",
     "ephemeral": true,
     "wall_time_seconds": 5400
   },
@@ -27,19 +27,19 @@
     "max_response_bytes_per_head": 262144
   },
   "limits": {
-    "max_changed_files": 5000,
-    "max_changed_bytes": 67108864,
-    "max_changed_lines": 200000,
-    "max_context_bytes": 67108864,
+    "max_changed_files": 50,
+    "max_changed_bytes": 131072,
+    "max_changed_lines": 10000,
+    "max_context_bytes": 196608,
     "max_model_response_bytes": 4194304,
-    "max_input_tokens": 240000,
-    "max_output_tokens": 32768,
-    "max_cost_usd_cents": 2500,
-    "max_processes": 512,
-    "max_connections": 128,
-    "max_network_bytes": 2147483648,
-    "max_artifact_bytes": 134217728,
-    "max_findings": 100,
+    "max_context_tokens": 240000,
+    "auto_compact_tokens": 216000,
+    "max_cpu_seconds_per_process": 3600,
+    "max_memory_bytes_per_process": 8589934592,
+    "max_processes_per_command": 512,
+    "max_connections_per_address_family": 128,
+    "max_network_bytes_per_address_family": 2147483648,
+    "max_findings": 8,
     "max_inline_comments": 20
   },
   "environments": {
@@ -73,6 +73,13 @@
     "scheduler_ref": "review-state/scheduler",
     "scheduler_path": ".review-agent-state/scheduler.json",
     "require_verified_signature": true
+  },
+  "governance": {
+    "owner_team": "WuKongIM/review-agent-owners",
+    "owner_logins": [
+      "No8blackball",
+      "tangtaoit"
+    ]
   },
   "network": {
     "public_internet": true,
@@ -113,18 +120,29 @@
     ".github/CODEOWNERS",
     ".github/review-agent",
     ".github/workflows/review-agent-pr-signal.yml",
+    ".github/workflows/review-agent-issue-signal.yml",
     ".github/workflows/review-agent-run.yml",
     ".github/workflows/review-agent.yml",
+    ".github/workflows/README.md",
     "AGENTS.md",
     "cmd/wkreviewagent",
+    "cmd/wkreviewcheck",
+    "cmd/wkreviewcheckmcp",
     "internal/access/reviewagentcheckmcp",
     "internal/access/reviewagentcli",
-    "internal/app/review_agent.go",
+    "internal/app/review_agent",
     "internal/contracts/reviewagent",
     "internal/infra/reviewagentgithub",
     "internal/runtime/reviewagentverify",
     "internal/usecase/reviewagent",
-    "scripts/review_agent"
+    "scripts/review_agent",
+    "scripts/github_workflows_test.go",
+    "docs/agents/review-agent.md",
+    "docs/development/CI.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/superpowers/plans/2026-07-30-review-agent-implementation.md",
+    "docs/superpowers/runbooks/review-agent-bootstrap.md",
+    "docs/superpowers/specs/2026-07-30-review-agent-design.md"
   ],
   "trusted_checks": {
     "go-unit": {
@@ -139,7 +157,7 @@
         "-count=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 3600,
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
     "go-vet": {
@@ -154,6 +172,24 @@
       ],
       "working_dir": ".",
       "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "go-mod-tidy": {
+      "arguments": [
+        "review-agent-check",
+        "go-mod-tidy"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900,
       "max_output_bytes": 8388608
     },
     "scripts-integration": {
@@ -183,62 +219,22 @@
       "timeout_seconds": 900,
       "max_output_bytes": 8388608
     },
-    "web-lint": {
+    "web-quality": {
       "arguments": [
-        "bun",
-        "run",
-        "lint"
+        "review-agent-check",
+        "web"
       ],
-      "working_dir": "web",
-      "timeout_seconds": 900,
+      "working_dir": ".",
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
-    "web-test": {
+    "demo-quality": {
       "arguments": [
-        "bun",
-        "run",
-        "test"
+        "review-agent-check",
+        "demo"
       ],
-      "working_dir": "web",
-      "timeout_seconds": 1200,
-      "max_output_bytes": 8388608
-    },
-    "web-typecheck": {
-      "arguments": [
-        "bunx",
-        "tsc",
-        "-b"
-      ],
-      "working_dir": "web",
-      "timeout_seconds": 900,
-      "max_output_bytes": 8388608
-    },
-    "web-build": {
-      "arguments": [
-        "bun",
-        "run",
-        "build"
-      ],
-      "working_dir": "web",
-      "timeout_seconds": 1200,
-      "max_output_bytes": 8388608
-    },
-    "demo-test": {
-      "arguments": [
-        "yarn",
-        "test"
-      ],
-      "working_dir": "demo/chatdemo",
-      "timeout_seconds": 1200,
-      "max_output_bytes": 8388608
-    },
-    "demo-build": {
-      "arguments": [
-        "yarn",
-        "build"
-      ],
-      "working_dir": "demo/chatdemo",
-      "timeout_seconds": 1200,
+      "working_dir": ".",
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
     "docs-contracts": {
@@ -253,28 +249,6 @@
       "working_dir": ".",
       "timeout_seconds": 600,
       "max_output_bytes": 8388608
-    },
-    "web-bundle": {
-      "arguments": [
-        "/opt/review-agent/bin/wkreviewagent",
-        "verify-clean",
-        "--path",
-        "internal/access/manager/webui/dist"
-      ],
-      "working_dir": ".",
-      "timeout_seconds": 60,
-      "max_output_bytes": 1048576
-    },
-    "demo-bundle": {
-      "arguments": [
-        "/opt/review-agent/bin/wkreviewagent",
-        "verify-clean",
-        "--path",
-        "internal/access/api/demoui/dist"
-      ],
-      "working_dir": ".",
-      "timeout_seconds": 60,
-      "max_output_bytes": 1048576
     },
     "go-race": {
       "arguments": [
@@ -294,7 +268,7 @@
         "-p=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 2700,
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
     "go-integration": {
@@ -307,7 +281,7 @@
         "-count=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 2400,
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
     "go-e2e": {
@@ -319,27 +293,35 @@
         "-count=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 3600,
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     },
     "three-node-cluster": {
       "arguments": [
-        "go",
-        "test",
-        "-tags=integration",
-        "./scripts/...",
-        "-run",
-        "ThreeNode",
-        "-count=1",
-        "-timeout=30m",
-        "-parallel=1"
+        "review-agent-check",
+        "three-node"
       ],
       "working_dir": ".",
-      "timeout_seconds": 2100,
+      "timeout_seconds": 1800,
       "max_output_bytes": 8388608
     }
   },
   "path_rules": [
+    {
+      "name": "repository-default",
+      "paths": [],
+      "prefixes": [
+        ""
+      ],
+      "suffixes": [],
+      "checks": [
+        "go-unit",
+        "go-vet",
+        "go-format",
+        "go-mod-tidy"
+      ],
+      "exclusive": false
+    },
     {
       "name": "go",
       "paths": [
@@ -436,28 +418,24 @@
     {
       "name": "manager-web",
       "prefixes": [
-        "web/"
+        "web/",
+        "internal/access/manager/webui/dist/"
       ],
       "suffixes": [],
       "checks": [
-        "web-lint",
-        "web-test",
-        "web-typecheck",
-        "web-build",
-        "web-bundle"
+        "web-quality"
       ],
       "exclusive": false
     },
     {
       "name": "chat-demo",
       "prefixes": [
-        "demo/chatdemo/"
+        "demo/chatdemo/",
+        "internal/access/api/demoui/dist/"
       ],
       "suffixes": [],
       "checks": [
-        "demo-test",
-        "demo-build",
-        "demo-bundle"
+        "demo-quality"
       ],
       "exclusive": false
     },

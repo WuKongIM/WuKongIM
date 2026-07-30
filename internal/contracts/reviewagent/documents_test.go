@@ -1,6 +1,8 @@
 package reviewagent_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
 	"time"
@@ -28,8 +30,9 @@ func TestReviewDocumentsShareOneGenerationIdentity(t *testing.T) {
 			Mode:          "100644",
 			Type:          "text",
 			Patch:         "@@ -1 +1 @@",
-			PatchDigest:   digest("4"),
-			ContentDigest: digest("9"),
+			PatchDigest:   contentDigest("@@ -1 +1 @@"),
+			Content:       "package delivery\n",
+			ContentDigest: contentDigest("package delivery\n"),
 			Additions:     7,
 			Deletions:     2,
 		}},
@@ -66,6 +69,7 @@ func TestReviewDocumentsShareOneGenerationIdentity(t *testing.T) {
 		PreviousStateDigest: "",
 		EvidenceDigest:      "",
 		ResultDigest:        "",
+		StartedAt:           time.Date(2026, 7, 30, 2, 0, 0, 0, time.UTC),
 		UpdatedAt:           time.Date(2026, 7, 30, 2, 1, 0, 0, time.UTC),
 	}
 
@@ -99,9 +103,13 @@ func TestStateCanonicalEncodingRejectsInvalidSuccessor(t *testing.T) {
 		Generation:     validGeneration(),
 		Sequence:       2,
 		Phase:          reviewagent.PhaseApproved,
+		DecisionSource: reviewagent.DecisionSourceModel,
 		Reason:         "review complete",
 		EvidenceDigest: digest("a"),
 		ResultDigest:   digest("b"),
+		StartedAt: time.Date(
+			2026, 7, 30, 2, 55, 0, 0, time.UTC,
+		),
 		UpdatedAt: time.Date(
 			2026, 7, 30, 3, 0, 0, 0, time.UTC,
 		),
@@ -114,6 +122,37 @@ func TestStateCanonicalEncodingRejectsInvalidSuccessor(t *testing.T) {
 	)
 }
 
+func TestStateRejectsArtifactFreeChangesRequiredWithoutConflictSource(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state := reviewagent.ReviewState{
+		SchemaVersion:  1,
+		Generation:     validGeneration(),
+		Sequence:       1,
+		Phase:          reviewagent.PhaseChangesRequired,
+		DecisionSource: reviewagent.DecisionSourceModel,
+		Reason:         "untrusted deterministic rejection",
+		StartedAt: time.Date(
+			2026, 7, 30, 2, 55, 0, 0, time.UTC,
+		),
+		UpdatedAt: time.Date(
+			2026, 7, 30, 3, 0, 0, 0, time.UTC,
+		),
+	}
+	err := reviewagent.ValidateReviewState(state)
+	require.EqualError(t, err, "model Review decision lacks evidence or result")
+
+	state.DecisionSource = reviewagent.DecisionSourceMergeConflict
+	require.NoError(t, reviewagent.ValidateReviewState(state))
+}
+
 func digest(character string) string {
 	return "sha256:" + strings.Repeat(character, 64)
+}
+
+func contentDigest(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }

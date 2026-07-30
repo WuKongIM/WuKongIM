@@ -142,6 +142,9 @@ func matchesRule(repositoryPath string, rule PathRule) bool {
 	}
 	for _, prefix := range rule.Prefixes {
 		prefix = strings.TrimSuffix(prefix, "/")
+		if prefix == "" && suffixMatch {
+			return true
+		}
 		if (repositoryPath == prefix ||
 			strings.HasPrefix(repositoryPath, prefix+"/")) &&
 			suffixMatch {

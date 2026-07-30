@@ -12,7 +12,10 @@ complete exact test-merge inventory + protected path policy
 exact base/control tree + changed paths
   -> frozen applicable AGENTS.md / FLOW.md blobs
 
-fixed named check catalog + credential-free disposable checkout
+fixed named check catalog + credential-free per-command disposable worktree
+  -> read-only root/PID filesystem sandbox
+     (only disposable worktree + dedicated HOME/TMP writable)
+  -> frozen review-agent-check helper for composite checks
   -> bounded process results
   -> append-only ledger outside model workspace
   -> trusted ReviewEvidence

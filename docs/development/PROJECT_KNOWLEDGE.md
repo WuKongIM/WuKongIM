@@ -4,7 +4,12 @@
 
 - `internal` is the promoted send-to-sendack kernel: gateway SEND maps to `usecase/message.SendBatch`, appends through `infra/cluster.ChannelAppender`, and returns SENDACK after `pkg/cluster` / `pkg/channel` append.
 - `internal` single-node deployments must use single-node cluster config. Do not add send or storage paths that bypass cluster semantics.
-- Agent PR invalidation is represented only by the generation-bound `Agent Validation Gate`; the control invalidation job shares the worker's PR-numbered concurrency group to cancel a running same-PR validation and write an audit summary, but must not publish an unscoped classic commit status. Trigger a fresh request only after that invalidation job finishes.
+- Review Agent invalidation is generation-bound. Fresh PR facts and signed
+  scheduler state supersede stale workers; only the dedicated App-owned
+  `Review Agent Verdict` may represent the current automated decision.
+- A Review Agent generation has one signed 90-minute deadline and at most one
+  automatic infrastructure retry. Merge conflicts deterministically publish
+  `changes_required`; late results are always `inconclusive`.
 - Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
 - Saving backup repository configuration is a durable Controller operation and never proves connectivity. Only the exact saved plan revision that completes the repository and all-active-data-node probe is verified and eligible for backup admission. A nil verification record is legacy verified state until the effective repository changes.
 - Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository`, Alibaba OSS, Tencent COS, or a generic S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and object-storage credentials are encrypted in Controller state while archive payloads are not encrypted.
@@ -247,8 +252,13 @@
   fault-injection scenarios live in `*_integration_test.go` and run with
   `-tags=integration -parallel=2`; wall-clock-sensitive cases use the shared
   exclusive timing lock. Production `scripts/**/*.sh` and scripts integration
-  test changes require both `agent-ci/go-fast` and `agent-ci/go-integration`.
-- Agent-directed PR validation uses only fixed suites from `.github/workflows/README.md`; PR/gate-generation-numbered commit statuses are evidence, while the required branch-protection gate is a PR-event-bound GitHub Actions check that verifies the exact PR, head SHA, frozen test-merge SHA, gate run, and request run. Pull requests, pushes, and clocks do not start test suites automatically; Cleanup, Monitor, and merge-gate verification remain autonomous safety workflows.
+  test changes receive both the protected Go unit/Vet checks and the scripts
+  integration check from Review Agent policy.
+- Every ready, open pull request targeting `main` is adjudicated by the
+  review-only Review Agent. Its signed generation binds the exact head, base,
+  test-merge commit, intent digest, trusted checks, and model result. Only the
+  dedicated Review Agent App may project the required `Review Agent Verdict`
+  Check; the Agent never edits code or merges. There is no periodic PR scan.
 - The GitHub Issue Agent is a GitHub-Actions-only stateless system. Canonical App-authored, GitHub-signed commits on `agent-state/issue-<number>` are its sole durable authority; event payloads are wake-up hints. A full-SHA-pinned official Codex Action performs one complete ephemeral engineering task with public internet but no GitHub/App/cloud/deploy credentials or Docker socket. Filesystem capture ignores Codex Git metadata, a clean credential-free Verifier owns test evidence and risk, and only the protected Publisher may create an expected-head signed commit on `agent/issue-<number>`, one complete Draft PR, and the status/state projections. Humans remain the only merge authority; setup and boundaries live in `docs/agents/issue-agent.md`.
 - Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.

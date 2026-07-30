@@ -216,6 +216,13 @@ func ReconcileIssue(
 			current.Work == nil {
 			return IssueDecision{}, errors.New("Review task lacks current Agent work")
 		}
+		if facts.Authorization == nil ||
+			facts.Authorization.Permission != "review_agent" ||
+			facts.Authorization.Command != "" {
+			return IssueDecision{}, errors.New(
+				"Review task lacks current Review Agent authority",
+			)
+		}
 		if current.Budget.ReviewIterations >= policy.MaxReviewIterations {
 			return IssueDecision{
 				Kind:      IssueDecisionNeedsHuman,
@@ -232,7 +239,7 @@ func ReconcileIssue(
 		return IssueDecision{
 			Kind:         IssueDecisionDispatchReview,
 			NextState:    contract.IssueStateReviewing,
-			Reason:       "maintainer authorized the unresolved Review thread set",
+			Reason:       "Review Agent requested changes on the current head",
 			Task:         &task,
 			ReviewDigest: facts.ReviewDigest,
 		}, nil
@@ -390,7 +397,7 @@ func validateAuthorizationRecord(authorization contract.AuthorizationRecord) err
 		return errors.New("invalid Issue authorization identity")
 	}
 	switch authorization.Permission {
-	case "write", "maintain", "admin":
+	case "write", "maintain", "admin", "review_agent":
 		return nil
 	default:
 		return errors.New("Issue authorization lacks current permission")

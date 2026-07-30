@@ -1,6 +1,7 @@
 package reviewagent_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -72,31 +73,87 @@ func TestSchedulerReleaseIsFencedAndIdempotent(t *testing.T) {
 	now := time.Date(2026, 7, 30, 5, 0, 0, 0, time.UTC)
 
 	_, err := reviewagent.ReleaseLease(
-		scheduler, generation, 999, now,
+		scheduler, generation, 999, now, testPolicy().Scheduler,
 	)
 	require.EqualError(t, err, "scheduler lease run does not match")
 
 	changed := generation
 	changed.HeadSHA = "9999999999999999999999999999999999999999"
-	_, err = reviewagent.ReleaseLease(scheduler, changed, 601, now)
+	_, err = reviewagent.ReleaseLease(
+		scheduler, changed, 601, now, testPolicy().Scheduler,
+	)
 	require.EqualError(t, err, "scheduler lease generation does not match")
 
 	released, err := reviewagent.ReleaseLease(
-		scheduler, generation, 601, now,
+		scheduler, generation, 601, now, testPolicy().Scheduler,
 	)
 	require.NoError(t, err)
 	require.Empty(t, released.Active)
 
 	again, err := reviewagent.ReleaseLease(
-		released, generation, 601, now,
+		released, generation, 601, now, testPolicy().Scheduler,
 	)
 	require.NoError(t, err)
 	require.Equal(t, released, again)
 }
 
+func TestSchedulerCanonicalStateRejectsBrokenChain(t *testing.T) {
+	t.Parallel()
+
+	initial := testScheduler()
+	body, err := reviewagent.CanonicalSchedulerState(
+		initial,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, body)
+	digest, err := reviewagent.SchedulerStateDigest(
+		initial,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(digest, "sha256:"))
+
+	successor := initial
+	successor.Sequence = 2
+	successor.PreviousStateDigest = ""
+	_, err = reviewagent.CanonicalSchedulerState(
+		successor,
+		testPolicy().Scheduler,
+	)
+	require.EqualError(
+		t,
+		err,
+		"successor Review scheduler state lacks a predecessor digest",
+	)
+}
+
+func TestSchedulerCanonicalStateEnforcesStorageByteBound(t *testing.T) {
+	t.Parallel()
+
+	scheduler := testScheduler()
+	now := scheduler.UpdatedAt
+	for number := int64(1); number <= 2000; number++ {
+		scheduler.Queue = append(scheduler.Queue, reviewagent.QueueEntry{
+			Generation: generationForPR(number),
+			EnqueuedAt: now,
+		})
+	}
+	_, err := reviewagent.CanonicalSchedulerState(
+		scheduler,
+		testPolicy().Scheduler,
+	)
+	require.EqualError(
+		t,
+		err,
+		"Review scheduler state exceeds canonical byte budget",
+	)
+}
+
 func testScheduler() reviewagent.SchedulerState {
 	return reviewagent.SchedulerState{
 		SchemaVersion: 1,
+		SourceSHA:     strings.Repeat("a", 40),
 		Sequence:      1,
 		UpdatedAt: time.Date(
 			2026, 7, 30, 1, 0, 0, 0, time.UTC,
@@ -114,7 +171,7 @@ func testSchedulerWithLease(
 		Generation:        generation,
 		RunID:             runID,
 		FirstTimeExternal: firstTimeExternal,
-		AcquiredAt:        scheduler.UpdatedAt,
+		AcquiredAt:        scheduler.UpdatedAt.Add(2 * time.Hour),
 	}}
 	return scheduler
 }

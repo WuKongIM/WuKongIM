@@ -1,17 +1,26 @@
 package reviewagent
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 )
 
 const (
-	MaxSummaryBytes    = 4096
-	MaxFindings        = 100
-	MaxFileAssessments = MaxChangedFiles
-	MaxFindingEvidence = 32
-	MaxSources         = 256
-	MaxInlineComments  = 20
+	MaxSummaryBytes         = 2048
+	MaxFindings             = 8
+	MaxFileAssessments      = MaxChangedFiles
+	MaxResultPathBytes      = 1024
+	MaxFindingTitleBytes    = 256
+	MaxFindingDetailBytes   = 1024
+	MaxFindingEvidence      = 4
+	MaxFindingEvidenceBytes = 512
+	MaxSources              = 256
+	MaxSourceBytes          = 2048
+	MaxInlineComments       = 20
+	// MaxPersistedFindingsBytes keeps any validated model finding set safely
+	// below the signed Review state storage bound.
+	MaxPersistedFindingsBytes = 64 << 10
 )
 
 // Decision is the only advisory decision a model may return.
@@ -57,6 +66,14 @@ type FileAssessment struct {
 	Summary string   `json:"summary"`
 }
 
+// PriorFindingDisposition proves that a new review explicitly retained or
+// withdrew every finding carried from an earlier generation.
+type PriorFindingDisposition struct {
+	FindingDigest string `json:"finding_digest"`
+	Status        string `json:"status"`
+	Reason        string `json:"reason"`
+}
+
 // Finding describes one concrete review concern or bounded suggestion.
 type Finding struct {
 	Kind       FindingKind     `json:"kind"`
@@ -71,18 +88,25 @@ type Finding struct {
 	Resolution string          `json:"resolution"`
 }
 
+// ValidateFinding validates one bounded structured finding outside a complete
+// model result, such as findings frozen into signed Review state.
+func ValidateFinding(finding Finding) error {
+	return validateFinding(finding)
+}
+
 // ReviewResult is untrusted model output. It deliberately has no Check,
 // Review, comment, merge, branch, commit, or state publication authority.
 type ReviewResult struct {
-	SchemaVersion         int                `json:"schema_version"`
-	Generation            GenerationIdentity `json:"generation"`
-	Decision              Decision           `json:"decision"`
-	Summary               string             `json:"summary"`
-	InventoryComplete     bool               `json:"inventory_complete"`
-	FileAssessments       []FileAssessment   `json:"file_assessments"`
-	Findings              []Finding          `json:"findings"`
-	Sources               []string           `json:"sources"`
-	UnresolvedUncertainty string             `json:"unresolved_uncertainty"`
+	SchemaVersion            int                       `json:"schema_version"`
+	Generation               GenerationIdentity        `json:"generation"`
+	Decision                 Decision                  `json:"decision"`
+	Summary                  string                    `json:"summary"`
+	InventoryComplete        bool                      `json:"inventory_complete"`
+	FileAssessments          []FileAssessment          `json:"file_assessments"`
+	Findings                 []Finding                 `json:"findings"`
+	PriorFindingDispositions []PriorFindingDisposition `json:"prior_finding_dispositions"`
+	Sources                  []string                  `json:"sources"`
+	UnresolvedUncertainty    string                    `json:"unresolved_uncertainty"`
 }
 
 // DecodeReviewResult strictly decodes one bounded advisory model response.
@@ -144,7 +168,32 @@ func ValidateReviewResult(result ReviewResult) error {
 			blocking++
 		}
 	}
-	if !validUniqueStrings(result.Sources, MaxSources, 2048, false) {
+	dispositions := make(map[string]struct{}, len(result.PriorFindingDispositions))
+	if len(result.PriorFindingDispositions) > MaxFindings {
+		return errors.New("too many prior Review finding dispositions")
+	}
+	for _, disposition := range result.PriorFindingDispositions {
+		if !validDigest(disposition.FindingDigest) ||
+			(disposition.Status != "retained" &&
+				disposition.Status != "withdrawn") ||
+			!validText(disposition.Reason, MaxSummaryBytes, true) {
+			return errors.New("invalid prior Review finding disposition")
+		}
+		if _, duplicate := dispositions[disposition.FindingDigest]; duplicate {
+			return errors.New("duplicate prior Review finding disposition")
+		}
+		dispositions[disposition.FindingDigest] = struct{}{}
+	}
+	findingsBody, err := json.Marshal(result.Findings)
+	if err != nil || len(findingsBody) > MaxPersistedFindingsBytes {
+		return errors.New("Review result findings exceed persisted byte budget")
+	}
+	if !validUniqueStrings(
+		result.Sources,
+		MaxSources,
+		MaxSourceBytes,
+		false,
+	) {
 		return errors.New("invalid Review result sources")
 	}
 	switch result.Decision {
@@ -164,6 +213,61 @@ func ValidateReviewResult(result ReviewResult) error {
 	return nil
 }
 
+// FindingDigest returns the stable identity used to reconcile a prior finding.
+func FindingDigest(finding Finding) (string, error) {
+	if err := ValidateFinding(finding); err != nil {
+		return "", err
+	}
+	return canonicalDigest(finding, "encode Review finding")
+}
+
+// ValidatePriorFindingDispositions requires one exact, explicit disposition
+// for every finding in the trusted review context.
+func ValidatePriorFindingDispositions(
+	prior []Finding,
+	result ReviewResult,
+) error {
+	if len(prior) != len(result.PriorFindingDispositions) {
+		return errors.New("Review result does not disposition every prior finding")
+	}
+	current := make(map[string]struct{}, len(result.Findings))
+	for _, finding := range result.Findings {
+		digest, err := FindingDigest(finding)
+		if err != nil {
+			return err
+		}
+		current[digest] = struct{}{}
+	}
+	dispositions := make(map[string]PriorFindingDisposition, len(
+		result.PriorFindingDispositions,
+	))
+	for _, disposition := range result.PriorFindingDispositions {
+		dispositions[disposition.FindingDigest] = disposition
+	}
+	for _, finding := range prior {
+		digest, err := FindingDigest(finding)
+		if err != nil {
+			return err
+		}
+		disposition, exists := dispositions[digest]
+		if !exists {
+			return errors.New("Review result omits a prior finding disposition")
+		}
+		_, retained := current[digest]
+		switch disposition.Status {
+		case "retained":
+			if !retained {
+				return errors.New("retained prior finding is absent from findings")
+			}
+		case "withdrawn":
+			if retained {
+				return errors.New("withdrawn prior finding remains in findings")
+			}
+		}
+	}
+	return nil
+}
+
 // ReviewResultDigest binds the full advisory result without granting it
 // authority.
 func ReviewResultDigest(result ReviewResult) (string, error) {
@@ -175,7 +279,8 @@ func ReviewResultDigest(result ReviewResult) (string, error) {
 
 func validateFileAssessment(assessment FileAssessment) error {
 	if !validRepositoryPath(assessment.Path) ||
-		!validText(assessment.Summary, 2048, true) {
+		len(assessment.Path) > MaxResultPathBytes ||
+		!validText(assessment.Summary, MaxSummaryBytes, true) {
 		return errors.New("invalid Review file assessment")
 	}
 	switch assessment.Risk {
@@ -200,14 +305,14 @@ func validateFinding(finding Finding) error {
 	default:
 		return errors.New("invalid Review finding dimension")
 	}
-	if !validText(finding.Title, 512, true) ||
-		!validText(finding.Scenario, 4096, true) ||
-		!validText(finding.Impact, 4096, true) ||
-		!validText(finding.Resolution, 4096, true) ||
+	if !validText(finding.Title, MaxFindingTitleBytes, true) ||
+		!validText(finding.Scenario, MaxFindingDetailBytes, true) ||
+		!validText(finding.Impact, MaxFindingDetailBytes, true) ||
+		!validText(finding.Resolution, MaxFindingDetailBytes, true) ||
 		!validUniqueStrings(
 			finding.Evidence,
 			MaxFindingEvidence,
-			2048,
+			MaxFindingEvidenceBytes,
 			true,
 		) {
 		return errors.New("invalid Review finding detail")
@@ -219,6 +324,7 @@ func validateFinding(finding Finding) error {
 		return nil
 	}
 	if !validRepositoryPath(finding.Path) ||
+		len(finding.Path) > MaxResultPathBytes ||
 		finding.LineStart == 0 ||
 		finding.LineEnd < finding.LineStart {
 		return errors.New("invalid Review finding location")

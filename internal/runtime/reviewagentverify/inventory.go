@@ -96,14 +96,20 @@ func BuildInventory(
 			return Inventory{}, errors.New("changed-line budget exceeded")
 		}
 		result.Files = append(result.Files, contract.ChangedFile{
-			Path:          file.Path,
-			PreviousPath:  file.OldPath,
-			Status:        file.Status,
-			Mode:          file.Mode,
-			Type:          string(file.Type),
-			Generated:     file.Generated,
-			Patch:         string(file.Patch),
-			PatchDigest:   bytesDigest(file.Patch),
+			Path:         file.Path,
+			PreviousPath: file.OldPath,
+			Status:       file.Status,
+			Mode:         file.Mode,
+			Type:         string(file.Type),
+			Generated:    file.Generated,
+			Patch:        string(file.Patch),
+			PatchDigest:  bytesDigest(file.Patch),
+			Content: func() string {
+				if file.Type == FileTypeBinary {
+					return ""
+				}
+				return string(file.Content)
+			}(),
 			ContentDigest: bytesDigest(file.Content),
 			Additions:     file.Additions,
 			Deletions:     file.Deletions,

@@ -1,6 +1,8 @@
 package reviewagentverify_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -80,15 +82,42 @@ func TestContextRejectsBudgetInsteadOfDroppingInventory(t *testing.T) {
 		PolicyDigest:       digest("1"),
 		PromptDigest:       digest("2"),
 		OutputSchemaDigest: digest("3"),
+		ReviewReason:       "explicit reconsideration: verify the queue fix",
 		Title:              "Docs",
 		Body:               "Clarify behavior.",
-		Inventory:          inventory,
-		MandatoryChecks:    []string{"docs-contracts"},
+		Discussion: []contract.DiscussionItem{{
+			Kind:       contract.DiscussionFormalReview,
+			ID:         9,
+			Author:     "review-agent[bot]",
+			AuthorType: "Bot",
+			Body:       "The previous generation found a queue race.",
+			State:      "CHANGES_REQUESTED",
+			CommitSHA:  generation.HeadSHA,
+		}},
+		PriorFindings: []contract.Finding{{
+			Kind:       contract.FindingBlocking,
+			Dimension:  contract.DimensionIntentCorrectness,
+			Title:      "Queue race",
+			Path:       "internal/runtime/delivery/queue.go",
+			LineStart:  10,
+			LineEnd:    10,
+			Scenario:   "Close overlaps enqueue.",
+			Impact:     "A message can be lost.",
+			Evidence:   []string{"diff:queue.go:10"},
+			Resolution: "Serialize the operations.",
+		}},
+		Inventory:       inventory,
+		MandatoryChecks: []string{"docs-contracts"},
 	}
 
 	context, err := verify.BuildContext(input, 1<<20)
 	require.NoError(t, err)
 	require.Len(t, context.ChangedFiles, 1)
+	require.Equal(t, input.ReviewReason, context.ReviewReason)
+	require.Equal(t, input.Discussion, context.Discussion)
+	require.Len(t, context.PriorFindings, 1)
+	require.Equal(t, input.PriorFindings[0], context.PriorFindings[0].Finding)
+	require.NotEmpty(t, context.PriorFindings[0].Digest)
 
 	body, err := json.Marshal(context)
 	require.NoError(t, err)
@@ -117,4 +146,9 @@ func instructionPaths(values []contract.InstructionBlob) []string {
 
 func digest(character string) string {
 	return "sha256:" + strings.Repeat(character, 64)
+}
+
+func contentDigest(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }

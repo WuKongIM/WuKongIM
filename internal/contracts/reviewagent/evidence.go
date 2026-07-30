@@ -7,6 +7,7 @@ import (
 )
 
 const MaxChecks = 128
+const MaxCheckOutputExcerptBytes = 64 << 10
 
 // CheckOutcome is a trusted named-check runner conclusion.
 type CheckOutcome string
@@ -27,6 +28,8 @@ type CheckEvidence struct {
 	DurationMS    uint64       `json:"duration_ms"`
 	StdoutDigest  string       `json:"stdout_digest"`
 	StderrDigest  string       `json:"stderr_digest"`
+	Stdout        string       `json:"stdout"`
+	Stderr        string       `json:"stderr"`
 }
 
 // ReviewEvidence is trusted output from the named-check boundary.
@@ -101,6 +104,8 @@ func validateCheckEvidence(check CheckEvidence) error {
 		!validDigest(check.CommandDigest) ||
 		!validDigest(check.StdoutDigest) ||
 		!validDigest(check.StderrDigest) ||
+		!validText(check.Stdout, MaxCheckOutputExcerptBytes, false) ||
+		!validText(check.Stderr, MaxCheckOutputExcerptBytes, false) ||
 		check.DurationMS == 0 {
 		return errors.New("invalid Review check evidence")
 	}

@@ -3,6 +3,7 @@ package reviewagent
 import (
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -86,6 +87,23 @@ func IntentDigest(title, body string, linkedSpecifications []string) (string, er
 		Body:                 body,
 		LinkedSpecifications: links,
 	}, "encode Review intent")
+}
+
+// LinkedIssueIntentLocator binds one Issue locator to the exact intent facts
+// that were read for it. Any title, body, or state edit changes the PR intent
+// digest without embedding an unbounded Issue body in the locator list.
+func LinkedIssueIntentLocator(issue LinkedIssue) (string, error) {
+	if issue.Number <= 0 ||
+		(issue.State != "open" && issue.State != "closed") ||
+		!validText(issue.Title, maxIntentTitleBytes, true) ||
+		!validText(issue.Body, 1<<20, false) {
+		return "", errors.New("invalid linked Review Issue intent")
+	}
+	digest, err := canonicalDigest(issue, "encode linked Review Issue intent")
+	if err != nil {
+		return "", err
+	}
+	return "#" + strconv.FormatInt(issue.Number, 10) + ":" + digest, nil
 }
 
 func normalizeIntentText(value string) string {

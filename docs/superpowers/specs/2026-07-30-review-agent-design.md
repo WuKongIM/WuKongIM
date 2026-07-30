@@ -110,9 +110,11 @@ always-on external service.
   prompts/review.md
 .github/workflows/
   review-agent-pr-signal.yml
+  review-agent-issue-signal.yml
   review-agent.yml
   review-agent-run.yml
 cmd/wkreviewagent/
+cmd/wkreviewcheck/
 internal/access/reviewagentcli/
 internal/access/reviewagentcheckmcp/
 internal/contracts/reviewagent/
@@ -129,7 +131,7 @@ domain state:
 
 - `access/reviewagentcli` is a strict JSON-only command boundary.
 - `access/reviewagentcheckmcp` exposes only named policy checks to the model
-  and records their trusted results outside the model-writable workspace.
+  and records their trusted results outside the read-only model session.
 - `contracts/reviewagent` owns bounded cross-job objects and schemas.
 - `usecase/reviewagent` owns deterministic lifecycle, authorization, commands,
   state transitions, policy decisions, and publication plans.
@@ -156,8 +158,9 @@ strictly metadata-only:
 - it does not trust event fields as authority;
 - it records only the event kind and completes.
 
-The same Signal Workflow receives bounded Review, review-comment, and
-pull-request comment wake-ups. Its successful completion wakes
+The same Signal Workflow receives bounded formal Review wake-ups and only
+newly created top-level pull-request comments whose first bytes are
+`@review-agent`. Its successful completion wakes
 `review-agent.yml` through `workflow_run`, which GitHub binds to the protected
 default branch. The Controller re-reads all authority from GitHub; the Signal
 payload is only a hint.
@@ -167,8 +170,9 @@ The lifecycle event set covers:
 - `opened`, `edited`, `synchronize`, `reopened`, and `closed`;
 - `converted_to_draft` and `ready_for_review`;
 - Review `submitted`, `edited`, and `dismissed`;
-- review-comment `created`, `edited`, and `deleted`;
-- pull-request comment `created`, `edited`, and `deleted`.
+- a newly created top-level pull-request command comment; and
+- an explicitly linked Issue's `edited`, `closed`, and `reopened` events,
+  resolved by the separate bounded `review-agent-issue-signal.yml`.
 
 No scheduled Workflow or Cron inventory exists. If an event is missed, the
 pull request remains blocked until another relevant event or an authorized
@@ -277,7 +281,7 @@ The Context Builder freezes:
 - relevant tests, interfaces, callers, and dependency context selected through
   bounded repository retrieval;
 - unresolved human and Review Agent threads;
-- prior findings for the same pull request;
+- prior findings for the same pull request with trusted stable digests;
 - mandatory-check evidence and trusted environment facts.
 
 Pull-request text, candidate repository files, comments, test output, network
@@ -307,7 +311,7 @@ excluded.
 - path-to-minimum-check rules;
 - trusted command catalog;
 - control-plane paths;
-- concurrency, timeout, retry, reconsideration, and cost budgets;
+- concurrency, timeout, retry, reconsideration, and execution budgets;
 - diff, file, response, comment, and Artifact bounds;
 - configured App identities and state refs;
 - network and credential constraints.
@@ -329,10 +333,10 @@ existing requirements:
 - race, integration, E2E, and three-node-cluster checks are selected from
   actual risk, not a contributor label.
 
-The Review Agent may run additional bounded commands in its disposable
-workspace. A local stdio Check MCP accepts only a named check from the
+The Review Agent may request additional bounded checks. A local stdio Check
+MCP accepts only a named check from the
 protected catalog, resolves the fixed command itself, and records the result
-outside the model-writable workspace. Only commands and outcomes captured by
+outside the read-only model session. Only commands and outcomes captured by
 that trusted execution boundary count as formal evidence. Model-authored
 claims that a command ran or passed are advisory.
 
@@ -344,12 +348,15 @@ Each generation uses one ephemeral Codex session:
 - reasoning effort: `high`;
 - official Codex Action and CLI pinned to reviewed immutable versions;
 - no inherited Issue Agent or previous Review Agent hidden context;
-- disposable workspace write access only because build and test tools may
-  create temporary files;
+- a trusted external session directory and candidate checkout that are both
+  read-only to the model; build tools run only in Check MCP-created disposable
+  worktrees;
 - no GitHub, App, cloud, deploy, package-publish, or organization credential;
 - no Docker socket and no `sudo`;
 - complete public-internet egress, while RFC1918, link-local, cloud metadata,
-  runner-host, and organization-private targets remain blocked;
+  runner-host, and organization-private targets remain blocked by the model
+  profile; the pinned Action proxy is the sole transport loopback exception,
+  while candidate checks receive only namespace-local loopback;
 - bounded wall time, CPU, memory, process count, connection count, and network
   volume.
 
@@ -437,8 +444,9 @@ remain English.
 
 Before every projection write, the publisher re-reads the pull request, signed
 state, Review threads, App identities, and exact SHAs. A stale or ambiguous
-projection fails closed. Projection IDs may be appended to signed state after
-publication so a retry can repair without duplicating Reviews or comments.
+projection fails closed. Repair discovers projections through strict
+App-authored markers and exact external IDs; projection IDs are not authority
+and are not stored in signed state.
 
 ## Human Interaction
 
@@ -457,12 +465,13 @@ There is no `approve`, `skip-tests`, `ignore-finding`, `run-shell`, or
 policy-mutation command.
 
 `status` is rendered deterministically from signed state and never calls a
-model. A direct reply in a Review Agent-owned thread or an explicit `explain`
-command may start a short, read-only explanation session using the same pinned
+model. An explicit `explain` command may start a short, read-only explanation
+session using the same pinned
 model. It receives only the relevant signed finding, discussion, and bounded
 review context; it runs no candidate code or Check MCP and cannot alter
-decision state, findings, or Verdict. Signed state records only its
-reserved/consumed interaction budget and reply projection identity. The
+decision state, findings, or Verdict. Signed state records its
+reserved/consumed interaction budget, explanation digest, and bounded reply so
+projection repair cannot lose an accepted answer. The
 protected policy sets a finite explanation-session budget per head so public
 comments cannot create unbounded model cost.
 
@@ -470,6 +479,9 @@ Each head SHA receives one automatic review and at most two explicit
 reconsiderations. A reconsideration reads the relevant discussion and may
 withdraw a prior finding only by explaining why it no longer applies. New
 commits create new generations and do not consume reconsideration allowance.
+The automatic count is signed per-head state. Intent-only edits after the
+automatic attempt fail closed as `inconclusive` until a new head or an
+authorized reconsideration; they cannot create unbounded model sessions.
 
 Runner, provider, dependency-download, or public-network infrastructure
 failure may retry once inside the same attempt before publishing
@@ -515,12 +527,15 @@ Actions administration, or Secrets permission.
 
 Its private key is available only in the protected Review Publisher
 Environment. The Publisher never checks out or executes candidate code.
+That Environment permits deployment only from protected `main`; tags, custom
+branch patterns, and pull-request refs are denied.
 
 ### Review State Writer App
 
 The Review State Writer App has the minimum Git permission needed to append
 signed state commits. It cannot write Reviews, comments, or Checks. Its private
 key is available only in a separate protected State Writer Environment.
+That Environment also permits deployment only from protected `main`.
 
 Because GitHub `contents: write` cannot be scoped to one ref, repository
 Rulesets must deny this App creation or update access to `main` and all
@@ -557,12 +572,17 @@ Initial hard budgets are:
 - 90 minutes wall-clock per complete generation;
 - one automatic initial review per head;
 - at most two explicit reconsiderations per head;
-- one infrastructure retry per attempt.
+- one automatic infrastructure retry per signed review generation.
 
-Exact token, cost, changed-file, changed-byte, line, and network-volume limits
-and explanation-session count must be calibrated before implementation is
-enabled. Reaching any hard budget produces `inconclusive`; it never reduces
-review depth or silently approves.
+Exact context-token and response-byte limits, per-process CPU and memory
+limits, per-command process limits, per-address-family connection and
+network-volume limits, changed-file/byte/line limits, and explanation-session
+count are protected policy. Provider spend controls remain an Environment
+provisioning concern; repository policy bounds exposure through fixed model,
+concurrency, attempts, and wall time. Reaching any hard runtime budget produces
+`inconclusive`; it never reduces review depth or silently approves.
+The model Environment is likewise restricted to protected `main`, with tags
+and custom branch patterns disabled.
 
 Retention is:
 
@@ -574,6 +594,8 @@ Retention is:
 
 Artifacts must not contain credentials, environment dumps, private data, or
 unbounded network responses.
+Artifact retention follows the validated Review decision, not whether the
+model Action process itself exited successfully.
 
 ## Branch Protection
 
@@ -647,7 +669,7 @@ prove the complete path.
 - opened, Draft, ready, edited intent, synchronize, reopened, closed;
 - same-repository and first-time Fork pull requests;
 - Review submitted, edited, dismissed;
-- review-comment and pull-request comment create/edit/delete;
+- newly created top-level command comments and linked-Issue changes;
 - duplicate, reordered, and missing hints;
 - stale worker completion and new-generation cancellation;
 - exact same-head reconsideration limits;
@@ -727,7 +749,8 @@ The following are implementation measurements, not open product decisions:
 
 - maximum changed files, bytes, and lines per generation;
 - maximum Context Bundle and model response sizes;
-- exact token and monetary budget;
+- exact context-token and model-response byte budgets;
+- provider-side spend controls for the dedicated model credential;
 - maximum explanation sessions and response bytes per head;
 - trusted command catalog and timeout per command;
 - network connection, bandwidth, and process limits;

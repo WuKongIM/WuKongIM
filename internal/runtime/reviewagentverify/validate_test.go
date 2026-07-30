@@ -1,6 +1,7 @@
 package reviewagentverify_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -9,6 +10,25 @@ import (
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 	verify "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify"
 )
+
+func TestValidatedDecisionUsesWorkflowJSONFieldNames(t *testing.T) {
+	t.Parallel()
+
+	body, err := json.Marshal(verify.ValidatedDecision{
+		Decision:       contract.DecisionApproved,
+		Reason:         "safe",
+		EvidenceDigest: digest("a"),
+		ResultDigest:   digest("b"),
+		Findings:       []contract.Finding{},
+	})
+	require.NoError(t, err)
+	require.JSONEq(
+		t,
+		`{"decision":"approved","reason":"safe","evidence_digest":"`+
+			digest("a")+`","result_digest":"`+digest("b")+`","findings":[]}`,
+		string(body),
+	)
+}
 
 func TestValidateFinalResultRequiresCompleteInventoryAndTrustedEvidence(t *testing.T) {
 	t.Parallel()
@@ -89,6 +109,98 @@ func TestValidateFinalResultNeverApprovesFailedOrStaleEvidence(t *testing.T) {
 	}
 }
 
+func TestValidateFinalResultOverridesChangesRequiredOnCheckError(t *testing.T) {
+	t.Parallel()
+
+	context := validReviewContext()
+	evidence := validReviewEvidence()
+	evidence.Checks[0].Outcome = contract.CheckOutcomeError
+	evidence.Checks[0].ExitCode = -1
+	result := validApprovedResult()
+	result.Decision = contract.DecisionChangesRequired
+	result.Findings = []contract.Finding{{
+		Kind:       contract.FindingBlocking,
+		Dimension:  contract.DimensionRegressionTests,
+		Title:      "Unit check failed",
+		Path:       "internal/runtime/delivery/queue.go",
+		LineStart:  1,
+		LineEnd:    1,
+		Scenario:   "The mandatory unit check cannot complete.",
+		Impact:     "The candidate cannot be verified.",
+		Evidence:   []string{"check:go-unit"},
+		Resolution: "Make the mandatory unit check complete successfully.",
+	}}
+
+	validated, err := verify.ValidateFinalResult(
+		context,
+		evidence,
+		result,
+		digest("f"),
+		digest("f"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, contract.DecisionInconclusive, validated.Decision)
+	require.Contains(t, validated.Reason, "infrastructure")
+}
+
+func TestValidateFinalResultNeverApprovesBinaryChanges(t *testing.T) {
+	t.Parallel()
+
+	context := validReviewContext()
+	context.ChangedFiles[0].Type = "binary"
+	context.ChangedFiles[0].Patch = ""
+	context.ChangedFiles[0].PatchDigest = contentDigest("")
+	context.ChangedFiles[0].Content = ""
+	context.ChangedFiles[0].ContentDigest = contentDigest("")
+
+	validated, err := verify.ValidateFinalResult(
+		context,
+		validReviewEvidence(),
+		validApprovedResult(),
+		digest("f"),
+		digest("f"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, contract.DecisionInconclusive, validated.Decision)
+	require.Contains(t, validated.Reason, "binary")
+}
+
+func TestValidateFinalResultRetainsPriorFindingWhenDispositionIsInvalid(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	prior := contract.Finding{
+		Kind:       contract.FindingBlocking,
+		Dimension:  contract.DimensionSecurityRuntime,
+		Title:      "Queue race",
+		Path:       "internal/runtime/delivery/queue.go",
+		LineStart:  1,
+		LineEnd:    1,
+		Scenario:   "Close overlaps enqueue.",
+		Impact:     "The process can panic.",
+		Evidence:   []string{"check:go-unit"},
+		Resolution: "Serialize close and enqueue.",
+	}
+	priorDigest, err := contract.FindingDigest(prior)
+	require.NoError(t, err)
+	context := validReviewContext()
+	context.PriorFindings = []contract.PriorFindingContext{{
+		Digest: priorDigest, Finding: prior,
+	}}
+
+	validated, err := verify.ValidateFinalResult(
+		context,
+		validReviewEvidence(),
+		validApprovedResult(),
+		digest("f"),
+		digest("f"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, contract.DecisionInconclusive, validated.Decision)
+	require.Equal(t, []contract.Finding{prior}, validated.Findings)
+}
+
 func validReviewContext() contract.ReviewContext {
 	return contract.ReviewContext{
 		SchemaVersion:      1,
@@ -101,7 +213,8 @@ func validReviewContext() contract.ReviewContext {
 			Path:   "internal/runtime/delivery/queue.go",
 			Status: contract.FileStatusModified,
 			Mode:   "100644", Type: "text", Patch: "@@ patch @@",
-			PatchDigest: digest("4"), ContentDigest: digest("5"),
+			PatchDigest: contentDigest("@@ patch @@"),
+			Content:     "package delivery\n", ContentDigest: contentDigest("package delivery\n"),
 		}},
 		MandatoryChecks: []string{"go-unit"},
 	}

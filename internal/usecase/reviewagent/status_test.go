@@ -16,6 +16,7 @@ func TestRenderStatusUsesOnlySignedState(t *testing.T) {
 
 	state := testReviewingState()
 	state.Phase = contract.PhaseQueued
+	state.Budget.AutomaticReviewsUsed = 1
 	state.Budget.ReconsiderationsUsed = 1
 	state.Budget.ExplanationsUsed = 2
 
@@ -29,6 +30,8 @@ func TestRenderStatusUsesOnlySignedState(t *testing.T) {
 		"queued",
 		"generation 1",
 		strings.Repeat("a", 40),
+		"generation elapsed: `4h0m0s`",
+		"automatic reviews: 1/1",
 		"reconsiderations: 1/2",
 		"explanations: 2/3",
 	} {

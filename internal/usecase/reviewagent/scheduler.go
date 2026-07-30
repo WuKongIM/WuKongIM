@@ -1,13 +1,24 @@
 package reviewagent
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"io"
+	"regexp"
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 )
 
-const maxSchedulerQueue = 10000
+const (
+	maxSchedulerQueue      = 10000
+	maxSchedulerStateBytes = 512 << 10
+)
+
+var schedulerDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
 // QueueEntry is one immutable generation waiting for a repository lease.
 type QueueEntry struct {
@@ -28,6 +39,7 @@ type Lease struct {
 // SchedulerState is the signed FIFO and active-lease document.
 type SchedulerState struct {
 	SchemaVersion       int          `json:"schema_version"`
+	SourceSHA           string       `json:"source_sha"`
 	Sequence            uint64       `json:"sequence"`
 	PreviousStateDigest string       `json:"previous_state_digest"`
 	Queue               []QueueEntry `json:"queue"`
@@ -42,10 +54,24 @@ func ValidateSchedulerState(
 	limits SchedulerLimits,
 ) error {
 	if state.SchemaVersion != 1 || state.Sequence == 0 ||
+		!gitSHAPattern.MatchString(state.SourceSHA) ||
 		state.UpdatedAt.IsZero() || state.UpdatedAt.Location() != time.UTC ||
 		len(state.Queue) > maxSchedulerQueue ||
 		len(state.Active) > limits.MaxActive {
 		return errors.New("invalid Review scheduler state")
+	}
+	if state.Sequence == 1 {
+		if state.PreviousStateDigest != "" {
+			return errors.New(
+				"initial Review scheduler state names a predecessor",
+			)
+		}
+	} else if !schedulerDigestPattern.MatchString(
+		state.PreviousStateDigest,
+	) {
+		return errors.New(
+			"successor Review scheduler state lacks a predecessor digest",
+		)
 	}
 	seenGenerations := make(map[string]struct{}, len(state.Queue)+len(state.Active))
 	activePRs := make(map[int64]int, len(state.Active))
@@ -81,6 +107,77 @@ func ValidateSchedulerState(
 		return errors.New("too many first-time external Review leases")
 	}
 	return nil
+}
+
+// CanonicalSchedulerState returns the exact signed scheduler bytes.
+func CanonicalSchedulerState(
+	state SchedulerState,
+	limits SchedulerLimits,
+) ([]byte, error) {
+	if err := ValidateSchedulerState(state, limits); err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(state)
+	if err != nil {
+		return nil, errors.New("encode Review scheduler state")
+	}
+	if len(body) > maxSchedulerStateBytes {
+		return nil, errors.New(
+			"Review scheduler state exceeds canonical byte budget",
+		)
+	}
+	return body, nil
+}
+
+// SchedulerStateDigest identifies one canonical scheduler state.
+func SchedulerStateDigest(
+	state SchedulerState,
+	limits SchedulerLimits,
+) (string, error) {
+	body, err := CanonicalSchedulerState(state, limits)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+// DecodeSchedulerState strictly decodes one bounded signed scheduler state.
+func DecodeSchedulerState(
+	reader io.Reader,
+	maxBytes int64,
+	limits SchedulerLimits,
+) (SchedulerState, error) {
+	if reader == nil || maxBytes <= 0 {
+		return SchedulerState{}, errors.New(
+			"Review scheduler input limit must be positive",
+		)
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+	if err != nil {
+		return SchedulerState{}, errors.New("read Review scheduler state")
+	}
+	if int64(len(body)) > maxBytes {
+		return SchedulerState{}, errors.New(
+			"Review scheduler state exceeds byte limit",
+		)
+	}
+	var state SchedulerState
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&state); err != nil {
+		return SchedulerState{}, errors.New("decode Review scheduler state")
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return SchedulerState{}, errors.New(
+			"Review scheduler state contains trailing JSON",
+		)
+	}
+	if err := ValidateSchedulerState(state, limits); err != nil {
+		return SchedulerState{}, err
+	}
+	return state, nil
 }
 
 // Enqueue idempotently appends one generation to the FIFO.
@@ -119,9 +216,17 @@ func Enqueue(
 	if len(state.Queue) == maxSchedulerQueue {
 		return SchedulerState{}, errors.New("Review scheduler queue is full")
 	}
+	previousDigest, err := SchedulerStateDigest(state, limits)
+	if err != nil {
+		return SchedulerState{}, err
+	}
 	state.Queue = append(append([]QueueEntry(nil), state.Queue...), entry)
 	state.Sequence++
+	state.PreviousStateDigest = previousDigest
 	state.UpdatedAt = entry.EnqueuedAt
+	if _, err := CanonicalSchedulerState(state, limits); err != nil {
+		return SchedulerState{}, err
+	}
 	return state, nil
 }
 
@@ -167,12 +272,17 @@ func AcquireNext(
 		FirstTimeExternal: entry.FirstTimeExternal,
 		AcquiredAt:        now,
 	}
+	previousDigest, err := SchedulerStateDigest(state, limits)
+	if err != nil {
+		return SchedulerState{}, nil, err
+	}
 	state.Queue = append(
 		append([]QueueEntry(nil), state.Queue[:selected]...),
 		state.Queue[selected+1:]...,
 	)
 	state.Active = append(append([]Lease(nil), state.Active...), lease)
 	state.Sequence++
+	state.PreviousStateDigest = previousDigest
 	state.UpdatedAt = now
 	return state, &lease, nil
 }
@@ -184,7 +294,11 @@ func ReleaseLease(
 	generation contract.GenerationIdentity,
 	runID int64,
 	now time.Time,
+	limits SchedulerLimits,
 ) (SchedulerState, error) {
+	if err := ValidateSchedulerState(state, limits); err != nil {
+		return SchedulerState{}, err
+	}
 	if err := contract.ValidateGenerationIdentity(generation); err != nil {
 		return SchedulerState{}, err
 	}
@@ -206,11 +320,16 @@ func ReleaseLease(
 				"scheduler lease run does not match",
 			)
 		}
+		previousDigest, err := SchedulerStateDigest(state, limits)
+		if err != nil {
+			return SchedulerState{}, err
+		}
 		state.Active = append(
 			append([]Lease(nil), state.Active[:index]...),
 			state.Active[index+1:]...,
 		)
 		state.Sequence++
+		state.PreviousStateDigest = previousDigest
 		state.UpdatedAt = now
 		return state, nil
 	}

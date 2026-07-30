@@ -24,23 +24,31 @@ const (
 	SignalCommand        SignalKind = "command"
 	SignalCompletion     SignalKind = "completion"
 	SignalManual         SignalKind = "manual"
+	SignalObserved       SignalKind = "observed"
+	SignalGovernance     SignalKind = "governance"
+	SignalWorkerFailure  SignalKind = "worker_failure"
 )
 
 // Completion is a trusted worker handoff fenced to one generation.
 type Completion struct {
-	Generation            contract.GenerationIdentity
-	Decision              contract.Decision
-	EvidenceDigest        string
-	ResultDigest          string
-	InfrastructureFailure bool
+	Generation            contract.GenerationIdentity `json:"generation"`
+	Decision              contract.Decision           `json:"decision"`
+	EvidenceDigest        string                      `json:"evidence_digest"`
+	ResultDigest          string                      `json:"result_digest"`
+	ExplanationDigest     string                      `json:"explanation_digest"`
+	ExplanationReply      string                      `json:"explanation_reply"`
+	ResponseBytes         uint64                      `json:"response_bytes"`
+	InfrastructureFailure bool                        `json:"infrastructure_failure"`
+	Findings              []contract.Finding          `json:"findings"`
 }
 
 // Signal identifies a candidate event and the exact Actions run authority.
 type Signal struct {
-	Kind       SignalKind
-	RunID      int64
-	Command    *Command
-	Completion *Completion
+	Kind          SignalKind
+	RunID         int64
+	WorkerAttempt uint32
+	Command       *Command
+	Completion    *Completion
 }
 
 // PlanAction is one bounded orchestration effect.
@@ -54,7 +62,9 @@ const (
 	ActionSupersedeAndDispatch  PlanAction = "supersede_and_dispatch"
 	ActionSupersedeAndEnqueue   PlanAction = "supersede_and_enqueue"
 	ActionRecordInconclusive    PlanAction = "record_inconclusive"
+	ActionRecordChangesRequired PlanAction = "record_changes_required"
 	ActionComplete              PlanAction = "complete"
+	ActionCompleteExplanation   PlanAction = "complete_explanation"
 	ActionRepairProjection      PlanAction = "repair_projection"
 	ActionRespondStatus         PlanAction = "respond_status"
 	ActionExplain               PlanAction = "explain"
@@ -77,19 +87,27 @@ type ReconcileInput struct {
 
 // ReconcilePlan is the only output adapters may execute.
 type ReconcilePlan struct {
-	Action              PlanAction
-	Reason              string
-	Generation          contract.GenerationIdentity
-	DesiredPhase        contract.Phase
-	NextScheduler       SchedulerState
-	Dispatch            bool
-	CancelRunID         int64
-	ReuseEvidenceDigest string
-	EvidenceDigest      string
-	ResultDigest        string
-	StatusBody          string
-	DispatchExplanation bool
-	NextBudget          contract.InteractionBudget
+	Action              PlanAction                  `json:"action"`
+	Reason              string                      `json:"reason"`
+	Generation          contract.GenerationIdentity `json:"generation"`
+	DesiredPhase        contract.Phase              `json:"desired_phase"`
+	NextScheduler       SchedulerState              `json:"next_scheduler"`
+	Dispatch            bool                        `json:"dispatch"`
+	LeaseRunID          int64                       `json:"lease_run_id"`
+	NextPullRequest     int64                       `json:"next_pull_request"`
+	CancelRunID         int64                       `json:"cancel_run_id"`
+	ReuseEvidenceDigest string                      `json:"reuse_evidence_digest"`
+	EvidenceDigest      string                      `json:"evidence_digest"`
+	ResultDigest        string                      `json:"result_digest"`
+	ExplanationDigest   string                      `json:"explanation_digest"`
+	ExplanationReply    string                      `json:"explanation_reply"`
+	InteractionRequest  string                      `json:"interaction_request"`
+	StatusBody          string                      `json:"status_body"`
+	DispatchExplanation bool                        `json:"dispatch_explanation"`
+	NextBudget          contract.InteractionBudget  `json:"next_budget"`
+	DecisionSource      contract.DecisionSource     `json:"decision_source"`
+	PriorFindings       []contract.Finding          `json:"prior_findings"`
+	DeadlineAt          time.Time                   `json:"deadline_at"`
 }
 
 // ReconcilePullRequest deterministically plans one transition without side
@@ -117,11 +135,33 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 		}
 	}
 
+	sameGeneration := input.State != nil &&
+		sameGenerationFacts(input.State.Generation, input.Facts)
 	if input.Signal.Kind == SignalCompletion {
+		if input.State != nil && !sameGeneration {
+			return currentStateNoop(input, "stale completion"), nil
+		}
 		return reconcileCompletion(input)
 	}
+	if input.Signal.Kind == SignalWorkerFailure {
+		if input.State == nil || sameGeneration {
+			return reconcileWorkerFailure(input)
+		}
+		input.Signal.Kind = SignalObserved
+	}
 	if input.Signal.Kind == SignalCommand {
-		return reconcileCommand(input)
+		readOnlyStatus := input.Signal.Command != nil &&
+			input.Signal.Command.Kind == CommandStatus
+		if sameGeneration &&
+			(readOnlyStatus || input.Facts.Open && !input.Facts.Draft) {
+			return reconcileCommand(input)
+		}
+		input.Signal.Kind = SignalObserved
+	}
+	if sameGeneration &&
+		input.State.Phase == contract.PhaseClosed &&
+		input.Facts.Open {
+		sameGeneration = false
 	}
 
 	nextNumber := uint64(1)
@@ -129,68 +169,279 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 		nextNumber = input.State.Generation.Generation + 1
 	}
 	generation := generationFromFacts(input.Facts, nextNumber)
+	if sameGeneration {
+		generation = input.State.Generation
+	}
 
 	if !input.Facts.Open {
-		return ReconcilePlan{
-			Action:        ActionAppendState,
-			Reason:        "pull request closed",
-			Generation:    generation,
-			DesiredPhase:  contract.PhaseClosed,
-			NextScheduler: input.Scheduler,
-		}, nil
+		return reconcileWithoutReviewSession(
+			input,
+			generation,
+			sameGeneration,
+			ActionAppendState,
+			contract.PhaseClosed,
+			"",
+			"pull request closed",
+		)
 	}
 	if input.Facts.Draft {
-		return ReconcilePlan{
-			Action:        ActionAppendState,
-			Reason:        "pull request is draft",
-			Generation:    generation,
-			DesiredPhase:  contract.PhaseAwaitingReady,
-			NextScheduler: input.Scheduler,
-		}, nil
+		return reconcileWithoutReviewSession(
+			input,
+			generation,
+			sameGeneration,
+			ActionAppendState,
+			contract.PhaseAwaitingReady,
+			"",
+			"pull request is draft",
+		)
+	}
+	if input.Facts.Mergeability == MergeabilityConflicting {
+		return reconcileWithoutReviewSession(
+			input,
+			generation,
+			sameGeneration,
+			ActionRecordChangesRequired,
+			contract.PhaseChangesRequired,
+			contract.DecisionSourceMergeConflict,
+			"pull request has merge conflicts",
+		)
 	}
 	if reason := ineligibleReason(input.Facts, input.Policy); reason != "" {
-		return ReconcilePlan{
-			Action:        ActionRecordInconclusive,
-			Reason:        reason,
-			Generation:    generation,
-			DesiredPhase:  contract.PhaseInconclusive,
-			NextScheduler: input.Scheduler,
-		}, nil
+		return reconcileWithoutReviewSession(
+			input,
+			generation,
+			sameGeneration,
+			ActionRecordInconclusive,
+			contract.PhaseInconclusive,
+			contract.DecisionSourcePolicy,
+			reason,
+		)
 	}
 	if err := contract.ValidateGenerationIdentity(generation); err != nil {
 		return ReconcilePlan{}, err
 	}
 
-	if input.State != nil &&
-		sameGenerationFacts(input.State.Generation, input.Facts) {
+	if sameGeneration {
 		switch input.State.Phase {
-		case contract.PhaseReviewing, contract.PhaseQueued:
+		case contract.PhaseReviewing:
+			if lease := activeLeaseForGeneration(
+				input.Scheduler,
+				input.State.Generation,
+			); lease != nil {
+				deadline := generationDeadline(
+					input,
+					input.State.Generation,
+					lease.AcquiredAt,
+				)
+				if !input.Now.Before(deadline) {
+					expired := input
+					expired.Signal.RunID = lease.RunID
+					return completeInfrastructureFailure(
+						expired,
+						Completion{Generation: input.State.Generation},
+						"Review generation exceeded its wall-time limit",
+					)
+				}
+				dispatch := input.Signal.Kind == SignalManual
+				return ReconcilePlan{
+					Action:        ActionNoop,
+					Reason:        "generation already active",
+					Generation:    input.State.Generation,
+					DesiredPhase:  input.State.Phase,
+					NextScheduler: input.Scheduler,
+					Dispatch:      dispatch,
+					LeaseRunID:    lease.RunID,
+					DeadlineAt:    deadline,
+					NextPullRequest: nextEligiblePullRequest(
+						input.Scheduler,
+						input.Signal.RunID,
+						input.Now,
+						input.Policy.Scheduler,
+					),
+				}, nil
+			}
+			if input.Signal.Kind != SignalManual {
+				return ReconcilePlan{}, errors.New(
+					"reviewing state lacks its scheduler lease",
+				)
+			}
+		case contract.PhaseQueued, contract.PhaseAwaitingReady:
+			// Continue below. A queued generation may acquire capacity, and a
+			// ready PR reuses its awaiting-ready generation.
+		case contract.PhaseCanceled:
+			scheduler, cancelRunID, nextPullRequest, err :=
+				removePullRequestWork(
+					input.Scheduler,
+					input.Facts.PullRequest,
+					input.Now,
+					input.Policy.Scheduler,
+				)
+			if err != nil {
+				return ReconcilePlan{}, err
+			}
+			action := ActionNoop
+			reason := "generation already canceled"
+			if cancelRunID != 0 ||
+				input.Signal.Kind == SignalGovernance ||
+				input.Signal.Kind == SignalManual {
+				action = ActionRepairProjection
+				reason = "repair canceled Review projection"
+			}
 			return ReconcilePlan{
-				Action:        ActionNoop,
-				Reason:        "generation already active",
-				Generation:    input.State.Generation,
-				DesiredPhase:  input.State.Phase,
-				NextScheduler: input.Scheduler,
+				Action:          action,
+				Reason:          reason,
+				Generation:      input.State.Generation,
+				DesiredPhase:    contract.PhaseCanceled,
+				NextScheduler:   scheduler,
+				NextPullRequest: nextPullRequest,
+				CancelRunID:     cancelRunID,
 			}, nil
 		case contract.PhaseApproved,
 			contract.PhaseChangesRequired,
 			contract.PhaseInconclusive:
+			if lease := activeLeaseForGeneration(
+				input.Scheduler,
+				input.State.Generation,
+			); lease != nil {
+				if input.State.InteractionRequest == "" {
+					scheduler, err := ReleaseLease(
+						input.Scheduler,
+						input.State.Generation,
+						lease.RunID,
+						input.Now,
+						input.Policy.Scheduler,
+					)
+					if err != nil {
+						return ReconcilePlan{}, err
+					}
+					return ReconcilePlan{
+						Action:        ActionRepairProjection,
+						Reason:        "repair terminal Review projection",
+						Generation:    input.State.Generation,
+						DesiredPhase:  input.State.Phase,
+						NextScheduler: scheduler,
+						NextPullRequest: nextEligiblePullRequest(
+							scheduler,
+							input.Signal.RunID,
+							input.Now,
+							input.Policy.Scheduler,
+						),
+					}, nil
+				}
+				deadline := generationDeadline(
+					input,
+					input.State.Generation,
+					lease.AcquiredAt,
+				)
+				if !input.Now.Before(deadline) {
+					scheduler, err := ReleaseLease(
+						input.Scheduler,
+						input.State.Generation,
+						lease.RunID,
+						input.Now,
+						input.Policy.Scheduler,
+					)
+					if err != nil {
+						return ReconcilePlan{}, err
+					}
+					return ReconcilePlan{
+						Action:        ActionNoop,
+						Reason:        "generation interaction exceeded its wall-time limit",
+						Generation:    input.State.Generation,
+						DesiredPhase:  input.State.Phase,
+						NextScheduler: scheduler,
+					}, nil
+				}
+				dispatch := input.Signal.Kind == SignalManual
+				return ReconcilePlan{
+					Action:              ActionNoop,
+					Reason:              "generation interaction already active",
+					Generation:          input.State.Generation,
+					DesiredPhase:        input.State.Phase,
+					NextScheduler:       input.Scheduler,
+					Dispatch:            dispatch,
+					LeaseRunID:          lease.RunID,
+					DeadlineAt:          deadline,
+					DispatchExplanation: input.State.InteractionRequest != "",
+				}, nil
+			}
+			scheduler, cancelRunID, nextPullRequest, err :=
+				removePullRequestWork(
+					input.Scheduler,
+					input.Facts.PullRequest,
+					input.Now,
+					input.Policy.Scheduler,
+				)
+			if err != nil {
+				return ReconcilePlan{}, err
+			}
+			if input.Signal.Kind == SignalGovernance ||
+				input.Signal.Kind == SignalManual {
+				if input.Signal.Kind == SignalManual &&
+					input.State.InteractionRequest != "" {
+					return recoverReleasedExplanation(
+						input,
+						input.Scheduler,
+					)
+				}
+				return ReconcilePlan{
+					Action:          ActionRepairProjection,
+					Reason:          "repair current Review projection",
+					Generation:      input.State.Generation,
+					DesiredPhase:    input.State.Phase,
+					NextScheduler:   scheduler,
+					NextPullRequest: nextPullRequest,
+					CancelRunID:     cancelRunID,
+				}, nil
+			}
 			return ReconcilePlan{
-				Action:        ActionNoop,
-				Reason:        "generation already decided",
-				Generation:    input.State.Generation,
-				DesiredPhase:  input.State.Phase,
-				NextScheduler: input.Scheduler,
+				Action:          ActionNoop,
+				Reason:          "generation already decided",
+				Generation:      input.State.Generation,
+				DesiredPhase:    input.State.Phase,
+				NextScheduler:   scheduler,
+				NextPullRequest: nextPullRequest,
+				CancelRunID:     cancelRunID,
 			}, nil
 		}
 	}
 
+	nextBudget := contract.InteractionBudget{}
+	if input.State != nil &&
+		input.State.Generation.HeadSHA == input.Facts.HeadSHA {
+		nextBudget = input.State.Budget
+	}
+	startAutomaticReview := input.State == nil ||
+		!sameGeneration ||
+		input.State.Phase == contract.PhaseAwaitingReady
+	if startAutomaticReview {
+		if int(nextBudget.AutomaticReviewsUsed) >=
+			input.Policy.MaxAutomaticReviewsPerHead {
+			plan, err := reconcileWithoutReviewSession(
+				input,
+				generation,
+				sameGeneration,
+				ActionRecordInconclusive,
+				contract.PhaseInconclusive,
+				contract.DecisionSourcePolicy,
+				"automatic Review budget exhausted for current head",
+			)
+			plan.NextBudget = nextBudget
+			return plan, err
+		}
+		nextBudget.AutomaticReviewsUsed++
+	}
+
 	scheduler := input.Scheduler
 	cancelRunID := int64(0)
-	superseding := input.State != nil &&
-		!sameGenerationFacts(input.State.Generation, input.Facts)
+	superseding := input.State != nil && !sameGeneration
 	reuseEvidence := ""
+	priorFindings := []contract.Finding(nil)
 	if superseding {
+		priorFindings = append(
+			priorFindings,
+			input.State.PriorFindings...,
+		)
 		if exactCodeCoordinates(input.State.Generation, input.Facts) {
 			reuseEvidence = input.State.EvidenceDigest
 		}
@@ -205,6 +456,7 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 				lease.Generation,
 				lease.RunID,
 				input.Now,
+				input.Policy.Scheduler,
 			)
 			if releaseErr != nil {
 				return ReconcilePlan{}, releaseErr
@@ -218,6 +470,42 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	}
 
 	var err error
+	if lease := activeLeaseForGeneration(scheduler, generation); lease != nil {
+		deadline := generationDeadline(
+			input,
+			generation,
+			lease.AcquiredAt,
+		)
+		if !input.Now.Before(deadline) {
+			return expireRecoveredLease(
+				input,
+				scheduler,
+				generation,
+				*lease,
+				cancelRunID,
+				priorFindings,
+				nextBudget,
+			)
+		}
+		action := ActionAcquireAndDispatch
+		if superseding {
+			action = ActionSupersedeAndDispatch
+		}
+		return ReconcilePlan{
+			Action:              action,
+			Reason:              "recovered existing Review Agent lease",
+			Generation:          generation,
+			DesiredPhase:        contract.PhaseReviewing,
+			NextScheduler:       scheduler,
+			Dispatch:            true,
+			LeaseRunID:          lease.RunID,
+			DeadlineAt:          deadline,
+			CancelRunID:         cancelRunID,
+			ReuseEvidenceDigest: reuseEvidence,
+			NextBudget:          nextBudget,
+			PriorFindings:       priorFindings,
+		}, nil
+	}
 	scheduler, err = Enqueue(
 		scheduler,
 		QueueEntry{
@@ -232,7 +520,7 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
-	scheduler, lease, err := AcquireNext(
+	acquiredScheduler, lease, err := AcquireNext(
 		scheduler,
 		input.Signal.RunID,
 		input.Now,
@@ -241,7 +529,22 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
-	if lease == nil {
+	if lease == nil ||
+		contract.MustGenerationDigest(lease.Generation) !=
+			contract.MustGenerationDigest(generation) {
+		nextPullRequest := int64(0)
+		if lease != nil {
+			nextPullRequest = lease.Generation.PullRequest
+		}
+		scheduler, err = collapseSchedulerTransition(
+			input.Scheduler,
+			scheduler,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
 		action := ActionEnqueue
 		if superseding {
 			action = ActionSupersedeAndEnqueue
@@ -252,23 +555,42 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 			Generation:          generation,
 			DesiredPhase:        contract.PhaseQueued,
 			NextScheduler:       scheduler,
+			NextPullRequest:     nextPullRequest,
 			CancelRunID:         cancelRunID,
 			ReuseEvidenceDigest: reuseEvidence,
+			NextBudget:          nextBudget,
+			PriorFindings:       priorFindings,
 		}, nil
 	}
+	scheduler = acquiredScheduler
 	action := ActionAcquireAndDispatch
 	if superseding {
 		action = ActionSupersedeAndDispatch
 	}
+	scheduler, err = collapseSchedulerTransition(
+		input.Scheduler,
+		scheduler,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
 	return ReconcilePlan{
-		Action:              action,
-		Reason:              "Review Agent lease acquired",
-		Generation:          generation,
-		DesiredPhase:        contract.PhaseReviewing,
-		NextScheduler:       scheduler,
-		Dispatch:            true,
+		Action:        action,
+		Reason:        "Review Agent lease acquired",
+		Generation:    generation,
+		DesiredPhase:  contract.PhaseReviewing,
+		NextScheduler: scheduler,
+		Dispatch:      true,
+		LeaseRunID:    lease.RunID,
+		DeadlineAt: lease.AcquiredAt.Add(
+			input.Policy.MaxGenerationDuration,
+		),
 		CancelRunID:         cancelRunID,
 		ReuseEvidenceDigest: reuseEvidence,
+		NextBudget:          nextBudget,
+		PriorFindings:       priorFindings,
 	}, nil
 }
 
@@ -283,6 +605,7 @@ func reconcileCommand(input ReconcileInput) (ReconcilePlan, error) {
 		DesiredPhase:  state.Phase,
 		NextScheduler: input.Scheduler,
 		NextBudget:    state.Budget,
+		Reason:        state.Reason,
 	}
 	switch command.Kind {
 	case CommandStatus:
@@ -295,38 +618,72 @@ func reconcileCommand(input ReconcileInput) (ReconcilePlan, error) {
 		base.StatusBody = body
 		return base, nil
 	case CommandExplain:
-		if int(state.Budget.ExplanationsUsed) >=
-			input.Policy.MaxExplanationSessionsPerHead {
-			return ReconcilePlan{}, errors.New(
-				"Review explanation budget exhausted",
-			)
-		}
-		if int(state.Budget.ResponseBytesUsed) >=
-			input.Policy.MaxExplanationResponseBytes {
-			return ReconcilePlan{}, errors.New(
-				"Review explanation response budget exhausted",
-			)
-		}
-		base.Action = ActionExplain
-		base.Reason = command.Payload
-		base.ResultDigest = state.ResultDigest
-		base.DispatchExplanation = true
-		base.NextBudget.ExplanationsUsed++
-		return base, nil
-	case CommandReconsider:
 		if !decisionPhase(state.Phase) {
-			return ReconcilePlan{}, errors.New(
-				"reconsider requires a completed Review decision",
-			)
+			base.Action = ActionNoop
+			base.Reason = "explain requires a completed Review decision"
+			return base, nil
+		}
+		recovering := state.InteractionRequest == command.Payload
+		if state.InteractionRequest != "" && !recovering {
+			base.Action = ActionNoop
+			base.Reason = "another Review explanation is already pending"
+			return base, nil
+		}
+		if recovering {
+			base.Action = ActionNoop
+			base.Reason = "Review explanation is already pending"
+			return base, nil
+		}
+		if !recovering &&
+			(int(state.Budget.ExplanationsUsed) >=
+				input.Policy.MaxExplanationSessionsPerHead ||
+				int(state.Budget.ResponseBytesUsed) >=
+					input.Policy.MaxExplanationResponseBytes) {
+			base.Action = ActionNoop
+			base.Reason = "Review explanation budget exhausted"
+			return base, nil
+		}
+		if activeLeaseForGeneration(
+			input.Scheduler,
+			state.Generation,
+		) != nil {
+			base.Action = ActionNoop
+			base.Reason = "Review generation already has active work"
+			return base, nil
+		}
+		budget := state.Budget
+		if !recovering {
+			budget.ExplanationsUsed++
+		}
+		return scheduleExplanation(
+			input,
+			input.Scheduler,
+			budget,
+		)
+	case CommandReconsider:
+		if state.InteractionRequest != "" ||
+			pullRequestHasWork(
+				input.Scheduler,
+				state.Generation.PullRequest,
+			) {
+			base.Action = ActionNoop
+			base.Reason = "Review generation already has pending work"
+			return base, nil
+		}
+		if !decisionPhase(state.Phase) {
+			base.Action = ActionNoop
+			base.Reason = "reconsider requires a completed Review decision"
+			return base, nil
 		}
 		if int(state.Budget.ReconsiderationsUsed) >=
 			input.Policy.MaxReconsiderationsPerHead {
-			return ReconcilePlan{}, errors.New(
-				"Review reconsideration budget exhausted",
-			)
+			base.Action = ActionNoop
+			base.Reason = "Review reconsideration budget exhausted"
+			return base, nil
 		}
 		budget := state.Budget
 		budget.ReconsiderationsUsed++
+		budget.InfrastructureRetriesUsed = 0
 		return scheduleInteraction(
 			input,
 			ActionReconsiderAndDispatch,
@@ -334,18 +691,28 @@ func reconcileCommand(input ReconcileInput) (ReconcilePlan, error) {
 			"explicit reconsideration: "+command.Payload,
 			state.EvidenceDigest,
 			budget,
+			state.PriorFindings,
 		)
 	case CommandRetry:
+		if state.InteractionRequest != "" ||
+			pullRequestHasWork(
+				input.Scheduler,
+				state.Generation.PullRequest,
+			) {
+			base.Action = ActionNoop
+			base.Reason = "Review generation already has pending work"
+			return base, nil
+		}
 		if state.Phase != contract.PhaseInconclusive {
-			return ReconcilePlan{}, errors.New(
-				"retry requires an inconclusive Review",
-			)
+			base.Action = ActionNoop
+			base.Reason = "retry requires an inconclusive Review"
+			return base, nil
 		}
 		if int(state.Budget.InfrastructureRetriesUsed) >=
 			input.Policy.MaxInfrastructureRetries {
-			return ReconcilePlan{}, errors.New(
-				"Review infrastructure retry budget exhausted",
-			)
+			base.Action = ActionNoop
+			base.Reason = "Review infrastructure retry budget exhausted"
+			return base, nil
 		}
 		budget := state.Budget
 		budget.InfrastructureRetriesUsed++
@@ -356,30 +723,33 @@ func reconcileCommand(input ReconcileInput) (ReconcilePlan, error) {
 			"maintainer retry",
 			state.EvidenceDigest,
 			budget,
+			state.PriorFindings,
 		)
 	case CommandCancel:
-		scheduler := input.Scheduler
-		for _, lease := range scheduler.Active {
-			if lease.Generation.PullRequest != state.Generation.PullRequest {
-				continue
-			}
-			var err error
-			scheduler, err = ReleaseLease(
-				scheduler,
-				lease.Generation,
-				lease.RunID,
+		if !pullRequestHasWork(
+			input.Scheduler,
+			state.Generation.PullRequest,
+		) {
+			base.Action = ActionNoop
+			base.Reason = "Review has no cancellable work"
+			return base, nil
+		}
+		scheduler, cancelRunID, nextPullRequest, err :=
+			removePullRequestWork(
+				input.Scheduler,
+				state.Generation.PullRequest,
 				input.Now,
+				input.Policy.Scheduler,
 			)
-			if err != nil {
-				return ReconcilePlan{}, err
-			}
-			base.CancelRunID = lease.RunID
-			break
+		if err != nil {
+			return ReconcilePlan{}, err
 		}
 		base.Action = ActionCancel
 		base.Reason = "maintainer canceled Review"
 		base.DesiredPhase = contract.PhaseCanceled
 		base.NextScheduler = scheduler
+		base.CancelRunID = cancelRunID
+		base.NextPullRequest = nextPullRequest
 		return base, nil
 	default:
 		return ReconcilePlan{}, errors.New("unsupported Review command plan")
@@ -393,6 +763,7 @@ func scheduleInteraction(
 	reason string,
 	reuseEvidence string,
 	budget contract.InteractionBudget,
+	priorFindings []contract.Finding,
 ) (ReconcilePlan, error) {
 	generation := generationFromFacts(
 		input.Facts,
@@ -415,7 +786,7 @@ func scheduleInteraction(
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
-	scheduler, lease, err := AcquireNext(
+	acquiredScheduler, lease, err := AcquireNext(
 		scheduler,
 		input.Signal.RunID,
 		input.Now,
@@ -424,27 +795,143 @@ func scheduleInteraction(
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
-	if lease == nil {
+	if lease == nil ||
+		contract.MustGenerationDigest(lease.Generation) !=
+			contract.MustGenerationDigest(generation) {
+		nextPullRequest := int64(0)
+		if lease != nil {
+			nextPullRequest = lease.Generation.PullRequest
+		}
+		scheduler, err = collapseSchedulerTransition(
+			input.Scheduler,
+			scheduler,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
 		return ReconcilePlan{
 			Action:              queueAction,
 			Reason:              reason,
 			Generation:          generation,
 			DesiredPhase:        contract.PhaseQueued,
 			NextScheduler:       scheduler,
+			NextPullRequest:     nextPullRequest,
 			ReuseEvidenceDigest: reuseEvidence,
 			NextBudget:          budget,
+			PriorFindings: append(
+				[]contract.Finding(nil),
+				priorFindings...,
+			),
 		}, nil
 	}
+	scheduler = acquiredScheduler
+	scheduler, err = collapseSchedulerTransition(
+		input.Scheduler,
+		scheduler,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
 	return ReconcilePlan{
-		Action:              dispatchAction,
-		Reason:              reason,
-		Generation:          generation,
-		DesiredPhase:        contract.PhaseReviewing,
-		NextScheduler:       scheduler,
-		Dispatch:            true,
+		Action:        dispatchAction,
+		Reason:        reason,
+		Generation:    generation,
+		DesiredPhase:  contract.PhaseReviewing,
+		NextScheduler: scheduler,
+		Dispatch:      true,
+		LeaseRunID:    lease.RunID,
+		DeadlineAt: lease.AcquiredAt.Add(
+			input.Policy.MaxGenerationDuration,
+		),
 		ReuseEvidenceDigest: reuseEvidence,
 		NextBudget:          budget,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			priorFindings...,
+		),
 	}, nil
+}
+
+func scheduleExplanation(
+	input ReconcileInput,
+	scheduler SchedulerState,
+	budget contract.InteractionBudget,
+) (ReconcilePlan, error) {
+	base := ReconcilePlan{
+		Action:              ActionExplain,
+		Reason:              input.State.Reason,
+		Generation:          input.State.Generation,
+		DesiredPhase:        input.State.Phase,
+		NextScheduler:       scheduler,
+		InteractionRequest:  input.State.InteractionRequest,
+		ReuseEvidenceDigest: input.State.EvidenceDigest,
+		ResultDigest:        input.State.ResultDigest,
+		DecisionSource:      input.State.DecisionSource,
+		NextBudget:          budget,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			input.State.PriorFindings...,
+		),
+	}
+	if input.Signal.Command != nil {
+		base.InteractionRequest = input.Signal.Command.Payload
+	}
+	queued, err := Enqueue(
+		scheduler,
+		QueueEntry{
+			Generation:        input.State.Generation,
+			FirstTimeExternal: firstTimeExternal(input.Facts.AuthorAssociation),
+			EnqueuedAt:        input.Now,
+		},
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	acquired, lease, err := AcquireNext(
+		queued,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	if lease == nil ||
+		contract.MustGenerationDigest(lease.Generation) !=
+			contract.MustGenerationDigest(input.State.Generation) {
+		base.NextScheduler, err = collapseSchedulerTransition(
+			scheduler,
+			queued,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
+		if lease != nil {
+			base.NextPullRequest = lease.Generation.PullRequest
+		}
+		return base, nil
+	}
+	base.NextScheduler, err = collapseSchedulerTransition(
+		scheduler,
+		acquired,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	base.Dispatch = true
+	base.DispatchExplanation = true
+	base.LeaseRunID = lease.RunID
+	base.DeadlineAt = lease.AcquiredAt.Add(input.Policy.MaxGenerationDuration)
+	return base, nil
 }
 
 func reconcileCompletion(input ReconcileInput) (ReconcilePlan, error) {
@@ -462,32 +949,767 @@ func reconcileCompletion(input ReconcileInput) (ReconcilePlan, error) {
 			NextScheduler: input.Scheduler,
 		}, nil
 	}
-	if !validCompletionDecision(completion.Decision) ||
-		!digestLike(completion.EvidenceDigest) ||
+	lease := activeLeaseForGeneration(input.Scheduler, completion.Generation)
+	if lease == nil || lease.RunID != input.Signal.RunID {
+		return ReconcilePlan{}, errors.New(
+			"completion lacks matching active Review lease",
+		)
+	}
+	if !input.Now.Before(generationDeadline(
+		input,
+		completion.Generation,
+		lease.AcquiredAt,
+	)) {
+		if completion.ExplanationDigest != "" &&
+			decisionPhase(input.State.Phase) {
+			return ReconcilePlan{}, errors.New(
+				"Review explanation completion exceeded its wall-time limit",
+			)
+		}
+		return completeInfrastructureFailure(
+			input,
+			*completion,
+			"Review generation exceeded its wall-time limit",
+		)
+	}
+	if completion.ExplanationDigest != "" {
+		return reconcileExplanationCompletion(input)
+	}
+	if completion.ExplanationReply != "" || completion.ResponseBytes != 0 {
+		return ReconcilePlan{}, errors.New("invalid Review completion")
+	}
+	if !validCompletionDecision(completion.Decision) {
+		return ReconcilePlan{}, errors.New("invalid Review completion")
+	}
+	if completion.InfrastructureFailure {
+		if completion.Decision != contract.DecisionInconclusive ||
+			completion.EvidenceDigest != "" ||
+			completion.ResultDigest != "" ||
+			len(completion.Findings) != 0 {
+			return ReconcilePlan{}, errors.New(
+				"invalid Review infrastructure completion",
+			)
+		}
+		if int(input.State.Budget.InfrastructureRetriesUsed) <
+			input.Policy.MaxInfrastructureRetries {
+			budget := input.State.Budget
+			budget.InfrastructureRetriesUsed++
+			return ReconcilePlan{
+				Action:        ActionRetryAndDispatch,
+				Reason:        "automatic infrastructure retry",
+				Generation:    completion.Generation,
+				DesiredPhase:  contract.PhaseReviewing,
+				NextScheduler: input.Scheduler,
+				Dispatch:      true,
+				LeaseRunID:    lease.RunID,
+				DeadlineAt: generationDeadline(
+					input,
+					completion.Generation,
+					lease.AcquiredAt,
+				),
+				NextBudget: budget,
+				PriorFindings: append(
+					[]contract.Finding(nil),
+					input.State.PriorFindings...,
+				),
+			}, nil
+		}
+		return completeInfrastructureFailure(
+			input,
+			*completion,
+			"Review infrastructure retry budget exhausted",
+		)
+	} else if !digestLike(completion.EvidenceDigest) ||
 		!digestLike(completion.ResultDigest) {
 		return ReconcilePlan{}, errors.New("invalid Review completion")
+	}
+	if len(completion.Findings) > contract.MaxFindings {
+		return ReconcilePlan{}, errors.New("too many Review completion findings")
+	}
+	for _, finding := range completion.Findings {
+		if err := contract.ValidateFinding(finding); err != nil {
+			return ReconcilePlan{}, err
+		}
 	}
 	scheduler, err := ReleaseLease(
 		input.Scheduler,
 		completion.Generation,
 		input.Signal.RunID,
 		input.Now,
+		input.Policy.Scheduler,
 	)
 	if err != nil {
 		return ReconcilePlan{}, err
 	}
 	return ReconcilePlan{
-		Action:         ActionComplete,
-		Reason:         "review completed",
-		Generation:     completion.Generation,
-		DesiredPhase:   phaseForDecision(completion.Decision),
-		NextScheduler:  scheduler,
+		Action:        ActionComplete,
+		Reason:        "review completed",
+		Generation:    completion.Generation,
+		DesiredPhase:  phaseForDecision(completion.Decision),
+		NextScheduler: scheduler,
+		NextPullRequest: nextEligiblePullRequest(
+			scheduler,
+			input.Signal.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		),
 		EvidenceDigest: completion.EvidenceDigest,
 		ResultDigest:   completion.ResultDigest,
+		DecisionSource: contract.DecisionSourceModel,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			completion.Findings...,
+		),
 	}, nil
 }
 
+func completeInfrastructureFailure(
+	input ReconcileInput,
+	completion Completion,
+	reason string,
+) (ReconcilePlan, error) {
+	scheduler, err := ReleaseLease(
+		input.Scheduler,
+		completion.Generation,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	return ReconcilePlan{
+		Action:        ActionComplete,
+		Reason:        reason,
+		Generation:    completion.Generation,
+		DesiredPhase:  contract.PhaseInconclusive,
+		NextScheduler: scheduler,
+		NextPullRequest: nextEligiblePullRequest(
+			scheduler,
+			input.Signal.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		),
+		NextBudget:     input.State.Budget,
+		DecisionSource: contract.DecisionSourceInfrastructure,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			input.State.PriorFindings...,
+		),
+	}, nil
+}
+
+func reconcileWorkerFailure(input ReconcileInput) (ReconcilePlan, error) {
+	if input.State == nil {
+		return currentStateNoop(input, "worker failure is no longer active"), nil
+	}
+	if input.Signal.WorkerAttempt <
+		input.State.Budget.InfrastructureRetriesUsed {
+		lease := activeLeaseForGeneration(
+			input.Scheduler,
+			input.State.Generation,
+		)
+		if input.State.Phase != contract.PhaseReviewing ||
+			lease == nil || lease.RunID != input.Signal.RunID {
+			return currentStateNoop(input, "stale worker failure"), nil
+		}
+		deadline := generationDeadline(
+			input,
+			input.State.Generation,
+			lease.AcquiredAt,
+		)
+		if !input.Now.Before(deadline) {
+			return completeInfrastructureFailure(
+				input,
+				Completion{Generation: input.State.Generation},
+				"Review generation exceeded its wall-time limit",
+			)
+		}
+		return ReconcilePlan{
+			Action:        ActionNoop,
+			Reason:        "persisted infrastructure retry still requires dispatch",
+			Generation:    input.State.Generation,
+			DesiredPhase:  input.State.Phase,
+			NextScheduler: input.Scheduler,
+			Dispatch:      true,
+			LeaseRunID:    lease.RunID,
+			DeadlineAt:    deadline,
+		}, nil
+	}
+	if input.Signal.WorkerAttempt >
+		input.State.Budget.InfrastructureRetriesUsed {
+		return currentStateNoop(input, "invalid worker failure attempt"), nil
+	}
+	lease := activeLeaseForGeneration(
+		input.Scheduler,
+		input.State.Generation,
+	)
+	if lease == nil || lease.RunID != input.Signal.RunID {
+		if decisionPhase(input.State.Phase) {
+			if input.State.InteractionRequest != "" {
+				return recoverReleasedExplanation(input, input.Scheduler)
+			}
+			plan := currentStateNoop(
+				input,
+				"repair projection after worker failure",
+			)
+			plan.Action = ActionRepairProjection
+			plan.NextPullRequest = nextEligiblePullRequest(
+				input.Scheduler,
+				input.Signal.RunID,
+				input.Now,
+				input.Policy.Scheduler,
+			)
+			return plan, nil
+		}
+		if input.State.Phase == contract.PhaseReviewing && lease == nil {
+			return recoverReleasedWorker(input)
+		}
+		return currentStateNoop(input, "stale worker failure"), nil
+	}
+	if decisionPhase(input.State.Phase) {
+		scheduler, err := ReleaseLease(
+			input.Scheduler,
+			input.State.Generation,
+			lease.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
+		if input.State.InteractionRequest != "" {
+			return recoverReleasedExplanation(input, scheduler)
+		}
+		plan := currentStateNoop(
+			input,
+			"repair terminal projection after worker failure",
+		)
+		plan.Action = ActionRepairProjection
+		plan.NextScheduler = scheduler
+		plan.NextPullRequest = nextEligiblePullRequest(
+			scheduler,
+			input.Signal.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		return plan, nil
+	}
+	if input.State.Phase != contract.PhaseReviewing {
+		return currentStateNoop(input, "worker failure is no longer active"), nil
+	}
+	failure := input
+	failure.Signal.Kind = SignalCompletion
+	failure.Signal.Completion = &Completion{
+		Generation:            input.State.Generation,
+		Decision:              contract.DecisionInconclusive,
+		InfrastructureFailure: true,
+	}
+	return reconcileCompletion(failure)
+}
+
+func recoverReleasedExplanation(
+	input ReconcileInput,
+	scheduler SchedulerState,
+) (ReconcilePlan, error) {
+	base := ReconcilePlan{
+		Reason:              "recover failed Review explanation",
+		Generation:          input.State.Generation,
+		DesiredPhase:        input.State.Phase,
+		NextScheduler:       scheduler,
+		InteractionRequest:  input.State.InteractionRequest,
+		ReuseEvidenceDigest: input.State.EvidenceDigest,
+		ResultDigest:        input.State.ResultDigest,
+		DecisionSource:      input.State.DecisionSource,
+		NextBudget:          input.State.Budget,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			input.State.PriorFindings...,
+		),
+	}
+	deadline := generationDeadline(
+		input,
+		input.State.Generation,
+		input.Now,
+	)
+	if !input.Now.Before(deadline) {
+		return completeFailedExplanation(
+			input,
+			scheduler,
+			base,
+			"Review Agent could not produce a trustworthy explanation before its signed wall-time limit.",
+		)
+	}
+	if int(base.NextBudget.InfrastructureRetriesUsed) >=
+		input.Policy.MaxInfrastructureRetries {
+		return completeFailedExplanation(
+			input,
+			scheduler,
+			base,
+			"Review Agent could not produce a trustworthy explanation because its infrastructure retry budget was exhausted.",
+		)
+	}
+	base.DeadlineAt = deadline
+	base.NextBudget.InfrastructureRetriesUsed++
+	queued, err := Enqueue(
+		scheduler,
+		QueueEntry{
+			Generation:        input.State.Generation,
+			FirstTimeExternal: firstTimeExternal(input.Facts.AuthorAssociation),
+			EnqueuedAt:        input.Now,
+		},
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	acquired, lease, err := AcquireNext(
+		queued,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	if lease == nil ||
+		contract.MustGenerationDigest(lease.Generation) !=
+			contract.MustGenerationDigest(input.State.Generation) {
+		base.Action = ActionRetryAndEnqueue
+		base.NextScheduler, err = collapseSchedulerTransition(
+			scheduler,
+			queued,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
+		if lease != nil {
+			base.NextPullRequest = lease.Generation.PullRequest
+		}
+		return base, nil
+	}
+	base.Action = ActionRetryAndDispatch
+	base.NextScheduler, err = collapseSchedulerTransition(
+		scheduler,
+		acquired,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	base.Dispatch = true
+	base.DispatchExplanation = true
+	base.LeaseRunID = lease.RunID
+	return base, nil
+}
+
+func completeFailedExplanation(
+	input ReconcileInput,
+	scheduler SchedulerState,
+	base ReconcilePlan,
+	reply string,
+) (ReconcilePlan, error) {
+	base.Action = ActionCompleteExplanation
+	base.Reason = input.State.Reason
+	base.InteractionRequest = ""
+	base.ExplanationDigest = input.State.ExplanationDigest
+	base.ExplanationReply = input.State.ExplanationReply
+	if base.NextBudget.ResponseBytesUsed+uint64(len([]byte(reply))) <=
+		uint64(input.Policy.MaxExplanationResponseBytes) {
+		explanation := contract.ExplanationResult{
+			SchemaVersion: 1,
+			Generation:    input.State.Generation,
+			Reply:         reply,
+		}
+		digest, err := contract.ExplanationResultDigest(explanation)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
+		base.ExplanationDigest = digest
+		base.ExplanationReply = reply
+		base.NextBudget.ResponseBytesUsed += uint64(len([]byte(reply)))
+	}
+	base.NextPullRequest = nextEligiblePullRequest(
+		scheduler,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	return base, nil
+}
+
+func recoverReleasedWorker(input ReconcileInput) (ReconcilePlan, error) {
+	deadline := generationDeadline(
+		input,
+		input.State.Generation,
+		input.Now,
+	)
+	if !input.Now.Before(deadline) {
+		return ReconcilePlan{
+			Action:         ActionComplete,
+			Reason:         "Review generation exceeded its wall-time limit",
+			Generation:     input.State.Generation,
+			DesiredPhase:   contract.PhaseInconclusive,
+			NextScheduler:  input.Scheduler,
+			NextBudget:     input.State.Budget,
+			DecisionSource: contract.DecisionSourceInfrastructure,
+			PriorFindings: append(
+				[]contract.Finding(nil),
+				input.State.PriorFindings...,
+			),
+			NextPullRequest: nextEligiblePullRequest(
+				input.Scheduler,
+				input.Signal.RunID,
+				input.Now,
+				input.Policy.Scheduler,
+			),
+		}, nil
+	}
+	if int(input.State.Budget.InfrastructureRetriesUsed) >=
+		input.Policy.MaxInfrastructureRetries {
+		return ReconcilePlan{
+			Action:         ActionComplete,
+			Reason:         "Review infrastructure retry budget exhausted",
+			Generation:     input.State.Generation,
+			DesiredPhase:   contract.PhaseInconclusive,
+			NextScheduler:  input.Scheduler,
+			NextBudget:     input.State.Budget,
+			DecisionSource: contract.DecisionSourceInfrastructure,
+			PriorFindings: append(
+				[]contract.Finding(nil),
+				input.State.PriorFindings...,
+			),
+			NextPullRequest: nextEligiblePullRequest(
+				input.Scheduler,
+				input.Signal.RunID,
+				input.Now,
+				input.Policy.Scheduler,
+			),
+		}, nil
+	}
+	budget := input.State.Budget
+	budget.InfrastructureRetriesUsed++
+	scheduler, err := Enqueue(
+		input.Scheduler,
+		QueueEntry{
+			Generation: input.State.Generation,
+			FirstTimeExternal: firstTimeExternal(
+				input.Facts.AuthorAssociation,
+			),
+			EnqueuedAt: input.Now,
+		},
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	acquired, lease, err := AcquireNext(
+		scheduler,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	if lease == nil ||
+		contract.MustGenerationDigest(lease.Generation) !=
+			contract.MustGenerationDigest(input.State.Generation) {
+		nextPullRequest := int64(0)
+		if lease != nil {
+			nextPullRequest = lease.Generation.PullRequest
+		}
+		scheduler, err = collapseSchedulerTransition(
+			input.Scheduler,
+			scheduler,
+			input.Now,
+			input.Policy.Scheduler,
+		)
+		if err != nil {
+			return ReconcilePlan{}, err
+		}
+		return ReconcilePlan{
+			Action:          ActionRetryAndEnqueue,
+			Reason:          "recover released failed worker",
+			Generation:      input.State.Generation,
+			DesiredPhase:    contract.PhaseQueued,
+			NextScheduler:   scheduler,
+			NextPullRequest: nextPullRequest,
+			NextBudget:      budget,
+			PriorFindings: append(
+				[]contract.Finding(nil),
+				input.State.PriorFindings...,
+			),
+		}, nil
+	}
+	acquired, err = collapseSchedulerTransition(
+		input.Scheduler,
+		acquired,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	return ReconcilePlan{
+		Action:        ActionRetryAndDispatch,
+		Reason:        "recover released failed worker",
+		Generation:    input.State.Generation,
+		DesiredPhase:  contract.PhaseReviewing,
+		NextScheduler: acquired,
+		Dispatch:      true,
+		LeaseRunID:    lease.RunID,
+		DeadlineAt:    deadline,
+		NextBudget:    budget,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			input.State.PriorFindings...,
+		),
+	}, nil
+}
+
+func generationDeadline(
+	input ReconcileInput,
+	generation contract.GenerationIdentity,
+	fallback time.Time,
+) time.Time {
+	if input.State != nil &&
+		contract.MustGenerationDigest(input.State.Generation) ==
+			contract.MustGenerationDigest(generation) &&
+		!input.State.SessionDeadlineAt.IsZero() {
+		return input.State.SessionDeadlineAt
+	}
+	return fallback.Add(input.Policy.MaxGenerationDuration)
+}
+
+func expireRecoveredLease(
+	input ReconcileInput,
+	scheduler SchedulerState,
+	generation contract.GenerationIdentity,
+	lease Lease,
+	cancelRunID int64,
+	priorFindings []contract.Finding,
+	budget contract.InteractionBudget,
+) (ReconcilePlan, error) {
+	released, err := ReleaseLease(
+		scheduler,
+		generation,
+		lease.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	if cancelRunID == 0 {
+		cancelRunID = lease.RunID
+	}
+	return ReconcilePlan{
+		Action:         ActionRecordInconclusive,
+		Reason:         "recovered Review generation exceeded its wall-time limit",
+		Generation:     generation,
+		DesiredPhase:   contract.PhaseInconclusive,
+		NextScheduler:  released,
+		CancelRunID:    cancelRunID,
+		DecisionSource: contract.DecisionSourceInfrastructure,
+		NextBudget:     budget,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			priorFindings...,
+		),
+		NextPullRequest: nextEligiblePullRequest(
+			released,
+			input.Signal.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		),
+	}, nil
+}
+
+func currentStateNoop(input ReconcileInput, reason string) ReconcilePlan {
+	plan := ReconcilePlan{
+		Action:        ActionNoop,
+		Reason:        reason,
+		NextScheduler: input.Scheduler,
+	}
+	if input.State != nil {
+		plan.Generation = input.State.Generation
+		plan.DesiredPhase = input.State.Phase
+	}
+	return plan
+}
+
+func reconcileExplanationCompletion(
+	input ReconcileInput,
+) (ReconcilePlan, error) {
+	completion := input.Signal.Completion
+	state := input.State
+	explanation := contract.ExplanationResult{
+		SchemaVersion: 1,
+		Generation:    completion.Generation,
+		Reply:         completion.ExplanationReply,
+	}
+	explanationDigest, explanationErr :=
+		contract.ExplanationResultDigest(explanation)
+	if !decisionPhase(state.Phase) ||
+		!digestLike(completion.ExplanationDigest) ||
+		explanationErr != nil ||
+		explanationDigest != completion.ExplanationDigest ||
+		completion.ResponseBytes == 0 ||
+		completion.ResponseBytes != uint64(len([]byte(
+			completion.ExplanationReply,
+		))) ||
+		completion.ResponseBytes >
+			uint64(input.Policy.MaxExplanationResponseBytes) ||
+		state.Budget.ResponseBytesUsed+completion.ResponseBytes >
+			uint64(input.Policy.MaxExplanationResponseBytes) ||
+		completion.Decision != "" ||
+		completion.EvidenceDigest != "" ||
+		completion.ResultDigest != "" ||
+		len(completion.Findings) != 0 ||
+		completion.InfrastructureFailure {
+		return ReconcilePlan{}, errors.New(
+			"invalid Review explanation completion",
+		)
+	}
+	scheduler, err := ReleaseLease(
+		input.Scheduler,
+		completion.Generation,
+		input.Signal.RunID,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	budget := state.Budget
+	budget.ResponseBytesUsed += completion.ResponseBytes
+	return ReconcilePlan{
+		Action:        ActionCompleteExplanation,
+		Reason:        state.Reason,
+		Generation:    state.Generation,
+		DesiredPhase:  state.Phase,
+		NextScheduler: scheduler,
+		NextPullRequest: nextEligiblePullRequest(
+			scheduler,
+			input.Signal.RunID,
+			input.Now,
+			input.Policy.Scheduler,
+		),
+		ReuseEvidenceDigest: state.EvidenceDigest,
+		ResultDigest:        state.ResultDigest,
+		ExplanationDigest:   completion.ExplanationDigest,
+		ExplanationReply:    completion.ExplanationReply,
+		NextBudget:          budget,
+	}, nil
+}
+
+func activeLeaseForGeneration(
+	scheduler SchedulerState,
+	generation contract.GenerationIdentity,
+) *Lease {
+	digest := contract.MustGenerationDigest(generation)
+	for index := range scheduler.Active {
+		if contract.MustGenerationDigest(
+			scheduler.Active[index].Generation,
+		) == digest {
+			lease := scheduler.Active[index]
+			return &lease
+		}
+	}
+	return nil
+}
+
+func nextEligiblePullRequest(
+	scheduler SchedulerState,
+	runID int64,
+	now time.Time,
+	limits SchedulerLimits,
+) int64 {
+	_, lease, err := AcquireNext(scheduler, runID, now, limits)
+	if err != nil || lease == nil {
+		return 0
+	}
+	return lease.Generation.PullRequest
+}
+
+func removePullRequestWork(
+	scheduler SchedulerState,
+	pullRequest int64,
+	now time.Time,
+	limits SchedulerLimits,
+) (SchedulerState, int64, int64, error) {
+	candidate := scheduler
+	candidate.Queue = removeQueuedPR(candidate.Queue, pullRequest)
+	candidate.Active = append([]Lease(nil), scheduler.Active...)
+	cancelRunID := int64(0)
+	for index := range candidate.Active {
+		if candidate.Active[index].Generation.PullRequest != pullRequest {
+			continue
+		}
+		cancelRunID = candidate.Active[index].RunID
+		candidate.Active = append(
+			candidate.Active[:index],
+			candidate.Active[index+1:]...,
+		)
+		break
+	}
+	if len(candidate.Queue) != len(scheduler.Queue) ||
+		len(candidate.Active) != len(scheduler.Active) {
+		var err error
+		candidate, err = collapseSchedulerTransition(
+			scheduler,
+			func() SchedulerState {
+				changed := candidate
+				changed.Sequence = scheduler.Sequence + 1
+				return changed
+			}(),
+			now,
+			limits,
+		)
+		if err != nil {
+			return SchedulerState{}, 0, 0, err
+		}
+	}
+	return candidate, cancelRunID, nextEligiblePullRequest(
+		candidate,
+		1,
+		now,
+		limits,
+	), nil
+}
+
+// collapseSchedulerTransition makes a composed in-memory scheduling decision
+// one append-only successor of the last persisted scheduler state.
+func collapseSchedulerTransition(
+	previous SchedulerState,
+	candidate SchedulerState,
+	now time.Time,
+	limits SchedulerLimits,
+) (SchedulerState, error) {
+	if previous.Sequence == candidate.Sequence {
+		return candidate, nil
+	}
+	previousDigest, err := SchedulerStateDigest(previous, limits)
+	if err != nil {
+		return SchedulerState{}, err
+	}
+	candidate.Sequence = previous.Sequence + 1
+	candidate.PreviousStateDigest = previousDigest
+	candidate.UpdatedAt = now
+	if err := ValidateSchedulerState(candidate, limits); err != nil {
+		return SchedulerState{}, err
+	}
+	return candidate, nil
+}
+
 func ineligibleReason(facts PullRequestFacts, policy Policy) string {
+	if facts.ContextFailureReason != "" {
+		return facts.ContextFailureReason
+	}
 	if !supportedBase(policy, facts.BaseRef) {
 		return "unsupported base branch"
 	}
@@ -514,6 +1736,48 @@ func ineligibleReason(facts PullRequestFacts, policy Policy) string {
 	return ""
 }
 
+func reconcileWithoutReviewSession(
+	input ReconcileInput,
+	generation contract.GenerationIdentity,
+	sameGeneration bool,
+	action PlanAction,
+	phase contract.Phase,
+	source contract.DecisionSource,
+	reason string,
+) (ReconcilePlan, error) {
+	scheduler, cancelRunID, nextPullRequest, err := removePullRequestWork(
+		input.Scheduler,
+		input.Facts.PullRequest,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	if sameGeneration && input.State.Phase == phase {
+		action = ActionNoop
+	}
+	return ReconcilePlan{
+		Action:          action,
+		Reason:          reason,
+		Generation:      generation,
+		DesiredPhase:    phase,
+		NextScheduler:   scheduler,
+		NextPullRequest: nextPullRequest,
+		CancelRunID:     cancelRunID,
+		DecisionSource:  source,
+		PriorFindings: func() []contract.Finding {
+			if input.State == nil {
+				return nil
+			}
+			return append(
+				[]contract.Finding(nil),
+				input.State.PriorFindings...,
+			)
+		}(),
+	}, nil
+}
+
 func sameGenerationFacts(
 	generation contract.GenerationIdentity,
 	facts PullRequestFacts,
@@ -522,8 +1786,10 @@ func sameGenerationFacts(
 		generation.PullRequest == facts.PullRequest &&
 		generation.HeadSHA == facts.HeadSHA &&
 		generation.BaseSHA == facts.BaseSHA &&
-		generation.TestMergeSHA == facts.TestMergeSHA &&
-		generation.IntentDigest == facts.IntentDigest
+		generation.TestMergeSHA ==
+			NormalizeTestMergeSHA(facts.TestMergeSHA) &&
+		generation.IntentDigest == facts.IntentDigest &&
+		generation.StateParentSHA == facts.StateParentSHA
 }
 
 func exactCodeCoordinates(
@@ -532,7 +1798,8 @@ func exactCodeCoordinates(
 ) bool {
 	return generation.HeadSHA == facts.HeadSHA &&
 		generation.BaseSHA == facts.BaseSHA &&
-		generation.TestMergeSHA == facts.TestMergeSHA
+		generation.TestMergeSHA ==
+			NormalizeTestMergeSHA(facts.TestMergeSHA)
 }
 
 func removeQueuedPR(queue []QueueEntry, pullRequest int64) []QueueEntry {
@@ -543,6 +1810,20 @@ func removeQueuedPR(queue []QueueEntry, pullRequest int64) []QueueEntry {
 		}
 	}
 	return result
+}
+
+func pullRequestHasWork(state SchedulerState, pullRequest int64) bool {
+	for _, lease := range state.Active {
+		if lease.Generation.PullRequest == pullRequest {
+			return true
+		}
+	}
+	for _, entry := range state.Queue {
+		if entry.Generation.PullRequest == pullRequest {
+			return true
+		}
+	}
+	return false
 }
 
 func validCompletionDecision(decision contract.Decision) bool {

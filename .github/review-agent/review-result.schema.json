@@ -31,7 +31,7 @@
         },
         "intent_digest": {
           "type": "string",
-          "pattern": "^(|sha256:[0-9a-f]{64})$"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "generation": {
           "type": "integer",
@@ -65,21 +65,23 @@
     },
     "summary": {
       "type": "string",
-      "maxLength": 4096
+      "minLength": 1,
+      "maxLength": 2048
     },
     "inventory_complete": {
       "type": "boolean"
     },
     "file_assessments": {
       "type": [
-        "null",
         "array"
       ],
       "items": {
         "type": "object",
         "properties": {
           "path": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
           },
           "risk": {
             "type": "string",
@@ -91,7 +93,8 @@
           },
           "summary": {
             "type": "string",
-            "maxLength": 4096
+            "minLength": 1,
+            "maxLength": 2048
           }
         },
         "required": [
@@ -101,7 +104,8 @@
         ],
         "additionalProperties": false
       },
-      "maxItems": 5000
+      "minItems": 1,
+      "maxItems": 50
     },
     "findings": {
       "type": [
@@ -128,10 +132,14 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
           },
           "line_start": {
             "type": "integer",
@@ -142,22 +150,32 @@
             "minimum": 0
           },
           "scenario": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
           },
           "impact": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
           },
           "evidence": {
             "type": [
-              "null",
               "array"
             ],
             "items": {
-              "type": "string"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true
           },
           "resolution": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
           }
         },
         "required": [
@@ -174,7 +192,41 @@
         ],
         "additionalProperties": false
       },
-      "maxItems": 100
+      "maxItems": 8
+    },
+    "prior_finding_dispositions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "retained",
+              "withdrawn"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "finding_digest",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
     },
     "sources": {
       "type": [
@@ -182,11 +234,16 @@
         "array"
       ],
       "items": {
-        "type": "string"
-      }
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048
+      },
+      "maxItems": 256,
+      "uniqueItems": true
     },
     "unresolved_uncertainty": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 2048
     }
   },
   "$id": "https://wukongim.github.io/schemas/review-agent/review-result-v1.json",
@@ -200,6 +257,7 @@
     "inventory_complete",
     "file_assessments",
     "findings",
+    "prior_finding_dispositions",
     "sources",
     "unresolved_uncertainty"
   ],

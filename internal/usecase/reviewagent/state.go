@@ -27,15 +27,25 @@ func BuildNextState(
 		return contract.ReviewState{}, errors.New("Review state reason is required")
 	}
 	next := contract.ReviewState{
-		SchemaVersion:  1,
-		Generation:     plan.Generation,
-		Sequence:       1,
-		Phase:          plan.DesiredPhase,
-		Reason:         plan.Reason,
-		EvidenceDigest: plan.EvidenceDigest,
-		ResultDigest:   plan.ResultDigest,
-		Budget:         plan.NextBudget,
-		UpdatedAt:      now,
+		SchemaVersion:      1,
+		Generation:         plan.Generation,
+		Sequence:           1,
+		Phase:              plan.DesiredPhase,
+		DecisionSource:     plan.DecisionSource,
+		Reason:             plan.Reason,
+		InteractionRequest: plan.InteractionRequest,
+		EvidenceDigest:     plan.EvidenceDigest,
+		ResultDigest:       plan.ResultDigest,
+		ExplanationDigest:  plan.ExplanationDigest,
+		ExplanationReply:   plan.ExplanationReply,
+		PriorFindings: append(
+			[]contract.Finding(nil),
+			plan.PriorFindings...,
+		),
+		Budget:            plan.NextBudget,
+		StartedAt:         now,
+		SessionDeadlineAt: plan.DeadlineAt,
+		UpdatedAt:         now,
 	}
 	if next.EvidenceDigest == "" {
 		next.EvidenceDigest = plan.ReuseEvidenceDigest
@@ -63,8 +73,31 @@ func BuildNextState(
 			next.Budget = previous.Budget
 		}
 		if contract.MustGenerationDigest(next.Generation) ==
+			contract.MustGenerationDigest(previous.Generation) &&
+			len(plan.PriorFindings) == 0 &&
+			(plan.DesiredPhase == contract.PhaseReviewing ||
+				plan.Action == ActionCompleteExplanation ||
+				plan.Action == ActionExplain) {
+			next.PriorFindings = append(
+				[]contract.Finding(nil),
+				previous.PriorFindings...,
+			)
+		}
+		if plan.Action == ActionCompleteExplanation ||
+			plan.Action == ActionExplain {
+			next.DecisionSource = previous.DecisionSource
+		}
+		if plan.Action == ActionExplain &&
+			next.ExplanationDigest == "" {
+			next.ExplanationDigest = previous.ExplanationDigest
+			next.ExplanationReply = previous.ExplanationReply
+		}
+		if contract.MustGenerationDigest(next.Generation) ==
 			contract.MustGenerationDigest(previous.Generation) {
-			next.Projection = previous.Projection
+			next.StartedAt = previous.StartedAt
+			if next.SessionDeadlineAt.IsZero() {
+				next.SessionDeadlineAt = previous.SessionDeadlineAt
+			}
 		}
 	}
 	if err := contract.ValidateReviewState(next); err != nil {
@@ -87,24 +120,30 @@ func legalTransition(
 		case contract.PhaseAwaitingReady:
 			return next.Phase == contract.PhaseQueued ||
 				next.Phase == contract.PhaseReviewing ||
+				next.Phase == contract.PhaseInconclusive ||
 				next.Phase == contract.PhaseClosed
 		case contract.PhaseQueued:
 			return next.Phase == contract.PhaseReviewing ||
+				next.Phase == contract.PhaseAwaitingReady ||
 				next.Phase == contract.PhaseCanceled ||
 				next.Phase == contract.PhaseSuperseded ||
 				next.Phase == contract.PhaseClosed
 		case contract.PhaseReviewing:
 			return decisionPhase(next.Phase) ||
+				next.Phase == contract.PhaseQueued ||
+				next.Phase == contract.PhaseAwaitingReady ||
 				next.Phase == contract.PhaseCanceled ||
 				next.Phase == contract.PhaseSuperseded ||
 				next.Phase == contract.PhaseClosed
 		case contract.PhaseApproved,
 			contract.PhaseChangesRequired,
 			contract.PhaseInconclusive:
-			return next.Phase == contract.PhaseClosed
+			return next.Phase == contract.PhaseAwaitingReady ||
+				next.Phase == contract.PhaseClosed
 		case contract.PhaseCanceled,
 			contract.PhaseSuperseded:
-			return next.Phase == contract.PhaseClosed
+			return next.Phase == contract.PhaseAwaitingReady ||
+				next.Phase == contract.PhaseClosed
 		default:
 			return false
 		}
@@ -118,6 +157,7 @@ func legalTransition(
 	case contract.PhaseAwaitingReady,
 		contract.PhaseQueued,
 		contract.PhaseReviewing,
+		contract.PhaseChangesRequired,
 		contract.PhaseInconclusive,
 		contract.PhaseClosed:
 		return true

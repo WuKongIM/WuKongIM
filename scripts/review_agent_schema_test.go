@@ -15,8 +15,6 @@ import (
 )
 
 func TestReviewAgentPolicy(t *testing.T) {
-	t.Parallel()
-
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "review-agent", "policy.json",
 	))
@@ -47,6 +45,17 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Equal(t, reviewagent.MaxInlineComments, policy.Limits.MaxInlineComments)
 	require.Equal(t, reviewagent.MaxFindings, policy.Limits.MaxFindings)
 	require.Equal(t, reviewagent.MaxChangedFiles, policy.Limits.MaxChangedFiles)
+	require.Equal(t, 240000, policy.Limits.MaxContextTokens)
+	require.Equal(t, 216000, policy.Limits.AutoCompactTokens)
+	require.Equal(t, 3600, policy.Limits.MaxCPUSecondsPerProcess)
+	require.Equal(t, int64(8589934592), policy.Limits.MaxMemoryBytesPerProcess)
+	require.Equal(t, 512, policy.Limits.MaxProcessesPerCommand)
+	require.Equal(t, 128, policy.Limits.MaxConnectionsPerAddressFamily)
+	require.Equal(
+		t,
+		int64(2147483648),
+		policy.Limits.MaxNetworkBytesPerAddressFamily,
+	)
 
 	require.Equal(t, "review-agent-model", policy.Environments.Model)
 	require.Equal(
@@ -94,6 +103,13 @@ func TestReviewAgentPolicy(t *testing.T) {
 		require.Regexp(t, `^[a-z0-9][a-z0-9_-]{0,63}$`, name)
 		require.NotEmpty(t, check.Arguments)
 		require.Positive(t, check.TimeoutSeconds)
+		require.LessOrEqual(
+			t,
+			check.TimeoutSeconds,
+			1800,
+			"trusted check %q must fit the reviewer time slice",
+			name,
+		)
 		require.Positive(t, check.MaxOutputBytes)
 	}
 	require.NotEmpty(t, policy.PathRules)
@@ -154,6 +170,16 @@ func TestReviewAgentSchemas(t *testing.T) {
 			schema: func(t *testing.T) *jsonschema.Schema {
 				t.Helper()
 				return reviewAgentSchemaFor[reviewagent.ReviewResult](t)
+			},
+		},
+		{
+			name:     "explanation result",
+			filename: "explanation-result.schema.json",
+			id: "https://wukongim.github.io/schemas/" +
+				"review-agent/explanation-result-v1.json",
+			schema: func(t *testing.T) *jsonschema.Schema {
+				t.Helper()
+				return reviewAgentSchemaFor[reviewagent.ExplanationResult](t)
 			},
 		},
 		{
@@ -227,8 +253,14 @@ func hardenReviewAgentSchema(schema *jsonschema.Schema) {
 				"changes_required", "inconclusive", "canceled",
 				"superseded", "closed",
 			)
+		case "decision_source":
+			property.Enum = stringValues(
+				"", "model", "merge_conflict", "policy", "infrastructure",
+			)
 		case "kind":
 			property.Enum = stringValues("blocking", "advisory")
+		case "status":
+			property.Enum = stringValues("retained", "withdrawn")
 		case "dimension":
 			property.Enum = stringValues(
 				"intent_correctness", "regression_tests",
@@ -238,13 +270,54 @@ func hardenReviewAgentSchema(schema *jsonschema.Schema) {
 			property.Enum = stringValues("low", "medium", "high")
 		case "summary":
 			setMaxLength(property, reviewagent.MaxSummaryBytes)
-		case "findings":
+			setMinLength(property, 1)
+		case "reply":
+			setMaxLength(property, reviewagent.MaxExplanationReplyBytes)
+			setMinLength(property, 1)
+		case "explanation_reply":
+			setMaxLength(property, reviewagent.MaxExplanationReplyBytes)
+		case "findings", "prior_findings":
+			setMaximumItems(property, reviewagent.MaxFindings)
+		case "prior_finding_dispositions":
 			setMaximumItems(property, reviewagent.MaxFindings)
 		case "file_assessments":
+			property.Types = []string{"array"}
 			setMaximumItems(property, reviewagent.MaxFileAssessments)
+			setMinimumItems(property, 1)
+		case "title":
+			setMaxLength(property, reviewagent.MaxFindingTitleBytes)
+			setMinLength(property, 1)
+		case "path":
+			setMaxLength(property, reviewagent.MaxResultPathBytes)
+			setMinLength(property, 1)
+		case "scenario", "impact", "resolution":
+			setMaxLength(property, reviewagent.MaxFindingDetailBytes)
+			setMinLength(property, 1)
+		case "reason":
+			setMaxLength(property, reviewagent.MaxSummaryBytes)
+			setMinLength(property, 1)
+		case "evidence":
+			property.Types = []string{"array"}
+			setMaximumItems(property, reviewagent.MaxFindingEvidence)
+			setMinimumItems(property, 1)
+			property.UniqueItems = true
+			setMaxLength(property.Items, reviewagent.MaxFindingEvidenceBytes)
+			setMinLength(property.Items, 1)
+		case "sources":
+			setMaximumItems(property, reviewagent.MaxSources)
+			property.UniqueItems = true
+			setMaxLength(property.Items, reviewagent.MaxSourceBytes)
+			setMinLength(property.Items, 1)
+		case "unresolved_uncertainty":
+			setMaxLength(property, reviewagent.MaxSummaryBytes)
+		case "interaction_request":
+			setMaxLength(property, 4096)
 		}
 		if strings.HasSuffix(name, "_digest") {
 			property.Pattern = `^(|sha256:[0-9a-f]{64})$`
+		}
+		if name == "intent_digest" || name == "finding_digest" {
+			property.Pattern = `^sha256:[0-9a-f]{64}$`
 		}
 		if strings.HasSuffix(name, "_sha") {
 			property.Pattern = `^[0-9a-f]{40}$`
@@ -270,6 +343,14 @@ func setMaximumItems(schema *jsonschema.Schema, value int) {
 	schema.MaxItems = &value
 }
 
+func setMinimumItems(schema *jsonschema.Schema, value int) {
+	schema.MinItems = &value
+}
+
+func setMinLength(schema *jsonschema.Schema, value int) {
+	schema.MinLength = &value
+}
+
 type reviewAgentPolicy struct {
 	SchemaVersion         int                         `json:"schema_version"`
 	SupportedBaseBranches []string                    `json:"supported_base_branches"`
@@ -281,11 +362,17 @@ type reviewAgentPolicy struct {
 	Environments          reviewAgentEnvironments     `json:"environments"`
 	Apps                  reviewAgentApps             `json:"apps"`
 	State                 reviewAgentStatePolicy      `json:"state"`
+	Governance            reviewAgentGovernance       `json:"governance"`
 	Network               reviewAgentNetwork          `json:"network"`
 	Credentials           reviewAgentCredentials      `json:"credentials"`
 	ControlPlanePaths     []string                    `json:"control_plane_paths"`
 	TrustedChecks         map[string]reviewAgentCheck `json:"trusted_checks"`
 	PathRules             []reviewAgentPathRule       `json:"path_rules"`
+}
+
+type reviewAgentGovernance struct {
+	OwnerTeam   string   `json:"owner_team"`
+	OwnerLogins []string `json:"owner_logins"`
 }
 
 type reviewAgentReviewer struct {
@@ -316,20 +403,20 @@ type reviewAgentInteraction struct {
 }
 
 type reviewAgentLimits struct {
-	MaxChangedFiles       int   `json:"max_changed_files"`
-	MaxChangedBytes       int   `json:"max_changed_bytes"`
-	MaxChangedLines       int   `json:"max_changed_lines"`
-	MaxContextBytes       int   `json:"max_context_bytes"`
-	MaxModelResponseBytes int   `json:"max_model_response_bytes"`
-	MaxInputTokens        int   `json:"max_input_tokens"`
-	MaxOutputTokens       int   `json:"max_output_tokens"`
-	MaxCostUSDCents       int   `json:"max_cost_usd_cents"`
-	MaxProcesses          int   `json:"max_processes"`
-	MaxConnections        int   `json:"max_connections"`
-	MaxNetworkBytes       int64 `json:"max_network_bytes"`
-	MaxArtifactBytes      int64 `json:"max_artifact_bytes"`
-	MaxFindings           int   `json:"max_findings"`
-	MaxInlineComments     int   `json:"max_inline_comments"`
+	MaxChangedFiles                 int   `json:"max_changed_files"`
+	MaxChangedBytes                 int   `json:"max_changed_bytes"`
+	MaxChangedLines                 int   `json:"max_changed_lines"`
+	MaxContextBytes                 int   `json:"max_context_bytes"`
+	MaxModelResponseBytes           int   `json:"max_model_response_bytes"`
+	MaxContextTokens                int   `json:"max_context_tokens"`
+	AutoCompactTokens               int   `json:"auto_compact_tokens"`
+	MaxCPUSecondsPerProcess         int   `json:"max_cpu_seconds_per_process"`
+	MaxMemoryBytesPerProcess        int64 `json:"max_memory_bytes_per_process"`
+	MaxProcessesPerCommand          int   `json:"max_processes_per_command"`
+	MaxConnectionsPerAddressFamily  int   `json:"max_connections_per_address_family"`
+	MaxNetworkBytesPerAddressFamily int64 `json:"max_network_bytes_per_address_family"`
+	MaxFindings                     int   `json:"max_findings"`
+	MaxInlineComments               int   `json:"max_inline_comments"`
 }
 
 type reviewAgentEnvironments struct {

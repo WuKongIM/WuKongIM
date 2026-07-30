@@ -31,7 +31,7 @@
         },
         "intent_digest": {
           "type": "string",
-          "pattern": "^(|sha256:[0-9a-f]{64})$"
+          "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "generation": {
           "type": "integer",
@@ -73,8 +73,24 @@
         "closed"
       ]
     },
+    "decision_source": {
+      "type": "string",
+      "enum": [
+        "",
+        "model",
+        "merge_conflict",
+        "policy",
+        "infrastructure"
+      ]
+    },
     "reason": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "interaction_request": {
+      "type": "string",
+      "maxLength": 4096
     },
     "previous_state_digest": {
       "type": "string",
@@ -88,9 +104,109 @@
       "type": "string",
       "pattern": "^(|sha256:[0-9a-f]{64})$"
     },
+    "explanation_digest": {
+      "type": "string",
+      "pattern": "^(|sha256:[0-9a-f]{64})$"
+    },
+    "explanation_reply": {
+      "type": "string",
+      "maxLength": 61440
+    },
+    "prior_findings": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "advisory"
+            ]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "intent_correctness",
+              "regression_tests",
+              "security_runtime",
+              "repository_constraints"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "evidence": {
+            "type": [
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true
+          },
+          "resolution": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "kind",
+          "dimension",
+          "title",
+          "path",
+          "line_start",
+          "line_end",
+          "scenario",
+          "impact",
+          "evidence",
+          "resolution"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    },
     "budget": {
       "type": "object",
       "properties": {
+        "automatic_reviews_used": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
         "reconsiderations_used": {
           "type": "integer",
           "minimum": 0,
@@ -112,6 +228,7 @@
         }
       },
       "required": [
+        "automatic_reviews_used",
         "reconsiderations_used",
         "explanations_used",
         "infrastructure_retries_used",
@@ -119,25 +236,11 @@
       ],
       "additionalProperties": false
     },
-    "projection": {
-      "type": "object",
-      "properties": {
-        "status_comment_id": {
-          "type": "integer"
-        },
-        "review_id": {
-          "type": "integer"
-        },
-        "check_run_id": {
-          "type": "integer"
-        }
-      },
-      "required": [
-        "status_comment_id",
-        "review_id",
-        "check_run_id"
-      ],
-      "additionalProperties": false
+    "started_at": {
+      "type": "string"
+    },
+    "session_deadline_at": {
+      "type": "string"
     },
     "updated_at": {
       "type": "string"
@@ -151,12 +254,18 @@
     "generation",
     "sequence",
     "phase",
+    "decision_source",
     "reason",
+    "interaction_request",
     "previous_state_digest",
     "evidence_digest",
     "result_digest",
+    "explanation_digest",
+    "explanation_reply",
+    "prior_findings",
     "budget",
-    "projection",
+    "started_at",
+    "session_deadline_at",
     "updated_at"
   ],
   "additionalProperties": false

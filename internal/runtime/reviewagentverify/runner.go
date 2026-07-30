@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 )
@@ -114,6 +116,62 @@ func (runner *Runner) Result(
 	return contract.CheckEvidence{}, errors.New("trusted check has no result")
 }
 
+// CollectEvidence validates the ledger chain and returns the newest result for
+// every executed check, requiring the complete mandatory set.
+func (runner *Runner) CollectEvidence(
+	generation contract.GenerationIdentity,
+	mandatory []string,
+) (contract.ReviewEvidence, error) {
+	if err := contract.ValidateGenerationIdentity(generation); err != nil {
+		return contract.ReviewEvidence{}, err
+	}
+	records, err := runner.ledger.List(generation)
+	if err != nil {
+		return contract.ReviewEvidence{}, err
+	}
+	latest := make(map[string]contract.CheckEvidence)
+	for _, record := range records {
+		if _, protected := runner.policy.TrustedChecks[record.Evidence.Name]; !protected {
+			return contract.ReviewEvidence{}, errors.New(
+				"evidence ledger names an unknown trusted check",
+			)
+		}
+		latest[record.Evidence.Name] = record.Evidence
+	}
+	for _, name := range mandatory {
+		if _, exists := runner.policy.TrustedChecks[name]; !exists {
+			return contract.ReviewEvidence{}, errors.New(
+				"mandatory evidence names an unknown trusted check",
+			)
+		}
+		if _, exists := latest[name]; !exists {
+			return contract.ReviewEvidence{}, errors.New(
+				"mandatory trusted check has no evidence",
+			)
+		}
+	}
+	names := make([]string, 0, len(latest))
+	for name := range latest {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	checks := make([]contract.CheckEvidence, 0, len(names))
+	for _, name := range names {
+		checks = append(checks, latest[name])
+	}
+	evidence := contract.ReviewEvidence{
+		SchemaVersion: 1,
+		Generation:    generation,
+		Complete:      true,
+		Checks:        checks,
+		CreatedAt:     runner.now().UTC(),
+	}
+	if err := contract.ValidateReviewEvidence(evidence); err != nil {
+		return contract.ReviewEvidence{}, err
+	}
+	return evidence, nil
+}
+
 // Run executes exactly one protected named check.
 func (runner *Runner) Run(
 	ctx context.Context,
@@ -162,6 +220,8 @@ func (runner *Runner) Run(
 		DurationMS:    uint64(result.Duration.Milliseconds()),
 		StdoutDigest:  bytesDigest(result.Stdout),
 		StderrDigest:  bytesDigest(result.Stderr),
+		Stdout:        outputExcerpt(result.Stdout),
+		Stderr:        outputExcerpt(result.Stderr),
 	}
 	reviewEvidence := contract.ReviewEvidence{
 		SchemaVersion: 1,
@@ -177,6 +237,34 @@ func (runner *Runner) Run(
 		return contract.CheckEvidence{}, err
 	}
 	return evidence, nil
+}
+
+func outputExcerpt(output []byte) string {
+	const marker = "\n... review-agent output excerpt truncated ...\n"
+	if len(output) <= contract.MaxCheckOutputExcerptBytes {
+		return boundedValidUTF8(output)
+	}
+	const available = contract.MaxCheckOutputExcerptBytes - len(marker)
+	const first = available / 2
+	const last = available - first
+	return boundedValidUTF8(
+		append(
+			append(append([]byte(nil), output[:first]...), marker...),
+			output[len(output)-last:]...,
+		),
+	)
+}
+
+func boundedValidUTF8(output []byte) string {
+	normalized := strings.ToValidUTF8(string(output), "\uFFFD")
+	if len(normalized) <= contract.MaxCheckOutputExcerptBytes {
+		return normalized
+	}
+	end := contract.MaxCheckOutputExcerptBytes
+	for end > 0 && !utf8.ValidString(normalized[:end]) {
+		end--
+	}
+	return normalized[:end]
 }
 
 func validateCheckPlan(root string, plan CheckPlan) error {

@@ -14,8 +14,13 @@ type ContextInput struct {
 	PolicyDigest       string
 	PromptDigest       string
 	OutputSchemaDigest string
+	ReviewReason       string
 	Title              string
 	Body               string
+	LinkedIssues       []contract.LinkedIssue
+	ReviewThreads      []contract.ReviewThreadContext
+	Discussion         []contract.DiscussionItem
+	PriorFindings      []contract.Finding
 	Inventory          Inventory
 	Instructions       []contract.InstructionBlob
 	MandatoryChecks    []string
@@ -35,8 +40,21 @@ func BuildContext(input ContextInput, maxBytes int64) (contract.ReviewContext, e
 		PolicyDigest:       input.PolicyDigest,
 		PromptDigest:       input.PromptDigest,
 		OutputSchemaDigest: input.OutputSchemaDigest,
+		ReviewReason:       input.ReviewReason,
 		Title:              input.Title,
 		Body:               input.Body,
+		LinkedIssues: append(
+			[]contract.LinkedIssue(nil),
+			input.LinkedIssues...,
+		),
+		ReviewThreads: append(
+			[]contract.ReviewThreadContext(nil),
+			input.ReviewThreads...,
+		),
+		Discussion: append(
+			[]contract.DiscussionItem(nil),
+			input.Discussion...,
+		),
 		ChangedFiles: append(
 			[]contract.ChangedFile(nil),
 			input.Inventory.Files...,
@@ -49,6 +67,19 @@ func BuildContext(input ContextInput, maxBytes int64) (contract.ReviewContext, e
 			[]string(nil),
 			input.MandatoryChecks...,
 		),
+	}
+	for _, finding := range input.PriorFindings {
+		digest, err := contract.FindingDigest(finding)
+		if err != nil {
+			return contract.ReviewContext{}, err
+		}
+		context.PriorFindings = append(
+			context.PriorFindings,
+			contract.PriorFindingContext{
+				Digest:  digest,
+				Finding: finding,
+			},
+		)
 	}
 	if err := contract.ValidateReviewContext(context); err != nil {
 		return contract.ReviewContext{}, err

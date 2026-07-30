@@ -32,7 +32,7 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 				changed(".github/workflows/ci.yml"),
 				changed(".github/CODEOWNERS"),
 			},
-			want: []string{"go-unit", "workflow-contracts"},
+			want: []string{"go-unit", "go-vet", "workflow-contracts"},
 		},
 		{
 			name: "config and docker",
@@ -57,8 +57,8 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 				changed("web/src/App.tsx"),
 			},
 			want: []string{
-				"web-build", "web-bundle", "web-lint", "web-test",
-				"web-typecheck",
+				"go-unit", "go-vet", "web-build", "web-bundle",
+				"web-lint", "web-test", "web-typecheck",
 			},
 		},
 		{
@@ -66,7 +66,10 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 			files: []contract.ChangedFile{
 				changed("demo/chatdemo/src/App.vue"),
 			},
-			want: []string{"demo-build", "demo-bundle", "demo-test"},
+			want: []string{
+				"demo-build", "demo-bundle", "demo-test", "go-unit",
+				"go-vet",
+			},
 		},
 		{
 			name: "exclusive docs",
@@ -100,6 +103,11 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 				"go-e2e", "go-integration", "go-race", "go-unit",
 				"go-vet", "three-node-cluster",
 			},
+		},
+		{
+			name:  "unclassified repository path gets safe default",
+			files: []contract.ChangedFile{changed("README.md")},
+			want:  []string{"go-unit", "go-vet"},
 		},
 	}
 	for _, test := range tests {
@@ -147,6 +155,11 @@ func testVerificationPolicy() verify.Policy {
 			"go-integration": {}, "go-e2e": {}, "three-node-cluster": {},
 		},
 		PathRules: []verify.PathRule{
+			{
+				Name:     "repository default",
+				Prefixes: []string{""},
+				Checks:   []string{"go-unit", "go-vet"},
+			},
 			{
 				Name: "go",
 				Prefixes: []string{
