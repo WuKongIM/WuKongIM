@@ -2,73 +2,45 @@
 
 ## Responsibility
 
-`internal/infra/delivery` adapts the entry-independent delivery runtime to the
-owner node's concrete online registry, gateway session, and WuKong protocol
-packet. It owns the owner-local push state machine: exact route revalidation,
-pending RECVACK reservation lifecycle, packet construction, session writes,
-and terminal-versus-retryable write classification. It also owns the narrow
-presence-usecase to channelappend route adapter used by recipient delivery, so
-the app composition root only constructs and injects the runtime port.
+`internal/infra/delivery` contains the two concrete adapters used by the deep
+Online Delivery runtime:
 
-The package does not resolve cluster ownership, page channel subscribers, or
-choose retry policy. Those decisions remain in `internal/runtime/delivery` and
-the cluster adapters composed by `internal/app`.
+- `PresenceResolver` adapts exact-target presence lookups to aligned
+  `runtime/delivery.TargetPresenceResult` values.
+- `LocalSessionWriter` validates one exact owner-local session, builds its
+  WKProto `RecvPacket`, writes it, and returns Accepted, Retryable, or Dropped.
 
-## Owner-local Push Flow
+The package does not own subscriber discovery, authority grouping, queues,
+retry policy, owner grouping, or pending RECVACK state. In particular, no ACK
+token crosses into the session adapter; reservation, finish, rollback, feedback,
+expiry, and reset all remain in `internal/runtime/delivery`.
 
-The multi-route path validates routes before reserving an item-aligned ACK
-batch, then revalidates each route after its final reservation. This keeps one
-batch lock path for unique recipients while preventing a stale session from
-receiving a write after reservation.
+## Presence Flow
 
 ```text
-runtime/delivery.PushCommand with multiple routes
-  -> validate the exact active UID/session/owner identity in runtime/online
-  -> reserve item-aligned pending RECVACK tokens through delivery.Manager
-  -> refresh only later duplicate UID/session/message reservations
-  -> revalidate each exact session after its final reservation or refresh
-  -> build the recipient-specific frame.RecvPacket
-  -> write through the owner-local gateway SessionHandle
-     -> success: finish that reservation and report accepted
-     -> stale route/build failure: roll back and report dropped
-     -> transient write failure: roll back and report retryable
-     -> closed/overflow write failure: roll back and report dropped
-  -> finish the batch ACK accounting with accepted indexes and rollbacks
+Runtime RecipientTargetBatch groups
+  -> PresenceResolver.EndpointsByTargets
+  -> presence usecase exact-target lookup
+  -> item-aligned TargetPresenceResult groups
 ```
 
-The common single-route path avoids the batch bookkeeping. It builds the
-recipient packet first, binds or refreshes the pending ACK, then performs the
-one exact-session lookup immediately before the write.
+Group count, order, partial errors, routes, and every physical hash-slot/logical
+Slot authority fence are preserved. The adapter does not retry or weaken a
+stale target.
+
+## Local Session Write Flow
 
 ```text
-runtime/delivery.PushCommand with one route
-  -> clone payload and build the recipient-specific frame.RecvPacket
-  -> bind or refresh one pending RECVACK reservation
-  -> resolve and validate the exact active UID/session/owner identity
-  -> write through the owner-local gateway SessionHandle
-     -> success: finish that reservation and report accepted
-     -> stale route: roll back and report dropped
-     -> transient write failure: roll back and report retryable
-     -> closed/overflow write failure: roll back and report dropped
+Runtime LocalSessionWrite
+  -> validate UID, owner node/boot/sequence, and session ID
+  -> resolve the exact active runtime/online session handle
+  -> build one recipient-specific frame.RecvPacket
+  -> write through the gateway SessionHandle
+     -> success: Accepted
+     -> transient write failure: Retryable
+     -> stale route, invalid packet, closed session, or overflow: Dropped
 ```
 
-Duplicate recipient rows intentionally keep duplicate writes. Later duplicate
-rows refresh their shared UID/session/message reservation immediately before
-the write so a fast earlier RECVACK cannot consume the reservation for the next
-attempt. The common single-route path stays allocation-light; token-fenced
-rollback preserves a previous committed reservation when a refresh attempt or
-its write fails.
-
-`LocalOwnerPusher.SetAckManager` exists only to close the construction cycle
-between the pusher, fanout worker, retry scheduler, and delivery manager. App
-composition must call it exactly once before any concurrent `Push` call.
-
-Stale pending-ACK expiry is activity-driven and globally throttled per pusher;
-ordinary pushes do not scan the tracker on every call.
-
-## Channelappend Presence Adapter
-
-`ChannelAppendPresenceResolver` converts the entry-agnostic presence usecase's
-flat and exact-target lookup results into channelappend delivery DTOs. Exact
-target group cardinality, result order, partial errors, and all physical
-hash-slot/logical Slot Raft Group fencing fields are preserved.
+Payload cloning occurs only where packet/session ownership requires it. The
+adapter revalidates the exact live session on every call, including duplicate
+route writes after the runtime rebinds their ACK identity.

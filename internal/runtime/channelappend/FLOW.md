@@ -129,9 +129,9 @@ waiting for the same drain. A stopped group is not restarted.
 
 The advance, append, and post-commit ants pools register actual created worker
 and maintenance goroutines under `channelappend/worker_pool`. The scheduler,
-retry loop, delivery workers, short fan-out helpers, pool release, and
-background stop drain use fixed `pkg/goroutine` task IDs, without changing the
-single-writer or shutdown ordering described below.
+retry loop, short post-commit helpers, pool release, and background stop drain
+use fixed `pkg/goroutine` task IDs, without changing the single-writer or
+shutdown ordering described below.
 Pool panic policy is applied through that owner, and pool ownership remains
 registered after release until every executing worker has returned.
 
@@ -249,8 +249,7 @@ succeeds and is independent from `SENDACK` completion. A committed envelope
 remains pending only until one recipient delivery enqueue attempt completes.
 The committed envelope owns one payload copy when it enters the async
 post-commit backlog; later state and recipient dispatch steps pass that
-immutable envelope by reference through the delivery worker and owner-push
-planning. Concrete owner push adapters copy or serialize at their boundary.
+immutable envelope by reference into one canonical Online Delivery plan.
 Success prunes the payload-bearing envelope from the backlog. Recipient route or
 delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
 through effect metrics, and then the envelope reaches its terminal attempt
@@ -300,21 +299,12 @@ success, recipient delivery, or conversation active projection. Transient
 NoPersist realtime sends skip PersistAfter because they do not create durable
 committed envelopes.
 
-When an offline recipient observer is configured, recipient delivery resolves
-presence first, accumulates the unique recipient UIDs with no online route for
-one durable ordinary envelope, and reports them through the batch observer when
-available. It falls back to the legacy per-UID observer only when the batch path
-is not configured. This observer runs before sender echo suppression so a
-sender's other online sessions do not hide unrelated offline recipients. It is
-limited to durable ordinary commits: zero-sequence realtime envelopes, SyncOnce
-command messages, and request-scoped `MessageScopedUIDs` batches are skipped.
-Batch offline observation avoids per-recipient webhook or plugin-worker queue
-admission for large fanout. The observer receives one shared committed payload
-plus the ordered UID slice; an asynchronous adapter takes ownership once for the
-whole batch instead of cloning the payload for every UID. Callers should chunk
-large batches at the observer boundary if needed.
-The observer is a best-effort side-effect boundary and must not influence
-SENDACK, append success, conversation active admission, or owner push delivery.
+Offline-recipient observation happens after this package transfers the plan to
+`internal/runtime/delivery`. Channelappend only selects recipients, preserves
+the explicit Durable or Transient mode, and transfers the immutable committed
+envelope. Presence-dependent offline classification, plugin/webhook batching,
+sender-session suppression, owner routing, retry, and ACK state are all behind
+that runtime seam.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
@@ -365,69 +355,24 @@ active projection falls back to the legacy admission surface so it can obtain a
 fresh compatible route. A recipient item failure keeps delivery all-or-nothing
 for that set and uses the same active compatibility fallback.
 
-Recipient delivery is an enqueue contract. When delivery enqueueing is
-configured, recipients are grouped by the full fenced recipient authority
-target, including Slot leader term and Slot config epoch. UID authority
-resolution is performed once per aligned sender-and-recipient snapshot and uses
-the optional batch resolver when available; invalid or missing recipient targets
-map to route-not-ready before enqueueing. The production plan-capable enqueuer packs those exact-target
-groups into commands whose total recipient count is bounded by the existing
-recipient batch size. This preserves the complete target fence across the queue
-boundary while allowing one subscriber page to be admitted as one plan when it
-fits that bound. Each target carries a capacity-limited view into the
-grouping-owned normalized recipient storage, so asynchronous admission does not
-repeat the recipient copy and cannot overwrite a sibling target window. A
-legacy batch-only enqueuer remains supported; only that
-compatibility path dispatches different targets concurrently up to
-`RecipientAuthorityDispatchConcurrency`, while batches for the same target stay
-sequential.
+Recipient delivery is one typed enqueue contract:
+`RecipientDeliveryEnqueuer.EnqueueRecipientDeliveryPlan`. Recipients are grouped
+by the complete fenced authority target, including physical hash slot, logical
+Slot, leader term, config epoch, route revision, and authority epoch. UID
+authority resolution runs once per aligned sender-and-recipient snapshot and
+uses the batch resolver when available; an invalid or missing recipient target
+fails the set before admission.
 
-The dedicated delivery worker drains accepted plans. A target-aware presence
-resolver receives all target groups from one plan together and returns aligned
-per-group results, so one failed group is observed without suppressing the
-other groups. A legacy presence resolver remains supported by resolving the
-groups individually. A panic while processing one resolved group is converted
-to that group's terminal error and does not prevent later sibling groups from
-running. Successfully resolved groups first contribute their deduplicated
-offline UIDs to one plan-level observer event, so plugin and webhook work scales
-with bounded delivery plans rather than 256 physical authority targets. They
-then skip only the sender's exact accepted session before routes are coalesced
-by owner across the whole plan. Owner groups retain first-appearance order for
-stable error folding, route order follows target and resolver order, and each
-owner group is split into bounded push chunks. Different owners execute
-concurrently under a fixed bound, while chunks for the same owner remain
-sequential.
-Retryable results narrow retries to only their returned routes; terminal
-push failures map back only to the exact target groups that contributed those
-routes, while unrelated owners and targets continue. Owner-local concrete
-session writes remain outside `channelState`.
-
-`RecipientDeliveryWorker` owns the bounded async queue for those delivery
-plans. The buffered queue is the admission backpressure primitive; there is
-no second slot semaphore. Admission is open only between `Start` and `Stop`;
-closed admission returns `ErrRecipientDeliveryWorkerClosed`, and a full queue
-waits for capacity until the caller context expires. `Stop` closes admission
-first and cancels the worker lifecycle context. Enqueue calls that crossed the
-open-state gate are counted until their queue send returns; workers may exit
-only after that sender barrier closes, then terminally drain every accepted
-plan with the canceled lifecycle context. Each plan also has a bounded
-processing deadline, so a transport RPC that never responds cannot occupy one
-worker indefinitely. The caller's Stop context bounds only how long Stop waits
-for this asynchronous shutdown protocol to finish.
-Processing failures are terminal best-effort delivery failures: they are
-observed through the same post-commit failure surface with the recipient
-authority target attached, and they are not returned to channelappend after the
-plan has been accepted. The worker also emits low-cardinality queue, admission,
-process, and execution-pressure observations: queue depth/capacity, configured
-worker capacity/current in-flight commands, enqueue result/wait time,
-processing result/duration, and attempted recipients per plan. Recipient totals
-describe planned processing work rather than proven successful online delivery.
-Queue and worker gauge
-samples are serialized and read from current state so concurrent worker starts,
-finishes, and queue changes cannot leave a stale terminal gauge; every accepted
-command increments in-flight for the complete `runCommand` execution and the
-final command returns it to zero. These observations do not include UID,
-channel, or target labels.
+Exact-target groups are packed into canonical
+`onlinedelivery.RecipientDeliveryPlan` values whose total recipient count is
+bounded by `RecipientBatchSize`. Durable commits use `ModeDurable`; command
+`NoPersist` delivery uses `ModeTransient`. Each target holds a capacity-limited
+view into grouping-owned normalized recipient storage. If enqueue succeeds,
+ownership transfers as shared immutable storage and channelappend does not
+retain or mutate the plan. If enqueue fails, the runtime retained nothing and
+channelappend reports the applicable realtime error or terminal post-commit
+failure. There is no batch-only compatibility path, delivery worker, presence
+resolver, owner pusher, retry queue, or ACK token in this package.
 
 ## Pressure Observability
 

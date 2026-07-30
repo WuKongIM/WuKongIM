@@ -10,6 +10,7 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -469,8 +470,8 @@ func TestPluginPersistAfterEnqueuerMapsCommittedEnvelope(t *testing.T) {
 func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
 	worker := &recordingPluginReceiveWorker{}
 	observer := pluginReceiveObserver{worker: worker}
-	source := channelappend.OfflineRecipientEvent{
-		UID: "bot",
+	source := runtimedelivery.OfflineRecipientsEvent{
+		UIDs: []string{"bot"},
 		Event: channelappend.CommittedEnvelope{
 			MessageID:         101,
 			MessageSeq:        202,
@@ -484,7 +485,7 @@ func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
 		},
 	}
 
-	observer.ObserveOfflineRecipient(context.Background(), source)
+	observer.ObserveOfflineRecipients(context.Background(), source)
 	source.Event.Payload[0] = 'X'
 	source.Event.MessageScopedUIDs[0] = "mutated"
 
@@ -505,7 +506,7 @@ func TestPluginReceiveObserverMapsOfflineRecipientEvent(t *testing.T) {
 func TestPluginReceiveObserverMapsOfflineRecipientBatchWithoutScalarExpansion(t *testing.T) {
 	worker := &recordingPluginReceiveBatchWorker{}
 	observer := pluginReceiveObserver{worker: worker}
-	source := channelappend.OfflineRecipientsEvent{
+	source := runtimedelivery.OfflineRecipientsEvent{
 		UIDs: []string{"bot", "bot-2"},
 		Event: channelappend.CommittedEnvelope{
 			MessageID:         101,

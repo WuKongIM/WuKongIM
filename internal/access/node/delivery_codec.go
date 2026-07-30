@@ -3,48 +3,32 @@ package node
 import (
 	"fmt"
 
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	channelappendcontract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 )
 
 var (
-	deliveryRPCRequestMagic     = [...]byte{'W', 'K', 'V', 'D', 1}
-	deliveryRPCResponseMagic    = [...]byte{'W', 'K', 'V', 'd', 1}
-	deliveryFanoutRequestMagic  = [...]byte{'W', 'K', 'V', 'F', 1}
-	deliveryFanoutResponseMagic = [...]byte{'W', 'K', 'V', 'f', 1}
+	deliveryRPCRequestMagic  = [...]byte{'W', 'K', 'V', 'D', 1}
+	deliveryRPCResponseMagic = [...]byte{'W', 'K', 'V', 'd', 1}
 )
 
 const maxDeliveryRPCCollectionLen = 4096
 
-// deliveryPushRequest is the deterministic binary DTO for owner-node delivery push calls.
+// deliveryPushRequest is the stable binary DTO for owner-node pushes.
 type deliveryPushRequest struct {
-	// Command carries one owner-node delivery push batch.
-	Command runtimedelivery.PushCommand
+	Command onlinedelivery.OwnerPush
 }
 
-// deliveryPushResponse is the deterministic binary DTO returned by delivery push calls.
+// deliveryPushResponse is the stable binary DTO returned by owner-node pushes.
 type deliveryPushResponse struct {
-	// Status is one of the stable delivery RPC status strings.
 	Status string
-	// Result reports how the owner node classified pushed routes.
-	Result runtimedelivery.PushResult
-}
-
-// deliveryFanoutRequest is the deterministic binary DTO for authority-node fanout calls.
-type deliveryFanoutRequest struct {
-	// Task carries one partition-scoped fanout task.
-	Task runtimedelivery.FanoutTask
-}
-
-// deliveryFanoutResponse is the deterministic binary DTO returned by fanout calls.
-type deliveryFanoutResponse struct {
-	// Status is one of the stable delivery RPC status strings.
-	Status string
+	Result onlinedelivery.OwnerPushResult
 }
 
 func encodeDeliveryPushRequest(req deliveryPushRequest) ([]byte, error) {
 	dst := make([]byte, 0, 128)
 	dst = append(dst, deliveryRPCRequestMagic[:]...)
-	dst = appendDeliveryPushCommand(dst, req.Command)
+	dst = appendDeliveryOwnerPush(dst, req.Command)
 	return dst, nil
 }
 
@@ -52,23 +36,21 @@ func decodeDeliveryPushRequest(body []byte) (deliveryPushRequest, error) {
 	if !hasMagic(body, deliveryRPCRequestMagic[:]) {
 		return deliveryPushRequest{}, fmt.Errorf("internal/access/node: invalid delivery request codec")
 	}
-	offset := len(deliveryRPCRequestMagic)
-	var req deliveryPushRequest
-	var err error
-	if req.Command, offset, err = readDeliveryPushCommand(body, offset); err != nil {
+	command, offset, err := readDeliveryOwnerPush(body, len(deliveryRPCRequestMagic))
+	if err != nil {
 		return deliveryPushRequest{}, err
 	}
 	if offset != len(body) {
 		return deliveryPushRequest{}, fmt.Errorf("internal/access/node: trailing delivery request bytes")
 	}
-	return req, nil
+	return deliveryPushRequest{Command: command}, nil
 }
 
 func encodeDeliveryPushResponse(resp deliveryPushResponse) ([]byte, error) {
 	dst := make([]byte, 0, 128)
 	dst = append(dst, deliveryRPCResponseMagic[:]...)
 	dst = appendString(dst, resp.Status)
-	dst = appendDeliveryPushResult(dst, resp.Result)
+	dst = appendDeliveryOwnerPushResult(dst, resp.Result)
 	return dst, nil
 }
 
@@ -76,232 +58,130 @@ func decodeDeliveryPushResponse(body []byte) (deliveryPushResponse, error) {
 	if !hasMagic(body, deliveryRPCResponseMagic[:]) {
 		return deliveryPushResponse{}, fmt.Errorf("internal/access/node: invalid delivery response codec")
 	}
-	offset := len(deliveryRPCResponseMagic)
-	var resp deliveryPushResponse
-	var err error
-	if resp.Status, offset, err = readString(body, offset); err != nil {
+	status, offset, err := readString(body, len(deliveryRPCResponseMagic))
+	if err != nil {
 		return deliveryPushResponse{}, err
 	}
-	if resp.Result, offset, err = readDeliveryPushResult(body, offset); err != nil {
+	result, offset, err := readDeliveryOwnerPushResult(body, offset)
+	if err != nil {
 		return deliveryPushResponse{}, err
 	}
 	if offset != len(body) {
 		return deliveryPushResponse{}, fmt.Errorf("internal/access/node: trailing delivery response bytes")
 	}
-	return resp, nil
+	return deliveryPushResponse{Status: status, Result: result}, nil
 }
 
-func encodeDeliveryFanoutRequest(req deliveryFanoutRequest) ([]byte, error) {
-	dst := make([]byte, 0, 128)
-	dst = append(dst, deliveryFanoutRequestMagic[:]...)
-	dst = appendDeliveryFanoutTask(dst, req.Task)
-	return dst, nil
+func appendDeliveryOwnerPush(dst []byte, push onlinedelivery.OwnerPush) []byte {
+	dst = appendUvarint(dst, push.OwnerNodeID)
+	dst = appendDeliveryCommittedEnvelope(dst, push.Event)
+	return appendDeliveryRoutes(dst, push.Routes)
 }
 
-func decodeDeliveryFanoutRequest(body []byte) (deliveryFanoutRequest, error) {
-	if !hasMagic(body, deliveryFanoutRequestMagic[:]) {
-		return deliveryFanoutRequest{}, fmt.Errorf("internal/access/node: invalid delivery fanout request codec")
-	}
-	offset := len(deliveryFanoutRequestMagic)
-	var req deliveryFanoutRequest
+func readDeliveryOwnerPush(body []byte, offset int) (onlinedelivery.OwnerPush, int, error) {
+	var push onlinedelivery.OwnerPush
 	var err error
-	if req.Task, offset, err = readDeliveryFanoutTask(body, offset); err != nil {
-		return deliveryFanoutRequest{}, err
+	if push.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return onlinedelivery.OwnerPush{}, offset, err
 	}
-	if offset != len(body) {
-		return deliveryFanoutRequest{}, fmt.Errorf("internal/access/node: trailing delivery fanout request bytes")
+	if push.Event, offset, err = readDeliveryCommittedEnvelope(body, offset); err != nil {
+		return onlinedelivery.OwnerPush{}, offset, err
 	}
-	return req, nil
+	if push.Routes, offset, err = readDeliveryRoutes(body, offset); err != nil {
+		return onlinedelivery.OwnerPush{}, offset, err
+	}
+	return push, offset, nil
 }
 
-func encodeDeliveryFanoutResponse(resp deliveryFanoutResponse) ([]byte, error) {
-	dst := make([]byte, 0, 128)
-	dst = append(dst, deliveryFanoutResponseMagic[:]...)
-	dst = appendString(dst, resp.Status)
-	return dst, nil
-}
-
-func decodeDeliveryFanoutResponse(body []byte) (deliveryFanoutResponse, error) {
-	if !hasMagic(body, deliveryFanoutResponseMagic[:]) {
-		return deliveryFanoutResponse{}, fmt.Errorf("internal/access/node: invalid delivery fanout response codec")
-	}
-	offset := len(deliveryFanoutResponseMagic)
-	var resp deliveryFanoutResponse
-	var err error
-	if resp.Status, offset, err = readString(body, offset); err != nil {
-		return deliveryFanoutResponse{}, err
-	}
-	if offset != len(body) {
-		return deliveryFanoutResponse{}, fmt.Errorf("internal/access/node: trailing delivery fanout response bytes")
-	}
-	return resp, nil
-}
-
-func appendDeliveryPushCommand(dst []byte, cmd runtimedelivery.PushCommand) []byte {
-	dst = appendUvarint(dst, cmd.OwnerNodeID)
-	dst = appendDeliveryEnvelope(dst, cmd.Envelope)
-	return appendDeliveryRoutes(dst, cmd.Routes)
-}
-
-func readDeliveryPushCommand(body []byte, offset int) (runtimedelivery.PushCommand, int, error) {
-	var cmd runtimedelivery.PushCommand
-	var err error
-	if cmd.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.PushCommand{}, offset, err
-	}
-	if cmd.Envelope, offset, err = readDeliveryEnvelope(body, offset); err != nil {
-		return runtimedelivery.PushCommand{}, offset, err
-	}
-	if cmd.Routes, offset, err = readDeliveryRoutes(body, offset); err != nil {
-		return runtimedelivery.PushCommand{}, offset, err
-	}
-	return cmd, offset, nil
-}
-
-func appendDeliveryFanoutTask(dst []byte, task runtimedelivery.FanoutTask) []byte {
-	dst = appendDeliveryEnvelope(dst, task.Envelope)
-	dst = appendDeliveryPartition(dst, task.Partition)
-	dst = appendString(dst, task.Cursor)
-	return appendVarint(dst, int64(task.Attempt))
-}
-
-func readDeliveryFanoutTask(body []byte, offset int) (runtimedelivery.FanoutTask, int, error) {
-	var task runtimedelivery.FanoutTask
-	var attempt int64
-	var err error
-	if task.Envelope, offset, err = readDeliveryEnvelope(body, offset); err != nil {
-		return runtimedelivery.FanoutTask{}, offset, err
-	}
-	if task.Partition, offset, err = readDeliveryPartition(body, offset); err != nil {
-		return runtimedelivery.FanoutTask{}, offset, err
-	}
-	if task.Cursor, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.FanoutTask{}, offset, err
-	}
-	if attempt, offset, err = readVarint(body, offset); err != nil {
-		return runtimedelivery.FanoutTask{}, offset, err
-	}
-	task.Attempt = int(attempt)
-	return task, offset, nil
-}
-
-func appendDeliveryPartition(dst []byte, partition runtimedelivery.Partition) []byte {
-	dst = appendUvarint(dst, uint64(partition.ID))
-	dst = appendUvarint(dst, partition.LeaderNodeID)
-	dst = appendUvarint(dst, uint64(partition.HashSlotStart))
-	return appendUvarint(dst, uint64(partition.HashSlotEnd))
-}
-
-func readDeliveryPartition(body []byte, offset int) (runtimedelivery.Partition, int, error) {
-	var partition runtimedelivery.Partition
-	var id, start, end uint64
-	var err error
-	if id, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Partition{}, offset, err
-	}
-	if partition.LeaderNodeID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Partition{}, offset, err
-	}
-	if start, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Partition{}, offset, err
-	}
-	if end, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Partition{}, offset, err
-	}
-	partition.ID = uint32(id)
-	partition.HashSlotStart = uint16(start)
-	partition.HashSlotEnd = uint16(end)
-	return partition, offset, nil
-}
-
-func appendDeliveryEnvelope(dst []byte, env runtimedelivery.Envelope) []byte {
-	dst = appendUvarint(dst, env.MessageID)
-	dst = appendUvarint(dst, env.MessageSeq)
-	dst = appendString(dst, env.ChannelID)
-	dst = append(dst, env.ChannelType)
-	dst = appendString(dst, env.FromUID)
-	dst = appendUvarint(dst, env.SenderNodeID)
-	dst = appendUvarint(dst, env.SenderSessionID)
-	dst = appendString(dst, env.ClientMsgNo)
-	if env.RedDot {
+// appendDeliveryCommittedEnvelope deliberately preserves the pre-convergence
+// owner-push bytes for mixed-version clusters.
+func appendDeliveryCommittedEnvelope(dst []byte, event channelappendcontract.CommittedEnvelope) []byte {
+	dst = appendUvarint(dst, event.MessageID)
+	dst = appendUvarint(dst, event.MessageSeq)
+	dst = appendString(dst, event.ChannelID)
+	dst = append(dst, event.ChannelType)
+	dst = appendString(dst, event.FromUID)
+	dst = appendUvarint(dst, event.SenderNodeID)
+	dst = appendUvarint(dst, event.SenderSessionID)
+	dst = appendString(dst, event.ClientMsgNo)
+	if event.RedDot {
 		dst = append(dst, 1)
 	} else {
 		dst = append(dst, 0)
 	}
-	dst = appendBytes(dst, env.Payload)
-	return appendStringSlice(dst, env.MessageScopedUIDs)
+	dst = appendDeliveryBytes(dst, event.Payload)
+	return appendDeliveryStringSlice(dst, event.MessageScopedUIDs)
 }
 
-func readDeliveryEnvelope(body []byte, offset int) (runtimedelivery.Envelope, int, error) {
-	var env runtimedelivery.Envelope
+func readDeliveryCommittedEnvelope(body []byte, offset int) (channelappendcontract.CommittedEnvelope, int, error) {
+	var event channelappendcontract.CommittedEnvelope
 	var redDot byte
 	var err error
-	if env.MessageID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.MessageID, offset, err = readUvarint(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.MessageSeq, offset, err = readUvarint(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.ChannelID, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.ChannelID, offset, err = readString(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.ChannelType, offset, err = readByte(body, offset, "delivery channel type"); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.ChannelType, offset, err = readByte(body, offset, "delivery channel type"); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.FromUID, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.FromUID, offset, err = readString(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.SenderNodeID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.SenderNodeID, offset, err = readUvarint(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.SenderSessionID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.SenderSessionID, offset, err = readUvarint(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.ClientMsgNo, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
 	if redDot, offset, err = readByte(body, offset, "delivery red dot"); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
 	switch redDot {
 	case 0:
-		env.RedDot = false
 	case 1:
-		env.RedDot = true
+		event.RedDot = true
 	default:
-		return runtimedelivery.Envelope{}, offset, fmt.Errorf("internal/access/node: invalid delivery red dot flag")
+		return channelappendcontract.CommittedEnvelope{}, offset, fmt.Errorf("internal/access/node: invalid delivery red dot flag")
 	}
-	if env.Payload, offset, err = readBytes(body, offset); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.Payload, offset, err = readDeliveryBytes(body, offset); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	if env.MessageScopedUIDs, offset, err = readStringSlice(body, offset, "delivery message scoped uids"); err != nil {
-		return runtimedelivery.Envelope{}, offset, err
+	if event.MessageScopedUIDs, offset, err = readDeliveryStringSlice(body, offset, "delivery message scoped uids"); err != nil {
+		return channelappendcontract.CommittedEnvelope{}, offset, err
 	}
-	return env, offset, nil
+	return event, offset, nil
 }
 
-func appendDeliveryPushResult(dst []byte, result runtimedelivery.PushResult) []byte {
+func appendDeliveryOwnerPushResult(dst []byte, result onlinedelivery.OwnerPushResult) []byte {
 	dst = appendDeliveryRoutes(dst, result.Accepted)
 	dst = appendDeliveryRoutes(dst, result.Retryable)
 	return appendDeliveryRoutes(dst, result.Dropped)
 }
 
-func readDeliveryPushResult(body []byte, offset int) (runtimedelivery.PushResult, int, error) {
-	var result runtimedelivery.PushResult
+func readDeliveryOwnerPushResult(body []byte, offset int) (onlinedelivery.OwnerPushResult, int, error) {
+	var result onlinedelivery.OwnerPushResult
 	var err error
 	if result.Accepted, offset, err = readDeliveryRoutes(body, offset); err != nil {
-		return runtimedelivery.PushResult{}, offset, err
+		return onlinedelivery.OwnerPushResult{}, offset, err
 	}
 	if result.Retryable, offset, err = readDeliveryRoutes(body, offset); err != nil {
-		return runtimedelivery.PushResult{}, offset, err
+		return onlinedelivery.OwnerPushResult{}, offset, err
 	}
 	if result.Dropped, offset, err = readDeliveryRoutes(body, offset); err != nil {
-		return runtimedelivery.PushResult{}, offset, err
+		return onlinedelivery.OwnerPushResult{}, offset, err
 	}
 	return result, offset, nil
 }
 
-func appendDeliveryRoutes(dst []byte, routes []runtimedelivery.Route) []byte {
+func appendDeliveryRoutes(dst []byte, routes []onlinedelivery.Route) []byte {
 	dst = appendUvarint(dst, uint64(len(routes)))
 	for _, route := range routes {
 		dst = appendDeliveryRoute(dst, route)
@@ -309,7 +189,7 @@ func appendDeliveryRoutes(dst []byte, routes []runtimedelivery.Route) []byte {
 	return dst
 }
 
-func readDeliveryRoutes(body []byte, offset int) ([]runtimedelivery.Route, int, error) {
+func readDeliveryRoutes(body []byte, offset int) ([]onlinedelivery.Route, int, error) {
 	count, next, err := readUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -321,18 +201,19 @@ func readDeliveryRoutes(body []byte, offset int) ([]runtimedelivery.Route, int, 
 	if err := validateDeliveryCollectionLen(count, len(body)-offset, "delivery routes"); err != nil {
 		return nil, offset, err
 	}
-	routes := make([]runtimedelivery.Route, 0, int(count))
+	routes := make([]onlinedelivery.Route, 0, int(count))
 	for i := uint64(0); i < count; i++ {
-		var route runtimedelivery.Route
-		if route, offset, err = readDeliveryRoute(body, offset); err != nil {
+		route, nextOffset, err := readDeliveryRoute(body, offset)
+		if err != nil {
 			return nil, offset, err
 		}
 		routes = append(routes, route)
+		offset = nextOffset
 	}
 	return routes, offset, nil
 }
 
-func appendDeliveryRoute(dst []byte, route runtimedelivery.Route) []byte {
+func appendDeliveryRoute(dst []byte, route onlinedelivery.Route) []byte {
 	dst = appendString(dst, route.UID)
 	dst = appendUvarint(dst, route.OwnerNodeID)
 	dst = appendUvarint(dst, route.OwnerBootID)
@@ -343,42 +224,46 @@ func appendDeliveryRoute(dst []byte, route runtimedelivery.Route) []byte {
 	return dst
 }
 
-func readDeliveryRoute(body []byte, offset int) (runtimedelivery.Route, int, error) {
-	var route runtimedelivery.Route
+func readDeliveryRoute(body []byte, offset int) (onlinedelivery.Route, int, error) {
+	var route onlinedelivery.Route
 	var err error
 	if route.UID, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.OwnerBootID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.OwnerSeq, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.SessionID, offset, err = readUvarint(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.DeviceID, offset, err = readString(body, offset); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.DeviceFlag, offset, err = readByte(body, offset, "delivery device flag"); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	if route.DeviceLevel, offset, err = readByte(body, offset, "delivery device level"); err != nil {
-		return runtimedelivery.Route{}, offset, err
+		return onlinedelivery.Route{}, offset, err
 	}
 	return route, offset, nil
 }
 
-func appendBytes(dst []byte, value []byte) []byte {
+func appendDeliveryBytes(dst []byte, value []byte) []byte {
 	dst = appendUvarint(dst, uint64(len(value)))
 	return append(dst, value...)
 }
 
-func readBytes(body []byte, offset int) ([]byte, int, error) {
+func appendBytes(dst []byte, value []byte) []byte {
+	return appendDeliveryBytes(dst, value)
+}
+
+func readDeliveryBytes(body []byte, offset int) ([]byte, int, error) {
 	n, next, err := readUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -394,7 +279,11 @@ func readBytes(body []byte, offset int) ([]byte, int, error) {
 	return append([]byte(nil), body[offset:end]...), end, nil
 }
 
-func appendStringSlice(dst []byte, values []string) []byte {
+func readBytes(body []byte, offset int) ([]byte, int, error) {
+	return readDeliveryBytes(body, offset)
+}
+
+func appendDeliveryStringSlice(dst []byte, values []string) []byte {
 	dst = appendUvarint(dst, uint64(len(values)))
 	for _, value := range values {
 		dst = appendString(dst, value)
@@ -402,7 +291,11 @@ func appendStringSlice(dst []byte, values []string) []byte {
 	return dst
 }
 
-func readStringSlice(body []byte, offset int, label string) ([]string, int, error) {
+func appendStringSlice(dst []byte, values []string) []byte {
+	return appendDeliveryStringSlice(dst, values)
+}
+
+func readDeliveryStringSlice(body []byte, offset int, label string) ([]string, int, error) {
 	count, next, err := readUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -416,13 +309,18 @@ func readStringSlice(body []byte, offset int, label string) ([]string, int, erro
 	}
 	values := make([]string, 0, int(count))
 	for i := uint64(0); i < count; i++ {
-		var value string
-		if value, offset, err = readString(body, offset); err != nil {
+		value, nextOffset, err := readString(body, offset)
+		if err != nil {
 			return nil, offset, err
 		}
 		values = append(values, value)
+		offset = nextOffset
 	}
 	return values, offset, nil
+}
+
+func readStringSlice(body []byte, offset int, label string) ([]string, int, error) {
+	return readDeliveryStringSlice(body, offset, label)
 }
 
 func validateDeliveryCollectionLen(count uint64, remaining int, label string) error {

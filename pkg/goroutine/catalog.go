@@ -88,7 +88,9 @@ const (
 	TaskGatewayIdleMonitor                 TaskID = "gateway/idle_monitor"
 	TaskGatewayTransportActor              TaskID = "gateway/transport_actor"
 	TaskGatewayTransportServe              TaskID = "gateway/transport_serve"
-	TaskDeliveryManagerAsync               TaskID = "delivery/manager_async"
+	TaskOnlineDeliveryWorker               TaskID = "delivery/worker"
+	TaskOnlineDeliveryLifecycle            TaskID = "delivery/lifecycle"
+	TaskOnlineDeliveryOwnerPush            TaskID = "delivery/owner_push"
 	TaskWebhookNotify                      TaskID = "webhook/notify"
 	TaskWebhookOnline                      TaskID = "webhook/online"
 	TaskWebhookOffline                     TaskID = "webhook/offline"
@@ -136,16 +138,11 @@ const (
 	TaskChannelAppendPoolRelease           TaskID = "channelappend/pool_release"
 	TaskChannelAppendRecipientResolve      TaskID = "channelappend/recipient_resolve"
 	TaskChannelAppendAdvanceScheduler      TaskID = "channelappend/advance_scheduler"
-	TaskChannelAppendDeliveryFanout        TaskID = "channelappend/delivery_fanout"
 	TaskChannelAppendMetrics               TaskID = "channelappend/metrics"
 	TaskChannelAppendWriterAdvance         TaskID = "channelappend/writer_advance"
 	TaskChannelAppendWorkerPool            TaskID = "channelappend/worker_pool"
 	TaskChannelAppendStopDrain             TaskID = "channelappend/stop_drain"
 	TaskChannelAppendPostCommitRetry       TaskID = "channelappend/post_commit_retry"
-	TaskDeliveryRetryWorker                TaskID = "delivery/retry_worker"
-	TaskDeliveryRetryDoneWait              TaskID = "delivery/retry_done_wait"
-	TaskChannelAppendDeliveryWorker        TaskID = "channelappend/delivery_worker"
-	TaskChannelAppendDeliveryDoneWait      TaskID = "channelappend/delivery_done_wait"
 	TaskChannelAppendDeliveryAdmissionWait TaskID = "channelappend/delivery_admission_wait"
 	TaskPluginHookWorker                   TaskID = "plugin/hook_worker"
 	TaskPluginHookFinalize                 TaskID = "plugin/hook_finalize"
@@ -182,7 +179,9 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskGatewayIdleMonitor, Module: ModuleGateway, Name: "idle_monitor", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskGatewayTransportActor, Module: ModuleGateway, Name: "transport_actor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskGatewayTransportServe, Module: ModuleGateway, Name: "transport_serve", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskDeliveryManagerAsync, Module: ModuleDelivery, Name: "manager_async", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryWorker, Module: ModuleDelivery, Name: "worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryLifecycle, Module: ModuleDelivery, Name: "lifecycle", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryOwnerPush, Module: ModuleDelivery, Name: "owner_push", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskWebhookNotify, Module: ModuleWebhook, Name: "notify", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskWebhookOnline, Module: ModuleWebhook, Name: "online", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskWebhookOffline, Module: ModuleWebhook, Name: "offline", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
@@ -230,16 +229,11 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskChannelAppendPoolRelease, Module: ModuleChannelAppend, Name: "pool_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelAppendRecipientResolve, Module: ModuleChannelAppend, Name: "recipient_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendAdvanceScheduler, Module: ModuleChannelAppend, Name: "advance_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskChannelAppendDeliveryFanout, Module: ModuleChannelAppend, Name: "delivery_fanout", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendMetrics, Module: ModuleChannelAppend, Name: "metrics", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskChannelAppendWriterAdvance, Module: ModuleChannelAppend, Name: "writer_advance", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendWorkerPool, Module: ModuleChannelAppend, Name: "worker_pool", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendStopDrain, Module: ModuleChannelAppend, Name: "stop_drain", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPostCommitRetry, Module: ModuleChannelAppend, Name: "post_commit_retry", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskDeliveryRetryWorker, Module: ModuleDelivery, Name: "retry_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskDeliveryRetryDoneWait, Module: ModuleDelivery, Name: "retry_done_wait", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskChannelAppendDeliveryWorker, Module: ModuleChannelAppend, Name: "delivery_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskChannelAppendDeliveryDoneWait, Module: ModuleChannelAppend, Name: "delivery_done_wait", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskChannelAppendDeliveryAdmissionWait, Module: ModuleChannelAppend, Name: "delivery_admission_wait", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskPluginHookWorker, Module: ModulePlugin, Name: "hook_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPluginHookFinalize, Module: ModulePlugin, Name: "hook_finalize", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},

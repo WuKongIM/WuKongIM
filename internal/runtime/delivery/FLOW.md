@@ -1,147 +1,108 @@
 # internal/runtime/delivery Flow
 
-`internal/runtime/delivery` owns online delivery fanout primitives and recipient-owner recvack state.
+## Responsibility
 
-The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
+`internal/runtime/delivery` is the single node-local Online Delivery runtime.
+It owns bounded plan admission, exact-target presence resolution, durable-only
+offline observation, sender-session suppression, owner grouping, bounded owner
+push and narrowed retry, final owner-local writes, and the complete pending
+RECVACK lifecycle.
 
-`AckTracker` keeps owner-local recvack state, enforces a per UID/session pending
-limit, and maintains an O(1) derived pending count so the recvack hot path never
-scans all shards for observability. `Manager`, `Planner`, and `FanoutWorker`
-form the runtime facade used by app adapters. `Manager` owns bounded async
-admission through `pkg/workqueue.BoundedWorkerQueue` when fanout ports are
-configured. Runtime `Observer`, `ManagerObserver`, and `AckObserver` events
-describe fanout routing, UID route resolution, owner push attempts, manager
-admission, terminal async outcomes, and owner-local ack state changes with
-bounded result and error-class labels; concrete metrics and logging remain app
-concerns. The separately configured optional `AckBatchObserver` adds one
-aggregate callback per batch bind or finish stage with numeric
-shape/rejection/rollback fields; it does not add callbacks inside tracker item
-or shard loops, and an ordinary `AckObserver` never enables that extra work.
-`RetryScheduler` can wrap any `FanoutTaskRunner` with a bounded in-memory
-retry queue. It executes the first attempt inline; retryable failures are
-queued for background workers, while non-retryable failures and queue overflow
-are returned to the caller. `ChannelSubscriberPlanner` adapts an
-optional durable subscriber source into partition/cursor-based fanout pages; a
-nil source returns a terminal empty page so app tests can enable delivery
-without wiring a subscriber store. `FanoutTaskRouter` can sit between
-`Manager` and `FanoutWorker` to run local authority partitions in-process and
-forward remote authority partitions through a small node RPC port.
+The package depends only on canonical Online Delivery and channelappend
+contracts plus narrow ports. Gateway session lookup and packet construction
+remain in `internal/infra/delivery`; node transport remains in
+`internal/access/node`; composition and lifecycle ordering remain in
+`internal/app`.
 
-Committed-message fanout flow:
+Online Delivery is bounded best effort. Accepted plans are not durable
+checkpoints and are not replayed after process restart.
 
-1. A committed message event enters `Manager.SubmitCommitted`.
-2. `Manager` converts the event into an independent `Envelope`.
-3. `Manager` admits the envelope into a bounded queue only while started. A
-   full queue applies backpressure until a queue slot opens, the caller context
-   expires, or the manager closes.
-4. Workers consume accepted envelopes, call `Manager.runEnvelope` with an
-   execution context independent from admission, and emit terminal observations
-   with bounded result, error-class, and queue depth labels.
-5. `Planner.Plan` creates one `FanoutTask` per authority `Partition`, or a
-   single default task when no partitioner is wired.
-6. `Manager` runs planned tasks sequentially through its configured `FanoutTaskRunner`.
-   App wiring may use `FanoutTaskRouter`, which dispatches by
-   `Partition.LeaderNodeID`, wrapped by `RetryScheduler` for retryable failures.
-7. When `Envelope.MessageScopedUIDs` is non-empty, `Planner` creates a single default scoped task and `FanoutWorker` uses those UIDs directly without scanning subscribers.
-8. Otherwise `FanoutWorker` pages recipients through `SubscriberPlanner.NextPartitionPage`.
-9. Each UID page is resolved through `PresenceResolver.EndpointsByUIDs`.
-10. `FanoutWorker` emits a resolve observation for each UID page.
-11. Online routes are grouped by `OwnerNodeID`, split by push batch size, and sent through `Pusher.Push`.
-12. `FanoutWorker` emits a push observation for each owner-node batch, continues after retryable push results, and returns aggregated retryable routes as `ErrRetryablePushRoutes` after all remaining owner batches are attempted.
-13. `FanoutTaskRouter` emits a task observation for local or remote task execution. Remote forwarding failures are wrapped with `ErrRetryableFanoutTask`.
-14. `RetryScheduler` enqueues retryable task failures until `MaxAttempts` is reached. Push-route retries are narrowed to the retryable route UIDs before re-enqueueing.
-15. If a non-terminal subscriber page cannot advance its cursor, `FanoutWorker` returns `ErrInvalidSubscriberCursor` instead of silently ending the scan.
-16. `FanoutWorker` skips routes without an owner node and skips same-session sender echo only when `Envelope.SenderNodeID` is known and the route matches sender UID, sender owner node, and sender session.
+## Plan Flow
 
-Async manager flow:
+```text
+channelappend RecipientDeliveryPlan
+  -> Runtime.EnqueueRecipientDeliveryPlan
+     -> validate explicit Durable/Transient mode, exact targets, and size bound
+     -> bounded queue ownership transfer
+  -> fixed Runtime workers
+     -> PlanPresenceResolver.EndpointsByTargets
+     -> preserve aligned partial target errors
+     -> Durable only: publish one deduplicated offline UID batch
+     -> suppress only the sender's exact UID/node/session route
+     -> coalesce routes by first-seen OwnerNodeID
+     -> split each owner group by OwnerPushBatchSize
+     -> run distinct owners under OwnerConcurrency
+     -> retry only routes returned as Retryable
+        -> local owner: Runtime.pushOwnerLocal
+        -> remote owner: RemoteOwnerPusher.PushOwner
+  -> one terminal observation per accepted plan
+```
 
-1. `Manager.Start` opens a bounded queue and launches a small worker set.
-2. `Manager.SubmitCommitted` clones the committed event and uses bounded
-   admission; it does not fall back to synchronous fanout.
-3. Accepted work is later planned and run through the existing runner.
-4. A full queue waits for capacity; if that admission wait is interrupted by
-   caller context expiry, the manager emits an overflow admission observation
-   and returns the context error.
-5. Closed admission returns `ErrManagerClosed` to the caller.
-6. Every accepted command emits exactly one terminal observation.
-7. `Manager.Stop` rejects new admission and drains accepted work until the
-   caller context expires.
-8. A successful `Manager.Stop` returns the manager to a closed, restartable
-   state so maintenance restore can quiesce and resume the same composed
-   runtime. A stop whose drain context expires remains terminal because an old
-   handler may still be executing and must never overlap a replacement queue.
+`RecipientDeliveryPlan.Event`, target slices, and recipient slices become
+shared immutable storage after successful admission. A failed admission retains
+nothing. Plan recipient count, queue capacity, worker count, owner batch size,
+owner concurrency, retry attempts/backoff, and total processing time are all
+bounded.
 
-Retry scheduler lifecycle:
+The resolver result is position-aligned with the exact input targets. A missing
+or failed result is terminal for that target but does not discard successful
+sibling targets. Owner push chunks for one owner remain ordered; independent
+owners may overlap. There is no separate retry queue: retry happens inside the
+accepted plan's deadline and narrows to the exact retryable route subset.
 
-1. `Start` launches a small fixed worker set.
-2. `RunTask` performs the first attempt inline.
-3. Retryable errors enqueue a cloned task with an incremented attempt number.
-4. Background workers retry queued tasks after the configured backoff.
-5. `Stop` cancels waiting backoff, drains queued tasks, and exits when the queue is empty or the caller context expires.
+## Owner-local Push and ACK Flow
 
-Recvack flow:
+```text
+local plan or RPC OwnerPush
+  -> validate owner identity and route shape
+  -> AckTracker.BindBatch, preserving input alignment
+  -> for each successfully reserved route
+     -> later duplicate key: cancel its early token and rebind immediately
+     -> LocalSessionWriter.WriteSession
+        -> Accepted: retain and finish the token
+        -> Retryable: token-scoped rollback and retryable classification
+        -> Dropped: token-scoped rollback and terminal classification
+  -> AckTracker.FinishBindBatch for accepted indexes
+  -> aggregate bind/finish observations
+```
 
-1. Push accepted by recipient owner.
-2. Owner-local multi-route delivery validates exact active sessions first, then
-   `Manager.BindPendingAcks` calls `AckTracker.BindBatch`. The tracker preserves
-   item alignment and per-session limits while grouping entries by internal
-   shard, so each affected shard and the Manager mutation/observation lock are
-   acquired once per push batch. The result is one item-aligned opaque token
-   slice: a zero token means rejection, while every accepted attempt receives a
-   distinct in-flight reservation even when it refreshes an existing key. The
-   single-result surface retains `Bound` and `Added` for compatibility. Its
-   `BindPendingAck` compatibility wrapper immediately finishes the reservation;
-   direct result and batch callers must finish or roll back every accepted token
-   unless identity cleanup wins first.
-3. The owner writes only routes whose aligned bind result succeeded, after one
-   final exact-session revalidation closes the wider batch-bind/write race. A
-   route write, packet-build, or revalidation failure rolls back only that
-   attempt's token. A successful write finishes its token and marks the key
-   committed. The internal entry keeps the committed `PendingRecvAck` snapshot
-   separate from in-flight refresh metadata. A first uncommitted bind uses one
-   inline primary token and the entry snapshot without another allocation;
-   overlapping or committed refreshes use a lazily allocated attempt slice that
-   carries both token and candidate snapshot. Finishing a refresh promotes only
-   that attempt's snapshot, while rolling it back preserves the previous
-   committed snapshot. When an overlapping fresh attempt finishes before the
-   inline primary attempt, the finishing attempt's existing slice slot retains
-   the primary candidate so a later successful primary finish can still promote
-   its own metadata without another allocation. Finish and rollback nil the
-   extra-attempt storage when it drains. Consequently the typical unique bind uses no extra-attempt
-   allocation, while each simultaneously retained committed-key refresh pays
-   for its own tentative metadata until finish or rollback. Rollback removes
-   the key only when it has neither a committed write nor another in-flight
-   attempt. Multi-route success finishes are
-   grouped by tracker shard without another per-item result allocation. A later
-   duplicate item first cancels its original batch token, then rebinds immediately
-   before writing so a fast earlier Recvack cannot consume the reservation it is
-   about to use. Mixed limit rejections remain item-aligned and are classified by
-   the owner pusher.
-4. Client sends Recvack.
-5. `Manager.Recvack` calls `AckTracker.Ack` and clears the owner-local pending
-   state for matched entries.
-6. `Manager.SessionClosed` or `Manager.ExpirePendingAcks` cleans pending
-   entries that no longer have a live client ack path. Expiry compares the TTL
-   cutoff with both the committed snapshot and every active bind attempt. A
-   fresh in-flight refresh therefore protects the identity until it finishes
-   or rolls back, while an identity whose committed and tentative delivery
-   timestamps all reach the cutoff is still removed together with its tokens.
-7. Each single mutation emits one bounded `AckEvent`; a batch bind emits one
-   aggregate event with the batch's added count and final owner-local pending
-   count. Token rollback emits one bounded event and changes the gauge only when
-   it removes the last uncommitted reservation. Finish emits no event because it
-   cannot change the pending identity count. The event remains a gauge
-   projection, while per-route mixed bind rejections stay visible in owner-push
-   classification and bounded logs.
-   Separately, an optional `AckBatchObserver` emits one post-operation stage for
-   each multi-item bind and finish. The event reports bounded phase/outcome plus
-   item, touched-shard, rejection, rollback, and duration values. The
-   owner-push caller passes the number of bind reservations it actually
-   canceled; omitted indexes remain in-flight and are not inferred to be
-   rollbacks. The observer does not scan tracker state or time individual shard
-   locks.
-8. `Manager` serializes each ack mutation with its `AckEvent` emission, so
-   observers do not apply an older pending count after a newer state change.
-9. App top and Prometheus observers consume the same ack event path, so
-   `ack_bindings` and `wukongim_delivery_ack_bindings` reflect `AckTracker`
-   transitions instead of adapter-local estimates.
+The runtime, not the session adapter, owns every ACK token. The adapter receives
+only the immutable event and exact route, validates the live session, builds the
+recipient packet, performs the write, and returns a disposition.
+
+ACK identity is `(UID, SessionID, MessageID)`. A fast `Recvack`, concurrent
+`SessionClosed`, expiry, duplicate route, refresh, or failed write can win
+between bind and finish without allowing one attempt to roll back another
+attempt's state. A duplicate row intentionally remains a duplicate write; it
+rebinds just before its write so an earlier fast ACK cannot consume its pending
+identity. Per-session limits and invalid rows remain item-aligned. Successful
+writes leave pending state until exact feedback, session close, expiry, or
+runtime shutdown.
+
+`AckTracker` shards state by session ID, maintains an O(1) pending count, and
+groups batch bind/finish locking by touched shard. `AckObserver` reports
+serialized identity-count mutations. Optional `AckBatchObserver` reports one
+aggregate bind stage and one finish stage without adding callbacks inside item
+or shard loops.
+
+## Lifecycle
+
+`Start` opens one runtime generation and launches the fixed plan workers.
+`Stop` first closes admission, cancels the generation context, waits for
+admission senders and external owner-push RPC calls to leave, then lets workers
+terminally drain every accepted queue item. A successful stop clears transient
+ACK state and makes the same runtime restartable.
+
+A caller timeout bounds only that caller's wait. The runtime remains closing
+until the old generation has fully exited; `Start` rejects during that window,
+so old and new queues or ACK generations never overlap. A later `Stop` or
+`Start` observes the completed generation and finalizes the closed state.
+
+Queue, in-flight worker, admission, terminal-plan, owner-push, ACK, and ACK-batch
+observations use bounded low-cardinality labels. No UID, channel, Slot, or
+authority target becomes a metric label. Terminal failures expose one
+non-metric `PlanFailureSample` with a representative recipient and exact
+authority target for bounded structured logging. Retry exhaustion has its own
+`retry_exhausted` observation result instead of collapsing into generic error.
+Observer panics are isolated from admission, delivery, ACK mutation, and
+lifecycle outcomes.

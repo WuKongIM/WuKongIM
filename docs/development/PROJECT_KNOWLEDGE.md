@@ -28,7 +28,7 @@
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
-- Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
+- Channelappend reserves bounded post-commit handoff capacity before durable append; saturation returns `ErrChannelBusy` before persistence, while an already-durable envelope retains its reservation until one terminal post-commit handoff. Post-commit execution stays isolated from foreground append workers, and Online Delivery failures after successful admission remain terminal best-effort outcomes.
 - Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
 - Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
@@ -113,10 +113,9 @@
 - Delivery push implementations must report intentionally skipped sender-origin routes as `Dropped`; silently omitting a pre-bound route leaves delivery actor ack bindings/inflight routes uncleared.
 
 ### Committed event replay
-- Sendack waits for Channel Log quorum commit; delivery/conversation are async side effects recovered by committed replay from the durable message log.
-- Committed replay cursor is a low-cost progress hint; losing it only causes duplicate replay, not message loss.
-- Committed replay subscribes to committed events and should replay dirty channels before falling back to a full persisted channel-key scan.
-- Channel store persisted key listing must skip by encoded channel-key prefix; decoding every message row turns committed replay full scans into CPU/GC pressure.
+- Sendack waits for Channel Log quorum commit; Online Delivery and conversation projection are currently bounded best-effort side effects that are not checkpointed or replayed after authority restart.
+- The committed-replay metrics and message-store cursor methods are scaffolding, not a production recovery guarantee.
+- A future committed replay runtime should treat its cursor as a low-cost progress hint whose loss causes duplicate replay rather than message loss, replay dirty channels before a full persisted channel-key scan, and skip persisted keys by encoded channel-key prefix instead of decoding every message row.
 - Channel message retention is cluster-authoritative: leaders advance slot metadata `RetentionThroughSeq`; local stores may lag physically and must not use checkpoint `LogStartOffset` for retention.
 - Manager history-message deletion advances channel `RetentionThroughSeq`; it must not directly delete message rows or skip channel leader/slot metadata semantics.
 

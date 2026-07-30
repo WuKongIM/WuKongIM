@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -113,6 +112,10 @@ func dispatchCommittedRecipients(ctx context.Context, event CommittedEnvelope, p
 }
 
 func dispatchCommittedRecipientsForTarget(ctx context.Context, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
+	return dispatchRecipientsForTarget(ctx, onlinedelivery.ModeDurable, target, event, cache, ports)
+}
+
+func dispatchRecipientsForTarget(ctx context.Context, mode onlinedelivery.Mode, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
 	enqueuer := effectiveRecipientDeliveryEnqueuer(ports)
 	if ports.activeAdmitter == nil && enqueuer == nil {
 		return recipientDispatchResult{}, nil
@@ -121,7 +124,7 @@ func dispatchCommittedRecipientsForTarget(ctx context.Context, target AuthorityT
 		return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 	}
 	if len(event.MessageScopedUIDs) > 0 {
-		result, err := dispatchRecipientSetResult(ctx, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
+		result, err := dispatchRecipientSetResultForMode(ctx, mode, event, recipientsFromUIDs(event.MessageScopedUIDs), ports)
 		return recipientDispatchResult{activeErr: result.activeErr}, err
 	}
 	if event.ChannelType == channelTypePerson {
@@ -129,16 +132,16 @@ func dispatchCommittedRecipientsForTarget(ctx context.Context, target AuthorityT
 		if err != nil {
 			return recipientDispatchResult{}, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "person_channel_decode"})
 		}
-		result, dispatchErr := dispatchRecipientSetResult(ctx, event, []Recipient{{UID: left}, {UID: right}}, ports)
+		result, dispatchErr := dispatchRecipientSetResultForMode(ctx, mode, event, []Recipient{{UID: left}, {UID: right}}, ports)
 		return recipientDispatchResult{activeErr: result.activeErr}, dispatchErr
 	}
 	if target.Large {
-		return dispatchSubscriberPages(ctx, event, ports)
+		return dispatchSubscriberPages(ctx, mode, event, ports)
 	}
-	return dispatchSubscriberSnapshot(ctx, target, event, cache, ports)
+	return dispatchSubscriberSnapshot(ctx, mode, target, event, cache, ports)
 }
 
-func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports commitPorts) (recipientDispatchResult, error) {
+func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, ports commitPorts) (recipientDispatchResult, error) {
 	if ports.subscribers == nil {
 		return recipientDispatchResult{}, nil
 	}
@@ -164,7 +167,7 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 				RecipientCount: len(page.Recipients),
 			})
 		}
-		pageResult, dispatchErr := dispatchRecipientSetResult(ctx, event, page.Recipients, ports)
+		pageResult, dispatchErr := dispatchRecipientSetResultForMode(ctx, mode, event, page.Recipients, ports)
 		if result.activeErr == nil {
 			result.activeErr = pageResult.activeErr
 		}
@@ -178,12 +181,12 @@ func dispatchSubscriberPages(ctx context.Context, event CommittedEnvelope, ports
 	}
 }
 
-func dispatchSubscriberSnapshot(ctx context.Context, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
+func dispatchSubscriberSnapshot(ctx context.Context, mode onlinedelivery.Mode, target AuthorityTarget, event CommittedEnvelope, cache subscriberCache, ports commitPorts) (recipientDispatchResult, error) {
 	if ports.subscribers == nil {
 		return recipientDispatchResult{}, nil
 	}
 	if cache.matches(target) {
-		result, err := dispatchRecipientSetResult(ctx, event, cache.recipients, ports)
+		result, err := dispatchRecipientSetResultForMode(ctx, mode, event, cache.recipients, ports)
 		return recipientDispatchResult{subscriberCache: cache, activeErr: result.activeErr}, err
 	}
 	if err := contextErr(ctx); err != nil {
@@ -207,7 +210,7 @@ func dispatchSubscriberSnapshot(ctx context.Context, target AuthorityTarget, eve
 		mutationVersion: target.SubscriberMutationVersion,
 		recipients:      append([]Recipient(nil), page.Recipients...),
 	}
-	dispatch, err := dispatchRecipientSetResult(ctx, event, page.Recipients, ports)
+	dispatch, err := dispatchRecipientSetResultForMode(ctx, mode, event, page.Recipients, ports)
 	if err != nil {
 		return recipientDispatchResult{activeErr: dispatch.activeErr}, err
 	}
@@ -220,6 +223,10 @@ func dispatchRecipientSet(ctx context.Context, event CommittedEnvelope, recipien
 }
 
 func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, recipients []Recipient, ports commitPorts) (recipientSetDispatchResult, error) {
+	return dispatchRecipientSetResultForMode(ctx, onlinedelivery.ModeDurable, event, recipients, ports)
+}
+
+func dispatchRecipientSetResultForMode(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, recipients []Recipient, ports commitPorts) (recipientSetDispatchResult, error) {
 	enqueuer := effectiveRecipientDeliveryEnqueuer(ports)
 	if len(recipients) == 0 || (ports.activeAdmitter == nil && enqueuer == nil) {
 		return recipientSetDispatchResult{}, nil
@@ -253,7 +260,7 @@ func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, re
 		case groupErr != nil:
 			deliveryErr = groupErr
 		default:
-			deliveryErr = dispatchRecipientDelivery(ctx, event, grouping, ports, enqueuer)
+			deliveryErr = dispatchRecipientDelivery(ctx, mode, event, grouping, ports, enqueuer)
 		}
 	}
 
@@ -266,37 +273,25 @@ func dispatchRecipientSetResult(ctx context.Context, event CommittedEnvelope, re
 	return recipientSetDispatchResult{activeErr: activeErr}, deliveryErr
 }
 
-func dispatchRecipientDelivery(ctx context.Context, event CommittedEnvelope, grouping recipientAuthorityGrouping, ports commitPorts, enqueuer RecipientDeliveryEnqueuer) error {
+func dispatchRecipientDelivery(ctx context.Context, mode onlinedelivery.Mode, event CommittedEnvelope, grouping recipientAuthorityGrouping, ports commitPorts, enqueuer RecipientDeliveryEnqueuer) error {
 	if enqueuer == nil {
 		return nil
 	}
 	batchSize := boundedPositive(ports.recipientBatchSize, defaultRecipientBatchSize)
-	if planEnqueuer, ok := enqueuer.(RecipientDeliveryPlanEnqueuer); ok {
-		return dispatchRecipientPlans(ctx, event, grouping.groups, grouping.deliveryOrder, batchSize, planEnqueuer)
-	}
-	concurrency := boundedPositive(ports.recipientDispatchConcurrency, 1)
-	if concurrency <= 1 || len(grouping.deliveryOrder) <= 1 {
-		for _, groupIndex := range grouping.deliveryOrder {
-			group := grouping.groups[groupIndex]
-			if err := dispatchRecipientTarget(ctx, event, group.target, group.recipients, batchSize, len(grouping.deliveryOrder), enqueuer); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return dispatchRecipientTargetsConcurrent(ctx, event, grouping.groups, grouping.deliveryOrder, batchSize, concurrency, enqueuer)
+	return dispatchRecipientPlans(ctx, mode, event, grouping.groups, grouping.deliveryOrder, batchSize, enqueuer)
 }
 
 func dispatchRecipientPlans(
 	ctx context.Context,
+	mode onlinedelivery.Mode,
 	event CommittedEnvelope,
 	groups []recipientAuthorityGroup,
 	order []int,
 	batchSize int,
-	enqueuer RecipientDeliveryPlanEnqueuer,
+	enqueuer RecipientDeliveryEnqueuer,
 ) error {
 	planTargetCapacity := min(batchSize, len(order))
-	plan := RecipientDeliveryPlan{Event: event, Targets: make([]RecipientTargetBatch, 0, planTargetCapacity)}
+	plan := onlinedelivery.RecipientDeliveryPlan{Mode: mode, Event: event, Targets: make([]onlinedelivery.RecipientTargetBatch, 0, planTargetCapacity)}
 	flush := func() error {
 		if plan.RecipientCount() == 0 {
 			return nil
@@ -311,7 +306,7 @@ func dispatchRecipientPlans(
 			detail.DispatchBatchSize = plan.RecipientCount()
 			return withPostCommitFailureDetail(err, detail)
 		}
-		plan = RecipientDeliveryPlan{Event: event, Targets: make([]RecipientTargetBatch, 0, planTargetCapacity)}
+		plan = onlinedelivery.RecipientDeliveryPlan{Mode: mode, Event: event, Targets: make([]onlinedelivery.RecipientTargetBatch, 0, planTargetCapacity)}
 		return nil
 	}
 
@@ -331,7 +326,7 @@ func dispatchRecipientPlans(
 			if n > len(recipients) {
 				n = len(recipients)
 			}
-			plan.Targets = append(plan.Targets, RecipientTargetBatch{
+			plan.Targets = append(plan.Targets, onlinedelivery.RecipientTargetBatch{
 				Target: target,
 				// Grouping already owns this normalized recipient storage. A
 				// capacity-limited view can transfer to the async plan without
@@ -681,77 +676,6 @@ func admitRoutedConversationActiveBatches(ctx context.Context, event CommittedEn
 		})
 	}
 	return nil
-}
-
-func dispatchRecipientTarget(ctx context.Context, event CommittedEnvelope, target RecipientAuthorityTarget, recipients []Recipient, batchSize int, targetCount int, enqueuer RecipientDeliveryEnqueuer) error {
-	for len(recipients) > 0 {
-		n := batchSize
-		if n > len(recipients) {
-			n = len(recipients)
-		}
-		batch := RecipientBatch{
-			Event:      event,
-			Recipients: append([]Recipient(nil), recipients[:n]...),
-		}
-		if err := enqueuer.EnqueueRecipientBatch(ctx, target, batch); err != nil {
-			detail := postCommitTargetDetail(target)
-			detail.Phase = "recipient_dispatch"
-			detail.UID = firstRecipientUID(batch.Recipients)
-			detail.RecipientCount = len(recipients)
-			detail.DispatchTargetCount = targetCount
-			detail.DispatchBatchSize = len(batch.Recipients)
-			return withPostCommitFailureDetail(err, detail)
-		}
-		recipients = recipients[n:]
-	}
-	return nil
-}
-
-func dispatchRecipientTargetsConcurrent(ctx context.Context, event CommittedEnvelope, groups []recipientAuthorityGroup, order []int, batchSize int, concurrency int, enqueuer RecipientDeliveryEnqueuer) error {
-	if concurrency > len(order) {
-		concurrency = len(order)
-	}
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	targets := make(chan int)
-	errs := make(chan error, 1)
-	var wg sync.WaitGroup
-	worker := func() {
-		defer wg.Done()
-		for groupIndex := range targets {
-			group := groups[groupIndex]
-			if err := dispatchRecipientTarget(runCtx, event, group.target, group.recipients, batchSize, len(order), enqueuer); err != nil {
-				select {
-				case errs <- err:
-					cancel()
-				default:
-				}
-				return
-			}
-		}
-	}
-	wg.Add(concurrency)
-	for i := 0; i < concurrency; i++ {
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskChannelAppendRecipientResolve, worker)
-	}
-	for _, groupIndex := range order {
-		select {
-		case targets <- groupIndex:
-		case <-runCtx.Done():
-			break
-		}
-		if runCtx.Err() != nil {
-			break
-		}
-	}
-	close(targets)
-	wg.Wait()
-	select {
-	case err := <-errs:
-		return err
-	default:
-	}
-	return runCtx.Err()
 }
 
 func firstString(values []string) string {

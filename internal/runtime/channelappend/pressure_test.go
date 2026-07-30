@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 )
 
 type capturePressureObserver struct {
@@ -764,9 +766,9 @@ func newBurstRefillRecipientEnqueuerForPressureTest(firstRetryMessageID uint64) 
 	}
 }
 
-func (e *burstRefillRecipientEnqueuerForPressureTest) EnqueueRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
+func (e *burstRefillRecipientEnqueuerForPressureTest) EnqueueRecipientDeliveryPlan(ctx context.Context, plan onlinedelivery.RecipientDeliveryPlan) error {
 	release := e.retryRelease
-	if batch.Event.MessageID < e.firstRetryMessageID {
+	if plan.Event.MessageID < e.firstRetryMessageID {
 		e.initialStarted.Add(1)
 		release = e.initialRelease
 	} else {

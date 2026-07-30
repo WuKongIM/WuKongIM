@@ -2,11 +2,28 @@ package node
 
 import (
 	"bytes"
+	"encoding/hex"
 	"reflect"
 	"testing"
 
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	channelappendcontract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 )
+
+func TestDeliveryPushCodecPreservesLegacyWireBytes(t *testing.T) {
+	body, err := encodeDeliveryPushRequest(deliveryPushRequest{Command: testDeliveryPushCommand()})
+	if err != nil {
+		t.Fatalf("encodeDeliveryPushRequest() error = %v", err)
+	}
+	const legacyHex = "574b5644010de90707096368616e6e656c2d31020673656e646572032108636c69656e742d3101040102030402027531027532020275310d17cd0865096465766963652d753101020275320d17b209ca01096465766963652d75320102"
+	want, err := hex.DecodeString(legacyHex)
+	if err != nil {
+		t.Fatalf("DecodeString(legacy) error = %v", err)
+	}
+	if !bytes.Equal(body, want) {
+		t.Fatalf("delivery push wire bytes = %x, want legacy %x", body, want)
+	}
+}
 
 func TestDeliveryCodecRequestRoundTrip(t *testing.T) {
 	req := deliveryPushRequest{Command: testDeliveryPushCommand()}
@@ -41,10 +58,10 @@ func TestDeliveryCodecRequestRoundTrip(t *testing.T) {
 func TestDeliveryCodecResponseRoundTrip(t *testing.T) {
 	resp := deliveryPushResponse{
 		Status: rpcStatusOK,
-		Result: runtimedelivery.PushResult{
-			Accepted:  []runtimedelivery.Route{testDeliveryRoute("u1", 101)},
-			Retryable: []runtimedelivery.Route{testDeliveryRoute("u2", 202)},
-			Dropped:   []runtimedelivery.Route{testDeliveryRoute("u3", 303)},
+		Result: onlinedelivery.OwnerPushResult{
+			Accepted:  []onlinedelivery.Route{testDeliveryRoute("u1", 101)},
+			Retryable: []onlinedelivery.Route{testDeliveryRoute("u2", 202)},
+			Dropped:   []onlinedelivery.Route{testDeliveryRoute("u3", 303)},
 		},
 	}
 
@@ -66,42 +83,6 @@ func TestDeliveryCodecResponseRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, resp) {
 		t.Fatalf("decodeDeliveryPushResponse() = %#v, want %#v", got, resp)
-	}
-}
-
-func TestDeliveryFanoutCodecRoundTrip(t *testing.T) {
-	req := deliveryFanoutRequest{Task: testDeliveryFanoutTask()}
-
-	body, err := encodeDeliveryFanoutRequest(req)
-	if err != nil {
-		t.Fatalf("encodeDeliveryFanoutRequest() error = %v", err)
-	}
-	again, err := encodeDeliveryFanoutRequest(req)
-	if err != nil {
-		t.Fatalf("second encodeDeliveryFanoutRequest() error = %v", err)
-	}
-	if !bytes.Equal(body, again) {
-		t.Fatal("encodeDeliveryFanoutRequest() is not deterministic")
-	}
-	got, err := decodeDeliveryFanoutRequest(body)
-	if err != nil {
-		t.Fatalf("decodeDeliveryFanoutRequest() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, req) {
-		t.Fatalf("decodeDeliveryFanoutRequest() = %#v, want %#v", got, req)
-	}
-
-	resp := deliveryFanoutResponse{Status: rpcStatusOK}
-	respBody, err := encodeDeliveryFanoutResponse(resp)
-	if err != nil {
-		t.Fatalf("encodeDeliveryFanoutResponse() error = %v", err)
-	}
-	decodedResp, err := decodeDeliveryFanoutResponse(respBody)
-	if err != nil {
-		t.Fatalf("decodeDeliveryFanoutResponse() error = %v", err)
-	}
-	if !reflect.DeepEqual(decodedResp, resp) {
-		t.Fatalf("decodeDeliveryFanoutResponse() = %#v, want %#v", decodedResp, resp)
 	}
 }
 
@@ -140,45 +121,10 @@ func TestDeliveryCodecRejectsBadMagicTruncatedAndTrailingBytes(t *testing.T) {
 	}
 }
 
-func TestDeliveryFanoutCodecRejectsBadMagicTruncatedAndTrailingBytes(t *testing.T) {
-	reqBody, err := encodeDeliveryFanoutRequest(deliveryFanoutRequest{Task: testDeliveryFanoutTask()})
-	if err != nil {
-		t.Fatalf("encodeDeliveryFanoutRequest() error = %v", err)
-	}
-	respBody, err := encodeDeliveryFanoutResponse(deliveryFanoutResponse{Status: rpcStatusOK})
-	if err != nil {
-		t.Fatalf("encodeDeliveryFanoutResponse() error = %v", err)
-	}
-
-	badReqMagic := append([]byte(nil), reqBody...)
-	badReqMagic[0] = 'X'
-	if _, err := decodeDeliveryFanoutRequest(badReqMagic); err == nil {
-		t.Fatal("decodeDeliveryFanoutRequest() accepted bad magic")
-	}
-	if _, err := decodeDeliveryFanoutRequest(reqBody[:len(reqBody)-1]); err == nil {
-		t.Fatal("decodeDeliveryFanoutRequest() accepted truncated body")
-	}
-	if _, err := decodeDeliveryFanoutRequest(append(append([]byte(nil), reqBody...), 0)); err == nil {
-		t.Fatal("decodeDeliveryFanoutRequest() accepted trailing bytes")
-	}
-
-	badRespMagic := append([]byte(nil), respBody...)
-	badRespMagic[0] = 'X'
-	if _, err := decodeDeliveryFanoutResponse(badRespMagic); err == nil {
-		t.Fatal("decodeDeliveryFanoutResponse() accepted bad magic")
-	}
-	if _, err := decodeDeliveryFanoutResponse(respBody[:len(respBody)-1]); err == nil {
-		t.Fatal("decodeDeliveryFanoutResponse() accepted truncated body")
-	}
-	if _, err := decodeDeliveryFanoutResponse(append(append([]byte(nil), respBody...), 0)); err == nil {
-		t.Fatal("decodeDeliveryFanoutResponse() accepted trailing bytes")
-	}
-}
-
-func testDeliveryPushCommand() runtimedelivery.PushCommand {
-	return runtimedelivery.PushCommand{
+func testDeliveryPushCommand() onlinedelivery.OwnerPush {
+	return onlinedelivery.OwnerPush{
 		OwnerNodeID: 13,
-		Envelope: runtimedelivery.Envelope{
+		Event: channelappendcontract.CommittedEnvelope{
 			MessageID:         1001,
 			MessageSeq:        7,
 			ChannelID:         "channel-1",
@@ -191,15 +137,15 @@ func testDeliveryPushCommand() runtimedelivery.PushCommand {
 			Payload:           []byte{1, 2, 3, 4},
 			MessageScopedUIDs: []string{"u1", "u2"},
 		},
-		Routes: []runtimedelivery.Route{
+		Routes: []onlinedelivery.Route{
 			testDeliveryRoute("u1", 101),
 			testDeliveryRoute("u2", 202),
 		},
 	}
 }
 
-func testDeliveryRoute(uid string, sessionID uint64) runtimedelivery.Route {
-	return runtimedelivery.Route{
+func testDeliveryRoute(uid string, sessionID uint64) onlinedelivery.Route {
+	return onlinedelivery.Route{
 		UID:         uid,
 		OwnerNodeID: 13,
 		OwnerBootID: 23,

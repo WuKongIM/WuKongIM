@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -1076,16 +1076,16 @@ func requireTraceNodeAndSeq(t *testing.T, event sendtrace.Event, nodeID uint64, 
 type recordingDelivery struct {
 	recvackErr      error
 	closedErr       error
-	recvackCommands []delivery.RecvackCommand
-	closedCommands  []delivery.SessionClosedCommand
+	recvackCommands []runtimedelivery.Recvack
+	closedCommands  []runtimedelivery.SessionClosed
 }
 
-func (d *recordingDelivery) Recvack(_ context.Context, cmd delivery.RecvackCommand) error {
+func (d *recordingDelivery) Recvack(_ context.Context, cmd runtimedelivery.Recvack) error {
 	d.recvackCommands = append(d.recvackCommands, cmd)
 	return d.recvackErr
 }
 
-func (d *recordingDelivery) SessionClosed(_ context.Context, cmd delivery.SessionClosedCommand) error {
+func (d *recordingDelivery) SessionClosed(_ context.Context, cmd runtimedelivery.SessionClosed) error {
 	d.closedCommands = append(d.closedCommands, cmd)
 	return d.closedErr
 }

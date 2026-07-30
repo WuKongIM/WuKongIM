@@ -3,44 +3,27 @@ package delivery
 import (
 	"context"
 
-	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 )
 
-// ChannelAppendPresenceResolver adapts entry-agnostic presence lookups to the
-// channelappend delivery runtime while preserving exact authority fences.
-type ChannelAppendPresenceResolver struct {
+// PresenceResolver adapts exact-target presence lookups to Online Delivery.
+type PresenceResolver struct {
 	presence *presenceusecase.App
 }
 
-var _ channelappend.PresenceResolver = (*ChannelAppendPresenceResolver)(nil)
-var _ channelappend.RecipientTargetPresenceResolver = (*ChannelAppendPresenceResolver)(nil)
+var _ runtimedelivery.PlanPresenceResolver = (*PresenceResolver)(nil)
 
-// NewChannelAppendPresenceResolver creates a delivery-runtime presence adapter.
-func NewChannelAppendPresenceResolver(presence *presenceusecase.App) *ChannelAppendPresenceResolver {
-	return &ChannelAppendPresenceResolver{presence: presence}
+// NewPresenceResolver creates the exact-target Online Delivery presence adapter.
+func NewPresenceResolver(presence *presenceusecase.App) *PresenceResolver {
+	return &PresenceResolver{presence: presence}
 }
 
-// EndpointsByUIDs returns flat channelappend routes for the requested UIDs.
-func (r *ChannelAppendPresenceResolver) EndpointsByUIDs(ctx context.Context, uids []string) ([]channelappend.Route, error) {
-	if r == nil || r.presence == nil || len(uids) == 0 {
-		return nil, nil
-	}
-	routesByUID, err := r.presence.EndpointsByUIDs(ctx, uids)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]channelappend.Route, 0)
-	for _, routes := range routesByUID {
-		out = appendChannelAppendRoutes(out, routes)
-	}
-	return out, nil
-}
-
-// EndpointsByTargets resolves exact target batches and preserves aligned
-// partial errors for the channelappend delivery worker.
-func (r *ChannelAppendPresenceResolver) EndpointsByTargets(ctx context.Context, batches []channelappend.RecipientTargetBatch) []channelappend.RecipientTargetPresenceResult {
-	results := make([]channelappend.RecipientTargetPresenceResult, len(batches))
+// EndpointsByTargets preserves input alignment and exact authority fences.
+func (r *PresenceResolver) EndpointsByTargets(ctx context.Context, batches []onlinedelivery.RecipientTargetBatch) []runtimedelivery.TargetPresenceResult {
+	results := make([]runtimedelivery.TargetPresenceResult, len(batches))
 	if len(batches) == 0 {
 		return results
 	}
@@ -66,35 +49,19 @@ func (r *ChannelAppendPresenceResolver) EndpointsByTargets(ctx context.Context, 
 	resolved := r.presence.EndpointsByTargets(ctx, groups)
 	for i := range results {
 		if i >= len(resolved) {
-			results[i].Err = channelappend.ErrRecipientPresenceResultMissing
+			results[i].Err = runtimedelivery.ErrPresenceResultMissing
 			continue
 		}
 		results[i].Err = resolved[i].Err
-		results[i].Routes = channelAppendRoutesFromPresence(resolved[i].Routes)
+		results[i].Routes = onlineDeliveryRoutesFromPresence(resolved[i].Routes)
 	}
 	return results
 }
 
-func presenceTargetFromRecipientTarget(target channelappend.RecipientAuthorityTarget) presenceusecase.RouteTarget {
-	return presenceusecase.RouteTarget{
-		HashSlot:       target.HashSlot,
-		SlotID:         target.SlotID,
-		LeaderNodeID:   target.LeaderNodeID,
-		LeaderTerm:     target.LeaderTerm,
-		ConfigEpoch:    target.ConfigEpoch,
-		RouteRevision:  target.RouteRevision,
-		AuthorityEpoch: target.AuthorityEpoch,
-	}
-}
-
-func channelAppendRoutesFromPresence(routes []presenceusecase.Route) []channelappend.Route {
-	out := make([]channelappend.Route, 0, len(routes))
-	return appendChannelAppendRoutes(out, routes)
-}
-
-func appendChannelAppendRoutes(out []channelappend.Route, routes []presenceusecase.Route) []channelappend.Route {
+func onlineDeliveryRoutesFromPresence(routes []presenceusecase.Route) []onlinedelivery.Route {
+	out := make([]onlinedelivery.Route, 0, len(routes))
 	for _, route := range routes {
-		out = append(out, channelappend.Route{
+		out = append(out, onlinedelivery.Route{
 			UID:         route.UID,
 			OwnerNodeID: route.OwnerNodeID,
 			OwnerBootID: route.OwnerBootID,
@@ -106,4 +73,16 @@ func appendChannelAppendRoutes(out []channelappend.Route, routes []presenceuseca
 		})
 	}
 	return out
+}
+
+func presenceTargetFromRecipientTarget(target authority.Target) presenceusecase.RouteTarget {
+	return presenceusecase.RouteTarget{
+		HashSlot:       target.HashSlot,
+		SlotID:         target.SlotID,
+		LeaderNodeID:   target.LeaderNodeID,
+		LeaderTerm:     target.LeaderTerm,
+		ConfigEpoch:    target.ConfigEpoch,
+		RouteRevision:  target.RouteRevision,
+		AuthorityEpoch: target.AuthorityEpoch,
+	}
 }

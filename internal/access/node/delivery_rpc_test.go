@@ -5,12 +5,12 @@ import (
 	"reflect"
 	"testing"
 
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 )
 
 func TestDeliveryRPCHandlerDispatchesPush(t *testing.T) {
 	cmd := testDeliveryPushCommand()
-	result := runtimedelivery.PushResult{Accepted: []runtimedelivery.Route{cmd.Routes[0]}}
+	result := onlinedelivery.OwnerPushResult{Accepted: []onlinedelivery.Route{cmd.Routes[0]}}
 	delivery := &fakeDeliveryOwnerPush{result: result}
 	adapter := New(Options{Delivery: delivery})
 	body, err := encodeDeliveryPushRequest(deliveryPushRequest{Command: cmd})
@@ -58,13 +58,13 @@ func TestDeliveryRPCHandlerRejectsNilDelivery(t *testing.T) {
 
 func TestDeliveryClientCallsExpectedServiceAndDecodesResult(t *testing.T) {
 	cmd := testDeliveryPushCommand()
-	result := runtimedelivery.PushResult{Accepted: []runtimedelivery.Route{cmd.Routes[0]}}
+	result := onlinedelivery.OwnerPushResult{Accepted: []onlinedelivery.Route{cmd.Routes[0]}}
 	node := &fakeDeliveryRPCNode{response: deliveryPushResponse{Status: rpcStatusOK, Result: result}}
 	client := NewClient(node)
 
-	got, err := client.PushBatch(context.Background(), 13, cmd)
+	got, err := client.PushOwner(context.Background(), cmd)
 	if err != nil {
-		t.Fatalf("PushBatch() error = %v", err)
+		t.Fatalf("PushOwner() error = %v", err)
 	}
 	if node.nodeID != 13 {
 		t.Fatalf("nodeID = %d, want 13", node.nodeID)
@@ -80,7 +80,7 @@ func TestDeliveryClientCallsExpectedServiceAndDecodesResult(t *testing.T) {
 		t.Fatalf("client command = %#v, want %#v", req.Command, cmd)
 	}
 	if !reflect.DeepEqual(got, result) {
-		t.Fatalf("PushBatch() = %#v, want %#v", got, result)
+		t.Fatalf("PushOwner() = %#v, want %#v", got, result)
 	}
 }
 
@@ -89,21 +89,21 @@ func TestDeliveryClientMapsRejectedStatusToError(t *testing.T) {
 		response: deliveryPushResponse{Status: rpcStatusRejected},
 	})
 
-	if _, err := client.PushBatch(context.Background(), 13, testDeliveryPushCommand()); err == nil {
-		t.Fatal("PushBatch() error = nil, want rejected error")
+	if _, err := client.PushOwner(context.Background(), testDeliveryPushCommand()); err == nil {
+		t.Fatal("PushOwner() error = nil, want rejected error")
 	}
 }
 
 type fakeDeliveryOwnerPush struct {
-	result   runtimedelivery.PushResult
+	result   onlinedelivery.OwnerPushResult
 	err      error
-	commands []runtimedelivery.PushCommand
+	commands []onlinedelivery.OwnerPush
 }
 
-func (f *fakeDeliveryOwnerPush) Push(_ context.Context, cmd runtimedelivery.PushCommand) (runtimedelivery.PushResult, error) {
+func (f *fakeDeliveryOwnerPush) PushOwner(_ context.Context, cmd onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
 	f.commands = append(f.commands, cmd)
 	if f.err != nil {
-		return runtimedelivery.PushResult{}, f.err
+		return onlinedelivery.OwnerPushResult{}, f.err
 	}
 	return f.result, nil
 }

@@ -18,7 +18,7 @@ func TestBoundedWorkerQueuePublishesOwnedWorkersAndPoolState(t *testing.T) {
 	queue, err := NewBoundedWorkerQueue[int](BoundedWorkerQueueConfig{
 		Name:       "delivery-manager",
 		Goroutines: registry,
-		Task:       goruntimeregistry.TaskDeliveryManagerAsync,
+		Task:       goruntimeregistry.TaskOnlineDeliveryWorker,
 		Workers:    1,
 		QueueSize:  1,
 	}, func(context.Context, int) error {
@@ -34,7 +34,7 @@ func TestBoundedWorkerQueuePublishesOwnedWorkersAndPoolState(t *testing.T) {
 	}
 	waitForBatchPoolSignal(t, started, "owned worker start")
 
-	task := waitForOwnedPoolSnapshot(t, registry, goruntimeregistry.TaskDeliveryManagerAsync)
+	task := waitForOwnedPoolSnapshot(t, registry, goruntimeregistry.TaskOnlineDeliveryWorker)
 	if task.Active != 1 {
 		t.Fatalf("Active = %d, want one direct worker", task.Active)
 	}

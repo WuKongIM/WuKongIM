@@ -38,8 +38,9 @@ const (
 	RPCPresenceOwner
 	// RPCDeliveryPush serves internal owner-node delivery push batches.
 	RPCDeliveryPush
-	// RPCDeliveryFanout serves internal authority-node delivery fanout tasks.
-	RPCDeliveryFanout
+	// The retired delivery-fanout service ID remains reserved so later wire IDs
+	// do not shift across mixed-version clusters.
+	_
 	// RPCChannelPullBatch serves grouped Channel follower pull requests.
 	RPCChannelPullBatch
 	// RPCChannelPullHintBatch serves grouped Channel pull hints.
@@ -145,8 +146,6 @@ func transportServiceAlias(serviceID uint8) string {
 		return "presence owner action"
 	case RPCDeliveryPush:
 		return "delivery push"
-	case RPCDeliveryFanout:
-		return "delivery fanout"
 	case RPCChannelPullBatch:
 		return "channel pull batch"
 	case RPCChannelPullHintBatch:

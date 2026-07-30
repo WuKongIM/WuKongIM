@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
@@ -1000,11 +1001,11 @@ func TestNoPersistSyncOnceDispatchesRealtimeWithoutAppendOrActiveConversation(t 
 	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2", "u3"}) {
 		t.Fatalf("recipient delivery uids = %#v, want scoped u2,u3", got)
 	}
-	batches := enqueuer.batchesSnapshot()
-	if len(batches) != 1 {
-		t.Fatalf("recipient delivery batches = %d, want 1", len(batches))
+	plans := enqueuer.plansSnapshot()
+	if len(plans) != 1 {
+		t.Fatalf("recipient delivery plans = %d, want 1", len(plans))
 	}
-	event := batches[0].Event
+	event := plans[0].Event
 	if event.MessageID != 1500 || event.MessageSeq != 0 || event.ChannelID != commandChannelID || !event.SyncOnce {
 		t.Fatalf("realtime event metadata = %#v, want transient command-channel event", event)
 	}
@@ -1333,7 +1334,7 @@ type blockingRecipientDeliveryEnqueuerForCommitTest struct {
 	once     sync.Once
 	releaseO sync.Once
 	mu       sync.Mutex
-	batches  []RecipientBatch
+	plans    []onlinedelivery.RecipientDeliveryPlan
 }
 
 func newBlockingRecipientDeliveryEnqueuerForCommitTest() *blockingRecipientDeliveryEnqueuerForCommitTest {
@@ -1343,12 +1344,12 @@ func newBlockingRecipientDeliveryEnqueuerForCommitTest() *blockingRecipientDeliv
 	}
 }
 
-func (r *blockingRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(ctx context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
+func (r *blockingRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientDeliveryPlan(ctx context.Context, plan onlinedelivery.RecipientDeliveryPlan) error {
 	r.once.Do(func() {
 		close(r.started)
 	})
 	r.mu.Lock()
-	r.batches = append(r.batches, batch.Clone())
+	r.plans = append(r.plans, plan.Clone())
 	r.mu.Unlock()
 	select {
 	case <-r.releaseC:
@@ -1376,7 +1377,7 @@ func (r *blockingRecipientDeliveryEnqueuerForCommitTest) release() {
 func (r *blockingRecipientDeliveryEnqueuerForCommitTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return len(r.batches)
+	return len(r.plans)
 }
 
 func (r *blockingRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T, want int) {
@@ -1396,9 +1397,9 @@ func (r *blockingRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T,
 func (r *blockingRecipientDeliveryEnqueuerForCommitTest) messageIDs() []uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]uint64, 0, len(r.batches))
-	for _, batch := range r.batches {
-		out = append(out, batch.Event.MessageID)
+	out := make([]uint64, 0, len(r.plans))
+	for _, plan := range r.plans {
+		out = append(out, plan.Event.MessageID)
 	}
 	return out
 }
@@ -1418,10 +1419,10 @@ func waitHandoffDepthForTest(t *testing.T, group *Group, want int) {
 }
 
 type scriptedRecipientDeliveryEnqueuerForCommitTest struct {
-	mu      sync.Mutex
-	cond    *sync.Cond
-	errs    []error
-	batches []RecipientBatch
+	mu    sync.Mutex
+	cond  *sync.Cond
+	errs  []error
+	plans []onlinedelivery.RecipientDeliveryPlan
 }
 
 type recordingPostCommitFailureObserverForTest struct {
@@ -1508,15 +1509,15 @@ func (r *panicPersistAfterEnqueuerForCommitTest) callCount() int {
 	return r.calls
 }
 
-func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientBatch(_ context.Context, _ RecipientAuthorityTarget, batch RecipientBatch) error {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) EnqueueRecipientDeliveryPlan(_ context.Context, plan onlinedelivery.RecipientDeliveryPlan) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.cond == nil {
 		r.cond = sync.NewCond(&r.mu)
 	}
-	r.batches = append(r.batches, batch.Clone())
+	r.plans = append(r.plans, plan.Clone())
 	r.cond.Broadcast()
-	index := len(r.batches) - 1
+	index := len(r.plans) - 1
 	if index < len(r.errs) {
 		return r.errs[index]
 	}
@@ -1531,7 +1532,7 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T,
 		if r.cond == nil {
 			r.cond = sync.NewCond(&r.mu)
 		}
-		got := len(r.batches)
+		got := len(r.plans)
 		r.mu.Unlock()
 		if got >= want {
 			return
@@ -1546,15 +1547,15 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) waitCalls(t *testing.T,
 func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) callCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return len(r.batches)
+	return len(r.plans)
 }
 
-func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) batchesSnapshot() []RecipientBatch {
+func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) plansSnapshot() []onlinedelivery.RecipientDeliveryPlan {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]RecipientBatch, 0, len(r.batches))
-	for _, batch := range r.batches {
-		out = append(out, batch.Clone())
+	out := make([]onlinedelivery.RecipientDeliveryPlan, 0, len(r.plans))
+	for _, plan := range r.plans {
+		out = append(out, plan.Clone())
 	}
 	return out
 }
@@ -1562,9 +1563,9 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) batchesSnapshot() []Rec
 func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) messageIDs() []uint64 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]uint64, 0, len(r.batches))
-	for _, batch := range r.batches {
-		out = append(out, batch.Event.MessageID)
+	out := make([]uint64, 0, len(r.plans))
+	for _, plan := range r.plans {
+		out = append(out, plan.Event.MessageID)
 	}
 	return out
 }
@@ -1573,9 +1574,11 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) recipientUIDs() []strin
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []string
-	for _, batch := range r.batches {
-		for _, recipient := range batch.Recipients {
-			out = append(out, recipient.UID)
+	for _, plan := range r.plans {
+		for _, target := range plan.Targets {
+			for _, recipient := range target.Recipients {
+				out = append(out, recipient.UID)
+			}
 		}
 	}
 	return out
@@ -1584,9 +1587,9 @@ func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) recipientUIDs() []strin
 func (r *scriptedRecipientDeliveryEnqueuerForCommitTest) payloads() [][]byte {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([][]byte, 0, len(r.batches))
-	for _, batch := range r.batches {
-		out = append(out, append([]byte(nil), batch.Event.Payload...))
+	out := make([][]byte, 0, len(r.plans))
+	for _, plan := range r.plans {
+		out = append(out, append([]byte(nil), plan.Event.Payload...))
 	}
 	return out
 }

@@ -1,10 +1,6 @@
 package channelappend
 
-import (
-	"context"
-
-	contract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
-)
+import contract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
 
 // ChannelID identifies a message channel.
 type ChannelID = contract.ChannelID
@@ -92,87 +88,11 @@ type CommittedEnvelope = contract.CommittedEnvelope
 // Recipient identifies one UID selected for committed-message effects.
 type Recipient = contract.Recipient
 
-// RecipientBatch carries one committed envelope and the recipients to process together.
-type RecipientBatch = contract.RecipientBatch
-
-// RecipientTargetBatch groups recipients that share one exact UID authority fence.
-type RecipientTargetBatch struct {
-	// Target is the exact recipient authority fence resolved before queue admission.
-	Target RecipientAuthorityTarget
-	// Recipients are the recipients owned by Target.
-	Recipients []Recipient
-}
-
-// Clone returns an independent recipient target batch.
-func (b RecipientTargetBatch) Clone() RecipientTargetBatch {
-	b.Recipients = append([]Recipient(nil), b.Recipients...)
-	return b
-}
-
-// RecipientDeliveryPlan carries one committed envelope and all exact-target
-// recipient groups selected for one bounded delivery command.
-type RecipientDeliveryPlan struct {
-	// Event is the immutable committed message being delivered.
-	Event CommittedEnvelope
-	// Targets preserve the exact UID authority fences resolved for the recipients.
-	Targets []RecipientTargetBatch
-}
-
-// Clone returns an independent delivery plan.
-func (p RecipientDeliveryPlan) Clone() RecipientDeliveryPlan {
-	p.Event = p.Event.Clone()
-	p.Targets = append([]RecipientTargetBatch(nil), p.Targets...)
-	for i := range p.Targets {
-		p.Targets[i] = p.Targets[i].Clone()
-	}
-	return p
-}
-
-// RecipientCount returns the number of recipient entries carried by the plan.
-func (p RecipientDeliveryPlan) RecipientCount() int {
-	total := 0
-	for _, target := range p.Targets {
-		total += len(target.Recipients)
-	}
-	return total
-}
-
-// OfflineRecipientsEvent reports durable recipients with no online route.
-type OfflineRecipientsEvent struct {
-	// Event is the committed message whose recipients were classified offline.
-	Event CommittedEnvelope
-	// UIDs are recipient user identifiers without online routes, in first-seen order.
-	UIDs []string
-}
-
-// OfflineRecipientsObserver receives offline recipient candidates in one batch after presence resolution.
-type OfflineRecipientsObserver interface {
-	// ObserveOfflineRecipients records durable recipients with no online route.
-	ObserveOfflineRecipients(context.Context, OfflineRecipientsEvent)
-}
-
-// OfflineRecipientEvent reports one durable recipient with no online route.
-type OfflineRecipientEvent struct {
-	// Event is the committed message whose recipient was classified offline.
-	Event CommittedEnvelope
-	// UID is the recipient user identifier without an online route.
-	UID string
-}
-
-// OfflineRecipientObserver receives offline recipient candidates after presence resolution.
-type OfflineRecipientObserver interface {
-	// ObserveOfflineRecipient records one durable recipient with no online route.
-	ObserveOfflineRecipient(context.Context, OfflineRecipientEvent)
-}
-
 // SubscriberPageRequest describes one channel subscriber page scan.
 type SubscriberPageRequest = contract.SubscriberPageRequest
 
 // SubscriberPage is one bounded subscriber scan page.
 type SubscriberPage = contract.SubscriberPage
-
-// Route describes one online recipient endpoint resolved by presence.
-type Route = contract.Route
 
 // SubscriberMutationUpdate describes a committed subscriber-list change for one channel.
 type SubscriberMutationUpdate struct {
@@ -189,12 +109,6 @@ type SubscriberMutationUpdate struct {
 	// RemovedUIDs are subscribers removed by this mutation.
 	RemovedUIDs []string
 }
-
-// PushCommand groups recipient routes owned by the same node for one envelope.
-type PushCommand = contract.PushCommand
-
-// PushResult reports how an owner node classified pushed recipient routes.
-type PushResult = contract.PushResult
 
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.

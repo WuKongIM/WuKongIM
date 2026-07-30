@@ -15,6 +15,8 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
@@ -2546,44 +2548,80 @@ func TestNewRejectsNegativeDeepDiagnosticsConfig(t *testing.T) {
 	}
 }
 
-func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
+func TestOnlineDeliveryObserverLogsIncompleteOwnerPushWithoutMetrics(t *testing.T) {
 	logger := &recordingAppLogger{}
-	observer := deliveryMetricsObserver{logger: logger}
+	observer := onlineDeliveryObserver{app: &App{logger: logger}}
 
-	observer.ObserveRetry(runtimedelivery.RetryEvent{
-		Event:      runtimedelivery.DeliveryRetryEventDrop,
-		Result:     runtimedelivery.DeliveryResultMaxAttempts,
-		ErrorClass: runtimedelivery.DeliveryErrorClassRetryable,
-		Attempt:    3,
-		QueueDepth: 7,
-	})
-	observer.ObserveManagerTerminal(runtimedelivery.ManagerTerminalEvent{
-		Result:     runtimedelivery.DeliveryResultError,
-		ErrorClass: runtimedelivery.DeliveryErrorClassError,
-		QueueDepth: 1,
+	observer.ObserveOwnerPush(runtimedelivery.OwnerPushEvent{
+		OwnerNodeID: 3,
+		Result:      runtimedelivery.ObservationResultRetryable,
+		Routes:      2,
+		Retryable:   2,
+		Failure: runtimedelivery.OwnerPushFailureSample{
+			Err:   errors.New("write failed"),
+			Route: onlinedelivery.Route{UID: "u1", SessionID: 10, OwnerBootID: 11, OwnerSeq: 12},
+		},
 	})
 
-	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.retry_failed")
-	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.manager_terminal_failed")
+	entry := requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.owner_push_incomplete")
+	requireAppLogField(t, entry, "uid", "u1")
+	requireAppLogField(t, entry, "sessionID", uint64(10))
+	requireAppLogField(t, entry, "ownerBootID", uint64(11))
+	requireAppLogField(t, entry, "ownerSeq", uint64(12))
 }
 
-func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T) {
-	reg := obsmetrics.New(1, "n1")
-	observer := deliveryMessageObserver{app: &App{metrics: reg}}
+func TestOnlineDeliveryObserverLogsBoundedRecipientAndAuthorityTargetSample(t *testing.T) {
+	logger := &recordingAppLogger{}
+	observer := onlineDeliveryObserver{app: &App{logger: logger}}
 
-	observer.SetChannelAppendRecipientDeliveryQueue(channelappend.RecipientDeliveryQueueObservation{
+	observer.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{
+		Result:     runtimedelivery.ObservationResultRetryExhausted,
+		Mode:       onlinedelivery.ModeDurable,
+		Recipients: 2,
+		Failure: runtimedelivery.PlanFailureSample{
+			Phase:        runtimedelivery.PlanFailurePhaseOwnerPush,
+			Err:          runtimedelivery.ErrOwnerPushRetryExhausted,
+			RecipientUID: "u1",
+			Target: authority.Target{
+				HashSlot: 255, SlotID: 9, LeaderNodeID: 3, LeaderTerm: 4,
+				ConfigEpoch: 5, RouteRevision: 6, AuthorityEpoch: 7,
+			},
+			OwnerNodeID: 8,
+		},
+	})
+
+	entry := requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.plan_incomplete")
+	requireAppLogField(t, entry, "result", "retry_exhausted")
+	requireAppLogField(t, entry, "phase", "owner_push")
+	requireAppLogField(t, entry, "mode", "durable")
+	requireAppLogField(t, entry, "uid", "u1")
+	requireAppLogField(t, entry, "targetHashSlot", uint64(255))
+	requireAppLogField(t, entry, "targetSlotID", uint64(9))
+	requireAppLogField(t, entry, "targetLeaderNodeID", uint64(3))
+	requireAppLogField(t, entry, "targetLeaderTerm", uint64(4))
+	requireAppLogField(t, entry, "targetConfigEpoch", uint64(5))
+	requireAppLogField(t, entry, "targetRouteRevision", uint64(6))
+	requireAppLogField(t, entry, "targetAuthorityEpoch", uint64(7))
+	requireAppLogField(t, entry, "ownerNodeID", uint64(8))
+}
+
+func TestOnlineDeliveryObserverMapsRuntimeMetrics(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := onlineDeliveryObserver{app: &App{metrics: reg}}
+
+	observer.SetRuntimePressure(runtimedelivery.RuntimePressureEvent{
 		QueueDepth:    3,
 		QueueCapacity: 8,
+		Inflight:      2,
+		Workers:       4,
 	})
-	observer.SetChannelAppendRecipientDeliveryWorkerPressure(channelappend.RecipientDeliveryWorkerPressureObservation{
-		Inflight: 2,
-		Capacity: 4,
+	observer.ObservePlanAdmission(runtimedelivery.PlanAdmissionEvent{
+		Result:        "timeout",
+		QueueDepth:    3,
+		QueueCapacity: 8,
+		Duration:      2 * time.Millisecond,
 	})
-	observer.ObserveChannelAppendRecipientDeliveryAdmission(channelappend.RecipientDeliveryAdmissionObservation{
-		Result:   "timeout",
-		Duration: 2 * time.Millisecond,
-	})
-	observer.ObserveChannelAppendRecipientDeliveryProcess(channelappend.RecipientDeliveryProcessObservation{
+	observer.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{
 		Result:     "ok",
 		Recipients: 4,
 		Duration:   5 * time.Millisecond,
@@ -2713,9 +2751,9 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 	}
 }
 
-func TestDeliveryMetricsObserverMapsAckEventToGauge(t *testing.T) {
+func TestOnlineDeliveryObserverMapsAckEventToGauge(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := deliveryMetricsObserver{metrics: reg}
+	observer := onlineDeliveryObserver{app: &App{metrics: reg}}
 
 	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 6})
 
@@ -2729,28 +2767,18 @@ func TestDeliveryMetricsObserverMapsAckEventToGauge(t *testing.T) {
 	}
 }
 
-func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
+func TestOnlineDeliveryObserverFansOutAckEvents(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	collector := newTopCollector(topCollectorOptions{
 		ClusterSnapshot: func() cluster.Snapshot {
 			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
 		},
 	})
-	observer := combineDeliveryObservers(
-		deliveryMetricsObserver{metrics: reg},
-		topDeliveryObserver{top: collector},
-	)
-	ackObserver, ok := observer.(runtimedelivery.AckObserver)
-	if !ok {
-		t.Fatalf("combined observer does not implement AckObserver")
-	}
-	if _, ok := observer.(runtimedelivery.AckBatchObserver); ok {
-		t.Fatalf("combined observer unexpectedly implements AckBatchObserver; batch metrics must be enabled explicitly")
-	}
+	observer := onlineDeliveryObserver{app: &App{metrics: reg, topProvider: collector}}
 
 	collector.recordSampleAt(time.Unix(100, 0))
-	ackObserver.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
-	deliveryMetricsObserver{metrics: reg}.ObserveAckBatch(runtimedelivery.AckBatchEvent{
+	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
+	observer.ObserveAckBatch(runtimedelivery.AckBatchEvent{
 		Phase: runtimedelivery.DeliveryAckBatchPhaseBind, Outcome: runtimedelivery.DeliveryAckBatchOutcomePartial,
 		Items: 3, Shards: 2, Rejected: 1, Duration: time.Millisecond,
 	})

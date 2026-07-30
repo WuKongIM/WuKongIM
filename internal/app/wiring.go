@@ -26,7 +26,6 @@ import (
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	observe "github.com/WuKongIM/WuKongIM/internal/usecase/opsobserve"
@@ -687,95 +686,43 @@ func (a *App) wireUsers() {
 
 func (a *App) wireDelivery() {
 	if a.cfg.Delivery.Enabled && a.delivery == nil {
-		localPusher := deliveryinfra.NewLocalOwnerPusher(deliveryinfra.LocalOwnerPusherOptions{
-			Online:        a.online,
-			PendingAckTTL: a.cfg.Delivery.PendingAckTTL,
-			Logger:        a.logger.Named("delivery.owner"),
-		})
-		a.localOwnerPusher = localPusher
-		deliveryObserver := a.deliveryObserver()
-		var push runtimedelivery.Pusher = localPusher
-		var fanoutRemote runtimedelivery.FanoutTaskForwarder
-		var localNodeID uint64
+		localNodeID := a.cfg.Cluster.NodeID
+		if localNodeID == 0 {
+			localNodeID = a.cfg.NodeID
+		}
+		var remote runtimedelivery.RemoteOwnerPusher
 		if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
 			localNodeID = presenceNode.NodeID()
-			nodeClient := accessnode.NewClient(presenceNode)
-			push = clusterinfra.NewDeliveryPusher(localNodeID, localPusher, nodeClient)
-			fanoutRemote = nodeClient
+			remote = accessnode.NewClient(presenceNode)
 		}
-		var partitioner runtimedelivery.Partitioner
-		if routes, ok := a.cluster.(clusterWriteReadyRuntime); ok {
-			partitioner = clusterinfra.NewDeliveryPartitioner(routes)
-		}
-		fanoutWorker := runtimedelivery.NewFanoutWorker(runtimedelivery.FanoutWorkerOptions{
-			Subscribers: appSubscriberPlanner{
-				channel: runtimedelivery.NewChannelSubscriberPlanner(runtimedelivery.ChannelSubscriberPlannerOptions{
-					Source: a.deliverySubscribers,
-				}),
-			},
-			Presence:      presenceResolverAdapter{presence: a.presence},
-			Push:          push,
-			PageSize:      a.cfg.Delivery.FanoutPageSize,
-			PushBatchSize: a.cfg.Delivery.PushBatchSize,
-			Observer:      deliveryObserver,
-		})
-		var fanoutRunner runtimedelivery.FanoutTaskRunner = fanoutWorker
-		if localNodeID != 0 {
-			fanoutRunner = runtimedelivery.NewFanoutTaskRouter(runtimedelivery.FanoutTaskRouterOptions{
-				LocalNodeID: localNodeID,
-				Local:       fanoutWorker,
-				Remote:      fanoutRemote,
-				Observer:    deliveryObserver,
-			})
-		}
-		var retryObserver runtimedelivery.RetryObserver
-		if observer, ok := deliveryObserver.(runtimedelivery.RetryObserver); ok {
-			retryObserver = observer
-		}
-		retryScheduler := runtimedelivery.NewRetryScheduler(runtimedelivery.RetrySchedulerOptions{
-			Runner:      fanoutRunner,
-			Capacity:    a.cfg.Delivery.EventQueueSize,
-			MaxAttempts: defaultDeliveryRetryMaxAttempts,
-			Backoff:     defaultDeliveryRetryBackoff,
-			Observer:    retryObserver,
-			Goroutines:  a.goroutines,
-		})
-		var managerObserver runtimedelivery.ManagerObserver
-		if observer, ok := deliveryObserver.(runtimedelivery.ManagerObserver); ok {
-			managerObserver = observer
-		}
-		var ackObserver runtimedelivery.AckObserver
-		if observer, ok := deliveryObserver.(runtimedelivery.AckObserver); ok {
-			ackObserver = observer
-		}
-		var ackBatchObserver runtimedelivery.AckBatchObserver
-		if a.metrics != nil {
-			ackBatchObserver = deliveryMetricsObserver{metrics: a.metrics}
-		}
-		manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-			Planner:          runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{Partitioner: partitioner}),
-			Runner:           retryScheduler,
-			AsyncQueueSize:   a.cfg.Delivery.EventQueueSize,
-			AsyncWorkers:     1,
-			ManagerObserver:  managerObserver,
-			Goroutines:       a.goroutines,
-			AckObserver:      ackObserver,
-			AckBatchObserver: ackBatchObserver,
+		observer := a.onlineDeliveryObserver()
+		runtime := runtimedelivery.NewRuntime(runtimedelivery.RuntimeOptions{
+			LocalNodeID:               localNodeID,
+			Presence:                  deliveryinfra.NewPresenceResolver(a.presence),
+			RemoteOwnerPusher:         remote,
+			SessionWriter:             deliveryinfra.NewLocalSessionWriter(deliveryinfra.LocalSessionWriterOptions{Online: a.online, Logger: a.logger.Named("delivery.owner")}),
+			OfflineRecipientsObserver: composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline),
+			QueueSize:                 a.cfg.Delivery.EventQueueSize,
+			Workers:                   a.cfg.Delivery.RecipientWorkerConcurrency,
+			MaxPlanRecipients:         a.cfg.Delivery.PushBatchSize,
+			OwnerPushBatchSize:        a.cfg.Delivery.PushBatchSize,
+			RetryMaxAttempts:          defaultDeliveryRetryMaxAttempts,
+			RetryInitialBackoff:       defaultDeliveryRetryBackoff,
+			RetryMaxBackoff:           defaultDeliveryRetryBackoff,
+			PendingAckTTL:             a.cfg.Delivery.PendingAckTTL,
+			Observer:                  observer,
+			AckObserver:               observer,
+			AckBatchObserver:          observer,
+			Goroutines:                a.goroutines,
 			Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 				MaxPendingPerSession: a.cfg.Delivery.PendingAckMaxPerSession,
 			}),
 		})
-		localPusher.SetAckManager(manager)
-		a.deliveryManager = manager
-		a.deliveryRetry = retryScheduler
-		a.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: deliveryRuntimeAdapter{manager: manager}})
-		if a.deliveryWorker == nil {
-			a.deliveryWorker = deliveryWorkerGroup{retryScheduler, manager}
-		}
+		a.delivery = runtime
+		a.deliveryWorker = runtime
 		if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
-			adapter := accessnode.New(accessnode.Options{Delivery: localPusher, DeliveryFanout: fanoutWorker, Logger: a.logger.Named("node")})
+			adapter := accessnode.New(accessnode.Options{Delivery: runtime, Logger: a.logger.Named("node")})
 			presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
-			presenceNode.RegisterRPC(accessnode.DeliveryFanoutRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryFanoutRPC))
 		}
 	}
 }
@@ -810,9 +757,9 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.Idempotency = clusterinfra.NewChannelIdempotencyStore(idempotencyNode)
 			}
 			if a.deliveryMeta != nil {
-				opts.Subscribers = channelAppendDeliverySubscriberSource{source: a.deliveryMeta}
+				opts.Subscribers = a.deliveryMeta
 			} else if a.deliverySubscribers != nil {
-				opts.Subscribers = channelAppendDeliverySubscriberSource{source: a.deliverySubscribers}
+				opts.Subscribers = a.deliverySubscribers
 			} else if subscriberNode, ok := a.cluster.(recipientSubscriberNode); ok {
 				opts.Subscribers = channelAppendSubscriberSource{node: subscriberNode}
 			}
@@ -833,29 +780,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.Observer = observer
 			}
 			if a.cfg.Delivery.Enabled {
-				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
-				deliveryObserver := a.deliveryObserver()
-				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-					PresenceResolver:            deliveryinfra.NewChannelAppendPresenceResolver(a.presence),
-					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID, deliveryObserver),
-					OwnerPushBatchSize:          a.cfg.Delivery.PushBatchSize,
-					OfflineRecipientObserver:    offlineSingle,
-					OfflineRecipientsObserver:   offlineBatch,
-					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
-					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
-					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
-				})
-				if a.channelAppendDeliveryWorker == nil {
-					a.channelAppendDeliveryWorker = channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
-						Processor:  processor,
-						QueueSize:  a.cfg.Delivery.EventQueueSize,
-						Workers:    a.cfg.Delivery.RecipientWorkerConcurrency,
-						Observer:   observer,
-						Goroutines: a.goroutines,
-					})
-				}
-				opts.RecipientDeliveryEnqueuer = a.channelAppendDeliveryWorker
-				a.deliveryWorker = appendDeliveryWorker(a.deliveryWorker, a.channelAppendDeliveryWorker)
+				opts.RecipientDeliveryEnqueuer = a.delivery
 			}
 			group := channelappend.New(opts)
 			var remote clusterinfra.ChannelAppendRemoteForwarder
@@ -891,17 +816,6 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 		a.channelAppendMetadata = clusterinfra.NewChannelAppendMetadataCache()
 	}
 	return a.channelAppendMetadata
-}
-
-func (a *App) channelAppendOwnerPusher(nodeID uint64, observer runtimedelivery.Observer) channelappend.OwnerPusher {
-	if a.localOwnerPusher == nil {
-		return nil
-	}
-	var pusher runtimedelivery.Pusher = a.localOwnerPusher
-	if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
-		pusher = clusterinfra.NewDeliveryPusher(nodeID, a.localOwnerPusher, accessnode.NewClient(rpcNode))
-	}
-	return channelAppendOwnerPusher{next: pusher, observer: observer}
 }
 
 func (a *App) wireMessages() {

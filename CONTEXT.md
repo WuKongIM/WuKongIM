@@ -1,8 +1,20 @@
-# Cloud Simulation
+# WuKongIM Domain
 
-The Cloud Simulation context describes time-bounded WuKongIM workloads that run against temporary cloud infrastructure and produce evidence for later diagnosis.
+This glossary defines the canonical language for WuKongIM messaging behavior and its supporting operational contexts.
 
-## Language
+## Messaging
+
+**Online Delivery**:
+Delivery of a message to currently connected recipient sessions, including the acknowledgement lifecycle for successful session writes.
+_Avoid_: Channel-append delivery, committed fanout
+
+**Recipient Delivery Plan**:
+A message and its recipients grouped by exact authority target, ready for presence resolution and Online Delivery.
+_Avoid_: Fanout task, delivery envelope
+
+## Cloud Simulation
+
+The Cloud Simulation area describes time-bounded WuKongIM workloads that run against temporary cloud infrastructure and produce evidence for later diagnosis.
 
 **Simulation Run**:
 A time-bounded execution of a black-box workload against one temporary three-node cluster, identified independently from the GitHub workflow that starts it.

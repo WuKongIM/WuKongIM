@@ -1,80 +1,163 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
 
-type deliveryRuntimeAdapter struct {
-	// manager handles committed-message fanout and ack mutations.
-	manager *runtimedelivery.Manager
+type onlineDeliveryObserver struct {
+	app *App
 }
 
-type deliveryWorkerGroup []WorkerRuntime
-
-func appendDeliveryWorker(current WorkerRuntime, worker WorkerRuntime) WorkerRuntime {
-	if worker == nil {
-		return current
+func (a *App) onlineDeliveryObserver() *onlineDeliveryObserver {
+	if a == nil {
+		return nil
 	}
-	group, ok := current.(deliveryWorkerGroup)
-	if !ok {
-		if current == nil {
-			return deliveryWorkerGroup{worker}
-		}
-		group = deliveryWorkerGroup{current}
-	}
-	for _, existing := range group {
-		if existing == worker {
-			return group
+	if a.metrics == nil {
+		if _, ok := a.topProvider.(*topCollector); !ok && a.logger == nil {
+			return nil
 		}
 	}
-	return append(group, worker)
+	return &onlineDeliveryObserver{app: a}
 }
 
-func (g deliveryWorkerGroup) Start(ctx context.Context) error {
-	for idx, worker := range g {
-		if worker == nil {
-			continue
-		}
-		if err := worker.Start(ctx); err != nil {
-			for i := idx - 1; i >= 0; i-- {
-				if g[i] != nil {
-					_ = g[i].Stop(ctx)
-				}
-			}
-			return err
+func (o *onlineDeliveryObserver) ObservePlanAdmission(event runtimedelivery.PlanAdmissionEvent) {
+	if o == nil || o.app == nil {
+		return
+	}
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
+		o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(string(event.Result), event.Duration)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.SetDeliveryRecipientQueue(int64(event.QueueDepth), int64(event.QueueCapacity))
+		if event.Result != runtimedelivery.ObservationResultAccepted && event.Result != runtimedelivery.ObservationResultOK {
+			collector.addCounter(topCounterDeliveryPushErr, 1)
 		}
 	}
-	return nil
 }
 
-// Stop preserves reverse dependency order; earlier workers stay running if a later worker cannot drain.
-func (g deliveryWorkerGroup) Stop(ctx context.Context) error {
-	for i := len(g) - 1; i >= 0; i-- {
-		if g[i] == nil {
-			continue
-		}
-		if stopErr := g[i].Stop(ctx); stopErr != nil {
-			return stopErr
+func (o *onlineDeliveryObserver) ObservePlanTerminal(event runtimedelivery.PlanTerminalEvent) {
+	if o == nil || o.app == nil {
+		return
+	}
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.ObserveRecipientWorkerProcess(string(event.Result), event.Recipients, event.Duration)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok && event.Result != runtimedelivery.ObservationResultOK {
+		collector.addCounter(topCounterDeliveryPushErr, 1)
+	}
+	if event.Result != runtimedelivery.ObservationResultOK {
+		o.app.deliveryLogger().Warn("online delivery plan incomplete",
+			wklog.Event("internal.app.delivery.plan_incomplete"),
+			wklog.Result(string(event.Result)),
+			wklog.String("phase", string(event.Failure.Phase)),
+			wklog.String("mode", onlineDeliveryModeLabel(event.Mode)),
+			wklog.Int("recipients", event.Recipients),
+			wklog.UID(event.Failure.RecipientUID),
+			wklog.Uint64("targetHashSlot", uint64(event.Failure.Target.HashSlot)),
+			wklog.Uint64("targetSlotID", uint64(event.Failure.Target.SlotID)),
+			wklog.Uint64("targetLeaderNodeID", event.Failure.Target.LeaderNodeID),
+			wklog.Uint64("targetLeaderTerm", event.Failure.Target.LeaderTerm),
+			wklog.Uint64("targetConfigEpoch", event.Failure.Target.ConfigEpoch),
+			wklog.Uint64("targetRouteRevision", event.Failure.Target.RouteRevision),
+			wklog.Uint64("targetAuthorityEpoch", event.Failure.Target.AuthorityEpoch),
+			wklog.Uint64("ownerNodeID", event.Failure.OwnerNodeID),
+			wklog.Error(event.Failure.Err),
+		)
+	}
+}
+
+func (o *onlineDeliveryObserver) SetRuntimePressure(event runtimedelivery.RuntimePressureEvent) {
+	if o == nil || o.app == nil {
+		return
+	}
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
+		o.app.metrics.Delivery.SetRecipientWorkerPressure(event.Inflight, event.Workers)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.SetDeliveryRecipientQueue(int64(event.QueueDepth), int64(event.QueueCapacity))
+	}
+}
+
+func (o *onlineDeliveryObserver) ObserveOwnerPush(event runtimedelivery.OwnerPushEvent) {
+	if o == nil || o.app == nil {
+		return
+	}
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), string(event.Result), event.Duration, event.Routes)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.ObserveDeliveryPush(string(event.Result), event.Accepted, event.Duration)
+		if event.Retryable > 0 || event.Dropped > 0 {
+			collector.addCounter(topCounterDeliveryPushErr, uint64(event.Retryable+event.Dropped))
 		}
 	}
-	return nil
+	if event.Result != runtimedelivery.ObservationResultOK {
+		o.app.deliveryLogger().Warn("online delivery owner push incomplete",
+			wklog.Event("internal.app.delivery.owner_push_incomplete"),
+			wklog.Uint64("ownerNodeID", event.OwnerNodeID),
+			wklog.Result(string(event.Result)),
+			wklog.Int("routes", event.Routes),
+			wklog.Int("retryable", event.Retryable),
+			wklog.Int("dropped", event.Dropped),
+			wklog.UID(event.Failure.Route.UID),
+			wklog.SessionID(event.Failure.Route.SessionID),
+			wklog.Uint64("ownerBootID", event.Failure.Route.OwnerBootID),
+			wklog.Uint64("ownerSeq", event.Failure.Route.OwnerSeq),
+			wklog.Error(event.Failure.Err),
+		)
+	}
+}
+
+func onlineDeliveryModeLabel(mode onlinedelivery.Mode) string {
+	switch mode {
+	case onlinedelivery.ModeDurable:
+		return "durable"
+	case onlinedelivery.ModeTransient:
+		return "transient"
+	default:
+		return "invalid"
+	}
+}
+
+func (o *onlineDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
+	if o == nil || o.app == nil {
+		return
+	}
+	if o.app.metrics != nil {
+		o.app.metrics.Delivery.SetAckBindings(event.PendingCount)
+	}
+	if collector, ok := o.app.topProvider.(*topCollector); ok {
+		collector.SetDeliveryAckBindings(int64(event.PendingCount))
+	}
+}
+
+func (o *onlineDeliveryObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
+	if o == nil || o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Delivery.ObserveAckBatch(
+		event.Phase,
+		event.Outcome,
+		event.Items,
+		event.Shards,
+		event.Rejected,
+		event.Rollback,
+		event.Duration,
+	)
 }
 
 type deliveryMessageObserver struct {
@@ -235,51 +318,6 @@ func isExpectedPostCommitRouteFailure(err error) bool {
 		errors.Is(err, channelappend.ErrRouteNotReady)
 }
 
-func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok {
-		collector.SetDeliveryRecipientQueue(int64(event.QueueDepth), int64(event.QueueCapacity))
-	}
-}
-
-func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryWorkerPressure(event channelappend.RecipientDeliveryWorkerPressureObservation) {
-	if o.app == nil || o.app.metrics == nil {
-		return
-	}
-	o.app.metrics.Delivery.SetRecipientWorkerPressure(event.Inflight, event.Capacity)
-}
-
-func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok {
-		if event.Result != "accepted" && event.Result != "ok" {
-			collector.addCounter(topCounterDeliveryPushErr, 1)
-		}
-	}
-}
-
-func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryProcess(event channelappend.RecipientDeliveryProcessObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.ObserveRecipientWorkerProcess(event.Result, event.Recipients, event.Duration)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok && event.Result != "ok" {
-		collector.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
 func appendFailureLogLine(path string, err error) string {
 	return fmt.Sprintf("internal/app: message append failed path=%s err=%v", path, err)
 }
@@ -305,115 +343,4 @@ func (a *App) recordDeliveryError(err error) {
 			a.metrics.Delivery.ObserveError(class)
 		}
 	}
-}
-
-func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
-	if a.manager == nil {
-		return nil
-	}
-	event = scopePersonDeliveryEvent(event)
-	return a.manager.SubmitCommitted(ctx, event)
-}
-
-// scopePersonDeliveryEvent narrows person-channel fanout to the two channel participants.
-func scopePersonDeliveryEvent(event messageevents.MessageCommitted) messageevents.MessageCommitted {
-	if event.ChannelType != frame.ChannelTypePerson || len(event.MessageScopedUIDs) > 0 {
-		return event
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
-	if err != nil {
-		return event
-	}
-	if left != "" {
-		event.MessageScopedUIDs = append(event.MessageScopedUIDs, left)
-	}
-	if right != "" && right != left {
-		event.MessageScopedUIDs = append(event.MessageScopedUIDs, right)
-	}
-	return event
-}
-
-func (a deliveryRuntimeAdapter) Recvack(ctx context.Context, cmd deliveryusecase.RecvackCommand) error {
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.Recvack(ctx, runtimedelivery.Recvack{
-		UID:        cmd.UID,
-		SessionID:  cmd.SessionID,
-		MessageID:  cmd.MessageID,
-		MessageSeq: cmd.MessageSeq,
-	})
-}
-
-func (a deliveryRuntimeAdapter) SessionClosed(ctx context.Context, cmd deliveryusecase.SessionClosedCommand) error {
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
-}
-
-type appSubscriberPlanner struct {
-	// channel scans durable subscribers for non-person channel fanout.
-	channel runtimedelivery.SubscriberPlanner
-}
-
-func (p appSubscriberPlanner) NextPartitionPage(ctx context.Context, task runtimedelivery.FanoutTask, cursor string, limit int) (runtimedelivery.UIDPage, error) {
-	if task.Envelope.ChannelType != frame.ChannelTypePerson {
-		if p.channel == nil {
-			return runtimedelivery.UIDPage{Done: true}, nil
-		}
-		return p.channel.NextPartitionPage(ctx, task, cursor, limit)
-	}
-	if cursor != "" {
-		return runtimedelivery.UIDPage{Done: true}, nil
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(task.Envelope.ChannelID)
-	if err != nil {
-		return runtimedelivery.UIDPage{Done: true}, nil
-	}
-	uids := make([]string, 0, 2)
-	if left != "" {
-		uids = append(uids, left)
-	}
-	if right != "" && right != left {
-		uids = append(uids, right)
-	}
-	return runtimedelivery.UIDPage{UIDs: uids, Done: true}, nil
-}
-
-type noopSubscriberPlanner struct{}
-
-func (noopSubscriberPlanner) NextPartitionPage(context.Context, runtimedelivery.FanoutTask, string, int) (runtimedelivery.UIDPage, error) {
-	return runtimedelivery.UIDPage{Done: true}, nil
-}
-
-type presenceResolverAdapter struct {
-	// presence resolves authoritative routes for selected UIDs.
-	presence *presence.App
-}
-
-func (r presenceResolverAdapter) EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]runtimedelivery.Route, error) {
-	out := make(map[string][]runtimedelivery.Route, len(uids))
-	if r.presence == nil {
-		return out, nil
-	}
-	routesByUID, err := r.presence.EndpointsByUIDs(ctx, uids)
-	if err != nil {
-		return nil, err
-	}
-	for uid, routes := range routesByUID {
-		for _, route := range routes {
-			out[uid] = append(out[uid], runtimedelivery.Route{
-				UID:         route.UID,
-				OwnerNodeID: route.OwnerNodeID,
-				OwnerBootID: route.OwnerBootID,
-				OwnerSeq:    route.OwnerSeq,
-				SessionID:   route.SessionID,
-				DeviceID:    route.DeviceID,
-				DeviceFlag:  route.DeviceFlag,
-				DeviceLevel: route.DeviceLevel,
-			})
-		}
-	}
-	return out, nil
 }

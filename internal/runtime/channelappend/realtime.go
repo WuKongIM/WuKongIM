@@ -3,6 +3,8 @@ package channelappend
 import (
 	"context"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 )
 
 type realtimeEffect struct {
@@ -47,7 +49,7 @@ func (e realtimeEffect) runItem(runtimeCtx context.Context, item preparedSend, p
 	realtimePorts := ports
 	realtimePorts.activeAdmitter = nil
 	event := committedEnvelopeForRealtime(item)
-	if _, err := dispatchCommittedRecipientsForTarget(ctx, e.target, event, subscriberCache{}, realtimePorts); err != nil {
+	if _, err := dispatchRecipientsForTarget(ctx, onlinedelivery.ModeTransient, e.target, event, subscriberCache{}, realtimePorts); err != nil {
 		return realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: err}}
 	}
 	return realtimeItemCompletion{item: item, result: SendBatchItemResult{Result: SendResult{
