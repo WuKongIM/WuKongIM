@@ -1,0 +1,19 @@
+---
+title: Server
+description: Deploy, configure, operate, and understand a WuKongIM cluster.
+---
+
+Server documentation is for deployers, operators, and engineers who need to understand the system internals.
+
+<Callout type="warn" title="Cluster semantics">
+  Every deployment is a cluster. A deployment with one node is a single-node cluster; there is no standalone path that bypasses cluster behavior.
+</Callout>
+
+## Documentation areas
+
+<Cards>
+  <Card title="Deployment" description="Choose Docker, Linux, or Kubernetes and plan multi-node clusters." href="/en/server/deployment" />
+  <Card title="Configuration" description="Understand TOML, environment overrides, and domain settings." href="/en/server/configuration" />
+  <Card title="Operations" description="Monitor, scale, back up, upgrade, and troubleshoot clusters." href="/en/server/operations" />
+  <Card title="Architecture" description="Understand Controller, Slot, Channel, and Transport." href="/en/server/architecture" />
+</Cards>
