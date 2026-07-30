@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+:root {
+  --color-fd-primary: hsl(11, 89%, 60%);
+  --color-fd-primary-foreground: hsl(0, 0%, 100%);
+  --color-fd-background: hsl(24, 25%, 98%);
+  --color-fd-card: hsl(0, 0%, 100%);
+  --color-fd-accent: hsl(18, 35%, 94%);
+}
+
+.dark {
+  --color-fd-primary: hsl(11, 95%, 68%);
+  --color-fd-primary-foreground: hsl(12, 35%, 10%);
+  --color-fd-background: hsl(20, 18%, 7%);
+  --color-fd-card: hsl(20, 16%, 9%);
+  --color-fd-accent: hsl(18, 18%, 14%);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-fd-primary) 28%, transparent);
+}
+
+.docs-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-fd-border) 72%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-fd-border) 72%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 86%);
+}

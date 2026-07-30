@@ -190,6 +190,7 @@ authorization, validation-plan, label, retry, and monitoring contracts.
 | `pkg/` | Reusable storage, protocol, gateway, cluster, channel, controller, slot, transport, metrics, plugin, and work-queue libraries. |
 | `test/e2e/` | Real-process black-box E2E suites and shared harness. |
 | `docs/` | Architecture, development, ADR, specification, plan, report, and runbook documentation. |
+| `docs-site/` | Standalone Fumadocs application for the bilingual public v3 documentation. |
 | `scripts/` | Repository automation, E2E gates, and cloud-simulation helpers. |
 | `docker/` | Development clusters, simulation, and observability configurations. |
 | `web/` | Manager React/Vite source. |

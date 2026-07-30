@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "status": 308,
+  "scope": "phase-one-seed",
+  "mappings": [
+    {
+      "source": "/zh/getting-started/learning/system-integration",
+      "destination": "/zh/guide/integration/architecture"
+    },
+    {
+      "source": "/en/getting-started/learning/system-integration",
+      "destination": "/en/guide/integration/architecture"
+    },
+    {
+      "source": "/zh/installation/docker/single-node",
+      "destination": "/zh/server/deployment/docker"
+    },
+    {
+      "source": "/en/installation/docker/single-node",
+      "destination": "/en/server/deployment/docker"
+    },
+    {
+      "source": "/zh/installation/linux/single-node",
+      "destination": "/zh/server/deployment/linux"
+    },
+    {
+      "source": "/en/installation/linux/single-node",
+      "destination": "/en/server/deployment/linux"
+    },
+    {
+      "source": "/zh/sdk/source-code",
+      "destination": "/zh/sdk/choose-sdk"
+    },
+    {
+      "source": "/en/sdk/source-code",
+      "destination": "/en/sdk/choose-sdk"
+    },
+    {
+      "source": "/zh/sdk/wukongim/android/intro",
+      "destination": "/zh/sdk/android"
+    },
+    {
+      "source": "/en/sdk/wukongim/android/intro",
+      "destination": "/en/sdk/android"
+    },
+    {
+      "source": "/zh/api/introduction",
+      "destination": "/zh/api/conventions"
+    },
+    {
+      "source": "/en/api/introduction",
+      "destination": "/en/api/conventions"
+    }
+  ]
+}
