@@ -54,153 +54,55 @@ func TestStateStorePublishesCanonicalStateToPerIssueRef(t *testing.T) {
 func TestStateStoreRecoversExactSignedStateAfterAmbiguousPublish(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceSHA = "0123456789abcdef0123456789abcdef01234567"
-		headSHA   = "fedcba9876543210fedcba9876543210fedcba98"
-	)
-	state := contract.IssueAgentState{
-		SchemaVersion:       2,
-		Repository:          "WuKongIM/WuKongIM",
-		IssueNumber:         42,
-		Sequence:            1,
-		State:               contract.IssueStateWaitingForAuthorization,
-		Reason:              "waiting for authorization",
-		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		SourceSHA:           sourceSHA,
-		UpdatedAt:           time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC),
-	}
-	content, err := contract.CanonicalIssueAgentState(state)
-	require.NoError(t, err)
-	port := &stateCommitPortStub{
-		publishErr: errors.New("transient post-publish verification failure"),
-		head:       headSHA,
-		records: map[string]issueagentgithub.StateCommitRecord{
-			headSHA: {
-				CommitSHA: headSHA, ParentSHA: sourceSHA,
-				Message: "agent(state): issue 42 sequence 1",
-				Path:    ".issue-agent-state/issue-42.json",
-				Content: content, AuthorLogin: "wukongim-issue-agent[bot]",
-				AuthorType: "Bot", Verified: true, SignedByGitHub: true,
-			},
-		},
-	}
-	store, err := issueagentgithub.NewStateStore(
-		"WuKongIM/WuKongIM", "wukongim-issue-agent[bot]", port,
-	)
-	require.NoError(t, err)
+	state := stateStoreRecoveryState()
+	port := stateStoreRecoveryPort(t, state)
+	port.publishErr = errors.New("transient post-publish verification failure")
 
-	published, err := store.Advance(context.Background(),
-		issueagentgithub.StateAdvanceRequest{
-			State: state, ExpectedParentSHA: sourceSHA,
-			BaseTreeSHA:    "1234567890abcdef1234567890abcdef12345678",
-			ExistingBranch: false,
-		})
+	published, err := stateStoreForTest(t, port).Advance(
+		context.Background(),
+		stateStoreRecoveryRequest(state),
+	)
 	require.NoError(t, err)
-	require.Equal(t, headSHA, published.HeadSHA)
+	require.Equal(t, stateStoreRecoveryHeadSHA, published.HeadSHA)
 }
 
 func TestStateStoreRecoversExactSignedStateAfterAmbiguousTrustResult(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceSHA = "0123456789abcdef0123456789abcdef01234567"
-		headSHA   = "fedcba9876543210fedcba9876543210fedcba98"
-		path      = ".issue-agent-state/issue-42.json"
-	)
-	state := contract.IssueAgentState{
-		SchemaVersion:       2,
-		Repository:          "WuKongIM/WuKongIM",
-		IssueNumber:         42,
-		Sequence:            1,
-		State:               contract.IssueStateWaitingForAuthorization,
-		Reason:              "waiting for authorization",
-		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		SourceSHA:           sourceSHA,
-		UpdatedAt:           time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC),
+	state := stateStoreRecoveryState()
+	port := stateStoreRecoveryPort(t, state)
+	sum := sha256.Sum256(port.records[stateStoreRecoveryHeadSHA].Content)
+	port.publishResult = &issueagentgithub.StateCommitResult{
+		CommitSHA: stateStoreRecoveryHeadSHA,
+		ParentSHA: stateStoreRecoverySourceSHA,
+		Path:      stateStoreRecoveryPath,
+		ContentDigest: "sha256:" +
+			hex.EncodeToString(sum[:]),
+		AuthorLogin: "wukongim-issue-agent[bot]", AuthorType: "Bot",
 	}
-	content, err := contract.CanonicalIssueAgentState(state)
-	require.NoError(t, err)
-	sum := sha256.Sum256(content)
-	port := &stateCommitPortStub{
-		publishResult: &issueagentgithub.StateCommitResult{
-			CommitSHA: headSHA, ParentSHA: sourceSHA, Path: path,
-			ContentDigest: "sha256:" + hex.EncodeToString(sum[:]),
-			AuthorLogin:   "wukongim-issue-agent[bot]", AuthorType: "Bot",
-		},
-		head: headSHA,
-		records: map[string]issueagentgithub.StateCommitRecord{
-			headSHA: {
-				CommitSHA: headSHA, ParentSHA: sourceSHA,
-				Message: "agent(state): issue 42 sequence 1",
-				Path:    path, Content: content,
-				AuthorLogin: "wukongim-issue-agent[bot]",
-				AuthorType:  "Bot", Verified: true, SignedByGitHub: true,
-			},
-		},
-	}
-	store, err := issueagentgithub.NewStateStore(
-		"WuKongIM/WuKongIM", "wukongim-issue-agent[bot]", port,
-	)
-	require.NoError(t, err)
 
-	published, err := store.Advance(context.Background(),
-		issueagentgithub.StateAdvanceRequest{
-			State: state, ExpectedParentSHA: sourceSHA,
-			BaseTreeSHA:    "1234567890abcdef1234567890abcdef12345678",
-			ExistingBranch: false,
-		})
+	published, err := stateStoreForTest(t, port).Advance(
+		context.Background(),
+		stateStoreRecoveryRequest(state),
+	)
 	require.NoError(t, err)
-	require.Equal(t, headSHA, published.HeadSHA)
+	require.Equal(t, stateStoreRecoveryHeadSHA, published.HeadSHA)
 }
 
 func TestStateStoreRejectsDifferentStateAfterAmbiguousPublish(t *testing.T) {
 	t.Parallel()
 
-	const (
-		sourceSHA = "0123456789abcdef0123456789abcdef01234567"
-		headSHA   = "fedcba9876543210fedcba9876543210fedcba98"
-	)
-	state := contract.IssueAgentState{
-		SchemaVersion:       2,
-		Repository:          "WuKongIM/WuKongIM",
-		IssueNumber:         42,
-		Sequence:            1,
-		State:               contract.IssueStateWaitingForAuthorization,
-		Reason:              "waiting for authorization",
-		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		SourceSHA:           sourceSHA,
-		UpdatedAt:           time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC),
-	}
+	state := stateStoreRecoveryState()
 	different := state
 	different.Reason = "different durable state"
-	differentContent, err := contract.CanonicalIssueAgentState(different)
-	require.NoError(t, err)
 	publishErr := errors.New("transient post-publish verification failure")
-	port := &stateCommitPortStub{
-		publishErr: publishErr,
-		head:       headSHA,
-		records: map[string]issueagentgithub.StateCommitRecord{
-			headSHA: {
-				CommitSHA: headSHA, ParentSHA: sourceSHA,
-				Message:     "agent(state): issue 42 sequence 1",
-				Path:        ".issue-agent-state/issue-42.json",
-				Content:     differentContent,
-				AuthorLogin: "wukongim-issue-agent[bot]",
-				AuthorType:  "Bot", Verified: true, SignedByGitHub: true,
-			},
-		},
-	}
-	store, err := issueagentgithub.NewStateStore(
-		"WuKongIM/WuKongIM", "wukongim-issue-agent[bot]", port,
-	)
-	require.NoError(t, err)
+	port := stateStoreRecoveryPort(t, different)
+	port.publishErr = publishErr
 
-	_, err = store.Advance(context.Background(),
-		issueagentgithub.StateAdvanceRequest{
-			State: state, ExpectedParentSHA: sourceSHA,
-			BaseTreeSHA:    "1234567890abcdef1234567890abcdef12345678",
-			ExistingBranch: false,
-		})
+	_, err := stateStoreForTest(t, port).Advance(
+		context.Background(),
+		stateStoreRecoveryRequest(state),
+	)
 	require.EqualError(t, err, publishErr.Error())
 }
 
@@ -277,6 +179,76 @@ func TestStateStoreLoadsVerifiedAppendOnlyStateChain(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, port.head, loaded.HeadSHA)
 	require.Equal(t, successor, loaded.State)
+}
+
+const (
+	stateStoreRecoverySourceSHA = "0123456789abcdef0123456789abcdef01234567"
+	stateStoreRecoveryHeadSHA   = "fedcba9876543210fedcba9876543210fedcba98"
+	stateStoreRecoveryTreeSHA   = "1234567890abcdef1234567890abcdef12345678"
+	stateStoreRecoveryPath      = ".issue-agent-state/issue-42.json"
+)
+
+func stateStoreRecoveryState() contract.IssueAgentState {
+	return contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            1,
+		State:               contract.IssueStateWaitingForAuthorization,
+		Reason:              "waiting for authorization",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           stateStoreRecoverySourceSHA,
+		UpdatedAt:           time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC),
+	}
+}
+
+func stateStoreRecoveryPort(
+	t *testing.T,
+	state contract.IssueAgentState,
+) *stateCommitPortStub {
+	t.Helper()
+	content, err := contract.CanonicalIssueAgentState(state)
+	require.NoError(t, err)
+	return &stateCommitPortStub{
+		head: stateStoreRecoveryHeadSHA,
+		records: map[string]issueagentgithub.StateCommitRecord{
+			stateStoreRecoveryHeadSHA: {
+				CommitSHA:   stateStoreRecoveryHeadSHA,
+				ParentSHA:   stateStoreRecoverySourceSHA,
+				Message:     "agent(state): issue 42 sequence 1",
+				Path:        stateStoreRecoveryPath,
+				Content:     content,
+				AuthorLogin: "wukongim-issue-agent[bot]",
+				AuthorType:  "Bot",
+				Verified:    true, SignedByGitHub: true,
+			},
+		},
+	}
+}
+
+func stateStoreForTest(
+	t *testing.T,
+	port *stateCommitPortStub,
+) *issueagentgithub.StateStore {
+	t.Helper()
+	store, err := issueagentgithub.NewStateStore(
+		"WuKongIM/WuKongIM",
+		"wukongim-issue-agent[bot]",
+		port,
+	)
+	require.NoError(t, err)
+	return store
+}
+
+func stateStoreRecoveryRequest(
+	state contract.IssueAgentState,
+) issueagentgithub.StateAdvanceRequest {
+	return issueagentgithub.StateAdvanceRequest{
+		State:             state,
+		ExpectedParentSHA: stateStoreRecoverySourceSHA,
+		BaseTreeSHA:       stateStoreRecoveryTreeSHA,
+		ExistingBranch:    false,
+	}
 }
 
 type stateCommitPortStub struct {

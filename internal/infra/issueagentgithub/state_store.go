@@ -132,6 +132,22 @@ func (store *StateStore) Advance(
 		request.State.IssueNumber,
 		request.State.Sequence,
 	)
+	recoverPublication := func(
+		publicationErr error,
+	) (StatePublication, error) {
+		recovered, recoverErr := store.recoverExactPublication(
+			ctx,
+			request.State.IssueNumber,
+			branch,
+			path,
+			request.ExpectedParentSHA,
+			content,
+		)
+		if recoverErr != nil {
+			return StatePublication{}, publicationErr
+		}
+		return recovered, nil
+	}
 	result, err := store.commits.PublishStateCommit(ctx, StateCommitRequest{
 		Branch: branch, Path: path,
 		ExpectedParentSHA: request.ExpectedParentSHA,
@@ -141,18 +157,7 @@ func (store *StateStore) Advance(
 		Content:           content,
 	})
 	if err != nil {
-		recovered, recoverErr := store.recoverExactPublication(
-			ctx,
-			request.State.IssueNumber,
-			branch,
-			path,
-			request.ExpectedParentSHA,
-			content,
-		)
-		if recoverErr == nil {
-			return recovered, nil
-		}
-		return StatePublication{}, err
+		return recoverPublication(err)
 	}
 	sum := sha256.Sum256(content)
 	expectedDigest := "sha256:" + hex.EncodeToString(sum[:])
@@ -165,22 +170,17 @@ func (store *StateStore) Advance(
 		result.AuthorType != "Bot" ||
 		!result.Verified ||
 		!result.SignedByGitHub {
-		recovered, recoverErr := store.recoverExactPublication(
-			ctx,
-			request.State.IssueNumber,
-			branch,
-			path,
-			request.ExpectedParentSHA,
-			content,
+		return recoverPublication(
+			errors.New("published state commit is untrusted"),
 		)
-		if recoverErr == nil {
-			return recovered, nil
-		}
-		return StatePublication{}, errors.New("published state commit is untrusted")
 	}
 	return StatePublication{HeadSHA: result.CommitSHA}, nil
 }
 
+// recoverExactPublication performs one independent read after an ambiguous
+// state write. It accepts only the exact canonical App-authored, GitHub-signed
+// successor of the expected parent; every missing or mismatched ref fails
+// closed.
 func (store *StateStore) recoverExactPublication(
 	ctx context.Context,
 	issueNumber int64,
