@@ -2,7 +2,7 @@
 
 > Generated from `lib/navigation.ts`. Run `bun run navigation:write` after changing the registry.
 
-The Chinese and English sites share this information architecture. Replace `{lang}` with `zh` or `en`. Domain landing pages are published in phase 1; every descendant is a visible `planned` route until its bilingual MDX content is ready.
+The Chinese and English sites share this information architecture. Replace `{lang}` with `zh` or `en`. Publication is controlled per route: published pages have complete bilingual MDX; planned pages stay visible in navigation but remain outside public indexes.
 
 ## 指南 / Guides
 
@@ -18,7 +18,7 @@ Route: `/{lang}/guide`
 
 - **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 沿最短路径启动集群、发送消息并验证结果。 / Follow the shortest path to start a cluster, send a message, and verify the result.
 
-  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Docker、系统、端口、资源和测试工具要求。 / Lists Docker, operating system, ports, resources, and test tool requirements.
+  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Git、Go、端口、本地目录和测试工具要求。 / Lists Git, Go, ports, local directories, and test tool requirements.
   - **启动单节点集群 / Start a Single-node Cluster** `/{lang}/guide/quick-start/single-node-cluster` — 启动单节点集群并验证就绪状态与 Manager。 / Starts a single-node cluster and verifies readiness and Manager access.
   - **发送第一条消息 / Send the First Message** `/{lang}/guide/quick-start/first-message` — 创建测试身份并完成一次最小消息收发。 / Creates test identities and completes a minimal message exchange.
   - **运行聊天演示 / Run the Chat Demo** `/{lang}/guide/quick-start/chat-demo` — 使用内置聊天演示验证两个测试用户之间的通信。 / Uses the embedded chat demo to verify communication between two test users.
@@ -56,7 +56,7 @@ Route: `/{lang}/server`
 - **部署 / Deployment** `/{lang}/server/deployment` — 选择并实施适合环境的服务端部署方式。 / Choose and implement the server deployment method appropriate for the environment.
 
   - **部署方式选择 / Choose a Deployment** `/{lang}/server/deployment/choosing` — 比较 Docker、Linux 二进制和 Kubernetes 的适用边界。 / Compares the suitability of Docker, Linux binaries, and Kubernetes.
-  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用镜像部署单节点或多节点集群。 / Deploys single-node or multi-node clusters from container images.
+  - **Docker 部署 / Docker** `/{lang}/server/deployment/docker` — 使用镜像部署单节点集群或多节点集群。 / Deploys single-node clusters or multi-node clusters from container images.
   - **Linux 部署 / Linux** `/{lang}/server/deployment/linux` — 使用二进制、配置文件和 systemd 运行服务。 / Runs the server with a binary, configuration file, and systemd.
   - **Kubernetes 部署（Beta） / Kubernetes (Beta)** `/{lang}/server/deployment/kubernetes` — 说明持久化、服务发现、资源规划和 Beta 边界。 / Covers persistence, discovery, resource planning, and Beta limitations.
   - **多节点集群 / Multi-node Cluster** `/{lang}/server/deployment/multi-node` — 规划并引导多节点集群完成启动和就绪检查。 / Plans and bootstraps a multi-node cluster through readiness verification.

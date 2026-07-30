@@ -1,0 +1,35 @@
+---
+title: 产品概览
+description: 建立 WuKongIM 的定位、职责边界和部署模型。
+---
+
+WuKongIM 是面向即时通讯与实时交互场景的分布式通信基础设施。应用把消息发送到个人、群组或自定义频道；WuKongIM 负责连接接入、频道内顺序、持久化、复制、同步、在线状态和在线投递。
+
+<Callout type="warn" title="v3 Beta">
+  WuKongIM v3 仍处于 Beta 阶段。API、配置和持久化格式在稳定版之前仍可能调整，生产使用前必须结合真实负载完成验证。
+</Callout>
+
+## 它解决什么问题
+
+| 领域 | WuKongIM 提供的能力 |
+| --- | --- |
+| 客户端接入 | TCP WKProto、WebSocket 多路复用、连接鉴权和有界异步分发 |
+| 消息 | 个人、群组和自定义频道内的有序追加、持久化与同步 |
+| 状态 | 多设备会话、在线状态、最近会话、已读游标和未读状态 |
+| 集群 | Controller、Slot、Channel、复制、故障转移和统一路由 |
+| 运维 | 就绪检查、Prometheus 指标、诊断、Manager 和命令行工具 |
+
+## 它不替代什么
+
+WuKongIM 不替代你的业务账号系统、产品权限模型、内容审核、业务数据库或数据分析平台。生产集成通常由业务服务签发用户凭据、维护业务关系，并通过服务端 API、Webhook 或 SDK 与 WuKongIM 协作。
+
+## 统一部署模型
+
+每个部署都是集群。只有一个节点时，它是**单节点集群**，仍然经过 Controller、Slot、Channel、路由和存储等完整集群路径；不存在绕过集群语义的独立模式。
+
+<Cards>
+  <Card title="WuKongIM 是什么" description="进一步了解频道模型、职责边界和适用场景。" href="/zh/guide/product-overview/what-is-wukongim" />
+  <Card title="快速开始" description="启动单节点集群并发送第一条消息。" href="/zh/guide/quick-start" />
+  <Card title="核心概念" description="理解集群、频道、消息、用户、设备和会话。" href="/zh/guide/core-concepts" />
+  <Card title="服务端" description="进入部署、配置、运维和架构文档。" href="/zh/server" />
+</Cards>

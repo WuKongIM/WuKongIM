@@ -1,0 +1,44 @@
+---
+title: 运行聊天演示
+description: 理解内嵌 Chat Demo 的入口、工作方式和生产安全边界。
+---
+
+Chat Demo 是随 `wukongim` 二进制内嵌的浏览器应用。源码快速开始启动服务后，无需单独运行前端开发服务器。
+
+## 访问方式
+
+| 环境 | Chat Demo 地址 | API 基地址 |
+| --- | --- | --- |
+| 源码单节点集群 | `http://127.0.0.1:5001/demo/` | 页面同源 |
+| 仓库三节点 Compose | `http://127.0.0.1:15001/demo/` | 页面同源 |
+
+需要连接另一个 API 地址时，可以使用：
+
+```text
+http://127.0.0.1:5001/demo/?apiurl=http://host:port
+```
+
+Demo 先调用 `/route` 获取客户端 WebSocket 地址，再使用 JavaScript SDK 建立长连接。
+
+## 登录字段
+
+- **API 基地址**：WuKongIM HTTP API 地址。
+- **登录账号**：业务系统中的唯一用户 UID。
+- **登录密码**：Demo 写入并用于连接鉴权的测试 Token。
+
+相同 UID 和相同设备标记的主设备连接可能互相替换。并行测试时请使用不同 UID，或使用独立浏览器会话。
+
+## 生产边界
+
+<Callout type="error" title="不要暴露演示认证流程">
+  Chat Demo 直接调用 `/user/token` 是为了本地演示。生产客户端不应自行注册或重置 Token；应由受信任的业务后端完成身份校验和凭据签发。
+</Callout>
+
+生产集成还需要：
+
+- 为 HTTP、WebSocket 和 TCP 流量配置 TLS 与网络访问策略。
+- 替换示例 Manager 账号、JWT Secret、Join Token 和其他固定凭据。
+- 在业务后端执行账号、群组、好友、权限和内容规则。
+- 选择合适的客户端 SDK，并处理重连、离线同步和本地消息状态。
+
+如果双向消息已经成功，继续阅读[下一步](/zh/guide/quick-start/next-steps)。

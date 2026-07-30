@@ -1,0 +1,55 @@
+---
+title: 发送第一条消息
+description: 使用内嵌 Chat Demo 创建两个测试身份并验证双向消息收发。
+---
+
+开始前，请确认单节点集群的[就绪检查](/zh/guide/quick-start/single-node-cluster)已经成功。
+
+## 1. 登录第一个测试用户
+
+1. 在浏览器打开 `http://127.0.0.1:5001/demo/`。
+2. 保持 API 基地址为 `http://127.0.0.1:5001`。
+3. 登录账号输入一个唯一 UID，例如 `quickstart-alice`。
+4. 登录密码输入一个仅用于本地测试的 Token，例如 `alice-local-token`。
+5. 登录后等待页头显示“连接成功”。
+
+## 2. 登录第二个测试用户
+
+使用另一个浏览器配置文件、隐私窗口或不同浏览器，再次打开 Chat Demo：
+
+- UID：`quickstart-bob`
+- Token：`bob-local-token`
+
+等待第二个页面也显示“连接成功”。使用独立浏览器会话可以避免两个测试身份覆盖彼此的页面状态。
+
+## 3. 从 Alice 发送给 Bob
+
+1. 回到 `quickstart-alice` 页面。
+2. 点击右上角“与谁会话？”。
+3. 选择“单聊”，对方登录名填写 `quickstart-bob`。
+4. 输入 `hello from alice` 并发送。
+5. 确认 Alice 页面不再显示“发送中”，Bob 页面出现相同消息。
+
+## 4. 验证反向消息
+
+在 Bob 页面选择与 `quickstart-alice` 单聊，回复 `hello from bob`。Alice 收到回复后，第一次双向消息验证完成。
+
+<Callout type="info" title="这次验证覆盖了什么">
+  这条路径经过演示 Token 写入、路由发现、WebSocket 连接、频道消息提交和在线投递。它证明本地开发链路可用，但不替代生产鉴权、TLS、容量、故障恢复和持久性验证。
+</Callout>
+
+## 常见问题
+
+### 页面一直显示未连接
+
+重新检查 `/readyz`，确认 `5200` 端口可用，并查看服务终端是否记录连接鉴权或 WebSocket 错误。
+
+### 发送后对方没有收到
+
+确认双方页面都显示连接成功，对方 UID 与登录 UID 完全一致，并且当前会话选择了“单聊”。
+
+### 两个页面互相顶掉
+
+使用不同浏览器配置文件或隐私会话，并为两个用户使用不同 UID。
+
+下一步：[了解 Chat Demo 的边界](/zh/guide/quick-start/chat-demo)。

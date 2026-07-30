@@ -1,0 +1,54 @@
+---
+title: 启动单节点集群
+description: 从源码启动完整集群路径，并检查就绪状态和本地入口。
+---
+
+## 1. 获取源码
+
+```bash
+git clone https://github.com/WuKongIM/WuKongIM.git
+cd WuKongIM
+```
+
+如果你已经位于仓库根目录，可以跳过这一步。
+
+## 2. 创建本地配置
+
+```bash
+cp wukongim.toml.example wukongim.toml
+```
+
+`wukongim.toml` 是本机运行配置，不应把开发凭据直接用于生产环境。示例配置使用节点 ID `1`、一个副本和 256 个 Hash Slot，仍然运行完整集群语义。
+
+## 3. 启动服务
+
+```bash
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+保持当前终端运行。在另一个终端执行就绪检查：
+
+```bash
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+命令成功退出表示节点已完成启动并能够接收流量。进程仍在运行但就绪检查失败时，先查看启动终端中的配置、端口或存储错误。
+
+## 4. 打开本地入口
+
+| 用途 | 地址 |
+| --- | --- |
+| Chat Demo | `http://127.0.0.1:5001/demo/` |
+| Manager | `http://127.0.0.1:5301` |
+| HTTP API、就绪检查与指标 | `http://127.0.0.1:5001` |
+| WKProto TCP | `127.0.0.1:5100` |
+| WebSocket | `ws://127.0.0.1:5200` |
+| 节点间 Transport | `127.0.0.1:7001` |
+
+Manager 的开发账号是 `admin`，密码是 `a1234567`。这些固定凭据只适用于本地验证。
+
+## 停止与再次启动
+
+在服务终端按 `Ctrl+C` 停止节点。默认数据保存在 `./data/wukongim-single-node-data`；再次使用同一配置启动时会复用该目录。
+
+下一步：[发送第一条消息](/zh/guide/quick-start/first-message)。

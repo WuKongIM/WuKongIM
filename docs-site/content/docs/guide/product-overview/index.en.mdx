@@ -1,0 +1,35 @@
+---
+title: Product Overview
+description: Understand WuKongIM's position, responsibility boundaries, and deployment model.
+---
+
+WuKongIM is distributed communication infrastructure for instant messaging and real-time interaction. Applications publish messages to personal, group, or custom channels; WuKongIM handles client access, per-channel ordering, persistence, replication, synchronization, presence, and online delivery.
+
+<Callout type="warn" title="v3 Beta">
+  WuKongIM v3 is still in beta. APIs, configuration, and durable formats may change before the stable release. Validate it with your real workload before production use.
+</Callout>
+
+## What it provides
+
+| Area | WuKongIM capability |
+| --- | --- |
+| Client access | TCP WKProto, WebSocket multiplexing, connection authentication, and bounded asynchronous dispatch |
+| Messaging | Ordered append, persistence, and synchronization for personal, group, and custom channels |
+| State | Multi-device sessions, presence, recent conversations, read cursors, and unread state |
+| Clustering | Controller, Slot, Channel, replication, failover, and unified routing |
+| Operations | Readiness, Prometheus metrics, diagnostics, Manager, and command-line tools |
+
+## What it does not replace
+
+WuKongIM does not replace your account system, product authorization rules, content moderation, business database, or analytics platform. A production integration normally uses a business service to issue user credentials, maintain business relationships, and coordinate with WuKongIM through server APIs, webhooks, or SDKs.
+
+## One deployment model
+
+Every deployment is a cluster. With one node, it is a **single-node cluster** that still follows the complete Controller, Slot, Channel, routing, and storage paths. There is no standalone mode that bypasses cluster semantics.
+
+<Cards>
+  <Card title="What is WuKongIM?" description="Explore the channel model, responsibility boundaries, and use cases." href="/en/guide/product-overview/what-is-wukongim" />
+  <Card title="Quick Start" description="Start a single-node cluster and send the first message." href="/en/guide/quick-start" />
+  <Card title="Core Concepts" description="Learn clusters, channels, messages, users, devices, and conversations." href="/en/guide/core-concepts" />
+  <Card title="Server" description="Open deployment, configuration, operations, and architecture documentation." href="/en/server" />
+</Cards>

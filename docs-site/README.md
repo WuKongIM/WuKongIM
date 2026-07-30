@@ -1,9 +1,10 @@
 # WuKongIM v3 Documentation Site
 
 This directory contains the standalone [Fumadocs](https://fumadocs.dev/)
-application for the public WuKongIM v3 documentation. Phase 1 establishes the
-bilingual site shell and complete menu plan; it intentionally does not migrate
-the legacy page bodies.
+application for the public WuKongIM v3 documentation. Phase 1 established the
+bilingual shell and complete menu plan. Phase 2 publishes the first complete
+onboarding path: product orientation, core concepts, source-based single-node
+cluster startup, two-way message verification, and basic configuration.
 
 ## Develop
 
@@ -25,7 +26,8 @@ bun run verify
 
 The verification suite checks the navigation contract, redirect seed, generated
 menu plan, lint and TypeScript, static export, language-isolated search indexes,
-and the exclusion of planned routes from sitemap and LLM outputs.
+the inclusion of every published route, and the exclusion of planned routes
+from sitemap and LLM outputs.
 
 ## Content lifecycle
 
@@ -37,4 +39,5 @@ and the exclusion of planned routes from sitemap and LLM outputs.
 - Treat `redirects.json` as a non-exhaustive migration seed, not a deployment
   configuration.
 
-See `FLOW.md` for the publishing flow and `PHASE_1_SPEC.md` for scope.
+See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
+and `PHASE_2_SPEC.md` for the onboarding scope.

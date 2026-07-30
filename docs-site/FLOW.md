@@ -18,7 +18,7 @@ lib/navigation.ts
 
 content/docs/**/*.mdx
   -> fumadocs-mdx source
-  -> published domain landing pages
+  -> published domain and onboarding pages
   -> Orama search + sitemap + llms.txt + per-page Markdown
 ```
 
@@ -33,9 +33,13 @@ content/docs/**/*.mdx
   validation uses `bun run navigation:check`.
 - `redirects.json` is only a phase-one seed. The complete legacy URL audit and
   host-specific redirect adapter belong to the migration/deployment phase.
+- Phase 2 publishes the product overview, core-concepts overview, complete
+  source-based quick start, and basic configuration overview. Their commands
+  and defaults MUST stay aligned with the root README, `wukongim.toml.example`,
+  and the embedded Chat Demo.
 
 ## Static delivery
 
 `next.config.mjs` uses Next.js static export. `bun run build` writes `out/`;
 `bun run test:output` validates publishing boundaries against that artifact.
-No deployment, DNS change, or production cutover is performed by phase 1.
+No deployment, DNS change, or production cutover is performed by phases 1 or 2.

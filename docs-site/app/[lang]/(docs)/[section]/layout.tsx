@@ -23,7 +23,7 @@ export default async function DocumentationLayout({
     <DocsLayout
       tree={buildPageTree(locale, domain.key)}
       tabs={buildLayoutTabs(locale)}
-      tabMode="top"
+      tabMode="auto"
       sidebar={{ defaultOpenLevel: 1, prefetch: false }}
       {...baseOptions(locale)}
     >

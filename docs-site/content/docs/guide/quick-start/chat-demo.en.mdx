@@ -1,0 +1,44 @@
+---
+title: Run the Chat Demo
+description: Understand the embedded Chat Demo entry points, behavior, and production safety boundary.
+---
+
+The Chat Demo is a browser application embedded in the `wukongim` binary. After the source quick start launches the server, no separate frontend development process is required.
+
+## Entry points
+
+| Environment | Chat Demo address | API base URL |
+| --- | --- | --- |
+| Source single-node cluster | `http://127.0.0.1:5001/demo/` | Same origin as the page |
+| Repository three-node Compose | `http://127.0.0.1:15001/demo/` | Same origin as the page |
+
+To connect to another API address, use:
+
+```text
+http://127.0.0.1:5001/demo/?apiurl=http://host:port
+```
+
+The Demo first calls `/route` to discover a client WebSocket address, then uses the JavaScript SDK to establish a long-lived connection.
+
+## Login fields
+
+- **API base URL**: the WuKongIM HTTP API address.
+- **Login account**: the unique user UID from the business system.
+- **Login password**: a test token that the Demo stores and uses for connection authentication.
+
+Connections with the same UID and primary-device flag may replace each other. For parallel tests, use different UIDs or independent browser sessions.
+
+## Production boundary
+
+<Callout type="error" title="Do not expose the demo authentication flow">
+  The Chat Demo calls `/user/token` directly for local demonstration. Production clients must not register or reset their own tokens. A trusted business backend should validate identities and issue credentials.
+</Callout>
+
+A production integration also needs to:
+
+- Configure TLS and network-access policy for HTTP, WebSocket, and TCP traffic.
+- Replace example Manager accounts, JWT secrets, join tokens, and other fixed credentials.
+- Enforce account, group, friend, authorization, and content rules in the business backend.
+- Choose the appropriate client SDK and handle reconnects, offline synchronization, and local message state.
+
+After two-way messaging succeeds, continue to the [next steps](/en/guide/quick-start/next-steps).

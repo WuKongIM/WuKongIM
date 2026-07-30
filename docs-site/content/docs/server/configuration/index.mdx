@@ -1,0 +1,68 @@
+---
+title: 配置
+description: 理解 WuKongIM 的 TOML 配置、查找顺序、环境变量覆盖和本地基础设置。
+---
+
+WuKongIM 的主配置文件使用 TOML。建议从仓库根目录的 `wukongim.toml.example` 复制一份本地配置，并保持示例文件作为带注释的参考。
+
+## 指定配置文件
+
+显式指定路径最容易复现：
+
+```bash
+cp wukongim.toml.example wukongim.toml
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+未传入 `-config` 时，程序按以下顺序查找，找到第一份后停止：
+
+1. `./wukongim.toml`
+2. `./conf/wukongim.toml`
+3. `/etc/wukongim/wukongim.toml`
+
+## 环境变量覆盖
+
+环境变量使用 `WK_` 前缀和大写下划线名称，并覆盖配置文件中的对应值。例如：
+
+```bash
+WK_API_LISTEN_ADDR=127.0.0.1:6001 \
+WK_LOG_LEVEL=debug \
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+列表值必须使用 JSON 整体替换，不能只追加一个元素：
+
+```bash
+WK_CLUSTER_NODES='[{"id":1,"addr":"127.0.0.1:7001"}]' \
+GOWORK=off go run ./cmd/wukongim -config ./wukongim.toml
+```
+
+<Callout type="info" title="覆盖规则">
+  环境变量中的列表会替换完整列表。部署系统生成环境变量时，应把整个目标列表作为一个合法 JSON 字符串写入。
+</Callout>
+
+## 快速开始涉及的配置领域
+
+| TOML 分区 | 作用 |
+| --- | --- |
+| `[node]` | 节点 ID 与数据目录 |
+| `[cluster]` | 集群 ID、节点地址、Slot、复制和节点间监听 |
+| `[api]` | HTTP API 与对外 TCP/WebSocket 地址 |
+| `[manager]` | Manager 监听、认证、JWT 和管理用户 |
+| `[gateway]` | TCP/WebSocket Listener 与异步队列 |
+| `[observability]`、`[log]` | 指标开关与日志 |
+| `[diagnostics]` | 诊断采样、缓冲和慢请求阈值 |
+
+修改配置后需要重启节点。多节点集群中的节点 ID 和广告地址必须唯一；`0.0.0.0` 只能作为监听地址，不能作为其他节点连接的广告地址。
+
+## 本地安全检查
+
+示例配置只用于开发。在生产使用前至少应：
+
+- 替换 Manager 账号、JWT Secret、集群 Join Token 和其他固定能力凭据。
+- 只向受信任网络开放 Manager、指标、Debug、Benchmark 和诊断接口。
+- 为客户端和管理流量配置 TLS 与访问策略。
+- 把每个节点的数据放在独立、持久且可监控的存储上。
+- 根据真实流量、大群规模和在线用户数校准队列、并发、保留与容量配置。
+
+配置字段的完整参考仍在规划中；当前请以仓库内带注释的 `wukongim.toml.example` 为准。

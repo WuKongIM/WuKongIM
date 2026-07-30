@@ -25,7 +25,7 @@ function render() {
     '',
     '> Generated from `lib/navigation.ts`. Run `bun run navigation:write` after changing the registry.',
     '',
-    'The Chinese and English sites share this information architecture. Replace `{lang}` with `zh` or `en`. Domain landing pages are published in phase 1; every descendant is a visible `planned` route until its bilingual MDX content is ready.',
+    'The Chinese and English sites share this information architecture. Replace `{lang}` with `zh` or `en`. Publication is controlled per route: published pages have complete bilingual MDX; planned pages stay visible in navigation but remain outside public indexes.',
     '',
   ];
 
