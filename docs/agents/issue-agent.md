@@ -9,8 +9,10 @@ and merges.
 ## Direct flow
 
 ```text
-Issue or trusted Review event
+Issue event
   -> Controller: fresh facts, authorization, risk, signed state
+PR or trusted Review event
+  -> credential-free Signal -> default-branch workflow_run Controller
   -> Context Builder: bounded credential-free Context Bundle
   -> Codex Engineer: reproduce -> diagnose -> fix -> focused tests
   -> Candidate capture: filesystem diff against immutable baseline
@@ -26,6 +28,15 @@ only wake-up hints. The durable authority for Issue `N` is canonical JSON at
 must be contiguous, authored by the configured App Bot, and GitHub-signed.
 The Issue contains one mutable App-owned status comment as a repairable
 projection of that state.
+
+PR lifecycle and Review events first run
+`.github/workflows/issue-agent-pr-signal.yml`. That Workflow has no token
+permissions, Secrets, checkout, artifacts, or candidate execution. Its
+completion wakes the Controller through `workflow_run`, whose ref and source
+are the protected default branch. The Controller accepts only the fixed Signal
+Workflow name and one matching `agent/issue-N` PR, then re-reads the actor
+permission, unresolved Review threads, PR, Issue, and signed state. Neither
+`pull_request_target` nor a PR merge ref receives the Publisher Environment.
 
 The Controller requires its checkout SHA to equal the freshly read protected
 `main` head. That exact control SHA is then used by task recovery, Context

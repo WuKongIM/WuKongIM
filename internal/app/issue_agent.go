@@ -27,6 +27,8 @@ import (
 
 const issueAgentStatusMarker = "<!-- wukongim-issue-agent-status -->"
 const issueAgentTrackingLabel = "ready-for-agent"
+const issueAgentBranchPrefix = "agent/issue-"
+const issueAgentPRSignalWorkflow = "Safety Automation - Issue Agent PR Signal"
 
 var (
 	affectedCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -93,17 +95,19 @@ type reconcileResult struct {
 	Reason       string `json:"reason"`
 }
 
+type issueAgentPullRequest struct {
+	Number int64 `json:"number"`
+	Head   struct {
+		Ref string `json:"ref"`
+	} `json:"head"`
+}
+
 type issueAgentEvent struct {
 	Issue struct {
 		Number int64 `json:"number"`
 	} `json:"issue"`
-	PullRequest struct {
-		Number int64 `json:"number"`
-		Head   struct {
-			Ref string `json:"ref"`
-		} `json:"head"`
-	} `json:"pull_request"`
-	Review struct {
+	PullRequest issueAgentPullRequest `json:"pull_request"`
+	Review      struct {
 		ID int64 `json:"id"`
 	} `json:"review"`
 	Comment struct {
@@ -112,6 +116,20 @@ type issueAgentEvent struct {
 	Sender struct {
 		Login string `json:"login"`
 	} `json:"sender"`
+	WorkflowRun struct {
+		ID             int64                   `json:"id"`
+		Name           string                  `json:"name"`
+		Event          string                  `json:"event"`
+		Conclusion     string                  `json:"conclusion"`
+		HeadBranch     string                  `json:"head_branch"`
+		PullRequests   []issueAgentPullRequest `json:"pull_requests"`
+		HeadRepository struct {
+			FullName string `json:"full_name"`
+		} `json:"head_repository"`
+		Actor struct {
+			Login string `json:"login"`
+		} `json:"actor"`
+	} `json:"workflow_run"`
 }
 
 // NewIssueAgentOperations composes the direct v2 command surface.
@@ -904,28 +922,26 @@ func currentReviewAuthorization(
 ) (*contract.AuthorizationRecord, string, error) {
 	if current == nil || current.Work == nil ||
 		current.State != contract.IssueStateDraft &&
-			current.State != contract.IssueStateReadyForReview ||
-		request.EventName != "pull_request_review" &&
-			request.EventName != "pull_request_review_comment" {
+			current.State != contract.IssueStateReadyForReview {
 		return nil, "", nil
 	}
 	event, err := readIssueAgentEvent(request.EventPath)
 	if err != nil {
 		return nil, "", err
 	}
-	if event.PullRequest.Number != current.Work.PullRequest ||
-		event.PullRequest.Head.Ref != current.Work.Branch ||
-		event.Sender.Login == "" {
+	if request.EventName == "workflow_run" &&
+		event.WorkflowRun.HeadRepository.FullName != request.Repository {
+		return nil, "", errors.New("Review signal repository does not match")
+	}
+	wakeup, relevant, err := reviewWakeupFromEvent(request.EventName, event)
+	if err != nil || !relevant {
+		return nil, "", err
+	}
+	if wakeup.PullRequest.Number != current.Work.PullRequest ||
+		wakeup.PullRequest.Head.Ref != current.Work.Branch {
 		return nil, "", errors.New("Review event does not match Agent work")
 	}
-	objectID := event.Review.ID
-	if request.EventName == "pull_request_review_comment" {
-		objectID = event.Comment.ID
-	}
-	if objectID <= 0 {
-		return nil, "", errors.New("Review event lacks an immutable identity")
-	}
-	permission, err := client.ActorPermission(ctx, event.Sender.Login)
+	permission, err := client.ActorPermission(ctx, wakeup.Actor)
 	if err != nil || !issueagent.WritePermission(string(permission)) {
 		return nil, "", nil
 	}
@@ -946,12 +962,70 @@ func currentReviewAuthorization(
 	if current.ReviewDigest == digest {
 		return nil, "", nil
 	}
-	eventID := request.EventName + ":" + strconv.FormatInt(objectID, 10)
 	return &contract.AuthorizationRecord{
-		Actor:      event.Sender.Login,
+		Actor:      wakeup.Actor,
 		Permission: string(permission),
-		EventID:    eventID,
+		EventID:    wakeup.EventID,
 	}, digest, nil
+}
+
+type issueAgentReviewWakeup struct {
+	PullRequest issueAgentPullRequest
+	Actor       string
+	EventID     string
+}
+
+func reviewWakeupFromEvent(
+	eventName string,
+	event issueAgentEvent,
+) (issueAgentReviewWakeup, bool, error) {
+	var wakeup issueAgentReviewWakeup
+	switch eventName {
+	case "pull_request_review", "pull_request_review_comment":
+		objectID := event.Review.ID
+		if eventName == "pull_request_review_comment" {
+			objectID = event.Comment.ID
+		}
+		wakeup = issueAgentReviewWakeup{
+			PullRequest: event.PullRequest,
+			Actor:       event.Sender.Login,
+			EventID: eventName + ":" +
+				strconv.FormatInt(objectID, 10),
+		}
+		if objectID <= 0 {
+			return issueAgentReviewWakeup{}, false,
+				errors.New("Review event lacks an immutable identity")
+		}
+	case "workflow_run":
+		if event.WorkflowRun.Name != issueAgentPRSignalWorkflow ||
+			event.WorkflowRun.Conclusion != "success" ||
+			event.WorkflowRun.Event != "pull_request_review" &&
+				event.WorkflowRun.Event != "pull_request_review_comment" {
+			return issueAgentReviewWakeup{}, false, nil
+		}
+		if event.WorkflowRun.ID <= 0 ||
+			len(event.WorkflowRun.PullRequests) != 1 ||
+			event.WorkflowRun.HeadBranch !=
+				event.WorkflowRun.PullRequests[0].Head.Ref {
+			return issueAgentReviewWakeup{}, false,
+				errors.New("Review signal lacks one immutable PR identity")
+		}
+		wakeup = issueAgentReviewWakeup{
+			PullRequest: event.WorkflowRun.PullRequests[0],
+			Actor:       event.WorkflowRun.Actor.Login,
+			EventID: "workflow_run:" +
+				strconv.FormatInt(event.WorkflowRun.ID, 10),
+		}
+	default:
+		return issueAgentReviewWakeup{}, false, nil
+	}
+	if wakeup.PullRequest.Number <= 0 ||
+		wakeup.PullRequest.Head.Ref == "" ||
+		wakeup.Actor == "" {
+		return issueAgentReviewWakeup{}, false,
+			errors.New("Review event is incomplete")
+	}
+	return wakeup, true, nil
 }
 
 func ensureIssueStatus(
@@ -1100,10 +1174,31 @@ func resolveIssueNumber(
 		if event.Issue.Number > 0 {
 			return event.Issue.Number, nil
 		}
-		const prefix = "agent/issue-"
-		if strings.HasPrefix(event.PullRequest.Head.Ref, prefix) {
+		pullRequest := event.PullRequest
+		if request.EventName == "workflow_run" {
+			if event.WorkflowRun.Name != issueAgentPRSignalWorkflow ||
+				event.WorkflowRun.Conclusion != "success" ||
+				event.WorkflowRun.HeadRepository.FullName !=
+					request.Repository {
+				return 0, nil
+			}
+			if len(event.WorkflowRun.PullRequests) != 1 {
+				return 0, nil
+			}
+			pullRequest = event.WorkflowRun.PullRequests[0]
+			if event.WorkflowRun.HeadBranch != pullRequest.Head.Ref {
+				return 0, nil
+			}
+		}
+		if strings.HasPrefix(
+			pullRequest.Head.Ref,
+			issueAgentBranchPrefix,
+		) {
 			number, err := strconv.ParseInt(
-				strings.TrimPrefix(event.PullRequest.Head.Ref, prefix),
+				strings.TrimPrefix(
+					pullRequest.Head.Ref,
+					issueAgentBranchPrefix,
+				),
 				10,
 				64,
 			)

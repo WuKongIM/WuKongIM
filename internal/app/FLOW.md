@@ -1144,6 +1144,12 @@ explicit read token; writes require the protected repository-scoped App token.
 Publisher credentials therefore never enter the product server or Codex
 Engineer process.
 
+PR lifecycle and Review events first complete a separate credential-free
+Signal Workflow. A `workflow_run` event then wakes the default-branch
+Controller. This composition validates the fixed Signal Workflow name, exact
+Agent PR branch, actor permission, current Review threads, and signed state
+before making a decision; the Signal payload never grants authority.
+
 Pure Bug-form admission, permission, risk, and lifecycle tracking rules live
 in `internal/usecase/issueagent`; this package only gathers facts and composes
 their adapters. Context construction freezes every repository `AGENTS.md` and

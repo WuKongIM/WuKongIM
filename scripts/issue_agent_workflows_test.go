@@ -61,6 +61,7 @@ func TestIssueAgentV2IsTheOnlyWorkflow(t *testing.T) {
 	}
 	for _, current := range []string{
 		"issue-agent.yml",
+		"issue-agent-pr-signal.yml",
 		"issue-agent-engineer.yml",
 	} {
 		raw, err := os.ReadFile(
@@ -72,6 +73,38 @@ func TestIssueAgentV2IsTheOnlyWorkflow(t *testing.T) {
 		require.NotContains(t, string(raw), "pull_request_target")
 		require.NotContains(t, string(raw), "persist-credentials: true")
 	}
+}
+
+func TestIssueAgentPRSignalHasNoAuthorityOrCandidateExecution(t *testing.T) {
+	t.Parallel()
+
+	signal := readIssueAgentFile(
+		t,
+		".github/workflows/issue-agent-pr-signal.yml",
+	)
+	require.Contains(t, signal, "pull_request:")
+	require.Contains(t, signal, "pull_request_review:")
+	require.Contains(t, signal, "pull_request_review_comment:")
+	require.Contains(t, signal, "permissions: {}")
+	require.NotContains(t, signal, "secrets.")
+	require.NotContains(t, signal, "uses:")
+	require.NotContains(t, signal, "actions/checkout")
+	require.NotContains(t, signal, "issue-agent-publisher")
+	require.NotContains(t, signal, "OPENAI_API_KEY")
+
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, controller, "workflow_run:")
+	require.Contains(t, controller,
+		`workflows: ["Safety Automation - Issue Agent PR Signal"]`)
+	require.Contains(t, controller,
+		"github.event.workflow_run.conclusion == 'success'")
+	require.Contains(t, controller,
+		"startsWith(github.event.workflow_run.head_branch, 'agent/issue-')")
+	require.Contains(t, controller,
+		"github.event.workflow_run.head_repository.full_name == github.repository")
+	require.NotContains(t, controller, "\n  pull_request:")
+	require.NotContains(t, controller, "\n  pull_request_review:")
+	require.NotContains(t, controller, "\n  pull_request_review_comment:")
 }
 
 func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
@@ -114,6 +147,17 @@ func TestIssueAgentTaskFreezesExactControlSource(t *testing.T) {
 	require.Contains(t, engineer, "ref: ${{ inputs.base_sha }}")
 	require.Contains(t, engineer, "$RUNNER_TEMP/issue-agent-policy.json")
 	require.Contains(t, engineer, "$RUNNER_TEMP/issue-agent-prompt.md")
+}
+
+func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
+	t.Parallel()
+
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	caller := issueAgentJobText(t, raw, "engineer")
+	require.Contains(t, caller, "contents: read")
+	require.Contains(t, caller, "issues: read")
+	require.Contains(t, caller, "pull-requests: read")
+	require.NotContains(t, caller, "write")
 }
 
 func TestIssueAgentControllerSerializesFiveMinuteRecovery(t *testing.T) {

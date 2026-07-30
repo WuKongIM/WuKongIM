@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,6 +51,90 @@ func TestResolveIssueNumberRotatesScheduledTrackedIssues(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, int64(9), number)
+}
+
+func TestResolveIssueNumberReadsCredentialFreePRSignal(t *testing.T) {
+	t.Parallel()
+
+	eventPath := filepath.Join(t.TempDir(), "event.json")
+	require.NoError(t, os.WriteFile(eventPath, []byte(`{
+		"workflow_run": {
+			"id": 99,
+			"name": "Safety Automation - Issue Agent PR Signal",
+			"event": "pull_request",
+			"conclusion": "success",
+			"head_branch": "agent/issue-42",
+			"head_repository": {"full_name": "WuKongIM/WuKongIM"},
+			"pull_requests": [{
+				"number": 77,
+				"head": {"ref": "agent/issue-42"}
+			}],
+			"actor": {"login": "maintainer"}
+		}
+	}`), 0o600))
+	number, err := resolveIssueNumber(
+		context.Background(),
+		nil,
+		issueagentcli.ReconcileGitHubRequest{
+			Repository: "WuKongIM/WuKongIM",
+			EventName:  "workflow_run",
+			EventPath:  eventPath,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(42), number)
+}
+
+func TestReviewWakeupUsesTrustedWorkflowRunIdentity(t *testing.T) {
+	t.Parallel()
+
+	var event issueAgentEvent
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"workflow_run": {
+			"id": 99,
+			"name": "Safety Automation - Issue Agent PR Signal",
+			"event": "pull_request_review_comment",
+			"conclusion": "success",
+			"head_branch": "agent/issue-42",
+			"head_repository": {"full_name": "WuKongIM/WuKongIM"},
+			"pull_requests": [{
+				"number": 77,
+				"head": {"ref": "agent/issue-42"}
+			}],
+			"actor": {"login": "maintainer"}
+		}
+	}`), &event))
+	wakeup, relevant, err := reviewWakeupFromEvent("workflow_run", event)
+	require.NoError(t, err)
+	require.True(t, relevant)
+	require.Equal(t, int64(77), wakeup.PullRequest.Number)
+	require.Equal(t, "agent/issue-42", wakeup.PullRequest.Head.Ref)
+	require.Equal(t, "maintainer", wakeup.Actor)
+	require.Equal(t, "workflow_run:99", wakeup.EventID)
+}
+
+func TestReviewWakeupRejectsUntrustedWorkflowName(t *testing.T) {
+	t.Parallel()
+
+	var event issueAgentEvent
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"workflow_run": {
+			"id": 99,
+			"name": "Untrusted Workflow",
+			"event": "pull_request_review",
+			"conclusion": "success",
+			"head_branch": "agent/issue-42",
+			"head_repository": {"full_name": "WuKongIM/WuKongIM"},
+			"pull_requests": [{
+				"number": 77,
+				"head": {"ref": "agent/issue-42"}
+			}],
+			"actor": {"login": "maintainer"}
+		}
+	}`), &event))
+	_, relevant, err := reviewWakeupFromEvent("workflow_run", event)
+	require.NoError(t, err)
+	require.False(t, relevant)
 }
 
 func TestIssueFormValueReadsOneExactAffectedVersionSection(t *testing.T) {

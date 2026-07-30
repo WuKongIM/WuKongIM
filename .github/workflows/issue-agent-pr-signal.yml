@@ -1,0 +1,24 @@
+name: Safety Automation - Issue Agent PR Signal
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, closed, converted_to_draft, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+
+permissions: {}
+
+jobs:
+  signal:
+    name: Emit credential-free wake-up
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: Record trusted event kind
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: test -n "$EVENT_NAME"

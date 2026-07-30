@@ -26,6 +26,7 @@ for discovery and may become more specific over time.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
 | `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue/PR hints and the bounded five-minute sweep from fresh GitHub facts | Controller writes only through the protected Publisher environment |
+| `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Converts PR lifecycle and Review events into a credential-free completed run that wakes the default-branch Controller | No token permissions, Secrets, checkout, artifacts, or candidate execution |
 | `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, clean Verifier, and Publisher chain | OpenAI and Publisher credentials remain in separate jobs |
 
 ## GitHub Issue Agent rollout
@@ -37,6 +38,15 @@ concurrency group; credential-free engineering and verification can run in
 parallel for different Issues.
 The latter executes `recover-task -> context-builder -> engineer -> verifier
 -> publisher`.
+
+PR lifecycle and Review events pass through
+`issue-agent-pr-signal.yml`. The Signal has no authority and executes no
+candidate content. Its successful completion wakes `issue-agent.yml` through
+`workflow_run`, which GitHub binds to the protected default branch. The
+Controller treats that payload only as a hint and re-reads the exact Agent PR,
+actor permission, unresolved Review threads, Issue, and signed state.
+`pull_request_target` is not used, and the protected Publisher Environment is
+never exposed to a PR merge ref.
 
 The official Codex Action and Codex version are pinned in protected policy.
 Codex receives an ephemeral `workspace-write` session, the bounded Context

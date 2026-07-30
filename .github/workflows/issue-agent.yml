@@ -5,12 +5,9 @@ on:
     types: [opened, edited, labeled, unlabeled, reopened, closed]
   issue_comment:
     types: [created, edited, deleted]
-  pull_request:
-    types: [opened, edited, synchronize, reopened, closed, converted_to_draft, ready_for_review]
-  pull_request_review:
-    types: [submitted, edited, dismissed]
-  pull_request_review_comment:
-    types: [created, edited, deleted]
+  workflow_run:
+    workflows: ["Safety Automation - Issue Agent PR Signal"]
+    types: [completed]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -25,6 +22,13 @@ permissions: {}
 jobs:
   controller:
     name: Reconcile fresh GitHub facts
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        startsWith(github.event.workflow_run.head_branch, 'agent/issue-') &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: issue-agent-publisher
