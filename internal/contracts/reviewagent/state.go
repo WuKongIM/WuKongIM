@@ -24,9 +24,10 @@ const (
 
 // InteractionBudget bounds same-head model interactions.
 type InteractionBudget struct {
-	ReconsiderationsUsed uint32 `json:"reconsiderations_used"`
-	ExplanationsUsed     uint32 `json:"explanations_used"`
-	ResponseBytesUsed    uint64 `json:"response_bytes_used"`
+	ReconsiderationsUsed      uint32 `json:"reconsiderations_used"`
+	ExplanationsUsed          uint32 `json:"explanations_used"`
+	InfrastructureRetriesUsed uint32 `json:"infrastructure_retries_used"`
+	ResponseBytesUsed         uint64 `json:"response_bytes_used"`
 }
 
 // ProjectionIdentity records repairable GitHub views, never authority.

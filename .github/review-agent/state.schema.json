@@ -101,6 +101,11 @@
           "minimum": 0,
           "maximum": 4294967295
         },
+        "infrastructure_retries_used": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
         "response_bytes_used": {
           "type": "integer",
           "minimum": 0
@@ -109,6 +114,7 @@
       "required": [
         "reconsiderations_used",
         "explanations_used",
+        "infrastructure_retries_used",
         "response_bytes_used"
       ],
       "additionalProperties": false
