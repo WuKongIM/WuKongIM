@@ -48,8 +48,6 @@ func TestIssueAgentBugFormKeepsConcreteRequiredInputs(t *testing.T) {
 }
 
 func TestIssueAgentV2IsTheOnlyWorkflow(t *testing.T) {
-	t.Parallel()
-
 	root := repoRoot(t)
 	for _, removed := range []string{
 		"issue-agent-control.yml",
@@ -76,8 +74,6 @@ func TestIssueAgentV2IsTheOnlyWorkflow(t *testing.T) {
 }
 
 func TestIssueAgentPRSignalHasNoAuthorityOrCandidateExecution(t *testing.T) {
-	t.Parallel()
-
 	signal := readIssueAgentFile(
 		t,
 		".github/workflows/issue-agent-pr-signal.yml",
@@ -108,8 +104,6 @@ func TestIssueAgentPRSignalHasNoAuthorityOrCandidateExecution(t *testing.T) {
 }
 
 func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
-	t.Parallel()
-
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
 	require.Equal(t, 1, strings.Count(raw, codexActionPin))
 	require.Contains(t, raw, "codex-version: "+codexVersion)
@@ -130,8 +124,6 @@ func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
 }
 
 func TestIssueAgentTaskFreezesExactControlSource(t *testing.T) {
-	t.Parallel()
-
 	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	require.Contains(t, controller, `--arg control_sha "$(git rev-parse HEAD)"`)
 	require.Contains(t, controller, "control_sha: ${{ steps.reconcile.outputs.control_sha }}")
@@ -150,8 +142,6 @@ func TestIssueAgentTaskFreezesExactControlSource(t *testing.T) {
 }
 
 func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
-	t.Parallel()
-
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	caller := issueAgentJobText(t, raw, "engineer")
 	require.Contains(t, caller, "contents: read")
@@ -161,8 +151,6 @@ func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
 }
 
 func TestIssueAgentControllerSerializesFiveMinuteRecovery(t *testing.T) {
-	t.Parallel()
-
 	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	require.Contains(t, controller, `cron: "*/5 * * * *"`)
 	require.Contains(t, controller,
@@ -175,8 +163,6 @@ func TestIssueAgentControllerSerializesFiveMinuteRecovery(t *testing.T) {
 }
 
 func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
-	t.Parallel()
-
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
 	for _, job := range []string{
 		"recover-task:",
@@ -214,8 +200,6 @@ func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
 }
 
 func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
-	t.Parallel()
-
 	raw := readIssueAgentFile(t, ".github/issue-agent/policy.json")
 	var policy struct {
 		SchemaVersion int    `json:"schema_version"`
@@ -267,8 +251,6 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 }
 
 func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
-	t.Parallel()
-
 	for _, name := range []string{"engineer.md", "review.md"} {
 		raw := readIssueAgentFile(
 			t,
@@ -285,8 +267,6 @@ func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
 }
 
 func TestIssueAgentHistoricalBuildDoesNotRequireFutureMarker(t *testing.T) {
-	t.Parallel()
-
 	root := repoRoot(t)
 	for _, removed := range []string{
 		".github/issue-agent/check-reproduction-compatibility.sh",
@@ -304,8 +284,6 @@ func TestIssueAgentHistoricalBuildDoesNotRequireFutureMarker(t *testing.T) {
 }
 
 func TestIssueAgentLegacyImplementationIsAbsent(t *testing.T) {
-	t.Parallel()
-
 	root := repoRoot(t)
 	for _, removed := range []string{
 		"internal/infra/issueagentmodel",
