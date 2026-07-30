@@ -216,6 +216,12 @@ func TestIssueAgentTaskFailuresReachThePublisherFinalizer(t *testing.T) {
 		"- name: Download trusted evidence\n        continue-on-error: true")
 }
 
+func TestIssueAgentControllerReportsCommittedProjectionWarnings(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, raw,
+		`jq -r '.warnings[]? | "::warning::Issue Agent \(.projection) projection: \(.reason)"'`)
+}
+
 func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/issue-agent/policy.json")
 	var policy struct {

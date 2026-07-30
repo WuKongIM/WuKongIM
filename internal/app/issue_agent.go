@@ -84,16 +84,24 @@ type issueAgentPolicy struct {
 }
 
 type reconcileResult struct {
-	Dispatch     bool   `json:"dispatch"`
-	Repository   string `json:"repository"`
-	IssueNumber  int64  `json:"issue_number"`
-	TaskID       string `json:"task_id"`
-	BaseSHA      string `json:"base_sha"`
-	ControlSHA   string `json:"control_sha"`
-	StateHeadSHA string `json:"state_head_sha"`
-	State        string `json:"state"`
-	Reason       string `json:"reason"`
+	Dispatch     bool               `json:"dispatch"`
+	Repository   string             `json:"repository"`
+	IssueNumber  int64              `json:"issue_number"`
+	TaskID       string             `json:"task_id"`
+	BaseSHA      string             `json:"base_sha"`
+	ControlSHA   string             `json:"control_sha"`
+	StateHeadSHA string             `json:"state_head_sha"`
+	State        string             `json:"state"`
+	Reason       string             `json:"reason"`
+	Warnings     []reconcileWarning `json:"warnings,omitempty"`
 }
+
+type reconcileWarning struct {
+	Projection string `json:"projection"`
+	Reason     string `json:"reason"`
+}
+
+type committedIssueProjection func() error
 
 type issueAgentPullRequest struct {
 	Number int64 `json:"number"`
@@ -501,24 +509,6 @@ func reconcileGitHub(
 	if err != nil {
 		return reconcileResult{}, err
 	}
-	if err := repairIssueStatus(
-		ctx,
-		client,
-		config.AppLogin,
-		next,
-	); err != nil {
-		return reconcileResult{}, err
-	}
-	if !trackIssue {
-		if _, _, err := setIssueAgentTracking(
-			ctx,
-			client,
-			issue,
-			false,
-		); err != nil {
-			return reconcileResult{}, err
-		}
-	}
 	result := reconcileResult{
 		Dispatch: decision.Kind == issueagent.IssueDecisionDispatchEngineer ||
 			decision.Kind == issueagent.IssueDecisionDispatchReview,
@@ -531,7 +521,56 @@ func reconcileGitHub(
 		result.TaskID = next.Task.ID
 		result.BaseSHA = next.Task.BaseSHA
 	}
-	return result, nil
+	statusProjection := func() error {
+		return repairIssueStatus(
+			ctx,
+			client,
+			config.AppLogin,
+			next,
+		)
+	}
+	var trackingProjection committedIssueProjection
+	if !trackIssue {
+		trackingProjection = func() error {
+			_, _, projectionErr := setIssueAgentTracking(
+				ctx,
+				client,
+				issue,
+				false,
+			)
+			return projectionErr
+		}
+	}
+	return finalizeCommittedReconcile(
+		result,
+		statusProjection,
+		trackingProjection,
+	), nil
+}
+
+// finalizeCommittedReconcile preserves the authoritative signed transition
+// while retaining the sweep label until its ordered GitHub projections succeed.
+func finalizeCommittedReconcile(
+	result reconcileResult,
+	statusProjection committedIssueProjection,
+	trackingProjection committedIssueProjection,
+) reconcileResult {
+	if err := statusProjection(); err != nil {
+		result.Warnings = append(result.Warnings, reconcileWarning{
+			Projection: "status",
+			Reason:     err.Error(),
+		})
+		return result
+	}
+	if trackingProjection != nil {
+		if err := trackingProjection(); err != nil {
+			result.Warnings = append(result.Warnings, reconcileWarning{
+				Projection: "tracking",
+				Reason:     err.Error(),
+			})
+		}
+	}
+	return result
 }
 
 func recoverIssueTask(
