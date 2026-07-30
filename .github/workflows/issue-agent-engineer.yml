@@ -24,10 +24,6 @@ on:
     secrets:
       OPENAI_API_KEY:
         required: true
-      # Declared for expression validation; the Publisher job obtains the
-      # value from its protected Environment, never from the caller.
-      ISSUE_AGENT_APP_PRIVATE_KEY:
-        required: false
 
 permissions: {}
 
@@ -115,7 +111,7 @@ jobs:
       - name: Upload immutable Context Bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-context-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/context-bundle.json
           if-no-files-found: error
           retention-days: 2
@@ -159,7 +155,7 @@ jobs:
       - name: Download Context Bundle
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-context-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/issue-agent-context
       - name: Select prompt from signed task kind
         shell: bash
@@ -208,7 +204,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-candidate-${{ inputs.issue_number }}
           path: |
             ${{ runner.temp }}/engineer-result.json
             ${{ runner.temp }}/candidate.json
@@ -244,7 +240,7 @@ jobs:
       - name: Download captured candidate
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-candidate-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/issue-agent-candidate
       - name: Independently apply and verify candidate
         shell: bash
@@ -271,7 +267,7 @@ jobs:
       - name: Upload trusted Candidate Evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-evidence-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/candidate-evidence.json
           if-no-files-found: error
           retention-days: 2
@@ -288,6 +284,8 @@ jobs:
     concurrency:
       group: issue-agent-state-${{ inputs.repository }}
       cancel-in-progress: false
+    env:
+      ISSUE_AGENT_PRIVATE_KEY_SECRET: ISSUE_AGENT_APP_PRIVATE_KEY
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -297,19 +295,19 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-context-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/issue-agent-context
       - name: Download candidate and advisory result
         continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-candidate-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/issue-agent-candidate
       - name: Download trusted evidence
         continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          name: issue-agent-evidence-${{ inputs.issue_number }}
           path: ${{ runner.temp }}/issue-agent-evidence
       - name: Build protected Publisher
         shell: bash
@@ -320,7 +318,7 @@ jobs:
           ISSUE_AGENT_APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
           ISSUE_AGENT_APP_INSTALLATION_ID: ${{ vars.ISSUE_AGENT_APP_INSTALLATION_ID }}
           ISSUE_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
-          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets[env.ISSUE_AGENT_PRIVATE_KEY_SECRET] }}
         run: |
           set -euo pipefail
           jq -n --arg repository "${{ inputs.repository }}" \
