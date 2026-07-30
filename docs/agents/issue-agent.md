@@ -75,7 +75,7 @@ itself grants no authority.
 
 `.github/workflows/issue-agent-engineer.yml` invokes the full-SHA-pinned
 official `openai/codex-action` once for the complete task. It runs Codex
-`0.146.0`, OpenRouter model `openai/gpt-5.6-sol` through the fixed
+`0.146.0`, OpenRouter model `moonshotai/kimi-k3` through the fixed
 `https://openrouter.ai/api/v1/responses` endpoint, high reasoning effort, an
 ephemeral session, and a `workspace-write` sandbox with public internet access.
 Codex has normal local Git/search/edit/build/test tools, but it receives:
