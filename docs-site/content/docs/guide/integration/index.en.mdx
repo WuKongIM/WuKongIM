@@ -1,0 +1,41 @@
+---
+title: Integration
+description: Integrate WuKongIM from the perspective of an existing product system.
+---
+
+WuKongIM owns real-time connections, channel messaging, persistence, cluster routing, and online delivery. Your product service still owns accounts, authorization, business relationships, content policy, and final business actions.
+
+<Callout type="warn" title="Confirm the current security boundary first">
+  The current v3 Beta app performs CONNECT negotiation and session encryption, but its default composition does not yet validate connections against stored tokens. Product HTTP routes also have no business-authentication middleware. Put these routes behind a trusted network or authenticated reverse proxy and complete connection identity enforcement before production.
+</Callout>
+
+## Recommended path
+
+<Cards>
+  <Card title="Integration Architecture" description="Divide responsibilities among clients, the product service, and the WuKongIM cluster." href="/en/guide/integration/architecture" />
+  <Card title="Authentication" description="Design UID, device, token, connection, and revocation lifecycles." href="/en/guide/integration/authentication" />
+  <Card title="Messaging" description="Understand client and server send paths, acknowledgements, and recovery boundaries." href="/en/guide/integration/messaging" />
+  <Card title="Webhooks" description="Consume message and presence events securely and idempotently." href="/en/guide/integration/webhooks" />
+</Cards>
+
+## Minimum product loop
+
+1. The user signs in to your product service instead of proving product identity directly to WuKongIM.
+2. The product service assigns a stable UID, device identity, and short-lived credential.
+3. The client discovers a route and connects to the Gateway through an SDK or protocol implementation.
+4. A client or trusted product service sends messages and checks the protocol-level result.
+5. The product service receives asynchronous webhooks and places side effects on its own durable queue.
+6. After a disconnect, the client SDK reconnects and recovers messages; webhooks are not a client inbox.
+
+## Pre-production checklist
+
+| Area | What you must confirm |
+| --- | --- |
+| Identity | UIDs have one authority and untrusted clients cannot mint tokens |
+| Network | Product HTTP routes are not exposed directly and Gateway ingress is controlled |
+| Authorization | Relationships, membership, allowlists, denylists, and content rules follow product policy |
+| Messages | Payloads are versioned and senders retain `client_msg_no` |
+| Callbacks | The receiver persists first, returns 200 second, and tolerates duplicates |
+| Operations | Queue pressure, failures, retry exhaustion, and end-to-end latency are monitored |
+
+Plugin Extensions remains planned. Start with stable server boundaries and webhooks before introducing in-process extensions.

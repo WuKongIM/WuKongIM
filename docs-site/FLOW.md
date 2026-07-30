@@ -37,9 +37,15 @@ content/docs/**/*.mdx
   source-based quick start, and basic configuration overview. Their commands
   and defaults MUST stay aligned with the root README, `wukongim.toml.example`,
   and the embedded Chat Demo.
+- Phase 3 publishes the integration overview, architecture, authentication,
+  messaging, and webhook guidance. These pages MUST preserve the current
+  product security and reliability boundaries: default app composition does
+  not validate stored tokens, product HTTP routes require an external trust
+  boundary, and webhook delivery is bounded and best-effort without a built-in
+  signature header.
 
 ## Static delivery
 
 `next.config.mjs` uses Next.js static export. `bun run build` writes `out/`;
 `bun run test:output` validates publishing boundaries against that artifact.
-No deployment, DNS change, or production cutover is performed by phases 1 or 2.
+No deployment, DNS change, or production cutover is performed by these phases.

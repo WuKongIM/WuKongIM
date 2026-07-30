@@ -1,0 +1,101 @@
+---
+title: Webhooks
+description: Consume message and online-status events securely and idempotently.
+---
+
+Webhooks send committed messages, offline recipients, and online-status changes to one product HTTP endpoint. They are suitable for asynchronous business work, not client message synchronization.
+
+## Enable webhooks
+
+Configure `wukongim.toml`:
+
+```toml
+[webhook]
+http_addr = "https://events.example.com/wukongim"
+focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
+queue_size = 1024
+workers = 16
+request_timeout = "5s"
+retry_max_attempts = 3
+```
+
+The server puts the event name in the query string:
+
+```text
+POST https://events.example.com/wukongim?event=msg.notify
+Content-Type: application/json
+```
+
+Only HTTP 200 is success. Connection errors, timeouts, and other status codes receive a finite number of attempts within the current in-memory job.
+
+## Supported events
+
+| Event | Request body | Typical use |
+| --- | --- | --- |
+| `msg.notify` | Array of committed messages | Audit, search indexing, asynchronous notification |
+| `msg.offline` | One message and a bounded batch of offline UIDs | Offline-push candidate calculation |
+| `user.onlinestatus` | Array of compatible online-status strings | Asynchronous product presence projection |
+
+Representative `msg.notify` request:
+
+```json
+[
+  {
+    "header": {"no_persist": 0, "red_dot": 1, "sync_once": 0},
+    "setting": 0,
+    "expire": 0,
+    "message_id": 123456789,
+    "message_idstr": "123456789",
+    "client_msg_no": "order-20260730-0001",
+    "message_seq": 42,
+    "from_uid": "system",
+    "channel_id": "u1001",
+    "channel_type": 1,
+    "timestamp": 1785398400,
+    "payload": "eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoib3JkZXJfdXBkYXRlIn0="
+  }
+]
+```
+
+JSON encodes `payload` as Base64. For small recipient sets, `msg.offline` uses `to_uids`. At the compression threshold it may instead use `compress: "gzip"` with Base64-encoded `compress_to_uids`; receivers must support both forms.
+
+## Reliability boundary
+
+<Callout type="warn" title="Webhook delivery is bounded and best effort">
+  Queue saturation, process exit, request cancellation, or retry exhaustion can lose an event. The current runtime has no disk-backed webhook outbox or crash replay. A webhook failure does not change an already-successful SENDACK or durable append.
+</Callout>
+
+Recommended receiver flow:
+
+1. Verify network origin and ingress identity.
+2. Limit body size and allowlist the `event` value.
+3. Persist the raw event and an idempotency key to your own durable queue.
+4. Return HTTP 200 promptly after persistence.
+5. Run business logic asynchronously with a retryable state machine.
+
+Suggested idempotency keys:
+
+- `msg.notify`: `event + message_id`;
+- `msg.offline`: `event + message_id + uid`, deduplicated per recipient;
+- `user.onlinestatus`: overwrite the latest state per user and device rather than requiring every transition.
+
+## Security
+
+The current HTTP sender sets only `Content-Type: application/json`; it **does not add a signature or shared-secret header**. Build a trusted boundary around it in production:
+
+- use HTTPS;
+- prefer a private network, service mesh, or egress proxy;
+- enforce mTLS, fixed egress identity, or controlled credentials at the reverse proxy;
+- restrict source IPs and request rates;
+- never expose the callback as an anonymous public write endpoint;
+- avoid logging complete sensitive payloads.
+
+## Capacity and failure handling
+
+- `queue_size` is the bounded in-memory capacity for each event queue.
+- `workers` controls concurrent sends per event queue.
+- `msg_notify_batch_max_items` and its wait setting control message batches.
+- `offline_uid_batch_size` controls offline UID chunking and compression.
+- `retry_max_attempts` is the total number of attempts, not additional retries after the first.
+
+If the receiver fails continuously, repair or isolate it instead of growing WuKongIM's memory queues without bound. Critical product state must remain reconstructable from the product database or message history.

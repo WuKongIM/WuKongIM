@@ -4,7 +4,9 @@ This directory contains the standalone [Fumadocs](https://fumadocs.dev/)
 application for the public WuKongIM v3 documentation. Phase 1 established the
 bilingual shell and complete menu plan. Phase 2 publishes the first complete
 onboarding path: product orientation, core concepts, source-based single-node
-cluster startup, two-way message verification, and basic configuration.
+cluster startup, two-way message verification, and basic configuration. Phase 3
+publishes the business-integration path: responsibility boundaries,
+authentication constraints, messaging, and webhooks.
 
 ## Develop
 
@@ -40,4 +42,5 @@ from sitemap and LLM outputs.
   configuration.
 
 See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
-and `PHASE_2_SPEC.md` for the onboarding scope.
+`PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
+business-integration scope.

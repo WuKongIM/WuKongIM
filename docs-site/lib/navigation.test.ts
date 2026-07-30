@@ -98,6 +98,11 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/quick-start/chat-demo`,
         `/${locale}/guide/quick-start/next-steps`,
         `/${locale}/guide/core-concepts`,
+        `/${locale}/guide/integration`,
+        `/${locale}/guide/integration/architecture`,
+        `/${locale}/guide/integration/authentication`,
+        `/${locale}/guide/integration/messaging`,
+        `/${locale}/guide/integration/webhooks`,
         `/${locale}/server`,
         `/${locale}/server/configuration`,
         `/${locale}/sdk`,
@@ -151,6 +156,8 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
