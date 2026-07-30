@@ -27,6 +27,8 @@ content/docs/**/*.mdx
 - A `planned` route remains visible in navigation and renders a scope summary,
   but MUST be excluded from search, sitemap, and LLM outputs and MUST emit
   `noindex`.
+- `lib/source.ts` filters generated MDX files through the navigation registry;
+  unknown or still-planned content paths fail closed before any index consumer.
 - Change `lib/navigation.ts`, then run `bun run navigation:write`; CI-style
   validation uses `bun run navigation:check`.
 - `redirects.json` is only a phase-one seed. The complete legacy URL audit and

@@ -973,6 +973,11 @@ export const domains: DocumentationDomain[] = [
   },
 ];
 
+/** Parses a route or content locale without widening it to an arbitrary string. */
+export function parseLocale(value: string): Locale | undefined {
+  return locales.find((locale) => locale === value);
+}
+
 function entryFromPage(
   locale: Locale,
   domain: DocumentationDomain,
@@ -1026,4 +1031,27 @@ export function getNavigationEntry(
   return getAllNavigationEntries(locale).find(
     (entry) => entry.domain === domain && entry.slugs.join('/') === slugs.join('/'),
   );
+}
+
+/**
+ * Resolves a Fumadocs MDX path against the navigation publication registry.
+ * Unknown paths fail closed so adding content cannot publish it accidentally.
+ */
+export function isPublishedContentPath(filePath: string): boolean {
+  const extensionless = filePath.replace(/\.mdx?$/, '');
+  if (extensionless === filePath) return false;
+
+  const localeSuffix = extensionless.match(/\.(zh|en)$/);
+  const locale = parseLocale(localeSuffix?.[1] ?? 'zh');
+  if (!locale) return false;
+
+  const routePath = localeSuffix ? extensionless.slice(0, -localeSuffix[0].length) : extensionless;
+  const segments = routePath.split('/').filter(Boolean);
+  if (segments.at(-1) === 'index') segments.pop();
+
+  const [domainKey, ...slugs] = segments;
+  const domain = domains.find((candidate) => candidate.key === domainKey);
+  if (!domain) return false;
+
+  return getNavigationEntry(locale, domain.key, slugs)?.status === 'published';
 }

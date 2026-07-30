@@ -1,14 +1,10 @@
 import { Provider } from '@/components/provider';
-import { locales, type Locale } from '@/lib/navigation';
+import { locales, parseLocale } from '@/lib/navigation';
 import { siteUrl } from '@/lib/shared';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import '../global.css';
-
-function parseLocale(value: string): Locale | undefined {
-  return locales.find((locale) => locale === value);
-}
 
 export function generateStaticParams() {
   return locales.map((lang) => ({ lang }));

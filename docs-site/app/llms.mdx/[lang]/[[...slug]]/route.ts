@@ -1,5 +1,5 @@
 import { getLLMText, getPageMarkdownUrl, source } from '@/lib/source';
-import { locales } from '@/lib/navigation';
+import { parseLocale } from '@/lib/navigation';
 import { notFound } from 'next/navigation';
 
 export const revalidate = false;
@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ lang: string; slug?: string[] }> },
 ) {
   const { lang, slug } = await params;
-  const locale = locales.find((candidate) => candidate === lang);
+  const locale = parseLocale(lang);
   if (!locale || !slug?.length) notFound();
 
   const page = source.getPage(slug.slice(0, -1), locale);

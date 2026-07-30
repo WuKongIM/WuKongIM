@@ -1,11 +1,19 @@
 import { docs } from 'collections/server';
 import { loader } from 'fumadocs-core/source';
 import { i18n } from './i18n';
+import { isPublishedContentPath } from './navigation';
 import { docsContentRoute } from './shared';
+
+const generatedSource = docs.toFumadocsSource();
 
 export const source = loader({
   baseUrl: '/',
-  source: docs.toFumadocsSource(),
+  source: {
+    ...generatedSource,
+    files: generatedSource.files.filter(
+      (file) => file.type !== 'page' || isPublishedContentPath(file.path),
+    ),
+  },
   i18n,
   url(slugs, locale) {
     return `/${[locale, ...slugs].filter(Boolean).join('/')}`;

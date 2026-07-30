@@ -5,8 +5,8 @@ import {
   getAllNavigationEntries,
   getNavigationEntry,
   locales,
+  parseLocale,
   type DocumentationDomain,
-  type Locale,
 } from '@/lib/navigation';
 import { getPageMarkdownUrl, source } from '@/lib/source';
 import {
@@ -29,7 +29,7 @@ interface DocumentationPageParams {
 }
 
 function parseParams(values: DocumentationPageParams) {
-  const locale = locales.find((candidate) => candidate === values.lang) as Locale | undefined;
+  const locale = parseLocale(values.lang);
   const domain = domains.find((candidate) => candidate.key === values.section) as
     | DocumentationDomain
     | undefined;

@@ -1,5 +1,5 @@
 import { baseOptions } from '@/lib/layout.shared';
-import { domains, locales, type DocumentationDomain, type Locale } from '@/lib/navigation';
+import { domains, parseLocale, type DocumentationDomain } from '@/lib/navigation';
 import { buildLayoutTabs, buildPageTree } from '@/lib/navigation-tree';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { notFound } from 'next/navigation';
@@ -13,7 +13,7 @@ export default async function DocumentationLayout({
   params: Promise<{ lang: string; section: string }>;
 }) {
   const values = await params;
-  const locale = locales.find((candidate) => candidate === values.lang) as Locale | undefined;
+  const locale = parseLocale(values.lang);
   const domain = domains.find((candidate) => candidate.key === values.section) as
     | DocumentationDomain
     | undefined;

@@ -4,7 +4,9 @@ import {
   getAllNavigationEntries,
   getIndexedNavigationEntries,
   getNavigationEntry,
+  isPublishedContentPath,
   locales,
+  parseLocale,
 } from './navigation';
 import { buildLayoutTabs, buildPageTree } from './navigation-tree';
 
@@ -115,5 +117,15 @@ describe('documentation navigation contract', () => {
       '/en/sdk',
       '/en/api',
     ]);
+  });
+
+  test('fails closed when MDX content is not marked as published', () => {
+    expect(parseLocale('zh')).toBe('zh');
+    expect(parseLocale('fr')).toBeUndefined();
+    expect(isPublishedContentPath('guide/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
   });
 });

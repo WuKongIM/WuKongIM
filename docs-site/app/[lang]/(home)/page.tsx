@@ -1,4 +1,4 @@
-import { domains, locales, type Locale } from '@/lib/navigation';
+import { domains, parseLocale } from '@/lib/navigation';
 import {
   ArrowRight,
   Blocks,
@@ -103,7 +103,7 @@ export async function generateMetadata({
   params: Promise<{ lang: string }>;
 }): Promise<Metadata> {
   const values = await params;
-  const locale = locales.find((candidate) => candidate === values.lang);
+  const locale = parseLocale(values.lang);
   if (!locale) notFound();
 
   return {
@@ -118,7 +118,7 @@ export async function generateMetadata({
 
 export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
   const value = (await params).lang;
-  const locale = locales.find((candidate) => candidate === value) as Locale | undefined;
+  const locale = parseLocale(value);
   if (!locale) notFound();
   const content = copy[locale];
 
