@@ -1159,3 +1159,10 @@ Controller admission requires the binary's exact checkout SHA to match the
 fresh protected `main` head. The reusable task freezes that SHA for every
 trusted control role while the candidate workspace uses the task's separate
 exact base SHA.
+
+After the Controller commits a signed transition, that transition and its
+dispatch result remain authoritative if a GitHub status projection fails.
+Status repair runs before terminal tracking-label removal; a status failure
+therefore retains `ready-for-agent` so the bounded sweep retries the projection.
+Projection failures are emitted as typed Workflow warnings without discarding
+the committed result.

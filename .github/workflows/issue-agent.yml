@@ -77,6 +77,8 @@ jobs:
               control_sha:$control_sha,now:$now}' >"$RUNNER_TEMP/reconcile.json"
           "$RUNNER_TEMP/wkissueagent" reconcile-github \
             --input "$RUNNER_TEMP/reconcile.json" >"$RUNNER_TEMP/decision.json"
+          jq -r '.warnings[]? | "::warning::Issue Agent \(.projection) projection: \(.reason)"' \
+            "$RUNNER_TEMP/decision.json"
           jq -r '"dispatch=\(.dispatch)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
           jq -r '"repository=\(.repository)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
           jq -r '"issue_number=\(.issue_number)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
