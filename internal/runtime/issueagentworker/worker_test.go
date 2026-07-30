@@ -20,6 +20,19 @@ type functionRunner func(
 	issueagentworker.ExecRequest,
 ) (issueagentworker.ExecResult, error)
 
+type safeProviderFailureForTest struct {
+	code   string
+	detail string
+}
+
+func (failure safeProviderFailureForTest) Error() string {
+	return failure.detail
+}
+
+func (failure safeProviderFailureForTest) SafeProviderFailureCode() string {
+	return failure.code
+}
+
 func (runner functionRunner) Run(
 	ctx context.Context,
 	request issueagentworker.ExecRequest,
@@ -375,7 +388,9 @@ func TestWorkerTurnsAdapterFailureIntoSanitizedPublishableArtifact(t *testing.T)
 			[]byte,
 			*issueagentworker.Broker,
 		) (issueagentworker.ModelOutput, error) {
-			return issueagentworker.ModelOutput{}, errors.New("secret provider detail")
+			return issueagentworker.ModelOutput{}, safeProviderFailureForTest{
+				code: "authentication", detail: "secret provider detail",
+			}
 		},
 		MaxArtifactBytes: 1 << 20,
 	})
@@ -389,6 +404,7 @@ func TestWorkerTurnsAdapterFailureIntoSanitizedPublishableArtifact(t *testing.T)
 	require.Empty(t, artifact.Result.Evidence.Commands)
 	require.Empty(t, artifact.Result.ChangeSet.Files)
 	require.NotContains(t, artifact.Result.Failure.Summary, "secret")
+	require.Contains(t, artifact.Result.Failure.Summary, "authentication")
 }
 
 func TestWorkerFreezesSafeInternalSymlinks(t *testing.T) {

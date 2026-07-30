@@ -178,9 +178,72 @@ func TestCodexCLIRunnerDoesNotLeakProcessFailure(t *testing.T) {
 	_, err = runner.RunRound(context.Background(), CodexRoundRequest{
 		Model: "gpt-5.6-sol", Prompt: "strict prompt", MaxBytes: 1 << 20,
 	})
-	require.EqualError(t, err, "Codex CLI process failed")
+	require.EqualError(t, err, "model provider request failed: codex_process")
 	require.NotContains(t, err.Error(), "strict prompt")
 	require.NotContains(t, err.Error(), "43123")
+}
+
+func TestClassifyCodexProcessFailureUsesOnlySafeDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		output    string
+		wantClass string
+		retryable bool
+	}{
+		{
+			name:      "authentication",
+			output:    `{"type":"error","status":401,"error":{"message":"secret upstream response"}}`,
+			wantClass: "authentication",
+		},
+		{
+			name:      "quota",
+			output:    `{"type":"turn.failed","error":{"status":402,"message":"secret upstream response"}}`,
+			wantClass: "quota",
+		},
+		{
+			name:      "rate limit",
+			output:    `{"type":"error","message":"unexpected status 429: secret upstream response"}`,
+			wantClass: "rate_limit",
+			retryable: true,
+		},
+		{
+			name:      "invalid request",
+			output:    `{"type":"error","status":"400","message":"secret upstream response"}`,
+			wantClass: "invalid_request",
+		},
+		{
+			name:      "model unavailable",
+			output:    `{"type":"error","message":"the selected model is not supported: secret upstream response"}`,
+			wantClass: "model_unavailable",
+		},
+		{
+			name:      "network",
+			output:    `{"type":"turn.failed","error":{"message":"stream disconnected before completion: error sending request"}}`,
+			wantClass: "network",
+			retryable: true,
+		},
+		{
+			name:      "unstructured failure",
+			output:    `{"type":"item.completed","message":"status 401 belongs to model-authored content"}`,
+			wantClass: "codex_process",
+			retryable: true,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := classifyCodexProcessFailure([]byte(test.output))
+			var failure *ProviderError
+			require.ErrorAs(t, err, &failure)
+			require.Equal(t, test.wantClass, failure.Class)
+			require.Equal(t, test.retryable, failure.Retryable)
+			require.NotContains(t, err.Error(), "secret upstream response")
+		})
+	}
 }
 
 func writeFakeCodexCLI(

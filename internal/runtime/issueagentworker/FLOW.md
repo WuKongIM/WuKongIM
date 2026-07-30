@@ -22,6 +22,9 @@ evidence, Artifact digest, diagnosis evidence digest, and token counts empty.
 The trusted Worker derives those values from the workspace, broker transcript,
 and Adapter response and validates the completed Artifact again. The Publisher
 replays the same validations before any GitHub write.
+Provider failures discard every partial workspace mutation and publish only a
+fixed safe diagnostic code supplied through the provider-neutral error
+contract; raw provider responses and credentials never enter the Artifact.
 Pre-existing relative symlinks may point in one hop only to regular files
 inside the workspace, outside `.git` and Worker scratch state. The Worker
 freezes each link path-to-target mapping across its before/after snapshots and

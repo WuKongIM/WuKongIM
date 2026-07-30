@@ -27,6 +27,22 @@ func (failure *ProviderError) Error() string {
 	return "model provider request failed: " + failure.Class
 }
 
+// SafeProviderFailureCode reduces internal provider classes to a fixed
+// credential- and response-free vocabulary suitable for Worker artifacts.
+func (failure *ProviderError) SafeProviderFailureCode() string {
+	if failure == nil {
+		return ""
+	}
+	switch failure.Class {
+	case "authentication", "quota", "rate_limit", "invalid_request",
+		"model_unavailable", "network", "provider_unavailable",
+		"output_limit", "codex_process":
+		return failure.Class
+	default:
+		return ""
+	}
+}
+
 // DeepSeekAdapter implements the OpenAI-compatible DeepSeek chat protocol.
 type DeepSeekAdapter struct {
 	endpoint *url.URL

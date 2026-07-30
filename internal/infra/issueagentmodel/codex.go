@@ -103,6 +103,10 @@ func (adapter *CodexAdapter) Run(
 			if ctx.Err() != nil {
 				return Outcome{}, ctx.Err()
 			}
+			var providerFailure *ProviderError
+			if errors.As(err, &providerFailure) {
+				return Outcome{}, providerFailure
+			}
 			return Outcome{}, &ProviderError{Class: "codex_process", Retryable: true}
 		}
 		inputTokens += response.InputTokens
@@ -188,7 +192,12 @@ type CodexCLIRunner struct {
 	executableSearchPath string
 }
 
-var codexVersionPattern = regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)`)
+var (
+	codexVersionPattern       = regexp.MustCompile(`([0-9]+)\.([0-9]+)\.([0-9]+)`)
+	codexFailureStatusPattern = regexp.MustCompile(
+		`(?i)status(?:[ _-]?code)?[^0-9]{0,8}([45][0-9]{2})`,
+	)
+)
 
 // NewCodexCLIRunner validates the binary and its minimum version.
 func NewCodexCLIRunner(config CodexCLIConfig) (*CodexCLIRunner, error) {
@@ -280,7 +289,7 @@ func (runner *CodexCLIRunner) RunRound(
 		if ctx.Err() != nil {
 			return CodexRoundResponse{}, ctx.Err()
 		}
-		return CodexRoundResponse{}, errors.New("Codex CLI process failed")
+		return CodexRoundResponse{}, classifyCodexProcessFailure(stdout.Bytes())
 	}
 	envelope, err := os.ReadFile(outputPath)
 	if err != nil || int64(len(envelope)) > request.MaxBytes {
@@ -290,6 +299,128 @@ func (runner *CodexCLIRunner) RunRound(
 	return CodexRoundResponse{
 		Envelope: envelope, InputTokens: inputTokens, OutputTokens: outputTokens,
 	}, nil
+}
+
+type codexFailureEvent struct {
+	Type    string          `json:"type"`
+	Status  json.RawMessage `json:"status"`
+	Message string          `json:"message"`
+	Error   json.RawMessage `json:"error"`
+}
+
+type codexFailureDetail struct {
+	Status  json.RawMessage `json:"status"`
+	Code    json.RawMessage `json:"code"`
+	Type    string          `json:"type"`
+	Message string          `json:"message"`
+}
+
+// classifyCodexProcessFailure inspects only structured CLI failure events and
+// returns a fixed class without retaining provider-authored text.
+func classifyCodexProcessFailure(output []byte) error {
+	for _, line := range bytes.Split(output, []byte{'\n'}) {
+		var event codexFailureEvent
+		if json.Unmarshal(line, &event) != nil ||
+			(event.Type != "error" && event.Type != "turn.failed") {
+			continue
+		}
+		status := decodeCodexFailureStatus(event.Status)
+		message := event.Message
+		var detail codexFailureDetail
+		if len(event.Error) != 0 && json.Unmarshal(event.Error, &detail) == nil {
+			if status == 0 {
+				status = decodeCodexFailureStatus(detail.Status)
+			}
+			message += " " + detail.Type + " " + detail.Message + " " +
+				string(detail.Code)
+		}
+		if status == 0 {
+			status = codexFailureStatusFromMessage(message)
+		}
+		if failure := classifiedCodexProviderError(status, message); failure != nil {
+			return failure
+		}
+	}
+	return &ProviderError{Class: "codex_process", Retryable: true}
+}
+
+func decodeCodexFailureStatus(raw json.RawMessage) int {
+	if len(raw) == 0 {
+		return 0
+	}
+	var numeric int
+	if json.Unmarshal(raw, &numeric) == nil {
+		return numeric
+	}
+	var text string
+	if json.Unmarshal(raw, &text) != nil {
+		return 0
+	}
+	numeric, _ = strconv.Atoi(text)
+	return numeric
+}
+
+func codexFailureStatusFromMessage(message string) int {
+	match := codexFailureStatusPattern.FindStringSubmatch(message)
+	if len(match) != 2 {
+		return 0
+	}
+	status, _ := strconv.Atoi(match[1])
+	return status
+}
+
+func classifiedCodexProviderError(status int, message string) *ProviderError {
+	normalized := strings.ToLower(message)
+	if strings.Contains(normalized, "model") &&
+		(strings.Contains(normalized, "not supported") ||
+			strings.Contains(normalized, "not found") ||
+			strings.Contains(normalized, "unavailable")) {
+		return &ProviderError{Class: "model_unavailable"}
+	}
+	if strings.Contains(normalized, "rate limit") ||
+		strings.Contains(normalized, "rate_limit") {
+		return &ProviderError{Class: "rate_limit", Retryable: true}
+	}
+	if strings.Contains(normalized, "insufficient credit") ||
+		strings.Contains(normalized, "insufficient quota") ||
+		strings.Contains(normalized, "payment required") {
+		return &ProviderError{Class: "quota"}
+	}
+	if strings.Contains(normalized, "unauthorized") ||
+		strings.Contains(normalized, "forbidden") ||
+		strings.Contains(normalized, "authentication") {
+		return &ProviderError{Class: "authentication"}
+	}
+	switch {
+	case status == 400:
+		return &ProviderError{Class: "invalid_request"}
+	case status == 401 || status == 403:
+		return &ProviderError{Class: "authentication"}
+	case status == 402:
+		return &ProviderError{Class: "quota"}
+	case status == 404:
+		return &ProviderError{Class: "model_unavailable"}
+	case status == 408:
+		return &ProviderError{Class: "network", Retryable: true}
+	case status == 429:
+		return &ProviderError{Class: "rate_limit", Retryable: true}
+	case status >= 500 && status <= 599:
+		return &ProviderError{Class: "provider_unavailable", Retryable: true}
+	}
+	if strings.Contains(normalized, "stream disconnected") ||
+		strings.Contains(normalized, "error sending request") ||
+		strings.Contains(normalized, "connection refused") ||
+		strings.Contains(normalized, "timed out") ||
+		strings.Contains(normalized, "timeout") ||
+		strings.Contains(normalized, "network") {
+		return &ProviderError{Class: "network", Retryable: true}
+	}
+	if strings.Contains(normalized, "invalid request") ||
+		strings.Contains(normalized, "invalid_request") ||
+		strings.Contains(normalized, "bad request") {
+		return &ProviderError{Class: "invalid_request"}
+	}
+	return nil
 }
 
 type boundedBuffer struct {
