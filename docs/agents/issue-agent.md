@@ -69,9 +69,10 @@ itself grants no authority.
 
 `.github/workflows/issue-agent-engineer.yml` invokes the full-SHA-pinned
 official `openai/codex-action` once for the complete task. It runs Codex
-`0.146.0`, model `gpt-5.6`, high reasoning effort, an ephemeral session, and a
-`workspace-write` sandbox with public internet access. Codex has normal local
-Git/search/edit/build/test tools, but it receives:
+`0.146.0`, OpenRouter model `openai/gpt-5.6-sol` through the fixed
+`https://openrouter.ai/api/v1/responses` endpoint, high reasoning effort, an
+ephemeral session, and a `workspace-write` sandbox with public internet access.
+Codex has normal local Git/search/edit/build/test tools, but it receives:
 
 - no GitHub or App token;
 - no state-signing material;
@@ -139,7 +140,7 @@ approval gate, so authorized low-risk repairs can open PRs automatically.
 Configure:
 
 - Environment secret `ISSUE_AGENT_APP_PRIVATE_KEY`;
-- Repository secret `OPENAI_API_KEY`;
+- Repository secret `OPENAI_API_KEY` containing the dedicated OpenRouter key;
 - variables `ISSUE_AGENT_APP_ID`, `ISSUE_AGENT_APP_INSTALLATION_ID`, and
   `ISSUE_AGENT_APP_LOGIN`.
 

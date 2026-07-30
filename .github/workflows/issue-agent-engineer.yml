@@ -179,10 +179,11 @@ jobs:
           ISSUE_AGENT_CONTEXT_BUNDLE: ${{ runner.temp }}/issue-agent-context/context-bundle.json
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          responses-api-endpoint: https://openrouter.ai/api/v1/responses
           prompt-file: ${{ runner.temp }}/issue-agent-prompt.md
           output-file: ${{ runner.temp }}/engineer-result.json
           codex-version: 0.146.0
-          model: gpt-5.6
+          model: openai/gpt-5.6-sol
           effort: high
           sandbox: workspace-write
           safety-strategy: drop-sudo

@@ -115,10 +115,11 @@ func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
 	require.Contains(t, raw, "sandbox: workspace-write")
 	require.Contains(t, raw, "sandbox_workspace_write.network_access=true")
 	require.Contains(t, raw, "safety-strategy: drop-sudo")
-	require.Contains(t, raw, "model: gpt-5.6")
+	require.Contains(t, raw, "model: openai/gpt-5.6-sol")
 	require.Contains(t, raw, "effort: high")
 	require.Contains(t, raw, "secrets.OPENAI_API_KEY")
-	require.NotContains(t, raw, "responses-api-endpoint")
+	require.Contains(t, raw,
+		"responses-api-endpoint: https://openrouter.ai/api/v1/responses")
 	require.NotContains(t, raw, "session resume")
 	require.NotContains(t, raw, "codex resume")
 }
@@ -227,7 +228,7 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	require.Equal(t, strings.TrimPrefix(codexActionPin, "openai/codex-action@"),
 		policy.Engineer.ActionSHA)
 	require.Equal(t, codexVersion, policy.Engineer.CodexVersion)
-	require.Equal(t, "gpt-5.6", policy.Engineer.Model)
+	require.Equal(t, "openai/gpt-5.6-sol", policy.Engineer.Model)
 	require.Equal(t, "workspace-write", policy.Engineer.Sandbox)
 	require.True(t, policy.Engineer.Ephemeral)
 	require.True(t, policy.Engineer.NetworkAccess)
@@ -241,7 +242,6 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	lower := strings.ToLower(raw)
 	for _, legacy := range []string{
 		"deepseek",
-		"openrouter",
 		"provider",
 		"broker",
 		"checkpoint",
