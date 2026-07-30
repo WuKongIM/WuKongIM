@@ -2,10 +2,8 @@ package scripts_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -13,28 +11,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestIssueAgentBugFormKeepsVersionOptionalAndThreeRequiredSemanticInputs(
-	t *testing.T,
-) {
+const (
+	codexActionPin = "openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56"
+	codexVersion   = "0.146.0"
+)
+
+func TestIssueAgentBugFormKeepsConcreteRequiredInputs(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join(
 		repoRoot(t), ".github", "ISSUE_TEMPLATE", "bug.yml",
 	))
 	require.NoError(t, err)
 	var form struct {
-		Body []struct {
-			Type       string `yaml:"type"`
-			ID         string `yaml:"id"`
-			Attributes struct {
-				Label       string `yaml:"label"`
-				Description string `yaml:"description"`
-				Value       string `yaml:"value"`
-			} `yaml:"attributes"`
+		Labels []string `yaml:"labels"`
+		Body   []struct {
+			Type        string `yaml:"type"`
+			ID          string `yaml:"id"`
 			Validations struct {
 				Required bool `yaml:"required"`
 			} `yaml:"validations"`
 		} `yaml:"body"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &form))
+	require.Contains(t, form.Labels, "bug")
 	var required []string
 	for _, field := range form.Body {
 		if field.Validations.Required {
@@ -46,566 +44,286 @@ func TestIssueAgentBugFormKeepsVersionOptionalAndThreeRequiredSemanticInputs(
 		"environment", "reproduction", "expected_actual",
 	}, required)
 	require.Contains(t, string(raw), "id: affected_version")
-	require.Contains(t, strings.ToLower(string(raw)),
-		"leave blank to use the main commit")
 	require.Contains(t, strings.ToLower(string(raw)), "credential")
-	require.Contains(t, strings.ToLower(string(raw)), "private")
 }
 
-func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
-	t.Parallel()
-
-	for _, name := range []string{
+func TestIssueAgentV2IsTheOnlyWorkflow(t *testing.T) {
+	root := repoRoot(t)
+	for _, removed := range []string{
 		"issue-agent-control.yml",
 		"issue-agent-reconcile.yml",
 		"issue-agent-run.yml",
 	} {
-		raw := readWorkflow(t, name)
-		document, workflow, err := decodeWorkflow(raw)
-		require.NoError(t, err, name)
-		require.NotNil(t, document)
-		require.Empty(t, workflow.Permissions, name)
-		require.NotEmpty(t, workflow.Jobs, name)
+		_, err := os.Stat(filepath.Join(root, ".github", "workflows", removed))
+		require.ErrorIs(t, err, os.ErrNotExist, removed)
+	}
+	for _, current := range []string{
+		"issue-agent.yml",
+		"issue-agent-pr-signal.yml",
+		"issue-agent-engineer.yml",
+	} {
+		raw, err := os.ReadFile(
+			filepath.Join(root, ".github", "workflows", current),
+		)
+		require.NoError(t, err)
+		var document any
+		require.NoError(t, yaml.Unmarshal(raw, &document), current)
 		require.NotContains(t, string(raw), "pull_request_target")
 		require.NotContains(t, string(raw), "persist-credentials: true")
-		for jobName, job := range workflow.Jobs {
-			require.Greater(t, job.TimeoutMinutes, 0, "%s/%s", name, jobName)
-			jobText := fmt.Sprintf("%#v", job)
-			switch {
-			case name == "issue-agent-control.yml" &&
-				(jobName == "intake-publisher" || jobName == "state-publisher"):
-				require.Equal(t, "issue-agent-publisher", job.Environment)
-				require.NotNil(t, job.Concurrency)
-				require.Equal(t,
-					"issue-agent-publisher-${{ github.repository }}-${{ needs.planner.outputs.issue_number }}",
-					job.Concurrency.Group,
-				)
-				require.Equal(t, "max", job.Concurrency.Queue)
-				require.NotNil(t, job.Concurrency.CancelInProgress)
-				require.False(t, *job.Concurrency.CancelInProgress)
-				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				if jobName == "state-publisher" {
-					require.Equal(t, map[string]string{
-						"actions": "read", "contents": "read",
-					}, job.Permissions)
-					require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-				} else {
-					require.Equal(t,
-						map[string]string{"contents": "read"},
-						job.Permissions,
-					)
-					require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-				}
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
-			case name == "issue-agent-reconcile.yml" && jobName == "dispatcher":
-				require.Equal(t, "issue-agent-publisher", job.Environment)
-				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
-			case name == "issue-agent-run.yml" && jobName == "publisher":
-				require.Equal(t, "issue-agent-publisher", job.Environment)
-				require.NotNil(t, job.Concurrency)
-				require.Equal(t,
-					"issue-agent-publisher-${{ github.repository }}-${{ inputs.issue_number }}",
-					job.Concurrency.Group,
-				)
-				require.Equal(t, "max", job.Concurrency.Queue)
-				require.NotNil(t, job.Concurrency.CancelInProgress)
-				require.False(t, *job.Concurrency.CancelInProgress)
-				require.Contains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				require.Contains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
-			case name == "issue-agent-run.yml" && jobName == "codex-worker":
-				require.Equal(t, "issue-agent-codex", job.Environment)
-				require.Contains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-			case name == "issue-agent-run.yml" && jobName == "deepseek-worker":
-				require.Equal(t, "issue-agent-deepseek", job.Environment)
-				require.Contains(t, jobText, "DEEPSEEK_API_KEY")
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-			default:
-				require.Empty(t, job.Environment, "%s/%s", name, jobName)
-				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
-				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
-				require.NotContains(t, jobText, "CODEX_API_KEY")
-				require.NotContains(t, jobText, "OPENROUTER_API_KEY")
-				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
-			}
-			for _, step := range job.Steps {
-				if step.Uses != "" {
-					require.NoError(t, validatePinnedIssueAgentAction(step.Uses))
-				}
-				if name == "issue-agent-control.yml" &&
-					jobName == "state-publisher" {
-					require.NotContains(t, step.Run, "${{",
-						"large Publisher scripts must receive expressions through env")
-				}
-				require.NotContains(t, step.Run, "github.event.issue.body")
-				require.NotContains(t, step.Run, "github.event.comment.body")
-				require.NotContains(t, step.Run, "github.event.pull_request.title")
-			}
-		}
-		if name == "issue-agent-run.yml" {
-			require.Equal(t,
-				"issue-agent-${{ inputs.issue_number }}",
-				workflow.Concurrency.Group,
-			)
-		} else {
-			require.Equal(t,
-				"issue-agent-scheduler-${{ github.repository }}",
-				workflow.Concurrency.Group,
-			)
-		}
-		require.Equal(t, "max", workflow.Concurrency.Queue)
-		require.NotNil(t, workflow.Concurrency.CancelInProgress)
-		require.False(t, *workflow.Concurrency.CancelInProgress)
 	}
 }
 
-func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-run.yml"))
-	require.Contains(t, raw, "path: control")
-	require.Contains(t, raw, "path: workspace")
-	require.Contains(t, raw, "persist-credentials: false")
-	require.Contains(t, raw, "group: issue-agent-${{ inputs.issue_number }}")
-	require.Contains(t, raw, "queue: max")
-	require.Contains(t, raw, "cancel-in-progress: false")
-	require.NotContains(t, raw, "permissions:\n      contents: write")
-	require.Contains(t, raw, "environment: issue-agent-publisher")
-	require.Contains(t, raw, "module_cache")
-	require.Contains(t, raw, ".enabled == true")
-	require.Contains(t, raw, "remediation_issue_allowlist")
-	require.Contains(t, raw, "docker pull \"$sandbox_image\"")
-	require.Contains(t, raw, "prompt_phase=address-review")
-	require.Contains(t, raw, "pull-requests: read")
-}
-
-func TestIssueAgentReproductionChecksMatchingHarnessContractBeforeBuild(
-	t *testing.T,
-) {
-	helperPath := filepath.Join(
-		repoRoot(t), ".github", "issue-agent",
-		"check-reproduction-compatibility.sh",
+func TestIssueAgentPRSignalHasNoAuthorityOrCandidateExecution(t *testing.T) {
+	signal := readIssueAgentFile(
+		t,
+		".github/workflows/issue-agent-pr-signal.yml",
 	)
-	helperRaw, err := os.ReadFile(helperPath)
-	require.NoError(t, err)
-	helper := string(helperRaw)
-	require.Contains(t, helper, `.github/issue-agent/reproduction-contract`)
-	require.Contains(t, helper, `cmp -s`)
-	require.Contains(t, helper, `incompatible reproduction contracts`)
-	require.NotContains(t, helper, `main.go`)
-	helperInfo, err := os.Stat(helperPath)
-	require.NoError(t, err)
-	require.NotZero(t, helperInfo.Mode().Perm()&0o111)
+	require.Contains(t, signal, "pull_request:")
+	require.Contains(t, signal, "pull_request_review:")
+	require.Contains(t, signal, "pull_request_review_comment:")
+	require.Contains(t, signal, "permissions: {}")
+	require.NotContains(t, signal, "secrets.")
+	require.NotContains(t, signal, "uses:")
+	require.NotContains(t, signal, "actions/checkout")
+	require.NotContains(t, signal, "issue-agent-publisher")
+	require.NotContains(t, signal, "OPENAI_API_KEY")
 
-	marker, err := os.ReadFile(filepath.Join(
-		repoRoot(t), ".github", "issue-agent", "reproduction-contract",
-	))
-	require.NoError(t, err)
-	require.Equal(t, "wukongim-process-e2e-v1\n", string(marker))
-
-	buildHelperPath := filepath.Join(
-		repoRoot(t), ".github", "issue-agent",
-		"build-reproduction-binaries.sh",
-	)
-	buildHelperRaw, err := os.ReadFile(buildHelperPath)
-	require.NoError(t, err)
-	buildHelper := string(buildHelperRaw)
-	require.Contains(t, buildHelper,
-		`GOWORK=off go build -trimpath -o "$affected_output" ./cmd/wukongim`)
-	require.Contains(t, buildHelper,
-		`GOWORK=off go build -trimpath -o "$diagnosis_output" ./cmd/wukongim`)
-	require.NotContains(t, buildHelper, `main.go`)
-	buildHelperInfo, err := os.Stat(buildHelperPath)
-	require.NoError(t, err)
-	require.NotZero(t, buildHelperInfo.Mode().Perm()&0o111)
-
-	raw := readWorkflow(t, "issue-agent-run.yml")
-	_, workflow, err := decodeWorkflow(raw)
-	require.NoError(t, err)
-
-	for _, jobName := range []string{"codex-worker", "deepseek-worker"} {
-		job, ok := workflow.Jobs[jobName]
-		require.True(t, ok, jobName)
-		preflightIndex, preflight := findIssueAgentStep(
-			t, job, "Verify reproduction compatibility",
-		)
-		require.Contains(t, preflight.Run,
-			`control/.github/issue-agent/check-reproduction-compatibility.sh \`)
-		require.Contains(t, preflight.Run, `affected-source workspace`)
-		buildIndex, build := findIssueAgentStep(
-			t, job, "Build exact reproduction binaries",
-		)
-		require.Less(t, preflightIndex, buildIndex)
-		require.Contains(t, build.Run,
-			`control/.github/issue-agent/build-reproduction-binaries.sh \`)
-		require.Contains(t, build.Run,
-			`affected-source workspace \`)
-		require.Contains(t, build.Run,
-			`"$RUNNER_TEMP/affected-wukongim" \`)
-		require.Contains(t, build.Run,
-			`"$RUNNER_TEMP/diagnosis-wukongim"`)
-	}
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, controller, "workflow_run:")
+	require.Contains(t, controller,
+		`workflows: ["Safety Automation - Issue Agent PR Signal"]`)
+	require.Contains(t, controller,
+		"github.event.workflow_run.conclusion == 'success'")
+	require.Contains(t, controller,
+		"startsWith(github.event.workflow_run.head_branch, 'agent/issue-')")
+	require.Contains(t, controller,
+		"github.event.workflow_run.head_repository.full_name == github.repository")
+	require.NotContains(t, controller, "\n  pull_request:")
+	require.NotContains(t, controller, "\n  pull_request_review:")
+	require.NotContains(t, controller, "\n  pull_request_review_comment:")
 }
 
-func TestIssueAgentCodexWorkerUsesOfficialBootstrap(t *testing.T) {
-	t.Parallel()
-
-	raw := readWorkflow(t, "issue-agent-run.yml")
-	_, workflow, err := decodeWorkflow(raw)
-	require.NoError(t, err)
-	job, ok := workflow.Jobs["codex-worker"]
-	require.True(t, ok)
-
-	pullIndex, _ := findIssueAgentStep(
-		t, job, "Pull the digest-pinned sandbox without provider credentials",
-	)
-	verifyIndex, verify := findIssueAgentStep(
-		t, job, "Verify Codex bootstrap home is absent",
-	)
-	bootstrapIndex, bootstrap := findIssueAgentStep(
-		t, job, "Bootstrap the pinned Codex CLI and Responses proxy",
-	)
-	workerIndex, worker := findIssueAgentStep(
-		t, job, "Run the bounded Codex Worker",
-	)
-	require.NoError(t, validateCodexWorkerBoundary(job))
-	require.NoError(t, validateCodexBootstrapStep(bootstrap))
-	require.Less(t, pullIndex, verifyIndex)
-	require.Equal(t, verifyIndex+1, bootstrapIndex)
-	require.Equal(t, bootstrapIndex+1, workerIndex)
-	require.Contains(t, verify.Run,
-		`[[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]`)
-	require.Equal(t, 1,
-		strings.Count(string(raw), "secrets.OPENROUTER_API_KEY"))
-	require.NotContains(t, string(raw), "secrets.CODEX_API_KEY")
-	require.NotContains(t, worker.Env, "ISSUE_AGENT_CODEX_API_KEY")
-	require.NotContains(t, worker.Env, "CODEX_API_KEY")
-	require.NotContains(t, worker.Env, "OPENROUTER_API_KEY")
-	require.Equal(t,
-		"${{ runner.temp }}/issue-agent-codex-bootstrap",
-		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"],
-	)
-	require.NotContains(t, worker.Run, "CODEX_API_KEY")
-	require.NotContains(t, worker.Run, "ISSUE_AGENT_CODEX_API_KEY")
-	require.NotContains(t, worker.Run, "OPENROUTER_API_KEY")
-}
-
-func TestIssueAgentCodexBootstrapContractRejectsMutations(t *testing.T) {
-	t.Parallel()
-
-	mutations := map[string]func(*ciStep){
-		"moving tag": func(step *ciStep) {
-			step.Uses = "openai/codex-action@v1"
-		},
-		"unsafe strategy": func(step *ciStep) {
-			step.With["safety-strategy"] = "unsafe"
-		},
-		"broad bots": func(step *ciStep) {
-			step.With["allow-bots"] = true
-		},
-		"prompt": func(step *ciStep) {
-			step.With["prompt"] = "inspect the repository"
-		},
-		"missing OpenRouter endpoint": func(step *ciStep) {
-			delete(step.With, "responses-api-endpoint")
-		},
-		"alternate Responses endpoint": func(step *ciStep) {
-			step.With["responses-api-endpoint"] =
-				"https://example.com/v1/responses"
-		},
-		"legacy API key": func(step *ciStep) {
-			step.With["openai-api-key"] = "${{ secrets.CODEX_API_KEY }}"
-		},
-		"extra bot": func(step *ciStep) {
-			step.With["allow-bot-users"] =
-				"wukongim-issue-agent,github-actions"
-		},
-	}
-	require.NoError(t, validateCodexBootstrapStep(canonicalCodexBootstrapStep()))
-	for name, mutate := range mutations {
-		name, mutate := name, mutate
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			step := canonicalCodexBootstrapStep()
-			mutate(&step)
-			require.Error(t, validateCodexBootstrapStep(step))
-		})
-	}
-}
-
-func TestIssueAgentCodexWorkerBoundaryRejectsOrderAndKeyMutations(t *testing.T) {
-	t.Parallel()
-
-	t.Run("bootstrap before image pull", func(t *testing.T) {
-		job := canonicalCodexWorkerBoundary()
-		job.Steps[0], job.Steps[2] = job.Steps[2], job.Steps[0]
-		require.Error(t, validateCodexWorkerBoundary(job))
-	})
-	t.Run("forward API key", func(t *testing.T) {
-		job := canonicalCodexWorkerBoundary()
-		job.Steps[3].Env["OPENROUTER_API_KEY"] =
-			"${{ secrets.OPENROUTER_API_KEY }}"
-		require.Error(t, validateCodexWorkerBoundary(job))
-	})
-}
-
-func TestIssueAgentWorkflowPolicyUsesReproductionRollout(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(
-		repoRoot(t), ".github", "issue-agent", "policy.json",
-	))
-	require.NoError(t, err)
-	var policy struct {
-		RolloutMode string `json:"rollout_mode"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &policy))
-	require.Equal(t, "reproduction", policy.RolloutMode)
-}
-
-func TestIssueAgentCodexProviderPolicyUsesOpenRouterCredential(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join(
-		repoRoot(t), ".github", "issue-agent", "policy.json",
-	))
-	require.NoError(t, err)
-	var policy struct {
-		Providers []struct {
-			Provider           string `json:"provider"`
-			Endpoint           string `json:"endpoint"`
-			ModelVariable      string `json:"model_variable"`
-			CredentialVariable string `json:"credential_variable"`
-		} `json:"providers"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &policy))
-	require.Contains(t, policy.Providers, struct {
-		Provider           string `json:"provider"`
-		Endpoint           string `json:"endpoint"`
-		ModelVariable      string `json:"model_variable"`
-		CredentialVariable string `json:"credential_variable"`
-	}{
-		Provider:           "codex",
-		ModelVariable:      "ISSUE_AGENT_CODEX_MODEL",
-		CredentialVariable: "OPENROUTER_API_KEY",
-	})
-}
-
-func TestIssueAgentControlVerifiesProtectedControllerRevision(t *testing.T) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-control.yml"))
-	require.Contains(t, raw, `grep -F "vcs.revision=$revision"`)
-	require.NotContains(t, raw, `grep -F "vcs.revision\t$revision"`)
-}
-
-func TestIssueAgentControlDoesNotHardcodeReproductionTopology(t *testing.T) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-control.yml"))
-	require.NotContains(t, raw, "--arg topology")
-	require.NotContains(t, raw, "topology:$topology")
-}
-
-func TestIssueAgentControlIntakeRolloutAdmitsOnlyIntakeAndAuthorization(
-	t *testing.T,
-) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-control.yml"))
-	require.Contains(t, raw, `if [[ "$rollout" = intake ]]; then
-            case "$operation" in
-              intake|authorize) ;;
-              *) operation=report_only ;;
-            esac
-          fi`)
-	require.Contains(t, raw, `needs.planner.outputs.rollout != 'intake' ||
-       needs.planner.outputs.operation == 'authorize'`)
-}
-
-func TestIssueAgentControlUsesTrustedGitHubEventName(
-	t *testing.T,
-) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-control.yml"))
-	require.Contains(t, raw, `event_name="$GITHUB_EVENT_NAME"`)
-	require.NotContains(t, raw, `jq -r '.event_name`)
-	require.NotContains(t, raw, `if [[ -z "$event_name" ]]`)
-}
-
-func TestIssueAgentControlRoutesTypedLifecycleFailuresAndMaintainerCommands(t *testing.T) {
-	t.Parallel()
-
-	raw := string(readWorkflow(t, "issue-agent-control.yml"))
-	require.Contains(t, raw, ".plan.operation")
+func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	require.Equal(t, 1, strings.Count(raw, codexActionPin))
+	require.Contains(t, raw, "codex-version: "+codexVersion)
+	require.Contains(t, raw, `jq -er .task.kind`)
+	require.Contains(t, raw, `engineer) cp "$RUNNER_TEMP/engineer.md"`)
+	require.Contains(t, raw, `review) cp "$RUNNER_TEMP/review.md"`)
+	require.Contains(t, raw, "engineer-result.schema.json")
+	require.Contains(t, raw, `["--ephemeral"`)
+	require.Contains(t, raw, "sandbox: workspace-write")
+	require.Contains(t, raw, "sandbox_workspace_write.network_access=true")
+	require.Contains(t, raw, "safety-strategy: drop-sudo")
+	require.Contains(t, raw, "model: openai/gpt-5.6-sol")
+	require.Contains(t, raw, "effort: high")
+	require.Contains(t, raw, "secrets.OPENAI_API_KEY")
 	require.Contains(t, raw,
-		"startsWith(github.event.pull_request.head.ref, 'agent/issue-')")
-	require.Contains(t, raw, `case "$LIFECYCLE_OPERATION:$STATE"`)
-	require.Contains(t, raw, `"$conclusion" = failure`)
-	require.Contains(t, raw, "publish-command")
-	require.Contains(t, raw, "publish-merge")
-	require.Contains(t, raw, "observe_merge")
-	require.Contains(t, raw, "record_merge:ready_for_review")
-	require.Contains(t, raw, "record_branch_drift:*")
-	require.Contains(t, raw, "publish-branch-drift")
-	require.Contains(t, raw, "record_work_drift:*")
-	require.Contains(t, raw, "publish-work-drift")
-	require.Contains(t, raw, "publish_worker_result:reproducing")
-	require.Contains(t, raw, "Download exact recoverable Worker Artifact")
-	require.Contains(t, raw, "needs.planner.outputs.artifact_run_id")
-	require.Contains(t, raw, "github-token: ${{ github.token }}")
-	require.Contains(t, raw, "git -C target merge-tree --write-tree")
-	require.Contains(t, raw,
-		`--name-status -z "$mechanical_main_sha" "$mechanical_merge_tree_sha"`,
-	)
-	require.Contains(t, raw, "mechanical_main_sha")
-	require.Contains(t, raw, "mechanical_merge_tree_sha")
-	require.Contains(t, raw, "mechanical_change_set")
-	require.Contains(t, raw, `--rawfile content_base64 "$content_base64_file"`)
-	require.NotContains(t, raw,
-		`--arg content_base64 "$(base64 -w0 "$content_file")"`,
-	)
-	require.Contains(t, raw, "fetch-depth: 0")
-	require.Contains(t, raw, "publish-projection-repair")
-	require.NotContains(t, raw, "/update-branch")
-	require.Contains(t, raw,
-		"needs.planner.outputs.lifecycle_operation == 'dispatch_worker'",
-	)
-	require.Contains(t, raw,
-		"needs.planner.outputs.lifecycle_operation == 'request_validation'",
-	)
-	require.NotContains(t, raw,
-		"needs.planner.outputs.lifecycle_operation != 'alert_audit_failure'",
-	)
-	require.Contains(t, raw,
-		"needs.planner.outputs.command_requires_target == 'true'",
-	)
-	for _, command := range []string{
-		"revise", "cancel", "address-review", "adopt-head", "backport",
-		"recover-chain",
+		"responses-api-endpoint: https://openrouter.ai/api/v1/responses")
+	require.NotContains(t, raw, "session resume")
+	require.NotContains(t, raw, "codex resume")
+}
+
+func TestIssueAgentTaskFreezesExactControlSource(t *testing.T) {
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, controller, `--arg control_sha "$(git rev-parse HEAD)"`)
+	require.Contains(t, controller, "control_sha: ${{ steps.reconcile.outputs.control_sha }}")
+	require.Contains(t, controller, "control_sha: ${{ needs.controller.outputs.control_sha }}")
+	require.Contains(t, controller,
+		"OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}")
+	require.NotContains(t, controller, "secrets: inherit")
+
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	require.Contains(t, engineer, "ref: ${{ inputs.control_sha }}")
+	require.NotContains(t, engineer, "ref: main")
+	require.Contains(t, engineer, "Check out the exact candidate base")
+	require.Contains(t, engineer, "ref: ${{ inputs.base_sha }}")
+	require.Contains(t, engineer, "$RUNNER_TEMP/issue-agent-policy.json")
+	require.Contains(t, engineer, "$RUNNER_TEMP/issue-agent-prompt.md")
+}
+
+func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	caller := issueAgentJobText(t, raw, "engineer")
+	require.Contains(t, caller, "contents: read")
+	require.Contains(t, caller, "issues: read")
+	require.Contains(t, caller, "pull-requests: read")
+	require.NotContains(t, caller, "write")
+}
+
+func TestIssueAgentControllerSerializesFiveMinuteRecovery(t *testing.T) {
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, controller, `cron: "*/5 * * * *"`)
+	require.Contains(t, controller,
+		"group: issue-agent-state-${{ github.repository }}")
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	require.Contains(t, engineer,
+		"group: issue-agent-state-${{ inputs.repository }}")
+	require.Contains(t, controller, "cancel-in-progress: false")
+	require.NotContains(t, controller, "github.event.pull_request.number")
+}
+
+func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	for _, job := range []string{
+		"recover-task:",
+		"context-builder:",
+		"engineer:",
+		"verifier:",
+		"publisher:",
 	} {
-		require.Contains(t, raw, command)
+		require.Contains(t, raw, "\n  "+job)
 	}
-	require.Contains(t, raw, "repair_operation")
+	engineer := issueAgentJobText(t, raw, "engineer")
+	require.Contains(t, engineer, "persist-credentials: false")
+	require.Contains(t, engineer, "OPENAI_API_KEY")
+	require.Contains(t, engineer, "/opt/wukongim-issue-agent/baseline")
+	require.Contains(t, engineer, "capture-candidate")
+	require.NotContains(t, engineer, "ISSUE_AGENT_APP_PRIVATE_KEY")
+	require.NotContains(t, engineer, "ISSUE_AGENT_GITHUB_TOKEN")
+	require.NotContains(t, engineer, "docker.sock")
+	require.NotContains(t, engineer, "git push")
+	require.NotContains(t, engineer, "gh api")
+
+	verifier := issueAgentJobText(t, raw, "verifier")
+	require.Contains(t, verifier, "verify-candidate")
+	require.Contains(t, verifier, "persist-credentials: false")
+	require.NotContains(t, verifier, "OPENAI_API_KEY")
+	require.NotContains(t, verifier, "ISSUE_AGENT_APP_PRIVATE_KEY")
+
+	publisher := issueAgentJobText(t, raw, "publisher")
+	require.Contains(t, publisher, "environment: issue-agent-publisher")
+	require.Contains(t, publisher, "ISSUE_AGENT_APP_PRIVATE_KEY")
+	require.Contains(t, publisher, "publish-candidate")
+	require.NotContains(t, publisher, "OPENAI_API_KEY")
+	require.NotContains(t, publisher, "go test")
+	require.NotContains(t, publisher, "verify-candidate")
 }
 
-func validatePinnedIssueAgentAction(value string) error {
-	parts := strings.Split(value, "@")
-	if len(parts) != 2 || len(parts[1]) != 40 {
-		return fmt.Errorf("Action %q is not pinned by full SHA", value)
+func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/issue-agent/policy.json")
+	var policy struct {
+		SchemaVersion int    `json:"schema_version"`
+		Enabled       bool   `json:"enabled"`
+		RolloutMode   string `json:"rollout_mode"`
+		Engineer      struct {
+			ActionSHA            string `json:"action_sha"`
+			CodexVersion         string `json:"codex_version"`
+			Model                string `json:"model"`
+			Sandbox              string `json:"sandbox"`
+			Ephemeral            bool   `json:"ephemeral"`
+			NetworkAccess        bool   `json:"network_access"`
+			WallTimeSeconds      uint64 `json:"wall_time_seconds"`
+			ModifyTestIterations uint32 `json:"modify_test_iterations"`
+		} `json:"engineer"`
+		Budgets struct {
+			TaskStaleAfterSeconds uint64 `json:"task_stale_after_seconds"`
+		} `json:"budgets"`
+		ProtectedPaths []string `json:"protected_paths"`
 	}
-	pin, ok := approvedActionPins[parts[0]]
-	if !ok || pin.sha != parts[1] {
-		return fmt.Errorf("Action %q is not an approved pin", value)
+	require.NoError(t, json.Unmarshal([]byte(raw), &policy))
+	require.Equal(t, 2, policy.SchemaVersion)
+	require.True(t, policy.Enabled)
+	require.Equal(t, "active", policy.RolloutMode)
+	require.Equal(t, strings.TrimPrefix(codexActionPin, "openai/codex-action@"),
+		policy.Engineer.ActionSHA)
+	require.Equal(t, codexVersion, policy.Engineer.CodexVersion)
+	require.Equal(t, "openai/gpt-5.6-sol", policy.Engineer.Model)
+	require.Equal(t, "workspace-write", policy.Engineer.Sandbox)
+	require.True(t, policy.Engineer.Ephemeral)
+	require.True(t, policy.Engineer.NetworkAccess)
+	require.Equal(t, uint64(5400), policy.Engineer.WallTimeSeconds)
+	require.Equal(t, uint32(3), policy.Engineer.ModifyTestIterations)
+	require.Equal(t, uint64(14400), policy.Budgets.TaskStaleAfterSeconds)
+	require.Contains(t, policy.ProtectedPaths, ".github/workflows")
+	require.Contains(t, policy.ProtectedPaths, ".github/issue-agent")
+	require.Contains(t, policy.ProtectedPaths, "cmd/wkissueagent")
+
+	lower := strings.ToLower(raw)
+	for _, legacy := range []string{
+		"deepseek",
+		"provider",
+		"broker",
+		"checkpoint",
+	} {
+		require.NotContains(t, lower, legacy)
 	}
-	return nil
 }
 
-func canonicalCodexBootstrapStep() ciStep {
-	return ciStep{
-		Name: "Bootstrap the pinned Codex CLI and Responses proxy",
-		Uses: "openai/codex-action@" +
-			"52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
-		With: map[string]any{
-			"openai-api-key":         "${{ secrets.OPENROUTER_API_KEY }}",
-			"responses-api-endpoint": "https://openrouter.ai/api/v1/responses",
-			"codex-version":          "0.145.0",
-			"codex-home":             "${{ runner.temp }}/issue-agent-codex-bootstrap",
-			"safety-strategy":        "drop-sudo",
-			"allow-bot-users":        "wukongim-issue-agent",
-		},
+func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
+	for _, name := range []string{"engineer.md", "review.md"} {
+		raw := readIssueAgentFile(
+			t,
+			filepath.Join(".github/issue-agent/prompts", name),
+		)
+		require.Contains(t, raw, "ISSUE_AGENT_CONTEXT_BUNDLE")
+		require.Contains(t, strings.ToLower(raw), "untrusted")
+		require.Contains(t, raw, "AGENTS.md")
+		require.Contains(t, raw, "FLOW.md")
+		require.Contains(t, strings.ToLower(raw), "do not commit")
+		require.Contains(t, strings.ToLower(raw), "three modify/test")
+		require.NotContains(t, strings.ToLower(raw), "deepseek")
 	}
 }
 
-func validateCodexBootstrapStep(step ciStep) error {
-	expected := canonicalCodexBootstrapStep()
-	if step.Name != expected.Name || step.Uses != expected.Uses ||
-		!reflect.DeepEqual(step.With, expected.With) ||
-		step.Run != "" || step.Shell != "" || step.If != "" ||
-		len(step.Env) != 0 {
-		return fmt.Errorf("Codex Action bootstrap step is not exact")
+func TestIssueAgentHistoricalBuildDoesNotRequireFutureMarker(t *testing.T) {
+	root := repoRoot(t)
+	for _, removed := range []string{
+		".github/issue-agent/check-reproduction-compatibility.sh",
+		".github/issue-agent/reproduction-contract",
+	} {
+		_, err := os.Stat(filepath.Join(root, removed))
+		require.ErrorIs(t, err, os.ErrNotExist, removed)
 	}
-	return nil
-}
-
-func canonicalCodexWorkerBoundary() ciJob {
-	return ciJob{Steps: []ciStep{
-		{Name: "Pull the digest-pinned sandbox without provider credentials"},
-		{
-			Name:  "Verify Codex bootstrap home is absent",
-			Shell: "bash",
-			Run: `if [[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]; then
-  exit 1
-fi`,
-		},
-		canonicalCodexBootstrapStep(),
-		{
-			Name: "Run the bounded Codex Worker",
-			Env: map[string]string{
-				"ISSUE_AGENT_CODEX_BOOTSTRAP_HOME": "${{ runner.temp }}/issue-agent-codex-bootstrap",
-			},
-		},
-	}}
-}
-
-func validateCodexWorkerBoundary(job ciJob) error {
-	pullIndex, _, pullOK := lookupIssueAgentStep(
-		job, "Pull the digest-pinned sandbox without provider credentials",
+	build := readIssueAgentFile(
+		t,
+		".github/issue-agent/build-reproduction-binaries.sh",
 	)
-	verifyIndex, verify, verifyOK := lookupIssueAgentStep(
-		job, "Verify Codex bootstrap home is absent",
-	)
-	bootstrapIndex, _, bootstrapOK := lookupIssueAgentStep(
-		job, "Bootstrap the pinned Codex CLI and Responses proxy",
-	)
-	workerIndex, worker, workerOK := lookupIssueAgentStep(
-		job, "Run the bounded Codex Worker",
-	)
-	if !pullOK || !verifyOK || !bootstrapOK || !workerOK ||
-		pullIndex >= verifyIndex || verifyIndex+1 != bootstrapIndex ||
-		bootstrapIndex+1 != workerIndex ||
-		!strings.Contains(
-			verify.Run, `[[ -e "$bootstrap_home" || -L "$bootstrap_home" ]]`,
-		) ||
-		worker.Env["ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"] !=
-			"${{ runner.temp }}/issue-agent-codex-bootstrap" ||
-		worker.Env["CODEX_API_KEY"] != "" ||
-		worker.Env["OPENROUTER_API_KEY"] != "" ||
-		worker.Env["ISSUE_AGENT_CODEX_API_KEY"] != "" ||
-		strings.Contains(worker.Run, "CODEX_API_KEY") ||
-		strings.Contains(worker.Run, "OPENROUTER_API_KEY") {
-		return fmt.Errorf("Codex Worker boundary is not exact")
-	}
-	return nil
+	require.Contains(t, build, "GOWORK=off go build -trimpath")
+	require.NotContains(t, build, "reproduction-contract")
 }
 
-func findIssueAgentStep(t *testing.T, job ciJob, name string) (int, ciStep) {
+func TestIssueAgentLegacyImplementationIsAbsent(t *testing.T) {
+	root := repoRoot(t)
+	for _, removed := range []string{
+		"internal/infra/issueagentmodel",
+		"internal/runtime/issueagentworker",
+		".github/issue-agent/checkpoint-public-keys.json",
+		".github/issue-agent/checkpoint.schema.json",
+		".github/issue-agent/result.schema.json",
+		".github/issue-agent/task.schema.json",
+	} {
+		_, err := os.Stat(filepath.Join(root, removed))
+		require.ErrorIs(t, err, os.ErrNotExist, removed)
+	}
+}
+
+func readIssueAgentFile(t *testing.T, relative string) string {
 	t.Helper()
-	index, step, ok := lookupIssueAgentStep(job, name)
-	if ok {
-		return index, step
-	}
-	t.Fatalf("step %q is absent", name)
-	return -1, ciStep{}
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), relative))
+	require.NoError(t, err)
+	return string(body)
 }
 
-func lookupIssueAgentStep(job ciJob, name string) (int, ciStep, bool) {
-	for index, step := range job.Steps {
-		if step.Name == name {
-			return index, step, true
+func issueAgentJobText(
+	t *testing.T,
+	workflow string,
+	job string,
+) string {
+	t.Helper()
+	start := strings.Index(workflow, "\n  "+job+":")
+	require.NotEqual(t, -1, start)
+	rest := workflow[start+1:]
+	lines := strings.SplitAfter(rest, "\n")
+	offset := 0
+	for index, line := range lines {
+		if index > 0 &&
+			strings.HasPrefix(line, "  ") &&
+			!strings.HasPrefix(line, "    ") &&
+			strings.HasSuffix(strings.TrimSpace(line), ":") {
+			return rest[:offset]
 		}
+		offset += len(line)
 	}
-	return -1, ciStep{}, false
+	return rest
 }

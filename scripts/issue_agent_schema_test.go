@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,33 +20,47 @@ func TestIssueAgentSchemas(t *testing.T) {
 		name     string
 		filename string
 		id       string
+		version  int
 		schema   func(*testing.T) *jsonschema.Schema
 	}{
 		{
-			name:     "checkpoint",
-			filename: "checkpoint.schema.json",
-			id:       "https://wukongim.github.io/schemas/issue-agent/checkpoint-v1.json",
+			name:     "state",
+			filename: "state.schema.json",
+			id:       "https://wukongim.github.io/schemas/issue-agent/state-v2.json",
+			version:  2,
 			schema: func(t *testing.T) *jsonschema.Schema {
 				t.Helper()
-				return issueAgentSchemaFor[issueagent.CheckpointEnvelope](t)
+				return issueAgentSchemaFor[issueagent.IssueAgentState](t, 2)
 			},
 		},
 		{
-			name:     "task",
-			filename: "task.schema.json",
-			id:       "https://wukongim.github.io/schemas/issue-agent/task-v1.json",
+			name:     "context bundle",
+			filename: "context-bundle.schema.json",
+			id:       "https://wukongim.github.io/schemas/issue-agent/context-bundle-v2.json",
+			version:  2,
 			schema: func(t *testing.T) *jsonschema.Schema {
 				t.Helper()
-				return issueAgentSchemaFor[issueagent.TaskEnvelope](t)
+				return issueAgentSchemaFor[issueagent.ContextBundle](t, 2)
 			},
 		},
 		{
-			name:     "result",
-			filename: "result.schema.json",
-			id:       "https://wukongim.github.io/schemas/issue-agent/result-v1.json",
+			name:     "engineer result",
+			filename: "engineer-result.schema.json",
+			id:       "https://wukongim.github.io/schemas/issue-agent/engineer-result-v2.json",
+			version:  2,
 			schema: func(t *testing.T) *jsonschema.Schema {
 				t.Helper()
-				return issueAgentSchemaFor[issueagent.AgentResult](t)
+				return issueAgentSchemaFor[issueagent.EngineerResult](t, 2)
+			},
+		},
+		{
+			name:     "candidate evidence",
+			filename: "candidate-evidence.schema.json",
+			id:       "https://wukongim.github.io/schemas/issue-agent/candidate-evidence-v2.json",
+			version:  2,
+			schema: func(t *testing.T) *jsonschema.Schema {
+				t.Helper()
+				return issueAgentSchemaFor[issueagent.CandidateEvidence](t, 2)
 			},
 		},
 	}
@@ -57,7 +72,8 @@ func TestIssueAgentSchemas(t *testing.T) {
 			schema := test.schema(t)
 			schema.Schema = "https://json-schema.org/draft/2020-12/schema"
 			schema.ID = test.id
-			schema.Title = "WuKongIM Issue Agent " + test.name + " v1"
+			schema.Title = "WuKongIM Issue Agent " + test.name +
+				" v" + strconv.Itoa(test.version)
 			generated, err := json.MarshalIndent(schema, "", "  ")
 			if err != nil {
 				t.Fatalf("marshal %s schema: %v", test.name, err)
@@ -88,86 +104,67 @@ func TestIssueAgentSchemas(t *testing.T) {
 	}
 }
 
-func issueAgentSchemaFor[T any](t *testing.T) *jsonschema.Schema {
+func issueAgentSchemaFor[T any](t *testing.T, version int) *jsonschema.Schema {
 	t.Helper()
 	schema, err := jsonschema.For[T](nil)
 	if err != nil {
 		t.Fatalf("infer Issue Agent schema: %v", err)
 	}
-	hardenIssueAgentSchema(schema)
+	hardenIssueAgentSchema(schema, version)
 	return schema
 }
 
-func hardenIssueAgentSchema(schema *jsonschema.Schema) {
+func hardenIssueAgentSchema(schema *jsonschema.Schema, version int) {
 	if schema == nil {
 		return
 	}
 	for name, property := range schema.Properties {
 		switch name {
 		case "schema_version":
-			value := any(1)
+			value := any(version)
 			property.Const = &value
 		case "repository":
 			property.Pattern = `^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`
 			setMaxLength(property, 256)
-		case "issue_number", "generation", "sequence",
-			"expected_previous_checkpoint_id", "run_id", "artifact_run_id",
-			"request_run_id", "evidence_run_id",
-			"gate_generation", "reserved_seconds":
+		case "issue_number", "sequence":
 			setMinimum(property, 1)
-		case "pr_number":
-			setMinimum(property, 0)
-		case "mechanical_rebase_attempts":
-			setMinimum(property, 0)
-			setMaximum(property, 1)
-		case "state", "requested_state":
+		case "state":
 			property.Enum = stringValues(
-				"awaiting_triage", "needs_info", "authorized", "version_pinned",
-				"reproducing", "already_fixed", "reproduced", "draft_pr_open",
-				"diagnosing", "diagnosed", "fixing", "validating",
-				"ready_for_review", "ready_for_human", "merged", "cancelled",
-				"superseded", "wontfix",
+				"triaging", "waiting_for_information",
+				"waiting_for_authorization", "engineering",
+				"draft", "reviewing", "ready_for_review", "needs_human",
+				"completed", "cancelled", "taken_over",
 			)
-		case "next_action", "requested_action":
+		case "kind":
+			property.Enum = stringValues("engineer", "review")
+		case "permission":
+			property.Enum = stringValues("write", "maintain", "admin")
+		case "command":
 			property.Enum = stringValues(
-				"none", "pin_versions", "reproduce", "open_draft_pr",
-				"diagnose", "implement_fix", "validate", "request_review",
-				"wait_for_human", "reconcile", "create_backport",
+				"", "/agent fix", "/agent retry", "/agent cancel",
+				"/agent take-over",
 			)
-		case "phase":
-			property.Enum = stringValues(
-				"reproduce", "diagnose", "fix", "address_review",
-			)
-		case "provider":
-			property.Enum = stringValues("codex", "deepseek")
-		case "status":
-			property.Enum = stringValues("success", "failed")
+		case "risk":
+			property.Enum = stringValues("low", "investigation_only", "high")
 		case "operation":
 			property.Enum = stringValues("upsert", "delete")
 		case "mode":
 			property.Enum = stringValues("100644", "100755")
-		case "class":
-			property.Enum = stringValues(
-				"needs_info", "already_fixed", "product_assertion",
-				"test_harness", "worker_infrastructure", "provider",
-				"unsafe_scope", "state_conflict", "budget_exhausted",
-				"cancelled",
-			)
-		case "topology":
-			property.Enum = stringValues(
-				"single-node-cluster", "three-node-cluster",
-				"multi-node-cluster",
-			)
 		case "outcome":
-			property.Enum = stringValues("assertion_failed", "passed")
+			property.Enum = stringValues(
+				"ready", "needs_human", "already_fixed", "failed",
+			)
 		case "content_base64":
 			property.ContentEncoding = "base64"
 		}
-		if name == "operation_id" ||
-			name == "checkpoint_digest" ||
-			name == "policy_digest" ||
+		if name == "policy_digest" ||
 			name == "prompt_digest" ||
-			name == "previous_checkpoint_sha256" ||
+			name == "task_id" ||
+			name == "change_set_digest" ||
+			name == "stdout_digest" ||
+			name == "stderr_digest" ||
+			name == "output_schema_digest" ||
+			name == "issue_snapshot_digest" ||
 			strings.HasSuffix(name, "_sha256") {
 			property.Pattern = `^sha256:[0-9a-f]{64}$`
 		}
@@ -176,20 +173,20 @@ func hardenIssueAgentSchema(schema *jsonschema.Schema) {
 			name == "blob_sha" || name == "commit_id" {
 			property.Pattern = `^[0-9a-f]{40}$`
 		}
-		hardenIssueAgentSchema(property)
+		hardenIssueAgentSchema(property, version)
 	}
 	for _, child := range schema.Defs {
-		hardenIssueAgentSchema(child)
+		hardenIssueAgentSchema(child, version)
 	}
-	hardenIssueAgentSchema(schema.Items)
+	hardenIssueAgentSchema(schema.Items, version)
 	for _, child := range schema.AnyOf {
-		hardenIssueAgentSchema(child)
+		hardenIssueAgentSchema(child, version)
 	}
 	for _, child := range schema.OneOf {
-		hardenIssueAgentSchema(child)
+		hardenIssueAgentSchema(child, version)
 	}
 	for _, child := range schema.AllOf {
-		hardenIssueAgentSchema(child)
+		hardenIssueAgentSchema(child, version)
 	}
 }
 

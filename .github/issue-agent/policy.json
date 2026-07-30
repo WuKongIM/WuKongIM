@@ -1,65 +1,96 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "enabled": true,
-  "rollout_mode": "reproduction",
-  "default_provider": "codex",
-  "sandbox_image": "golang:1.25.12-bookworm@sha256:ea341baa9bd5ba6784f6d7161ace70544349a6242d54d34a0fbfd2c4d51c9d58",
-  "issue_budget": {
-    "max_reproduction_attempts": 3,
-    "max_remediation_attempts": 3,
-    "max_ci_repair_attempts": 2,
-    "max_infrastructure_retries": 3,
-    "max_worker_time": "6h"
+  "rollout_mode": "active",
+  "default_branch": "main",
+  "publisher_environment": "issue-agent-publisher",
+  "engineer": {
+    "action_sha": "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+    "codex_version": "0.146.0",
+    "model": "openai/gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "sandbox": "workspace-write",
+    "network_access": true,
+    "ephemeral": true,
+    "wall_time_seconds": 5400,
+    "modify_test_iterations": 3
   },
-  "repository_budget": {
-    "max_active_workers": 3,
-    "max_heavy_workers": 1,
-    "rolling_window": "24h",
-    "max_started_worker_time": "24h"
+  "budgets": {
+    "max_engineer_attempts_per_issue": 3,
+    "max_review_iterations": 2,
+    "task_stale_after_seconds": 14400
+  },
+  "candidate_limits": {
+    "max_files": 32,
+    "max_file_bytes": 2097152,
+    "max_total_bytes": 8388608,
+    "max_deletions": 16
   },
   "protected_paths": [
     ".agents",
+    ".github/CODEOWNERS",
     ".github/ISSUE_TEMPLATE",
     ".github/issue-agent",
     ".github/workflows",
     "AGENTS.md",
     "cmd/wkissueagent",
+    "docs/agents",
     "internal/access/issueagentcli",
-    "internal/app/issue_agent",
+    "internal/app/issue_agent.go",
     "internal/contracts/issueagent",
     "internal/infra/issueagentgithub",
-    "internal/infra/issueagentmodel",
-    "internal/runtime/issueagentworker",
+    "internal/runtime/issueagentverify",
     "internal/usecase/issueagent",
-    "scripts/issue_agent"
+    "scripts/github_workflows_test.go",
+    "scripts/issue_agent_schema_test.go",
+    "scripts/issue_agent_workflows_test.go"
   ],
-  "generated_files": [
-    "test/e2e/AGENTS.md"
+  "high_risk_paths": [
+    "internal/config",
+    "internal/infra/cluster",
+    "internal/runtime/cluster",
+    "pkg/cluster",
+    "pkg/clusterstore",
+    "pkg/wkdb",
+    "pkg/wkproto",
+    "wukongim.toml.example"
   ],
-  "high_risk_classes": [
-    "authentication_authorization_cryptography",
-    "configuration_default",
-    "external_dependency",
-    "persistent_format_migration",
-    "protected_agent_path",
-    "public_protocol_api",
-    "raft_quorum_consistency",
-    "scope_expansion"
+  "high_risk_topics": [
+    "architecture",
+    "authentication",
+    "authorization",
+    "cluster consistency",
+    "concurrency",
+    "configuration defaults",
+    "data migration",
+    "dependencies",
+    "performance",
+    "protocol",
+    "security",
+    "storage format"
   ],
-  "providers": [
+  "required_suites": [
+    "focused",
+    "format",
+    "unit"
+  ],
+  "verification_commands": [
     {
-      "provider": "codex",
-      "endpoint": "",
-      "model_variable": "ISSUE_AGENT_CODEX_MODEL",
-      "credential_variable": "OPENROUTER_API_KEY"
-    },
-    {
-      "provider": "deepseek",
-      "endpoint": "https://api.deepseek.com",
-      "model_variable": "ISSUE_AGENT_DEEPSEEK_MODEL",
-      "credential_variable": "DEEPSEEK_API_KEY"
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 3600
     }
   ],
-  "remediation_issue_allowlist": [],
-  "allowed_backport_branches": []
+  "knowledge_paths": [
+    "docs/development/PROJECT_KNOWLEDGE.md"
+  ]
 }

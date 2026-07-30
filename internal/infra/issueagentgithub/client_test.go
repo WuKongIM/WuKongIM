@@ -129,6 +129,7 @@ func TestClientIssueInventoryIsCompleteBoundedAndPRFree(t *testing.T) {
 		writer.Header().Set("Content-Type", "application/json")
 		require.Equal(t, "open", request.URL.Query().Get("state"))
 		require.Equal(t, "ready-for-agent", request.URL.Query().Get("labels"))
+		require.Equal(t, "41", request.URL.Query().Get("per_page"))
 		require.NoError(t, json.NewEncoder(writer).Encode([]map[string]any{
 			{"number": 9},
 			{"number": 7, "pull_request": map[string]any{"url": "ignored"}},
@@ -146,6 +147,33 @@ func TestClientIssueInventoryIsCompleteBoundedAndPRFree(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, []int64{3, 9}, issues)
+}
+
+func TestClientIssueInventoryRejectsMoreThanFortyTrackedIssues(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		_ *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		payload := make([]map[string]any, 41)
+		for index := range payload {
+			payload[index] = map[string]any{"number": index + 1}
+		}
+		require.NoError(t, json.NewEncoder(writer).Encode(payload))
+	}))
+	t.Cleanup(server.Close)
+	client, err := issueagentgithub.NewClient(issueagentgithub.ClientConfig{
+		BaseURL: server.URL, Repository: "WuKongIM/WuKongIM",
+		Token: "token", MaxPages: 1, MaxBodyBytes: 1 << 20,
+	}, server.Client())
+	require.NoError(t, err)
+	_, err = client.ListOpenIssueNumbersByLabel(
+		context.Background(), "ready-for-agent",
+	)
+	require.EqualError(t, err,
+		"Issue inventory exceeds the global accounting bound")
 }
 
 func serverURLFromRequest(request *http.Request) string {

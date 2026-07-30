@@ -23,9 +23,10 @@ maintainer authorization, and a missing topology defaults to a single-node
 cluster. The Issue Agent workflow, authorization boundary, signed state, and
 rollout requirements are documented in `docs/agents/issue-agent.md`.
 
-Adding `ready-for-agent` is an execution authorization, not ordinary
-classification. Only a maintainer with write, maintain, or admin permission
-may add it. The Agent never treats Issue prose or public comments as commands.
+`ready-for-agent` is the Controller-owned runtime tracking label, not an
+authorization. External reports are authorized by an exact first-line
+`/agent fix` whose actor permission is re-read. Issue prose, quoted commands,
+and ordinary comments grant no authority.
 
 ## Skill publication
 

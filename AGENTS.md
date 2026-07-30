@@ -159,7 +159,7 @@ app -> access/usecase/runtime/infra/pkg
   `docs/agents/domain.md`.
 - The serverless GitHub Issue Agent follows `docs/agents/issue-agent.md`.
   Its control code, Workflows, policy, schemas, prompts, and instruction files
-  are protected from automated changes. A Worker task freezes applicable
+  are protected from automated changes. Every Codex task freezes applicable
   `AGENTS.md` and `FLOW.md` digests from its exact source revision.
 
 ## GitHub Actions tools
@@ -185,7 +185,7 @@ authorization, validation-plan, label, retry, and monitoring contracts.
 | `internal/infra/` | Cluster, delivery, backup, and cloud infrastructure adapters. |
 | `internal/app/` | Product composition root and lifecycle. |
 | `internal/config/`, `internal/contracts/` | Configuration loading and cross-layer contracts. |
-| `internal/**/issueagent*` | Issue Agent contracts, orchestration, sandbox runtime, provider/GitHub adapters, CLI boundary, and composition. |
+| `internal/**/issueagent*` | Issue Agent contracts, orchestration, clean Verifier, GitHub adapter, CLI boundary, and composition. |
 | `internal/bench/` | Benchmark planning, coordination, workers, workloads, and reporting. |
 | `pkg/` | Reusable storage, protocol, gateway, cluster, channel, controller, slot, transport, metrics, plugin, and work-queue libraries. |
 | `test/e2e/` | Real-process black-box E2E suites and shared harness. |

@@ -16,6 +16,7 @@ import (
 
 // CommitPlan is a fully validated, expected-head-fenced publication request.
 type CommitPlan struct {
+	Purpose               CommitPurpose
 	Branch                string
 	ExpectedParentSHA     string
 	BaseTreeSHA           string
@@ -24,6 +25,14 @@ type CommitPlan struct {
 	ExistingBranch        bool
 	ChangeSet             issueagentcontract.ChangeSet
 }
+
+// CommitPurpose keeps state refs outside the repair-branch write boundary.
+type CommitPurpose string
+
+const (
+	CommitPurposeAgent CommitPurpose = ""
+	CommitPurposeState CommitPurpose = "state"
+)
 
 func gitBlobObjectSHA(content []byte) string {
 	hasher := sha1.New() // #nosec G401 -- Git blob identity is SHA-1 by protocol.
@@ -99,9 +108,7 @@ func (client *Client) PublishCommit(
 	plan CommitPlan,
 ) (PublishedCommit, error) {
 	if client == nil ||
-		(!agentRefPattern.MatchString(plan.Branch) &&
-			!(plan.ExistingBranch &&
-				agentStageRefPattern.MatchString(plan.Branch))) ||
+		!validCommitPurposeBranch(plan) ||
 		!gitObjectPattern.MatchString(plan.ExpectedParentSHA) ||
 		!gitObjectPattern.MatchString(plan.BaseTreeSHA) ||
 		(plan.ExpectedResultTreeSHA != "" &&
@@ -261,6 +268,26 @@ func (client *Client) PublishCommit(
 		}
 	}
 	return PublishedCommit{CommitSHA: commit.SHA, TreeSHA: commit.TreeSHA}, nil
+}
+
+func validCommitPurposeBranch(plan CommitPlan) bool {
+	switch plan.Purpose {
+	case CommitPurposeAgent:
+		return agentRefPattern.MatchString(plan.Branch) ||
+			plan.ExistingBranch && agentStageRefPattern.MatchString(plan.Branch)
+	case CommitPurposeState:
+		issue := strings.TrimPrefix(plan.Branch, "agent-state/issue-")
+		return stateRefPattern.MatchString(plan.Branch) &&
+			len(plan.ChangeSet.Files) == 1 &&
+			plan.ChangeSet.Files[0].Path ==
+				".issue-agent-state/issue-"+issue+".json" &&
+			plan.ChangeSet.Files[0].Operation ==
+				issueagentcontract.FileOperationUpsert &&
+			plan.ChangeSet.Files[0].Mode ==
+				issueagentcontract.FileModeRegular
+	default:
+		return false
+	}
 }
 
 const zeroGitOID = "0000000000000000000000000000000000000000"

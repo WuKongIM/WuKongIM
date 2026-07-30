@@ -1,0 +1,229 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "repository": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "triaging",
+        "waiting_for_information",
+        "waiting_for_authorization",
+        "engineering",
+        "draft",
+        "reviewing",
+        "ready_for_review",
+        "needs_human",
+        "completed",
+        "cancelled",
+        "taken_over"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "previous_state_digest": {
+      "type": "string"
+    },
+    "issue_snapshot_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "task": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "engineer",
+            "review"
+          ]
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "affected_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "policy_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "prompt_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "base_sha",
+        "affected_sha",
+        "policy_digest",
+        "prompt_digest"
+      ],
+      "additionalProperties": false
+    },
+    "authorization": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "actor": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string",
+          "enum": [
+            "write",
+            "maintain",
+            "admin"
+          ]
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string",
+          "enum": [
+            "",
+            "/agent fix",
+            "/agent retry",
+            "/agent cancel",
+            "/agent take-over"
+          ]
+        }
+      },
+      "required": [
+        "actor",
+        "permission",
+        "event_id",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "engineer_attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "review_iterations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "engineer_attempts",
+        "review_iterations"
+      ],
+      "additionalProperties": false
+    },
+    "work": {
+      "type": [
+        "null",
+        "object"
+      ],
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "pull_request": {
+          "type": "integer"
+        },
+        "draft": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "branch",
+        "head_sha",
+        "pull_request",
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "status_comment_id": {
+      "type": "integer"
+    },
+    "context_digest": {
+      "type": "string"
+    },
+    "candidate_digest": {
+      "type": "string"
+    },
+    "evidence_digest": {
+      "type": "string"
+    },
+    "review_digest": {
+      "type": "string"
+    },
+    "taken_over_by": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/state-v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent state v2",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "sequence",
+    "state",
+    "reason",
+    "previous_state_digest",
+    "issue_snapshot_digest",
+    "source_sha",
+    "task",
+    "authorization",
+    "budget",
+    "work",
+    "status_comment_id",
+    "context_digest",
+    "candidate_digest",
+    "evidence_digest",
+    "review_digest",
+    "taken_over_by",
+    "updated_at"
+  ],
+  "additionalProperties": false
+}

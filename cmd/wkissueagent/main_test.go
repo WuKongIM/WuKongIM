@@ -7,27 +7,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunRejectsMissingCommandWithoutStartingWuKongIM(t *testing.T) {
+func TestIssueAgentMainRejectsLegacyWorkerCommand(t *testing.T) {
 	t.Parallel()
 
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	exitCode := run(nil, bytes.NewReader(nil), &stdout, &stderr)
-	require.Equal(t, 2, exitCode)
+	var stdout, stderr bytes.Buffer
+	exit := run(
+		[]string{"run-worker"},
+		bytes.NewBufferString(`{}`),
+		&stdout,
+		&stderr,
+	)
+	require.Equal(t, 2, exit)
 	require.Empty(t, stdout.String())
+	require.Contains(t, stderr.String(), "unknown command")
 }
 
-func TestIssueAgentWorkerConfigUsesCodexBootstrapWithoutAPIKey(t *testing.T) {
-	t.Setenv("CODEX_API_KEY", "must-not-be-read")
-	t.Setenv(
-		"ISSUE_AGENT_CODEX_BOOTSTRAP_HOME",
-		"/runner/temp/issue-agent-codex-bootstrap",
-	)
+func TestParsePositiveInt64(t *testing.T) {
+	t.Parallel()
 
-	config := issueAgentWorkerConfigFromEnv()
-	require.Equal(
-		t,
-		"/runner/temp/issue-agent-codex-bootstrap",
-		config.CodexBootstrapHome,
-	)
+	require.Equal(t, int64(42), parsePositiveInt64("42"))
+	require.Zero(t, parsePositiveInt64("0"))
+	require.Zero(t, parsePositiveInt64("not-a-number"))
 }

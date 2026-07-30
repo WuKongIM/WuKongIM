@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	issueagentgithub "github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub"
-	issueagentusecase "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,9 +46,6 @@ func TestVersionSourceResolverReadsCommitLightweightAndAnnotatedTags(t *testing.
 	t.Cleanup(server.Close)
 	resolver, err := issueagentgithub.NewVersionSourceResolver(
 		newTestClient(t, server),
-		func(_ context.Context, _ string) (issueagentusecase.ImageSource, error) {
-			return issueagentusecase.ImageSource{SourceSHA: commit, Verified: true}, nil
-		},
 	)
 	require.NoError(t, err)
 
@@ -61,11 +57,6 @@ func TestVersionSourceResolverReadsCommitLightweightAndAnnotatedTags(t *testing.
 		require.NoError(t, err)
 		require.Equal(t, []string{commit}, candidates)
 	}
-	image := "ghcr.io/wk/wk@sha256:" +
-		"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	source, err := resolver.ResolveImageDigest(context.Background(), image)
-	require.NoError(t, err)
-	require.True(t, source.Verified)
 }
 
 func TestVersionSourceResolverRejectsMissingOrNonCommitTag(t *testing.T) {
@@ -90,9 +81,6 @@ func TestVersionSourceResolverRejectsMissingOrNonCommitTag(t *testing.T) {
 	t.Cleanup(server.Close)
 	resolver, err := issueagentgithub.NewVersionSourceResolver(
 		newTestClient(t, server),
-		func(context.Context, string) (issueagentusecase.ImageSource, error) {
-			return issueagentusecase.ImageSource{}, nil
-		},
 	)
 	require.NoError(t, err)
 

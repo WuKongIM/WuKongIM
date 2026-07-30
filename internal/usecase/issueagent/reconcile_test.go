@@ -4,496 +4,716 @@ import (
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
-	issueagentusecase "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
 	"github.com/stretchr/testify/require"
 )
 
-func TestReconcileDerivesWorkFromCurrentCheckpointNotEventPayload(t *testing.T) {
+const (
+	publishedContextDigest   = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+	publishedCandidateDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+	publishedEvidenceDigest  = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+)
+
+func TestReconcileIssueWaitsForAuthorizationFromExternalReporter(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	input := issueagentusecase.ReconcileInput{
-		Now:                 now,
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          reconcileCheckpoint(issueagent.StateAuthorized),
-		CheckpointCommentID: 101,
-		CheckpointDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	}
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutReproduction,
-	}
-
-	first, err := issueagentusecase.Reconcile(input, policy)
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "CONTRIBUTOR",
+		AuthorPermission:    "read",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+	}, nil, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationResolveVersions, first.Operation)
-	require.True(t, first.WriteAllowed)
-
-	duplicateEventPlan, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, first, duplicateEventPlan)
+	require.Equal(t, issueagent.IssueDecisionWaitAuthorization, decision.Kind)
+	require.Equal(t, contract.IssueStateWaitingForAuthorization, decision.NextState)
+	require.Nil(t, decision.Task)
 }
 
-func TestReconcileRejectsBrokenChainAndStaleWorkerArtifact(t *testing.T) {
+func TestReconcileIssueDispatchesOneDeterministicTaskForTrustedBug(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutGeneral,
+	facts := issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "1234567890abcdef1234567890abcdef12345678",
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
 	}
+	policy := issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}
+	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 
-	broken, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
-		Now:         now,
-		ChainStatus: issueagentusecase.ChainInvalid,
-	}, policy)
+	first, err := issueagent.ReconcileIssue(facts, nil, policy, now)
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationAlertAuditFailure, broken.Operation)
-	require.False(t, broken.WriteAllowed)
+	second, err := issueagent.ReconcileIssue(facts, nil, policy, now)
+	require.NoError(t, err)
 
-	stale, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
-		Now:                 now,
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          reconcileCheckpoint(issueagent.StateReproducing),
-		CheckpointCommentID: 102,
-		CheckpointDigest:    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		Lease: &issueagentusecase.LeaseFacts{
-			OperationID: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			TaskDigest:  "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-			Generation:  1,
-			ExpiresAt:   now.Add(time.Hour),
-		},
-		Artifacts: []issueagentusecase.WorkerArtifact{{
-			RunID:       900,
-			OperationID: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-			TaskDigest:  "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-			Generation:  1,
-		}},
-	}, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationWait, stale.Operation)
+	require.Equal(t, issueagent.IssueDecisionDispatchEngineer, first.Kind)
+	require.Equal(t, contract.IssueStateEngineering, first.NextState)
+	require.NotNil(t, first.Task)
+	require.Equal(t, contract.TaskKindEngineer, first.Task.Kind)
+	require.Equal(t, first.Task, second.Task)
 }
 
-func TestReconcilePublishesOnlyCurrentUnexpiredWorkerResult(t *testing.T) {
+func TestReconcileIssueAcceptsFreshMaintainerFixAuthorization(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	operationID := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	taskDigest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	input := issueagentusecase.ReconcileInput{
-		Now:                 now,
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          reconcileCheckpoint(issueagent.StateReproducing),
-		CheckpointCommentID: 102,
-		CheckpointDigest:    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		Lease: &issueagentusecase.LeaseFacts{
-			OperationID: operationID,
-			TaskDigest:  taskDigest,
-			Generation:  1,
-			ExpiresAt:   now.Add(time.Hour),
+	authorization := contract.AuthorizationRecord{
+		Actor:      "maintainer",
+		Permission: "maintain",
+		EventID:    "issue_comment:9001",
+		Command:    "/agent fix",
+	}
+	facts := issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "CONTRIBUTOR",
+		AuthorPermission:    "read",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		Authorization:       &authorization,
+	}
+
+	decision, err := issueagent.ReconcileIssue(facts, nil,
+		issueagent.ReconcileIssuePolicy{
+			Enabled:              true,
+			PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+			ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+			MaxEngineerAttempts:  3,
+			MaxReviewIterations:  2,
 		},
-		Artifacts: []issueagentusecase.WorkerArtifact{{
-			RunID:       900,
-			OperationID: operationID,
-			TaskDigest:  taskDigest,
-			Generation:  1,
-		}},
-	}
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutGeneral,
-	}
-
-	plan, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationPublishWorkerResult, plan.Operation)
-	require.Equal(t, int64(900), plan.ArtifactRunID)
-	require.Equal(t, int64(102), plan.ExpectedCheckpointCommentID)
-
-	input.Artifacts = nil
-	input.Lease.ExpiresAt = now.Add(-time.Second)
-	expired, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationExpireLease, expired.Operation)
-}
-
-func TestReconcileRecoversMissedExactMergeEvent(t *testing.T) {
-	t.Parallel()
-
-	checkpoint := reconcileCheckpoint(issueagent.StateReadyForReview)
-	checkpoint.Work = &issueagent.Work{
-		Branch: "agent/issue-42", HeadSHA: "0123456789abcdef0123456789abcdef01234567",
-		PRNumber: 9,
-	}
-	input := issueagentusecase.ReconcileInput{
-		Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          checkpoint,
-		CheckpointCommentID: 102,
-		CheckpointDigest:    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		WorkHead: &issueagentusecase.WorkHeadFacts{
-			PRNumber: 9, HeadSHA: checkpoint.Work.HeadSHA,
-			PRState: "closed", BaseRef: "main", HeadRef: "agent/issue-42",
-		},
-		Merge: &issueagentusecase.MergeFacts{
-			PRNumber: 9, HeadSHA: checkpoint.Work.HeadSHA, Merged: true,
-		},
-	}
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
-	}
-	plan, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRecordMerge, plan.Operation)
-	require.True(t, plan.WriteAllowed)
-
-	input.Merge.HeadSHA = "89abcdef0123456789abcdef0123456789abcdef"
-	input.WorkHead.HeadSHA = input.Merge.HeadSHA
-	drift, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRecordBranchDrift, drift.Operation)
-	require.Equal(t, input.Merge.HeadSHA, drift.ExternalHeadSHA)
-	require.True(t, drift.WriteAllowed)
-}
-
-func TestReconcileLetsArtifactPublisherClassifyPendingCommitBeforeExternalDrift(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	trustedHead := "0123456789abcdef0123456789abcdef01234567"
-	externalHead := "89abcdef0123456789abcdef0123456789abcdef"
-	checkpoint := reconcileCheckpoint(issueagent.StateDiagnosing)
-	checkpoint.Work = &issueagent.Work{
-		Branch: "agent/issue-42", HeadSHA: trustedHead, PRNumber: 9,
-	}
-	operationID := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	taskDigest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	plan, err := issueagentusecase.Reconcile(
-		issueagentusecase.ReconcileInput{
-			Now:                 now,
-			ChainStatus:         issueagentusecase.ChainValid,
-			Checkpoint:          checkpoint,
-			CheckpointCommentID: 102,
-			CheckpointDigest:    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			WorkHead: &issueagentusecase.WorkHeadFacts{
-				PRNumber: 9, HeadSHA: externalHead,
-				PRState: "open", Draft: false, BaseRef: "main",
-				HeadRef: "agent/issue-42",
-			},
-			Lease: &issueagentusecase.LeaseFacts{
-				OperationID: operationID, TaskDigest: taskDigest,
-				Generation: checkpoint.Generation, ExpiresAt: now.Add(time.Hour),
-			},
-			Artifacts: []issueagentusecase.WorkerArtifact{{
-				RunID: 7, OperationID: operationID, TaskDigest: taskDigest,
-				Generation: checkpoint.Generation,
-			}},
-		},
-		issueagentusecase.ReconcilePolicy{
-			Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
-		},
+		time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC),
 	)
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationPublishWorkerResult, plan.Operation)
-	require.Equal(t, int64(7), plan.ArtifactRunID)
-	require.True(t, plan.WriteAllowed)
+	require.Equal(t, issueagent.IssueDecisionDispatchEngineer, decision.Kind)
+}
 
-	input := issueagentusecase.ReconcileInput{
-		Now:                 now,
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          checkpoint,
-		CheckpointCommentID: 102,
-		CheckpointDigest:    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-		WorkHead: &issueagentusecase.WorkHeadFacts{
-			PRNumber: 9, HeadSHA: externalHead,
-			PRState: "open", Draft: true, BaseRef: "main",
-			HeadRef: "agent/issue-42",
+func TestReconcileIssueRequestsMissingInformationBeforeEngineering(t *testing.T) {
+	t.Parallel()
+
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: false,
+		Risk:                contract.CandidateRiskLow,
+	}, nil, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionRequestInformation, decision.Kind)
+	require.Equal(t, contract.IssueStateWaitingForInformation, decision.NextState)
+	require.Nil(t, decision.Task)
+}
+
+func TestReconcileIssueExplainsInvalidAffectedVersion(t *testing.T) {
+	t.Parallel()
+
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: false,
+		MissingInformation:  "Affected version must be an existing release tag or full commit SHA.",
+		Risk:                contract.CandidateRiskLow,
+	}, nil, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionRequestInformation, decision.Kind)
+	require.Equal(t,
+		"Affected version must be an existing release tag or full commit SHA.",
+		decision.Reason,
+	)
+}
+
+func TestReconcileIssueHandsHighRiskWorkToHuman(t *testing.T) {
+	t.Parallel()
+
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "OWNER",
+		AuthorPermission:    "admin",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskHigh,
+	}, nil, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionNeedsHuman, decision.Kind)
+	require.Equal(t, contract.IssueStateNeedsHuman, decision.NextState)
+	require.Nil(t, decision.Task)
+}
+
+func TestReconcileIssueGroupsTrustedReviewIntoFreshTask(t *testing.T) {
+	t.Parallel()
+
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            4,
+		State:               contract.IssueStateDraft,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       true,
 		},
-		Lease: &issueagentusecase.LeaseFacts{
-			OperationID: operationID, TaskDigest: taskDigest,
-			Generation: checkpoint.Generation, ExpiresAt: now.Add(time.Hour),
-		},
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
 	}
-	drift, err := issueagentusecase.Reconcile(
-		input,
-		issueagentusecase.ReconcilePolicy{
-			Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		ReviewDigest:        "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA,
+			Open: true, Draft: false,
 		},
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionDispatchReview, decision.Kind)
+	require.Equal(t, contract.IssueStateReviewing, decision.NextState)
+	require.NotNil(t, decision.Task)
+	require.Equal(t, contract.TaskKindReview, decision.Task.Kind)
+	require.Equal(t, current.Work.HeadSHA, decision.Task.BaseSHA)
+	next, err := issueagent.BuildIssueState(
+		&current,
+		issueagent.IssueSnapshotFacts{
+			Repository: "WuKongIM/WuKongIM", IssueNumber: 42,
+			IssueSnapshotDigest: current.IssueSnapshotDigest,
+			SourceSHA:           current.SourceSHA,
+			ReviewDigest:        "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			Authorization: &contract.AuthorizationRecord{
+				Actor: "maintainer", Permission: "write",
+				EventID: "pull_request_review:99",
+			},
+			PullRequest: &issueagent.PullRequestFacts{
+				Number: 84, HeadSHA: current.Work.HeadSHA,
+				Open: true, Draft: false,
+			},
+		},
+		decision,
+		time.Date(2026, 7, 30, 1, 2, 4, 0, time.UTC),
 	)
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRecordBranchDrift, drift.Operation)
-	require.Equal(t, externalHead, drift.ExternalHeadSHA)
+	require.False(t, next.Work.Draft)
+	require.Equal(t,
+		"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		next.ReviewDigest,
+	)
 }
 
-func TestReconcileRepairsDraftProjectionAndHandsMissingOrRetargetedWorkToHumans(
-	t *testing.T,
-) {
+func TestReconcileIssueDoesNotDuplicateActiveEngineeringTask(t *testing.T) {
 	t.Parallel()
 
-	checkpoint := reconcileCheckpoint(issueagent.StateDraftPROpen)
-	checkpoint.Work = &issueagent.Work{
-		Branch:   "agent/issue-42",
-		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
-		PRNumber: 9,
-	}
-	input := issueagentusecase.ReconcileInput{
-		Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          checkpoint,
-		CheckpointCommentID: 102,
-		CheckpointDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		WorkHead: &issueagentusecase.WorkHeadFacts{
-			PRNumber: 9, HeadSHA: checkpoint.Work.HeadSHA,
-			PRState: "open", Draft: false, BaseRef: "main",
-			HeadRef: "agent/issue-42",
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            2,
+		State:               contract.IssueStateEngineering,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Task: &contract.TaskIdentity{
+			ID:           "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			Kind:         contract.TaskKindEngineer,
+			BaseSHA:      "0123456789abcdef0123456789abcdef01234567",
+			AffectedSHA:  "0123456789abcdef0123456789abcdef01234567",
+			PolicyDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			PromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
 		},
+		Authorization: &contract.AuthorizationRecord{
+			Actor: "maintainer", Permission: "write",
+			EventID: "issue:42", Command: "/agent fix",
+		},
+		UpdatedAt: time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
 	}
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
-	}
-	repair, err := issueagentusecase.Reconcile(input, policy)
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRepairProjection, repair.Operation)
-
-	input.WorkHead.Draft = true
-	input.WorkHead.BaseRef = "release-2.0"
-	retargeted, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRecordWorkDrift, retargeted.Operation)
-
-	input.WorkHead = nil
-	input.WorkObjectMissing = true
-	missing, err := issueagentusecase.Reconcile(input, policy)
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRecordWorkDrift, missing.Operation)
+	require.Equal(t, issueagent.IssueDecisionWait, decision.Kind)
+	require.Equal(t, contract.IssueStateEngineering, decision.NextState)
+	require.Nil(t, decision.Task)
 }
 
-func TestReconcileLetsValidationPublisherRecoverPendingMechanicalCommit(t *testing.T) {
+func TestReconcileIssueStopsStaleActiveTask(t *testing.T) {
 	t.Parallel()
 
-	checkpoint := reconcileCheckpoint(issueagent.StateValidating)
-	checkpoint.Work = &issueagent.Work{
-		Branch:   "agent/issue-42",
-		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
-		PRNumber: 9,
+	updatedAt := time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC)
+	current := contract.IssueAgentState{
+		SchemaVersion: 2, Repository: "WuKongIM/WuKongIM",
+		IssueNumber: 42, Sequence: 2,
+		State:               contract.IssueStateEngineering,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Task: &contract.TaskIdentity{
+			ID:           "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			Kind:         contract.TaskKindEngineer,
+			BaseSHA:      "0123456789abcdef0123456789abcdef01234567",
+			AffectedSHA:  "0123456789abcdef0123456789abcdef01234567",
+			PolicyDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+			PromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		},
+		Authorization: &contract.AuthorizationRecord{
+			Actor: "maintainer", Permission: "write",
+			EventID: "issue:42", Command: "/agent fix",
+		},
+		UpdatedAt: updatedAt,
 	}
-	plan, err := issueagentusecase.Reconcile(
-		issueagentusecase.ReconcileInput{
-			Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-			ChainStatus:         issueagentusecase.ChainValid,
-			Checkpoint:          checkpoint,
-			CheckpointCommentID: 102,
-			CheckpointDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			WorkHead: &issueagentusecase.WorkHeadFacts{
-				PRNumber: 9,
-				HeadSHA:  "89abcdef0123456789abcdef0123456789abcdef",
-				PRState:  "open", Draft: true, BaseRef: "main",
-				HeadRef: "agent/issue-42",
-			},
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository: "WuKongIM/WuKongIM", IssueNumber: 42, Open: true,
+		AuthorAssociation: "MEMBER", AuthorPermission: "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3, MaxReviewIterations: 2,
+		TaskStaleAfter: 4 * time.Hour,
+	}, updatedAt.Add(4*time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionNeedsHuman, decision.Kind)
+	require.Equal(t, contract.IssueStateNeedsHuman, decision.NextState)
+	require.Contains(t, decision.Reason, "terminal Publisher result")
+}
+
+func TestReconcileIssueStopsWritesAfterMaintainerTakeOver(t *testing.T) {
+	t.Parallel()
+
+	control := contract.AuthorizationRecord{
+		Actor:      "maintainer",
+		Permission: "write",
+		EventID:    "issue_comment:9002",
+		Command:    "/agent take-over",
+	}
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            4,
+		State:               contract.IssueStateDraft,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       true,
 		},
-		issueagentusecase.ReconcilePolicy{
-			Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		Authorization:       &control,
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionTakeOver, decision.Kind)
+	require.Equal(t, contract.IssueStateTakenOver, decision.NextState)
+	require.Nil(t, decision.Task)
+}
+
+func TestReconcileIssueRetryCreatesFreshTaskFromNeedsHuman(t *testing.T) {
+	t.Parallel()
+
+	retry := contract.AuthorizationRecord{
+		Actor:      "maintainer",
+		Permission: "admin",
+		EventID:    "issue_comment:9003",
+		Command:    "/agent retry",
+	}
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            5,
+		State:               contract.IssueStateNeedsHuman,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Budget: contract.IssueBudget{
+			EngineerAttempts: 1,
 		},
+		UpdatedAt: time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	facts := issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "CONTRIBUTOR",
+		AuthorPermission:    "read",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		Authorization:       &retry,
+	}
+	policy := issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}
+	decision, err := issueagent.ReconcileIssue(facts, &current, policy,
+		time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionDispatchEngineer, decision.Kind)
+	require.Equal(t, contract.IssueStateEngineering, decision.NextState)
+	require.NotNil(t, decision.Task)
+	require.NotEqual(t, current.Task, decision.Task)
+}
+
+func TestReconcileIssueIgnoresRetryOutsideNeedsHuman(t *testing.T) {
+	t.Parallel()
+
+	retry := contract.AuthorizationRecord{
+		Actor:      "maintainer",
+		Permission: "admin",
+		EventID:    "issue_comment:9003",
+		Command:    "/agent retry",
+	}
+	current := contract.IssueAgentState{
+		SchemaVersion: 2, Repository: "WuKongIM/WuKongIM",
+		IssueNumber: 42, Sequence: 5,
+		State:               contract.IssueStateDraft,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch: "agent/issue-42", HeadSHA: "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84, Draft: true,
+		},
+		ContextDigest: publishedContextDigest, CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest: publishedEvidenceDigest,
+		UpdatedAt:      time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository: "WuKongIM/WuKongIM", IssueNumber: 42, Open: true,
+		AuthorAssociation: "CONTRIBUTOR", AuthorPermission: "read",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA, AffectedSHA: current.SourceSHA,
+		InformationComplete: true, Risk: contract.CandidateRiskLow,
+		Authorization: &retry,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA, Open: true, Draft: true,
+		},
+	}, &current, testReconcilePolicy(),
+		time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionWait, decision.Kind)
+}
+
+func TestReconcileIssueRetryResumesFailedReviewFromPublishedHead(t *testing.T) {
+	t.Parallel()
+
+	reviewDigest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	retry := contract.AuthorizationRecord{
+		Actor: "maintainer", Permission: "admin",
+		EventID: "issue_comment:9004", Command: "/agent retry",
+	}
+	current := contract.IssueAgentState{
+		SchemaVersion: 2, Repository: "WuKongIM/WuKongIM",
+		IssueNumber: 42, Sequence: 7,
+		State:               contract.IssueStateNeedsHuman,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch: "agent/issue-42", HeadSHA: "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84, Draft: true,
+		},
+		ReviewDigest: reviewDigest,
+		Budget:       contract.IssueBudget{EngineerAttempts: 1, ReviewIterations: 1},
+		UpdatedAt:    time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository: "WuKongIM/WuKongIM", IssueNumber: 42, Open: true,
+		AuthorAssociation: "CONTRIBUTOR", AuthorPermission: "read",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA, AffectedSHA: current.SourceSHA,
+		InformationComplete: true, Risk: contract.CandidateRiskLow,
+		Authorization: &retry,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA, Open: true, Draft: true,
+		},
+	}, &current, testReconcilePolicy(),
+		time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionDispatchReview, decision.Kind)
+	require.Equal(t, contract.TaskKindReview, decision.Task.Kind)
+	require.Equal(t, current.Work.HeadSHA, decision.Task.BaseSHA)
+}
+
+func testReconcilePolicy() issueagent.ReconcileIssuePolicy {
+	return issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3, MaxReviewIterations: 2,
+	}
+}
+
+func TestReconcileIssueFollowsMaintainerReadyTransition(t *testing.T) {
+	t.Parallel()
+
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            5,
+		State:               contract.IssueStateDraft,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       true,
+		},
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	facts := issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA, Open: true, Draft: false,
+		},
+	}
+	decision, err := issueagent.ReconcileIssue(facts, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionMarkReady, decision.Kind)
+	require.Equal(t, contract.IssueStateReadyForReview, decision.NextState)
+	next, err := issueagent.BuildIssueState(
+		&current,
+		facts,
+		decision,
+		time.Date(2026, 7, 30, 1, 2, 4, 0, time.UTC),
 	)
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRequestValidation, plan.Operation)
-	require.True(t, plan.WriteAllowed)
+	require.False(t, next.Work.Draft)
 }
 
-func TestReconcileRepairsTerminalLabelProjectionAfterInterruptedWrite(t *testing.T) {
+func TestReconcileIssueCompletesAfterHumanMerge(t *testing.T) {
 	t.Parallel()
 
-	checkpoint := reconcileCheckpoint(issueagent.StateMerged)
-	plan, err := issueagentusecase.Reconcile(
-		issueagentusecase.ReconcileInput{
-			Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-			ChainStatus:         issueagentusecase.ChainValid,
-			Checkpoint:          checkpoint,
-			CheckpointCommentID: 103,
-			CheckpointDigest:    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			IssueLabels:         []string{"bug", "ready-for-agent"},
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            6,
+		State:               contract.IssueStateReadyForReview,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       false,
 		},
-		issueagentusecase.ReconcilePolicy{
-			Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                false,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           current.SourceSHA,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA, Merged: true,
 		},
-	)
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationRepairProjection, plan.Operation)
-	require.True(t, plan.WriteAllowed)
+	require.Equal(t, issueagent.IssueDecisionComplete, decision.Kind)
+	require.Equal(t, contract.IssueStateCompleted, decision.NextState)
 }
 
-func TestReconcileTreatsIssueLabelOrderAsNonSemantic(t *testing.T) {
+func TestReconcileIssueCancelsClosedIssueWithoutMergedAgentWork(t *testing.T) {
 	t.Parallel()
 
-	plan, err := issueagentusecase.Reconcile(
-		issueagentusecase.ReconcileInput{
-			Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-			ChainStatus:         issueagentusecase.ChainValid,
-			Checkpoint:          reconcileCheckpoint(issueagent.StateAuthorized),
-			CheckpointCommentID: 103,
-			CheckpointDigest:    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-			IssueLabels:         []string{"zeta", "alpha"},
-		},
-		issueagentusecase.ReconcilePolicy{
-			Enabled: true, RolloutMode: issueagentusecase.RolloutGeneral,
-		},
-	)
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Open:                false,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		AffectedSHA:         "0123456789abcdef0123456789abcdef01234567",
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+	}, nil, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
 	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationResolveVersions, plan.Operation)
-}
-
-func TestReconcileShadowModeNeverProducesWriteAuthority(t *testing.T) {
-	t.Parallel()
-
-	plan, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
-		Now:         time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-		ChainStatus: issueagentusecase.ChainValid,
-		Checkpoint:  reconcileCheckpoint(issueagent.StateAuthorized),
-	}, issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutShadow,
-	})
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationReportOnly, plan.Operation)
-	require.False(t, plan.WriteAllowed)
-}
-
-func TestReconcileIntakeModeOnlyAdmitsDeterministicIntake(t *testing.T) {
-	t.Parallel()
-
-	plan, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
-		Now:         time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-		ChainStatus: issueagentusecase.ChainMissing,
-	}, issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutIntake,
-	})
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationIntakeIssue, plan.Operation)
-	require.True(t, plan.WriteAllowed)
-
-	authorized := reconcileCheckpoint(issueagent.StateAuthorized)
-	blocked, err := issueagentusecase.Reconcile(issueagentusecase.ReconcileInput{
-		Now:                 time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC),
-		ChainStatus:         issueagentusecase.ChainValid,
-		Checkpoint:          authorized,
-		CheckpointCommentID: 10,
-		CheckpointDigest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-	}, issueagentusecase.ReconcilePolicy{
-		Enabled:     true,
-		RolloutMode: issueagentusecase.RolloutIntake,
-	})
-	require.NoError(t, err)
-	require.Equal(t, issueagentusecase.OperationWait, blocked.Operation)
-	require.False(t, blocked.WriteAllowed)
-}
-
-func TestReconcileIntakeModeBlocksRecoveryWritesFromEarlierRollouts(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
-	digest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	operationID := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	taskDigest := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-
-	reproducing := reconcileCheckpoint(issueagent.StateReproducing)
-	draftPR := reconcileCheckpoint(issueagent.StateDraftPROpen)
-	draftPR.Work = &issueagent.Work{
-		Branch:   "agent/issue-42",
-		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
-		PRNumber: 9,
-	}
-	ready := reconcileCheckpoint(issueagent.StateReadyForReview)
-	ready.Work = &issueagent.Work{
-		Branch:   "agent/issue-42",
-		HeadSHA:  "0123456789abcdef0123456789abcdef01234567",
-		PRNumber: 9,
-	}
-	merged := reconcileCheckpoint(issueagent.StateMerged)
-
-	tests := []struct {
-		name  string
-		input issueagentusecase.ReconcileInput
-	}{
-		{
-			name: "invalid chain audit alert",
-			input: issueagentusecase.ReconcileInput{
-				Now: now, ChainStatus: issueagentusecase.ChainInvalid,
-			},
-		},
-		{
-			name: "Worker Artifact publication",
-			input: issueagentusecase.ReconcileInput{
-				Now: now, ChainStatus: issueagentusecase.ChainValid,
-				Checkpoint: reproducing, CheckpointCommentID: 10,
-				CheckpointDigest: digest,
-				Lease: &issueagentusecase.LeaseFacts{
-					OperationID: operationID, TaskDigest: taskDigest,
-					Generation: 1, ExpiresAt: now.Add(time.Hour),
-				},
-				Artifacts: []issueagentusecase.WorkerArtifact{{
-					RunID: 20, OperationID: operationID,
-					TaskDigest: taskDigest, Generation: 1,
-				}},
-			},
-		},
-		{
-			name: "missing work object transition",
-			input: issueagentusecase.ReconcileInput{
-				Now: now, ChainStatus: issueagentusecase.ChainValid,
-				Checkpoint: draftPR, CheckpointCommentID: 10,
-				CheckpointDigest: digest, WorkObjectMissing: true,
-			},
-		},
-		{
-			name: "merged PR transition",
-			input: issueagentusecase.ReconcileInput{
-				Now: now, ChainStatus: issueagentusecase.ChainValid,
-				Checkpoint: ready, CheckpointCommentID: 10,
-				CheckpointDigest: digest,
-				WorkHead: &issueagentusecase.WorkHeadFacts{
-					PRNumber: 9, HeadSHA: ready.Work.HeadSHA,
-					PRState: "closed", BaseRef: "main",
-					HeadRef: ready.Work.Branch,
-				},
-				Merge: &issueagentusecase.MergeFacts{
-					PRNumber: 9, HeadSHA: ready.Work.HeadSHA, Merged: true,
-				},
-			},
-		},
-		{
-			name: "terminal label projection repair",
-			input: issueagentusecase.ReconcileInput{
-				Now: now, ChainStatus: issueagentusecase.ChainValid,
-				Checkpoint: merged, CheckpointCommentID: 10,
-				CheckpointDigest: digest,
-				IssueLabels:      []string{"bug", "ready-for-agent"},
-			},
-		},
-	}
-	policy := issueagentusecase.ReconcilePolicy{
-		Enabled: true, RolloutMode: issueagentusecase.RolloutIntake,
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			plan, err := issueagentusecase.Reconcile(test.input, policy)
-			require.NoError(t, err)
-			require.Equal(t, issueagentusecase.OperationWait, plan.Operation)
-			require.False(t, plan.WriteAllowed)
-		})
-	}
-}
-
-func reconcileCheckpoint(state issueagent.State) *issueagent.Checkpoint {
-	return &issueagent.Checkpoint{
-		SchemaVersion: 1,
-		Repository:    "WuKongIM/WuKongIM",
-		IssueNumber:   42,
-		Generation:    1,
-		Sequence:      2,
-		State:         state,
-	}
+	require.Equal(t, issueagent.IssueDecisionCancel, decision.Kind)
+	require.Equal(t, contract.IssueStateCancelled, decision.NextState)
 }

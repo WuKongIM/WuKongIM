@@ -1,0 +1,353 @@
+name: Agent Tool - Issue Engineer
+
+on:
+  workflow_call:
+    inputs:
+      repository:
+        required: true
+        type: string
+      issue_number:
+        required: true
+        type: number
+      task_id:
+        required: true
+        type: string
+      base_sha:
+        required: true
+        type: string
+      control_sha:
+        required: true
+        type: string
+      state_head_sha:
+        required: true
+        type: string
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+      # Declared for expression validation; the Publisher job obtains the
+      # value from its protected Environment, never from the caller.
+      ISSUE_AGENT_APP_PRIVATE_KEY:
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-task-${{ inputs.repository }}-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  recover-task:
+    name: Recover exact signed task
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          persist-credentials: false
+      - name: Build trusted control binary
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+      - name: Re-read and verify signed task state
+        shell: bash
+        env:
+          ISSUE_AGENT_GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "${{ inputs.repository }}" \
+            --argjson issue_number "${{ inputs.issue_number }}" \
+            --arg task_id "${{ inputs.task_id }}" \
+            --arg base_sha "${{ inputs.base_sha }}" \
+            --arg control_sha "${{ inputs.control_sha }}" \
+            --arg state_head_sha "${{ inputs.state_head_sha }}" \
+            '{repository:$repository,issue_number:$issue_number,task_id:$task_id,
+              base_sha:$base_sha,control_sha:$control_sha,
+              state_head_sha:$state_head_sha}' \
+            >"$RUNNER_TEMP/recover.json"
+          "$RUNNER_TEMP/wkissueagent" recover-task \
+            --input "$RUNNER_TEMP/recover.json"
+
+  context-builder:
+    name: Build bounded credential-free context
+    needs: recover-task
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          persist-credentials: false
+      - name: Build trusted Context Builder
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+      - name: Build Context Bundle from fresh reads
+        shell: bash
+        env:
+          ISSUE_AGENT_GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "${{ inputs.repository }}" \
+            --argjson issue_number "${{ inputs.issue_number }}" \
+            --arg task_id "${{ inputs.task_id }}" \
+            --arg control_sha "${{ inputs.control_sha }}" \
+            --arg state_head_sha "${{ inputs.state_head_sha }}" \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{repository:$repository,issue_number:$issue_number,task_id:$task_id,
+              control_sha:$control_sha,state_head_sha:$state_head_sha,now:$now}' \
+            >"$RUNNER_TEMP/context-request.json"
+          "$RUNNER_TEMP/wkissueagent" build-context \
+            --input "$RUNNER_TEMP/context-request.json" \
+            >"$RUNNER_TEMP/context-bundle.json"
+          jq -e '.schema_version == 2 and .task.id == "${{ inputs.task_id }}"' \
+            "$RUNNER_TEMP/context-bundle.json" >/dev/null
+      - name: Upload immutable Context Bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/context-bundle.json
+          if-no-files-found: error
+          retention-days: 2
+
+  engineer:
+    name: Codex Engineer
+    needs: context-builder
+    runs-on: ubuntu-latest
+    timeout-minutes: 95
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Build immutable capture binary and freeze control inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+          sudo install -o root -g root -m 0755 "$RUNNER_TEMP/wkissueagent" /usr/local/bin/wkissueagent-capture
+          cp .github/issue-agent/prompts/engineer.md "$RUNNER_TEMP/engineer.md"
+          cp .github/issue-agent/prompts/review.md "$RUNNER_TEMP/review.md"
+          cp .github/issue-agent/engineer-result.schema.json "$RUNNER_TEMP/engineer-result.schema.json"
+          cp .github/issue-agent/policy.json "$RUNNER_TEMP/issue-agent-policy.json"
+      - name: Check out the exact candidate base
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.base_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Freeze immutable candidate baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo install -d -o root -g root -m 0755 /opt/wukongim-issue-agent/baseline
+          git archive HEAD | sudo tar -x -C /opt/wukongim-issue-agent/baseline
+          sudo chmod -R a-w /opt/wukongim-issue-agent/baseline
+      - name: Download Context Bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/issue-agent-context
+      - name: Select prompt from signed task kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          kind="$(jq -er .task.kind "$RUNNER_TEMP/issue-agent-context/context-bundle.json")"
+          case "$kind" in
+            engineer) cp "$RUNNER_TEMP/engineer.md" "$RUNNER_TEMP/issue-agent-prompt.md" ;;
+            review) cp "$RUNNER_TEMP/review.md" "$RUNNER_TEMP/issue-agent-prompt.md" ;;
+            *) exit 1 ;;
+          esac
+      - name: Run the complete task with official Codex Action
+        id: codex
+        continue-on-error: true
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        env:
+          ISSUE_AGENT_CONTEXT_BUNDLE: ${{ runner.temp }}/issue-agent-context/context-bundle.json
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          responses-api-endpoint: https://openrouter.ai/api/v1/responses
+          prompt-file: ${{ runner.temp }}/issue-agent-prompt.md
+          output-file: ${{ runner.temp }}/engineer-result.json
+          codex-version: 0.146.0
+          model: openai/gpt-5.6-sol
+          effort: high
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          codex-args: '["--ephemeral","--output-schema","${{ runner.temp }}/engineer-result.schema.json","-c","sandbox_workspace_write.network_access=true"]'
+      - name: Capture candidate without trusting Git
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg baseline /opt/wukongim-issue-agent/baseline \
+            --arg workspace "$GITHUB_WORKSPACE" \
+            --arg task_id "${{ inputs.task_id }}" \
+            --arg base_sha "${{ inputs.base_sha }}" \
+            --slurpfile policy "$RUNNER_TEMP/issue-agent-policy.json" \
+            '{baseline:$baseline,workspace:$workspace,task_id:$task_id,
+              base_sha:$base_sha,limits:$policy[0].candidate_limits}' \
+            >"$RUNNER_TEMP/capture.json"
+          /usr/local/bin/wkissueagent-capture capture-candidate \
+            --input "$RUNNER_TEMP/capture.json" >"$RUNNER_TEMP/candidate.json"
+      - name: Upload bounded Engineer output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: |
+            ${{ runner.temp }}/engineer-result.json
+            ${{ runner.temp }}/candidate.json
+          if-no-files-found: warn
+          retention-days: 2
+
+  verifier:
+    name: Verify from a clean checkout
+    needs: engineer
+    if: always() && needs.engineer.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Build trusted Verifier and freeze policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+          cp .github/issue-agent/policy.json "$RUNNER_TEMP/issue-agent-policy.json"
+      - name: Check out the exact candidate base
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.base_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Download captured candidate
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/issue-agent-candidate
+      - name: Independently apply and verify candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg checkout "$GITHUB_WORKSPACE" \
+            --arg temporary_root "$RUNNER_TEMP/issue-agent-verifier" \
+            --slurpfile snapshot "$RUNNER_TEMP/issue-agent-candidate/candidate.json" \
+            --slurpfile policy "$RUNNER_TEMP/issue-agent-policy.json" \
+            --arg repository "${{ inputs.repository }}" \
+            --argjson issue_number "${{ inputs.issue_number }}" \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{checkout:$checkout,temporary_root:$temporary_root,snapshot:$snapshot[0],
+              policy:{repository:$repository,issue_number:$issue_number,
+                protected_paths:$policy[0].protected_paths,
+                high_risk_paths:$policy[0].high_risk_paths,
+                required_suites:$policy[0].required_suites,
+                commands:$policy[0].verification_commands,
+                max_changed_files:$policy[0].candidate_limits.max_files},
+              now:$now}' >"$RUNNER_TEMP/verify.json"
+          "$RUNNER_TEMP/wkissueagent" verify-candidate \
+            --input "$RUNNER_TEMP/verify.json" >"$RUNNER_TEMP/candidate-evidence.json"
+      - name: Upload trusted Candidate Evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/candidate-evidence.json
+          if-no-files-found: error
+          retention-days: 2
+
+  publisher:
+    name: Publish exact Draft PR
+    needs: [context-builder, engineer, verifier]
+    if: always() && needs.context-builder.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: issue-agent-publisher
+    permissions:
+      contents: read
+    concurrency:
+      group: issue-agent-state-${{ inputs.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          persist-credentials: false
+      - name: Download Context Bundle
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/issue-agent-context
+      - name: Download candidate and advisory result
+        continue-on-error: true
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/issue-agent-candidate
+      - name: Download trusted evidence
+        continue-on-error: true
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}
+          path: ${{ runner.temp }}/issue-agent-evidence
+      - name: Build protected Publisher
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+      - name: Mint short-lived repository-scoped App token
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          ISSUE_AGENT_APP_INSTALLATION_ID: ${{ vars.ISSUE_AGENT_APP_INSTALLATION_ID }}
+          ISSUE_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          jq -n --arg repository "${{ inputs.repository }}" \
+            '{repository:$repository}' >"$RUNNER_TEMP/mint.json"
+          "$RUNNER_TEMP/wkissueagent" mint-app-token \
+            --input "$RUNNER_TEMP/mint.json" >"$RUNNER_TEMP/app-token.json"
+          app_token="$(jq -er .token "$RUNNER_TEMP/app-token.json")"
+          echo "::add-mask::$app_token"
+          printf 'ISSUE_AGENT_GITHUB_TOKEN=%s\n' "$app_token" >>"$GITHUB_ENV"
+      - name: Publish without executing candidate code
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "${{ inputs.repository }}" \
+            --argjson issue_number "${{ inputs.issue_number }}" \
+            --arg control_sha "${{ inputs.control_sha }}" \
+            --arg expected_state_head "${{ inputs.state_head_sha }}" \
+            --arg context "$RUNNER_TEMP/issue-agent-context/context-bundle.json" \
+            --arg engineer "$RUNNER_TEMP/issue-agent-candidate/engineer-result.json" \
+            --arg candidate "$RUNNER_TEMP/issue-agent-candidate/candidate.json" \
+            --arg evidence "$RUNNER_TEMP/issue-agent-evidence/candidate-evidence.json" \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{repository:$repository,issue_number:$issue_number,control_sha:$control_sha,
+              expected_state_head:$expected_state_head,context_path:$context,
+              engineer_result_path:$engineer,candidate_path:$candidate,
+              evidence_path:$evidence,now:$now}' >"$RUNNER_TEMP/publish.json"
+          "$RUNNER_TEMP/wkissueagent" publish-candidate \
+            --input "$RUNNER_TEMP/publish.json"

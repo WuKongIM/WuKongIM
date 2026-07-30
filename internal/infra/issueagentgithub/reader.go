@@ -20,18 +20,12 @@ var (
 	agentStageRefPattern = regexp.MustCompile(
 		`^agent/issue-[1-9][0-9]*-rebase-[0-9a-f]{64}$`,
 	)
-	branchPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$`)
+	stateRefPattern = regexp.MustCompile(`^agent-state/issue-[1-9][0-9]*$`)
 )
-
-// RepositoryFacts binds all later reads and writes to one repository identity.
-type RepositoryFacts struct {
-	ID            int64
-	FullName      string
-	DefaultBranch string
-}
 
 // IssueFacts is the bounded Issue state consumed by authorization and planning.
 type IssueFacts struct {
+	ID                string
 	Number            int64
 	State             string
 	Title             string
@@ -39,6 +33,18 @@ type IssueFacts struct {
 	Author            string
 	AuthorAssociation string
 	Labels            []string
+	UpdatedAt         time.Time
+}
+
+// IssueComment is the bounded GitHub comment projection used by v2.
+type IssueComment struct {
+	ID                int64
+	Author            string
+	AuthorType        string
+	AuthorAssociation string
+	Body              string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // Permission is one normalized repository permission level.
@@ -64,38 +70,6 @@ type PullRequestFacts struct {
 	HeadRef     string
 	HeadSHA     string
 	MergeCommit string
-}
-
-// ReviewFacts records a review against one exact candidate commit.
-type ReviewFacts struct {
-	ID       int64
-	State    string
-	Author   string
-	CommitID string
-}
-
-// CommitStatusFacts is one exact status projection bound to a commit.
-type CommitStatusFacts struct {
-	ID          int64
-	State       string
-	Description string
-	TargetURL   string
-	Context     string
-	Creator     string
-	CreatorType string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-// PullRequestFileFacts is GitHub's bounded changed-file projection.
-type PullRequestFileFacts struct {
-	Path         string
-	PreviousPath string
-	Status       string
-	SHA          string
-	Additions    int
-	Deletions    int
-	Changes      int
 }
 
 // RefFacts binds a named Agent branch to its current commit.
@@ -147,102 +121,6 @@ func (client *Client) DefaultBranchHead(
 	return RefFacts{Name: "main", SHA: payload.Object.SHA}, nil
 }
 
-// BranchHead reads one policy-allowlisted branch after the caller has applied
-// its protected branch allowlist.
-func (client *Client) BranchHead(
-	ctx context.Context,
-	branch string,
-) (RefFacts, error) {
-	if !branchPattern.MatchString(branch) ||
-		strings.Contains(branch, "..") ||
-		strings.Contains(branch, "//") {
-		return RefFacts{}, errors.New("GitHub branch name is unsafe")
-	}
-	var payload struct {
-		Ref    string `json:"ref"`
-		Object struct {
-			Type string `json:"type"`
-			SHA  string `json:"sha"`
-		} `json:"object"`
-	}
-	if err := client.getJSON(
-		ctx, "/repos/"+client.repository+"/git/ref/heads/"+branch, &payload,
-	); err != nil {
-		return RefFacts{}, err
-	}
-	if payload.Ref != "refs/heads/"+branch || payload.Object.Type != "commit" ||
-		!gitObjectPattern.MatchString(payload.Object.SHA) {
-		return RefFacts{}, errors.New("GitHub branch ref response is invalid")
-	}
-	return RefFacts{Name: branch, SHA: payload.Object.SHA}, nil
-}
-
-// UnresolvedReviewThreadIDs reads the complete bounded unresolved review set.
-func (client *Client) UnresolvedReviewThreadIDs(
-	ctx context.Context,
-	number int64,
-) ([]string, error) {
-	if client == nil || number <= 0 {
-		return nil, errors.New("review-thread request is invalid")
-	}
-	parts := strings.Split(client.repository, "/")
-	var response struct {
-		Data struct {
-			Repository struct {
-				PullRequest struct {
-					ReviewThreads struct {
-						Nodes []struct {
-							ID         string `json:"id"`
-							IsResolved bool   `json:"isResolved"`
-						} `json:"nodes"`
-						PageInfo struct {
-							HasNextPage bool `json:"hasNextPage"`
-						} `json:"pageInfo"`
-					} `json:"reviewThreads"`
-				} `json:"pullRequest"`
-			} `json:"repository"`
-		} `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	query := `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved} pageInfo{hasNextPage}}}}}`
-	if err := client.requestJSON(
-		ctx, http.MethodPost, "/graphql",
-		struct {
-			Query     string         `json:"query"`
-			Variables map[string]any `json:"variables"`
-		}{
-			Query: query,
-			Variables: map[string]any{
-				"owner": parts[0], "name": parts[1], "number": number,
-			},
-		},
-		&response, http.StatusOK,
-	); err != nil {
-		return nil, err
-	}
-	threads := response.Data.Repository.PullRequest.ReviewThreads
-	if len(response.Errors) != 0 || threads.PageInfo.HasNextPage ||
-		len(threads.Nodes) > 100 {
-		return nil, errors.New("review-thread response is incomplete")
-	}
-	result := make([]string, 0, len(threads.Nodes))
-	for _, node := range threads.Nodes {
-		if node.IsResolved {
-			continue
-		}
-		if node.ID == "" || len(node.ID) > 256 ||
-			strings.ContainsAny(node.ID, "\r\n") {
-			return nil, errors.New("review-thread identity is invalid")
-		}
-		result = append(result, node.ID)
-	}
-	slices.Sort(result)
-	result = slices.Compact(result)
-	return result, nil
-}
-
 // CommitFacts records the tree, parents, and GitHub verification result.
 type CommitFacts struct {
 	SHA                string
@@ -264,58 +142,19 @@ type CommitAttributionFacts struct {
 	WasSignedByGitHub bool
 }
 
-// WorkflowRunFacts binds validation evidence to one exact head SHA.
-type WorkflowRunFacts struct {
-	ID           int64
-	Name         string
-	Path         string
-	DisplayTitle string
-	Event        string
-	Status       string
-	Conclusion   string
-	HeadBranch   string
-	HeadSHA      string
-	RunAttempt   int
-	CreatedAt    time.Time
-}
-
-// ArtifactFacts is a metadata-only artifact identity. Downloading is separate.
-type ArtifactFacts struct {
-	ID          int64
-	Name        string
-	SizeInBytes int64
-	Expired     bool
-	DownloadURL string
-}
-
-// Repository reads and verifies the configured repository identity.
-func (client *Client) Repository(ctx context.Context) (RepositoryFacts, error) {
-	var payload struct {
-		ID            int64  `json:"id"`
-		FullName      string `json:"full_name"`
-		DefaultBranch string `json:"default_branch"`
-	}
-	if err := client.getJSON(ctx, "/repos/"+client.repository, &payload); err != nil {
-		return RepositoryFacts{}, err
-	}
-	if payload.ID <= 0 || payload.FullName != client.repository ||
-		!validBranchName(payload.DefaultBranch) {
-		return RepositoryFacts{}, errors.New("GitHub repository identity is invalid")
-	}
-	return RepositoryFacts(payload), nil
-}
-
 // Issue reads the current Issue, labels, author, and author association.
 func (client *Client) Issue(ctx context.Context, number int64) (IssueFacts, error) {
 	if number <= 0 {
 		return IssueFacts{}, errors.New("Issue number is invalid")
 	}
 	var payload struct {
-		Number int64  `json:"number"`
-		State  string `json:"state"`
-		Title  string `json:"title"`
-		Body   string `json:"body"`
-		User   struct {
+		NodeID  string   `json:"node_id"`
+		Number  int64    `json:"number"`
+		State   string   `json:"state"`
+		Title   string   `json:"title"`
+		Body    string   `json:"body"`
+		Updated jsonTime `json:"updated_at"`
+		User    struct {
 			Login string `json:"login"`
 		} `json:"user"`
 		AuthorAssociation string `json:"author_association"`
@@ -351,9 +190,11 @@ func (client *Client) Issue(ctx context.Context, number int64) (IssueFacts, erro
 	}
 	slices.Sort(labels)
 	return IssueFacts{
-		Number: payload.Number, State: payload.State, Title: payload.Title,
+		ID: payload.NodeID, Number: payload.Number,
+		State: payload.State, Title: payload.Title,
 		Body: payload.Body, Author: payload.User.Login,
 		AuthorAssociation: payload.AuthorAssociation, Labels: labels,
+		UpdatedAt: payload.Updated.Time,
 	}, nil
 }
 
@@ -374,9 +215,10 @@ func (client *Client) IssueComment(
 			Login string `json:"login"`
 			Type  string `json:"type"`
 		} `json:"user"`
-		Body      string   `json:"body"`
-		CreatedAt jsonTime `json:"created_at"`
-		UpdatedAt jsonTime `json:"updated_at"`
+		AuthorAssociation string   `json:"author_association"`
+		Body              string   `json:"body"`
+		CreatedAt         jsonTime `json:"created_at"`
+		UpdatedAt         jsonTime `json:"updated_at"`
 	}
 	if err := client.getJSON(
 		ctx,
@@ -396,117 +238,10 @@ func (client *Client) IssueComment(
 	}
 	return IssueComment{
 		ID: payload.ID, Author: payload.User.Login, AuthorType: payload.User.Type,
-		Body: payload.Body, CreatedAt: payload.CreatedAt.Time,
+		AuthorAssociation: payload.AuthorAssociation,
+		Body:              payload.Body, CreatedAt: payload.CreatedAt.Time,
 		UpdatedAt: payload.UpdatedAt.Time,
 	}, nil
-}
-
-// IssueLabels reads the labels of an Issue or pull request without accepting
-// any other mutable projection.
-func (client *Client) IssueLabels(
-	ctx context.Context,
-	number int64,
-) ([]string, error) {
-	if number <= 0 {
-		return nil, errors.New("Issue-like number is invalid")
-	}
-	var payload struct {
-		Number int64 `json:"number"`
-		Labels []struct {
-			Name string `json:"name"`
-		} `json:"labels"`
-	}
-	if err := client.getJSON(
-		ctx,
-		"/repos/"+client.repository+"/issues/"+strconv.FormatInt(number, 10),
-		&payload,
-	); err != nil {
-		return nil, err
-	}
-	if payload.Number != number || len(payload.Labels) > 100 {
-		return nil, errors.New("GitHub labels response is invalid")
-	}
-	labels := make([]string, 0, len(payload.Labels))
-	for _, label := range payload.Labels {
-		if strings.TrimSpace(label.Name) == "" || len(label.Name) > 100 {
-			return nil, errors.New("GitHub label is invalid")
-		}
-		labels = append(labels, label.Name)
-	}
-	slices.Sort(labels)
-	for index := 1; index < len(labels); index++ {
-		if labels[index-1] == labels[index] {
-			return nil, errors.New("GitHub labels contain a duplicate")
-		}
-	}
-	return labels, nil
-}
-
-// ListCommitStatuses reads every bounded status page for one immutable commit.
-func (client *Client) ListCommitStatuses(
-	ctx context.Context,
-	sha string,
-) ([]CommitStatusFacts, error) {
-	if !gitObjectPattern.MatchString(sha) {
-		return nil, errors.New("commit status SHA is invalid")
-	}
-	result := make([]CommitStatusFacts, 0)
-	for page := 1; page <= client.maxPages; page++ {
-		endpoint := client.endpoint(
-			"/repos/" + client.repository + "/commits/" + sha + "/statuses",
-		)
-		query := endpoint.Query()
-		query.Set("per_page", "100")
-		query.Set("page", strconv.Itoa(page))
-		endpoint.RawQuery = query.Encode()
-		var payload []struct {
-			ID          int64  `json:"id"`
-			State       string `json:"state"`
-			Description string `json:"description"`
-			TargetURL   string `json:"target_url"`
-			Context     string `json:"context"`
-			Creator     struct {
-				Login string `json:"login"`
-				Type  string `json:"type"`
-			} `json:"creator"`
-			CreatedAt jsonTime `json:"created_at"`
-			UpdatedAt jsonTime `json:"updated_at"`
-		}
-		next, err := client.getJSONPage(ctx, endpoint, &payload)
-		if err != nil {
-			return nil, err
-		}
-		if len(payload) > 100 {
-			return nil, errors.New("GitHub status page exceeds item limit")
-		}
-		for _, status := range payload {
-			if status.ID <= 0 ||
-				(status.State != "error" && status.State != "failure" &&
-					status.State != "pending" && status.State != "success") ||
-				strings.TrimSpace(status.Context) == "" ||
-				len(status.Context) > 100 ||
-				len(status.Description) > 140 ||
-				status.TargetURL == "" || len(status.TargetURL) > 2048 ||
-				status.Creator.Login == "" || status.Creator.Type == "" ||
-				status.CreatedAt.Time.IsZero() || status.UpdatedAt.Time.IsZero() {
-				return nil, errors.New("GitHub commit status response is invalid")
-			}
-			result = append(result, CommitStatusFacts{
-				ID: status.ID, State: status.State,
-				Description: status.Description, TargetURL: status.TargetURL,
-				Context: status.Context, Creator: status.Creator.Login,
-				CreatorType: status.Creator.Type,
-				CreatedAt:   status.CreatedAt.Time, UpdatedAt: status.UpdatedAt.Time,
-			})
-		}
-		if next == nil {
-			return result, nil
-		}
-		if page == client.maxPages {
-			return nil, errors.New("GitHub status pagination exceeds page budget")
-		}
-	}
-	return nil, errors.New("GitHub status pagination did not terminate")
 }
 
 // ActorPermission resolves a fresh repository permission for an event actor.
@@ -586,88 +321,6 @@ func (client *Client) PullRequest(ctx context.Context, number int64) (PullReques
 	}, nil
 }
 
-// PullRequestReviews reads all review pages within the configured budget.
-func (client *Client) PullRequestReviews(
-	ctx context.Context,
-	number int64,
-) ([]ReviewFacts, error) {
-	if number <= 0 {
-		return nil, errors.New("pull request number is invalid")
-	}
-	var raw []struct {
-		ID       int64  `json:"id"`
-		State    string `json:"state"`
-		CommitID string `json:"commit_id"`
-		User     struct {
-			Login string `json:"login"`
-		} `json:"user"`
-	}
-	if err := client.getAllPages(
-		ctx,
-		"/repos/"+client.repository+"/pulls/"+strconv.FormatInt(number, 10)+"/reviews",
-		&raw,
-	); err != nil {
-		return nil, err
-	}
-	result := make([]ReviewFacts, 0, len(raw))
-	for _, review := range raw {
-		if review.ID <= 0 || review.User.Login == "" ||
-			!gitObjectPattern.MatchString(review.CommitID) {
-			return nil, errors.New("GitHub review response is invalid")
-		}
-		result = append(result, ReviewFacts{
-			ID: review.ID, State: review.State,
-			Author: review.User.Login, CommitID: review.CommitID,
-		})
-	}
-	return result, nil
-}
-
-// PullRequestFiles reads all PR file pages and rejects inconsistent counts.
-func (client *Client) PullRequestFiles(
-	ctx context.Context,
-	number int64,
-) ([]PullRequestFileFacts, error) {
-	if number <= 0 {
-		return nil, errors.New("pull request number is invalid")
-	}
-	var raw []struct {
-		Filename         string `json:"filename"`
-		PreviousFilename string `json:"previous_filename"`
-		Status           string `json:"status"`
-		SHA              string `json:"sha"`
-		Additions        int    `json:"additions"`
-		Deletions        int    `json:"deletions"`
-		Changes          int    `json:"changes"`
-	}
-	if err := client.getAllPages(
-		ctx,
-		"/repos/"+client.repository+"/pulls/"+strconv.FormatInt(number, 10)+"/files",
-		&raw,
-	); err != nil {
-		return nil, err
-	}
-	if len(raw) > 3000 {
-		return nil, errors.New("GitHub pull request file count exceeds limit")
-	}
-	result := make([]PullRequestFileFacts, 0, len(raw))
-	for _, file := range raw {
-		if !validRepositoryPath(file.Filename) ||
-			file.PreviousFilename != "" && !validRepositoryPath(file.PreviousFilename) ||
-			!gitObjectPattern.MatchString(file.SHA) ||
-			file.Additions < 0 || file.Deletions < 0 ||
-			file.Changes != file.Additions+file.Deletions {
-			return nil, errors.New("GitHub pull request file response is invalid")
-		}
-		result = append(result, PullRequestFileFacts{
-			Path: file.Filename, PreviousPath: file.PreviousFilename,
-			Status: file.Status, SHA: file.SHA, Additions: file.Additions,
-			Deletions: file.Deletions, Changes: file.Changes,
-		})
-	}
-	return result, nil
-}
-
 // Ref reads one Agent branch. Other refs are outside this narrow port.
 func (client *Client) Ref(ctx context.Context, branch string) (RefFacts, error) {
 	if !isAgentManagedRef(branch) {
@@ -730,7 +383,8 @@ func (client *Client) RefIfExists(
 
 func isAgentManagedRef(branch string) bool {
 	return agentRefPattern.MatchString(branch) ||
-		agentStageRefPattern.MatchString(branch)
+		agentStageRefPattern.MatchString(branch) ||
+		stateRefPattern.MatchString(branch)
 }
 
 // ResolveTreePath walks exact non-recursive Git trees so publication never
@@ -991,192 +645,6 @@ func (client *Client) CommitAttribution(
 	}, nil
 }
 
-// WorkflowRun reads one Actions run and its exact tested SHA.
-func (client *Client) WorkflowRun(ctx context.Context, id int64) (WorkflowRunFacts, error) {
-	if id <= 0 {
-		return WorkflowRunFacts{}, errors.New("workflow run ID is invalid")
-	}
-	var payload struct {
-		ID           int64    `json:"id"`
-		Name         string   `json:"name"`
-		Path         string   `json:"path"`
-		DisplayTitle string   `json:"display_title"`
-		Event        string   `json:"event"`
-		Status       string   `json:"status"`
-		Conclusion   string   `json:"conclusion"`
-		HeadBranch   string   `json:"head_branch"`
-		HeadSHA      string   `json:"head_sha"`
-		RunAttempt   int      `json:"run_attempt"`
-		CreatedAt    jsonTime `json:"created_at"`
-	}
-	if err := client.getJSON(
-		ctx,
-		"/repos/"+client.repository+"/actions/runs/"+strconv.FormatInt(id, 10),
-		&payload,
-	); err != nil {
-		return WorkflowRunFacts{}, err
-	}
-	if payload.ID != id {
-		return WorkflowRunFacts{}, errors.New("GitHub workflow run identity is invalid")
-	}
-	if payload.Name == "" || payload.Path == "" || payload.DisplayTitle == "" ||
-		payload.Event == "" || payload.Status == "" || payload.RunAttempt <= 0 {
-		return WorkflowRunFacts{}, errors.New("GitHub workflow run metadata is invalid")
-	}
-	if !gitObjectPattern.MatchString(payload.HeadSHA) {
-		return WorkflowRunFacts{}, errors.New("GitHub workflow run head SHA is invalid")
-	}
-	return WorkflowRunFacts{
-		ID: payload.ID, Name: payload.Name, Path: payload.Path,
-		DisplayTitle: payload.DisplayTitle, Event: payload.Event,
-		Status: payload.Status, Conclusion: payload.Conclusion,
-		HeadBranch: payload.HeadBranch, HeadSHA: payload.HeadSHA,
-		RunAttempt: payload.RunAttempt,
-		CreatedAt:  payload.CreatedAt.Time,
-	}, nil
-}
-
-// CompletedWorkflowRunsSince returns a complete bounded inventory of completed
-// dispatches for one protected workflow since the current signed lease began.
-func (client *Client) CompletedWorkflowRunsSince(
-	ctx context.Context,
-	workflowFile string,
-	since time.Time,
-) ([]WorkflowRunFacts, error) {
-	if client == nil || workflowFile != "issue-agent-run.yml" ||
-		since.IsZero() || !since.Equal(since.UTC()) {
-		return nil, errors.New("workflow run inventory request is invalid")
-	}
-	lowerBound := since.UTC().Truncate(time.Second)
-	path := "/repos/" + client.repository + "/actions/workflows/" +
-		workflowFile + "/runs"
-	workflowPath := ".github/workflows/" + workflowFile
-	result := make([]WorkflowRunFacts, 0)
-	totalCount := -1
-	for page := 1; page <= client.maxPages; page++ {
-		endpoint := client.endpoint(path)
-		query := endpoint.Query()
-		query.Set("created", ">="+lowerBound.Format(time.RFC3339))
-		query.Set("event", "workflow_dispatch")
-		query.Set("status", "completed")
-		query.Set("per_page", "100")
-		query.Set("page", strconv.Itoa(page))
-		endpoint.RawQuery = query.Encode()
-		var payload struct {
-			TotalCount   int `json:"total_count"`
-			WorkflowRuns []struct {
-				ID           int64    `json:"id"`
-				Name         string   `json:"name"`
-				Path         string   `json:"path"`
-				DisplayTitle string   `json:"display_title"`
-				Event        string   `json:"event"`
-				Status       string   `json:"status"`
-				Conclusion   string   `json:"conclusion"`
-				HeadBranch   string   `json:"head_branch"`
-				HeadSHA      string   `json:"head_sha"`
-				RunAttempt   int      `json:"run_attempt"`
-				CreatedAt    jsonTime `json:"created_at"`
-			} `json:"workflow_runs"`
-		}
-		next, err := client.getJSONPage(ctx, endpoint, &payload)
-		if err != nil {
-			return nil, err
-		}
-		if payload.TotalCount < 0 || payload.TotalCount > 1000 ||
-			len(payload.WorkflowRuns) > 100 {
-			return nil, errors.New("GitHub workflow run inventory is invalid")
-		}
-		if totalCount < 0 {
-			totalCount = payload.TotalCount
-		} else if totalCount != payload.TotalCount {
-			return nil, errors.New("GitHub workflow run inventory changed during pagination")
-		}
-		for _, run := range payload.WorkflowRuns {
-			if run.ID <= 0 || run.Name == "" || run.Path == "" ||
-				run.DisplayTitle == "" || run.Event != "workflow_dispatch" ||
-				run.Status != "completed" || run.Conclusion == "" ||
-				run.HeadBranch != "main" ||
-				run.Path != workflowPath &&
-					run.Path != workflowPath+"@main" &&
-					run.Path != workflowPath+"@refs/heads/main" ||
-				!gitObjectPattern.MatchString(run.HeadSHA) ||
-				run.RunAttempt <= 0 ||
-				run.CreatedAt.Time.Before(lowerBound) {
-				return nil, errors.New("GitHub workflow run inventory item is invalid")
-			}
-			result = append(result, WorkflowRunFacts{
-				ID: run.ID, Name: run.Name, Path: run.Path,
-				DisplayTitle: run.DisplayTitle, Event: run.Event,
-				Status: run.Status, Conclusion: run.Conclusion,
-				HeadBranch: run.HeadBranch, HeadSHA: run.HeadSHA,
-				RunAttempt: run.RunAttempt,
-				CreatedAt:  run.CreatedAt.Time,
-			})
-		}
-		if next == nil {
-			if len(result) != totalCount {
-				return nil, errors.New("GitHub workflow run count mismatch")
-			}
-			return result, nil
-		}
-		if page == client.maxPages ||
-			next.Scheme != client.baseURL.Scheme ||
-			next.Host != client.baseURL.Host ||
-			next.Path != endpoint.Path ||
-			next.Query().Get("created") != query.Get("created") ||
-			next.Query().Get("event") != "workflow_dispatch" ||
-			next.Query().Get("status") != "completed" ||
-			next.Query().Get("per_page") != "100" ||
-			next.Query().Get("page") != strconv.Itoa(page+1) ||
-			len(next.Query()) != 5 {
-			return nil, errors.New("GitHub workflow run pagination is outside request scope")
-		}
-	}
-	return nil, errors.New("GitHub workflow run pagination did not terminate")
-}
-
-// RunArtifacts reads and count-checks one run's Artifact inventory.
-func (client *Client) RunArtifacts(ctx context.Context, id int64) ([]ArtifactFacts, error) {
-	if id <= 0 {
-		return nil, errors.New("workflow run ID is invalid")
-	}
-	var payload struct {
-		TotalCount int `json:"total_count"`
-		Artifacts  []struct {
-			ID                 int64  `json:"id"`
-			Name               string `json:"name"`
-			SizeInBytes        int64  `json:"size_in_bytes"`
-			Expired            bool   `json:"expired"`
-			ArchiveDownloadURL string `json:"archive_download_url"`
-		} `json:"artifacts"`
-	}
-	if err := client.getJSON(
-		ctx,
-		"/repos/"+client.repository+"/actions/runs/"+strconv.FormatInt(id, 10)+"/artifacts",
-		&payload,
-	); err != nil {
-		return nil, err
-	}
-	if payload.TotalCount != len(payload.Artifacts) || payload.TotalCount > 100 {
-		return nil, errors.New("GitHub Artifact count mismatch")
-	}
-	result := make([]ArtifactFacts, 0, len(payload.Artifacts))
-	for _, artifact := range payload.Artifacts {
-		download, err := url.Parse(artifact.ArchiveDownloadURL)
-		if artifact.ID <= 0 || artifact.Name == "" || artifact.SizeInBytes < 0 ||
-			err != nil || download.Scheme != client.baseURL.Scheme ||
-			download.Host != client.baseURL.Host {
-			return nil, errors.New("GitHub Artifact response is invalid")
-		}
-		result = append(result, ArtifactFacts{
-			ID: artifact.ID, Name: artifact.Name,
-			SizeInBytes: artifact.SizeInBytes, Expired: artifact.Expired,
-			DownloadURL: artifact.ArchiveDownloadURL,
-		})
-	}
-	return result, nil
-}
-
 func (client *Client) getJSON(ctx context.Context, path string, output any) error {
 	if client == nil {
 		return errors.New("GitHub client is nil")
@@ -1192,69 +660,6 @@ func (client *Client) getJSON(ctx context.Context, path string, output any) erro
 	return nil
 }
 
-func (client *Client) getAllPages(ctx context.Context, path string, output any) error {
-	switch target := output.(type) {
-	case *[]struct {
-		ID       int64  `json:"id"`
-		State    string `json:"state"`
-		CommitID string `json:"commit_id"`
-		User     struct {
-			Login string `json:"login"`
-		} `json:"user"`
-	}:
-		return collectPages(client, ctx, path, target)
-	case *[]struct {
-		Filename         string `json:"filename"`
-		PreviousFilename string `json:"previous_filename"`
-		Status           string `json:"status"`
-		SHA              string `json:"sha"`
-		Additions        int    `json:"additions"`
-		Deletions        int    `json:"deletions"`
-		Changes          int    `json:"changes"`
-	}:
-		return collectPages(client, ctx, path, target)
-	default:
-		return errors.New("unsupported GitHub pagination target")
-	}
-}
-
-func collectPages[T any](
-	client *Client,
-	ctx context.Context,
-	path string,
-	target *[]T,
-) error {
-	for page := 1; page <= client.maxPages; page++ {
-		endpoint := client.endpoint(path)
-		query := endpoint.Query()
-		query.Set("per_page", "100")
-		query.Set("page", strconv.Itoa(page))
-		endpoint.RawQuery = query.Encode()
-		var current []T
-		next, err := client.getJSONPage(ctx, endpoint, &current)
-		if err != nil {
-			return err
-		}
-		if len(current) > 100 {
-			return errors.New("GitHub page exceeds item limit")
-		}
-		*target = append(*target, current...)
-		if next == nil {
-			return nil
-		}
-		if page == client.maxPages ||
-			next.Scheme != client.baseURL.Scheme ||
-			next.Host != client.baseURL.Host ||
-			next.Path != endpoint.Path ||
-			next.Query().Get("per_page") != "100" ||
-			next.Query().Get("page") != strconv.Itoa(page+1) ||
-			len(next.Query()) != 2 {
-			return errors.New("GitHub pagination is outside request scope")
-		}
-	}
-	return errors.New("GitHub pagination did not terminate")
-}
-
 func validBranchName(value string) bool {
 	return value != "" && len(value) <= 255 && !strings.Contains(value, "..") &&
 		!strings.ContainsAny(value, "~^:?*[\\ \t\r\n") &&
@@ -1268,8 +673,4 @@ func validRepositoryPath(value string) bool {
 		!strings.ContainsRune(value, 0) &&
 		!strings.Contains("/"+value+"/", "/../") &&
 		!strings.Contains("/"+value+"/", "/./")
-}
-
-func readerError(kind string, value any) error {
-	return fmt.Errorf("invalid GitHub %s: %v", kind, value)
 }
