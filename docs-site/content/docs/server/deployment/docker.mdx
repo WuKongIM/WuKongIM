@@ -1,0 +1,90 @@
+---
+title: Docker 部署
+description: 从当前源码构建 WuKongIM 镜像，验证开发 Compose，并建立容器运行合同。
+---
+
+仓库 `Dockerfile` 会从当前源码构建 `wukongim`、`wkbench`、`wkanalysis` 和 `wkcloudsim`，运行镜像默认执行：
+
+```text
+/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+```
+
+<Callout type="warn" title="没有隐含的官方镜像">
+  本页使用从已审阅源码构建的本地镜像。不要把示例标签 `wukongim:local` 当成官方仓库、版本或供应链保证。
+</Callout>
+
+## 验证仓库三节点环境
+
+```bash
+docker compose up -d --build
+docker compose ps
+
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
+curl --fail http://127.0.0.1:15002/readyz
+curl --fail http://127.0.0.1:15003/readyz
+```
+
+该环境包含三个节点、Prometheus 和 Grafana。节点数据默认写入 `docker/dev-cluster/node*`，也可以通过 `WK_NODE1_DATA_MOUNT`、`WK_NODE2_DATA_MOUNT` 和 `WK_NODE3_DATA_MOUNT` 指向独立设备。
+
+它同时包含固定 Manager/Grafana 凭据、启用的 Benchmark、Debug 和诊断能力以及主机端口映射，只能作为开发验证环境。
+
+## 构建固定制品
+
+```bash
+git rev-parse HEAD
+docker build --pull -t wukongim:local .
+docker image inspect wukongim:local --format '{{.Id}}'
+```
+
+生产流水线应把提交 SHA、构建器版本和镜像摘要记录到发布清单，并让所有节点使用同一摘要。是否推送到私有仓库以及如何签名、扫描和保留镜像由部署平台负责。
+
+## 运行单节点集群容器
+
+先从 `wukongim.toml.example` 创建 `deploy/node1.toml`，至少调整：
+
+| 配置 | 容器值或要求 |
+| --- | --- |
+| `node.data_dir` | `/var/lib/wukongim` |
+| `cluster.listen_addr` | `0.0.0.0:7000` |
+| `cluster.nodes` | 使用可解析容器名或内网地址，不能写 `0.0.0.0` |
+| `api.listen_addr`、`manager.listen_addr` | 容器内需要监听时使用 `0.0.0.0` |
+| `api.external_*` | 写客户端实际可达的 TCP、WS 或 WSS 地址 |
+| Manager/Join 凭据 | 替换全部示例值 |
+| `bench.api_enable`、`observability.debug_api_enable` | 生产默认关闭 |
+| `plugin.socket_path` | `/run/wukongim/plugin.sock` |
+
+然后运行：
+
+```bash
+docker network create wukongim
+docker volume create wukongim-node1-data
+
+docker run -d \
+  --name wukongim-node1 \
+  --network wukongim \
+  --restart unless-stopped \
+  --mount type=bind,src="$PWD/deploy/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --mount type=volume,src=wukongim-node1-data,dst=/var/lib/wukongim \
+  --tmpfs /run/wukongim:rw,noexec,nosuid,size=16m \
+  -p 5001:5001 \
+  -p 5100:5100 \
+  -p 5200:5200 \
+  -p 127.0.0.1:5301:5301 \
+  wukongim:local
+
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+Manager 在示例中只绑定到宿主机回环地址。节点 Transport `7000` 留在容器网络内；若节点跨主机部署，应改用受保护且互相可达的内网。
+
+## 容器边界
+
+- 配置只读挂载；敏感值通过部署平台的秘密能力注入，并验证 `WK_*` 完整覆盖规则。
+- 每个节点使用独立 Volume 或独立磁盘。容器重建不能删除节点数据。
+- `/run/wukongim` 是临时运行目录，用于 Unix Socket，不应持久化。
+- 只把 API/Gateway 暴露给需要的网络；Manager、指标和 Transport 保持内网。
+- 使用 `/readyz` 控制流量，使用 `SIGTERM` 并给应用足够的优雅停止时间。
+- 不要用 `docker compose down -v` 处理需要保留的数据。
+
+多节点生产规划继续阅读[多节点集群](/zh/server/deployment/multi-node)。

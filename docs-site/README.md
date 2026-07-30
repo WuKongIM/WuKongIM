@@ -6,7 +6,9 @@ bilingual shell and complete menu plan. Phase 2 publishes the first complete
 onboarding path: product orientation, core concepts, source-based single-node
 cluster startup, two-way message verification, and basic configuration. Phase 3
 publishes the business-integration path: responsibility boundaries,
-authentication constraints, messaging, and webhooks.
+authentication constraints, messaging, and webhooks. Phase 4 publishes the
+server-deployment path: deployment selection, source-built Docker and Linux
+artifacts, static multi-node planning, readiness, and production checks.
 
 ## Develop
 
@@ -43,4 +45,5 @@ from sitemap and LLM outputs.
 
 See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
 `PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
-business-integration scope.
+business-integration scope. `PHASE_4_SPEC.md` defines the server-deployment
+scope.

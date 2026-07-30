@@ -226,6 +226,10 @@
 - Public documentation uses the canonical bilingual routes `/{zh|en}/{guide|server|sdk|api}`. Both languages share one navigation registry in `docs-site/lib/navigation.ts`.
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
+- Public deployment guidance treats the root Compose stack as development-only
+  and builds artifacts from reviewed source without promising an official image
+  registry or tag. Traffic admission uses `/readyz`, not process-level
+  `/healthz`; Kubernetes remains a planned route.
 
 ### E2E profiling
 - API `/debug...` routes are exposed only when `WK_DEBUG_API_ENABLE=true`; e2e profile scenarios should enable it with node config overrides and fetch `/debug/pprof/*` through the real API listener.

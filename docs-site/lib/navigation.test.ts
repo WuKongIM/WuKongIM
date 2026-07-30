@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { isValidElement } from 'react';
 import {
   domains,
   getAllNavigationEntries,
@@ -104,6 +105,12 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/integration/messaging`,
         `/${locale}/guide/integration/webhooks`,
         `/${locale}/server`,
+        `/${locale}/server/deployment`,
+        `/${locale}/server/deployment/choosing`,
+        `/${locale}/server/deployment/docker`,
+        `/${locale}/server/deployment/linux`,
+        `/${locale}/server/deployment/multi-node`,
+        `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
         `/${locale}/sdk`,
         `/${locale}/api`,
@@ -131,6 +138,17 @@ describe('documentation navigation contract', () => {
     const tree = buildPageTree('zh', 'guide');
     const overview = tree.children[0];
     const folders = tree.children.filter((node) => node.type === 'folder');
+    const serverTree = buildPageTree('zh', 'server');
+    const deployment = serverTree.children.find(
+      (node) => node.type === 'folder' && node.index?.url === '/zh/server/deployment',
+    );
+    const kubernetes =
+      deployment?.type === 'folder'
+        ? deployment.children.find(
+            (node) =>
+              node.type === 'page' && node.url === '/zh/server/deployment/kubernetes',
+          )
+        : undefined;
 
     expect(overview.type).toBe('page');
     if (overview.type === 'page') expect(overview.url).toBe('/zh/guide');
@@ -147,6 +165,13 @@ describe('documentation navigation contract', () => {
       '/en/sdk',
       '/en/api',
     ]);
+    expect(kubernetes?.type).toBe('page');
+    if (kubernetes?.type === 'page') {
+      expect(isValidElement(kubernetes.name)).toBe(true);
+      if (isValidElement(kubernetes.name)) {
+        expect(kubernetes.name.key).toBe('planned:zh:Kubernetes 部署（Beta）');
+      }
+    }
   });
 
   test('fails closed when MDX content is not marked as published', () => {
@@ -158,6 +183,10 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);

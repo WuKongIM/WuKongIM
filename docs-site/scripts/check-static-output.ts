@@ -19,12 +19,18 @@ for (const locale of locales) {
   }
 }
 
-const planned = await text('zh/guide/integration/plugins/index.html');
-if (!planned.includes('<meta name="robots" content="noindex, follow"/>')) {
-  throw new Error('planned pages must carry a noindex directive');
+const plannedRoutes = locales.flatMap((locale) => [
+  `/${locale}/guide/integration/plugins`,
+  `/${locale}/server/deployment/kubernetes`,
+]);
+for (const route of plannedRoutes) {
+  const planned = await text(`${route.slice(1)}/index.html`);
+  if (!planned.includes('<meta name="robots" content="noindex, follow"/>')) {
+    throw new Error(`planned page must carry a noindex directive: ${route}`);
+  }
 }
 
-const published = await text('zh/guide/integration/messaging/index.html');
+const published = await text('zh/server/deployment/multi-node/index.html');
 if (published.includes('<meta name="robots" content="noindex')) {
   throw new Error('published pages must be indexable');
 }
@@ -41,8 +47,10 @@ if (actualSitemapPaths.sort().join('\n') !== expectedSitemapPaths.sort().join('\
     `sitemap routes differ from the publication registry:\n${actualSitemapPaths.join('\n')}`,
   );
 }
-if (sitemap.includes('/integration/plugins')) {
-  throw new Error('planned pages must not appear in sitemap.xml');
+for (const route of plannedRoutes) {
+  if (sitemap.includes(route)) {
+    throw new Error(`planned page must not appear in sitemap.xml: ${route}`);
+  }
 }
 
 const llms = `${await text('llms.txt')}\n${await text('llms-full.txt')}`;
@@ -54,12 +62,12 @@ for (const locale of locales) {
     await text(`llms.mdx${entry.url}/content.md`);
   }
 }
-if (llms.includes('/integration/plugins')) {
-  throw new Error('planned pages must not appear in LLM outputs');
-}
-for (const locale of locales) {
-  if (await exists(`llms.mdx/${locale}/guide/integration/plugins/content.md`)) {
-    throw new Error(`${locale} planned page has per-page Markdown output`);
+for (const route of plannedRoutes) {
+  if (llms.includes(route)) {
+    throw new Error(`planned page must not appear in LLM outputs: ${route}`);
+  }
+  if (await exists(`llms.mdx${route}/content.md`)) {
+    throw new Error(`planned page has per-page Markdown output: ${route}`);
   }
 }
 
@@ -84,7 +92,8 @@ for (const locale of locales) {
       throw new Error(`${locale} search index is missing ${entry.url}`);
     }
   }
-  if (ids.some((id) => id.includes('/integration/plugins'))) {
+  const localePlannedRoutes = plannedRoutes.filter((route) => route.startsWith(`/${locale}/`));
+  if (ids.some((id) => localePlannedRoutes.includes(id))) {
     throw new Error(`${locale} search index contains a planned page`);
   }
 }

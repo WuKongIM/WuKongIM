@@ -1,0 +1,90 @@
+---
+title: Docker
+description: Build a WuKongIM image from the current source, verify development Compose, and establish the container runtime contract.
+---
+
+The repository `Dockerfile` builds `wukongim`, `wkbench`, `wkanalysis`, and `wkcloudsim` from the current source. The runtime image defaults to:
+
+```text
+/usr/local/bin/wukongim -config /etc/wukongim/wukongim.toml
+```
+
+<Callout type="warn" title="No implied official image">
+  This page uses a local image built from reviewed source. Do not treat the example `wukongim:local` tag as an official registry, version, or supply-chain guarantee.
+</Callout>
+
+## Verify the repository three-node environment
+
+```bash
+docker compose up -d --build
+docker compose ps
+
+curl --retry 30 --retry-delay 2 --retry-all-errors --fail \
+  http://127.0.0.1:15001/readyz
+curl --fail http://127.0.0.1:15002/readyz
+curl --fail http://127.0.0.1:15003/readyz
+```
+
+The environment includes three nodes, Prometheus, and Grafana. Node data defaults to `docker/dev-cluster/node*`; `WK_NODE1_DATA_MOUNT`, `WK_NODE2_DATA_MOUNT`, and `WK_NODE3_DATA_MOUNT` can point at independent devices.
+
+It also includes fixed Manager/Grafana credentials, enabled benchmark, debug, and diagnostic capabilities, and host port mappings. It is only a development validation environment.
+
+## Build a pinned artifact
+
+```bash
+git rev-parse HEAD
+docker build --pull -t wukongim:local .
+docker image inspect wukongim:local --format '{{.Id}}'
+```
+
+A production pipeline should record the commit SHA, builder version, and image digest in its release manifest and run every node from the same digest. The deployment platform owns private-registry publication, signing, scanning, and retention.
+
+## Run a single-node cluster container
+
+Create `deploy/node1.toml` from `wukongim.toml.example` and adjust at least:
+
+| Setting | Container value or requirement |
+| --- | --- |
+| `node.data_dir` | `/var/lib/wukongim` |
+| `cluster.listen_addr` | `0.0.0.0:7000` |
+| `cluster.nodes` | Use resolvable container names or private addresses, never `0.0.0.0` |
+| `api.listen_addr`, `manager.listen_addr` | Use `0.0.0.0` when the service must listen inside the container |
+| `api.external_*` | Set the TCP, WS, or WSS addresses clients can actually reach |
+| Manager/join credentials | Replace every example value |
+| `bench.api_enable`, `observability.debug_api_enable` | Disable by default in production |
+| `plugin.socket_path` | `/run/wukongim/plugin.sock` |
+
+Then run:
+
+```bash
+docker network create wukongim
+docker volume create wukongim-node1-data
+
+docker run -d \
+  --name wukongim-node1 \
+  --network wukongim \
+  --restart unless-stopped \
+  --mount type=bind,src="$PWD/deploy/node1.toml",dst=/etc/wukongim/wukongim.toml,readonly \
+  --mount type=volume,src=wukongim-node1-data,dst=/var/lib/wukongim \
+  --tmpfs /run/wukongim:rw,noexec,nosuid,size=16m \
+  -p 5001:5001 \
+  -p 5100:5100 \
+  -p 5200:5200 \
+  -p 127.0.0.1:5301:5301 \
+  wukongim:local
+
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+The example binds Manager only to the host loopback address. Node transport port `7000` remains inside the container network. For nodes on different hosts, use a protected, mutually reachable private network instead.
+
+## Container boundaries
+
+- Mount configuration read-only. Inject sensitive values through the deployment platform's secret capability and verify complete `WK_*` replacement semantics.
+- Give every node an independent volume or disk. Recreating a container must not delete node data.
+- `/run/wukongim` is ephemeral runtime state for Unix sockets and must not be persisted.
+- Expose only API/Gateway to required networks; keep Manager, metrics, and transport private.
+- Gate traffic on `/readyz`, send `SIGTERM`, and provide enough time for graceful shutdown.
+- Do not use `docker compose down -v` for data that must survive.
+
+For production multi-node planning, continue to [Multi-node Cluster](/en/server/deployment/multi-node).
