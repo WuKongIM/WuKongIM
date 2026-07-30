@@ -183,6 +183,7 @@ jobs:
           effort: high
           sandbox: workspace-write
           safety-strategy: drop-sudo
+          allow-bot-users: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
           codex-args: '["--ephemeral","--output-schema","${{ runner.temp }}/engineer-result.schema.json","-c","sandbox_workspace_write.network_access=true"]'
       - name: Capture candidate without trusting Git
         if: always()
@@ -271,82 +272,3 @@ jobs:
           path: ${{ runner.temp }}/candidate-evidence.json
           if-no-files-found: error
           retention-days: 2
-
-  publisher:
-    name: Publish exact Draft PR
-    needs: [context-builder, engineer, verifier]
-    if: always()
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: issue-agent-publisher
-    permissions:
-      contents: read
-    concurrency:
-      group: issue-agent-state-${{ inputs.repository }}
-      cancel-in-progress: false
-    env:
-      ISSUE_AGENT_PRIVATE_KEY_SECRET: ISSUE_AGENT_APP_PRIVATE_KEY
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ inputs.control_sha }}
-          persist-credentials: false
-      - name: Download Context Bundle
-        continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
-        with:
-          name: issue-agent-context-${{ inputs.issue_number }}
-          path: ${{ runner.temp }}/issue-agent-context
-      - name: Download candidate and advisory result
-        continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
-        with:
-          name: issue-agent-candidate-${{ inputs.issue_number }}
-          path: ${{ runner.temp }}/issue-agent-candidate
-      - name: Download trusted evidence
-        continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
-        with:
-          name: issue-agent-evidence-${{ inputs.issue_number }}
-          path: ${{ runner.temp }}/issue-agent-evidence
-      - name: Build protected Publisher
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
-      - name: Mint short-lived repository-scoped App token
-        shell: bash
-        env:
-          ISSUE_AGENT_APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
-          ISSUE_AGENT_APP_INSTALLATION_ID: ${{ vars.ISSUE_AGENT_APP_INSTALLATION_ID }}
-          ISSUE_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
-          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets[env.ISSUE_AGENT_PRIVATE_KEY_SECRET] }}
-        run: |
-          set -euo pipefail
-          jq -n --arg repository "${{ inputs.repository }}" \
-            '{repository:$repository}' >"$RUNNER_TEMP/mint.json"
-          "$RUNNER_TEMP/wkissueagent" mint-app-token \
-            --input "$RUNNER_TEMP/mint.json" >"$RUNNER_TEMP/app-token.json"
-          app_token="$(jq -er .token "$RUNNER_TEMP/app-token.json")"
-          echo "::add-mask::$app_token"
-          printf 'ISSUE_AGENT_GITHUB_TOKEN=%s\n' "$app_token" >>"$GITHUB_ENV"
-      - name: Publish without executing candidate code
-        shell: bash
-        env:
-          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
-        run: |
-          set -euo pipefail
-          jq -n \
-            --arg repository "${{ inputs.repository }}" \
-            --argjson issue_number "${{ inputs.issue_number }}" \
-            --arg control_sha "${{ inputs.control_sha }}" \
-            --arg expected_state_head "${{ inputs.state_head_sha }}" \
-            --arg context "$RUNNER_TEMP/issue-agent-context/context-bundle.json" \
-            --arg engineer "$RUNNER_TEMP/issue-agent-candidate/engineer-result.json" \
-            --arg candidate "$RUNNER_TEMP/issue-agent-candidate/candidate.json" \
-            --arg evidence "$RUNNER_TEMP/issue-agent-evidence/candidate-evidence.json" \
-            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{repository:$repository,issue_number:$issue_number,control_sha:$control_sha,
-              expected_state_head:$expected_state_head,context_path:$context,
-              engineer_result_path:$engineer,candidate_path:$candidate,
-              evidence_path:$evidence,now:$now}' >"$RUNNER_TEMP/publish.json"
-          "$RUNNER_TEMP/wkissueagent" publish-candidate \
-            --input "$RUNNER_TEMP/publish.json"

@@ -99,6 +99,11 @@ modes, symlink changes, oversized scope, unexpected
 post-test filesystem changes, or failed trusted commands. It has no model key
 and no Publisher credential.
 
+The reusable Engineer workflow ends at the Verifier. The always-running
+Publisher is a job in the top-level protected Controller workflow so its
+`issue-agent-publisher` Environment secret resolves directly; that private key
+is not passed into the reusable workflow.
+
 Only low-risk passing `CandidateEvidence` can be published. Invalid, missing,
 non-ready, or rejected task output is finalized as `needs_human` without
 writing candidate code. The scheduled Controller also finalizes any active

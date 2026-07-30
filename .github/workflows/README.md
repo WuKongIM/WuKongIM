@@ -27,7 +27,7 @@ for discovery and may become more specific over time.
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
 | `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue/PR hints and the bounded five-minute sweep from fresh GitHub facts | Controller writes only through the protected Publisher environment |
 | `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Converts PR lifecycle and Review events into a credential-free completed run that wakes the default-branch Controller | No token permissions, Secrets, checkout, artifacts, or candidate execution |
-| `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, clean Verifier, and Publisher chain | OpenAI and Publisher credentials remain in separate jobs |
+| `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain | Only the Codex job receives the OpenAI key; the caller-owned Publisher remains separate |
 
 ## GitHub Issue Agent rollout
 
@@ -36,8 +36,10 @@ serializes all repository reconciliation and calls the reusable Engineer
 workflow. Controller and Publisher writes share one repository-wide
 concurrency group; credential-free engineering and verification can run in
 parallel for different Issues.
-The latter executes `recover-task -> context-builder -> engineer -> verifier
--> publisher`.
+The reusable workflow executes
+`recover-task -> context-builder -> engineer -> verifier`. The caller-owned
+Publisher then always finalizes an accepted task from the protected
+`issue-agent-publisher` Environment, including failed engineering attempts.
 
 PR lifecycle and Review events pass through
 `issue-agent-pr-signal.yml`. The Signal has no authority and executes no
