@@ -1,0 +1,41 @@
+---
+title: 集成指南
+description: 从业务系统视角完成 WuKongIM 接入。
+---
+
+WuKongIM 负责实时连接、频道消息、持久化、集群路由和在线投递；你的业务服务仍然负责账号、权限、业务关系、内容治理和最终业务动作。
+
+<Callout type="warn" title="先确认当前安全边界">
+  当前 v3 Beta 应用会完成 CONNECT 协议协商和会话加密，但默认组合尚未启用已存储 Token 的连接校验。产品 HTTP 接口也不包含业务鉴权中间件。生产接入必须把这些接口放在受信网络或经过鉴权的反向代理之后，并在上线前补齐连接身份校验。
+</Callout>
+
+## 推荐集成路径
+
+<Cards>
+  <Card title="集成架构" description="划分客户端、业务服务和 WuKongIM 集群的职责。" href="/zh/guide/integration/architecture" />
+  <Card title="身份认证" description="设计 UID、设备、Token、连接和撤销生命周期。" href="/zh/guide/integration/authentication" />
+  <Card title="消息收发" description="理解客户端和服务端消息路径、确认与恢复边界。" href="/zh/guide/integration/messaging" />
+  <Card title="Webhook" description="安全、幂等地消费消息和在线状态事件。" href="/zh/guide/integration/webhooks" />
+</Cards>
+
+## 最小业务闭环
+
+1. 用户先登录你的业务服务，而不是直接向 WuKongIM 证明业务身份。
+2. 业务服务为会话分配稳定 UID、设备标识和短生命周期凭据。
+3. 客户端获取路由并通过 SDK 或协议实现连接 Gateway。
+4. 客户端或受信业务服务发送消息，并检查协议级结果。
+5. 业务服务通过 Webhook 接收异步事件，把副作用写入自己的可靠队列。
+6. 断线后由客户端 SDK 重连并恢复消息，不把 Webhook 当作客户端收件箱。
+
+## 上线前检查
+
+| 领域 | 必须由你确认 |
+| --- | --- |
+| 身份 | UID 来源唯一，Token 不由不可信客户端自行签发 |
+| 网络 | HTTP 产品接口不直接暴露公网，Gateway 使用受控入口 |
+| 权限 | 好友、群成员、黑白名单和内容策略由业务规则驱动 |
+| 消息 | 业务定义 Payload 版本，发送方保存 `client_msg_no` |
+| 回调 | 接收端先持久化再返回 200，处理逻辑可重复执行 |
+| 运维 | 监控队列压力、失败、重试耗尽和端到端延迟 |
+
+插件扩展仍处于规划阶段。先使用稳定的服务端接口与 Webhook 完成边界清晰的集成。

@@ -8,6 +8,10 @@ async function text(path: string) {
   return file.text();
 }
 
+async function exists(path: string) {
+  return Bun.file(new URL(path, out)).exists();
+}
+
 for (const locale of locales) {
   await text(`${locale}/index.html`);
   for (const domain of domains) {
@@ -15,12 +19,12 @@ for (const locale of locales) {
   }
 }
 
-const planned = await text('zh/guide/tutorials/direct-chat/index.html');
+const planned = await text('zh/guide/integration/plugins/index.html');
 if (!planned.includes('<meta name="robots" content="noindex, follow"/>')) {
   throw new Error('planned pages must carry a noindex directive');
 }
 
-const published = await text('zh/guide/quick-start/first-message/index.html');
+const published = await text('zh/guide/integration/messaging/index.html');
 if (published.includes('<meta name="robots" content="noindex')) {
   throw new Error('published pages must be indexable');
 }
@@ -37,7 +41,7 @@ if (actualSitemapPaths.sort().join('\n') !== expectedSitemapPaths.sort().join('\
     `sitemap routes differ from the publication registry:\n${actualSitemapPaths.join('\n')}`,
   );
 }
-if (sitemap.includes('/tutorials/direct-chat')) {
+if (sitemap.includes('/integration/plugins')) {
   throw new Error('planned pages must not appear in sitemap.xml');
 }
 
@@ -47,10 +51,16 @@ for (const locale of locales) {
     if (!llms.includes(entry.url)) {
       throw new Error(`missing published LLM route: ${entry.url}`);
     }
+    await text(`llms.mdx${entry.url}/content.md`);
   }
 }
-if (llms.includes('/tutorials/direct-chat')) {
+if (llms.includes('/integration/plugins')) {
   throw new Error('planned pages must not appear in LLM outputs');
+}
+for (const locale of locales) {
+  if (await exists(`llms.mdx/${locale}/guide/integration/plugins/content.md`)) {
+    throw new Error(`${locale} planned page has per-page Markdown output`);
+  }
 }
 
 const search = JSON.parse(await text('api/search')) as {
@@ -74,7 +84,7 @@ for (const locale of locales) {
       throw new Error(`${locale} search index is missing ${entry.url}`);
     }
   }
-  if (ids.some((id) => id.includes('/tutorials/direct-chat'))) {
+  if (ids.some((id) => id.includes('/integration/plugins'))) {
     throw new Error(`${locale} search index contains a planned page`);
   }
 }

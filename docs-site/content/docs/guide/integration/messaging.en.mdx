@@ -1,0 +1,100 @@
+---
+title: Messaging
+description: Connect sending, receiving, acknowledgements, reconnects, and offline recovery.
+---
+
+Most product systems use both a long-lived client connection and a trusted server-side HTTP entry. Both converge on the same message use case and channel-authority append path.
+
+## Client message path
+
+```text
+SDK SEND
+  -> Gateway
+  -> message permission checks
+  -> resolve channel append authority
+  -> durable Channel append
+  -> SENDACK
+  -> post-commit online delivery
+  -> receiver RECV + RECVACK
+```
+
+Important semantics:
+
+- `message_seq` is a position within one channel, not a global order.
+- `message_id` is assigned by the server.
+- The sender generates and retains `client_msg_no` for request correlation and retry tracking.
+- The sender must inspect the SENDACK or HTTP `reason`; transport success alone is insufficient.
+- For default persistent messages, online delivery and other post-commit effects do not extend an already-completed durable acknowledgement.
+- Explicit `no_persist` messages use a realtime, non-durable path; a successful acknowledgement does not make them recoverable from durable history.
+
+## Server-side send
+
+A trusted product service can call `POST /message/send`. `payload` must be Base64:
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid": "system",
+    "channel_id": "u1001",
+    "channel_type": 1,
+    "client_msg_no": "order-20260730-0001",
+    "payload": "eyJ0eXBlIjoib3JkZXJfdXBkYXRlIiwidGV4dCI6IlNoaXBwZWQifQ=="
+  }'
+```
+
+Example compatible response for an accepted commit:
+
+```json
+{
+  "message_id": 123456789,
+  "message_seq": 42,
+  "reason": 1
+}
+```
+
+<Callout type="warn" title="HTTP 200 is not the business result">
+  `reason` is a protocol Reason Code. Callers must distinguish success, retryable outcomes, rejection, and route changes. The complete Reason Code dictionary belongs to the API reference phase.
+</Callout>
+
+Do not let browsers or mobile apps call this server route directly. Current product HTTP routes have no product-authentication middleware and must be called by a trusted service through a private network or protected proxy.
+
+## Payload contract
+
+WuKongIM transports payload bytes; it does not define your product schema. Prefer a versioned envelope:
+
+```json
+{
+  "version": 1,
+  "type": "order_update",
+  "body": {
+    "order_id": "o-10001",
+    "status": "shipped"
+  }
+}
+```
+
+Receivers should ignore unknown fields and safely degrade on unknown `type` values. Never put server secrets, access tokens, or unnecessary personal data in message payloads.
+
+## Acknowledgement and side-effect boundary
+
+After a successful SENDACK for a persistent message, these activities may still run independently:
+
+- online-recipient delivery;
+- conversation activity projection;
+- webhook admission and delivery;
+- enabled plugin post-commit hooks.
+
+A failure in these effects does not undo the durable message. Business actions that require stronger consistency must be orchestrated by the product service using its own database and idempotency keys; do not assume webhook delivery and SENDACK are one transaction.
+
+## Reconnect and offline recovery
+
+The client SDK should own connection state, backoff, and message synchronization:
+
+1. Retain the last acknowledged or displayed channel sequence.
+2. Rediscover a route after disconnect instead of caching a failed node indefinitely.
+3. Run the SDK-supported message synchronization after CONNECT succeeds again.
+4. Merge results by message identity and channel sequence while tolerating duplicate delivery.
+5. Send RECVACK after processing received messages.
+
+Next, configure [Webhooks](/en/guide/integration/webhooks) to move asynchronous product events into a durable business-processing path.

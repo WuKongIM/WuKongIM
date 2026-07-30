@@ -1,0 +1,100 @@
+---
+title: 消息收发
+description: 串联连接、发送、接收、确认、重连和离线恢复。
+---
+
+业务系统通常同时使用客户端长连接与服务端 HTTP 入口。二者会进入同一个消息用例和频道权威写入路径。
+
+## 客户端消息路径
+
+```text
+SDK SEND
+  -> Gateway
+  -> 消息权限检查
+  -> 解析频道写入权威节点
+  -> Channel 持久化
+  -> SENDACK
+  -> 提交后在线投递
+  -> 接收端 RECV + RECVACK
+```
+
+关键语义：
+
+- 同一频道的 `message_seq` 是频道内顺序位置，不是全局顺序。
+- `message_id` 是服务端分配的消息标识。
+- `client_msg_no` 由发送方生成并保存，用于请求关联和重试跟踪。
+- 发送方必须检查 SENDACK 或 HTTP 响应中的 `reason`，不能只看传输是否成功。
+- 对默认持久化消息，在线投递和其他提交后副作用不延长已经完成的持久化确认。
+- 显式 `no_persist` 消息走实时非持久化路径；确认成功也不代表它能从持久化历史中恢复。
+
+## 服务端发送
+
+受信业务服务可调用 `POST /message/send`。`payload` 必须是 Base64：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid": "system",
+    "channel_id": "u1001",
+    "channel_type": 1,
+    "client_msg_no": "order-20260730-0001",
+    "payload": "eyJ0eXBlIjoib3JkZXJfdXBkYXRlIiwidGV4dCI6IlNoaXBwZWQifQ=="
+  }'
+```
+
+成功提交的兼容响应示例：
+
+```json
+{
+  "message_id": 123456789,
+  "message_seq": 42,
+  "reason": 1
+}
+```
+
+<Callout type="warn" title="HTTP 200 不等于业务成功">
+  `reason` 是协议 Reason Code。调用方必须把成功值与可重试、拒绝和路由变化分别处理。完整 Reason Code 字典将在 API 参考阶段发布。
+</Callout>
+
+不要让浏览器或移动端直接调用这个服务端接口。当前产品 HTTP 路由没有业务鉴权中间件，应由受信业务服务通过私网或受保护代理调用。
+
+## Payload 约定
+
+WuKongIM 传递字节 Payload，不替你的产品定义业务结构。建议使用带版本的信封：
+
+```json
+{
+  "version": 1,
+  "type": "order_update",
+  "body": {
+    "order_id": "o-10001",
+    "status": "shipped"
+  }
+}
+```
+
+接收端必须能够忽略未知字段，并为未知 `type` 提供安全降级。不要把服务端密钥、访问 Token 或不必要的个人数据放入消息 Payload。
+
+## 确认与副作用边界
+
+持久化消息 SENDACK 成功后，以下工作仍可能独立执行：
+
+- 在线接收者投递；
+- 会话活跃状态更新；
+- Webhook 入队和发送；
+- 已启用插件的提交后 Hook。
+
+这些副作用失败不会撤销已经持久化的消息。需要强业务一致性的动作应由业务服务根据自己的数据库和幂等键编排，不要假设 Webhook 与 SENDACK 是同一个事务。
+
+## 重连与离线恢复
+
+客户端 SDK 应负责连接状态机、退避重连和消息同步：
+
+1. 保存最后确认或展示的频道序号。
+2. 断线后重新发现路由，避免长期缓存失效节点。
+3. 重新 CONNECT 成功后执行 SDK 支持的消息同步。
+4. 按消息标识和频道序号合并结果，允许重复到达。
+5. 处理完成接收消息后发送 RECVACK。
+
+下一步配置[Webhook](/zh/guide/integration/webhooks)，把异步业务事件送入可靠的业务处理链路。

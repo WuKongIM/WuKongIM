@@ -1,0 +1,60 @@
+---
+title: Integration Architecture
+description: Divide responsibilities and data flow across the product service, WuKongIM cluster, and client SDK.
+---
+
+A reliable integration separates the product control plane from the messaging data plane. The product service decides who may do what; the WuKongIM cluster moves and stores messages in real time and in channel order.
+
+```text
+End-user app + client SDK
+  -> Product service: sign in; obtain UID, device, and session settings
+  -> WuKongIM HTTP API: GET /route (address discovery only)
+  -> WuKongIM Gateway: CONNECT / SEND / RECVACK
+
+Product service
+  -> WuKongIM HTTP API: trusted server-side sends and mutations
+
+WuKongIM Gateway <-> WuKongIM cluster
+  -> Product webhook endpoint: async, bounded, best effort
+  -> Durable product queue and handlers: after receiver persistence
+```
+
+## Responsibility split
+
+| Component | Owns | Does not own |
+| --- | --- | --- |
+| End-user app | User experience, SDK lifecycle, local state, message display | Trusted identity issuance or server authorization |
+| Client SDK | Routing, connection, protocol frames, reconnect, send, receive, acknowledgements | Product accounts, group policy, or moderation |
+| Product service | Login, UIDs, tokens, relationships, membership, content policy, webhook side effects | Long-lived connections or channel-log replication |
+| WuKongIM cluster | Gateway, channel ordering, persistence, routing, online delivery, cluster failover | Product databases or final business rules |
+
+Every deployment is a cluster. A one-node deployment is a single-node cluster; it does not bypass Controller, Slot, Channel, or routing semantics.
+
+## Session bootstrap
+
+1. The app authenticates with the product service through your login mechanism.
+2. The product service returns a stable UID, device identity, and connection settings allowed for that environment.
+3. The client calls `GET /route?uid=<uid>` and receives `tcp_addr`, `ws_addr`, and `wss_addr`.
+4. The SDK selects an available ingress and sends CONNECT to negotiate protocol version and encryption material.
+5. Only after connection success does it send product messages. Connection state is not product authorization state.
+
+<Callout type="info" title="Route discovery is not authentication">
+  The current `/route` endpoint returns configured ingress addresses and does not validate the UID's product permissions. The ability to discover a route is not proof of authorization.
+</Callout>
+
+## Two message entry paths
+
+- **Client path:** an SDK sends over a long-lived connection and receives SENDACK, RECV, and connection-state events.
+- **Server path:** a trusted product service calls `/message/send` for system-originated or product-triggered messages.
+
+Both paths converge on the same message use case and channel append path. A product service must not write node-local storage directly or bypass cluster routing because a deployment currently has one node.
+
+## Failure boundaries
+
+- For a default persistent message, a successful SENDACK means the channel authority made a successful durable-append decision.
+- A message explicitly marked `no_persist` is a realtime, non-durable path and does not carry the same recovery guarantee.
+- Online delivery, conversation activity projection, webhooks, and plugins are independent post-commit effects.
+- A webhook failure does not turn an already-successful SENDACK into a failure.
+- Client disconnect recovery uses SDK reconnect and message synchronization, not webhook replay.
+
+Continue with [Authentication](/en/guide/integration/authentication) to tighten the trust boundary before implementing messaging.

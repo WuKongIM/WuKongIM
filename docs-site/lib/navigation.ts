@@ -318,35 +318,35 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'integration',
         '集成指南',
         'Integration',
         '从业务系统视角完成 WuKongIM 接入。',
         'Integrates WuKongIM from the perspective of an existing product system.',
         [
-          plannedPage(
+          publishedPage(
             'architecture',
             '集成架构',
             'Integration Architecture',
             '说明业务服务、WuKongIM 服务端和客户端 SDK 的职责与数据流。',
             'Defines responsibilities and data flow across the business service, WuKongIM server, and client SDK.',
           ),
-          plannedPage(
+          publishedPage(
             'authentication',
             '身份认证',
             'Authentication',
             '说明身份、Token、设备标识、连接鉴权和撤销策略。',
             'Covers identities, tokens, device identifiers, connection authentication, and revocation.',
           ),
-          plannedPage(
+          publishedPage(
             'messaging',
             '消息收发',
             'Messaging',
             '串联连接、发送、接收、确认、重连和离线补偿。',
             'Connects sending, receiving, acknowledgements, reconnects, and offline recovery.',
           ),
-          plannedPage(
+          publishedPage(
             'webhooks',
             'Webhook',
             'Webhooks',
