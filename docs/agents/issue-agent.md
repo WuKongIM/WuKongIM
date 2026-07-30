@@ -29,6 +29,12 @@ must be contiguous, authored by the configured App Bot, and GitHub-signed.
 The Issue contains one mutable App-owned status comment as a repairable
 projection of that state.
 
+GitHub may report an ambiguous error while immediately verifying a state commit
+that was already created. The Controller accepts that publication only after
+one independent re-read proves the exact expected parent, canonical state
+content, path, App Bot identity, and GitHub signature. Any mismatch remains a
+failure; a merely advanced or externally written ref is never adopted.
+
 PR lifecycle and Review events first run
 `.github/workflows/issue-agent-pr-signal.yml`. That Workflow has no token
 permissions, Secrets, checkout, artifacts, or candidate execution. Its

@@ -141,6 +141,17 @@ func (store *StateStore) Advance(
 		Content:           content,
 	})
 	if err != nil {
+		recovered, recoverErr := store.recoverExactPublication(
+			ctx,
+			request.State.IssueNumber,
+			branch,
+			path,
+			request.ExpectedParentSHA,
+			content,
+		)
+		if recoverErr == nil {
+			return recovered, nil
+		}
 		return StatePublication{}, err
 	}
 	sum := sha256.Sum256(content)
@@ -154,9 +165,49 @@ func (store *StateStore) Advance(
 		result.AuthorType != "Bot" ||
 		!result.Verified ||
 		!result.SignedByGitHub {
+		recovered, recoverErr := store.recoverExactPublication(
+			ctx,
+			request.State.IssueNumber,
+			branch,
+			path,
+			request.ExpectedParentSHA,
+			content,
+		)
+		if recoverErr == nil {
+			return recovered, nil
+		}
 		return StatePublication{}, errors.New("published state commit is untrusted")
 	}
 	return StatePublication{HeadSHA: result.CommitSHA}, nil
+}
+
+func (store *StateStore) recoverExactPublication(
+	ctx context.Context,
+	issueNumber int64,
+	branch string,
+	path string,
+	expectedParentSHA string,
+	expectedContent []byte,
+) (StatePublication, error) {
+	head, found, err := store.commits.StateRefHead(ctx, branch)
+	if err != nil || !found || head == expectedParentSHA ||
+		!gitObjectPattern.MatchString(head) || len(head) != 40 {
+		return StatePublication{}, errors.New("published state commit is unavailable")
+	}
+	record, err := store.commits.ReadStateCommit(ctx, head, path)
+	if err != nil || record.ParentSHA != expectedParentSHA ||
+		!bytes.Equal(record.Content, expectedContent) {
+		return StatePublication{}, errors.New("published state commit does not match")
+	}
+	if _, err := store.validateStateRecord(
+		record,
+		head,
+		path,
+		issueNumber,
+	); err != nil {
+		return StatePublication{}, err
+	}
+	return StatePublication{HeadSHA: head}, nil
 }
 
 // Load verifies the complete bounded App-signed state chain.
