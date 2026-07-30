@@ -216,6 +216,37 @@ func TestIssueAgentTaskFailuresReachThePublisherFinalizer(t *testing.T) {
 		"- name: Download trusted evidence\n        continue-on-error: true")
 }
 
+func TestIssueAgentArtifactNamesAreFilesystemSafe(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	for name, count := range map[string]int{
+		"issue-agent-context-${{ inputs.issue_number }}":   3,
+		"issue-agent-candidate-${{ inputs.issue_number }}": 3,
+		"issue-agent-evidence-${{ inputs.issue_number }}":  2,
+	} {
+		require.Equal(t, count, strings.Count(raw, "name: "+name), name)
+	}
+	require.NotContains(t, raw,
+		"name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+	require.NotContains(t, raw,
+		"name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+	require.NotContains(t, raw,
+		"name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+}
+
+func TestIssueAgentPublisherUsesOnlyItsEnvironmentSecret(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	workflowCall, _, found := strings.Cut(raw, "\njobs:")
+	require.True(t, found)
+	require.NotContains(t, workflowCall, "ISSUE_AGENT_APP_PRIVATE_KEY")
+
+	publisher := issueAgentJobText(t, raw, "publisher")
+	require.Contains(t, publisher, "environment: issue-agent-publisher")
+	require.Contains(t, publisher,
+		"ISSUE_AGENT_PRIVATE_KEY_SECRET: ISSUE_AGENT_APP_PRIVATE_KEY")
+	require.Contains(t, publisher,
+		"ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets[env.ISSUE_AGENT_PRIVATE_KEY_SECRET] }}")
+}
+
 func TestIssueAgentControllerReportsCommittedProjectionWarnings(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	require.Contains(t, raw,
