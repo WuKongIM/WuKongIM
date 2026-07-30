@@ -1,31 +1,26 @@
 # Issue Agent Contracts Flow
 
-`internal/contracts/issueagent` owns versioned, bounded DTOs shared by the
-Issue Agent access, usecase, runtime, and infrastructure layers. It contains no
-GitHub client, state transition, filesystem, process, or model-provider logic.
+`internal/contracts/issueagent` owns the bounded JSON objects shared across
+the Issue Agent roles. It contains no GitHub, lifecycle, filesystem, process,
+or model logic.
 
 ```text
-GitHub facts
-  -> typed Checkpoint
-  -> canonical JSON signing bytes
-  -> signed CheckpointEnvelope
+fresh GitHub reads + protected policy
+  -> ContextBundle (trusted authority + exact-source instruction blobs
+     + untrusted conversation)
+  -> Codex Engineer
+  -> advisory EngineerResult
 
-trusted Control
-  -> typed TaskEnvelope
-  -> frozen review-thread IDs and maintainer ControlAudit
-  -> credential-free Worker
-  -> typed AgentResult with ChangeSet and Evidence
-  -> trusted Publisher validation
+immutable baseline + Engineer workspace
+  -> CandidateSnapshot
+  -> clean Verifier
+  -> CandidateEvidence
+
+fresh GitHub fences + exact candidate/evidence digests
+  -> canonical IssueAgentState
 ```
 
-Every signed or cross-job payload rejects unknown JSON fields, oversized
-inputs, unbounded strings or arrays, invalid object identities, and executable
-free-form content. Checkpoint slices are sorted before signing and are required
-to remain sorted when verified. `AgentResult` is a proposal only; it cannot
-carry shell scripts, Git credentials, commits, refs, PR mutations, or Issue
-mutations.
-
-Provider and Worker-infrastructure failures may carry an empty command list
-only when they still carry a trusted evidence digest, exact provider identity,
-and no ChangeSet. A `recover_chain` ControlAudit binds its exact valid anchor,
-quarantined App-comment IDs, and quarantine digest.
+All decoders reject unknown fields, oversized input, malformed identities, and
+trailing JSON. `EngineerResult` never grants publication authority. Only a
+low-risk, passing `CandidateEvidence` bound to the exact task and candidate can
+enter a Publisher plan.

@@ -1,0 +1,355 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "repository": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "engineer",
+            "review"
+          ]
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "affected_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "policy_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "prompt_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "base_sha",
+        "affected_sha",
+        "policy_digest",
+        "prompt_digest"
+      ],
+      "additionalProperties": false
+    },
+    "trusted": {
+      "type": "object",
+      "properties": {
+        "authorization": {
+          "type": "object",
+          "properties": {
+            "actor": {
+              "type": "string"
+            },
+            "permission": {
+              "type": "string",
+              "enum": [
+                "write",
+                "maintain",
+                "admin"
+              ]
+            },
+            "event_id": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string",
+              "enum": [
+                "",
+                "/agent fix",
+                "/agent retry",
+                "/agent cancel",
+                "/agent take-over"
+              ]
+            }
+          },
+          "required": [
+            "actor",
+            "permission",
+            "event_id",
+            "command"
+          ],
+          "additionalProperties": false
+        },
+        "labels": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_tests": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_ceiling": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "instruction_digests": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "git_blob_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            },
+            "required": [
+              "path",
+              "git_blob_sha"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "knowledge_paths": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "output_schema_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "wall_time_seconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "modify_test_iterations": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          },
+          "required": [
+            "wall_time_seconds",
+            "modify_test_iterations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "authorization",
+        "labels",
+        "required_tests",
+        "risk_ceiling",
+        "instruction_digests",
+        "knowledge_paths",
+        "output_schema_digest",
+        "limits"
+      ],
+      "additionalProperties": false
+    },
+    "untrusted": {
+      "type": "object",
+      "properties": {
+        "issue": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "number": {
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "author_association": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "number",
+            "title",
+            "body",
+            "author",
+            "author_association",
+            "updated_at"
+          ],
+          "additionalProperties": false
+        },
+        "comments": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "author": {
+                "type": "string"
+              },
+              "author_association": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              },
+              "updated_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "author",
+              "author_association",
+              "body",
+              "updated_at"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "review_threads": {
+          "type": [
+            "null",
+            "array"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              },
+              "comments": {
+                "type": [
+                  "null",
+                  "array"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "author": {
+                      "type": "string"
+                    },
+                    "author_association": {
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "author",
+                    "author_association",
+                    "body",
+                    "updated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "path",
+              "line",
+              "comments"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "issue",
+        "comments",
+        "review_threads"
+      ],
+      "additionalProperties": false
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/context-bundle-v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent context bundle v2",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "sequence",
+    "task",
+    "trusted",
+    "untrusted",
+    "created_at"
+  ],
+  "additionalProperties": false
+}

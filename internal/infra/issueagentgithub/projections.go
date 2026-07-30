@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -43,7 +44,7 @@ func (client *Client) CreateIssueComment(
 	body string,
 ) (IssueComment, error) {
 	if issueNumber <= 0 || strings.TrimSpace(body) == "" ||
-		len(body) > maxCheckpointComment {
+		len(body) > maxIssueCommentBytes {
 		return IssueComment{}, errors.New("Issue comment is invalid")
 	}
 	var response struct {
@@ -80,6 +81,88 @@ func (client *Client) CreateIssueComment(
 		Body: response.Body, CreatedAt: response.CreatedAt.Time,
 		UpdatedAt: response.UpdatedAt.Time,
 	}, nil
+}
+
+// UpdateIssueComment repairs one exact App-owned mutable status projection.
+func (client *Client) UpdateIssueComment(
+	ctx context.Context,
+	issueNumber int64,
+	commentID int64,
+	body string,
+) (IssueComment, error) {
+	if issueNumber <= 0 || commentID <= 0 ||
+		strings.TrimSpace(body) == "" || len(body) > maxIssueCommentBytes {
+		return IssueComment{}, errors.New("Issue comment update is invalid")
+	}
+	var response struct {
+		ID   int64 `json:"id"`
+		User struct {
+			Login string `json:"login"`
+			Type  string `json:"type"`
+		} `json:"user"`
+		Body      string   `json:"body"`
+		CreatedAt jsonTime `json:"created_at"`
+		UpdatedAt jsonTime `json:"updated_at"`
+	}
+	if err := client.requestJSON(
+		ctx,
+		http.MethodPatch,
+		"/repos/"+client.repository+"/issues/comments/"+
+			strconv.FormatInt(commentID, 10),
+		struct {
+			Body string `json:"body"`
+		}{Body: body},
+		&response,
+		http.StatusOK,
+	); err != nil {
+		return IssueComment{}, err
+	}
+	if response.ID != commentID || response.User.Login == "" ||
+		response.User.Type != "Bot" || response.Body != body ||
+		response.CreatedAt.Time.IsZero() ||
+		response.UpdatedAt.Time.Before(response.CreatedAt.Time) {
+		return IssueComment{}, errors.New(
+			"GitHub Issue comment update response is inconsistent",
+		)
+	}
+	return IssueComment{
+		ID: response.ID, Author: response.User.Login,
+		AuthorType: response.User.Type, Body: response.Body,
+		CreatedAt: response.CreatedAt.Time,
+		UpdatedAt: response.UpdatedAt.Time,
+	}, nil
+}
+
+// SetIssueLabelPresence changes one label without replacing unrelated labels.
+func (client *Client) SetIssueLabelPresence(
+	ctx context.Context,
+	issueNumber int64,
+	label string,
+	present bool,
+) error {
+	if issueNumber <= 0 || strings.TrimSpace(label) == "" ||
+		len(label) > 100 || strings.ContainsAny(label, "\r\n") {
+		return errors.New("Issue label mutation is invalid")
+	}
+	method := http.MethodPost
+	path := "/repos/" + client.repository + "/issues/" +
+		strconv.FormatInt(issueNumber, 10) + "/labels"
+	var input any = struct {
+		Labels []string `json:"labels"`
+	}{Labels: []string{label}}
+	if !present {
+		method = http.MethodDelete
+		path += "/" + url.PathEscape(label)
+		input = nil
+	}
+	return client.requestJSON(
+		ctx,
+		method,
+		path,
+		input,
+		nil,
+		http.StatusOK,
+	)
 }
 
 // SetIssueLabels replaces labels with an exact sorted, unique set.

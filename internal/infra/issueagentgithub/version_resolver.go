@@ -5,35 +5,30 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-
-	issueagentusecase "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
+	"regexp"
 )
 
 const maxAnnotatedTagDepth = 4
 
-// ImageSourceLookup verifies source metadata for one immutable image digest.
-// Registry-specific authentication remains outside the GitHub client.
-type ImageSourceLookup func(
-	context.Context,
-	string,
-) (issueagentusecase.ImageSource, error)
+var (
+	releaseTagPattern = regexp.MustCompile(
+		`^v[0-9]+[.][0-9]+[.][0-9]+(?:[-+][A-Za-z0-9_.-]+)?$`,
+	)
+)
 
-// VersionSourceResolver adapts GitHub Git-object reads and an injected image
-// metadata verifier to the provider-neutral version-pinning port.
+// VersionSourceResolver resolves only immutable GitHub source identities.
 type VersionSourceResolver struct {
-	client      *Client
-	imageSource ImageSourceLookup
+	client *Client
 }
 
 // NewVersionSourceResolver constructs a read-only immutable-source resolver.
 func NewVersionSourceResolver(
 	client *Client,
-	imageSource ImageSourceLookup,
 ) (*VersionSourceResolver, error) {
-	if client == nil || imageSource == nil {
+	if client == nil {
 		return nil, errors.New("version source resolver dependencies are missing")
 	}
-	return &VersionSourceResolver{client: client, imageSource: imageSource}, nil
+	return &VersionSourceResolver{client: client}, nil
 }
 
 // CommitExists verifies one exact commit object without accepting a branch ref.
@@ -69,7 +64,7 @@ func (resolver *VersionSourceResolver) ResolveTag(
 	ctx context.Context,
 	tag string,
 ) ([]string, error) {
-	if resolver == nil || !issueagentusecase.IsReleaseTagSyntax(tag) {
+	if resolver == nil || !releaseTagPattern.MatchString(tag) {
 		return nil, errors.New("release tag syntax is invalid")
 	}
 	var reference struct {
@@ -131,17 +126,3 @@ func (resolver *VersionSourceResolver) ResolveTag(
 	}
 	return nil, errors.New("annotated tag chain exceeds depth limit")
 }
-
-// ResolveImageDigest delegates only immutable image references to the injected
-// registry metadata verifier.
-func (resolver *VersionSourceResolver) ResolveImageDigest(
-	ctx context.Context,
-	image string,
-) (issueagentusecase.ImageSource, error) {
-	if resolver == nil || !issueagentusecase.IsImageDigestSyntax(image) {
-		return issueagentusecase.ImageSource{}, errors.New("image digest syntax is invalid")
-	}
-	return resolver.imageSource(ctx, image)
-}
-
-var _ issueagentusecase.SourceResolver = (*VersionSourceResolver)(nil)

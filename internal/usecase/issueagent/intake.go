@@ -1,233 +1,136 @@
 package issueagent
 
 import (
-	"errors"
-	"fmt"
-	"net/url"
-	"regexp"
-	"slices"
 	"strings"
+
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 )
 
 const (
-	maxIssueBodyBytes   = 64 << 10
-	maxIntakeMessageLen = 4096
-	maxDuplicateLinks   = 5
+	bugTitlePrefix = "[BUG]"
+	bugLabel       = "bug"
 )
 
-var (
-	fullCommitPattern = regexp.MustCompile(`\A[0-9a-fA-F]{40}\z`)
-	semverTagPattern  = regexp.MustCompile(
-		`\Av?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)` +
-			`(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?` +
-			`(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z`,
-	)
-	imageDigestPattern = regexp.MustCompile(
-		`\A[a-zA-Z0-9][a-zA-Z0-9._/-]*(?::[a-zA-Z0-9][a-zA-Z0-9._-]*)?` +
-			`@sha256:[0-9a-fA-F]{64}\z`,
-	)
-)
-
-var bugFormHeadings = []struct {
-	heading string
-	assign  func(*BugForm, string)
-}{
-	{"Affected version", func(form *BugForm, value string) { form.AffectedVersion = value }},
-	{"Environment, topology, and client", func(form *BugForm, value string) {
-		form.Environment = value
-	}},
-	{"Reproduction steps", func(form *BugForm, value string) { form.Reproduction = value }},
-	{"Expected and actual result", func(form *BugForm, value string) {
-		form.ExpectedActual = value
-	}},
-	{"Frequency", func(form *BugForm, value string) { form.Frequency = value }},
-	{"Logs or configuration", func(form *BugForm, value string) { form.Diagnostics = value }},
+var requiredBugSections = []string{
+	"Environment, topology, and client",
+	"Reproduction steps",
+	"Expected and actual result",
 }
 
-// BugForm is the bounded, deterministic projection of a rendered Bug Issue Form.
-type BugForm struct {
-	AffectedVersion string
-	Environment     string
-	Reproduction    string
-	ExpectedActual  string
-	Frequency       string
-	Diagnostics     string
-}
-
-// IntakePlan describes the only actions available before maintainer authorization.
-type IntakePlan struct {
-	Form           BugForm
-	Complete       bool
-	Missing        []string
-	Labels         []string
-	Message        string
-	InvokeModel    bool
-	ResolveVersion bool
-	CreateBranch   bool
-}
-
-// PlanIntake validates Bug Issue Form syntax without executing or resolving user input.
-func PlanIntake(body string, possibleDuplicates []string) (IntakePlan, error) {
-	if len(body) > maxIssueBodyBytes {
-		return IntakePlan{}, errors.New("Issue body exceeds intake limit")
+// AssessBugIssue validates the protected Bug intake shape.
+func AssessBugIssue(
+	title string,
+	body string,
+	labels []string,
+	versionReason string,
+) (bool, string) {
+	if !strings.HasPrefix(strings.TrimSpace(title), bugTitlePrefix) {
+		return false, "Issue must use the Bug template title prefix [BUG]."
 	}
-	form, err := parseBugForm(body)
-	if err != nil {
-		return IntakePlan{}, err
+	if !containsFold(labels, bugLabel) {
+		return false, "Issue must carry the Bug template label."
 	}
-	missing := requiredBugFacts(form)
-	plan := IntakePlan{
-		Form:     form,
-		Complete: len(missing) == 0,
-		Missing:  missing,
-		Labels:   []string{"needs-triage"},
-	}
-	if plan.Complete {
-		return plan, nil
-	}
-	plan.Labels = []string{"needs-info"}
-	plan.Message = intakeRequest(missing, possibleDuplicates)
-	return plan, nil
-}
-
-func parseBugForm(body string) (BugForm, error) {
-	normalized := strings.ReplaceAll(body, "\r\n", "\n")
-	lines := strings.Split(normalized, "\n")
-	sections := make(map[string]string, len(bugFormHeadings))
-	current := ""
-	var content []string
-	flush := func() error {
-		if current == "" {
-			return nil
+	for _, section := range requiredBugSections {
+		value, ambiguous := issueFormValue(body, section, 16<<10)
+		if ambiguous || value == "" || value == "_No response_" {
+			return false, "Complete the Bug template section: " + section + "."
 		}
-		if _, duplicate := sections[current]; duplicate {
-			return fmt.Errorf("Bug form heading %q occurs more than once", current)
-		}
-		sections[current] = cleanFormValue(strings.Join(content, "\n"))
-		return nil
 	}
-	for _, line := range lines {
-		if strings.HasPrefix(line, "### ") {
-			heading := strings.TrimSpace(strings.TrimPrefix(line, "### "))
-			if isBugFormHeading(heading) {
-				if err := flush(); err != nil {
-					return BugForm{}, err
-				}
-				current = heading
-				content = content[:0]
-				continue
+	if versionReason != "" {
+		return false, versionReason
+	}
+	return true, ""
+}
+
+// IssueFormValue reads one exact GitHub Issue form section.
+func IssueFormValue(body string, label string) (string, bool) {
+	return issueFormValue(body, label, 512)
+}
+
+func issueFormValue(body string, label string, maxBytes int) (string, bool) {
+	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	marker := "### " + label
+	value := ""
+	found := false
+	for index := 0; index < len(lines); index++ {
+		if strings.TrimSpace(lines[index]) != marker {
+			continue
+		}
+		if found {
+			return "", true
+		}
+		found = true
+		var section []string
+		for index++; index < len(lines); index++ {
+			if strings.HasPrefix(strings.TrimSpace(lines[index]), "### ") {
+				index--
+				break
 			}
+			section = append(section, lines[index])
 		}
-		if current != "" {
-			content = append(content, line)
-		}
+		value = strings.TrimSpace(strings.Join(section, "\n"))
 	}
-	if err := flush(); err != nil {
-		return BugForm{}, err
+	if len(value) > maxBytes || strings.ContainsRune(value, '\x00') {
+		return "", true
 	}
-
-	var form BugForm
-	for _, field := range bugFormHeadings {
-		field.assign(&form, sections[field.heading])
-	}
-	return form, nil
+	return value, false
 }
 
-func isBugFormHeading(candidate string) bool {
-	for _, field := range bugFormHeadings {
-		if field.heading == candidate {
+// ClassifyIssueRisk maps protected topic policy onto the admission risk.
+func ClassifyIssueRisk(
+	title string,
+	body string,
+	labels []string,
+	highRiskTopics []string,
+) contract.CandidateRisk {
+	text := strings.ToLower(title + "\n" + body + "\n" +
+		strings.Join(labels, "\n"))
+	for _, topic := range highRiskTopics {
+		if strings.Contains(text, strings.ToLower(topic)) {
+			return contract.CandidateRiskInvestigation
+		}
+	}
+	return contract.CandidateRiskLow
+}
+
+// TrustedAssociation reports whether GitHub identifies a repository insider.
+func TrustedAssociation(association string) bool {
+	switch association {
+	case "OWNER", "MEMBER", "COLLABORATOR":
+		return true
+	default:
+		return false
+	}
+}
+
+// WritePermission reports whether a current GitHub permission may authorize.
+func WritePermission(permission string) bool {
+	switch permission {
+	case "write", "maintain", "admin":
+		return true
+	default:
+		return false
+	}
+}
+
+// TracksIssueState reports whether the Controller sweep must retain the Issue.
+func TracksIssueState(state contract.IssueState) bool {
+	switch state {
+	case contract.IssueStateEngineering,
+		contract.IssueStateReviewing,
+		contract.IssueStateDraft,
+		contract.IssueStateReadyForReview:
+		return true
+	default:
+		return false
+	}
+}
+
+func containsFold(values []string, target string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), target) {
 			return true
 		}
 	}
 	return false
-}
-
-func cleanFormValue(value string) string {
-	value = strings.TrimSpace(value)
-	switch strings.ToLower(value) {
-	case "_no response_", "no response", "n/a", "none":
-		return ""
-	default:
-		return value
-	}
-}
-
-func requiredBugFacts(form BugForm) []string {
-	var missing []string
-	if form.AffectedVersion != "" &&
-		!validImmutableVersionSyntax(form.AffectedVersion) {
-		missing = append(missing, "affected version")
-	}
-	if form.Environment == "" {
-		missing = append(missing, "environment, topology, and client")
-	}
-	if form.Reproduction == "" {
-		missing = append(missing, "reproduction steps")
-	}
-	if form.ExpectedActual == "" {
-		missing = append(missing, "expected and actual result")
-	}
-	return missing
-}
-
-func validImmutableVersionSyntax(version string) bool {
-	version = strings.TrimSpace(version)
-	if len(version) == 0 || len(version) > 256 {
-		return false
-	}
-	return fullCommitPattern.MatchString(version) ||
-		semverTagPattern.MatchString(version) ||
-		imageDigestPattern.MatchString(version)
-}
-
-// IsReleaseTagSyntax reports whether value is an exact semantic release tag.
-func IsReleaseTagSyntax(value string) bool {
-	return semverTagPattern.MatchString(value)
-}
-
-// IsImageDigestSyntax reports whether value is an immutable SHA-256 image reference.
-func IsImageDigestSyntax(value string) bool {
-	return imageDigestPattern.MatchString(value)
-}
-
-func intakeRequest(missing, candidates []string) string {
-	var builder strings.Builder
-	builder.WriteString("Thanks for the report. Before a maintainer can authorize the Issue Agent, please update: ")
-	builder.WriteString(strings.Join(missing, "; "))
-	builder.WriteString(". If supplied, the affected version must be an exact release tag, full commit SHA, or image digest; leave it blank to use the main commit at authorization time.")
-	duplicates := validDuplicateLinks(candidates)
-	if len(duplicates) > 0 {
-		builder.WriteString("\n\npossible duplicate")
-		if len(duplicates) > 1 {
-			builder.WriteByte('s')
-		}
-		builder.WriteString(" (advisory only): ")
-		builder.WriteString(strings.Join(duplicates, ", "))
-	}
-	message := builder.String()
-	if len(message) > maxIntakeMessageLen {
-		return message[:maxIntakeMessageLen]
-	}
-	return message
-}
-
-func validDuplicateLinks(candidates []string) []string {
-	result := make([]string, 0, min(len(candidates), maxDuplicateLinks))
-	for _, candidate := range candidates {
-		parsed, err := url.Parse(candidate)
-		if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" ||
-			!strings.Contains(parsed.Path, "/issues/") || parsed.RawQuery != "" ||
-			parsed.Fragment != "" {
-			continue
-		}
-		canonical := parsed.String()
-		if slices.Contains(result, canonical) {
-			continue
-		}
-		result = append(result, canonical)
-		if len(result) == maxDuplicateLinks {
-			break
-		}
-	}
-	return result
 }

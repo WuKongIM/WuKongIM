@@ -1,0 +1,125 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "repository": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "candidate_digest": {
+      "type": "string"
+    },
+    "change_set_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "risk": {
+      "type": "string",
+      "enum": [
+        "low",
+        "investigation_only",
+        "high"
+      ]
+    },
+    "publication_eligible": {
+      "type": "boolean"
+    },
+    "required_suites": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "commands": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "arguments": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "working_dir": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "stderr_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "arguments",
+          "working_dir",
+          "exit_code",
+          "stdout_digest",
+          "stderr_digest",
+          "duration_ms"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "failure_reason": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/candidate-evidence-v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent candidate evidence v2",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "task_id",
+    "base_sha",
+    "candidate_digest",
+    "change_set_digest",
+    "risk",
+    "publication_eligible",
+    "required_suites",
+    "commands",
+    "failure_reason",
+    "created_at"
+  ],
+  "additionalProperties": false
+}

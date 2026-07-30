@@ -25,75 +25,40 @@ for discovery and may become more specific over time.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject | Explicit permission-change authorization required |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
-| `issue-agent-control.yml` | `Safety Automation - Issue Agent Control` | Reconciles Issue, comment, PR, Review, validation-completion, and recovery hints against protected policy and signed Issue state | Autonomous stateless controller; capability is capped by reviewed rollout mode |
-| `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Sweeper` | Hourly bounded scan for missed authorized Issue work and expired leases | Autonomous recovery dispatcher; a saturated inventory fails closed |
-| `issue-agent-run.yml` | `Agent Tool - Issue Worker` | Runs one exact signed reproduction, diagnosis, or remediation task, then publishes its validated Artifact | Model Supervisor and GitHub Publisher use separate protected Environments |
+| `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue/PR hints and the bounded five-minute sweep from fresh GitHub facts | Controller writes only through the protected Publisher environment |
+| `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Converts PR lifecycle and Review events into a credential-free completed run that wakes the default-branch Controller | No token permissions, Secrets, checkout, artifacts, or candidate execution |
+| `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, clean Verifier, and Publisher chain | OpenAI and Publisher credentials remain in separate jobs |
 
 ## GitHub Issue Agent rollout
 
-The checked-in Issue Agent policy currently runs in `reproduction` mode.
-It permits deterministic Intake and authorization followed by exact version
-pinning, one bounded E2E reproduction Worker, an Agent branch, and a Draft PR.
-Diagnosis, remediation, Ready-for-Review promotion, and merge remain outside
-the rollout ceiling.
-`issue-agent-control.yml` and `issue-agent-reconcile.yml` share one
-non-cancelling repository scheduler group, while `issue-agent-run.yml` has one
-non-cancelling group per Issue. Both use the bounded maximum pending queue so
-control hints and dispatched work are not replaced while waiting. Every
-Issue-writing Publisher job also shares a non-cancelling
-`issue-agent-publisher-<repository>-<issue>` group across the control and
-Worker workflows. Its bounded maximum pending queue keeps waiting Publisher
-jobs instead of replacing them. This keeps the final checkpoint re-read and
-append serial without blocking an in-flight model job, so a cancellation or
-new generation can publish first and fence the later stale Worker result.
-Every job builds `cmd/wkissueagent` from protected `main` control source or
-checks its embedded revision. Target source uses a distinct exact-SHA checkout
-with persisted Git credentials disabled. An omitted affected version freezes
-to the exact authorization-time `main` SHA, and an omitted topology freezes to
-`single-node-cluster`; explicit multi-node reports use the supported
-`three-node-cluster` harness. Before provider bootstrap, the affected and
-diagnosis checkouts must carry identical reviewed
-`.github/issue-agent/reproduction-contract` markers and the compatible
-`cmd/wukongim` entrypoint. Missing or different markers fail closed without
-applying the current process-E2E harness to an older runtime generation.
+The checked-in policy runs the direct Codex-only flow. `issue-agent.yml`
+serializes all repository reconciliation and calls the reusable Engineer
+workflow. Controller and Publisher writes share one repository-wide
+concurrency group; credential-free engineering and verification can run in
+parallel for different Issues.
+The latter executes `recover-task -> context-builder -> engineer -> verifier
+-> publisher`.
 
-In `reproduction`, only the frozen reproduction phase may consume one selected
-provider secret or model quota. The scheduled scan reads at most one page below
-100 records; saturation or any invalid signed chain blocks admission rather
-than assuming capacity.
+PR lifecycle and Review events pass through
+`issue-agent-pr-signal.yml`. The Signal has no authority and executes no
+candidate content. Its successful completion wakes `issue-agent.yml` through
+`workflow_run`, which GitHub binds to the protected default branch. The
+Controller treats that payload only as a hint and re-reads the exact Agent PR,
+actor permission, unresolved Review threads, Issue, and signed state.
+`pull_request_target` is not used, and the protected Publisher Environment is
+never exposed to a PR merge ref.
 
-Write-capable modes retain three credential boundaries:
+The official Codex Action and Codex version are pinned in protected policy.
+Codex receives an ephemeral `workspace-write` session, the bounded Context
+Bundle, ordinary local engineering tools, and public internet. It receives no
+GitHub/App/cloud/deploy credential and no Docker socket. Candidate capture
+compares the workspace against an immutable baseline without trusting Git.
+The clean Verifier independently classifies the diff and runs fixed tests.
 
-- `issue-agent-codex` exposes `OPENROUTER_API_KEY` only to the pinned official
-  Codex Action bootstrap, which sends Responses requests only to the fixed
-  OpenRouter endpoint;
-- `issue-agent-deepseek` exposes only `DEEPSEEK_API_KEY` to the selected
-  DeepSeek Supervisor;
-- `issue-agent-publisher` exposes repository-scoped App and checkpoint signing
-  material only to Publisher/dispatcher jobs that never execute target code.
-
-The Codex Action is pinned by full commit SHA and runs without a prompt. It
-installs the pinned CLI and matching Responses proxy, sends upstream requests
-only to the fixed `https://openrouter.ai/api/v1/responses` endpoint, writes one
-otherwise empty bootstrap home, accepts only the exact
-`wukongim-issue-agent` App bot in addition to normal write-authorized actors,
-and irreversibly drops `sudo` before the repository-owned Worker starts. The
-immediately preceding step fails if that bootstrap-home path already exists or
-is a dangling symlink. Checkout, build, dependency prefetch, reproduction
-binaries, and digest-pinned Docker image pull must therefore complete before
-the Action. `wkissueagent` receives only
-`ISSUE_AGENT_CODEX_BOOTSTRAP_HOME`; it strictly accepts the Action's
-`127.0.0.1` Responses provider and creates a new empty Codex home for every
-round. The API key must not appear in Worker arguments, environment dumps,
-Artifacts, prompts, responses, or logs. Action or CLI upgrades require a new
-full-SHA review plus the Issue Agent Workflow and model-Adapter contract tests.
-
-The model calls only typed tools in a digest-pinned, no-network Docker sandbox.
-It cannot author trusted file/evidence/usage fields. The Publisher revalidates
-the sanitized Artifact, uses an expected-head GraphQL commit on
-`agent/issue-<number>`, requires verified commit signing, and never merges,
-closes the Bug, or writes `main`. Bulk Artifacts retain 90 days; signed
-append-only Issue checkpoints are the durable state.
+Only `issue-agent-publisher` exposes the repository-scoped App credential.
+That job executes no candidate code and may write only the signed per-Issue
+state ref, `agent/issue-<number>`, one complete Draft PR, and one status
+comment. It never writes `main`, merges, or closes the Bug.
 
 The validation worker classifies only an exact `agent/issue-<number>` head as
 an Issue Agent PR. Its moving-`main` frozen-scenario probe runs only for that
@@ -101,10 +66,9 @@ typed branch and only when `go-e2e` is selected. Ordinary PRs keep the generic
 fixed-suite protocol even when they select `go-e2e`; they are never required to
 contain an Issue Agent scenario.
 
-See `docs/agents/issue-agent.md` for setup, rollout, budgets, key rotation,
-provider selection, and recovery. Every rollout promotion must pass
-`scripts/issue_agent_workflows_test.go` and occur separately from the code that
-introduces the capability.
+See `docs/agents/issue-agent.md` for setup, budgets, boundaries, and recovery.
+Every Action or policy change must pass
+`scripts/issue_agent_workflows_test.go`.
 
 ## Agent PR validation protocol
 
