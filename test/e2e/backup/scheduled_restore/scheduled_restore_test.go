@@ -30,6 +30,12 @@ type managerLoginResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
+type backupConfigureResponse struct {
+	Plan struct {
+		Revision uint64 `json:"revision"`
+	} `json:"plan"`
+}
+
 type backupDashboard struct {
 	State struct {
 		ActiveBackup  *backupJob  `json:"active_backup"`
@@ -151,18 +157,36 @@ func configureDailyFileBackup(
 	token string,
 ) {
 	t.Helper()
-	managerJSON(t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
-		map[string]any{
-			"expected_revision":   0,
-			"enabled":             true,
-			"store":               map[string]any{"kind": "file"},
-			"cron":                "0 1 * * *",
-			"time_zone":           "Asia/Shanghai",
-			"retention_count":     7,
-			"rate_mib_per_second": 64,
-			"workers_per_node":    4,
-			"max_duration_hours":  12,
-		}, nil)
+	plan := map[string]any{
+		"expected_revision":   0,
+		"enabled":             false,
+		"store":               map[string]any{"kind": "file"},
+		"cron":                "0 1 * * *",
+		"time_zone":           "Asia/Shanghai",
+		"retention_count":     7,
+		"rate_mib_per_second": 64,
+		"workers_per_node":    4,
+		"max_duration_hours":  12,
+	}
+	var saved backupConfigureResponse
+	managerJSON(
+		t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
+		plan, &saved,
+	)
+	require.NotZero(t, saved.Plan.Revision)
+
+	managerJSON(
+		t, ctx, node, token, http.MethodPost,
+		"/manager/backups/repository/test",
+		map[string]any{"expected_plan_revision": saved.Plan.Revision}, nil,
+	)
+
+	plan["expected_revision"] = saved.Plan.Revision
+	plan["enabled"] = true
+	managerJSON(
+		t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
+		plan, nil,
+	)
 }
 
 func sendBackupMessage(
