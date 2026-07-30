@@ -218,7 +218,7 @@ jobs:
   verifier:
     name: Verify from a clean checkout
     needs: engineer
-    if: always() && needs.engineer.result != 'cancelled'
+    if: always() && needs.engineer.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
@@ -279,7 +279,7 @@ jobs:
   publisher:
     name: Publish exact Draft PR
     needs: [context-builder, engineer, verifier]
-    if: always() && needs.context-builder.result == 'success'
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: issue-agent-publisher
@@ -294,6 +294,7 @@ jobs:
           ref: ${{ inputs.control_sha }}
           persist-credentials: false
       - name: Download Context Bundle
+        continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}

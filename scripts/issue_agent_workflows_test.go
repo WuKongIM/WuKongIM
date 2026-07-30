@@ -200,6 +200,22 @@ func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
 	require.NotContains(t, publisher, "verify-candidate")
 }
 
+func TestIssueAgentTaskFailuresReachThePublisherFinalizer(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	verifier := issueAgentJobText(t, raw, "verifier")
+	require.Contains(t, verifier,
+		"if: always() && needs.engineer.result == 'success'")
+
+	publisher := issueAgentJobText(t, raw, "publisher")
+	require.Contains(t, publisher, "if: always()")
+	require.Contains(t, publisher,
+		"- name: Download Context Bundle\n        continue-on-error: true")
+	require.Contains(t, publisher,
+		"- name: Download candidate and advisory result\n        continue-on-error: true")
+	require.Contains(t, publisher,
+		"- name: Download trusted evidence\n        continue-on-error: true")
+}
+
 func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/issue-agent/policy.json")
 	var policy struct {
