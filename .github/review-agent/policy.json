@@ -1,0 +1,331 @@
+{
+  "schema_version": 1,
+  "supported_base_branches": [
+    "main"
+  ],
+  "reviewer": {
+    "action_sha": "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+    "codex_version": "0.146.0",
+    "model": "openai/gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "sandbox": "workspace-write",
+    "ephemeral": true,
+    "wall_time_seconds": 5400
+  },
+  "concurrency": {
+    "repository_sessions": 3,
+    "sessions_per_pull_request": 1,
+    "first_time_external_sessions": 1
+  },
+  "attempts": {
+    "automatic_per_head": 1,
+    "max_reconsiderations_per_head": 2,
+    "max_infrastructure_retries": 1
+  },
+  "interaction": {
+    "max_explanation_sessions_per_head": 3,
+    "max_response_bytes_per_head": 262144
+  },
+  "limits": {
+    "max_changed_files": 5000,
+    "max_changed_bytes": 67108864,
+    "max_changed_lines": 200000,
+    "max_context_bytes": 67108864,
+    "max_model_response_bytes": 4194304,
+    "max_input_tokens": 240000,
+    "max_output_tokens": 32768,
+    "max_cost_usd_cents": 2500,
+    "max_processes": 512,
+    "max_connections": 128,
+    "max_network_bytes": 2147483648,
+    "max_artifact_bytes": 134217728,
+    "max_findings": 100,
+    "max_inline_comments": 20
+  },
+  "environments": {
+    "model": "review-agent-model",
+    "state_writer": "review-agent-state-writer",
+    "publisher": "review-agent-publisher"
+  },
+  "apps": {
+    "review": {
+      "slug": "wukongim-review-agent",
+      "login": "wukongim-review-agent[bot]",
+      "permissions": {
+        "checks": "write",
+        "issues": "write",
+        "metadata": "read",
+        "pull_requests": "write"
+      }
+    },
+    "state_writer": {
+      "slug": "wukongim-review-state-writer",
+      "login": "wukongim-review-state-writer[bot]",
+      "permissions": {
+        "contents": "write",
+        "metadata": "read"
+      }
+    }
+  },
+  "state": {
+    "pull_request_ref_prefix": "review-state/pr-",
+    "pull_request_path_template": ".review-agent-state/pr-%d.json",
+    "scheduler_ref": "review-state/scheduler",
+    "scheduler_path": ".review-agent-state/scheduler.json",
+    "require_verified_signature": true
+  },
+  "network": {
+    "public_internet": true,
+    "blocked_cidrs": [
+      "0.0.0.0/8",
+      "10.0.0.0/8",
+      "100.64.0.0/10",
+      "127.0.0.0/8",
+      "169.254.0.0/16",
+      "172.16.0.0/12",
+      "192.0.0.0/24",
+      "192.168.0.0/16",
+      "198.18.0.0/15",
+      "224.0.0.0/4",
+      "::/128",
+      "::1/128",
+      "fc00::/7",
+      "fe80::/10",
+      "ff00::/8"
+    ],
+    "blocked_hosts": [
+      "169.254.169.254",
+      "metadata.google.internal",
+      "host.docker.internal"
+    ]
+  },
+  "credentials": {
+    "denied": [
+      "github",
+      "github_app",
+      "cloud",
+      "deploy",
+      "package_publish",
+      "organization_private"
+    ]
+  },
+  "control_plane_paths": [
+    ".github/CODEOWNERS",
+    ".github/review-agent",
+    ".github/workflows/review-agent-pr-signal.yml",
+    ".github/workflows/review-agent-run.yml",
+    ".github/workflows/review-agent.yml",
+    "AGENTS.md",
+    "cmd/wkreviewagent",
+    "internal/access/reviewagentcheckmcp",
+    "internal/access/reviewagentcli",
+    "internal/app/review_agent.go",
+    "internal/contracts/reviewagent",
+    "internal/infra/reviewagentgithub",
+    "internal/runtime/reviewagentverify",
+    "internal/usecase/reviewagent",
+    "scripts/review_agent"
+  ],
+  "trusted_checks": {
+    "go-unit": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 3600
+    },
+    "go-vet": {
+      "arguments": [
+        "go",
+        "vet",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/..."
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800
+    },
+    "scripts-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600
+    },
+    "workflow-contracts": {
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "Workflow|ReviewAgent",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900
+    },
+    "web-lint": {
+      "arguments": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "working_dir": "web",
+      "timeout_seconds": 900
+    },
+    "web-test": {
+      "arguments": [
+        "npm",
+        "test",
+        "--",
+        "--run"
+      ],
+      "working_dir": "web",
+      "timeout_seconds": 1200
+    },
+    "web-typecheck": {
+      "arguments": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "working_dir": "web",
+      "timeout_seconds": 900
+    },
+    "web-build": {
+      "arguments": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "working_dir": "web",
+      "timeout_seconds": 1200
+    },
+    "demo-test": {
+      "arguments": [
+        "npm",
+        "test",
+        "--",
+        "--run"
+      ],
+      "working_dir": "demo/chatdemo",
+      "timeout_seconds": 1200
+    },
+    "demo-build": {
+      "arguments": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "working_dir": "demo/chatdemo",
+      "timeout_seconds": 1200
+    }
+  },
+  "path_rules": [
+    {
+      "name": "go",
+      "prefixes": [
+        "cmd/",
+        "internal/",
+        "pkg/",
+        "scripts/",
+        "docker/"
+      ],
+      "suffixes": [
+        ".go",
+        "go.mod",
+        "go.sum"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "production-integration-scripts",
+      "prefixes": [
+        "scripts/"
+      ],
+      "suffixes": [
+        ".sh"
+      ],
+      "checks": [
+        "scripts-integration"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "workflow-control",
+      "prefixes": [
+        ".github/"
+      ],
+      "suffixes": [
+        ".yml",
+        ".yaml",
+        ".json"
+      ],
+      "checks": [
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "manager-web",
+      "prefixes": [
+        "web/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "web-lint",
+        "web-test",
+        "web-typecheck",
+        "web-build"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "chat-demo",
+      "prefixes": [
+        "demo/chatdemo/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "demo-test",
+        "demo-build"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "documentation-only",
+      "prefixes": [
+        "docs/",
+        "docs-site/"
+      ],
+      "suffixes": [
+        ".md",
+        ".mdx"
+      ],
+      "checks": [
+        "workflow-contracts"
+      ],
+      "exclusive": true
+    }
+  ]
+}

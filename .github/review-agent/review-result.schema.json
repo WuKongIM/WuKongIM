@@ -1,0 +1,207 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "pull_request": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "test_merge_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "intent_digest": {
+          "type": "string",
+          "pattern": "^(|sha256:[0-9a-f]{64})$"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state_parent_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "minimum": 1,
+      "required": [
+        "repository",
+        "pull_request",
+        "head_sha",
+        "base_sha",
+        "test_merge_sha",
+        "intent_digest",
+        "generation",
+        "state_parent_sha"
+      ],
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "changes_required",
+        "inconclusive"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "inventory_complete": {
+      "type": "boolean"
+    },
+    "file_assessments": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "path",
+          "risk",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 5000
+    },
+    "findings": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "advisory"
+            ]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "intent_correctness",
+              "regression_tests",
+              "security_runtime",
+              "repository_constraints"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolution": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "dimension",
+          "title",
+          "path",
+          "line_start",
+          "line_end",
+          "scenario",
+          "impact",
+          "evidence",
+          "resolution"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "sources": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved_uncertainty": {
+      "type": "string"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/review-agent/review-result-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Review Agent review result v1",
+  "required": [
+    "schema_version",
+    "generation",
+    "decision",
+    "summary",
+    "inventory_complete",
+    "file_assessments",
+    "findings",
+    "sources",
+    "unresolved_uncertainty"
+  ],
+  "additionalProperties": false
+}
