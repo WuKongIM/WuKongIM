@@ -26,6 +26,7 @@ for discovery and may become more specific over time.
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Every 15 minutes, destroys expired leases; also supports exact authorized cleanup | Autonomous billing and resource safety backstop |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Every 30 minutes, patrols live runs and records bounded health evidence | Autonomous read-only safety patrol |
 | `issue-agent-control.yml` | `Safety Automation - Issue Agent Control` | Reconciles Issue, comment, PR, Review, validation-completion, and recovery hints against protected policy and signed Issue state | Autonomous stateless controller; capability is capped by reviewed rollout mode |
+| `issue-agent-provider-preflight.yml` | `Agent Tool - Issue Provider Preflight` | Runs one bounded synthetic structured Codex invocation through the pinned Action and selected OpenRouter model | Explicit provider-spend authorization required; no checkout or Artifact |
 | `issue-agent-reconcile.yml` | `Safety Automation - Issue Agent Sweeper` | Hourly bounded scan for missed authorized Issue work and expired leases | Autonomous recovery dispatcher; a saturated inventory fails closed |
 | `issue-agent-run.yml` | `Agent Tool - Issue Worker` | Runs one exact signed reproduction, diagnosis, or remediation task, then publishes its validated Artifact | Model Supervisor and GitHub Publisher use separate protected Environments |
 
@@ -65,17 +66,18 @@ than assuming capacity.
 Write-capable modes retain three credential boundaries:
 
 - `issue-agent-codex` exposes `OPENROUTER_API_KEY` only to the pinned official
-  Codex Action bootstrap, which sends Responses requests only to the fixed
-  OpenRouter endpoint;
+  Codex Action in the Worker bootstrap or synthetic provider preflight, both of
+  which send Responses requests only to the fixed OpenRouter endpoint;
 - `issue-agent-deepseek` exposes only `DEEPSEEK_API_KEY` to the selected
   DeepSeek Supervisor;
 - `issue-agent-publisher` exposes repository-scoped App and checkpoint signing
   material only to Publisher/dispatcher jobs that never execute target code.
 
-The Codex Action is pinned by full commit SHA and runs without a prompt. It
-installs the pinned CLI and matching Responses proxy, sends upstream requests
-only to the fixed `https://openrouter.ai/api/v1/responses` endpoint, writes one
-otherwise empty bootstrap home, accepts only the exact
+The Worker's Codex Action bootstrap is pinned by full commit SHA and runs
+without a prompt. It installs the pinned CLI and matching Responses proxy,
+sends upstream requests only to the fixed
+`https://openrouter.ai/api/v1/responses` endpoint, writes one otherwise empty
+bootstrap home, accepts only the exact
 `wukongim-issue-agent` App bot in addition to normal write-authorized actors,
 and irreversibly drops `sudo` before the repository-owned Worker starts. The
 immediately preceding step fails if that bootstrap-home path already exists or
@@ -87,6 +89,17 @@ the Action. `wkissueagent` receives only
 round. The API key must not appear in Worker arguments, environment dumps,
 Artifacts, prompts, responses, or logs. Action or CLI upgrades require a new
 full-SHA review plus the Issue Agent Workflow and model-Adapter contract tests.
+
+`issue-agent-provider-preflight.yml` is the only provider diagnostic that may
+consume the Codex Environment secret outside a signed Worker. It is manual,
+uses the same pinned Action, endpoint, CLI version, and repository model
+variable, validates that model before spending quota, runs one bounded
+synthetic JSON invocation with shell, unified-exec, app, browser, computer-use,
+and image-generation features disabled, checks a fixed schema, and checks out
+no repository content. It uploads no Artifact. The GitHub run log may retain
+only the synthetic exchange or provider diagnostic emitted by the pinned
+Action, never Issue or repository content. Run it after changing the OpenRouter
+secret or model and before authorizing another Issue attempt.
 
 The model calls only typed tools in a digest-pinned, no-network Docker sandbox.
 It cannot author trusted file/evidence/usage fields. The Publisher revalidates

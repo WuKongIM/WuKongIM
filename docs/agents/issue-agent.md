@@ -307,8 +307,14 @@ branch.
    `ISSUE_AGENT_APP_LOGIN`, `ISSUE_AGENT_CHECKPOINT_KEY_ID`,
    `ISSUE_AGENT_CODEX_MODEL`, and `ISSUE_AGENT_DEEPSEEK_MODEL`. Set
    `ISSUE_AGENT_CODEX_MODEL` to an exact OpenRouter model slug such as
-   `openai/gpt-5.6-sol`.
-7. Create or verify `needs-triage`, `needs-info`, `ready-for-agent`,
+   `openai/gpt-5.6-sol` or `moonshotai/kimi-k3`.
+7. Run `issue-agent-provider-preflight.yml` once after setting or rotating the
+   OpenRouter secret or model. It runs one bounded synthetic structured Codex
+   invocation through the same pinned official Action without checking out
+   repository code or uploading a response Artifact. Its Actions log can
+   retain only the synthetic exchange or provider diagnostic, never Issue or
+   repository content. Do not authorize an Issue attempt until it passes.
+8. Create or verify `needs-triage`, `needs-info`, `ready-for-agent`,
    `agent-priority/high`, and the Agent PR validation labels documented in
    `.github/workflows/README.md`.
 

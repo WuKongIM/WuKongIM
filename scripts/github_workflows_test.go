@@ -138,17 +138,18 @@ func verifyGoToolchainStep() ciStep {
 }
 
 var catalogedWorkflowNames = map[string]string{
-	"agent-pr-merge-gate.yml":         "Safety Automation - Agent PR Merge Gate",
-	"agent-pr-validation.yml":         "Agent Tool - Validate PR",
-	"agent-pr-validation-control.yml": "Safety Automation - Agent PR Validation Control",
-	"cloud-sim-analyze.yml":           "Agent Tool - Analyze Cloud Simulation",
-	"cloud-sim-cleanup.yml":           "Safety Automation - Reconcile Cloud Simulation Resources",
-	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
-	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
-	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
-	"issue-agent-control.yml":         "Safety Automation - Issue Agent Control",
-	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Sweeper",
-	"issue-agent-run.yml":             "Agent Tool - Issue Worker",
+	"agent-pr-merge-gate.yml":            "Safety Automation - Agent PR Merge Gate",
+	"agent-pr-validation.yml":            "Agent Tool - Validate PR",
+	"agent-pr-validation-control.yml":    "Safety Automation - Agent PR Validation Control",
+	"cloud-sim-analyze.yml":              "Agent Tool - Analyze Cloud Simulation",
+	"cloud-sim-cleanup.yml":              "Safety Automation - Reconcile Cloud Simulation Resources",
+	"cloud-sim-monitor.yml":              "Safety Automation - Patrol Cloud Simulation Runs",
+	"cloud-sim-oidc-subject.yml":         "Agent Tool - Configure Cloud Simulation OIDC Subject",
+	"cloud-sim-provision.yml":            "Agent Tool - Provision Cloud Simulation",
+	"issue-agent-control.yml":            "Safety Automation - Issue Agent Control",
+	"issue-agent-provider-preflight.yml": "Agent Tool - Issue Provider Preflight",
+	"issue-agent-reconcile.yml":          "Safety Automation - Issue Agent Sweeper",
+	"issue-agent-run.yml":                "Agent Tool - Issue Worker",
 }
 
 var autonomousSafetyWorkflows = map[string]struct{}{

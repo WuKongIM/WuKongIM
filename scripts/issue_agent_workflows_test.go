@@ -57,6 +57,7 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 
 	for _, name := range []string{
 		"issue-agent-control.yml",
+		"issue-agent-provider-preflight.yml",
 		"issue-agent-reconcile.yml",
 		"issue-agent-run.yml",
 	} {
@@ -128,6 +129,14 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
 				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
+			case name == "issue-agent-provider-preflight.yml" &&
+				jobName == "preflight":
+				require.Equal(t, "issue-agent-codex", job.Environment)
+				require.Contains(t, jobText, "OPENROUTER_API_KEY")
+				require.NotContains(t, jobText, "CODEX_API_KEY")
+				require.NotContains(t, jobText, "DEEPSEEK_API_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_APP_PRIVATE_KEY")
+				require.NotContains(t, jobText, "ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY")
 			case name == "issue-agent-run.yml" && jobName == "deepseek-worker":
 				require.Equal(t, "issue-agent-deepseek", job.Environment)
 				require.Contains(t, jobText, "DEEPSEEK_API_KEY")
@@ -162,6 +171,11 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 				"issue-agent-${{ inputs.issue_number }}",
 				workflow.Concurrency.Group,
 			)
+		} else if name == "issue-agent-provider-preflight.yml" {
+			require.Equal(t,
+				"issue-agent-provider-preflight-${{ github.repository }}",
+				workflow.Concurrency.Group,
+			)
 		} else {
 			require.Equal(t,
 				"issue-agent-scheduler-${{ github.repository }}",
@@ -172,6 +186,72 @@ func TestIssueAgentWorkflowSecurityContracts(t *testing.T) {
 		require.NotNil(t, workflow.Concurrency.CancelInProgress)
 		require.False(t, *workflow.Concurrency.CancelInProgress)
 	}
+}
+
+func TestIssueAgentCodexProviderPreflightIsSyntheticAndBounded(t *testing.T) {
+	t.Parallel()
+
+	raw := readWorkflow(t, "issue-agent-provider-preflight.yml")
+	_, workflow, err := decodeWorkflow(raw)
+	require.NoError(t, err)
+	require.Empty(t, workflow.Permissions)
+	require.Len(t, workflow.Jobs, 1)
+
+	job, ok := workflow.Jobs["preflight"]
+	require.True(t, ok)
+	require.Equal(t, "issue-agent-codex", job.Environment)
+	require.Equal(t, map[string]string{"contents": "read"}, job.Permissions)
+	require.Equal(t, 10, job.TimeoutMinutes)
+	require.Len(t, job.Steps, 3)
+
+	validate := job.Steps[0]
+	require.Equal(t, "Validate the selected OpenRouter model", validate.Name)
+	require.Equal(t, "bash", validate.Shell)
+	require.Equal(t, map[string]string{
+		"MODEL": "${{ vars.ISSUE_AGENT_CODEX_MODEL }}",
+	}, validate.Env)
+	require.Contains(t, validate.Run,
+		`[[ "$MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/`+
+			`[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]`)
+
+	action := job.Steps[1]
+	require.Equal(t,
+		"Run the bounded synthetic invocation through the pinned Codex Action",
+		action.Name,
+	)
+	require.Equal(t,
+		"openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+		action.Uses,
+	)
+	require.Equal(t, map[string]any{
+		"openai-api-key":         "${{ secrets.OPENROUTER_API_KEY }}",
+		"responses-api-endpoint": "https://openrouter.ai/api/v1/responses",
+		"codex-version":          "0.145.0",
+		"codex-home":             "${{ runner.temp }}/issue-agent-provider-preflight",
+		"safety-strategy":        "drop-sudo",
+		"sandbox":                "read-only",
+		"working-directory":      "${{ runner.temp }}",
+		"model":                  "${{ vars.ISSUE_AGENT_CODEX_MODEL }}",
+		"prompt":                 "Return the JSON object {\"ok\":true}.",
+		"codex-args":             "[\"--disable\",\"shell_tool\",\"--disable\",\"unified_exec\",\"--disable\",\"apps\",\"--disable\",\"browser_use\",\"--disable\",\"computer_use\",\"--disable\",\"image_generation\"]",
+		"output-file":            "${{ runner.temp }}/issue-agent-provider-preflight.json",
+		"output-schema":          `{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}`,
+	}, action.With)
+
+	verify := job.Steps[2]
+	require.Equal(t, "Verify the synthetic structured response", verify.Name)
+	require.Equal(t, "bash", verify.Shell)
+	require.Contains(t, verify.Run,
+		`jq -e 'type == "object" and .ok == true and (keys == ["ok"])'`)
+	require.Contains(t, verify.Run, "$RUNNER_TEMP/issue-agent-provider-preflight.json")
+
+	text := string(raw)
+	require.Equal(t, 1, strings.Count(text, "secrets.OPENROUTER_API_KEY"))
+	require.NotContains(t, text, "actions/checkout")
+	require.NotContains(t, text, "upload-artifact")
+	require.NotContains(t, text, "github.event.")
+	require.NotContains(t, text, "CODEX_API_KEY")
+	require.NotContains(t, text, "DEEPSEEK_API_KEY")
 }
 
 func TestIssueAgentWorkflowRunUsesSeparateReadOnlyCheckouts(t *testing.T) {

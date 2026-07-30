@@ -1,0 +1,56 @@
+name: Agent Tool - Issue Provider Preflight
+run-name: Issue Agent OpenRouter preflight for ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: issue-agent-provider-preflight-${{ github.repository }}
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify one bounded synthetic Codex invocation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: issue-agent-codex
+    permissions:
+      contents: read
+    steps:
+      - name: Validate the selected OpenRouter model
+        shell: bash
+        env:
+          MODEL: ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
+        run: |
+          set -euo pipefail
+          [[ "$MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._:-]*$ ]]
+      - name: Run the bounded synthetic invocation through the pinned Codex Action
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        with:
+          openai-api-key: ${{ secrets.OPENROUTER_API_KEY }}
+          responses-api-endpoint: https://openrouter.ai/api/v1/responses
+          codex-version: 0.145.0
+          codex-home: ${{ runner.temp }}/issue-agent-provider-preflight
+          safety-strategy: drop-sudo
+          sandbox: read-only
+          working-directory: ${{ runner.temp }}
+          model: ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
+          prompt: 'Return the JSON object {"ok":true}.'
+          codex-args: '["--disable","shell_tool","--disable","unified_exec","--disable","apps","--disable","browser_use","--disable","computer_use","--disable","image_generation"]'
+          output-file: ${{ runner.temp }}/issue-agent-provider-preflight.json
+          output-schema: '{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}'
+      - name: Verify the synthetic structured response
+        shell: bash
+        env:
+          MODEL: ${{ vars.ISSUE_AGENT_CODEX_MODEL }}
+        run: |
+          set -euo pipefail
+          result="$RUNNER_TEMP/issue-agent-provider-preflight.json"
+          test -f "$result"
+          jq -e 'type == "object" and .ok == true and (keys == ["ok"])' \
+            "$result" >/dev/null
+          echo "OpenRouter provider preflight succeeded for $MODEL." \
+            >>"$GITHUB_STEP_SUMMARY"
