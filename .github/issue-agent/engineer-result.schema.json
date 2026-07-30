@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "repository": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "ready",
+        "needs_human",
+        "already_fixed",
+        "failed"
+      ]
+    },
+    "external_symptom": {
+      "type": "string"
+    },
+    "root_cause": {
+      "type": "string"
+    },
+    "causal_path": {
+      "type": "string"
+    },
+    "evidence_references": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed_risk": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests_attempted": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "unresolved_uncertainty": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "ready": {
+      "type": "boolean"
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/issue-agent/engineer-result-v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Issue Agent engineer result v2",
+  "required": [
+    "schema_version",
+    "repository",
+    "issue_number",
+    "task_id",
+    "outcome",
+    "external_symptom",
+    "root_cause",
+    "causal_path",
+    "evidence_references",
+    "proposed_risk",
+    "tests_attempted",
+    "unresolved_uncertainty",
+    "summary",
+    "ready"
+  ],
+  "additionalProperties": false
+}

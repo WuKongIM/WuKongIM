@@ -2,6 +2,7 @@ name: Bug report
 description: Report a reproducible WuKongIM behavior problem
 title: "[BUG] "
 labels:
+  - bug
   - needs-triage
 body:
   - type: markdown
@@ -14,7 +15,7 @@ body:
     id: affected_version
     attributes:
       label: Affected version
-      description: Optional. Use an exact release tag, full commit SHA, or image digest—not "latest"; leave blank to use the main commit at maintainer authorization time.
+      description: Optional. Use an exact release tag or full commit SHA—not "latest"; leave blank to use the main commit at maintainer authorization time.
       placeholder: v2.1.0
     validations:
       required: false

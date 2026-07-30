@@ -19,6 +19,8 @@ import (
 
 var repositoryNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 
+const maxIssueCommentBytes = 128 << 10
+
 // ErrNotFound distinguishes a deterministic missing GitHub object from a
 // transient transport or API failure so reconciliation can hand it to humans.
 var ErrNotFound = errors.New("GitHub object not found")
@@ -108,9 +110,10 @@ func (client *Client) ListIssueComments(
 				Login string `json:"login"`
 				Type  string `json:"type"`
 			} `json:"user"`
-			Body      string   `json:"body"`
-			CreatedAt jsonTime `json:"created_at"`
-			UpdatedAt jsonTime `json:"updated_at"`
+			AuthorAssociation string   `json:"author_association"`
+			Body              string   `json:"body"`
+			CreatedAt         jsonTime `json:"created_at"`
+			UpdatedAt         jsonTime `json:"updated_at"`
 		}
 		next, err := client.getJSONPage(ctx, endpoint, &payload)
 		if err != nil {
@@ -122,18 +125,19 @@ func (client *Client) ListIssueComments(
 		for _, comment := range payload {
 			if comment.ID <= 0 ||
 				comment.User.Login == "" ||
-				len(comment.Body) > maxCheckpointComment ||
+				len(comment.Body) > maxIssueCommentBytes ||
 				comment.CreatedAt.Time.IsZero() ||
 				comment.UpdatedAt.Time.IsZero() {
 				return nil, errors.New("GitHub comment response is invalid")
 			}
 			comments = append(comments, IssueComment{
-				ID:         comment.ID,
-				Author:     comment.User.Login,
-				AuthorType: comment.User.Type,
-				Body:       comment.Body,
-				CreatedAt:  comment.CreatedAt.Time,
-				UpdatedAt:  comment.UpdatedAt.Time,
+				ID:                comment.ID,
+				Author:            comment.User.Login,
+				AuthorType:        comment.User.Type,
+				AuthorAssociation: comment.AuthorAssociation,
+				Body:              comment.Body,
+				CreatedAt:         comment.CreatedAt.Time,
+				UpdatedAt:         comment.UpdatedAt.Time,
 			})
 		}
 		if next == nil {
@@ -169,7 +173,7 @@ func (client *Client) ListOpenIssueNumbersByLabel(
 	query := endpoint.Query()
 	query.Set("state", "open")
 	query.Set("labels", label)
-	query.Set("per_page", "100")
+	query.Set("per_page", "41")
 	query.Set("page", "1")
 	endpoint.RawQuery = query.Encode()
 	var payload []struct {
@@ -180,7 +184,7 @@ func (client *Client) ListOpenIssueNumbersByLabel(
 	if err != nil {
 		return nil, err
 	}
-	if next != nil || len(payload) >= 100 {
+	if next != nil || len(payload) > 40 {
 		return nil, errors.New("Issue inventory exceeds the global accounting bound")
 	}
 	result := make([]int64, 0, len(payload))

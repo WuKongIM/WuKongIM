@@ -1,4 +1,4 @@
-// Command wkissueagent runs the standalone GitHub Actions Issue Agent.
+// Command wkissueagent runs the JSON-only GitHub Issue Agent v2 boundary.
 package main
 
 import (
@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,40 +19,56 @@ func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }
 
-func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) int {
+func run(
+	args []string,
+	stdin io.Reader,
+	stdout io.Writer,
+	stderr io.Writer,
+) int {
 	ctx, cancel := signal.NotifyContext(
-		context.Background(), os.Interrupt, syscall.SIGTERM,
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
 	)
 	defer cancel()
-	dependencies := app.NewIssueAgentGitHubDependencies(app.IssueAgentGitHubConfig{
-		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
-		GitHubToken:     os.Getenv("ISSUE_AGENT_GITHUB_TOKEN"),
-		CheckpointKeyID: os.Getenv("ISSUE_AGENT_CHECKPOINT_KEY_ID"),
-		CheckpointPrivateKeyBase64: os.Getenv(
-			"ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY",
+	workingDirectory, _ := os.Getwd()
+	apiBaseURL := os.Getenv("GITHUB_API_URL")
+	if apiBaseURL == "" {
+		apiBaseURL = "https://api.github.com"
+	}
+	config := app.IssueAgentConfig{
+		HTTPClient:  &http.Client{Timeout: 30 * time.Second},
+		APIBaseURL:  apiBaseURL,
+		Repository:  os.Getenv("GITHUB_REPOSITORY"),
+		GitHubToken: os.Getenv("ISSUE_AGENT_GITHUB_TOKEN"),
+		AppLogin:    os.Getenv("ISSUE_AGENT_APP_LOGIN"),
+		AppID:       parsePositiveInt64(os.Getenv("ISSUE_AGENT_APP_ID")),
+		AppInstallationID: parsePositiveInt64(
+			os.Getenv("ISSUE_AGENT_APP_INSTALLATION_ID"),
 		),
-		AppPrivateKeyPEM: []byte(os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY")),
+		RepositoryID: parsePositiveInt64(
+			os.Getenv("ISSUE_AGENT_REPOSITORY_ID"),
+		),
+		AppPrivateKeyPEM: []byte(
+			os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY"),
+		),
+		WorkingDirectory: workingDirectory,
 		Now:              time.Now,
-	})
-	dependencies.RunWorker = app.NewIssueAgentWorkerDependency(
-		issueAgentWorkerConfigFromEnv(),
-	)
+	}
 	return issueagentcli.Run(
-		ctx, args, stdin, stdout, stderr,
-		app.NewIssueAgentOperations(dependencies),
+		ctx,
+		args,
+		stdin,
+		stdout,
+		stderr,
+		app.NewIssueAgentOperations(config),
 	)
 }
 
-func issueAgentWorkerConfigFromEnv() app.IssueAgentWorkerConfig {
-	return app.IssueAgentWorkerConfig{
-		HTTPClient:          &http.Client{Timeout: 2 * time.Minute},
-		DeepSeekAPIKey:      os.Getenv("DEEPSEEK_API_KEY"),
-		CodexBootstrapHome:  os.Getenv("ISSUE_AGENT_CODEX_BOOTSTRAP_HOME"),
-		CodexBinary:         os.Getenv("ISSUE_AGENT_CODEX_BINARY"),
-		CodexMinimumVersion: os.Getenv("ISSUE_AGENT_CODEX_MIN_VERSION"),
-		SandboxImage:        os.Getenv("ISSUE_AGENT_SANDBOX_IMAGE"),
-		ForbiddenPublisherData: os.Getenv("ISSUE_AGENT_GITHUB_TOKEN") != "" ||
-			os.Getenv("ISSUE_AGENT_CHECKPOINT_PRIVATE_KEY") != "" ||
-			os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY") != "",
+func parsePositiveInt64(value string) int64 {
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed <= 0 {
+		return 0
 	}
+	return parsed
 }

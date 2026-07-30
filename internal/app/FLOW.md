@@ -1132,39 +1132,24 @@ that resume path.
 ## Standalone Issue Agent Composition
 
 `issue_agent.go` composes the JSON command operations used only by
-`cmd/wkissueagent`. It intentionally is not called by `app.New`, does not join a
-WuKongIM cluster, and owns no server lifecycle. Pure event reconciliation and
-repository scheduling are always available; GitHub publication, checkpoint
-verification, and App authentication are supplied as explicit standalone
-dependencies so Publisher credentials cannot enter the product process.
-The composition root also re-reads and publishes exact maintainer controls,
-bounded CI-repair leases, sanitized provider failures, and admin chain
-recovery. The credential-separated Worker maps setup and execution failures to
-the CLI's fixed public-safe stage vocabulary while preserving the underlying
-error only inside the process. Authorization converts an omitted affected version into the exact
-`main` SHA from the same trusted read used for the diagnosis baseline.
-Reproduction lease publication derives topology from the frozen Bug facts,
-defaulting an omission to `single-node-cluster` and rejecting conflicting
-single/multi-node descriptions. Lifecycle operation selection is returned by
-`internal/usecase/issueagent.Reconcile`; the workflow does not infer the next
-operation directly from raw event state. Invalid signed chains on open or
-closed Issues are surfaced by an unsigned, idempotent human alert without
-appending a false checkpoint only above the `intake` rollout ceiling. At
-`intake`, every existing chain is read-only and recovery or alert writes remain
-blocked. All signed successor state, action, lease, and budget decisions come
-from typed usecase transitions and effect-result binders. Moving-main and
-conflict outcomes are selected by the usecase drift planner; the protected
-workflow independently computes the exact merge tree,
-while the composition root verifies GitHub run/status/ref facts and applies
-only the returned App-authored staging-commit plus atomic expected-OID ref-swap
-effect. Every active Agent work head and PR projection is re-read when a Worker
-loads its task, before Artifact publication, and during reconciliation.
-Lease-bound exact App-authored/GitHub-signed commits are recovered before an
-unknown head is classified as external. Missing, closed-unmerged, and
-retargeted work objects become a signed human handoff; reversible Draft/Ready
-projection drift is repaired from signed state. External heads can be adopted
-only by a fresh exact maintainer command.
-For an unexpired lease, reconciliation also reads the bounded completed-run
-inventory since lease issuance. A unique operation-bound Artifact is downloaded
-from its exact run and re-enters the same lease-, task-, work-, and commit-fenced
-Publisher used by the original Worker workflow.
+`cmd/wkissueagent`. It is not called by `app.New`, does not join a WuKongIM
+cluster, and owns no server lifecycle.
+
+The composition root connects deterministic reconciliation, signed state-ref
+storage, bounded Context Builder reads, filesystem candidate capture, the
+clean Verifier, short-lived App token minting, and the sole Candidate
+Publisher. Codex runs in the official Action and is not embedded here. Local
+capture and verification require no GitHub configuration. GitHub reads use an
+explicit read token; writes require the protected repository-scoped App token.
+Publisher credentials therefore never enter the product server or Codex
+Engineer process.
+
+Pure Bug-form admission, permission, risk, and lifecycle tracking rules live
+in `internal/usecase/issueagent`; this package only gathers facts and composes
+their adapters. Context construction freezes every repository `AGENTS.md` and
+`FLOW.md` Git blob identity from the task's exact candidate source commit.
+
+Controller admission requires the binary's exact checkout SHA to match the
+fresh protected `main` head. The reusable task freezes that SHA for every
+trusted control role while the candidate workspace uses the task's separate
+exact base SHA.

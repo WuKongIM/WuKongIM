@@ -146,9 +146,8 @@ var catalogedWorkflowNames = map[string]string{
 	"cloud-sim-monitor.yml":           "Safety Automation - Patrol Cloud Simulation Runs",
 	"cloud-sim-oidc-subject.yml":      "Agent Tool - Configure Cloud Simulation OIDC Subject",
 	"cloud-sim-provision.yml":         "Agent Tool - Provision Cloud Simulation",
-	"issue-agent-control.yml":         "Safety Automation - Issue Agent Control",
-	"issue-agent-reconcile.yml":       "Safety Automation - Issue Agent Sweeper",
-	"issue-agent-run.yml":             "Agent Tool - Issue Worker",
+	"issue-agent-engineer.yml":        "Agent Tool - Issue Engineer",
+	"issue-agent.yml":                 "Safety Automation - GitHub Issue Agent",
 }
 
 var autonomousSafetyWorkflows = map[string]struct{}{
@@ -156,8 +155,7 @@ var autonomousSafetyWorkflows = map[string]struct{}{
 	"agent-pr-validation-control.yml": {},
 	"cloud-sim-cleanup.yml":           {},
 	"cloud-sim-monitor.yml":           {},
-	"issue-agent-control.yml":         {},
-	"issue-agent-reconcile.yml":       {},
+	"issue-agent.yml":                 {},
 }
 
 var legacyAutomaticTestWorkflows = []string{"ci.yml", "nightly.yml"}
@@ -536,7 +534,9 @@ func validateAgentWorkflowTrigger(
 			return fmt.Errorf("%s Agent Tool triggers = %v, want one on-demand trigger", file, triggers)
 		}
 		for trigger := range triggers {
-			if trigger != "workflow_dispatch" && trigger != "repository_dispatch" {
+			if trigger != "workflow_dispatch" &&
+				trigger != "repository_dispatch" &&
+				trigger != "workflow_call" {
 				return fmt.Errorf("%s Agent Tool uses automatic trigger %q", file, trigger)
 			}
 		}

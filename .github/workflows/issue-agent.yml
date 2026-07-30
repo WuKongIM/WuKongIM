@@ -1,0 +1,97 @@
+name: Safety Automation - GitHub Issue Agent
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+  pull_request:
+    types: [opened, edited, synchronize, reopened, closed, converted_to_draft, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Exact Issue number to reconcile
+        required: false
+        type: number
+
+permissions: {}
+
+jobs:
+  controller:
+    name: Reconcile fresh GitHub facts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: issue-agent-publisher
+    concurrency:
+      group: issue-agent-state-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    outputs:
+      dispatch: ${{ steps.reconcile.outputs.dispatch }}
+      repository: ${{ steps.reconcile.outputs.repository }}
+      issue_number: ${{ steps.reconcile.outputs.issue_number }}
+      task_id: ${{ steps.reconcile.outputs.task_id }}
+      base_sha: ${{ steps.reconcile.outputs.base_sha }}
+      control_sha: ${{ steps.reconcile.outputs.control_sha }}
+      state_head_sha: ${{ steps.reconcile.outputs.state_head_sha }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Build the protected controller
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkissueagent" ./cmd/wkissueagent
+      - name: Reconcile one Issue or one bounded sweep
+        id: reconcile
+        shell: bash
+        env:
+          ISSUE_AGENT_APP_ID: ${{ vars.ISSUE_AGENT_APP_ID }}
+          ISSUE_AGENT_APP_INSTALLATION_ID: ${{ vars.ISSUE_AGENT_APP_INSTALLATION_ID }}
+          ISSUE_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
+          ISSUE_AGENT_APP_LOGIN: ${{ vars.ISSUE_AGENT_APP_LOGIN }}
+          ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}
+          ISSUE_NUMBER_INPUT: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg event_name "$GITHUB_EVENT_NAME" \
+            --arg event_path "$GITHUB_EVENT_PATH" \
+            --arg issue_number "$ISSUE_NUMBER_INPUT" \
+            --arg control_sha "$(git rev-parse HEAD)" \
+            --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{repository:$repository,event_name:$event_name,event_path:$event_path,
+              issue_number:($issue_number | if . == "" then 0 else tonumber end),
+              control_sha:$control_sha,now:$now}' >"$RUNNER_TEMP/reconcile.json"
+          "$RUNNER_TEMP/wkissueagent" reconcile-github \
+            --input "$RUNNER_TEMP/reconcile.json" >"$RUNNER_TEMP/decision.json"
+          jq -r '"dispatch=\(.dispatch)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"repository=\(.repository)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"issue_number=\(.issue_number)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"task_id=\(.task_id)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"base_sha=\(.base_sha)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"control_sha=\(.control_sha)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+          jq -r '"state_head_sha=\(.state_head_sha)"' "$RUNNER_TEMP/decision.json" >>"$GITHUB_OUTPUT"
+
+  engineer:
+    name: Run one exact Issue task
+    needs: controller
+    if: needs.controller.outputs.dispatch == 'true'
+    uses: ./.github/workflows/issue-agent-engineer.yml
+    with:
+      repository: ${{ needs.controller.outputs.repository }}
+      issue_number: ${{ fromJSON(needs.controller.outputs.issue_number) }}
+      task_id: ${{ needs.controller.outputs.task_id }}
+      base_sha: ${{ needs.controller.outputs.base_sha }}
+      control_sha: ${{ needs.controller.outputs.control_sha }}
+      state_head_sha: ${{ needs.controller.outputs.state_head_sha }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
