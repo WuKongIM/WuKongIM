@@ -16,8 +16,7 @@ jobs:
     permissions:
       actions: read
       contents: write
-      issues: write
-      pull-requests: read
+      pull-requests: write
       statuses: write
     steps:
       - name: Authorize and dispatch the commit-bound request

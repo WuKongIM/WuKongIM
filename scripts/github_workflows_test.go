@@ -1111,8 +1111,7 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if !reflect.DeepEqual(request.Permissions, map[string]string{
 		"actions":       "read",
 		"contents":      "write",
-		"issues":        "write",
-		"pull-requests": "read",
+		"pull-requests": "write",
 		"statuses":      "write",
 	}) {
 		return fmt.Errorf("Agent validation request permissions = %#v", request.Permissions)
