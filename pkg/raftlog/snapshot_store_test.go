@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -381,31 +380,36 @@ func TestSnapshotStoreWriteCleansTmpDirOnValidationFailure(t *testing.T) {
 func TestSnapshotStoreStageCleansTmpDirOnPublishCollisionRetry(t *testing.T) {
 	store := testSnapshotStore(t, 1024, "3333333333333333", "4444444444444444")
 	scope := SlotScope(19)
-	snapshot := testSnapshot(25, 17, bytes.Repeat([]byte("x"), 256*1024))
+	snapshot := testSnapshot(25, 17, []byte("collision"))
 	firstID := "snap-0000000000000019-0000000000000011-3333333333333333"
 	firstTmpDir := filepath.Join(store.scopeDir(scope), ".tmp-"+firstID)
 	firstFinalDir := filepath.Join(store.scopeDir(scope), firstID)
 	marker := filepath.Join(firstFinalDir, "marker")
-	done := make(chan struct{})
-
-	go func() {
-		defer close(done)
-		deadline := time.Now().Add(5 * time.Second)
-		for time.Now().Before(deadline) {
-			if _, err := os.Stat(firstTmpDir); err == nil {
-				if err := os.Mkdir(firstFinalDir, 0o755); err == nil {
-					_ = os.WriteFile(marker, []byte("keep"), 0o600)
-				}
-				return
-			}
-			time.Sleep(time.Millisecond)
+	originalWriteFile := snapshotWriteFile
+	t.Cleanup(func() {
+		snapshotWriteFile = originalWriteFile
+	})
+	collisionCreated := false
+	snapshotWriteFile = func(path string, data []byte) error {
+		if err := originalWriteFile(path, data); err != nil {
+			return err
 		}
-	}()
+		if collisionCreated {
+			return nil
+		}
+		collisionCreated = true
+		if err := os.Mkdir(firstFinalDir, 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(marker, []byte("keep"), 0o600)
+	}
 
 	staged, err := store.stage(context.Background(), scope, snapshot)
-	<-done
 	if err != nil {
 		t.Fatalf("stage failed: %v", err)
+	}
+	if !collisionCreated {
+		t.Fatal("test did not create the publish collision")
 	}
 	if !strings.HasSuffix(staged.manifest.SnapshotID, "4444444444444444") {
 		t.Fatalf("stage snapshot ID = %q, want retry nonce", staged.manifest.SnapshotID)

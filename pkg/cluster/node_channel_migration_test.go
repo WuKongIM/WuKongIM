@@ -1,3 +1,5 @@
+//go:build integration
+
 package cluster
 
 import (
@@ -10,7 +12,6 @@ import (
 	channelwrapper "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestClusterChannelMigrationStoreReadsSlotLeaderState(t *testing.T) {
@@ -185,26 +186,6 @@ func TestClusterChannelMigrationReadUsesLocalActualSlotLeaderWhenRouteLeaderStal
 	}
 	if gotMeta.ChannelID != id.ID || gotMeta.ChannelType != int64(id.Type) {
 		t.Fatalf("runtime meta = %+v, want %s/%d", gotMeta, id.ID, id.Type)
-	}
-}
-
-func TestChannelMigrationRemoteErrorMapping(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want error
-	}{
-		{name: "stale meta", err: transport.RemoteError{Code: "remote_error", Message: metadb.ErrStaleMeta.Error()}, want: metadb.ErrStaleMeta},
-		{name: "not leader", err: transport.RemoteError{Code: "remote_error", Message: ErrNotLeader.Error()}, want: ErrNotLeader},
-		{name: "invalid argument", err: transport.RemoteError{Code: "remote_error", Message: metadb.ErrInvalidArgument.Error()}, want: metadb.ErrInvalidArgument},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := mapChannelMigrationRemoteError(tc.err)
-			if !errors.Is(err, tc.want) {
-				t.Fatalf("mapChannelMigrationRemoteError() = %v, want %v", err, tc.want)
-			}
-		})
 	}
 }
 

@@ -1,8 +1,9 @@
+//go:build integration
+
 package cluster
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -42,17 +43,4 @@ func TestClusterUserChannelMembershipFacadeUsesUIDHashSlot(t *testing.T) {
 	if err == nil {
 		t.Fatalf("GetUserChannelMembership(after delete) error = nil, want missing")
 	}
-}
-
-func findRouteKeyWithDifferentHashSlot(t testing.TB, node *Node, avoid uint16, prefix string) string {
-	t.Helper()
-	for i := 0; i < 1000; i++ {
-		key := fmt.Sprintf("%s-%d", prefix, i)
-		route := waitRouteKeyLeaderReady(t, node, key)
-		if route.HashSlot != avoid {
-			return key
-		}
-	}
-	t.Fatalf("could not find key outside hash slot %d", avoid)
-	return ""
 }

@@ -383,6 +383,15 @@ func TestFatalSlotRejectsFutureOperations(t *testing.T) {
 	if _, err := fut.Wait(ctx); !errors.Is(err, fatalErr) {
 		t.Fatalf("Wait() error = %v, want %v", err, fatalErr)
 	}
+	waitForCondition(t, func() bool {
+		g := slotFor(rt, slotID)
+		if g == nil {
+			return false
+		}
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		return errors.Is(g.fatalErr, fatalErr)
+	})
 
 	if err := rt.Step(context.Background(), Envelope{
 		SlotID:  slotID,

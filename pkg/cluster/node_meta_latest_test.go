@@ -1,12 +1,12 @@
+//go:build integration
+
 package cluster
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -168,16 +168,4 @@ func TestClusterGetChannelLatestBatchRoutesEachChannel(t *testing.T) {
 	if _, err := node.defaultSlotMetaDB.ForHashSlot(routeB.HashSlot).GetChannelLatest(ctx, channelB, 2); err != nil {
 		t.Fatalf("stored channelB latest on route hash slot: %v", err)
 	}
-}
-
-func channelLatestKeyForHashSlot(t *testing.T, want, count uint16) string {
-	t.Helper()
-	for i := 0; i < 100000; i++ {
-		key := fmt.Sprintf("latest-batch-%d", i)
-		if routing.HashSlotForKey(key, count) == want {
-			return key
-		}
-	}
-	t.Fatalf("no channel key found for hash slot %d/%d", want, count)
-	return ""
 }

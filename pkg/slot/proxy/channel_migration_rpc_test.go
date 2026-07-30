@@ -352,12 +352,17 @@ func TestChannelMigrationListActiveTasksForNodeRPCClampsHugeLimitAndReportsHasMo
 		db: db,
 	}
 	const wantLimit = 1024
+	batch := db.NewWriteBatch()
+	t.Cleanup(func() {
+		require.NoError(t, batch.Close())
+	})
 	for i := 0; i < wantLimit+1; i++ {
 		task := proxyTestChannelMigrationTask(fmt.Sprintf("task-rpc-huge-limit-%04d", i), fmt.Sprintf("channel-rpc-huge-limit-%04d", i))
 		task.SourceNode = 3
 		task.TargetNode = 4
-		require.NoError(t, db.ForHashSlot(hashSlot).CreateChannelMigrationTask(ctx, task))
+		require.NoError(t, batch.CreateChannelMigrationTask(hashSlot, task))
 	}
+	require.NoError(t, batch.Commit())
 	body, err := encodeChannelMigrationRPCRequestBinary(channelMigrationRPCRequest{
 		Op:     channelMigrationRPCListActiveForNode,
 		SlotID: 1,
