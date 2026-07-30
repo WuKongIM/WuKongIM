@@ -1111,6 +1111,7 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 	if !reflect.DeepEqual(request.Permissions, map[string]string{
 		"actions":       "read",
 		"contents":      "write",
+		"issues":        "write",
 		"pull-requests": "read",
 		"statuses":      "write",
 	}) {
@@ -1135,10 +1136,19 @@ func validateAgentPRValidationControlWorkflow(raw []byte) error {
 		"--arg gate_run_id \"$gate_run_id\"",
 		"--arg request_run_id \"$REQUEST_RUN_ID\"",
 		`repos/${GITHUB_REPOSITORY}/dispatches`,
+		`repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/agent-ci%2Frun`,
 	} {
 		if !strings.Contains(requestScript.String(), required) {
 			return fmt.Errorf("Agent validation request is missing trusted dispatch contract %q", required)
 		}
+	}
+	dispatchIndex := strings.Index(requestScript.String(), `repos/${GITHUB_REPOSITORY}/dispatches`)
+	cleanupIndex := strings.Index(
+		requestScript.String(),
+		`repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/agent-ci%2Frun`,
+	)
+	if cleanupIndex <= dispatchIndex {
+		return fmt.Errorf("Agent validation request must remove agent-ci/run after dispatch")
 	}
 	invalidate := workflow.Jobs["invalidate"]
 	if invalidate.Environment != "" {
