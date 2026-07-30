@@ -139,7 +139,8 @@
         "-count=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 3600
+      "timeout_seconds": 3600,
+      "max_output_bytes": 8388608
     },
     "go-vet": {
       "arguments": [
@@ -152,7 +153,8 @@
         "./docker/..."
       ],
       "working_dir": ".",
-      "timeout_seconds": 1800
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
     },
     "scripts-integration": {
       "arguments": [
@@ -165,7 +167,8 @@
         "-parallel=2"
       ],
       "working_dir": ".",
-      "timeout_seconds": 600
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
     },
     "workflow-contracts": {
       "arguments": [
@@ -177,68 +180,172 @@
         "-count=1"
       ],
       "working_dir": ".",
-      "timeout_seconds": 900
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
     },
     "web-lint": {
       "arguments": [
-        "npm",
+        "bun",
         "run",
         "lint"
       ],
       "working_dir": "web",
-      "timeout_seconds": 900
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
     },
     "web-test": {
       "arguments": [
-        "npm",
-        "test",
-        "--",
-        "--run"
+        "bun",
+        "run",
+        "test"
       ],
       "working_dir": "web",
-      "timeout_seconds": 1200
+      "timeout_seconds": 1200,
+      "max_output_bytes": 8388608
     },
     "web-typecheck": {
       "arguments": [
-        "npm",
-        "run",
-        "typecheck"
+        "bunx",
+        "tsc",
+        "-b"
       ],
       "working_dir": "web",
-      "timeout_seconds": 900
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
     },
     "web-build": {
       "arguments": [
-        "npm",
+        "bun",
         "run",
         "build"
       ],
       "working_dir": "web",
-      "timeout_seconds": 1200
+      "timeout_seconds": 1200,
+      "max_output_bytes": 8388608
     },
     "demo-test": {
       "arguments": [
-        "npm",
-        "test",
-        "--",
-        "--run"
+        "yarn",
+        "test"
       ],
       "working_dir": "demo/chatdemo",
-      "timeout_seconds": 1200
+      "timeout_seconds": 1200,
+      "max_output_bytes": 8388608
     },
     "demo-build": {
       "arguments": [
-        "npm",
-        "run",
+        "yarn",
         "build"
       ],
       "working_dir": "demo/chatdemo",
-      "timeout_seconds": 1200
+      "timeout_seconds": 1200,
+      "max_output_bytes": 8388608
+    },
+    "docs-contracts": {
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "Docs|Markdown|Link",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    },
+    "web-bundle": {
+      "arguments": [
+        "/opt/review-agent/bin/wkreviewagent",
+        "verify-clean",
+        "--path",
+        "internal/access/manager/webui/dist"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
+    "demo-bundle": {
+      "arguments": [
+        "/opt/review-agent/bin/wkreviewagent",
+        "verify-clean",
+        "--path",
+        "internal/access/api/demoui/dist"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60,
+      "max_output_bytes": 1048576
+    },
+    "go-race": {
+      "arguments": [
+        "go",
+        "test",
+        "-race",
+        "./internal/app",
+        "./internal/runtime/...",
+        "./pkg/plugin/pluginhost",
+        "./pkg/wklog",
+        "./pkg/gateway/...",
+        "./pkg/transport/...",
+        "./pkg/channel/...",
+        "./pkg/cluster/...",
+        "./pkg/slot/...",
+        "-count=1",
+        "-p=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 2700,
+      "max_output_bytes": 8388608
+    },
+    "go-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./internal/...",
+        "./pkg/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 2400,
+      "max_output_bytes": 8388608
+    },
+    "go-e2e": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 3600,
+      "max_output_bytes": 8388608
+    },
+    "three-node-cluster": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-run",
+        "ThreeNode",
+        "-count=1",
+        "-timeout=30m",
+        "-parallel=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 2100,
+      "max_output_bytes": 8388608
     }
   },
   "path_rules": [
     {
       "name": "go",
+      "paths": [
+        "go.mod",
+        "go.sum"
+      ],
       "prefixes": [
         "cmd/",
         "internal/",
@@ -247,13 +354,40 @@
         "docker/"
       ],
       "suffixes": [
-        ".go",
-        "go.mod",
-        "go.sum"
+        ".go"
       ],
       "checks": [
         "go-unit",
         "go-vet"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "configuration",
+      "paths": [
+        "wukongim.toml.example"
+      ],
+      "prefixes": [],
+      "suffixes": [
+        ".toml"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "docker",
+      "paths": [],
+      "prefixes": [
+        "docker/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "go-unit",
+        "go-vet",
+        "workflow-contracts"
       ],
       "exclusive": false
     },
@@ -267,6 +401,19 @@
       ],
       "checks": [
         "scripts-integration"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "codeowners",
+      "paths": [
+        ".github/CODEOWNERS"
+      ],
+      "prefixes": [],
+      "suffixes": [],
+      "checks": [
+        "workflow-contracts",
+        "go-unit"
       ],
       "exclusive": false
     },
@@ -296,7 +443,8 @@
         "web-lint",
         "web-test",
         "web-typecheck",
-        "web-build"
+        "web-build",
+        "web-bundle"
       ],
       "exclusive": false
     },
@@ -308,7 +456,8 @@
       "suffixes": [],
       "checks": [
         "demo-test",
-        "demo-build"
+        "demo-build",
+        "demo-bundle"
       ],
       "exclusive": false
     },
@@ -323,7 +472,7 @@
         ".mdx"
       ],
       "checks": [
-        "workflow-contracts"
+        "docs-contracts"
       ],
       "exclusive": true
     }

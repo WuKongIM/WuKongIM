@@ -90,6 +90,12 @@ func TestReviewAgentPolicy(t *testing.T) {
 		policy.State.SchedulerPath,
 	)
 	require.NotEmpty(t, policy.TrustedChecks)
+	for name, check := range policy.TrustedChecks {
+		require.Regexp(t, `^[a-z0-9][a-z0-9_-]{0,63}$`, name)
+		require.NotEmpty(t, check.Arguments)
+		require.Positive(t, check.TimeoutSeconds)
+		require.Positive(t, check.MaxOutputBytes)
+	}
 	require.NotEmpty(t, policy.PathRules)
 	require.NotEmpty(t, policy.ControlPlanePaths)
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
@@ -365,10 +371,12 @@ type reviewAgentCheck struct {
 	Arguments      []string `json:"arguments"`
 	WorkingDir     string   `json:"working_dir"`
 	TimeoutSeconds int      `json:"timeout_seconds"`
+	MaxOutputBytes int      `json:"max_output_bytes"`
 }
 
 type reviewAgentPathRule struct {
 	Name      string   `json:"name"`
+	Paths     []string `json:"paths,omitempty"`
 	Prefixes  []string `json:"prefixes"`
 	Suffixes  []string `json:"suffixes"`
 	Checks    []string `json:"checks"`

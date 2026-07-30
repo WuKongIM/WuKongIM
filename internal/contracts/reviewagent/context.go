@@ -23,19 +23,26 @@ const (
 
 // ChangedFile identifies one changed path and the captured diff content.
 type ChangedFile struct {
-	Path         string     `json:"path"`
-	PreviousPath string     `json:"previous_path"`
-	Status       FileStatus `json:"status"`
-	PatchDigest  string     `json:"patch_digest"`
-	Additions    uint64     `json:"additions"`
-	Deletions    uint64     `json:"deletions"`
+	Path          string     `json:"path"`
+	PreviousPath  string     `json:"previous_path"`
+	Status        FileStatus `json:"status"`
+	Mode          string     `json:"mode"`
+	Type          string     `json:"type"`
+	Generated     bool       `json:"generated"`
+	Patch         string     `json:"patch"`
+	PatchDigest   string     `json:"patch_digest"`
+	ContentDigest string     `json:"content_digest"`
+	Additions     uint64     `json:"additions"`
+	Deletions     uint64     `json:"deletions"`
 }
 
 // InstructionBlob freezes one applicable base/control-tree instruction.
 type InstructionBlob struct {
 	Path       string `json:"path"`
+	Scope      string `json:"scope"`
 	BlobSHA    string `json:"blob_sha"`
 	BlobDigest string `json:"blob_digest"`
+	Content    string `json:"content"`
 }
 
 // ReviewContext is the complete bounded input to one ephemeral reviewer.
@@ -90,8 +97,11 @@ func ValidateReviewContext(context ReviewContext) error {
 	instructionPaths := make(map[string]struct{}, len(context.Instructions))
 	for _, instruction := range context.Instructions {
 		if !validRepositoryPath(instruction.Path) ||
+			(instruction.Scope != "." &&
+				!validRepositoryPath(instruction.Scope)) ||
 			!validSHA(instruction.BlobSHA) ||
-			!validDigest(instruction.BlobDigest) {
+			!validDigest(instruction.BlobDigest) ||
+			!validText(instruction.Content, 1<<20, true) {
 			return errors.New("invalid Review context instruction")
 		}
 		if _, exists := instructionPaths[instruction.Path]; exists {
@@ -139,7 +149,12 @@ func ReviewContextDigest(context ReviewContext) (string, error) {
 }
 
 func validateChangedFile(file ChangedFile) error {
-	if !validRepositoryPath(file.Path) || !validDigest(file.PatchDigest) {
+	if !validRepositoryPath(file.Path) ||
+		!validDigest(file.PatchDigest) ||
+		!validDigest(file.ContentDigest) ||
+		!validText(file.Patch, 2<<20, file.Type == "text") ||
+		(file.Mode != "100644" && file.Mode != "100755") ||
+		(file.Type != "text" && file.Type != "binary") {
 		return errors.New("invalid Review context changed file")
 	}
 	switch file.Status {
