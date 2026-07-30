@@ -85,6 +85,10 @@ jobs:
     name: Run one exact Issue task
     needs: controller
     if: needs.controller.outputs.dispatch == 'true'
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     uses: ./.github/workflows/issue-agent-engineer.yml
     with:
       repository: ${{ needs.controller.outputs.repository }}
