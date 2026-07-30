@@ -164,22 +164,20 @@ func TestCloudSimulationLocalRuntimeHangupCleansProcessGroup(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = command.Process.Kill() })
 	deadline := time.Now().Add(2 * time.Second)
+	var descendantPID int
 	for {
-		if _, err := os.Stat(descendantPIDFile); err == nil {
-			break
+		descendantBytes, readErr := os.ReadFile(descendantPIDFile)
+		if readErr == nil {
+			parsedPID, parseErr := strconv.Atoi(strings.TrimSpace(string(descendantBytes)))
+			if parseErr == nil {
+				descendantPID = parsedPID
+				break
+			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("bounded command did not start its descendant")
+			t.Fatal("bounded command did not publish its descendant pid")
 		}
 		time.Sleep(10 * time.Millisecond)
-	}
-	descendantBytes, err := os.ReadFile(descendantPIDFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	descendantPID, err := strconv.Atoi(strings.TrimSpace(string(descendantBytes)))
-	if err != nil {
-		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = syscall.Kill(descendantPID, syscall.SIGKILL) })
 

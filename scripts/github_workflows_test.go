@@ -179,7 +179,7 @@ func TestAgentPRValidationWorkflowContract(t *testing.T) {
 	if err := validateAgentPRValidationWorkflow(raw); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("scripts integration files use build tags", assertScriptsIntegrationTestFilesUseBuildTag)
+	t.Run("repository integration files use build tags", assertRepositoryIntegrationTestFilesUseBuildTag)
 }
 
 func TestAgentPRValidationControlWorkflowContract(t *testing.T) {

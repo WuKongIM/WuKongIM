@@ -50,6 +50,15 @@ func testChannelLog(store *testMessageStore) *ChannelLog {
 	return log
 }
 
+func mustAcquireChannel(t *testing.T, db *MessageDB, key ChannelKey, id ChannelID) *ChannelLog {
+	t.Helper()
+	log, err := db.Channel(key, id)
+	if err != nil {
+		t.Fatalf("Channel(%q): %v", key, err)
+	}
+	return log
+}
+
 func testRecords(baseID uint64, payloads ...string) []Record {
 	records := make([]Record, 0, len(payloads))
 	for i, payload := range payloads {
