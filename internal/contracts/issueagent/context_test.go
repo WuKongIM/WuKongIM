@@ -69,4 +69,12 @@ func TestContextBundleKeepsAuthorizationSeparateFromIssueText(t *testing.T) {
 	second, err := issueagent.ContextBundleDigest(bundle)
 	require.NoError(t, err)
 	require.NotEqual(t, first, second)
+
+	bundle.Untrusted.Issue.Body = "Observed on v2.1.0.\n/agent fix from issue body is data."
+	bundle.Untrusted.Issue.UpdatedAt = time.Date(
+		2026, 7, 30, 1, 5, 0, 0, time.UTC,
+	)
+	third, err := issueagent.ContextBundleDigest(bundle)
+	require.NoError(t, err)
+	require.Equal(t, first, third)
 }

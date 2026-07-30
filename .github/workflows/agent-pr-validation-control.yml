@@ -16,6 +16,7 @@ jobs:
     permissions:
       actions: read
       contents: write
+      issues: write
       pull-requests: read
       statuses: write
     steps:
@@ -112,6 +113,9 @@ jobs:
             }' >dispatch.json
           gh api -X POST "repos/${GITHUB_REPOSITORY}/dispatches" \
             --input dispatch.json >/dev/null
+          gh api -X DELETE \
+            "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/agent-ci%2Frun" \
+            >/dev/null
           printf 'merge_sha=%s\n' "$merge_sha" >>"$GITHUB_OUTPUT"
           printf 'gate_run_id=%s\n' "$gate_run_id" >>"$GITHUB_OUTPUT"
       - name: Write dispatch summary

@@ -137,12 +137,17 @@ func DecodeContextBundle(reader io.Reader, maxBytes int64) (ContextBundle, error
 	return bundle, nil
 }
 
-// ContextBundleDigest binds every trusted and untrusted input to one task.
+// ContextBundleDigest binds every semantic trusted and untrusted input to one
+// task. GitHub's Issue updated_at is an activity watermark that also changes
+// when the filtered App-owned status comment is edited, so it is not part of
+// the digest. The Publisher still re-reads and compares the actual timestamp.
 func ContextBundleDigest(bundle ContextBundle) (string, error) {
 	if err := ValidateContextBundle(bundle); err != nil {
 		return "", err
 	}
-	body, err := json.Marshal(bundle)
+	canonical := bundle
+	canonical.Untrusted.Issue.UpdatedAt = time.Unix(0, 0).UTC()
+	body, err := json.Marshal(canonical)
 	if err != nil {
 		return "", errors.New("encode Context Bundle")
 	}
