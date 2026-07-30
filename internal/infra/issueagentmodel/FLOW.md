@@ -21,8 +21,9 @@ errors. DeepSeek keeps its key in Adapter memory. Codex uses the official
 Responses proxy, and drop `sudo`; neither `wkissueagent` nor a Codex subprocess
 receives `CODEX_API_KEY`. Unknown tools, malformed arguments, provider
 redirects, response overflows, excessive tool rounds, and silent
-model/provider changes fail closed. The state machine and Worker do not
-interpret provider-specific messages.
+model/provider changes fail closed. Raw provider messages remain process-local.
+Only Codex JSON error events may be reduced to a fixed response-free diagnostic
+vocabulary; the state machine and Worker never interpret provider text.
 
 The Codex Adapter accepts only the Action's exact
 `http://127.0.0.1:<port>/v1` Responses provider from a regular bootstrap config

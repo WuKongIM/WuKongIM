@@ -3,6 +3,7 @@ package issueagentmodel_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
@@ -13,6 +14,7 @@ import (
 type fakeCodexRoundRunner struct {
 	responses []issueagentmodel.CodexRoundResponse
 	requests  []issueagentmodel.CodexRoundRequest
+	err       error
 }
 
 func (runner *fakeCodexRoundRunner) RunRound(
@@ -20,6 +22,9 @@ func (runner *fakeCodexRoundRunner) RunRound(
 	request issueagentmodel.CodexRoundRequest,
 ) (issueagentmodel.CodexRoundResponse, error) {
 	runner.requests = append(runner.requests, request)
+	if runner.err != nil {
+		return issueagentmodel.CodexRoundResponse{}, runner.err
+	}
 	response := runner.responses[0]
 	runner.responses = runner.responses[1:]
 	return response, nil
@@ -83,6 +88,28 @@ func TestCodexAdapterDoesNotFallBackAfterMalformedEnvelope(t *testing.T) {
 		PromptSHA256: task.PromptDigest, MaxRounds: 2, MaxBytes: 1 << 20,
 	}, &recordingToolExecutor{})
 	require.Error(t, err)
+	require.Len(t, runner.requests, 1)
+}
+
+func TestCodexAdapterPreservesSafeProviderFailure(t *testing.T) {
+	t.Parallel()
+
+	task, _ := validAdapterTaskAndResult(t)
+	task.Provider = issueagent.ProviderCodex
+	task.Model = "policy-codex-model"
+	runner := &fakeCodexRoundRunner{err: &issueagentmodel.ProviderError{
+		Class: "authentication",
+	}}
+	adapter, err := issueagentmodel.NewCodexAdapter(runner)
+	require.NoError(t, err)
+
+	_, err = adapter.Run(context.Background(), issueagentmodel.Request{
+		Task: task, SystemPrompt: "fixed prompt",
+		PromptSHA256: task.PromptDigest, MaxRounds: 2, MaxBytes: 1 << 20,
+	}, &recordingToolExecutor{})
+	var failure *issueagentmodel.ProviderError
+	require.True(t, errors.As(err, &failure))
+	require.Equal(t, "authentication", failure.Class)
 	require.Len(t, runner.requests, 1)
 }
 

@@ -148,7 +148,7 @@ func (worker *Worker) Run(ctx context.Context) (Artifact, error) {
 				RequestedAction: issueagent.ActionWaitForHuman,
 				Failure: &issueagent.Failure{
 					Class:   issueagent.FailureProvider,
-					Summary: "The selected model provider did not complete this bounded attempt.",
+					Summary: providerFailureSummary(err),
 				},
 			},
 			Usage: issueagent.ModelUsage{
@@ -259,6 +259,24 @@ func (worker *Worker) Run(ctx context.Context) (Artifact, error) {
 		Tools: toolEvidence, Binaries: worker.config.Binaries,
 		SHA256: digest(encoded),
 	}, nil
+}
+
+func providerFailureSummary(err error) string {
+	const summary = "The selected model provider did not complete this bounded attempt."
+	var classified interface {
+		SafeProviderFailureCode() string
+	}
+	if !errors.As(err, &classified) {
+		return summary
+	}
+	switch code := classified.SafeProviderFailureCode(); code {
+	case "authentication", "quota", "rate_limit", "invalid_request",
+		"model_unavailable", "network", "provider_unavailable",
+		"output_limit", "codex_process":
+		return summary + " Safe diagnostic: " + code + "."
+	default:
+		return summary
+	}
 }
 
 // ValidateArtifact replays every deterministic Worker-side validation before a
