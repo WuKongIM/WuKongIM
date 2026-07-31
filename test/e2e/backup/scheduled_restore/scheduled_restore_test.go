@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,13 +31,24 @@ type managerLoginResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
+type backupConfigureResponse struct {
+	Plan struct {
+		Revision uint64 `json:"revision"`
+	} `json:"plan"`
+}
+
 type backupDashboard struct {
 	State struct {
+		Plan          *backupPlan `json:"plan"`
 		ActiveBackup  *backupJob  `json:"active_backup"`
 		ActiveRestore *restoreJob `json:"active_restore"`
 		History       []task      `json:"history"`
 	} `json:"state"`
 	Archives []archiveSummary `json:"archives"`
+}
+
+type backupPlan struct {
+	Revision uint64 `json:"revision"`
 }
 
 type backupJob struct {
@@ -151,18 +163,86 @@ func configureDailyFileBackup(
 	token string,
 ) {
 	t.Helper()
-	managerJSON(t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
-		map[string]any{
-			"expected_revision":   0,
-			"enabled":             true,
-			"store":               map[string]any{"kind": "file"},
-			"cron":                "0 1 * * *",
-			"time_zone":           "Asia/Shanghai",
-			"retention_count":     7,
-			"rate_mib_per_second": 64,
-			"workers_per_node":    4,
-			"max_duration_hours":  12,
-		}, nil)
+	plan := map[string]any{
+		"enabled":             false,
+		"store":               map[string]any{"kind": "file"},
+		"cron":                "0 1 * * *",
+		"time_zone":           "Asia/Shanghai",
+		"retention_count":     7,
+		"rate_mib_per_second": 64,
+		"workers_per_node":    4,
+		"max_duration_hours":  12,
+	}
+	var saved backupConfigureResponse
+	configureBackupPlanEventually(t, ctx, node, token, plan, &saved)
+	require.NotZero(t, saved.Plan.Revision)
+
+	managerJSON(
+		t, ctx, node, token, http.MethodPost,
+		"/manager/backups/repository/test",
+		map[string]any{"expected_plan_revision": saved.Plan.Revision}, nil,
+	)
+
+	plan["expected_revision"] = saved.Plan.Revision
+	plan["enabled"] = true
+	managerJSON(
+		t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
+		plan, nil,
+	)
+}
+
+func configureBackupPlanEventually(
+	t *testing.T,
+	ctx context.Context,
+	node suite.StartedNode,
+	token string,
+	plan map[string]any,
+	saved *backupConfigureResponse,
+) {
+	t.Helper()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var lastErr error
+	for {
+		var dashboard backupDashboard
+		lastErr = managerJSONE(
+			ctx, node, token, http.MethodGet, "/manager/backups", nil,
+			&dashboard,
+		)
+		if lastErr != nil {
+			require.NoError(t, lastErr, node.DumpDiagnostics())
+		}
+		expectedRevision := uint64(0)
+		if dashboard.State.Plan != nil {
+			expectedRevision = dashboard.State.Plan.Revision
+		}
+		plan["expected_revision"] = expectedRevision
+		lastErr = managerJSONE(
+			ctx, node, token, http.MethodPut, "/manager/backups/plan",
+			plan, saved,
+		)
+		if lastErr == nil {
+			return
+		}
+		if !isBackupPlanConflict(lastErr) {
+			require.NoError(t, lastErr, node.DumpDiagnostics())
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"configure backup plan after revision refresh: %v\n%s",
+				lastErr, node.DumpDiagnostics(),
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func isBackupPlanConflict(err error) bool {
+	status, ok := err.(*suite.HTTPStatusError)
+	return ok &&
+		status.StatusCode == http.StatusConflict &&
+		strings.Contains(status.Body, `"error":"backup_plan_conflict"`)
 }
 
 func sendBackupMessage(

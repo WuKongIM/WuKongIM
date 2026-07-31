@@ -105,6 +105,47 @@ func TestControllerQuorumPreconditionAcceptsHealthyDataOnlySpare(t *testing.T) {
 	require.NoError(t, controllerQuorumPrecondition(healthyControllerQuorumNodes(), []uint64{1, 2, 3}, 4))
 }
 
+func TestPostStopControlPlaneFingerprintAcceptsConvergedSurvivors(t *testing.T) {
+	statuses, slots := convergedPostStopControlPlane()
+
+	fingerprint, err := postStopControlPlaneFingerprint(statuses, slots, 3)
+
+	require.NoError(t, err)
+	require.Equal(t, "controller=2/4;slot=1/2;slot=2/1;", fingerprint)
+}
+
+func TestPostStopControlPlaneFingerprintRejectsStoppedSlotLeader(t *testing.T) {
+	statuses, slots := convergedPostStopControlPlane()
+	slots[2][0].NodeLog.LeaderID = 3
+
+	_, err := postStopControlPlaneFingerprint(statuses, slots, 3)
+
+	require.ErrorContains(t, err, "still reports stopped leader 3")
+}
+
+func convergedPostStopControlPlane() ([]suite.ControllerRaftStatusDTO, map[uint64][]suite.SlotDTO) {
+	statuses := []suite.ControllerRaftStatusDTO{
+		{NodeID: 1, LeaderID: 2, Term: 4, Voters: []uint64{1, 2, 3}},
+		{NodeID: 2, LeaderID: 2, Term: 4, Voters: []uint64{1, 2, 3}},
+	}
+	slots := make(map[uint64][]suite.SlotDTO, 2)
+	for _, nodeID := range []uint64{1, 2} {
+		slots[nodeID] = []suite.SlotDTO{
+			{
+				SlotID:     1,
+				Assignment: suite.SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}},
+				NodeLog:    &suite.SlotNodeLogDTO{NodeID: nodeID, LeaderID: 2},
+			},
+			{
+				SlotID:     2,
+				Assignment: suite.SlotAssignmentDTO{DesiredPeers: []uint64{1, 2, 3}},
+				NodeLog:    &suite.SlotNodeLogDTO{NodeID: nodeID, LeaderID: 1},
+			},
+		}
+	}
+	return statuses, slots
+}
+
 func healthyControllerQuorumNodes() suite.NodeListDTO {
 	items := make([]suite.NodeDTO, 0, 4)
 	for nodeID := uint64(1); nodeID <= 4; nodeID++ {

@@ -2,10 +2,13 @@ package cluster
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 // ChannelMetadataNode exposes cluster Slot metadata operations used by the channel usecase.
@@ -72,7 +75,8 @@ func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string,
 
 // GetChannelForPermission reads channel metadata for send authorization.
 func (s *ChannelMetadataStore) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
-	return s.GetChannel(ctx, channelID, channelType)
+	channel, err := s.GetChannel(ctx, channelID, channelType)
+	return channel, mapChannelPermissionReadError(err)
 }
 
 // UpsertChannel persists channel metadata through Slot ownership.
@@ -206,25 +210,31 @@ func (s *ChannelMetadataStore) ContainsChannelSubscriber(ctx context.Context, ch
 		return false, nil
 	}
 	if s == nil || s.node == nil {
-		return false, clusterpkg.ErrRouteNotReady
+		return false, mapChannelPermissionReadError(clusterpkg.ErrRouteNotReady)
 	}
 	node, ok := s.node.(authoritativeChannelMetadataNode)
 	if !ok {
-		return false, clusterpkg.ErrRouteNotReady
+		return false, mapChannelPermissionReadError(clusterpkg.ErrRouteNotReady)
 	}
-	return node.ContainsChannelSubscriberAuthoritative(ctx, channelID, channelType, uid)
+	contains, err := node.ContainsChannelSubscriberAuthoritative(
+		ctx, channelID, channelType, uid,
+	)
+	return contains, mapChannelPermissionReadError(err)
 }
 
 // HasChannelSubscribers reports whether the channel has at least one subscriber row.
 func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
 	if s == nil || s.node == nil {
-		return false, clusterpkg.ErrRouteNotReady
+		return false, mapChannelPermissionReadError(clusterpkg.ErrRouteNotReady)
 	}
 	node, ok := s.node.(authoritativeChannelMetadataNode)
 	if !ok {
-		return false, clusterpkg.ErrRouteNotReady
+		return false, mapChannelPermissionReadError(clusterpkg.ErrRouteNotReady)
 	}
-	return node.HasChannelSubscribersAuthoritative(ctx, channelID, channelType)
+	hasSubscribers, err := node.HasChannelSubscribersAuthoritative(
+		ctx, channelID, channelType,
+	)
+	return hasSubscribers, mapChannelPermissionReadError(err)
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.
@@ -248,4 +258,22 @@ func firstSubscriberMutationVersion(values []uint64) uint64 {
 		return 1
 	}
 	return values[0]
+}
+
+func mapChannelPermissionReadError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, clusterpkg.ErrRouteNotReady),
+		errors.Is(err, clusterpkg.ErrNoSlotLeader),
+		errors.Is(err, clusterpkg.ErrNotStarted),
+		errors.Is(err, clusterpkg.ErrStopping),
+		errors.Is(err, transport.ErrDialFailed),
+		errors.Is(err, transport.ErrNodeNotFound),
+		errors.Is(err, transport.ErrStopped):
+		return fmt.Errorf("%w: %w", channelappend.ErrRouteNotReady, err)
+	default:
+		return err
+	}
 }
