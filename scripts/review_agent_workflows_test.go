@@ -93,12 +93,26 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.Contains(t, raw, "worker_attempt:$worker_attempt")
 	require.Contains(t, raw, "infrastructure_attempt")
 	require.Contains(t, raw, "workflow_dispatch:")
+	require.Contains(
+		t,
+		raw,
+		"github.event.workflow_run.path == '.github/workflows/review-agent-pr-signal.yml'",
+	)
+	require.Contains(
+		t,
+		raw,
+		"github.event.workflow_run.path == '.github/workflows/review-agent-run.yml'",
+	)
 	require.Contains(t, raw, "github.event.workflow_run.conclusion == 'success'")
 	require.Contains(
 		t,
 		raw,
 		"endsWith(github.event.workflow_run.display_title, ' accepted true')",
 	)
+	require.Contains(t, raw, `if [[ "$path" == ".github/workflows/review-agent-run.yml" ]]`)
+	require.Contains(t, raw, `test "$path" = ".github/workflows/review-agent-pr-signal.yml"`)
+	require.NotContains(t, raw, "github.event.workflow_run.name")
+	require.NotContains(t, raw, "jq -er .name")
 	require.NotContains(t, raw, "group: review-agent-state-")
 	require.Contains(t, raw, "ref: ${{ steps.control.outputs.sha }}")
 	require.Contains(t, raw, "persist-credentials: false")

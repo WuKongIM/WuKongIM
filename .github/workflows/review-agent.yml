@@ -26,10 +26,10 @@ jobs:
     name: Re-read and reconcile
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.name == 'Safety Automation - Review Agent PR Signal' &&
+      (github.event.workflow_run.path == '.github/workflows/review-agent-pr-signal.yml' &&
        github.event.workflow_run.conclusion == 'success' &&
        endsWith(github.event.workflow_run.display_title, ' accepted true')) ||
-      (github.event.workflow_run.name == 'Agent Tool - Review Pull Request' &&
+      (github.event.workflow_run.path == '.github/workflows/review-agent-run.yml' &&
        github.event.workflow_run.conclusion != 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -85,11 +85,9 @@ jobs:
              .event == "issue_comment" or .event == "workflow_dispatch")
           ' "$RUNNER_TEMP/signal-run.json" >/dev/null
           title="$(jq -er .display_title "$RUNNER_TEMP/signal-run.json")"
-          name="$(jq -er .name "$RUNNER_TEMP/signal-run.json")"
           path="$(jq -er .path "$RUNNER_TEMP/signal-run.json")"
           conclusion="$(jq -er .conclusion "$RUNNER_TEMP/signal-run.json")"
-          if [[ "$name" == "Agent Tool - Review Pull Request" ]]; then
-            test "$path" = ".github/workflows/review-agent-run.yml"
+          if [[ "$path" == ".github/workflows/review-agent-run.yml" ]]; then
             test "$conclusion" != success
             [[ "$title" =~ ^Review\ Agent\ PR\ \#([1-9][0-9]{0,9})\ generation\ from\ lease\ ([1-9][0-9]{0,19})\ attempt\ ([0-9]{1,2})$ ]]
             printf 'pull_request=%s\nsignal_kind=worker_failure\ncomment_id=0\nrun_id=%s\nworker_attempt=%s\n' \
@@ -97,7 +95,6 @@ jobs:
               "${BASH_REMATCH[3]}" >>"$GITHUB_OUTPUT"
             exit 0
           fi
-          test "$name" = "Safety Automation - Review Agent PR Signal"
           test "$path" = ".github/workflows/review-agent-pr-signal.yml"
           test "$conclusion" = success
           gh api \
