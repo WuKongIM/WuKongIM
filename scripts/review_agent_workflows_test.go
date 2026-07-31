@@ -232,7 +232,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, "--cpu=2400:2400")
 	require.Contains(t, raw, "--as=8589934592:8589934592")
 	require.Contains(t, raw, "--nproc=512:512")
-	require.Contains(t, raw, `--config 'default_permissions="review-agent"'`)
+	require.Contains(t, raw, "--dangerously-bypass-approvals-and-sandbox")
+	require.NotContains(t, raw, "default_permissions")
 	require.Contains(t, raw, "review_reason:$recovery[0].next_state.reason")
 	require.Contains(t, raw, "retention-days: 7")
 	require.Contains(t, raw, "retention-days: 30")
@@ -334,12 +335,12 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `sudo rmdir "$review_unshare_directory"`)
 	require.Equal(
 		t,
-		5,
+		3,
 		strings.Count(
 			fence,
 			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
 		),
-		"the global userns restriction must bracket both narrow exceptions",
+		"the global userns restriction must bracket the narrow namespace exception",
 	)
 	require.Contains(
 		t,
@@ -364,19 +365,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.NotContains(t, fence, "apply_network_rules host")
 	require.NotContains(t, fence, "keep-sudo")
 	require.NotContains(t, fence, "limit_runner_worker")
-	require.Contains(
-		t,
-		fence,
-		`review_bwrap_binary="/usr/bin/bwrap"`,
-	)
-	require.Contains(
-		t,
-		fence,
-		`review_bwrap_profile_source="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"`,
-	)
-	require.Contains(t, fence, `sudo apparmor_parser -r "$review_bwrap_profile"`)
-	require.Contains(t, fence, `--unshare-user`)
-	require.NotContains(t, fence, `wukongim-review-agent-bwrap`)
+	require.NotContains(t, fence, "prepare_model_sandbox")
+	require.NotContains(t, fence, "bwrap-userns-restrict")
 	require.Equal(
 		t,
 		4,
@@ -472,7 +462,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, reviewer, "timeout-minutes: 40")
 	require.Contains(t, reviewer, "environment: review-agent-model")
 	require.Contains(t, reviewer, "secrets.OPENAI_API_KEY")
-	require.Contains(t, reviewer, `--config 'default_permissions="review-agent"'`)
+	require.Contains(t, reviewer, "--dangerously-bypass-approvals-and-sandbox")
+	require.NotContains(t, reviewer, "default_permissions")
 	require.Contains(t, reviewer, "allow-bots: true")
 	require.Contains(t, reviewer, "required = true")
 	require.Contains(t, reviewer, `default_tools_approval_mode = "approve"`)
@@ -485,7 +476,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.NotContains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
 	require.Contains(t, reviewer, "set -euo pipefail\n          prlimit \\")
-	require.Contains(t, reviewer, `extends = ":read-only"`)
+	require.NotContains(t, reviewer, "[permissions.review-agent]")
 	require.Contains(
 		t,
 		reviewer,

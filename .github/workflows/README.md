@@ -69,18 +69,15 @@ network fence disables both Docker access and `sudo`. Candidate checks receive
 isolated loopback inside a rootless network namespace whose host loopback is
 disabled. The trusted baseline host keeps runner transport available only so
 pinned post-job Actions can upload evidence; candidate code never runs there.
-The model host keeps GitHub runner transport intact. Its read-only permission
-profile denies model-initiated localhost and private-network access, while all
-candidate check commands remain inside the rootless network namespace. The
-pinned Codex Action installs the exact CLI and Responses proxy, then the
-Workflow invokes `codex exec` directly under model-only CPU, address-space,
-and process limits. Before removing host privileges, the Workflow proves that
-the distribution-owned `/usr/bin/bwrap` can create the model user namespace.
-If Ubuntu's hosted-runner restriction blocks that probe, the Workflow installs
-the distribution's official path-specific `bwrap-userns-restrict` AppArmor
-profile and repeats the probe. Codex resolves the same system binary through
-the normal `PATH`; no copied binary or custom model profile exists, and the
-global user-namespace restriction remains enabled.
+The model host keeps GitHub runner transport intact. The pinned Codex Action
+installs the exact CLI and Responses proxy, then the Workflow invokes
+`codex exec --dangerously-bypass-approvals-and-sandbox` under model-only CPU,
+address-space, and process limits. This gives Codex full runner-user filesystem
+and public-network access without its internal Bubblewrap sandbox. The model
+receives no GitHub or App credential, inherits no host environment, and starts
+only after Docker and `sudo` are disabled. Candidate check commands still run
+inside the rootless network namespace and their Bubblewrap sandboxes. The
+trusted validator rejects any tracked candidate-tree mutation.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and
@@ -142,7 +139,7 @@ See
 ## Workflow maintenance
 
 - Keep external Actions pinned by full commit SHA.
-- Keep candidate checkouts read-only with `persist-credentials: false`.
+- Keep candidate checkouts credential-free and reject tracked-tree mutation.
 - Never expose App keys to candidate or model jobs.
 - Update policy, schemas, Workflows, docs, and their contract tests together.
 - Read this file before invoking or changing any Workflow.
