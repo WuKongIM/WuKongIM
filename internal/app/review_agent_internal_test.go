@@ -8,6 +8,7 @@ import (
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 	reviewagentgithub "github.com/WuKongIM/WuKongIM/internal/infra/reviewagentgithub"
+	reviewagent "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,4 +95,27 @@ func TestReviewDiscussionPreservesEveryGitHubSurface(t *testing.T) {
 			Line: 7, Side: "RIGHT", InReplyToID: 0,
 		},
 	}, discussion)
+}
+
+func TestSchedulerDigestChangedIgnoresEmptyCollections(t *testing.T) {
+	t.Parallel()
+
+	left := reviewagent.SchedulerState{
+		SchemaVersion: 1,
+		SourceSHA:     strings.Repeat("a", 40),
+		Sequence:      1,
+		UpdatedAt:     time.Date(2026, 7, 31, 4, 0, 0, 0, time.UTC),
+	}
+	right := left
+	right.Queue = []reviewagent.QueueEntry{}
+	right.Active = []reviewagent.Lease{}
+
+	require.False(t, schedulerDigestChanged(
+		left,
+		right,
+		reviewagent.SchedulerLimits{
+			MaxActive: 3, MaxPerPullRequest: 1,
+			MaxFirstTimeExternal: 1,
+		},
+	))
 }

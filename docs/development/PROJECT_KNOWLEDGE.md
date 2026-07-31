@@ -12,6 +12,8 @@
 - Review Agent role identity must be verified with the App JWT before minting
   a repository-scoped installation token. Installation tokens must not call
   App-JWT-only identity endpoints such as `GET /installation`.
+- Review Agent scheduler canonical JSON normalizes zero-length queue and active
+  collections to `null`; empty slice representation is never a state change.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.
