@@ -69,8 +69,9 @@ network fence disables both Docker access and `sudo`. Candidate checks receive
 isolated loopback inside a rootless network namespace whose host loopback is
 disabled. The trusted baseline host keeps runner transport available only so
 pinned post-job Actions can upload evidence; candidate code never runs there.
-The model host has a separate network fence, and the model permission profile
-still denies model-initiated localhost; private networks stay unreachable.
+The model host keeps GitHub runner transport intact. Its read-only permission
+profile denies model-initiated localhost and private-network access, while all
+candidate check commands remain inside the rootless network namespace.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and

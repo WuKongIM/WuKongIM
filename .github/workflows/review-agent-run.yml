@@ -396,7 +396,7 @@ jobs:
             "$RUNNER_TEMP/review-agent-network-fence.sh" start \
               "$RUNNER_TEMP/review-agent-netns.pid"
           fi
-          "$RUNNER_TEMP/review-agent-network-fence.sh" model-host
+          "$RUNNER_TEMP/review-agent-network-fence.sh" review-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-codex-home" \
             "$RUNNER_TEMP/review-agent-evidence"
           cat >>"$RUNNER_TEMP/review-codex-home/config.toml" <<EOF
@@ -774,7 +774,7 @@ jobs:
     name: Append terminal signed state
     needs: [recover, evidence]
     if: >-
-      needs.evidence.result == 'success' &&
+      always() && needs.evidence.result == 'success' &&
       (inputs.operation == 'review' || inputs.operation == 'explain')
     runs-on: ubuntu-24.04
     timeout-minutes: 7
@@ -900,7 +900,7 @@ jobs:
     name: Publish formal Review, Verdict, or explanation
     needs: [evidence, state-writer]
     if: >-
-      needs.state-writer.result == 'success' &&
+      always() && needs.state-writer.result == 'success' &&
       (inputs.operation == 'review' || inputs.operation == 'explain')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -963,7 +963,7 @@ jobs:
   drain:
     name: Wake the next signed queue entry
     needs: state-writer
-    if: needs.state-writer.result == 'success'
+    if: always() && needs.state-writer.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
