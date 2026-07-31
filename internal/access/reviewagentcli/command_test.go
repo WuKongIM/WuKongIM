@@ -3,12 +3,14 @@ package reviewagentcli_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	cli "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli"
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 	verify "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify"
 )
 
@@ -86,6 +88,51 @@ func TestReviewAgentCLIDecodesWorkflowRiskSelection(t *testing.T) {
 	)
 	require.Zero(t, code)
 	require.Empty(t, stderr.String())
+}
+
+func TestReviewAgentCLINormalizesOneWrappedReviewResult(t *testing.T) {
+	t.Parallel()
+
+	result := contract.ReviewResult{
+		SchemaVersion: 1,
+		Generation: contract.GenerationIdentity{
+			Repository:     "WuKongIM/WuKongIM",
+			PullRequest:    716,
+			HeadSHA:        strings.Repeat("1", 40),
+			BaseSHA:        strings.Repeat("2", 40),
+			TestMergeSHA:   strings.Repeat("3", 40),
+			IntentDigest:   "sha256:" + strings.Repeat("4", 64),
+			Generation:     1,
+			StateParentSHA: strings.Repeat("5", 40),
+		},
+		Decision:          contract.DecisionApproved,
+		Summary:           "The complete change is safe.",
+		InventoryComplete: true,
+		FileAssessments: []contract.FileAssessment{{
+			Path:    "internal/example.go",
+			Risk:    contract.FileRiskLow,
+			Summary: "The implementation matches the stated intent.",
+		}},
+	}
+	body, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := cli.Run(
+		context.Background(),
+		[]string{"normalize-review-result"},
+		strings.NewReader("All checks pass.\n\n"+string(body)),
+		&stdout,
+		&stderr,
+		cli.Operations{},
+	)
+	require.Zero(t, code)
+	require.Empty(t, stderr.String())
+
+	var normalized contract.ReviewResult
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &normalized))
+	require.Equal(t, result, normalized)
 }
 
 func TestReviewAgentCLIRejectsFlagsUnknownFieldsAndTrailingInput(

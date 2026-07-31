@@ -457,6 +457,17 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(evidence, "continue-on-error: true"),
 		"missing context, reviewer, and baseline artifacts must fail closed",
 	)
+	require.Contains(
+		t,
+		evidence,
+		`"$RUNNER_TEMP/wkreviewagent" normalize-review-result`,
+	)
+	require.Equal(
+		t,
+		1,
+		strings.Count(evidence, `jq -e . "$result"`),
+		"only the distinct explanation contract remains strict JSON-only",
+	)
 
 	reviewer := issueAgentJobText(t, raw, "review")
 	require.Contains(t, reviewer, "timeout-minutes: 40")

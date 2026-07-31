@@ -1,4 +1,4 @@
-// Package reviewagentcli exposes the standalone Review Agent as strict JSON.
+// Package reviewagentcli exposes the standalone Review Agent process boundary.
 package reviewagentcli
 
 import (
@@ -158,6 +158,8 @@ func Run(
 	var output any
 	var err error
 	switch args[0] {
+	case "normalize-review-result":
+		output, err = contract.DecodeReviewResult(stdin, maxCLIInputBytes)
 	case "reconcile-github":
 		var request ReconcileGitHubRequest
 		if err = decodeStrict(stdin, &request); err == nil &&

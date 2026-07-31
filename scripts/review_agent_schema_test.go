@@ -146,6 +146,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 		"approved",
 		"changes_required",
 		"inconclusive",
+		"unresolved_uncertainty",
 		"must not modify",
 		"Check MCP",
 	} {
@@ -310,6 +311,8 @@ func hardenReviewAgentSchema(schema *jsonschema.Schema) {
 			setMinLength(property.Items, 1)
 		case "unresolved_uncertainty":
 			setMaxLength(property, reviewagent.MaxSummaryBytes)
+			property.Description = "Must be empty for approved; for inconclusive, " +
+				"must describe the material uncertainty."
 		case "interaction_request":
 			setMaxLength(property, 4096)
 		}

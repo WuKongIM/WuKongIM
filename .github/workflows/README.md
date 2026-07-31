@@ -105,6 +105,9 @@ Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
 infrastructure failure, not reasons to abort the state machine. The Evidence
 job records the bounded retry or terminal `inconclusive` completion so signed
 state and the repository queue always advance.
+Before validation, that job normalizes the bounded model output through the
+Go ReviewResult decoder. Shell code does not implement a second JSON-shape
+policy.
 
 There is no scheduled Review Agent scan. A failed Controller effect is retried
 once; other recovery comes from a later event or an exact manual Controller
