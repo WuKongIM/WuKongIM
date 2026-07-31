@@ -242,6 +242,7 @@ jobs:
           REVIEW_AGENT_HOME: ${{ runner.temp }}/review-agent-home
           REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
           REVIEW_POLICY_PATH: ${{ runner.temp }}/review-agent-policy.json
+          REVIEW_WORKSPACE: ${{ github.workspace }}
           DEADLINE_EPOCH: ${{ needs.recover.outputs.deadline_epoch }}
         run: |
           set -euo pipefail

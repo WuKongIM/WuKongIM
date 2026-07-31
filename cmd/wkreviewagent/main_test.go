@@ -26,11 +26,17 @@ func TestReviewAgentMainRejectsUnknownCommandWithoutEchoingInput(t *testing.T) {
 	require.NotContains(t, stderr.String(), "do-not-echo")
 }
 
-func TestReviewAgentConfigUsesTrustedPolicyOverride(t *testing.T) {
+func TestReviewAgentConfigUsesTrustedPathOverrides(t *testing.T) {
 	policyPath := filepath.Join(t.TempDir(), "policy.json")
+	ledgerPath := filepath.Join(t.TempDir(), "ledger.jsonl")
+	workspacePath := t.TempDir()
 	t.Setenv("REVIEW_POLICY_PATH", policyPath)
+	t.Setenv("REVIEW_EVIDENCE_LEDGER", ledgerPath)
+	t.Setenv("REVIEW_WORKSPACE", workspacePath)
 
 	config := reviewAgentConfig([]string{"verify-baseline"})
 
 	require.Equal(t, policyPath, config.PolicyPath)
+	require.Equal(t, ledgerPath, config.EvidenceLedgerPath)
+	require.Equal(t, workspacePath, config.WorkspaceDirectory)
 }

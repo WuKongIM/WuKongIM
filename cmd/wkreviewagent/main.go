@@ -66,12 +66,22 @@ func reviewAgentConfig(args []string) app.ReviewAgentConfig {
 				"policy.json",
 			),
 		),
-		PromptPath:         filepath.Join(workingDirectory, ".github", "review-agent", "prompts", "review.md"),
-		ResultSchemaPath:   filepath.Join(workingDirectory, ".github", "review-agent", "review-result.schema.json"),
-		WorkspaceDirectory: workingDirectory,
-		EvidenceLedgerPath: filepath.Join(os.Getenv("RUNNER_TEMP"), "review-agent-evidence", "ledger.jsonl"),
-		ExecutorHome:       os.Getenv("REVIEW_AGENT_HOME"),
-		ExecutablePath:     os.Getenv("PATH"),
+		PromptPath:       filepath.Join(workingDirectory, ".github", "review-agent", "prompts", "review.md"),
+		ResultSchemaPath: filepath.Join(workingDirectory, ".github", "review-agent", "review-result.schema.json"),
+		WorkspaceDirectory: environmentOr(
+			"REVIEW_WORKSPACE",
+			workingDirectory,
+		),
+		EvidenceLedgerPath: environmentOr(
+			"REVIEW_EVIDENCE_LEDGER",
+			filepath.Join(
+				os.Getenv("RUNNER_TEMP"),
+				"review-agent-evidence",
+				"ledger.jsonl",
+			),
+		),
+		ExecutorHome:   os.Getenv("REVIEW_AGENT_HOME"),
+		ExecutablePath: os.Getenv("PATH"),
 		TemporaryDirectory: filepath.Join(
 			os.Getenv("REVIEW_AGENT_HOME"),
 			"tmp",
