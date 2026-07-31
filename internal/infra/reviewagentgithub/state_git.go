@@ -16,10 +16,17 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var reviewStateRefPattern = regexp.MustCompile(
 	`^review-state/(?:scheduler|pr-[1-9][0-9]{0,9})$`,
+)
+
+const (
+	stateRefVisibilityAttempts     = 8
+	stateRefVisibilityInitialDelay = 100 * time.Millisecond
+	stateRefVisibilityMaxDelay     = time.Second
 )
 
 type gitCommitFacts struct {
@@ -224,8 +231,14 @@ func (client *Client) PublishStateCommit(
 			"Review state signed-commit mutation failed",
 		)
 	}
-	head, found, err := client.StateRefHead(ctx, request.Branch)
-	if err != nil || !found || head != commitSHA {
+	if err := client.waitForStateRefHead(
+		ctx,
+		request.Branch,
+		request.ExpectedParentSHA,
+		commitSHA,
+		stateRefVisibilityAttempts,
+		stateRefVisibilityInitialDelay,
+	); err != nil {
 		return StateCommitResult{}, errors.New(
 			"Review state ref re-read is inconsistent",
 		)
@@ -242,6 +255,71 @@ func (client *Client) PublishStateCommit(
 		AuthorLogin:   record.AuthorLogin, AuthorType: record.AuthorType,
 		Verified: record.Verified, SignedByGitHub: record.SignedByGitHub,
 	}, nil
+}
+
+// waitForStateRefHead tolerates only bounded GitHub visibility lag that still
+// reports the exact pre-mutation parent. Any third head is real contention and
+// fails immediately.
+func (client *Client) waitForStateRefHead(
+	ctx context.Context,
+	branch string,
+	expectedParentSHA string,
+	expectedHeadSHA string,
+	attempts int,
+	initialDelay time.Duration,
+) error {
+	if client == nil || ctx == nil ||
+		!reviewStateRefPattern.MatchString(branch) ||
+		!gitSHAPattern.MatchString(expectedParentSHA) ||
+		!gitSHAPattern.MatchString(expectedHeadSHA) ||
+		expectedParentSHA == expectedHeadSHA ||
+		attempts <= 0 ||
+		initialDelay < 0 {
+		return errors.New("Review state ref re-read request is invalid")
+	}
+	delay := initialDelay
+	for attempt := 0; attempt < attempts; attempt++ {
+		head, found, err := client.StateRefHead(ctx, branch)
+		if err != nil {
+			return err
+		}
+		if found && head == expectedHeadSHA {
+			return nil
+		}
+		if !found || head != expectedParentSHA {
+			return errors.New("Review state ref re-read is inconsistent")
+		}
+		if attempt+1 == attempts {
+			break
+		}
+		if err := waitForStateRefVisibility(ctx, delay); err != nil {
+			return err
+		}
+		if delay > 0 && delay < stateRefVisibilityMaxDelay {
+			delay *= 2
+			if delay > stateRefVisibilityMaxDelay {
+				delay = stateRefVisibilityMaxDelay
+			}
+		}
+	}
+	return errors.New("Review state ref re-read is inconsistent")
+}
+
+func waitForStateRefVisibility(
+	ctx context.Context,
+	delay time.Duration,
+) error {
+	if delay <= 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // ReadStateCommit proves that one verified App commit changed exactly one

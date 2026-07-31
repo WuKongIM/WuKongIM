@@ -93,12 +93,26 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.Contains(t, raw, "worker_attempt:$worker_attempt")
 	require.Contains(t, raw, "infrastructure_attempt")
 	require.Contains(t, raw, "workflow_dispatch:")
+	require.Contains(
+		t,
+		raw,
+		"github.event.workflow_run.path == '.github/workflows/review-agent-pr-signal.yml'",
+	)
+	require.Contains(
+		t,
+		raw,
+		"github.event.workflow_run.path == '.github/workflows/review-agent-run.yml'",
+	)
 	require.Contains(t, raw, "github.event.workflow_run.conclusion == 'success'")
 	require.Contains(
 		t,
 		raw,
 		"endsWith(github.event.workflow_run.display_title, ' accepted true')",
 	)
+	require.Contains(t, raw, `if [[ "$path" == ".github/workflows/review-agent-run.yml" ]]`)
+	require.Contains(t, raw, `test "$path" = ".github/workflows/review-agent-pr-signal.yml"`)
+	require.NotContains(t, raw, "github.event.workflow_run.name")
+	require.NotContains(t, raw, "jq -er .name")
 	require.NotContains(t, raw, "group: review-agent-state-")
 	require.Contains(t, raw, "ref: ${{ steps.control.outputs.sha }}")
 	require.Contains(t, raw, "persist-credentials: false")
@@ -153,8 +167,17 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 
 func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/review-agent-run.yml")
-	var document any
+	var document struct {
+		RunName string `yaml:"run-name"`
+	}
 	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
+	require.Equal(
+		t,
+		"Review Agent PR #${{ inputs.pull_request }} generation from lease "+
+			"${{ inputs.lease_run_id }} attempt "+
+			"${{ inputs.infrastructure_attempt }}",
+		document.RunName,
+	)
 	for _, job := range []string{
 		"recover:",
 		"context:",
@@ -230,7 +253,28 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	fence := readIssueAgentFile(t, ".github/review-agent/network-fence.sh")
 	require.Contains(t, fence, "prefix=(sudo)")
 	require.Contains(t, fence, `ip6tables -A OUTPUT`)
-	require.Contains(t, fence, "unshare --user --map-root-user --net")
+	require.Contains(
+		t,
+		fence,
+		`review_unshare_binary="$review_unshare_directory/unshare"`,
+	)
+	require.Contains(t, fence, `flags=(unconfined)`)
+	require.Contains(t, fence, `  userns,`)
+	require.Contains(t, fence, `sudo apparmor_parser -r`)
+	require.Equal(
+		t,
+		2,
+		strings.Count(
+			fence,
+			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
+		),
+		"the global userns restriction must remain enabled",
+	)
+	require.Contains(
+		t,
+		fence,
+		`"$review_unshare_binary" --user --map-root-user --net`,
+	)
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
 	require.Contains(t, fence, "nsenter")
 	require.Contains(t, fence, "--connlimit-above 128")
@@ -245,6 +289,15 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "disable-sudo"),
 		"candidate baseline must disable sudo exactly once",
 	)
+	require.Equal(
+		t,
+		2,
+		strings.Count(
+			raw,
+			`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
+		),
+		"baseline and model runners must prepare the narrow userns profile",
+	)
 	require.Contains(
 		t,
 		raw,
@@ -254,6 +307,20 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		t,
 		raw,
 		"steps.finalize.outputs.retention == 'long'",
+	)
+	evidence := issueAgentJobText(t, raw, "evidence")
+	require.Contains(
+		t,
+		evidence,
+		"name: Download trusted baseline\n"+
+			"        if: inputs.operation == 'review'\n"+
+			"        continue-on-error: true",
+	)
+	require.Equal(
+		t,
+		3,
+		strings.Count(evidence, "continue-on-error: true"),
+		"missing context, reviewer, and baseline artifacts must fail closed",
 	)
 
 	reviewer := issueAgentJobText(t, raw, "review")

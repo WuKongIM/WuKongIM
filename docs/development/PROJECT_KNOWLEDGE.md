@@ -7,6 +7,22 @@
 - Review Agent invalidation is generation-bound. Fresh PR facts and signed
   scheduler state supersede stale workers; only the dedicated App-owned
   `Review Agent Verdict` may represent the current automated decision.
+- Review Agent `workflow_run` identity must be authenticated by its stable
+  workflow path; dynamic run names are not an authority boundary.
+- Review Agent role identity must be verified with the App JWT before minting
+  a repository-scoped installation token. Installation tokens must not call
+  App-JWT-only identity endpoints such as `GET /installation`.
+- Review Agent scheduler canonical JSON normalizes zero-length queue and active
+  collections to `null`; empty slice representation is never a state change.
+  The loader may recover one semantically identical legacy duplicate and its
+  strict successor without rewinding the append-only scheduler ref.
+- Review Agent evidence collection treats missing Context, reviewer, or
+  baseline artifacts as bounded infrastructure failure; it must still produce
+  signed retry or terminal `inconclusive` state and release the queue.
+- Review Agent hosted runners keep Ubuntu's global unprivileged-user-namespace
+  restriction enabled. Only a root-owned Review Agent `unshare` path receives
+  a narrow AppArmor `userns` profile before the existing network and privilege
+  fences are applied.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.

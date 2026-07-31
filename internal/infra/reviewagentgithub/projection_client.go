@@ -10,22 +10,6 @@ import (
 	usecase "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent"
 )
 
-// InstallationAppSlug verifies the authenticated installation App.
-func (client *Client) InstallationAppSlug(
-	ctx context.Context,
-) (string, error) {
-	var payload struct {
-		AppSlug string `json:"app_slug"`
-	}
-	if err := client.getJSON(ctx, "/installation", &payload); err != nil {
-		return "", err
-	}
-	if payload.AppSlug == "" || len(payload.AppSlug) > 100 {
-		return "", errors.New("GitHub installation App is invalid")
-	}
-	return payload.AppSlug, nil
-}
-
 // CreateIssueComment creates the sole mutable Review status comment.
 func (client *Client) CreateIssueComment(
 	ctx context.Context,

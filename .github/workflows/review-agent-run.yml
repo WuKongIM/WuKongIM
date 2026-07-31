@@ -1,5 +1,7 @@
 name: Agent Tool - Review Pull Request
-run-name: Review Agent PR #${{ inputs.pull_request }} generation from lease ${{ inputs.lease_run_id }} attempt ${{ inputs.infrastructure_attempt }}
+run-name: >-
+  Review Agent PR #${{ inputs.pull_request }} generation from lease
+  ${{ inputs.lease_run_id }} attempt ${{ inputs.infrastructure_attempt }}
 
 on:
   workflow_dispatch:
@@ -215,6 +217,7 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.recover.outputs.test_merge_sha }}
@@ -321,6 +324,7 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
           if [[ "$INPUT_OPERATION" == review ]]; then
             GOWORK=off go build -trimpath \
               -o "$RUNNER_TEMP/wkreviewcheckmcp" ./cmd/wkreviewcheckmcp
@@ -532,6 +536,7 @@ jobs:
           path: ${{ runner.temp }}/review-agent-result
       - name: Download trusted baseline
         if: inputs.operation == 'review'
+        continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: review-agent-baseline-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}

@@ -71,6 +71,17 @@ is the only runner-loopback transport exception and the model permission
 profile still denies model-initiated localhost; private networks stay
 unreachable.
 
+Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
+Each candidate runner installs one root-owned Review Agent `unshare` copy and
+loads a path-specific profile granting only `userns`; the global restriction
+is never disabled. The job then applies the existing network namespace,
+private-CIDR, quota, connection, Docker, and sudo fences.
+
+Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
+infrastructure failure, not reasons to abort the state machine. The Evidence
+job records the bounded retry or terminal `inconclusive` completion so signed
+state and the repository queue always advance.
+
 There is no scheduled Review Agent scan. A failed Controller effect is retried
 once; other recovery comes from a later event or an exact manual Controller
 dispatch.

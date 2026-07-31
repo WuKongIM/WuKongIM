@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -278,6 +279,172 @@ func TestSchedulerStoreLoadsHighSequenceFromRollingCheckpoint(t *testing.T) {
 	require.Equal(t, 2, port.reads)
 }
 
+func TestSchedulerStoreLoadsLegacyDuplicateEmptyCheckpointForRepair(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	limits := usecase.SchedulerLimits{
+		MaxActive: 3, MaxPerPullRequest: 1, MaxFirstTimeExternal: 1,
+	}
+	previous := schedulerStateFixture(4)
+	previousBody, err := usecase.CanonicalSchedulerState(previous, limits)
+	require.NoError(t, err)
+	legacyLatest := previous
+	legacyLatest.Queue = []usecase.QueueEntry{}
+	legacyLatest.Active = []usecase.Lease{}
+	legacyBody, err := json.Marshal(legacyLatest)
+	require.NoError(t, err)
+	require.NotEqual(t, previousBody, legacyBody)
+
+	previousCommit := strings.Repeat("b", 40)
+	head := strings.Repeat("c", 40)
+	port := &stateCommitStub{
+		head: head,
+		records: map[string]reviewagentgithub.StateCommitRecord{
+			head: trustedRecord(
+				head,
+				previousCommit,
+				"review(scheduler): sequence 4",
+				".review-agent-state/scheduler.json",
+				legacyBody,
+			),
+			previousCommit: trustedRecord(
+				previousCommit,
+				strings.Repeat("d", 40),
+				"review(scheduler): sequence 4",
+				".review-agent-state/scheduler.json",
+				previousBody,
+			),
+		},
+	}
+	store, err := reviewagentgithub.NewSchedulerStore(
+		"wukongim-review-state-writer[bot]",
+		port,
+		limits,
+	)
+	require.NoError(t, err)
+
+	loaded, found, err := store.Load(context.Background())
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, head, loaded.HeadSHA)
+	require.Equal(t, previous, loaded.State)
+}
+
+func TestSchedulerStoreLoadsStrictSuccessorAfterLegacyRepairCheckpoint(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	limits := usecase.SchedulerLimits{
+		MaxActive: 3, MaxPerPullRequest: 1, MaxFirstTimeExternal: 1,
+	}
+	legacyPrevious := schedulerStateFixture(4)
+	legacyPrevious.Queue = []usecase.QueueEntry{}
+	legacyPrevious.Active = []usecase.Lease{}
+	legacyBody, err := json.Marshal(legacyPrevious)
+	require.NoError(t, err)
+	previousDigest, err := usecase.SchedulerStateDigest(
+		legacyPrevious,
+		limits,
+	)
+	require.NoError(t, err)
+	latest := schedulerStateFixture(5)
+	latest.PreviousStateDigest = previousDigest
+	latest.UpdatedAt = legacyPrevious.UpdatedAt.Add(time.Minute)
+	latestBody, err := usecase.CanonicalSchedulerState(latest, limits)
+	require.NoError(t, err)
+
+	previousCommit := strings.Repeat("b", 40)
+	head := strings.Repeat("c", 40)
+	port := &stateCommitStub{
+		head: head,
+		records: map[string]reviewagentgithub.StateCommitRecord{
+			head: trustedRecord(
+				head,
+				previousCommit,
+				"review(scheduler): sequence 5",
+				".review-agent-state/scheduler.json",
+				latestBody,
+			),
+			previousCommit: trustedRecord(
+				previousCommit,
+				strings.Repeat("d", 40),
+				"review(scheduler): sequence 4",
+				".review-agent-state/scheduler.json",
+				legacyBody,
+			),
+		},
+	}
+	store, err := reviewagentgithub.NewSchedulerStore(
+		"wukongim-review-state-writer[bot]",
+		port,
+		limits,
+	)
+	require.NoError(t, err)
+
+	loaded, found, err := store.Load(context.Background())
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, latest, loaded.State)
+}
+
+func TestSchedulerStoreRejectsLegacyNonDuplicateCheckpoint(t *testing.T) {
+	t.Parallel()
+
+	limits := usecase.SchedulerLimits{
+		MaxActive: 3, MaxPerPullRequest: 1, MaxFirstTimeExternal: 1,
+	}
+	previous := schedulerStateFixture(4)
+	previousBody, err := usecase.CanonicalSchedulerState(previous, limits)
+	require.NoError(t, err)
+	previousDigest, err := usecase.SchedulerStateDigest(previous, limits)
+	require.NoError(t, err)
+	legacyLatest := schedulerStateFixture(5)
+	legacyLatest.PreviousStateDigest = previousDigest
+	legacyLatest.Queue = []usecase.QueueEntry{}
+	legacyLatest.Active = []usecase.Lease{}
+	legacyLatest.UpdatedAt = previous.UpdatedAt.Add(time.Minute)
+	legacyBody, err := json.Marshal(legacyLatest)
+	require.NoError(t, err)
+
+	previousCommit := strings.Repeat("b", 40)
+	head := strings.Repeat("c", 40)
+	port := &stateCommitStub{
+		head: head,
+		records: map[string]reviewagentgithub.StateCommitRecord{
+			head: trustedRecord(
+				head,
+				previousCommit,
+				"review(scheduler): sequence 5",
+				".review-agent-state/scheduler.json",
+				legacyBody,
+			),
+			previousCommit: trustedRecord(
+				previousCommit,
+				strings.Repeat("d", 40),
+				"review(scheduler): sequence 4",
+				".review-agent-state/scheduler.json",
+				previousBody,
+			),
+		},
+	}
+	store, err := reviewagentgithub.NewSchedulerStore(
+		"wukongim-review-state-writer[bot]",
+		port,
+		limits,
+	)
+	require.NoError(t, err)
+
+	_, _, err = store.Load(context.Background())
+	require.EqualError(
+		t,
+		err,
+		"Review scheduler rolling checkpoint is not contiguous",
+	)
+}
+
 type stateCommitStub struct {
 	head          string
 	ref           string
@@ -324,6 +491,18 @@ func trustedRecord(
 		Path: path, Content: content,
 		AuthorLogin: "wukongim-review-state-writer[bot]",
 		AuthorType:  "Bot", Verified: true, SignedByGitHub: true,
+	}
+}
+
+func schedulerStateFixture(sequence uint64) usecase.SchedulerState {
+	return usecase.SchedulerState{
+		SchemaVersion:       1,
+		SourceSHA:           strings.Repeat("a", 40),
+		Sequence:            sequence,
+		PreviousStateDigest: "sha256:" + strings.Repeat("1", 64),
+		UpdatedAt: time.Date(
+			2026, 7, 31, 1, 0, 0, 0, time.UTC,
+		),
 	}
 }
 

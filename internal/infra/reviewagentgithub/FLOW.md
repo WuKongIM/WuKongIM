@@ -13,14 +13,27 @@ Review State Writer App token
   -> exact review-state/pr-N or review-state/scheduler ref
   -> verified latest + immediate predecessor rolling checkpoint
      (older commits remain append-only audit history)
+  -> one legacy scheduler checkpoint that only repeats its canonical
+     predecessor with empty JSON collections may be loaded for the next append
   -> expected-head append only
 
 Review Agent App token
+  -> App JWT verifies the protected policy App ID and slug before minting
+     one exact repository-scoped installation token
   -> fresh generation/governance fences
   -> one mutable status comment
   -> one formal Review with bounded inline comments
   -> one Review Agent Verdict Check Run
 ```
+
+The bounded scheduler recovery never rewinds or rewrites the protected state
+ref. A strict successor may name that one legacy checkpoint; after the next
+successor, it leaves the two-checkpoint verification window.
+
+After a signed GraphQL commit, the State Writer tolerates bounded ref
+read-your-write lag only while GitHub still reports the exact expected parent.
+The committed head must become visible within the retry budget; any third head
+is real contention and fails immediately.
 
 The Review App adapter exposes no contents, branch, commit, merge, close,
 dismiss, resolve, Ruleset, Actions, or Secrets operation. The State Writer

@@ -32,7 +32,6 @@ type InlineReviewComment struct {
 // ProjectionWriter is deliberately unable to merge, close, dismiss, resolve,
 // edit branches, or create commits.
 type ProjectionWriter interface {
-	InstallationAppSlug(context.Context) (string, error)
 	CreateIssueComment(context.Context, int64, string) (int64, error)
 	UpdateIssueComment(context.Context, int64, string) error
 	CreateReview(
@@ -226,12 +225,6 @@ func (publisher *ReviewPublisher) PublishDecision(
 		!samePublishedGeneration(snapshot.Facts, request.State.Generation) {
 		return ReviewPublication{}, errors.New(
 			"Review publication pull request is stale",
-		)
-	}
-	slug, err := publisher.writer.InstallationAppSlug(ctx)
-	if err != nil || slug != publisher.appSlug {
-		return ReviewPublication{}, errors.New(
-			"Review publication App identity is inconsistent",
 		)
 	}
 	if request.Explanation != nil {

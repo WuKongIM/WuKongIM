@@ -3,6 +3,7 @@ package reviewagentgithub
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -69,12 +70,12 @@ func (store *SchedulerStore) Load(
 		)
 	}
 
-	latestRecord, latest, err := store.readCheckpoint(ctx, head)
+	latestRecord, latest, latestLegacy, err := store.readCheckpoint(ctx, head)
 	if err != nil {
 		return LoadedSchedulerState{}, false, err
 	}
 	if latest.Sequence == 1 {
-		if latestRecord.ParentSHA != latest.SourceSHA {
+		if latestLegacy || latestRecord.ParentSHA != latest.SourceSHA {
 			return LoadedSchedulerState{}, false, errors.New(
 				"initial Review scheduler has the wrong source parent",
 			)
@@ -86,34 +87,70 @@ func (store *SchedulerStore) Load(
 			"Review scheduler predecessor is invalid",
 		)
 	}
-	_, previous, err := store.readCheckpoint(ctx, latestRecord.ParentSHA)
+	_, previous, previousLegacy, err := store.readCheckpoint(
+		ctx,
+		latestRecord.ParentSHA,
+	)
 	if err != nil {
 		return LoadedSchedulerState{}, false, err
 	}
-	digest, err := usecase.SchedulerStateDigest(previous, store.limits)
-	if err != nil ||
-		latest.PreviousStateDigest != digest ||
-		previous.Sequence+1 != latest.Sequence ||
-		previous.UpdatedAt.After(latest.UpdatedAt) ||
-		previous.SourceSHA != latest.SourceSHA {
+	previousDigest, err := usecase.SchedulerStateDigest(
+		previous,
+		store.limits,
+	)
+	if err != nil {
 		return LoadedSchedulerState{}, false, errors.New(
 			"Review scheduler rolling checkpoint is not contiguous",
 		)
 	}
-	return LoadedSchedulerState{HeadSHA: head, State: latest}, true, nil
+	if !latestLegacy &&
+		latest.PreviousStateDigest == previousDigest &&
+		previous.Sequence+1 == latest.Sequence &&
+		!previous.UpdatedAt.After(latest.UpdatedAt) &&
+		previous.SourceSHA == latest.SourceSHA {
+		return LoadedSchedulerState{HeadSHA: head, State: latest}, true, nil
+	}
+	if latestLegacy && !previousLegacy &&
+		latest.Sequence == previous.Sequence {
+		latestDigest, digestErr := usecase.SchedulerStateDigest(
+			latest,
+			store.limits,
+		)
+		if digestErr != nil || latestDigest != previousDigest {
+			return LoadedSchedulerState{}, false, errors.New(
+				"Review scheduler rolling checkpoint is not contiguous",
+			)
+		}
+		normalized, normalizeErr := normalizeLoadedScheduler(
+			latest,
+			store.limits,
+		)
+		if normalizeErr != nil {
+			return LoadedSchedulerState{}, false, errors.New(
+				"Review scheduler rolling checkpoint is not contiguous",
+			)
+		}
+		return LoadedSchedulerState{
+			HeadSHA: head,
+			State:   normalized,
+		}, true, nil
+	}
+	return LoadedSchedulerState{}, false, errors.New(
+		"Review scheduler rolling checkpoint is not contiguous",
+	)
 }
 
 func (store *SchedulerStore) readCheckpoint(
 	ctx context.Context,
 	commitSHA string,
-) (StateCommitRecord, usecase.SchedulerState, error) {
+) (StateCommitRecord, usecase.SchedulerState, bool, error) {
 	record, err := store.commits.ReadStateCommit(
 		ctx,
 		commitSHA,
 		schedulerStatePath,
 	)
 	if err != nil {
-		return StateCommitRecord{}, usecase.SchedulerState{}, err
+		return StateCommitRecord{}, usecase.SchedulerState{}, false, err
 	}
 	if err := validateStateRecordTrust(
 		record,
@@ -121,7 +158,7 @@ func (store *SchedulerStore) readCheckpoint(
 		schedulerStatePath,
 		store.appLogin,
 	); err != nil {
-		return StateCommitRecord{}, usecase.SchedulerState{}, err
+		return StateCommitRecord{}, usecase.SchedulerState{}, false, err
 	}
 	state, err := usecase.DecodeSchedulerState(
 		bytes.NewReader(record.Content),
@@ -133,17 +170,41 @@ func (store *SchedulerStore) readCheckpoint(
 			"review(scheduler): sequence %d",
 			state.Sequence,
 		) {
-		return StateCommitRecord{}, usecase.SchedulerState{}, errors.New(
+		return StateCommitRecord{}, usecase.SchedulerState{}, false, errors.New(
 			"Review scheduler commit content is invalid",
 		)
 	}
 	canonical, err := usecase.CanonicalSchedulerState(state, store.limits)
-	if err != nil || !bytes.Equal(canonical, record.Content) {
-		return StateCommitRecord{}, usecase.SchedulerState{}, errors.New(
+	if err != nil {
+		return StateCommitRecord{}, usecase.SchedulerState{}, false, errors.New(
 			"Review scheduler commit is not canonical",
 		)
 	}
-	return record, state, nil
+	if bytes.Equal(canonical, record.Content) {
+		return record, state, false, nil
+	}
+	legacy, legacyErr := json.Marshal(state)
+	if legacyErr != nil || !bytes.Equal(legacy, record.Content) {
+		return StateCommitRecord{}, usecase.SchedulerState{}, false, errors.New(
+			"Review scheduler commit is not canonical",
+		)
+	}
+	return record, state, true, nil
+}
+
+func normalizeLoadedScheduler(
+	state usecase.SchedulerState,
+	limits usecase.SchedulerLimits,
+) (usecase.SchedulerState, error) {
+	body, err := usecase.CanonicalSchedulerState(state, limits)
+	if err != nil {
+		return usecase.SchedulerState{}, err
+	}
+	return usecase.DecodeSchedulerState(
+		bytes.NewReader(body),
+		512<<10,
+		limits,
+	)
 }
 
 // Advance appends one canonical scheduler state at the exact expected head.
