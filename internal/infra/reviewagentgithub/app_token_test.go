@@ -28,6 +28,16 @@ func TestAppTokenMinterUsesExactCompileTimeRoleProfiles(t *testing.T) {
 		writer http.ResponseWriter,
 		request *http.Request,
 	) {
+		writer.Header().Set("Content-Type", "application/json")
+		if request.Method == http.MethodGet &&
+			request.URL.Path == "/app" {
+			require.NoError(t, json.NewEncoder(writer).Encode(map[string]any{
+				"id": 1, "slug": "review-app",
+			}))
+			return
+		}
+		require.Equal(t, http.MethodPost, request.Method)
+		require.Equal(t, "/app/installations/2/access_tokens", request.URL.Path)
 		var body struct {
 			RepositoryIDs []int64           `json:"repository_ids"`
 			Permissions   map[string]string `json:"permissions"`
@@ -35,7 +45,6 @@ func TestAppTokenMinterUsesExactCompileTimeRoleProfiles(t *testing.T) {
 		require.NoError(t, json.NewDecoder(request.Body).Decode(&body))
 		require.Equal(t, []int64{3}, body.RepositoryIDs)
 		requested <- body.Permissions
-		writer.Header().Set("Content-Type", "application/json")
 		require.NoError(t, json.NewEncoder(writer).Encode(map[string]any{
 			"token":                "installation-token",
 			"expires_at":           now.Add(55 * time.Minute).Format(time.RFC3339),
@@ -64,6 +73,7 @@ func TestAppTokenMinterUsesExactCompileTimeRoleProfiles(t *testing.T) {
 		minter, err := github.NewAppTokenMinter(
 			github.AppTokenConfig{
 				BaseURL: server.URL, AppID: 1, InstallationID: 2,
+				AppSlug:      "review-app",
 				RepositoryID: 3, Repository: "WuKongIM/WuKongIM",
 				PrivateKeyPEM: privatePEM, Role: role,
 			},
@@ -98,6 +108,7 @@ func TestAppTokenMinterRejectsUnknownRoleAndRedactsResponse(t *testing.T) {
 	_, err = github.NewAppTokenMinter(
 		github.AppTokenConfig{
 			BaseURL: server.URL, AppID: 1, InstallationID: 2,
+			AppSlug:      "review-app",
 			RepositoryID: 3, Repository: "WuKongIM/WuKongIM",
 			PrivateKeyPEM: privatePEM, Role: github.AppRole("custom"),
 		},
@@ -109,6 +120,7 @@ func TestAppTokenMinterRejectsUnknownRoleAndRedactsResponse(t *testing.T) {
 	minter, err := github.NewAppTokenMinter(
 		github.AppTokenConfig{
 			BaseURL: server.URL, AppID: 1, InstallationID: 2,
+			AppSlug:      "review-app",
 			RepositoryID: 3, Repository: "WuKongIM/WuKongIM",
 			PrivateKeyPEM: privatePEM,
 			Role:          github.AppRoleReviewPublisher,
@@ -121,4 +133,42 @@ func TestAppTokenMinterRejectsUnknownRoleAndRedactsResponse(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "installation-secret-token")
 	require.NotContains(t, err.Error(), string(privatePEM))
+}
+
+func TestAppTokenMinterRejectsUnexpectedAppIdentity(t *testing.T) {
+	t.Parallel()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	privatePEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+	})
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		require.Equal(t, http.MethodGet, request.Method)
+		require.Equal(t, "/app", request.URL.Path)
+		writer.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(writer).Encode(map[string]any{
+			"id": 1, "slug": "unexpected-app",
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	minter, err := github.NewAppTokenMinter(
+		github.AppTokenConfig{
+			BaseURL: server.URL, AppID: 1, AppSlug: "review-app",
+			InstallationID: 2, RepositoryID: 3,
+			Repository:    "WuKongIM/WuKongIM",
+			PrivateKeyPEM: privatePEM,
+			Role:          github.AppRoleReviewPublisher,
+		},
+		server.Client(),
+		time.Now,
+	)
+	require.NoError(t, err)
+	_, err = minter.Mint(context.Background())
+	require.EqualError(t, err, "GitHub App identity is inconsistent")
 }

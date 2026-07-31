@@ -16,6 +16,8 @@ Review State Writer App token
   -> expected-head append only
 
 Review Agent App token
+  -> App JWT verifies the protected policy App ID and slug before minting
+     one exact repository-scoped installation token
   -> fresh generation/governance fences
   -> one mutable status comment
   -> one formal Review with bounded inline comments
