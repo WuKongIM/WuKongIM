@@ -291,6 +291,18 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
+	require.Contains(
+		t,
+		fence,
+		`sed -n '1,40p' "$RUNNER_TEMP/review-agent-slirp.log" >&2`,
+		"namespace startup failures must retain bounded slirp evidence",
+	)
+	require.Contains(
+		t,
+		fence,
+		`nsenter -t "$REVIEW_NETNS_PID" -U -m -n ip link show >&2 || true`,
+		"namespace startup failures must retain the final bounded nsenter error",
+	)
 	require.Contains(t, fence, "nsenter")
 	require.Contains(t, fence, "--connlimit-above 128")
 	require.Equal(t, 4, strings.Count(fence, "--quota 1073741824"))

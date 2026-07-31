@@ -198,6 +198,10 @@ start_namespace() {
     fi
     sleep 0.1
   done
+  if [[ -s "$RUNNER_TEMP/review-agent-slirp.log" ]]; then
+    sed -n '1,40p' "$RUNNER_TEMP/review-agent-slirp.log" >&2
+  fi
+  nsenter -t "$REVIEW_NETNS_PID" -U -m -n ip link show >&2 || true
   echo "Review network namespace did not become ready" >&2
   return 1
 }

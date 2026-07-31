@@ -1,0 +1,39 @@
+name: Temporary Review Agent User Namespace Diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/review-agent-userns-diagnostic.yaml
+
+permissions: {}
+
+jobs:
+  diagnose:
+    name: Exercise hosted-runner namespace boundary
+    if: github.event.pull_request.number == 724
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install namespace dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v slirp4netns >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends slirp4netns
+          fi
+      - name: Exercise exact Review Agent start boundary
+        shell: bash
+        run: |
+          set -uo pipefail
+          bash .github/review-agent/network-fence.sh start \
+            "$RUNNER_TEMP/review-agent-netns.pid"
+          result="$?"
+          echo "Review Agent namespace start exit: $result"
+          exit "$result"
