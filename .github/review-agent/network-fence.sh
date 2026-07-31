@@ -5,8 +5,9 @@ set -euo pipefail
 review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
-review_bwrap_binary="$review_unshare_directory/bwrap"
-review_bwrap_profile="/etc/apparmor.d/wukongim-review-agent-bwrap"
+review_bwrap_binary="/usr/bin/bwrap"
+review_bwrap_profile="/etc/apparmor.d/bwrap-userns-restrict"
+review_bwrap_profile_source="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"
 
 cleanup_user_namespace_exception() {
   if [[ -f "$review_unshare_profile" ]]; then
@@ -58,26 +59,36 @@ prepare_user_namespace() {
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 }
 
+probe_model_sandbox() {
+  "$review_bwrap_binary" \
+    --die-with-parent \
+    --new-session \
+    --unshare-user \
+    --unshare-pid \
+    --uid 0 \
+    --gid 0 \
+    --ro-bind / / \
+    --dev /dev \
+    --proc /proc \
+    -- /usr/bin/true
+}
+
 prepare_model_sandbox() {
   command -v sudo >/dev/null
   command -v apparmor_parser >/dev/null
-  [[ -x /usr/bin/bwrap ]]
+  [[ -x "$review_bwrap_binary" ]]
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 
-  sudo install -d -o root -g root -m 0755 "$review_unshare_directory"
-  sudo install -o root -g root -m 0755 \
-    /usr/bin/bwrap "$review_bwrap_binary"
-  [[ "$(stat -c '%U:%G:%a' "$review_bwrap_binary")" == root:root:755 ]]
-  printf '%s\n' \
-    'abi <abi/4.0>,' \
-    'include <tunables/global>' \
-    '' \
-    "profile wukongim-review-agent-bwrap $review_bwrap_binary flags=(unconfined) {" \
-    '  userns,' \
-    '}' \
-    | sudo tee "$review_bwrap_profile" >/dev/null
-  sudo chmod 0644 "$review_bwrap_profile"
-  sudo apparmor_parser -r "$review_bwrap_profile"
+  if ! probe_model_sandbox; then
+    sudo apt-get update -qq
+    sudo apt-get install -y --no-install-recommends \
+      apparmor-profiles apparmor-utils
+    [[ -f "$review_bwrap_profile_source" ]]
+    sudo install -o root -g root -m 0644 \
+      "$review_bwrap_profile_source" "$review_bwrap_profile"
+    sudo apparmor_parser -r "$review_bwrap_profile"
+    probe_model_sandbox
+  fi
 
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 }

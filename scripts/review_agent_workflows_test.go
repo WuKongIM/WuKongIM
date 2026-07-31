@@ -345,13 +345,16 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		fence,
-		`review_bwrap_binary="$review_unshare_directory/bwrap"`,
+		`review_bwrap_binary="/usr/bin/bwrap"`,
 	)
 	require.Contains(
 		t,
 		fence,
-		`profile wukongim-review-agent-bwrap $review_bwrap_binary flags=(unconfined)`,
+		`review_bwrap_profile_source="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"`,
 	)
+	require.Contains(t, fence, `sudo apparmor_parser -r "$review_bwrap_profile"`)
+	require.Contains(t, fence, `--unshare-user`)
+	require.NotContains(t, fence, `wukongim-review-agent-bwrap`)
 	require.Equal(
 		t,
 		4,
@@ -449,12 +452,16 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, reviewer, "secrets.OPENAI_API_KEY")
 	require.Contains(t, reviewer, `--config 'default_permissions="review-agent"'`)
 	require.Contains(t, reviewer, "allow-bots: true")
+	require.Contains(t, reviewer, "required = true")
+	require.Contains(t, reviewer, `default_tools_approval_mode = "approve"`)
+	require.Contains(t, reviewer, `enabled_tools = ["check_result", "check_run"]`)
+	require.Contains(t, reviewer, "<trusted-output-schema>")
 	require.Contains(
 		t,
 		reviewer,
 		`--cd "$RUNNER_TEMP/review-agent-session"`,
 	)
-	require.Contains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
+	require.NotContains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
 	require.Contains(t, reviewer, `extends = ":read-only"`)
 	require.Contains(
 		t,

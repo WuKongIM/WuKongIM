@@ -106,17 +106,20 @@ The trusted proxy is the sole loopback exception required by model transport;
 model-initiated localhost access remains denied. Candidate checks execute only
 through the Check MCP in per-command disposable worktrees with dedicated
 HOME/TMP directories and a rootless network namespace whose own loopback
-supports local test servers. The model sandbox uses one root-owned `bwrap`
-copy with a path-specific AppArmor `userns` profile; the global Ubuntu user
-namespace restriction remains enabled. The job has no Docker socket, and
-`sudo` is disabled before the model process starts.
+supports local test servers. The model sandbox uses the distribution
+`/usr/bin/bwrap`; the Workflow probes it before removing `sudo` and loads
+Ubuntu's official path-specific `bwrap-userns-restrict` profile only when
+needed, while leaving the global user-namespace restriction enabled. The job
+has no Docker socket, and `sudo` is disabled before the model process starts.
 
 Mandatory checks are selected deterministically from every changed path. The
 model may add a check only by protected catalog name through the local stdio
 Check MCP. The MCP resolves the immutable command and writes trusted results
-outside the read-only model session. The validator rejects unrecorded claims,
-generation mismatches, incomplete coverage, failed mandatory checks, invalid
-findings, excessive output, and unexpected tracked-file mutation.
+outside the read-only model session. Codex treats that MCP as required and
+fails the session if its protected tools cannot initialize. The validator
+rejects unrecorded claims, generation mismatches, incomplete coverage, failed
+mandatory checks, invalid findings, excessive output, and unexpected
+tracked-file mutation.
 
 The protected bounds admit at most 50 changed files, 128 KiB of captured
 change material, 10,000 changed lines, and a 192 KiB encoded Context. This
