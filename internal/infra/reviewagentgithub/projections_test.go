@@ -204,12 +204,6 @@ type recordingProjectionWriter struct {
 	issueCommentBodies []string
 }
 
-func (writer *recordingProjectionWriter) InstallationAppSlug(
-	context.Context,
-) (string, error) {
-	return "wukongim-review-agent", nil
-}
-
 func (writer *recordingProjectionWriter) CreateIssueComment(
 	_ context.Context,
 	_ int64,

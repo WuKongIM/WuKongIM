@@ -28,6 +28,10 @@ var repositoryPattern = regexp.MustCompile(
 	`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`,
 )
 
+var appSlugPattern = regexp.MustCompile(
+	`^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$`,
+)
+
 // AppRole selects one compile-time permission profile.
 type AppRole string
 
@@ -41,6 +45,7 @@ const (
 type AppTokenConfig struct {
 	BaseURL        string
 	AppID          int64
+	AppSlug        string
 	InstallationID int64
 	RepositoryID   int64
 	Repository     string
@@ -75,6 +80,7 @@ func NewAppTokenMinter(
 		return nil, err
 	}
 	if config.AppID <= 0 ||
+		!appSlugPattern.MatchString(config.AppSlug) ||
 		config.InstallationID <= 0 ||
 		config.RepositoryID <= 0 ||
 		!repositoryPattern.MatchString(config.Repository) ||
@@ -128,6 +134,9 @@ func (minter *AppTokenMinter) Mint(
 	).SignedString(minter.privateKey)
 	if err != nil {
 		return InstallationToken{}, errors.New("sign GitHub App JWT")
+	}
+	if err := minter.verifyAppIdentity(ctx, appJWT); err != nil {
+		return InstallationToken{}, err
 	}
 	requestBody := struct {
 		RepositoryIDs []int64           `json:"repository_ids"`
@@ -224,6 +233,63 @@ func (minter *AppTokenMinter) Mint(
 	return InstallationToken{
 		Token: payload.Token, ExpiresAt: payload.ExpiresAt,
 	}, nil
+}
+
+func (minter *AppTokenMinter) verifyAppIdentity(
+	ctx context.Context,
+	appJWT string,
+) error {
+	endpoint := *minter.baseURL
+	endpoint.Path = strings.TrimSuffix(endpoint.Path, "/") + "/app"
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		endpoint.String(),
+		nil,
+	)
+	if err != nil {
+		return errors.New("create GitHub App identity request")
+	}
+	request.Header.Set("Accept", "application/vnd.github+json")
+	request.Header.Set("X-GitHub-Api-Version", githubAPIVersion)
+	request.Header.Set("Authorization", "Bearer "+appJWT)
+	response, err := minter.client.Do(request)
+	if err != nil {
+		return fmt.Errorf(
+			"request GitHub App identity: %w",
+			redactHTTPError(err),
+		)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		return fmt.Errorf(
+			"GitHub App identity request failed with status %d",
+			response.StatusCode,
+		)
+	}
+	mediaType, _, err := mime.ParseMediaType(
+		response.Header.Get("Content-Type"),
+	)
+	if err != nil || mediaType != "application/json" {
+		return errors.New(
+			"GitHub App identity response has unexpected content type",
+		)
+	}
+	var payload struct {
+		ID   int64  `json:"id"`
+		Slug string `json:"slug"`
+	}
+	if err := json.NewDecoder(
+		io.LimitReader(response.Body, 64<<10),
+	).Decode(&payload); err != nil {
+		return errors.New("decode GitHub App identity response")
+	}
+	if payload.ID != minter.config.AppID ||
+		payload.Slug != minter.config.AppSlug {
+		return errors.New("GitHub App identity is inconsistent")
+	}
+	return nil
 }
 
 func permissionsForRole(role AppRole) (map[string]string, error) {

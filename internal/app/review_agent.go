@@ -564,6 +564,7 @@ func appendReviewState(
 		config,
 		config.StateWriterApp,
 		github.AppRoleStateWriter,
+		policy.Apps.StateWriter.Slug,
 	)
 	if err != nil {
 		return cli.AppendStateResponse{}, err
@@ -676,6 +677,7 @@ func publishReview(
 		config,
 		config.ReviewApp,
 		github.AppRoleReviewPublisher,
+		policy.Apps.Review.Slug,
 	)
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
@@ -741,6 +743,7 @@ func mintReviewAppToken(
 	config ReviewAgentConfig,
 	app *ReviewAgentAppConfig,
 	role github.AppRole,
+	appSlug string,
 ) (github.InstallationToken, error) {
 	if app == nil {
 		return github.InstallationToken{}, errors.New(
@@ -753,6 +756,7 @@ func mintReviewAppToken(
 	}
 	minter, err := github.NewAppTokenMinter(github.AppTokenConfig{
 		BaseURL: config.APIBaseURL, AppID: app.AppID,
+		AppSlug:        appSlug,
 		InstallationID: app.InstallationID,
 		RepositoryID:   app.RepositoryID,
 		Repository:     config.Repository,
