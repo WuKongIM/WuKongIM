@@ -22,8 +22,8 @@ fresh GitHub fences + exact candidate/evidence digests
 
 All decoded JSON objects reject unknown fields, oversized input, malformed
 identities, and trailing JSON. `EngineerResult` may unwrap exactly one
-Markdown `json` fence from a model's final message before applying that strict
-JSON contract; ambiguous or multiple fences fail closed. `EngineerResult`
-never grants publication authority. Only a low-risk, passing
-`CandidateEvidence` bound to the exact task and candidate can enter a
-Publisher plan.
+unambiguous JSON object from bounded model prose or one Markdown `json` fence
+before applying that strict JSON contract; competing containers and
+brace-bearing prose fail closed. `EngineerResult` never grants publication
+authority. Only a low-risk, passing `CandidateEvidence` bound to the exact task
+and candidate can enter a Publisher plan.
