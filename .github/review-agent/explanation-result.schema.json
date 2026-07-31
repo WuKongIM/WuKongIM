@@ -1,0 +1,73 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "pull_request": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "test_merge_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "intent_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state_parent_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "minimum": 1,
+      "required": [
+        "repository",
+        "pull_request",
+        "head_sha",
+        "base_sha",
+        "test_merge_sha",
+        "intent_digest",
+        "generation",
+        "state_parent_sha"
+      ],
+      "additionalProperties": false
+    },
+    "reply": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 61440
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/review-agent/explanation-result-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Review Agent explanation result v1",
+  "required": [
+    "schema_version",
+    "generation",
+    "reply"
+  ],
+  "additionalProperties": false
+}

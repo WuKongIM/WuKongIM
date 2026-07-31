@@ -1,0 +1,458 @@
+{
+  "schema_version": 1,
+  "supported_base_branches": [
+    "main"
+  ],
+  "reviewer": {
+    "action_sha": "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
+    "codex_version": "0.146.0",
+    "model": "moonshotai/kimi-k3",
+    "reasoning_effort": "high",
+    "sandbox": "read-only",
+    "ephemeral": true,
+    "wall_time_seconds": 5400
+  },
+  "concurrency": {
+    "repository_sessions": 3,
+    "sessions_per_pull_request": 1,
+    "first_time_external_sessions": 1
+  },
+  "attempts": {
+    "automatic_per_head": 1,
+    "max_reconsiderations_per_head": 2,
+    "max_infrastructure_retries": 1
+  },
+  "interaction": {
+    "max_explanation_sessions_per_head": 3,
+    "max_response_bytes_per_head": 262144
+  },
+  "limits": {
+    "max_changed_files": 50,
+    "max_changed_bytes": 131072,
+    "max_changed_lines": 10000,
+    "max_context_bytes": 196608,
+    "max_model_response_bytes": 4194304,
+    "max_context_tokens": 240000,
+    "auto_compact_tokens": 216000,
+    "max_cpu_seconds_per_process": 3600,
+    "max_memory_bytes_per_process": 8589934592,
+    "max_processes_per_command": 512,
+    "max_connections_per_address_family": 128,
+    "max_network_bytes_per_address_family": 2147483648,
+    "max_findings": 8,
+    "max_inline_comments": 20
+  },
+  "environments": {
+    "model": "review-agent-model",
+    "state_writer": "review-agent-state-writer",
+    "publisher": "review-agent-publisher"
+  },
+  "apps": {
+    "review": {
+      "slug": "wukongim-review-agent",
+      "login": "wukongim-review-agent[bot]",
+      "permissions": {
+        "checks": "write",
+        "issues": "write",
+        "metadata": "read",
+        "pull_requests": "write"
+      }
+    },
+    "state_writer": {
+      "slug": "wukongim-review-state-writer",
+      "login": "wukongim-review-state-writer[bot]",
+      "permissions": {
+        "contents": "write",
+        "metadata": "read"
+      }
+    }
+  },
+  "state": {
+    "pull_request_ref_prefix": "review-state/pr-",
+    "pull_request_path_template": ".review-agent-state/pr-%d.json",
+    "scheduler_ref": "review-state/scheduler",
+    "scheduler_path": ".review-agent-state/scheduler.json",
+    "require_verified_signature": true
+  },
+  "governance": {
+    "owner_team": "WuKongIM/review-agent-owners",
+    "owner_logins": [
+      "No8blackball",
+      "tangtaoit"
+    ]
+  },
+  "network": {
+    "public_internet": true,
+    "blocked_cidrs": [
+      "0.0.0.0/8",
+      "10.0.0.0/8",
+      "100.64.0.0/10",
+      "127.0.0.0/8",
+      "169.254.0.0/16",
+      "172.16.0.0/12",
+      "192.0.0.0/24",
+      "192.168.0.0/16",
+      "198.18.0.0/15",
+      "224.0.0.0/4",
+      "::/128",
+      "::1/128",
+      "fc00::/7",
+      "fe80::/10",
+      "ff00::/8"
+    ],
+    "blocked_hosts": [
+      "169.254.169.254",
+      "metadata.google.internal",
+      "host.docker.internal"
+    ]
+  },
+  "credentials": {
+    "denied": [
+      "github",
+      "github_app",
+      "cloud",
+      "deploy",
+      "package_publish",
+      "organization_private"
+    ]
+  },
+  "control_plane_paths": [
+    ".github/CODEOWNERS",
+    ".github/review-agent",
+    ".github/workflows/review-agent-pr-signal.yml",
+    ".github/workflows/review-agent-issue-signal.yml",
+    ".github/workflows/review-agent-run.yml",
+    ".github/workflows/review-agent.yml",
+    ".github/workflows/README.md",
+    "AGENTS.md",
+    "cmd/wkreviewagent",
+    "cmd/wkreviewcheck",
+    "cmd/wkreviewcheckmcp",
+    "internal/access/reviewagentcheckmcp",
+    "internal/access/reviewagentcli",
+    "internal/app/review_agent",
+    "internal/contracts/reviewagent",
+    "internal/infra/reviewagentgithub",
+    "internal/runtime/reviewagentverify",
+    "internal/usecase/reviewagent",
+    "scripts/review_agent",
+    "scripts/github_workflows_test.go",
+    "docs/agents/review-agent.md",
+    "docs/development/CI.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/superpowers/plans/2026-07-30-review-agent-implementation.md",
+    "docs/superpowers/runbooks/review-agent-bootstrap.md",
+    "docs/superpowers/specs/2026-07-30-review-agent-design.md"
+  ],
+  "trusted_checks": {
+    "go-unit": {
+      "arguments": [
+        "go",
+        "test",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-vet": {
+      "arguments": [
+        "go",
+        "vet",
+        "./cmd/...",
+        "./internal/...",
+        "./pkg/...",
+        "./scripts/...",
+        "./docker/..."
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-format": {
+      "arguments": [
+        "review-agent-check",
+        "go-format"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
+    },
+    "go-mod-tidy": {
+      "arguments": [
+        "review-agent-check",
+        "go-mod-tidy"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
+    },
+    "scripts-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./scripts/...",
+        "-count=1",
+        "-timeout=9m",
+        "-parallel=2"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    },
+    "workflow-contracts": {
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "Workflow|ReviewAgent",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 900,
+      "max_output_bytes": 8388608
+    },
+    "web-quality": {
+      "arguments": [
+        "review-agent-check",
+        "web"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "demo-quality": {
+      "arguments": [
+        "review-agent-check",
+        "demo"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "docs-contracts": {
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "Docs|Markdown|Link",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 600,
+      "max_output_bytes": 8388608
+    },
+    "go-race": {
+      "arguments": [
+        "go",
+        "test",
+        "-race",
+        "./internal/app",
+        "./internal/runtime/...",
+        "./pkg/plugin/pluginhost",
+        "./pkg/wklog",
+        "./pkg/gateway/...",
+        "./pkg/transport/...",
+        "./pkg/channel/...",
+        "./pkg/cluster/...",
+        "./pkg/slot/...",
+        "-count=1",
+        "-p=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-integration": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=integration",
+        "./internal/...",
+        "./pkg/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "go-e2e": {
+      "arguments": [
+        "go",
+        "test",
+        "-tags=e2e",
+        "./test/e2e/...",
+        "-count=1"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    },
+    "three-node-cluster": {
+      "arguments": [
+        "review-agent-check",
+        "three-node"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 1800,
+      "max_output_bytes": 8388608
+    }
+  },
+  "path_rules": [
+    {
+      "name": "repository-default",
+      "paths": [],
+      "prefixes": [
+        ""
+      ],
+      "suffixes": [],
+      "checks": [
+        "go-unit",
+        "go-vet",
+        "go-format",
+        "go-mod-tidy"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "go",
+      "paths": [
+        "go.mod",
+        "go.sum"
+      ],
+      "prefixes": [
+        "cmd/",
+        "internal/",
+        "pkg/",
+        "scripts/",
+        "docker/"
+      ],
+      "suffixes": [
+        ".go"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "configuration",
+      "paths": [
+        "wukongim.toml.example"
+      ],
+      "prefixes": [],
+      "suffixes": [
+        ".toml"
+      ],
+      "checks": [
+        "go-unit",
+        "go-vet"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "docker",
+      "paths": [],
+      "prefixes": [
+        "docker/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "go-unit",
+        "go-vet",
+        "workflow-contracts"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "production-integration-scripts",
+      "prefixes": [
+        "scripts/"
+      ],
+      "suffixes": [
+        ".sh"
+      ],
+      "checks": [
+        "scripts-integration"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "codeowners",
+      "paths": [
+        ".github/CODEOWNERS"
+      ],
+      "prefixes": [],
+      "suffixes": [],
+      "checks": [
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "workflow-control",
+      "prefixes": [
+        ".github/"
+      ],
+      "suffixes": [
+        ".yml",
+        ".yaml",
+        ".json"
+      ],
+      "checks": [
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "manager-web",
+      "prefixes": [
+        "web/",
+        "internal/access/manager/webui/dist/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "web-quality"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "chat-demo",
+      "prefixes": [
+        "demo/chatdemo/",
+        "internal/access/api/demoui/dist/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "demo-quality"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "documentation-only",
+      "prefixes": [
+        "docs/",
+        "docs-site/"
+      ],
+      "suffixes": [
+        ".md",
+        ".mdx"
+      ],
+      "checks": [
+        "docs-contracts"
+      ],
+      "exclusive": true
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -224,6 +225,15 @@ func (client *Client) ReadContextReviewThreads(
 	ctx context.Context,
 	pullRequestNumber int64,
 ) ([]contract.ReviewThreadSnapshot, error) {
+	return client.readContextReviewThreads(ctx, pullRequestNumber, 0, "")
+}
+
+func (client *Client) readContextReviewThreads(
+	ctx context.Context,
+	pullRequestNumber int64,
+	reviewID int64,
+	headSHA string,
+) ([]contract.ReviewThreadSnapshot, error) {
 	if client == nil || pullRequestNumber <= 0 {
 		return nil, errors.New("Review context request is invalid")
 	}
@@ -243,10 +253,17 @@ func (client *Client) ReadContextReviewThreads(
 									DatabaseID        int64    `json:"databaseId"`
 									Body              string   `json:"body"`
 									UpdatedAt         jsonTime `json:"updatedAt"`
+									Outdated          bool     `json:"outdated"`
 									AuthorAssociation string   `json:"authorAssociation"`
 									Author            struct {
 										Login string `json:"login"`
 									} `json:"author"`
+									PullRequestReview struct {
+										DatabaseID int64 `json:"databaseId"`
+										Commit     struct {
+											OID string `json:"oid"`
+										} `json:"commit"`
+									} `json:"pullRequestReview"`
 								} `json:"nodes"`
 								PageInfo struct {
 									HasNextPage bool `json:"hasNextPage"`
@@ -264,7 +281,7 @@ func (client *Client) ReadContextReviewThreads(
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	query := `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved path line comments(first:100){nodes{databaseId body updatedAt authorAssociation author{login}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`
+	query := `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{id isResolved path line comments(first:100){nodes{databaseId body updatedAt outdated authorAssociation author{login} pullRequestReview{databaseId commit{oid}}} pageInfo{hasNextPage}}} pageInfo{hasNextPage}}}}}`
 	if err := client.requestJSON(
 		ctx, "POST", "/graphql",
 		struct {
@@ -296,6 +313,13 @@ func (client *Client) ReadContextReviewThreads(
 			len(thread.Comments.Nodes) > 100 {
 			return nil, errors.New("Review comment context is incomplete")
 		}
+		first := thread.Comments.Nodes[0]
+		if reviewID != 0 &&
+			(first.Outdated ||
+				first.PullRequestReview.DatabaseID != reviewID ||
+				first.PullRequestReview.Commit.OID != headSHA) {
+			continue
+		}
 		comments := make([]contract.CommentSnapshot, 0, len(thread.Comments.Nodes))
 		for _, comment := range thread.Comments.Nodes {
 			comments = append(comments, contract.CommentSnapshot{
@@ -316,4 +340,156 @@ func (client *Client) ReadContextReviewThreads(
 		return result[left].ID < result[right].ID
 	})
 	return result, nil
+}
+
+// ReadReviewAgentFindings returns only a fresh current-head REQUEST_CHANGES
+// Review and its unresolved threads from the configured Review Agent App.
+func (client *Client) ReadReviewAgentFindings(
+	ctx context.Context,
+	pullRequestNumber int64,
+	headSHA string,
+	appLogin string,
+) ([]contract.ReviewThreadSnapshot, bool, error) {
+	if client == nil || pullRequestNumber <= 0 ||
+		!gitObjectPattern.MatchString(headSHA) ||
+		len(headSHA) != 40 ||
+		!appBotLoginPattern.MatchString(appLogin) {
+		return nil, false, errors.New(
+			"Review Agent finding request is invalid",
+		)
+	}
+	review, found, err := client.latestReviewAgentReview(
+		ctx,
+		pullRequestNumber,
+		headSHA,
+		appLogin,
+	)
+	if err != nil || !found || review.State != "CHANGES_REQUESTED" {
+		return nil, false, err
+	}
+	threads, err := client.readContextReviewThreads(
+		ctx,
+		pullRequestNumber,
+		review.ID,
+		headSHA,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	filtered := make([]contract.ReviewThreadSnapshot, 0, len(threads)+1)
+	if review.Body != "" {
+		filtered = append(filtered, contract.ReviewThreadSnapshot{
+			ID: "review-agent-formal-" + strconv.FormatInt(review.ID, 10),
+			Comments: []contract.CommentSnapshot{{
+				ID: review.ID, Author: appLogin,
+				AuthorAssociation: "NONE",
+				Body:              review.Body,
+				UpdatedAt:         review.SubmittedAt,
+			}},
+		})
+	}
+	for _, thread := range threads {
+		if len(thread.Comments) == 0 ||
+			thread.Comments[0].Author != appLogin {
+			continue
+		}
+		filtered = append(filtered, thread)
+	}
+	sort.Slice(filtered, func(left, right int) bool {
+		return filtered[left].ID < filtered[right].ID
+	})
+	if len(filtered) == 0 {
+		return nil, false, errors.New(
+			"Review Agent change request has no bounded findings",
+		)
+	}
+	return filtered, true, nil
+}
+
+type reviewAgentFormalReview struct {
+	ID          int64
+	State       string
+	Body        string
+	SubmittedAt time.Time
+}
+
+func (client *Client) latestReviewAgentReview(
+	ctx context.Context,
+	pullRequestNumber int64,
+	headSHA string,
+	appLogin string,
+) (reviewAgentFormalReview, bool, error) {
+	var latest reviewAgentFormalReview
+	found := false
+	for page := 1; page <= client.maxPages; page++ {
+		endpoint := client.endpoint(
+			"/repos/" + client.repository + "/pulls/" +
+				strconv.FormatInt(pullRequestNumber, 10) + "/reviews",
+		)
+		query := endpoint.Query()
+		query.Set("per_page", "100")
+		query.Set("page", strconv.Itoa(page))
+		endpoint.RawQuery = query.Encode()
+		var payload []struct {
+			ID       int64  `json:"id"`
+			State    string `json:"state"`
+			Body     string `json:"body"`
+			CommitID string `json:"commit_id"`
+			User     struct {
+				Login string `json:"login"`
+				Type  string `json:"type"`
+			} `json:"user"`
+			SubmittedAt *jsonTime `json:"submitted_at"`
+		}
+		next, err := client.getJSONPage(ctx, endpoint, &payload)
+		if err != nil {
+			return reviewAgentFormalReview{}, false, err
+		}
+		if len(payload) > 100 {
+			return reviewAgentFormalReview{}, false, errors.New(
+				"Review Agent Review page exceeds item limit",
+			)
+		}
+		for _, item := range payload {
+			if item.User.Login != appLogin ||
+				item.User.Type != "Bot" ||
+				item.CommitID != headSHA {
+				continue
+			}
+			if item.ID <= 0 || item.SubmittedAt == nil ||
+				item.SubmittedAt.Time.IsZero() ||
+				len(item.Body) > 64<<10 {
+				return reviewAgentFormalReview{}, false, errors.New(
+					"Review Agent formal Review is invalid",
+				)
+			}
+			if !found ||
+				item.SubmittedAt.Time.After(latest.SubmittedAt) ||
+				item.SubmittedAt.Time.Equal(latest.SubmittedAt) &&
+					item.ID > latest.ID {
+				latest = reviewAgentFormalReview{
+					ID: item.ID, State: item.State, Body: item.Body,
+					SubmittedAt: item.SubmittedAt.Time,
+				}
+				found = true
+			}
+		}
+		if next == nil {
+			return latest, found, nil
+		}
+		if page == client.maxPages ||
+			next.Scheme != client.baseURL.Scheme ||
+			next.Host != client.baseURL.Host ||
+			next.Path != endpoint.Path ||
+			next.Query().Get("per_page") != "100" ||
+			next.Query().Get("page") != strconv.Itoa(page+1) ||
+			len(next.Query()) != 2 {
+			return reviewAgentFormalReview{}, false, errors.New(
+				"Review Agent Review pagination is incomplete",
+			)
+		}
+	}
+	return reviewAgentFormalReview{}, false, errors.New(
+		"Review Agent Review pagination did not terminate",
+	)
 }

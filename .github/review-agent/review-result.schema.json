@@ -1,0 +1,265 @@
+{
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generation": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "pull_request": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "head_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "base_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "test_merge_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "intent_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state_parent_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      },
+      "minimum": 1,
+      "required": [
+        "repository",
+        "pull_request",
+        "head_sha",
+        "base_sha",
+        "test_merge_sha",
+        "intent_digest",
+        "generation",
+        "state_parent_sha"
+      ],
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "changes_required",
+        "inconclusive"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "inventory_complete": {
+      "type": "boolean"
+    },
+    "file_assessments": {
+      "type": [
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "risk": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "path",
+          "risk",
+          "summary"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "findings": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "advisory"
+            ]
+          },
+          "dimension": {
+            "type": "string",
+            "enum": [
+              "intent_correctness",
+              "regression_tests",
+              "security_runtime",
+              "repository_constraints"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "impact": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "evidence": {
+            "type": [
+              "array"
+            ],
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "minItems": 1,
+            "maxItems": 4,
+            "uniqueItems": true
+          },
+          "resolution": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        },
+        "required": [
+          "kind",
+          "dimension",
+          "title",
+          "path",
+          "line_start",
+          "line_end",
+          "scenario",
+          "impact",
+          "evidence",
+          "resolution"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    },
+    "prior_finding_dispositions": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "retained",
+              "withdrawn"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "finding_digest",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 8
+    },
+    "sources": {
+      "type": [
+        "null",
+        "array"
+      ],
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048
+      },
+      "maxItems": 256,
+      "uniqueItems": true
+    },
+    "unresolved_uncertainty": {
+      "type": "string",
+      "maxLength": 2048
+    }
+  },
+  "$id": "https://wukongim.github.io/schemas/review-agent/review-result-v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WuKongIM Review Agent review result v1",
+  "required": [
+    "schema_version",
+    "generation",
+    "decision",
+    "summary",
+    "inventory_complete",
+    "file_assessments",
+    "findings",
+    "prior_finding_dispositions",
+    "sources",
+    "unresolved_uncertainty"
+  ],
+  "additionalProperties": false
+}

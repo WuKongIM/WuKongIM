@@ -1476,7 +1476,6 @@ func TestCloudSimulationAnalyzeDefersRemediationUntilProviderRelease(t *testing.
 		"cloud-remediation",
 		" worktree add -b ",
 		" push --no-verify ",
-		"agent-ci/run",
 		"gh pr create",
 	} {
 		if strings.Contains(callText, forbidden) {

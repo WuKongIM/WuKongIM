@@ -218,7 +218,7 @@ func validateAuthorizationRecordContract(
 		return errors.New("invalid state authorization identity")
 	}
 	switch authorization.Permission {
-	case "write", "maintain", "admin":
+	case "write", "maintain", "admin", "review_agent":
 	default:
 		return errors.New("state authorization lacks write permission")
 	}

@@ -52,8 +52,9 @@ func run(
 		AppPrivateKeyPEM: []byte(
 			os.Getenv("ISSUE_AGENT_APP_PRIVATE_KEY"),
 		),
-		WorkingDirectory: workingDirectory,
-		Now:              time.Now,
+		ReviewAgentAppLogin: os.Getenv("REVIEW_AGENT_APP_LOGIN"),
+		WorkingDirectory:    workingDirectory,
+		Now:                 time.Now,
 	}
 	return issueagentcli.Run(
 		ctx,
