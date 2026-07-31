@@ -726,8 +726,9 @@ jobs:
           }
           if [[ -s "$result" &&
               "$(wc -c <"$result")" -le "$max_result_bytes" ]] &&
-              jq -e . "$result" >/dev/null 2>&1; then
-            cp "$result" "$RUNNER_TEMP/effective-result.json"
+              "$RUNNER_TEMP/wkreviewagent" normalize-review-result \
+                <"$result" >"$RUNNER_TEMP/effective-result.json"; then
+            :
           else
             synthesize
           fi

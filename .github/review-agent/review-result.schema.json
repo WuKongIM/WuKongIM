@@ -243,6 +243,7 @@
     },
     "unresolved_uncertainty": {
       "type": "string",
+      "description": "Must be empty for approved; for inconclusive, must describe the material uncertainty.",
       "maxLength": 2048
     }
   },
