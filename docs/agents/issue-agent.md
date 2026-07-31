@@ -29,6 +29,12 @@ must be contiguous, authored by the configured App Bot, and GitHub-signed.
 The Issue contains one mutable App-owned status comment as a repairable
 projection of that state.
 
+GitHub may report an ambiguous error while immediately verifying a state commit
+that was already created. The Controller accepts that publication only after
+one independent re-read proves the exact expected parent, canonical state
+content, path, App Bot identity, and GitHub signature. Any mismatch remains a
+failure; a merely advanced or externally written ref is never adopted.
+
 PR lifecycle and Review events first run
 `.github/workflows/issue-agent-pr-signal.yml`. That Workflow has no token
 permissions, Secrets, checkout, artifacts, or candidate execution. Its
@@ -69,7 +75,7 @@ itself grants no authority.
 
 `.github/workflows/issue-agent-engineer.yml` invokes the full-SHA-pinned
 official `openai/codex-action` once for the complete task. It runs Codex
-`0.146.0`, OpenRouter model `openai/gpt-5.6-sol` through the fixed
+`0.146.0`, OpenRouter model `moonshotai/kimi-k3` through the fixed
 `https://openrouter.ai/api/v1/responses` endpoint, high reasoning effort, an
 ephemeral session, and a `workspace-write` sandbox with public internet access.
 Codex has normal local Git/search/edit/build/test tools, but it receives:
@@ -98,6 +104,11 @@ It rejects protected paths, high-risk areas, dependency changes, executable
 modes, symlink changes, oversized scope, unexpected
 post-test filesystem changes, or failed trusted commands. It has no model key
 and no Publisher credential.
+
+The reusable Engineer workflow ends at the Verifier. The always-running
+Publisher is a job in the top-level protected Controller workflow so its
+`issue-agent-publisher` Environment secret resolves directly; that private key
+is not passed into the reusable workflow.
 
 Only low-risk passing `CandidateEvidence` can be published. Invalid, missing,
 non-ready, or rejected task output is finalized as `needs_human` without

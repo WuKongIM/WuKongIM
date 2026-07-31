@@ -584,7 +584,10 @@ For message permission checks, the adapter exposes channel metadata reads,
 subscriber point lookups, subscriber-set non-emptiness, and exact durable
 subscriber mutation counts. Production node reads use authoritative Slot-leader
 facades; alternate nodes must expose point lookups explicitly because the
-adapter never substitutes an unbounded page scan.
+adapter never substitutes an unbounded page scan. Permission reads translate
+unavailable cluster routes, node lifecycle, and transport dial failures into
+the message contract's retryable route-not-ready error instead of exposing
+infrastructure errors at entry boundaries.
 When configured with `ChannelAppendMetadataCache`, successful channel metadata
 upserts refresh append fanout metadata and deletes remove cached entries; final
 subscriber mutation versions are still refreshed by the channel usecase

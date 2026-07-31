@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,74 @@ import (
 	issueagent "github.com/WuKongIM/WuKongIM/internal/usecase/issueagent"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCommittedIssueTransitionKeepsDispatchWhenProjectionFails(t *testing.T) {
+	t.Parallel()
+
+	expected := reconcileResult{
+		Dispatch: true, Repository: "WuKongIM/WuKongIM",
+		IssueNumber:  700,
+		TaskID:       "sha256:task",
+		BaseSHA:      "base",
+		ControlSHA:   "control",
+		StateHeadSHA: "state",
+		State:        string(contract.IssueStateEngineering),
+		Reason:       "authorized low-risk Bug is ready for engineering",
+	}
+	actual := finalizeCommittedReconcile(
+		expected,
+		func() error {
+			return errors.New("transient status projection failure")
+		},
+		nil,
+	)
+	require.True(t, actual.Dispatch)
+	require.Equal(t, expected.TaskID, actual.TaskID)
+	require.Equal(t, expected.StateHeadSHA, actual.StateHeadSHA)
+	require.Equal(t, []reconcileWarning{{
+		Projection: "status",
+		Reason:     "transient status projection failure",
+	}}, actual.Warnings)
+}
+
+func TestCommittedTerminalTransitionKeepsTrackingWhenStatusProjectionFails(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	trackingRemoved := false
+	actual := finalizeCommittedReconcile(
+		reconcileResult{State: string(contract.IssueStateCompleted)},
+		func() error {
+			return errors.New("transient status projection failure")
+		},
+		func() error {
+			trackingRemoved = true
+			return nil
+		},
+	)
+	require.False(t, trackingRemoved)
+	require.Equal(t, []reconcileWarning{{
+		Projection: "status",
+		Reason:     "transient status projection failure",
+	}}, actual.Warnings)
+}
+
+func TestCommittedIssueTransitionReportsTrackingRemovalFailure(t *testing.T) {
+	t.Parallel()
+
+	actual := finalizeCommittedReconcile(
+		reconcileResult{State: string(contract.IssueStateCompleted)},
+		func() error { return nil },
+		func() error {
+			return errors.New("transient tracking projection failure")
+		},
+	)
+	require.Equal(t, []reconcileWarning{{
+		Projection: "tracking",
+		Reason:     "transient tracking projection failure",
+	}}, actual.Warnings)
+}
 
 func TestResolveIssueNumberRotatesScheduledTrackedIssues(t *testing.T) {
 	t.Parallel()

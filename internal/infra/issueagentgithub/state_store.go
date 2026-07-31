@@ -132,6 +132,22 @@ func (store *StateStore) Advance(
 		request.State.IssueNumber,
 		request.State.Sequence,
 	)
+	recoverPublication := func(
+		publicationErr error,
+	) (StatePublication, error) {
+		recovered, recoverErr := store.recoverExactPublication(
+			ctx,
+			request.State.IssueNumber,
+			branch,
+			path,
+			request.ExpectedParentSHA,
+			content,
+		)
+		if recoverErr != nil {
+			return StatePublication{}, publicationErr
+		}
+		return recovered, nil
+	}
 	result, err := store.commits.PublishStateCommit(ctx, StateCommitRequest{
 		Branch: branch, Path: path,
 		ExpectedParentSHA: request.ExpectedParentSHA,
@@ -141,7 +157,7 @@ func (store *StateStore) Advance(
 		Content:           content,
 	})
 	if err != nil {
-		return StatePublication{}, err
+		return recoverPublication(err)
 	}
 	sum := sha256.Sum256(content)
 	expectedDigest := "sha256:" + hex.EncodeToString(sum[:])
@@ -154,9 +170,44 @@ func (store *StateStore) Advance(
 		result.AuthorType != "Bot" ||
 		!result.Verified ||
 		!result.SignedByGitHub {
-		return StatePublication{}, errors.New("published state commit is untrusted")
+		return recoverPublication(
+			errors.New("published state commit is untrusted"),
+		)
 	}
 	return StatePublication{HeadSHA: result.CommitSHA}, nil
+}
+
+// recoverExactPublication performs one independent read after an ambiguous
+// state write. It accepts only the exact canonical App-authored, GitHub-signed
+// successor of the expected parent; every missing or mismatched ref fails
+// closed.
+func (store *StateStore) recoverExactPublication(
+	ctx context.Context,
+	issueNumber int64,
+	branch string,
+	path string,
+	expectedParentSHA string,
+	expectedContent []byte,
+) (StatePublication, error) {
+	head, found, err := store.commits.StateRefHead(ctx, branch)
+	if err != nil || !found || head == expectedParentSHA ||
+		!gitObjectPattern.MatchString(head) || len(head) != 40 {
+		return StatePublication{}, errors.New("published state commit is unavailable")
+	}
+	record, err := store.commits.ReadStateCommit(ctx, head, path)
+	if err != nil || record.ParentSHA != expectedParentSHA ||
+		!bytes.Equal(record.Content, expectedContent) {
+		return StatePublication{}, errors.New("published state commit does not match")
+	}
+	if _, err := store.validateStateRecord(
+		record,
+		head,
+		path,
+		issueNumber,
+	); err != nil {
+		return StatePublication{}, err
+	}
+	return StatePublication{HeadSHA: head}, nil
 }
 
 // Load verifies the complete bounded App-signed state chain.

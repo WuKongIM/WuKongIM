@@ -69,6 +69,16 @@ func callAuthoritativeRPCWithStatuses[T authoritativeRPCResponse](
 
 	tried := make(map[multiraft.NodeID]struct{}, len(peers))
 	candidates := append([]multiraft.NodeID(nil), peers...)
+	// Prefer the observed leader so an unavailable earlier peer cannot consume
+	// the request deadline before the authoritative node is attempted.
+	if leaderID, err := s.cluster.LeaderOf(slotID); err == nil {
+		for index, peer := range candidates {
+			if peer == leaderID {
+				candidates[0], candidates[index] = candidates[index], candidates[0]
+				break
+			}
+		}
+	}
 	var lastErr error
 
 	for len(candidates) > 0 {

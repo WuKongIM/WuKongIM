@@ -115,7 +115,10 @@ func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
 	require.Contains(t, raw, "sandbox: workspace-write")
 	require.Contains(t, raw, "sandbox_workspace_write.network_access=true")
 	require.Contains(t, raw, "safety-strategy: drop-sudo")
-	require.Contains(t, raw, "model: openai/gpt-5.6-sol")
+	require.Contains(t, raw,
+		"allow-bot-users: ${{ vars.ISSUE_AGENT_APP_LOGIN }}")
+	require.NotContains(t, raw, "allow-bots: true")
+	require.Contains(t, raw, "model: moonshotai/kimi-k3")
 	require.Contains(t, raw, "effort: high")
 	require.Contains(t, raw, "secrets.OPENAI_API_KEY")
 	require.Contains(t, raw,
@@ -154,27 +157,29 @@ func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
 func TestIssueAgentControllerSerializesFiveMinuteRecovery(t *testing.T) {
 	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	require.Contains(t, controller, `cron: "*/5 * * * *"`)
-	require.Contains(t, controller,
-		"group: issue-agent-state-${{ github.repository }}")
-	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
-	require.Contains(t, engineer,
-		"group: issue-agent-state-${{ inputs.repository }}")
+	require.Equal(t, 2, strings.Count(controller,
+		"group: issue-agent-state-${{ github.repository }}"))
 	require.Contains(t, controller, "cancel-in-progress: false")
 	require.NotContains(t, controller, "github.event.pull_request.number")
 }
 
 func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
-	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	engineerWorkflow := readIssueAgentFile(
+		t,
+		".github/workflows/issue-agent-engineer.yml",
+	)
 	for _, job := range []string{
 		"recover-task:",
 		"context-builder:",
 		"engineer:",
 		"verifier:",
-		"publisher:",
 	} {
-		require.Contains(t, raw, "\n  "+job)
+		require.Contains(t, engineerWorkflow, "\n  "+job)
 	}
-	engineer := issueAgentJobText(t, raw, "engineer")
+	require.NotContains(t, engineerWorkflow, "\n  publisher:")
+	require.NotContains(t, engineerWorkflow, "ISSUE_AGENT_APP_PRIVATE_KEY")
+
+	engineer := issueAgentJobText(t, engineerWorkflow, "engineer")
 	require.Contains(t, engineer, "persist-credentials: false")
 	require.Contains(t, engineer, "OPENAI_API_KEY")
 	require.Contains(t, engineer, "/opt/wukongim-issue-agent/baseline")
@@ -185,13 +190,14 @@ func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
 	require.NotContains(t, engineer, "git push")
 	require.NotContains(t, engineer, "gh api")
 
-	verifier := issueAgentJobText(t, raw, "verifier")
+	verifier := issueAgentJobText(t, engineerWorkflow, "verifier")
 	require.Contains(t, verifier, "verify-candidate")
 	require.Contains(t, verifier, "persist-credentials: false")
 	require.NotContains(t, verifier, "OPENAI_API_KEY")
 	require.NotContains(t, verifier, "ISSUE_AGENT_APP_PRIVATE_KEY")
 
-	publisher := issueAgentJobText(t, raw, "publisher")
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	publisher := issueAgentJobText(t, controller, "publisher")
 	require.Contains(t, publisher, "environment: issue-agent-publisher")
 	require.Contains(t, publisher, "ISSUE_AGENT_APP_PRIVATE_KEY")
 	require.Contains(t, publisher, "publish-candidate")
@@ -201,19 +207,71 @@ func TestIssueAgentJobsSeparateCredentialsAndExecution(t *testing.T) {
 }
 
 func TestIssueAgentTaskFailuresReachThePublisherFinalizer(t *testing.T) {
-	raw := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
-	verifier := issueAgentJobText(t, raw, "verifier")
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	verifier := issueAgentJobText(t, engineer, "verifier")
 	require.Contains(t, verifier,
 		"if: always() && needs.engineer.result == 'success'")
 
-	publisher := issueAgentJobText(t, raw, "publisher")
-	require.Contains(t, publisher, "if: always()")
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	publisher := issueAgentJobText(t, controller, "publisher")
+	require.Contains(t, publisher,
+		"if: always() && needs.controller.result == 'success' && needs.controller.outputs.dispatch == 'true'")
 	require.Contains(t, publisher,
 		"- name: Download Context Bundle\n        continue-on-error: true")
 	require.Contains(t, publisher,
 		"- name: Download candidate and advisory result\n        continue-on-error: true")
 	require.Contains(t, publisher,
 		"- name: Download trusted evidence\n        continue-on-error: true")
+}
+
+func TestIssueAgentArtifactNamesAreFilesystemSafe(t *testing.T) {
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	for name, count := range map[string]int{
+		"issue-agent-context-${{ inputs.issue_number }}":   2,
+		"issue-agent-candidate-${{ inputs.issue_number }}": 2,
+		"issue-agent-evidence-${{ inputs.issue_number }}":  1,
+	} {
+		require.Equal(t, count, strings.Count(engineer, "name: "+name), name)
+	}
+	require.NotContains(t, engineer,
+		"name: issue-agent-context-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+	require.NotContains(t, engineer,
+		"name: issue-agent-candidate-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+	require.NotContains(t, engineer,
+		"name: issue-agent-evidence-${{ inputs.issue_number }}-${{ inputs.task_id }}")
+
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	for _, name := range []string{
+		"issue-agent-context-${{ needs.controller.outputs.issue_number }}",
+		"issue-agent-candidate-${{ needs.controller.outputs.issue_number }}",
+		"issue-agent-evidence-${{ needs.controller.outputs.issue_number }}",
+	} {
+		require.Equal(t, 1, strings.Count(controller, "name: "+name), name)
+	}
+}
+
+func TestIssueAgentPublisherUsesOnlyTopLevelEnvironmentSecret(t *testing.T) {
+	controller := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	require.NotContains(t, engineer, "\n  publisher:")
+	require.NotContains(t, engineer, "ISSUE_AGENT_APP_PRIVATE_KEY")
+
+	caller := issueAgentJobText(t, controller, "engineer")
+	require.NotContains(t, caller, "ISSUE_AGENT_APP_PRIVATE_KEY")
+	publisher := issueAgentJobText(t, controller, "publisher")
+	require.Contains(t, publisher, "needs: [controller, engineer]")
+	require.Contains(t, publisher,
+		"if: always() && needs.controller.result == 'success' && needs.controller.outputs.dispatch == 'true'")
+	require.Contains(t, publisher, "environment: issue-agent-publisher")
+	require.Contains(t, publisher,
+		"ISSUE_AGENT_APP_PRIVATE_KEY: ${{ secrets.ISSUE_AGENT_APP_PRIVATE_KEY }}")
+	require.NotContains(t, publisher, "ISSUE_AGENT_PRIVATE_KEY_SECRET")
+}
+
+func TestIssueAgentControllerReportsCommittedProjectionWarnings(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
+	require.Contains(t, raw,
+		`jq -r '.warnings[]? | "::warning::Issue Agent \(.projection) projection: \(.reason)"'`)
 }
 
 func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
@@ -244,7 +302,7 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	require.Equal(t, strings.TrimPrefix(codexActionPin, "openai/codex-action@"),
 		policy.Engineer.ActionSHA)
 	require.Equal(t, codexVersion, policy.Engineer.CodexVersion)
-	require.Equal(t, "openai/gpt-5.6-sol", policy.Engineer.Model)
+	require.Equal(t, "moonshotai/kimi-k3", policy.Engineer.Model)
 	require.Equal(t, "workspace-write", policy.Engineer.Sandbox)
 	require.True(t, policy.Engineer.Ephemeral)
 	require.True(t, policy.Engineer.NetworkAccess)
