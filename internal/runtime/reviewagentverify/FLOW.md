@@ -13,6 +13,7 @@ exact base/control tree + changed paths
   -> frozen applicable AGENTS.md / FLOW.md blobs
 
 fixed named check catalog + credential-free per-command disposable worktree
+  -> enter the pre-built private-network namespace before Git checkout or command
   -> read-only root/PID filesystem sandbox
      (only disposable worktree + dedicated HOME/TMP writable)
   -> frozen review-agent-check helper for composite checks

@@ -115,8 +115,11 @@ has no Docker socket, and `sudo` is disabled before the model process starts.
 Mandatory checks are selected deterministically from every changed path. The
 model may add a check only by protected catalog name through the local stdio
 Check MCP. The MCP resolves the immutable command and writes trusted results
-outside the read-only model session. Codex treats that MCP as required and
-fails the session if its protected tools cannot initialize. The validator
+outside the read-only model session. Its credential-free stdio handshake runs
+on the trusted model host; each resolved check enters the pre-built
+private-network namespace before its disposable checkout and filesystem
+sandbox start. Codex treats that MCP as required and fails the session if its
+protected tools cannot initialize. The validator
 rejects unrecorded claims, generation mismatches, incomplete coverage, failed
 mandatory checks, invalid findings, excessive output, and unexpected
 tracked-file mutation.
