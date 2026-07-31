@@ -145,6 +145,15 @@ func TestIssueAgentTaskFreezesExactControlSource(t *testing.T) {
 	require.Contains(t, engineer, "$RUNNER_TEMP/issue-agent-prompt.md")
 }
 
+func TestIssueAgentImmutableBaselineKeepsCanonicalGitModes(t *testing.T) {
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	require.Contains(t, engineer,
+		"sudo chown -R root:root /opt/wukongim-issue-agent/baseline")
+	require.Contains(t, engineer,
+		"sudo chmod -R u=rwX,go=rX /opt/wukongim-issue-agent/baseline")
+	require.NotContains(t, engineer, "sudo chmod -R a-w")
+}
+
 func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	caller := issueAgentJobText(t, raw, "engineer")

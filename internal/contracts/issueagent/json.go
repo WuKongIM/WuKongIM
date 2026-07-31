@@ -19,15 +19,9 @@ var (
 )
 
 func decodeStrictJSON(reader io.Reader, maxBytes int64, output any) error {
-	if reader == nil || maxBytes <= 0 {
-		return errors.New("JSON input limit must be positive")
-	}
-	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+	body, err := readBoundedJSON(reader, maxBytes)
 	if err != nil {
-		return fmt.Errorf("read JSON input: %w", err)
-	}
-	if int64(len(body)) > maxBytes {
-		return errors.New("JSON input exceeds byte limit")
+		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
@@ -42,6 +36,20 @@ func decodeStrictJSON(reader io.Reader, maxBytes int64, output any) error {
 		return fmt.Errorf("decode trailing JSON input: %w", err)
 	}
 	return nil
+}
+
+func readBoundedJSON(reader io.Reader, maxBytes int64) ([]byte, error) {
+	if reader == nil || maxBytes <= 0 {
+		return nil, errors.New("JSON input limit must be positive")
+	}
+	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read JSON input: %w", err)
+	}
+	if int64(len(body)) > maxBytes {
+		return nil, errors.New("JSON input exceeds byte limit")
+	}
+	return body, nil
 }
 
 func validRepository(repository string) bool {

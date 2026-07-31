@@ -151,7 +151,8 @@ jobs:
           set -euo pipefail
           sudo install -d -o root -g root -m 0755 /opt/wukongim-issue-agent/baseline
           git archive HEAD | sudo tar -x -C /opt/wukongim-issue-agent/baseline
-          sudo chmod -R a-w /opt/wukongim-issue-agent/baseline
+          sudo chown -R root:root /opt/wukongim-issue-agent/baseline
+          sudo chmod -R u=rwX,go=rX /opt/wukongim-issue-agent/baseline
       - name: Download Context Bundle
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:

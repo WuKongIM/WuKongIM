@@ -1,6 +1,7 @@
 package issueagent
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"slices"
@@ -36,14 +37,63 @@ type EngineerResult struct {
 
 // DecodeEngineerResult decodes one bounded advisory Codex result.
 func DecodeEngineerResult(reader io.Reader, maxBytes int64) (EngineerResult, error) {
-	var result EngineerResult
-	if err := decodeStrictJSON(reader, maxBytes, &result); err != nil {
+	body, err := readBoundedJSON(reader, maxBytes)
+	if err != nil {
 		return EngineerResult{}, err
+	}
+	var result EngineerResult
+	rawErr := decodeStrictJSON(bytes.NewReader(body), maxBytes, &result)
+	if rawErr != nil {
+		fenced, ok := extractSingleJSONFence(body)
+		if !ok {
+			return EngineerResult{}, rawErr
+		}
+		result = EngineerResult{}
+		if err := decodeStrictJSON(
+			bytes.NewReader(fenced), maxBytes, &result,
+		); err != nil {
+			return EngineerResult{}, err
+		}
 	}
 	if err := ValidateEngineerResult(result); err != nil {
 		return EngineerResult{}, err
 	}
 	return result, nil
+}
+
+// extractSingleJSONFence unwraps one fenced result without choosing between
+// competing JSON objects or Markdown fences.
+func extractSingleJSONFence(body []byte) ([]byte, bool) {
+	lines := bytes.Split(body, []byte{'\n'})
+	open, close := -1, -1
+	for index, line := range lines {
+		trimmed := bytes.TrimSpace(line)
+		switch {
+		case bytes.Equal(trimmed, []byte("```json")):
+			if open >= 0 || close >= 0 {
+				return nil, false
+			}
+			open = index
+		case bytes.HasPrefix(trimmed, []byte("```")):
+			if open < 0 || close >= 0 ||
+				!bytes.Equal(trimmed, []byte("```")) {
+				return nil, false
+			}
+			close = index
+		}
+	}
+	if open < 0 || close <= open {
+		return nil, false
+	}
+	for index, line := range lines {
+		if index > open && index < close {
+			continue
+		}
+		if bytes.ContainsAny(line, "{}") {
+			return nil, false
+		}
+	}
+	return bytes.Join(lines[open+1:close], []byte{'\n'}), true
 }
 
 // ValidateEngineerResult rejects ambiguous or unbounded advisory output.
