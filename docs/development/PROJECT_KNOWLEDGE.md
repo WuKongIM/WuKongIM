@@ -26,8 +26,9 @@
   candidate command executes.
 - Review Agent model commands use the distribution `/usr/bin/bwrap`, not a
   copied binary. The runner proves that it can create the model user namespace
-  before removing `sudo`; there is no runtime profile-installation fallback.
-  The protected Check MCP is required at Codex startup.
+  before removing `sudo`; a blocked probe installs only Ubuntu's official
+  path-specific `bwrap-userns-restrict` profile and must then pass. The
+  protected Check MCP is required at Codex startup.
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker
   and `sudo` but retains runner transport for pinned post-job Artifact actions.

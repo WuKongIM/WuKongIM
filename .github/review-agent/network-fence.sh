@@ -5,6 +5,9 @@ set -euo pipefail
 review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
+review_bwrap_binary="/usr/bin/bwrap"
+review_bwrap_profile="/etc/apparmor.d/bwrap-userns-restrict"
+review_bwrap_profile_source="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"
 
 cleanup_user_namespace_exception() {
   if [[ -f "$review_unshare_profile" ]]; then
@@ -52,6 +55,41 @@ prepare_user_namespace() {
     | sudo tee "$review_unshare_profile" >/dev/null
   sudo chmod 0644 "$review_unshare_profile"
   sudo apparmor_parser -r "$review_unshare_profile"
+
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+}
+
+probe_model_sandbox() {
+  "$review_bwrap_binary" \
+    --die-with-parent \
+    --new-session \
+    --unshare-user \
+    --unshare-pid \
+    --uid 0 \
+    --gid 0 \
+    --ro-bind / / \
+    --dev /dev \
+    --proc /proc \
+    -- /usr/bin/true
+}
+
+prepare_model_sandbox() {
+  command -v sudo >/dev/null
+  command -v apparmor_parser >/dev/null
+  [[ "$(command -v bwrap)" == "$review_bwrap_binary" ]]
+  [[ -x "$review_bwrap_binary" ]]
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+
+  if ! probe_model_sandbox; then
+    sudo apt-get update -qq
+    sudo apt-get install -y --no-install-recommends \
+      apparmor-profiles apparmor-utils
+    [[ -f "$review_bwrap_profile_source" ]]
+    sudo install -o root -g root -m 0644 \
+      "$review_bwrap_profile_source" "$review_bwrap_profile"
+    sudo apparmor_parser -r "$review_bwrap_profile"
+    probe_model_sandbox
+  fi
 
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 }
@@ -226,18 +264,7 @@ case "${1:-}" in
     ;;
   review-host)
     [[ $# -eq 1 ]]
-    [[ "$(command -v bwrap)" == /usr/bin/bwrap ]]
-    /usr/bin/bwrap \
-      --die-with-parent \
-      --new-session \
-      --unshare-user \
-      --unshare-pid \
-      --uid 0 \
-      --gid 0 \
-      --ro-bind / / \
-      --dev /dev \
-      --proc /proc \
-      -- /usr/bin/true
+    prepare_model_sandbox
     sudo chmod 000 /var/run/docker.sock 2>/dev/null || true
     sudo_binary="$(command -v sudo)"
     sudo chmod 000 "$sudo_binary"

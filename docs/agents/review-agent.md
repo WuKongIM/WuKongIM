@@ -108,8 +108,10 @@ through the Check MCP in per-command disposable worktrees with dedicated
 HOME/TMP directories and a rootless network namespace whose own loopback
 supports local test servers. Before host privileges are removed, the Workflow
 proves that the distribution-owned `/usr/bin/bwrap` can create the model user
-namespace. Codex resolves that same system binary so Ubuntu's package-owned
-AppArmor policy applies and the global user-namespace restriction remains
+namespace. If the hosted-runner restriction blocks that probe, the Workflow
+installs Ubuntu's official path-specific `bwrap-userns-restrict` profile and
+repeats it. Codex resolves that same system binary; no copied binary or custom
+model profile exists, and the global user-namespace restriction remains
 enabled. The job has no Docker socket, and `sudo` is disabled before the model
 process starts.
 
