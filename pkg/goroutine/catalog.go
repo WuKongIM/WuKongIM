@@ -89,6 +89,9 @@ const (
 	TaskGatewayTransportActor              TaskID = "gateway/transport_actor"
 	TaskGatewayTransportServe              TaskID = "gateway/transport_serve"
 	TaskDeliveryManagerAsync               TaskID = "delivery/manager_async"
+	TaskOnlineDeliveryWorker               TaskID = "delivery/worker"
+	TaskOnlineDeliveryLifecycle            TaskID = "delivery/lifecycle"
+	TaskOnlineDeliveryOwnerPush            TaskID = "delivery/owner_push"
 	TaskWebhookNotify                      TaskID = "webhook/notify"
 	TaskWebhookOnline                      TaskID = "webhook/online"
 	TaskWebhookOffline                     TaskID = "webhook/offline"
@@ -183,6 +186,9 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskGatewayTransportActor, Module: ModuleGateway, Name: "transport_actor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskGatewayTransportServe, Module: ModuleGateway, Name: "transport_serve", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskDeliveryManagerAsync, Module: ModuleDelivery, Name: "manager_async", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryWorker, Module: ModuleDelivery, Name: "worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryLifecycle, Module: ModuleDelivery, Name: "lifecycle", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskOnlineDeliveryOwnerPush, Module: ModuleDelivery, Name: "owner_push", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskWebhookNotify, Module: ModuleWebhook, Name: "notify", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskWebhookOnline, Module: ModuleWebhook, Name: "online", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskWebhookOffline, Module: ModuleWebhook, Name: "offline", Kind: TaskKindPool, PanicPolicy: PanicPolicyRecover},

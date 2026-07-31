@@ -500,6 +500,21 @@ func (t *AckTracker) PendingCount() int {
 	return int(t.pendingCount.Load())
 }
 
+// Reset clears all pending identities and in-flight bind reservations.
+func (t *AckTracker) Reset() {
+	if t == nil {
+		return
+	}
+	for i := range t.shards {
+		shard := &t.shards[i]
+		shard.mu.Lock()
+		clear(shard.byMessage)
+		clear(shard.bySession)
+		shard.mu.Unlock()
+	}
+	t.pendingCount.Store(0)
+}
+
 func (t *AckTracker) shard(sessionID uint64) *ackTrackerShard {
 	return &t.shards[t.shardIndex(sessionID)]
 }
