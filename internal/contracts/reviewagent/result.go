@@ -1,6 +1,7 @@
 package reviewagent
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -109,16 +110,48 @@ type ReviewResult struct {
 	UnresolvedUncertainty    string                    `json:"unresolved_uncertainty"`
 }
 
-// DecodeReviewResult strictly decodes one bounded advisory model response.
+// DecodeReviewResult decodes one bounded advisory model response. It accepts
+// strict JSON directly or one unambiguous JSON object wrapped in model prose.
 func DecodeReviewResult(reader io.Reader, maxBytes int64) (ReviewResult, error) {
-	var result ReviewResult
-	if err := decodeStrictJSON(reader, maxBytes, &result); err != nil {
+	body, err := readBoundedJSON(reader, maxBytes)
+	if err != nil {
 		return ReviewResult{}, err
+	}
+	var result ReviewResult
+	rawErr := decodeStrictJSON(bytes.NewReader(body), maxBytes, &result)
+	if rawErr != nil {
+		object, ok := extractSingleJSONObject(body)
+		if !ok {
+			return ReviewResult{}, rawErr
+		}
+		result = ReviewResult{}
+		if err := decodeStrictJSON(
+			bytes.NewReader(object),
+			maxBytes,
+			&result,
+		); err != nil {
+			return ReviewResult{}, err
+		}
 	}
 	if err := ValidateReviewResult(result); err != nil {
 		return ReviewResult{}, err
 	}
 	return result, nil
+}
+
+// extractSingleJSONObject rejects competing JSON containers while allowing a
+// model to surround its only structured result with bounded prose or a fence.
+func extractSingleJSONObject(body []byte) ([]byte, bool) {
+	start := bytes.IndexByte(body, '{')
+	end := bytes.LastIndexByte(body, '}')
+	if start < 0 || end <= start {
+		return nil, false
+	}
+	if bytes.ContainsAny(body[:start], "{}[]") ||
+		bytes.ContainsAny(body[end+1:], "{}[]") {
+		return nil, false
+	}
+	return bytes.TrimSpace(body[start : end+1]), true
 }
 
 // ValidateReviewResult rejects incomplete, contradictory, or unbounded model
