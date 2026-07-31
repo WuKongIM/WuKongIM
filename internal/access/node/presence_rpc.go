@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
@@ -77,6 +78,12 @@ type PresenceOwner interface {
 // DeliveryOwnerPush accepts owner-node delivery batches over node RPC.
 type DeliveryOwnerPush interface {
 	Push(context.Context, runtimedelivery.PushCommand) (runtimedelivery.PushResult, error)
+}
+
+// OnlineDeliveryOwnerPush accepts canonical owner pushes while the stable wire
+// codec remains compatible with the legacy delivery DTOs.
+type OnlineDeliveryOwnerPush interface {
+	PushOwner(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error)
 }
 
 // DeliveryFanoutRunner accepts authority-node fanout tasks over node RPC.
@@ -250,6 +257,8 @@ type Options struct {
 	Owner PresenceOwner
 	// Delivery handles owner-local delivery push batches after payload decoding.
 	Delivery DeliveryOwnerPush
+	// OnlineDelivery handles canonical owner pushes during the convergence migration.
+	OnlineDelivery OnlineDeliveryOwnerPush
 	// DeliveryFanout handles authority-node delivery fanout tasks after payload decoding.
 	DeliveryFanout DeliveryFanoutRunner
 	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
@@ -314,6 +323,8 @@ type Adapter struct {
 	owner PresenceOwner
 	// delivery pushes messages into owner-local delivery sessions.
 	delivery DeliveryOwnerPush
+	// onlineDelivery handles canonical owner pushes over the unchanged wire format.
+	onlineDelivery OnlineDeliveryOwnerPush
 	// deliveryFanout runs subscriber fanout tasks for this authority node.
 	deliveryFanout DeliveryFanoutRunner
 	// conversation owns UID conversation active cache decisions.
@@ -379,6 +390,7 @@ func New(opts Options) *Adapter {
 		authority:                opts.Authority,
 		owner:                    opts.Owner,
 		delivery:                 opts.Delivery,
+		onlineDelivery:           opts.OnlineDelivery,
 		deliveryFanout:           opts.DeliveryFanout,
 		conversation:             opts.ConversationAuthority,
 		managerConnections:       opts.ManagerConnections,

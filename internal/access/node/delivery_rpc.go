@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -26,10 +27,17 @@ func (a *Adapter) HandleDeliveryPushRPC(ctx context.Context, payload []byte) ([]
 		)
 		return nil, err
 	}
-	if a == nil || a.delivery == nil {
+	if a == nil || (a.onlineDelivery == nil && a.delivery == nil) {
 		return encodeDeliveryPushResponse(deliveryPushResponse{Status: rpcStatusRejected})
 	}
-	result, err := a.delivery.Push(ctx, req.Command)
+	result := runtimedelivery.PushResult{}
+	if a.onlineDelivery != nil {
+		canonical, pushErr := a.onlineDelivery.PushOwner(ctx, onlineDeliveryPushFromLegacy(req.Command))
+		result = legacyDeliveryResultFromOnline(canonical)
+		err = pushErr
+	} else {
+		result, err = a.delivery.Push(ctx, req.Command)
+	}
 	if err != nil {
 		a.rpcLogger().Warn("delivery push rpc rejected",
 			wklog.Event("internal.access.node.delivery_push_rejected"),
@@ -102,6 +110,16 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd runtimedelive
 	default:
 		return runtimedelivery.PushResult{}, fmt.Errorf("internal/access/node: unknown delivery rpc status %q", resp.Status)
 	}
+}
+
+// PushOwner forwards a canonical owner push through the stable version-one
+// delivery wire format.
+func (c *Client) PushOwner(ctx context.Context, cmd onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
+	result, err := c.PushBatch(ctx, cmd.OwnerNodeID, legacyDeliveryPushFromOnline(cmd))
+	if err != nil {
+		return onlinedelivery.OwnerPushResult{}, err
+	}
+	return onlineDeliveryResultFromLegacy(result), nil
 }
 
 // ForwardFanoutTask forwards one partition-scoped fanout task to nodeID.

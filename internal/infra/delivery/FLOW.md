@@ -63,6 +63,11 @@ its write fails.
 between the pusher, fanout worker, retry scheduler, and delivery manager. App
 composition must call it exactly once before any concurrent `Push` call.
 
+The convergence path also provides `LocalSessionWriter`, which owns only final
+exact-session validation, packet construction, and physical writes. The new
+Online Delivery runtime retains pending-ACK ownership around that narrow port;
+the existing `LocalOwnerPusher` remains active until app wiring cuts over.
+
 Stale pending-ACK expiry is activity-driven and globally throttled per pusher;
 ordinary pushes do not scan the tracker on every call.
 
