@@ -274,6 +274,23 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, `-f "infrastructure_attempt=$attempt"`)
 	require.Contains(t, raw, "review-agent-trusted-baseline")
 	require.Contains(t, raw, "$trusted[0].checks[]")
+	baseline := issueAgentJobText(t, raw, "baseline")
+	require.Contains(
+		t,
+		baseline,
+		"REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/"+
+			"review-agent-baseline-artifact/ledger.jsonl",
+	)
+	require.Contains(
+		t,
+		baseline,
+		`>"$RUNNER_TEMP/review-agent-baseline-artifact/baseline-evidence.json"`,
+	)
+	require.Contains(
+		t,
+		baseline,
+		"path: ${{ runner.temp }}/review-agent-baseline-artifact/",
+	)
 
 	fence := readIssueAgentFile(t, ".github/review-agent/network-fence.sh")
 	require.NotContains(t, fence, "prefix=(sudo)")
@@ -439,6 +456,24 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.Contains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
 	require.Contains(t, reviewer, `extends = ":read-only"`)
+	require.Contains(
+		t,
+		reviewer,
+		`REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl`,
+	)
+	require.Contains(
+		t,
+		reviewer,
+		`"$RUNNER_TEMP/review-agent-result-artifact/review-agent-output.json"`,
+	)
+	require.Equal(
+		t,
+		2,
+		strings.Count(
+			reviewer,
+			"path: ${{ runner.temp }}/review-agent-result-artifact/",
+		),
+	)
 	require.NotContains(t, reviewer, "sandbox: workspace-write")
 	require.NotContains(t, reviewer, "REVIEW_AGENT_APP_PRIVATE_KEY")
 	require.NotContains(t, reviewer, "REVIEW_STATE_WRITER_APP_PRIVATE_KEY")
