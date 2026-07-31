@@ -13,6 +13,8 @@ Review State Writer App token
   -> exact review-state/pr-N or review-state/scheduler ref
   -> verified latest + immediate predecessor rolling checkpoint
      (older commits remain append-only audit history)
+  -> one legacy scheduler checkpoint that only repeats its canonical
+     predecessor with empty JSON collections may be loaded for the next append
   -> expected-head append only
 
 Review Agent App token
@@ -23,6 +25,10 @@ Review Agent App token
   -> one formal Review with bounded inline comments
   -> one Review Agent Verdict Check Run
 ```
+
+The bounded scheduler recovery never rewinds or rewrites the protected state
+ref. A strict successor may name that one legacy checkpoint; after the next
+successor, it leaves the two-checkpoint verification window.
 
 The Review App adapter exposes no contents, branch, commit, merge, close,
 dismiss, resolve, Ruleset, Actions, or Secrets operation. The State Writer
