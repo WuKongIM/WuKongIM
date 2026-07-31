@@ -48,7 +48,9 @@ Return exactly one schema-valid JSON object. Use `approved` only when the
 complete change is technically mergeable and no blocking risk remains. Use
 `changes_required` for concrete, high-confidence defects or failed mandatory
 checks attributable to the change. Use `inconclusive` for material uncertainty
-or incomplete evidence. Style preferences and optional refactors are advisory.
+or incomplete evidence. Set `unresolved_uncertainty` to exactly `""` for
+`approved`; for `inconclusive`, state the material uncertainty explicitly.
+Style preferences and optional refactors are advisory.
 
 Every blocking finding must name a failing scenario, concrete impact,
 supporting evidence, and a verifiable resolution condition. Keep locations
