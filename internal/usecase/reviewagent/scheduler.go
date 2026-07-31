@@ -114,6 +114,7 @@ func CanonicalSchedulerState(
 	state SchedulerState,
 	limits SchedulerLimits,
 ) ([]byte, error) {
+	state = normalizeSchedulerCollections(state)
 	if err := ValidateSchedulerState(state, limits); err != nil {
 		return nil, err
 	}
@@ -127,6 +128,18 @@ func CanonicalSchedulerState(
 		)
 	}
 	return body, nil
+}
+
+// normalizeSchedulerCollections gives semantically empty scheduler
+// collections one canonical signed representation.
+func normalizeSchedulerCollections(state SchedulerState) SchedulerState {
+	if len(state.Queue) == 0 {
+		state.Queue = nil
+	}
+	if len(state.Active) == 0 {
+		state.Active = nil
+	}
+	return state
 }
 
 // SchedulerStateDigest identifies one canonical scheduler state.

@@ -128,6 +128,40 @@ func TestSchedulerCanonicalStateRejectsBrokenChain(t *testing.T) {
 	)
 }
 
+func TestSchedulerCanonicalStateNormalizesEmptyCollections(t *testing.T) {
+	t.Parallel()
+
+	nilCollections := testScheduler()
+	emptyCollections := nilCollections
+	emptyCollections.Queue = []reviewagent.QueueEntry{}
+	emptyCollections.Active = []reviewagent.Lease{}
+
+	nilBody, err := reviewagent.CanonicalSchedulerState(
+		nilCollections,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	emptyBody, err := reviewagent.CanonicalSchedulerState(
+		emptyCollections,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	require.Equal(t, nilBody, emptyBody)
+	require.Contains(t, string(emptyBody), `"queue":null,"active":null`)
+
+	nilDigest, err := reviewagent.SchedulerStateDigest(
+		nilCollections,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	emptyDigest, err := reviewagent.SchedulerStateDigest(
+		emptyCollections,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	require.Equal(t, nilDigest, emptyDigest)
+}
+
 func TestSchedulerCanonicalStateEnforcesStorageByteBound(t *testing.T) {
 	t.Parallel()
 
