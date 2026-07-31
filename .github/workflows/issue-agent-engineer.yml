@@ -179,7 +179,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/issue-agent-prompt.md
           output-file: ${{ runner.temp }}/engineer-result.json
           codex-version: 0.146.0
-          model: openai/gpt-5.6-sol
+          model: moonshotai/kimi-k3
           effort: high
           sandbox: workspace-write
           safety-strategy: drop-sudo
