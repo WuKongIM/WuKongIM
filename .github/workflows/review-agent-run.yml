@@ -1030,7 +1030,12 @@ jobs:
           INPUT_PULL_REQUEST: ${{ inputs.pull_request }}
         run: |
           set -euo pipefail
-          retry="$(jq -er .plan.dispatch \
+          retry="$(jq -r \
+            'if (.plan.dispatch | type) == "boolean" then
+              .plan.dispatch
+            else
+              error("plan.dispatch must be boolean")
+            end' \
             "$RUNNER_TEMP/review-agent-terminal/terminal-plan.json")"
           if [[ "$retry" == true ]]; then
             lease="$(jq -er .plan.lease_run_id \
