@@ -61,7 +61,7 @@ apply_network_rules() {
   local prefix=()
   local resolvers=()
   if [[ "$mode" == namespace ]]; then
-    prefix=(nsenter -t "$REVIEW_NETNS_PID" -U -m -n)
+    prefix=(nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n)
     "${prefix[@]}" ip link set lo up
     resolvers=(10.0.2.3)
   else
@@ -191,7 +191,7 @@ start_namespace() {
   printf '%s\n' "$slirp_pid" >"$pid_file.slirp"
 
   for _ in {1..50}; do
-    if nsenter -t "$REVIEW_NETNS_PID" -U -m -n \
+    if nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \
       ip link show tap0 >/dev/null 2>&1; then
       apply_network_rules namespace
       return 0
@@ -201,7 +201,8 @@ start_namespace() {
   if [[ -s "$RUNNER_TEMP/review-agent-slirp.log" ]]; then
     sed -n '1,40p' "$RUNNER_TEMP/review-agent-slirp.log" >&2
   fi
-  nsenter -t "$REVIEW_NETNS_PID" -U -m -n ip link show >&2 || true
+  nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \
+    ip link show >&2 || true
   echo "Review network namespace did not become ready" >&2
   return 1
 }
@@ -220,7 +221,7 @@ join_namespace() {
   # The trusted verifier retains namespace-only mount capability so bubblewrap
   # can create a read-only filesystem view for each untrusted child command.
   # Bubblewrap drops that capability before candidate code starts.
-  exec nsenter -t "$pid" -U -m -n "$@"
+  exec nsenter --preserve-credentials -t "$pid" -U -m -n "$@"
 }
 
 limit_runner_worker() {

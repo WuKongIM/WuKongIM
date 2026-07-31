@@ -291,6 +291,12 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
+	require.Equal(
+		t,
+		4,
+		strings.Count(fence, "nsenter --preserve-credentials"),
+		"every trusted namespace entry must retain the mapped runner credentials",
+	)
 	require.Contains(
 		t,
 		fence,
@@ -300,7 +306,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		fence,
-		`nsenter -t "$REVIEW_NETNS_PID" -U -m -n ip link show >&2 || true`,
+		`nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \`+"\n"+
+			`    ip link show >&2 || true`,
 		"namespace startup failures must retain the final bounded nsenter error",
 	)
 	require.Contains(t, fence, "nsenter")
