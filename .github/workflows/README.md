@@ -74,11 +74,13 @@ profile denies model-initiated localhost and private-network access, while all
 candidate check commands remain inside the rootless network namespace. The
 pinned Codex Action installs the exact CLI and Responses proxy, then the
 Workflow invokes `codex exec` directly under model-only CPU, address-space,
-and process limits. The model sandbox uses the distribution
-`/usr/bin/bwrap`, probes user-namespace creation before removing `sudo`, and
-loads Ubuntu's official path-specific `bwrap-userns-restrict` AppArmor profile
-only when the probe requires it. The global Ubuntu restriction remains
-enabled.
+and process limits. Before removing host privileges, the Workflow proves that
+the distribution-owned `/usr/bin/bwrap` can create the model user namespace.
+If Ubuntu's hosted-runner restriction blocks that probe, the Workflow installs
+the distribution's official path-specific `bwrap-userns-restrict` AppArmor
+profile and repeats the probe. Codex resolves the same system binary through
+the normal `PATH`; no copied binary or custom model profile exists, and the
+global user-namespace restriction remains enabled.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and

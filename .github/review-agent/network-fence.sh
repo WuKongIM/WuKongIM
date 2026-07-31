@@ -76,6 +76,7 @@ probe_model_sandbox() {
 prepare_model_sandbox() {
   command -v sudo >/dev/null
   command -v apparmor_parser >/dev/null
+  [[ "$(command -v bwrap)" == "$review_bwrap_binary" ]]
   [[ -x "$review_bwrap_binary" ]]
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 

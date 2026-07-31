@@ -25,8 +25,9 @@
   directory are removed after the isolated namespace is ready and before any
   candidate command executes.
 - Review Agent model commands use the distribution `/usr/bin/bwrap`, not a
-  copied binary. The runner probes it before removing `sudo` and loads Ubuntu's
-  official path-specific `bwrap-userns-restrict` profile only when needed; the
+  copied binary. The runner proves that it can create the model user namespace
+  before removing `sudo`; a blocked probe installs only Ubuntu's official
+  path-specific `bwrap-userns-restrict` profile and must then pass. The
   protected Check MCP is required at Codex startup.
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker

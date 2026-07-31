@@ -484,6 +484,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		`--cd "$RUNNER_TEMP/review-agent-session"`,
 	)
 	require.NotContains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
+	require.Contains(t, reviewer, "set -euo pipefail\n          prlimit \\")
 	require.Contains(t, reviewer, `extends = ":read-only"`)
 	require.Contains(
 		t,
