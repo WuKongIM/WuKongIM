@@ -70,8 +70,8 @@ deterministic validation.
 The model can inspect the checkout, but model-authored commands and outcomes
 never count as evidence. It can request a protected check name through the
 local Check MCP. The trusted runner resolves fixed arguments, timeouts,
-working directories, and output bounds, then records a ledger outside the
-read-only model session.
+working directories, and output bounds, then appends catalog-bound records to
+the evidence ledger.
 
 All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
 `./...` is forbidden because Go package discovery ignores `.gitignore`.
@@ -86,13 +86,11 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
   network namespace with isolated loopback for local test servers.
 - The deterministic baseline disables the runner's `sudo` binary before
   candidate commands execute.
-- The model receives public internet with private, link-local, metadata,
-  runner-host, and configured organization CIDRs blocked. The Action's local
-  proxy is the sole transport loopback exception; the permission profile still
-  denies model-initiated localhost. It has no Docker socket, loses `sudo`
-  before execution, and uses the distribution `/usr/bin/bwrap` only after a
-  fail-closed user-namespace probe succeeds. A blocked probe loads only
-  Ubuntu's official path-specific AppArmor profile and must then pass.
+- Codex runs with full runner-user filesystem and public-network access through
+  `--dangerously-bypass-approvals-and-sandbox`. It receives no GitHub/App
+  credential or inherited host environment, has no Docker socket, and loses
+  `sudo` before execution. Candidate checks still use the private-network and
+  Bubblewrap boundary, and tracked candidate-tree mutation fails validation.
 - The protected Check MCP is required at Codex startup; missing named-check
   tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
