@@ -20,4 +20,7 @@ One immutable `GenerationIdentity` binds every document to the exact
 repository, pull request, head, base, test-merge revision, intent, generation
 number, and state parent. Decoders reject unknown fields, trailing JSON,
 oversized input, malformed identities, and unbounded collections. A
-model-authored result is advisory and contains no publication authority.
+model-authored Review result may contain bounded prose around exactly one
+strict JSON object; competing objects or containers fail closed. The decoded
+result is advisory and contains no publication authority. All trusted
+documents remain strict JSON-only.
