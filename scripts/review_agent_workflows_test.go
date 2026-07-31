@@ -253,7 +253,28 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	fence := readIssueAgentFile(t, ".github/review-agent/network-fence.sh")
 	require.Contains(t, fence, "prefix=(sudo)")
 	require.Contains(t, fence, `ip6tables -A OUTPUT`)
-	require.Contains(t, fence, "unshare --user --map-root-user --net")
+	require.Contains(
+		t,
+		fence,
+		`review_unshare_binary="$review_unshare_directory/unshare"`,
+	)
+	require.Contains(t, fence, `flags=(unconfined)`)
+	require.Contains(t, fence, `  userns,`)
+	require.Contains(t, fence, `sudo apparmor_parser -r`)
+	require.Equal(
+		t,
+		2,
+		strings.Count(
+			fence,
+			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
+		),
+		"the global userns restriction must remain enabled",
+	)
+	require.Contains(
+		t,
+		fence,
+		`"$review_unshare_binary" --user --map-root-user --net`,
+	)
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
 	require.Contains(t, fence, "nsenter")
 	require.Contains(t, fence, "--connlimit-above 128")
@@ -267,6 +288,15 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		1,
 		strings.Count(raw, "disable-sudo"),
 		"candidate baseline must disable sudo exactly once",
+	)
+	require.Equal(
+		t,
+		2,
+		strings.Count(
+			raw,
+			`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
+		),
+		"baseline and model runners must prepare the narrow userns profile",
 	)
 	require.Contains(
 		t,

@@ -217,6 +217,7 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.recover.outputs.test_merge_sha }}
@@ -323,6 +324,7 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
           if [[ "$INPUT_OPERATION" == review ]]; then
             GOWORK=off go build -trimpath \
               -o "$RUNNER_TEMP/wkreviewcheckmcp" ./cmd/wkreviewcheckmcp

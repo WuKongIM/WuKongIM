@@ -2,6 +2,35 @@
 
 set -euo pipefail
 
+review_unshare_directory="/opt/wukongim-review-agent"
+review_unshare_binary="$review_unshare_directory/unshare"
+review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
+
+prepare_user_namespace() {
+  command -v sudo >/dev/null
+  command -v apparmor_parser >/dev/null
+  [[ -x /usr/bin/unshare ]]
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+
+  sudo install -d -o root -g root -m 0755 "$review_unshare_directory"
+  sudo install -o root -g root -m 0755 \
+    /usr/bin/unshare "$review_unshare_binary"
+  [[ "$(stat -c '%U:%G:%a' "$review_unshare_binary")" == root:root:755 ]]
+  printf '%s\n' \
+    'abi <abi/4.0>,' \
+    'include <tunables/global>' \
+    '' \
+    "$review_unshare_binary flags=(unconfined) {" \
+    '  userns,' \
+    '}' \
+    | sudo tee "$review_unshare_profile" >/dev/null
+  sudo chmod 0644 "$review_unshare_profile"
+  sudo apparmor_parser -r "$review_unshare_profile"
+
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+  "$review_unshare_binary" --user --map-root-user true
+}
+
 apply_network_rules() {
   local mode="$1"
   local prefix=()
@@ -116,7 +145,7 @@ apply_network_rules() {
 start_namespace() {
   local pid_file="$1"
   [[ "$pid_file" == "$RUNNER_TEMP/"* ]]
-  command -v unshare >/dev/null
+  [[ -x "$review_unshare_binary" ]]
   command -v nsenter >/dev/null
   command -v slirp4netns >/dev/null
   command -v setpriv >/dev/null
@@ -124,7 +153,7 @@ start_namespace() {
 
   local resolv_file="$RUNNER_TEMP/review-agent-resolv.conf"
   printf 'nameserver 10.0.2.3\noptions timeout:2 attempts:2\n' >"$resolv_file"
-  unshare --user --map-root-user --net --mount \
+  "$review_unshare_binary" --user --map-root-user --net --mount \
     bash -c \
       'mount --make-rprivate /; mount --bind "$1" /etc/resolv.conf; exec sleep 86400' \
       review-agent-netns "$resolv_file" &
@@ -184,6 +213,10 @@ limit_runner_worker() {
 }
 
 case "${1:-}" in
+  prepare-userns)
+    [[ $# -eq 1 ]]
+    prepare_user_namespace
+    ;;
   start)
     [[ $# -eq 2 ]]
     start_namespace "$2"
@@ -212,7 +245,7 @@ case "${1:-}" in
     limit_runner_worker
     ;;
   *)
-    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
+    echo "usage: network-fence.sh prepare-userns | start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
     exit 2
     ;;
 esac
