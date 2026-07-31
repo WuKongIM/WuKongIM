@@ -74,7 +74,9 @@ unreachable.
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and
 loads a path-specific profile granting only `userns`; the global restriction
-is never disabled. The job then applies the existing network namespace,
+is never disabled. After the namespace and its network rules are ready, the
+job unloads the temporary profile and removes both the copied binary and its
+directory before any candidate command can run. It then applies the existing
 private-CIDR, quota, connection, Docker, and sudo fences.
 
 Missing Context, reviewer, or trusted-baseline artifacts are evidence of an

@@ -261,19 +261,32 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `flags=(unconfined)`)
 	require.Contains(t, fence, `  userns,`)
 	require.Contains(t, fence, `sudo apparmor_parser -r`)
+	require.Contains(t, fence, `sudo apparmor_parser -R`)
+	require.Contains(t, fence, `sudo rm -f "$review_unshare_profile"`)
+	require.Contains(t, fence, `sudo rm -f "$review_unshare_binary"`)
+	require.Contains(t, fence, `sudo rmdir "$review_unshare_directory"`)
 	require.Equal(
 		t,
-		2,
+		3,
 		strings.Count(
 			fence,
 			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
 		),
-		"the global userns restriction must remain enabled",
+		"the global userns restriction must be checked before and after the narrow exception",
 	)
 	require.Contains(
 		t,
 		fence,
 		`"$review_unshare_binary" --user --map-root-user --net`,
+	)
+	require.Contains(
+		t,
+		fence,
+		"trap cleanup_user_namespace_exception EXIT\n"+
+			"    start_namespace \"$2\"\n"+
+			"    release_user_namespace_exception\n"+
+			"    trap - EXIT",
+		"start must revoke its temporary AppArmor exception before returning",
 	)
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
 	require.Contains(t, fence, "nsenter")

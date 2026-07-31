@@ -6,6 +6,32 @@ review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
 
+cleanup_user_namespace_exception() {
+  if [[ -f "$review_unshare_profile" ]]; then
+    sudo apparmor_parser -R "$review_unshare_profile" >/dev/null 2>&1 || true
+    sudo rm -f "$review_unshare_profile" >/dev/null 2>&1 || true
+  fi
+  if [[ -e "$review_unshare_binary" ]]; then
+    sudo rm -f "$review_unshare_binary" >/dev/null 2>&1 || true
+  fi
+  if [[ -d "$review_unshare_directory" ]]; then
+    sudo rmdir "$review_unshare_directory" >/dev/null 2>&1 || true
+  fi
+}
+
+release_user_namespace_exception() {
+  [[ -f "$review_unshare_profile" ]]
+  [[ -x "$review_unshare_binary" ]]
+  sudo apparmor_parser -R "$review_unshare_profile"
+  sudo rm -f "$review_unshare_profile"
+  sudo rm -f "$review_unshare_binary"
+  sudo rmdir "$review_unshare_directory"
+  [[ ! -e "$review_unshare_profile" ]]
+  [[ ! -e "$review_unshare_binary" ]]
+  [[ ! -e "$review_unshare_directory" ]]
+  [[ "$(</proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+}
+
 prepare_user_namespace() {
   command -v sudo >/dev/null
   command -v apparmor_parser >/dev/null
@@ -215,11 +241,16 @@ limit_runner_worker() {
 case "${1:-}" in
   prepare-userns)
     [[ $# -eq 1 ]]
+    trap cleanup_user_namespace_exception EXIT
     prepare_user_namespace
+    trap - EXIT
     ;;
   start)
     [[ $# -eq 2 ]]
+    trap cleanup_user_namespace_exception EXIT
     start_namespace "$2"
+    release_user_namespace_exception
+    trap - EXIT
     ;;
   join)
     [[ $# -ge 3 ]]
