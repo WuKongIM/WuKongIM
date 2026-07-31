@@ -154,6 +154,15 @@ func TestIssueAgentImmutableBaselineKeepsCanonicalGitModes(t *testing.T) {
 	require.NotContains(t, engineer, "sudo chmod -R a-w")
 }
 
+func TestIssueAgentVerifierCreatesItsTemporaryRoot(t *testing.T) {
+	engineer := readIssueAgentFile(t, ".github/workflows/issue-agent-engineer.yml")
+	create := `install -d -m 0700 "$RUNNER_TEMP/issue-agent-verifier"`
+	verify := `"$RUNNER_TEMP/wkissueagent" verify-candidate`
+	require.Contains(t, engineer, create)
+	require.Contains(t, engineer, verify)
+	require.Less(t, strings.Index(engineer, create), strings.Index(engineer, verify))
+}
+
 func TestIssueAgentReusableCallerGrantsOnlyRequiredReadScopes(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/issue-agent.yml")
 	caller := issueAgentJobText(t, raw, "engineer")
@@ -334,6 +343,12 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 }
 
 func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
+	requiredResultFields := []string{
+		"schema_version", "repository", "issue_number", "task_id", "outcome",
+		"external_symptom", "root_cause", "causal_path", "evidence_references",
+		"proposed_risk", "tests_attempted", "unresolved_uncertainty", "summary",
+		"ready",
+	}
 	for _, name := range []string{"engineer.md", "review.md"} {
 		raw := readIssueAgentFile(
 			t,
@@ -346,6 +361,12 @@ func TestIssueAgentPromptsMakeAuthorityAndOutcomeExplicit(t *testing.T) {
 		require.Contains(t, strings.ToLower(raw), "do not commit")
 		require.Contains(t, strings.ToLower(raw), "three modify/test")
 		require.NotContains(t, strings.ToLower(raw), "deepseek")
+		require.Contains(t, raw,
+			"exactly one JSON object, with no surrounding prose")
+		require.Contains(t, raw, "never use `null`")
+		for _, field := range requiredResultFields {
+			require.Contains(t, raw, `"`+field+`"`, name+": "+field)
+		}
 	}
 }
 

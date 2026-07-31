@@ -29,6 +29,22 @@ Then:
    test claims are advisory; a clean Verifier independently decides whether
    publication is allowed.
 
+Your final response MUST be exactly one JSON object, with no surrounding prose,
+Markdown fence, or extra keys. Copy `repository`, `issue_number`, and `task_id`
+verbatim from the Context Bundle. Include exactly these keys:
+`"schema_version"`, `"repository"`, `"issue_number"`, `"task_id"`,
+`"outcome"`, `"external_symptom"`, `"root_cause"`, `"causal_path"`,
+`"evidence_references"`, `"proposed_risk"`, `"tests_attempted"`,
+`"unresolved_uncertainty"`, `"summary"`, and `"ready"`.
+
+`schema_version` MUST be `2`. `outcome` MUST be one of `ready`,
+`needs_human`, `already_fixed`, or `failed`.
+Set `ready` to true if and only if `outcome` is `ready`. A ready result MUST
+include non-empty `root_cause`, `causal_path`, `evidence_references`, and
+`tests_attempted`. Use an empty string or empty array for an inapplicable value;
+never use `null`. Array entries MUST be non-empty and unique, and
+`proposed_risk` MUST be sorted lexicographically.
+
 If you cannot reproduce or directly evidence the failure, the root cause is
 uncertain, the required repair crosses the trusted risk ceiling, or tests do
 not pass, do not make a speculative production change. Return `needs_human` or
