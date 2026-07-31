@@ -91,7 +91,8 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
   proxy is the sole transport loopback exception; the permission profile still
   denies model-initiated localhost. It has no Docker socket, loses `sudo`
   before execution, and uses the distribution `/usr/bin/bwrap` only after a
-  fail-closed user-namespace probe succeeds.
+  fail-closed user-namespace probe succeeds. A blocked probe loads only
+  Ubuntu's official path-specific AppArmor profile and must then pass.
 - The protected Check MCP is required at Codex startup; missing named-check
   tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
