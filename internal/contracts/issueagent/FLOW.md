@@ -20,7 +20,10 @@ fresh GitHub fences + exact candidate/evidence digests
   -> canonical IssueAgentState
 ```
 
-All decoders reject unknown fields, oversized input, malformed identities, and
-trailing JSON. `EngineerResult` never grants publication authority. Only a
-low-risk, passing `CandidateEvidence` bound to the exact task and candidate can
-enter a Publisher plan.
+All decoded JSON objects reject unknown fields, oversized input, malformed
+identities, and trailing JSON. `EngineerResult` may unwrap exactly one
+Markdown `json` fence from a model's final message before applying that strict
+JSON contract; ambiguous or multiple fences fail closed. `EngineerResult`
+never grants publication authority. Only a low-risk, passing
+`CandidateEvidence` bound to the exact task and candidate can enter a
+Publisher plan.
