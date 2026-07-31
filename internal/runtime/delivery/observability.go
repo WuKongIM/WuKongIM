@@ -30,6 +30,8 @@ const (
 	DeliveryAckActionSessionClosed = "session_closed"
 	// DeliveryAckActionExpire reports TTL cleanup for stale pending acks.
 	DeliveryAckActionExpire = "expire"
+	// DeliveryAckActionReset reports lifecycle cleanup of transient ack state.
+	DeliveryAckActionReset = "reset"
 
 	// DeliveryAckResultOK reports that the ack mutation changed state successfully.
 	DeliveryAckResultOK = "ok"
