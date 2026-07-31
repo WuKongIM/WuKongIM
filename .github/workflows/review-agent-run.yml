@@ -235,12 +235,13 @@ jobs:
           "$RUNNER_TEMP/review-agent-network-fence.sh" start \
             "$RUNNER_TEMP/review-agent-netns.pid"
           "$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host
-          mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-agent-evidence"
+          mkdir -p "$RUNNER_TEMP/review-agent-home" \
+            "$RUNNER_TEMP/review-agent-baseline-artifact"
       - name: Run fixed mandatory checks without credentials
         shell: bash
         env:
           REVIEW_AGENT_HOME: ${{ runner.temp }}/review-agent-home
-          REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/review-agent-baseline-artifact/ledger.jsonl
           REVIEW_POLICY_PATH: ${{ runner.temp }}/review-agent-policy.json
           REVIEW_WORKSPACE: ${{ github.workspace }}
           DEADLINE_EPOCH: ${{ needs.recover.outputs.deadline_epoch }}
@@ -260,15 +261,13 @@ jobs:
               "$RUNNER_TEMP/review-agent-network-fence.sh" join \
               "$RUNNER_TEMP/review-agent-netns.pid" \
               "$RUNNER_TEMP/wkreviewagent" verify-baseline \
-              >"$RUNNER_TEMP/baseline-evidence.json"
+              >"$RUNNER_TEMP/review-agent-baseline-artifact/baseline-evidence.json"
       - name: Upload trusted baseline evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-agent-baseline-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
-          path: |
-            ${{ runner.temp }}/baseline-evidence.json
-            ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          path: ${{ runner.temp }}/review-agent-baseline-artifact/
           if-no-files-found: error
           retention-days: 7
 
@@ -429,7 +428,7 @@ jobs:
               "$RUNNER_TEMP/review-agent-netns.pid"
           fi
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-codex-home" \
-            "$RUNNER_TEMP/review-agent-evidence"
+            "$RUNNER_TEMP/review-agent-result-artifact"
           proxy_port="$(jq -er .port "$RUNNER_TEMP/review-agent-proxy.json")"
           cat >"$RUNNER_TEMP/review-codex-home/config.toml" <<EOF
           model_provider = "review-agent-responses-proxy"
@@ -459,11 +458,11 @@ jobs:
           EOF
           if [[ "$INPUT_OPERATION" == review ]]; then
             cp "$RUNNER_TEMP/review-agent-baseline/ledger.jsonl" \
-              "$RUNNER_TEMP/review-agent-evidence/ledger.jsonl"
+              "$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl"
             printf '%s\n' \
               '[mcp_servers.review_checks]' \
               "command = \"$RUNNER_TEMP/review-agent-network-fence.sh\"" \
-              "args = [\"join\", \"$RUNNER_TEMP/review-agent-netns.pid\", \"/usr/bin/env\", \"-i\", \"PATH=$PATH\", \"RUNNER_TEMP=$RUNNER_TEMP\", \"REVIEW_AGENT_HOME=$RUNNER_TEMP/review-agent-home\", \"REVIEW_WORKSPACE=$GITHUB_WORKSPACE\", \"REVIEW_POLICY_PATH=$RUNNER_TEMP/review-agent-policy.json\", \"REVIEW_CONTEXT_PATH=$RUNNER_TEMP/review-agent-context/review-context.json\", \"REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-evidence/ledger.jsonl\", \"$RUNNER_TEMP/wkreviewcheckmcp\"]" \
+              "args = [\"join\", \"$RUNNER_TEMP/review-agent-netns.pid\", \"/usr/bin/env\", \"-i\", \"PATH=$PATH\", \"RUNNER_TEMP=$RUNNER_TEMP\", \"REVIEW_AGENT_HOME=$RUNNER_TEMP/review-agent-home\", \"REVIEW_WORKSPACE=$GITHUB_WORKSPACE\", \"REVIEW_POLICY_PATH=$RUNNER_TEMP/review-agent-policy.json\", \"REVIEW_CONTEXT_PATH=$RUNNER_TEMP/review-agent-context/review-context.json\", \"REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl\", \"$RUNNER_TEMP/wkreviewcheckmcp\"]" \
               >>"$RUNNER_TEMP/review-codex-home/config.toml"
           fi
           git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
@@ -471,7 +470,8 @@ jobs:
             git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
               -c diff.external= diff --cached --quiet -- .
           git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
-            rev-parse 'HEAD^{tree}' >"$RUNNER_TEMP/tree-before.txt"
+            rev-parse 'HEAD^{tree}' \
+              >"$RUNNER_TEMP/review-agent-result-artifact/tree-before.txt"
           "$RUNNER_TEMP/review-agent-network-fence.sh" review-host
       - name: Preserve time for validation and signed state
         id: deadline
@@ -504,7 +504,8 @@ jobs:
             -- codex exec \
               --skip-git-repo-check \
               --cd "$RUNNER_TEMP/review-agent-session" \
-              --output-last-message "$RUNNER_TEMP/review-agent-output.json" \
+              --output-last-message \
+                "$RUNNER_TEMP/review-agent-result-artifact/review-agent-output.json" \
               --output-schema "$RUNNER_TEMP/review-output.schema.json" \
               --model moonshotai/kimi-k3 \
               --config 'model_reasoning_effort="high"' \
@@ -519,25 +520,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/review-agent-result-artifact"
           if git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
               -c diff.external= diff --quiet -- . &&
             git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
               -c diff.external= diff --cached --quiet -- .; then
             git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
-              rev-parse 'HEAD^{tree}' >"$RUNNER_TEMP/tree-after.txt"
+              rev-parse 'HEAD^{tree}' \
+                >"$RUNNER_TEMP/review-agent-result-artifact/tree-after.txt"
           else
-            echo dirty >"$RUNNER_TEMP/tree-after.txt"
+            echo dirty \
+              >"$RUNNER_TEMP/review-agent-result-artifact/tree-after.txt"
           fi
       - name: Upload successful bounded advisory result
         if: always() && steps.codex.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-agent-result-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
-          path: |
-            ${{ runner.temp }}/review-agent-output.json
-            ${{ runner.temp }}/tree-before.txt
-            ${{ runner.temp }}/tree-after.txt
-            ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          path: ${{ runner.temp }}/review-agent-result-artifact/
           if-no-files-found: warn
           retention-days: 7
       - name: Retain non-success advisory evidence
@@ -545,11 +545,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-agent-result-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
-          path: |
-            ${{ runner.temp }}/review-agent-output.json
-            ${{ runner.temp }}/tree-before.txt
-            ${{ runner.temp }}/tree-after.txt
-            ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          path: ${{ runner.temp }}/review-agent-result-artifact/
           if-no-files-found: warn
           retention-days: 30
 
