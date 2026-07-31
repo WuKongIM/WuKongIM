@@ -546,6 +546,18 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.NotContains(t, drain, "actions/checkout")
 }
 
+func TestReviewAgentDrainAcceptsSignedNoOpPlan(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/review-agent-run.yml")
+	drain := issueAgentJobText(t, raw, "drain")
+	require.Contains(
+		t,
+		drain,
+		`(.plan.dispatch | type) == "boolean"`,
+		"a signed false dispatch value is a valid no-op, not a jq error",
+	)
+	require.NotContains(t, drain, "jq -er .plan.dispatch")
+}
+
 func TestLegacyAgentPRValidationIsAbsent(t *testing.T) {
 	root := repoRoot(t)
 	for _, relative := range []string{
