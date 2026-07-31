@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/issueagent"
 )
@@ -17,6 +18,8 @@ import (
 var appBotLoginPattern = regexp.MustCompile(
 	`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\[bot\]$`,
 )
+
+const statePublicationRecoveryAttempts = 7
 
 // StateCommitRequest is one exact expected-head state publication.
 type StateCommitRequest struct {
@@ -135,18 +138,29 @@ func (store *StateStore) Advance(
 	recoverPublication := func(
 		publicationErr error,
 	) (StatePublication, error) {
-		recovered, recoverErr := store.recoverExactPublication(
-			ctx,
-			request.State.IssueNumber,
-			branch,
-			path,
-			request.ExpectedParentSHA,
-			content,
-		)
-		if recoverErr != nil {
-			return StatePublication{}, publicationErr
+		// Re-read twice immediately, then allow GitHub's signature and compare
+		// projections one short, bounded consistency window to converge.
+		for attempt := 0; attempt < statePublicationRecoveryAttempts; attempt++ {
+			delay := time.Duration(0)
+			if attempt >= 2 {
+				delay = (100 * time.Millisecond) << (attempt - 2)
+			}
+			if err := waitStatePublicationRecovery(ctx, delay); err != nil {
+				return StatePublication{}, publicationErr
+			}
+			recovered, recoverErr := store.recoverExactPublication(
+				ctx,
+				request.State.IssueNumber,
+				branch,
+				path,
+				request.ExpectedParentSHA,
+				content,
+			)
+			if recoverErr == nil {
+				return recovered, nil
+			}
 		}
-		return recovered, nil
+		return StatePublication{}, publicationErr
 	}
 	result, err := store.commits.PublishStateCommit(ctx, StateCommitRequest{
 		Branch: branch, Path: path,
@@ -175,6 +189,23 @@ func (store *StateStore) Advance(
 		)
 	}
 	return StatePublication{HeadSHA: result.CommitSHA}, nil
+}
+
+func waitStatePublicationRecovery(
+	ctx context.Context,
+	delay time.Duration,
+) error {
+	if delay == 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // recoverExactPublication performs one independent read after an ambiguous

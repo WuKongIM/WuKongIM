@@ -25,10 +25,11 @@ author, and GitHub signature match. No method merges a PR or closes a Bug
 Issue.
 
 If a state publication reports an error or an untrusted immediate result after
-the remote write, the State Store re-reads the per-Issue ref once. It recovers
-only when the ref points to the exact expected parent, canonical state content,
+the remote write, the State Store re-reads the per-Issue ref through one
+context-cancellable, 3.1-second bounded consistency window. It recovers only
+when the ref points to the exact expected parent, canonical state content,
 path, configured App Bot author, and GitHub-signed commit. Missing, different,
-or unverifiable successors retain the original fail-closed result.
+or still-unverifiable successors retain the original fail-closed result.
 
 The scheduled inventory is a complete, sorted set of at most 40 open
 `ready-for-agent` Issues. A larger or paginated result fails closed.

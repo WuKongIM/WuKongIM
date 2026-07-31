@@ -66,6 +66,25 @@ func TestStateStoreRecoversExactSignedStateAfterAmbiguousPublish(t *testing.T) {
 	require.Equal(t, stateStoreRecoveryHeadSHA, published.HeadSHA)
 }
 
+func TestStateStoreRetriesExactSignedStateDuringGitHubConsistencyWindow(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state := stateStoreRecoveryState()
+	port := stateStoreRecoveryPort(t, state)
+	port.publishErr = errors.New("transient post-publish verification failure")
+	port.readFailures = 1
+
+	published, err := stateStoreForTest(t, port).Advance(
+		context.Background(),
+		stateStoreRecoveryRequest(state),
+	)
+	require.NoError(t, err)
+	require.Equal(t, stateStoreRecoveryHeadSHA, published.HeadSHA)
+	require.Equal(t, 2, port.readCalls)
+}
+
 func TestStateStoreRecoversExactSignedStateAfterAmbiguousTrustResult(t *testing.T) {
 	t.Parallel()
 
@@ -257,6 +276,8 @@ type stateCommitPortStub struct {
 	publishResult *issueagentgithub.StateCommitResult
 	head          string
 	records       map[string]issueagentgithub.StateCommitRecord
+	readFailures  int
+	readCalls     int
 }
 
 func (port *stateCommitPortStub) PublishStateCommit(
@@ -295,5 +316,11 @@ func (port *stateCommitPortStub) ReadStateCommit(
 	commitSHA string,
 	_ string,
 ) (issueagentgithub.StateCommitRecord, error) {
+	port.readCalls++
+	if port.readFailures > 0 {
+		port.readFailures--
+		return issueagentgithub.StateCommitRecord{},
+			errors.New("GitHub commit verification is not visible yet")
+	}
 	return port.records[commitSHA], nil
 }
