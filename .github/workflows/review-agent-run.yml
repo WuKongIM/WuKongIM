@@ -352,6 +352,12 @@ jobs:
               "$RUNNER_TEMP/review-agent-session/recovery.json" \
               >>"$RUNNER_TEMP/review-agent-prompt.md"
           fi
+      - name: Install pinned Codex CLI and Responses proxy
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
+        with:
+          codex-version: 0.146.0
+          codex-home: ${{ runner.temp }}/review-codex-home
+          allow-bots: true
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         if: inputs.operation == 'review'
         with:
@@ -385,6 +391,32 @@ jobs:
               "$RUNNER_TEMP/review-agent-session/recovery.json"
           fi
           chmod -R a-w "$RUNNER_TEMP/review-agent-session"
+      - name: Start protected Responses API proxy
+        shell: bash
+        env:
+          PROXY_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          server_info="$RUNNER_TEMP/review-agent-proxy.json"
+          (
+            printenv PROXY_API_KEY |
+              env -u PROXY_API_KEY codex-responses-api-proxy \
+                --http-shutdown \
+                --server-info "$server_info" \
+                --upstream-url https://openrouter.ai/api/v1/responses
+          ) &
+          unset PROXY_API_KEY
+          for _ in {1..100}; do
+            if jq -e '.port | type == "number" and
+              . >= 1 and . <= 65535' "$server_info" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.1
+          done
+          jq -e '.port | type == "number" and
+            . >= 1 and . <= 65535' "$server_info" >/dev/null
+          sudo chown root:root "$server_info"
+          sudo chmod 0444 "$server_info"
       - name: Freeze private-network, MCP, and tree boundaries
         shell: bash
         env:
@@ -396,10 +428,12 @@ jobs:
             "$RUNNER_TEMP/review-agent-network-fence.sh" start \
               "$RUNNER_TEMP/review-agent-netns.pid"
           fi
-          "$RUNNER_TEMP/review-agent-network-fence.sh" review-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-codex-home" \
             "$RUNNER_TEMP/review-agent-evidence"
-          cat >>"$RUNNER_TEMP/review-codex-home/config.toml" <<EOF
+          proxy_port="$(jq -er .port "$RUNNER_TEMP/review-agent-proxy.json")"
+          cat >"$RUNNER_TEMP/review-codex-home/config.toml" <<EOF
+          model_provider = "review-agent-responses-proxy"
+
           [permissions.review-agent]
           description = "Read-only review with full public-network access."
           extends = ":read-only"
@@ -417,6 +451,11 @@ jobs:
           "localhost" = "deny"
           "127.0.0.1" = "deny"
           "::1" = "deny"
+
+          [model_providers.review-agent-responses-proxy]
+          name = "Review Agent Responses Proxy"
+          base_url = "http://127.0.0.1:${proxy_port}/v1"
+          wire_api = "responses"
           EOF
           if [[ "$INPUT_OPERATION" == review ]]; then
             cp "$RUNNER_TEMP/review-agent-baseline/ledger.jsonl" \
@@ -433,6 +472,7 @@ jobs:
               -c diff.external= diff --cached --quiet -- .
           git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
             rev-parse 'HEAD^{tree}' >"$RUNNER_TEMP/tree-before.txt"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" review-host
       - name: Preserve time for validation and signed state
         id: deadline
         shell: bash
@@ -450,21 +490,30 @@ jobs:
         id: codex
         if: steps.deadline.outputs.run == 'true'
         continue-on-error: true
-        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
-        with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          responses-api-endpoint: https://openrouter.ai/api/v1/responses
-          prompt-file: ${{ runner.temp }}/review-agent-prompt.md
-          output-file: ${{ runner.temp }}/review-agent-output.json
-          working-directory: ${{ runner.temp }}/review-agent-session
-          codex-version: 0.146.0
-          codex-home: ${{ runner.temp }}/review-codex-home
-          model: moonshotai/kimi-k3
-          effort: high
-          permission-profile: review-agent
-          safety-strategy: drop-sudo
-          allow-bots: true
-          codex-args: '["--ephemeral","--output-schema","${{ runner.temp }}/review-output.schema.json","-c","model_context_window=240000","-c","model_auto_compact_token_limit=216000","-c","shell_environment_policy.inherit=none"]'
+        shell: bash
+        env:
+          CODEX_HOME: ${{ runner.temp }}/review-codex-home
+          CODEX_INTERNAL_ORIGINATOR_OVERRIDE: codex_github_action
+          FORCE_COLOR: 1
+        run: |
+          set -euo pipefail
+          PATH="/opt/wukongim-review-agent:$PATH" prlimit \
+            --cpu=2400:2400 \
+            --as=8589934592:8589934592 \
+            --nproc=512:512 \
+            -- codex exec \
+              --skip-git-repo-check \
+              --cd "$RUNNER_TEMP/review-agent-session" \
+              --output-last-message "$RUNNER_TEMP/review-agent-output.json" \
+              --output-schema "$RUNNER_TEMP/review-output.schema.json" \
+              --model moonshotai/kimi-k3 \
+              --config 'model_reasoning_effort="high"' \
+              --ephemeral \
+              --config model_context_window=240000 \
+              --config model_auto_compact_token_limit=216000 \
+              --config shell_environment_policy.inherit=none \
+              --config 'default_permissions="review-agent"' \
+              <"$RUNNER_TEMP/review-agent-prompt.md"
       - name: Record immutable-tree result
         if: always()
         shell: bash
@@ -964,6 +1013,9 @@ jobs:
     name: Wake the next signed queue entry
     needs: state-writer
     if: always() && needs.state-writer.result == 'success'
+    concurrency:
+      group: review-agent-drain-${{ inputs.pull_request }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -992,6 +1044,21 @@ jobs:
             [[ "$lease" =~ ^[1-9][0-9]{0,19}$ ]]
             [[ "$attempt" =~ ^[0-9]{1,2}$ ]]
             [[ "$STATE_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+            title="Review Agent PR #${INPUT_PULL_REQUEST} generation from lease ${lease} attempt ${attempt}"
+            mapfile -t exact_runs < <(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/review-agent-run.yml/runs?per_page=100" \
+                --jq '.workflow_runs[] |
+                  select(.display_title == "'"$title"'") | .id'
+            )
+            if (( ${#exact_runs[@]} > 1 )); then
+              echo "multiple Review Agent workers match the exact signed retry" >&2
+              exit 1
+            fi
+            if (( ${#exact_runs[@]} == 1 )); then
+              echo "Review Agent worker ${exact_runs[0]} already records the exact signed retry"
+              exit 0
+            fi
             gh workflow run review-agent-run.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref main \

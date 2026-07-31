@@ -5,6 +5,8 @@ set -euo pipefail
 review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
+review_bwrap_binary="$review_unshare_directory/bwrap"
+review_bwrap_profile="/etc/apparmor.d/wukongim-review-agent-bwrap"
 
 cleanup_user_namespace_exception() {
   if [[ -f "$review_unshare_profile" ]]; then
@@ -52,6 +54,30 @@ prepare_user_namespace() {
     | sudo tee "$review_unshare_profile" >/dev/null
   sudo chmod 0644 "$review_unshare_profile"
   sudo apparmor_parser -r "$review_unshare_profile"
+
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+}
+
+prepare_model_sandbox() {
+  command -v sudo >/dev/null
+  command -v apparmor_parser >/dev/null
+  [[ -x /usr/bin/bwrap ]]
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+
+  sudo install -d -o root -g root -m 0755 "$review_unshare_directory"
+  sudo install -o root -g root -m 0755 \
+    /usr/bin/bwrap "$review_bwrap_binary"
+  [[ "$(stat -c '%U:%G:%a' "$review_bwrap_binary")" == root:root:755 ]]
+  printf '%s\n' \
+    'abi <abi/4.0>,' \
+    'include <tunables/global>' \
+    '' \
+    "profile wukongim-review-agent-bwrap $review_bwrap_binary flags=(unconfined) {" \
+    '  userns,' \
+    '}' \
+    | sudo tee "$review_bwrap_profile" >/dev/null
+  sudo chmod 0644 "$review_bwrap_profile"
+  sudo apparmor_parser -r "$review_bwrap_profile"
 
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 }
@@ -226,7 +252,10 @@ case "${1:-}" in
     ;;
   review-host)
     [[ $# -eq 1 ]]
+    prepare_model_sandbox
     sudo chmod 000 /var/run/docker.sock 2>/dev/null || true
+    sudo_binary="$(command -v sudo)"
+    sudo chmod 000 "$sudo_binary"
     ;;
   *)
     echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | baseline-host | review-host" >&2
