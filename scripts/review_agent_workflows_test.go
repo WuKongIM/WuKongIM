@@ -334,12 +334,12 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `sudo rmdir "$review_unshare_directory"`)
 	require.Equal(
 		t,
-		5,
+		3,
 		strings.Count(
 			fence,
 			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
 		),
-		"the global userns restriction must bracket both narrow exceptions",
+		"the global userns restriction must bracket the candidate exception",
 	)
 	require.Contains(
 		t,
@@ -364,19 +364,28 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.NotContains(t, fence, "apply_network_rules host")
 	require.NotContains(t, fence, "keep-sudo")
 	require.NotContains(t, fence, "limit_runner_worker")
+	require.NotContains(t, fence, "review_bwrap_binary")
+	require.NotContains(t, fence, "review_bwrap_profile")
+	require.NotContains(t, fence, "prepare_model_sandbox")
+	require.NotContains(t, fence, "wukongim-review-agent-bwrap")
+	require.Contains(t, fence, `[[ "$(command -v bwrap)" == /usr/bin/bwrap ]]`)
 	require.Contains(
 		t,
 		fence,
-		`review_bwrap_binary="/usr/bin/bwrap"`,
+		"/usr/bin/bwrap \\\n"+
+			"      --die-with-parent \\\n"+
+			"      --new-session \\\n"+
+			"      --unshare-user \\\n"+
+			"      --unshare-pid \\\n"+
+			"      --uid 0 \\\n"+
+			"      --gid 0 \\\n"+
+			"      --ro-bind / / \\\n"+
+			"      --dev /dev \\\n"+
+			"      --proc /proc \\\n"+
+			"      -- /usr/bin/true",
+		"the system bubblewrap and its Ubuntu AppArmor profile must work before privileges are removed",
 	)
-	require.Contains(
-		t,
-		fence,
-		`review_bwrap_profile_source="/usr/share/apparmor/extra-profiles/bwrap-userns-restrict"`,
-	)
-	require.Contains(t, fence, `sudo apparmor_parser -r "$review_bwrap_profile"`)
 	require.Contains(t, fence, `--unshare-user`)
-	require.NotContains(t, fence, `wukongim-review-agent-bwrap`)
 	require.Equal(
 		t,
 		4,
@@ -484,6 +493,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		`--cd "$RUNNER_TEMP/review-agent-session"`,
 	)
 	require.NotContains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
+	require.Contains(t, reviewer, "set -euo pipefail\n          prlimit \\")
 	require.Contains(t, reviewer, `extends = ":read-only"`)
 	require.Contains(
 		t,

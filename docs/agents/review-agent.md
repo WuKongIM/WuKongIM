@@ -106,11 +106,12 @@ The trusted proxy is the sole loopback exception required by model transport;
 model-initiated localhost access remains denied. Candidate checks execute only
 through the Check MCP in per-command disposable worktrees with dedicated
 HOME/TMP directories and a rootless network namespace whose own loopback
-supports local test servers. The model sandbox uses the distribution
-`/usr/bin/bwrap`; the Workflow probes it before removing `sudo` and loads
-Ubuntu's official path-specific `bwrap-userns-restrict` profile only when
-needed, while leaving the global user-namespace restriction enabled. The job
-has no Docker socket, and `sudo` is disabled before the model process starts.
+supports local test servers. Before host privileges are removed, the Workflow
+proves that the distribution-owned `/usr/bin/bwrap` can create the model user
+namespace. Codex resolves that same system binary so Ubuntu's package-owned
+AppArmor policy applies and the global user-namespace restriction remains
+enabled. The job has no Docker socket, and `sudo` is disabled before the model
+process starts.
 
 Mandatory checks are selected deterministically from every changed path. The
 model may add a check only by protected catalog name through the local stdio
