@@ -235,8 +235,9 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		raw,
-		`"$RUNNER_TEMP/review-agent-network-fence.sh" model-host`,
+		`"$RUNNER_TEMP/review-agent-network-fence.sh" review-host`,
 	)
+	require.NotContains(t, raw, `"$RUNNER_TEMP/review-agent-network-fence.sh" model-host`)
 	require.Contains(t, raw, `"$RUNNER_TEMP/review-agent-network-fence.sh" join`)
 	require.Contains(t, raw, "model_context_window=240000")
 	require.Contains(t, raw, "model_auto_compact_token_limit=216000")
@@ -252,7 +253,10 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, "$trusted[0].checks[]")
 
 	fence := readIssueAgentFile(t, ".github/review-agent/network-fence.sh")
-	require.Contains(t, fence, "prefix=(sudo)")
+	require.NotContains(t, fence, "prefix=(sudo)")
+	require.NotContains(t, fence, "apply_network_rules model")
+	require.NotContains(t, fence, "limit_runner_worker")
+	require.NotContains(t, fence, "sudo prlimit")
 	require.Contains(t, fence, `ip6tables -A OUTPUT`)
 	require.Contains(
 		t,
@@ -293,6 +297,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
 	require.Contains(t, fence, "baseline-host)")
+	require.Contains(t, fence, "review-host)")
+	require.NotContains(t, fence, "model-host)")
 	require.NotContains(t, fence, "apply_network_rules host")
 	require.NotContains(t, fence, "keep-sudo")
 	require.Equal(
@@ -339,6 +345,27 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		"if [[ \"$INPUT_OPERATION\" == review ]]; then\n"+
 			"            \"$RUNNER_TEMP/review-agent-network-fence.sh\" start",
 		"explanation sessions must not create a candidate network namespace",
+	)
+	terminalStateWriter := issueAgentJobText(t, raw, "state-writer")
+	require.Contains(
+		t,
+		terminalStateWriter,
+		"always() && needs.evidence.result == 'success'",
+		"validated fail-closed evidence must reach signed state after an upstream failure",
+	)
+	terminalPublisher := issueAgentJobText(t, raw, "review-publisher")
+	require.Contains(
+		t,
+		terminalPublisher,
+		"always() && needs.state-writer.result == 'success'",
+		"terminal Review and Verdict publication must survive an upstream failure",
+	)
+	terminalDrain := issueAgentJobText(t, raw, "drain")
+	require.Contains(
+		t,
+		terminalDrain,
+		"always() && needs.state-writer.result == 'success'",
+		"the signed queue must drain after fail-closed completion",
 	)
 	require.Contains(
 		t,
