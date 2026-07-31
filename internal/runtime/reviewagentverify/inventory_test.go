@@ -106,7 +106,7 @@ func TestInventoryFailsClosedOnTruncationOrCountMismatch(t *testing.T) {
 		})
 	}
 
-	_, err := verify.BuildInventory(
+	inventory, err := verify.BuildInventory(
 		1,
 		[]verify.RawFile{{
 			Path: "README.md", Status: contract.FileStatusModified,
@@ -115,7 +115,23 @@ func TestInventoryFailsClosedOnTruncationOrCountMismatch(t *testing.T) {
 			Content: []byte(strings.Repeat("x", 100)),
 		}},
 		verify.InventoryLimits{
-			MaxFiles: 10, MaxTotalBytes: 50, MaxLines: 1000,
+			MaxFiles: 10, MaxTotalBytes: 100, MaxLines: 1,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(100), inventory.TotalBytes)
+	require.Equal(t, int64(1), inventory.TotalLines)
+
+	_, err = verify.BuildInventory(
+		1,
+		[]verify.RawFile{{
+			Path: "README.md", Status: contract.FileStatusModified,
+			Mode: "100644", Type: verify.FileTypeText,
+			Patch:   []byte(strings.Repeat("x", 101)),
+			Content: []byte(strings.Repeat("x", 100)),
+		}},
+		verify.InventoryLimits{
+			MaxFiles: 10, MaxTotalBytes: 100, MaxLines: 1,
 		},
 	)
 	require.EqualError(t, err, "changed-byte budget exceeded")

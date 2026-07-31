@@ -122,7 +122,7 @@ mandatory checks, invalid findings, excessive output, and unexpected
 tracked-file mutation.
 
 The protected bounds admit at most 50 changed files, 128 KiB of captured
-change material, 10,000 changed lines, and a 192 KiB encoded Context. This
+change material, 10,000 changed lines, and a 384 KiB encoded Context. This
 conservatively enforces the 240,000-token model window and keeps three
 concurrent exact-content reads within the repository API budget.
 

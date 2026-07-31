@@ -45,6 +45,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Equal(t, reviewagent.MaxInlineComments, policy.Limits.MaxInlineComments)
 	require.Equal(t, reviewagent.MaxFindings, policy.Limits.MaxFindings)
 	require.Equal(t, reviewagent.MaxChangedFiles, policy.Limits.MaxChangedFiles)
+	require.Equal(t, 393216, policy.Limits.MaxContextBytes)
 	require.Equal(t, 240000, policy.Limits.MaxContextTokens)
 	require.Equal(t, 216000, policy.Limits.AutoCompactTokens)
 	require.Equal(t, 3600, policy.Limits.MaxCPUSecondsPerProcess)
