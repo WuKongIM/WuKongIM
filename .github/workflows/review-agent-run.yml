@@ -446,24 +446,6 @@ jobs:
           cat >"$RUNNER_TEMP/review-codex-home/config.toml" <<EOF
           model_provider = "review-agent-responses-proxy"
 
-          [permissions.review-agent]
-          description = "Read-only review with full public-network access."
-          extends = ":read-only"
-
-          [permissions.review-agent.workspace_roots]
-          "$GITHUB_WORKSPACE" = true
-
-          [permissions.review-agent.network]
-          enabled = true
-          mode = "full"
-          allow_local_binding = false
-
-          [permissions.review-agent.network.domains]
-          "*" = "allow"
-          "localhost" = "deny"
-          "127.0.0.1" = "deny"
-          "::1" = "deny"
-
           [model_providers.review-agent-responses-proxy]
           name = "Review Agent Responses Proxy"
           base_url = "http://127.0.0.1:${proxy_port}/v1"
@@ -519,6 +501,7 @@ jobs:
             --as=8589934592:8589934592 \
             --nproc=512:512 \
             -- codex exec \
+              --dangerously-bypass-approvals-and-sandbox \
               --skip-git-repo-check \
               --cd "$RUNNER_TEMP/review-agent-session" \
               --output-last-message \
@@ -530,7 +513,6 @@ jobs:
               --config model_context_window=240000 \
               --config model_auto_compact_token_limit=216000 \
               --config shell_environment_policy.inherit=none \
-              --config 'default_permissions="review-agent"' \
               <"$RUNNER_TEMP/review-agent-prompt.md"
       - name: Record immutable-tree result
         if: always()

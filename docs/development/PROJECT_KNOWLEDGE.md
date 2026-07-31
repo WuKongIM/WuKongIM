@@ -24,11 +24,12 @@
   a narrow temporary AppArmor `userns` profile. The profile, copied binary, and
   directory are removed after the isolated namespace is ready and before any
   candidate command executes.
-- Review Agent model commands use the distribution `/usr/bin/bwrap`, not a
-  copied binary. The runner proves that it can create the model user namespace
-  before removing `sudo`; a blocked probe installs only Ubuntu's official
-  path-specific `bwrap-userns-restrict` profile and must then pass. The
-  protected Check MCP is required at Codex startup.
+- Review Agent Codex runs with full runner-user access through
+  `--dangerously-bypass-approvals-and-sandbox`. It receives no GitHub/App
+  credential or inherited host environment; Docker and `sudo` are disabled,
+  and tracked candidate-tree mutation is rejected. The protected Check MCP is
+  required at Codex startup and keeps candidate checks inside the rootless
+  network namespace and per-command Bubblewrap sandbox.
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker
   and `sudo` but retains runner transport for pinned post-job Artifact actions.

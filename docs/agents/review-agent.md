@@ -96,30 +96,24 @@ authorized bounded reconsideration is accepted.
 
 The model receives no GitHub/App, cloud, deploy, package-publish, or
 organization-private credential. It runs from a trusted external session
-directory and sees the candidate checkout read-only. Public internet is
-allowed, while private, link-local, cloud metadata, and runner-host access is
-blocked by the model permission profile. Configured organization CIDRs are
-also blocked inside the candidate-check namespace. The pinned Action installs
-the exact Codex CLI and Responses proxy; the protected Workflow then runs
-`codex exec` directly with CPU, address-space, and process limits.
-The trusted proxy is the sole loopback exception required by model transport;
-model-initiated localhost access remains denied. Candidate checks execute only
-through the Check MCP in per-command disposable worktrees with dedicated
-HOME/TMP directories and a rootless network namespace whose own loopback
-supports local test servers. Before host privileges are removed, the Workflow
-proves that the distribution-owned `/usr/bin/bwrap` can create the model user
-namespace. If the hosted-runner restriction blocks that probe, the Workflow
-installs Ubuntu's official path-specific `bwrap-userns-restrict` profile and
-repeats it. Codex resolves that same system binary; no copied binary or custom
-model profile exists, and the global user-namespace restriction remains
-enabled. The job has no Docker socket, and `sudo` is disabled before the model
-process starts.
+directory. The pinned Action installs the exact Codex CLI and Responses proxy;
+the protected Workflow then runs
+`codex exec --dangerously-bypass-approvals-and-sandbox` with CPU,
+address-space, and process limits. Codex therefore has full runner-user
+filesystem and public-network access without an internal Bubblewrap sandbox.
+It inherits no host environment, the job has no Docker socket, and `sudo` is
+disabled before the model process starts. The trusted validator compares the
+candidate tree before and after the model and rejects any tracked mutation.
+Candidate checks execute only through the Check MCP in per-command disposable
+worktrees with dedicated HOME/TMP directories and a rootless network namespace
+whose own loopback supports local test servers. Configured organization CIDRs
+remain blocked inside that candidate-check namespace.
 
 Mandatory checks are selected deterministically from every changed path. The
 model may add a check only by protected catalog name through the local stdio
-Check MCP. The MCP resolves the immutable command and writes trusted results
-outside the read-only model session. Its credential-free stdio handshake runs
-on the trusted model host; each resolved check enters the pre-built
+Check MCP. The MCP resolves the immutable command and appends catalog-bound
+results to the evidence ledger. Its credential-free stdio handshake runs on
+the trusted model host; each resolved check enters the pre-built
 private-network namespace before its disposable checkout and filesystem
 sandbox start. Codex treats that MCP as required and fails the session if its
 protected tools cannot initialize. The validator
