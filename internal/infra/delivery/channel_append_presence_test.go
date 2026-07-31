@@ -6,23 +6,25 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
+	channelappendcontract "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	presenceusecase "github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 )
 
-func TestChannelAppendPresenceResolverPreservesExactTargetsAndPartialResults(t *testing.T) {
-	first := channelappend.RecipientAuthorityTarget{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
-	second := channelappend.RecipientAuthorityTarget{HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000}
+func TestPresenceResolverPreservesExactTargetsAndPartialResults(t *testing.T) {
+	first := authority.Target{HashSlot: 1, SlotID: 11, LeaderNodeID: 10, LeaderTerm: 101, ConfigEpoch: 1001, RouteRevision: 100, AuthorityEpoch: 1000}
+	second := authority.Target{HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202, ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000}
 	firstErr := errors.New("first target unavailable")
 	authority := &targetedPresenceAuthorityForChannelAppendTest{results: []presenceusecase.EndpointLookupResult{
 		{Err: firstErr},
 		{Routes: []presenceusecase.Route{{UID: "u2", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5, SessionID: 6}}},
 	}}
-	resolver := NewChannelAppendPresenceResolver(presenceusecase.New(presenceusecase.Options{Authority: authority}))
+	resolver := NewPresenceResolver(presenceusecase.New(presenceusecase.Options{Authority: authority}))
 
-	got := resolver.EndpointsByTargets(context.Background(), []channelappend.RecipientTargetBatch{
-		{Target: first, Recipients: []channelappend.Recipient{{UID: "u1"}}},
-		{Target: second, Recipients: []channelappend.Recipient{{UID: "u2"}}},
+	got := resolver.EndpointsByTargets(context.Background(), []onlinedelivery.RecipientTargetBatch{
+		{Target: first, Recipients: []channelappendcontract.Recipient{{UID: "u1"}}},
+		{Target: second, Recipients: []channelappendcontract.Recipient{{UID: "u2"}}},
 	})
 
 	if len(got) != 2 || !errors.Is(got[0].Err, firstErr) || got[1].Err != nil {
@@ -77,7 +79,7 @@ func (a *targetedPresenceAuthorityForChannelAppendTest) EndpointsByTargets(_ con
 	return append([]presenceusecase.EndpointLookupResult(nil), a.results...)
 }
 
-func presenceRouteTargetFromRecipientTargetForChannelAppendTest(target channelappend.RecipientAuthorityTarget) presenceusecase.RouteTarget {
+func presenceRouteTargetFromRecipientTargetForChannelAppendTest(target authority.Target) presenceusecase.RouteTarget {
 	return presenceusecase.RouteTarget{
 		HashSlot:       target.HashSlot,
 		SlotID:         target.SlotID,

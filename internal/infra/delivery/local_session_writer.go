@@ -16,7 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-var errOnlineDeliveryMessageIDOverflow = errors.New("internal/infra/delivery: delivery message id overflows recv packet")
+var errRecvMessageIDOverflow = errors.New("internal/infra/delivery: delivery message id overflows recv packet")
 
 // LocalSessionWriterOptions configures the narrow owner-local session adapter.
 type LocalSessionWriterOptions struct {
@@ -70,7 +70,7 @@ func (w *LocalSessionWriter) WriteSession(ctx context.Context, write runtimedeli
 	}
 	if err := session.Session.WriteDelivery(packet); err != nil {
 		disposition := runtimedelivery.SessionWriteRetryable
-		if terminalOnlineDeliveryWriteError(err) {
+		if terminalLocalDeliveryWriteError(err) {
 			disposition = runtimedelivery.SessionWriteDropped
 		}
 		w.loggerOrNop().Warn("delivery write failed",
@@ -108,14 +108,14 @@ func exactLocalSession(registry *online.Registry, route onlinedelivery.Route) (o
 	return session, true
 }
 
-func terminalOnlineDeliveryWriteError(err error) bool {
+func terminalLocalDeliveryWriteError(err error) bool {
 	return errors.Is(err, gatewaysession.ErrSessionClosed) ||
 		errors.Is(err, gatewaytransport.ErrOutboundBytesExceeded)
 }
 
 func buildOnlineDeliveryRecvPacket(event channelappendcontract.CommittedEnvelope, uid string, timestamp int32) (*frame.RecvPacket, error) {
 	if event.MessageID > uint64(1<<63-1) {
-		return nil, errOnlineDeliveryMessageIDOverflow
+		return nil, errRecvMessageIDOverflow
 	}
 	channelID := event.ChannelID
 	if event.ChannelType == frame.ChannelTypePerson {

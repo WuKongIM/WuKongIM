@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	runtimewebhook "github.com/WuKongIM/WuKongIM/internal/runtime/webhook"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 )
@@ -34,9 +35,8 @@ type composedPersistAfterEnqueuer struct {
 }
 
 type composedOfflineRecipientsObserver struct {
-	pluginSingle channelappend.OfflineRecipientObserver
-	pluginBatch  channelappend.OfflineRecipientsObserver
-	webhookBatch channelappend.OfflineRecipientsObserver
+	plugin  runtimedelivery.OfflineRecipientsObserver
+	webhook runtimedelivery.OfflineRecipientsObserver
 }
 
 func (a *App) wireWebhook() error {
@@ -78,7 +78,7 @@ func (e webhookNotifyEnqueuer) EnqueuePersistAfter(ctx context.Context, event ch
 	e.runtime.Notify(ctx, webhookMessageFromCommitted(event))
 }
 
-func (o webhookOfflineObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
+func (o webhookOfflineObserver) ObserveOfflineRecipients(ctx context.Context, event runtimedelivery.OfflineRecipientsEvent) {
 	if o.runtime == nil || len(event.UIDs) == 0 {
 		return
 	}
@@ -97,16 +97,6 @@ func (o webhookOfflineObserver) ObserveOfflineRecipients(ctx context.Context, ev
 			ToUIDs:  append([]string(nil), event.UIDs[start:end]...),
 		})
 	}
-}
-
-func (o webhookOfflineObserver) ObserveOfflineRecipient(ctx context.Context, event channelappend.OfflineRecipientEvent) {
-	if event.UID == "" {
-		return
-	}
-	o.ObserveOfflineRecipients(ctx, channelappend.OfflineRecipientsEvent{
-		Event: event.Event,
-		UIDs:  []string{event.UID},
-	})
 }
 
 func (o webhookPresenceObserver) ObserveOnlineStatus(ctx context.Context, event presence.OnlineStatusEvent) error {
@@ -133,32 +123,21 @@ func (e composedPersistAfterEnqueuer) EnqueuePersistAfter(ctx context.Context, e
 }
 
 func composeOfflineRecipientObservers(
-	pluginSingle channelappend.OfflineRecipientObserver,
-	webhookBatch channelappend.OfflineRecipientsObserver,
-) (channelappend.OfflineRecipientObserver, channelappend.OfflineRecipientsObserver) {
-	if pluginSingle == nil || webhookBatch == nil {
-		return pluginSingle, webhookBatch
+	plugin runtimedelivery.OfflineRecipientsObserver,
+	webhook runtimedelivery.OfflineRecipientsObserver,
+) runtimedelivery.OfflineRecipientsObserver {
+	if plugin == nil {
+		return webhook
 	}
-	pluginBatch, _ := pluginSingle.(channelappend.OfflineRecipientsObserver)
-	return pluginSingle, composedOfflineRecipientsObserver{
-		pluginSingle: pluginSingle,
-		pluginBatch:  pluginBatch,
-		webhookBatch: webhookBatch,
+	if webhook == nil {
+		return plugin
 	}
+	return composedOfflineRecipientsObserver{plugin: plugin, webhook: webhook}
 }
 
-func (o composedOfflineRecipientsObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
-	o.webhookBatch.ObserveOfflineRecipients(ctx, event)
-	if o.pluginBatch != nil {
-		o.pluginBatch.ObserveOfflineRecipients(ctx, event)
-		return
-	}
-	for _, uid := range event.UIDs {
-		o.pluginSingle.ObserveOfflineRecipient(ctx, channelappend.OfflineRecipientEvent{
-			Event: event.Event,
-			UID:   uid,
-		})
-	}
+func (o composedOfflineRecipientsObserver) ObserveOfflineRecipients(ctx context.Context, event runtimedelivery.OfflineRecipientsEvent) {
+	o.webhook.ObserveOfflineRecipients(ctx, event)
+	o.plugin.ObserveOfflineRecipients(ctx, event)
 }
 
 func webhookMessageFromCommitted(event channelappend.CommittedEnvelope) runtimewebhook.Message {

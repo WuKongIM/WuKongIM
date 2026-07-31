@@ -15,7 +15,6 @@ import (
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -35,7 +34,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
-	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type gatewayMetricsObserver struct {
@@ -126,7 +124,6 @@ type messageEventMetricsObserver struct {
 
 type deliveryMetricsObserver struct {
 	metrics *obsmetrics.Registry
-	logger  wklog.Logger
 }
 
 type conversationListMetricsObserver struct {
@@ -156,7 +153,6 @@ type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiMessageEventObserver []cluster.MessageEventObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
-type multiDeliveryObserver []runtimedelivery.Observer
 
 const (
 	dbRuntimeComponent       = "db"
@@ -1543,105 +1539,6 @@ func (o messageEventMetricsObserver) SetMessageEventStreamCache(event cluster.Me
 	})
 }
 
-func (o deliveryMetricsObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
-	if o.metrics != nil {
-		o.metrics.Delivery.ObserveFanoutTask(deliveryNodeLabel(event.TargetNodeID), event.Result, event.Duration)
-		o.observeError(event.ErrorClass)
-	}
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.loggerOrNop().Warn("delivery fanout task failed",
-			wklog.Event("internal.app.delivery.fanout_task_failed"),
-			wklog.TargetNodeID(event.TargetNodeID),
-			wklog.Int("partitionID", int(event.PartitionID)),
-			wklog.String("path", event.Path),
-			wklog.Result(event.Result),
-			wklog.String("errorClass", event.ErrorClass),
-			wklog.Duration("duration", event.Duration),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
-	if o.metrics != nil {
-		o.metrics.Delivery.ObserveResolve(deliveryChannelTypeLabel(event.ChannelType), event.Result, event.Duration, event.Pages, event.Routes)
-		o.observeError(event.ErrorClass)
-	}
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.loggerOrNop().Warn("delivery fanout resolve failed",
-			wklog.Event("internal.app.delivery.fanout_resolve_failed"),
-			wklog.ChannelType(int64(event.ChannelType)),
-			wklog.Result(event.Result),
-			wklog.String("errorClass", event.ErrorClass),
-			wklog.Duration("duration", event.Duration),
-			wklog.Int("pages", event.Pages),
-			wklog.Int("uids", event.UIDs),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
-	if o.metrics != nil {
-		o.metrics.Delivery.ObservePushRPC(deliveryNodeLabel(event.OwnerNodeID), event.Result, event.Duration, event.Routes)
-		o.observeError(event.ErrorClass)
-	}
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.loggerOrNop().Warn("delivery fanout push failed",
-			wklog.Event("internal.app.delivery.fanout_push_failed"),
-			wklog.Uint64("ownerNodeID", event.OwnerNodeID),
-			wklog.Result(event.Result),
-			wklog.String("errorClass", event.ErrorClass),
-			wklog.Duration("duration", event.Duration),
-			wklog.Int("routes", event.Routes),
-			wklog.Int("accepted", event.Accepted),
-			wklog.Int("retryable", event.Retryable),
-			wklog.Int("dropped", event.Dropped),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
-	if o.metrics != nil {
-		o.metrics.Delivery.ObserveRetry(event.Event, event.Result)
-		o.metrics.Delivery.SetRetryQueueDepth(event.QueueDepth)
-		o.observeError(event.ErrorClass)
-	}
-	if event.Result == runtimedelivery.DeliveryResultDropped ||
-		event.Result == runtimedelivery.DeliveryResultOverflow ||
-		event.Result == runtimedelivery.DeliveryResultMaxAttempts ||
-		(event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone && event.Event == runtimedelivery.DeliveryRetryEventDrop) {
-		o.loggerOrNop().Warn("delivery retry failed",
-			wklog.Event("internal.app.delivery.retry_failed"),
-			wklog.String("retryEvent", event.Event),
-			wklog.Result(event.Result),
-			wklog.String("errorClass", event.ErrorClass),
-			wklog.Attempt(event.Attempt),
-			wklog.Int("queueDepth", event.QueueDepth),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) ObserveAck(event runtimedelivery.AckEvent) {
-	if o.metrics == nil {
-		return
-	}
-	o.metrics.Delivery.SetAckBindings(event.PendingCount)
-}
-
-func (o deliveryMetricsObserver) ObserveAckBatch(event runtimedelivery.AckBatchEvent) {
-	if o.metrics == nil {
-		return
-	}
-	o.metrics.Delivery.ObserveAckBatch(
-		event.Phase,
-		event.Outcome,
-		event.Items,
-		event.Shards,
-		event.Rejected,
-		event.Rollback,
-		event.Duration,
-	)
-}
-
 func (o deliveryMetricsObserver) ObserveRecipientAuthorityResolve(event clusterinfra.RecipientAuthorityResolveObservation) {
 	if o.metrics == nil {
 		return
@@ -1654,65 +1551,6 @@ func (o presenceMetricsObserver) ObservePresenceEndpointLookup(event clusterinfr
 		return
 	}
 	o.metrics.Presence.ObserveEndpointLookup(event.Path, event.Outcome, event.StaleRetry, event.Duration, event.Items, event.Groups)
-}
-
-func (o deliveryMetricsObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
-	if o.metrics != nil {
-		o.metrics.Delivery.ObserveEventQueue(event.Result)
-	}
-	if event.Result != runtimedelivery.DeliveryResultOK {
-		o.loggerOrNop().Warn("delivery manager admission failed",
-			wklog.Event("internal.app.delivery.manager_admission_failed"),
-			wklog.Result(event.Result),
-			wklog.Int("queueDepth", event.QueueDepth),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
-	if o.metrics != nil {
-		o.observeError(event.ErrorClass)
-	}
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.loggerOrNop().Warn("delivery manager terminal failed",
-			wklog.Event("internal.app.delivery.manager_terminal_failed"),
-			wklog.Result(event.Result),
-			wklog.String("errorClass", event.ErrorClass),
-			wklog.Int("queueDepth", event.QueueDepth),
-		)
-	}
-}
-
-func (o deliveryMetricsObserver) observeError(class string) {
-	if class == "" || class == runtimedelivery.DeliveryErrorClassNone {
-		return
-	}
-	o.metrics.Delivery.ObserveError(class)
-}
-
-func (a *App) deliveryObserver() runtimedelivery.Observer {
-	if a == nil {
-		return nil
-	}
-	var observers []runtimedelivery.Observer
-	if a.metrics != nil || a.logger != nil {
-		var logger wklog.Logger
-		if a.logger != nil {
-			logger = a.logger.Named("delivery")
-		}
-		observers = append(observers, deliveryMetricsObserver{metrics: a.metrics, logger: logger})
-	}
-	if collector, ok := a.topProvider.(*topCollector); ok {
-		observers = append(observers, topDeliveryObserver{top: collector})
-	}
-	return combineDeliveryObservers(observers...)
-}
-
-func (o deliveryMetricsObserver) loggerOrNop() wklog.Logger {
-	if o.logger == nil {
-		return wklog.NewNop()
-	}
-	return o.logger
 }
 
 func combineChannelObservers(first, second reactor.Observer) reactor.Observer {
@@ -1803,23 +1641,6 @@ func combineMessageEventObservers(first, second cluster.MessageEventObserver) cl
 		return first
 	}
 	return multiMessageEventObserver{first, second}
-}
-
-func combineDeliveryObservers(observers ...runtimedelivery.Observer) runtimedelivery.Observer {
-	filtered := make([]runtimedelivery.Observer, 0, len(observers))
-	for _, observer := range observers {
-		if observer != nil {
-			filtered = append(filtered, observer)
-		}
-	}
-	switch len(filtered) {
-	case 0:
-		return nil
-	case 1:
-		return filtered[0]
-	default:
-		return multiDeliveryObserver(filtered)
-	}
 }
 
 func deliveryNodeLabel(nodeID uint64) string {
@@ -2500,60 +2321,6 @@ func (o multiMessageEventObserver) SetMessageEventStreamCache(event cluster.Mess
 	}
 }
 
-func (o multiDeliveryObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
-	for _, observer := range o {
-		observer.ObserveFanoutTask(event)
-	}
-}
-
-func (o multiDeliveryObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
-	for _, observer := range o {
-		observer.ObserveFanoutResolve(event)
-	}
-}
-
-func (o multiDeliveryObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
-	for _, observer := range o {
-		observer.ObserveFanoutPush(event)
-	}
-}
-
-func (o multiDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
-	for _, observer := range o {
-		retryObserver, ok := observer.(runtimedelivery.RetryObserver)
-		if ok {
-			retryObserver.ObserveRetry(event)
-		}
-	}
-}
-
-func (o multiDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
-	for _, observer := range o {
-		ackObserver, ok := observer.(runtimedelivery.AckObserver)
-		if ok {
-			ackObserver.ObserveAck(event)
-		}
-	}
-}
-
-func (o multiDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
-	for _, observer := range o {
-		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
-		if ok {
-			managerObserver.ObserveManagerAdmission(event)
-		}
-	}
-}
-
-func (o multiDeliveryObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
-	for _, observer := range o {
-		managerObserver, ok := observer.(runtimedelivery.ManagerObserver)
-		if ok {
-			managerObserver.ObserveManagerTerminal(event)
-		}
-	}
-}
-
 func channelCommitModeLabel(mode ch.CommitMode) string {
 	switch mode {
 	case ch.CommitModeLocal:
@@ -2778,11 +2545,5 @@ var _ messagedb.CommitCoordinatorRequestObserver = storageCommitMetricsObserver{
 var _ messagedb.CommitCoordinatorObserver = multiCommitCoordinatorObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}
-var _ runtimedelivery.Observer = multiDeliveryObserver{}
-var _ runtimedelivery.RetryObserver = multiDeliveryObserver{}
-var _ runtimedelivery.AckObserver = deliveryMetricsObserver{}
-var _ runtimedelivery.AckObserver = multiDeliveryObserver{}
-var _ runtimedelivery.AckBatchObserver = deliveryMetricsObserver{}
 var _ clusterinfra.RecipientAuthorityResolveObserver = deliveryMetricsObserver{}
 var _ clusterinfra.PresenceEndpointLookupObserver = presenceMetricsObserver{}
-var _ runtimedelivery.ManagerObserver = multiDeliveryObserver{}

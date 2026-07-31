@@ -41,7 +41,7 @@ func (e realtimeEffect) runItem(runtimeCtx context.Context, item preparedSend, p
 	if err := appendItemError(item); err != nil {
 		return realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: err}}
 	}
-	if !hasRecipientDeliveryEnqueuer(ports) {
+	if effectiveRecipientDeliveryEnqueuer(ports) == nil {
 		return realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: ErrRealtimeDeliveryRequired}}
 	}
 	ctx, cancel := prepareItemContext(runtimeCtx, item.Context)

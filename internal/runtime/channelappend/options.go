@@ -250,68 +250,6 @@ type EffectObserver interface {
 	ObserveChannelAppendEffect(EffectObservation)
 }
 
-// RecipientDeliveryQueueObservation describes the dedicated recipient delivery worker queue.
-type RecipientDeliveryQueueObservation struct {
-	// QueueDepth is the current queued recipient delivery plan count.
-	QueueDepth int
-	// QueueCapacity is the configured recipient delivery queue capacity.
-	QueueCapacity int
-}
-
-// RecipientDeliveryQueueObserver receives recipient delivery queue pressure gauges.
-type RecipientDeliveryQueueObserver interface {
-	// SetChannelAppendRecipientDeliveryQueue records current recipient delivery queue pressure.
-	SetChannelAppendRecipientDeliveryQueue(RecipientDeliveryQueueObservation)
-}
-
-// RecipientDeliveryWorkerPressureObservation describes dedicated recipient delivery worker execution pressure.
-type RecipientDeliveryWorkerPressureObservation struct {
-	// Inflight is the number of recipient delivery commands currently executing.
-	Inflight int
-	// Capacity is the configured number of recipient delivery worker goroutines.
-	Capacity int
-}
-
-// RecipientDeliveryWorkerPressureObserver receives recipient delivery worker execution gauges.
-type RecipientDeliveryWorkerPressureObserver interface {
-	// SetChannelAppendRecipientDeliveryWorkerPressure records current worker inflight and capacity.
-	SetChannelAppendRecipientDeliveryWorkerPressure(RecipientDeliveryWorkerPressureObservation)
-}
-
-// RecipientDeliveryAdmissionObservation describes one recipient delivery enqueue attempt.
-type RecipientDeliveryAdmissionObservation struct {
-	// Result is accepted, closed, canceled, timeout, or error.
-	Result string
-	// QueueDepth is the queue depth when the attempt completed.
-	QueueDepth int
-	// QueueCapacity is the configured recipient delivery queue capacity.
-	QueueCapacity int
-	// Duration is the time spent trying to enqueue.
-	Duration time.Duration
-}
-
-// RecipientDeliveryAdmissionObserver receives recipient delivery enqueue attempts.
-type RecipientDeliveryAdmissionObserver interface {
-	// ObserveChannelAppendRecipientDeliveryAdmission records one delivery queue admission attempt.
-	ObserveChannelAppendRecipientDeliveryAdmission(RecipientDeliveryAdmissionObservation)
-}
-
-// RecipientDeliveryProcessObservation describes one recipient delivery worker command.
-type RecipientDeliveryProcessObservation struct {
-	// Result is ok, error, or panic.
-	Result string
-	// Recipients is the total number of recipients in the processed plan.
-	Recipients int
-	// Duration is the worker processing latency.
-	Duration time.Duration
-}
-
-// RecipientDeliveryProcessObserver receives recipient delivery worker process observations.
-type RecipientDeliveryProcessObserver interface {
-	// ObserveChannelAppendRecipientDeliveryProcess records one recipient delivery worker command.
-	ObserveChannelAppendRecipientDeliveryProcess(RecipientDeliveryProcessObservation)
-}
-
 // SubscriberSource pages channel subscribers for post-commit recipient selection.
 type SubscriberSource interface {
 	// NextSubscriberPage returns one bounded subscriber page for the requested channel.
@@ -344,21 +282,8 @@ type BatchRecipientAuthorityResolver interface {
 	ResolveRecipientAuthorities(context.Context, []string) ([]RecipientAuthorityResult, error)
 }
 
-// RecipientDeliveryEnqueuer accepts post-commit recipient batches for asynchronous delivery processing.
+// RecipientDeliveryEnqueuer accepts one bounded exact-target plan after recipient selection.
 type RecipientDeliveryEnqueuer interface {
-	// EnqueueRecipientBatch queues one committed recipient batch for the recipient authority target.
-	EnqueueRecipientBatch(context.Context, RecipientAuthorityTarget, RecipientBatch) error
-}
-
-// RecipientDeliveryPlanEnqueuer accepts one bounded recipient set while
-// preserving every exact authority target in the same queue command.
-type RecipientDeliveryPlanEnqueuer interface {
-	// EnqueueRecipientDeliveryPlan queues one bounded exact-target delivery plan.
-	EnqueueRecipientDeliveryPlan(context.Context, RecipientDeliveryPlan) error
-}
-
-// OnlineDeliveryEnqueuer accepts canonical plans during the delivery-runtime migration.
-type OnlineDeliveryEnqueuer interface {
 	// EnqueueRecipientDeliveryPlan transfers one bounded plan to Online Delivery.
 	EnqueueRecipientDeliveryPlan(context.Context, onlinedelivery.RecipientDeliveryPlan) error
 }
@@ -390,34 +315,6 @@ type RoutedConversationActiveAdmitter interface {
 	// AdmitRoutedActiveBatches preserves aligned exact targets and may fresh-route
 	// only failed groups under its bounded retry policy.
 	AdmitRoutedActiveBatches(context.Context, []ConversationActiveTargetBatch) error
-}
-
-// PresenceResolver resolves online endpoints for recipient UIDs.
-type PresenceResolver interface {
-	// EndpointsByUIDs returns currently known online endpoints for uids.
-	EndpointsByUIDs(context.Context, []string) ([]Route, error)
-}
-
-// RecipientTargetPresenceResult is one result aligned with an exact-target
-// recipient batch supplied to RecipientTargetPresenceResolver.
-type RecipientTargetPresenceResult struct {
-	// Routes are the currently known online endpoints for the target batch.
-	Routes []Route
-	// Err reports an authority lookup failure for only the aligned target batch.
-	Err error
-}
-
-// RecipientTargetPresenceResolver resolves multiple exact-target recipient
-// groups without discarding their authority fences.
-type RecipientTargetPresenceResolver interface {
-	// EndpointsByTargets returns one result per input target batch in the same order.
-	EndpointsByTargets(context.Context, []RecipientTargetBatch) []RecipientTargetPresenceResult
-}
-
-// OwnerPusher pushes committed messages to owner-node gateway sessions.
-type OwnerPusher interface {
-	// Push sends one owner-node grouped push command.
-	Push(context.Context, PushCommand) (PushResult, error)
 }
 
 // Options configures the local channel append group.
@@ -462,8 +359,6 @@ type Options struct {
 	RecipientAuthorityResolver RecipientAuthorityResolver
 	// RecipientDeliveryEnqueuer queues selected recipients for asynchronous delivery processing.
 	RecipientDeliveryEnqueuer RecipientDeliveryEnqueuer
-	// OnlineDeliveryEnqueuer queues canonical plans when the converged runtime is wired.
-	OnlineDeliveryEnqueuer OnlineDeliveryEnqueuer
 	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
 	PersistAfterEnqueuer PersistAfterEnqueuer
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
@@ -574,7 +469,6 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:             opts.RecipientDeliveryEnqueuer,
-		onlineDeliveryEnqueuer:       opts.OnlineDeliveryEnqueuer,
 		persistAfter:                 opts.PersistAfterEnqueuer,
 		subscriberPageSize:           opts.SubscriberScanPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,

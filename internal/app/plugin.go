@@ -10,6 +10,7 @@ import (
 	pluginevents "github.com/WuKongIM/WuKongIM/internal/contracts/pluginevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/pluginhook"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
@@ -340,8 +341,7 @@ func (e pluginPersistAfterEnqueuer) EnqueuePersistAfter(ctx context.Context, eve
 	})
 }
 
-// ObserveOfflineRecipient converts one offline recipient into a plugin Receive event.
-func (o pluginReceiveObserver) ObserveOfflineRecipient(ctx context.Context, event channelappend.OfflineRecipientEvent) {
+func (o pluginReceiveObserver) observeOfflineRecipient(ctx context.Context, event runtimedelivery.OfflineRecipientsEvent, uid string) {
 	if o.worker == nil {
 		return
 	}
@@ -352,7 +352,7 @@ func (o pluginReceiveObserver) ObserveOfflineRecipient(ctx context.Context, even
 		ChannelID:         source.ChannelID,
 		ChannelType:       source.ChannelType,
 		FromUID:           source.FromUID,
-		UID:               event.UID,
+		UID:               uid,
 		ClientMsgNo:       source.ClientMsgNo,
 		ServerTimestampMS: source.ServerTimestampMS,
 		Payload:           append([]byte(nil), source.Payload...),
@@ -363,14 +363,14 @@ func (o pluginReceiveObserver) ObserveOfflineRecipient(ctx context.Context, even
 }
 
 // ObserveOfflineRecipients converts one committed message recipient batch into one plugin task.
-func (o pluginReceiveObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
+func (o pluginReceiveObserver) ObserveOfflineRecipients(ctx context.Context, event runtimedelivery.OfflineRecipientsEvent) {
 	if o.worker == nil || len(event.UIDs) == 0 {
 		return
 	}
 	worker, ok := o.worker.(pluginReceiveBatchWorker)
 	if !ok {
 		for _, uid := range event.UIDs {
-			o.ObserveOfflineRecipient(ctx, channelappend.OfflineRecipientEvent{Event: event.Event, UID: uid})
+			o.observeOfflineRecipient(ctx, event, uid)
 		}
 		return
 	}

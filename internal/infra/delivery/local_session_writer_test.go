@@ -65,7 +65,7 @@ func TestLocalSessionWriterClassifiesPacketBuildAndTerminalWriteFailures(t *test
 	}
 
 	result := writer.WriteSession(context.Background(), write)
-	if result.Disposition != runtimedelivery.SessionWriteDropped || !errors.Is(result.Err, errOnlineDeliveryMessageIDOverflow) {
+	if result.Disposition != runtimedelivery.SessionWriteDropped || !errors.Is(result.Err, errRecvMessageIDOverflow) {
 		t.Fatalf("overflow result = %#v, want terminal packet-build drop", result)
 	}
 	if session.writes.Load() != 0 {

@@ -11,7 +11,6 @@ type commitPorts struct {
 	activeAdmitter               ConversationActiveAdmitter
 	recipientAuthorityResolver   RecipientAuthorityResolver
 	deliveryEnqueuer             RecipientDeliveryEnqueuer
-	onlineDeliveryEnqueuer       OnlineDeliveryEnqueuer
 	persistAfter                 PersistAfterEnqueuer
 	subscriberPageSize           int
 	recipientBatchSize           int
@@ -20,11 +19,11 @@ type commitPorts struct {
 }
 
 func (p commitPorts) hasPostCommitWork() bool {
-	return p.persistAfter != nil || p.activeAdmitter != nil || hasRecipientDeliveryEnqueuer(p)
+	return p.persistAfter != nil || p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
 }
 
 func (p commitPorts) hasRecipientWork() bool {
-	return p.activeAdmitter != nil || hasRecipientDeliveryEnqueuer(p)
+	return p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
 }
 
 type commitEffect struct {
