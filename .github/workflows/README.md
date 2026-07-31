@@ -90,8 +90,12 @@ connection fences live inside the candidate namespace; Docker and `sudo` are
 disabled on the trusted baseline host without blocking its Artifact transport.
 Explanation-only sessions do not install that profile or create a candidate
 network namespace because they never execute candidate checks. The Check MCP
-is a required Codex dependency: failure to initialize it stops the model
-session instead of silently removing the protected check tools.
+is a required Codex dependency. Its credential-free stdio server completes the
+Codex handshake on the trusted model host, while each resolved protected check
+enters the pre-built private-network namespace before its disposable checkout
+and bubblewrap sandbox start.
+Failure to initialize the MCP stops the model session instead of silently
+removing the protected check tools.
 
 Worker dispatch is serialized per pull request. The exact run title derived
 from pull request, signed lease, and infrastructure attempt is the idempotency

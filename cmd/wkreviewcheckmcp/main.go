@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,7 +24,7 @@ func main() {
 	)
 	defer cancel()
 	if err := run(ctx, os.Args[1:]); err != nil {
-		_, _ = os.Stderr.WriteString("review check MCP failed\n")
+		_, _ = fmt.Fprintf(os.Stderr, "review check MCP failed: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -64,6 +65,12 @@ func run(ctx context.Context, args []string) error {
 		WorkspaceRoot: os.Getenv("REVIEW_WORKSPACE"),
 		SandboxBinary: "/usr/bin/bwrap",
 		HelperBinary:  filepath.Join(os.Getenv("RUNNER_TEMP"), "wkreviewcheck"),
+		NetworkFenceBinary: os.Getenv(
+			"REVIEW_NETWORK_FENCE",
+		),
+		NetworkNamespacePIDFile: os.Getenv(
+			"REVIEW_NETNS_PID_FILE",
+		),
 	})
 	if err != nil {
 		return err

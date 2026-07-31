@@ -433,6 +433,12 @@ jobs:
           if [[ "$INPUT_OPERATION" == review ]]; then
             "$RUNNER_TEMP/review-agent-network-fence.sh" start \
               "$RUNNER_TEMP/review-agent-netns.pid"
+            sudo chown root:root \
+              "$RUNNER_TEMP/review-agent-netns.pid" \
+              "$RUNNER_TEMP/review-agent-netns.pid.slirp"
+            sudo chmod 0444 \
+              "$RUNNER_TEMP/review-agent-netns.pid" \
+              "$RUNNER_TEMP/review-agent-netns.pid.slirp"
           fi
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-codex-home" \
             "$RUNNER_TEMP/review-agent-result-artifact"
@@ -472,8 +478,8 @@ jobs:
               'startup_timeout_sec = 30' \
               'default_tools_approval_mode = "approve"' \
               'enabled_tools = ["check_result", "check_run"]' \
-              "command = \"$RUNNER_TEMP/review-agent-network-fence.sh\"" \
-              "args = [\"join\", \"$RUNNER_TEMP/review-agent-netns.pid\", \"/usr/bin/env\", \"-i\", \"PATH=$PATH\", \"RUNNER_TEMP=$RUNNER_TEMP\", \"REVIEW_AGENT_HOME=$RUNNER_TEMP/review-agent-home\", \"REVIEW_WORKSPACE=$GITHUB_WORKSPACE\", \"REVIEW_POLICY_PATH=$RUNNER_TEMP/review-agent-policy.json\", \"REVIEW_CONTEXT_PATH=$RUNNER_TEMP/review-agent-context/review-context.json\", \"REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl\", \"$RUNNER_TEMP/wkreviewcheckmcp\"]" \
+              'command = "/usr/bin/env"' \
+              "args = [\"-i\", \"PATH=$PATH\", \"RUNNER_TEMP=$RUNNER_TEMP\", \"REVIEW_AGENT_HOME=$RUNNER_TEMP/review-agent-home\", \"REVIEW_WORKSPACE=$GITHUB_WORKSPACE\", \"REVIEW_POLICY_PATH=$RUNNER_TEMP/review-agent-policy.json\", \"REVIEW_CONTEXT_PATH=$RUNNER_TEMP/review-agent-context/review-context.json\", \"REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl\", \"REVIEW_NETWORK_FENCE=$RUNNER_TEMP/review-agent-network-fence.sh\", \"REVIEW_NETNS_PID_FILE=$RUNNER_TEMP/review-agent-netns.pid\", \"$RUNNER_TEMP/wkreviewcheckmcp\"]" \
               >>"$RUNNER_TEMP/review-codex-home/config.toml"
           fi
           git -c core.hooksPath=/dev/null -c core.fsmonitor=false \
