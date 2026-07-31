@@ -5,6 +5,8 @@ set -euo pipefail
 review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
+review_bwrap_binary="$review_unshare_directory/bwrap"
+review_bwrap_profile="/etc/apparmor.d/wukongim-review-agent-bwrap"
 
 cleanup_user_namespace_exception() {
   if [[ -f "$review_unshare_profile" ]]; then
@@ -56,27 +58,36 @@ prepare_user_namespace() {
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
 }
 
+prepare_model_sandbox() {
+  command -v sudo >/dev/null
+  command -v apparmor_parser >/dev/null
+  [[ -x /usr/bin/bwrap ]]
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+
+  sudo install -d -o root -g root -m 0755 "$review_unshare_directory"
+  sudo install -o root -g root -m 0755 \
+    /usr/bin/bwrap "$review_bwrap_binary"
+  [[ "$(stat -c '%U:%G:%a' "$review_bwrap_binary")" == root:root:755 ]]
+  printf '%s\n' \
+    'abi <abi/4.0>,' \
+    'include <tunables/global>' \
+    '' \
+    "profile wukongim-review-agent-bwrap $review_bwrap_binary flags=(unconfined) {" \
+    '  userns,' \
+    '}' \
+    | sudo tee "$review_bwrap_profile" >/dev/null
+  sudo chmod 0644 "$review_bwrap_profile"
+  sudo apparmor_parser -r "$review_bwrap_profile"
+
+  [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+}
+
 apply_network_rules() {
-  local mode="$1"
-  [[ "$mode" == namespace || "$mode" == model ]]
-  local prefix=()
-  local resolvers=()
-  if [[ "$mode" == namespace ]]; then
-    prefix=(nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n)
-    "${prefix[@]}" ip link set lo up
-    resolvers=(10.0.2.3)
-  else
-    prefix=(sudo)
-    local resolver
-    while read -r resolver; do
-      [[ -n "$resolver" ]] || continue
-      if [[ "$resolver" != *:* && "$resolver" == *[!0-9.]* ]]; then
-        echo "invalid runner DNS resolver" >&2
-        exit 1
-      fi
-      resolvers+=("$resolver")
-    done < <(awk '/^nameserver[[:space:]]+/ { print $2 }' /etc/resolv.conf)
-  fi
+  local prefix=(
+    nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n
+  )
+  local resolvers=(10.0.2.3)
+  "${prefix[@]}" ip link set lo up
 
   # Ingress and egress each receive 1 GiB, enforcing the protected 2 GiB
   # aggregate ceiling per address family. DNS is intentionally added after
@@ -120,9 +131,8 @@ apply_network_rules() {
     224.0.0.0/4
   )
   local ipv6=(::/128 fc00::/7 fe80::/10 ff00::/8)
-  # The namespace needs local process communication. The model host needs
-  # the Codex Action's loopback model proxy; its permission profile still
-  # denies localhost/private destinations to model-initiated requests.
+  # The namespace needs local process communication. slirp4netns separately
+  # prevents namespace processes from reaching the host loopback.
   "${prefix[@]}" iptables -A INPUT -i lo -j ACCEPT
   "${prefix[@]}" ip6tables -A INPUT -i lo -j ACCEPT
   local cidr
@@ -189,7 +199,7 @@ start_namespace() {
   for _ in {1..50}; do
     if nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \
       ip link show tap0 >/dev/null 2>&1; then
-      apply_network_rules namespace
+      apply_network_rules
       return 0
     fi
     sleep 0.1
@@ -220,24 +230,6 @@ join_namespace() {
   exec nsenter --preserve-credentials -t "$pid" -U -m -n "$@"
 }
 
-limit_runner_worker() {
-  local pid="$$"
-  while [[ "$pid" =~ ^[1-9][0-9]{0,9}$ && "$pid" -gt 1 ]]; do
-    local command_name
-    command_name="$(<"/proc/$pid/comm")"
-    if [[ "$command_name" == Runner.Worker ]]; then
-      sudo prlimit --pid "$pid" \
-        --cpu=3600:3600 \
-        --as=8589934592:8589934592 \
-        --nproc=512:512
-      return 0
-    fi
-    pid="$(awk '/^PPid:/ { print $2 }' "/proc/$pid/status")"
-  done
-  echo "GitHub Runner.Worker ancestor is unavailable" >&2
-  return 1
-}
-
 case "${1:-}" in
   start)
     [[ $# -eq 2 ]]
@@ -258,15 +250,15 @@ case "${1:-}" in
     sudo_binary="$(command -v sudo)"
     sudo chmod 000 "$sudo_binary"
     ;;
-  model-host)
+  review-host)
     [[ $# -eq 1 ]]
-    REVIEW_NETNS_PID=""
-    apply_network_rules model
+    prepare_model_sandbox
     sudo chmod 000 /var/run/docker.sock 2>/dev/null || true
-    limit_runner_worker
+    sudo_binary="$(command -v sudo)"
+    sudo chmod 000 "$sudo_binary"
     ;;
   *)
-    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | baseline-host | model-host" >&2
+    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | baseline-host | review-host" >&2
     exit 2
     ;;
 esac

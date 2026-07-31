@@ -403,6 +403,9 @@ jobs:
       (needs.state-writer.outputs.dispatch == 'true' ||
        needs.state-writer.outputs.cancel_run_id != '0' ||
        needs.state-writer.outputs.next_pull_request != '0')
+    concurrency:
+      group: review-agent-dispatch-${{ needs.state-writer.outputs.pull_request }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -452,6 +455,21 @@ jobs:
             [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$state_head" =~ ^[0-9a-f]{40}$ ]]
             [[ "$OPERATION" == review || "$OPERATION" == explain ]]
+            title="Review Agent PR #${PR_NUMBER} generation from lease ${LEASE_RUN_ID} attempt ${INFRASTRUCTURE_ATTEMPT}"
+            mapfile -t exact_runs < <(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/review-agent-run.yml/runs?per_page=100" \
+                --jq '.workflow_runs[] |
+                  select(.display_title == "'"$title"'") | .id'
+            )
+            if (( ${#exact_runs[@]} > 1 )); then
+              echo "multiple Review Agent workers match the exact signed attempt" >&2
+              exit 1
+            fi
+            if (( ${#exact_runs[@]} == 1 )); then
+              echo "Review Agent worker ${exact_runs[0]} already records the exact signed attempt"
+              exit 0
+            fi
             gh workflow run review-agent-run.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref main \

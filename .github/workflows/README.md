@@ -69,8 +69,14 @@ network fence disables both Docker access and `sudo`. Candidate checks receive
 isolated loopback inside a rootless network namespace whose host loopback is
 disabled. The trusted baseline host keeps runner transport available only so
 pinned post-job Actions can upload evidence; candidate code never runs there.
-The model host has a separate network fence, and the model permission profile
-still denies model-initiated localhost; private networks stay unreachable.
+The model host keeps GitHub runner transport intact. Its read-only permission
+profile denies model-initiated localhost and private-network access, while all
+candidate check commands remain inside the rootless network namespace. The
+pinned Codex Action installs the exact CLI and Responses proxy, then the
+Workflow invokes `codex exec` directly under model-only CPU, address-space,
+and process limits. A root-owned, path-specific `bwrap` AppArmor profile
+grants only the model sandbox the required `userns`; the global Ubuntu
+restriction remains enabled.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and
@@ -82,6 +88,11 @@ connection fences live inside the candidate namespace; Docker and `sudo` are
 disabled on the trusted baseline host without blocking its Artifact transport.
 Explanation-only sessions do not install that profile or create a candidate
 network namespace because they never execute candidate checks.
+
+Worker dispatch is serialized per pull request. The exact run title derived
+from pull request, signed lease, and infrastructure attempt is the idempotency
+key at both Controller and retry-drain boundaries, so concurrent recovery
+cannot start the same attempt twice.
 
 Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
 infrastructure failure, not reasons to abort the state machine. The Evidence
