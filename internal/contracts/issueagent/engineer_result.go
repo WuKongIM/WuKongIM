@@ -92,7 +92,7 @@ func extractSingleJSONFence(body []byte) ([]byte, bool) {
 		if index > open && index < close {
 			continue
 		}
-		if bytes.ContainsAny(line, "{}") {
+		if bytes.ContainsAny(line, "{}[]") {
 			return nil, false
 		}
 	}
@@ -108,7 +108,9 @@ func extractSingleJSONObject(body []byte) ([]byte, bool) {
 		return nil, false
 	}
 	if bytes.ContainsAny(body[:start], "{}[]") ||
-		bytes.ContainsAny(body[end+1:], "{}[]") {
+		bytes.ContainsAny(body[end+1:], "{}[]") ||
+		bytes.Contains(body[:start], []byte("```")) ||
+		bytes.Contains(body[end+1:], []byte("```")) {
 		return nil, false
 	}
 	return bytes.TrimSpace(body[start : end+1]), true

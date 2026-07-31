@@ -67,9 +67,11 @@ func TestDecodeEngineerResultRejectsAmbiguousProseWrappedJSON(t *testing.T) {
 	t.Parallel()
 
 	for name, input := range map[string]string{
-		"multiple objects": validEngineerResultJSON + "\n{}",
-		"array wrapper":    "[" + validEngineerResultJSON + "]",
-		"object in prose":  "Use {strict} output.\n" + validEngineerResultJSON,
+		"multiple objects":     validEngineerResultJSON + "\n{}",
+		"array wrapper":        "[" + validEngineerResultJSON + "]",
+		"fenced array wrapper": "[\n```json\n" + validEngineerResultJSON + "\n```\n]",
+		"object in prose":      "Use {strict} output.\n" + validEngineerResultJSON,
+		"unclosed JSON fence":  "```json\n" + validEngineerResultJSON,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
