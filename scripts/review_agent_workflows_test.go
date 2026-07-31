@@ -261,21 +261,55 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `flags=(unconfined)`)
 	require.Contains(t, fence, `  userns,`)
 	require.Contains(t, fence, `sudo apparmor_parser -r`)
+	require.Contains(t, fence, `sudo apparmor_parser -R`)
+	require.Contains(t, fence, `sudo rm -f "$review_unshare_profile"`)
+	require.Contains(t, fence, `sudo rm -f "$review_unshare_binary"`)
+	require.Contains(t, fence, `sudo rmdir "$review_unshare_directory"`)
 	require.Equal(
 		t,
-		2,
+		3,
 		strings.Count(
 			fence,
 			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
 		),
-		"the global userns restriction must remain enabled",
+		"the global userns restriction must be checked before and after the narrow exception",
 	)
 	require.Contains(
 		t,
 		fence,
 		`"$review_unshare_binary" --user --map-root-user --net`,
 	)
+	require.Contains(
+		t,
+		fence,
+		"trap cleanup_user_namespace_exception EXIT\n"+
+			"    prepare_user_namespace\n"+
+			"    start_namespace \"$2\"\n"+
+			"    release_user_namespace_exception\n"+
+			"    trap - EXIT",
+		"start must prepare, use, and revoke its AppArmor exception atomically",
+	)
+	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
+	require.Equal(
+		t,
+		4,
+		strings.Count(fence, "nsenter --preserve-credentials"),
+		"every trusted namespace entry must retain the mapped runner credentials",
+	)
+	require.Contains(
+		t,
+		fence,
+		`sed -n '1,40p' "$RUNNER_TEMP/review-agent-slirp.log" >&2`,
+		"namespace startup failures must retain bounded slirp evidence",
+	)
+	require.Contains(
+		t,
+		fence,
+		`nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \`+"\n"+
+			`    ip link show >&2 || true`,
+		"namespace startup failures must retain the final bounded nsenter error",
+	)
 	require.Contains(t, fence, "nsenter")
 	require.Contains(t, fence, "--connlimit-above 128")
 	require.Equal(t, 4, strings.Count(fence, "--quota 1073741824"))
@@ -289,14 +323,18 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "disable-sudo"),
 		"candidate baseline must disable sudo exactly once",
 	)
-	require.Equal(
+	require.NotContains(
 		t,
-		2,
-		strings.Count(
-			raw,
-			`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
-		),
-		"baseline and model runners must prepare the narrow userns profile",
+		raw,
+		`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
+	)
+	review := issueAgentJobText(t, raw, "review")
+	require.Contains(
+		t,
+		review,
+		"if [[ \"$INPUT_OPERATION\" == review ]]; then\n"+
+			"            \"$RUNNER_TEMP/review-agent-network-fence.sh\" start",
+		"explanation sessions must not create a candidate network namespace",
 	)
 	require.Contains(
 		t,

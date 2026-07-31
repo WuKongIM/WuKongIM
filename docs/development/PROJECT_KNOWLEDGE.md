@@ -21,8 +21,9 @@
   signed retry or terminal `inconclusive` state and release the queue.
 - Review Agent hosted runners keep Ubuntu's global unprivileged-user-namespace
   restriction enabled. Only a root-owned Review Agent `unshare` path receives
-  a narrow AppArmor `userns` profile before the existing network and privilege
-  fences are applied.
+  a narrow temporary AppArmor `userns` profile. The profile, copied binary, and
+  directory are removed after the isolated namespace is ready and before any
+  candidate command executes.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.
