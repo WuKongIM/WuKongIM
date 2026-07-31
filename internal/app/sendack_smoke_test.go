@@ -178,6 +178,9 @@ func seedGroupSendPermission(t *testing.T, node *cluster.Node, channelID channel
 
 func TestSingleNodeClusterAppConfigUsesStableLeaseAndExplicitlyDisablesPlugins(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
+	if cfg.Log.Dir == "" {
+		t.Fatal("log directory is empty, want an isolated test directory")
+	}
 	if cfg.Cluster.HealthReport.Interval != 20*time.Millisecond {
 		t.Fatalf("health interval = %v, want 20ms", cfg.Cluster.HealthReport.Interval)
 	}
@@ -203,6 +206,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	cfg := Config{
 		NodeID:  nodeID,
 		DataDir: shortAppTestDataDir(t),
+		Log:      LogConfig{Dir: t.TempDir()},
 		Plugin:  plugin,
 		Cluster: cluster.Config{
 			NodeID:     nodeID,

@@ -87,8 +87,14 @@ func BuildInventory(
 			return Inventory{}, errors.New("duplicate changed-file path")
 		}
 		seen[key] = struct{}{}
-		result.TotalBytes += int64(len(file.Patch) + len(file.Content))
-		result.TotalLines += countLines(file.Patch) + countLines(file.Content)
+		// A complete text patch already contains both revisions, including the
+		// head content. Charge that representation once. Binary patches are
+		// empty, so charge the exact blob retained only for its digest.
+		result.TotalBytes += int64(len(file.Patch))
+		result.TotalLines += countLines(file.Patch)
+		if file.Type == FileTypeBinary {
+			result.TotalBytes += int64(len(file.Content))
+		}
 		if result.TotalBytes > limits.MaxTotalBytes {
 			return Inventory{}, errors.New("changed-byte budget exceeded")
 		}

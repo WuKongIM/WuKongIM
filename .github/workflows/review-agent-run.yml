@@ -715,8 +715,8 @@ jobs:
                 path:.path,risk:"high",
                 summary:"Not safely adjudicated in this generation."
               }],
-              findings:[.prior_findings[].finding],
-              prior_finding_dispositions:[.prior_findings[] | {
+              findings:[(.prior_findings // [])[].finding],
+              prior_finding_dispositions:[(.prior_findings // [])[] | {
                 finding_digest:.digest,status:"retained",
                 reason:"Trusted fallback retains this finding because adjudication was incomplete."
               }],

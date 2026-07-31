@@ -293,6 +293,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, "for attempt in {1..20}")
 	require.Contains(t, raw, "terminal-request.json")
 	require.Contains(t, raw, "prior_finding_dispositions")
+	require.Equal(t, 2, strings.Count(raw, "(.prior_findings // [])[]"))
 	require.Contains(t, raw, "gh workflow run review-agent-run.yml")
 	require.Contains(t, raw, `-f "infrastructure_attempt=$attempt"`)
 	require.Contains(t, raw, "review-agent-trusted-baseline")

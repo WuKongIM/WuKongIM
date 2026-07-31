@@ -248,6 +248,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          install -d -m 0700 "$RUNNER_TEMP/issue-agent-verifier"
           jq -n \
             --arg checkout "$GITHUB_WORKSPACE" \
             --arg temporary_root "$RUNNER_TEMP/issue-agent-verifier" \

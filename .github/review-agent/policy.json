@@ -30,7 +30,7 @@
     "max_changed_files": 50,
     "max_changed_bytes": 131072,
     "max_changed_lines": 10000,
-    "max_context_bytes": 196608,
+    "max_context_bytes": 393216,
     "max_model_response_bytes": 4194304,
     "max_context_tokens": 240000,
     "auto_compact_tokens": 216000,
