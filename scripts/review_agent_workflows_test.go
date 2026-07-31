@@ -278,6 +278,20 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		raw,
 		"steps.finalize.outputs.retention == 'long'",
 	)
+	evidence := issueAgentJobText(t, raw, "evidence")
+	require.Contains(
+		t,
+		evidence,
+		"name: Download trusted baseline\n"+
+			"        if: inputs.operation == 'review'\n"+
+			"        continue-on-error: true",
+	)
+	require.Equal(
+		t,
+		3,
+		strings.Count(evidence, "continue-on-error: true"),
+		"missing context, reviewer, and baseline artifacts must fail closed",
+	)
 
 	reviewer := issueAgentJobText(t, raw, "review")
 	require.Contains(t, reviewer, "timeout-minutes: 40")

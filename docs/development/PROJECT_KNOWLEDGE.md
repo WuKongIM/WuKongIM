@@ -16,6 +16,9 @@
   collections to `null`; empty slice representation is never a state change.
   The loader may recover one semantically identical legacy duplicate and its
   strict successor without rewinding the append-only scheduler ref.
+- Review Agent evidence collection treats missing Context, reviewer, or
+  baseline artifacts as bounded infrastructure failure; it must still produce
+  signed retry or terminal `inconclusive` state and release the queue.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.
