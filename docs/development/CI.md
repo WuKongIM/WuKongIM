@@ -89,8 +89,11 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
 - The model receives public internet with private, link-local, metadata,
   runner-host, and configured organization CIDRs blocked. The Action's local
   proxy is the sole transport loopback exception; the permission profile still
-  denies model-initiated localhost. It has no Docker socket and uses
-  `drop-sudo`.
+  denies model-initiated localhost. It has no Docker socket, loses `sudo`
+  before execution, and uses the distribution `bwrap` under Ubuntu's official
+  path-specific AppArmor profile.
+- The protected Check MCP is required at Codex startup; missing named-check
+  tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
 - The Review Agent App can write only Issues, Reviews, and Checks.
 - Publisher jobs do not check out or execute candidate code.

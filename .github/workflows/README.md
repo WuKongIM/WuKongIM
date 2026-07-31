@@ -74,9 +74,11 @@ profile denies model-initiated localhost and private-network access, while all
 candidate check commands remain inside the rootless network namespace. The
 pinned Codex Action installs the exact CLI and Responses proxy, then the
 Workflow invokes `codex exec` directly under model-only CPU, address-space,
-and process limits. A root-owned, path-specific `bwrap` AppArmor profile
-grants only the model sandbox the required `userns`; the global Ubuntu
-restriction remains enabled.
+and process limits. The model sandbox uses the distribution
+`/usr/bin/bwrap`, probes user-namespace creation before removing `sudo`, and
+loads Ubuntu's official path-specific `bwrap-userns-restrict` AppArmor profile
+only when the probe requires it. The global Ubuntu restriction remains
+enabled.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and
@@ -87,7 +89,9 @@ directory before any candidate command can run. Private-CIDR, quota, and
 connection fences live inside the candidate namespace; Docker and `sudo` are
 disabled on the trusted baseline host without blocking its Artifact transport.
 Explanation-only sessions do not install that profile or create a candidate
-network namespace because they never execute candidate checks.
+network namespace because they never execute candidate checks. The Check MCP
+is a required Codex dependency: failure to initialize it stops the model
+session instead of silently removing the protected check tools.
 
 Worker dispatch is serialized per pull request. The exact run title derived
 from pull request, signed lease, and infrastructure attempt is the idempotency

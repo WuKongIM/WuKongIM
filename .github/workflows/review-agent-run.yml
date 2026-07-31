@@ -351,6 +351,13 @@ jobs:
               "$RUNNER_TEMP/review-agent-session/recovery.json" \
               >>"$RUNNER_TEMP/review-agent-prompt.md"
           fi
+          {
+            printf '\nReturn exactly one raw JSON object with no Markdown fence or surrounding prose.\n'
+            printf 'The trusted output schema is reproduced below and every field must validate against it:\n'
+            printf '<trusted-output-schema>\n'
+            cat "$RUNNER_TEMP/review-output.schema.json"
+            printf '\n</trusted-output-schema>\n'
+          } >>"$RUNNER_TEMP/review-agent-prompt.md"
       - name: Install pinned Codex CLI and Responses proxy
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
@@ -461,6 +468,10 @@ jobs:
               "$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl"
             printf '%s\n' \
               '[mcp_servers.review_checks]' \
+              'required = true' \
+              'startup_timeout_sec = 30' \
+              'default_tools_approval_mode = "approve"' \
+              'enabled_tools = ["check_result", "check_run"]' \
               "command = \"$RUNNER_TEMP/review-agent-network-fence.sh\"" \
               "args = [\"join\", \"$RUNNER_TEMP/review-agent-netns.pid\", \"/usr/bin/env\", \"-i\", \"PATH=$PATH\", \"RUNNER_TEMP=$RUNNER_TEMP\", \"REVIEW_AGENT_HOME=$RUNNER_TEMP/review-agent-home\", \"REVIEW_WORKSPACE=$GITHUB_WORKSPACE\", \"REVIEW_POLICY_PATH=$RUNNER_TEMP/review-agent-policy.json\", \"REVIEW_CONTEXT_PATH=$RUNNER_TEMP/review-agent-context/review-context.json\", \"REVIEW_EVIDENCE_LEDGER=$RUNNER_TEMP/review-agent-result-artifact/ledger.jsonl\", \"$RUNNER_TEMP/wkreviewcheckmcp\"]" \
               >>"$RUNNER_TEMP/review-codex-home/config.toml"
@@ -497,7 +508,7 @@ jobs:
           FORCE_COLOR: 1
         run: |
           set -euo pipefail
-          PATH="/opt/wukongim-review-agent:$PATH" prlimit \
+          prlimit \
             --cpu=2400:2400 \
             --as=8589934592:8589934592 \
             --nproc=512:512 \
