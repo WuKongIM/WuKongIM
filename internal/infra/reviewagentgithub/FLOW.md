@@ -30,6 +30,11 @@ The bounded scheduler recovery never rewinds or rewrites the protected state
 ref. A strict successor may name that one legacy checkpoint; after the next
 successor, it leaves the two-checkpoint verification window.
 
+After a signed GraphQL commit, the State Writer tolerates bounded ref
+read-your-write lag only while GitHub still reports the exact expected parent.
+The committed head must become visible within the retry budget; any third head
+is real contention and fails immediately.
+
 The Review App adapter exposes no contents, branch, commit, merge, close,
 dismiss, resolve, Ruleset, Actions, or Secrets operation. The State Writer
 adapter accepts no caller-selected ref or path and exposes no Review, comment,
