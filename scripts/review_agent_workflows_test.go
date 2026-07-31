@@ -442,6 +442,24 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(evidence, "continue-on-error: true"),
 		"missing context, reviewer, and baseline artifacts must fail closed",
 	)
+	require.Contains(
+		t,
+		evidence,
+		"REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/"+
+			"review-agent-result/ledger.jsonl",
+	)
+	require.Contains(
+		t,
+		evidence,
+		`result="$RUNNER_TEMP/review-agent-result/review-agent-output.json"`,
+	)
+	require.Contains(t, evidence, `review-agent-result/tree-before.txt`)
+	require.Contains(t, evidence, `review-agent-result/tree-after.txt`)
+	require.Contains(
+		t,
+		evidence,
+		`trusted_baseline="$RUNNER_TEMP/review-agent-trusted-baseline/baseline-evidence.json"`,
+	)
 
 	reviewer := issueAgentJobText(t, raw, "review")
 	require.Contains(t, reviewer, "timeout-minutes: 40")
@@ -464,7 +482,22 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		reviewer,
+		`"$RUNNER_TEMP/review-agent-baseline/ledger.jsonl"`,
+	)
+	require.Contains(
+		t,
+		reviewer,
 		`"$RUNNER_TEMP/review-agent-result-artifact/review-agent-output.json"`,
+	)
+	require.Contains(
+		t,
+		reviewer,
+		`>"$RUNNER_TEMP/review-agent-result-artifact/tree-before.txt"`,
+	)
+	require.Contains(
+		t,
+		reviewer,
+		`>"$RUNNER_TEMP/review-agent-result-artifact/tree-after.txt"`,
 	)
 	require.Equal(
 		t,
