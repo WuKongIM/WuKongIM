@@ -6,6 +6,32 @@ review_unshare_directory="/opt/wukongim-review-agent"
 review_unshare_binary="$review_unshare_directory/unshare"
 review_unshare_profile="/etc/apparmor.d/wukongim-review-agent-unshare"
 
+cleanup_user_namespace_exception() {
+  if [[ -f "$review_unshare_profile" ]]; then
+    sudo apparmor_parser -R "$review_unshare_profile" >/dev/null 2>&1 || true
+    sudo rm -f "$review_unshare_profile" >/dev/null 2>&1 || true
+  fi
+  if [[ -e "$review_unshare_binary" ]]; then
+    sudo rm -f "$review_unshare_binary" >/dev/null 2>&1 || true
+  fi
+  if [[ -d "$review_unshare_directory" ]]; then
+    sudo rmdir "$review_unshare_directory" >/dev/null 2>&1 || true
+  fi
+}
+
+release_user_namespace_exception() {
+  [[ -f "$review_unshare_profile" ]]
+  [[ -x "$review_unshare_binary" ]]
+  sudo apparmor_parser -R "$review_unshare_profile"
+  sudo rm -f "$review_unshare_profile"
+  sudo rm -f "$review_unshare_binary"
+  sudo rmdir "$review_unshare_directory"
+  [[ ! -e "$review_unshare_profile" ]]
+  [[ ! -e "$review_unshare_binary" ]]
+  [[ ! -e "$review_unshare_directory" ]]
+  [[ "$(</proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
+}
+
 prepare_user_namespace() {
   command -v sudo >/dev/null
   command -v apparmor_parser >/dev/null
@@ -20,7 +46,7 @@ prepare_user_namespace() {
     'abi <abi/4.0>,' \
     'include <tunables/global>' \
     '' \
-    "$review_unshare_binary flags=(unconfined) {" \
+    "profile wukongim-review-agent-unshare $review_unshare_binary flags=(unconfined) {" \
     '  userns,' \
     '}' \
     | sudo tee "$review_unshare_profile" >/dev/null
@@ -28,7 +54,6 @@ prepare_user_namespace() {
   sudo apparmor_parser -r "$review_unshare_profile"
 
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
-  "$review_unshare_binary" --user --map-root-user true
 }
 
 apply_network_rules() {
@@ -36,7 +61,7 @@ apply_network_rules() {
   local prefix=()
   local resolvers=()
   if [[ "$mode" == namespace ]]; then
-    prefix=(nsenter -t "$REVIEW_NETNS_PID" -U -m -n)
+    prefix=(nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n)
     "${prefix[@]}" ip link set lo up
     resolvers=(10.0.2.3)
   else
@@ -166,13 +191,18 @@ start_namespace() {
   printf '%s\n' "$slirp_pid" >"$pid_file.slirp"
 
   for _ in {1..50}; do
-    if nsenter -t "$REVIEW_NETNS_PID" -U -m -n \
+    if nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \
       ip link show tap0 >/dev/null 2>&1; then
       apply_network_rules namespace
       return 0
     fi
     sleep 0.1
   done
+  if [[ -s "$RUNNER_TEMP/review-agent-slirp.log" ]]; then
+    sed -n '1,40p' "$RUNNER_TEMP/review-agent-slirp.log" >&2
+  fi
+  nsenter --preserve-credentials -t "$REVIEW_NETNS_PID" -U -m -n \
+    ip link show >&2 || true
   echo "Review network namespace did not become ready" >&2
   return 1
 }
@@ -191,7 +221,7 @@ join_namespace() {
   # The trusted verifier retains namespace-only mount capability so bubblewrap
   # can create a read-only filesystem view for each untrusted child command.
   # Bubblewrap drops that capability before candidate code starts.
-  exec nsenter -t "$pid" -U -m -n "$@"
+  exec nsenter --preserve-credentials -t "$pid" -U -m -n "$@"
 }
 
 limit_runner_worker() {
@@ -213,13 +243,13 @@ limit_runner_worker() {
 }
 
 case "${1:-}" in
-  prepare-userns)
-    [[ $# -eq 1 ]]
-    prepare_user_namespace
-    ;;
   start)
     [[ $# -eq 2 ]]
+    trap cleanup_user_namespace_exception EXIT
+    prepare_user_namespace
     start_namespace "$2"
+    release_user_namespace_exception
+    trap - EXIT
     ;;
   join)
     [[ $# -ge 3 ]]
@@ -245,7 +275,7 @@ case "${1:-}" in
     limit_runner_worker
     ;;
   *)
-    echo "usage: network-fence.sh prepare-userns | start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
+    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
     exit 2
     ;;
 esac

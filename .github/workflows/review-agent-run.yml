@@ -217,7 +217,6 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
-          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.recover.outputs.test_merge_sha }}
@@ -314,8 +313,9 @@ jobs:
           INPUT_OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
-          if ! command -v slirp4netns >/dev/null ||
-              ! command -v bwrap >/dev/null; then
+          if [[ "$INPUT_OPERATION" == review ]] &&
+              { ! command -v slirp4netns >/dev/null ||
+                ! command -v bwrap >/dev/null; }; then
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends \
               bubblewrap slirp4netns
@@ -324,7 +324,6 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
-          "$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns
           if [[ "$INPUT_OPERATION" == review ]]; then
             GOWORK=off go build -trimpath \
               -o "$RUNNER_TEMP/wkreviewcheckmcp" ./cmd/wkreviewcheckmcp
@@ -392,8 +391,10 @@ jobs:
           INPUT_OPERATION: ${{ inputs.operation }}
         run: |
           set -euo pipefail
-          "$RUNNER_TEMP/review-agent-network-fence.sh" start \
-            "$RUNNER_TEMP/review-agent-netns.pid"
+          if [[ "$INPUT_OPERATION" == review ]]; then
+            "$RUNNER_TEMP/review-agent-network-fence.sh" start \
+              "$RUNNER_TEMP/review-agent-netns.pid"
+          fi
           "$RUNNER_TEMP/review-agent-network-fence.sh" model-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-codex-home" \
             "$RUNNER_TEMP/review-agent-evidence"
