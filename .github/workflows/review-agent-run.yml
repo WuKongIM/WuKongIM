@@ -534,6 +534,7 @@ jobs:
           path: ${{ runner.temp }}/review-agent-result
       - name: Download trusted baseline
         if: inputs.operation == 'review'
+        continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: review-agent-baseline-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
