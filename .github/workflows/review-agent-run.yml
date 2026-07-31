@@ -10,6 +10,11 @@ on:
         description: Exact protected control revision
         required: true
         type: string
+      diagnostic:
+        description: Temporary hosted baseline diagnostic
+        required: false
+        default: false
+        type: boolean
       infrastructure_attempt:
         description: Exact signed infrastructure attempt
         required: true
@@ -37,8 +42,100 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  diagnostic:
+    name: Diagnose baseline connectivity
+    if: inputs.diagnostic == true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Freeze diagnostic boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v slirp4netns >/dev/null ||
+              ! command -v bwrap >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends \
+              bubblewrap slirp4netns
+          fi
+          GOWORK=off go build -trimpath \
+            -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+          GOWORK=off go build -trimpath \
+            -o "$RUNNER_TEMP/wkreviewcheck" ./cmd/wkreviewcheck
+          cp .github/review-agent/policy.json \
+            "$RUNNER_TEMP/review-agent-policy.json"
+          cp .github/review-agent/network-fence.sh \
+            "$RUNNER_TEMP/review-agent-network-fence.sh"
+          chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/pull/716/merge
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact diagnostic candidate
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = 8731acbd00c961f1f18136e3af9cc2c9b584ab6a
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: review-agent-context-716-30610200973
+          path: ${{ runner.temp }}/review-agent-context
+          github-token: ${{ github.token }}
+          run-id: "30610501502"
+      - name: Narrow diagnostic to one fixed check
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq '.mandatory_checks = ["go-format"]' \
+            "$RUNNER_TEMP/review-agent-context/review-context.json" \
+            >"$RUNNER_TEMP/review-context.json"
+      - name: Apply candidate and host privilege fences
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/review-agent-network-fence.sh" start \
+            "$RUNNER_TEMP/review-agent-netns.pid"
+          "$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host
+          mkdir -p \
+            "$RUNNER_TEMP/review-agent-home" \
+            "$RUNNER_TEMP/review-agent-evidence"
+      - name: Run one fixed mandatory check
+        shell: bash
+        env:
+          REVIEW_AGENT_HOME: ${{ runner.temp }}/review-agent-home
+          REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          REVIEW_POLICY_PATH: ${{ runner.temp }}/review-agent-policy.json
+        run: |
+          set -euo pipefail
+          jq -n \
+            --slurpfile context "$RUNNER_TEMP/review-context.json" \
+            '{context:$context[0],collect_only:false}' \
+            | REVIEW_AGENT_READ_TOKEN= REVIEW_AGENT_APP_PRIVATE_KEY= \
+              REVIEW_STATE_WRITER_APP_PRIVATE_KEY= \
+              timeout --foreground 600s \
+              "$RUNNER_TEMP/review-agent-network-fence.sh" join \
+              "$RUNNER_TEMP/review-agent-netns.pid" \
+              "$RUNNER_TEMP/wkreviewagent" verify-baseline \
+              >"$RUNNER_TEMP/baseline-evidence.json"
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-baseline-connectivity-diagnostic
+          path: |
+            ${{ runner.temp }}/baseline-evidence.json
+            ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
+          if-no-files-found: warn
+          retention-days: 1
+
   recover:
     name: Recover exact signed generation
+    if: inputs.diagnostic != true
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
@@ -234,7 +331,7 @@ jobs:
           set -euo pipefail
           "$RUNNER_TEMP/review-agent-network-fence.sh" start \
             "$RUNNER_TEMP/review-agent-netns.pid"
-          "$RUNNER_TEMP/review-agent-network-fence.sh" host disable-sudo
+          "$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-agent-evidence"
       - name: Run fixed mandatory checks without credentials
         shell: bash

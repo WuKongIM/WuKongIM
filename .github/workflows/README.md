@@ -66,18 +66,20 @@ failure is retried once inside that same generation and deadline; a late result
 is forced to `inconclusive`. A merge conflict bypasses the model and publishes
 `changes_required`. Candidate baseline commands run only after the shared
 network fence disables both Docker access and `sudo`. Candidate checks receive
-isolated loopback inside a rootless network namespace. The pinned Action proxy
-is the only runner-loopback transport exception and the model permission
-profile still denies model-initiated localhost; private networks stay
-unreachable.
+isolated loopback inside a rootless network namespace whose host loopback is
+disabled. The trusted baseline host keeps runner transport available only so
+pinned post-job Actions can upload evidence; candidate code never runs there.
+The model host has a separate network fence, and the model permission profile
+still denies model-initiated localhost; private networks stay unreachable.
 
 Ubuntu AppArmor may restrict unprivileged user namespaces on hosted runners.
 Each candidate runner installs one root-owned Review Agent `unshare` copy and
 loads a path-specific profile granting only `userns`; the global restriction
 is never disabled. After the namespace and its network rules are ready, the
 job unloads the temporary profile and removes both the copied binary and its
-directory before any candidate command can run. It then applies the existing
-private-CIDR, quota, connection, Docker, and sudo fences.
+directory before any candidate command can run. Private-CIDR, quota, and
+connection fences live inside the candidate namespace; Docker and `sudo` are
+disabled on the trusted baseline host without blocking its Artifact transport.
 Explanation-only sessions do not install that profile or create a candidate
 network namespace because they never execute candidate checks.
 

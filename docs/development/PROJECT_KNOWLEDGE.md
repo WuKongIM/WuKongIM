@@ -24,6 +24,9 @@
   a narrow temporary AppArmor `userns` profile. The profile, copied binary, and
   directory are removed after the isolated namespace is ready and before any
   candidate command executes.
+- Review Agent baseline candidate-network rules live only in that rootless
+  namespace, whose host loopback is disabled. The trusted host disables Docker
+  and `sudo` but retains runner transport for pinned post-job Artifact actions.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.

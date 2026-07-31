@@ -12,18 +12,18 @@ import (
 )
 
 var workflowCatalog = map[string]string{
-	"cloud-sim-analyze.yml":         "Agent Tool - Analyze Cloud Simulation",
-	"cloud-sim-cleanup.yml":         "Safety Automation - Reconcile Cloud Simulation Resources",
-	"cloud-sim-monitor.yml":         "Safety Automation - Patrol Cloud Simulation Runs",
-	"cloud-sim-oidc-subject.yml":    "Agent Tool - Configure Cloud Simulation OIDC Subject",
-	"cloud-sim-provision.yml":       "Agent Tool - Provision Cloud Simulation",
-	"issue-agent-engineer.yml":      "Agent Tool - Issue Engineer",
-	"issue-agent-pr-signal.yml":     "Safety Automation - Issue Agent PR Signal",
-	"issue-agent.yml":               "Safety Automation - GitHub Issue Agent",
-	"review-agent-pr-signal.yml":    "Safety Automation - Review Agent PR Signal",
-	"review-agent-issue-signal.yml": "Safety Automation - Review Agent Issue Signal",
-	"review-agent-run.yml":          "Agent Tool - Review Pull Request",
-	"review-agent.yml":              "Safety Automation - Review Agent Controller",
+	"cloud-sim-analyze.yml":                "Agent Tool - Analyze Cloud Simulation",
+	"cloud-sim-cleanup.yml":                "Safety Automation - Reconcile Cloud Simulation Resources",
+	"cloud-sim-monitor.yml":                "Safety Automation - Patrol Cloud Simulation Runs",
+	"cloud-sim-oidc-subject.yml":           "Agent Tool - Configure Cloud Simulation OIDC Subject",
+	"cloud-sim-provision.yml":              "Agent Tool - Provision Cloud Simulation",
+	"issue-agent-engineer.yml":             "Agent Tool - Issue Engineer",
+	"issue-agent-pr-signal.yml":            "Safety Automation - Issue Agent PR Signal",
+	"issue-agent.yml":                      "Safety Automation - GitHub Issue Agent",
+	"review-agent-pr-signal.yml":           "Safety Automation - Review Agent PR Signal",
+	"review-agent-issue-signal.yml":        "Safety Automation - Review Agent Issue Signal",
+	"review-agent-run.yml":                 "Agent Tool - Review Pull Request",
+	"review-agent.yml":                     "Safety Automation - Review Agent Controller",
 }
 
 var externalActionPattern = regexp.MustCompile(
