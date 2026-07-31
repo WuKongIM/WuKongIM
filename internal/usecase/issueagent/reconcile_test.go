@@ -240,6 +240,11 @@ func TestReconcileIssueGroupsTrustedReviewIntoFreshTask(t *testing.T) {
 		InformationComplete: true,
 		Risk:                contract.CandidateRiskLow,
 		ReviewDigest:        "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		Authorization: &contract.AuthorizationRecord{
+			Actor:      "wukongim-review-agent[bot]",
+			Permission: "review_agent",
+			EventID:    "pull_request_review:99",
+		},
 		PullRequest: &issueagent.PullRequestFacts{
 			Number: 84, HeadSHA: current.Work.HeadSHA,
 			Open: true, Draft: false,
@@ -266,8 +271,9 @@ func TestReconcileIssueGroupsTrustedReviewIntoFreshTask(t *testing.T) {
 			SourceSHA:           current.SourceSHA,
 			ReviewDigest:        "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 			Authorization: &contract.AuthorizationRecord{
-				Actor: "maintainer", Permission: "write",
-				EventID: "pull_request_review:99",
+				Actor:      "wukongim-review-agent[bot]",
+				Permission: "review_agent",
+				EventID:    "pull_request_review:99",
 			},
 			PullRequest: &issueagent.PullRequestFacts{
 				Number: 84, HeadSHA: current.Work.HeadSHA,

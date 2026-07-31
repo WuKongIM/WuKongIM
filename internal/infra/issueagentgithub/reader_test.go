@@ -3,6 +3,7 @@ package issueagentgithub_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,6 +11,177 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/infra/issueagentgithub"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReaderSelectsOnlyCurrentReviewAgentChangeRequestFindings(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	head := fortyHex("b")
+	now := "2026-07-30T01:02:03Z"
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch request.URL.Path {
+		case "/repos/WuKongIM/WuKongIM/pulls/9/reviews":
+			writeJSON(t, writer, []map[string]any{{
+				"id": 701, "state": "CHANGES_REQUESTED",
+				"body": "Blocking summary", "commit_id": head,
+				"user": map[string]any{
+					"login": "wukongim-review-agent[bot]",
+					"type":  "Bot",
+				},
+				"submitted_at": now,
+			}})
+		case "/graphql":
+			_, err := io.ReadAll(request.Body)
+			require.NoError(t, err)
+			writeJSON(t, writer, map[string]any{
+				"data": map[string]any{
+					"repository": map[string]any{
+						"pullRequest": map[string]any{
+							"reviewThreads": map[string]any{
+								"nodes": []map[string]any{
+									{
+										"id": "PRRT_old", "isResolved": false,
+										"path": "internal/app/app.go", "line": 7,
+										"comments": map[string]any{
+											"nodes": []map[string]any{{
+												"databaseId":        800,
+												"body":              "Old-head finding.",
+												"updatedAt":         now,
+												"outdated":          true,
+												"authorAssociation": "NONE",
+												"author": map[string]any{
+													"login": "wukongim-review-agent[bot]",
+												},
+												"pullRequestReview": map[string]any{
+													"databaseId": 700,
+													"commit": map[string]any{
+														"oid": fortyHex("a"),
+													},
+												},
+											}},
+											"pageInfo": map[string]any{"hasNextPage": false},
+										},
+									},
+									{
+										"id": "PRRT_bot", "isResolved": false,
+										"path": "internal/app/app.go", "line": 42,
+										"comments": map[string]any{
+											"nodes": []map[string]any{{
+												"databaseId":        801,
+												"body":              "Fix the stale read.",
+												"updatedAt":         now,
+												"outdated":          false,
+												"authorAssociation": "NONE",
+												"author": map[string]any{
+													"login": "wukongim-review-agent[bot]",
+												},
+												"pullRequestReview": map[string]any{
+													"databaseId": 701,
+													"commit":     map[string]any{"oid": head},
+												},
+											}},
+											"pageInfo": map[string]any{"hasNextPage": false},
+										},
+									},
+									{
+										"id": "PRRT_human", "isResolved": false,
+										"path": "README.md", "line": 3,
+										"comments": map[string]any{
+											"nodes": []map[string]any{{
+												"databaseId":        802,
+												"body":              "Optional wording.",
+												"updatedAt":         now,
+												"authorAssociation": "MEMBER",
+												"author":            map[string]any{"login": "maintainer"},
+											}},
+											"pageInfo": map[string]any{"hasNextPage": false},
+										},
+									},
+								},
+								"pageInfo": map[string]any{"hasNextPage": false},
+							},
+						},
+					},
+				},
+				"errors": []any{},
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	threads, requested, err := newTestClient(t, server).
+		ReadReviewAgentFindings(
+			context.Background(),
+			9,
+			head,
+			"wukongim-review-agent[bot]",
+		)
+	require.NoError(t, err)
+	require.True(t, requested)
+	require.Len(t, threads, 2)
+	require.Equal(t, "review-agent-formal-701", threads[1].ID)
+	require.Equal(t, "PRRT_bot", threads[0].ID)
+	for _, thread := range threads {
+		require.NotEqual(t, "PRRT_human", thread.ID)
+		require.NotEqual(t, "PRRT_old", thread.ID)
+	}
+}
+
+func TestReaderIgnoresSupersededReviewAgentChangeRequest(t *testing.T) {
+	t.Parallel()
+
+	head := fortyHex("b")
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		require.Equal(
+			t,
+			"/repos/WuKongIM/WuKongIM/pulls/9/reviews",
+			request.URL.Path,
+		)
+		writer.Header().Set("Content-Type", "application/json")
+		writeJSON(t, writer, []map[string]any{
+			{
+				"id": 701, "state": "CHANGES_REQUESTED",
+				"body": "Old", "commit_id": head,
+				"user": map[string]any{
+					"login": "wukongim-review-agent[bot]",
+					"type":  "Bot",
+				},
+				"submitted_at": "2026-07-30T01:02:03Z",
+			},
+			{
+				"id": 702, "state": "APPROVED",
+				"body": "Resolved", "commit_id": head,
+				"user": map[string]any{
+					"login": "wukongim-review-agent[bot]",
+					"type":  "Bot",
+				},
+				"submitted_at": "2026-07-30T01:03:03Z",
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+
+	threads, requested, err := newTestClient(t, server).
+		ReadReviewAgentFindings(
+			context.Background(),
+			9,
+			head,
+			"wukongim-review-agent[bot]",
+		)
+	require.NoError(t, err)
+	require.False(t, requested)
+	require.Empty(t, threads)
+}
 
 func TestReaderClassifiesMissingGitHubObjects(t *testing.T) {
 	t.Parallel()

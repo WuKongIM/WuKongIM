@@ -1,0 +1,511 @@
+name: Safety Automation - Review Agent Controller
+run-name: Review Agent controller ${{ github.run_id }}
+
+on:
+  workflow_run:
+    workflows:
+      - Safety Automation - Review Agent PR Signal
+      - Agent Tool - Review Pull Request
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Exact PR number to reconcile
+        required: true
+        type: number
+      recovery_attempt:
+        description: Bounded Controller recovery attempt
+        required: false
+        default: 0
+        type: number
+
+permissions: {}
+
+jobs:
+  reconcile:
+    name: Re-read and reconcile
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.name == 'Safety Automation - Review Agent PR Signal' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       endsWith(github.event.workflow_run.display_title, ' accepted true')) ||
+      (github.event.workflow_run.name == 'Agent Tool - Review Pull Request' &&
+       github.event.workflow_run.conclusion != 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      action: ${{ steps.plan.outputs.action }}
+      cancel_run_id: ${{ steps.plan.outputs.cancel_run_id }}
+      control_sha: ${{ steps.control.outputs.sha }}
+      dispatch: ${{ steps.plan.outputs.dispatch }}
+      generation: ${{ steps.plan.outputs.generation }}
+      infrastructure_attempt: ${{ steps.plan.outputs.infrastructure_attempt }}
+      lease_run_id: ${{ steps.plan.outputs.lease_run_id }}
+      next_pull_request: ${{ steps.plan.outputs.next_pull_request }}
+      operation: ${{ steps.plan.outputs.operation }}
+      publish: ${{ steps.plan.outputs.publish }}
+      pull_request: ${{ steps.signal.outputs.pull_request }}
+      scheduler_changed: ${{ steps.plan.outputs.scheduler_changed }}
+      state_changed: ${{ steps.plan.outputs.state_changed }}
+      state_head_sha: ${{ steps.plan.outputs.state_head_sha }}
+    steps:
+      - name: Verify Signal and extract hint
+        id: signal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_PR: ${{ inputs.pull_request }}
+          SIGNAL_RUN_ID: ${{ github.event.workflow_run.id }}
+          SIGNAL_TITLE: ${{ github.event.workflow_run.display_title }}
+          CONTROLLER_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$MANUAL_PR" =~ ^[1-9][0-9]{0,9}$ ]]
+            printf 'pull_request=%s\nsignal_kind=manual\ncomment_id=0\nrun_id=%s\nworker_attempt=0\n' \
+              "$MANUAL_PR" "$CONTROLLER_RUN_ID" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$SIGNAL_TITLE" =~ ^Review\ Agent\ PR\ \#([1-9][0-9]{0,9})\  ]]; then
+            printf 'pull_request=%s\n' "${BASH_REMATCH[1]}" >>"$GITHUB_OUTPUT"
+          fi
+          [[ "$SIGNAL_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SIGNAL_RUN_ID}" \
+            >"$RUNNER_TEMP/signal-run.json"
+          jq -e '.status == "completed" and
+            (.event == "pull_request_target" or
+             .event == "pull_request_review" or
+             .event == "issue_comment" or .event == "workflow_dispatch")
+          ' "$RUNNER_TEMP/signal-run.json" >/dev/null
+          title="$(jq -er .display_title "$RUNNER_TEMP/signal-run.json")"
+          name="$(jq -er .name "$RUNNER_TEMP/signal-run.json")"
+          path="$(jq -er .path "$RUNNER_TEMP/signal-run.json")"
+          conclusion="$(jq -er .conclusion "$RUNNER_TEMP/signal-run.json")"
+          if [[ "$name" == "Agent Tool - Review Pull Request" ]]; then
+            test "$path" = ".github/workflows/review-agent-run.yml"
+            test "$conclusion" != success
+            [[ "$title" =~ ^Review\ Agent\ PR\ \#([1-9][0-9]{0,9})\ generation\ from\ lease\ ([1-9][0-9]{0,19})\ attempt\ ([0-9]{1,2})$ ]]
+            printf 'pull_request=%s\nsignal_kind=worker_failure\ncomment_id=0\nrun_id=%s\nworker_attempt=%s\n' \
+              "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" \
+              "${BASH_REMATCH[3]}" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          test "$name" = "Safety Automation - Review Agent PR Signal"
+          test "$path" = ".github/workflows/review-agent-pr-signal.yml"
+          test "$conclusion" = success
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${SIGNAL_RUN_ID}/jobs?per_page=10" \
+            >"$RUNNER_TEMP/signal-jobs.json"
+          jq -e '.total_count == 1 and
+            .jobs[0].name == "Emit untrusted PR hint" and
+            .jobs[0].conclusion == "success"
+          ' "$RUNNER_TEMP/signal-jobs.json" >/dev/null
+          [[ "$title" =~ ^Review\ Agent\ PR\ \#([1-9][0-9]{0,9})\ signal\ ([a-z_]+)\.([a-z_]+)\ object\ ([0-9]{1,20})\ accepted\ true$ ]]
+          pr="${BASH_REMATCH[1]}"
+          event="${BASH_REMATCH[2]}"
+          action="${BASH_REMATCH[3]}"
+          object="${BASH_REMATCH[4]}"
+          signal_kind=observed
+          case "$event.$action" in
+            pull_request_target.opened) signal_kind=opened ;;
+            pull_request_target.reopened) signal_kind=reopened ;;
+            pull_request_target.synchronize) signal_kind=synchronize ;;
+            pull_request_target.ready_for_review) signal_kind=ready_for_review ;;
+            pull_request_target.converted_to_draft) signal_kind=converted_to_draft ;;
+            pull_request_target.edited) signal_kind=edited ;;
+            pull_request_target.closed) signal_kind=closed ;;
+            pull_request_review.submitted) signal_kind=governance ;;
+            pull_request_review.edited) signal_kind=governance ;;
+            pull_request_review.dismissed) signal_kind=governance ;;
+            issue_comment.created) signal_kind=command ;;
+          esac
+          printf 'pull_request=%s\nsignal_kind=%s\ncomment_id=%s\nrun_id=%s\nworker_attempt=0\n' \
+            "$pr" "$signal_kind" "$object" "$CONTROLLER_RUN_ID" >>"$GITHUB_OUTPUT"
+      - name: Resolve current protected control revision
+        id: control
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.control.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Build protected Controller
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Reconcile from fresh facts
+        id: plan
+        shell: bash
+        env:
+          REVIEW_AGENT_READ_TOKEN: ${{ github.token }}
+          REVIEW_AGENT_CONTROL_SHA: ${{ steps.control.outputs.sha }}
+          PR_NUMBER: ${{ steps.signal.outputs.pull_request }}
+          SIGNAL_KIND: ${{ steps.signal.outputs.signal_kind }}
+          COMMENT_ID: ${{ steps.signal.outputs.comment_id }}
+          RECONCILE_RUN_ID: ${{ steps.signal.outputs.run_id }}
+          WORKER_ATTEMPT: ${{ steps.signal.outputs.worker_attempt }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --argjson pull_request "$PR_NUMBER" \
+            --arg signal_kind "$SIGNAL_KIND" \
+            --argjson run_id "$RECONCILE_RUN_ID" \
+            --argjson worker_attempt "$WORKER_ATTEMPT" \
+            --argjson comment_id "$COMMENT_ID" \
+            '{pull_request:$pull_request,signal_kind:$signal_kind,
+              run_id:$run_id,worker_attempt:$worker_attempt,
+              comment_id:$comment_id,completion:null}' \
+            >"$RUNNER_TEMP/control-request.json"
+          "$RUNNER_TEMP/wkreviewagent" reconcile-github \
+            <"$RUNNER_TEMP/control-request.json" \
+            >"$RUNNER_TEMP/control-plan.json"
+          jq -e '.plan.action != null' "$RUNNER_TEMP/control-plan.json" >/dev/null
+          {
+            echo "action=$(jq -r .plan.action "$RUNNER_TEMP/control-plan.json")"
+            echo "cancel_run_id=$(jq -r .plan.cancel_run_id "$RUNNER_TEMP/control-plan.json")"
+            echo "dispatch=$(jq -r .plan.dispatch "$RUNNER_TEMP/control-plan.json")"
+            echo "generation=$(jq -r .plan.generation.generation "$RUNNER_TEMP/control-plan.json")"
+            echo "infrastructure_attempt=$(jq -r '.next_state.budget.infrastructure_retries_used // 0' "$RUNNER_TEMP/control-plan.json")"
+            echo "lease_run_id=$(jq -r .plan.lease_run_id "$RUNNER_TEMP/control-plan.json")"
+            echo "next_pull_request=$(jq -r .plan.next_pull_request "$RUNNER_TEMP/control-plan.json")"
+            echo "operation=$(jq -r 'if .plan.dispatch_explanation then "explain" else "review" end' "$RUNNER_TEMP/control-plan.json")"
+            echo "scheduler_changed=$(jq -r .scheduler_changed "$RUNNER_TEMP/control-plan.json")"
+            echo "state_changed=$(jq -r .state_changed "$RUNNER_TEMP/control-plan.json")"
+            echo "state_head_sha=$(jq -r .state_head_sha "$RUNNER_TEMP/control-plan.json")"
+            echo "publish=$(jq -r '(.state_changed or
+              .plan.action == "repair_projection" or
+              .plan.action == "respond_status") and
+              (.next_state != null) and
+              (.next_state.phase != "awaiting_ready") and
+              (.next_state.phase != "closed")' "$RUNNER_TEMP/control-plan.json")"
+          } >>"$GITHUB_OUTPUT"
+      - name: Upload bounded control plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-control-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/control-request.json
+            ${{ runner.temp }}/control-plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+  state-writer:
+    name: Append authoritative state
+    needs: reconcile
+    if: needs.reconcile.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: review-agent-state-writer
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      cancel_run_id: ${{ steps.append.outputs.cancel_run_id }}
+      dispatch: ${{ steps.append.outputs.dispatch }}
+      infrastructure_attempt: ${{ steps.append.outputs.infrastructure_attempt }}
+      lease_run_id: ${{ steps.append.outputs.lease_run_id }}
+      next_pull_request: ${{ steps.append.outputs.next_pull_request }}
+      operation: ${{ steps.append.outputs.operation }}
+      publish: ${{ steps.append.outputs.publish }}
+      pull_request: ${{ steps.append.outputs.pull_request }}
+      state_head_sha: ${{ steps.append.outputs.state_head_sha }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.reconcile.outputs.control_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: review-agent-control-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-agent-control
+      - name: Build protected State Writer
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Append exact scheduler and PR state
+        id: append
+        shell: bash
+        env:
+          REVIEW_AGENT_READ_TOKEN: ${{ github.token }}
+          REVIEW_AGENT_CONTROL_SHA: ${{ needs.reconcile.outputs.control_sha }}
+          REVIEW_STATE_WRITER_APP_ID: ${{ vars.REVIEW_STATE_WRITER_APP_ID }}
+          REVIEW_STATE_WRITER_APP_INSTALLATION_ID: ${{ vars.REVIEW_STATE_WRITER_APP_INSTALLATION_ID }}
+          REVIEW_STATE_WRITER_REPOSITORY_ID: ${{ github.repository_id }}
+          REVIEW_STATE_WRITER_APP_PRIVATE_KEY: ${{ secrets.REVIEW_STATE_WRITER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/review-agent-control/control-plan.json"
+          request="$RUNNER_TEMP/review-agent-control/control-request.json"
+          append_plan() {
+            state_committed=false
+            rm -f "$RUNNER_TEMP/scheduler-commit.json" \
+              "$RUNNER_TEMP/state-commit.json"
+            state_head="$(jq -r .state_head_sha "$plan")"
+            if [[ "$(jq -r .state_changed "$plan")" == true ]]; then
+              state_parent="$(jq -r 'if .state_found then .state_head_sha else .next_state.generation.state_parent_sha end' "$plan")"
+              jq -n \
+                --arg expected "$state_parent" \
+                --argjson existing "$(jq -r .state_found "$plan")" \
+                --slurpfile plan "$plan" \
+                '{kind:"pull_request",review_state:$plan[0].next_state,
+                  scheduler_state:null,expected_parent_sha:$expected,
+                  existing_branch:$existing}' \
+                | "$RUNNER_TEMP/wkreviewagent" append-state \
+                >"$RUNNER_TEMP/state-commit.json" || return 1
+              state_head="$(jq -er .head_sha "$RUNNER_TEMP/state-commit.json")"
+              state_committed=true
+            fi
+            if [[ "$(jq -r .scheduler_changed "$plan")" == true ]]; then
+              scheduler_parent="$(jq -r 'if .scheduler_found then .scheduler_head_sha else .plan.next_scheduler.source_sha end' "$plan")"
+              jq -n \
+                --arg expected "$scheduler_parent" \
+                --argjson existing "$(jq -r .scheduler_found "$plan")" \
+                --slurpfile plan "$plan" \
+                '{kind:"scheduler",review_state:null,
+                  scheduler_state:$plan[0].plan.next_scheduler,
+                  expected_parent_sha:$expected,existing_branch:$existing}' \
+                | "$RUNNER_TEMP/wkreviewagent" append-state \
+                >"$RUNNER_TEMP/scheduler-commit.json" || return 1
+            fi
+            if [[ -n "$state_head" ]]; then
+              [[ "$state_head" =~ ^[0-9a-f]{40}$ ]]
+            fi
+          }
+          committed=false
+          for attempt in {1..20}; do
+            if append_plan; then
+              committed=true
+              break
+            fi
+            if (( attempt == 20 )); then
+              break
+            fi
+            if [[ "$state_committed" == true ]]; then
+              jq '.signal_kind = "manual" |
+                  .worker_attempt = 0 |
+                  .comment_id = 0 |
+                  .completion = null' \
+                "$request" >"$RUNNER_TEMP/control-request.next.json"
+              mv "$RUNNER_TEMP/control-request.next.json" "$request"
+            fi
+            sleep "$((1 + (GITHUB_RUN_ID + attempt) % 5))"
+            "$RUNNER_TEMP/wkreviewagent" reconcile-github \
+              <"$request" >"$RUNNER_TEMP/control-plan.next.json"
+            jq -e '.plan.action != null' \
+              "$RUNNER_TEMP/control-plan.next.json" >/dev/null
+            mv "$RUNNER_TEMP/control-plan.next.json" "$plan"
+          done
+          if [[ "$committed" != true ]]; then
+            echo "Review Agent state contention retry budget exhausted" >&2
+            exit 1
+          fi
+          {
+            echo "cancel_run_id=$(jq -r .plan.cancel_run_id "$plan")"
+            echo "dispatch=$(jq -r .plan.dispatch "$plan")"
+            echo "infrastructure_attempt=$(jq -r '.next_state.budget.infrastructure_retries_used // 0' "$plan")"
+            echo "lease_run_id=$(jq -r .plan.lease_run_id "$plan")"
+            echo "next_pull_request=$(jq -r .plan.next_pull_request "$plan")"
+            echo "operation=$(jq -r 'if .plan.dispatch_explanation then "explain" else "review" end' "$plan")"
+            echo "publish=$(jq -r '(.state_changed or
+              .plan.action == "repair_projection" or
+              .plan.action == "respond_status") and
+              (.next_state != null) and
+              (.next_state.phase != "awaiting_ready") and
+              (.next_state.phase != "closed")' "$plan")"
+            echo "pull_request=$(jq -r .pull_request "$request")"
+            echo "state_head_sha=$state_head"
+          } >>"$GITHUB_OUTPUT"
+      - name: Upload authoritative control plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-authoritative-control-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-agent-control/control-plan.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload authoritative state handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-state-${{ github.run_id }}
+          path: ${{ runner.temp }}/state-commit.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  status-publisher:
+    name: Project current Review status
+    needs: [reconcile, state-writer]
+    if: >-
+      always() && needs.reconcile.result == 'success' &&
+      needs.state-writer.result == 'success' &&
+      needs.state-writer.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: review-agent-publisher
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.reconcile.outputs.control_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: review-agent-authoritative-control-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-agent-control
+      - name: Build protected Review Publisher
+        shell: bash
+        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Publish status without candidate execution
+        shell: bash
+        env:
+          REVIEW_AGENT_READ_TOKEN: ${{ github.token }}
+          REVIEW_AGENT_APP_ID: ${{ vars.REVIEW_AGENT_APP_ID }}
+          REVIEW_AGENT_APP_INSTALLATION_ID: ${{ vars.REVIEW_AGENT_APP_INSTALLATION_ID }}
+          REVIEW_AGENT_REPOSITORY_ID: ${{ github.repository_id }}
+          REVIEW_AGENT_APP_PRIVATE_KEY: ${{ secrets.REVIEW_AGENT_APP_PRIVATE_KEY }}
+          WRITTEN_STATE_HEAD: ${{ needs.state-writer.outputs.state_head_sha }}
+          EXISTING_STATE_HEAD: ${{ needs.reconcile.outputs.state_head_sha }}
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/review-agent-control/control-plan.json"
+          state_head="${WRITTEN_STATE_HEAD:-$EXISTING_STATE_HEAD}"
+          [[ "$state_head" =~ ^[0-9a-f]{40}$ ]]
+          jq -n --arg head "$state_head" --slurpfile plan "$plan" \
+            '{expected_state_head:$head,state:$plan[0].next_state,result:null}' \
+            | "$RUNNER_TEMP/wkreviewagent" publish-review \
+            >"$RUNNER_TEMP/status-publication.json"
+
+  dispatch:
+    name: Dispatch isolated work or next queue entry
+    needs: [reconcile, state-writer, status-publisher]
+    if: >-
+      always() && needs.reconcile.result == 'success' &&
+      needs.state-writer.result == 'success' &&
+      (needs.status-publisher.result == 'success' ||
+       needs.status-publisher.result == 'skipped') &&
+      (needs.state-writer.outputs.dispatch == 'true' ||
+       needs.state-writer.outputs.cancel_run_id != '0' ||
+       needs.state-writer.outputs.next_pull_request != '0')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch only fixed Review Agent workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANCEL_LEASE_RUN_ID: ${{ needs.state-writer.outputs.cancel_run_id }}
+          CONTROL_SHA: ${{ needs.reconcile.outputs.control_sha }}
+          DISPATCH: ${{ needs.state-writer.outputs.dispatch }}
+          LEASE_RUN_ID: ${{ needs.state-writer.outputs.lease_run_id }}
+          INFRASTRUCTURE_ATTEMPT: ${{ needs.state-writer.outputs.infrastructure_attempt }}
+          NEXT_PR: ${{ needs.state-writer.outputs.next_pull_request }}
+          OPERATION: ${{ needs.state-writer.outputs.operation }}
+          PR_NUMBER: ${{ needs.state-writer.outputs.pull_request }}
+          WRITTEN_STATE_HEAD: ${{ needs.state-writer.outputs.state_head_sha }}
+          EXISTING_STATE_HEAD: ${{ needs.reconcile.outputs.state_head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$CANCEL_LEASE_RUN_ID" != 0 ]]; then
+            [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+            [[ "$CANCEL_LEASE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+            title="Review Agent PR #${PR_NUMBER} generation from lease ${CANCEL_LEASE_RUN_ID} attempt "
+            mapfile -t stale_runs < <(
+              gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/review-agent-run.yml/runs?per_page=100" \
+                --jq '.workflow_runs[] |
+                  select((.display_title | startswith("'"$title"'")) and
+                    .status != "completed") | .id'
+            )
+            if (( ${#stale_runs[@]} > 1 )); then
+              echo "multiple active Review Agent workers match the signed lease" >&2
+              exit 1
+            fi
+            if (( ${#stale_runs[@]} == 1 )); then
+              gh api --method POST \
+                "repos/${GITHUB_REPOSITORY}/actions/runs/${stale_runs[0]}/cancel"
+            fi
+          fi
+          if [[ "$DISPATCH" == true ]]; then
+            state_head="${WRITTEN_STATE_HEAD:-$EXISTING_STATE_HEAD}"
+            [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+            [[ "$LEASE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]]
+            [[ "$INFRASTRUCTURE_ATTEMPT" =~ ^[0-9]{1,2}$ ]]
+            [[ "$CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$state_head" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$OPERATION" == review || "$OPERATION" == explain ]]
+            gh workflow run review-agent-run.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref main \
+              -f "control_sha=$CONTROL_SHA" \
+              -f "infrastructure_attempt=$INFRASTRUCTURE_ATTEMPT" \
+              -f "lease_run_id=$LEASE_RUN_ID" \
+              -f "operation=$OPERATION" \
+              -f "pull_request=$PR_NUMBER" \
+              -f "state_head_sha=$state_head"
+            exit 0
+          fi
+          if [[ "$NEXT_PR" == 0 ]]; then
+            exit 0
+          fi
+          [[ "$NEXT_PR" =~ ^[1-9][0-9]{0,9}$ ]]
+          gh workflow run review-agent.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "pull_request=$NEXT_PR"
+
+  controller-recovery:
+    name: Retry one failed Controller effect
+    needs: [reconcile, state-writer, status-publisher, dispatch]
+    if: >-
+      always() && needs.reconcile.outputs.pull_request != '' &&
+      (needs.reconcile.result == 'failure' ||
+       needs.state-writer.result == 'failure' ||
+       needs.status-publisher.result == 'failure' ||
+       needs.dispatch.result == 'failure')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch one bounded recovery
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.reconcile.outputs.pull_request }}
+          RECOVERY_ATTEMPT: ${{ inputs.recovery_attempt }}
+        run: |
+          set -euo pipefail
+          attempt="${RECOVERY_ATTEMPT:-0}"
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]]
+          [[ "$attempt" =~ ^[0-9]{1,2}$ ]]
+          if (( attempt >= 1 )); then
+            echo "Review Agent Controller recovery budget exhausted" >&2
+            exit 1
+          fi
+          gh workflow run review-agent.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "pull_request=$PR_NUMBER" \
+            -f "recovery_attempt=$((attempt + 1))"

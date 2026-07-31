@@ -21,6 +21,14 @@ This package owns lifecycle ordering. Business rules stay in usecase packages,
 entry-protocol details stay in access packages, and concrete runtime adapters
 stay in infra packages.
 
+`NewIssueAgentOperations` and `NewReviewAgentOperations` are standalone
+GitHub-Actions composition roots. They do not call `New`, join a WuKongIM
+cluster, or start product runtimes. Review Agent composition keeps fresh
+GitHub reads, deterministic lifecycle, credential-free verification, signed
+state writes, and Review/Check publication behind separate role boundaries.
+It also owns strict loading and cross-layer validation of the protected Review
+Agent policy before projecting narrow lifecycle and verifier configurations.
+
 ## Construction Flow
 
 ```text

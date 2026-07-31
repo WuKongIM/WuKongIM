@@ -173,7 +173,7 @@ func validateTrustedContext(context TrustedContext) error {
 		return errors.New("invalid authorization identity")
 	}
 	switch context.Authorization.Permission {
-	case "write", "maintain", "admin":
+	case "write", "maintain", "admin", "review_agent":
 	default:
 		return errors.New("authorization lacks repository write permission")
 	}
