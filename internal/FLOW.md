@@ -30,31 +30,31 @@ storage, or routing branches that bypass cluster semantics.
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
 | `usecase/cmdsync` | Entry-agnostic durable CMD offline sync and syncack over CMD-kind conversation projection rows. |
 | `usecase/conversation` | Entry-agnostic ordinary recent conversation list, sync, unread, and delete orchestration over normal-kind conversation projection rows. |
-| `usecase/delivery` | Entry-agnostic delivery submission and route-to-owner fanout orchestration. |
 | `usecase/management` | Entry-agnostic management read orchestration for manager adapters. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `usecase/user` | Entry-agnostic user token, device quit, online status, and system UID compatibility orchestration. |
 | `usecase/backup` | Single-plan scheduled full-backup admission, archive management, and resumable maintenance restore orchestration. |
 | `runtime/conversationactive` | Kind-aware UID-owned active conversation cache and flush runtime. |
-| `runtime/delivery` | Node-local online fanout, owner push, and retry runtime. |
+| `runtime/delivery` | The deep Online Delivery runtime: bounded Recipient Delivery Plan admission, presence resolution, owner push/retry, exact-session writes, and pending-ACK lifecycle. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
 | `runtime/backup` | Leader-only schedule evaluation plus portable full-archive stream publication. |
-| `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
+| `infra/cluster` | Adapter from channel append, channel/user metadata, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
+| `infra/delivery` | Exact-target presence and owner-local session-write adapters for Online Delivery. |
 | `infra/backup` | File/OSS/COS/S3-compatible repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
 | `contracts/backup` | Bounded Controller/RPC DTOs for one scheduled full-backup subsystem. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
-| `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
+| `contracts/onlinedelivery` | Canonical Recipient Delivery Plan, exact route, owner-push, and result contracts. |
 
 ## Dependency Direction
 
 ```text
-access -> usecase
-usecase -> contracts and usecase-defined ports
-infra -> pkg/cluster and pkg/channel, implementing usecase ports
-app -> access, usecase, infra, log, pkg composition dependencies including shared pkg/plugin/pluginhost plugin host runtime
+access -> usecase/runtime
+usecase -> runtime/pkg
+infra -> internal ports and pkg runtimes/external infrastructure
+app -> access, usecase, runtime, infra, and pkg composition dependencies
 ```
 
 `internal/usecase/message` must remain protocol- and cluster-agnostic. It
@@ -78,9 +78,11 @@ pkg/gateway SendPacket
 Only the channel authority node creates and owns real channel append state. A
 non-authority node forwards the batch to the authority node through Channel
 Append RPC and does not create proxy channel state or enter a local writer for
-that channel. Conversation projection, recipient authority grouping, owner
-push, and delivery fanout run after the successful append in the authority
-writer's best-effort post-commit pipeline. Conversation admission emits
+that channel. Conversation projection and recipient authority grouping run
+after successful append in the authority writer's best-effort post-commit
+pipeline. The writer hands each bounded exact-target Recipient Delivery Plan
+to Online Delivery, which owns presence, owner push, retry, session writes,
+and ACK state. Conversation admission emits
 `conversationactive.ActiveBatch` with an explicit `metadb.ConversationKind`:
 ordinary SENDs project `ConversationKindNormal`, while `SyncOnce` or command
 channel commits project `ConversationKindCMD`.
@@ -202,7 +204,7 @@ single-node cluster.
   `internal/legacy` implementation path.
 - Controller, the new cluster runtime, and the multi-reactor channel runtime
   are canonical under `pkg/controller`, `pkg/cluster`, and `pkg/channel`.
-- Do not implement realtime `NoPersist` delivery yet; return a stable
-  unsupported result until that runtime exists.
+- Realtime `NoPersist` sends use explicit Transient Online Delivery and never
+  infer durable-only behavior from sequence numbers or flags.
 - Do not advertise legacy message fields that `channel.Message` cannot
   persist or replicate today.

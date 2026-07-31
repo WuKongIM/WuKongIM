@@ -32,9 +32,10 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 `Node.RegisterRPC` and `Node.CallRPC` expose a narrow typed node-to-node RPC
 surface for upper-layer internal adapters. Handlers registered before the
 default transport starts are replayed during transport construction; later
-registrations are installed idempotently. Internal delivery uses this surface
-for owner-node push RPC and partition-leader fanout RPC; cluster only routes
-the payload and does not inspect delivery DTOs. Internal manager connection
+registrations are installed idempotently. Online Delivery uses this surface
+only for owner-node push RPC; cluster routes the opaque payload and does not
+inspect delivery DTOs, build plans, or choose fanout partitions. Internal
+manager connection
 pages also use this surface to read owner-node online connection inventory from
 peer nodes without adding manager-specific logic to cluster. Internal
 manager distributed log pages use the same surface to ask a selected peer to

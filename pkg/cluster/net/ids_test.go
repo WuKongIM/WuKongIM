@@ -35,7 +35,6 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"presence_authority":        RPCPresenceAuthority,
 		"presence_owner":            RPCPresenceOwner,
 		"delivery_push":             RPCDeliveryPush,
-		"delivery_fanout":           RPCDeliveryFanout,
 		"channel_pull_batch":        RPCChannelPullBatch,
 		"channel_pull_hint_batch":   RPCChannelPullHintBatch,
 		"channel_last_visible":      RPCChannelLastVisible,
