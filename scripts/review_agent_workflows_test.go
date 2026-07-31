@@ -147,7 +147,24 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 
 	dispatch := issueAgentJobText(t, raw, "dispatch")
 	require.Contains(t, dispatch, "actions: write")
+	require.Contains(
+		t,
+		dispatch,
+		"group: review-agent-dispatch-${{ needs.state-writer.outputs.pull_request }}",
+	)
+	require.Contains(t, dispatch, "cancel-in-progress: false")
 	require.Contains(t, dispatch, "gh workflow run review-agent-run.yml")
+	require.Contains(
+		t,
+		dispatch,
+		`title="Review Agent PR #${PR_NUMBER} generation from lease ${LEASE_RUN_ID} attempt ${INFRASTRUCTURE_ATTEMPT}"`,
+	)
+	require.Contains(t, dispatch, `select(.display_title == "'"$title"'")`)
+	require.Contains(
+		t,
+		dispatch,
+		"already records the exact signed attempt",
+	)
 	require.Contains(
 		t,
 		dispatch,
@@ -206,10 +223,16 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "persist-credentials: false"))
 	require.Contains(t, raw, "ref: ${{ needs.recover.outputs.test_merge_sha }}")
 	require.Equal(t, 1, strings.Count(raw, "openai/codex-action@"))
-	require.Contains(t, raw, "model: moonshotai/kimi-k3")
-	require.Contains(t, raw, "effort: high")
+	require.Contains(t, raw, "--model moonshotai/kimi-k3")
+	require.Contains(t, raw, `--config 'model_reasoning_effort="high"'`)
 	require.Contains(t, raw, "codex-version: 0.146.0")
-	require.Contains(t, raw, "safety-strategy: drop-sudo")
+	require.Contains(t, raw, "codex-responses-api-proxy")
+	require.Contains(t, raw, "env -u PROXY_API_KEY")
+	require.Contains(t, raw, "--upstream-url https://openrouter.ai/api/v1/responses")
+	require.Contains(t, raw, "--cpu=2400:2400")
+	require.Contains(t, raw, "--as=8589934592:8589934592")
+	require.Contains(t, raw, "--nproc=512:512")
+	require.Contains(t, raw, `--config 'default_permissions="review-agent"'`)
 	require.Contains(t, raw, "review_reason:$recovery[0].next_state.reason")
 	require.Contains(t, raw, "retention-days: 7")
 	require.Contains(t, raw, "retention-days: 30")
@@ -272,12 +295,12 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `sudo rmdir "$review_unshare_directory"`)
 	require.Equal(
 		t,
-		3,
+		5,
 		strings.Count(
 			fence,
 			`/proc/sys/kernel/apparmor_restrict_unprivileged_userns`,
 		),
-		"the global userns restriction must be checked before and after the narrow exception",
+		"the global userns restriction must bracket both narrow exceptions",
 	)
 	require.Contains(
 		t,
@@ -301,6 +324,17 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.NotContains(t, fence, "model-host)")
 	require.NotContains(t, fence, "apply_network_rules host")
 	require.NotContains(t, fence, "keep-sudo")
+	require.NotContains(t, fence, "limit_runner_worker")
+	require.Contains(
+		t,
+		fence,
+		`review_bwrap_binary="$review_unshare_directory/bwrap"`,
+	)
+	require.Contains(
+		t,
+		fence,
+		`profile wukongim-review-agent-bwrap $review_bwrap_binary flags=(unconfined)`,
+	)
 	require.Equal(
 		t,
 		4,
@@ -396,13 +430,14 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, reviewer, "timeout-minutes: 40")
 	require.Contains(t, reviewer, "environment: review-agent-model")
 	require.Contains(t, reviewer, "secrets.OPENAI_API_KEY")
-	require.Contains(t, reviewer, "permission-profile: review-agent")
+	require.Contains(t, reviewer, `--config 'default_permissions="review-agent"'`)
 	require.Contains(t, reviewer, "allow-bots: true")
 	require.Contains(
 		t,
 		reviewer,
-		"working-directory: ${{ runner.temp }}/review-agent-session",
+		`--cd "$RUNNER_TEMP/review-agent-session"`,
 	)
+	require.Contains(t, reviewer, `PATH="/opt/wukongim-review-agent:$PATH"`)
 	require.Contains(t, reviewer, `extends = ":read-only"`)
 	require.NotContains(t, reviewer, "sandbox: workspace-write")
 	require.NotContains(t, reviewer, "REVIEW_AGENT_APP_PRIVATE_KEY")
@@ -427,6 +462,19 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 
 	drain := issueAgentJobText(t, raw, "drain")
 	require.Contains(t, drain, "actions: write")
+	require.Contains(
+		t,
+		drain,
+		"group: review-agent-drain-${{ inputs.pull_request }}",
+	)
+	require.Contains(t, drain, "cancel-in-progress: false")
+	require.Contains(t, drain, "gh workflow run review-agent-run.yml")
+	require.Contains(
+		t,
+		drain,
+		`title="Review Agent PR #${INPUT_PULL_REQUEST} generation from lease ${lease} attempt ${attempt}"`,
+	)
+	require.Contains(t, drain, "already records the exact signed retry")
 	require.NotContains(t, drain, "APP_PRIVATE_KEY")
 	require.NotContains(t, drain, "actions/checkout")
 }

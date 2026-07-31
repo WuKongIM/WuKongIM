@@ -52,8 +52,11 @@ The scheduler permits three repository-wide sessions, one per pull request,
 and one first-time external contributor session. Fresh-read expected-head CAS
 transactions retry bounded contention while preserving every event; an
 isolated `actions: write` dispatcher starts the exact worker after the state
-commit. Terminal work wakes the next signed queue entry. Partial state writes
-and dispatches are recoverable from signed checkpoints and leases.
+commit. Dispatch is serialized per pull request, and the exact worker title
+derived from pull request, signed lease, and infrastructure attempt is its
+idempotency key at both initial and retry boundaries. Terminal work wakes the
+next signed queue entry. Partial state writes and dispatches are recoverable
+from signed checkpoints and leases.
 
 ## Review inputs
 
@@ -94,14 +97,19 @@ authorized bounded reconsideration is accepted.
 The model receives no GitHub/App, cloud, deploy, package-publish, or
 organization-private credential. It runs from a trusted external session
 directory and sees the candidate checkout read-only. Public internet is
-allowed, while private, link-local, cloud metadata, runner-host, and configured
-organization CIDRs are blocked by the model permission profile. The pinned
-Action's local proxy is the sole loopback exception required by the model
-transport; model-initiated localhost access remains denied. Candidate checks
-execute only through the Check MCP in per-command disposable worktrees with
-dedicated HOME/TMP directories and a rootless network namespace whose own
-loopback supports local test servers. The job has no Docker socket and uses
-the Action's `drop-sudo` strategy.
+allowed, while private, link-local, cloud metadata, and runner-host access is
+blocked by the model permission profile. Configured organization CIDRs are
+also blocked inside the candidate-check namespace. The pinned Action installs
+the exact Codex CLI and Responses proxy; the protected Workflow then runs
+`codex exec` directly with CPU, address-space, and process limits.
+The trusted proxy is the sole loopback exception required by model transport;
+model-initiated localhost access remains denied. Candidate checks execute only
+through the Check MCP in per-command disposable worktrees with dedicated
+HOME/TMP directories and a rootless network namespace whose own loopback
+supports local test servers. The model sandbox uses one root-owned `bwrap`
+copy with a path-specific AppArmor `userns` profile; the global Ubuntu user
+namespace restriction remains enabled. The job has no Docker socket, and
+`sudo` is disabled before the model process starts.
 
 Mandatory checks are selected deterministically from every changed path. The
 model may add a check only by protected catalog name through the local stdio
