@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 )
 
@@ -356,6 +357,12 @@ type RecipientDeliveryPlanEnqueuer interface {
 	EnqueueRecipientDeliveryPlan(context.Context, RecipientDeliveryPlan) error
 }
 
+// OnlineDeliveryEnqueuer accepts canonical plans during the delivery-runtime migration.
+type OnlineDeliveryEnqueuer interface {
+	// EnqueueRecipientDeliveryPlan transfers one bounded plan to Online Delivery.
+	EnqueueRecipientDeliveryPlan(context.Context, onlinedelivery.RecipientDeliveryPlan) error
+}
+
 // PersistAfterEnqueuer accepts durable committed messages for plugin PersistAfter hooks.
 type PersistAfterEnqueuer interface {
 	// EnqueuePersistAfter queues one committed message for plugin side effects.
@@ -455,6 +462,8 @@ type Options struct {
 	RecipientAuthorityResolver RecipientAuthorityResolver
 	// RecipientDeliveryEnqueuer queues selected recipients for asynchronous delivery processing.
 	RecipientDeliveryEnqueuer RecipientDeliveryEnqueuer
+	// OnlineDeliveryEnqueuer queues canonical plans when the converged runtime is wired.
+	OnlineDeliveryEnqueuer OnlineDeliveryEnqueuer
 	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
 	PersistAfterEnqueuer PersistAfterEnqueuer
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
@@ -565,6 +574,7 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:             opts.RecipientDeliveryEnqueuer,
+		onlineDeliveryEnqueuer:       opts.OnlineDeliveryEnqueuer,
 		persistAfter:                 opts.PersistAfterEnqueuer,
 		subscriberPageSize:           opts.SubscriberScanPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,

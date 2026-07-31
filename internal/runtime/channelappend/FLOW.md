@@ -1,5 +1,10 @@
 # internal/runtime/channelappend Flow
 
+During Online Delivery convergence, channelappend exposes a second, canonical
+plan-enqueue port beside the existing recipient worker port. The canonical path
+preserves exact authority targets and explicitly labels durable versus
+transient work; app wiring chooses only one delivery port at a time.
+
 ## Responsibility
 
 `internal/runtime/channelappend` owns local channel append-authority admission.
