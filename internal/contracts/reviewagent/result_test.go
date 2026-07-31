@@ -53,6 +53,39 @@ func TestDecodeReviewResultIsStrictAndBounded(t *testing.T) {
 	require.EqualError(t, err, "JSON input exceeds byte limit")
 }
 
+func TestDecodeReviewResultAcceptsOneProseWrappedJSONObject(t *testing.T) {
+	t.Parallel()
+
+	body := "The implementation is consistent and fail-closed.\n\n```json\n" +
+		validResultJSON() + "\n```\nReview complete."
+	result, err := reviewagent.DecodeReviewResult(
+		strings.NewReader(body),
+		int64(len(body)),
+	)
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.DecisionChangesRequired, result.Decision)
+}
+
+func TestDecodeReviewResultRejectsAmbiguousWrappedJSON(t *testing.T) {
+	t.Parallel()
+
+	body := validResultJSON()
+	for name, input := range map[string]string{
+		"multiple objects": body + "\n{}",
+		"array wrapper":    "[" + body + "]",
+		"object in prose":  "Use {strict} output.\n" + body,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := reviewagent.DecodeReviewResult(
+				strings.NewReader(input),
+				int64(len(input)),
+			)
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestReviewResultLimitsFindingsAndRequiresCompleteInventory(t *testing.T) {
 	t.Parallel()
 
