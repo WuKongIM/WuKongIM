@@ -1,5 +1,7 @@
 name: Agent Tool - Review Pull Request
-run-name: Review Agent PR #${{ inputs.pull_request }} generation from lease ${{ inputs.lease_run_id }} attempt ${{ inputs.infrastructure_attempt }}
+run-name: >-
+  Review Agent PR #${{ inputs.pull_request }} generation from lease
+  ${{ inputs.lease_run_id }} attempt ${{ inputs.infrastructure_attempt }}
 
 on:
   workflow_dispatch:

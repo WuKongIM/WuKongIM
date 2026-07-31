@@ -37,10 +37,10 @@ type Policy struct {
 // RiskSelection adds bounded expensive checks justified by actual change
 // risk. It never removes deterministic minimum checks.
 type RiskSelection struct {
-	Race             bool
-	Integration      bool
-	E2E              bool
-	ThreeNodeCluster bool
+	Race             bool `json:"race"`
+	Integration      bool `json:"integration"`
+	E2E              bool `json:"e2e"`
+	ThreeNodeCluster bool `json:"three_node_cluster"`
 }
 
 // PlanChecks returns the sorted complete named-check plan.

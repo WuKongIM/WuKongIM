@@ -7,6 +7,8 @@
 - Review Agent invalidation is generation-bound. Fresh PR facts and signed
   scheduler state supersede stale workers; only the dedicated App-owned
   `Review Agent Verdict` may represent the current automated decision.
+- Review Agent `workflow_run` identity must be authenticated by its stable
+  workflow path; dynamic run names are not an authority boundary.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.
