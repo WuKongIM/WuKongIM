@@ -206,7 +206,7 @@ func singleNodeClusterAppConfig(t *testing.T) Config {
 	cfg := Config{
 		NodeID:  nodeID,
 		DataDir: shortAppTestDataDir(t),
-		Log:      LogConfig{Dir: t.TempDir()},
+		Log:     LogConfig{Dir: t.TempDir()},
 		Plugin:  plugin,
 		Cluster: cluster.Config{
 			NodeID:     nodeID,
