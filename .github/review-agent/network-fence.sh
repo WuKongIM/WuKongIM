@@ -58,6 +58,7 @@ prepare_user_namespace() {
 
 apply_network_rules() {
   local mode="$1"
+  [[ "$mode" == namespace || "$mode" == model ]]
   local prefix=()
   local resolvers=()
   if [[ "$mode" == namespace ]]; then
@@ -119,16 +120,11 @@ apply_network_rules() {
     224.0.0.0/4
   )
   local ipv6=(::/128 fc00::/7 fe80::/10 ff00::/8)
-  if [[ "$mode" == host ]]; then
-    ipv4+=(127.0.0.0/8)
-    ipv6+=(::1/128)
-  elif [[ "$mode" == namespace || "$mode" == model ]]; then
-    # The namespace needs local process communication. The model host needs
-    # the Codex Action's loopback model proxy; its permission profile still
-    # denies localhost/private destinations to model-initiated requests.
-    "${prefix[@]}" iptables -A INPUT -i lo -j ACCEPT
-    "${prefix[@]}" ip6tables -A INPUT -i lo -j ACCEPT
-  fi
+  # The namespace needs local process communication. The model host needs
+  # the Codex Action's loopback model proxy; its permission profile still
+  # denies localhost/private destinations to model-initiated requests.
+  "${prefix[@]}" iptables -A INPUT -i lo -j ACCEPT
+  "${prefix[@]}" ip6tables -A INPUT -i lo -j ACCEPT
   local cidr
   for cidr in "${ipv4[@]}"; do
     "${prefix[@]}" iptables -A OUTPUT -d "$cidr" -j REJECT
@@ -256,16 +252,11 @@ case "${1:-}" in
     shift
     join_namespace "$@"
     ;;
-  host)
-    [[ $# -eq 2 &&
-      ( "$2" == keep-sudo || "$2" == disable-sudo ) ]]
-    REVIEW_NETNS_PID=""
-    apply_network_rules host
+  baseline-host)
+    [[ $# -eq 1 ]]
     sudo chmod 000 /var/run/docker.sock 2>/dev/null || true
-    if [[ "$2" == disable-sudo ]]; then
-      sudo_binary="$(command -v sudo)"
-      sudo chmod 000 "$sudo_binary"
-    fi
+    sudo_binary="$(command -v sudo)"
+    sudo chmod 000 "$sudo_binary"
     ;;
   model-host)
     [[ $# -eq 1 ]]
@@ -275,7 +266,7 @@ case "${1:-}" in
     limit_runner_worker
     ;;
   *)
-    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
+    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | baseline-host | model-host" >&2
     exit 2
     ;;
 esac

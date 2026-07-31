@@ -234,7 +234,7 @@ jobs:
           set -euo pipefail
           "$RUNNER_TEMP/review-agent-network-fence.sh" start \
             "$RUNNER_TEMP/review-agent-netns.pid"
-          "$RUNNER_TEMP/review-agent-network-fence.sh" host disable-sudo
+          "$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-agent-evidence"
       - name: Run fixed mandatory checks without credentials
         shell: bash
