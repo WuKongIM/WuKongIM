@@ -72,7 +72,7 @@ var cloudMediumFeedbackProfiles = []struct {
 //   - clusterinfra.RecipientAuthorityResolver and PresenceAuthorityClient exact-target
 //     adapters over the real in-memory presence directory;
 //   - the bounded recipient delivery queue with 320 workers;
-//   - infra/delivery LocalOwnerPusher and the real pending-ACK state machine, with sessions
+//   - the deep Online Delivery runtime and its pending-ACK state machine, with sessions
 //     returning an immediate RECVACK from inside WriteDelivery.
 //   - the real offline plugin observer, bounded plugin hook worker, and plugin
 //     usecase fast exit when no running Receive plugin exists.
@@ -153,14 +153,14 @@ func BenchmarkCloudMediumRecipientOneTwentiethSecondFeedback(b *testing.B) {
 
 type cloudMediumRecipientFeedbackHarness struct {
 	group          *channelappend.Group
-	worker         *channelappend.RecipientDeliveryWorker
+	worker         *runtimedelivery.Runtime
 	pluginHook     *pluginhook.Worker
 	pluginObserver *cloudMediumPluginHookObserver
 	observer       *cloudMediumRecipientFeedbackObserver
 	node           *cloudMediumRecipientFeedbackNode
 	source         *cloudMediumRecipientFeedbackSubscribers
 	directory      *authoritypresence.Directory
-	delivery       *runtimedelivery.Manager
+	delivery       *runtimedelivery.Runtime
 	writes         *atomic.Int64
 	targets        []channelappend.AuthorityTarget
 	items          []channelappend.SendBatchItem
@@ -191,8 +191,8 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 	}
 
 	onlineRegistry := online.NewRegistry(online.RegistryOptions{ShardCount: 32})
-	deliveryManager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{})
 	writes := &atomic.Int64{}
+	feedbackSessions := make([]*cloudMediumRecipientFeedbackSession, 0, cloudMediumFeedbackOnlineRoutes)
 	source := &cloudMediumRecipientFeedbackSubscribers{byChannel: make(map[string][]channelappend.Recipient, cloudMediumFeedbackMessageCount)}
 	targets := make([]channelappend.AuthorityTarget, 0, cloudMediumFeedbackMessageCount)
 	items := make([]channelappend.SendBatchItem, 0, cloudMediumFeedbackMessageCount)
@@ -241,9 +241,9 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 				session := &cloudMediumRecipientFeedbackSession{
 					uid:       uid,
 					sessionID: nextSessionID,
-					delivery:  deliveryManager,
 					writes:    writes,
 				}
+				feedbackSessions = append(feedbackSessions, session)
 				ownerRoute := online.OwnerRoute{
 					UID:              uid,
 					HashSlot:         hashSlot,
@@ -279,8 +279,8 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 				senderNodeID = 1
 				senderSessionID = firstSessionID
 				channelID = runtimechannelid.EncodePersonChannel(recipients[0].UID, recipients[1].UID)
-				// The sender's exact gateway session is suppressed by the real
-				// recipient processor, so only the peer receives an owner write.
+				// The sender's exact gateway session is suppressed by Online
+				// Delivery, so only the peer receives an owner write.
 				ownerWrites += profile.online - 1
 			} else {
 				source.byChannel[channelID] = recipients
@@ -318,10 +318,6 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 
 	presenceClient := clusterinfra.NewPresenceAuthorityClient(node, clusterinfra.NewPresenceDirectoryAuthority(directory))
 	presenceApp := presenceusecase.New(presenceusecase.Options{Authority: presenceClient})
-	localPusher := deliveryinfra.NewLocalOwnerPusher(deliveryinfra.LocalOwnerPusherOptions{
-		Online:     onlineRegistry,
-		AckManager: deliveryManager,
-	})
 	plugins, err := pluginusecase.NewApp(pluginusecase.Options{
 		Runtime: &cloudMediumNoPluginRuntime{},
 		Invoker: cloudMediumNoPluginInvoker{},
@@ -341,25 +337,27 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 	if err := pluginWorker.Start(context.Background()); err != nil {
 		return nil, fmt.Errorf("start plugin receive worker: %w", err)
 	}
-	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-		PresenceResolver:          deliveryinfra.NewChannelAppendPresenceResolver(presenceApp),
-		OwnerPusher:               channelAppendOwnerPusher{next: localPusher},
-		OfflineRecipientsObserver: pluginReceiveObserver{worker: pluginWorker},
-		OwnerPushBatchSize:        cloudMediumFeedbackRecipientBatchSize,
-	})
 	observer := newCloudMediumRecipientFeedbackObserver()
-	worker := channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
-		Processor:   processor,
-		QueueSize:   512,
-		Workers:     cloudMediumFeedbackRecipientWorkers,
-		PlanTimeout: 10 * time.Second,
-		Observer:    observer,
+	worker := runtimedelivery.NewRuntime(runtimedelivery.RuntimeOptions{
+		LocalNodeID:               1,
+		Presence:                  deliveryinfra.NewPresenceResolver(presenceApp),
+		SessionWriter:             deliveryinfra.NewLocalSessionWriter(deliveryinfra.LocalSessionWriterOptions{Online: onlineRegistry}),
+		OfflineRecipientsObserver: onlineDeliveryOfflineObserver{next: pluginReceiveObserver{worker: pluginWorker}},
+		QueueSize:                 512,
+		Workers:                   cloudMediumFeedbackRecipientWorkers,
+		PlanTimeout:               10 * time.Second,
+		MaxPlanRecipients:         cloudMediumFeedbackRecipientBatchSize,
+		OwnerPushBatchSize:        cloudMediumFeedbackRecipientBatchSize,
+		Observer:                  observer,
 	})
 	if err := worker.Start(context.Background()); err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = pluginWorker.Stop(stopCtx)
 		return nil, fmt.Errorf("start recipient delivery worker: %w", err)
+	}
+	for _, session := range feedbackSessions {
+		session.delivery = worker
 	}
 	group := channelappend.New(channelappend.Options{
 		LocalNodeID:                           1,
@@ -375,7 +373,7 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		Observer:                              observer,
 		Subscribers:                           source,
 		RecipientAuthorityResolver:            clusterinfra.NewRecipientAuthorityResolver(node, nil),
-		RecipientDeliveryEnqueuer:             worker,
+		OnlineDeliveryEnqueuer:                worker,
 		SubscriberScanPageSize:                cloudMediumFeedbackRecipientBatchSize,
 		RecipientBatchSize:                    cloudMediumFeedbackRecipientBatchSize,
 		RecipientAuthorityDispatchConcurrency: 16,
@@ -396,7 +394,7 @@ func newCloudMediumRecipientFeedbackHarness() (*cloudMediumRecipientFeedbackHarn
 		node:           node,
 		source:         source,
 		directory:      directory,
-		delivery:       deliveryManager,
+		delivery:       worker,
 		writes:         writes,
 		targets:        targets,
 		items:          items,
@@ -686,21 +684,15 @@ func (o *cloudMediumRecipientFeedbackObserver) AppendFinished(_ string, err erro
 	o.signal()
 }
 
-func (o *cloudMediumRecipientFeedbackObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {
+func (o *cloudMediumRecipientFeedbackObserver) SetRuntimePressure(event runtimedelivery.RuntimePressureEvent) {
 	o.mu.Lock()
 	o.queueDepth = event.QueueDepth
 	o.queueCapacity = event.QueueCapacity
 	if event.QueueDepth > o.maxQueueDepth {
 		o.maxQueueDepth = event.QueueDepth
 	}
-	o.mu.Unlock()
-	o.signal()
-}
-
-func (o *cloudMediumRecipientFeedbackObserver) SetChannelAppendRecipientDeliveryWorkerPressure(event channelappend.RecipientDeliveryWorkerPressureObservation) {
-	o.mu.Lock()
 	o.inflight = event.Inflight
-	o.inflightCapacity = event.Capacity
+	o.inflightCapacity = event.Workers
 	if event.Inflight > o.maxInflight {
 		o.maxInflight = event.Inflight
 	}
@@ -708,7 +700,7 @@ func (o *cloudMediumRecipientFeedbackObserver) SetChannelAppendRecipientDelivery
 	o.signal()
 }
 
-func (o *cloudMediumRecipientFeedbackObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
+func (o *cloudMediumRecipientFeedbackObserver) ObservePlanAdmission(event runtimedelivery.PlanAdmissionEvent) {
 	o.mu.Lock()
 	if event.Result == "accepted" {
 		o.admissionAccepted++
@@ -719,7 +711,7 @@ func (o *cloudMediumRecipientFeedbackObserver) ObserveChannelAppendRecipientDeli
 	o.signal()
 }
 
-func (o *cloudMediumRecipientFeedbackObserver) ObserveChannelAppendRecipientDeliveryProcess(event channelappend.RecipientDeliveryProcessObservation) {
+func (o *cloudMediumRecipientFeedbackObserver) ObservePlanTerminal(event runtimedelivery.PlanTerminalEvent) {
 	o.mu.Lock()
 	if event.Result == "ok" {
 		o.processedOK++
@@ -730,6 +722,8 @@ func (o *cloudMediumRecipientFeedbackObserver) ObserveChannelAppendRecipientDeli
 	o.mu.Unlock()
 	o.signal()
 }
+
+func (*cloudMediumRecipientFeedbackObserver) ObserveOwnerPush(runtimedelivery.OwnerPushEvent) {}
 
 func (o *cloudMediumRecipientFeedbackObserver) ObserveChannelAppendPostCommitFailure(channelappend.PostCommitFailureObservation) {
 	o.mu.Lock()
@@ -997,7 +991,7 @@ func (a *cloudMediumRecipientFeedbackAppender) AppendBatch(ctx context.Context, 
 type cloudMediumRecipientFeedbackSession struct {
 	uid       string
 	sessionID uint64
-	delivery  *runtimedelivery.Manager
+	delivery  runtimedelivery.FeedbackHandler
 	writes    *atomic.Int64
 }
 

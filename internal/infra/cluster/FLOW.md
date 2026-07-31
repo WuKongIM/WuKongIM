@@ -29,8 +29,8 @@ selected node's internal diagnostics store or peer RPC, routes manager plugin
 inventory reads and lifecycle mutations to the selected node's plugin lifecycle
 usecase over peer RPC, routes
 manager Controller task audit reads to the current Controller leader's
-node-local audit store over peer RPC when needed, and adapts presence/delivery
-ports plus channelappend recipient-authority resolution to cluster routing and
+node-local audit store over peer RPC when needed, and adapts presence ports
+plus channelappend recipient-authority resolution to cluster routing and
 node RPC. `ChannelMetadataStore` also exposes one restore-only subscriber page
 adapter that delegates to the node-local maintenance read; it is used only to
 rebuild the system-UID privilege cache before foreground admission resumes.
@@ -959,44 +959,15 @@ bounded presence error so pending token cleanup semantics stay explicit.
 Best-effort unregister calls are bounded by a short context timeout so gateway
 close and rollback paths do not block indefinitely on route lookup or node RPC.
 
-## Delivery Push Flow
+## Online Delivery Cluster Seams
 
-`DeliveryPusher` adapts the internal delivery runtime pusher port to local
-owner delivery or `internal/access/node` delivery RPC.
+`internal/infra/cluster` no longer owns an Online Delivery pusher or fanout
+partitioner. Channel append resolves and preserves each recipient's exact
+authority target before plan admission. `internal/infra/delivery` adapts those
+targets to the presence usecase, while the deep Online Delivery runtime groups
+the returned exact routes by owner node.
 
-```text
-delivery.PushCommand
-  -> OwnerNodeID == localNodeID
-       -> local runtime delivery Pusher
-  -> OwnerNodeID != localNodeID
-       -> access/node Delivery Push RPC client
-       -> remote owner DeliveryOwnerPush
-```
-
-When the command targets this node but no local delivery pusher is installed,
-the adapter marks all routes dropped because no owner-local session runtime can
-accept them. When a remote client is missing or the remote RPC fails, it marks
-all routes retryable and returns nil error so the delivery runtime can apply its
-normal retry policy.
-
-## Delivery Fanout Partition Flow
-
-`DeliveryPartitioner` adapts the cluster UID hash-slot route table to
-`runtime/delivery.Partitioner`. It caches the last valid partition layout by
-route revision and hash-slot count, reuses the cached layout for repeated reads,
-and falls back to the last valid layout when the route table is momentarily not
-ready. On a cache miss, it reads the current snapshot hash-slot count, routes
-each hash slot through `RouteHashSlot`, and merges contiguous hash-slot ranges
-with the same leader into delivery partitions.
-
-```text
-cluster Snapshot.HashSlotCount
-  -> RouteHashSlot(hashSlot)
-  -> contiguous ranges grouped by Route.Leader
-  -> runtime/delivery.Partition{LeaderNodeID, HashSlotStart, HashSlotEnd}
-```
-
-Route-table-not-ready, no-leader, and route lookup failures map to
-`runtime/delivery.ErrRouteNotReady` only when no last valid partition layout is
-available, so the async delivery sink can record the failure without adding
-cluster-specific errors to the runtime package.
+Remote owner execution uses `internal/access/node` directly over the narrow
+`pkg/cluster` typed RPC surface. Local and remote commands enter the same
+`runtime/delivery.OwnerPushHandler`; cluster transports opaque bytes and does
+not construct delivery plans, choose partitions, classify routes, or own retry.

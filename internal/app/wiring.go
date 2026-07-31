@@ -726,7 +726,7 @@ func (a *App) wireDelivery() {
 	a.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: onlineDeliveryUsecaseAdapter{runtime: runtime}})
 	a.deliveryWorker = runtime
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
-		adapter := accessnode.New(accessnode.Options{OnlineDelivery: runtime, Logger: a.logger.Named("node")})
+		adapter := accessnode.New(accessnode.Options{Delivery: runtime, Logger: a.logger.Named("node")})
 		presenceNode.RegisterRPC(accessnode.DeliveryPushRPCServiceID, nodeRPCHandlerFunc(adapter.HandleDeliveryPushRPC))
 	}
 }
@@ -820,17 +820,6 @@ func (a *App) ensureChannelAppendMetadataCache() *clusterinfra.ChannelAppendMeta
 		a.channelAppendMetadata = clusterinfra.NewChannelAppendMetadataCache()
 	}
 	return a.channelAppendMetadata
-}
-
-func (a *App) channelAppendOwnerPusher(nodeID uint64, observer runtimedelivery.Observer) channelappend.OwnerPusher {
-	if a.localOwnerPusher == nil {
-		return nil
-	}
-	var pusher runtimedelivery.Pusher = a.localOwnerPusher
-	if rpcNode, ok := a.cluster.(accessnode.PresenceRPCNode); ok {
-		pusher = clusterinfra.NewDeliveryPusher(nodeID, a.localOwnerPusher, accessnode.NewClient(rpcNode))
-	}
-	return channelAppendOwnerPusher{next: pusher, observer: observer}
 }
 
 func (a *App) wireMessages() {

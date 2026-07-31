@@ -72,35 +72,17 @@ remote delivery client
   -> encode W K V D 1 request
   -> cluster RPCDeliveryPush
   -> Adapter.HandleDeliveryPushRPC
-  -> DeliveryOwnerPush.Push
+  -> runtime/delivery.OwnerPushHandler.PushOwner
   -> encode W K V d 1 response
 ```
 
-Delivery push requests carry one `runtime/delivery.PushCommand` in the stable
-field order `OwnerNodeID`, `Envelope`, and `Routes`. The envelope includes the
+Delivery push requests carry one canonical `onlinedelivery.OwnerPush` in the
+stable legacy field order `OwnerNodeID`, `Envelope`, and `Routes`. The envelope includes the
 committed message identifiers, sender echo-suppression fields, payload, red-dot
 flag, and request-scoped UIDs. Responses carry status plus accepted, retryable,
-and dropped route groups.
-
-During Online Delivery convergence, the adapter can also invoke the canonical
-`PushOwner` port and the client exposes the same port. Compatibility conversion
-preserves the exact `WKVD1`/`WKVd1` bytes while old and new runtimes coexist.
-
-## Delivery Fanout RPC
-
-```text
-remote delivery fanout router
-  -> encode W K V F 1 request
-  -> cluster RPCDeliveryFanout
-  -> Adapter.HandleDeliveryFanoutRPC
-  -> DeliveryFanoutRunner.RunTask
-  -> encode W K V f 1 response
-```
-
-Delivery fanout requests carry one `runtime/delivery.FanoutTask` in the stable
-field order `Envelope`, `Partition`, `Cursor`, and `Attempt`. The receiving
-node runs only the subscriber fanout task; owner-node delivery still uses the
-separate Delivery Push RPC after presence resolution.
+and dropped route groups. Runtime service ID 16 remains reserved for the
+retired fanout RPC so later service IDs keep their wire values; no handler is
+registered for it.
 
 ## Conversation Authority RPC
 
@@ -550,11 +532,6 @@ Delivery push RPC uses fixed magic headers:
 - Request: `W K V D 1`
 - Response: `W K V d 1`
 
-Delivery fanout RPC uses fixed magic headers:
-
-- Request: `W K V F 1`
-- Response: `W K V f 1`
-
 Conversation authority RPC uses fixed magic headers:
 
 - Single-group request: `W K V C 1`
@@ -671,7 +648,7 @@ Channel Append RPC statuses and item error codes preserve:
 - `append_result_missing`
 - `channel_busy`
 
-Delivery push and fanout responses currently use:
+Delivery push responses currently use:
 
 - `ok`
 - `rejected`
@@ -681,7 +658,9 @@ Delivery push and fanout responses currently use:
 - This package may import `internal/usecase/presence` DTO aliases, runtime
   presence sentinel errors, `internal/usecase/conversation` DTOs and
   sentinel errors, `internal/contracts/channelappend` DTOs and sentinel errors,
-  runtime delivery DTOs, `internal/runtime/conversationactive.ActiveBatch`
+  canonical `internal/contracts/onlinedelivery` DTOs,
+  `internal/runtime/delivery.OwnerPushHandler`,
+  `internal/runtime/conversationactive.ActiveBatch`
   as the active worker RPC DTO, internal diagnostics DTOs, and the cluster
   RPC service IDs.
 - This package must not decide presence route conflict behavior.
@@ -692,7 +671,7 @@ Delivery push and fanout responses currently use:
   effects.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
-  `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
+  Online Delivery owner-push / `ConversationAuthority` /
   standalone channel-write `ChannelAppend`, manager connection reader, and
   manager log reader, manager plugin reader, manager DB inspect reader,
   manager diagnostics reader/operator, and manager application log reader

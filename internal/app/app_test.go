@@ -3367,9 +3367,6 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliveryManager != nil || app.deliveryRetry != nil || app.localOwnerPusher != nil {
 		t.Fatal("legacy delivery runtime was wired")
 	}
-	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; ok {
-		t.Fatalf("retired delivery fanout rpc service was registered")
-	}
 }
 
 func TestNewWiresChannelMembershipProjection(t *testing.T) {

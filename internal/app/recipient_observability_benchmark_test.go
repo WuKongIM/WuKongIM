@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -12,13 +14,60 @@ import (
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 )
 
+const (
+	recipientObservabilityBenchmarkItems   = 512
+	recipientObservabilityBenchmarkTargets = 221
+)
+
+type recipientObservabilityPresenceNode struct {
+	routes          map[string]pkgcluster.Route
+	byHashSlot      map[uint16]pkgcluster.Route
+	authorityEvents chan pkgcluster.RouteAuthorityEvent
+}
+
+func (*recipientObservabilityPresenceNode) NodeID() uint64 { return 1 }
+
+func (n *recipientObservabilityPresenceNode) RouteKey(uid string) (pkgcluster.Route, error) {
+	route, ok := n.routes[uid]
+	if !ok {
+		return pkgcluster.Route{}, fmt.Errorf("benchmark route for uid %q not found", uid)
+	}
+	return route, nil
+}
+
+func (n *recipientObservabilityPresenceNode) RouteKeysPartial(uids []string) ([]pkgcluster.RouteKeyResult, error) {
+	results := make([]pkgcluster.RouteKeyResult, len(uids))
+	for i, uid := range uids {
+		results[i].Route, results[i].Err = n.RouteKey(uid)
+	}
+	return results, nil
+}
+
+func (n *recipientObservabilityPresenceNode) RouteHashSlot(hashSlot uint16) (pkgcluster.Route, error) {
+	route, ok := n.byHashSlot[hashSlot]
+	if !ok {
+		return pkgcluster.Route{}, fmt.Errorf("benchmark route for hash slot %d not found", hashSlot)
+	}
+	return route, nil
+}
+
+func (*recipientObservabilityPresenceNode) CallRPC(context.Context, uint64, uint8, []byte) ([]byte, error) {
+	return nil, errors.New("unexpected remote presence RPC")
+}
+
+func (*recipientObservabilityPresenceNode) RegisterRPC(uint8, pkgcluster.NodeRPCHandler) {}
+
+func (n *recipientObservabilityPresenceNode) WatchRouteAuthorities() <-chan pkgcluster.RouteAuthorityEvent {
+	return n.authorityEvents
+}
+
 // BenchmarkPresenceEndpointLookupObservabilityCloudMedium compares the real
 // exact-target local-bulk directory path with its optional aggregate metrics.
 func BenchmarkPresenceEndpointLookupObservabilityCloudMedium(b *testing.B) {
-	const items = productionRecipientBenchmarkRecipients
-	const targets = productionRecipientBenchmarkTargets
+	const items = recipientObservabilityBenchmarkItems
+	const targets = recipientObservabilityBenchmarkTargets
 	directory := authoritypresence.NewDirectory(authoritypresence.DirectoryOptions{LocalNodeID: 1, ShardCount: 32})
-	node := &productionRecipientBenchmarkPresenceNode{
+	node := &recipientObservabilityPresenceNode{
 		routes: make(map[string]pkgcluster.Route), byHashSlot: make(map[uint16]pkgcluster.Route),
 		authorityEvents: make(chan pkgcluster.RouteAuthorityEvent),
 	}
