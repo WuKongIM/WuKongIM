@@ -167,8 +167,17 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 
 func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/review-agent-run.yml")
-	var document any
+	var document struct {
+		RunName string `yaml:"run-name"`
+	}
 	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
+	require.Equal(
+		t,
+		"Review Agent PR #${{ inputs.pull_request }} generation from lease "+
+			"${{ inputs.lease_run_id }} attempt "+
+			"${{ inputs.infrastructure_attempt }}",
+		document.RunName,
+	)
 	for _, job := range []string{
 		"recover:",
 		"context:",
