@@ -46,7 +46,7 @@ prepare_user_namespace() {
     'abi <abi/4.0>,' \
     'include <tunables/global>' \
     '' \
-    "$review_unshare_binary flags=(unconfined) {" \
+    "profile wukongim-review-agent-unshare $review_unshare_binary flags=(unconfined) {" \
     '  userns,' \
     '}' \
     | sudo tee "$review_unshare_profile" >/dev/null
@@ -54,7 +54,6 @@ prepare_user_namespace() {
   sudo apparmor_parser -r "$review_unshare_profile"
 
   [[ "$(< /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" == 1 ]]
-  "$review_unshare_binary" --user --map-root-user true
 }
 
 apply_network_rules() {
@@ -239,15 +238,10 @@ limit_runner_worker() {
 }
 
 case "${1:-}" in
-  prepare-userns)
-    [[ $# -eq 1 ]]
-    trap cleanup_user_namespace_exception EXIT
-    prepare_user_namespace
-    trap - EXIT
-    ;;
   start)
     [[ $# -eq 2 ]]
     trap cleanup_user_namespace_exception EXIT
+    prepare_user_namespace
     start_namespace "$2"
     release_user_namespace_exception
     trap - EXIT
@@ -276,7 +270,7 @@ case "${1:-}" in
     limit_runner_worker
     ;;
   *)
-    echo "usage: network-fence.sh prepare-userns | start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
+    echo "usage: network-fence.sh start PID_FILE | join PID_FILE COMMAND... | host keep-sudo|disable-sudo | model-host" >&2
     exit 2
     ;;
 esac

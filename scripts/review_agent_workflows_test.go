@@ -283,11 +283,13 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		t,
 		fence,
 		"trap cleanup_user_namespace_exception EXIT\n"+
+			"    prepare_user_namespace\n"+
 			"    start_namespace \"$2\"\n"+
 			"    release_user_namespace_exception\n"+
 			"    trap - EXIT",
-		"start must revoke its temporary AppArmor exception before returning",
+		"start must prepare, use, and revoke its AppArmor exception atomically",
 	)
+	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
 	require.Contains(t, fence, "nsenter")
 	require.Contains(t, fence, "--connlimit-above 128")
@@ -302,14 +304,18 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "disable-sudo"),
 		"candidate baseline must disable sudo exactly once",
 	)
-	require.Equal(
+	require.NotContains(
 		t,
-		2,
-		strings.Count(
-			raw,
-			`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
-		),
-		"baseline and model runners must prepare the narrow userns profile",
+		raw,
+		`"$RUNNER_TEMP/review-agent-network-fence.sh" prepare-userns`,
+	)
+	review := issueAgentJobText(t, raw, "review")
+	require.Contains(
+		t,
+		review,
+		"if [[ \"$INPUT_OPERATION\" == review ]]; then\n"+
+			"            \"$RUNNER_TEMP/review-agent-network-fence.sh\" start",
+		"explanation sessions must not create a candidate network namespace",
 	)
 	require.Contains(
 		t,
