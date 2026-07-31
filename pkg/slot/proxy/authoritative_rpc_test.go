@@ -223,6 +223,41 @@ func TestRuntimeMetaRPCDoesNotFallbackToLegacyOnNonCodecError(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
+func TestCallAuthoritativeRPCPrioritizesObservedLeaderBeforeUnreachablePeer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var calls []multiraft.NodeID
+	store := New(&proxyTestMigrationCluster{
+		nodeID:         3,
+		localNodeID:    3,
+		slotForKey:     1,
+		hashSlotForKey: 0,
+		leaders:        map[multiraft.SlotID]multiraft.NodeID{1: 2},
+		peers:          map[multiraft.SlotID][]multiraft.NodeID{1: {1, 2, 3}},
+		rpcService: func(ctx context.Context, nodeID multiraft.NodeID, _ multiraft.SlotID, _ uint8, _ []byte) ([]byte, error) {
+			calls = append(calls, nodeID)
+			if nodeID == 1 {
+				cancel()
+				return nil, ctx.Err()
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return encodeChannelRPCResponse(channelRPCResponse{Status: rpcStatusOK})
+		},
+	}, openTestDB(t))
+
+	_, err := store.callChannelRPC(ctx, 1, channelRPCRequest{
+		Op:          channelRPCGetForPermission,
+		SlotID:      1,
+		ChannelID:   "g1",
+		ChannelType: 2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []multiraft.NodeID{2}, calls)
+}
+
 func TestRuntimeMetaRPCRejectsJSONPayload(t *testing.T) {
 	store := New(nil, openTestDB(t))
 

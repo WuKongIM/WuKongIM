@@ -3,11 +3,13 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
@@ -84,6 +86,32 @@ func TestChannelMetadataStoreUsesAuthoritativeChannelReads(t *testing.T) {
 	}
 }
 
+func TestChannelMetadataStoreMapsUnavailablePermissionReadsToRouteNotReady(t *testing.T) {
+	node := &recordingChannelMetadataNode{
+		authoritativeErr: fmt.Errorf(
+			"%w: connection refused",
+			transport.ErrDialFailed,
+		),
+	}
+	store := NewChannelMetadataStore(node, nil)
+
+	if _, err := store.GetChannelForPermission(
+		context.Background(), "g1", 2,
+	); !errors.Is(err, channelappend.ErrRouteNotReady) {
+		t.Fatalf("GetChannelForPermission() error = %v, want %v", err, channelappend.ErrRouteNotReady)
+	}
+	if _, err := store.ContainsChannelSubscriber(
+		context.Background(), "g1", 2, "u1",
+	); !errors.Is(err, channelappend.ErrRouteNotReady) {
+		t.Fatalf("ContainsChannelSubscriber() error = %v, want %v", err, channelappend.ErrRouteNotReady)
+	}
+	if _, err := store.HasChannelSubscribers(
+		context.Background(), "g1", 2,
+	); !errors.Is(err, channelappend.ErrRouteNotReady) {
+		t.Fatalf("HasChannelSubscribers() error = %v, want %v", err, channelappend.ErrRouteNotReady)
+	}
+}
+
 func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
 	node := &localOnlyChannelMetadataNode{}
 	store := NewChannelMetadataStore(node, nil)
@@ -157,6 +185,7 @@ type recordingChannelMetadataNode struct {
 	membershipDeletes      []membershipDeleteNodeCall
 	authoritativeChannel   metadb.Channel
 	authoritativeUIDs      []string
+	authoritativeErr       error
 	authoritativeReadCalls int
 	localReadCalls         int
 	addResult              metadb.SubscriberMutationResult
@@ -216,21 +245,33 @@ func (r *recordingChannelMetadataNode) HasChannelSubscribers(context.Context, st
 
 func (r *recordingChannelMetadataNode) GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error) {
 	r.authoritativeReadCalls++
+	if r.authoritativeErr != nil {
+		return metadb.Channel{}, r.authoritativeErr
+	}
 	return r.authoritativeChannel, nil
 }
 
 func (r *recordingChannelMetadataNode) ListChannelSubscribersAuthoritative(context.Context, string, int64, string, int) ([]string, string, bool, error) {
 	r.authoritativeReadCalls++
+	if r.authoritativeErr != nil {
+		return nil, "", false, r.authoritativeErr
+	}
 	return append([]string(nil), r.authoritativeUIDs...), "", true, nil
 }
 
 func (r *recordingChannelMetadataNode) ContainsChannelSubscriberAuthoritative(_ context.Context, _ string, _ int64, uid string) (bool, error) {
 	r.authoritativeReadCalls++
+	if r.authoritativeErr != nil {
+		return false, r.authoritativeErr
+	}
 	return uid == "u1", nil
 }
 
 func (r *recordingChannelMetadataNode) HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error) {
 	r.authoritativeReadCalls++
+	if r.authoritativeErr != nil {
+		return false, r.authoritativeErr
+	}
 	return len(r.authoritativeUIDs) > 0, nil
 }
 

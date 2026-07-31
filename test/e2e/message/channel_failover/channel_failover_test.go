@@ -143,6 +143,14 @@ func TestChannelFollowerReplicaRepairAfterNodeKill(t *testing.T) {
 
 	require.NoError(t, cluster.MustNode(candidate.SecondStoppedFollower).Stop(), cluster.DumpDiagnostics())
 	requireNodeUnschedulableEventually(t, cluster, managerNode, candidate.SecondStoppedFollower)
+	requireControlPlaneConvergedAfterNodeStopEventually(
+		t,
+		cluster,
+		managerNode,
+		candidate,
+		45*time.Second,
+		2*time.Second,
+	)
 
 	afterSecondStop := sendGroupMessageWithin(t, managerNode, candidate.ChannelID, candidate.ChannelType, "follower-repair-after-second-stop", 20*time.Second)
 	require.Greater(t, afterSecondStop.Seq, afterRepair.Seq, cluster.DumpDiagnostics())
@@ -903,6 +911,169 @@ func requireControllerQuorumPreconditionEventually(t *testing.T, cluster *suite.
 		case <-ticker.C:
 		}
 	}
+}
+
+func requireControlPlaneConvergedAfterNodeStopEventually(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	managerNode *suite.StartedNode,
+	candidate followerRepairCandidate,
+	timeout time.Duration,
+	stableWindow time.Duration,
+) {
+	t.Helper()
+
+	survivingVoters := []uint64{candidate.Leader, candidate.StoppedFollower}
+	sort.Slice(survivingVoters, func(i, j int) bool { return survivingVoters[i] < survivingVoters[j] })
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	manager := cluster.ManagerClient(t, managerNode.Spec.ID)
+
+	var (
+		lastFingerprint string
+		stableSince     time.Time
+		lastErr         error
+	)
+	for {
+		controllerStatuses := make([]suite.ControllerRaftStatusDTO, 0, len(survivingVoters))
+		slotInventories := make(map[uint64][]suite.SlotDTO, len(survivingVoters))
+		var observationErr error
+		for _, nodeID := range survivingVoters {
+			reqCtx, reqCancel := context.WithTimeout(ctx, 2*time.Second)
+			status, err := manager.ControllerRaftStatus(reqCtx, nodeID)
+			reqCancel()
+			if err != nil {
+				observationErr = fmt.Errorf("read node %d Controller status: %w", nodeID, err)
+				break
+			}
+			controllerStatuses = append(controllerStatuses, status)
+
+			items, err := managerSlotsForNode(ctx, managerNode, nodeID)
+			if err != nil {
+				observationErr = fmt.Errorf("read node %d Slot leaders: %w", nodeID, err)
+				break
+			}
+			slotInventories[nodeID] = items
+		}
+
+		if observationErr == nil {
+			fingerprint, err := postStopControlPlaneFingerprint(
+				controllerStatuses,
+				slotInventories,
+				candidate.SecondStoppedFollower,
+			)
+			if err == nil {
+				now := time.Now()
+				if fingerprint != lastFingerprint {
+					lastFingerprint = fingerprint
+					stableSince = now
+				} else if now.Sub(stableSince) >= stableWindow {
+					t.Logf("control plane converged after node %d stop: %s", candidate.SecondStoppedFollower, fingerprint)
+					return
+				}
+				lastErr = fmt.Errorf("control-plane fingerprint %q stable for %s of %s", fingerprint, now.Sub(stableSince), stableWindow)
+			} else {
+				lastFingerprint = ""
+				stableSince = time.Time{}
+				lastErr = err
+			}
+		} else {
+			lastFingerprint = ""
+			stableSince = time.Time{}
+			lastErr = observationErr
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("control plane did not converge after node %d stop: lastErr=%v\n%s", candidate.SecondStoppedFollower, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func postStopControlPlaneFingerprint(
+	controllerStatuses []suite.ControllerRaftStatusDTO,
+	slotInventories map[uint64][]suite.SlotDTO,
+	stoppedNodeID uint64,
+) (string, error) {
+	if len(controllerStatuses) == 0 {
+		return "", fmt.Errorf("Controller status observations are empty")
+	}
+	if len(slotInventories) == 0 {
+		return "", fmt.Errorf("Slot leader observations are empty")
+	}
+
+	sort.Slice(controllerStatuses, func(i, j int) bool {
+		return controllerStatuses[i].NodeID < controllerStatuses[j].NodeID
+	})
+	controllerLeaderID := controllerStatuses[0].LeaderID
+	controllerTerm := controllerStatuses[0].Term
+	if controllerLeaderID == 0 || controllerLeaderID == stoppedNodeID {
+		return "", fmt.Errorf("Controller leader=%d after node %d stop", controllerLeaderID, stoppedNodeID)
+	}
+	for _, status := range controllerStatuses {
+		if status.LeaderID != controllerLeaderID || status.Term != controllerTerm {
+			return "", fmt.Errorf("Controller observations disagree: %+v", controllerStatuses)
+		}
+		if !uint64InList(status.Voters, controllerLeaderID) {
+			return "", fmt.Errorf("Controller leader %d is not in node %d voters %v", controllerLeaderID, status.NodeID, status.Voters)
+		}
+	}
+
+	nodeIDs := make([]uint64, 0, len(slotInventories))
+	for nodeID := range slotInventories {
+		nodeIDs = append(nodeIDs, nodeID)
+	}
+	sort.Slice(nodeIDs, func(i, j int) bool { return nodeIDs[i] < nodeIDs[j] })
+
+	slotLeaders := make(map[uint32]uint64)
+	slotObservationCounts := make(map[uint32]int)
+	for _, nodeID := range nodeIDs {
+		items := slotInventories[nodeID]
+		if len(items) == 0 {
+			return "", fmt.Errorf("node %d Slot leader observations are empty", nodeID)
+		}
+		for _, item := range items {
+			if item.NodeLog == nil || item.NodeLog.LeaderID == 0 {
+				return "", fmt.Errorf("node %d Slot %d leader is missing: %+v", nodeID, item.SlotID, item.NodeLog)
+			}
+			leaderID := item.NodeLog.LeaderID
+			if leaderID == stoppedNodeID {
+				return "", fmt.Errorf("node %d Slot %d still reports stopped leader %d", nodeID, item.SlotID, stoppedNodeID)
+			}
+			if !uint64InList(item.Assignment.DesiredPeers, leaderID) {
+				return "", fmt.Errorf("node %d Slot %d leader %d is outside desired peers %v", nodeID, item.SlotID, leaderID, item.Assignment.DesiredPeers)
+			}
+			if observedLeaderID, ok := slotLeaders[item.SlotID]; ok && observedLeaderID != leaderID {
+				return "", fmt.Errorf("Slot %d leader disagreement: %d and %d", item.SlotID, observedLeaderID, leaderID)
+			}
+			slotLeaders[item.SlotID] = leaderID
+			slotObservationCounts[item.SlotID]++
+		}
+	}
+	if len(slotLeaders) == 0 {
+		return "", fmt.Errorf("Slot leader observations contain no Slots")
+	}
+	for slotID, count := range slotObservationCounts {
+		if count != len(nodeIDs) {
+			return "", fmt.Errorf("Slot %d observations=%d, want %d", slotID, count, len(nodeIDs))
+		}
+	}
+
+	slotIDs := make([]uint32, 0, len(slotLeaders))
+	for slotID := range slotLeaders {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	var fingerprint strings.Builder
+	fmt.Fprintf(&fingerprint, "controller=%d/%d;", controllerLeaderID, controllerTerm)
+	for _, slotID := range slotIDs {
+		fmt.Fprintf(&fingerprint, "slot=%d/%d;", slotID, slotLeaders[slotID])
+	}
+	return fingerprint.String(), nil
 }
 
 func controllerQuorumPrecondition(nodes suite.NodeListDTO, originalVoters []uint64, spareNodeID uint64) error {
