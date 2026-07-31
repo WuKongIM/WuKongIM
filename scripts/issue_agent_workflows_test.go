@@ -118,7 +118,7 @@ func TestIssueAgentCodexActionRunsTheWholeEphemeralTask(t *testing.T) {
 	require.Contains(t, raw,
 		"allow-bot-users: ${{ vars.ISSUE_AGENT_APP_LOGIN }}")
 	require.NotContains(t, raw, "allow-bots: true")
-	require.Contains(t, raw, "model: openai/gpt-5.6-sol")
+	require.Contains(t, raw, "model: moonshotai/kimi-k3")
 	require.Contains(t, raw, "effort: high")
 	require.Contains(t, raw, "secrets.OPENAI_API_KEY")
 	require.Contains(t, raw,
@@ -302,7 +302,7 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	require.Equal(t, strings.TrimPrefix(codexActionPin, "openai/codex-action@"),
 		policy.Engineer.ActionSHA)
 	require.Equal(t, codexVersion, policy.Engineer.CodexVersion)
-	require.Equal(t, "openai/gpt-5.6-sol", policy.Engineer.Model)
+	require.Equal(t, "moonshotai/kimi-k3", policy.Engineer.Model)
 	require.Equal(t, "workspace-write", policy.Engineer.Sandbox)
 	require.True(t, policy.Engineer.Ephemeral)
 	require.True(t, policy.Engineer.NetworkAccess)
