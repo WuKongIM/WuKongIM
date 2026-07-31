@@ -262,6 +262,28 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.NotContains(t, raw, `"$RUNNER_TEMP/review-agent-network-fence.sh" model-host`)
 	require.Contains(t, raw, `"$RUNNER_TEMP/review-agent-network-fence.sh" join`)
+	require.Contains(t, raw, `'command = "/usr/bin/env"'`)
+	require.Contains(
+		t,
+		raw,
+		`\"REVIEW_NETWORK_FENCE=$RUNNER_TEMP/review-agent-network-fence.sh\"`,
+	)
+	require.Contains(
+		t,
+		raw,
+		`\"REVIEW_NETNS_PID_FILE=$RUNNER_TEMP/review-agent-netns.pid\"`,
+	)
+	require.NotContains(
+		t,
+		raw,
+		`"command = \"$RUNNER_TEMP/review-agent-network-fence.sh\""`,
+	)
+	require.Contains(
+		t,
+		raw,
+		`sudo chown root:root \`+"\n"+
+			`              "$RUNNER_TEMP/review-agent-netns.pid"`,
+	)
 	require.Contains(t, raw, "model_context_window=240000")
 	require.Contains(t, raw, "model_auto_compact_token_limit=216000")
 	require.NotContains(t, raw, `[[ "${{ inputs.`)

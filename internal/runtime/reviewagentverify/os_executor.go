@@ -17,12 +17,14 @@ import (
 
 // OSExecutorConfig contains only non-secret process environment roots.
 type OSExecutorConfig struct {
-	HomeDir       string
-	Path          string
-	TempDir       string
-	WorkspaceRoot string
-	SandboxBinary string
-	HelperBinary  string
+	HomeDir                 string
+	Path                    string
+	TempDir                 string
+	WorkspaceRoot           string
+	SandboxBinary           string
+	HelperBinary            string
+	NetworkFenceBinary      string
+	NetworkNamespacePIDFile string
 }
 
 // OSExecutor runs already-resolved catalog commands with a minimal
@@ -35,6 +37,9 @@ type OSExecutor struct {
 	sandboxBinary string
 	gitBinary     string
 	helperBinary  string
+	networkFence  string
+	networkPID    string
+	runnerTemp    string
 }
 
 // NewOSExecutor constructs an executor without inheriting the job
@@ -71,6 +76,9 @@ func NewOSExecutor(config OSExecutorConfig) (*OSExecutor, error) {
 	sandboxBinary := ""
 	gitBinary := ""
 	helperBinary := ""
+	networkFence := ""
+	networkPID := ""
+	runnerTemp := ""
 	if config.SandboxBinary != "" || config.WorkspaceRoot != "" {
 		workspaceRoot, sandboxBinary, err = validateProcessSandbox(config)
 		if err != nil {
@@ -84,6 +92,19 @@ func NewOSExecutor(config OSExecutorConfig) (*OSExecutor, error) {
 			return nil, err
 		}
 		gitBinary, err = executableInPath(config.Path, "git")
+		if err != nil {
+			return nil, err
+		}
+	}
+	if config.NetworkFenceBinary != "" ||
+		config.NetworkNamespacePIDFile != "" {
+		if sandboxBinary == "" {
+			return nil, errors.New(
+				"named-check network fence requires process sandbox",
+			)
+		}
+		networkFence, networkPID, runnerTemp, err =
+			validateNetworkNamespace(config)
 		if err != nil {
 			return nil, err
 		}
@@ -104,6 +125,9 @@ func NewOSExecutor(config OSExecutorConfig) (*OSExecutor, error) {
 		sandboxBinary: sandboxBinary,
 		gitBinary:     gitBinary,
 		helperBinary:  helperBinary,
+		networkFence:  networkFence,
+		networkPID:    networkPID,
+		runnerTemp:    runnerTemp,
 	}, nil
 }
 
@@ -255,6 +279,32 @@ func validateExecutable(pathValue string, label string) (string, error) {
 	return pathValue, nil
 }
 
+func validateNetworkNamespace(
+	config OSExecutorConfig,
+) (string, string, string, error) {
+	networkFence, err := validateExecutable(
+		config.NetworkFenceBinary,
+		"named-check network fence",
+	)
+	if err != nil {
+		return "", "", "", err
+	}
+	pidFile := config.NetworkNamespacePIDFile
+	if !filepath.IsAbs(pidFile) {
+		return "", "", "", errors.New(
+			"named-check network namespace PID path is not absolute",
+		)
+	}
+	info, err := os.Lstat(pidFile)
+	if err != nil || !info.Mode().IsRegular() ||
+		info.Mode()&os.ModeSymlink != 0 {
+		return "", "", "", errors.New(
+			"named-check network namespace PID file is unsafe",
+		)
+	}
+	return networkFence, pidFile, filepath.Dir(pidFile), nil
+}
+
 func secureDirectoryWithin(root string, target string) error {
 	relative, err := filepath.Rel(root, target)
 	if err != nil || relative == ".." ||
@@ -336,15 +386,13 @@ func (executor *OSExecutor) prepareSandbox(
 		cleanupOnError()
 		return nil, errors.New("create isolated named-check temporary directory")
 	}
-	command := exec.Command(
-		executor.gitBinary,
+	command := executor.trustedGitCommand(
 		"-c", "core.hooksPath=/dev/null",
 		"-c", "core.fsmonitor=false",
 		"-c", "diff.external=",
 		"-C", executor.workspaceRoot,
 		"worktree", "add", "--detach", sandbox.workspace, "HEAD",
 	)
-	command.Env = trustedGitEnvironment(executor.gitBinary)
 	if output, err := command.CombinedOutput(); err != nil {
 		cleanupOnError()
 		return nil, fmt.Errorf(
@@ -379,17 +427,41 @@ func (sandbox *processSandbox) cleanup() {
 	if sandbox == nil || sandbox.executor == nil {
 		return
 	}
-	command := exec.Command(
-		sandbox.executor.gitBinary,
+	command := sandbox.executor.trustedGitCommand(
 		"-c", "core.hooksPath=/dev/null",
 		"-c", "core.fsmonitor=false",
 		"-c", "diff.external=",
 		"-C", sandbox.executor.workspaceRoot,
 		"worktree", "remove", "--force", sandbox.workspace,
 	)
-	command.Env = trustedGitEnvironment(sandbox.executor.gitBinary)
 	_ = command.Run()
 	_ = os.RemoveAll(sandbox.root)
+}
+
+func (executor *OSExecutor) trustedGitCommand(arguments ...string) *exec.Cmd {
+	if executor.networkFence == "" {
+		command := exec.Command(executor.gitBinary, arguments...)
+		command.Env = trustedGitEnvironment(executor.gitBinary)
+		return command
+	}
+	command := exec.Command(
+		executor.networkFence,
+		append(
+			[]string{"join", executor.networkPID, executor.gitBinary},
+			arguments...,
+		)...,
+	)
+	command.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"RUNNER_TEMP=" + executor.runnerTemp,
+		"HOME=/nonexistent",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_OPTIONAL_LOCKS=0",
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+	}
+	return command
 }
 
 func (executor *OSExecutor) processCommand(
@@ -440,6 +512,22 @@ func (executor *OSExecutor) processCommand(
 	sandboxArguments = append(sandboxArguments, "--cap-drop", "ALL")
 	sandboxArguments = append(sandboxArguments, "--")
 	sandboxArguments = append(sandboxArguments, arguments...)
+	if executor.networkFence != "" {
+		return executor.networkFence,
+			append(
+				[]string{
+					"join",
+					executor.networkPID,
+					executor.sandboxBinary,
+				},
+				sandboxArguments...,
+			),
+			string(filepath.Separator),
+			[]string{
+				"PATH=" + os.Getenv("PATH"),
+				"RUNNER_TEMP=" + executor.runnerTemp,
+			}
+	}
 	return executor.sandboxBinary,
 		sandboxArguments,
 		string(filepath.Separator),
