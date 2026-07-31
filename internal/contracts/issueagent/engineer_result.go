@@ -44,13 +44,16 @@ func DecodeEngineerResult(reader io.Reader, maxBytes int64) (EngineerResult, err
 	var result EngineerResult
 	rawErr := decodeStrictJSON(bytes.NewReader(body), maxBytes, &result)
 	if rawErr != nil {
-		fenced, ok := extractSingleJSONFence(body)
+		object, ok := extractSingleJSONFence(body)
+		if !ok {
+			object, ok = extractSingleJSONObject(body)
+		}
 		if !ok {
 			return EngineerResult{}, rawErr
 		}
 		result = EngineerResult{}
 		if err := decodeStrictJSON(
-			bytes.NewReader(fenced), maxBytes, &result,
+			bytes.NewReader(object), maxBytes, &result,
 		); err != nil {
 			return EngineerResult{}, err
 		}
@@ -89,11 +92,28 @@ func extractSingleJSONFence(body []byte) ([]byte, bool) {
 		if index > open && index < close {
 			continue
 		}
-		if bytes.ContainsAny(line, "{}") {
+		if bytes.ContainsAny(line, "{}[]") {
 			return nil, false
 		}
 	}
 	return bytes.Join(lines[open+1:close], []byte{'\n'}), true
+}
+
+// extractSingleJSONObject rejects competing JSON containers while allowing a
+// model to prefix its only structured result with bounded prose.
+func extractSingleJSONObject(body []byte) ([]byte, bool) {
+	start := bytes.IndexByte(body, '{')
+	end := bytes.LastIndexByte(body, '}')
+	if start < 0 || end <= start {
+		return nil, false
+	}
+	if bytes.ContainsAny(body[:start], "{}[]") ||
+		bytes.ContainsAny(body[end+1:], "{}[]") ||
+		bytes.Contains(body[:start], []byte("```")) ||
+		bytes.Contains(body[end+1:], []byte("```")) {
+		return nil, false
+	}
+	return bytes.TrimSpace(body[start : end+1]), true
 }
 
 // ValidateEngineerResult rejects ambiguous or unbounded advisory output.

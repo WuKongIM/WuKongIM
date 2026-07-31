@@ -18,6 +18,18 @@ const validEngineerResultJSON = `{"schema_version":2,"repository":"WuKongIM/WuKo
 	`"unresolved_uncertainty":"","summary":"guard missing route target",` +
 	`"ready":true}`
 
+func TestDecodeEngineerResultAcceptsProseBeforeSingleJSONObject(t *testing.T) {
+	t.Parallel()
+
+	result, err := issueagent.DecodeEngineerResult(strings.NewReader(
+		"All verification complete; the focused suite passes.\n\n"+
+			validEngineerResultJSON,
+	), 16<<10)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.EngineerOutcomeReady, result.Outcome)
+	require.True(t, result.Ready)
+}
+
 func TestDecodeEngineerResultAcceptsSingleJSONFence(t *testing.T) {
 	t.Parallel()
 
@@ -49,6 +61,28 @@ func TestDecodeEngineerResultRejectsRawAndFencedResults(t *testing.T) {
 		validEngineerResultJSON+"\n```json\n"+validEngineerResultJSON+"\n```\n",
 	), 32<<10)
 	require.Error(t, err)
+}
+
+func TestDecodeEngineerResultRejectsAmbiguousProseWrappedJSON(t *testing.T) {
+	t.Parallel()
+
+	for name, input := range map[string]string{
+		"multiple objects":     validEngineerResultJSON + "\n{}",
+		"array wrapper":        "[" + validEngineerResultJSON + "]",
+		"fenced array wrapper": "[\n```json\n" + validEngineerResultJSON + "\n```\n]",
+		"object in prose":      "Use {strict} output.\n" + validEngineerResultJSON,
+		"unclosed JSON fence":  "```json\n" + validEngineerResultJSON,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := issueagent.DecodeEngineerResult(
+				strings.NewReader(input),
+				int64(len(input)),
+			)
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestDecodeEngineerResultRejectsTrustedTestClaim(t *testing.T) {
