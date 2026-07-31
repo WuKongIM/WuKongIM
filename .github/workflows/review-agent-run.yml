@@ -453,7 +453,7 @@ jobs:
           working-directory: ${{ runner.temp }}/review-agent-session
           codex-version: 0.146.0
           codex-home: ${{ runner.temp }}/review-codex-home
-          model: openai/gpt-5.6-sol
+          model: moonshotai/kimi-k3
           effort: high
           permission-profile: review-agent
           safety-strategy: drop-sudo

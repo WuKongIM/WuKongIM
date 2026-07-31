@@ -78,7 +78,7 @@ Require:
 
 - one policy schema version;
 - `main` as the initial protected base;
-- `openai/gpt-5.6-sol` with `high` effort;
+- `moonshotai/kimi-k3` with `high` effort;
 - immutable Codex Action/CLI identifiers;
 - three active repository leases and one per PR;
 - 90-minute generation timeout;

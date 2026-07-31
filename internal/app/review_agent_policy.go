@@ -159,7 +159,7 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		!slices.Equal(document.SupportedBaseBranches, []string{"main"}) ||
 		!reviewPolicySHAPattern.MatchString(document.Reviewer.ActionSHA) ||
 		document.Reviewer.CodexVersion == "" ||
-		document.Reviewer.Model != "openai/gpt-5.6-sol" ||
+		document.Reviewer.Model != "moonshotai/kimi-k3" ||
 		document.Reviewer.ReasoningEffort != "high" ||
 		document.Reviewer.Sandbox != "read-only" ||
 		!document.Reviewer.Ephemeral ||

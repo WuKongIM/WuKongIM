@@ -84,7 +84,7 @@ failure, or a context too large for complete risk coverage yields
 ## Checks and model
 
 Protected policy fixes the official Codex Action, Codex version,
-`openai/gpt-5.6-sol`, high reasoning effort, deterministic check catalog, path
+`moonshotai/kimi-k3`, high reasoning effort, deterministic check catalog, path
 rules, budgets, and network fences.
 
 Each head SHA has one signed automatic-review budget. Intent-only edits after

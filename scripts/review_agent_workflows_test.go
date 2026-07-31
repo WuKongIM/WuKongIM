@@ -183,7 +183,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "persist-credentials: false"))
 	require.Contains(t, raw, "ref: ${{ needs.recover.outputs.test_merge_sha }}")
 	require.Equal(t, 1, strings.Count(raw, "openai/codex-action@"))
-	require.Contains(t, raw, "model: openai/gpt-5.6-sol")
+	require.Contains(t, raw, "model: moonshotai/kimi-k3")
 	require.Contains(t, raw, "effort: high")
 	require.Contains(t, raw, "codex-version: 0.146.0")
 	require.Contains(t, raw, "safety-strategy: drop-sudo")
