@@ -122,6 +122,7 @@ type App struct {
 	conversations    *conversationusecase.App
 	users            *userusecase.App
 	delivery         *deliveryusecase.App
+	onlineDelivery   *runtimedelivery.Runtime
 	deliveryManager  *runtimedelivery.Manager
 	deliveryRetry    *runtimedelivery.RetryScheduler
 	deliveryWorker   WorkerRuntime
@@ -266,10 +267,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()
-	app.wireDelivery()
 	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
+	app.wireDelivery()
 	app.wireManagerPluginRPC()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
 		return nil, err

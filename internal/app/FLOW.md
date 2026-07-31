@@ -1,5 +1,12 @@
 # internal/app Flow
 
+During Online Delivery convergence, app wiring starts only
+`internal/runtime/delivery.Runtime`, injects it into channelappend through the
+canonical compatibility port, and registers only owner-push RPC. The old
+manager/retry/fanout implementations remain compiled for one cleanup step but
+are no longer constructed. Gateway feedback temporarily crosses the existing
+delivery-usecase facade, which performs only command-type conversion.
+
 ## Responsibility
 
 `internal/app` is the only composition root for the new skeleton. It wires

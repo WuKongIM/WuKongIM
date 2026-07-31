@@ -26,6 +26,10 @@ type deliveryRuntimeAdapter struct {
 	manager *runtimedelivery.Manager
 }
 
+type onlineDeliveryUsecaseAdapter struct {
+	runtime *runtimedelivery.Runtime
+}
+
 type deliveryWorkerGroup []WorkerRuntime
 
 func appendDeliveryWorker(current WorkerRuntime, worker WorkerRuntime) WorkerRuntime {
@@ -350,6 +354,28 @@ func (a deliveryRuntimeAdapter) SessionClosed(ctx context.Context, cmd deliveryu
 		return nil
 	}
 	return a.manager.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
+}
+
+// SubmitCommitted is retained only for the temporary delivery-usecase facade.
+// Channelappend is the sole production producer of canonical delivery plans.
+func (a onlineDeliveryUsecaseAdapter) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
+	return nil
+}
+
+func (a onlineDeliveryUsecaseAdapter) Recvack(ctx context.Context, cmd deliveryusecase.RecvackCommand) error {
+	if a.runtime == nil {
+		return nil
+	}
+	return a.runtime.Recvack(ctx, runtimedelivery.Recvack{
+		UID: cmd.UID, SessionID: cmd.SessionID, MessageID: cmd.MessageID, MessageSeq: cmd.MessageSeq,
+	})
+}
+
+func (a onlineDeliveryUsecaseAdapter) SessionClosed(ctx context.Context, cmd deliveryusecase.SessionClosedCommand) error {
+	if a.runtime == nil {
+		return nil
+	}
+	return a.runtime.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
 }
 
 type appSubscriberPlanner struct {
