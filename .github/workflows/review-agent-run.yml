@@ -234,7 +234,7 @@ jobs:
           set -euo pipefail
           "$RUNNER_TEMP/review-agent-network-fence.sh" start \
             "$RUNNER_TEMP/review-agent-netns.pid"
-          "$RUNNER_TEMP/review-agent-network-fence.sh" host disable-sudo
+          "$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host
           mkdir -p "$RUNNER_TEMP/review-agent-home" "$RUNNER_TEMP/review-agent-evidence"
       - name: Run fixed mandatory checks without credentials
         shell: bash
@@ -242,6 +242,7 @@ jobs:
           REVIEW_AGENT_HOME: ${{ runner.temp }}/review-agent-home
           REVIEW_EVIDENCE_LEDGER: ${{ runner.temp }}/review-agent-evidence/ledger.jsonl
           REVIEW_POLICY_PATH: ${{ runner.temp }}/review-agent-policy.json
+          REVIEW_WORKSPACE: ${{ github.workspace }}
           DEADLINE_EPOCH: ${{ needs.recover.outputs.deadline_epoch }}
         run: |
           set -euo pipefail

@@ -229,8 +229,9 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		raw,
-		`"$RUNNER_TEMP/review-agent-network-fence.sh" host disable-sudo`,
+		`"$RUNNER_TEMP/review-agent-network-fence.sh" baseline-host`,
 	)
+	require.NotContains(t, raw, `network-fence.sh" host disable-sudo`)
 	require.Contains(
 		t,
 		raw,
@@ -291,6 +292,9 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	)
 	require.NotContains(t, fence, "prepare-userns")
 	require.Contains(t, fence, "slirp4netns --configure --disable-host-loopback")
+	require.Contains(t, fence, "baseline-host)")
+	require.NotContains(t, fence, "apply_network_rules host")
+	require.NotContains(t, fence, "keep-sudo")
 	require.Equal(
 		t,
 		4,
@@ -320,8 +324,8 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Equal(
 		t,
 		1,
-		strings.Count(raw, "disable-sudo"),
-		"candidate baseline must disable sudo exactly once",
+		strings.Count(raw, "baseline-host"),
+		"the production baseline must apply the host privilege fence exactly once",
 	)
 	require.NotContains(
 		t,
