@@ -499,6 +499,16 @@ func verifyReviewBaseline(
 	if err != nil {
 		return contract.ReviewEvidence{}, err
 	}
+	verificationPolicy := policy.VerificationPolicy()
+	if request.CollectOnly {
+		return verify.CollectEvidence(
+			ledger,
+			verificationPolicy,
+			now,
+			request.Context.Generation,
+			request.Context.MandatoryChecks,
+		)
+	}
 	executor, err := verify.NewOSExecutor(verify.OSExecutorConfig{
 		HomeDir: config.ExecutorHome, Path: config.ExecutablePath,
 		TempDir:       config.TemporaryDirectory,
@@ -511,19 +521,13 @@ func verifyReviewBaseline(
 	}
 	runner, err := verify.NewRunner(verify.RunnerConfig{
 		WorkspaceRoot: config.WorkspaceDirectory,
-		Policy:        policy.VerificationPolicy(),
+		Policy:        verificationPolicy,
 		Executor:      executor,
 		Ledger:        ledger,
 		Now:           now,
 	})
 	if err != nil {
 		return contract.ReviewEvidence{}, err
-	}
-	if request.CollectOnly {
-		return runner.CollectEvidence(
-			request.Context.Generation,
-			request.Context.MandatoryChecks,
-		)
 	}
 	checks := make([]contract.CheckEvidence, 0, len(request.Context.MandatoryChecks))
 	for _, name := range request.Context.MandatoryChecks {

@@ -2,15 +2,101 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	cli "github.com/WuKongIM/WuKongIM/internal/access/reviewagentcli"
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 	reviewagentgithub "github.com/WuKongIM/WuKongIM/internal/infra/reviewagentgithub"
+	verify "github.com/WuKongIM/WuKongIM/internal/runtime/reviewagentverify"
 	reviewagent "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCollectOnlyReviewBaselineNeedsNoProcessExecutor(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	ledgerPath := filepath.Join(t.TempDir(), "ledger.jsonl")
+	ledger, err := verify.NewFileLedger(ledgerPath, workspace)
+	require.NoError(t, err)
+	generation := contract.GenerationIdentity{
+		Repository:     "WuKongIM/WuKongIM",
+		PullRequest:    716,
+		HeadSHA:        strings.Repeat("1", 40),
+		BaseSHA:        strings.Repeat("2", 40),
+		TestMergeSHA:   strings.Repeat("3", 40),
+		IntentDigest:   "sha256:" + strings.Repeat("4", 64),
+		Generation:     17,
+		StateParentSHA: strings.Repeat("5", 40),
+	}
+	require.NoError(t, ledger.Append(generation, contract.CheckEvidence{
+		Name:          "go-format",
+		CommandDigest: testReviewDigest("command"),
+		Outcome:       contract.CheckOutcomePassed,
+		DurationMS:    1,
+		StdoutDigest:  testReviewDigest(""),
+		StderrDigest:  testReviewDigest(""),
+	}))
+	contextValue := contract.ReviewContext{
+		SchemaVersion:      1,
+		Generation:         generation,
+		PolicyDigest:       testReviewDigest("policy"),
+		PromptDigest:       testReviewDigest("prompt"),
+		OutputSchemaDigest: testReviewDigest("schema"),
+		ReviewReason:       "synchronize",
+		Title:              "Collect trusted evidence",
+		ChangedFiles: []contract.ChangedFile{{
+			Path:          "internal/example.go",
+			Status:        contract.FileStatusModified,
+			Mode:          "100644",
+			Type:          "text",
+			Patch:         "@@ -1 +1 @@",
+			PatchDigest:   testReviewDigest("@@ -1 +1 @@"),
+			ContentDigest: testReviewDigest(""),
+		}},
+		MandatoryChecks: []string{"go-format"},
+	}
+	now := time.Date(2026, 7, 31, 13, 42, 20, 0, time.UTC)
+	evidence, err := verifyReviewBaseline(
+		context.Background(),
+		ReviewAgentConfig{
+			PolicyPath: filepath.Join(
+				"..", "..", ".github", "review-agent", "policy.json",
+			),
+			WorkspaceDirectory: workspace,
+			EvidenceLedgerPath: ledgerPath,
+			ExecutorHome:       t.TempDir(),
+			ExecutablePath:     os.Getenv("PATH"),
+			ProcessSandboxPath: filepath.Join(t.TempDir(), "missing-bwrap"),
+			ProcessHelperPath:  filepath.Join(t.TempDir(), "missing-helper"),
+		},
+		func() time.Time { return now },
+		cli.VerifyBaselineRequest{
+			Context: contextValue, CollectOnly: true,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, generation, evidence.Generation)
+	require.Equal(t, []contract.CheckEvidence{{
+		Name:          "go-format",
+		CommandDigest: testReviewDigest("command"),
+		Outcome:       contract.CheckOutcomePassed,
+		DurationMS:    1,
+		StdoutDigest:  testReviewDigest(""),
+		StderrDigest:  testReviewDigest(""),
+	}}, evidence.Checks)
+}
+
+func testReviewDigest(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
 
 func TestResolveReviewCommandIgnoresOrdinaryStatusComment(t *testing.T) {
 	t.Parallel()

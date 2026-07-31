@@ -122,16 +122,47 @@ func (runner *Runner) CollectEvidence(
 	generation contract.GenerationIdentity,
 	mandatory []string,
 ) (contract.ReviewEvidence, error) {
+	if runner == nil {
+		return contract.ReviewEvidence{}, errors.New(
+			"evidence collector is unavailable",
+		)
+	}
+	return CollectEvidence(
+		runner.ledger,
+		runner.policy,
+		runner.now,
+		generation,
+		mandatory,
+	)
+}
+
+// CollectEvidence reads and validates trusted ledger evidence without
+// constructing a process executor.
+func CollectEvidence(
+	ledger EvidenceLedger,
+	policy Policy,
+	now func() time.Time,
+	generation contract.GenerationIdentity,
+	mandatory []string,
+) (contract.ReviewEvidence, error) {
+	if ledger == nil || len(policy.TrustedChecks) == 0 {
+		return contract.ReviewEvidence{}, errors.New(
+			"invalid evidence collector configuration",
+		)
+	}
+	if now == nil {
+		now = time.Now
+	}
 	if err := contract.ValidateGenerationIdentity(generation); err != nil {
 		return contract.ReviewEvidence{}, err
 	}
-	records, err := runner.ledger.List(generation)
+	records, err := ledger.List(generation)
 	if err != nil {
 		return contract.ReviewEvidence{}, err
 	}
 	latest := make(map[string]contract.CheckEvidence)
 	for _, record := range records {
-		if _, protected := runner.policy.TrustedChecks[record.Evidence.Name]; !protected {
+		if _, protected := policy.TrustedChecks[record.Evidence.Name]; !protected {
 			return contract.ReviewEvidence{}, errors.New(
 				"evidence ledger names an unknown trusted check",
 			)
@@ -139,7 +170,7 @@ func (runner *Runner) CollectEvidence(
 		latest[record.Evidence.Name] = record.Evidence
 	}
 	for _, name := range mandatory {
-		if _, exists := runner.policy.TrustedChecks[name]; !exists {
+		if _, exists := policy.TrustedChecks[name]; !exists {
 			return contract.ReviewEvidence{}, errors.New(
 				"mandatory evidence names an unknown trusted check",
 			)
@@ -164,7 +195,7 @@ func (runner *Runner) CollectEvidence(
 		Generation:    generation,
 		Complete:      true,
 		Checks:        checks,
-		CreatedAt:     runner.now().UTC(),
+		CreatedAt:     now().UTC(),
 	}
 	if err := contract.ValidateReviewEvidence(evidence); err != nil {
 		return contract.ReviewEvidence{}, err
