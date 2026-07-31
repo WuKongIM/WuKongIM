@@ -323,9 +323,9 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, fence, `sudo chmod 000 "$sudo_binary"`)
 	require.Equal(
 		t,
-		2,
+		1,
 		strings.Count(raw, "baseline-host"),
-		"production and temporary diagnostic baselines must each apply the host privilege fence",
+		"the production baseline must apply the host privilege fence exactly once",
 	)
 	require.NotContains(
 		t,
