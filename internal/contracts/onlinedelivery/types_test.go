@@ -36,8 +36,16 @@ func TestRecipientDeliveryPlanCloneOwnsMutableStorage(t *testing.T) {
 	if got := cloned.RecipientCount(); got != 1 {
 		t.Fatalf("RecipientCount() = %d, want 1", got)
 	}
-	if !cloned.Mode.Valid() || Mode(0).Valid() {
-		t.Fatalf("mode validity = %v/%v, want true/false", cloned.Mode.Valid(), Mode(0).Valid())
+}
+
+func TestModeValidRecognizesOnlySupportedModes(t *testing.T) {
+	if !ModeDurable.Valid() || !ModeTransient.Valid() {
+		t.Fatalf("supported mode validity = %v/%v, want true/true", ModeDurable.Valid(), ModeTransient.Valid())
+	}
+	for _, mode := range []Mode{0, ModeTransient + 1, Mode(255)} {
+		if mode.Valid() {
+			t.Fatalf("Mode(%d).Valid() = true, want false", mode)
+		}
 	}
 }
 
@@ -60,5 +68,28 @@ func TestOwnerPushCloneOwnsMutableStorage(t *testing.T) {
 	}
 	if got := cloned.Routes[0].UID; got != "u1" {
 		t.Fatalf("cloned route UID = %q, want u1", got)
+	}
+}
+
+func TestOwnerPushResultCloneOwnsRouteSlices(t *testing.T) {
+	result := OwnerPushResult{
+		Accepted:  []Route{{UID: "accepted"}},
+		Retryable: []Route{{UID: "retryable"}},
+		Dropped:   []Route{{UID: "dropped"}},
+	}
+
+	cloned := result.Clone()
+	result.Accepted[0].UID = "changed"
+	result.Retryable[0].UID = "changed"
+	result.Dropped[0].UID = "changed"
+
+	if got := cloned.Accepted[0].UID; got != "accepted" {
+		t.Fatalf("cloned accepted UID = %q, want accepted", got)
+	}
+	if got := cloned.Retryable[0].UID; got != "retryable" {
+		t.Fatalf("cloned retryable UID = %q, want retryable", got)
+	}
+	if got := cloned.Dropped[0].UID; got != "dropped" {
+		t.Fatalf("cloned dropped UID = %q, want dropped", got)
 	}
 }
