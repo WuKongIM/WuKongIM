@@ -209,7 +209,7 @@ type OwnerPushEvent struct {
 	Retryable int
 	// Dropped is the number of terminally rejected exact routes.
 	Dropped int
-	// Duration is the owner-local execution latency.
+	// Duration is owner-local execution or remote transport latency.
 	Duration time.Duration
 	// Failure contains at most one exact-route diagnostic sample.
 	Failure OwnerPushFailureSample

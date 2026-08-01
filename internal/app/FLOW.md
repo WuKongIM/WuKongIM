@@ -45,10 +45,10 @@ New(Config)
      Prometheus metrics and the optional Top collector
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
-     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure and low-cardinality preferred-leader reconcile decisions/strict-wait latency, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and delivery fanout)
+     (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure and low-cardinality preferred-leader reconcile decisions/strict-wait latency, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and online delivery)
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
-     plus direct channelappend owner-push attempts on the same bounded delivery
-     push metric families used by runtime fanout, conversation list request latency/page-shape metrics, conversation
+     plus canonical Online Delivery local and remote owner-push attempts on the
+     bounded delivery push metric families, conversation list request latency/page-shape metrics, conversation
      authority admit/list/cache-pressure/handoff counters, conversation active
      cache gauges, dirty-mutation counters, persisted/cleared/requeued/superseded
      flush conservation counters, fair dirty-queue and bounded dirty-age-index
@@ -58,7 +58,7 @@ New(Config)
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters plus aggregate exact-target
      endpoint lookup path/outcome/retry metrics, recipient authority batch
-     calls/items/physical-targets/duration, recipient delivery worker
+     calls/items/physical-targets/duration, online delivery runtime
      queue/admission/process metrics plus configured worker capacity and current
      in-flight command gauges, and owner-local ACK batch bind/finish shape,
      rejection, rollback, and duration metrics,
@@ -147,7 +147,7 @@ New(Config)
        Messages, durable state reads, and read-cursor writes
   -> when the cluster exposes cluster Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
-     channelappend subscriber scans, and optional delivery fanout
+     and channelappend subscriber scans
   -> when the cluster exposes presence routing:
        create owner boot ID, online.Registry, runtime/presence.Directory,
        infra/cluster.PresenceAuthorityClient, usecase/presence.App,
@@ -220,16 +220,16 @@ New(Config)
        adapter, owner-local online registry, optional presence lookup, and the
        channel metadata adapter as the system UID store
   -> when Delivery.Enabled=true:
-       create a cluster-backed delivery partitioner
-       create infra/delivery.LocalOwnerPusher for exact owner-local session,
-       packet, and pending-RECVACK adaptation
-       when route snapshots are available, an app subscriber planner, presence
-       resolver, cluster delivery pusher, and partition-leader fanout router
-       wrap the fanout runner with a bounded in-memory retry scheduler
-       create runtime/delivery Manager in bounded async mode around the runner
-       attach delivery observer for metrics and async error logging
-       create usecase/delivery.App backed by the manager
-       register delivery push and fanout RPC handlers when node RPC is available
+       create the canonical runtime/delivery Runtime with bounded plan
+       admission, exact-target presence resolution, owner grouping, narrow
+       retry, pending-RECVACK tracking, and plugin/webhook offline observers
+       supply infra/delivery.LocalSessionWriter for final exact owner-local
+       packet writes and the node RPC client for remote owner pushes
+       attach delivery observers for metrics, pressure, ACK state, and bounded
+       terminal error logging
+       expose gateway RECVACK/session-close feedback through the temporary
+       usecase/delivery facade; channelappend remains the sole plan producer
+       register only the owner-push RPC handler when node RPC is available
   -> when Plugin.Enable=true (default unless WK_PLUGIN_ENABLE=false is set):
        wire a node-local PDK-compatible plugin runtime with a Unix host RPC
        socket, the lifecycle plus /message/send, /channel/messages,
@@ -250,10 +250,10 @@ New(Config)
        positive toNodeId /plugin/httpForward calls through the cluster manager
        plugin RPC forwarder; wire Receive hook binding selection to
        cluster-authoritative UID plugin bindings when available; attach the
-       plugin hook metrics observer
-       when metrics are enabled, expose durable commit PersistAfter events to
-       channelappend, expose each durable offline recipient batch to
-       channelappend's recipient delivery worker for Receive hooks, and
+       plugin hook metrics observer when metrics are enabled; expose durable
+       commit PersistAfter events to
+       channelappend, expose each durable offline recipient batch from the
+       Online Delivery runtime to Receive hooks, and
        register the manager plugin RPC handler when node RPC is available so
        peer managers can inspect or mutate this node's plugin lifecycle state
        and invoke this node's local /plugin/route hook for forwarded plugin
@@ -261,8 +261,9 @@ New(Config)
   -> when Webhook config is enabled:
        create the node-local webhook runtime with bounded workqueue admission,
        finite retry, and an HTTP sender; wire webhook adapters into
-       channelappend's durable post-commit PersistAfter sink, the batch offline
-       recipient observer, and the presence online-status observer
+       channelappend's durable post-commit PersistAfter sink, the Online
+       Delivery runtime's batch offline-recipient observer, and the presence
+       online-status observer
        Plugin hooks and webhook sinks coexist on the same side-effect surfaces.
        Webhook failures are best-effort side effects and must not affect
        SENDACK, durable append, recipient delivery, or conversation active
@@ -272,9 +273,8 @@ New(Config)
        cluster ChannelAppender, node-scoped message IDs, subscriber source,
        cluster-backed idempotency lookup when the cluster exposes it,
        infra/cluster recipient authority resolver adapter, conversation active-batch admitter,
-       optional recipient delivery worker enqueuer, optional plugin/webhook
-       PersistAfter enqueuers, optional plugin/webhook offline-recipient
-       observers, append metrics observer, and shared append/post-commit worker
+       optional canonical Online Delivery plan enqueuer, optional plugin/webhook
+       PersistAfter enqueuers, append metrics observer, and shared append/post-commit worker
        pools
        create channelappend.Router for local authority admission and remote
        channel-authority forwarding
@@ -403,7 +403,7 @@ Start(ctx)
   -> plugin runtime Start(ctx): open the host RPC socket, scan local plugins, and start enabled processes
   -> plugin PersistAfter worker Start(ctx): accept durable commit side effects before channel append opens
   -> webhook runtime Start(ctx): accept post-commit webhook side effects before producers open
-  -> delivery worker group Start(ctx): retry scheduler, async manager, then recipient delivery worker
+  -> Online Delivery runtime Start(ctx): open bounded plan admission and workers
   -> channel append group Start(ctx): open local channel-authority writer admission
   -> api.Start()
   -> manager.Start()
@@ -439,7 +439,7 @@ Stop(ctx)
        and controller-task-audit dependencies running
        retain their started flags so a later Stop(newCtx) waits for the same
        channel append drain and then resumes this dependency shutdown sequence
-  -> delivery worker group Stop(ctx): recipient delivery worker drains before async manager and retry scheduler
+  -> Online Delivery runtime Stop(ctx): close admission and drain accepted plans
   -> webhook runtime Stop(ctx): stop accepting new webhook side effects after producers drain
   -> plugin PersistAfter worker Stop(ctx): stop accepting new side effects after channel append drains
   -> plugin runtime Stop(ctx): stop plugin processes and close the host RPC socket
@@ -502,9 +502,9 @@ post-commit PersistAfter, batch offline recipient observation, and online-status
 observation. Webhook queue admission, retries, and HTTP failures remain
 best-effort and do not change SENDACK, durable append, plugin hooks,
 conversation active admission, or owner delivery.
-The manager drains accepted fanout before the retry scheduler stops, so queued
-retries remain available while accepted manager work completes. Stale pending
-recvacks expire during owner-local push activity. The owner pusher admits at
+The Online Delivery runtime drains accepted plans before it stops. Retryable
+owner routes are narrowed and retried inside the plan's bounded execution
+window. Stale pending recvacks expire during owner-local push activity. The runtime admits at
 most one full pending-ack scan per second and never overlaps scans; ordinary
 pushes, binds, and Recvacks therefore do not pay an O(pending acks) sweep on
 every owner batch. The tracker uses second-resolution delivery timestamps, so

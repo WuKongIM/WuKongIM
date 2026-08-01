@@ -1,10 +1,10 @@
 # internal/runtime/channelappend Flow
 
-During Online Delivery convergence, channelappend exposes a canonical
-plan-enqueue option beside the existing recipient worker port. A boundary
-adapter reuses the established exact-target grouping and batching path while
-explicitly labeling durable versus transient work; app wiring chooses only one
-delivery port at a time.
+Channelappend exposes a canonical Online Delivery plan-enqueue option beside
+the legacy recipient worker port. A boundary adapter reuses the established
+exact-target grouping and batching path while explicitly labeling durable
+versus transient work. Production app wiring selects only the canonical port;
+the legacy port remains compiled for compatibility tests and cleanup.
 
 ## Responsibility
 
@@ -362,7 +362,7 @@ carries `SenderUID` from the committed event, channel identity, message
 sequence, activity timestamp, and the expanded recipient UIDs. Receiver entries
 leave `IsSender` unset; the active worker advances the sender read sequence
 from `SenderUID` semantics. Active admission still runs when online
-delivery enqueueing is disabled or no `RecipientDeliveryEnqueuer` is
+delivery enqueueing is disabled or no effective delivery enqueuer is
 configured. If active admission fails, the post-commit failure phase is
 `conversation_active`, while accepted delivery, later large-channel pages, and
 a successfully loaded non-large subscriber snapshot continue independently. A
@@ -388,7 +388,7 @@ compatibility path dispatches different targets concurrently up to
 `RecipientAuthorityDispatchConcurrency`, while batches for the same target stay
 sequential.
 
-The dedicated delivery worker drains accepted plans. A target-aware presence
+The canonical Online Delivery runtime drains accepted plans. A target-aware presence
 resolver receives all target groups from one plan together and returns aligned
 per-group results, so one failed group is observed without suppressing the
 other groups. A legacy presence resolver remains supported by resolving the
@@ -408,8 +408,9 @@ push failures map back only to the exact target groups that contributed those
 routes, while unrelated owners and targets continue. Owner-local concrete
 session writes remain outside `channelState`.
 
-`RecipientDeliveryWorker` owns the bounded async queue for those delivery
-plans. The buffered queue is the admission backpressure primitive; there is
+`RecipientDeliveryWorker` remains the legacy compatibility implementation for
+this processing model; production app wiring no longer constructs it. Its
+buffered queue is the admission backpressure primitive; there is
 no second slot semaphore. Admission is open only between `Start` and `Stop`;
 closed admission returns `ErrRecipientDeliveryWorkerClosed`, and a full queue
 waits for capacity until the caller context expires. `Stop` closes admission

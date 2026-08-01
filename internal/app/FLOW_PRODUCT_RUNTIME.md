@@ -1,9 +1,15 @@
 # internal/app Product Runtime Details
 
 This companion to `FLOW.md` records the detailed product-runtime composition
-and messaging flows. `FLOW.md` remains the package's canonical index and may
-temporarily duplicate this detail during the review-bounded extraction; once
-linked, this file owns the detailed product-runtime flow.
+and messaging flows. `FLOW.md` remains the package's canonical index; this file
+owns the linked product-runtime detail.
+
+During Online Delivery convergence, app wiring starts only
+`internal/runtime/delivery.Runtime`, injects it into channelappend through the
+canonical compatibility port, and registers only owner-push RPC. The old
+manager/retry/fanout implementations remain compiled for one cleanup step but
+are no longer constructed. Gateway feedback temporarily crosses the existing
+delivery-usecase facade, which performs only command-type conversion.
 
 Operations MCP has no independent process, listener, port, or config enable
 switch. `internal/app` creates and closes its local call-control audit writer,
@@ -66,9 +72,10 @@ current control snapshot.
 delivery disabled, committed message effects still run inside the channel
 authority writer so recent conversation state is updated, but no online
 delivery is submitted. With delivery enabled, gateway RECVACK and session close
-feedback flows to the delivery usecase, while channelappend post-commit effects
-enqueue bounded multi-target recipient delivery plans into the recipient
-delivery worker. Each plan retains every exact Slot authority fence. The app
+feedback flows through the temporary delivery usecase facade, while
+channelappend post-commit effects enqueue bounded multi-target recipient
+delivery plans into the canonical Online Delivery runtime. Each plan retains
+every exact Slot authority fence. The app
 presence adapter converts all plan groups in one call; the cluster adapter then
 batches local groups in the presence directory, acquiring one read lock per
 touched directory shard while preserving group-aligned partial errors, and
@@ -93,7 +100,7 @@ recipient-authority target fanout for legacy batch-only enqueuers. The
 production plan-capable worker admits exact-target groups together instead of
 using this target fanout.
 `Delivery.RecipientWorkerConcurrency` independently defaults to 100 and controls
-only the goroutines draining the bounded recipient delivery queue. The legacy
+only the goroutines draining the bounded Online Delivery plan queue. The legacy
 target fanout and production plan execution capacities therefore remain
 independent. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
 state concurrently with another advance for the same channel. The delivery
@@ -115,7 +122,7 @@ different shards or workers.
 The foreground SEND path waits only for channel-authority durable append;
 subscriber scan, recipient authority grouping, delivery enqueue, and the
 independent conversation active projection all run after SENDACK from the
-authority writer's best-effort post-commit pipeline. The recipient delivery worker later
+authority writer's best-effort post-commit pipeline. The Online Delivery runtime later
 drains accepted plans, resolves all exact-target groups through the batched
 presence seam, coalesces successful routes by owner across each whole plan,
 splits each owner group by `Delivery.PushBatchSize`, and pushes those bounded
@@ -131,15 +138,17 @@ performs only a short bounded fresh-route retry in the routed client. Delivery
 is enqueued first; active projection failures surface independently as the
 `conversation_active` post-commit phase and do not stop online delivery or later
 large-channel pages.
-Runtime fanout failures are counted with normalized delivery error classes.
-Retryable fanout failures enter a bounded in-memory retry scheduler with a small
-fixed attempt cap; retry queue overflow is surfaced as `queue_full`. The
-composition root supplies `infra/delivery.LocalOwnerPusher` to that runtime and
-installs the delivery Manager before workers start. Exact owner-local session
-revalidation, recipient-specific `RecvPacket` construction, item-aligned pending
+Runtime owner-push failures are counted with normalized delivery error classes.
+Retryable results are narrowed to their exact routes and retried within a small
+fixed attempt cap; terminal or exhausted results remain plan-local. The
+composition root supplies `infra/delivery.LocalSessionWriter` to the runtime
+and registers only the owner-push node RPC before workers start. Exact
+owner-local session revalidation and recipient-specific `RecvPacket`
+construction remain inside that adapter. The runtime owns item-aligned pending
 RECVACK bind/finish/rollback, duplicate reservation refresh, write-error
-classification, and activity-throttled expiry remain inside the adapter; see
-`internal/infra/delivery/FLOW.md` for that state machine. The same append observer records
+classification, and activity-throttled expiry; see
+`internal/infra/delivery/FLOW.md` and `internal/runtime/delivery/FLOW.md` for
+those state machines. The same append observer records
 per-message append success/error latency and classifies append failures with
 low-cardinality labels for benchmark triage, including typed Channel runtime/cluster
 errors and short append results.
@@ -162,28 +171,26 @@ through the shared `ConversationAuthorityClient`; its first attempt consumes
 the already-grouped aligned snapshot, while exceptional sender or recipient
 route items use the legacy active-admission compatibility path. Channelappend
 chooses normal versus CMD kind from the committed envelope, and active admission
-still runs when online delivery is disabled. When delivery is enabled, the app wires a bounded
-recipient delivery worker that drains those plans and runs the delivery-only
-channelappend recipient processor outside the authority writer. `/bench/v1/channels`,
+still runs when online delivery is disabled. When delivery is enabled, the app
+wires the bounded canonical Online Delivery runtime that drains those plans
+outside the authority writer. `/bench/v1/channels`,
 `/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
 write real channel metadata or add/remove subscriber rows through Slot proposals.
 The benchmark data writer uses bounded concurrency for independent
 channel/subscriber mutations while preserving subscriber mutation order within
 the same channel. Scoped UID delivery bypasses subscriber scan and
 flows through recipient authority grouping, presence resolution, and the local
-or RPC owner pusher after the recipient delivery worker accepts the plan.
+or RPC owner pusher after the Online Delivery runtime accepts the plan.
 The app maps the worker's serialized execution-pressure observation into
 Prometheus worker capacity and in-flight gauges. These metrics do not include
 UID, channel, slot, or per-target labels.
 
-When the cluster runtime exposes route snapshots, delivery planning uses the
-cluster UID hash-slot table to create authority partitions. A fanout task
-router runs local partitions through the in-process fanout worker and forwards
-remote partitions through access/node Delivery Fanout RPC. The remote node then
-uses its own subscriber source and still pushes resolved online routes by
-owner node. Runtime fanout task, resolve, and push observations are translated
-by app-level metrics/logging adapters; retry enqueue, attempt, drop, and
-queue-depth observations use the same adapter. The delivery runtime itself stays
+Channelappend creates exact-target recipient plans from the cluster UID
+authority table. The Online Delivery runtime resolves each complete plan,
+coalesces routes by owner node, executes local owner pushes directly, and
+forwards remote owner pushes through access/node Delivery Push RPC. App-level
+adapters translate bounded plan admission, terminal, pressure, owner-push, and
+ACK observations into metrics and logs. The delivery runtime itself stays
 independent from Prometheus and concrete logging backends.
 
 The Channel runtime metrics observer also logs rare admitted-append cancellation
