@@ -9,7 +9,7 @@ calls.
 ```text
 fresh Issue/PR/Verifier facts + signed IssueAgentState + protected policy
   -> ReconcileIssue
-  -> one decision
+  -> one decision, including bounded stale-base synchronization
   -> BuildIssueState
 
 signed task + exact ContextBundle + advisory EngineerResult

@@ -18,6 +18,10 @@ immutable baseline + Engineer workspace
 
 fresh GitHub fences + exact candidate/evidence digests
   -> canonical IssueAgentState
+
+exact Publisher-owned base synchronization
+  -> new source/head identities + incremented base-sync budget
+  -> prior Review authority cleared
 ```
 
 All decoded JSON objects reject unknown fields, oversized input, malformed

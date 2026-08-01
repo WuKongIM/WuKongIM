@@ -16,6 +16,7 @@ func TestPlanCandidatePublicationRequiresExactTrustedEvidence(t *testing.T) {
 	plan, err := issueagent.PlanCandidatePublication(input)
 	require.NoError(t, err)
 	require.Equal(t, "agent/issue-42", plan.Branch)
+	require.Equal(t, "fix(agent): resolve issue #42", plan.CommitMessage)
 	require.Contains(t, plan.PullRequestBody, "Fixes #42")
 	require.Contains(t, plan.PullRequestBody, "## Trusted verification")
 

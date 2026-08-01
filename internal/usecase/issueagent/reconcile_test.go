@@ -560,22 +560,32 @@ func TestReconcileIssueRetryResumesFailedReviewFromPublishedHead(t *testing.T) {
 		Budget:       contract.IssueBudget{EngineerAttempts: 1, ReviewIterations: 1},
 		UpdatedAt:    time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
 	}
-	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+	facts := issueagent.IssueSnapshotFacts{
 		Repository: "WuKongIM/WuKongIM", IssueNumber: 42, Open: true,
 		AuthorAssociation: "CONTRIBUTOR", AuthorPermission: "read",
 		IssueSnapshotDigest: current.IssueSnapshotDigest,
-		SourceSHA:           current.SourceSHA, AffectedSHA: current.SourceSHA,
+		SourceSHA:           "234567890abcdef1234567890abcdef123456789",
+		AffectedSHA:         current.SourceSHA,
 		InformationComplete: true, Risk: contract.CandidateRiskLow,
 		Authorization: &retry,
 		PullRequest: &issueagent.PullRequestFacts{
 			Number: 84, HeadSHA: current.Work.HeadSHA, Open: true, Draft: true,
 		},
-	}, &current, testReconcilePolicy(),
-		time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	}
+	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	decision, err := issueagent.ReconcileIssue(
+		facts, &current, testReconcilePolicy(), now,
+	)
 	require.NoError(t, err)
 	require.Equal(t, issueagent.IssueDecisionDispatchReview, decision.Kind)
 	require.Equal(t, contract.TaskKindReview, decision.Task.Kind)
 	require.Equal(t, current.Work.HeadSHA, decision.Task.BaseSHA)
+	next, err := issueagent.BuildIssueState(
+		&current, facts, decision, now.Add(time.Second),
+	)
+	require.NoError(t, err)
+	require.Equal(t, current.SourceSHA, next.SourceSHA,
+		"Review retries preserve the branch's signed source until base sync")
 }
 
 func testReconcilePolicy() issueagent.ReconcileIssuePolicy {
@@ -645,6 +655,188 @@ func TestReconcileIssueFollowsMaintainerReadyTransition(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.False(t, next.Work.Draft)
+}
+
+func TestReconcileIssueSynchronizesStaleReadyPullRequestBeforeReview(t *testing.T) {
+	t.Parallel()
+
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            6,
+		State:               contract.IssueStateReadyForReview,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       false,
+		},
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	currentMain := "234567890abcdef1234567890abcdef123456789"
+	facts := issueagent.IssueSnapshotFacts{
+		Repository:          current.Repository,
+		IssueNumber:         current.IssueNumber,
+		Open:                true,
+		AuthorAssociation:   "MEMBER",
+		AuthorPermission:    "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           currentMain,
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA,
+			Open: true, Draft: false,
+		},
+	}
+	policy := issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+		MaxBaseSyncs:         3,
+	}
+	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
+	decision, err := issueagent.ReconcileIssue(facts, &current, policy, now)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionSyncBase, decision.Kind)
+	require.Equal(t, contract.IssueStateReadyForReview, decision.NextState)
+
+	current.SourceSHA = currentMain
+	current.Work.HeadSHA = "34567890abcdef1234567890abcdef1234567890"
+	facts.PullRequest.HeadSHA = current.Work.HeadSHA
+	decision, err = issueagent.ReconcileIssue(facts, &current, policy, now)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionWait, decision.Kind,
+		"a Review repair commit does not make a current-source PR stale")
+
+	current.State = contract.IssueStateNeedsHuman
+	decision, err = issueagent.ReconcileIssue(facts, &current, policy, now)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionWait, decision.Kind)
+	require.Equal(t, contract.IssueStateNeedsHuman, decision.NextState)
+}
+
+func TestReconcileIssueStopsWhenBaseSyncBudgetIsExhausted(t *testing.T) {
+	t.Parallel()
+
+	current := contract.IssueAgentState{
+		SchemaVersion:       2,
+		Repository:          "WuKongIM/WuKongIM",
+		IssueNumber:         42,
+		Sequence:            9,
+		State:               contract.IssueStateReadyForReview,
+		PreviousStateDigest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		IssueSnapshotDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		SourceSHA:           "0123456789abcdef0123456789abcdef01234567",
+		Budget:              contract.IssueBudget{BaseSyncs: 3},
+		Work: &contract.IssueWork{
+			Branch:      "agent/issue-42",
+			HeadSHA:     "1234567890abcdef1234567890abcdef12345678",
+			PullRequest: 84,
+			Draft:       false,
+		},
+		ContextDigest:   publishedContextDigest,
+		CandidateDigest: publishedCandidateDigest,
+		EvidenceDigest:  publishedEvidenceDigest,
+		UpdatedAt:       time.Date(2026, 7, 30, 1, 0, 0, 0, time.UTC),
+	}
+	decision, err := issueagent.ReconcileIssue(issueagent.IssueSnapshotFacts{
+		Repository: current.Repository, IssueNumber: current.IssueNumber,
+		Open: true, AuthorAssociation: "MEMBER", AuthorPermission: "write",
+		IssueSnapshotDigest: current.IssueSnapshotDigest,
+		SourceSHA:           "234567890abcdef1234567890abcdef123456789",
+		AffectedSHA:         current.SourceSHA,
+		InformationComplete: true,
+		Risk:                contract.CandidateRiskLow,
+		PullRequest: &issueagent.PullRequestFacts{
+			Number: 84, HeadSHA: current.Work.HeadSHA,
+			Open: true, Draft: false,
+		},
+	}, &current, issueagent.ReconcileIssuePolicy{
+		Enabled:              true,
+		PolicyDigest:         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		EngineerPromptDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		ReviewPromptDigest:   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		MaxEngineerAttempts:  3,
+		MaxReviewIterations:  2,
+		MaxBaseSyncs:         3,
+	}, time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC))
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionNeedsHuman, decision.Kind)
+	require.Equal(t, contract.IssueStateNeedsHuman, decision.NextState)
+	require.Equal(t, "automatic base synchronization budget is exhausted", decision.Reason)
+}
+
+func TestInterruptedBaseSyncRecoveryRequiresReviewableMismatchedHead(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	mainSHA := "234567890abcdef1234567890abcdef123456789"
+	current := &contract.IssueAgentState{
+		State: contract.IssueStateReadyForReview,
+		Work: &contract.IssueWork{
+			HeadSHA: "1234567890abcdef1234567890abcdef12345678",
+		},
+	}
+	facts := issueagent.IssueSnapshotFacts{
+		Open: true, SourceSHA: mainSHA,
+		PullRequest: &issueagent.PullRequestFacts{
+			HeadSHA: "34567890abcdef1234567890abcdef1234567890",
+			Open:    true,
+		},
+	}
+	policy := issueagent.ReconcileIssuePolicy{Enabled: true, MaxBaseSyncs: 3}
+	require.True(t, issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, policy,
+	))
+
+	facts.Open = false
+	require.False(t, issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, policy,
+	))
+	facts.Open = true
+	current.State = contract.IssueStateNeedsHuman
+	require.False(t, issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, policy,
+	))
+	current.State = contract.IssueStateReadyForReview
+	current.Budget.BaseSyncs = 3
+	require.False(t, issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, policy,
+	))
+	current.Budget.BaseSyncs = 0
+	facts.Authorization = &contract.AuthorizationRecord{Command: "/agent cancel"}
+	require.False(t, issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, policy,
+	))
+}
+
+func TestRejectBaseSynchronizationProducesDurableHumanFeedback(t *testing.T) {
+	t.Parallel()
+
+	decision, err := issueagent.RejectBaseSynchronization(
+		"current main changed a candidate path",
+	)
+	require.NoError(t, err)
+	require.Equal(t, issueagent.IssueDecisionNeedsHuman, decision.Kind)
+	require.Equal(t, contract.IssueStateNeedsHuman, decision.NextState)
+	require.Equal(t,
+		"automatic base synchronization stopped: "+
+			"current main changed a candidate path",
+		decision.Reason,
+	)
 }
 
 func TestReconcileIssueCompletesAfterHumanMerge(t *testing.T) {

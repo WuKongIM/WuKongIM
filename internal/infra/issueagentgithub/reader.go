@@ -86,11 +86,32 @@ type TreeEntryFacts struct {
 	SHA  string
 }
 
-// CompareFileFacts is one exact file in a one-commit comparison.
+// CompareFileFacts is one exact final file change in a bounded comparison.
 type CompareFileFacts struct {
 	Path   string
 	Status string
 	SHA    string
+}
+
+// CandidateComparisonRejection marks a successfully read comparison whose
+// structure cannot safely describe one exact aggregate candidate.
+type CandidateComparisonRejection interface {
+	error
+	CandidateComparisonRejected()
+}
+
+type candidateComparisonRejection struct {
+	reason string
+}
+
+func (rejection *candidateComparisonRejection) Error() string {
+	return rejection.reason
+}
+
+func (*candidateComparisonRejection) CandidateComparisonRejected() {}
+
+func rejectCandidateComparison(reason string) error {
+	return &candidateComparisonRejection{reason: reason}
 }
 
 // DefaultBranchHead reads the exact protected main ref without permitting writes.
@@ -459,8 +480,20 @@ func (client *Client) CompareOneCommit(
 	baseSHA string,
 	headSHA string,
 ) ([]CompareFileFacts, error) {
+	return client.CompareCandidate(ctx, baseSHA, headSHA, 1)
+}
+
+// CompareCandidate verifies a bounded descendant chain and returns its final
+// aggregate changed-file set.
+func (client *Client) CompareCandidate(
+	ctx context.Context,
+	baseSHA string,
+	headSHA string,
+	expectedCommits int,
+) ([]CompareFileFacts, error) {
 	if !gitObjectPattern.MatchString(baseSHA) ||
-		!gitObjectPattern.MatchString(headSHA) || baseSHA == headSHA {
+		!gitObjectPattern.MatchString(headSHA) || baseSHA == headSHA ||
+		expectedCommits <= 0 || expectedCommits > 16 {
 		return nil, errors.New("Git compare identity is invalid")
 	}
 	var payload struct {
@@ -481,10 +514,13 @@ func (client *Client) CompareOneCommit(
 	); err != nil {
 		return nil, err
 	}
-	if payload.Status != "ahead" || payload.AheadBy != 1 ||
-		payload.BehindBy != 0 || payload.TotalCommits != 1 ||
+	if payload.Status != "ahead" ||
+		payload.AheadBy != expectedCommits || payload.BehindBy != 0 ||
+		payload.TotalCommits != payload.AheadBy ||
 		len(payload.Files) == 0 || len(payload.Files) > 128 {
-		return nil, errors.New("Git compare is not one bounded descendant commit")
+		return nil, rejectCandidateComparison(
+			"Git compare is not the exact bounded descendant candidate",
+		)
 	}
 	files := make([]CompareFileFacts, 0, len(payload.Files))
 	for _, file := range payload.Files {
@@ -492,7 +528,9 @@ func (client *Client) CompareOneCommit(
 			(file.Status != "added" && file.Status != "modified" &&
 				file.Status != "removed") ||
 			file.Status != "removed" && !gitObjectPattern.MatchString(file.SHA) {
-			return nil, errors.New("Git compare file is invalid")
+			return nil, rejectCandidateComparison(
+				"Git compare contains an unsupported file change",
+			)
 		}
 		files = append(files, CompareFileFacts{
 			Path: file.Filename, Status: file.Status, SHA: file.SHA,
@@ -503,7 +541,9 @@ func (client *Client) CompareOneCommit(
 	})
 	for index := 1; index < len(files); index++ {
 		if files[index-1].Path == files[index].Path {
-			return nil, errors.New("Git compare contains duplicate files")
+			return nil, rejectCandidateComparison(
+				"Git compare contains duplicate files",
+			)
 		}
 	}
 	return files, nil

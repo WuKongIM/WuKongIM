@@ -45,6 +45,15 @@ type ChangeSetLimits struct {
 	MaxDeletions  int
 }
 
+// PublisherChangeSetLimits returns the canonical hard ceiling applied at
+// every candidate capture, digest, tree-build, and signed-write boundary.
+func PublisherChangeSetLimits() ChangeSetLimits {
+	return ChangeSetLimits{
+		MaxFiles: 128, MaxFileBytes: 8 << 20,
+		MaxTotalBytes: 32 << 20, MaxDeletions: 128,
+	}
+}
+
 // ValidateChangeSet rejects unsafe paths, modes, operations, and size totals.
 func ValidateChangeSet(changeSet ChangeSet, limits ChangeSetLimits) error {
 	if limits.MaxFiles <= 0 || limits.MaxFileBytes <= 0 ||

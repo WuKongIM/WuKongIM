@@ -309,7 +309,7 @@ func TestMechanicalRebaseUsesAppSignedMainParentAndAtomicRefSwap(t *testing.T) {
 				if len(updates) == 1 {
 					stageSHA = mainSHA
 				} else {
-					require.Len(t, updates, 2)
+					require.Len(t, updates, 3)
 					agentSHA = candidate
 					stageSHA = ""
 				}
@@ -396,11 +396,146 @@ func TestMechanicalRebaseUsesAppSignedMainParentAndAtomicRefSwap(t *testing.T) {
 	require.Equal(t, mainSHA, create["afterOid"])
 	require.Equal(t, false, create["force"])
 	swap := updateInputs[1]["refUpdates"].([]any)
+	require.Len(t, swap, 3)
 	require.Equal(t, oldHead, swap[0].(map[string]any)["beforeOid"])
 	require.Equal(t, candidate, swap[0].(map[string]any)["afterOid"])
 	require.Equal(t, true, swap[0].(map[string]any)["force"])
 	require.Equal(t, candidate, swap[1].(map[string]any)["beforeOid"])
 	require.Equal(t, zeroOIDForTest, swap[1].(map[string]any)["afterOid"])
+	require.Equal(t, "refs/heads/main", swap[2].(map[string]any)["name"])
+	require.Equal(t, mainSHA, swap[2].(map[string]any)["beforeOid"])
+	require.Equal(t, mainSHA, swap[2].(map[string]any)["afterOid"])
+	require.Equal(t, false, swap[2].(map[string]any)["force"])
+}
+
+func TestGitDatabaseBuildsExactResultTreeFromMainAndChangeSet(t *testing.T) {
+	t.Parallel()
+
+	baseTree := fortyHex("a")
+	resultTree := fortyHex("b")
+	content := []byte("package exact\n")
+	blob := testGitBlobSHA(content)
+	var treeInput map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		writer.Header().Set("Content-Type", "application/json")
+		switch {
+		case request.Method == http.MethodPost &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/trees":
+			require.NoError(t, json.NewDecoder(request.Body).Decode(&treeInput))
+			writeJSON(t, writer, map[string]any{
+				"sha": resultTree,
+				"tree": []map[string]any{{
+					"path": "fix.go", "mode": "100644",
+					"type": "blob", "sha": blob,
+				}},
+			})
+		case request.Method == http.MethodGet &&
+			request.URL.Path == "/repos/WuKongIM/WuKongIM/git/trees/"+resultTree:
+			writeJSON(t, writer, map[string]any{
+				"sha": resultTree, "truncated": false,
+				"tree": []map[string]any{{
+					"path": "fix.go", "mode": "100644",
+					"type": "blob", "sha": blob,
+				}},
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	tree, err := client.BuildResultTree(
+		context.Background(),
+		baseTree,
+		issueagent.ChangeSet{Files: []issueagent.FileChange{
+			{
+				Path: "fix.go", Operation: issueagent.FileOperationUpsert,
+				Mode:          issueagent.FileModeRegular,
+				ContentBase64: issueagent.EncodeFileContent(content),
+			},
+			{
+				Path: "obsolete.go", Operation: issueagent.FileOperationDelete,
+			},
+		}},
+	)
+	require.NoError(t, err)
+	require.Equal(t, resultTree, tree)
+	require.Equal(t, baseTree, treeInput["base_tree"])
+	entries := treeInput["tree"].([]any)
+	require.Len(t, entries, 2)
+	require.Equal(t, blob, entries[0].(map[string]any)["sha"])
+	require.Equal(t, "obsolete.go", entries[1].(map[string]any)["path"])
+	require.Nil(t, entries[1].(map[string]any)["sha"])
+	require.NotContains(t, entries[1].(map[string]any), "mode")
+	require.NotContains(t, entries[1].(map[string]any), "type")
+}
+
+func TestCompareCandidateRejectsAmbiguousAggregateResponse(t *testing.T) {
+	t.Parallel()
+
+	base := fortyHex("1")
+	head := fortyHex("2")
+	for _, test := range []struct {
+		name       string
+		aheadBy    int
+		status     string
+		fileStatus string
+		duplicate  bool
+	}{
+		{
+			name:    "commit count below exact chain",
+			aheadBy: 1, status: "ahead", fileStatus: "modified",
+		},
+		{
+			name:    "unsupported renamed path",
+			aheadBy: 2, status: "ahead", fileStatus: "renamed",
+		},
+		{
+			name:    "duplicate changed path",
+			aheadBy: 2, status: "ahead", fileStatus: "modified",
+			duplicate: true,
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				writer.Header().Set("Content-Type", "application/json")
+				require.Equal(t,
+					"/repos/WuKongIM/WuKongIM/compare/"+base+"..."+head,
+					request.URL.Path,
+				)
+				files := []map[string]any{{
+					"filename": "docs/fix.md",
+					"status":   test.fileStatus, "sha": fortyHex("3"),
+				}}
+				if test.duplicate {
+					files = append(files, files[0])
+				}
+				writeJSON(t, writer, map[string]any{
+					"status": test.status, "ahead_by": test.aheadBy,
+					"behind_by": 0, "total_commits": test.aheadBy,
+					"files": files,
+				})
+			}))
+			t.Cleanup(server.Close)
+
+			client := newTestClient(t, server)
+			_, err := client.CompareCandidate(
+				context.Background(), base, head, 2,
+			)
+			require.Error(t, err)
+			var rejection issueagentgithub.CandidateComparisonRejection
+			require.ErrorAs(t, err, &rejection)
+		})
+	}
 }
 
 const zeroOIDForTest = "0000000000000000000000000000000000000000"
