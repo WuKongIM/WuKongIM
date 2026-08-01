@@ -927,21 +927,13 @@ func currentAuthorization(
 	comments []issueagentgithub.IssueComment,
 	current *contract.IssueAgentState,
 ) (*contract.AuthorizationRecord, string, error) {
-	trustedAuthor := issueagent.TrustedAssociation(issue.AuthorAssociation)
 	authorPermission, err := readIssueAuthorPermission(
 		ctx,
 		client,
 		issue.Author,
-		trustedAuthor,
 	)
 	if err != nil {
-		if trustedAuthor {
-			return nil, "", fmt.Errorf(
-				"read trusted Issue author permission: %w",
-				err,
-			)
-		}
-		authorPermission = issueagentgithub.PermissionRead
+		return nil, "", fmt.Errorf("read Issue author permission: %w", err)
 	}
 	for index := len(comments) - 1; index >= 0; index-- {
 		command, ok := issueagent.ParseIssueCommand(comments[index].Body)
@@ -972,8 +964,7 @@ func currentAuthorization(
 			Command:    string(command),
 		}, string(authorPermission), nil
 	}
-	if trustedAuthor &&
-		issueagent.WritePermission(string(authorPermission)) {
+	if issueagent.WritePermission(string(authorPermission)) {
 		return &contract.AuthorizationRecord{
 			Actor: issue.Author, Permission: string(authorPermission),
 			EventID: "issue:" + strconv.FormatInt(issue.Number, 10),
@@ -982,43 +973,43 @@ func currentAuthorization(
 	return nil, string(authorPermission), nil
 }
 
+// readIssueAuthorPermission retries ambiguous failures but accepts a definitive
+// permission immediately; a missing collaborator has no repository write access.
 func readIssueAuthorPermission(
 	ctx context.Context,
 	client *issueagentgithub.Client,
 	author string,
-	retry bool,
 ) (issueagentgithub.Permission, error) {
-	permissionContext := ctx
-	cancel := func() {}
-	if retry {
-		permissionContext, cancel = context.WithTimeout(
-			ctx,
-			issueAuthorPermissionRecoveryWindow,
-		)
-	}
+	permissionContext, cancel := context.WithTimeout(
+		ctx,
+		issueAuthorPermissionRecoveryWindow,
+	)
 	defer cancel()
 
-	permission, err := client.ActorPermission(permissionContext, author)
-	if !retry || err == nil && issueagent.WritePermission(string(permission)) {
-		return permission, err
-	}
-	for attempt := 1; attempt < issueAuthorPermissionRecoveryAttempts; attempt++ {
-		delay := time.Duration(0)
-		if attempt >= 2 {
-			delay = (100 * time.Millisecond) << (attempt - 2)
+	var lastErr error
+	for attempt := 0; attempt < issueAuthorPermissionRecoveryAttempts; attempt++ {
+		if attempt > 0 {
+			delay := time.Duration(0)
+			if attempt >= 2 {
+				delay = (100 * time.Millisecond) << (attempt - 2)
+			}
+			if waitErr := waitIssueAuthorPermissionRecovery(
+				permissionContext,
+				delay,
+			); waitErr != nil {
+				return "", waitErr
+			}
 		}
-		if waitErr := waitIssueAuthorPermissionRecovery(
-			permissionContext,
-			delay,
-		); waitErr != nil {
-			return "", waitErr
-		}
-		permission, err = client.ActorPermission(permissionContext, author)
-		if err == nil && issueagent.WritePermission(string(permission)) {
+		permission, err := client.ActorPermission(permissionContext, author)
+		if err == nil {
 			return permission, nil
 		}
+		if errors.Is(err, issueagentgithub.ErrNotFound) {
+			return issueagentgithub.PermissionRead, nil
+		}
+		lastErr = err
 	}
-	return permission, err
+	return "", lastErr
 }
 
 func waitIssueAuthorPermissionRecovery(
