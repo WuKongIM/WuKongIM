@@ -2,11 +2,11 @@
 
 `internal/runtime/delivery` owns online delivery fanout primitives and recipient-owner recvack state.
 
-During the convergence migration, `runtime_ports.go` defines the narrow target
-seams behind `internal/contracts/onlinedelivery`, while the existing `Manager`,
-planner, fanout, and retry types remain available to the current app wiring.
-These dormant seams do not route production traffic; later migration steps add
-the target facade and move callers before removing the superseded types.
+During the convergence migration, `Runtime` is the new target facade behind
+`internal/contracts/onlinedelivery`, while the existing `Manager`, planner,
+fanout, and retry types remain available to the current app wiring. Adding the
+new facade does not route production traffic through it; later migration steps
+move callers before removing the superseded types.
 
 The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
 
