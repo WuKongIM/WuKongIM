@@ -173,8 +173,8 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		document.Interaction.MaxExplanationSessionsPerHead <= 0 ||
 		document.Interaction.MaxResponseBytesPerHead <= 0 ||
 		document.Limits.MaxChangedFiles != contract.MaxChangedFiles ||
-		document.Limits.MaxChangedBytes != 131072 ||
-		document.Limits.MaxChangedLines != 10000 ||
+		document.Limits.MaxChangedBytes != 1048576 ||
+		document.Limits.MaxChangedLines != 30000 ||
 		document.Limits.MaxContextBytes != 393216 ||
 		document.Limits.MaxModelResponseBytes <= 0 ||
 		document.Limits.MaxContextTokens != 240000 ||
