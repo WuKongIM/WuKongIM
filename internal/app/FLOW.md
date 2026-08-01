@@ -1165,13 +1165,6 @@ in `internal/usecase/issueagent`; this package only gathers facts and composes
 their adapters. Context construction freezes every repository `AGENTS.md` and
 `FLOW.md` Git blob identity from the task's exact candidate source commit.
 
-For an Issue whose freshly read author association is trusted, composition
-retries a failed or temporarily non-write repository-permission read inside
-one bounded 3.1-second consistency window before admission. A persistent API
-failure aborts the Controller without durably misclassifying that author; a
-stable non-write result still waits for authorization. The association never
-substitutes for current write permission.
-
 Controller admission requires the binary's exact checkout SHA to match the
 fresh protected `main` head. The reusable task freezes that SHA for every
 trusted control role while the candidate workspace uses the task's separate
