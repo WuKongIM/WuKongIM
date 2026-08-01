@@ -240,9 +240,7 @@ func (publisher *ReviewPublisher) PublishDecision(
 	}
 	plan, err := usecase.PlanPublication(
 		request.State,
-		usecase.GovernanceFacts{
-			ControlPlaneChanged:   snapshot.Facts.ControlPlaneChanged,
-			OwnerApproved:         snapshot.Facts.OwnerApproved,
+		usecase.PublicationFacts{
 			HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
 		},
 	)
@@ -386,9 +384,7 @@ func (publisher *ReviewPublisher) publishLifecycle(
 		contract.PhaseInconclusive:
 		plan, planErr := usecase.PlanPublication(
 			state,
-			usecase.GovernanceFacts{
-				ControlPlaneChanged:   snapshot.Facts.ControlPlaneChanged,
-				OwnerApproved:         snapshot.Facts.OwnerApproved,
+			usecase.PublicationFacts{
 				HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
 			},
 		)
@@ -492,9 +488,7 @@ func (publisher *ReviewPublisher) ensureLifecycleReview(
 	}
 	plan, err := usecase.PlanPublication(
 		state,
-		usecase.GovernanceFacts{
-			ControlPlaneChanged:   snapshot.Facts.ControlPlaneChanged,
-			OwnerApproved:         snapshot.Facts.OwnerApproved,
+		usecase.PublicationFacts{
 			HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
 		},
 	)
@@ -517,9 +511,6 @@ func (publisher *ReviewPublisher) ensureLifecycleReview(
 				Body: renderFinding(finding),
 			})
 		}
-	}
-	if plan.WaitingForOwner {
-		body += "\n\nControl-plane changes still require approval from @WuKongIM/review-agent-owners."
 	}
 	if len(body) > 64<<10 {
 		return 0, errors.New("recovered formal Review body exceeds context bound")
@@ -615,9 +606,6 @@ func (publisher *ReviewPublisher) ensureReview(
 		}
 		body += "\n\n---\n\n" + renderFinding(finding)
 	}
-	if plan.WaitingForOwner {
-		body += "\n\nControl-plane changes still require approval from @WuKongIM/review-agent-owners."
-	}
 	if len(body) > 64<<10 {
 		return 0, errors.New(
 			"formal Review body exceeds Issue Agent context bound",
@@ -701,9 +689,6 @@ func (publisher *ReviewPublisher) ensureCheck(
 		return 0, errors.New("multiple Review Agent Verdict Check Runs")
 	}
 	summary := result.Summary
-	if plan.WaitingForOwner {
-		summary += "\n\nWaiting for @WuKongIM/review-agent-owners approval."
-	}
 	if plan.HumanReviewStillBlocks {
 		summary += "\n\nA human REQUEST_CHANGES Review still blocks merging."
 	}

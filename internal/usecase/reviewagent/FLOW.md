@@ -9,14 +9,14 @@ It performs no GitHub, Git, filesystem, shell, network, or model operation.
 fresh PR facts + signal + per-PR state + scheduler state
   -> ReconcilePullRequest
   -> one bounded ReconcilePlan
-  -> Review governance refresh repairs projections without a model
+  -> fresh human-review state repairs projections without a model
 
 exact comment + fresh actor permission
   -> non-command comments become observed no-ops
   -> exact @review-agent prefix -> ParseCommand
   -> status | explain | reconsider | retry | cancel
 
-validated durable decision + fresh governance facts
+validated durable decision + fresh publication facts
   -> PlanPublication
   -> status comment + formal Review + Review Agent Verdict
 ```

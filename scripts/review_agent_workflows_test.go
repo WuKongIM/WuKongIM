@@ -71,16 +71,18 @@ func TestReviewAgentIssueSignalIsBoundedAndExplicit(t *testing.T) {
 func TestReviewAgentCodeownersCoversItsControlPlane(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/CODEOWNERS")
 	for _, required := range []string{
-		"/internal/app/review_agent* @WuKongIM/review-agent-owners",
-		"/.github/workflows/README.md @WuKongIM/review-agent-owners",
-		"/docs/agents/review-agent.md @WuKongIM/review-agent-owners",
-		"/docs/development/CI.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/specs/2026-07-30-review-agent-design.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/plans/2026-07-30-review-agent-implementation.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/runbooks/review-agent-bootstrap.md @WuKongIM/review-agent-owners",
+		"/internal/app/review_agent* @tangtaoit",
+		"/.github/workflows/README.md @tangtaoit",
+		"/docs/agents/review-agent.md @tangtaoit",
+		"/docs/development/CI.md @tangtaoit",
+		"/docs/superpowers/specs/2026-07-30-review-agent-design.md @tangtaoit",
+		"/docs/superpowers/plans/2026-07-30-review-agent-implementation.md @tangtaoit",
+		"/docs/superpowers/runbooks/review-agent-bootstrap.md @tangtaoit",
 	} {
 		require.Contains(t, raw, required)
 	}
+	require.NotContains(t, raw, "No8blackball")
+	require.NotContains(t, raw, "review-agent-owners")
 }
 
 func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {

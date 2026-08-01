@@ -142,8 +142,6 @@ func reconcileReviewGitHub(
 	client, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.ReconcileGitHubResponse{}, err
@@ -353,8 +351,6 @@ func buildReviewContext(
 	client, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.BuildContextResponse{}, err
@@ -573,7 +569,7 @@ func appendReviewState(
 	if err != nil {
 		return cli.AppendStateResponse{}, err
 	}
-	client, err := newReviewGitHubClient(config, token.Token, nil, nil)
+	client, err := newReviewGitHubClient(config, token.Token)
 	if err != nil {
 		return cli.AppendStateResponse{}, err
 	}
@@ -670,8 +666,6 @@ func publishReview(
 	reader, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
@@ -686,7 +680,7 @@ func publishReview(
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
 	}
-	writer, err := newReviewGitHubClient(config, token.Token, nil, nil)
+	writer, err := newReviewGitHubClient(config, token.Token)
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
 	}
@@ -727,8 +721,6 @@ func publishReview(
 func newReviewGitHubClient(
 	config ReviewAgentConfig,
 	token string,
-	owners []string,
-	controlPaths []string,
 ) (*github.Client, error) {
 	if config.HTTPClient == nil {
 		return nil, errors.New("Review GitHub HTTP client is unavailable")
@@ -737,8 +729,6 @@ func newReviewGitHubClient(
 		BaseURL: config.APIBaseURL, GraphQLURL: config.GraphQLURL,
 		Repository: config.Repository, Token: token,
 		MaxPages: 100, MaxBodyBytes: 16 << 20,
-		ControlOwnerLogins: append([]string(nil), owners...),
-		ControlPlanePaths:  append([]string(nil), controlPaths...),
 	}, config.HTTPClient)
 }
 

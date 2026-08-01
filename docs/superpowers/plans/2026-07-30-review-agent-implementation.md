@@ -141,7 +141,7 @@ Use table tests for:
 - duplicate and reordered hints;
 - stale worker completion after a new generation;
 - automatic first attempt, two same-head reconsiderations, retry, and cancel;
-- human Review changes and control-plane owner Approval;
+- human Review changes;
 - exact `agent/issue-N` classification without trusting Issue Agent state.
 
 Run:
@@ -216,7 +216,6 @@ Pure plans must render:
 - Review summary metadata;
 - exact Check external identity and conclusion;
 - projection repair versus creation;
-- control-plane waiting state;
 - no merge, close, dismiss, resolve, branch, or commit effect.
 
 - [ ] **Step 6: Run the package GREEN and commit**
@@ -299,7 +298,7 @@ Use stable hidden markers and Check `external_id` values. Before every write:
 - re-read exact PR and generation;
 - re-read authoritative state;
 - verify configured Review App identity;
-- verify human `REQUEST_CHANGES` and control-plane Approval facts;
+- verify human `REQUEST_CHANGES` facts;
 - reject stale or superseded work.
 
 The adapter may create/update the one status comment, submit one Review per
@@ -706,7 +705,7 @@ Fixtures must prove:
 - `approved` -> `APPROVE` + Check `success`;
 - `changes_required` -> `REQUEST_CHANGES` + Check `failure`;
 - `inconclusive` -> `COMMENT` + Check `action_required`;
-- control-plane approval missing -> Agent Review retained, Check waiting;
+- approved control-plane change without human Approval -> Check `success`;
 - stale generation -> no state/projection write;
 - human requested changes -> preserved independently of Agent approval.
 
@@ -828,32 +827,32 @@ Cloud analysis/remediation tests and scripts must wait for the automatically
 created `Review Agent Verdict`; they must not add `agent-ci/run`, publish a
 validation plan, or select suites.
 
-- [ ] **Step 4: Install control-plane ownership**
+- [ ] **Step 4: Record control-plane maintenance ownership**
 
 Add:
 
 ```text
-/.github/review-agent/ @WuKongIM/review-agent-owners
-/.github/workflows/review-agent*.yml @WuKongIM/review-agent-owners
-/cmd/wkreviewagent/ @WuKongIM/review-agent-owners
-/internal/access/reviewagentcli/ @WuKongIM/review-agent-owners
-/internal/access/reviewagentcheckmcp/ @WuKongIM/review-agent-owners
-/internal/contracts/reviewagent/ @WuKongIM/review-agent-owners
-/internal/usecase/reviewagent/ @WuKongIM/review-agent-owners
-/internal/runtime/reviewagentverify/ @WuKongIM/review-agent-owners
-/internal/infra/reviewagentgithub/ @WuKongIM/review-agent-owners
-/internal/app/review_agent.go @WuKongIM/review-agent-owners
-/internal/app/review_agent_internal_test.go @WuKongIM/review-agent-owners
-/internal/app/review_agent_test.go @WuKongIM/review-agent-owners
-/scripts/review_agent* @WuKongIM/review-agent-owners
-/AGENTS.md @WuKongIM/review-agent-owners
-**/AGENTS.md @WuKongIM/review-agent-owners
-**/FLOW.md @WuKongIM/review-agent-owners
-/.github/CODEOWNERS @WuKongIM/review-agent-owners @tangtaoit @No8blackball
+/.github/review-agent/ @tangtaoit
+/.github/workflows/review-agent*.yml @tangtaoit
+/cmd/wkreviewagent/ @tangtaoit
+/internal/access/reviewagentcli/ @tangtaoit
+/internal/access/reviewagentcheckmcp/ @tangtaoit
+/internal/contracts/reviewagent/ @tangtaoit
+/internal/usecase/reviewagent/ @tangtaoit
+/internal/runtime/reviewagentverify/ @tangtaoit
+/internal/infra/reviewagentgithub/ @tangtaoit
+/internal/app/review_agent.go @tangtaoit
+/internal/app/review_agent_internal_test.go @tangtaoit
+/internal/app/review_agent_test.go @tangtaoit
+/scripts/review_agent* @tangtaoit
+/AGENTS.md @tangtaoit
+**/AGENTS.md @tangtaoit
+**/FLOW.md @tangtaoit
+/.github/CODEOWNERS @tangtaoit
 ```
 
-Keep non-Review control-plane owners accurate. `CODEOWNERS` itself must remain
-owned by the Review Agent owners and existing repository owners.
+Keep maintenance ownership accurate. CODEOWNERS does not add a required human
+approval; the signed `Review Agent Verdict` remains the sole automated gate.
 
 - [ ] **Step 5: Rewrite active CI documentation**
 
@@ -918,7 +917,7 @@ Before merge:
 
 - protect `main` and all non-state refs from the State Writer App;
 - allow the State Writer App only under `review-state/**`;
-- require one Code Owner Approval for Review Agent control paths;
+- keep CODEOWNERS informational and do not require Code Owner Approval;
 - configure the emergency administrator bypass with audit expectations;
 - retain the old required check until the migration merge completes.
 
@@ -926,7 +925,7 @@ Before merge:
 
 The operator sequence is:
 
-1. provision Apps, team, Environments, secrets, and Rulesets;
+1. provision Apps, Environments, secrets, and Rulesets;
 2. merge the migration PR under the old gate;
 3. accept temporary merge freeze;
 4. dispatch exact reconciliation for every open non-Draft `main` PR;
@@ -946,7 +945,7 @@ Include read-back commands for:
 - App installations and exact permissions;
 - Environment names;
 - Ruleset ref patterns and bypass actors;
-- CODEOWNERS enforcement;
+- CODEOWNERS maintenance entries;
 - branch protection strictness, administrator enforcement, and exact App ID;
 - open PR Check ownership;
 - absence of old labels and Workflows.
@@ -1051,7 +1050,8 @@ Only after explicit operator authorization:
 - seeded code defect -> `changes_required`;
 - seeded provider/network failure -> `inconclusive`;
 - new commit while reviewer runs -> old publisher rejected;
-- control-plane change -> waits for Review Agent owner Approval;
+- control-plane change -> approved Review Agent decision succeeds without
+  human Approval;
 - Issue Agent PR -> bounded review/fix/re-review loop.
 
 - [ ] **Step 7: Verify repository state**

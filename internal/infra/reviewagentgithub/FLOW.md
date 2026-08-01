@@ -20,7 +20,7 @@ Review State Writer App token
 Review Agent App token
   -> App JWT verifies the protected policy App ID and slug before minting
      one exact repository-scoped installation token
-  -> fresh generation/governance fences
+  -> fresh generation and human-review fences
   -> one mutable status comment
   -> one formal Review with bounded inline comments
   -> one Review Agent Verdict Check Run

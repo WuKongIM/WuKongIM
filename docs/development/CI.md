@@ -22,9 +22,9 @@ The Review Agent:
    inline comments, and `Review Agent Verdict`.
 
 Only `approved` unlocks the automated gate. `changes_required`,
-`inconclusive`, stale state, missing evidence, merge conflict, infrastructure
-failure, or a required control-plane owner approval all keep it blocked. A
-human `REQUEST_CHANGES` Review remains independently blocking.
+`inconclusive`, stale state, missing evidence, merge conflict, or
+infrastructure failure all keep it blocked. A human `REQUEST_CHANGES` Review
+remains independently blocking.
 
 The Agent never edits code, commits, pushes, rebases, merges, closes a pull
 request, dismisses a Review, or resolves a thread.
@@ -112,18 +112,13 @@ Pull-request changes to `AGENTS.md`, `FLOW.md`, policy, prompts, schemas,
 Workflows, CODEOWNERS, or Review Agent code cannot govern their own review.
 The protected base/control versions remain authoritative.
 
-## Control-plane changes
+## Review gate
 
-A control-plane change needs both:
-
-- an approved Review Agent decision; and
-- a fresh, non-author Approval from a login in the protected
-  `@WuKongIM/review-agent-owners` snapshot.
-
-The repository Ruleset should request the same CODEOWNERS team and require only
-`Review Agent Verdict` from the dedicated Review Agent App as its automated
-status check. It must also require the pull-request branch to be up to date
-with `main` before merge.
+The signed `Review Agent Verdict` is the sole automated review gate for every
+path, including Review Agent control-plane code. CODEOWNERS records maintenance
+ownership but is not an additional approval gate. The repository Ruleset must
+require the dedicated Review Agent App check and keep the pull-request branch
+up to date with `main` before merge.
 
 ## Local verification
 

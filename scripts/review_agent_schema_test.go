@@ -114,7 +114,6 @@ func TestReviewAgentPolicy(t *testing.T) {
 		require.Positive(t, check.MaxOutputBytes)
 	}
 	require.NotEmpty(t, policy.PathRules)
-	require.NotEmpty(t, policy.ControlPlanePaths)
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")
@@ -128,6 +127,9 @@ func TestReviewAgentPolicy(t *testing.T) {
 		`"schedule"`,
 		`"cron"`,
 		`"arbitrary_command"`,
+		`"governance"`,
+		`"owner_logins"`,
+		`"control_plane_paths"`,
 	} {
 		require.NotContains(t, string(raw), forbidden)
 	}
@@ -366,17 +368,10 @@ type reviewAgentPolicy struct {
 	Environments          reviewAgentEnvironments     `json:"environments"`
 	Apps                  reviewAgentApps             `json:"apps"`
 	State                 reviewAgentStatePolicy      `json:"state"`
-	Governance            reviewAgentGovernance       `json:"governance"`
 	Network               reviewAgentNetwork          `json:"network"`
 	Credentials           reviewAgentCredentials      `json:"credentials"`
-	ControlPlanePaths     []string                    `json:"control_plane_paths"`
 	TrustedChecks         map[string]reviewAgentCheck `json:"trusted_checks"`
 	PathRules             []reviewAgentPathRule       `json:"path_rules"`
-}
-
-type reviewAgentGovernance struct {
-	OwnerTeam   string   `json:"owner_team"`
-	OwnerLogins []string `json:"owner_logins"`
 }
 
 type reviewAgentReviewer struct {

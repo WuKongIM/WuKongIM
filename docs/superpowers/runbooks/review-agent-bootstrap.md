@@ -1,20 +1,12 @@
 # Review Agent bootstrap
 
 This runbook is for an authorized repository administrator. Repository code
-does not create Apps, keys, Environments, teams, Rulesets, or branch
-protection.
+does not create Apps, keys, Environments, Rulesets, or branch protection.
 
 The replacement has no compatibility phase. Complete prerequisites before the
 replacement pull request merges.
 
-## 1. Create the owner team
-
-Create `@WuKongIM/review-agent-owners` with at least two maintainers. Its
-membership must match the protected `governance.owner_logins` snapshot in
-`.github/review-agent/policy.json`. Update and review that snapshot whenever
-team membership changes.
-
-## 2. Create the Review Agent App
+## 1. Create the Review Agent App
 
 Create a repository-scoped App with exactly:
 
@@ -42,7 +34,7 @@ pull-request branch must not be able to request this Environment.
 Set repository variable `REVIEW_AGENT_APP_LOGIN` to the exact Bot login. Issue
 Agent uses this identity to accept only Review Agent-authored repair findings.
 
-## 3. Create the State Writer App
+## 2. Create the State Writer App
 
 Create a separate repository-scoped App with exactly:
 
@@ -66,7 +58,7 @@ branch patterns.
 
 The two Apps must use different identities and private keys.
 
-## 4. Create the model Environment
+## 3. Create the model Environment
 
 Create Environment `review-agent-model` with secret `OPENAI_API_KEY` for the
 dedicated OpenRouter key used by the pinned Codex Action. The State Writer and
@@ -87,10 +79,11 @@ variable `REVIEW_AGENT_ORG_BLOCKED_CIDRS` to a JSON array of trusted CIDRs, for
 example `["203.0.113.0/24","2001:db8::/32"]`. Do not put credentials in
 repository variables.
 
-## 5. Protect state and control paths
+## 4. Protect state and control paths
 
-Verify that CODEOWNERS routes Review Agent policy, prompts, schemas, Workflows,
-code, tests, and documentation to `@WuKongIM/review-agent-owners`.
+Verify that CODEOWNERS records the active maintainer for Review Agent policy,
+prompts, schemas, Workflows, code, tests, and documentation. It is maintenance
+metadata, not a required human approval gate.
 
 The State Writer App creates:
 
@@ -102,7 +95,7 @@ only canonical latest-plus-predecessor rolling checkpoints in GitHub-verified
 commits authored by the configured State Writer Bot; older commits remain
 append-only audit history.
 
-## 6. Configure the Ruleset
+## 5. Configure the Ruleset
 
 For pull requests targeting `main`:
 
@@ -110,14 +103,13 @@ For pull requests targeting `main`:
 2. require the single automated status `Review Agent Verdict`;
 3. bind the required Check to the dedicated Review Agent App;
 4. require branches to be up to date with `main` before merging;
-5. dismiss stale human approvals on new commits;
-6. require CODEOWNERS review for control-plane paths; and
-7. keep only named emergency administrators in the audited bypass list.
+5. do not require CODEOWNERS Approval; and
+6. keep only named emergency administrators in the audited bypass list.
 
 Do not retain any obsolete validation context or accept a same-named commit
 status from GitHub Actions or another App.
 
-## 7. Validate before cutover
+## 6. Validate before cutover
 
 Run local contract tests and `actionlint`, then prove:
 
@@ -127,7 +119,7 @@ Run local contract tests and `actionlint`, then prove:
 - new-head invalidation;
 - `approved`, `changes_required`, and `inconclusive`;
 - status, explain, reconsider, retry, and cancel authorization;
-- control-plane owner Approval;
+- approved control-plane change without human Approval;
 - strict up-to-date status-check enforcement after `main` advances;
 - all three Environments reject a job whose workflow ref is not protected
   `main`;
@@ -135,7 +127,7 @@ Run local contract tests and `actionlint`, then prove:
 - no candidate/model access to either App key; and
 - no periodic Review Agent Workflow.
 
-## 8. Direct cutover
+## 7. Direct cutover
 
 After the replacement commit is on `main`:
 

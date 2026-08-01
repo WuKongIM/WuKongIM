@@ -323,44 +323,37 @@ func (client *Client) readPullRequest(
 		pull.Mergeable,
 		pull.MergeableState,
 	)
-	governanceReviews := make(
-		[]usecase.GovernanceReview,
+	reviewFacts := make(
+		[]usecase.ReviewFact,
 		0,
 		len(reviews),
 	)
 	for _, review := range reviews {
-		governanceReviews = append(
-			governanceReviews,
-			usecase.GovernanceReview{
+		reviewFacts = append(
+			reviewFacts,
+			usecase.ReviewFact{
 				Author: review.Author, AuthorType: review.AuthorType,
 				State: review.State, CommitSHA: review.CommitID,
 				SubmittedAt: review.SubmittedAt,
 			},
 		)
 	}
-	governance := usecase.EvaluateGovernance(usecase.GovernanceInput{
-		Files:                inventory.Files,
-		ControlPlanePrefixes: client.controlPaths,
-		Reviews:              governanceReviews,
-		HeadSHA:              pull.Head.SHA,
-		Author:               pull.User.Login,
-		OwnerLogins:          client.ControlOwnerLogins(),
-	})
 	facts := usecase.PullRequestFacts{
 		Repository: client.repository, PullRequest: number,
 		BaseRef: pull.Base.Ref, HeadSHA: pull.Head.SHA,
 		BaseSHA: pull.Base.SHA, TestMergeSHA: pull.MergeCommitSHA,
 		IntentDigest: intentDigest, Open: pull.State == "open",
 		Draft: pull.Draft, Mergeability: mergeability,
-		ContextFailureReason:  contextFailureReason,
-		ChangedFiles:          inventory.DeclaredFiles,
-		ChangedBytes:          inventory.TotalBytes,
-		ChangedLines:          inventory.TotalLines,
-		AuthorLogin:           pull.User.Login,
-		AuthorAssociation:     pull.AuthorAssociation,
-		ControlPlaneChanged:   governance.ControlPlaneChanged,
-		OwnerApproved:         governance.OwnerApproved,
-		HumanChangesRequested: governance.HumanChangesRequested,
+		ContextFailureReason: contextFailureReason,
+		ChangedFiles:         inventory.DeclaredFiles,
+		ChangedBytes:         inventory.TotalBytes,
+		ChangedLines:         inventory.TotalLines,
+		AuthorLogin:          pull.User.Login,
+		AuthorAssociation:    pull.AuthorAssociation,
+		HumanChangesRequested: usecase.HumanChangesRequested(
+			reviewFacts,
+			pull.Head.SHA,
+		),
 	}
 	return PullRequestSnapshot{
 		Facts: facts, Title: pull.Title, Body: pull.Body,
