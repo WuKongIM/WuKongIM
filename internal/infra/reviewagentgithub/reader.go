@@ -425,6 +425,7 @@ func (client *Client) readPullMetadataInventory(
 	number int64,
 	pull pullResponse,
 ) (verify.Inventory, map[string]string, string, error) {
+	limits := reviewInventoryLimits()
 	inventory := verify.Inventory{
 		DeclaredFiles: pull.ChangedFiles,
 		TotalLines:    pull.Additions + pull.Deletions,
@@ -457,11 +458,8 @@ func (client *Client) readPullMetadataInventory(
 			commentPatches[file.Filename] = file.Patch
 		}
 	}
-	if inventory.TotalBytes > 131072 {
-		return inventory, commentPatches, "changed-byte budget exceeded", nil
-	}
-	if inventory.TotalLines > 10000 {
-		return inventory, commentPatches, "changed-line budget exceeded", nil
+	if reason := reviewInventoryBudgetFailure(inventory, limits); reason != "" {
+		return inventory, commentPatches, reason, nil
 	}
 	return inventory, commentPatches, "", nil
 }
@@ -530,15 +528,32 @@ func (client *Client) readPullInventory(
 	inventory, err := verify.BuildInventory(
 		pull.ChangedFiles,
 		rawFiles,
-		verify.InventoryLimits{
-			MaxFiles: contract.MaxChangedFiles, MaxTotalBytes: 131072,
-			MaxLines: 10000,
-		},
+		reviewInventoryLimits(),
 	)
 	if err != nil {
 		return inventoryFailure(err)
 	}
 	return inventory, "", nil
+}
+
+func reviewInventoryLimits() verify.InventoryLimits {
+	return verify.InventoryLimits{
+		MaxFiles: contract.MaxChangedFiles, MaxTotalBytes: 1048576,
+		MaxLines: 30000,
+	}
+}
+
+func reviewInventoryBudgetFailure(
+	inventory verify.Inventory,
+	limits verify.InventoryLimits,
+) string {
+	if inventory.TotalBytes > limits.MaxTotalBytes {
+		return "changed-byte budget exceeded"
+	}
+	if inventory.TotalLines > limits.MaxLines {
+		return "changed-line budget exceeded"
+	}
+	return ""
 }
 
 func inventoryFailure(err error) (verify.Inventory, string, error) {
