@@ -10,6 +10,12 @@ import (
 
 const (
 	MaxChangedFiles = 50
+	// MaxChangedBytes bounds the complete changed-file material captured for
+	// one Review generation.
+	MaxChangedBytes int64 = 1 << 20
+	// MaxChangedLines bounds the complete changed-file lines captured for one
+	// Review generation.
+	MaxChangedLines int64 = 30000
 	// MaxContextBytes bounds the canonical encoded Context Bundle.
 	MaxContextBytes int64 = 2 << 20
 

@@ -12,7 +12,8 @@ func TestReviewInventoryLimits(t *testing.T) {
 
 	limits := reviewInventoryLimits()
 	if limits.MaxFiles != contract.MaxChangedFiles ||
-		limits.MaxTotalBytes != 1048576 || limits.MaxLines != 30000 {
+		limits.MaxTotalBytes != contract.MaxChangedBytes ||
+		limits.MaxLines != contract.MaxChangedLines {
 		t.Fatalf("review inventory limits = %+v", limits)
 	}
 }

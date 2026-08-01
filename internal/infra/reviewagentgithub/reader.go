@@ -531,8 +531,9 @@ func (client *Client) readPullInventory(
 
 func reviewInventoryLimits() verify.InventoryLimits {
 	return verify.InventoryLimits{
-		MaxFiles: contract.MaxChangedFiles, MaxTotalBytes: 1048576,
-		MaxLines: 30000,
+		MaxFiles:      contract.MaxChangedFiles,
+		MaxTotalBytes: contract.MaxChangedBytes,
+		MaxLines:      contract.MaxChangedLines,
 	}
 }
 
