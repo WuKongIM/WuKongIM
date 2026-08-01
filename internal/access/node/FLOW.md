@@ -82,6 +82,10 @@ committed message identifiers, sender echo-suppression fields, payload, red-dot
 flag, and request-scoped UIDs. Responses carry status plus accepted, retryable,
 and dropped route groups.
 
+During Online Delivery convergence, the adapter can also invoke the canonical
+`PushOwner` port and the client exposes the same port. Compatibility conversion
+preserves the exact `WKVD1`/`WKVd1` bytes while old and new runtimes coexist.
+
 ## Delivery Fanout RPC
 
 ```text

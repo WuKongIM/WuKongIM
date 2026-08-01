@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -102,6 +103,16 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd runtimedelive
 	default:
 		return runtimedelivery.PushResult{}, fmt.Errorf("internal/access/node: unknown delivery rpc status %q", resp.Status)
 	}
+}
+
+// PushOwner forwards a canonical owner push through the stable version-one
+// delivery wire format.
+func (c *Client) PushOwner(ctx context.Context, cmd onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
+	result, err := c.PushBatch(ctx, cmd.OwnerNodeID, legacyDeliveryPushFromOnline(cmd))
+	if err != nil {
+		return onlinedelivery.OwnerPushResult{}, err
+	}
+	return onlineDeliveryResultFromLegacy(result), nil
 }
 
 // ForwardFanoutTask forwards one partition-scoped fanout task to nodeID.

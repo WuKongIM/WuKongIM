@@ -7,8 +7,9 @@ owner node's concrete online registry, gateway session, and WuKong protocol
 packet. It owns the owner-local push state machine: exact route revalidation,
 pending RECVACK reservation lifecycle, packet construction, session writes,
 and terminal-versus-retryable write classification. It also owns the narrow
-presence-usecase to channelappend route adapter used by recipient delivery, so
-the app composition root only constructs and injects the runtime port.
+presence-usecase adapters used by both channelappend and canonical Online
+Delivery recipient routing, so the app composition root only constructs and
+injects the runtime ports.
 
 The package does not resolve cluster ownership, page channel subscribers, or
 choose retry policy. Those decisions remain in `internal/runtime/delivery` and
@@ -63,12 +64,25 @@ its write fails.
 between the pusher, fanout worker, retry scheduler, and delivery manager. App
 composition must call it exactly once before any concurrent `Push` call.
 
+The convergence path also provides `LocalSessionWriter`, which owns only final
+exact-session validation, packet construction, and physical writes. The new
+Online Delivery runtime retains pending-ACK ownership around that narrow port;
+the existing `LocalOwnerPusher` remains active until app wiring cuts over. A
+missing owner-local registry is an unavailable adapter, not a stale route, so
+the writer returns a retryable result instead of terminally dropping the route.
+
 Stale pending-ACK expiry is activity-driven and globally throttled per pusher;
 ordinary pushes do not scan the tracker on every call.
 
-## Channelappend Presence Adapter
+## Presence Adapters
 
 `ChannelAppendPresenceResolver` converts the entry-agnostic presence usecase's
 flat and exact-target lookup results into channelappend delivery DTOs. Exact
 target group cardinality, result order, partial errors, and all physical
 hash-slot/logical Slot Raft Group fencing fields are preserved.
+
+`PresenceResolver` converts the same exact-target lookup into canonical Online
+Delivery results. It preserves one result per target in input order, copies all
+authority fencing fields and route metadata, and reports a missing presence
+dependency as an aligned availability error for every target instead of
+misclassifying recipients as offline.
