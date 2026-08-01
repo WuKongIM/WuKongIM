@@ -84,7 +84,7 @@ pull_request_target / Review / comment event
   -> protected-default-branch workflow_run Controller
   -> fresh GitHub facts + signed PR state + signed scheduler state
   -> Context Builder: exact diff, intent, instructions, prior review context
-  -> Policy Evaluator: mandatory checks and control-plane classification
+  -> Policy Evaluator: mandatory path-based checks
   -> credential-free Verifier: exact test-merge mandatory checks
   -> one ephemeral Review Agent session
        inspect complete risk-classified diff
@@ -310,7 +310,6 @@ excluded.
 - pinned model, effort, Action, CLI, prompt, and output schema;
 - path-to-minimum-check rules;
 - trusted command catalog;
-- control-plane paths;
 - concurrency, timeout, retry, reconsideration, and execution budgets;
 - diff, file, response, comment, and Artifact bounds;
 - configured App identities and state refs;
@@ -421,9 +420,8 @@ The Review Agent emits exactly one schema-valid decision:
 | `changes_required` | `REQUEST_CHANGES` | `failure` |
 | `inconclusive` | `COMMENT` | `action_required` |
 
-Only `approved` may produce a successful required Check, and only after any
-required control-plane owner Approval is present. A model process exit zero is
-not approval.
+Only the validator-confirmed `approved` decision may produce a successful
+required Check. A model process exit zero is not approval.
 
 The dedicated Review Agent App publishes:
 
@@ -492,17 +490,12 @@ or explicit reconsideration.
 Human `REQUEST_CHANGES` remains blocking even when the Review Agent approves.
 The Agent cannot dismiss, resolve, or override a human Review.
 
-## Control-plane Governance
+## Review governance
 
-Ordinary code needs no mandatory human approval when the Review Agent approves.
-Changes to the control plane require both:
-
-- an approved Review Agent decision; and
-- one Approval from `@WuKongIM/review-agent-owners`.
-
-The team must contain at least two maintainers. The pull-request author cannot
-satisfy the control-plane Approval with their own Review, and a new commit
-dismisses stale Approval.
+The signed Review Agent decision is the sole automated review gate for every
+path. CODEOWNERS remains informational maintenance ownership, not a second
+approval system. A human `REQUEST_CHANGES` Review remains independently
+blocking, while missing human approval never changes the Review Agent Verdict.
 
 The running Controller, prompt, policy, schemas, and Workflow always come from
 the protected default branch. A pull request never reviews itself using its
@@ -605,7 +598,7 @@ After migration, `main` must:
   automated status check;
 - require strict up-to-date status;
 - apply protection to administrators;
-- require Code Owner Approval only for matching control-plane paths;
+- do not require Code Owner Approval; CODEOWNERS is maintenance metadata;
 - preserve blocking human `REQUEST_CHANGES`;
 - reserve native Ruleset bypass for the named emergency administrators.
 
@@ -627,8 +620,8 @@ One migration pull request:
 
 The migration pull request is the last change protected by the old gate. After
 merge, old required checks cannot be produced, so merges temporarily freeze.
-The two Apps, Environments, keys, Rulesets, and owner team are provisioned
-before that merge.
+The two Apps, Environments, keys, and Rulesets are provisioned before that
+merge.
 
 An authorized operator then:
 
@@ -687,7 +680,7 @@ prove the complete path.
 - real command/exit evidence versus model-authored claims;
 - tracked-workspace mutation detection;
 - three-state decision mapping;
-- control-plane human Approval gating;
+- approved control-plane changes need no human Approval;
 - human `REQUEST_CHANGES` preservation;
 - language selection and inline-comment bounds.
 
@@ -726,8 +719,8 @@ Before branch protection changes:
    produces trusted mandatory and selected-check evidence.
 4. Only schema-valid `approved` state for the exact current generation can
    produce a successful `Review Agent Verdict`.
-5. `changes_required`, `inconclusive`, missing evidence, stale work, missing
-   control-plane Approval, and human requested changes all block merging.
+5. `changes_required`, `inconclusive`, missing evidence, stale work, and human
+   requested changes all block merging.
 6. The Review Agent produces useful formal Reviews and bounded inline comments
    without modifying or merging code.
 7. New commits and changed intent invalidate older decisions; late workers
@@ -754,8 +747,8 @@ The following are implementation measurements, not open product decisions:
 - maximum explanation sessions and response bytes per head;
 - trusted command catalog and timeout per command;
 - network connection, bandwidth, and process limits;
-- concrete Review Agent App, Review State Writer App, Environment, and owner
-  team identifiers.
+- concrete Review Agent App, Review State Writer App, and Environment
+  identifiers.
 
 Any chosen value must remain in the protected policy, fail closed at its
 boundary, and be covered by contract tests.

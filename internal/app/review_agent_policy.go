@@ -78,10 +78,6 @@ type ReviewAgentPolicy struct {
 		SchedulerPath            string `json:"scheduler_path"`
 		RequireVerifiedSignature bool   `json:"require_verified_signature"`
 	} `json:"state"`
-	Governance struct {
-		OwnerTeam   string   `json:"owner_team"`
-		OwnerLogins []string `json:"owner_logins"`
-	} `json:"governance"`
 	Network struct {
 		PublicInternet bool     `json:"public_internet"`
 		BlockedCIDRs   []string `json:"blocked_cidrs"`
@@ -90,9 +86,8 @@ type ReviewAgentPolicy struct {
 	Credentials struct {
 		Denied []string `json:"denied"`
 	} `json:"credentials"`
-	ControlPlanePaths []string                    `json:"control_plane_paths"`
-	TrustedChecks     map[string]verify.CheckPlan `json:"trusted_checks"`
-	PathRules         []verify.PathRule           `json:"path_rules"`
+	TrustedChecks map[string]verify.CheckPlan `json:"trusted_checks"`
+	PathRules     []verify.PathRule           `json:"path_rules"`
 }
 
 // ReviewAgentAppPolicy records one protected App identity and exact permission
@@ -196,12 +191,7 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		document.State.SchedulerPath !=
 			".review-agent-state/scheduler.json" ||
 		!document.State.RequireVerifiedSignature ||
-		document.Governance.OwnerTeam !=
-			"WuKongIM/review-agent-owners" ||
-		len(document.Governance.OwnerLogins) < 2 ||
-		len(document.Governance.OwnerLogins) > 128 ||
 		!document.Network.PublicInternet ||
-		len(document.ControlPlanePaths) == 0 ||
 		len(document.TrustedChecks) == 0 ||
 		len(document.PathRules) == 0 {
 		return errors.New("Review Agent policy is invalid")
@@ -223,36 +213,6 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		document.Apps.Review.Slug == "" ||
 		document.Apps.StateWriter.Slug == "" {
 		return errors.New("Review Agent App identity is invalid")
-	}
-	owners := make(map[string]struct{}, len(document.Governance.OwnerLogins))
-	for _, owner := range document.Governance.OwnerLogins {
-		if strings.TrimSpace(owner) == "" {
-			return errors.New("Review Agent governance owner is invalid")
-		}
-		normalized := strings.ToLower(owner)
-		if _, duplicate := owners[normalized]; duplicate {
-			return errors.New("Review Agent governance owner is duplicated")
-		}
-		owners[normalized] = struct{}{}
-	}
-	controlPaths := make(map[string]struct{}, len(document.ControlPlanePaths))
-	for _, controlPath := range document.ControlPlanePaths {
-		if controlPath == "" ||
-			len(controlPath) > 512 ||
-			strings.HasPrefix(controlPath, "/") ||
-			strings.Contains(controlPath, `\`) ||
-			strings.ContainsRune(controlPath, '\x00') ||
-			strings.Contains(controlPath, "..") {
-			return errors.New(
-				"Review Agent control-plane path is invalid",
-			)
-		}
-		if _, duplicate := controlPaths[controlPath]; duplicate {
-			return errors.New(
-				"Review Agent control-plane path is duplicated",
-			)
-		}
-		controlPaths[controlPath] = struct{}{}
 	}
 	for _, plan := range document.TrustedChecks {
 		if len(plan.Arguments) == 0 ||

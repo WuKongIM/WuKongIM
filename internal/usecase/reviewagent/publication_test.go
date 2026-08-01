@@ -14,8 +14,6 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 
 	tests := []struct {
 		phase      contract.Phase
-		control    bool
-		owner      bool
 		review     reviewagent.FormalReview
 		conclusion reviewagent.CheckConclusion
 	}{
@@ -34,19 +32,6 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 			review:     reviewagent.FormalReviewComment,
 			conclusion: reviewagent.CheckActionRequired,
 		},
-		{
-			phase:      contract.PhaseApproved,
-			control:    true,
-			review:     reviewagent.FormalReviewApprove,
-			conclusion: reviewagent.CheckActionRequired,
-		},
-		{
-			phase:      contract.PhaseApproved,
-			control:    true,
-			owner:      true,
-			review:     reviewagent.FormalReviewApprove,
-			conclusion: reviewagent.CheckSuccess,
-		},
 	}
 	for _, test := range tests {
 		state := testReviewingState()
@@ -56,10 +41,7 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 		state.ResultDigest = digest("b")
 		plan, err := reviewagent.PlanPublication(
 			state,
-			reviewagent.GovernanceFacts{
-				ControlPlaneChanged: test.control,
-				OwnerApproved:       test.owner,
-			},
+			reviewagent.PublicationFacts{},
 		)
 		require.NoError(t, err)
 		require.Equal(t, "Review Agent Verdict", plan.CheckName)
@@ -80,7 +62,7 @@ func TestPlanPublicationDoesNotOverrideHumanChangesRequest(t *testing.T) {
 	state.ResultDigest = digest("b")
 	plan, err := reviewagent.PlanPublication(
 		state,
-		reviewagent.GovernanceFacts{HumanChangesRequested: true},
+		reviewagent.PublicationFacts{HumanChangesRequested: true},
 	)
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.CheckSuccess, plan.Conclusion)
@@ -96,7 +78,7 @@ func TestPlanPublicationMapsDeterministicConflictWithoutArtifacts(t *testing.T) 
 	state.Reason = "pull request has merge conflicts"
 	plan, err := reviewagent.PlanPublication(
 		state,
-		reviewagent.GovernanceFacts{},
+		reviewagent.PublicationFacts{},
 	)
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.FormalReviewRequestChanges, plan.Review)

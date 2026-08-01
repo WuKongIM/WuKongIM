@@ -58,8 +58,8 @@ The model can review and invoke only protected named checks. It cannot edit the
 PR, commit, push, merge, resolve threads, dismiss Reviews, or publish its own
 verdict. A trusted validator maps signed state to the sole required Check
 `Review Agent Verdict`. Only `approved` maps to success. `changes_required`
-maps to failure, and `inconclusive` or missing owner approval maps to
-`action_required`.
+maps to failure, and `inconclusive` maps to `action_required`. A human
+`REQUEST_CHANGES` Review remains independently blocking.
 
 The signed lease bounds the complete generation to 90 minutes. Infrastructure
 failure is retried once inside that same generation and deadline; a late result

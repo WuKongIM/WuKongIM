@@ -25,10 +25,8 @@ const (
 	CheckActionRequired CheckConclusion = "action_required"
 )
 
-// GovernanceFacts are freshly re-read immediately before publication.
-type GovernanceFacts struct {
-	ControlPlaneChanged   bool
-	OwnerApproved         bool
+// PublicationFacts are freshly re-read immediately before publication.
+type PublicationFacts struct {
 	HumanChangesRequested bool
 }
 
@@ -40,14 +38,13 @@ type PublicationPlan struct {
 	Review                 FormalReview
 	Conclusion             CheckConclusion
 	HumanReviewStillBlocks bool
-	WaitingForOwner        bool
 }
 
 // PlanPublication maps validated durable state to GitHub projections. It does
 // not expose merge or branch effects.
 func PlanPublication(
 	state contract.ReviewState,
-	facts GovernanceFacts,
+	facts PublicationFacts,
 ) (PublicationPlan, error) {
 	if err := contract.ValidateReviewState(state); err != nil {
 		return PublicationPlan{}, err
@@ -65,12 +62,7 @@ func PlanPublication(
 	switch state.Phase {
 	case contract.PhaseApproved:
 		plan.Review = FormalReviewApprove
-		if facts.ControlPlaneChanged && !facts.OwnerApproved {
-			plan.Conclusion = CheckActionRequired
-			plan.WaitingForOwner = true
-		} else {
-			plan.Conclusion = CheckSuccess
-		}
+		plan.Conclusion = CheckSuccess
 	case contract.PhaseChangesRequired:
 		plan.Review = FormalReviewRequestChanges
 		plan.Conclusion = CheckFailure

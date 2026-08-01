@@ -143,9 +143,9 @@ Trusted code maps them to a normal formal Review and to the App-owned
 | `changes_required` | `REQUEST_CHANGES` | `failure` |
 | `inconclusive` | `COMMENT` | `action_required` |
 
-For a control-plane change, an otherwise approved decision remains
-`action_required` until a fresh non-author Approval from a protected
-`review-agent-owners` login is present.
+The signed Review Agent decision is the sole automated review gate, including
+for Review Agent control-plane changes. A human `REQUEST_CHANGES` Review still
+blocks independently; missing human approval does not change the Check result.
 
 The Review Agent App owns one mutable status comment, one Check per generation,
 one formal Review, and at most 20 inline comments. Only blocking findings are
