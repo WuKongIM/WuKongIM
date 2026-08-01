@@ -61,12 +61,12 @@ unbounded repair attempts.
 
 ## Authorization
 
-An Issue by an `OWNER`, `MEMBER`, or `COLLABORATOR` with current `write`,
-`maintain`, or `admin` permission may start automatically. Other reports need
-an exact first-line `/agent fix` from an actor whose permission is re-read.
-For a trusted Issue author, failed or temporarily non-write permission reads
-are retried for at most 3.1 seconds. Only a fresh `write`, `maintain`, or
-`admin` result authorizes admission; API errors abort and non-write results wait.
+An Issue whose author currently has `write`, `maintain`, or `admin` permission
+may start automatically. GitHub's credential-sensitive `author_association`
+is context only and never gates that decision. Other reports need an exact
+first-line `/agent fix` from an actor whose permission is re-read. Transient
+permission API failures are retried for at most 3.1 seconds; a definitive
+non-write result waits and an unresolved API failure aborts reconciliation.
 The other commands are:
 
 - `/agent retry` — one fresh ephemeral attempt after `needs_human`;
