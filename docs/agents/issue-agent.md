@@ -64,6 +64,11 @@ unbounded repair attempts.
 An Issue by an `OWNER`, `MEMBER`, or `COLLABORATOR` with current `write`,
 `maintain`, or `admin` permission may start automatically. Other reports need
 an exact first-line `/agent fix` from an actor whose permission is re-read.
+For a trusted Issue author, a failed or temporarily non-write permission read
+is retried inside one bounded 3.1-second consistency window. A persistent API
+failure aborts the Controller without recording the author as unauthorized; a
+stable non-write result still waits for authorization. Issue association never
+substitutes for current permission.
 The other commands are:
 
 - `/agent retry` — one fresh ephemeral attempt after `needs_human`;

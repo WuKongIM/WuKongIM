@@ -29,6 +29,7 @@ const issueAgentStatusMarker = "<!-- wukongim-issue-agent-status -->"
 const issueAgentTrackingLabel = "ready-for-agent"
 const issueAgentBranchPrefix = "agent/issue-"
 const issueAgentPRSignalWorkflow = "Safety Automation - Issue Agent PR Signal"
+const issueAuthorPermissionRecoveryAttempts = 7
 
 var (
 	affectedCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -925,8 +926,19 @@ func currentAuthorization(
 	comments []issueagentgithub.IssueComment,
 	current *contract.IssueAgentState,
 ) (*contract.AuthorizationRecord, string, error) {
-	authorPermission, err := client.ActorPermission(ctx, issue.Author)
+	trustedAuthor := issueagent.TrustedAssociation(issue.AuthorAssociation)
+	authorPermission, err := readIssueAuthorPermission(
+		ctx,
+		client,
+		issue.Author,
+		trustedAuthor,
+	)
 	if err != nil {
+		if trustedAuthor {
+			return nil, "", errors.New(
+				"read trusted Issue author permission",
+			)
+		}
 		authorPermission = issueagentgithub.PermissionRead
 	}
 	for index := len(comments) - 1; index >= 0; index-- {
@@ -958,7 +970,7 @@ func currentAuthorization(
 			Command:    string(command),
 		}, string(authorPermission), nil
 	}
-	if issueagent.TrustedAssociation(issue.AuthorAssociation) &&
+	if trustedAuthor &&
 		issueagent.WritePermission(string(authorPermission)) {
 		return &contract.AuthorizationRecord{
 			Actor: issue.Author, Permission: string(authorPermission),
@@ -966,6 +978,49 @@ func currentAuthorization(
 		}, string(authorPermission), nil
 	}
 	return nil, string(authorPermission), nil
+}
+
+func readIssueAuthorPermission(
+	ctx context.Context,
+	client *issueagentgithub.Client,
+	author string,
+	retry bool,
+) (issueagentgithub.Permission, error) {
+	permission, err := client.ActorPermission(ctx, author)
+	if !retry || err == nil && issueagent.WritePermission(string(permission)) {
+		return permission, err
+	}
+	for attempt := 1; attempt < issueAuthorPermissionRecoveryAttempts; attempt++ {
+		delay := time.Duration(0)
+		if attempt >= 2 {
+			delay = (100 * time.Millisecond) << (attempt - 2)
+		}
+		if waitErr := waitIssueAuthorPermissionRecovery(ctx, delay); waitErr != nil {
+			return "", err
+		}
+		permission, err = client.ActorPermission(ctx, author)
+		if err == nil && issueagent.WritePermission(string(permission)) {
+			return permission, nil
+		}
+	}
+	return permission, err
+}
+
+func waitIssueAuthorPermissionRecovery(
+	ctx context.Context,
+	delay time.Duration,
+) error {
+	if delay == 0 {
+		return ctx.Err()
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func currentReviewAuthorization(
