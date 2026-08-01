@@ -455,6 +455,8 @@ type Options struct {
 	RecipientAuthorityResolver RecipientAuthorityResolver
 	// RecipientDeliveryEnqueuer queues selected recipients for asynchronous delivery processing.
 	RecipientDeliveryEnqueuer RecipientDeliveryEnqueuer
+	// OnlineDeliveryEnqueuer queues canonical plans when the converged runtime is wired.
+	OnlineDeliveryEnqueuer OnlineDeliveryEnqueuer
 	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
 	PersistAfterEnqueuer PersistAfterEnqueuer
 	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
@@ -564,7 +566,7 @@ func commitPortsFromOptions(opts Options) commitPorts {
 		subscribers:                  opts.Subscribers,
 		activeAdmitter:               opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver:   opts.RecipientAuthorityResolver,
-		deliveryEnqueuer:             opts.RecipientDeliveryEnqueuer,
+		deliveryEnqueuer:             deliveryEnqueuerFromOptions(opts),
 		persistAfter:                 opts.PersistAfterEnqueuer,
 		subscriberPageSize:           opts.SubscriberScanPageSize,
 		recipientBatchSize:           opts.RecipientBatchSize,

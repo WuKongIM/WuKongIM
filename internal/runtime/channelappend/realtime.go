@@ -46,6 +46,7 @@ func (e realtimeEffect) runItem(runtimeCtx context.Context, item preparedSend, p
 	defer cancel()
 	realtimePorts := ports
 	realtimePorts.activeAdmitter = nil
+	realtimePorts.deliveryEnqueuer = transientDeliveryEnqueuer(ports.deliveryEnqueuer)
 	event := committedEnvelopeForRealtime(item)
 	if _, err := dispatchCommittedRecipientsForTarget(ctx, e.target, event, subscriberCache{}, realtimePorts); err != nil {
 		return realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: err}}
