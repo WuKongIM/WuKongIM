@@ -351,6 +351,49 @@ func TestCurrentAuthorizationRetriesTrustedIssueAuthorPermission(t *testing.T) {
 	}
 }
 
+func TestCurrentAuthorizationStopsTrustedPermissionRecoveryOnCancellation(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		attempts.Add(1)
+		writer.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(writer).Encode(map[string]any{
+			"permission": "read",
+			"user":       map[string]string{"login": "reporter"},
+		}))
+	}))
+	t.Cleanup(server.Close)
+	client, err := issueagentgithub.NewClient(
+		issueagentgithub.ClientConfig{
+			BaseURL: server.URL, Repository: "WuKongIM/WuKongIM",
+			Token: "token", MaxPages: 2, MaxBodyBytes: 1 << 20,
+		},
+		server.Client(),
+	)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+
+	authorization, _, err := currentAuthorization(
+		ctx,
+		client,
+		issueagentgithub.IssueFacts{
+			Number: 42, Author: "reporter", AuthorAssociation: "MEMBER",
+		},
+		nil,
+		nil,
+	)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Nil(t, authorization)
+	require.GreaterOrEqual(t, attempts.Load(), int32(2))
+}
+
 func TestCurrentAuthorizationLetsLatestMaintainerCommandOverrideTrustedAuthor(
 	t *testing.T,
 ) {

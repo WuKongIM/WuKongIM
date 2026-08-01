@@ -29,7 +29,8 @@ const issueAgentStatusMarker = "<!-- wukongim-issue-agent-status -->"
 const issueAgentTrackingLabel = "ready-for-agent"
 const issueAgentBranchPrefix = "agent/issue-"
 const issueAgentPRSignalWorkflow = "Safety Automation - Issue Agent PR Signal"
-const issueAuthorPermissionRecoveryAttempts = 7
+const issueAuthorPermissionRecoveryAttempts = 6
+const issueAuthorPermissionRecoveryWindow = 3100 * time.Millisecond
 
 var (
 	affectedCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -935,8 +936,9 @@ func currentAuthorization(
 	)
 	if err != nil {
 		if trustedAuthor {
-			return nil, "", errors.New(
-				"read trusted Issue author permission",
+			return nil, "", fmt.Errorf(
+				"read trusted Issue author permission: %w",
+				err,
 			)
 		}
 		authorPermission = issueagentgithub.PermissionRead
@@ -986,7 +988,17 @@ func readIssueAuthorPermission(
 	author string,
 	retry bool,
 ) (issueagentgithub.Permission, error) {
-	permission, err := client.ActorPermission(ctx, author)
+	permissionContext := ctx
+	cancel := func() {}
+	if retry {
+		permissionContext, cancel = context.WithTimeout(
+			ctx,
+			issueAuthorPermissionRecoveryWindow,
+		)
+	}
+	defer cancel()
+
+	permission, err := client.ActorPermission(permissionContext, author)
 	if !retry || err == nil && issueagent.WritePermission(string(permission)) {
 		return permission, err
 	}
@@ -995,10 +1007,13 @@ func readIssueAuthorPermission(
 		if attempt >= 2 {
 			delay = (100 * time.Millisecond) << (attempt - 2)
 		}
-		if waitErr := waitIssueAuthorPermissionRecovery(ctx, delay); waitErr != nil {
-			return "", err
+		if waitErr := waitIssueAuthorPermissionRecovery(
+			permissionContext,
+			delay,
+		); waitErr != nil {
+			return "", waitErr
 		}
-		permission, err = client.ActorPermission(ctx, author)
+		permission, err = client.ActorPermission(permissionContext, author)
 		if err == nil && issueagent.WritePermission(string(permission)) {
 			return permission, nil
 		}
