@@ -45,7 +45,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Equal(t, reviewagent.MaxInlineComments, policy.Limits.MaxInlineComments)
 	require.Equal(t, reviewagent.MaxFindings, policy.Limits.MaxFindings)
 	require.Equal(t, reviewagent.MaxChangedFiles, policy.Limits.MaxChangedFiles)
-	require.Equal(t, 393216, policy.Limits.MaxContextBytes)
+	require.Equal(t, reviewagent.MaxContextBytes, policy.Limits.MaxContextBytes)
 	require.Equal(t, 240000, policy.Limits.MaxContextTokens)
 	require.Equal(t, 216000, policy.Limits.AutoCompactTokens)
 	require.Equal(t, 3600, policy.Limits.MaxCPUSecondsPerProcess)
@@ -410,7 +410,7 @@ type reviewAgentLimits struct {
 	MaxChangedFiles                 int   `json:"max_changed_files"`
 	MaxChangedBytes                 int   `json:"max_changed_bytes"`
 	MaxChangedLines                 int   `json:"max_changed_lines"`
-	MaxContextBytes                 int   `json:"max_context_bytes"`
+	MaxContextBytes                 int64 `json:"max_context_bytes"`
 	MaxModelResponseBytes           int   `json:"max_model_response_bytes"`
 	MaxContextTokens                int   `json:"max_context_tokens"`
 	AutoCompactTokens               int   `json:"auto_compact_tokens"`

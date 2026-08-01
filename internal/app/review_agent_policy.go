@@ -175,7 +175,7 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		document.Limits.MaxChangedFiles != contract.MaxChangedFiles ||
 		document.Limits.MaxChangedBytes != 1048576 ||
 		document.Limits.MaxChangedLines != 30000 ||
-		document.Limits.MaxContextBytes != 393216 ||
+		document.Limits.MaxContextBytes != contract.MaxContextBytes ||
 		document.Limits.MaxModelResponseBytes <= 0 ||
 		document.Limits.MaxContextTokens != 240000 ||
 		document.Limits.AutoCompactTokens != 216000 ||
