@@ -116,12 +116,14 @@ type App struct {
 	// webhookPresence adapts owner-local online status transitions into webhook events.
 	webhookPresence presence.OnlineStatusObserver
 	// plugins exposes v2 plugin lifecycle and hook usecases.
-	plugins          *pluginusecase.App
-	channels         *channelusecase.App
-	cmdSync          *cmdsyncusecase.App
-	conversations    *conversationusecase.App
-	users            *userusecase.App
-	delivery         *deliveryusecase.App
+	plugins       *pluginusecase.App
+	channels      *channelusecase.App
+	cmdSync       *cmdsyncusecase.App
+	conversations *conversationusecase.App
+	users         *userusecase.App
+	delivery      *deliveryusecase.App
+	// onlineDelivery owns canonical recipient-plan processing and owner-local ACK state.
+	onlineDelivery   *runtimedelivery.Runtime
 	deliveryManager  *runtimedelivery.Manager
 	deliveryRetry    *runtimedelivery.RetryScheduler
 	deliveryWorker   WorkerRuntime
@@ -266,10 +268,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()
-	app.wireDelivery()
 	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
+	app.wireDelivery()
 	app.wireManagerPluginRPC()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
 		return nil, err

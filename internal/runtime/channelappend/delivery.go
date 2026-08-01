@@ -450,7 +450,7 @@ func shouldObserveOfflineRecipients(
 	batchObserver OfflineRecipientsObserver,
 	singleObserver OfflineRecipientObserver,
 ) bool {
-	return (batchObserver != nil || singleObserver != nil) && offlineRecipientObserverEligible(event)
+	return (batchObserver != nil || singleObserver != nil) && OfflineRecipientObserverEligible(event)
 }
 
 func observeOfflineRecipients(
@@ -461,7 +461,7 @@ func observeOfflineRecipients(
 	batchObserver OfflineRecipientsObserver,
 	singleObserver OfflineRecipientObserver,
 ) {
-	if (batchObserver == nil && singleObserver == nil) || !offlineRecipientObserverEligible(batch.Event) {
+	if (batchObserver == nil && singleObserver == nil) || !OfflineRecipientObserverEligible(batch.Event) {
 		return
 	}
 	offlineUIDs := offlineRecipientUIDs(uids, routes)
@@ -574,7 +574,9 @@ func notifyOfflineRecipientsSafely(
 	return nil
 }
 
-func offlineRecipientObserverEligible(event CommittedEnvelope) bool {
+// OfflineRecipientObserverEligible reports whether an ordinary durable commit
+// may emit plugin or webhook offline-recipient side effects.
+func OfflineRecipientObserverEligible(event CommittedEnvelope) bool {
 	return event.MessageSeq > 0 && !event.SyncOnce && len(event.MessageScopedUIDs) == 0
 }
 

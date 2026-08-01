@@ -186,6 +186,33 @@ func TestComposeOfflineRecipientObserversUsesPluginBatchWhenAvailable(t *testing
 	require.Equal(t, [][]string{{"u1", "u2"}}, webhook.uidBatches)
 }
 
+func TestComposeOfflineRecipientObserversKeepsPluginWithoutWebhook(t *testing.T) {
+	plugin := &recordingOfflineRecipientObserverForWebhookTest{}
+	_, batch := composeOfflineRecipientObservers(plugin, nil)
+
+	require.NotNil(t, batch)
+	batch.ObserveOfflineRecipients(context.Background(), channelappend.OfflineRecipientsEvent{
+		Event: channelappend.CommittedEnvelope{MessageID: 101},
+		UIDs:  []string{"u1", "u2"},
+	})
+
+	require.Equal(t, []string{"u1", "u2"}, plugin.uids)
+}
+
+func TestComposeOfflineRecipientObserversKeepsPluginBatchWithoutWebhook(t *testing.T) {
+	plugin := &recordingBatchOfflineRecipientObserverForWebhookTest{}
+	_, batch := composeOfflineRecipientObservers(plugin, nil)
+
+	require.NotNil(t, batch)
+	batch.ObserveOfflineRecipients(context.Background(), channelappend.OfflineRecipientsEvent{
+		Event: channelappend.CommittedEnvelope{MessageID: 101},
+		UIDs:  []string{"u1", "u2"},
+	})
+
+	require.Empty(t, plugin.singleUIDs)
+	require.Equal(t, [][]string{{"u1", "u2"}}, plugin.uidBatches)
+}
+
 func TestWebhookNotifyEnqueuerMapsCommittedEnvelopeAndCopiesSlices(t *testing.T) {
 	runtime := &recordingWebhookRuntime{}
 	enqueuer := webhookNotifyEnqueuer{runtime: runtime}

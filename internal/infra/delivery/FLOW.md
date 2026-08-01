@@ -4,9 +4,11 @@
 
 `internal/infra/delivery` adapts the entry-independent delivery runtime to the
 owner node's concrete online registry, gateway session, and WuKong protocol
-packet. It owns the owner-local push state machine: exact route revalidation,
-pending RECVACK reservation lifecycle, packet construction, session writes,
-and terminal-versus-retryable write classification. It also owns the narrow
+packet. Production composition uses `LocalSessionWriter`, which owns final
+exact-route revalidation, packet construction, session writes, and
+terminal-versus-retryable write classification. The canonical Online Delivery
+runtime owns pending RECVACK reservation and retry policy around that narrow
+port. This package also owns the narrow
 presence-usecase adapters used by both channelappend and canonical Online
 Delivery recipient routing, so the app composition root only constructs and
 injects the runtime ports.
@@ -15,7 +17,23 @@ The package does not resolve cluster ownership, page channel subscribers, or
 choose retry policy. Those decisions remain in `internal/runtime/delivery` and
 the cluster adapters composed by `internal/app`.
 
-## Owner-local Push Flow
+## Canonical Owner-local Session Write Flow
+
+```text
+runtime/delivery.PushOwner
+  -> reserve item-aligned pending RECVACK state inside runtime/delivery
+  -> LocalSessionWriter validates the exact active UID/session/owner identity
+  -> build the recipient-specific frame.RecvPacket
+  -> write through the owner-local gateway SessionHandle
+     -> success: runtime finishes that reservation and reports accepted
+     -> stale route/build/closed/overflow failure: runtime rolls back and reports dropped
+     -> transient write failure: runtime rolls back and reports retryable
+```
+
+## Legacy Compatibility Owner-local Push Flow
+
+The following `LocalOwnerPusher` path remains compiled for compatibility tests
+and cleanup only. Production app composition does not construct it.
 
 The multi-route path validates routes before reserving an item-aligned ACK
 batch, then revalidates each route after its final reservation. This keeps one
@@ -61,18 +79,21 @@ rollback preserves a previous committed reservation when a refresh attempt or
 its write fails.
 
 `LocalOwnerPusher.SetAckManager` exists only to close the construction cycle
-between the pusher, fanout worker, retry scheduler, and delivery manager. App
-composition must call it exactly once before any concurrent `Push` call.
+between the pusher, fanout worker, retry scheduler, and delivery manager.
+Compatibility constructors and tests must call it exactly once before any
+concurrent `Push` call; production app composition has no such cycle.
 
 The convergence path also provides `LocalSessionWriter`, which owns only final
 exact-session validation, packet construction, and physical writes. The new
-Online Delivery runtime retains pending-ACK ownership around that narrow port;
-the existing `LocalOwnerPusher` remains active until app wiring cuts over. A
+Online Delivery runtime retains pending-ACK ownership around that narrow port.
+App composition now constructs `LocalSessionWriter`; `LocalOwnerPusher` remains
+compiled only for compatibility tests and a later cleanup slice. A
 missing owner-local registry is an unavailable adapter, not a stale route, so
 the writer returns a retryable result instead of terminally dropping the route.
 
-Stale pending-ACK expiry is activity-driven and globally throttled per pusher;
-ordinary pushes do not scan the tracker on every call.
+In the compatibility pusher, stale pending-ACK expiry is activity-driven and
+globally throttled; ordinary pushes do not scan the tracker on every call. The
+canonical runtime owns the equivalent throttled expiry policy directly.
 
 ## Presence Adapters
 

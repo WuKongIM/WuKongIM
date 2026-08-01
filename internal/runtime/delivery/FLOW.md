@@ -1,19 +1,28 @@
 # internal/runtime/delivery Flow
 
-`internal/runtime/delivery` owns online delivery fanout primitives and recipient-owner recvack state.
+`internal/runtime/delivery` owns canonical Online Delivery plan execution and
+recipient-owner RECVACK state.
 
-During the convergence migration, `Runtime` is the new target facade behind
-`internal/contracts/onlinedelivery`, while the existing `Manager`, planner,
-fanout, and retry types remain available to the current app wiring. Adding the
-new facade does not route production traffic through it; later migration steps
-move callers before removing the superseded types.
+`Runtime` is the production facade behind
+`internal/contracts/onlinedelivery`. App composition injects it into
+channelappend as the sole plan consumer and exposes its owner-push handler over
+node RPC. The existing `Manager`, planner, fanout, retry, and
+`LocalOwnerPusher`-oriented surfaces remain compiled only for compatibility
+tests and a later cleanup slice; app composition no longer constructs them.
 
 The package is independent from gateway, app, and concrete cluster runtimes. It only consumes small ports for subscriber paging, presence resolution, partition discovery, and pushing, so planner and fanout behavior can be unit tested and benchmarked in isolation.
 
 `AckTracker` keeps owner-local recvack state, enforces a per UID/session pending
 limit, and maintains an O(1) derived pending count so the recvack hot path never
-scans all shards for observability. `Manager`, `Planner`, and `FanoutWorker`
-form the runtime facade used by app adapters. `Manager` owns bounded async
+scans all shards for observability. `Runtime` owns bounded plan admission,
+target-aware presence resolution, owner coalescing, narrow route retry,
+owner-local ACK mutation, and graceful drain. Its observers describe plan
+admission and terminal state, execution pressure, owner pushes, and ACK state
+with bounded result and error-class labels; concrete metrics and logging remain
+app concerns.
+
+The legacy `Manager`, `Planner`, and `FanoutWorker` form the superseded
+committed-event fanout facade retained for compatibility. `Manager` owns bounded async
 admission through `pkg/workqueue.BoundedWorkerQueue` when fanout ports are
 configured. Runtime `Observer`, `ManagerObserver`, and `AckObserver` events
 describe fanout routing, UID route resolution, owner push attempts, manager
@@ -33,7 +42,33 @@ without wiring a subscriber store. `FanoutTaskRouter` can sit between
 `Manager` and `FanoutWorker` to run local authority partitions in-process and
 forward remote authority partitions through a small node RPC port.
 
-Committed-message fanout flow:
+Canonical Online Delivery flow:
+
+1. Channelappend submits a bounded durable or transient
+   `RecipientDeliveryPlan` through `Runtime.EnqueueRecipientDeliveryPlan`.
+2. `Runtime` validates the mode, exact-target groups, and total recipient bound,
+   then admits an owned plan to its bounded queue only while started.
+3. A worker resolves every exact-target group through one aligned presence
+   call. Valid groups continue when a sibling group fails.
+4. The runtime reports one de-duplicated offline-recipient batch per durable
+   plan, coalesces online routes by owner node, and splits each owner command by
+   the configured push bound.
+5. Different owner commands execute under bounded concurrency. Local commands
+   enter `PushOwner`; remote commands use `RemoteOwnerPusher`. Retryable results
+   are narrowed to their exact routes before the bounded retry loop. Every
+   local execution and remote transport attempt emits one bounded owner-push
+   observation with route shape, duration, outcome, and one failure sample.
+6. `PushOwner` validates owner identity and exact active sessions, reserves
+   pending ACK state, and calls `LocalSessionWriter` for final packet
+   construction and physical writes. Successful writes finish their
+   reservations; retryable or terminal failures roll back only their attempt.
+7. Gateway RECVACK and session-close feedback mutates the same `AckTracker`.
+   Activity-throttled expiry removes stale identities without scanning on every
+   push or feedback command.
+8. `Runtime.Stop` closes admission, waits for in-flight enqueue senders, and
+   drains every accepted plan within the caller's bounded wait.
+
+Legacy committed-message fanout flow:
 
 1. A committed message event enters `Manager.SubmitCommitted`.
 2. `Manager` converts the event into an independent `Envelope`.
@@ -85,7 +120,7 @@ Retry scheduler lifecycle:
 4. Background workers retry queued tasks after the configured backoff.
 5. `Stop` cancels waiting backoff, drains queued tasks, and exits when the queue is empty or the caller context expires.
 
-Recvack flow:
+Legacy compatibility recvack flow:
 
 1. Push accepted by recipient owner.
 2. Owner-local multi-route delivery validates exact active sessions first, then

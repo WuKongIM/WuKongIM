@@ -753,6 +753,38 @@ func TestRuntimeRetryExhaustionReportsBoundedTargetSample(t *testing.T) {
 	}
 }
 
+func TestRuntimeRemoteTransportFailureEmitsOwnerPushObservation(t *testing.T) {
+	transportErr := errors.New("remote transport unavailable")
+	observer := &recordingRuntimeObserver{}
+	runtime := NewRuntime(RuntimeOptions{
+		LocalNodeID: 1,
+		RemoteOwnerPusher: remoteOwnerPusherFunc(func(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
+			return onlinedelivery.OwnerPushResult{}, transportErr
+		}),
+		Observer: observer,
+	})
+	push := onlinedelivery.OwnerPush{
+		OwnerNodeID: 2,
+		Event:       runtimePlanForTest(30).Event,
+		Routes:      []onlinedelivery.Route{runtimeRouteForTest()},
+	}
+	push.Routes[0].OwnerNodeID = 2
+
+	_, err := runtime.routeOwnerPush(context.Background(), push)
+
+	if !errors.Is(err, transportErr) {
+		t.Fatalf("routeOwnerPush() error = %v, want transport error", err)
+	}
+	events := observer.ownerPushEvents()
+	if len(events) != 1 {
+		t.Fatalf("owner push observations = %d, want 1", len(events))
+	}
+	event := events[0]
+	if event.OwnerNodeID != 2 || event.Result != ObservationResultError || event.Routes != 1 || event.Retryable != 1 || !errors.Is(event.Failure.Err, transportErr) {
+		t.Fatalf("owner push observation = %#v, want remote transport failure", event)
+	}
+}
+
 func TestRuntimeRetryExhaustionReportsTargetFromFailedOwnerBatch(t *testing.T) {
 	observer := &recordingRuntimeObserver{}
 	var pushes atomic.Int64
@@ -1266,13 +1298,19 @@ func (panickingRuntimeObserver) ObserveAck(AckEvent)             { panic("ack ob
 func (panickingRuntimeObserver) ObserveAckBatch(AckBatchEvent)   { panic("ack batch observer") }
 
 type recordingRuntimeObserver struct {
-	mu       sync.Mutex
-	terminal []PlanTerminalEvent
+	mu        sync.Mutex
+	terminal  []PlanTerminalEvent
+	ownerPush []OwnerPushEvent
 }
 
 func (*recordingRuntimeObserver) ObservePlanAdmission(PlanAdmissionEvent) {}
 func (*recordingRuntimeObserver) SetRuntimePressure(RuntimePressureEvent) {}
-func (*recordingRuntimeObserver) ObserveOwnerPush(OwnerPushEvent)         {}
+
+func (o *recordingRuntimeObserver) ObserveOwnerPush(event OwnerPushEvent) {
+	o.mu.Lock()
+	o.ownerPush = append(o.ownerPush, event)
+	o.mu.Unlock()
+}
 
 func (o *recordingRuntimeObserver) ObservePlanTerminal(event PlanTerminalEvent) {
 	o.mu.Lock()
@@ -1297,6 +1335,12 @@ func (o *recordingRuntimeObserver) lastTerminal() PlanTerminalEvent {
 		return PlanTerminalEvent{}
 	}
 	return o.terminal[len(o.terminal)-1]
+}
+
+func (o *recordingRuntimeObserver) ownerPushEvents() []OwnerPushEvent {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]OwnerPushEvent(nil), o.ownerPush...)
 }
 
 func (o *recordingRuntimeAckBatchObserver) ObserveAckBatch(event AckBatchEvent) {

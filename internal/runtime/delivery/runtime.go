@@ -630,15 +630,25 @@ func (r *Runtime) routeOwnerPush(ctx context.Context, push onlinedelivery.OwnerP
 	if push.OwnerNodeID == r.localNodeID {
 		return r.pushOwnerLocal(ctx, push)
 	}
-	if r.remoteOwnerPusher == nil {
-		return onlinedelivery.OwnerPushResult{Retryable: append([]onlinedelivery.Route(nil), push.Routes...)}, nil
-	}
+	return r.pushOwnerRemote(ctx, push)
+}
+
+func (r *Runtime) pushOwnerRemote(ctx context.Context, push onlinedelivery.OwnerPush) (result onlinedelivery.OwnerPushResult, err error) {
+	started := time.Now()
+	var failure OwnerPushFailureSample
 	defer func() {
 		if recover() != nil {
 			result = onlinedelivery.OwnerPushResult{Retryable: append([]onlinedelivery.Route(nil), push.Routes...)}
 			err = ErrOwnerPushPanic
 		}
+		if err != nil && len(push.Routes) > 0 {
+			failure = OwnerPushFailureSample{Err: err, Route: push.Routes[0]}
+		}
+		r.observeOwnerPushResult(push, result, err, failure, started)
 	}()
+	if r.remoteOwnerPusher == nil {
+		return onlinedelivery.OwnerPushResult{Retryable: append([]onlinedelivery.Route(nil), push.Routes...)}, nil
+	}
 	return r.remoteOwnerPusher.PushOwner(ctx, push)
 }
 
@@ -681,24 +691,7 @@ func (r *Runtime) pushOwnerLocal(ctx context.Context, push onlinedelivery.OwnerP
 				failure = OwnerPushFailureSample{Err: err, Route: push.Routes[0]}
 			}
 		}
-		label := ObservationResultOK
-		if err != nil {
-			label = ObservationResultError
-		} else if len(result.Retryable) > 0 {
-			label = ObservationResultRetryable
-		} else if len(result.Dropped) > 0 {
-			label = ObservationResultDropped
-		}
-		r.observeOwnerPush(OwnerPushEvent{
-			OwnerNodeID: push.OwnerNodeID,
-			Result:      label,
-			Routes:      len(push.Routes),
-			Accepted:    len(result.Accepted),
-			Retryable:   len(result.Retryable),
-			Dropped:     len(result.Dropped),
-			Duration:    positiveRuntimeDuration(time.Since(started)),
-			Failure:     failure,
-		})
+		r.observeOwnerPushResult(push, result, err, failure, started)
 	}()
 	if r.localNodeID == 0 || push.OwnerNodeID == 0 || push.OwnerNodeID != r.localNodeID {
 		return onlinedelivery.OwnerPushResult{}, ErrOwnerPushNotLocal
@@ -784,6 +777,35 @@ func (r *Runtime) pushOwnerLocal(ctx context.Context, push onlinedelivery.OwnerP
 	recoveryPending = nil
 	recoveryTokens = nil
 	return result, nil
+}
+
+func (r *Runtime) observeOwnerPushResult(
+	push onlinedelivery.OwnerPush,
+	result onlinedelivery.OwnerPushResult,
+	err error,
+	failure OwnerPushFailureSample,
+	started time.Time,
+) {
+	label := ObservationResultOK
+	retryable := len(result.Retryable)
+	if err != nil {
+		label = ObservationResultError
+		retryable = len(push.Routes)
+	} else if retryable > 0 {
+		label = ObservationResultRetryable
+	} else if len(result.Dropped) > 0 {
+		label = ObservationResultDropped
+	}
+	r.observeOwnerPush(OwnerPushEvent{
+		OwnerNodeID: push.OwnerNodeID,
+		Result:      label,
+		Routes:      len(push.Routes),
+		Accepted:    len(result.Accepted),
+		Retryable:   retryable,
+		Dropped:     len(result.Dropped),
+		Duration:    positiveRuntimeDuration(time.Since(started)),
+		Failure:     failure,
+	})
 }
 
 func setOwnerPushFailure(sample *OwnerPushFailureSample, route onlinedelivery.Route, err error) {

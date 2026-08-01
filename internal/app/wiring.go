@@ -14,7 +14,6 @@ import (
 	accessops "github.com/WuKongIM/WuKongIM/internal/access/opsmcp"
 	opscontract "github.com/WuKongIM/WuKongIM/internal/contracts/opsmcp"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
-	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
@@ -737,29 +736,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.Observer = observer
 			}
 			if a.cfg.Delivery.Enabled {
-				offlineSingle, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
-				deliveryObserver := a.deliveryObserver()
-				processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-					PresenceResolver:            deliveryinfra.NewChannelAppendPresenceResolver(a.presence),
-					OwnerPusher:                 a.channelAppendOwnerPusher(nodeID, deliveryObserver),
-					OwnerPushBatchSize:          a.cfg.Delivery.PushBatchSize,
-					OfflineRecipientObserver:    offlineSingle,
-					OfflineRecipientsObserver:   offlineBatch,
-					DeliveryRetryMaxAttempts:    defaultDeliveryRetryMaxAttempts,
-					DeliveryRetryInitialBackoff: defaultDeliveryRetryBackoff,
-					DeliveryRetryMaxBackoff:     defaultDeliveryRetryBackoff,
-				})
-				if a.channelAppendDeliveryWorker == nil {
-					a.channelAppendDeliveryWorker = channelappend.NewRecipientDeliveryWorker(channelappend.RecipientDeliveryWorkerOptions{
-						Processor:  processor,
-						QueueSize:  a.cfg.Delivery.EventQueueSize,
-						Workers:    a.cfg.Delivery.RecipientWorkerConcurrency,
-						Observer:   observer,
-						Goroutines: a.goroutines,
-					})
-				}
-				opts.RecipientDeliveryEnqueuer = a.channelAppendDeliveryWorker
-				a.deliveryWorker = appendDeliveryWorker(a.deliveryWorker, a.channelAppendDeliveryWorker)
+				opts.OnlineDeliveryEnqueuer = a.onlineDelivery
 			}
 			group := channelappend.New(opts)
 			var remote clusterinfra.ChannelAppendRemoteForwarder
