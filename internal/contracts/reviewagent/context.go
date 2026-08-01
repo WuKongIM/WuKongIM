@@ -9,7 +9,10 @@ import (
 )
 
 const (
-	MaxChangedFiles    = 50
+	MaxChangedFiles = 50
+	// MaxContextBytes bounds the canonical encoded Context Bundle.
+	MaxContextBytes int64 = 2 << 20
+
 	MaxInstructions    = 128
 	MaxMandatoryChecks = 128
 	MaxLinkedIssues    = 128
