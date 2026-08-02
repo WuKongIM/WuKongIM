@@ -1,0 +1,273 @@
+---
+title: Configuration Reference
+description: Complete public TOML fields, WK_* environment mappings, value kinds, and redaction boundaries.
+---
+
+This page is checked against the public startup configuration schema. It lists every accepted TOML path and its one canonical environment mapping. Environment values override TOML; unknown TOML paths and unknown `WK_*` variables fail startup.
+
+<Callout type="info" title="Values and defaults">
+  `wukongim.toml.example` is a loadable development baseline, not a runtime-default catalog for every field. Some omitted or zero values are derived from hardware, topology, or internal defaults. The Manager startup snapshot resolves a bounded set of critical fields; confirm others through subsystem runtime state, metrics, and pre-production load tests.
+</Callout>
+
+`node.id`, `node.data_dir`, and `cluster.listen_addr` are always required. Seed joining additionally requires `cluster.advertise_addr` and a non-empty `cluster.join_token`. List environment values are JSON and replace the complete list.
+
+Kinds: `string`, `bool`, integer `int`/`uint*`, `float`, Go-format `duration`, and `string_list`/`object_list` for lists of strings or objects.
+
+## Node
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `node.id` | `WK_NODE_ID` | `uint64` | Required at startup |
+| `node.data_dir` | `WK_NODE_DATA_DIR` | `string` | Required at startup |
+
+## Cluster
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `cluster.listen_addr` | `WK_CLUSTER_LISTEN_ADDR` | `string` | Required at startup |
+| `cluster.id` | `WK_CLUSTER_ID` | `string` | — |
+| `cluster.seeds` | `WK_CLUSTER_SEEDS` | `string_list` | — |
+| `cluster.advertise_addr` | `WK_CLUSTER_ADVERTISE_ADDR` | `string` | — |
+| `cluster.join_token` | `WK_CLUSTER_JOIN_TOKEN` | `string` | Redacted in startup snapshots and diagnostics |
+| `cluster.nodes` | `WK_CLUSTER_NODES` | `object_list` | — |
+| `cluster.initial_slot_count` | `WK_CLUSTER_INITIAL_SLOT_COUNT` | `uint32` | — |
+| `cluster.hash_slot_count` | `WK_CLUSTER_HASH_SLOT_COUNT` | `uint16` | — |
+| `cluster.slot_replica_n` | `WK_CLUSTER_SLOT_REPLICA_N` | `uint16` | — |
+| `cluster.channel_replica_n` | `WK_CLUSTER_CHANNEL_REPLICA_N` | `uint16` | — |
+| `cluster.slot_tick_interval` | `WK_CLUSTER_SLOT_TICK_INTERVAL` | `duration` | — |
+| `cluster.slot_election_tick` | `WK_CLUSTER_SLOT_ELECTION_TICK` | `int` | — |
+| `cluster.slot_heartbeat_tick` | `WK_CLUSTER_SLOT_HEARTBEAT_TICK` | `int` | — |
+| `cluster.slot_log_compaction_enabled` | `WK_CLUSTER_SLOT_LOG_COMPACTION_ENABLED` | `bool` | — |
+| `cluster.slot_log_compaction_trigger_entries` | `WK_CLUSTER_SLOT_LOG_COMPACTION_TRIGGER_ENTRIES` | `uint64` | — |
+| `cluster.slot_log_compaction_check_interval` | `WK_CLUSTER_SLOT_LOG_COMPACTION_CHECK_INTERVAL` | `duration` | — |
+| `cluster.channel_reactor_count` | `WK_CLUSTER_CHANNEL_REACTOR_COUNT` | `int` | — |
+| `cluster.channel_store_append_workers` | `WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS` | `int` | — |
+| `cluster.channel_store_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_STORE_APPEND_BATCH_MAX_WAIT` | `duration` | — |
+| `cluster.channel_store_apply_workers` | `WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS` | `int` | — |
+| `cluster.channel_rpc_workers` | `WK_CLUSTER_CHANNEL_RPC_WORKERS` | `int` | — |
+| `cluster.channel_rpc_batch_max_items` | `WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS` | `int` | — |
+| `cluster.max_channels` | `WK_CLUSTER_MAX_CHANNELS` | `int` | — |
+| `cluster.channel_append_batch_max_records` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS` | `int` | — |
+| `cluster.channel_append_batch_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT` | `duration` | — |
+| `cluster.channel_append_batch_adaptive_flush` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_ADAPTIVE_FLUSH` | `bool` | — |
+| `cluster.channel_append_batch_cold_max_wait` | `WK_CLUSTER_CHANNEL_APPEND_BATCH_COLD_MAX_WAIT` | `duration` | — |
+| `cluster.channel_follower_recovery_probe_interval` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_INTERVAL` | `duration` | — |
+| `cluster.channel_follower_recovery_probe_jitter` | `WK_CLUSTER_CHANNEL_FOLLOWER_RECOVERY_PROBE_JITTER` | `duration` | — |
+| `cluster.node_health_report_interval` | `WK_CLUSTER_NODE_HEALTH_REPORT_INTERVAL` | `duration` | — |
+| `cluster.node_health_report_ttl` | `WK_CLUSTER_NODE_HEALTH_REPORT_TTL` | `duration` | — |
+| `cluster.commit_coordinator_sync` | `WK_CLUSTER_COMMIT_COORDINATOR_SYNC` | `bool` | — |
+| `cluster.commit_coordinator_flush_window` | `WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW` | `duration` | — |
+| `cluster.commit_coordinator_max_requests` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS` | `int` | — |
+| `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | — |
+| `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | — |
+| `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | — |
+
+## Channel Migration
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `channel_migration.enable` | `WK_CHANNEL_MIGRATION_ENABLE` | `bool` | — |
+| `channel_migration.scan_interval` | `WK_CHANNEL_MIGRATION_SCAN_INTERVAL` | `duration` | — |
+| `channel_migration.scan_limit` | `WK_CHANNEL_MIGRATION_SCAN_LIMIT` | `int` | — |
+| `channel_migration.max_pages_per_tick` | `WK_CHANNEL_MIGRATION_MAX_PAGES_PER_TICK` | `int` | — |
+| `channel_migration.max_tasks_per_tick` | `WK_CHANNEL_MIGRATION_MAX_TASKS_PER_TICK` | `int` | — |
+| `channel_migration.task_limit` | `WK_CHANNEL_MIGRATION_TASK_LIMIT` | `int` | — |
+
+## Channel & Retention
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `channel.message_retention_physical_gc_enable` | `WK_CHANNEL_MESSAGE_RETENTION_PHYSICAL_GC_ENABLE` | `bool` | — |
+| `channel.message_retention_scan_interval` | `WK_CHANNEL_MESSAGE_RETENTION_SCAN_INTERVAL` | `duration` | — |
+| `channel.message_retention_channel_batch_size` | `WK_CHANNEL_MESSAGE_RETENTION_CHANNEL_BATCH_SIZE` | `int` | — |
+| `channel.message_retention_max_trim_messages` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_MESSAGES` | `int` | — |
+| `channel.message_retention_max_trim_bytes` | `WK_CHANNEL_MESSAGE_RETENTION_MAX_TRIM_BYTES` | `int` | — |
+| `channel.large_group_subscriber_threshold` | `WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD` | `int` | — |
+
+## API & Client Addresses
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | — |
+| `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | — |
+| `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | Redacted in diagnostic artifacts |
+| `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Redacted in diagnostic artifacts |
+
+## Manager
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `manager.listen_addr` | `WK_MANAGER_LISTEN_ADDR` | `string` | — |
+| `manager.auth_on` | `WK_MANAGER_AUTH_ON` | `bool` | — |
+| `manager.jwt_secret` | `WK_MANAGER_JWT_SECRET` | `string` | Redacted in startup snapshots and diagnostics |
+| `manager.jwt_issuer` | `WK_MANAGER_JWT_ISSUER` | `string` | — |
+| `manager.jwt_expire` | `WK_MANAGER_JWT_EXPIRE` | `duration` | — |
+| `manager.users` | `WK_MANAGER_USERS` | `object_list` | Redacted in startup snapshots and diagnostics |
+
+## Benchmark
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `bench.api_enable` | `WK_BENCH_API_ENABLE` | `bool` | — |
+| `bench.api_token` | `WK_BENCH_API_TOKEN` | `string` | Redacted in startup snapshots and diagnostics |
+| `bench.api_max_batch_size` | `WK_BENCH_API_MAX_BATCH_SIZE` | `int` | — |
+| `bench.api_max_payload_bytes` | `WK_BENCH_API_MAX_PAYLOAD_BYTES` | `int` | — |
+
+## Observability Switches
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `observability.metrics_enable` | `WK_METRICS_ENABLE` | `bool` | — |
+| `observability.debug_api_enable` | `WK_DEBUG_API_ENABLE` | `bool` | — |
+
+## Prometheus
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `prometheus.enable` | `WK_PROMETHEUS_ENABLE` | `bool` | — |
+| `prometheus.query_base_url` | `WK_PROMETHEUS_QUERY_BASE_URL` | `string` | Redacted in diagnostic artifacts |
+| `prometheus.binary_path` | `WK_PROMETHEUS_BINARY_PATH` | `string` | — |
+| `prometheus.listen_addr` | `WK_PROMETHEUS_LISTEN_ADDR` | `string` | — |
+| `prometheus.data_dir` | `WK_PROMETHEUS_DATA_DIR` | `string` | — |
+| `prometheus.retention_time` | `WK_PROMETHEUS_RETENTION_TIME` | `duration` | — |
+| `prometheus.retention_size` | `WK_PROMETHEUS_RETENTION_SIZE` | `string` | — |
+| `prometheus.scrape_interval` | `WK_PROMETHEUS_SCRAPE_INTERVAL` | `duration` | — |
+| `prometheus.scrape_targets` | `WK_PROMETHEUS_SCRAPE_TARGETS` | `string_list` | — |
+
+## Top
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `top.api_enable` | `WK_TOP_API_ENABLE` | `bool` | — |
+| `top.collect_interval` | `WK_TOP_COLLECT_INTERVAL` | `duration` | — |
+| `top.history_window` | `WK_TOP_HISTORY_WINDOW` | `duration` | — |
+
+## Diagnostics
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `diagnostics.enable` | `WK_DIAGNOSTICS_ENABLE` | `bool` | — |
+| `diagnostics.buffer_size` | `WK_DIAGNOSTICS_BUFFER_SIZE` | `int` | — |
+| `diagnostics.sample_rate` | `WK_DIAGNOSTICS_SAMPLE_RATE` | `float` | — |
+| `diagnostics.slow_threshold_ms` | `WK_DIAGNOSTICS_SLOW_THRESHOLD_MS` | `int` | — |
+| `diagnostics.error_sample_rate` | `WK_DIAGNOSTICS_ERROR_SAMPLE_RATE` | `float` | — |
+| `diagnostics.deep_sample_rate` | `WK_DIAGNOSTICS_DEEP_SAMPLE_RATE` | `float` | — |
+| `diagnostics.deep_slow_threshold_ms` | `WK_DIAGNOSTICS_DEEP_SLOW_THRESHOLD_MS` | `int` | — |
+| `diagnostics.deep_max_items_per_batch` | `WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH` | `int` | — |
+| `diagnostics.debug_matches` | `WK_DIAGNOSTICS_DEBUG_MATCHES` | `object_list` | — |
+
+## Gateway
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `gateway.gnet_multicore` | `WK_GATEWAY_GNET_MULTICORE` | `bool` | — |
+| `gateway.gnet_num_event_loop` | `WK_GATEWAY_GNET_NUM_EVENT_LOOP` | `int` | — |
+| `gateway.runtime_async_send_workers` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS` | `int` | — |
+| `gateway.runtime_async_send_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY` | `int` | — |
+| `gateway.runtime_async_auth_workers` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_WORKERS` | `int` | — |
+| `gateway.runtime_async_auth_queue_capacity` | `WK_GATEWAY_RUNTIME_ASYNC_AUTH_QUEUE_CAPACITY` | `int` | — |
+| `gateway.runtime_async_pool_release_timeout` | `WK_GATEWAY_RUNTIME_ASYNC_POOL_RELEASE_TIMEOUT` | `duration` | — |
+| `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | — |
+| `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | — |
+| `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | — |
+| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | — |
+| `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | — |
+
+## Message
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `message.person_whitelist_enabled` | `WK_MESSAGE_PERSON_WHITELIST_ENABLED` | `bool` | — |
+| `message.system_device_id` | `WK_MESSAGE_SYSTEM_DEVICE_ID` | `string` | — |
+| `message.permission_cache_ttl` | `WK_MESSAGE_PERMISSION_CACHE_TTL` | `duration` | — |
+
+## Presence
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `presence.activation_timeout` | `WK_PRESENCE_ACTIVATION_TIMEOUT` | `duration` | — |
+| `presence.touch_flush_interval` | `WK_PRESENCE_TOUCH_FLUSH_INTERVAL` | `duration` | — |
+| `presence.touch_batch_size` | `WK_PRESENCE_TOUCH_BATCH_SIZE` | `int` | — |
+| `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | — |
+| `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | — |
+
+## Conversation
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `conversation.max_last_message_concurrency` | `WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY` | `int` | — |
+| `conversation.authority_cache_max_rows_per_uid` | `WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID` | `int` | — |
+| `conversation.authority_cache_max_rows` | `WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS` | `int` | — |
+| `conversation.authority_list_db_window_max` | `WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX` | `int` | — |
+| `conversation.authority_handoff_timeout` | `WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT` | `duration` | — |
+| `conversation.authority_active_cooldown` | `WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN` | `duration` | — |
+| `conversation.authority_flush_interval` | `WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL` | `duration` | — |
+| `conversation.authority_flush_timeout` | `WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT` | `duration` | — |
+| `conversation.authority_flush_batch_rows` | `WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS` | `int` | — |
+| `conversation.authority_admit_batch_rows` | `WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS` | `int` | — |
+| `conversation.authority_admit_concurrency` | `WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY` | `int` | — |
+
+## Channel Append
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `channel_append.shard_count` | `WK_CHANNEL_APPEND_SHARD_COUNT` | `int` | — |
+| `channel_append.advance_pool_size` | `WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE` | `int` | — |
+| `channel_append.effect_pool_size` | `WK_CHANNEL_APPEND_EFFECT_POOL_SIZE` | `int` | — |
+| `channel_append.recipient_authority_dispatch_concurrency` | `WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY` | `int` | — |
+
+## Delivery
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `delivery.enable` | `WK_DELIVERY_ENABLE` | `bool` | — |
+| `delivery.fanout_page_size` | `WK_DELIVERY_FANOUT_PAGE_SIZE` | `int` | — |
+| `delivery.push_batch_size` | `WK_DELIVERY_PUSH_BATCH_SIZE` | `int` | — |
+| `delivery.pending_ack_ttl` | `WK_DELIVERY_PENDING_ACK_TTL` | `duration` | — |
+| `delivery.pending_ack_max_per_session` | `WK_DELIVERY_PENDING_ACK_MAX_PER_SESSION` | `int` | — |
+| `delivery.event_queue_size` | `WK_DELIVERY_EVENT_QUEUE_SIZE` | `int` | — |
+| `delivery.recipient_worker_concurrency` | `WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY` | `int` | — |
+
+## Webhook
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `webhook.http_addr` | `WK_WEBHOOK_HTTP_ADDR` | `string` | Redacted in diagnostic artifacts |
+| `webhook.focus_events` | `WK_WEBHOOK_FOCUS_EVENTS` | `string_list` | — |
+| `webhook.queue_size` | `WK_WEBHOOK_QUEUE_SIZE` | `int` | — |
+| `webhook.workers` | `WK_WEBHOOK_WORKERS` | `int` | — |
+| `webhook.msg_notify_batch_max_items` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_ITEMS` | `int` | — |
+| `webhook.msg_notify_batch_max_wait` | `WK_WEBHOOK_MSG_NOTIFY_BATCH_MAX_WAIT` | `duration` | — |
+| `webhook.online_status_batch_max_items` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_ITEMS` | `int` | — |
+| `webhook.online_status_batch_max_wait` | `WK_WEBHOOK_ONLINE_STATUS_BATCH_MAX_WAIT` | `duration` | — |
+| `webhook.offline_uid_batch_size` | `WK_WEBHOOK_OFFLINE_UID_BATCH_SIZE` | `int` | — |
+| `webhook.request_timeout` | `WK_WEBHOOK_REQUEST_TIMEOUT` | `duration` | — |
+| `webhook.retry_max_attempts` | `WK_WEBHOOK_RETRY_MAX_ATTEMPTS` | `int` | — |
+
+## Plugin
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `plugin.enable` | `WK_PLUGIN_ENABLE` | `bool` | — |
+| `plugin.dir` | `WK_PLUGIN_DIR` | `string` | — |
+| `plugin.socket_path` | `WK_PLUGIN_SOCKET_PATH` | `string` | — |
+| `plugin.sandbox_dir` | `WK_PLUGIN_SANDBOX_DIR` | `string` | — |
+| `plugin.state_dir` | `WK_PLUGIN_STATE_DIR` | `string` | — |
+| `plugin.timeout` | `WK_PLUGIN_TIMEOUT` | `duration` | — |
+| `plugin.hot_reload` | `WK_PLUGIN_HOT_RELOAD` | `bool` | — |
+| `plugin.fail_open` | `WK_PLUGIN_FAIL_OPEN` | `bool` | — |
+| `plugin.persist_after_queue_size` | `WK_PLUGIN_PERSIST_AFTER_QUEUE_SIZE` | `int` | — |
+| `plugin.persist_after_workers` | `WK_PLUGIN_PERSIST_AFTER_WORKERS` | `int` | — |
+
+## Log
+
+| TOML | Environment | Kind | Constraint |
+| --- | --- | --- | --- |
+| `log.level` | `WK_LOG_LEVEL` | `string` | — |
+| `log.dir` | `WK_LOG_DIR` | `string` | — |
+| `log.max_size` | `WK_LOG_MAX_SIZE` | `int` | — |
+| `log.max_age` | `WK_LOG_MAX_AGE` | `int` | — |
+| `log.max_backups` | `WK_LOG_MAX_BACKUPS` | `int` | — |
+| `log.compress` | `WK_LOG_COMPRESS` | `bool` | — |
+| `log.console` | `WK_LOG_CONSOLE` | `bool` | — |
+| `log.format` | `WK_LOG_FORMAT` | `string` | — |

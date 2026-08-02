@@ -1,0 +1,46 @@
+---
+title: Messages & Storage
+description: Plan node data directories, message retention, queues, batching, concurrency, and capacity evidence.
+---
+
+Storage settings affect data safety, throughput, and tail latency together. Give every node independent durable storage first, then tune retention, queues, batches, and concurrency from observed evidence.
+
+## Data directories
+
+`node.data_dir` is required at startup and owns node state. Every node needs its own directory or persistent volume; sharing one directory across nodes breaks ownership and failure isolation.
+
+Related paths include:
+
+- `log.dir` for rolling logs;
+- `prometheus.data_dir` for generated configuration and TSDB data only when app-managed Prometheus is used;
+- `plugin.dir`, `plugin.state_dir`, `plugin.sandbox_dir`, and `plugin.socket_path` for plugin artifacts, state, sandboxing, and the local socket.
+
+Directories that must survive need to remain available after container replacement, process restart, or artifact rollout, with the correct UID/GID, permissions, capacity, and mount options.
+
+## Message retention
+
+`channel.message_retention_*` controls scanning and physical trimming. Before enabling physical GC, define the business retention period, recovery objectives, and backup boundary, then verify trimming preserves required historical reads.
+
+Scan interval, channels per batch, and per-run message and byte limits bound background work together. Larger batches may improve throughput while increasing IO bursts, lock duration, memory, and foreground tail latency. Validate production values at representative data scale.
+
+## Queues, batches, and concurrency
+
+| Domain | Representative fields | Main cost |
+| --- | --- | --- |
+| Gateway | async workers, queue capacity, session batches | Connection memory, queue delay, send throughput |
+| Channel append | shards, pools, batches, dispatch concurrency | CPU contention, commit latency, allocations, disk batches |
+| Delivery | page and push batches, event queue, recipient workers | Large-group fanout, pending acknowledgements, backpressure |
+| Conversation/Presence | caches, flush/admit batches, touch batches | Row bounds, DB round trips, dirty-state backlog |
+| Webhook | queue, workers, batches, timeout, retry | Downstream failure amplification, memory, drop boundaries |
+
+Queue capacity is not capacity planning. A larger queue absorbs a larger transient burst, but also consumes more memory, increases worst-case wait, and may hide sustained overload. Worker and batch limits must be observed with it.
+
+Some `0` values mean derive from CPU, topology, or an internal default; they do not mean unlimited or disabled. The Manager startup snapshot resolves a bounded set of critical fields: use its source and effective value where available, and confirm other fields through subsystem runtime state, metrics, and pre-production load tests. Do not treat explicit values in `wukongim.toml.example` as defaults for every omitted field.
+
+## Capacity and alerts
+
+At minimum, monitor disk space and inodes, IOPS and latency, write and sync latency, queue depth and rejection, P95/P99, CPU, RSS, file descriptors, goroutines, network, and large-group fanout per node. Capacity tests must record artifact, configuration, hardware, online users, message rate, channel count, and group size.
+
+Roll every setting change one node at a time, wait for `/readyz` before restoring traffic, and compare latency, queues, resources, and errors before and after. Retain rollback configuration, but do not assume a binary downgrade proves data-format rollback is safe.
+
+Before production, return to the [Production Checklist](/en/server/deployment/production-checklist) for disk, capacity, backup, and recovery evidence.

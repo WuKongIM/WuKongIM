@@ -1,0 +1,64 @@
+---
+title: Nodes & Cluster
+description: Configure node identity, static or seed joining, slots, replicas, and safe cluster change boundaries.
+---
+
+Every WuKongIM deployment is a cluster. A one-process deployment is a **single-node cluster** and does not bypass cluster semantics. Establish identity and discovery before setting replicas or workload controls.
+
+## Required at startup
+
+These three fields are required for every topology:
+
+| TOML | Constraint |
+| --- | --- |
+| `node.id` | A non-zero, stable node ID that is unique in the cluster |
+| `node.data_dir` | A durable data directory owned exclusively by this node |
+| `cluster.listen_addr` | The local listener for inter-node Transport |
+
+A minimal single-node cluster can start here:
+
+```toml
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+listen_addr = "127.0.0.1:7000"
+nodes = [{ id = 1, addr = "127.0.0.1:7000" }]
+initial_slot_count = 10
+hash_slot_count = 256
+slot_replica_n = 1
+channel_replica_n = 1
+```
+
+The `initial_slot_count = 10` value is a development baseline, not a universal recommendation. The `hash_slot_count = 256` value is the stable physical hash-slot fence.
+
+## Choose one join model
+
+| Model | Configuration | Boundary |
+| --- | --- | --- |
+| Static inventory | `cluster.nodes` | Node addresses are known in advance and every node uses the same inventory |
+| Seed joining | `cluster.seeds`, `cluster.advertise_addr`, `cluster.join_token` | A new node joins through existing nodes and advertises an address peers can reach |
+
+`cluster.nodes` cannot be combined with seed-join configuration. Seed joining requires an advertised address and a non-empty join token. `cluster.listen_addr` may bind `0.0.0.0`. Any `cluster.advertise_addr` or `nodes[].addr` that remote peers must reach cannot use wildcard, host-only loopback, or short-lived addresses. A single-node cluster may use `127.0.0.1`, but it must change to a remotely reachable address before adding a remote node.
+
+## Slots and replicas
+
+- `initial_slot_count` is the logical Slot Raft Group count created by the first Controller snapshot.
+- `hash_slot_count` is the physical hash-slot fence that routes keys to logical groups; keep it at `256`.
+- `slot_replica_n` and `channel_replica_n` must fit the available node count and failure-domain objective.
+- Replicas provide the intended fault tolerance only when they span independent machines, disks, and failure domains. Multiple processes on one host are not independent failure domains.
+
+After data exists, do not treat cluster ID, node IDs, hash-slot count, or replica policy as ordinary rolling settings. Joining, migration, and scaling require controlled operations.
+
+## Tuning fields
+
+`channel_reactor_count`, worker pools, RPC and append batches, commit coordination, and recovery probes affect CPU, memory, allocations, contention, queueing, backpressure, and tail latency. Some zero values are derived from hardware or topology at runtime, so the example does not reveal every effective value.
+
+Keep a measured baseline first. Test with production-like online users, message rates, channel counts, and 100,000-member groups; change one parameter family at a time and record throughput, P99, queues, CPU, memory, disk, and network together.
+
+## Change safely
+
+Configuration is loaded at node startup; do not assume general hot reload unless a subsystem explicitly documents it. Change cluster configuration one node at a time: remove traffic, stop the node, update configuration, start it, wait for `/readyz`, restore traffic, and only then continue.
+
+Continue with [Networking & Client Access](/en/server/configuration/networking) to separate listen, peer-advertised, and client-advertised addresses.

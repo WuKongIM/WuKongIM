@@ -49,6 +49,13 @@ content/docs/**/*.mdx
   inventing an official image channel, use `/readyz` for traffic admission,
   preserve 256 hash slots and cluster-only semantics, and leave Kubernetes
   planned.
+- Phase 5 publishes cluster, networking, storage, security, observability, and
+  configuration-reference guidance. The bilingual reference MUST cover every
+  public field returned by `internal/config.SchemaFields()` exactly once. The
+  root `wukongim.toml.example` remains a development baseline rather than a
+  runtime-default promise; configuration pages MUST distinguish listeners from
+  advertised addresses, preserve cluster-only and 256-hash-slot semantics, and
+  leave full operational procedures planned.
 
 ## Static delivery
 

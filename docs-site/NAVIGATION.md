@@ -68,8 +68,8 @@ Route: `/{lang}/server`
   - **网络与客户端接入 / Networking & Client Access** `/{lang}/server/configuration/networking` — TCP、WebSocket、HTTP、Manager 和节点通信监听配置。 / Listener settings for TCP, WebSocket, HTTP, Manager, and inter-node traffic.
   - **消息与存储 / Messages & Storage** `/{lang}/server/configuration/storage` — 消息保留、存储路径、队列、批处理和性能配置。 / Message retention, storage paths, queues, batching, and performance settings.
   - **安全与权限 / Security & Access** `/{lang}/server/configuration/security` — 认证、接口访问、Token、TLS 和敏感配置建议。 / Authentication, API access, tokens, TLS, and sensitive-setting guidance.
-  - **日志与可观测性 / Logs & Observability** `/{lang}/server/configuration/observability` — 日志、指标、Tracing 和诊断接口配置。 / Logging, metrics, tracing, and diagnostic endpoint settings.
-  - **配置参考 / Configuration Reference** `/{lang}/server/configuration/reference` — 列出 TOML 键、类型、默认值、环境变量和约束。 / Lists TOML keys, types, defaults, environment variables, and constraints.
+  - **日志与可观测性 / Logs & Observability** `/{lang}/server/configuration/observability` — 日志、指标、Prometheus、Top 和诊断接口配置。 / Logging, metrics, Prometheus, Top, and diagnostic endpoint settings.
+  - **配置参考 / Configuration Reference** `/{lang}/server/configuration/reference` — 列出 TOML 键、类型、环境变量、脱敏边界和约束。 / Lists TOML keys, types, environment variables, redaction boundaries, and constraints.
 
 - **运维 / Operations** `/{lang}/server/operations` — 管理、观察和安全变更生产集群。 / Manage, observe, and safely change production clusters.
 

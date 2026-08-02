@@ -8,7 +8,10 @@ cluster startup, two-way message verification, and basic configuration. Phase 3
 publishes the business-integration path: responsibility boundaries,
 authentication constraints, messaging, and webhooks. Phase 4 publishes the
 server-deployment path: deployment selection, source-built Docker and Linux
-artifacts, static multi-node planning, readiness, and production checks.
+artifacts, static multi-node planning, readiness, and production checks. Phase 5
+publishes the server-configuration path: cluster identity, network contracts,
+storage and workload controls, security boundaries, observability, and an
+exhaustive bilingual TOML-to-environment reference.
 
 ## Develop
 
@@ -46,4 +49,4 @@ from sitemap and LLM outputs.
 See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
 `PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
 business-integration scope. `PHASE_4_SPEC.md` defines the server-deployment
-scope.
+scope, and `PHASE_5_SPEC.md` defines the server-configuration scope.
