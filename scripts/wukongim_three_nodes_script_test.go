@@ -41,7 +41,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=env GOWORK=off go build -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=env GOWORK=off go build -buildvcs=true -o " + outputBin + " ./cmd/wukongim",
 		"prometheus_enable=true",
 		"prometheus_listen_addr=127.0.0.1:9091",
 		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
@@ -77,7 +77,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuild(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=env GOWORK=off go build -tags=e2e -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=env GOWORK=off go build -buildvcs=true -tags=e2e -o " + outputBin + " ./cmd/wukongim",
 		"node1_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=true",
 		"node3_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false",
 	} {

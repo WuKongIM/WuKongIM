@@ -193,9 +193,9 @@ prepare_build_command() {
     return
   fi
   if [[ -n "$BUILD_TAGS" ]]; then
-    BUILD_COMMAND=(env "GOWORK=off" go build "-tags=$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim)
+    BUILD_COMMAND=(env "GOWORK=off" go build -buildvcs=true "-tags=$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim)
   else
-    BUILD_COMMAND=(env "GOWORK=off" go build -o "$BIN_PATH" ./cmd/wukongim)
+    BUILD_COMMAND=(env "GOWORK=off" go build -buildvcs=true -o "$BIN_PATH" ./cmd/wukongim)
   fi
 }
 
