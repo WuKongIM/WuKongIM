@@ -9,6 +9,7 @@ import (
 
 func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	root := repoRoot(t)
+	gitDir := worktreeGitDir(t, root)
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
 	logDir := filepath.Join(t.TempDir(), "logs")
 	dataRoot := filepath.Join(t.TempDir(), "data-root")
@@ -41,7 +42,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=env GOWORK=off go build -buildvcs=true -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=env GOWORK=off GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root + " go build -buildvcs=true -o " + outputBin + " ./cmd/wukongim",
 		"prometheus_enable=true",
 		"prometheus_listen_addr=127.0.0.1:9091",
 		"prometheus_scrape_targets=[\"127.0.0.1:5011\",\"127.0.0.1:5012\",\"127.0.0.1:5013\"]",
@@ -63,6 +64,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsCommands(t *testing.T) {
 
 func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuild(t *testing.T) {
 	root := repoRoot(t)
+	gitDir := worktreeGitDir(t, root)
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
 
 	cmd := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
@@ -77,7 +79,7 @@ func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuild(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=env GOWORK=off go build -buildvcs=true -tags=e2e -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=env GOWORK=off GIT_DIR=" + gitDir + " GIT_WORK_TREE=" + root + " go build -buildvcs=true -tags=e2e -o " + outputBin + " ./cmd/wukongim",
 		"node1_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=true",
 		"node3_env=WK_METRICS_ENABLE=true WK_PROMETHEUS_ENABLE=false",
 	} {
@@ -85,6 +87,17 @@ func TestWukongIMThreeNodeScriptDryRunPrintsTaggedBuild(t *testing.T) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)
 		}
 	}
+}
+
+func worktreeGitDir(t *testing.T, root string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", "--absolute-git-dir")
+	cmd.Dir = root
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("resolve worktree git dir: %v", err)
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func TestWukongIMThreeNodeScriptRejectsEmptyDataRoot(t *testing.T) {

@@ -201,8 +201,15 @@ case "$1" in
     exit 0
     ;;
   build)
-    if [[ "$2" == "-buildvcs=true" && "$3" == "-o" && "$5" == "./cmd/wukongim" ]]; then
-      cat > "$4" <<'BIN'
+    output=""
+    target="${!#}"
+    if [[ "$2" == "-buildvcs=true" && "$3" == "-o" ]]; then
+      output="$4"
+    elif [[ "$2" == "-o" ]]; then
+      output="$3"
+    fi
+    if [[ -n "$output" && "$target" == "./cmd/wukongim" ]]; then
+      cat > "$output" <<'BIN'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "$*" >> "` + callsDir + `/wukongim.calls"
@@ -251,7 +258,7 @@ while true; do
   sleep 1
 done
 BIN
-      chmod +x "$4"
+      chmod +x "$output"
       exit 0
     fi
     if [[ "$2" == "-o" && "$4" == "./cmd/prometheus" ]]; then

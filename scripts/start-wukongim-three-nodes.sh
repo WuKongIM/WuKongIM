@@ -188,14 +188,22 @@ prometheus_node_env_preview() {
 }
 
 prepare_build_command() {
+  local git_dir=""
+  local git_work_tree=""
+  local build_env=("GOWORK=off")
   BUILD_COMMAND=()
   if [[ "$BUILD" -eq 0 ]]; then
     return
   fi
+  # Go otherwise reads the primary checkout's HEAD when this script runs from a linked worktree.
+  if git_dir="$(git -C "$ROOT_DIR" rev-parse --absolute-git-dir 2>/dev/null)" &&
+    git_work_tree="$(git -C "$ROOT_DIR" rev-parse --show-toplevel 2>/dev/null)"; then
+    build_env+=("GIT_DIR=$git_dir" "GIT_WORK_TREE=$git_work_tree")
+  fi
   if [[ -n "$BUILD_TAGS" ]]; then
-    BUILD_COMMAND=(env "GOWORK=off" go build -buildvcs=true "-tags=$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim)
+    BUILD_COMMAND=(env "${build_env[@]}" go build -buildvcs=true "-tags=$BUILD_TAGS" -o "$BIN_PATH" ./cmd/wukongim)
   else
-    BUILD_COMMAND=(env "GOWORK=off" go build -buildvcs=true -o "$BIN_PATH" ./cmd/wukongim)
+    BUILD_COMMAND=(env "${build_env[@]}" go build -buildvcs=true -o "$BIN_PATH" ./cmd/wukongim)
   fi
 }
 
