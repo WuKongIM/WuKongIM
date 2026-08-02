@@ -10,6 +10,10 @@ replacement pull request merges.
 
 Create a repository-scoped App with exactly:
 
+Use an App description that reflects its bounded authority, for example:
+`Policy-gated code review, verdict, and exact-head merge publisher for WuKongIM.`
+Do not describe the App as read-only after enabling Contents write.
+
 | Permission | Level |
 | --- | --- |
 | Metadata | Read |
