@@ -297,6 +297,7 @@ func permissionsForRole(role AppRole) (map[string]string, error) {
 	case AppRoleReviewPublisher:
 		return map[string]string{
 			"checks":        "write",
+			"contents":      "write",
 			"issues":        "write",
 			"metadata":      "read",
 			"pull_requests": "write",

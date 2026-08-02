@@ -197,7 +197,7 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		return errors.New("Review Agent policy is invalid")
 	}
 	if !sameStringMap(document.Apps.Review.Permissions, map[string]string{
-		"checks": "write", "issues": "write",
+		"checks": "write", "contents": "write", "issues": "write",
 		"metadata": "read", "pull_requests": "write",
 	}) ||
 		!sameStringMap(
