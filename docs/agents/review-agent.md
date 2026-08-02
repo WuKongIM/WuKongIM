@@ -1,7 +1,9 @@
 # GitHub Review Agent
 
 The Review Agent is a senior reviewer embedded in every ready pull request
-targeting `main`. It reviews and adjudicates; it never changes code or merges.
+targeting `main`. The model reviews and adjudicates without changing code or
+merging. After approval, the protected Publisher may merge only an exact-head
+pull request authored by a repository administrator or organization member.
 
 ## Lifecycle
 
@@ -15,6 +17,7 @@ PR event
   -> trusted evidence validator
   -> State Writer App
   -> Review Agent App projections
+  -> authorized exact-head merge or human merge
 ```
 
 The Signal uses `pull_request_target` only to ensure Fork events can wake the
@@ -155,8 +158,23 @@ Projection repair re-reads signed state and refuses duplicate same-generation
 Checks or stale heads.
 
 A human `REQUEST_CHANGES` Review remains independently blocking. Review Agent
-cannot dismiss it, resolve a thread, or substitute for repository merge
-authority.
+cannot dismiss it or resolve a thread.
+
+After the approved Review and successful Verdict exist, the Publisher re-reads
+the open, non-Draft PR and author authority. Automatic merge requires all of:
+
+- the current PR head, base, test-merge identity, and intent still match the
+  signed approved generation;
+- GitHub reports the PR as cleanly mergeable;
+- no current exact-head human `REQUEST_CHANGES` Review exists; and
+- the PR author is an organization `MEMBER`/`OWNER`, or currently has
+  repository `admin` permission.
+
+`write`, `maintain`, ordinary collaborator, contributor, Bot, unknown, and
+permission-read-failure cases are not auto-merge authority. Their approved PRs
+remain open with an explicit human-merge notice. The merge API receives the
+exact reviewed head SHA and the normal merge method; repository Rulesets remain
+authoritative.
 
 ## Commands
 

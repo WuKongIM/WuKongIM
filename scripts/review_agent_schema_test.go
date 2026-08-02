@@ -75,6 +75,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 		t,
 		map[string]string{
 			"checks":        "write",
+			"contents":      "write",
 			"issues":        "write",
 			"metadata":      "read",
 			"pull_requests": "write",

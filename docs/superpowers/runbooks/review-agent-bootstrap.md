@@ -14,12 +14,15 @@ Create a repository-scoped App with exactly:
 | --- | --- |
 | Metadata | Read |
 | Checks | Read and write |
+| Contents | Read and write |
 | Issues | Read and write |
 | Pull requests | Read and write |
 
-Do not grant Contents, Actions administration, Administration, Workflows,
-Secrets, Deployments, Members, Packages, or organization-wide installation.
-Install it only on this repository.
+GitHub requires Contents write for the pull-request merge endpoint. Repository
+code requests it only for the protected Publisher token and exposes only an
+exact-head merge operation. Do not grant Actions administration,
+Administration, Workflows, Secrets, Deployments, Members, Packages, or
+organization-wide installation. Install it only on this repository.
 
 Create Environment `review-agent-publisher` with:
 
@@ -120,6 +123,9 @@ Run local contract tests and `actionlint`, then prove:
 - `approved`, `changes_required`, and `inconclusive`;
 - status, explain, reconsider, retry, and cancel authorization;
 - approved control-plane change without human Approval;
+- approved repository-admin/member PR merges only at the reviewed head;
+- approved external, write, maintain, Bot, and unknown-authority PRs remain
+  open for human merge;
 - strict up-to-date status-check enforcement after `main` advances;
 - all three Environments reject a job whose workflow ref is not protected
   `main`;
