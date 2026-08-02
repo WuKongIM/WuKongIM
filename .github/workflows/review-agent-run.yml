@@ -295,7 +295,6 @@ jobs:
         with:
           bun-version: "1.3.11"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        if: inputs.operation == 'review'
         with:
           node-version: "22.12.0"
       - name: Freeze frontend package managers
@@ -324,6 +323,9 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          sudo install -o root -g root -m 0555 \
+            .github/review-agent/responses-budget-proxy.mjs \
+            "$RUNNER_TEMP/review-agent-responses-budget-proxy.mjs"
           if [[ "$INPUT_OPERATION" == review ]]; then
             GOWORK=off go build -trimpath \
               -o "$RUNNER_TEMP/wkreviewcheckmcp" ./cmd/wkreviewcheckmcp
@@ -358,7 +360,7 @@ jobs:
             cat "$RUNNER_TEMP/review-output.schema.json"
             printf '\n</trusted-output-schema>\n'
           } >>"$RUNNER_TEMP/review-agent-prompt.md"
-      - name: Install pinned Codex CLI and Responses proxy
+      - name: Install pinned Codex CLI
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
           codex-version: 0.146.0
@@ -397,32 +399,41 @@ jobs:
               "$RUNNER_TEMP/review-agent-session/recovery.json"
           fi
           chmod -R a-w "$RUNNER_TEMP/review-agent-session"
-      - name: Start protected Responses API proxy
+      - name: Start protected budgeted Responses API proxy
         shell: bash
         env:
           PROXY_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          api_key_file="$RUNNER_TEMP/review-agent-api-key"
           server_info="$RUNNER_TEMP/review-agent-proxy.json"
-          (
-            printenv PROXY_API_KEY |
-              env -u PROXY_API_KEY codex-responses-api-proxy \
-                --http-shutdown \
-                --server-info "$server_info" \
-                --upstream-url https://openrouter.ai/api/v1/responses
-          ) &
+          max_output_tokens="$(jq -er '.limits.max_model_output_tokens |
+            select(type == "number" and . >= 1)' \
+            "$RUNNER_TEMP/review-agent-policy.json")"
+          sudo install -o root -g root -m 0600 /dev/null "$api_key_file"
+          printenv PROXY_API_KEY | sudo -n tee "$api_key_file" >/dev/null
           unset PROXY_API_KEY
+          node_binary="$(command -v node)"
+          sudo -n "$node_binary" \
+            "$RUNNER_TEMP/review-agent-responses-budget-proxy.mjs" \
+            --api-key-file "$api_key_file" \
+            --upstream-url https://openrouter.ai/api/v1/responses \
+            --server-info "$server_info" \
+            --max-output-tokens "$max_output_tokens" &
           for _ in {1..100}; do
-            if jq -e '.port | type == "number" and
+            if sudo -n jq -e '.port | type == "number" and
               . >= 1 and . <= 65535' "$server_info" >/dev/null 2>&1; then
               break
             fi
             sleep 0.1
           done
+          sudo -n jq -e '.port | type == "number" and
+            . >= 1 and . <= 65535' "$server_info" >/dev/null
+          test ! -e "$api_key_file"
+          test "$(stat -c '%U:%G:%a' "$server_info")" = root:root:600
+          sudo -n chmod 0444 "$server_info"
           jq -e '.port | type == "number" and
             . >= 1 and . <= 65535' "$server_info" >/dev/null
-          sudo chown root:root "$server_info"
-          sudo chmod 0444 "$server_info"
       - name: Freeze private-network, MCP, and tree boundaries
         shell: bash
         env:

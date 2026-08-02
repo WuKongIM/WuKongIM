@@ -30,6 +30,10 @@
   and tracked candidate-tree mutation is rejected. The protected Check MCP is
   required at Codex startup and keeps candidate checks inside the rootless
   network namespace and per-command Bubblewrap sandbox.
+- Review Agent model transport has one root-owned loopback Responses proxy. It
+  injects the OpenRouter credential and clamps `max_output_tokens` to 32,768;
+  its root-only credential handoff file is deleted before the listener is
+  published. Runner-user Codex must have no second, unclamped credential path.
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker
   and `sudo` but retains runner transport for pinned post-job Artifact actions.

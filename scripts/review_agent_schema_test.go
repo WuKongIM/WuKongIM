@@ -48,6 +48,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Equal(t, reviewagent.MaxChangedBytes, policy.Limits.MaxChangedBytes)
 	require.Equal(t, reviewagent.MaxChangedLines, policy.Limits.MaxChangedLines)
 	require.Equal(t, reviewagent.MaxContextBytes, policy.Limits.MaxContextBytes)
+	require.Equal(t, 32768, policy.Limits.MaxModelOutputTokens)
 	require.Equal(t, 240000, policy.Limits.MaxContextTokens)
 	require.Equal(t, 216000, policy.Limits.AutoCompactTokens)
 	require.Equal(t, 3600, policy.Limits.MaxCPUSecondsPerProcess)
@@ -116,7 +117,28 @@ func TestReviewAgentPolicy(t *testing.T) {
 		)
 		require.Positive(t, check.MaxOutputBytes)
 	}
+	proxyCheck, ok := policy.TrustedChecks["review-proxy-contracts"]
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]string{
+			"node", "--test",
+			".github/review-agent/responses-budget-proxy.test.mjs",
+		},
+		proxyCheck.Arguments,
+	)
 	require.NotEmpty(t, policy.PathRules)
+	var javascriptRule *reviewAgentPathRule
+	for index := range policy.PathRules {
+		if policy.PathRules[index].Name == "review-agent-javascript" {
+			javascriptRule = &policy.PathRules[index]
+			break
+		}
+	}
+	require.NotNil(t, javascriptRule)
+	require.Equal(t, []string{".github/review-agent/"}, javascriptRule.Prefixes)
+	require.Equal(t, []string{".mjs"}, javascriptRule.Suffixes)
+	require.Contains(t, javascriptRule.Checks, "review-proxy-contracts")
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")
@@ -410,6 +432,7 @@ type reviewAgentLimits struct {
 	MaxChangedLines                 int64 `json:"max_changed_lines"`
 	MaxContextBytes                 int64 `json:"max_context_bytes"`
 	MaxModelResponseBytes           int   `json:"max_model_response_bytes"`
+	MaxModelOutputTokens            int   `json:"max_model_output_tokens"`
 	MaxContextTokens                int   `json:"max_context_tokens"`
 	AutoCompactTokens               int   `json:"auto_compact_tokens"`
 	MaxCPUSecondsPerProcess         int   `json:"max_cpu_seconds_per_process"`

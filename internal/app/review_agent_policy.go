@@ -52,6 +52,7 @@ type ReviewAgentPolicy struct {
 		MaxChangedLines                 int64 `json:"max_changed_lines"`
 		MaxContextBytes                 int64 `json:"max_context_bytes"`
 		MaxModelResponseBytes           int64 `json:"max_model_response_bytes"`
+		MaxModelOutputTokens            int   `json:"max_model_output_tokens"`
 		MaxContextTokens                int   `json:"max_context_tokens"`
 		AutoCompactTokens               int   `json:"auto_compact_tokens"`
 		MaxCPUSecondsPerProcess         int   `json:"max_cpu_seconds_per_process"`
@@ -172,6 +173,7 @@ func ValidateReviewAgentPolicy(document ReviewAgentPolicy) error {
 		document.Limits.MaxChangedLines != contract.MaxChangedLines ||
 		document.Limits.MaxContextBytes != contract.MaxContextBytes ||
 		document.Limits.MaxModelResponseBytes <= 0 ||
+		document.Limits.MaxModelOutputTokens != 32768 ||
 		document.Limits.MaxContextTokens != 240000 ||
 		document.Limits.AutoCompactTokens != 216000 ||
 		document.Limits.MaxCPUSecondsPerProcess != 3600 ||
