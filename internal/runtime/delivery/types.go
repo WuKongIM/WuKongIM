@@ -38,7 +38,7 @@ type SessionClosed struct {
 	SessionID uint64
 }
 
-// Envelope carries the committed message data needed by delivery fanout.
+// Envelope is the stable version-one owner-push wire representation.
 type Envelope struct {
 	// MessageID is the globally unique durable message identifier.
 	MessageID uint64
@@ -64,31 +64,7 @@ type Envelope struct {
 	MessageScopedUIDs []string
 }
 
-// Partition identifies one delivery authority partition planned for fanout.
-type Partition struct {
-	// ID is the stable delivery partition identifier.
-	ID uint32
-	// LeaderNodeID is the node currently authoritative for this partition.
-	LeaderNodeID uint64
-	// HashSlotStart is the inclusive first hash slot owned by this partition.
-	HashSlotStart uint16
-	// HashSlotEnd is the inclusive last hash slot owned by this partition.
-	HashSlotEnd uint16
-}
-
-// FanoutTask binds a committed message envelope to one authority partition.
-type FanoutTask struct {
-	// Envelope is an independent copy of the committed message data.
-	Envelope Envelope
-	// Partition is the authority partition to scan or target.
-	Partition Partition
-	// Cursor resumes subscriber scanning within the partition.
-	Cursor string
-	// Attempt is the one-based fanout attempt number.
-	Attempt int
-}
-
-// Route describes one online recipient endpoint resolved by presence.
+// Route is the stable version-one owner-push wire representation of a recipient endpoint.
 type Route struct {
 	// UID is the recipient user ID for this endpoint.
 	UID string
@@ -108,7 +84,7 @@ type Route struct {
 	DeviceLevel uint8
 }
 
-// PushCommand groups recipient routes owned by the same node for one envelope.
+// PushCommand is the stable version-one owner-push wire command.
 type PushCommand struct {
 	// OwnerNodeID is the recipient owner node that should accept the push.
 	OwnerNodeID uint64
@@ -118,7 +94,7 @@ type PushCommand struct {
 	Routes []Route
 }
 
-// PushResult reports how an owner node classified pushed recipient routes.
+// PushResult is the stable version-one owner-push wire result.
 type PushResult struct {
 	// Accepted routes were accepted for delivery by the owner node.
 	Accepted []Route

@@ -82,25 +82,11 @@ committed message identifiers, sender echo-suppression fields, payload, red-dot
 flag, and request-scoped UIDs. Responses carry status plus accepted, retryable,
 and dropped route groups.
 
-During Online Delivery convergence, the adapter can also invoke the canonical
-`PushOwner` port and the client exposes the same port. Compatibility conversion
-preserves the exact `WKVD1`/`WKVd1` bytes while old and new runtimes coexist.
-
-## Delivery Fanout RPC
-
-```text
-remote delivery fanout router
-  -> encode W K V F 1 request
-  -> cluster RPCDeliveryFanout
-  -> Adapter.HandleDeliveryFanoutRPC
-  -> DeliveryFanoutRunner.RunTask
-  -> encode W K V f 1 response
-```
-
-Delivery fanout requests carry one `runtime/delivery.FanoutTask` in the stable
-field order `Envelope`, `Partition`, `Cursor`, and `Attempt`. The receiving
-node runs only the subscriber fanout task; owner-node delivery still uses the
-separate Delivery Push RPC after presence resolution.
+The canonical runtime and client expose `PushOwner`; the adapter converts that
+contract to the version-one wire DTOs without changing the exact
+`WKVD1`/`WKVd1` bytes. The retired Delivery Fanout RPC has no handler, client,
+or codec. `RPCDeliveryFanout` remains a reserved numeric service ID and must not
+be reused.
 
 ## Conversation Authority RPC
 
@@ -550,11 +536,6 @@ Delivery push RPC uses fixed magic headers:
 - Request: `W K V D 1`
 - Response: `W K V d 1`
 
-Delivery fanout RPC uses fixed magic headers:
-
-- Request: `W K V F 1`
-- Response: `W K V f 1`
-
 Conversation authority RPC uses fixed magic headers:
 
 - Single-group request: `W K V C 1`
@@ -671,7 +652,7 @@ Channel Append RPC statuses and item error codes preserve:
 - `append_result_missing`
 - `channel_busy`
 
-Delivery push and fanout responses currently use:
+Delivery push responses currently use:
 
 - `ok`
 - `rejected`
@@ -692,7 +673,7 @@ Delivery push and fanout responses currently use:
   effects.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
-  `DeliveryOwnerPush` / `DeliveryFanoutRunner` / `ConversationAuthority` /
+  `DeliveryOwnerPush` / `ConversationAuthority` /
   standalone channel-write `ChannelAppend`, manager connection reader, and
   manager log reader, manager plugin reader, manager DB inspect reader,
   manager diagnostics reader/operator, and manager application log reader

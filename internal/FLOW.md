@@ -30,19 +30,19 @@ storage, or routing branches that bypass cluster semantics.
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
 | `usecase/cmdsync` | Entry-agnostic durable CMD offline sync and syncack over CMD-kind conversation projection rows. |
 | `usecase/conversation` | Entry-agnostic ordinary recent conversation list, sync, unread, and delete orchestration over normal-kind conversation projection rows. |
-| `usecase/delivery` | Entry-agnostic delivery submission and route-to-owner fanout orchestration. |
+| `usecase/delivery` | Temporary entry-agnostic gateway RECVACK/session-close feedback facade plus explicit rejection of old committed-event submissions. |
 | `usecase/management` | Entry-agnostic management read orchestration for manager adapters. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `usecase/user` | Entry-agnostic user token, device quit, online status, and system UID compatibility orchestration. |
 | `usecase/backup` | Single-plan scheduled full-backup admission, archive management, and resumable maintenance restore orchestration. |
 | `runtime/conversationactive` | Kind-aware UID-owned active conversation cache and flush runtime. |
-| `runtime/delivery` | Node-local online fanout, owner push, and retry runtime. |
+| `runtime/delivery` | Canonical node-local recipient-plan execution, owner push, bounded exact-route retry, and RECVACK state. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
 | `runtime/channelappend` | Channel-authority write group where each local authoritative channel is served by an independent single-writer state machine, hash-sharded for lookup and advanced by shared worker pools. |
 | `runtime/backup` | Leader-only schedule evaluation plus portable full-archive stream publication. |
-| `infra/cluster` | Adapter from channel append, channel/user metadata, delivery, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
+| `infra/cluster` | Adapter from channel append, channel/user metadata, presence, conversation, and CMD sync ports to `pkg/cluster` / `pkg/channel`. |
 | `infra/backup` | File/OSS/COS/S3-compatible repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
 | `contracts/backup` | Bounded Controller/RPC DTOs for one scheduled full-backup subsystem. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |

@@ -18,7 +18,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -2546,27 +2545,6 @@ func TestNewRejectsNegativeDeepDiagnosticsConfig(t *testing.T) {
 	}
 }
 
-func TestDeliveryObserverLogsAsyncErrorsWithoutMetrics(t *testing.T) {
-	logger := &recordingAppLogger{}
-	observer := deliveryMetricsObserver{logger: logger}
-
-	observer.ObserveRetry(runtimedelivery.RetryEvent{
-		Event:      runtimedelivery.DeliveryRetryEventDrop,
-		Result:     runtimedelivery.DeliveryResultMaxAttempts,
-		ErrorClass: runtimedelivery.DeliveryErrorClassRetryable,
-		Attempt:    3,
-		QueueDepth: 7,
-	})
-	observer.ObserveManagerTerminal(runtimedelivery.ManagerTerminalEvent{
-		Result:     runtimedelivery.DeliveryResultError,
-		ErrorClass: runtimedelivery.DeliveryErrorClassError,
-		QueueDepth: 1,
-	})
-
-	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.retry_failed")
-	requireAppLogEvent(t, logger, "WARN", "internal.app.delivery.manager_terminal_failed")
-}
-
 func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
 	observer := deliveryMessageObserver{app: &App{metrics: reg}}
@@ -2710,73 +2688,6 @@ func TestDeliveryMessageObserverWarnsExpectedRoutePostCommitFailure(t *testing.T
 		if logged.level == "ERROR" {
 			t.Fatalf("unexpected ERROR log for retryable post-commit route failure: %#v", logged)
 		}
-	}
-}
-
-func TestDeliveryMetricsObserverMapsAckEventToGauge(t *testing.T) {
-	reg := obsmetrics.New(1, "n1")
-	observer := deliveryMetricsObserver{metrics: reg}
-
-	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 6})
-
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("Gather() error = %v", err)
-	}
-	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
-	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 6 {
-		t.Fatalf("delivery ack bindings = %v, want 6", got)
-	}
-}
-
-func TestCombinedDeliveryObserverFansOutAckEvents(t *testing.T) {
-	reg := obsmetrics.New(1, "n1")
-	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() cluster.Snapshot {
-			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
-		},
-	})
-	observer := combineDeliveryObservers(
-		deliveryMetricsObserver{metrics: reg},
-		topDeliveryObserver{top: collector},
-	)
-	ackObserver, ok := observer.(runtimedelivery.AckObserver)
-	if !ok {
-		t.Fatalf("combined observer does not implement AckObserver")
-	}
-	if _, ok := observer.(runtimedelivery.AckBatchObserver); ok {
-		t.Fatalf("combined observer unexpectedly implements AckBatchObserver; batch metrics must be enabled explicitly")
-	}
-
-	collector.recordSampleAt(time.Unix(100, 0))
-	ackObserver.ObserveAck(runtimedelivery.AckEvent{PendingCount: 9})
-	deliveryMetricsObserver{metrics: reg}.ObserveAckBatch(runtimedelivery.AckBatchEvent{
-		Phase: runtimedelivery.DeliveryAckBatchPhaseBind, Outcome: runtimedelivery.DeliveryAckBatchOutcomePartial,
-		Items: 3, Shards: 2, Rejected: 1, Duration: time.Millisecond,
-	})
-	collector.recordSampleAt(time.Unix(110, 0))
-
-	families, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("Gather() error = %v", err)
-	}
-	ackBindings := requireAppMetricFamily(t, families, "wukongim_delivery_ack_bindings")
-	if got := findAppMetricByLabels(t, ackBindings, nil).GetGauge().GetValue(); got != 9 {
-		t.Fatalf("metrics ack bindings = %v, want 9", got)
-	}
-	ackBatch := requireAppMetricFamily(t, families, "wukongim_delivery_ack_batch_total")
-	if got := findAppMetricByLabels(t, ackBatch, map[string]string{"phase": "bind", "outcome": "partial"}).GetCounter().GetValue(); got != 1 {
-		t.Fatalf("metrics ack bind batch = %v, want 1", got)
-	}
-	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
-		Window: 10 * time.Second,
-		View:   accessapi.TopViewDelivery,
-	})
-	if err != nil {
-		t.Fatalf("SnapshotTop() error = %v", err)
-	}
-	if snapshot.Delivery == nil || snapshot.Delivery.AckBindings != 9 {
-		t.Fatalf("top ack bindings = %#v, want 9", snapshot.Delivery)
 	}
 }
 

@@ -923,6 +923,46 @@ func (r *Runtime) finishPendingAckBatch(pending []PendingRecvAck, tokens []AckBi
 	return finished
 }
 
+func countBoundAckTokens(pending []PendingRecvAck, tokens []AckBindToken) int {
+	limit := len(pending)
+	if len(tokens) < limit {
+		limit = len(tokens)
+	}
+	bound := 0
+	for i := 0; i < limit; i++ {
+		if validPendingRecvAck(pending[i]) && tokens[i].Valid() {
+			bound++
+		}
+	}
+	return bound
+}
+
+func bindAckBatchOutcome(bound, rejected int) string {
+	switch {
+	case bound == 0:
+		return DeliveryAckBatchOutcomeRejected
+	case rejected > 0:
+		return DeliveryAckBatchOutcomePartial
+	default:
+		return DeliveryAckBatchOutcomeOK
+	}
+}
+
+func finishAckBatchOutcome(finished, selected, rejected, rollback int) string {
+	switch {
+	case finished == selected && selected > 0 && rejected == 0 && rollback == 0:
+		return DeliveryAckBatchOutcomeOK
+	case finished > 0:
+		return DeliveryAckBatchOutcomePartial
+	case rollback > 0:
+		return DeliveryAckBatchOutcomeRolledBack
+	case rejected > 0 && selected == 0:
+		return DeliveryAckBatchOutcomeRejected
+	default:
+		return DeliveryAckBatchOutcomeMiss
+	}
+}
+
 func (r *Runtime) expirePendingAcks() []PendingRecvAck {
 	r.ackMu.Lock()
 	defer r.ackMu.Unlock()
