@@ -91,7 +91,10 @@ failure, or a context too large for complete risk coverage yields
 
 Protected policy fixes the official Codex Action, Codex version,
 `moonshotai/kimi-k3`, high reasoning effort, deterministic check catalog, path
-rules, budgets, and network fences.
+rules, a 32,768-token maximum model output, and network fences. One root-owned
+loopback proxy applies that ceiling and the OpenRouter credential; its
+root-only credential handoff is deleted before Codex starts, so no unclamped
+model transport remains reachable to the runner user.
 
 Each head SHA has one signed automatic-review budget. Intent-only edits after
 that attempt fail closed as `inconclusive` until a new head arrives or an
@@ -99,8 +102,8 @@ authorized bounded reconsideration is accepted.
 
 The model receives no GitHub/App, cloud, deploy, package-publish, or
 organization-private credential. It runs from a trusted external session
-directory. The pinned Action installs the exact Codex CLI and Responses proxy;
-the protected Workflow then runs
+directory. The pinned Action installs the exact Codex CLI. The protected
+Workflow installs the sole root-owned model proxy, then runs
 `codex exec --dangerously-bypass-approvals-and-sandbox` with CPU,
 address-space, and process limits. Codex therefore has full runner-user
 filesystem and public-network access without an internal Bubblewrap sandbox.
@@ -126,8 +129,9 @@ tracked-file mutation.
 
 The protected bounds admit at most 50 changed files, 1 MiB of captured change
 material, 30,000 complete-file lines, and a 2 MiB encoded Context. The encoded
-byte cap is an ingestion bound; the 240,000-token model window and 216,000-token
-automatic-compaction threshold remain unchanged. Three concurrent
+byte cap is only an ingestion bound; it is independent of the 240,000-token
+model window, 216,000-token automatic-compaction threshold, and 32,768-token
+per-request output ceiling. Three concurrent
 exact-content reads remain within the repository API budget.
 
 ## Verdict and projections
@@ -245,6 +249,8 @@ GOWORK=off go test ./internal/contracts/reviewagent \
 
 GOWORK=off go test -tags=integration \
   ./internal/runtime/reviewagentverify -count=1
+
+node --test .github/review-agent/responses-budget-proxy.test.mjs
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/review-agent-pr-signal.yml \

@@ -357,8 +357,11 @@ Each generation uses one ephemeral Codex session:
 - no Docker socket and no `sudo`;
 - complete public-internet egress, while RFC1918, link-local, cloud metadata,
   runner-host, and organization-private targets remain blocked by the model
-  profile; the pinned Action proxy is the sole transport loopback exception,
-  while candidate checks receive only namespace-local loopback;
+  profile; one root-owned Responses proxy is the sole model-transport loopback
+  exception, clamps `max_output_tokens` to 32,768, injects the OpenRouter
+  credential after deleting its root-only handoff file, and exposes no
+  unclamped transport path to runner-user Codex; candidate checks receive only
+  namespace-local loopback;
 - bounded wall time, CPU, memory, process count, connection count, and network
   volume.
 

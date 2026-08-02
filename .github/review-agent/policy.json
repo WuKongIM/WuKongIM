@@ -32,6 +32,7 @@
     "max_changed_lines": 30000,
     "max_context_bytes": 2097152,
     "max_model_response_bytes": 4194304,
+    "max_model_output_tokens": 32768,
     "max_context_tokens": 240000,
     "auto_compact_tokens": 216000,
     "max_cpu_seconds_per_process": 3600,
@@ -184,6 +185,16 @@
       "working_dir": ".",
       "timeout_seconds": 900,
       "max_output_bytes": 8388608
+    },
+    "review-proxy-contracts": {
+      "arguments": [
+        "node",
+        "--test",
+        ".github/review-agent/responses-budget-proxy.test.mjs"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
     },
     "web-quality": {
       "arguments": [
@@ -376,6 +387,21 @@
         ".json"
       ],
       "checks": [
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "review-agent-javascript",
+      "prefixes": [
+        ".github/review-agent/"
+      ],
+      "suffixes": [
+        ".mjs"
+      ],
+      "checks": [
+        "review-proxy-contracts",
         "workflow-contracts",
         "go-unit"
       ],

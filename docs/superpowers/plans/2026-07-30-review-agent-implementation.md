@@ -86,6 +86,7 @@ Require:
 - 90-minute generation timeout;
 - two reconsiderations and one infrastructure retry;
 - a finite per-head explanation-session and response-byte budget;
+- a 32,768-token maximum output budget on every model request;
 - 20 inline comments;
 - separate Review App and State Writer App identities/Environments;
 - no rollout, compatibility, legacy label, arbitrary command, or scheduled
@@ -682,6 +683,11 @@ Use the protected policy's exact:
 - output JSON Schema;
 - system prompt and Context Bundle;
 - local stdio Check MCP.
+
+Route every model request through one root-owned loopback Responses proxy that
+both clamps `max_output_tokens` to 32,768 and injects the OpenRouter credential.
+Delete its root-only credential handoff before publishing the listener; do not
+leave a second unclamped proxy reachable to runner-user Codex.
 
 Drop `sudo`, disable Docker socket access, expose full public internet through
 the tested private-network fence, and keep the model job within the 90-minute

@@ -63,6 +63,12 @@ verdict. A trusted validator maps signed state to the sole required Check
 maps to failure, and `inconclusive` maps to `action_required`. A human
 `REQUEST_CHANGES` Review remains independently blocking.
 
+The model request passes through one root-owned loopback proxy that clamps
+`max_output_tokens` to the protected policy and injects the OpenRouter
+credential. The root-only credential handoff file is deleted before the
+listener is published. Codex and candidate checks cannot read the credential,
+replace the proxy, or reach an unclamped transport path.
+
 After publishing an `approved` verdict, the protected Publisher re-reads the
 exact PR head, mergeability, human Reviews, author association, and author
 repository permission. It merges only when the author is an organization
@@ -79,7 +85,7 @@ isolated loopback inside a rootless network namespace whose host loopback is
 disabled. The trusted baseline host keeps runner transport available only so
 pinned post-job Actions can upload evidence; candidate code never runs there.
 The model host keeps GitHub runner transport intact. The pinned Codex Action
-installs the exact CLI and Responses proxy, then the Workflow invokes
+installs the exact CLI, then the Workflow invokes
 `codex exec --dangerously-bypass-approvals-and-sandbox` under model-only CPU,
 address-space, and process limits. This gives Codex full runner-user filesystem
 and public-network access without its internal Bubblewrap sandbox. The model
@@ -160,6 +166,7 @@ Run:
 
 ```bash
 GOWORK=off go test ./scripts/... -run 'Workflow|ReviewAgent' -count=1
+node --test .github/review-agent/responses-budget-proxy.test.mjs
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/*.yml
 ```
