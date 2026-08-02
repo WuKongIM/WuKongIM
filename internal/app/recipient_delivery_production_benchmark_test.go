@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
 	infracluster "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	infradelivery "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
@@ -47,11 +49,37 @@ func (*productionRecipientBenchmarkSession) CloseSession(string) error {
 // productionRecipientBenchmarkFixture retains the real runtime components and
 // immutable Cloud Medium-shaped work shared by baseline and candidate runs.
 type productionRecipientBenchmarkFixture struct {
-	processor *channelappend.RecipientProcessor
-	delivery  *runtimedelivery.Manager
-	plan      channelappend.RecipientDeliveryPlan
-	acks      []runtimedelivery.Recvack
-	sessions  []*productionRecipientBenchmarkSession
+	delivery *runtimedelivery.Runtime
+	observer *productionRecipientBenchmarkObserver
+	plan     onlinedelivery.RecipientDeliveryPlan
+	acks     []runtimedelivery.Recvack
+	sessions []*productionRecipientBenchmarkSession
+}
+
+type productionRecipientBenchmarkObserver struct {
+	terminal chan runtimedelivery.PlanTerminalEvent
+}
+
+func (*productionRecipientBenchmarkObserver) ObservePlanAdmission(runtimedelivery.PlanAdmissionEvent) {
+}
+
+func (o *productionRecipientBenchmarkObserver) ObservePlanTerminal(event runtimedelivery.PlanTerminalEvent) {
+	o.terminal <- event
+}
+
+func (*productionRecipientBenchmarkObserver) SetRuntimePressure(runtimedelivery.RuntimePressureEvent) {
+}
+
+func (*productionRecipientBenchmarkObserver) ObserveOwnerPush(runtimedelivery.OwnerPushEvent) {
+}
+
+func (o *productionRecipientBenchmarkObserver) waitTerminal(ctx context.Context) (runtimedelivery.PlanTerminalEvent, error) {
+	select {
+	case event := <-o.terminal:
+		return event, nil
+	case <-ctx.Done():
+		return runtimedelivery.PlanTerminalEvent{}, ctx.Err()
+	}
 }
 
 // productionRecipientBenchmarkPresenceNode is the stable cluster-routing seam
@@ -121,7 +149,8 @@ func (n *productionRecipientBenchmarkPresenceNode) WatchRouteAuthorities() <-cha
 // client protocol encoding; those require the three-node benchmark gate.
 func BenchmarkRecipientDeliveryProductionPathCloudMedium(b *testing.B) {
 	fixture := newProductionRecipientBenchmarkFixture(b)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	b.ReportAllocs()
 	b.ReportMetric(productionRecipientBenchmarkRecipients, "recipients/op")
@@ -134,11 +163,15 @@ func BenchmarkRecipientDeliveryProductionPathCloudMedium(b *testing.B) {
 		messageID := uint64(i + 1)
 		fixture.plan.Event.MessageID = messageID
 		fixture.plan.Event.MessageSeq = messageID
-		errs := fixture.processor.ProcessRecipientDeliveryPlan(ctx, fixture.plan)
-		for targetIndex, err := range errs {
-			if err != nil {
-				b.Fatalf("ProcessRecipientDeliveryPlan() target %d error = %v", targetIndex, err)
-			}
+		if err := fixture.delivery.EnqueueRecipientDeliveryPlan(ctx, fixture.plan); err != nil {
+			b.Fatalf("EnqueueRecipientDeliveryPlan() error = %v", err)
+		}
+		terminal, err := fixture.observer.waitTerminal(ctx)
+		if err != nil {
+			b.Fatalf("wait for Online Delivery terminal event: %v", err)
+		}
+		if terminal.Result != runtimedelivery.ObservationResultOK || terminal.Recipients != productionRecipientBenchmarkRecipients {
+			b.Fatalf("Online Delivery terminal event = %#v, want ok with %d recipients", terminal, productionRecipientBenchmarkRecipients)
 		}
 		for ackIndex := range fixture.acks {
 			ack := fixture.acks[ackIndex]
@@ -175,14 +208,15 @@ func newProductionRecipientBenchmarkFixture(tb testing.TB) productionRecipientBe
 		byHashSlot:      make(map[uint16]pkgcluster.Route, productionRecipientBenchmarkTargets),
 		authorityEvents: make(chan pkgcluster.RouteAuthorityEvent),
 	}
-	plan := channelappend.RecipientDeliveryPlan{
+	plan := onlinedelivery.RecipientDeliveryPlan{
+		Mode: onlinedelivery.ModeDurable,
 		Event: channelappend.CommittedEnvelope{
 			ChannelID:   "benchmark-cloud-medium",
 			ChannelType: 2,
 			FromUID:     "benchmark-sender",
 			Payload:     make([]byte, 256),
 		},
-		Targets: make([]channelappend.RecipientTargetBatch, productionRecipientBenchmarkTargets),
+		Targets: make([]onlinedelivery.RecipientTargetBatch, productionRecipientBenchmarkTargets),
 	}
 	authorityTargets := make([]authoritypresence.RouteTarget, productionRecipientBenchmarkTargets)
 	for targetIndex := range plan.Targets {
@@ -275,27 +309,37 @@ func newProductionRecipientBenchmarkFixture(tb testing.TB) productionRecipientBe
 		infracluster.NewPresenceDirectoryAuthority(directory),
 	)
 	presenceApp := presenceusecase.New(presenceusecase.Options{Authority: presenceClient})
-	deliveryManager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
+	observer := &productionRecipientBenchmarkObserver{terminal: make(chan runtimedelivery.PlanTerminalEvent, 1)}
+	deliveryRuntime := runtimedelivery.NewRuntime(runtimedelivery.RuntimeOptions{
+		LocalNodeID:        1,
+		Presence:           infradelivery.NewPresenceResolver(presenceApp),
+		SessionWriter:      infradelivery.NewLocalSessionWriter(infradelivery.LocalSessionWriterOptions{Online: registry}),
+		QueueSize:          1,
+		Workers:            1,
+		MaxPlanRecipients:  productionRecipientBenchmarkRecipients,
+		OwnerPushBatchSize: productionRecipientBenchmarkRecipients,
+		RetryMaxAttempts:   1,
+		Observer:           observer,
 		Acks: runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
 			ShardCount:           32,
 			MaxPendingPerSession: 1024,
 		}),
 	})
-	ownerPusher := infradelivery.NewLocalOwnerPusher(infradelivery.LocalOwnerPusherOptions{
-		Online:     registry,
-		AckManager: deliveryManager,
-	})
-	processor := channelappend.NewRecipientProcessor(channelappend.RecipientProcessorOptions{
-		PresenceResolver: infradelivery.NewChannelAppendPresenceResolver(presenceApp),
-		OwnerPusher: channelAppendOwnerPusher{
-			next: ownerPusher,
-		},
+	if err := deliveryRuntime.Start(context.Background()); err != nil {
+		tb.Fatalf("start Online Delivery runtime: %v", err)
+	}
+	tb.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := deliveryRuntime.Stop(ctx); err != nil {
+			tb.Errorf("stop Online Delivery runtime: %v", err)
+		}
 	})
 	return productionRecipientBenchmarkFixture{
-		processor: processor,
-		delivery:  deliveryManager,
-		plan:      plan,
-		acks:      acks,
-		sessions:  sessions,
+		delivery: deliveryRuntime,
+		observer: observer,
+		plan:     plan,
+		acks:     acks,
+		sessions: sessions,
 	}
 }
