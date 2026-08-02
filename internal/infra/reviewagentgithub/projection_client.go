@@ -148,6 +148,46 @@ func (client *Client) CreateReview(
 	return response.ID, nil
 }
 
+// MergePullRequest merges one pull request only while its head still matches
+// the exact reviewed generation. Repository rules remain authoritative.
+func (client *Client) MergePullRequest(
+	ctx context.Context,
+	pullRequest int64,
+	headSHA string,
+) error {
+	if pullRequest <= 0 || !gitSHAPattern.MatchString(headSHA) {
+		return errors.New("pull-request merge request is invalid")
+	}
+	var response struct {
+		SHA     string `json:"sha"`
+		Merged  bool   `json:"merged"`
+		Message string `json:"message"`
+	}
+	if err := client.requestJSON(
+		ctx,
+		http.MethodPut,
+		fmt.Sprintf(
+			"/repos/%s/pulls/%d/merge",
+			client.repository,
+			pullRequest,
+		),
+		struct {
+			SHA         string `json:"sha"`
+			MergeMethod string `json:"merge_method"`
+		}{SHA: headSHA, MergeMethod: "merge"},
+		&response,
+		http.StatusOK,
+	); err != nil {
+		return err
+	}
+	if !response.Merged ||
+		!gitSHAPattern.MatchString(response.SHA) ||
+		response.Message == "" || len(response.Message) > 1024 {
+		return errors.New("pull-request merge response is invalid")
+	}
+	return nil
+}
+
 // CreateCheckRun creates the sole Review Agent Verdict for one generation.
 func (client *Client) CreateCheckRun(
 	ctx context.Context,

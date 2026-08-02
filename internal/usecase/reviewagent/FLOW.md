@@ -19,6 +19,8 @@ exact comment + fresh actor permission
 validated durable decision + fresh publication facts
   -> PlanPublication
   -> status comment + formal Review + Review Agent Verdict
+  -> auto-merge eligibility only for clean approved admin/member PRs
+     without a human REQUEST_CHANGES Review
 ```
 
 Only adapters execute plans. A model result never chooses a GitHub Check

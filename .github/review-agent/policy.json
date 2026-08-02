@@ -53,6 +53,7 @@
       "login": "wukongim-review-agent[bot]",
       "permissions": {
         "checks": "write",
+        "contents": "write",
         "issues": "write",
         "metadata": "read",
         "pull_requests": "write"

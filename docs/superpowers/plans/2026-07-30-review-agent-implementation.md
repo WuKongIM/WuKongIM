@@ -15,8 +15,10 @@ signed per-PR/scheduler state. A protected dispatched Workflow builds a bounded 
 Bundle, runs deterministic minimum checks, gives their evidence and a named
 Check MCP to one ephemeral Codex reviewer, validates the complete result, then
 uses separate State Writer and Review Publisher Apps to persist authority and
-project it into GitHub. No scheduled scanner, compatibility path, code-writing
-reviewer, or automatic merge exists.
+project it into GitHub. No scheduled scanner, compatibility path, or
+code-writing reviewer exists. The protected Publisher may automatically merge
+only an exact approved head authored by a repository administrator or
+organization member; every other PR requires a human merge.
 
 **Tech stack:** Go 1.25, GitHub Actions YAML, GitHub REST/GraphQL APIs,
 GitHub Apps, official Codex Action, JSON Schema, stdio MCP, repository Rulesets,
@@ -216,7 +218,9 @@ Pure plans must render:
 - Review summary metadata;
 - exact Check external identity and conclusion;
 - projection repair versus creation;
-- no merge, close, dismiss, resolve, branch, or commit effect.
+- exact-head automatic-merge eligibility for approved administrator/member
+  PRs, with every other approved author routed to human merge;
+- no close-without-merge, dismiss, resolve, branch, or commit effect.
 
 - [ ] **Step 6: Run the package GREEN and commit**
 
@@ -274,10 +278,15 @@ Review App token profile:
 
 ```text
 checks: write
+contents: write
 issues: write
 metadata: read
 pull_requests: write
 ```
+
+GitHub requires `contents:write` for the pull-request merge endpoint. The
+protected adapter must still expose no generic contents, branch, or commit
+write.
 
 State Writer App token profile:
 
@@ -303,8 +312,9 @@ Use stable hidden markers and Check `external_id` values. Before every write:
 
 The adapter may create/update the one status comment, submit one Review per
 generation, create bounded inline comments, and create/update the one Check
-Run. It exposes no merge, branch, commit, close, dismiss, or thread-resolution
-method.
+Run. It may merge only the freshly re-read exact approved head after the pure
+plan authorizes an administrator/member author. It exposes no generic contents,
+branch, commit, close, dismiss, or thread-resolution method.
 
 - [ ] **Step 5: Run adapter tests and commit**
 
@@ -508,8 +518,10 @@ Prove that:
 - candidate/model roles cannot reach publisher methods;
 - state and Review private keys are rejected outside their exact commands;
 - all GitHub writes require fresh generation fences;
-- no method can merge, close, dismiss, resolve, commit code, or write a
-  non-state ref.
+- only the protected Review Publisher can merge, and only the exact approved
+  administrator/member head;
+- no method can close without merging, dismiss, resolve, commit code, or write
+  a non-state ref.
 
 - [ ] **Step 4: Update FLOW and directory documentation**
 
@@ -648,8 +660,9 @@ The contract must prove:
 - failure paths still produce an authoritative `inconclusive` state when
   identity is recoverable;
 - successful Artifacts retain 7 days and non-success evidence 30 days;
-- the Workflow has no merge, push, branch, close, dismiss, or arbitrary
-  repository-dispatch operation.
+- the Workflow exposes only the protected Publisher's exact-head authorized
+  merge and no push, branch, close, dismiss, or arbitrary repository-dispatch
+  operation.
 
 - [ ] **Step 2: Build trusted preparation**
 
@@ -1036,7 +1049,8 @@ Require every negative mutation to fail:
 - accept an incomplete inventory;
 - publish from a stale generation;
 - let the State Writer target a non-state ref;
-- let the Review App create a commit or merge;
+- let the Review App create a commit, branch, generic contents write, or merge
+  any head/author outside the protected exact-head administrator/member rule;
 - accept a same-named Check from the wrong App;
 - approve with failed/missing evidence;
 - exceed reconsideration, retry, queue, or comment budgets.

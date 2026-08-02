@@ -172,8 +172,10 @@ Configure:
 
 The App installation is limited to this repository and the exact permissions
 validated by `internal/infra/issueagentgithub/app_token.go`. Branch protection
-must require the dedicated App-owned `Review Agent Verdict`; neither Agent can
-merge.
+must require the dedicated App-owned `Review Agent Verdict`. Issue Agent cannot
+merge. Review Agent may merge only an exact-head approved PR whose author is a
+repository administrator or organization member; Issue Agent Bot PRs otherwise
+wait for a human merge.
 
 Action or Codex upgrades require a reviewed policy/workflow change updating
 the full Action SHA, exact CLI version, contract tests, and this document.

@@ -39,6 +39,8 @@ PR/Review/comment event
   -> exact context + deterministic checks + one ephemeral model session
   -> evidence validation + signed terminal state
   -> status comment + formal Review + Review Agent Verdict
+  -> exact-head auto-merge for a repository admin or organization member
+     | otherwise wait for a human merge
 ```
 
 The Signal is a hint, not authority. It has no token permission, Secret,
@@ -60,6 +62,13 @@ verdict. A trusted validator maps signed state to the sole required Check
 `Review Agent Verdict`. Only `approved` maps to success. `changes_required`
 maps to failure, and `inconclusive` maps to `action_required`. A human
 `REQUEST_CHANGES` Review remains independently blocking.
+
+After publishing an `approved` verdict, the protected Publisher re-reads the
+exact PR head, mergeability, human Reviews, author association, and author
+repository permission. It merges only when the author is an organization
+`MEMBER`/`OWNER` or currently has repository `admin` permission. Every other
+approved PR remains open and is marked as requiring a human merge. The merge
+request is fenced to the reviewed head SHA and still obeys repository rules.
 
 The signed lease bounds the complete generation to 90 minutes. Infrastructure
 failure is retried once inside that same generation and deadline; a late result

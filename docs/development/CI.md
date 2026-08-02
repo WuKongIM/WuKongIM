@@ -26,8 +26,11 @@ Only `approved` unlocks the automated gate. `changes_required`,
 infrastructure failure all keep it blocked. A human `REQUEST_CHANGES` Review
 remains independently blocking.
 
-The Agent never edits code, commits, pushes, rebases, merges, closes a pull
-request, dismisses a Review, or resolves a thread.
+The model never edits code, commits, pushes, rebases, merges, closes a pull
+request, dismisses a Review, or resolves a thread. After approval, the
+protected Publisher may merge only the exact reviewed head of a repository
+administrator or organization member; every other author requires a human
+merge.
 
 Draft pull requests do not call the model. A new commit or intent change
 invalidates the old generation. The repository runs at most three model
@@ -94,7 +97,9 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
 - The protected Check MCP is required at Codex startup; missing named-check
   tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
-- The Review Agent App can write only Issues, Reviews, and Checks.
+- The Review Agent App can write Issues, Reviews, Checks, and the exact-head PR
+  merge endpoint. GitHub requires `contents:write` for that merge; the adapter
+  exposes no generic contents, branch, or commit write.
 - Publisher jobs do not check out or execute candidate code.
 - Durable PR and scheduler state use a verified latest-plus-predecessor rolling
   checkpoint; older App-authored commits remain append-only audit history.
