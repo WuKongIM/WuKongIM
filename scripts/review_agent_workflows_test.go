@@ -228,9 +228,35 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, "--model moonshotai/kimi-k3")
 	require.Contains(t, raw, `--config 'model_reasoning_effort="high"'`)
 	require.Contains(t, raw, "codex-version: 0.146.0")
-	require.Contains(t, raw, "codex-responses-api-proxy")
-	require.Contains(t, raw, "env -u PROXY_API_KEY")
+	require.Contains(t, raw, `node-version: "22.12.0"`)
+	require.NotContains(
+		t,
+		raw,
+		"if: inputs.operation == 'review'\n        with:\n"+
+			`          node-version: "22.12.0"`,
+	)
+	require.NotContains(t, raw, "codex-responses-api-proxy")
+	require.Contains(t, raw, `api_key_file="$RUNNER_TEMP/review-agent-api-key"`)
+	require.Contains(t, raw, `sudo -n tee "$api_key_file"`)
+	require.Contains(t, raw, `test ! -e "$api_key_file"`)
+	require.Contains(t, raw, `sudo -n "$node_binary"`)
+	require.Contains(t, raw, `if sudo -n jq -e '.port | type == "number" and`)
 	require.Contains(t, raw, "--upstream-url https://openrouter.ai/api/v1/responses")
+	require.Contains(
+		t,
+		raw,
+		`max_output_tokens="$(jq -er '.limits.max_model_output_tokens |`,
+	)
+	require.Contains(t, raw, `select(type == "number" and . >= 1)' \`)
+	require.Contains(t, raw, "review-agent-responses-budget-proxy.mjs")
+	require.Contains(t, raw, `--max-output-tokens "$max_output_tokens"`)
+	require.Contains(t, raw, `--server-info "$server_info"`)
+	require.Contains(
+		t,
+		raw,
+		`proxy_port="$(jq -er .port `+
+			`"$RUNNER_TEMP/review-agent-proxy.json")"`,
+	)
 	require.Contains(t, raw, "--cpu=2400:2400")
 	require.Contains(t, raw, "--as=8589934592:8589934592")
 	require.Contains(t, raw, "--nproc=512:512")

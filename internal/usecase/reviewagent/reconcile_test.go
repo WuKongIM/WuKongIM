@@ -978,6 +978,96 @@ func TestReconcilePullRequestSeparatesInteractionEffects(t *testing.T) {
 	require.Equal(t, decided.PriorFindings, reconsider.PriorFindings)
 }
 
+func TestReconcilePullRequestHonorsReconsiderForEligibleCurrentHead(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*reviewagent.PullRequestFacts){
+		"control revision changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.StateParentSHA = strings.Repeat("f", 40)
+		},
+		"intent changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.IntentDigest = digest("f")
+		},
+		"base and test merge changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.BaseSHA = strings.Repeat("1", 40)
+			facts.TestMergeSHA = strings.Repeat("2", 40)
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			state := testReviewingState()
+			state.Phase = contract.PhaseInconclusive
+			state.DecisionSource = contract.DecisionSourcePolicy
+			state.Reason = "automatic Review budget exhausted for current head"
+			state.Budget.AutomaticReviewsUsed = 1
+
+			facts := testFacts()
+			mutate(&facts)
+			plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+				Facts:     facts,
+				State:     &state,
+				Scheduler: testScheduler(),
+				Signal: reviewagent.Signal{
+					Kind:  reviewagent.SignalCommand,
+					RunID: 706,
+					Command: &reviewagent.Command{
+						Kind:    reviewagent.CommandReconsider,
+						Payload: "The protected model transport is repaired.",
+					},
+				},
+				Policy: testPolicy(),
+				Now:    time.Date(2026, 8, 3, 2, 20, 0, 0, time.UTC),
+			})
+			require.NoError(t, err)
+			require.Equal(t, reviewagent.ActionReconsiderAndDispatch, plan.Action)
+			require.True(t, plan.Dispatch)
+			require.Equal(t, uint64(2), plan.Generation.Generation)
+			require.Equal(t, facts.HeadSHA, plan.Generation.HeadSHA)
+			require.Equal(t, facts.BaseSHA, plan.Generation.BaseSHA)
+			require.Equal(t, facts.TestMergeSHA, plan.Generation.TestMergeSHA)
+			require.Equal(t, facts.IntentDigest, plan.Generation.IntentDigest)
+			require.Equal(t, facts.StateParentSHA, plan.Generation.StateParentSHA)
+			require.Equal(t, uint32(1), plan.NextBudget.AutomaticReviewsUsed)
+			require.Equal(t, uint32(1), plan.NextBudget.ReconsiderationsUsed)
+		})
+	}
+}
+
+func TestReconcilePullRequestDoesNotReconsiderIneligibleCurrentHead(t *testing.T) {
+	t.Parallel()
+
+	state := testReviewingState()
+	state.Phase = contract.PhaseInconclusive
+	state.DecisionSource = contract.DecisionSourcePolicy
+	state.Reason = "automatic Review budget exhausted for current head"
+	state.Budget.AutomaticReviewsUsed = 1
+
+	facts := testFacts()
+	facts.StateParentSHA = strings.Repeat("f", 40)
+	facts.Mergeability = reviewagent.MergeabilityConflicting
+	facts.TestMergeSHA = ""
+	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+		Facts:     facts,
+		State:     &state,
+		Scheduler: testScheduler(),
+		Signal: reviewagent.Signal{
+			Kind:  reviewagent.SignalCommand,
+			RunID: 707,
+			Command: &reviewagent.Command{
+				Kind:    reviewagent.CommandReconsider,
+				Payload: "Please review the current head again.",
+			},
+		},
+		Policy: testPolicy(),
+		Now:    time.Date(2026, 8, 3, 2, 20, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionRecordChangesRequired, plan.Action)
+	require.Equal(t, contract.PhaseChangesRequired, plan.DesiredPhase)
+	require.False(t, plan.Dispatch)
+	require.Equal(t, uint32(0), plan.NextBudget.ReconsiderationsUsed)
+}
+
 func TestReconcilePullRequestBoundsAndRecoversPendingExplanation(t *testing.T) {
 	t.Parallel()
 
