@@ -1,0 +1,58 @@
+name: Install protected Review Agent tools
+description: Verify and install exact-control Review Agent binaries from one immutable run artifact
+
+inputs:
+  artifact-name:
+    description: Exact run-scoped protected tool artifact name
+    required: true
+  control-sha:
+    description: Exact protected control revision embedded in the artifact
+    required: true
+  tools:
+    description: Space-separated allowlisted binaries required by this job
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/review-agent-tools
+    - name: Verify and install exact protected binaries
+      shell: bash
+      env:
+        INPUT_CONTROL_SHA: ${{ inputs.control-sha }}
+        INPUT_TOOLS: ${{ inputs.tools }}
+      run: |
+        set -euo pipefail
+        bundle="$RUNNER_TEMP/review-agent-tools"
+        [[ "$INPUT_CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+        test -f "$bundle/control-sha"
+        test ! -L "$bundle/control-sha"
+        test -f "$bundle/SHA256SUMS"
+        test ! -L "$bundle/SHA256SUMS"
+        test "$(cat "$bundle/control-sha")" = "$INPUT_CONTROL_SHA"
+        mapfile -t manifest_files < <(awk '{print $2}' "$bundle/SHA256SUMS")
+        expected_files=(control-sha wkreviewagent wkreviewcheck wkreviewcheckmcp)
+        test "${#manifest_files[@]}" -eq "${#expected_files[@]}"
+        for index in "${!expected_files[@]}"; do
+          test "${manifest_files[$index]}" = "${expected_files[$index]}"
+        done
+        (
+          cd "$bundle"
+          sha256sum --check SHA256SUMS
+        )
+        for tool in $INPUT_TOOLS; do
+          case "$tool" in
+            wkreviewagent|wkreviewcheck|wkreviewcheckmcp) ;;
+            *)
+              echo "unknown protected Review Agent tool: $tool" >&2
+              exit 1
+              ;;
+          esac
+          test -f "$bundle/$tool"
+          test ! -L "$bundle/$tool"
+          install -m 0555 "$bundle/$tool" "$RUNNER_TEMP/$tool"
+        done
+        rm -rf "$bundle"

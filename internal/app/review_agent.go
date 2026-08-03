@@ -317,20 +317,22 @@ func resolveReviewCommand(
 	if target == nil {
 		return usecase.Command{}, false, nil
 	}
-	if !strings.HasPrefix(target.Body, "@review-agent") {
+	if !strings.HasPrefix(target.Body, "@review-agent ") {
 		return usecase.Command{}, false, nil
 	}
 	permission := usecase.PermissionNone
-	if target.Author != snapshot.Author {
+	if target.Body != "@review-agent status" {
 		resolved, err := client.ActorPermission(ctx, target.Author)
 		if err != nil {
-			return usecase.Command{}, false, err
+			// A command without freshly proven admin authority is an observed
+			// no-op. This also prevents untrusted comments from turning
+			// permission lookup failures into Controller retry work.
+			return usecase.Command{}, false, nil
 		}
 		permission = usecase.Permission(resolved)
 	}
 	command, err := usecase.ParseCommand(usecase.CommandInput{
-		Body: target.Body, Actor: target.Author,
-		PRWriter: snapshot.Author, Permission: permission,
+		Body: target.Body, Permission: permission,
 		Edited: !target.UpdatedAt.Equal(target.CreatedAt),
 	})
 	if err != nil {

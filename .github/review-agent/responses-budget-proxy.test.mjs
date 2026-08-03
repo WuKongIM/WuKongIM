@@ -19,8 +19,8 @@ function rewrite(request) {
 }
 
 test("adds the protected output budget when Codex omits one", () => {
-  assert.deepEqual(rewrite({ model: "moonshotai/kimi-k3", stream: true }), {
-    model: "moonshotai/kimi-k3",
+  assert.deepEqual(rewrite({ model: "deepseek/deepseek-v4-flash", stream: true }), {
+    model: "deepseek/deepseek-v4-flash",
     stream: true,
     max_output_tokens: limit,
   });

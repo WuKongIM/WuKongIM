@@ -6,7 +6,7 @@
   "reviewer": {
     "action_sha": "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
     "codex_version": "0.146.0",
-    "model": "moonshotai/kimi-k3",
+    "model": "deepseek/deepseek-v4-flash",
     "reasoning_effort": "high",
     "sandbox": "read-only",
     "ephemeral": true,
@@ -433,6 +433,10 @@
     },
     {
       "name": "documentation-only",
+      "paths": [
+        "README.md",
+        "README_CN.md"
+      ],
       "prefixes": [
         "docs/",
         "docs-site/"

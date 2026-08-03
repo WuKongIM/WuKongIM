@@ -29,7 +29,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 
 	require.Equal(t, 1, policy.SchemaVersion)
 	require.Equal(t, []string{"main"}, policy.SupportedBaseBranches)
-	require.Equal(t, "moonshotai/kimi-k3", policy.Reviewer.Model)
+	require.Equal(t, "deepseek/deepseek-v4-flash", policy.Reviewer.Model)
 	require.Equal(t, "high", policy.Reviewer.ReasoningEffort)
 	require.Regexp(t, `^[0-9a-f]{40}$`, policy.Reviewer.ActionSHA)
 	require.NotEmpty(t, policy.Reviewer.CodexVersion)
@@ -129,16 +129,27 @@ func TestReviewAgentPolicy(t *testing.T) {
 	)
 	require.NotEmpty(t, policy.PathRules)
 	var javascriptRule *reviewAgentPathRule
+	var documentationRule *reviewAgentPathRule
 	for index := range policy.PathRules {
-		if policy.PathRules[index].Name == "review-agent-javascript" {
+		switch policy.PathRules[index].Name {
+		case "review-agent-javascript":
 			javascriptRule = &policy.PathRules[index]
-			break
+		case "documentation-only":
+			documentationRule = &policy.PathRules[index]
 		}
 	}
 	require.NotNil(t, javascriptRule)
 	require.Equal(t, []string{".github/review-agent/"}, javascriptRule.Prefixes)
 	require.Equal(t, []string{".mjs"}, javascriptRule.Suffixes)
 	require.Contains(t, javascriptRule.Checks, "review-proxy-contracts")
+	require.NotNil(t, documentationRule)
+	require.True(t, documentationRule.Exclusive)
+	require.ElementsMatch(
+		t,
+		[]string{"README.md", "README_CN.md"},
+		documentationRule.Paths,
+	)
+	require.Equal(t, []string{"docs-contracts"}, documentationRule.Checks)
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")

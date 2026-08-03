@@ -14,7 +14,12 @@ fresh PR facts + signal + per-PR state + scheduler state
 exact comment + fresh actor permission
   -> non-command comments become observed no-ops
   -> exact @review-agent prefix -> ParseCommand
-  -> status | explain | reconsider | retry | cancel
+  -> review | status | explain | reconsider | retry | cancel
+  -> only fresh admin authority may start or mutate model work
+
+PR lifecycle/review/manual signal without an admin review command
+  -> may cancel stale work or repair existing projections
+  -> must not create a review generation or model session
 
 validated durable decision + fresh publication facts
   -> PlanPublication

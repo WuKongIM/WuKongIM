@@ -80,7 +80,7 @@ Require:
 
 - one policy schema version;
 - `main` as the initial protected base;
-- `moonshotai/kimi-k3` with `high` effort;
+- `deepseek/deepseek-v4-flash` with `high` effort;
 - immutable Codex Action/CLI identifiers;
 - three active repository leases and one per PR;
 - 90-minute generation timeout;
@@ -143,7 +143,8 @@ Use table tests for:
   oversize classification;
 - duplicate and reordered hints;
 - stale worker completion after a new generation;
-- automatic first attempt, two same-head reconsiderations, retry, and cancel;
+- administrator-command first attempt, two same-head reconsiderations, retry,
+  and cancel;
 - human Review changes;
 - exact `agent/issue-N` classification without trusting Issue Agent state.
 
@@ -179,6 +180,7 @@ Accept only:
 
 ```text
 @review-agent status
+@review-agent review
 @review-agent explain <question>
 @review-agent reconsider <reason>
 @review-agent retry
@@ -186,9 +188,9 @@ Accept only:
 ```
 
 Reject quoted/code-block text, ambiguous mentions, missing reasons, edited
-authority, unknown commands, and unauthorized actor roles. `reconsider` is
-limited to the author or a current write-capable actor; retry/cancel require
-current `write`, `maintain`, or `admin`.
+authority, unknown commands, and unauthorized actor roles. Every model or
+state-mutating command requires current repository `admin`; status remains
+public and deterministic.
 
 - [ ] **Step 3a: Separate status, explanation, and reconsideration effects**
 
@@ -877,7 +879,7 @@ approval; the signed `Review Agent Verdict` remains the sole automated gate.
 
 Document:
 
-- automatic non-Draft `main` review;
+- administrator-command non-Draft `main` review;
 - no scheduled scanner;
 - one status comment, formal Review, and required Check;
 - three decisions and exact binding;

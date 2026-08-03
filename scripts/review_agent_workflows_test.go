@@ -21,6 +21,7 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 		"pull_request_target:",
 		"pull_request_review:",
 		"issue_comment:",
+		"startsWith(github.event.comment.body, '@review-agent review')",
 		"startsWith(github.event.comment.body, '@review-agent status')",
 		"startsWith(github.event.comment.body, '@review-agent explain')",
 		"startsWith(github.event.comment.body, '@review-agent reconsider')",
@@ -47,30 +48,10 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 	}
 }
 
-func TestReviewAgentIssueSignalIsBoundedAndExplicit(t *testing.T) {
-	raw := readIssueAgentFile(
-		t,
-		".github/workflows/review-agent-issue-signal.yml",
-	)
-	var document any
-	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
-	for _, required := range []string{
-		"types: [edited, closed, reopened]",
-		"actions: write",
-		"pull-requests: read",
-		"for page in {1..10}",
-		"close(s|d)?|fix(es|ed)?|resolve(s|d)?",
-		"gh workflow run review-agent.yml",
-	} {
-		require.Contains(t, raw, required)
-	}
-	require.NotContains(t, raw, "schedule:")
-	require.NotContains(t, raw, "cron:")
-}
-
 func TestReviewAgentCodeownersCoversItsControlPlane(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/CODEOWNERS")
 	for _, required := range []string{
+		"/.github/actions/install-review-agent-tools/ @tangtaoit",
 		"/internal/app/review_agent* @tangtaoit",
 		"/.github/workflows/README.md @tangtaoit",
 		"/docs/agents/review-agent.md @tangtaoit",
@@ -186,6 +167,12 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 
 func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/review-agent-run.yml")
+	installer := readIssueAgentFile(
+		t,
+		".github/actions/install-review-agent-tools/action.yml",
+	)
+	var installerDocument any
+	require.NoError(t, yaml.Unmarshal([]byte(installer), &installerDocument))
 	var document struct {
 		RunName string `yaml:"run-name"`
 	}
@@ -198,6 +185,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		document.RunName,
 	)
 	for _, job := range []string{
+		"protected-tools:",
 		"recover:",
 		"context:",
 		"baseline:",
@@ -208,6 +196,48 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		"drain:",
 	} {
 		require.Contains(t, raw, "\n  "+job)
+	}
+	require.Equal(
+		t,
+		1,
+		strings.Count(raw, "GOWORK=off go build"),
+		"the protected control revision must be built once per Worker run",
+	)
+	require.Contains(
+		t,
+		raw,
+		"review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}",
+	)
+	for _, job := range []string{
+		"recover", "context", "baseline", "review", "evidence",
+		"state-writer", "review-publisher",
+	} {
+		jobText := issueAgentJobText(t, raw, job)
+		require.NotContains(t, jobText, "go build")
+		require.Contains(t, jobText, "Verify protected tool bundle")
+	}
+	require.Contains(
+		t,
+		installer,
+		"actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+	)
+	for _, required := range []string{
+		"sha256sum --check SHA256SUMS",
+		`test "$(cat "$bundle/control-sha")" = "$INPUT_CONTROL_SHA"`,
+		"expected_files=(control-sha wkreviewagent wkreviewcheck wkreviewcheckmcp)",
+		`test ! -L "$bundle/SHA256SUMS"`,
+		"wkreviewagent|wkreviewcheck|wkreviewcheckmcp",
+		`rm -rf "$bundle"`,
+	} {
+		require.Contains(t, installer, required)
+	}
+	for _, forbidden := range []string{
+		"secrets.",
+		"actions/cache",
+		"github.token",
+		"checkout",
+	} {
+		require.NotContains(t, installer, forbidden)
 	}
 	require.Contains(t, raw, "workflow_dispatch:")
 	require.NotContains(t, raw, "workflow_call:")
@@ -225,7 +255,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "persist-credentials: false"))
 	require.Contains(t, raw, "ref: ${{ needs.recover.outputs.test_merge_sha }}")
 	require.Equal(t, 1, strings.Count(raw, "openai/codex-action@"))
-	require.Contains(t, raw, "--model moonshotai/kimi-k3")
+	require.Contains(t, raw, "--model deepseek/deepseek-v4-flash")
 	require.Contains(t, raw, `--config 'model_reasoning_effort="high"'`)
 	require.Contains(t, raw, "codex-version: 0.146.0")
 	require.Contains(t, raw, `node-version: "22.12.0"`)

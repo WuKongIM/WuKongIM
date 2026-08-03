@@ -23,28 +23,36 @@ func TestParseCommandAcceptsOnlyExactAuthorizedSurface(t *testing.T) {
 			want:  reviewagent.CommandStatus,
 		},
 		{
-			name: "explain is public and bounded",
+			name: "admin may start review",
 			input: reviewagent.CommandInput{
-				Body: "@review-agent explain Why is this blocking?",
+				Body:       "@review-agent review",
+				Permission: reviewagent.PermissionAdmin,
+			},
+			want: reviewagent.CommandReview,
+		},
+		{
+			name: "admin may request bounded explanation",
+			input: reviewagent.CommandInput{
+				Body:       "@review-agent explain Why is this blocking?",
+				Permission: reviewagent.PermissionAdmin,
 			},
 			want:    reviewagent.CommandExplain,
 			payload: "Why is this blocking?",
 		},
 		{
-			name: "author may reconsider",
+			name: "admin may reconsider",
 			input: reviewagent.CommandInput{
-				Body:     "@review-agent reconsider The queue is node-local.",
-				Actor:    "alice",
-				PRWriter: "alice",
+				Body:       "@review-agent reconsider The queue is node-local.",
+				Permission: reviewagent.PermissionAdmin,
 			},
 			want:    reviewagent.CommandReconsider,
 			payload: "The queue is node-local.",
 		},
 		{
-			name: "maintainer may retry",
+			name: "admin may retry",
 			input: reviewagent.CommandInput{
 				Body:       "@review-agent retry",
-				Permission: reviewagent.PermissionMaintain,
+				Permission: reviewagent.PermissionAdmin,
 			},
 			want: reviewagent.CommandRetry,
 		},
@@ -91,16 +99,24 @@ func TestParseCommandRejectsAmbiguousOrUnauthorizedText(t *testing.T) {
 			Edited: true,
 		},
 		"missing reason": {
-			Body:     "@review-agent reconsider",
-			Actor:    "alice",
-			PRWriter: "alice",
+			Body:       "@review-agent reconsider",
+			Permission: reviewagent.PermissionAdmin,
 		},
-		"unauthorized reconsider": {
-			Body:  "@review-agent reconsider Please retry.",
-			Actor: "bob",
+		"non-admin review": {
+			Body:       "@review-agent review",
+			Permission: reviewagent.PermissionMaintain,
 		},
-		"unauthorized retry": {
-			Body: "@review-agent retry",
+		"non-admin explain": {
+			Body:       "@review-agent explain Why?",
+			Permission: reviewagent.PermissionWrite,
+		},
+		"non-admin reconsider": {
+			Body:       "@review-agent reconsider Please retry.",
+			Permission: reviewagent.PermissionMaintain,
+		},
+		"non-admin retry": {
+			Body:       "@review-agent retry",
+			Permission: reviewagent.PermissionWrite,
 		},
 		"unknown": {
 			Body:       "@review-agent approve",

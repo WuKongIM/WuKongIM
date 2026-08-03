@@ -1,14 +1,14 @@
 # GitHub Review Agent
 
-The Review Agent is a senior reviewer embedded in every ready pull request
+The Review Agent is an administrator-invoked senior reviewer for pull requests
 targeting `main`. The model reviews and adjudicates without changing code or
-merging. After approval, the protected Publisher may merge only an exact-head
-pull request authored by a repository administrator or organization member.
+merging. No model review starts until a current repository administrator posts
+the exact `@review-agent review` command.
 
 ## Lifecycle
 
 ```text
-PR event
+administrator @review-agent review
   -> Review Agent PR Signal (zero permission)
   -> Review Agent Controller (fresh GitHub facts)
   -> signed per-PR state + signed repository scheduler
@@ -20,12 +20,15 @@ PR event
   -> authorized exact-head merge or human merge
 ```
 
-The Signal uses `pull_request_target` only to ensure Fork events can wake the
-default-branch Controller without contributor approval. It does not checkout,
+The Signal uses `pull_request_target` so lifecycle changes can cancel stale
+work or repair state without contributor approval. It does not checkout,
 execute, upload, download, call the network, or receive a token or Secret.
-Controller authority comes entirely from fresh API reads and signed state.
+Lifecycle, Review, and manual-dispatch signals cannot create a generation.
+Controller authority to start review comes only from an exact command plus a
+fresh GitHub API read proving the comment author currently has `admin` access.
 
-The eligible set is every open, non-Draft pull request whose base is `main`.
+The eligible set is every administrator-requested open, non-Draft pull request
+whose base is `main`.
 Draft, closed, wrong-base, stale, conflicting, oversized, or incomplete inputs
 are handled without trusting a model. No Cron or periodic pull-request scan
 exists.
@@ -90,16 +93,17 @@ failure, or a context too large for complete risk coverage yields
 ## Checks and model
 
 Protected policy fixes the official Codex Action, Codex version,
-`moonshotai/kimi-k3`, high reasoning effort, deterministic check catalog, path
+`deepseek/deepseek-v4-flash`, high reasoning effort, deterministic check catalog, path
 rules, a 32,768-token maximum model output, and network fences. One root-owned
 loopback proxy applies that ceiling and the OpenRouter credential; its
 root-only credential handoff is deleted before Codex starts, so no unclamped
 model transport remains reachable to the runner user.
 
-Each head SHA has one signed automatic-review budget. Intent-only edits after
-that attempt fail closed as `inconclusive` until a new head arrives or an
-authorized bounded reconsideration is accepted. A reconsideration for the
-current head remains eligible after the protected control revision, intent,
+Each head SHA has one signed initial-review budget. Intent-only edits and new
+commits invalidate the old generation but never start another review. An
+administrator uses `@review-agent review` for a new head and
+`@review-agent reconsider <reason>` for changed same-head facts. A
+reconsideration remains eligible after the protected control revision, intent,
 base, or test-merge revision changes; it binds a new generation from fresh
 eligible facts and consumes the signed per-head reconsideration budget.
 
@@ -129,6 +133,14 @@ protected tools cannot initialize. The validator
 rejects unrecorded claims, generation mismatches, incomplete coverage, failed
 mandatory checks, invalid findings, excessive output, and unexpected
 tracked-file mutation.
+
+The Worker compiles the three protected Review Agent binaries once from the
+exact control SHA into one run-scoped Artifact. Each isolated job verifies the
+embedded control SHA and SHA-256 manifest, installs only its role's allowlisted
+binaries, and deletes the downloaded bundle. No cross-run cache or candidate
+build participates in this trust boundary. Documentation-only changes under
+`docs/`, `docs-site/`, `README.md`, or `README_CN.md` exclusively select
+`docs-contracts`; mixed changes continue to select the full applicable union.
 
 The protected bounds admit at most 50 changed files, 1 MiB of captured change
 material, 30,000 complete-file lines, and a 2 MiB encoded Context. The encoded
@@ -183,26 +195,34 @@ remain open with an explicit human-merge notice. The merge API receives the
 exact reviewed head SHA and the normal merge method; repository Rulesets remain
 authoritative.
 
+Repository administrators retain manual merge authority for every PR,
+including a PR with no Review Agent state or a non-successful verdict. This is
+a GitHub governance capability, not an Agent transition.
+
 ## Commands
 
 Only one exact, unedited, single-line comment is accepted:
 
+- `@review-agent review` — start the initial review for the current head;
 - `@review-agent status` — deterministic signed-state summary, no model;
 - `@review-agent explain <question>` — bounded explanation only;
 - `@review-agent reconsider <reason>` — new adjudication, at most two per head;
-- `@review-agent retry` — write-capable infrastructure recovery;
-- `@review-agent cancel` — write-capable cancellation.
+- `@review-agent retry` — infrastructure recovery;
+- `@review-agent cancel` — cancellation.
 
-The PR author may reconsider; retry and cancel require current `write`,
-`maintain`, or `admin` permission. Explain cannot run checks or alter findings,
-state decision, Review, or Verdict. Ordinary comments are observed no-ops, so
-the App's own status publication cannot recursively trigger work.
+Review, explain, reconsider, retry, and cancel require current `admin`
+permission resolved after the comment arrives. Status is public, deterministic,
+and model-free. Explain cannot run checks or alter findings, state decision,
+Review, or Verdict. Ordinary comments are observed no-ops, so the App's own
+status publication cannot recursively trigger work.
 
 ## Failure and recovery
 
-Stale workers lose publication authority. Infrastructure failure retries once
-inside the protected budget, then becomes `inconclusive`. Code/check failures
-are not infrastructure retries. A new commit creates a new generation.
+Stale workers lose publication authority. A new commit cancels old work and
+waits for another administrator review command. Infrastructure failure retries
+once inside the protected budget, then becomes `inconclusive`. Code/check
+failures are not infrastructure retries. The next administrator review command
+creates the new generation.
 One generation has a 90-minute wall-time budget measured from its signed lease;
 the initial review, automatic retry, reconsideration worker, and explanation
 worker all honor their own signed lease deadline. Late review results can never
@@ -217,8 +237,7 @@ for evidence validation and signed-state publication.
 
 Recovery is event-driven:
 
-- a PR lifecycle event, formal Review, new command, or linked-Issue change
-  wakes reconciliation;
+- a PR lifecycle event, formal Review, or exact command wakes reconciliation;
 - an authorized retry can recover a stuck generation;
 - an exact manual dispatch can reconcile one pull request; and
 - terminal workers drain the next durable queue entry.
