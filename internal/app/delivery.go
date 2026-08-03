@@ -12,9 +12,6 @@ import (
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -23,65 +20,9 @@ const defaultDeliveryRetryBackoff = 10 * time.Millisecond
 
 var errOnlineDeliveryCommittedSubmitUnsupported = errors.New("internal/app: committed delivery submission requires a canonical recipient plan")
 
-type deliveryRuntimeAdapter struct {
-	// manager handles committed-message fanout and ack mutations.
-	manager *runtimedelivery.Manager
-}
-
 type onlineDeliveryUsecaseAdapter struct {
 	// runtime owns recipient feedback after channelappend produces canonical plans.
 	runtime *runtimedelivery.Runtime
-}
-
-type deliveryWorkerGroup []WorkerRuntime
-
-func appendDeliveryWorker(current WorkerRuntime, worker WorkerRuntime) WorkerRuntime {
-	if worker == nil {
-		return current
-	}
-	group, ok := current.(deliveryWorkerGroup)
-	if !ok {
-		if current == nil {
-			return deliveryWorkerGroup{worker}
-		}
-		group = deliveryWorkerGroup{current}
-	}
-	for _, existing := range group {
-		if existing == worker {
-			return group
-		}
-	}
-	return append(group, worker)
-}
-
-func (g deliveryWorkerGroup) Start(ctx context.Context) error {
-	for idx, worker := range g {
-		if worker == nil {
-			continue
-		}
-		if err := worker.Start(ctx); err != nil {
-			for i := idx - 1; i >= 0; i-- {
-				if g[i] != nil {
-					_ = g[i].Stop(ctx)
-				}
-			}
-			return err
-		}
-	}
-	return nil
-}
-
-// Stop preserves reverse dependency order; earlier workers stay running if a later worker cannot drain.
-func (g deliveryWorkerGroup) Stop(ctx context.Context) error {
-	for i := len(g) - 1; i >= 0; i-- {
-		if g[i] == nil {
-			continue
-		}
-		if stopErr := g[i].Stop(ctx); stopErr != nil {
-			return stopErr
-		}
-	}
-	return nil
 }
 
 type deliveryMessageObserver struct {
@@ -314,51 +255,6 @@ func (a *App) recordDeliveryError(err error) {
 	}
 }
 
-func (a deliveryRuntimeAdapter) SubmitCommitted(ctx context.Context, event messageevents.MessageCommitted) error {
-	if a.manager == nil {
-		return nil
-	}
-	event = scopePersonDeliveryEvent(event)
-	return a.manager.SubmitCommitted(ctx, event)
-}
-
-// scopePersonDeliveryEvent narrows person-channel fanout to the two channel participants.
-func scopePersonDeliveryEvent(event messageevents.MessageCommitted) messageevents.MessageCommitted {
-	if event.ChannelType != frame.ChannelTypePerson || len(event.MessageScopedUIDs) > 0 {
-		return event
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(event.ChannelID)
-	if err != nil {
-		return event
-	}
-	if left != "" {
-		event.MessageScopedUIDs = append(event.MessageScopedUIDs, left)
-	}
-	if right != "" && right != left {
-		event.MessageScopedUIDs = append(event.MessageScopedUIDs, right)
-	}
-	return event
-}
-
-func (a deliveryRuntimeAdapter) Recvack(ctx context.Context, cmd deliveryusecase.RecvackCommand) error {
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.Recvack(ctx, runtimedelivery.Recvack{
-		UID:        cmd.UID,
-		SessionID:  cmd.SessionID,
-		MessageID:  cmd.MessageID,
-		MessageSeq: cmd.MessageSeq,
-	})
-}
-
-func (a deliveryRuntimeAdapter) SessionClosed(ctx context.Context, cmd deliveryusecase.SessionClosedCommand) error {
-	if a.manager == nil {
-		return nil
-	}
-	return a.manager.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
-}
-
 // SubmitCommitted is retained only for the temporary delivery-usecase facade.
 // Channelappend is the sole production producer of canonical delivery plans.
 func (a onlineDeliveryUsecaseAdapter) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
@@ -379,70 +275,4 @@ func (a onlineDeliveryUsecaseAdapter) SessionClosed(ctx context.Context, cmd del
 		return nil
 	}
 	return a.runtime.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
-}
-
-type appSubscriberPlanner struct {
-	// channel scans durable subscribers for non-person channel fanout.
-	channel runtimedelivery.SubscriberPlanner
-}
-
-func (p appSubscriberPlanner) NextPartitionPage(ctx context.Context, task runtimedelivery.FanoutTask, cursor string, limit int) (runtimedelivery.UIDPage, error) {
-	if task.Envelope.ChannelType != frame.ChannelTypePerson {
-		if p.channel == nil {
-			return runtimedelivery.UIDPage{Done: true}, nil
-		}
-		return p.channel.NextPartitionPage(ctx, task, cursor, limit)
-	}
-	if cursor != "" {
-		return runtimedelivery.UIDPage{Done: true}, nil
-	}
-	left, right, err := runtimechannelid.DecodePersonChannel(task.Envelope.ChannelID)
-	if err != nil {
-		return runtimedelivery.UIDPage{Done: true}, nil
-	}
-	uids := make([]string, 0, 2)
-	if left != "" {
-		uids = append(uids, left)
-	}
-	if right != "" && right != left {
-		uids = append(uids, right)
-	}
-	return runtimedelivery.UIDPage{UIDs: uids, Done: true}, nil
-}
-
-type noopSubscriberPlanner struct{}
-
-func (noopSubscriberPlanner) NextPartitionPage(context.Context, runtimedelivery.FanoutTask, string, int) (runtimedelivery.UIDPage, error) {
-	return runtimedelivery.UIDPage{Done: true}, nil
-}
-
-type presenceResolverAdapter struct {
-	// presence resolves authoritative routes for selected UIDs.
-	presence *presence.App
-}
-
-func (r presenceResolverAdapter) EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]runtimedelivery.Route, error) {
-	out := make(map[string][]runtimedelivery.Route, len(uids))
-	if r.presence == nil {
-		return out, nil
-	}
-	routesByUID, err := r.presence.EndpointsByUIDs(ctx, uids)
-	if err != nil {
-		return nil, err
-	}
-	for uid, routes := range routesByUID {
-		for _, route := range routes {
-			out[uid] = append(out[uid], runtimedelivery.Route{
-				UID:         route.UID,
-				OwnerNodeID: route.OwnerNodeID,
-				OwnerBootID: route.OwnerBootID,
-				OwnerSeq:    route.OwnerSeq,
-				SessionID:   route.SessionID,
-				DeviceID:    route.DeviceID,
-				DeviceFlag:  route.DeviceFlag,
-				DeviceLevel: route.DeviceLevel,
-			})
-		}
-	}
-	return out, nil
 }
