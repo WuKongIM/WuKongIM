@@ -112,6 +112,12 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/deployment/multi-node`,
         `/${locale}/server/deployment/production-checklist`,
         `/${locale}/server/configuration`,
+        `/${locale}/server/configuration/cluster`,
+        `/${locale}/server/configuration/networking`,
+        `/${locale}/server/configuration/storage`,
+        `/${locale}/server/configuration/security`,
+        `/${locale}/server/configuration/observability`,
+        `/${locale}/server/configuration/reference`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
@@ -187,6 +193,10 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);
     expect(isPublishedContentPath('server/deployment/kubernetes.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/configuration/cluster.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/configuration/cluster.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/configuration/reference.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/configuration/reference.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);

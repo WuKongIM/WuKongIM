@@ -469,47 +469,47 @@ export const domains: DocumentationDomain[] = [
         '解释配置来源、覆盖规则和各领域配置。',
         'Explains configuration sources, override rules, and domain settings.',
         [
-          plannedPage(
+          publishedPage(
             'cluster',
             '节点与集群',
             'Nodes & Cluster',
             '节点身份、集群地址、Slot、副本和节点发现配置。',
             'Node identity, cluster addresses, slots, replicas, and discovery settings.',
           ),
-          plannedPage(
+          publishedPage(
             'networking',
             '网络与客户端接入',
             'Networking & Client Access',
             'TCP、WebSocket、HTTP、Manager 和节点通信监听配置。',
             'Listener settings for TCP, WebSocket, HTTP, Manager, and inter-node traffic.',
           ),
-          plannedPage(
+          publishedPage(
             'storage',
             '消息与存储',
             'Messages & Storage',
             '消息保留、存储路径、队列、批处理和性能配置。',
             'Message retention, storage paths, queues, batching, and performance settings.',
           ),
-          plannedPage(
+          publishedPage(
             'security',
             '安全与权限',
             'Security & Access',
             '认证、接口访问、Token、TLS 和敏感配置建议。',
             'Authentication, API access, tokens, TLS, and sensitive-setting guidance.',
           ),
-          plannedPage(
+          publishedPage(
             'observability',
             '日志与可观测性',
             'Logs & Observability',
-            '日志、指标、Tracing 和诊断接口配置。',
-            'Logging, metrics, tracing, and diagnostic endpoint settings.',
+            '日志、指标、Prometheus、Top 和诊断接口配置。',
+            'Logging, metrics, Prometheus, Top, and diagnostic endpoint settings.',
           ),
-          plannedPage(
+          publishedPage(
             'reference',
             '配置参考',
             'Configuration Reference',
-            '列出 TOML 键、类型、默认值、环境变量和约束。',
-            'Lists TOML keys, types, defaults, environment variables, and constraints.',
+            '列出 TOML 键、类型、环境变量、脱敏边界和约束。',
+            'Lists TOML keys, types, environment variables, redaction boundaries, and constraints.',
           ),
         ],
       ),

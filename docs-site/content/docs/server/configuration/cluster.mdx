@@ -1,0 +1,64 @@
+---
+title: 节点与集群
+description: 配置节点身份、静态或种子加入、Slot、副本和安全的集群变更边界。
+---
+
+WuKongIM 的每种部署都是集群：单进程部署是**单节点集群**，不会绕过集群语义。先确定节点身份和发现方式，再设置副本与工作负载参数。
+
+## 启动必填项
+
+以下三个字段在任何拓扑中都必须提供：
+
+| TOML | 约束 |
+| --- | --- |
+| `node.id` | 集群内唯一、非零且长期稳定的节点 ID |
+| `node.data_dir` | 当前节点独占的持久数据目录 |
+| `cluster.listen_addr` | 节点间 Transport 的本机监听地址 |
+
+最小单节点集群可以从这里开始：
+
+```toml
+[node]
+id = 1
+data_dir = "/var/lib/wukongim"
+
+[cluster]
+listen_addr = "127.0.0.1:7000"
+nodes = [{ id = 1, addr = "127.0.0.1:7000" }]
+initial_slot_count = 10
+hash_slot_count = 256
+slot_replica_n = 1
+channel_replica_n = 1
+```
+
+示例中的 `initial_slot_count = 10` 是开发基线，不是所有负载的推荐值；`hash_slot_count = 256` 则是稳定的物理 Hash Slot 边界。
+
+## 选择一种加入方式
+
+| 方式 | 配置 | 适用边界 |
+| --- | --- | --- |
+| 静态清单 | `cluster.nodes` | 节点地址预先确定，所有节点使用同一清单 |
+| 种子加入 | `cluster.seeds`、`cluster.advertise_addr`、`cluster.join_token` | 新节点通过既有节点加入，广告地址必须能被其他节点访问 |
+
+`cluster.nodes` 不能与种子加入配置组合。使用种子加入时，广告地址和非空 Join Token 是必需的。`cluster.listen_addr` 可以绑定 `0.0.0.0`；任何需要被远端节点访问的 `cluster.advertise_addr` 或 `nodes[].addr` 都不能使用通配、仅本机回环或短生命周期地址。单节点集群可以使用 `127.0.0.1`，但加入远端节点前必须改为其实际可达的地址。
+
+## Slot 与副本
+
+- `initial_slot_count` 是首次 Controller 快照创建的逻辑 Slot Raft Group 数量。
+- `hash_slot_count` 是将键路由到逻辑组的物理 Hash Slot 栅栏，保持为 `256`。
+- `slot_replica_n` 与 `channel_replica_n` 必须不大于可用节点数，并与故障域目标一致。
+- 多副本只有分布在独立机器、磁盘和故障域上才提供预期容错；同一主机上的多个进程不是独立故障域。
+
+已有数据后，不要把集群 ID、节点 ID、Hash Slot 数或副本策略当作普通滚动配置。节点加入、迁移和扩缩容属于受控运维流程。
+
+## 调优字段
+
+`channel_reactor_count`、各类 worker、RPC/append 批量、提交协调器和恢复探测字段会改变 CPU、内存、分配、锁竞争、排队、反压与尾延迟。某些 `0` 值由运行时根据硬件或拓扑推导，不能仅凭示例推断有效值。
+
+先保留经过测试的基线，用接近生产的在线用户、消息速率、频道数和十万成员群组压测；一次只改变一组参数，并同时记录吞吐、P99、队列、CPU、内存、磁盘和网络。
+
+## 安全变更
+
+配置在节点启动时加载，除明确声明的子系统外不要假设支持热更新。集群配置变更应逐节点执行：移出流量、停止节点、更新配置、启动并等待 `/readyz` 返回就绪，再恢复流量并处理下一个节点。
+
+继续阅读[网络与客户端接入](/zh/server/configuration/networking)，区分监听地址、节点广告地址和客户端广告地址。
