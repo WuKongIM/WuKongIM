@@ -98,7 +98,10 @@ model transport remains reachable to the runner user.
 
 Each head SHA has one signed automatic-review budget. Intent-only edits after
 that attempt fail closed as `inconclusive` until a new head arrives or an
-authorized bounded reconsideration is accepted.
+authorized bounded reconsideration is accepted. A reconsideration for the
+current head remains eligible after the protected control revision, intent,
+base, or test-merge revision changes; it binds a new generation from fresh
+eligible facts and consumes the signed per-head reconsideration budget.
 
 The model receives no GitHub/App, cloud, deploy, package-publish, or
 organization-private credential. It runs from a trusted external session
