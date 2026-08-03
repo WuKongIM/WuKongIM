@@ -6,7 +6,6 @@ import (
 	"time"
 
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
@@ -355,78 +354,6 @@ func (o topStorageObserver) ObserveCommitCoordinatorRequest(event messagedb.Comm
 	o.top.ObserveStorageCommitRequest(event.Lane, event.Result, event.Duration)
 }
 
-type topDeliveryObserver struct {
-	top *topCollector
-}
-
-func (o topDeliveryObserver) ObserveFanoutTask(event runtimedelivery.FanoutTaskEvent) {
-	if o.top == nil || event.ErrorClass == "" || event.ErrorClass == runtimedelivery.DeliveryErrorClassNone {
-		return
-	}
-	o.top.addCounter(topCounterDeliveryPushErr, 1)
-}
-
-func (o topDeliveryObserver) ObserveFanoutResolve(event runtimedelivery.FanoutResolveEvent) {
-	if o.top == nil {
-		return
-	}
-	o.top.ObserveDeliveryRoutes(event.Routes)
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.top.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
-func (o topDeliveryObserver) ObserveFanoutPush(event runtimedelivery.FanoutPushEvent) {
-	if o.top == nil {
-		return
-	}
-	accepted := event.Accepted
-	if accepted <= 0 && event.Result == runtimedelivery.DeliveryResultOK {
-		accepted = event.Routes
-	}
-	o.top.ObserveDeliveryPush(event.Result, accepted, event.Duration)
-	if event.Retryable > 0 || event.Dropped > 0 || (event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone) {
-		o.top.addCounter(topCounterDeliveryPushErr, uint64(nonNegativeInt(event.Retryable+event.Dropped)))
-	}
-}
-
-func (o topDeliveryObserver) ObserveRetry(event runtimedelivery.RetryEvent) {
-	if o.top == nil {
-		return
-	}
-	o.top.SetDeliveryRetryQueueDepth(int64(event.QueueDepth))
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.top.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
-func (o topDeliveryObserver) ObserveAck(event runtimedelivery.AckEvent) {
-	if o.top == nil {
-		return
-	}
-	o.top.SetDeliveryAckBindings(int64(event.PendingCount))
-}
-
-func (o topDeliveryObserver) ObserveManagerAdmission(event runtimedelivery.ManagerAdmissionEvent) {
-	if o.top == nil {
-		return
-	}
-	o.top.SetQueue("delivery", "manager", "events", "none", int64(event.QueueDepth), 0)
-	if event.Result != "" && event.Result != runtimedelivery.DeliveryResultOK {
-		o.top.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
-func (o topDeliveryObserver) ObserveManagerTerminal(event runtimedelivery.ManagerTerminalEvent) {
-	if o.top == nil {
-		return
-	}
-	o.top.SetQueue("delivery", "manager", "events", "none", int64(event.QueueDepth), 0)
-	if event.ErrorClass != "" && event.ErrorClass != runtimedelivery.DeliveryErrorClassNone {
-		o.top.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
 type topSlotObserver struct {
 	top *topCollector
 }
@@ -594,10 +521,6 @@ var _ clusterchannels.AppendStageObserver = topChannelObserver{}
 var _ messagedb.CommitCoordinatorObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorQueueObserver = topStorageObserver{}
 var _ messagedb.CommitCoordinatorRequestObserver = topStorageObserver{}
-var _ runtimedelivery.Observer = topDeliveryObserver{}
-var _ runtimedelivery.RetryObserver = topDeliveryObserver{}
-var _ runtimedelivery.AckObserver = topDeliveryObserver{}
-var _ runtimedelivery.ManagerObserver = topDeliveryObserver{}
 var _ multiraft.SchedulerObserver = topSlotObserver{}
 var _ controller.RaftObserver = topControllerRaftObserver{}
 var _ transport.Observer = (*topTransportObserver)(nil)
