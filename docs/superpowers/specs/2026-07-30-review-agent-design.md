@@ -81,7 +81,7 @@ merge only an exact-head approved PR from an administrator or member.
 ## Selected Architecture
 
 ```text
-pull_request_target / Review / comment event
+administrator @review-agent review comment
   -> zero-permission Review Agent Signal
   -> protected-default-branch workflow_run Controller
   -> fresh GitHub facts + signed PR state + signed scheduler state
@@ -103,6 +103,10 @@ pull_request_target / Review / comment event
 The design uses GitHub Actions and two dedicated GitHub Apps. It introduces no
 always-on external service.
 
+Repository administrators retain manual merge authority for every pull
+request, independently of whether Review Agent was invoked or produced a
+successful verdict.
+
 ### Proposed repository layout
 
 ```text
@@ -113,7 +117,6 @@ always-on external service.
   prompts/review.md
 .github/workflows/
   review-agent-pr-signal.yml
-  review-agent-issue-signal.yml
   review-agent.yml
   review-agent-run.yml
 cmd/wkreviewagent/
@@ -173,9 +176,11 @@ The lifecycle event set covers:
 - `opened`, `edited`, `synchronize`, `reopened`, and `closed`;
 - `converted_to_draft` and `ready_for_review`;
 - Review `submitted`, `edited`, and `dismissed`;
-- a newly created top-level pull-request command comment; and
-- an explicitly linked Issue's `edited`, `closed`, and `reopened` events,
-  resolved by the separate bounded `review-agent-issue-signal.yml`.
+- a newly created top-level pull-request command comment.
+
+Lifecycle and Review signals may cancel stale work or repair an existing
+projection. They cannot create a generation. Only an exact administrator
+`@review-agent review` command may start model work for the current head.
 
 No scheduled Workflow or Cron inventory exists. If an event is missed, the
 pull request remains blocked until another relevant event or an authorized
@@ -183,7 +188,8 @@ pull request remains blocked until another relevant event or an authorized
 
 ### Eligibility
 
-The Controller starts model work only when all of these are true:
+The Controller starts model work only when an administrator requested review
+and all of these are true:
 
 - the pull request is open;
 - it is not a Draft;
@@ -470,11 +476,11 @@ and are not stored in signed state.
 The accepted command surface is intentionally small:
 
 - anyone: `@review-agent status`;
-- anyone: `@review-agent explain <question>`;
-- pull-request author or actor with current `write`, `maintain`, or `admin`:
-  `@review-agent reconsider <reason>`;
-- actor with current `write`, `maintain`, or `admin`:
-  `@review-agent retry` and `@review-agent cancel`.
+- current repository administrator: `@review-agent review`;
+- current repository administrator: `@review-agent explain <question>`;
+- current repository administrator: `@review-agent reconsider <reason>`;
+- current repository administrator: `@review-agent retry` and
+  `@review-agent cancel`.
 
 Commands in quoted text, code blocks, edited history, model output, or ordinary
 prose grant no authority. Permission is re-read when the command is consumed.
@@ -492,17 +498,18 @@ projection repair cannot lose an accepted answer. The
 protected policy sets a finite explanation-session budget per head so public
 comments cannot create unbounded model cost.
 
-Each head SHA receives one automatic review and at most two explicit
-reconsiderations. A reconsideration reads the relevant discussion and may
-withdraw a prior finding only by explaining why it no longer applies. New
-commits create new generations and do not consume reconsideration allowance.
-The automatic count is signed per-head state. Intent-only edits after the
-automatic attempt fail closed as `inconclusive` until a new head or an
-authorized reconsideration; they cannot create unbounded model sessions. An
+Each head SHA receives at most one administrator-requested initial review and
+at most two explicit reconsiderations. A reconsideration reads the relevant
+discussion and may withdraw a prior finding only by explaining why it no longer
+applies. New commits cancel old work and wait for another administrator review
+command.
+The initial-review count is signed per-head state. Intent-only edits after the
+initial attempt wait for another administrator command; they cannot create
+unbounded model sessions. An
 authorized reconsideration for the current head remains valid when protected
 control, intent, base, or test-merge facts changed: the Controller must bind a
 new generation from fresh eligible facts and consume the existing head's
-reconsideration allowance rather than attempting a second automatic review.
+reconsideration allowance rather than starting an unrequested review.
 
 Runner, provider, dependency-download, or public-network infrastructure
 failure may retry once inside the same attempt before publishing
@@ -587,7 +594,7 @@ Initial hard budgets are:
 - at most three active Review Agent sessions repository-wide;
 - at most one active first-time external-author session;
 - 90 minutes wall-clock per complete generation;
-- one automatic initial review per head;
+- one administrator-requested initial review per head;
 - at most two explicit reconsiderations per head;
 - one automatic infrastructure retry per signed review generation.
 
@@ -683,10 +690,11 @@ prove the complete path.
 
 ### State and event matrix
 
-- opened, Draft, ready, edited intent, synchronize, reopened, closed;
+- opened, Draft, ready, edited intent, synchronize, reopened, and closed
+  signals never start a review;
 - same-repository and first-time Fork pull requests;
 - Review submitted, edited, dismissed;
-- newly created top-level command comments and linked-Issue changes;
+- newly created top-level command comments;
 - duplicate, reordered, and missing hints;
 - stale worker completion and new-generation cancellation;
 - exact same-head reconsideration limits;
@@ -727,8 +735,8 @@ prove the complete path.
 Before branch protection changes:
 
 - one same-repository pull request must prove the full approved path;
-- one Fork pull request must prove automatic wake-up, credential isolation,
-  exact generation binding, and approved projection;
+- one Fork pull request must prove administrator-command wake-up, credential
+  isolation, exact generation binding, and approved projection;
 - seeded failing and infrastructure-failure fixtures must prove
   `changes_required` and `inconclusive`;
 - a stale generation must fail to publish after a new commit;
@@ -736,8 +744,8 @@ Before branch protection changes:
 
 ## Acceptance Criteria
 
-1. Every eligible non-Draft `main` pull request, including a first-time Fork,
-   starts automatically from a zero-permission event hint.
+1. No pull request, including a first-time Fork, starts Review Agent model work
+   until a current repository administrator posts `@review-agent review`.
 2. No candidate-controlled Workflow, file, comment, or network response can
    grant authority, change policy, or reach a Publisher credential.
 3. One complete generation reviews the full changed-file risk inventory and
@@ -756,8 +764,8 @@ Before branch protection changes:
 10. All existing Agent PR validation Workflows, scripts, labels, plan comments,
     documentation, and branch-protection requirements are removed rather than
     adapted.
-11. Open pull requests receive fresh state and new Review Agent decisions
-    before the required-check switch.
+11. Open pull requests remain untouched until an administrator requests a
+    fresh Review Agent decision.
 12. Static contracts, event/state tests, security integration, same-repository
     bootstrap, and Fork bootstrap all pass before direct replacement.
 

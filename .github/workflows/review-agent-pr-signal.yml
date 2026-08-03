@@ -5,7 +5,8 @@ run-name: >-
   object ${{ github.event.comment.id || github.event.review.id || 0 }}
   accepted ${{ github.event_name != 'issue_comment' ||
     (github.event.issue.pull_request != null &&
-     (startsWith(github.event.comment.body, '@review-agent status') ||
+     (startsWith(github.event.comment.body, '@review-agent review') ||
+      startsWith(github.event.comment.body, '@review-agent status') ||
       startsWith(github.event.comment.body, '@review-agent explain') ||
       startsWith(github.event.comment.body, '@review-agent reconsider') ||
       startsWith(github.event.comment.body, '@review-agent retry') ||
@@ -31,7 +32,8 @@ jobs:
     if: >-
       github.event_name != 'issue_comment' ||
       (github.event.issue.pull_request != null &&
-       (startsWith(github.event.comment.body, '@review-agent status') ||
+       (startsWith(github.event.comment.body, '@review-agent review') ||
+        startsWith(github.event.comment.body, '@review-agent status') ||
         startsWith(github.event.comment.body, '@review-agent explain') ||
         startsWith(github.event.comment.body, '@review-agent reconsider') ||
         startsWith(github.event.comment.body, '@review-agent retry') ||

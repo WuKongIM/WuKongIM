@@ -21,6 +21,7 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 		"pull_request_target:",
 		"pull_request_review:",
 		"issue_comment:",
+		"startsWith(github.event.comment.body, '@review-agent review')",
 		"startsWith(github.event.comment.body, '@review-agent status')",
 		"startsWith(github.event.comment.body, '@review-agent explain')",
 		"startsWith(github.event.comment.body, '@review-agent reconsider')",
@@ -45,27 +46,6 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 	} {
 		require.NotContains(t, raw, forbidden)
 	}
-}
-
-func TestReviewAgentIssueSignalIsBoundedAndExplicit(t *testing.T) {
-	raw := readIssueAgentFile(
-		t,
-		".github/workflows/review-agent-issue-signal.yml",
-	)
-	var document any
-	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
-	for _, required := range []string{
-		"types: [edited, closed, reopened]",
-		"actions: write",
-		"pull-requests: read",
-		"for page in {1..10}",
-		"close(s|d)?|fix(es|ed)?|resolve(s|d)?",
-		"gh workflow run review-agent.yml",
-	} {
-		require.Contains(t, raw, required)
-	}
-	require.NotContains(t, raw, "schedule:")
-	require.NotContains(t, raw, "cron:")
 }
 
 func TestReviewAgentCodeownersCoversItsControlPlane(t *testing.T) {

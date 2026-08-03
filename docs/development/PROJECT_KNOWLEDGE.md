@@ -7,6 +7,11 @@
 - Review Agent invalidation is generation-bound. Fresh PR facts and signed
   scheduler state supersede stale workers; only the dedicated App-owned
   `Review Agent Verdict` may represent the current automated decision.
+- Review Agent model work starts only from an exact `@review-agent review`
+  comment whose author has fresh repository `admin` permission. Lifecycle,
+  Review, and manual Controller signals may cancel or repair existing work but
+  must never create a generation. Administrator manual merge authority remains
+  independent of Review Agent state.
 - Review Agent `workflow_run` identity must be authenticated by its stable
   workflow path; dynamic run names are not an authority boundary.
 - Review Agent role identity must be verified with the App JWT before minting

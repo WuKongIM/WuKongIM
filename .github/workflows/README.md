@@ -13,8 +13,7 @@ authorization and the applicable budget.
 
 | File | Display name | Purpose |
 | --- | --- | --- |
-| `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free PR/Review/comment wake-up hint |
-| `review-agent-issue-signal.yml` | `Safety Automation - Review Agent Issue Signal` | Wakes open PRs whose intent links to an edited, closed, or reopened Issue |
+| `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
 | `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Emits credential-free lifecycle and Review hints for Issue Agent PRs |
@@ -28,11 +27,11 @@ authorization and the applicable budget.
 
 ## Review Agent
 
-Every open, ready pull request targeting `main`, including a Fork pull
-request, enters the review-only Review Agent flow:
+Every pull request defaults to human handling. A model review starts only after
+a repository administrator posts the exact `@review-agent review` command:
 
 ```text
-PR/Review/comment event
+administrator @review-agent review
   -> zero-permission Signal
   -> protected-default-branch Controller
   -> fresh GitHub facts + signed PR state + signed scheduler
@@ -42,6 +41,10 @@ PR/Review/comment event
   -> exact-head auto-merge for a repository admin or organization member
      | otherwise wait for a human merge
 ```
+
+Other PR and Review events may close state, cancel stale work, or repair a
+projection, but cannot create a review generation. A new commit invalidates
+and cancels any old work; an administrator must explicitly review the new head.
 
 The Signal is a hint, not authority. It has no token permission, Secret,
 checkout, Artifact, cache, network command, or candidate execution. The
@@ -83,6 +86,8 @@ repository permission. It merges only when the author is an organization
 `MEMBER`/`OWNER` or currently has repository `admin` permission. Every other
 approved PR remains open and is marked as requiring a human merge. The merge
 request is fenced to the reviewed head SHA and still obeys repository rules.
+Repository administrators retain GitHub's manual merge authority for every PR
+whether or not Review Agent was invoked or produced a verdict.
 
 The signed lease bounds the complete generation to 90 minutes. Infrastructure
 failure is retried once inside that same generation and deadline; a late result
@@ -129,11 +134,10 @@ from pull request, signed lease, and infrastructure attempt is the idempotency
 key at both Controller and retry-drain boundaries, so concurrent recovery
 cannot start the same attempt twice.
 
-Automatic-review and interaction budgets are signed per head SHA. An
+Review-request and interaction budgets are signed per head SHA. An
 authorized reconsideration of the current head binds a new generation from
 fresh eligible facts even when the protected control revision, intent, base,
-or test-merge revision changed; it consumes reconsideration allowance instead
-of falling through to another automatic review.
+or test-merge revision changed; it consumes reconsideration allowance.
 
 Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
 infrastructure failure, not reasons to abort the state machine. The Evidence

@@ -6,9 +6,10 @@ adjudicator. The authoritative Workflow catalog lives in
 
 ## Pull-request flow
 
-An open, non-Draft pull request targeting `main` automatically produces one
-generation bound to its exact head SHA, base SHA, test-merge SHA, intent
-digest, and signed-state parent.
+An open, non-Draft pull request targeting `main` produces no Agent review by
+default. A repository administrator starts review by posting
+`@review-agent review`; the resulting generation binds the exact head SHA,
+base SHA, test-merge SHA, intent digest, and signed-state parent.
 
 The Review Agent:
 
@@ -33,9 +34,10 @@ administrator or organization member; every other author requires a human
 merge.
 
 Draft pull requests do not call the model. A new commit or intent change
-invalidates the old generation. The repository runs at most three model
-sessions, one per pull request, and at most one first-time external
-contributor session.
+invalidates the old generation and requires another administrator command:
+`review` for a new head or `reconsider` for changed same-head facts. The
+repository runs at most three model sessions, one per pull request, and at most
+one first-time external contributor session.
 
 There is no Review Agent Cron or periodic scan.
 
@@ -43,17 +45,17 @@ There is no Review Agent Cron or periodic scan.
 
 Commands must be one exact, unedited, single-line pull-request comment:
 
+- `@review-agent review`
 - `@review-agent status`
 - `@review-agent explain <question>`
 - `@review-agent reconsider <reason>`
 - `@review-agent retry`
 - `@review-agent cancel`
 
-Status is deterministic and does not call a model. Explain cannot change the
+Status is public, deterministic, and does not call a model. Every other command
+requires current repository `admin` permission. Explain cannot change the
 verdict. Reconsider is limited to two sessions per head. Infrastructure retry
-is limited to one. Retry and cancel require current write-capable repository
-permission; reconsider is available to the pull-request author or a
-write-capable maintainer.
+is limited to one.
 
 Ordinary comments, including Review Agent's own status comment, are observed
 no-ops.
