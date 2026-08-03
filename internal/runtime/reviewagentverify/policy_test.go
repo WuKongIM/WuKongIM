@@ -115,8 +115,16 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 			},
 		},
 		{
+			name: "root documentation stays on the exclusive fast path",
+			files: []contract.ChangedFile{
+				changed("README.md"),
+				changed("README_CN.md"),
+			},
+			want: []string{"docs-contracts"},
+		},
+		{
 			name:  "unclassified repository path gets safe default",
-			files: []contract.ChangedFile{changed("README.md")},
+			files: []contract.ChangedFile{changed("LICENSE")},
 			want:  []string{"go-unit", "go-vet"},
 		},
 	}
@@ -233,6 +241,7 @@ func testVerificationPolicy() verify.Policy {
 			},
 			{
 				Name:      "documentation-only",
+				Paths:     []string{"README.md", "README_CN.md"},
 				Prefixes:  []string{"docs/", "docs-site/"},
 				Suffixes:  []string{".md", ".mdx"},
 				Checks:    []string{"docs-contracts"},

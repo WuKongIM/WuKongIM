@@ -433,6 +433,10 @@
     },
     {
       "name": "documentation-only",
+      "paths": [
+        "README.md",
+        "README_CN.md"
+      ],
       "prefixes": [
         "docs/",
         "docs-site/"

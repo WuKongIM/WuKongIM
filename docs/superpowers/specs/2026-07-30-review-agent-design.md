@@ -331,7 +331,8 @@ existing requirements:
 - Manager Web changes receive lint, tests, type checking, build, and tracked
   bundle verification;
 - Chat Demo changes receive its tests, build, and tracked bundle verification;
-- documentation-only classification is exclusive and path-allowlisted;
+- documentation-only classification is exclusive and path-allowlisted to
+  `docs/`, `docs-site/`, `README.md`, and `README_CN.md`;
 - race, integration, E2E, and three-node-cluster checks are selected from
   actual risk, not a contributor label.
 
@@ -341,6 +342,12 @@ protected catalog, resolves the fixed command itself, and records the result
 outside the read-only model session. Only commands and outcomes captured by
 that trusted execution boundary count as formal evidence. Model-authored
 claims that a command ran or passed are advisory.
+
+Protected Review Agent binaries are compiled once per Worker from the exact
+control revision into one run-scoped Artifact. Each isolated consumer verifies
+the embedded control SHA and SHA-256 manifest, installs only its role's
+allowlisted tools, and removes the bundle. Candidate code and cross-run caches
+do not participate in this build boundary.
 
 ## Review Agent Session
 

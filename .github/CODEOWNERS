@@ -2,6 +2,7 @@
 /.github/CODEOWNERS @tangtaoit
 
 /.github/review-agent/ @tangtaoit
+/.github/actions/install-review-agent-tools/ @tangtaoit
 /.github/workflows/review-agent-pr-signal.yml @tangtaoit
 /.github/workflows/review-agent-issue-signal.yml @tangtaoit
 /.github/workflows/review-agent-run.yml @tangtaoit

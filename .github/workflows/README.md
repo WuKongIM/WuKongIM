@@ -56,6 +56,14 @@ code.
 - `review-agent-publisher` exposes only the Review Agent App key;
 - the isolated dispatcher has only `actions: write`.
 
+The Worker validates and checks out the exact protected control revision once,
+builds `wkreviewagent`, `wkreviewcheck`, and `wkreviewcheckmcp` in one job, and
+publishes one run-scoped Artifact. Every consuming job verifies the embedded
+control SHA and complete SHA-256 manifest, installs only its allowlisted
+binaries, and removes the downloaded bundle before continuing. Candidate code
+cannot build, replace, or upload this bundle, and no shared build cache crosses
+Worker runs.
+
 The model can review and invoke only protected named checks. It cannot edit the
 PR, commit, push, merge, resolve threads, dismiss Reviews, or publish its own
 verdict. A trusted validator maps signed state to the sole required Check
@@ -110,6 +118,11 @@ enters the pre-built private-network namespace before its disposable checkout
 and bubblewrap sandbox start.
 Failure to initialize the MCP stops the model session instead of silently
 removing the protected check tools.
+
+The exclusive documentation fast path covers `docs/`, `docs-site/`,
+`README.md`, and `README_CN.md`. It runs `docs-contracts` without falling
+through to repository-default Go checks; any mixed or non-allowlisted change
+still receives the union of its applicable checks.
 
 Worker dispatch is serialized per pull request. The exact run title derived
 from pull request, signed lease, and infrastructure attempt is the idempotency

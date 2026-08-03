@@ -130,6 +130,14 @@ rejects unrecorded claims, generation mismatches, incomplete coverage, failed
 mandatory checks, invalid findings, excessive output, and unexpected
 tracked-file mutation.
 
+The Worker compiles the three protected Review Agent binaries once from the
+exact control SHA into one run-scoped Artifact. Each isolated job verifies the
+embedded control SHA and SHA-256 manifest, installs only its role's allowlisted
+binaries, and deletes the downloaded bundle. No cross-run cache or candidate
+build participates in this trust boundary. Documentation-only changes under
+`docs/`, `docs-site/`, `README.md`, or `README_CN.md` exclusively select
+`docs-contracts`; mixed changes continue to select the full applicable union.
+
 The protected bounds admit at most 50 changed files, 1 MiB of captured change
 material, 30,000 complete-file lines, and a 2 MiB encoded Context. The encoded
 byte cap is only an ingestion bound; it is independent of the 240,000-token
