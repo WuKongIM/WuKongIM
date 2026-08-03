@@ -94,6 +94,11 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
   credential or inherited host environment, has no Docker socket, and loses
   `sudo` before execution. Candidate checks still use the private-network and
   Bubblewrap boundary, and tracked candidate-tree mutation fails validation.
+- One root-owned loopback Responses proxy is Codex's only model transport. It
+  clamps every request to the protected 32,768-token output ceiling and injects
+  the OpenRouter credential. The root-only credential handoff is deleted before
+  the listener is published, and runner-user Codex cannot replace the proxy or
+  reach an unclamped credential path.
 - The protected Check MCP is required at Codex startup; missing named-check
   tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
@@ -136,6 +141,8 @@ GOWORK=off go test ./internal/contracts/reviewagent \
 
 GOWORK=off go test -tags=integration \
   ./internal/runtime/reviewagentverify -count=1
+
+node --test .github/review-agent/responses-budget-proxy.test.mjs
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/review-agent-pr-signal.yml \
