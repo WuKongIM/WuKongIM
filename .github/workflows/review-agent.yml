@@ -54,6 +54,7 @@ jobs:
       scheduler_changed: ${{ steps.plan.outputs.scheduler_changed }}
       state_changed: ${{ steps.plan.outputs.state_changed }}
       state_head_sha: ${{ steps.plan.outputs.state_head_sha }}
+      tools_required: ${{ steps.plan.outputs.tools_required }}
     steps:
       - name: Verify Signal and extract hint
         id: signal
@@ -140,7 +141,7 @@ jobs:
           ref: ${{ steps.control.outputs.sha }}
           fetch-depth: 1
           persist-credentials: false
-      - name: Build protected Controller
+      - name: Build protected Controller once
         shell: bash
         run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
       - name: Reconcile from fresh facts
@@ -170,6 +171,16 @@ jobs:
             <"$RUNNER_TEMP/control-request.json" \
             >"$RUNNER_TEMP/control-plan.json"
           jq -e '.plan.action != null' "$RUNNER_TEMP/control-plan.json" >/dev/null
+          publish="$(jq -r '(.state_changed or
+            .plan.action == "repair_projection" or
+            .plan.action == "respond_status") and
+            (.next_state != null) and
+            (.next_state.phase != "awaiting_ready") and
+            (.next_state.phase != "closed")' \
+            "$RUNNER_TEMP/control-plan.json")"
+          tools_required="$(jq -r --argjson publish "$publish" \
+            '.state_changed or .scheduler_changed or $publish' \
+            "$RUNNER_TEMP/control-plan.json")"
           {
             echo "action=$(jq -r .plan.action "$RUNNER_TEMP/control-plan.json")"
             echo "cancel_run_id=$(jq -r .plan.cancel_run_id "$RUNNER_TEMP/control-plan.json")"
@@ -182,13 +193,34 @@ jobs:
             echo "scheduler_changed=$(jq -r .scheduler_changed "$RUNNER_TEMP/control-plan.json")"
             echo "state_changed=$(jq -r .state_changed "$RUNNER_TEMP/control-plan.json")"
             echo "state_head_sha=$(jq -r .state_head_sha "$RUNNER_TEMP/control-plan.json")"
-            echo "publish=$(jq -r '(.state_changed or
-              .plan.action == "repair_projection" or
-              .plan.action == "respond_status") and
-              (.next_state != null) and
-              (.next_state.phase != "awaiting_ready") and
-              (.next_state.phase != "closed")' "$RUNNER_TEMP/control-plan.json")"
+            echo "publish=$publish"
+            echo "tools_required=$tools_required"
           } >>"$GITHUB_OUTPUT"
+      - name: Package exact protected Controller tool
+        if: steps.plan.outputs.tools_required == 'true'
+        shell: bash
+        env:
+          CONTROL_SHA: ${{ steps.control.outputs.sha }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/review-agent-controller-tools"
+          mkdir -m 0700 "$bundle"
+          install -m 0555 "$RUNNER_TEMP/wkreviewagent" "$bundle/wkreviewagent"
+          printf '%s\n' "$CONTROL_SHA" >"$bundle/control-sha"
+          chmod 0444 "$bundle/control-sha"
+          (
+            cd "$bundle"
+            sha256sum control-sha wkreviewagent >SHA256SUMS
+          )
+          chmod 0444 "$bundle/SHA256SUMS"
+      - name: Upload exact protected Controller tool
+        if: steps.plan.outputs.tools_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-controller-tools-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-agent-controller-tools/
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload bounded control plan
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -202,7 +234,10 @@ jobs:
   state-writer:
     name: Append authoritative state
     needs: reconcile
-    if: needs.reconcile.result == 'success'
+    if: >-
+      needs.reconcile.result == 'success' &&
+      (needs.reconcile.outputs.state_changed == 'true' ||
+       needs.reconcile.outputs.scheduler_changed == 'true')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: review-agent-state-writer
@@ -228,13 +263,16 @@ jobs:
           ref: ${{ needs.reconcile.outputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-control-${{ github.run_id }}
           path: ${{ runner.temp }}/review-agent-control
-      - name: Build protected State Writer
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-controller-tools-${{ github.run_id }}
+          control-sha: ${{ needs.reconcile.outputs.control_sha }}
+          bundle-tools: wkreviewagent
+          tools: wkreviewagent
       - name: Append exact scheduler and PR state
         id: append
         shell: bash
@@ -348,8 +386,12 @@ jobs:
     needs: [reconcile, state-writer]
     if: >-
       always() && needs.reconcile.result == 'success' &&
-      needs.state-writer.result == 'success' &&
-      needs.state-writer.outputs.publish == 'true'
+      (needs.state-writer.result == 'success' ||
+       needs.state-writer.result == 'skipped') &&
+      ((needs.state-writer.result == 'success' &&
+        needs.state-writer.outputs.publish == 'true') ||
+       (needs.state-writer.result == 'skipped' &&
+        needs.reconcile.outputs.publish == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: review-agent-publisher
@@ -365,13 +407,24 @@ jobs:
           ref: ${{ needs.reconcile.outputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - name: Download post-write authoritative plan
+        if: needs.state-writer.result == 'success'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-authoritative-control-${{ github.run_id }}
           path: ${{ runner.temp }}/review-agent-control
-      - name: Build protected Review Publisher
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Download unchanged authoritative plan
+        if: needs.state-writer.result == 'skipped'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: review-agent-control-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-agent-control
+      - uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-controller-tools-${{ github.run_id }}
+          control-sha: ${{ needs.reconcile.outputs.control_sha }}
+          bundle-tools: wkreviewagent
+          tools: wkreviewagent
       - name: Publish status without candidate execution
         shell: bash
         env:
@@ -397,14 +450,20 @@ jobs:
     needs: [reconcile, state-writer, status-publisher]
     if: >-
       always() && needs.reconcile.result == 'success' &&
-      needs.state-writer.result == 'success' &&
+      (needs.state-writer.result == 'success' ||
+       needs.state-writer.result == 'skipped') &&
       (needs.status-publisher.result == 'success' ||
        needs.status-publisher.result == 'skipped') &&
-      (needs.state-writer.outputs.dispatch == 'true' ||
-       needs.state-writer.outputs.cancel_run_id != '0' ||
-       needs.state-writer.outputs.next_pull_request != '0')
+      ((needs.state-writer.result == 'success' &&
+        (needs.state-writer.outputs.dispatch == 'true' ||
+         needs.state-writer.outputs.cancel_run_id != '0' ||
+         needs.state-writer.outputs.next_pull_request != '0')) ||
+       (needs.state-writer.result == 'skipped' &&
+        (needs.reconcile.outputs.dispatch == 'true' ||
+         needs.reconcile.outputs.cancel_run_id != '0' ||
+         needs.reconcile.outputs.next_pull_request != '0')))
     concurrency:
-      group: review-agent-dispatch-${{ needs.state-writer.outputs.pull_request }}
+      group: review-agent-dispatch-${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.pull_request || needs.reconcile.outputs.pull_request }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -415,14 +474,14 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CANCEL_LEASE_RUN_ID: ${{ needs.state-writer.outputs.cancel_run_id }}
+          CANCEL_LEASE_RUN_ID: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.cancel_run_id || needs.reconcile.outputs.cancel_run_id }}
           CONTROL_SHA: ${{ needs.reconcile.outputs.control_sha }}
-          DISPATCH: ${{ needs.state-writer.outputs.dispatch }}
-          LEASE_RUN_ID: ${{ needs.state-writer.outputs.lease_run_id }}
-          INFRASTRUCTURE_ATTEMPT: ${{ needs.state-writer.outputs.infrastructure_attempt }}
-          NEXT_PR: ${{ needs.state-writer.outputs.next_pull_request }}
-          OPERATION: ${{ needs.state-writer.outputs.operation }}
-          PR_NUMBER: ${{ needs.state-writer.outputs.pull_request }}
+          DISPATCH: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.dispatch || needs.reconcile.outputs.dispatch }}
+          LEASE_RUN_ID: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.lease_run_id || needs.reconcile.outputs.lease_run_id }}
+          INFRASTRUCTURE_ATTEMPT: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.infrastructure_attempt || needs.reconcile.outputs.infrastructure_attempt }}
+          NEXT_PR: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.next_pull_request || needs.reconcile.outputs.next_pull_request }}
+          OPERATION: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.operation || needs.reconcile.outputs.operation }}
+          PR_NUMBER: ${{ needs.state-writer.result == 'success' && needs.state-writer.outputs.pull_request || needs.reconcile.outputs.pull_request }}
           WRITTEN_STATE_HEAD: ${{ needs.state-writer.outputs.state_head_sha }}
           EXISTING_STATE_HEAD: ${{ needs.reconcile.outputs.state_head_sha }}
         run: |

@@ -55,6 +55,10 @@
   Artifact. Consumers install a role-specific allowlist and never share a
   cross-run build cache. Root `README.md` and `README_CN.md` join `docs/` and
   `docs-site/` on the exclusive `docs-contracts` path.
+- Review Agent Controller runs also compile their protected binary once. A
+  true no-op never enters the credentialed State Writer or Publisher and never
+  dispatches; mutation and projection paths reuse the exact run-scoped,
+  control-SHA-bound binary Artifact.
 - Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
 - Saving backup repository configuration is a durable Controller operation and never proves connectivity. Only the exact saved plan revision that completes the repository and all-active-data-node probe is verified and eligible for backup admission. A nil verification record is legacy verified state until the effective repository changes.
 - Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository`, Alibaba OSS, Tencent COS, or a generic S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and object-storage credentials are encrypted in Controller state while archive payloads are not encrypted.

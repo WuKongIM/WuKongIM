@@ -60,6 +60,12 @@ is limited to one.
 Ordinary comments, including Review Agent's own status comment, are observed
 no-ops.
 
+Controller no-ops stop after the fresh-fact plan is recorded. They do not enter
+the credentialed State Writer or Publisher Environments and do not start the
+Dispatcher. Non-no-op Controller jobs reuse one exact-control,
+manifest-verified binary built by reconciliation rather than compiling it once
+per authority boundary.
+
 ## Trusted checks
 
 `.github/review-agent/policy.json` maps complete path inventory to mandatory

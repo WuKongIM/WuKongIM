@@ -133,7 +133,9 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.Contains(
 		t,
 		dispatch,
-		"group: review-agent-dispatch-${{ needs.state-writer.outputs.pull_request }}",
+		"group: review-agent-dispatch-${{ needs.state-writer.result == 'success' && "+
+			"needs.state-writer.outputs.pull_request || "+
+			"needs.reconcile.outputs.pull_request }}",
 	)
 	require.Contains(t, dispatch, "cancel-in-progress: false")
 	require.Contains(t, dispatch, "gh workflow run review-agent-run.yml")
@@ -163,6 +165,44 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.Contains(t, recovery, "recovery_attempt=$((attempt + 1))")
 	require.NotContains(t, recovery, "actions/checkout")
 	require.NotContains(t, recovery, "APP_PRIVATE_KEY")
+}
+
+func TestReviewAgentControllerWorkflowHasNoOpFastPath(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/review-agent.yml")
+	reconcile := issueAgentJobText(t, raw, "reconcile")
+	writer := issueAgentJobText(t, raw, "state-writer")
+	publisher := issueAgentJobText(t, raw, "status-publisher")
+	dispatch := issueAgentJobText(t, raw, "dispatch")
+
+	require.Equal(
+		t,
+		1,
+		strings.Count(raw, "GOWORK=off go build"),
+		"the protected Controller binary must be built once per run",
+	)
+	require.Contains(t, reconcile, "review-agent-controller-tools-${{ github.run_id }}")
+	require.Contains(t, reconcile, "steps.plan.outputs.tools_required == 'true'")
+	for _, consumer := range []string{writer, publisher} {
+		require.NotContains(t, consumer, "go build")
+		require.Contains(
+			t,
+			consumer,
+			"uses: ./.github/actions/install-review-agent-tools",
+		)
+		require.Contains(t, consumer, "bundle-tools: wkreviewagent")
+		require.Contains(t, consumer, "tools: wkreviewagent")
+	}
+	require.Contains(
+		t,
+		writer,
+		"needs.reconcile.outputs.state_changed == 'true' ||\n"+
+			"       needs.reconcile.outputs.scheduler_changed == 'true'",
+		"a true no-op must not enter the credentialed State Writer job",
+	)
+	require.Contains(t, publisher, "needs.state-writer.result == 'skipped'")
+	require.Contains(t, publisher, "needs.reconcile.outputs.publish == 'true'")
+	require.Contains(t, dispatch, "needs.state-writer.result == 'skipped'")
+	require.Contains(t, dispatch, "needs.reconcile.outputs.dispatch == 'true'")
 }
 
 func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
@@ -219,12 +259,15 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(
 		t,
 		installer,
-		"actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53",
+		"actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
 	)
 	for _, required := range []string{
 		"sha256sum --check SHA256SUMS",
 		`test "$(cat "$bundle/control-sha")" = "$INPUT_CONTROL_SHA"`,
-		"expected_files=(control-sha wkreviewagent wkreviewcheck wkreviewcheckmcp)",
+		`INPUT_BUNDLE_TOOLS: ${{ inputs.bundle-tools }}`,
+		"expected_files=(control-sha)",
+		`if [[ -n "${bundled_tools[$tool]:-}" ]]`,
+		"protected Review Agent tool is absent from bundle inventory",
 		`test ! -L "$bundle/SHA256SUMS"`,
 		"wkreviewagent|wkreviewcheck|wkreviewcheckmcp",
 		`rm -rf "$bundle"`,
