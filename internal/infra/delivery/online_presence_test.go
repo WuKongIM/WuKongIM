@@ -22,7 +22,7 @@ func TestPresenceResolverPreservesExactTargetsAndAlignedResults(t *testing.T) {
 		HashSlot: 2, SlotID: 22, LeaderNodeID: 20, LeaderTerm: 202,
 		ConfigEpoch: 2002, RouteRevision: 200, AuthorityEpoch: 2000,
 	}
-	fake := &targetedPresenceAuthorityForChannelAppendTest{
+	fake := &targetedPresenceAuthorityForOnlineDeliveryTest{
 		results: []presenceusecase.EndpointLookupResult{{
 			Routes: []presenceusecase.Route{{
 				UID: "u1", OwnerNodeID: 3, OwnerBootID: 4, OwnerSeq: 5,
@@ -57,6 +57,40 @@ func TestPresenceResolverPreservesExactTargetsAndAlignedResults(t *testing.T) {
 	if fake.legacyCalls != 0 {
 		t.Fatalf("legacy endpoint calls = %d, want 0", fake.legacyCalls)
 	}
+}
+
+type targetedPresenceAuthorityForOnlineDeliveryTest struct {
+	groups      []presenceusecase.EndpointLookupGroup
+	results     []presenceusecase.EndpointLookupResult
+	legacyCalls int
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) RegisterRoute(context.Context, presenceusecase.Route) (presenceusecase.RegisterResult, error) {
+	return presenceusecase.RegisterResult{}, nil
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) CommitRoute(context.Context, presenceusecase.PendingRouteToken) error {
+	return nil
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) AbortRoute(context.Context, presenceusecase.PendingRouteToken) error {
+	return nil
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) EnqueueUnregister(context.Context, presenceusecase.RouteIdentity, uint64) {
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) EndpointsByUID(context.Context, string) ([]presenceusecase.Route, error) {
+	a.legacyCalls++
+	return nil, nil
+}
+
+func (a *targetedPresenceAuthorityForOnlineDeliveryTest) EndpointsByTargets(_ context.Context, groups []presenceusecase.EndpointLookupGroup) []presenceusecase.EndpointLookupResult {
+	a.groups = make([]presenceusecase.EndpointLookupGroup, len(groups))
+	for i, group := range groups {
+		a.groups[i] = presenceusecase.EndpointLookupGroup{Target: group.Target, UIDs: append([]string(nil), group.UIDs...)}
+	}
+	return append([]presenceusecase.EndpointLookupResult(nil), a.results...)
 }
 
 func TestPresenceResolverReportsUnavailableDependencyPerTarget(t *testing.T) {

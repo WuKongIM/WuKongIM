@@ -10,15 +10,12 @@ import (
 )
 
 func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T) {
-	root := repoRoot(t)
-	revisionCommand := exec.Command("git", "rev-parse", "HEAD")
-	revisionCommand.Dir = root
-	revisionOutput, err := revisionCommand.Output()
-	if err != nil {
-		t.Fatalf("resolve worktree revision: %v", err)
-	}
-	revision := strings.TrimSpace(string(revisionOutput))
+	sourceRoot := repoRoot(t)
+	root, revision := nestedBuildWorktree(t, sourceRoot)
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	// Keep this assertion independent from link artifacts produced by earlier
+	// repository checks so it always exercises this checkout's VCS context.
+	buildCache := t.TempDir()
 
 	dryRunCommand := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
@@ -45,7 +42,8 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 	build := exec.Command("bash", "-c", buildCommand)
 	build.Dir = root
 	build.Env = append(
-		envWithout("GOWORK"),
+		envWithout("GOCACHE", "GOWORK"),
+		"GOCACHE="+buildCache,
 		"GOWORK="+filepath.Join(t.TempDir(), "missing-go.work"),
 	)
 	buildOutput, err := build.CombinedOutput()
@@ -62,4 +60,38 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 	if !strings.Contains(string(versionOutput), want) {
 		t.Fatalf("binary metadata missing %q:\n%s", want, versionOutput)
 	}
+}
+
+// nestedBuildWorktree creates a controlled linked-worktree topology whose
+// primary checkout intentionally points at an unrelated synthetic commit. Go 1.25
+// does not recognize a linked worktree's .git file as a VCS root, so placing
+// the selected worktree below an ordinary repository root makes the launcher
+// binding observable without depending on the outer test executor's layout.
+// See https://go.dev/issue/58218.
+func nestedBuildWorktree(t *testing.T, sourceRoot string) (string, string) {
+	t.Helper()
+	fixtureRoot := filepath.Join(t.TempDir(), "repo")
+	runGit(t, sourceRoot, "init", "--quiet", fixtureRoot)
+	runGit(t, fixtureRoot,
+		"-c", "user.name=WuKongIM Test",
+		"-c", "user.email=test@wukongim.invalid",
+		"commit", "--quiet", "--allow-empty", "-m", "primary fixture",
+	)
+	runGit(t, fixtureRoot, "fetch", "--quiet", "--update-shallow", "--no-tags", sourceRoot, "HEAD")
+
+	selectedRoot := filepath.Join(fixtureRoot, ".worktrees", "selected")
+	runGit(t, fixtureRoot, "worktree", "add", "--quiet", "--detach", selectedRoot, "FETCH_HEAD")
+	revision := strings.TrimSpace(runGit(t, selectedRoot, "rev-parse", "HEAD"))
+	return selectedRoot, revision
+}
+
+func runGit(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", args...)
+	command.Dir = dir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, output)
+	}
+	return string(output)
 }

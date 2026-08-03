@@ -1,0 +1,85 @@
+name: Install protected Review Agent tools
+description: Verify and install exact-control Review Agent binaries from one immutable run artifact
+
+inputs:
+  artifact-name:
+    description: Exact run-scoped protected tool artifact name
+    required: true
+  control-sha:
+    description: Exact protected control revision embedded in the artifact
+    required: true
+  bundle-tools:
+    description: Space-separated exact binary inventory recorded by the artifact
+    required: false
+    default: wkreviewagent wkreviewcheck wkreviewcheckmcp
+  tools:
+    description: Space-separated allowlisted binaries required by this job
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ runner.temp }}/review-agent-tools
+    - name: Verify and install exact protected binaries
+      shell: bash
+      env:
+        INPUT_BUNDLE_TOOLS: ${{ inputs.bundle-tools }}
+        INPUT_CONTROL_SHA: ${{ inputs.control-sha }}
+        INPUT_TOOLS: ${{ inputs.tools }}
+      run: |
+        set -euo pipefail
+        bundle="$RUNNER_TEMP/review-agent-tools"
+        [[ "$INPUT_CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+        test -f "$bundle/control-sha"
+        test ! -L "$bundle/control-sha"
+        test -f "$bundle/SHA256SUMS"
+        test ! -L "$bundle/SHA256SUMS"
+        test "$(cat "$bundle/control-sha")" = "$INPUT_CONTROL_SHA"
+        mapfile -t manifest_files < <(awk '{print $2}' "$bundle/SHA256SUMS")
+        read -ra bundle_tools <<<"$INPUT_BUNDLE_TOOLS"
+        (( ${#bundle_tools[@]} >= 1 ))
+        expected_files=(control-sha)
+        declare -A bundled_tools=()
+        for tool in "${bundle_tools[@]}"; do
+          case "$tool" in
+            wkreviewagent|wkreviewcheck|wkreviewcheckmcp) ;;
+            *)
+              echo "unknown protected Review Agent bundle tool: $tool" >&2
+              exit 1
+              ;;
+          esac
+          if [[ -n "${bundled_tools[$tool]:-}" ]]; then
+            echo "duplicate protected Review Agent bundle tool: $tool" >&2
+            exit 1
+          fi
+          bundled_tools[$tool]=1
+          expected_files+=("$tool")
+        done
+        test "${#manifest_files[@]}" -eq "${#expected_files[@]}"
+        for index in "${!expected_files[@]}"; do
+          test "${manifest_files[$index]}" = "${expected_files[$index]}"
+        done
+        (
+          cd "$bundle"
+          sha256sum --check SHA256SUMS
+        )
+        for tool in $INPUT_TOOLS; do
+          case "$tool" in
+            wkreviewagent|wkreviewcheck|wkreviewcheckmcp) ;;
+            *)
+              echo "unknown protected Review Agent tool: $tool" >&2
+              exit 1
+              ;;
+          esac
+          if [[ -z "${bundled_tools[$tool]:-}" ]]; then
+            echo "protected Review Agent tool is absent from bundle inventory: $tool" >&2
+            exit 1
+          fi
+          test -f "$bundle/$tool"
+          test ! -L "$bundle/$tool"
+          install -m 0555 "$bundle/$tool" "$RUNNER_TEMP/$tool"
+        done
+        rm -rf "$bundle"

@@ -13,8 +13,9 @@ but difficult for contributors to understand.
 WuKongIM instead needs a senior reviewer embedded in each pull request. That
 reviewer should understand the requested behavior and repository rules,
 inspect the complete change, run the mandatory and risk-selected checks,
-participate in review discussion, and publish one authoritative verdict. It
-must not modify the pull request or merge it.
+participate in review discussion, and publish one authoritative verdict. The
+model must not modify or merge the pull request. A protected Publisher may
+merge only an exact-head approved PR from an administrator or member.
 
 ## Goals
 
@@ -28,8 +29,8 @@ must not modify the pull request or merge it.
   Review Agent from the exact pull-request risk.
 - Bind every decision to the exact pull request, head SHA, base SHA,
   test-merge SHA, intent digest, and review generation.
-- Preserve human authority: the Review Agent decides technical eligibility,
-  but never modifies code or performs the merge.
+- Preserve human authority: the model never modifies code or performs a merge;
+  external-author PRs always require a human merge.
 - Keep candidate execution, model execution, durable state writes, and
   GitHub Review/Check writes in separate credential boundaries.
 - Fail closed on stale work, incomplete diffs, missing evidence, infrastructure
@@ -41,7 +42,8 @@ must not modify the pull request or merge it.
 
 - Editing, committing, pushing, rebasing, or otherwise repairing pull-request
   code.
-- Automatically merging any pull request.
+- Automatically merging PRs from contributors who are neither repository
+  administrators nor organization members.
 - Reviewing Draft pull requests or pull requests targeting unprotected
   branches.
 - Running a persistent webhook service, database, or scheduler outside GitHub
@@ -79,7 +81,7 @@ must not modify the pull request or merge it.
 ## Selected Architecture
 
 ```text
-pull_request_target / Review / comment event
+administrator @review-agent review comment
   -> zero-permission Review Agent Signal
   -> protected-default-branch workflow_run Controller
   -> fresh GitHub facts + signed PR state + signed scheduler state
@@ -94,11 +96,16 @@ pull_request_target / Review / comment event
   -> Evidence Validator: real commands/results, coverage, workspace integrity
   -> Review State Writer App: append signed authoritative state
   -> Review Agent App: repair or publish status comment, Review, and Check
+  -> exact-head merge for authorized admin/member authors, otherwise human merge
   -> optional second state append recording exact projection identities
 ```
 
 The design uses GitHub Actions and two dedicated GitHub Apps. It introduces no
 always-on external service.
+
+Repository administrators retain manual merge authority for every pull
+request, independently of whether Review Agent was invoked or produced a
+successful verdict.
 
 ### Proposed repository layout
 
@@ -110,7 +117,6 @@ always-on external service.
   prompts/review.md
 .github/workflows/
   review-agent-pr-signal.yml
-  review-agent-issue-signal.yml
   review-agent.yml
   review-agent-run.yml
 cmd/wkreviewagent/
@@ -170,9 +176,11 @@ The lifecycle event set covers:
 - `opened`, `edited`, `synchronize`, `reopened`, and `closed`;
 - `converted_to_draft` and `ready_for_review`;
 - Review `submitted`, `edited`, and `dismissed`;
-- a newly created top-level pull-request command comment; and
-- an explicitly linked Issue's `edited`, `closed`, and `reopened` events,
-  resolved by the separate bounded `review-agent-issue-signal.yml`.
+- a newly created top-level pull-request command comment.
+
+Lifecycle and Review signals may cancel stale work or repair an existing
+projection. They cannot create a generation. Only an exact administrator
+`@review-agent review` command may start model work for the current head.
 
 No scheduled Workflow or Cron inventory exists. If an event is missed, the
 pull request remains blocked until another relevant event or an authorized
@@ -180,7 +188,8 @@ pull request remains blocked until another relevant event or an authorized
 
 ### Eligibility
 
-The Controller starts model work only when all of these are true:
+The Controller starts model work only when an administrator requested review
+and all of these are true:
 
 - the pull request is open;
 - it is not a Draft;
@@ -328,7 +337,8 @@ existing requirements:
 - Manager Web changes receive lint, tests, type checking, build, and tracked
   bundle verification;
 - Chat Demo changes receive its tests, build, and tracked bundle verification;
-- documentation-only classification is exclusive and path-allowlisted;
+- documentation-only classification is exclusive and path-allowlisted to
+  `docs/`, `docs-site/`, `README.md`, and `README_CN.md`;
 - race, integration, E2E, and three-node-cluster checks are selected from
   actual risk, not a contributor label.
 
@@ -339,11 +349,17 @@ outside the read-only model session. Only commands and outcomes captured by
 that trusted execution boundary count as formal evidence. Model-authored
 claims that a command ran or passed are advisory.
 
+Protected Review Agent binaries are compiled once per Worker from the exact
+control revision into one run-scoped Artifact. Each isolated consumer verifies
+the embedded control SHA and SHA-256 manifest, installs only its role's
+allowlisted tools, and removes the bundle. Candidate code and cross-run caches
+do not participate in this build boundary.
+
 ## Review Agent Session
 
 Each generation uses one ephemeral Codex session:
 
-- initial model: `moonshotai/kimi-k3`;
+- initial model: `deepseek/deepseek-v4-flash`;
 - reasoning effort: `high`;
 - official Codex Action and CLI pinned to reviewed immutable versions;
 - no inherited Issue Agent or previous Review Agent hidden context;
@@ -354,8 +370,11 @@ Each generation uses one ephemeral Codex session:
 - no Docker socket and no `sudo`;
 - complete public-internet egress, while RFC1918, link-local, cloud metadata,
   runner-host, and organization-private targets remain blocked by the model
-  profile; the pinned Action proxy is the sole transport loopback exception,
-  while candidate checks receive only namespace-local loopback;
+  profile; one root-owned Responses proxy is the sole model-transport loopback
+  exception, clamps `max_output_tokens` to 32,768, injects the OpenRouter
+  credential after deleting its root-only handoff file, and exposes no
+  unclamped transport path to runner-user Codex; candidate checks receive only
+  namespace-local loopback;
 - bounded wall time, CPU, memory, process count, connection count, and network
   volume.
 
@@ -430,6 +449,12 @@ The dedicated Review Agent App publishes:
 - at most 20 inline comments per generation;
 - one generation-bound `Review Agent Verdict` Check Run.
 
+For an approved generation, the Publisher may additionally perform one normal
+merge fenced to the reviewed head SHA. It does so only after a fresh read proves
+the author is an organization `MEMBER`/`OWNER` or has repository `admin`
+permission, the PR is cleanly mergeable, and no human `REQUEST_CHANGES` Review
+remains. Every other approved PR stays open for a human merge.
+
 The status comment shows queue/review/evidence state, exact generation,
 head SHA, elapsed time, reconsideration budget, and trusted links. It is not a
 merge authority. Repeated findings are grouped under one representative inline
@@ -451,11 +476,11 @@ and are not stored in signed state.
 The accepted command surface is intentionally small:
 
 - anyone: `@review-agent status`;
-- anyone: `@review-agent explain <question>`;
-- pull-request author or actor with current `write`, `maintain`, or `admin`:
-  `@review-agent reconsider <reason>`;
-- actor with current `write`, `maintain`, or `admin`:
-  `@review-agent retry` and `@review-agent cancel`.
+- current repository administrator: `@review-agent review`;
+- current repository administrator: `@review-agent explain <question>`;
+- current repository administrator: `@review-agent reconsider <reason>`;
+- current repository administrator: `@review-agent retry` and
+  `@review-agent cancel`.
 
 Commands in quoted text, code blocks, edited history, model output, or ordinary
 prose grant no authority. Permission is re-read when the command is consumed.
@@ -473,13 +498,18 @@ projection repair cannot lose an accepted answer. The
 protected policy sets a finite explanation-session budget per head so public
 comments cannot create unbounded model cost.
 
-Each head SHA receives one automatic review and at most two explicit
-reconsiderations. A reconsideration reads the relevant discussion and may
-withdraw a prior finding only by explaining why it no longer applies. New
-commits create new generations and do not consume reconsideration allowance.
-The automatic count is signed per-head state. Intent-only edits after the
-automatic attempt fail closed as `inconclusive` until a new head or an
-authorized reconsideration; they cannot create unbounded model sessions.
+Each head SHA receives at most one administrator-requested initial review and
+at most two explicit reconsiderations. A reconsideration reads the relevant
+discussion and may withdraw a prior finding only by explaining why it no longer
+applies. New commits cancel old work and wait for another administrator review
+command.
+The initial-review count is signed per-head state. Intent-only edits after the
+initial attempt wait for another administrator command; they cannot create
+unbounded model sessions. An
+authorized reconsideration for the current head remains valid when protected
+control, intent, base, or test-merge facts changed: the Controller must bind a
+new generation from fresh eligible facts and consume the existing head's
+reconsideration allowance rather than starting an unrequested review.
 
 Runner, provider, dependency-download, or public-network infrastructure
 failure may retry once inside the same attempt before publishing
@@ -513,10 +543,11 @@ Two independent GitHub Apps are required.
 
 ### Review Agent App
 
-The Review Agent App may read metadata and pull-request facts and write only
-the Review, comments, and Check surfaces required for projections. It has no
-Contents permission, branch creation, commit, merge, Ruleset administration,
-Actions administration, or Secrets permission.
+The Review Agent App may read metadata and pull-request facts and write the
+Review, comments, Check, and exact-head merge surfaces. GitHub requires
+`contents:write` for the merge endpoint; the protected adapter exposes no
+generic contents, branch, or commit write. The App has no Ruleset, Actions
+administration, or Secrets permission.
 
 Its private key is available only in the protected Review Publisher
 Environment. The Publisher never checks out or executes candidate code.
@@ -563,7 +594,7 @@ Initial hard budgets are:
 - at most three active Review Agent sessions repository-wide;
 - at most one active first-time external-author session;
 - 90 minutes wall-clock per complete generation;
-- one automatic initial review per head;
+- one administrator-requested initial review per head;
 - at most two explicit reconsiderations per head;
 - one automatic infrastructure retry per signed review generation.
 
@@ -659,10 +690,11 @@ prove the complete path.
 
 ### State and event matrix
 
-- opened, Draft, ready, edited intent, synchronize, reopened, closed;
+- opened, Draft, ready, edited intent, synchronize, reopened, and closed
+  signals never start a review;
 - same-repository and first-time Fork pull requests;
 - Review submitted, edited, dismissed;
-- newly created top-level command comments and linked-Issue changes;
+- newly created top-level command comments;
 - duplicate, reordered, and missing hints;
 - stale worker completion and new-generation cancellation;
 - exact same-head reconsideration limits;
@@ -693,7 +725,8 @@ prove the complete path.
 - `sudo` and Docker socket access are absent;
 - Publisher jobs never download or execute candidate trees;
 - State Writer is rejected from every non-`review-state/**` ref by Rulesets;
-- Review Agent App cannot create commits, branches, or merges;
+- Review Agent adapter cannot create commits or branches and can merge only an
+  exact approved head from an authorized administrator/member author;
 - malicious instructions in code, comments, tests, and network responses
   cannot change authority or policy.
 
@@ -702,8 +735,8 @@ prove the complete path.
 Before branch protection changes:
 
 - one same-repository pull request must prove the full approved path;
-- one Fork pull request must prove automatic wake-up, credential isolation,
-  exact generation binding, and approved projection;
+- one Fork pull request must prove administrator-command wake-up, credential
+  isolation, exact generation binding, and approved projection;
 - seeded failing and infrastructure-failure fixtures must prove
   `changes_required` and `inconclusive`;
 - a stale generation must fail to publish after a new commit;
@@ -711,8 +744,8 @@ Before branch protection changes:
 
 ## Acceptance Criteria
 
-1. Every eligible non-Draft `main` pull request, including a first-time Fork,
-   starts automatically from a zero-permission event hint.
+1. No pull request, including a first-time Fork, starts Review Agent model work
+   until a current repository administrator posts `@review-agent review`.
 2. No candidate-controlled Workflow, file, comment, or network response can
    grant authority, change policy, or reach a Publisher credential.
 3. One complete generation reviews the full changed-file risk inventory and
@@ -731,8 +764,8 @@ Before branch protection changes:
 10. All existing Agent PR validation Workflows, scripts, labels, plan comments,
     documentation, and branch-protection requirements are removed rather than
     adapted.
-11. Open pull requests receive fresh state and new Review Agent decisions
-    before the required-check switch.
+11. Open pull requests remain untouched until an administrator requests a
+    fresh Review Agent decision.
 12. Static contracts, event/state tests, security integration, same-repository
     bootstrap, and Fork bootstrap all pass before direct replacement.
 

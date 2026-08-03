@@ -24,11 +24,9 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	accessmanager "github.com/WuKongIM/WuKongIM/internal/access/manager"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
@@ -3245,9 +3243,6 @@ func TestConfigureObservabilityWiresTopObserversWhenMetricsDisabled(t *testing.T
 	if clusterCfg.Transport.Observer == nil {
 		t.Fatal("transport top observer was not wired")
 	}
-	if app.deliveryObserver() == nil {
-		t.Fatal("delivery top observer was not wired")
-	}
 }
 
 func TestConfigureObservabilitySamplesResourcesForMetricsWithoutTopProvider(t *testing.T) {
@@ -4401,112 +4396,6 @@ func TestConversationAuthorityRouteLifecyclePeriodicReconcileRepairsDroppedAutho
 	})
 }
 
-func TestDeliveryWorkerGroupStopKeepsDependenciesRunningWhenDrainFails(t *testing.T) {
-	retry := &recordingWorkerRuntime{}
-	manager := &recordingWorkerRuntime{stopErr: context.DeadlineExceeded}
-	group := deliveryWorkerGroup{retry, manager}
-
-	err := group.Stop(context.Background())
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Stop() error = %v, want deadline exceeded", err)
-	}
-	if manager.stopCount != 1 {
-		t.Fatalf("manager stop count = %d, want 1", manager.stopCount)
-	}
-	if retry.stopCount != 0 {
-		t.Fatalf("retry stop count = %d, want dependency kept running", retry.stopCount)
-	}
-}
-
-func TestAppSubscriberPlannerReturnsPersonChannelUIDs(t *testing.T) {
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-	page, err := appSubscriberPlanner{}.NextPartitionPage(context.Background(), runtimedelivery.FanoutTask{
-		Envelope: runtimedelivery.Envelope{ChannelID: channelID, ChannelType: frame.ChannelTypePerson},
-	}, "", 512)
-	if err != nil {
-		t.Fatalf("NextPartitionPage() error = %v", err)
-	}
-	if !page.Done {
-		t.Fatalf("Done = false, want true")
-	}
-	if len(page.UIDs) != 2 || page.UIDs[0] == page.UIDs[1] {
-		t.Fatalf("UIDs = %#v, want two distinct participants", page.UIDs)
-	}
-	want := map[string]bool{"u1": true, "u2": true}
-	for _, uid := range page.UIDs {
-		if !want[uid] {
-			t.Fatalf("unexpected UID %q in %#v", uid, page.UIDs)
-		}
-	}
-}
-
-func TestDeliveryRuntimeAdapterScopesPersonChannelAcrossPartitions(t *testing.T) {
-	runner := &appRecordingFanoutRunner{}
-	manager := runtimedelivery.NewManager(runtimedelivery.ManagerOptions{
-		Planner: runtimedelivery.NewPlanner(runtimedelivery.PlannerOptions{
-			Partitioner: appStaticDeliveryPartitioner{
-				partitions: []runtimedelivery.Partition{
-					{ID: 1, LeaderNodeID: 1},
-					{ID: 2, LeaderNodeID: 2},
-					{ID: 3, LeaderNodeID: 3},
-				},
-			},
-		}),
-		Runner: runner,
-	})
-	if err := manager.Start(context.Background()); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	defer func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		if err := manager.Stop(stopCtx); err != nil {
-			t.Fatalf("Stop() error = %v", err)
-		}
-	}()
-	channelID := runtimechannelid.EncodePersonChannel("u1", "u2")
-
-	err := deliveryRuntimeAdapter{manager: manager}.SubmitCommitted(context.Background(), messageevents.MessageCommitted{
-		MessageID:   1,
-		MessageSeq:  1,
-		ChannelID:   channelID,
-		ChannelType: frame.ChannelTypePerson,
-		FromUID:     "u1",
-	})
-	if err != nil {
-		t.Fatalf("SubmitCommitted() error = %v", err)
-	}
-	tasks := waitAppFanoutTasks(t, runner, 1, time.Second)
-	if len(tasks) != 1 {
-		t.Fatalf("fanout tasks = %d, want 1 scoped person task", len(tasks))
-	}
-	got := tasks[0].Envelope.MessageScopedUIDs
-	if len(got) != 2 {
-		t.Fatalf("MessageScopedUIDs = %#v, want two participants", got)
-	}
-	want := map[string]bool{"u1": true, "u2": true}
-	for _, uid := range got {
-		if !want[uid] {
-			t.Fatalf("unexpected scoped UID %q in %#v", uid, got)
-		}
-	}
-}
-
-func waitAppFanoutTasks(t *testing.T, runner *appRecordingFanoutRunner, want int, timeout time.Duration) []runtimedelivery.FanoutTask {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var tasks []runtimedelivery.FanoutTask
-	for time.Now().Before(deadline) {
-		tasks = runner.snapshot()
-		if len(tasks) == want {
-			return tasks
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("fanout tasks = %d, want %d", len(tasks), want)
-	return nil
-}
-
 func TestDeliveryEnabledPersonSendWritesRecvAndRecvackClearsPending(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
@@ -4589,8 +4478,8 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 		},
 	}
 	subscribers := &fakeDeliverySubscriberSource{
-		pages: []runtimedelivery.UIDPage{
-			{UIDs: []string{"u2"}, Done: true},
+		pages: []channelappend.SubscriberPage{
+			{Recipients: []channelappend.Recipient{{UID: "u2"}}, Done: true},
 		},
 	}
 	app, err := newTestApp(t,
@@ -4656,11 +4545,8 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 		t.Fatalf("subscriber requests = %d, want 1", len(subscribers.requests))
 	}
 	req := subscribers.requests[0]
-	if req.ChannelID != "g1" || req.ChannelType != frame.ChannelTypeGroup || req.Limit != app.cfg.Delivery.FanoutPageSize {
+	if req.ChannelID.ID != "g1" || req.ChannelID.Type != frame.ChannelTypeGroup || req.Limit != app.cfg.Delivery.FanoutPageSize {
 		t.Fatalf("subscriber request = %#v, want group channel with configured page size", req)
-	}
-	if req.Partition != (runtimedelivery.Partition{}) {
-		t.Fatalf("subscriber partition = %#v, want recipient-authority unpartitioned scan", req.Partition)
 	}
 
 	if err := app.Handler().OnFrame(gateway.Context{Session: recipient, RequestContext: context.Background()}, &frame.RecvackPacket{
@@ -4672,7 +4558,7 @@ func TestDeliveryEnabledGroupSendUsesSubscriberSource(t *testing.T) {
 	waitAppDeliveryPendingAckCount(t, app, 0, time.Second)
 }
 
-func TestDeliveryMetaStoreWritesBenchDataAndFiltersSubscriberPages(t *testing.T) {
+func TestDeliveryMetaStoreWritesBenchDataAndPagesSubscribers(t *testing.T) {
 	const hashSlotCount = 16
 	slotThreeUID := testUIDForHashSlot(t, 3, hashSlotCount)
 	slotNineUID := testUIDForHashSlot(t, 9, hashSlotCount)
@@ -4720,76 +4606,64 @@ func TestDeliveryMetaStoreWritesBenchDataAndFiltersSubscriberPages(t *testing.T)
 		t.Fatalf("removed = %#v accepted=%d, want one subscriber at mutation version 3", node.removed, removedSubscribers)
 	}
 
-	page, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Partition:   runtimedelivery.Partition{HashSlotStart: 3, HashSlotEnd: 3},
-		Limit:       10,
+	page, err := store.NextSubscriberPage(context.Background(), channelappend.SubscriberPageRequest{
+		ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Limit:     10,
 	})
 	if err != nil {
-		t.Fatalf("ListSubscribers() error = %v", err)
+		t.Fatalf("NextSubscriberPage() error = %v", err)
 	}
-	if len(page.UIDs) != 1 || page.UIDs[0] != slotThreeUID || !page.Done {
-		t.Fatalf("slot-filtered page = %#v, want only slot 3 uid", page)
+	if len(page.Recipients) != 2 || page.Recipients[0].UID != slotThreeUID || page.Recipients[1].UID != slotNineUID || !page.Done {
+		t.Fatalf("subscriber page = %#v, want both durable subscribers", page)
 	}
-	first, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Partition:   runtimedelivery.Partition{HashSlotStart: 0, HashSlotEnd: hashSlotCount - 1},
-		Limit:       1,
+	first, err := store.NextSubscriberPage(context.Background(), channelappend.SubscriberPageRequest{
+		ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Limit:     1,
 	})
 	if err != nil {
-		t.Fatalf("ListSubscribers(first) error = %v", err)
+		t.Fatalf("NextSubscriberPage(first) error = %v", err)
 	}
-	if len(first.UIDs) != 1 || first.NextCursor == "" || first.Done {
+	if len(first.Recipients) != 1 || first.Cursor == "" || first.Done {
 		t.Fatalf("first page = %#v, want one uid and continuation", first)
 	}
-	second, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Partition:   runtimedelivery.Partition{HashSlotStart: 0, HashSlotEnd: hashSlotCount - 1},
-		Cursor:      first.NextCursor,
-		Limit:       1,
+	second, err := store.NextSubscriberPage(context.Background(), channelappend.SubscriberPageRequest{
+		ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Cursor:    first.Cursor,
+		Limit:     1,
 	})
 	if err != nil {
-		t.Fatalf("ListSubscribers(second) error = %v", err)
+		t.Fatalf("NextSubscriberPage(second) error = %v", err)
 	}
-	if len(second.UIDs) != 1 || !second.Done {
+	if len(second.Recipients) != 1 || !second.Done {
 		t.Fatalf("second page = %#v, want final uid", second)
 	}
 }
 
-func TestDeliveryMetaStoreCachesSubscriberSnapshotAcrossPartitions(t *testing.T) {
-	const hashSlotCount = 16
-	slotThreeUID := testUIDForHashSlot(t, 3, hashSlotCount)
-	slotNineUID := testUIDForHashSlot(t, 9, hashSlotCount)
+func TestDeliveryMetaStoreCachesSubscriberSnapshotAcrossPages(t *testing.T) {
 	node := &recordingDeliveryMetaNode{
-		snapshot:    readyFakeClusterSnapshot(1, hashSlotCount),
-		subscribers: map[string][]string{"g1": []string{slotThreeUID, slotNineUID}},
+		snapshot:    readyFakeClusterSnapshot(1, 16),
+		subscribers: map[string][]string{"g1": {"u1", "u2"}},
 	}
 	store := newDeliveryMetaStore(node)
 
-	first, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Partition:   runtimedelivery.Partition{HashSlotStart: 3, HashSlotEnd: 3},
-		Limit:       10,
+	first, err := store.NextSubscriberPage(context.Background(), channelappend.SubscriberPageRequest{
+		ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Limit:     1,
 	})
 	if err != nil {
-		t.Fatalf("ListSubscribers(first) error = %v", err)
+		t.Fatalf("NextSubscriberPage(first) error = %v", err)
 	}
-	second, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{
-		ChannelID:   "g1",
-		ChannelType: frame.ChannelTypeGroup,
-		Partition:   runtimedelivery.Partition{HashSlotStart: 9, HashSlotEnd: 9},
-		Limit:       10,
+	second, err := store.NextSubscriberPage(context.Background(), channelappend.SubscriberPageRequest{
+		ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup},
+		Cursor:    first.Cursor,
+		Limit:     1,
 	})
 	if err != nil {
-		t.Fatalf("ListSubscribers(second) error = %v", err)
+		t.Fatalf("NextSubscriberPage(second) error = %v", err)
 	}
 
-	if len(first.UIDs) != 1 || first.UIDs[0] != slotThreeUID || len(second.UIDs) != 1 || second.UIDs[0] != slotNineUID {
-		t.Fatalf("partition pages first=%#v second=%#v, want cached slot-specific results", first, second)
+	if len(first.Recipients) != 1 || first.Recipients[0].UID != "u1" || len(second.Recipients) != 1 || second.Recipients[0].UID != "u2" {
+		t.Fatalf("pages first=%#v second=%#v, want cached subscriber order", first, second)
 	}
 	if node.listCalls != 1 {
 		t.Fatalf("subscriber list calls = %d, want one cached channel snapshot read", node.listCalls)
@@ -4802,8 +4676,9 @@ func TestDeliveryMetaStoreInvalidatesSubscriberCacheAfterMutation(t *testing.T) 
 		subscribers: map[string][]string{"g1": []string{"u1"}},
 	}
 	store := newDeliveryMetaStore(node)
-	if _, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Limit: 10}); err != nil {
-		t.Fatalf("ListSubscribers(before) error = %v", err)
+	request := channelappend.SubscriberPageRequest{ChannelID: channelappend.ChannelID{ID: "g1", Type: frame.ChannelTypeGroup}, Limit: 10}
+	if _, err := store.NextSubscriberPage(context.Background(), request); err != nil {
+		t.Fatalf("NextSubscriberPage(before) error = %v", err)
 	}
 	if _, err := store.AddSubscribers(context.Background(), []accessapi.BenchSubscriberMutation{{
 		ChannelID:   "g1",
@@ -4815,11 +4690,11 @@ func TestDeliveryMetaStoreInvalidatesSubscriberCacheAfterMutation(t *testing.T) 
 	node.mu.Lock()
 	node.subscribers["g1"] = []string{"u1", "u2"}
 	node.mu.Unlock()
-	after, err := store.ListSubscribers(context.Background(), runtimedelivery.SubscriberPageRequest{ChannelID: "g1", ChannelType: frame.ChannelTypeGroup, Limit: 10})
+	after, err := store.NextSubscriberPage(context.Background(), request)
 	if err != nil {
-		t.Fatalf("ListSubscribers(after) error = %v", err)
+		t.Fatalf("NextSubscriberPage(after) error = %v", err)
 	}
-	if len(after.UIDs) != 2 || after.UIDs[1] != "u2" {
+	if len(after.Recipients) != 2 || after.Recipients[1].UID != "u2" {
 		t.Fatalf("after mutation page = %#v, want refreshed subscribers", after)
 	}
 	if node.listCalls != 2 {
@@ -8353,21 +8228,8 @@ type recordingSessionHandle struct {
 }
 
 type fakeDeliverySubscriberSource struct {
-	requests []runtimedelivery.SubscriberPageRequest
-	pages    []runtimedelivery.UIDPage
-}
-
-type appStaticDeliveryPartitioner struct {
-	partitions []runtimedelivery.Partition
-}
-
-func (p appStaticDeliveryPartitioner) Partitions(context.Context) ([]runtimedelivery.Partition, error) {
-	return append([]runtimedelivery.Partition(nil), p.partitions...), nil
-}
-
-type appRecordingFanoutRunner struct {
-	mu    sync.Mutex
-	tasks []runtimedelivery.FanoutTask
+	requests []channelappend.SubscriberPageRequest
+	pages    []channelappend.SubscriberPage
 }
 
 type recordingWorkerRuntime struct {
@@ -8403,23 +8265,10 @@ func (r *recordingWorkerRuntime) Stop(context.Context) error {
 	return r.stopErr
 }
 
-func (r *appRecordingFanoutRunner) RunTask(_ context.Context, task runtimedelivery.FanoutTask) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.tasks = append(r.tasks, task)
-	return nil
-}
-
-func (r *appRecordingFanoutRunner) snapshot() []runtimedelivery.FanoutTask {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]runtimedelivery.FanoutTask(nil), r.tasks...)
-}
-
-func (s *fakeDeliverySubscriberSource) ListSubscribers(_ context.Context, req runtimedelivery.SubscriberPageRequest) (runtimedelivery.UIDPage, error) {
+func (s *fakeDeliverySubscriberSource) NextSubscriberPage(_ context.Context, req channelappend.SubscriberPageRequest) (channelappend.SubscriberPage, error) {
 	s.requests = append(s.requests, req)
 	if len(s.pages) == 0 {
-		return runtimedelivery.UIDPage{Done: true}, nil
+		return channelappend.SubscriberPage{Done: true}, nil
 	}
 	page := s.pages[0]
 	s.pages = s.pages[1:]

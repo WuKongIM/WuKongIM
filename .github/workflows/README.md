@@ -13,8 +13,7 @@ authorization and the applicable budget.
 
 | File | Display name | Purpose |
 | --- | --- | --- |
-| `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free PR/Review/comment wake-up hint |
-| `review-agent-issue-signal.yml` | `Safety Automation - Review Agent Issue Signal` | Wakes open PRs whose intent links to an edited, closed, or reopened Issue |
+| `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
 | `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Emits credential-free lifecycle and Review hints for Issue Agent PRs |
@@ -28,18 +27,24 @@ authorization and the applicable budget.
 
 ## Review Agent
 
-Every open, ready pull request targeting `main`, including a Fork pull
-request, enters the review-only Review Agent flow:
+Every pull request defaults to human handling. A model review starts only after
+a repository administrator posts the exact `@review-agent review` command:
 
 ```text
-PR/Review/comment event
+administrator @review-agent review
   -> zero-permission Signal
   -> protected-default-branch Controller
   -> fresh GitHub facts + signed PR state + signed scheduler
   -> exact context + deterministic checks + one ephemeral model session
   -> evidence validation + signed terminal state
   -> status comment + formal Review + Review Agent Verdict
+  -> exact-head auto-merge for a repository admin or organization member
+     | otherwise wait for a human merge
 ```
+
+Other PR and Review events may close state, cancel stale work, or repair a
+projection, but cannot create a review generation. A new commit invalidates
+and cancels any old work; an administrator must explicitly review the new head.
 
 The Signal is a hint, not authority. It has no token permission, Secret,
 checkout, Artifact, cache, network command, or candidate execution. The
@@ -54,12 +59,41 @@ code.
 - `review-agent-publisher` exposes only the Review Agent App key;
 - the isolated dispatcher has only `actions: write`.
 
+The Worker validates and checks out the exact protected control revision once,
+builds `wkreviewagent`, `wkreviewcheck`, and `wkreviewcheckmcp` in one job, and
+publishes one run-scoped Artifact. Every consuming job verifies the embedded
+control SHA and complete SHA-256 manifest, installs only its allowlisted
+binaries, and removes the downloaded bundle before continuing. Candidate code
+cannot build, replace, or upload this bundle, and no shared build cache crosses
+Worker runs.
+
+The Controller also compiles `wkreviewagent` only once per run. When a plan
+requires a state write or projection, credentialed jobs consume a run-scoped,
+control-SHA-bound manifest Artifact instead of rebuilding it. A true no-op
+uploads only its bounded plan; State Writer, Publisher, and Dispatcher jobs are
+skipped.
+
 The model can review and invoke only protected named checks. It cannot edit the
 PR, commit, push, merge, resolve threads, dismiss Reviews, or publish its own
 verdict. A trusted validator maps signed state to the sole required Check
 `Review Agent Verdict`. Only `approved` maps to success. `changes_required`
 maps to failure, and `inconclusive` maps to `action_required`. A human
 `REQUEST_CHANGES` Review remains independently blocking.
+
+The model request passes through one root-owned loopback proxy that clamps
+`max_output_tokens` to the protected policy and injects the OpenRouter
+credential. The root-only credential handoff file is deleted before the
+listener is published. Codex and candidate checks cannot read the credential,
+replace the proxy, or reach an unclamped transport path.
+
+After publishing an `approved` verdict, the protected Publisher re-reads the
+exact PR head, mergeability, human Reviews, author association, and author
+repository permission. It merges only when the author is an organization
+`MEMBER`/`OWNER` or currently has repository `admin` permission. Every other
+approved PR remains open and is marked as requiring a human merge. The merge
+request is fenced to the reviewed head SHA and still obeys repository rules.
+Repository administrators retain GitHub's manual merge authority for every PR
+whether or not Review Agent was invoked or produced a verdict.
 
 The signed lease bounds the complete generation to 90 minutes. Infrastructure
 failure is retried once inside that same generation and deadline; a late result
@@ -70,7 +104,7 @@ isolated loopback inside a rootless network namespace whose host loopback is
 disabled. The trusted baseline host keeps runner transport available only so
 pinned post-job Actions can upload evidence; candidate code never runs there.
 The model host keeps GitHub runner transport intact. The pinned Codex Action
-installs the exact CLI and Responses proxy, then the Workflow invokes
+installs the exact CLI, then the Workflow invokes
 `codex exec --dangerously-bypass-approvals-and-sandbox` under model-only CPU,
 address-space, and process limits. This gives Codex full runner-user filesystem
 and public-network access without its internal Bubblewrap sandbox. The model
@@ -96,10 +130,20 @@ and bubblewrap sandbox start.
 Failure to initialize the MCP stops the model session instead of silently
 removing the protected check tools.
 
+The exclusive documentation fast path covers `docs/`, `docs-site/`,
+`README.md`, and `README_CN.md`. It runs `docs-contracts` without falling
+through to repository-default Go checks; any mixed or non-allowlisted change
+still receives the union of its applicable checks.
+
 Worker dispatch is serialized per pull request. The exact run title derived
 from pull request, signed lease, and infrastructure attempt is the idempotency
 key at both Controller and retry-drain boundaries, so concurrent recovery
 cannot start the same attempt twice.
+
+Review-request and interaction budgets are signed per head SHA. An
+authorized reconsideration of the current head binds a new generation from
+fresh eligible facts even when the protected control revision, intent, base,
+or test-merge revision changed; it consumes reconsideration allowance.
 
 Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
 infrastructure failure, not reasons to abort the state machine. The Evidence
@@ -151,6 +195,7 @@ Run:
 
 ```bash
 GOWORK=off go test ./scripts/... -run 'Workflow|ReviewAgent' -count=1
+node --test .github/review-agent/responses-budget-proxy.test.mjs
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/*.yml
 ```

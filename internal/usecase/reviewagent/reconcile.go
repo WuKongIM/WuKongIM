@@ -137,6 +137,14 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 
 	sameGeneration := input.State != nil &&
 		sameGenerationFacts(input.State.Generation, input.Facts)
+	reviewRequested := input.Signal.Kind == SignalCommand &&
+		input.Signal.Command != nil &&
+		input.Signal.Command.Kind == CommandReview
+	reconsiderRequested := input.Signal.Kind == SignalCommand &&
+		input.Signal.Command != nil &&
+		input.Signal.Command.Kind == CommandReconsider &&
+		input.State != nil &&
+		input.State.Generation.HeadSHA == input.Facts.HeadSHA
 	if input.Signal.Kind == SignalCompletion {
 		if input.State != nil && !sameGeneration {
 			return currentStateNoop(input, "stale completion"), nil
@@ -152,11 +160,24 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	if input.Signal.Kind == SignalCommand {
 		readOnlyStatus := input.Signal.Command != nil &&
 			input.Signal.Command.Kind == CommandStatus
-		if sameGeneration &&
+		// Reconsideration is budgeted per head. Fresh control, intent, or base
+		// facts create a new generation but must not hide an explicit command.
+		reconsiderCurrentHead := reconsiderRequested &&
+			ineligibleReason(input.Facts, input.Policy) == ""
+		if reviewRequested && sameGeneration &&
+			input.State.Phase == contract.PhaseCanceled {
+			// An administrator may explicitly restart a canceled review as a
+			// fresh generation, even when the code coordinates are unchanged.
+			sameGeneration = false
+		} else if (sameGeneration || reconsiderCurrentHead) &&
 			(readOnlyStatus || input.Facts.Open && !input.Facts.Draft) {
 			return reconcileCommand(input)
+		} else if !reviewRequested && !reconsiderRequested {
+			return currentStateNoop(
+				input,
+				"Review command has no current signed generation",
+			), nil
 		}
-		input.Signal.Kind = SignalObserved
 	}
 	if sameGeneration &&
 		input.State.Phase == contract.PhaseClosed &&
@@ -171,6 +192,20 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	generation := generationFromFacts(input.Facts, nextNumber)
 	if sameGeneration {
 		generation = input.State.Generation
+	}
+	requiresReviewStart := input.State == nil || !sameGeneration ||
+		input.State.Phase == contract.PhaseAwaitingReady
+	if requiresReviewStart && !reviewRequested && !reconsiderRequested {
+		return awaitAdministratorReview(
+			input,
+			"awaiting an administrator @review-agent review command",
+		)
+	}
+	if reviewRequested && (!input.Facts.Open || input.Facts.Draft) {
+		return awaitAdministratorReview(
+			input,
+			"administrator review command requires an open, ready pull request",
+		)
 	}
 
 	if !input.Facts.Open {
@@ -411,10 +446,10 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 		input.State.Generation.HeadSHA == input.Facts.HeadSHA {
 		nextBudget = input.State.Budget
 	}
-	startAutomaticReview := input.State == nil ||
+	startRequestedReview := input.State == nil ||
 		!sameGeneration ||
 		input.State.Phase == contract.PhaseAwaitingReady
-	if startAutomaticReview {
+	if startRequestedReview {
 		if int(nextBudget.AutomaticReviewsUsed) >=
 			input.Policy.MaxAutomaticReviewsPerHead {
 			plan, err := reconcileWithoutReviewSession(
@@ -424,7 +459,7 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 				ActionRecordInconclusive,
 				contract.PhaseInconclusive,
 				contract.DecisionSourcePolicy,
-				"automatic Review budget exhausted for current head",
+				"Review request budget exhausted for current head",
 			)
 			plan.NextBudget = nextBudget
 			return plan, err
@@ -608,6 +643,15 @@ func reconcileCommand(input ReconcileInput) (ReconcilePlan, error) {
 		Reason:        state.Reason,
 	}
 	switch command.Kind {
+	case CommandReview:
+		base.Action = ActionNoop
+		if state.Phase == contract.PhaseQueued ||
+			state.Phase == contract.PhaseReviewing {
+			base.Reason = "Review generation already has pending work"
+		} else {
+			base.Reason = "Review generation already exists; use reconsider after a decision"
+		}
+		return base, nil
 	case CommandStatus:
 		body, err := RenderStatus(state, input.Now)
 		if err != nil {
@@ -1540,6 +1584,46 @@ func currentStateNoop(input ReconcileInput, reason string) ReconcilePlan {
 		plan.DesiredPhase = input.State.Phase
 	}
 	return plan
+}
+
+// awaitAdministratorReview removes stale work without authorizing a new model
+// session. Only an exact, freshly authorized review command may cross this
+// boundary and create a new generation.
+func awaitAdministratorReview(
+	input ReconcileInput,
+	reason string,
+) (ReconcilePlan, error) {
+	scheduler, cancelRunID, nextPullRequest, err := removePullRequestWork(
+		input.Scheduler,
+		input.Facts.PullRequest,
+		input.Now,
+		input.Policy.Scheduler,
+	)
+	if err != nil {
+		return ReconcilePlan{}, err
+	}
+	plan := currentStateNoop(input, reason)
+	plan.NextScheduler = scheduler
+	plan.NextPullRequest = nextPullRequest
+	plan.CancelRunID = cancelRunID
+	if input.State == nil {
+		return plan, nil
+	}
+	if scheduler.Sequence == input.Scheduler.Sequence && cancelRunID == 0 {
+		return plan, nil
+	}
+	plan.Action = ActionRepairProjection
+	if input.State.Phase == contract.PhaseQueued ||
+		input.State.Phase == contract.PhaseReviewing {
+		plan.Action = ActionCancel
+		plan.DesiredPhase = contract.PhaseCanceled
+		plan.NextBudget = input.State.Budget
+		plan.PriorFindings = append(
+			[]contract.Finding(nil),
+			input.State.PriorFindings...,
+		)
+	}
+	return plan, nil
 }
 
 func reconcileExplanationCompletion(

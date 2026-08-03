@@ -20,6 +20,7 @@ type ReviewStateReader interface {
 // ReviewFactsReader exposes the fresh, complete PR snapshot.
 type ReviewFactsReader interface {
 	ReadPullRequestMetadata(context.Context, int64) (PullRequestSnapshot, error)
+	ActorPermission(context.Context, string) (Permission, error)
 }
 
 // InlineReviewComment is one bounded line-level finding projection.
@@ -29,8 +30,9 @@ type InlineReviewComment struct {
 	Body string
 }
 
-// ProjectionWriter is deliberately unable to merge, close, dismiss, resolve,
-// edit branches, or create commits.
+// ProjectionWriter owns the bounded Review projections and an exact-head pull
+// request merge. It cannot close without merging, dismiss, resolve, edit
+// branches, or create commits.
 type ProjectionWriter interface {
 	CreateIssueComment(context.Context, int64, string) (int64, error)
 	UpdateIssueComment(context.Context, int64, string) error
@@ -74,6 +76,7 @@ type ProjectionWriter interface {
 		string,
 		string,
 	) error
+	MergePullRequest(context.Context, int64, string) error
 }
 
 // ReviewPublisher owns the sole Check, Review, and status-comment projection.
@@ -194,24 +197,12 @@ func (publisher *ReviewPublisher) PublishDecision(
 			)
 		}
 	}
-	loaded, found, err := publisher.state.Load(
+	if err := publisher.validateSignedState(
 		ctx,
-		request.State.Generation.PullRequest,
-	)
-	if err != nil || !found ||
-		loaded.HeadSHA != request.ExpectedStateHead ||
-		contract.MustGenerationDigest(loaded.State.Generation) !=
-			contract.MustGenerationDigest(request.State.Generation) {
-		return ReviewPublication{}, errors.New(
-			"Review publication signed state is stale",
-		)
-	}
-	loadedDigest, loadedErr := contract.ReviewStateDigest(loaded.State)
-	requestDigest, requestErr := contract.ReviewStateDigest(request.State)
-	if loadedErr != nil || requestErr != nil || loadedDigest != requestDigest {
-		return ReviewPublication{}, errors.New(
-			"Review publication signed state content changed",
-		)
+		request.ExpectedStateHead,
+		request.State,
+	); err != nil {
+		return ReviewPublication{}, err
 	}
 	snapshot, err := publisher.facts.ReadPullRequestMetadata(
 		ctx,
@@ -236,14 +227,14 @@ func (publisher *ReviewPublisher) PublishDecision(
 		)
 	}
 	if request.Result == nil {
-		return publisher.publishLifecycle(ctx, snapshot, request.State)
+		return publisher.publishLifecycle(
+			ctx,
+			snapshot,
+			request.ExpectedStateHead,
+			request.State,
+		)
 	}
-	plan, err := usecase.PlanPublication(
-		request.State,
-		usecase.PublicationFacts{
-			HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
-		},
-	)
+	plan, err := publisher.planPublication(ctx, snapshot, request.State)
 	if err != nil {
 		return ReviewPublication{}, err
 	}
@@ -299,6 +290,13 @@ func (publisher *ReviewPublisher) PublishDecision(
 		publication.ExplanationCommentID =
 			explanation.ExplanationCommentID
 	}
+	if err := publisher.mergeApprovedIfAuthorized(
+		ctx,
+		request.ExpectedStateHead,
+		request.State,
+	); err != nil {
+		return ReviewPublication{}, err
+	}
 	return publication, nil
 }
 
@@ -332,11 +330,23 @@ func (publisher *ReviewPublisher) publishExplanation(
 func (publisher *ReviewPublisher) publishLifecycle(
 	ctx context.Context,
 	snapshot PullRequestSnapshot,
+	expectedStateHead string,
 	state contract.ReviewState,
 ) (ReviewPublication, error) {
 	body, err := usecase.RenderStatus(state, time.Now().UTC())
 	if err != nil {
 		return ReviewPublication{}, err
+	}
+	var terminalPlan *usecase.PublicationPlan
+	if decisionPhaseForProjection(state.Phase) {
+		plan, planErr := publisher.planPublication(ctx, snapshot, state)
+		if planErr != nil {
+			return ReviewPublication{}, planErr
+		}
+		terminalPlan = &plan
+		if plan.HumanMergeRequired {
+			body += "\n\nThis pull request requires a human merge."
+		}
 	}
 	marker := fmt.Sprintf(
 		"<!-- review-agent-status:pr-%d -->",
@@ -382,16 +392,12 @@ func (publisher *ReviewPublisher) publishLifecycle(
 	case contract.PhaseApproved,
 		contract.PhaseChangesRequired,
 		contract.PhaseInconclusive:
-		plan, planErr := usecase.PlanPublication(
-			state,
-			usecase.PublicationFacts{
-				HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
-			},
-		)
-		if planErr != nil {
-			return ReviewPublication{}, planErr
+		if terminalPlan == nil {
+			return ReviewPublication{}, errors.New(
+				"terminal Review publication plan is missing",
+			)
 		}
-		value := plan.Conclusion
+		value := terminalPlan.Conclusion
 		conclusion = &value
 	default:
 		value := usecase.CheckActionRequired
@@ -467,6 +473,13 @@ func (publisher *ReviewPublisher) publishLifecycle(
 		publication.ExplanationCommentID =
 			explanation.ExplanationCommentID
 	}
+	if err := publisher.mergeApprovedIfAuthorized(
+		ctx,
+		expectedStateHead,
+		state,
+	); err != nil {
+		return ReviewPublication{}, err
+	}
 	return publication, nil
 }
 
@@ -486,12 +499,7 @@ func (publisher *ReviewPublisher) ensureLifecycleReview(
 			return review.ID, nil
 		}
 	}
-	plan, err := usecase.PlanPublication(
-		state,
-		usecase.PublicationFacts{
-			HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
-		},
-	)
+	plan, err := publisher.planPublication(ctx, snapshot, state)
 	if err != nil {
 		return 0, err
 	}
@@ -692,6 +700,9 @@ func (publisher *ReviewPublisher) ensureCheck(
 	if plan.HumanReviewStillBlocks {
 		summary += "\n\nA human REQUEST_CHANGES Review still blocks merging."
 	}
+	if plan.HumanMergeRequired {
+		summary += "\n\nThis pull request requires a human merge."
+	}
 	if len(matches) == 1 {
 		if err := publisher.writer.UpdateCheckRun(
 			ctx,
@@ -726,6 +737,94 @@ func samePublishedGeneration(
 		facts.IntentDigest == generation.IntentDigest
 }
 
+func (publisher *ReviewPublisher) planPublication(
+	ctx context.Context,
+	snapshot PullRequestSnapshot,
+	state contract.ReviewState,
+) (usecase.PublicationPlan, error) {
+	permission := usecase.PermissionNone
+	association := snapshot.Facts.AuthorAssociation
+	if state.Phase == contract.PhaseApproved &&
+		association != "MEMBER" && association != "OWNER" {
+		resolved, err := publisher.facts.ActorPermission(
+			ctx,
+			snapshot.Facts.AuthorLogin,
+		)
+		if err == nil {
+			permission = usecase.Permission(resolved)
+		}
+	}
+	return usecase.PlanPublication(
+		state,
+		usecase.PublicationFacts{
+			HumanChangesRequested: snapshot.Facts.HumanChangesRequested,
+			AuthorAssociation:     association,
+			AuthorPermission:      permission,
+			Mergeability:          snapshot.Facts.Mergeability,
+		},
+	)
+}
+
+func (publisher *ReviewPublisher) mergeApprovedIfAuthorized(
+	ctx context.Context,
+	expectedStateHead string,
+	state contract.ReviewState,
+) error {
+	if state.Phase != contract.PhaseApproved {
+		return nil
+	}
+	fresh, err := publisher.facts.ReadPullRequestMetadata(
+		ctx,
+		state.Generation.PullRequest,
+	)
+	if err != nil {
+		return err
+	}
+	plan, err := publisher.planPublication(ctx, fresh, state)
+	if err != nil {
+		return err
+	}
+	if !fresh.Facts.Open || fresh.Facts.Draft ||
+		!samePublishedGeneration(fresh.Facts, state.Generation) ||
+		!plan.AutomaticMerge {
+		return nil
+	}
+	if err := publisher.validateSignedState(
+		ctx,
+		expectedStateHead,
+		state,
+	); err != nil {
+		return err
+	}
+	return publisher.writer.MergePullRequest(
+		ctx,
+		state.Generation.PullRequest,
+		state.Generation.HeadSHA,
+	)
+}
+
+func (publisher *ReviewPublisher) validateSignedState(
+	ctx context.Context,
+	expectedStateHead string,
+	state contract.ReviewState,
+) error {
+	loaded, found, err := publisher.state.Load(
+		ctx,
+		state.Generation.PullRequest,
+	)
+	if err != nil || !found || loaded.HeadSHA != expectedStateHead ||
+		contract.MustGenerationDigest(loaded.State.Generation) !=
+			contract.MustGenerationDigest(state.Generation) {
+		return errors.New("Review publication signed state is stale")
+	}
+	loadedDigest, loadedErr := contract.ReviewStateDigest(loaded.State)
+	stateDigest, stateErr := contract.ReviewStateDigest(state)
+	if loadedErr != nil || stateErr != nil || loadedDigest != stateDigest {
+		return errors.New("Review publication signed state content changed")
+	}
+	return nil
+}
+
 func normalizedTestMergeSHA(value string) string {
 	if value == "" {
 		return strings.Repeat("0", 40)
@@ -753,13 +852,17 @@ func renderDecisionStatus(
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(
+	body = fmt.Sprintf(
 		"%s\n- decision: `%s`\n- check: `%s`\n\n%s",
 		body,
 		result.Decision,
 		plan.Conclusion,
 		result.Summary,
-	), nil
+	)
+	if plan.HumanMergeRequired {
+		body += "\n\nThis pull request requires a human merge."
+	}
+	return body, nil
 }
 
 func renderFinding(finding contract.Finding) string {

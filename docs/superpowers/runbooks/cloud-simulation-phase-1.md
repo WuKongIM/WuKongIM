@@ -31,9 +31,9 @@ cloud orchestration path.
 
 ```bash
 mkdir -p "$PWD/tmp/cloud-sim/bin"
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off \
+GOWORK=off \
   go build -o "$PWD/tmp/cloud-sim/bin/wkcloudsim" ./cmd/wkcloudsim
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off \
+GOWORK=off \
   go build -o "$PWD/tmp/cloud-sim/bin/wkanalysis" ./cmd/wkanalysis
 ```
 
@@ -48,7 +48,7 @@ digest after strict loading:
 
 ```bash
 SCENARIO="$PWD/docker/sim/cloud-small.yaml"
-SCENARIO_DIGEST="$(PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off \
+SCENARIO_DIGEST="$(GOWORK=off \
   go run ./cmd/wkcloudsim scenario-digest --scenario "$SCENARIO" | jq -r .digest)"
 ```
 
@@ -81,16 +81,16 @@ Run the lifecycle using one persistent fake inventory file:
 STATE="$PWD/tmp/cloud-sim/fake-inventory.json"
 LOCATOR="$PWD/tmp/cloud-sim/run-locator.json"
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" create \
   --request /absolute/path/to/create-request.json \
   --locator "$LOCATOR" \
   --workflow-run-id 1001
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" status local-run-001
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" transition local-run-001 running \
   --active-until 2026-07-14T13:00:00Z
 ```
@@ -106,12 +106,12 @@ minutes, cannot exceed the Run Lease, and requires at least 30 minutes of lease
 remaining:
 
 ```bash
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" open-analysis local-run-001 \
   --source 203.0.113.10/32 \
   --until 2026-07-14T13:40:00Z
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" close-analysis local-run-001
 ```
 
@@ -180,10 +180,10 @@ a separate post-session remediation worktree.
 Destroy the fake run and confirm that provider inventory is empty:
 
 ```bash
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" destroy local-run-001
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" status local-run-001
 ```
 
@@ -215,13 +215,13 @@ stale deployment and analysis ingress on active runs, then releases every
 expired unreleased run visible in provider inventory:
 
 ```bash
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" close-analysis local-run-001
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" destroy local-run-001
 
-PATH=/Users/tt/sdk/go1.26.4/bin:$PATH GOWORK=off go run ./cmd/wkcloudsim \
+GOWORK=off go run ./cmd/wkcloudsim \
   --state "$STATE" sweep
 
 docker compose --profile analysis down

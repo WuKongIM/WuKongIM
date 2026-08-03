@@ -32,24 +32,6 @@ func TestSubmitLocalCreatesStateOnlyForLocalAuthority(t *testing.T) {
 	}
 }
 
-func TestRecipientAuthorityDispatchConcurrencyIsIndependentFromEffectWorkers(t *testing.T) {
-	group := New(Options{
-		LocalNodeID:                           1,
-		EffectPoolSize:                        32,
-		RecipientAuthorityDispatchConcurrency: 4,
-		RecipientAuthorityResolver:            staticRecipientAuthorityResolverForRecipientTest{nodeID: 1},
-		RecipientDeliveryEnqueuer:             &recordingRecipientEnqueuerForRecipientTest{},
-		RecipientBatchSize:                    16,
-	})
-
-	if group.opts.EffectPoolSize != 32 {
-		t.Fatalf("EffectPoolSize = %d, want 32", group.opts.EffectPoolSize)
-	}
-	if got := group.shards[0].ports.commit.recipientDispatchConcurrency; got != 4 {
-		t.Fatalf("recipient delivery enqueue concurrency = %d, want 4 independent from effect workers", got)
-	}
-}
-
 func TestAdvancePoolSizeIsIndependentFromAuthorityShards(t *testing.T) {
 	group := New(Options{
 		LocalNodeID:         1,

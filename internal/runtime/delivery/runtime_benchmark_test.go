@@ -133,6 +133,7 @@ func BenchmarkRuntimeBounded100KRecipientWorkload(b *testing.B) {
 	}
 	empty := []TargetPresenceResult{{}}
 	recipientBytes := 0
+	offline := &benchmarkOfflineRecipientsObserver{}
 	runtime := NewRuntime(RuntimeOptions{
 		LocalNodeID: 1,
 		Presence: planPresenceResolverFunc(func(_ context.Context, targets []onlinedelivery.RecipientTargetBatch) []TargetPresenceResult {
@@ -143,6 +144,7 @@ func BenchmarkRuntimeBounded100KRecipientWorkload(b *testing.B) {
 			}
 			return empty
 		}),
+		OfflineRecipientsObserver: offline,
 	})
 
 	b.ReportAllocs()
@@ -154,6 +156,23 @@ func BenchmarkRuntimeBounded100KRecipientWorkload(b *testing.B) {
 			}
 		}
 	}
+	if want := b.N * total; offline.recipients != want {
+		b.Fatalf("offline recipients = %d, want %d", offline.recipients, want)
+	}
+	if want := b.N * len(plans); offline.calls != want {
+		b.Fatalf("offline observer calls = %d, want %d", offline.calls, want)
+	}
 	b.ReportMetric(total, "recipients/workload")
+	b.ReportMetric(total, "offline_recipients/workload")
 	b.ReportMetric(float64(recipientBytes)/float64(b.N), "recipient_bytes/workload")
+}
+
+type benchmarkOfflineRecipientsObserver struct {
+	calls      int
+	recipients int
+}
+
+func (o *benchmarkOfflineRecipientsObserver) ObserveOfflineRecipients(_ context.Context, event OfflineRecipientsEvent) {
+	o.calls++
+	o.recipients += len(event.UIDs)
 }

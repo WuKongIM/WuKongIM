@@ -28,9 +28,13 @@ const (
 // PublicationFacts are freshly re-read immediately before publication.
 type PublicationFacts struct {
 	HumanChangesRequested bool
+	AuthorAssociation     string
+	AuthorPermission      Permission
+	Mergeability          Mergeability
 }
 
-// PublicationPlan contains only the projections supported by the Review App.
+// PublicationPlan contains the projections and bounded merge decision
+// supported by the protected Review Publisher.
 type PublicationPlan struct {
 	CheckName              string
 	ExternalID             string
@@ -38,10 +42,12 @@ type PublicationPlan struct {
 	Review                 FormalReview
 	Conclusion             CheckConclusion
 	HumanReviewStillBlocks bool
+	AutomaticMerge         bool
+	HumanMergeRequired     bool
 }
 
-// PlanPublication maps validated durable state to GitHub projections. It does
-// not expose merge or branch effects.
+// PlanPublication maps validated durable state to GitHub projections and
+// automatic-merge eligibility. It performs no GitHub or branch effect.
 func PlanPublication(
 	state contract.ReviewState,
 	facts PublicationFacts,
@@ -63,6 +69,13 @@ func PlanPublication(
 	case contract.PhaseApproved:
 		plan.Review = FormalReviewApprove
 		plan.Conclusion = CheckSuccess
+		trustedAuthor := facts.AuthorAssociation == "MEMBER" ||
+			facts.AuthorAssociation == "OWNER" ||
+			facts.AuthorPermission == PermissionAdmin
+		plan.AutomaticMerge = !facts.HumanChangesRequested &&
+			facts.Mergeability == MergeabilityClean &&
+			trustedAuthor
+		plan.HumanMergeRequired = !trustedAuthor
 	case contract.PhaseChangesRequired:
 		plan.Review = FormalReviewRequestChanges
 		plan.Conclusion = CheckFailure

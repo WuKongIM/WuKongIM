@@ -9,16 +9,14 @@ import (
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 )
 
-func TestNewWiresIndependentRecipientDeliveryWorkerConcurrency(t *testing.T) {
+func TestNewWiresConfiguredOnlineDeliveryWorkerConcurrency(t *testing.T) {
 	cluster := newFakePresenceCluster(1, nil)
 	app, err := newTestApp(t,
 		Config{
 			Cluster: clusterpkg.Config{NodeID: 1},
-			ChannelAppend: ChannelAppendConfig{
-				RecipientAuthorityDispatchConcurrency: 3,
-			},
 			Delivery: DeliveryConfig{
 				Enabled:                    true,
 				RecipientWorkerConcurrency: 7,
@@ -67,19 +65,13 @@ func TestNewWiresDeliveryWhenEnabled(t *testing.T) {
 	if app.deliveryWorker == nil {
 		t.Fatal("delivery worker was not wired")
 	}
-	if app.channelAppendDeliveryWorker != nil {
-		t.Fatal("legacy channelappend recipient delivery worker was wired")
-	}
 	if app.onlineDelivery.PendingAckCount() != 0 {
 		t.Fatal("online delivery runtime was not initialized with empty ack state")
 	}
 	if app.deliveryWorker != app.onlineDelivery {
 		t.Fatalf("delivery worker = %T, want online delivery runtime", app.deliveryWorker)
 	}
-	if app.deliveryManager != nil || app.deliveryRetry != nil || app.localOwnerPusher != nil {
-		t.Fatal("legacy delivery runtime was wired")
-	}
-	if _, ok := cluster.registeredHandlers[accessnode.DeliveryFanoutRPCServiceID]; ok {
+	if _, ok := cluster.registeredHandlers[clusternet.RPCDeliveryFanout]; ok {
 		t.Fatalf("retired delivery fanout rpc service was registered")
 	}
 }

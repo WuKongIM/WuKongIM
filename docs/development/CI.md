@@ -6,9 +6,10 @@ adjudicator. The authoritative Workflow catalog lives in
 
 ## Pull-request flow
 
-An open, non-Draft pull request targeting `main` automatically produces one
-generation bound to its exact head SHA, base SHA, test-merge SHA, intent
-digest, and signed-state parent.
+An open, non-Draft pull request targeting `main` produces no Agent review by
+default. A repository administrator starts review by posting
+`@review-agent review`; the resulting generation binds the exact head SHA,
+base SHA, test-merge SHA, intent digest, and signed-state parent.
 
 The Review Agent:
 
@@ -26,13 +27,17 @@ Only `approved` unlocks the automated gate. `changes_required`,
 infrastructure failure all keep it blocked. A human `REQUEST_CHANGES` Review
 remains independently blocking.
 
-The Agent never edits code, commits, pushes, rebases, merges, closes a pull
-request, dismisses a Review, or resolves a thread.
+The model never edits code, commits, pushes, rebases, merges, closes a pull
+request, dismisses a Review, or resolves a thread. After approval, the
+protected Publisher may merge only the exact reviewed head of a repository
+administrator or organization member; every other author requires a human
+merge.
 
 Draft pull requests do not call the model. A new commit or intent change
-invalidates the old generation. The repository runs at most three model
-sessions, one per pull request, and at most one first-time external
-contributor session.
+invalidates the old generation and requires another administrator command:
+`review` for a new head or `reconsider` for changed same-head facts. The
+repository runs at most three model sessions, one per pull request, and at most
+one first-time external contributor session.
 
 There is no Review Agent Cron or periodic scan.
 
@@ -40,20 +45,26 @@ There is no Review Agent Cron or periodic scan.
 
 Commands must be one exact, unedited, single-line pull-request comment:
 
+- `@review-agent review`
 - `@review-agent status`
 - `@review-agent explain <question>`
 - `@review-agent reconsider <reason>`
 - `@review-agent retry`
 - `@review-agent cancel`
 
-Status is deterministic and does not call a model. Explain cannot change the
+Status is public, deterministic, and does not call a model. Every other command
+requires current repository `admin` permission. Explain cannot change the
 verdict. Reconsider is limited to two sessions per head. Infrastructure retry
-is limited to one. Retry and cancel require current write-capable repository
-permission; reconsider is available to the pull-request author or a
-write-capable maintainer.
+is limited to one.
 
 Ordinary comments, including Review Agent's own status comment, are observed
 no-ops.
+
+Controller no-ops stop after the fresh-fact plan is recorded. They do not enter
+the credentialed State Writer or Publisher Environments and do not start the
+Dispatcher. Non-no-op Controller jobs reuse one exact-control,
+manifest-verified binary built by reconciliation rather than compiling it once
+per authority boundary.
 
 ## Trusted checks
 
@@ -91,10 +102,17 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
   credential or inherited host environment, has no Docker socket, and loses
   `sudo` before execution. Candidate checks still use the private-network and
   Bubblewrap boundary, and tracked candidate-tree mutation fails validation.
+- One root-owned loopback Responses proxy is Codex's only model transport. It
+  clamps every request to the protected 32,768-token output ceiling and injects
+  the OpenRouter credential. The root-only credential handoff is deleted before
+  the listener is published, and runner-user Codex cannot replace the proxy or
+  reach an unclamped credential path.
 - The protected Check MCP is required at Codex startup; missing named-check
   tools fail closed instead of degrading to an evidence-free model session.
 - The State Writer App can write only Contents state refs.
-- The Review Agent App can write only Issues, Reviews, and Checks.
+- The Review Agent App can write Issues, Reviews, Checks, and the exact-head PR
+  merge endpoint. GitHub requires `contents:write` for that merge; the adapter
+  exposes no generic contents, branch, or commit write.
 - Publisher jobs do not check out or execute candidate code.
 - Durable PR and scheduler state use a verified latest-plus-predecessor rolling
   checkpoint; older App-authored commits remain append-only audit history.
@@ -131,6 +149,8 @@ GOWORK=off go test ./internal/contracts/reviewagent \
 
 GOWORK=off go test -tags=integration \
   ./internal/runtime/reviewagentverify -count=1
+
+node --test .github/review-agent/responses-budget-proxy.test.mjs
 
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.9 \
   .github/workflows/review-agent-pr-signal.yml \

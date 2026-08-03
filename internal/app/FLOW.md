@@ -25,7 +25,8 @@ stay in infra packages.
 GitHub-Actions composition roots. They do not call `New`, join a WuKongIM
 cluster, or start product runtimes. Review Agent composition keeps fresh
 GitHub reads, deterministic lifecycle, credential-free verification, signed
-state writes, and Review/Check publication behind separate role boundaries.
+state writes, Review/Check publication, and the authorized exact-head
+administrator/member merge behind separate role boundaries.
 Terminal `collect_only` verification reads and validates the frozen ledger
 without constructing the command executor used by the earlier baseline job.
 It also owns strict loading and cross-layer validation of the protected Review

@@ -218,7 +218,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "channel_append.shard_count", EnvKey: "WK_CHANNEL_APPEND_SHARD_COUNT", Kind: kindInt, Group: "channel_append", Label: "Channel append shard count"},
 	{TOMLPath: "channel_append.advance_pool_size", EnvKey: "WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE", Kind: kindInt, Group: "channel_append", Label: "Channel append advance pool size"},
 	{TOMLPath: "channel_append.effect_pool_size", EnvKey: "WK_CHANNEL_APPEND_EFFECT_POOL_SIZE", Kind: kindInt, Group: "channel_append", Label: "Channel append effect pool size"},
-	{TOMLPath: "channel_append.recipient_authority_dispatch_concurrency", EnvKey: "WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY", Kind: kindInt, Group: "channel_append", Label: "Channel append recipient authority dispatch concurrency"},
+	{TOMLPath: "channel_append.recipient_authority_dispatch_concurrency", EnvKey: "WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY", Kind: kindInt, Group: "channel_append", Label: "Deprecated recipient authority dispatch compatibility input"},
 
 	{TOMLPath: "delivery.enable", EnvKey: "WK_DELIVERY_ENABLE", Kind: kindBool, Group: "delivery", Label: "Delivery enabled"},
 	{TOMLPath: "delivery.fanout_page_size", EnvKey: "WK_DELIVERY_FANOUT_PAGE_SIZE", Kind: kindInt, Group: "delivery", Label: "Delivery fanout page size"},
