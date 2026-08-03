@@ -19,6 +19,9 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 	}
 	revision := strings.TrimSpace(string(revisionOutput))
 	outputBin := filepath.Join(t.TempDir(), "wukongim")
+	// Keep this assertion independent from link artifacts produced by earlier
+	// repository checks so it always exercises this checkout's VCS context.
+	buildCache := t.TempDir()
 
 	dryRunCommand := exec.Command("bash", "scripts/start-wukongim-three-nodes.sh",
 		"--dry-run",
@@ -45,7 +48,8 @@ func TestWukongIMThreeNodeLocalE2EBuildUsesSelectedWorktreeRevision(t *testing.T
 	build := exec.Command("bash", "-c", buildCommand)
 	build.Dir = root
 	build.Env = append(
-		envWithout("GOWORK"),
+		envWithout("GOCACHE", "GOWORK"),
+		"GOCACHE="+buildCache,
 		"GOWORK="+filepath.Join(t.TempDir(), "missing-go.work"),
 	)
 	buildOutput, err := build.CombinedOutput()
