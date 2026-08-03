@@ -7,23 +7,22 @@ import (
 )
 
 type commitPorts struct {
-	subscribers                  SubscriberSource
-	activeAdmitter               ConversationActiveAdmitter
-	recipientAuthorityResolver   RecipientAuthorityResolver
-	deliveryEnqueuer             RecipientDeliveryEnqueuer
-	persistAfter                 PersistAfterEnqueuer
-	subscriberPageSize           int
-	recipientBatchSize           int
-	recipientDispatchConcurrency int
-	observer                     AppendObserver
+	subscribers                SubscriberSource
+	activeAdmitter             ConversationActiveAdmitter
+	recipientAuthorityResolver RecipientAuthorityResolver
+	deliveryEnqueuer           OnlineDeliveryEnqueuer
+	persistAfter               PersistAfterEnqueuer
+	subscriberPageSize         int
+	recipientBatchSize         int
+	observer                   AppendObserver
 }
 
 func (p commitPorts) hasPostCommitWork() bool {
-	return p.persistAfter != nil || p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
+	return p.persistAfter != nil || p.activeAdmitter != nil || p.deliveryEnqueuer != nil
 }
 
 func (p commitPorts) hasRecipientWork() bool {
-	return p.activeAdmitter != nil || effectiveRecipientDeliveryEnqueuer(p) != nil
+	return p.activeAdmitter != nil || p.deliveryEnqueuer != nil
 }
 
 type commitEffect struct {

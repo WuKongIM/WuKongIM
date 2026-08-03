@@ -140,18 +140,18 @@ func (e composedPersistAfterEnqueuer) EnqueuePersistAfter(ctx context.Context, e
 func composeOfflineRecipientObservers(
 	pluginSingle channelappend.OfflineRecipientObserver,
 	webhookBatch channelappend.OfflineRecipientsObserver,
-) (channelappend.OfflineRecipientObserver, channelappend.OfflineRecipientsObserver) {
+) channelappend.OfflineRecipientsObserver {
 	if pluginSingle == nil {
-		return nil, webhookBatch
+		return webhookBatch
 	}
 	pluginBatch, _ := pluginSingle.(channelappend.OfflineRecipientsObserver)
 	if webhookBatch == nil {
 		if pluginBatch != nil {
-			return pluginSingle, pluginBatch
+			return pluginBatch
 		}
-		return pluginSingle, singleOfflineRecipientsObserver{next: pluginSingle}
+		return singleOfflineRecipientsObserver{next: pluginSingle}
 	}
-	return pluginSingle, composedOfflineRecipientsObserver{
+	return composedOfflineRecipientsObserver{
 		pluginSingle: pluginSingle,
 		pluginBatch:  pluginBatch,
 		webhookBatch: webhookBatch,

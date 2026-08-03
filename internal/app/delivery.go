@@ -183,51 +183,6 @@ func isExpectedPostCommitRouteFailure(err error) bool {
 		errors.Is(err, channelappend.ErrRouteNotReady)
 }
 
-func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryQueue(event channelappend.RecipientDeliveryQueueObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.SetRecipientWorkerQueue(event.QueueDepth, event.QueueCapacity)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok {
-		collector.SetDeliveryRecipientQueue(int64(event.QueueDepth), int64(event.QueueCapacity))
-	}
-}
-
-func (o deliveryMessageObserver) SetChannelAppendRecipientDeliveryWorkerPressure(event channelappend.RecipientDeliveryWorkerPressureObservation) {
-	if o.app == nil || o.app.metrics == nil {
-		return
-	}
-	o.app.metrics.Delivery.SetRecipientWorkerPressure(event.Inflight, event.Capacity)
-}
-
-func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryAdmission(event channelappend.RecipientDeliveryAdmissionObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.ObserveRecipientWorkerAdmission(event.Result, event.Duration)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok {
-		if event.Result != "accepted" && event.Result != "ok" {
-			collector.addCounter(topCounterDeliveryPushErr, 1)
-		}
-	}
-}
-
-func (o deliveryMessageObserver) ObserveChannelAppendRecipientDeliveryProcess(event channelappend.RecipientDeliveryProcessObservation) {
-	if o.app == nil {
-		return
-	}
-	if o.app.metrics != nil {
-		o.app.metrics.Delivery.ObserveRecipientWorkerProcess(event.Result, event.Recipients, event.Duration)
-	}
-	if collector, ok := o.app.topProvider.(*topCollector); ok && event.Result != "ok" {
-		collector.addCounter(topCounterDeliveryPushErr, 1)
-	}
-}
-
 func appendFailureLogLine(path string, err error) string {
 	return fmt.Sprintf("internal/app: message append failed path=%s err=%v", path, err)
 }

@@ -31,13 +31,8 @@ before the physical write.
 
 ## Presence Adapters
 
-`ChannelAppendPresenceResolver` converts the entry-agnostic presence usecase's
-flat and exact-target lookup results into channelappend delivery DTOs. Exact
-target cardinality, result order, partial errors, and physical hash-slot plus
-logical Slot Raft Group fences are preserved.
-
-`PresenceResolver` converts the same exact-target lookup into canonical Online
-Delivery results. It preserves one result per input target, copies all fencing
-and route metadata, and reports a missing presence dependency as an aligned
-availability error for every target instead of classifying recipients as
-offline.
+`PresenceResolver` converts the entry-agnostic presence usecase's exact-target
+lookup into canonical Online Delivery results. It preserves one result per
+input target, copies all fencing and route metadata, and reports a missing
+presence dependency as an aligned availability error for every target instead
+of classifying recipients as offline.

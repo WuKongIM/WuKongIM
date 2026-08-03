@@ -25,10 +25,22 @@ go test ./internal/usecase/plugin ./internal/runtime/pluginhook ./internal/contr
 Run the channelappend plugin-related subset:
 
 ```bash
-go test ./internal/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin|RecipientProcessorOfflineObserver)$' -benchmem -benchtime=3s
+go test ./internal/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocalNoPersistRealtimeScoped|ChannelAppendPostCommitPlugin)$' -benchmem -benchtime=3s
+```
+
+Run the canonical large-recipient Online Delivery workload:
+
+```bash
+go test ./internal/runtime/delivery -run '^$' -bench '^BenchmarkRuntimeBounded100KRecipientWorkload$' -benchmem -benchtime=3s
 ```
 
 ## Recorded Numbers
+
+### Canonical Online Delivery offline classification
+
+| Benchmark | ns/op | B/op | allocs/op | Extra |
+| --- | ---: | ---: | ---: | --- |
+| `BenchmarkRuntimeBounded100KRecipientWorkload` | `2714780` | `11010771` | `5865` | `100000 offline_recipients/workload` |
 
 ### Plugin usecase
 
@@ -128,9 +140,6 @@ go test ./internal/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocal
 | `BenchmarkSubmitLocalNoPersistRealtimeScoped` | `3301` | `5185` | `43` | `3.000 goroutine-delta` |
 | `BenchmarkChannelAppendPostCommitPlugin/disabled` | `101.6` | `320` | `1` | |
 | `BenchmarkChannelAppendPostCommitPlugin/enabled_enqueue` | `105.1` | `320` | `1` | |
-| `BenchmarkRecipientProcessorOfflineObserver/recipients_16` | `486.4` | `256` | `1` | |
-| `BenchmarkRecipientProcessorOfflineObserver/recipients_1024` | `56301` | `99888` | `19` | |
-| `BenchmarkRecipientProcessorOfflineObserver/recipients_10000` | `642181` | `818682` | `64` | |
 
 ## Interpreting Regressions
 
@@ -142,9 +151,9 @@ go test ./internal/runtime/channelappend -run '^$' -bench 'Benchmark(SubmitLocal
   remove those cases when changing plugin registry or selection logic.
 - Receive candidate benchmarks intentionally include `bindings_1024`; keep that
   case when changing UID binding selection.
-- Offline recipient observer benchmarks intentionally include `recipients_10000`
-  as a local signal for large-group scanning cost. Keep it below integration
-  scale so ordinary benchmark runs stay practical.
+- Large-recipient Online Delivery regression coverage belongs to
+  `BenchmarkRuntimeBounded100KRecipientWorkload`; do not recreate a
+  channelappend recipient-processor benchmark.
 - `BenchmarkSubmitLocalNoPersistRealtimeScoped` must stay in the channelappend
   subset because command-style NoPersist realtime delivery is owned by
   channelappend, not the plugin usecase.

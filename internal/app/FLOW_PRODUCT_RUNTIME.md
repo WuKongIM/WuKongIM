@@ -94,17 +94,16 @@ item returns `ErrChannelBusy`. The foreground append pool keeps its blocking
 worker admission semantics.
 Prepare runs inline on the writer advance path; append remains the foreground
 durable path that determines SEND/SENDACK throughput.
-`ChannelAppend.RecipientAuthorityDispatchConcurrency` defaults to a bounded
-recipient-authority target fanout for legacy batch-only enqueuers. The
-production plan-capable worker admits exact-target groups together instead of
-using this target fanout.
+`ChannelAppend.RecipientAuthorityDispatchConcurrency` remains accepted for
+configuration compatibility but does not affect the canonical plan path, which
+admits exact-target groups together.
 `Delivery.RecipientWorkerConcurrency` independently defaults to 100 and controls
-only the goroutines draining the bounded Online Delivery plan queue. The legacy
-target fanout and production plan execution capacities therefore remain
-independent. The lookup-shard count controls writer map sharding; effect workers run only blocking effects and never write channel
-state concurrently with another advance for the same channel. The delivery
-observer maps aggregate writer pressure and effect pool observations into
-Prometheus. Post-commit pressure uses four fixed per-node gauges:
+only the goroutines draining the bounded Online Delivery plan queue. The
+lookup-shard count controls writer map sharding; effect workers run only
+blocking effects and never write channel state concurrently with another
+advance for the same channel. The delivery observer maps aggregate writer
+pressure and effect pool observations into Prometheus. Post-commit pressure
+uses four fixed per-node gauges:
 `wukongim_channelappend_post_commit_handoff_depth`,
 `wukongim_channelappend_post_commit_handoff_capacity`,
 `wukongim_channelappend_post_commit_retry_queue_depth`, and

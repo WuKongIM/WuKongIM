@@ -86,7 +86,7 @@ func TestPrepareRequestScopedSendDerivesChannel(t *testing.T) {
 		EffectPoolSize:             2,
 		Clock:                      clock,
 		RecipientAuthorityResolver: staticRecipientAuthorityResolverForCommitTest{nodeID: 1},
-		RecipientDeliveryEnqueuer:  enqueuer,
+		OnlineDeliveryEnqueuer:     enqueuer,
 	})
 	t.Cleanup(enqueuer.release)
 

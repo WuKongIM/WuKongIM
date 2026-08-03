@@ -21,7 +21,7 @@ func (a *App) wireDelivery() {
 		localNodeID = presenceNode.NodeID()
 		remote = accessnode.NewClient(presenceNode)
 	}
-	_, offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
+	offlineBatch := composeOfflineRecipientObservers(a.pluginReceive, a.webhookOffline)
 	var offlineObserver runtimedelivery.OfflineRecipientsObserver
 	if offlineBatch != nil {
 		offlineObserver = onlineDeliveryOfflineObserver{next: offlineBatch}
