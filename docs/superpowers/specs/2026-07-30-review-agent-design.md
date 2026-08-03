@@ -491,7 +491,11 @@ withdraw a prior finding only by explaining why it no longer applies. New
 commits create new generations and do not consume reconsideration allowance.
 The automatic count is signed per-head state. Intent-only edits after the
 automatic attempt fail closed as `inconclusive` until a new head or an
-authorized reconsideration; they cannot create unbounded model sessions.
+authorized reconsideration; they cannot create unbounded model sessions. An
+authorized reconsideration for the current head remains valid when protected
+control, intent, base, or test-merge facts changed: the Controller must bind a
+new generation from fresh eligible facts and consume the existing head's
+reconsideration allowance rather than attempting a second automatic review.
 
 Runner, provider, dependency-download, or public-network infrastructure
 failure may retry once inside the same attempt before publishing

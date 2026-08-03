@@ -116,6 +116,12 @@ from pull request, signed lease, and infrastructure attempt is the idempotency
 key at both Controller and retry-drain boundaries, so concurrent recovery
 cannot start the same attempt twice.
 
+Automatic-review and interaction budgets are signed per head SHA. An
+authorized reconsideration of the current head binds a new generation from
+fresh eligible facts even when the protected control revision, intent, base,
+or test-merge revision changed; it consumes reconsideration allowance instead
+of falling through to another automatic review.
+
 Missing Context, reviewer, or trusted-baseline artifacts are evidence of an
 infrastructure failure, not reasons to abort the state machine. The Evidence
 job records the bounded retry or terminal `inconclusive` completion so signed

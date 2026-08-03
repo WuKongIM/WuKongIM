@@ -152,7 +152,14 @@ func ReconcilePullRequest(input ReconcileInput) (ReconcilePlan, error) {
 	if input.Signal.Kind == SignalCommand {
 		readOnlyStatus := input.Signal.Command != nil &&
 			input.Signal.Command.Kind == CommandStatus
-		if sameGeneration &&
+		// Reconsideration is budgeted per head. Fresh control, intent, or base
+		// facts create a new generation but must not hide an explicit command.
+		reconsiderCurrentHead := input.State != nil &&
+			input.Signal.Command != nil &&
+			input.Signal.Command.Kind == CommandReconsider &&
+			input.State.Generation.HeadSHA == input.Facts.HeadSHA &&
+			ineligibleReason(input.Facts, input.Policy) == ""
+		if (sameGeneration || reconsiderCurrentHead) &&
 			(readOnlyStatus || input.Facts.Open && !input.Facts.Draft) {
 			return reconcileCommand(input)
 		}
