@@ -67,6 +67,12 @@ binaries, and removes the downloaded bundle before continuing. Candidate code
 cannot build, replace, or upload this bundle, and no shared build cache crosses
 Worker runs.
 
+The Controller also compiles `wkreviewagent` only once per run. When a plan
+requires a state write or projection, credentialed jobs consume a run-scoped,
+control-SHA-bound manifest Artifact instead of rebuilding it. A true no-op
+uploads only its bounded plan; State Writer, Publisher, and Dispatcher jobs are
+skipped.
+
 The model can review and invoke only protected named checks. It cannot edit the
 PR, commit, push, merge, resolve threads, dismiss Reviews, or publish its own
 verdict. A trusted validator maps signed state to the sole required Check

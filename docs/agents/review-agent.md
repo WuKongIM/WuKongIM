@@ -64,6 +64,13 @@ idempotency key at both initial and retry boundaries. Terminal work wakes the
 next signed queue entry. Partial state writes and dispatches are recoverable
 from signed checkpoints and leases.
 
+Each Controller run compiles its protected `wkreviewagent` binary once. A
+state-writing or projection path passes that exact binary through a
+control-SHA-bound, SHA-256-verified run Artifact. When reconciliation proves
+that state, scheduler, projection, cancellation, and dispatch are all
+unchanged, the credentialed State Writer and Publisher plus the Dispatcher are
+not started.
+
 ## Review inputs
 
 The trusted Context Builder includes:
