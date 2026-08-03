@@ -38,7 +38,7 @@ const (
 	RPCPresenceOwner
 	// RPCDeliveryPush serves internal owner-node delivery push batches.
 	RPCDeliveryPush
-	// RPCDeliveryFanout serves internal authority-node delivery fanout tasks.
+	// RPCDeliveryFanout reserves the retired delivery-fanout service ID; do not reuse it.
 	RPCDeliveryFanout
 	// RPCChannelPullBatch serves grouped Channel follower pull requests.
 	RPCChannelPullBatch
