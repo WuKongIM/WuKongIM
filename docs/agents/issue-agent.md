@@ -19,6 +19,7 @@ PR or trusted Review event
   -> clean Verifier: apply diff, classify risk, rerun trusted tests
   -> Publisher: exact App-signed commit, Draft PR, state, status
   -> maintainer marks Ready
+  -> Publisher: mechanically synchronize stale Agent PR with current main
   -> independent Review Agent adjudication
   -> Review Agent findings may wake at most two bounded repair loops
   -> human merge
@@ -140,6 +141,23 @@ The PR includes root cause, causal path, change summary, trusted commands,
 risk, uncertainty, and `Fixes #N`. The Publisher executes no candidate code,
 never writes `main`, never force-adopts an external head, never merges, and
 never directly closes the Bug.
+
+When a Ready Agent PR is behind `main`, the Controller does not ask Codex to
+solve the same Issue again. The Publisher reconstructs the complete bounded,
+linear App-signed candidate history from its signed source, proves that current
+`main` did not change any final candidate path, creates the same result tree
+on current `main`, and atomically swaps the Agent ref through an expected-head
+staging transaction. The new commit is
+again App-authored and GitHub-signed. The atomic swap also fences `main` at
+the exact parent used to build that commit. Any overlap, unsupported tree
+change, external head, or exhausted three-sync budget stops durably at
+`needs_human`; a stale transactional fence changes no ref and is retried from
+fresh facts. The Publisher never performs a semantic conflict resolution.
+The signed state records the new base and head, clears prior Review authority,
+and requires the independent Review Agent to adjudicate the exact new head.
+If a ref swap completed before its state write and `main` advanced again,
+the next Controller first verifies and records that exact App-owned result,
+then a later reconciliation continues from its recorded base to newer `main`.
 
 Protected Issue Agent control paths cannot be modified by the Issue Agent
 itself. Such candidates are investigation-only and require a separately

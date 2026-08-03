@@ -310,6 +310,7 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 		} `json:"engineer"`
 		Budgets struct {
 			TaskStaleAfterSeconds uint64 `json:"task_stale_after_seconds"`
+			MaxBaseSyncs          uint32 `json:"max_base_syncs_per_issue"`
 		} `json:"budgets"`
 		ProtectedPaths []string `json:"protected_paths"`
 	}
@@ -327,6 +328,7 @@ func TestIssueAgentPolicyIsCodexOnlyAndBounded(t *testing.T) {
 	require.Equal(t, uint64(5400), policy.Engineer.WallTimeSeconds)
 	require.Equal(t, uint32(3), policy.Engineer.ModifyTestIterations)
 	require.Equal(t, uint64(14400), policy.Budgets.TaskStaleAfterSeconds)
+	require.Equal(t, uint32(3), policy.Budgets.MaxBaseSyncs)
 	require.Contains(t, policy.ProtectedPaths, ".github/workflows")
 	require.Contains(t, policy.ProtectedPaths, ".github/issue-agent")
 	require.Contains(t, policy.ProtectedPaths, "cmd/wkissueagent")

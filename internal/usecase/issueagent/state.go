@@ -74,6 +74,9 @@ func BuildIssueState(
 		next.CandidateDigest = ""
 		next.EvidenceDigest = ""
 	case IssueDecisionDispatchReview:
+		if current != nil {
+			next.SourceSHA = current.SourceSHA
+		}
 		if facts.Authorization != nil {
 			next.Authorization = facts.Authorization
 		}
@@ -84,13 +87,17 @@ func BuildIssueState(
 		next.ReviewDigest = decision.ReviewDigest
 		next.CandidateDigest = ""
 		next.EvidenceDigest = ""
+	case IssueDecisionNeedsHuman:
+		if current != nil && current.Work != nil {
+			next.SourceSHA = current.SourceSHA
+		}
+		next.Task = nil
 	case IssueDecisionTakeOver:
 		if facts.Authorization != nil {
 			next.TakenOverBy = facts.Authorization.Actor
 		}
 		next.Task = nil
 	case IssueDecisionCancel,
-		IssueDecisionNeedsHuman,
 		IssueDecisionComplete,
 		IssueDecisionMarkReady:
 		next.Task = nil
@@ -163,6 +170,54 @@ func BuildNeedsHumanState(
 	next.ContextDigest = ""
 	next.CandidateDigest = ""
 	next.EvidenceDigest = ""
+	next.UpdatedAt = now
+	if err := contract.ValidateIssueAgentState(next); err != nil {
+		return contract.IssueAgentState{}, err
+	}
+	return next, nil
+}
+
+// BuildBaseSyncedState records one exact Publisher-owned mechanical rebase.
+func BuildBaseSyncedState(
+	current contract.IssueAgentState,
+	currentMainSHA string,
+	newHeadSHA string,
+	issueSnapshotDigest string,
+	now time.Time,
+) (contract.IssueAgentState, error) {
+	if err := contract.ValidateIssueAgentState(current); err != nil {
+		return contract.IssueAgentState{}, err
+	}
+	if (current.State != contract.IssueStateDraft &&
+		current.State != contract.IssueStateReadyForReview) ||
+		current.Work == nil || current.Work.HeadSHA == newHeadSHA ||
+		!v2SHAPattern.MatchString(currentMainSHA) ||
+		!v2SHAPattern.MatchString(newHeadSHA) ||
+		!v2DigestPattern.MatchString(issueSnapshotDigest) ||
+		current.Budget.BaseSyncs == ^uint32(0) ||
+		now.IsZero() || now.Location() != time.UTC {
+		return contract.IssueAgentState{}, errors.New(
+			"base-synchronized state input is invalid",
+		)
+	}
+	previousDigest, err := contract.IssueAgentStateDigest(current)
+	if err != nil {
+		return contract.IssueAgentState{}, err
+	}
+	next := current
+	next.Sequence++
+	next.PreviousStateDigest = previousDigest
+	next.State = contract.IssueStateReadyForReview
+	next.Reason = "Agent pull request synchronized with current main and awaits fresh Review"
+	next.SourceSHA = currentMainSHA
+	next.IssueSnapshotDigest = issueSnapshotDigest
+	next.Task = nil
+	work := *current.Work
+	work.HeadSHA = newHeadSHA
+	work.Draft = false
+	next.Work = &work
+	next.Budget.BaseSyncs++
+	next.ReviewDigest = ""
 	next.UpdatedAt = now
 	if err := contract.ValidateIssueAgentState(next); err != nil {
 		return contract.IssueAgentState{}, err

@@ -75,6 +75,7 @@ type issueAgentPolicy struct {
 	Budgets struct {
 		MaxEngineerAttempts   uint32 `json:"max_engineer_attempts_per_issue"`
 		MaxReviewIterations   uint32 `json:"max_review_iterations"`
+		MaxBaseSyncs          uint32 `json:"max_base_syncs_per_issue"`
 		TaskStaleAfterSeconds uint64 `json:"task_stale_after_seconds"`
 	} `json:"budgets"`
 	CandidateLimits issueagentverify.CaptureLimits             `json:"candidate_limits"`
@@ -105,6 +106,18 @@ type reconcileWarning struct {
 }
 
 type committedIssueProjection func() error
+
+type issueAgentBaseSynchronizer interface {
+	Synchronize(
+		context.Context,
+		issueagentgithub.CandidateBaseSyncRequest,
+	) (issueagentgithub.CandidateBaseSyncResult, error)
+}
+
+type issueAgentBaseSyncOutcome struct {
+	Committed *reconcileResult
+	Rejected  *issueagent.IssueDecision
+}
 
 type issueAgentPullRequest struct {
 	Number int64 `json:"number"`
@@ -335,7 +348,8 @@ func reconcileGitHub(
 		}
 		facts.PullRequest = &issueagent.PullRequestFacts{
 			Number: pull.Number, HeadSHA: pull.HeadSHA,
-			Open: pull.State == "open", Draft: pull.Draft, Merged: pull.Merged,
+			Open:  pull.State == "open",
+			Draft: pull.Draft, Merged: pull.Merged,
 		}
 	}
 	reviewAuthorization, reviewDigest, err := currentReviewAuthorization(
@@ -375,21 +389,72 @@ func reconcileGitHub(
 	if err != nil {
 		return reconcileResult{}, err
 	}
-	decision, err := issueagent.ReconcileIssue(
-		facts,
-		current,
-		issueagent.ReconcileIssuePolicy{
-			Enabled: policy.Enabled, PolicyDigest: policyDigest,
-			EngineerPromptDigest: engineerPromptDigest,
-			ReviewPromptDigest:   reviewPromptDigest,
-			MaxEngineerAttempts:  policy.Budgets.MaxEngineerAttempts,
-			MaxReviewIterations:  policy.Budgets.MaxReviewIterations,
-			TaskStaleAfter: time.Duration(
-				policy.Budgets.TaskStaleAfterSeconds,
-			) * time.Second,
-		},
-		request.Now,
-	)
+	reconcilePolicy := issueagent.ReconcileIssuePolicy{
+		Enabled: policy.Enabled, PolicyDigest: policyDigest,
+		EngineerPromptDigest: engineerPromptDigest,
+		ReviewPromptDigest:   reviewPromptDigest,
+		MaxEngineerAttempts:  policy.Budgets.MaxEngineerAttempts,
+		MaxReviewIterations:  policy.Budgets.MaxReviewIterations,
+		MaxBaseSyncs:         policy.Budgets.MaxBaseSyncs,
+		TaskStaleAfter: time.Duration(
+			policy.Budgets.TaskStaleAfterSeconds,
+		) * time.Second,
+	}
+	runBaseSynchronization := func() (issueAgentBaseSyncOutcome, error) {
+		synchronizer, syncErr := issueagentgithub.NewCandidateBaseSynchronizer(
+			request.Repository, config.AppLogin, stateStore, client,
+		)
+		if syncErr != nil {
+			return issueAgentBaseSyncOutcome{}, syncErr
+		}
+		return executeIssueAgentBaseSynchronization(
+			ctx,
+			synchronizer,
+			issueagentgithub.CandidateBaseSyncRequest{
+				IssueNumber:         issueNumber,
+				ExpectedStateHead:   loaded.HeadSHA,
+				CurrentMainSHA:      main.SHA,
+				IssueSnapshotDigest: facts.IssueSnapshotDigest,
+				Now:                 request.Now,
+			},
+			reconcileResult{
+				Repository: request.Repository, IssueNumber: issueNumber,
+				ControlSHA: main.SHA,
+				State:      string(contract.IssueStateReadyForReview),
+				Reason:     "Agent pull request synchronized with current main",
+			},
+			func(state contract.IssueAgentState) error {
+				return repairIssueStatus(
+					ctx, client, config.AppLogin, state,
+				)
+			},
+		)
+	}
+	var baseSyncRejection *issueagent.IssueDecision
+	if issueagent.ShouldRecoverInterruptedBaseSync(
+		facts, current, reconcilePolicy,
+	) {
+		outcome, recoverErr := runBaseSynchronization()
+		if recoverErr == nil {
+			if outcome.Committed != nil {
+				return *outcome.Committed, nil
+			}
+			baseSyncRejection = outcome.Rejected
+		} else {
+			return reconcileResult{}, recoverErr
+		}
+	}
+	var decision issueagent.IssueDecision
+	if baseSyncRejection != nil {
+		decision = *baseSyncRejection
+	} else {
+		decision, err = issueagent.ReconcileIssue(
+			facts,
+			current,
+			reconcilePolicy,
+			request.Now,
+		)
+	}
 	if err != nil {
 		return reconcileResult{}, err
 	}
@@ -422,6 +487,22 @@ func reconcileGitHub(
 				policy.HighRiskTopics,
 			)
 		}
+	}
+	if decision.Kind == issueagent.IssueDecisionSyncBase {
+		if !found || current == nil {
+			return reconcileResult{}, errors.New(
+				"base synchronization lacks signed current state",
+			)
+		}
+		outcome, syncErr := runBaseSynchronization()
+		if syncErr != nil {
+			return reconcileResult{}, syncErr
+		}
+		if outcome.Committed != nil {
+			return *outcome.Committed, nil
+		}
+		decision = *outcome.Rejected
+		trackIssue = false
 	}
 	if decision.Kind == issueagent.IssueDecisionWait && current != nil {
 		if err := repairIssueStatus(
@@ -550,6 +631,39 @@ func reconcileGitHub(
 		statusProjection,
 		trackingProjection,
 	), nil
+}
+
+func executeIssueAgentBaseSynchronization(
+	ctx context.Context,
+	synchronizer issueAgentBaseSynchronizer,
+	request issueagentgithub.CandidateBaseSyncRequest,
+	result reconcileResult,
+	statusProjection func(contract.IssueAgentState) error,
+) (issueAgentBaseSyncOutcome, error) {
+	synchronized, err := synchronizer.Synchronize(ctx, request)
+	if err != nil {
+		var rejection issueagentgithub.CandidateBaseSyncRejection
+		if !errors.As(err, &rejection) {
+			return issueAgentBaseSyncOutcome{}, err
+		}
+		decision, decisionErr := issueagent.RejectBaseSynchronization(
+			rejection.Error(),
+		)
+		if decisionErr != nil {
+			return issueAgentBaseSyncOutcome{}, decisionErr
+		}
+		return issueAgentBaseSyncOutcome{Rejected: &decision}, nil
+	}
+	result.StateHeadSHA = synchronized.StateHeadSHA
+	result.ControlSHA = synchronized.State.SourceSHA
+	result.State = string(synchronized.State.State)
+	result.Reason = synchronized.State.Reason
+	committed := finalizeCommittedReconcile(
+		result,
+		func() error { return statusProjection(synchronized.State) },
+		nil,
+	)
+	return issueAgentBaseSyncOutcome{Committed: &committed}, nil
 }
 
 // finalizeCommittedReconcile preserves the authoritative signed transition
@@ -1507,6 +1621,8 @@ func loadIssueAgentPolicy(
 		!policy.Engineer.NetworkAccess || !policy.Engineer.Ephemeral ||
 		policy.Budgets.MaxEngineerAttempts == 0 ||
 		policy.Budgets.MaxReviewIterations == 0 ||
+		policy.Budgets.MaxBaseSyncs == 0 ||
+		policy.Budgets.MaxBaseSyncs > 10 ||
 		policy.Budgets.TaskStaleAfterSeconds <
 			policy.Engineer.WallTimeSeconds ||
 		policy.Budgets.TaskStaleAfterSeconds > 24*60*60 ||

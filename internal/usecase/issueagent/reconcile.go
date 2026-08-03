@@ -52,6 +52,7 @@ type ReconcileIssuePolicy struct {
 	ReviewPromptDigest   string
 	MaxEngineerAttempts  uint32
 	MaxReviewIterations  uint32
+	MaxBaseSyncs         uint32
 	TaskStaleAfter       time.Duration
 }
 
@@ -69,6 +70,7 @@ const (
 	IssueDecisionCancel             IssueDecisionKind = "cancel"
 	IssueDecisionMarkReady          IssueDecisionKind = "mark_ready"
 	IssueDecisionMarkDraft          IssueDecisionKind = "mark_draft"
+	IssueDecisionSyncBase           IssueDecisionKind = "sync_base"
 	IssueDecisionComplete           IssueDecisionKind = "complete"
 )
 
@@ -79,6 +81,47 @@ type IssueDecision struct {
 	Reason       string
 	Task         *contract.TaskIdentity
 	ReviewDigest string
+}
+
+// ShouldRecoverInterruptedBaseSync identifies when the GitHub adapter may
+// verify a mismatched head as an interrupted Publisher transaction.
+func ShouldRecoverInterruptedBaseSync(
+	facts IssueSnapshotFacts,
+	current *contract.IssueAgentState,
+	policy ReconcileIssuePolicy,
+) bool {
+	maxBaseSyncs := policy.MaxBaseSyncs
+	if maxBaseSyncs == 0 {
+		maxBaseSyncs = 3
+	}
+	if !policy.Enabled || !facts.Open || current == nil || current.Work == nil ||
+		facts.PullRequest == nil ||
+		(current.State != contract.IssueStateDraft &&
+			current.State != contract.IssueStateReadyForReview) ||
+		!facts.PullRequest.Open || facts.PullRequest.Draft ||
+		facts.PullRequest.Merged ||
+		facts.PullRequest.HeadSHA == current.Work.HeadSHA ||
+		current.Budget.BaseSyncs >= maxBaseSyncs {
+		return false
+	}
+	return facts.Authorization == nil ||
+		facts.Authorization.Command != "/agent cancel" &&
+			facts.Authorization.Command != "/agent take-over"
+}
+
+// RejectBaseSynchronization converts one deterministic Publisher safety
+// refusal into durable lifecycle feedback.
+func RejectBaseSynchronization(reason string) (IssueDecision, error) {
+	if reason == "" || len(reason) > 1024 {
+		return IssueDecision{}, errors.New(
+			"base synchronization rejection reason is invalid",
+		)
+	}
+	return IssueDecision{
+		Kind:      IssueDecisionNeedsHuman,
+		NextState: contract.IssueStateNeedsHuman,
+		Reason:    "automatic base synchronization stopped: " + reason,
+	}, nil
 }
 
 // ReconcileIssue derives one v2 controller action without external effects.
@@ -207,6 +250,29 @@ func ReconcileIssue(
 			Kind:      IssueDecisionCancel,
 			NextState: contract.IssueStateCancelled,
 			Reason:    "Issue was closed before an Agent repair was merged",
+		}, nil
+	}
+	if current != nil &&
+		(current.State == contract.IssueStateDraft ||
+			current.State == contract.IssueStateReadyForReview) &&
+		current.Work != nil && facts.PullRequest != nil &&
+		facts.PullRequest.Open && !facts.PullRequest.Draft &&
+		current.SourceSHA != facts.SourceSHA {
+		maxBaseSyncs := policy.MaxBaseSyncs
+		if maxBaseSyncs == 0 {
+			maxBaseSyncs = 3
+		}
+		if current.Budget.BaseSyncs >= maxBaseSyncs {
+			return IssueDecision{
+				Kind:      IssueDecisionNeedsHuman,
+				NextState: contract.IssueStateNeedsHuman,
+				Reason:    "automatic base synchronization budget is exhausted",
+			}, nil
+		}
+		return IssueDecision{
+			Kind:      IssueDecisionSyncBase,
+			NextState: contract.IssueStateReadyForReview,
+			Reason:    "Agent pull request must be synchronized with current main",
 		}, nil
 	}
 	if facts.ReviewDigest != "" {
@@ -359,6 +425,7 @@ func validateIssueSnapshotFacts(
 		!v2DigestPattern.MatchString(policy.ReviewPromptDigest) ||
 		policy.MaxEngineerAttempts == 0 ||
 		policy.MaxReviewIterations == 0 ||
+		policy.MaxBaseSyncs > 10 ||
 		policy.TaskStaleAfter < 0 ||
 		policy.TaskStaleAfter > 24*time.Hour {
 		return errors.New("invalid Issue Agent v2 policy")

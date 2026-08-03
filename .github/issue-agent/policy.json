@@ -18,6 +18,7 @@
   "budgets": {
     "max_engineer_attempts_per_issue": 3,
     "max_review_iterations": 2,
+    "max_base_syncs_per_issue": 3,
     "task_stale_after_seconds": 14400
   },
   "candidate_limits": {

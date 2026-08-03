@@ -770,6 +770,17 @@ fresh protected `main` head. The reusable task freezes that SHA for every
 trusted control role while the candidate workspace uses the task's separate
 exact base SHA.
 
+For a Ready Agent PR behind that protected head, this composition invokes the
+Publisher-owned mechanical base synchronizer. It accepts only a bounded linear
+history of exact App-signed candidate commits from signed source, proves
+current `main` retained every final candidate path, atomically fences `main`
+and swaps the Agent ref through a staging ref, advances the signed state under
+CAS, and requires a fresh Review generation.
+It never runs Codex or candidate code, resolves conflicts, adopts an external
+head, or merges the PR. A bounded recovery path recognizes only the exact
+App-signed head from an interrupted ref-swap-before-state-write transaction,
+records its exact base first, and lets later reconciliation chase newer `main`.
+
 After the Controller commits a signed transition, that transition and its
 dispatch result remain authoritative if a GitHub status projection fails.
 Status repair runs before terminal tracking-label removal; a status failure

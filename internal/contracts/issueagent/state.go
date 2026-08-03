@@ -32,6 +32,8 @@ const (
 type IssueBudget struct {
 	EngineerAttempts uint32 `json:"engineer_attempts"`
 	ReviewIterations uint32 `json:"review_iterations"`
+	// BaseSyncs bounds mechanical Publisher rebases onto a newer main.
+	BaseSyncs uint32 `json:"base_syncs,omitempty"`
 }
 
 // TaskIdentity binds one exact ephemeral engineering task.

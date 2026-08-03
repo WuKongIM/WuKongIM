@@ -38,10 +38,7 @@ func ValidateCandidateSnapshot(snapshot CandidateSnapshot) error {
 		!gitSHAPattern.MatchString(snapshot.BaseSHA) {
 		return errors.New("invalid Candidate Snapshot identity")
 	}
-	return ValidateChangeSet(snapshot.ChangeSet, ChangeSetLimits{
-		MaxFiles: 128, MaxFileBytes: 8 << 20,
-		MaxTotalBytes: 32 << 20, MaxDeletions: 128,
-	})
+	return ValidateChangeSet(snapshot.ChangeSet, PublisherChangeSetLimits())
 }
 
 // CandidateSnapshotDigest binds the complete captured ChangeSet.
@@ -54,10 +51,9 @@ func CandidateSnapshotDigest(snapshot CandidateSnapshot) (string, error) {
 
 // ChangeSetDigest binds the exact sorted file operations and contents.
 func ChangeSetDigest(changeSet ChangeSet) (string, error) {
-	if err := ValidateChangeSet(changeSet, ChangeSetLimits{
-		MaxFiles: 128, MaxFileBytes: 8 << 20,
-		MaxTotalBytes: 32 << 20, MaxDeletions: 128,
-	}); err != nil {
+	if err := ValidateChangeSet(
+		changeSet, PublisherChangeSetLimits(),
+	); err != nil {
 		return "", err
 	}
 	return canonicalDigest(changeSet, "encode candidate ChangeSet")

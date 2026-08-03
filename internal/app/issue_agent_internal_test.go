@@ -86,6 +86,90 @@ func TestCommittedIssueTransitionReportsTrackingRemovalFailure(t *testing.T) {
 	}}, actual.Warnings)
 }
 
+func TestIssueAgentBaseSynchronizationWiresStateRejectionAndProjection(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state := contract.IssueAgentState{
+		State:     contract.IssueStateReadyForReview,
+		SourceSHA: "0123456789abcdef0123456789abcdef01234567",
+		Reason:    "recovered exact interrupted base synchronization",
+	}
+	synchronizer := issueAgentBaseSynchronizerStub{
+		result: issueagentgithub.CandidateBaseSyncResult{
+			StateHeadSHA: "state-head", State: state,
+		},
+	}
+	projected := contract.IssueAgentState{}
+	outcome, err := executeIssueAgentBaseSynchronization(
+		context.Background(), synchronizer,
+		issueagentgithub.CandidateBaseSyncRequest{},
+		reconcileResult{
+			Repository: "WuKongIM/WuKongIM", IssueNumber: 42,
+			ControlSHA: "234567890abcdef1234567890abcdef123456789",
+		},
+		func(actual contract.IssueAgentState) error {
+			projected = actual
+			return errors.New("temporary status failure")
+		},
+	)
+	require.NoError(t, err)
+	require.Nil(t, outcome.Rejected)
+	require.Equal(t, state, projected)
+	require.Equal(t, "state-head", outcome.Committed.StateHeadSHA)
+	require.Equal(t, state.SourceSHA, outcome.Committed.ControlSHA)
+	require.Equal(t, string(state.State), outcome.Committed.State)
+	require.Equal(t, state.Reason, outcome.Committed.Reason)
+	require.Equal(t, []reconcileWarning{{
+		Projection: "status", Reason: "temporary status failure",
+	}}, outcome.Committed.Warnings)
+
+	synchronizer.err = issueAgentBaseSyncRejectionStub{
+		reason: "current main changed a candidate path",
+	}
+	outcome, err = executeIssueAgentBaseSynchronization(
+		context.Background(), synchronizer,
+		issueagentgithub.CandidateBaseSyncRequest{},
+		reconcileResult{},
+		func(contract.IssueAgentState) error { return nil },
+	)
+	require.NoError(t, err)
+	require.Nil(t, outcome.Committed)
+	require.Equal(t, issueagent.IssueDecisionNeedsHuman, outcome.Rejected.Kind)
+
+	synchronizer.err = errors.New("temporary GitHub failure")
+	_, err = executeIssueAgentBaseSynchronization(
+		context.Background(), synchronizer,
+		issueagentgithub.CandidateBaseSyncRequest{},
+		reconcileResult{},
+		func(contract.IssueAgentState) error { return nil },
+	)
+	require.EqualError(t, err, "temporary GitHub failure")
+}
+
+type issueAgentBaseSynchronizerStub struct {
+	result issueagentgithub.CandidateBaseSyncResult
+	err    error
+}
+
+func (stub issueAgentBaseSynchronizerStub) Synchronize(
+	context.Context,
+	issueagentgithub.CandidateBaseSyncRequest,
+) (issueagentgithub.CandidateBaseSyncResult, error) {
+	return stub.result, stub.err
+}
+
+type issueAgentBaseSyncRejectionStub struct {
+	reason string
+}
+
+func (rejection issueAgentBaseSyncRejectionStub) Error() string {
+	return rejection.reason
+}
+
+func (issueAgentBaseSyncRejectionStub) CandidateBaseSyncRejected() {}
+
 func TestResolveIssueNumberRotatesScheduledTrackedIssues(t *testing.T) {
 	t.Parallel()
 

@@ -501,3 +501,13 @@ func (client *Client) readGitBlob(
 	}
 	return content, nil
 }
+
+// ReadGitBlob exposes the bounded, content-address-verified blob reader to the
+// mechanical base synchronizer.
+func (client *Client) ReadGitBlob(
+	ctx context.Context,
+	sha string,
+	maxBytes int64,
+) ([]byte, error) {
+	return client.readGitBlob(ctx, sha, maxBytes)
+}

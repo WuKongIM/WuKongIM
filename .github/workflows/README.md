@@ -170,6 +170,12 @@ authority and never masquerade as an automated repair command.
 Its reusable workflow ends after the clean Verifier; the caller-owned
 Publisher separately finalizes every accepted task from the protected
 `issue-agent-publisher` Environment, including failed engineering attempts.
+For a Ready Agent PR whose exact App-owned candidate is behind `main`, that
+same Publisher may mechanically recreate the candidate on current `main` only
+when none of its paths changed. The expected-head ref swap advances signed
+state, consumes a bounded sync attempt, invalidates prior Review authority, and
+requires a fresh `Review Agent Verdict`; overlaps and external heads fail
+closed without asking Codex to merge them.
 
 See [`docs/agents/issue-agent.md`](../../docs/agents/issue-agent.md).
 

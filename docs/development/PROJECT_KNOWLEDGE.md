@@ -313,6 +313,12 @@
   organization member, while every other author requires a human merge. There
   is no periodic PR scan.
 - The GitHub Issue Agent is a GitHub-Actions-only stateless system. Canonical App-authored, GitHub-signed commits on `agent-state/issue-<number>` are its sole durable authority; event payloads are wake-up hints. A full-SHA-pinned official Codex Action performs one complete ephemeral engineering task with public internet but no GitHub/App/cloud/deploy credentials or Docker socket. Filesystem capture ignores Codex Git metadata, a clean credential-free Verifier owns test evidence and risk, and only the protected Publisher may create an expected-head signed commit on `agent/issue-<number>`, one complete Draft PR, and the status/state projections. Humans remain the only merge authority; setup and boundaries live in `docs/agents/issue-agent.md`.
+- A stale Ready Issue Agent PR is synchronized without another model run only
+  by the protected Publisher: it replays the exact bounded linear App-signed
+  history on current `main` when every final touched path is unchanged, swaps
+  the Agent ref under CAS, advances signed state within a three-sync budget,
+  and requires a fresh Review Agent generation. Overlap or an external head
+  fails closed.
 - Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.
 - wk-sim performance investigations must follow the `docs/development/PERF_TRIAGE.md` runbook: collect evidence, classify, hypothesize, then run one-variable experiments.

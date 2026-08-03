@@ -119,10 +119,7 @@ func (client *Client) PublishCommit(
 	}
 	if err := issueagentcontract.ValidateChangeSet(
 		plan.ChangeSet,
-		issueagentcontract.ChangeSetLimits{
-			MaxFiles: 128, MaxFileBytes: 8 << 20,
-			MaxTotalBytes: 32 << 20, MaxDeletions: 128,
-		},
+		issueagentcontract.PublisherChangeSetLimits(),
 	); err != nil {
 		return PublishedCommit{}, err
 	}
@@ -290,6 +287,88 @@ func validCommitPurposeBranch(plan CommitPlan) bool {
 	}
 }
 
+// BuildResultTree applies one bounded ChangeSet to an immutable base tree and
+// independently re-reads every changed path before returning the Git object.
+func (client *Client) BuildResultTree(
+	ctx context.Context,
+	baseTreeSHA string,
+	changeSet issueagentcontract.ChangeSet,
+) (string, error) {
+	if client == nil || ctx == nil ||
+		!gitObjectPattern.MatchString(baseTreeSHA) ||
+		len(baseTreeSHA) != 40 || len(changeSet.Files) == 0 {
+		return "", errors.New("result tree request is invalid")
+	}
+	if err := issueagentcontract.ValidateChangeSet(
+		changeSet,
+		issueagentcontract.PublisherChangeSetLimits(),
+	); err != nil {
+		return "", err
+	}
+	type treeEntry struct {
+		Path string  `json:"path"`
+		Mode string  `json:"mode,omitempty"`
+		Type string  `json:"type,omitempty"`
+		SHA  *string `json:"sha"`
+	}
+	entries := make([]treeEntry, 0, len(changeSet.Files))
+	for _, file := range changeSet.Files {
+		entry := treeEntry{Path: file.Path}
+		if file.Operation == issueagentcontract.FileOperationUpsert {
+			content, err := issueagentcontract.DecodeFileContent(file)
+			if err != nil {
+				return "", err
+			}
+			sha := gitBlobObjectSHA(content)
+			entry.Mode = string(file.Mode)
+			entry.Type = "blob"
+			entry.SHA = &sha
+		}
+		entries = append(entries, entry)
+	}
+	var response struct {
+		SHA string `json:"sha"`
+	}
+	if err := client.requestJSON(
+		ctx,
+		http.MethodPost,
+		"/repos/"+client.repository+"/git/trees",
+		struct {
+			BaseTree string      `json:"base_tree"`
+			Tree     []treeEntry `json:"tree"`
+		}{BaseTree: baseTreeSHA, Tree: entries},
+		&response,
+		http.StatusCreated,
+		http.StatusOK,
+	); err != nil {
+		return "", err
+	}
+	if !gitObjectPattern.MatchString(response.SHA) ||
+		len(response.SHA) != 40 || response.SHA == baseTreeSHA {
+		return "", errors.New("result tree response is invalid")
+	}
+	for index, file := range changeSet.Files {
+		actual, found, err := client.ResolveTreePath(
+			ctx, response.SHA, file.Path,
+		)
+		if err != nil {
+			return "", err
+		}
+		if file.Operation == issueagentcontract.FileOperationDelete {
+			if found {
+				return "", errors.New("result tree retained a deleted path")
+			}
+			continue
+		}
+		if !found || actual.Type != "blob" ||
+			actual.Mode != string(file.Mode) || entries[index].SHA == nil ||
+			actual.SHA != *entries[index].SHA {
+			return "", errors.New("result tree changed path is inconsistent")
+		}
+	}
+	return response.SHA, nil
+}
+
 const zeroGitOID = "0000000000000000000000000000000000000000"
 
 type refUpdate struct {
@@ -301,7 +380,7 @@ type refUpdate struct {
 
 // PublishRebasedCommit creates an App-authored signed commit on a deterministic
 // staging ref rooted at current main, then atomically force-swaps the PR branch
-// only if both the old PR head and staging head still match exactly.
+// only if main, the old PR head, and the staging head still match exactly.
 func (client *Client) PublishRebasedCommit(
 	ctx context.Context,
 	plan RebasePlan,
@@ -320,10 +399,7 @@ func (client *Client) PublishRebasedCommit(
 	}
 	if err := issueagentcontract.ValidateChangeSet(
 		plan.ChangeSet,
-		issueagentcontract.ChangeSetLimits{
-			MaxFiles: 128, MaxFileBytes: 8 << 20,
-			MaxTotalBytes: 32 << 20, MaxDeletions: 128,
-		},
+		issueagentcontract.PublisherChangeSetLimits(),
 	); err != nil {
 		return PublishedCommit{}, err
 	}
@@ -403,6 +479,11 @@ func (client *Client) PublishRebasedCommit(
 			BeforeOID: candidateSHA, AfterOID: zeroGitOID,
 			Force: true,
 		},
+		{
+			Name:      "refs/heads/main",
+			BeforeOID: plan.CurrentMainSHA, AfterOID: plan.CurrentMainSHA,
+			Force: false,
+		},
 	})
 	current, currentErr := client.Ref(ctx, plan.Branch)
 	_, stageExists, stageErr := client.RefIfExists(ctx, stageBranch)
@@ -478,11 +559,22 @@ func (client *Client) updateRefsCAS(
 	updates []refUpdate,
 ) error {
 	if repositoryID == "" || len(repositoryID) > 256 ||
-		len(updates) == 0 || len(updates) > 2 {
+		len(updates) == 0 || len(updates) > 3 {
 		return errors.New("GitHub atomic ref update is invalid")
 	}
+	mainFences := 0
 	for _, update := range updates {
 		branch := strings.TrimPrefix(update.Name, "refs/heads/")
+		if branch == "main" {
+			mainFences++
+			if len(updates) != 3 || mainFences != 1 || update.Force ||
+				update.BeforeOID == zeroGitOID ||
+				update.BeforeOID != update.AfterOID ||
+				!gitObjectPattern.MatchString(update.BeforeOID) {
+				return errors.New("GitHub atomic ref update is invalid")
+			}
+			continue
+		}
 		if update.Name != "refs/heads/"+branch ||
 			!isAgentManagedRef(branch) ||
 			(!gitObjectPattern.MatchString(update.BeforeOID) &&
@@ -491,6 +583,9 @@ func (client *Client) updateRefsCAS(
 				update.AfterOID != zeroGitOID) {
 			return errors.New("GitHub atomic ref update is invalid")
 		}
+	}
+	if len(updates) == 3 && mainFences != 1 {
+		return errors.New("GitHub atomic ref update is invalid")
 	}
 	var response struct {
 		Data struct {

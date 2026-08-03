@@ -14,6 +14,11 @@ import (
 
 var publicationSHAPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+// CandidateCommitMessage is the canonical identity of one published repair.
+func CandidateCommitMessage(issueNumber int64) string {
+	return "fix(agent): resolve issue #" + strconv.FormatInt(issueNumber, 10)
+}
+
 // CandidatePublicationInput contains all immutable inputs to one repair write.
 type CandidatePublicationInput struct {
 	State             contract.IssueAgentState
@@ -156,9 +161,8 @@ func PlanCandidatePublication(
 		Repository: input.State.Repository, IssueNumber: input.State.IssueNumber,
 		Branch: branch, ExpectedParentSHA: input.ExpectedParentSHA,
 		BaseTreeSHA: input.BaseTreeSHA, ExistingBranch: input.ExistingBranch,
-		CommitMessage: "fix(agent): resolve issue #" +
-			strconv.FormatInt(input.State.IssueNumber, 10),
-		ChangeSet: input.Candidate.ChangeSet,
+		CommitMessage: CandidateCommitMessage(input.State.IssueNumber),
+		ChangeSet:     input.Candidate.ChangeSet,
 		PullRequestTitle: "fix(agent): issue #" +
 			strconv.FormatInt(input.State.IssueNumber, 10),
 		PullRequestBody: renderCandidatePullRequest(
