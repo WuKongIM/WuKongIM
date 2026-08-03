@@ -1,0 +1,50 @@
+---
+title: Manager 管理后台
+description: 安全访问 Manager，理解权限、状态视图和高风险操作边界。
+---
+
+Manager 是独立的管理监听器和内嵌 Web 控制台。它聚合集群状态与运维任务，但不会替代变更审批、备份验证或业务验收。
+
+## 安全访问
+
+生产环境应开启 `manager.auth_on`，替换固定用户密码与 `manager.jwt_secret`，把 `manager.listen_addr` 只暴露给管理网络，并在外部入口终止 TLS。不要与产品 HTTP API、客户端流量或公开指标共用无保护入口。
+
+关闭认证并不等于开放管理权限。此时新的 Web 客户端只能进入备份页面的只读视图；它不会获得可持久化的合成会话，所有写入仍被拒绝。
+
+## 主要视图
+
+| 区域 | 用途 | 不能证明什么 |
+| --- | --- | --- |
+| 节点与实时监控 | 节点健康、就绪、角色、资源和工作队列 | 节点有足够容量或可以安全移除 |
+| Controller 与任务 | 共识状态、控制任务和推进结果 | 所有业务 Channel 都已迁移完成 |
+| Slot | 256 个物理哈希槽的副本、Leader、ISR 和日志 | 应改变物理哈希槽数量 |
+| Channel 与业务查询 | 频道、订阅、用户、设备和消息投影 | 可跳过产品侧权限或数据边界 |
+| 备份 | 计划、仓库验证、归档和恢复流程 | 保存设置后备份一定可恢复 |
+
+节点配置视图是启动时有效配置的受限、脱敏快照。它不会返回原始 Manager 凭据、Join Token 或完整敏感环境变量，也不表示配置可以热更新。
+
+## 最小权限
+
+- 查看节点与实时状态通常需要 `cluster.node:r`；查看 Slot 需要 `cluster.slot:r`。
+- 节点加入、激活、onboarding 与 scale-in 的读取/写入分别由
+  `cluster.node:r` / `cluster.node:w` 保护。独立的 Slot 清单、日志、Leader
+  迁移和压缩操作才使用 `cluster.slot:r` / `cluster.slot:w`；它们不是
+  scale-in 路由的附加权限门槛。
+- 备份读取和修改分别使用 `cluster.backup:r` 与 `cluster.backup:w`。
+- 恢复必须显式具备 `cluster.restore:w`；通配权限不能替代它。
+
+具体业务查询和写入使用各自的细粒度权限。不要为方便而长期授予全量权限；为只读观察、扩缩容、备份和恢复分别建立角色。
+
+## 执行写操作
+
+1. 记录操作者、目标节点或任务、当前配置/控制版本和预期结果。
+2. 检查 `/readyz`、Manager 状态、活动控制任务和受影响的 Slot/Channel。
+3. 先使用 plan/preview；确认目标、阻塞原因和有界批次。
+4. 执行一个步骤，等待任务终态，再重新读取权威状态。
+5. 业务验证通过后才执行下一步；冲突、过期版本或未知状态立即停止。
+
+<Callout type="warn" title="按钮不是安全证明">
+  Manager 的可用操作和状态提示是运维入口，不是替代审批的结论。缩容必须等到权威状态给出 `safe_to_remove=true`（诊断随后显示 `ready_to_remove` 建议）；恢复必须完成全量验证和确认流程。
+</Callout>
+
+下一步可阅读[健康检查与监控](/zh/server/operations/health-and-monitoring)建立观察基线，或进入[扩容与缩容](/zh/server/operations/scaling)与[备份与恢复](/zh/server/operations/backup-and-restore)。

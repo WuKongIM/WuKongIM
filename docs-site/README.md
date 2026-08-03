@@ -11,7 +11,10 @@ server-deployment path: deployment selection, source-built Docker and Linux
 artifacts, static multi-node planning, readiness, and production checks. Phase 5
 publishes the server-configuration path: cluster identity, network contracts,
 storage and workload controls, security boundaries, observability, and an
-exhaustive bilingual TOML-to-environment reference.
+exhaustive bilingual TOML-to-environment reference. Phase 6 publishes the
+server-operations path: Manager safety, health and monitoring, explicit node
+onboarding and fail-closed scale-in, verified backup and restore, and
+compatibility-gated upgrades and migrations.
 
 ## Develop
 
@@ -49,4 +52,5 @@ from sitemap and LLM outputs.
 See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
 `PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
 business-integration scope. `PHASE_4_SPEC.md` defines the server-deployment
-scope, and `PHASE_5_SPEC.md` defines the server-configuration scope.
+scope, `PHASE_5_SPEC.md` defines the server-configuration scope, and
+`PHASE_6_SPEC.md` defines the server-operations scope.

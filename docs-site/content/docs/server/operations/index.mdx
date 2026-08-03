@@ -1,0 +1,38 @@
+---
+title: 运维
+description: 用可验证、可停止、可回滚的流程管理 WuKongIM 集群。
+---
+
+运维的目标不是“把操作执行完”，而是在每一步保留安全证据。先观察集群，冻结本次变更，执行一个有界步骤，再验证业务和集群状态；证据不完整时停止推进。
+
+<Callout type="warn" title="每个部署都是集群">
+  单节点部署也是单节点集群。扩缩容、备份、恢复和升级都不能绕过 Controller、Slot 或 Channel 的集群语义；物理哈希槽数量始终为 256。
+</Callout>
+
+## 标准变更循环
+
+1. **观察**：确认 `/readyz`、节点、Controller、Slot、Channel、队列、磁盘和业务错误基线。
+2. **计划**：记录制品、配置、目标、权限、停止条件、回滚方案和负责人。
+3. **变更**：一次只推进一个有界步骤，不并发执行相互影响的拓扑操作。
+4. **验证**：等待就绪并验证消息发送、接收、重连、积压和存储信号。
+5. **留证**：保存审计记录、任务结果、指标快照和变更后的节点清单。
+
+## 选择任务
+
+<Cards>
+  <Card title="Manager 管理后台" description="了解访问边界、权限、视图和高风险写操作。" href="/zh/server/operations/manager" />
+  <Card title="健康检查与监控" description="区分存活、就绪、指标、Top 和诊断信号。" href="/zh/server/operations/health-and-monitoring" />
+  <Card title="扩容与缩容" description="显式加入、分配资源并安全排空节点。" href="/zh/server/operations/scaling" />
+  <Card title="备份与恢复" description="保存、测试、验证备份，并在维护状态下恢复。" href="/zh/server/operations/backup-and-restore" />
+  <Card title="升级与迁移" description="先确认兼容性，再选择滚动或维护窗口。" href="/zh/server/operations/upgrade-and-migration" />
+</Cards>
+
+## 开始前
+
+- 使用受控的 Manager 管理网络和最小权限账号；
+- 先完成[生产检查清单](/zh/server/deployment/production-checklist)；
+- 备份必须通过当前计划版本的存储测试，并至少有一个完整、已验证归档；
+- 为大群、高消息率、多频道和大量在线用户保留资源余量；
+- 任何未知、过期或互相矛盾的状态都视为停止条件，而不是继续操作的理由。
+
+按现象排障的完整手册仍在规划中。本阶段只发布稳定的日常操作边界。

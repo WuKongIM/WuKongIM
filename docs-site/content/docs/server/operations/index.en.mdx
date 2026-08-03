@@ -1,0 +1,38 @@
+---
+title: Operations
+description: Operate WuKongIM clusters through verifiable, stoppable, and reversible procedures.
+---
+
+Operations is not about merely completing an action. Each step should leave safety evidence. Observe the cluster, freeze the change, execute one bounded step, and verify both product and cluster state. Stop when the evidence is incomplete.
+
+<Callout type="warn" title="Every deployment is a cluster">
+  A one-node deployment is still a single-node cluster. Scaling, backup, restore, and upgrades cannot bypass Controller, Slot, or Channel semantics. The physical hash-slot count remains 256.
+</Callout>
+
+## Standard change loop
+
+1. **Observe**: establish baselines for `/readyz`, nodes, Controller, Slots, Channels, queues, disk, and product errors.
+2. **Plan**: record artifact, configuration, objective, permissions, stop conditions, rollback, and owner.
+3. **Change**: advance one bounded step at a time; do not overlap topology operations that affect one another.
+4. **Verify**: wait for readiness and verify message send, receive, reconnect, backlog, and storage signals.
+5. **Retain evidence**: save audit records, task results, metric snapshots, and the resulting node inventory.
+
+## Choose a task
+
+<Cards>
+  <Card title="Manager" description="Understand access boundaries, permissions, views, and high-risk writes." href="/en/server/operations/manager" />
+  <Card title="Health & Monitoring" description="Separate liveness, readiness, metrics, Top, and diagnostics." href="/en/server/operations/health-and-monitoring" />
+  <Card title="Scaling" description="Join explicitly, allocate resources, and drain a node safely." href="/en/server/operations/scaling" />
+  <Card title="Backup & Restore" description="Save, test, and verify backups, then restore under maintenance." href="/en/server/operations/backup-and-restore" />
+  <Card title="Upgrade & Migration" description="Confirm compatibility before choosing rolling or maintenance rollout." href="/en/server/operations/upgrade-and-migration" />
+</Cards>
+
+## Before starting
+
+- Use a controlled Manager network and a least-privilege account.
+- Complete the [Production Checklist](/en/server/deployment/production-checklist).
+- Require a storage test for the current plan revision and at least one complete, verified archive.
+- Preserve resource headroom for large groups, high message rates, many channels, and many online users.
+- Treat unknown, stale, or conflicting state as a stop condition, not a reason to proceed.
+
+The symptom-led troubleshooting manual remains planned. This phase publishes only stable routine operating boundaries.

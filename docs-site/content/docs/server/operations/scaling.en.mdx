@@ -1,0 +1,48 @@
+---
+title: Scaling
+description: Join and allocate data nodes explicitly, then drain and remove nodes only with complete safety evidence.
+---
+
+Scaling combines two independent processes: node lifecycle and resource movement. Joining a node does not automatically place Slots on it. Marking a node as leaving does not close existing connections or delete infrastructure.
+
+<Callout type="warn" title="Fixed physical hash slots">
+  The cluster always uses 256 physical hash slots. Scale-out assigns replicas or leaders for existing Slots to a new node; it does not add physical hash slots. Scale-in does not remove them.
+</Callout>
+
+## Scale-out preflight
+
+- Give the new node a unique positive `node.id` and an independent persistent `node.data_dir`.
+- Make its Transport address mutually reachable by all nodes, with the expected cluster ID and configuration generation.
+- Run compatible artifacts and retain enough replica, failure-domain, disk, and network headroom.
+- Ensure Manager can observe the new node's health, runtime, and control state.
+- Confirm there is no conflicting Slot migration, scale-in, or Controller task in the same batch.
+
+## Scale-out procedure
+
+1. Prepare the node using [Multi-node Cluster](/en/server/deployment/multi-node), then start the join through a seed node and Join Token.
+2. In Manager, confirm `joining` state and the readiness gates for Transport, control mirror, runtime, cluster ID, and control revision.
+3. Activate the node. Activation changes lifecycle state; it does not rebalance Slots.
+4. Plan onboarding for the active data node, selecting only `1..5` Slot moves per batch.
+5. Start or advance work, then wait for Controller tasks, Slot Raft learner/membership changes, and final assignment commit.
+6. After each batch, check `/readyz`, replicas/ISR, leaders, tasks, queues, latency, and product messaging before continuing.
+
+Dynamic join adds an ordinary data node. Controller-voter promotion is a separate high-risk mutation requiring `cluster.controller:w`; it is not a default scaling step and never happens automatically.
+
+## Scale-in procedure
+
+Scale-in status and diagnostics reads require `cluster.node:r`; plan, start, drain, advance, and remove require `cluster.node:w`. `cluster.slot:r` and `cluster.slot:w` apply only when separately reading Slot inventory/logs or executing Slot operations such as leader transfer. The target must be a non-Controller data node.
+
+1. **Plan**: inspect diagnostics and scale-in status; confirm replacement nodes are healthy, schedulable, and have capacity.
+2. **Mark leaving**: start scale-in to persist the target as `leaving`, preventing new placement.
+3. **Drain new admission**: enable Gateway drain. It rejects new sessions but does not close existing ones. Wait for online, closing, and pending-activation counters to reach zero.
+4. **Move Slots**: preview and advance bounded `slot_replica_move` tasks in stable Slot order. Replan after every batch.
+5. **Clear Channel blockers**: verify the target is no longer a Channel leader, configured replica, or ISR member and no active migration task references it.
+6. **Wait for the safety gate**: status returns `safe_to_remove=true` only when health, runtime revision, Controller, Slot, Channel inventory, and task evidence are fresh and consistent. Dynamic-node diagnostics then reports `recommended_next_action=ready_to_remove`; this is an operator hint derived from that boolean gate, not a second lifecycle state.
+7. **Remove membership**: submit remove with the status control revision as its fence. On conflict, reread state; never bypass the gate.
+8. **Scale infrastructure last**: Manager only persists the removed tombstone. A separate infrastructure process may then stop the process or reduce instances.
+
+## Fail-closed behavior
+
+Missing or stale health, runtime, control revision, Slot state, tasks, or Channel inventory keeps removal unsafe. The scale-in flow does not guess unknown state, close existing sessions, migrate Channel metadata, cancel tasks, or call Kubernetes scale-down.
+
+If work fails or stops progressing, stop advancing, keep the node running, and inspect task audit, live Slot state, and blocker reasons. Do not stop the process or delete its data directory.

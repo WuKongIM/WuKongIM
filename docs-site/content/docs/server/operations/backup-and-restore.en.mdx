@@ -1,0 +1,59 @@
+---
+title: Backup & Restore
+description: Save and verify cluster backups in Manager, then restore with maintenance fencing and rollback protection.
+---
+
+Backup and restore are managed entirely under Manager's Cluster → Backups area. There is no backup section in `wukongim.toml` and there are no `WK_BACKUP_*` environment variables. The cluster has one Controller-owned plan, one active task, and bounded history.
+
+<Callout type="warn" title="Saved does not mean recoverable">
+  Saving settings only persists the plan; it does not test the repository. Test the exact saved plan revision and retain a complete, verified archive plus restore-drill evidence.
+</Callout>
+
+## Permissions and repositories
+
+| Action | Permission |
+| --- | --- |
+| Read plans, tasks, and archives | `cluster.backup:r` |
+| Edit plans, test, run, verify, and manage retention | `cluster.backup:w` |
+| Start or advance restore | Explicit `cluster.restore:w`, password reauthentication, and confirmation phrase |
+
+Supported repositories are file storage, Alibaba Cloud OSS, Tencent Cloud COS, and S3-compatible object storage. Credentials are encrypted in Controller state and never returned through the API, but WuKongIM does not encrypt archive contents. Use storage-side encryption and access auditing when confidentiality is required.
+
+The file repository defaults to `backup-repository` under each node's `data_dir`. In a multi-node cluster, every active data node must reach the same shared storage. Independent local directories on each node do not form a cluster backup repository.
+
+## Establishing a plan
+
+1. Select the repository and configure retention, schedule, concurrency, and deadline.
+2. Save settings and record the returned plan revision.
+3. Test **that revision**. The coordinator writes a one-time marker. Every active data node uses an independently opened repository client to read and verify that marker, then writes its own receipt. The coordinator rereads every receipt, lists the expected object set, and cleans up the bounded probe objects, proving cross-node visibility.
+4. Enable the plan only after the repository test succeeds. Initial enablement starts a full backup.
+5. Inspect next schedule time, active task, and history. Missed schedules are not replayed; overlaps are recorded as skipped.
+
+Changing the repository marks the plan unverified again; schedule-only changes preserve repository verification. Minimum schedule interval is 12 hours, worker count is 1–4, and task deadline is 1–48 hours. Do not select maximum concurrency in production before validating IO, network, and product latency.
+
+## Archive completion
+
+A full backup covers all 256 physical hash slots with 64 MiB chunks, Zstd compression, and SHA-256 checksums. An archive becomes complete only after every chunk is written and checked and the `COMPLETE` marker is published.
+
+Archive verification rereads and checks every chunk. Retention keeps the newest seven archives by default plus archives on hold. Deletion requires `DELETE <archive-id>` and must not remove an archive required by an active restore or retention policy.
+
+## Restore preflight
+
+- The archive belongs to the current cluster identity and is complete and fully verified.
+- Controller state and all 256 Slots are available, with no conflicting control tasks.
+- Free space covers current product data, twice the archive logical size, plus 1 GiB.
+- Clients, webhooks, plugins, delivery, and operators are prepared for maintenance.
+- All Controller voters will not be terminated together; the operator has explicit restore permission and reauthenticates.
+- Current artifacts, configuration, node inventory, and abort/escalation conditions are recorded.
+
+## Restore procedure
+
+1. Select the archive in Manager and run full preflight and verification.
+2. Enter `RESTORE <archive-id>`. The cluster enters maintenance: clients disconnect, writes and projections drain, delivery/webhooks/plugins pause, and new writes are fenced.
+3. The system retains rollback images, stages all 256 Slots, and verifies again.
+4. Switch only after all nodes and Slots verify. On failure, restore the previous state from rollback images.
+5. Successful restore invalidates Manager sessions. Log in again, wait for `/readyz`, and verify historical messages, client tokens, new writes, send/receive, reconnect, and downstream integrations before gradually restoring traffic.
+
+<Callout type="warn" title="Not a cross-cluster migration tool">
+  The current restore format accepts only the same cluster identity. It cannot attach a repository to a separately initialized cluster and does not replace a v2-to-v3 migration plan.
+</Callout>

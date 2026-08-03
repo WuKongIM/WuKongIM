@@ -1,0 +1,56 @@
+---
+title: Upgrade & Migration
+description: Confirm exact-version compatibility before choosing a rolling upgrade, maintenance window, or separate migration project.
+---
+
+The target release's compatibility evidence determines the upgrade method; cluster size does not. Current documentation makes no universal promise for mixed versions, downgrade, or in-place v2-to-v3 storage migration.
+
+<Callout type="warn" title="Mixed versions are denied by default">
+  Use a mixed-version rolling upgrade only when the target release notes explicitly declare compatibility with the current version. Without that declaration, use a full maintenance window and avoid running different versions together.
+</Callout>
+
+## Freeze the upgrade contract
+
+Record before starting:
+
+- Current and target commit SHA, artifact digest, Go/build toolchain, and configuration version.
+- Target-release statements for protocol, Controller, Slot/Channel metadata, storage, and configuration compatibility.
+- Whether mixed versions are allowed, supported version span, order, and maximum mixed-version duration.
+- Irreversible persistence boundaries, downgrade support, and the last safe rollback point.
+- A repository test for the current plan revision, a complete verified archive, and restore-drill evidence.
+- Baselines for `/readyz`, errors, latency, connections, queues, Controller, Slots, Channels, disk, and product acceptance.
+
+If any item is unknown, choose a maintenance window or pause until the release owner confirms it.
+
+## Rolling upgrade when compatibility is explicit
+
+1. Freeze topology, scaling, backup/restore, and unrelated configuration changes.
+2. Remove one non-critical node from traffic and wait for connections and work to drain safely.
+3. Restart it with the target artifact and validated configuration. Keep its node ID and data directory unchanged.
+4. Wait for `/readyz`; confirm control revision catch-up, stable Slot/Channel roles, and no new errors or backlogs.
+5. Send a small traffic share and verify send/receive, reconnect, history, and downstream integrations.
+6. Advance one node at a time, preserving release-specific Controller-voter order and mixed-version deadline.
+7. After completion, observe a full product peak and retain upgrade evidence.
+
+Rolling does not mean risk-free. 100,000-member groups, high message rates, and many online users amplify reconnect, migration, and cache-warmup cost; retain capacity headroom.
+
+## Maintenance upgrade without compatibility
+
+1. Complete backup verification, rollback rehearsal, and downtime communication.
+2. Stop traffic and confirm a controlled maintenance state with writes and downstream delivery drained.
+3. Stop nodes in the release-specific order. Do not terminate all Controller voters together while coordination is still required.
+4. Replace artifacts and configuration on every node, then start only after versions are consistent and according to the release instructions.
+5. Wait for every node, Controller, and all 256 Slots to stabilize and pass `/readyz`.
+6. Restore traffic gradually after product acceptance. Stop cutover on unknown state or errors.
+
+## Rollback boundary
+
+Binary rollback is safe only before the target has written persistent state that the old version cannot understand and when the release notes explicitly support downgrade. Configuration removal or rename, metadata encoding, storage format, and control state can all make a simple binary replacement unsafe.
+
+After an irreversible boundary, do not attempt a blind downgrade. Keep traffic closed, preserve logs and state, and follow a release-specific recovery procedure or the rehearsed backup restore.
+
+## v2 to v3
+
+There is currently no general in-place v2-to-v3 storage conversion contract or automated tool. Do not copy a v2 data directory into v3 nodes, and do not treat v3 backup restore as a new-cluster import API.
+
+Treat migration as a separate project: freeze product data semantics and acceptable downtime; inventory users, Channels, membership, messages, device tokens, and external integrations; define a verified export/transform/validation/cutover/rollback method; and rehearse it with representative data. Without a release-specific plan, keep the existing system running rather than attempting an experimental production conversion.

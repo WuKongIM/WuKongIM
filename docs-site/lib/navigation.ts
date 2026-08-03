@@ -513,42 +513,42 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'operations',
         '运维',
         'Operations',
         '管理、观察和安全变更生产集群。',
         'Manage, observe, and safely change production clusters.',
         [
-          plannedPage(
+          publishedPage(
             'manager',
             'Manager 管理后台',
             'Manager',
             '介绍后台权限、集群状态、业务查询和运维操作。',
             'Introduces permissions, cluster state, business queries, and operations.',
           ),
-          plannedPage(
+          publishedPage(
             'health-and-monitoring',
             '健康检查与监控',
             'Health & Monitoring',
             '解释就绪状态、核心指标、Prometheus、Grafana 和告警。',
             'Explains readiness, key metrics, Prometheus, Grafana, and alerts.',
           ),
-          plannedPage(
+          publishedPage(
             'scaling',
             '扩容与缩容',
             'Scaling',
             '说明节点加入、平衡、安全缩容和 Leader 迁移。',
             'Covers node joins, balancing, safe scale-in, and leader transfer.',
           ),
-          plannedPage(
+          publishedPage(
             'backup-and-restore',
             '备份与恢复',
             'Backup & Restore',
             '说明备份计划、验证、恢复和灾难演练。',
             'Covers backup schedules, verification, restoration, and recovery drills.',
           ),
-          plannedPage(
+          publishedPage(
             'upgrade-and-migration',
             '升级与迁移',
             'Upgrade & Migration',

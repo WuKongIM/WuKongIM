@@ -118,6 +118,12 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/configuration/security`,
         `/${locale}/server/configuration/observability`,
         `/${locale}/server/configuration/reference`,
+        `/${locale}/server/operations`,
+        `/${locale}/server/operations/manager`,
+        `/${locale}/server/operations/health-and-monitoring`,
+        `/${locale}/server/operations/scaling`,
+        `/${locale}/server/operations/backup-and-restore`,
+        `/${locale}/server/operations/upgrade-and-migration`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
@@ -197,6 +203,12 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/configuration/cluster.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/reference.mdx')).toBe(true);
     expect(isPublishedContentPath('server/configuration/reference.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/manager.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/manager.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/backup-and-restore.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/backup-and-restore.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/troubleshooting.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/operations/troubleshooting.en.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);

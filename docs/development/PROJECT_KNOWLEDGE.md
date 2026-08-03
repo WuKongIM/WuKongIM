@@ -259,9 +259,16 @@
 - PullHint is only a wakeup/refresh trigger. Unloaded followers must resolve authoritative metadata before opening storage through a dedicated bounded cold-activation pool; loaded newer-fence recovery uses its separate authoritative refresh pool.
 
 ### Node scale-in
-- Manager-driven node scale-in drains a node to `ready_to_remove`; it must not call physical Slot removal or Kubernetes scale-down directly.
-- Scale-in manager reads require `cluster.node:r` and `cluster.slot:r`; start/advance/cancel require `cluster.node:w` and `cluster.slot:w`.
-- Node scale-in readiness must account for channel leaders, channel replicas, and active channel migration tasks before reporting `ready_to_remove`.
+- Manager-driven node scale-in drains until authoritative status reports
+  `safe_to_remove=true`; dynamic diagnostics then derives the
+  `ready_to_remove` recommendation. This recommendation is not a lifecycle
+  state. Manager must not call physical Slot removal or Kubernetes scale-down.
+- Scale-in status/diagnostics routes require `cluster.node:r`; plan, start,
+  drain, advance, and remove require `cluster.node:w`. Separate Slot inventory
+  and mutation routes retain their own `cluster.slot:r/w` permissions. Scale-in
+  has no cancel route.
+- Node scale-in safety must account for channel leaders, channel replicas, and
+  active channel migration tasks before reporting `safe_to_remove=true`.
 
 ## Plugin Subsystem
 
@@ -281,6 +288,13 @@
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
+- Phase 6 public operations guidance treats Manager as a privileged boundary,
+  distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic
+  node onboarding explicit and scale-in fail-closed, and keeps all 256 physical
+  hash slots. Backup configuration lives only in Manager; a saved plan is not a
+  verified repository, restore accepts only the current cluster identity, and
+  mixed-version or v2-to-v3 migration is never promised without exact
+  release-specific evidence.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level
