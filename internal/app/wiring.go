@@ -698,15 +698,14 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				a.messageIDs = messageIDs
 			}
 			opts := channelappend.Options{
-				LocalNodeID:                           nodeID,
-				Appender:                              clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
-				MessageID:                             messageIDs,
-				AuthorityShardCount:                   a.cfg.ChannelAppend.AuthorityShardCount,
-				AdvancePoolSize:                       a.cfg.ChannelAppend.AdvancePoolSize,
-				EffectPoolSize:                        a.cfg.ChannelAppend.EffectPoolSize,
-				RecipientAuthorityDispatchConcurrency: a.cfg.ChannelAppend.RecipientAuthorityDispatchConcurrency,
-				RecipientBatchSize:                    a.cfg.Delivery.PushBatchSize,
-				SubscriberScanPageSize:                a.cfg.Delivery.FanoutPageSize,
+				LocalNodeID:            nodeID,
+				Appender:               clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
+				MessageID:              messageIDs,
+				AuthorityShardCount:    a.cfg.ChannelAppend.AuthorityShardCount,
+				AdvancePoolSize:        a.cfg.ChannelAppend.AdvancePoolSize,
+				EffectPoolSize:         a.cfg.ChannelAppend.EffectPoolSize,
+				RecipientBatchSize:     a.cfg.Delivery.PushBatchSize,
+				SubscriberScanPageSize: a.cfg.Delivery.FanoutPageSize,
 			}
 			if idempotencyNode, ok := a.cluster.(clusterinfra.ChannelIdempotencyNode); ok {
 				opts.Idempotency = clusterinfra.NewChannelIdempotencyStore(idempotencyNode)

@@ -18,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
@@ -2545,24 +2546,24 @@ func TestNewRejectsNegativeDeepDiagnosticsConfig(t *testing.T) {
 	}
 }
 
-func TestDeliveryMessageObserverMapsRecipientDeliveryWorkerMetrics(t *testing.T) {
+func TestOnlineDeliveryObserverMapsRuntimeMetrics(t *testing.T) {
 	reg := obsmetrics.New(1, "n1")
-	observer := deliveryMessageObserver{app: &App{metrics: reg}}
+	observer := onlineDeliveryObserver{app: &App{metrics: reg}}
 
-	observer.SetChannelAppendRecipientDeliveryQueue(channelappend.RecipientDeliveryQueueObservation{
+	observer.ObservePlanAdmission(runtimedelivery.PlanAdmissionEvent{
+		Result:        runtimedelivery.ObservationResultTimeout,
 		QueueDepth:    3,
 		QueueCapacity: 8,
+		Duration:      2 * time.Millisecond,
 	})
-	observer.SetChannelAppendRecipientDeliveryWorkerPressure(channelappend.RecipientDeliveryWorkerPressureObservation{
-		Inflight: 2,
-		Capacity: 4,
+	observer.SetRuntimePressure(runtimedelivery.RuntimePressureEvent{
+		QueueDepth:    3,
+		QueueCapacity: 8,
+		Inflight:      2,
+		Workers:       4,
 	})
-	observer.ObserveChannelAppendRecipientDeliveryAdmission(channelappend.RecipientDeliveryAdmissionObservation{
-		Result:   "timeout",
-		Duration: 2 * time.Millisecond,
-	})
-	observer.ObserveChannelAppendRecipientDeliveryProcess(channelappend.RecipientDeliveryProcessObservation{
-		Result:     "ok",
+	observer.ObservePlanTerminal(runtimedelivery.PlanTerminalEvent{
+		Result:     runtimedelivery.ObservationResultOK,
 		Recipients: 4,
 		Duration:   5 * time.Millisecond,
 	})

@@ -176,6 +176,8 @@ recipient_worker_concurrency = 100
 shard_count = 0
 advance_pool_size = 0
 effect_pool_size = 0
+# Deprecated compatibility input. Canonical Online Delivery plans admit all
+# exact-target groups together and ignore this value.
 recipient_authority_dispatch_concurrency = 0
 
 [webhook]

@@ -17,9 +17,6 @@ func TestNewWiresConfiguredOnlineDeliveryWorkerConcurrency(t *testing.T) {
 	app, err := newTestApp(t,
 		Config{
 			Cluster: clusterpkg.Config{NodeID: 1},
-			ChannelAppend: ChannelAppendConfig{
-				RecipientAuthorityDispatchConcurrency: 3,
-			},
 			Delivery: DeliveryConfig{
 				Enabled:                    true,
 				RecipientWorkerConcurrency: 7,
