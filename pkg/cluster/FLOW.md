@@ -33,8 +33,9 @@ The root `Node` stays thin: it owns lifecycle, readiness, public API delegation,
 surface for upper-layer internal adapters. Handlers registered before the
 default transport starts are replayed during transport construction; later
 registrations are installed idempotently. Internal delivery uses this surface
-for owner-node push RPC and partition-leader fanout RPC; cluster only routes
-the payload and does not inspect delivery DTOs. Internal manager connection
+only for owner-node push RPC; cluster routes the payload and does not inspect
+delivery DTOs. The retired partition-leader fanout service ID remains reserved
+and must not be reused. Internal manager connection
 pages also use this surface to read owner-node online connection inventory from
 peer nodes without adding manager-specific logic to cluster. Internal
 manager distributed log pages use the same surface to ask a selected peer to

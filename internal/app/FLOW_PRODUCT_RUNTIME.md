@@ -4,12 +4,11 @@ This companion to `FLOW.md` records the detailed product-runtime composition
 and messaging flows. `FLOW.md` remains the package's canonical index; this file
 owns the linked product-runtime detail.
 
-During Online Delivery convergence, app wiring starts only
-`internal/runtime/delivery.Runtime`, injects it into channelappend through the
-canonical compatibility port, and registers only owner-push RPC. The old
-manager/retry/fanout implementations remain compiled for one cleanup step but
-are no longer constructed. Gateway feedback temporarily crosses the existing
-delivery-usecase facade, which performs only command-type conversion.
+App wiring starts `internal/runtime/delivery.Runtime`, injects its canonical
+plan-admission port into channelappend, and registers only owner-push RPC. The
+retired manager/retry/fanout execution stack and fanout RPC have been removed.
+Gateway feedback temporarily crosses the existing delivery-usecase facade,
+which performs only command-type conversion.
 
 Operations MCP has no independent process, listener, port, or config enable
 switch. `internal/app` creates and closes its local call-control audit writer,
