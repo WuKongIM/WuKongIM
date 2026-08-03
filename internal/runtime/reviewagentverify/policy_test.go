@@ -160,7 +160,7 @@ func testVerificationPolicy() verify.Policy {
 			"go-unit": {}, "go-vet": {}, "scripts-integration": {},
 			"workflow-contracts": {}, "docs-contracts": {},
 			"review-proxy-contracts": {},
-			"web-lint": {}, "web-test": {}, "web-typecheck": {},
+			"web-lint":               {}, "web-test": {}, "web-typecheck": {},
 			"web-build": {}, "web-bundle": {}, "demo-test": {},
 			"demo-build": {}, "demo-bundle": {}, "go-race": {},
 			"go-integration": {}, "go-e2e": {}, "three-node-cluster": {},
