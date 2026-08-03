@@ -22,6 +22,7 @@ type CommandKind string
 
 const (
 	CommandStatus     CommandKind = "status"
+	CommandReview     CommandKind = "review"
 	CommandExplain    CommandKind = "explain"
 	CommandReconsider CommandKind = "reconsider"
 	CommandRetry      CommandKind = "retry"
@@ -31,8 +32,6 @@ const (
 // CommandInput carries exact comment content and freshly resolved authority.
 type CommandInput struct {
 	Body       string
-	Actor      string
-	PRWriter   string
 	Permission Permission
 	Edited     bool
 }
@@ -69,38 +68,31 @@ func ParseCommand(input CommandInput) (Command, error) {
 			return Command{}, errors.New("status command does not accept a payload")
 		}
 		return Command{Kind: CommandStatus}, nil
+	case CommandReview, CommandRetry, CommandCancel:
+		if payload != "" {
+			return Command{}, errors.New("administrative command does not accept a payload")
+		}
+		if input.Permission != PermissionAdmin {
+			return Command{}, errors.New("administrative command is not authorized")
+		}
+		return Command{Kind: CommandKind(commandName)}, nil
 	case CommandExplain:
 		if strings.TrimSpace(payload) == "" {
 			return Command{}, errors.New("explain command requires a question")
+		}
+		if input.Permission != PermissionAdmin {
+			return Command{}, errors.New("explain command is not authorized")
 		}
 		return Command{Kind: CommandExplain, Payload: payload}, nil
 	case CommandReconsider:
 		if strings.TrimSpace(payload) == "" {
 			return Command{}, errors.New("reconsider command requires a reason")
 		}
-		if input.Actor == "" ||
-			input.Actor != input.PRWriter && !writeCapable(input.Permission) {
+		if input.Permission != PermissionAdmin {
 			return Command{}, errors.New("reconsider command is not authorized")
 		}
 		return Command{Kind: CommandReconsider, Payload: payload}, nil
-	case CommandRetry, CommandCancel:
-		if payload != "" {
-			return Command{}, errors.New("maintenance command does not accept a payload")
-		}
-		if !writeCapable(input.Permission) {
-			return Command{}, errors.New("maintenance command is not authorized")
-		}
-		return Command{Kind: CommandKind(commandName)}, nil
 	default:
 		return Command{}, errors.New("unknown Review Agent command")
-	}
-}
-
-func writeCapable(permission Permission) bool {
-	switch permission {
-	case PermissionWrite, PermissionMaintain, PermissionAdmin:
-		return true
-	default:
-		return false
 	}
 }

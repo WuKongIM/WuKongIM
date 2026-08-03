@@ -39,6 +39,11 @@ type composedOfflineRecipientsObserver struct {
 	webhookBatch channelappend.OfflineRecipientsObserver
 }
 
+type singleOfflineRecipientsObserver struct {
+	// next receives one compatibility callback per UID in a canonical batch.
+	next channelappend.OfflineRecipientObserver
+}
+
 func (a *App) wireWebhook() error {
 	if !a.cfg.Webhook.Enabled || a.webhook != nil {
 		return nil
@@ -135,15 +140,27 @@ func (e composedPersistAfterEnqueuer) EnqueuePersistAfter(ctx context.Context, e
 func composeOfflineRecipientObservers(
 	pluginSingle channelappend.OfflineRecipientObserver,
 	webhookBatch channelappend.OfflineRecipientsObserver,
-) (channelappend.OfflineRecipientObserver, channelappend.OfflineRecipientsObserver) {
-	if pluginSingle == nil || webhookBatch == nil {
-		return pluginSingle, webhookBatch
+) channelappend.OfflineRecipientsObserver {
+	if pluginSingle == nil {
+		return webhookBatch
 	}
 	pluginBatch, _ := pluginSingle.(channelappend.OfflineRecipientsObserver)
-	return pluginSingle, composedOfflineRecipientsObserver{
+	if webhookBatch == nil {
+		if pluginBatch != nil {
+			return pluginBatch
+		}
+		return singleOfflineRecipientsObserver{next: pluginSingle}
+	}
+	return composedOfflineRecipientsObserver{
 		pluginSingle: pluginSingle,
 		pluginBatch:  pluginBatch,
 		webhookBatch: webhookBatch,
+	}
+}
+
+func (o singleOfflineRecipientsObserver) ObserveOfflineRecipients(ctx context.Context, event channelappend.OfflineRecipientsEvent) {
+	for _, uid := range event.UIDs {
+		o.next.ObserveOfflineRecipient(ctx, channelappend.OfflineRecipientEvent{Event: event.Event, UID: uid})
 	}
 }
 

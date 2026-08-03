@@ -2,6 +2,7 @@ package reviewagentgithub_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -170,6 +171,319 @@ func TestPublisherRepairsPersistedExplanationFromLifecycleState(t *testing.T) {
 	})
 }
 
+func TestPublisherAutomaticallyMergesApprovedMemberPullRequest(t *testing.T) {
+	t.Parallel()
+
+	state, result := approvedStateAndResult(t)
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		fixedReviewStateReader{head: stateHead, state: state},
+		fixedReviewFactsReader{snapshot: github.PullRequestSnapshot{
+			Facts: usecase.PullRequestFacts{
+				Repository:        state.Generation.Repository,
+				PullRequest:       state.Generation.PullRequest,
+				HeadSHA:           state.Generation.HeadSHA,
+				BaseSHA:           state.Generation.BaseSHA,
+				TestMergeSHA:      state.Generation.TestMergeSHA,
+				IntentDigest:      state.Generation.IntentDigest,
+				Open:              true,
+				Mergeability:      usecase.MergeabilityClean,
+				AuthorLogin:       "maintainer",
+				AuthorAssociation: "MEMBER",
+			},
+			Author: "maintainer",
+		}},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+			Result:            &result,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, state.Generation.HeadSHA, writer.mergedHead)
+}
+
+func TestPublisherRefusesAutomaticMergeAfterSignedStateAdvances(t *testing.T) {
+	t.Parallel()
+
+	state, result := approvedStateAndResult(t)
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	stateReader := &advancingReviewStateReader{
+		firstHead: stateHead,
+		laterHead: strings.Repeat("9", 40),
+		state:     state,
+	}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		stateReader,
+		fixedReviewFactsReader{snapshot: github.PullRequestSnapshot{
+			Facts: usecase.PullRequestFacts{
+				Repository:        state.Generation.Repository,
+				PullRequest:       state.Generation.PullRequest,
+				HeadSHA:           state.Generation.HeadSHA,
+				BaseSHA:           state.Generation.BaseSHA,
+				TestMergeSHA:      state.Generation.TestMergeSHA,
+				IntentDigest:      state.Generation.IntentDigest,
+				Open:              true,
+				Mergeability:      usecase.MergeabilityClean,
+				AuthorLogin:       "maintainer",
+				AuthorAssociation: "MEMBER",
+			},
+			Author: "maintainer",
+		}},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+			Result:            &result,
+		},
+	)
+	require.ErrorContains(t, err, "signed state is stale")
+	require.Empty(t, writer.mergedHead)
+}
+
+func TestPublisherRepairAutomaticallyMergesApprovedMemberPullRequest(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state, _ := approvedStateAndResult(t)
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		fixedReviewStateReader{head: stateHead, state: state},
+		fixedReviewFactsReader{snapshot: github.PullRequestSnapshot{
+			Facts: usecase.PullRequestFacts{
+				Repository:        state.Generation.Repository,
+				PullRequest:       state.Generation.PullRequest,
+				HeadSHA:           state.Generation.HeadSHA,
+				BaseSHA:           state.Generation.BaseSHA,
+				TestMergeSHA:      state.Generation.TestMergeSHA,
+				IntentDigest:      state.Generation.IntentDigest,
+				Open:              true,
+				Mergeability:      usecase.MergeabilityClean,
+				AuthorLogin:       "maintainer",
+				AuthorAssociation: "MEMBER",
+			},
+			Author: "maintainer",
+		}},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, state.Generation.HeadSHA, writer.mergedHead)
+}
+
+func TestPublisherRepairLeavesApprovedExternalPullRequestForHumanMerge(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state, _ := approvedStateAndResult(t)
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		fixedReviewStateReader{head: stateHead, state: state},
+		fixedReviewFactsReader{
+			permission: github.PermissionRead,
+			snapshot: github.PullRequestSnapshot{
+				Facts: usecase.PullRequestFacts{
+					Repository:        state.Generation.Repository,
+					PullRequest:       state.Generation.PullRequest,
+					HeadSHA:           state.Generation.HeadSHA,
+					BaseSHA:           state.Generation.BaseSHA,
+					TestMergeSHA:      state.Generation.TestMergeSHA,
+					IntentDigest:      state.Generation.IntentDigest,
+					Open:              true,
+					Mergeability:      usecase.MergeabilityClean,
+					AuthorLogin:       "external",
+					AuthorAssociation: "CONTRIBUTOR",
+				},
+				Author: "external",
+			},
+		},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+		},
+	)
+	require.NoError(t, err)
+	require.Empty(t, writer.mergedHead)
+	require.Condition(t, func() bool {
+		for _, body := range writer.issueCommentBodies {
+			if strings.Contains(
+				body,
+				"This pull request requires a human merge.",
+			) {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+func TestPublisherAutomaticallyMergesApprovedRepositoryAdminPullRequest(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state, result := approvedStateAndResult(t)
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		fixedReviewStateReader{head: stateHead, state: state},
+		fixedReviewFactsReader{
+			permission: github.PermissionAdmin,
+			snapshot: github.PullRequestSnapshot{
+				Facts: usecase.PullRequestFacts{
+					Repository:        state.Generation.Repository,
+					PullRequest:       state.Generation.PullRequest,
+					HeadSHA:           state.Generation.HeadSHA,
+					BaseSHA:           state.Generation.BaseSHA,
+					TestMergeSHA:      state.Generation.TestMergeSHA,
+					IntentDigest:      state.Generation.IntentDigest,
+					Open:              true,
+					Mergeability:      usecase.MergeabilityClean,
+					AuthorLogin:       "repository-admin",
+					AuthorAssociation: "COLLABORATOR",
+				},
+				Author: "repository-admin",
+			},
+		},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+			Result:            &result,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, state.Generation.HeadSHA, writer.mergedHead)
+}
+
+func TestPublisherLeavesUntrustedApprovedPullRequestForHumanMerge(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		permission    github.Permission
+		permissionErr error
+	}{
+		{name: "external contributor", permission: github.PermissionRead},
+		{name: "write collaborator", permission: github.PermissionWrite},
+		{
+			name:          "permission lookup unavailable",
+			permissionErr: errors.New("permission unavailable"),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			state, result := approvedStateAndResult(t)
+			stateHead := strings.Repeat("f", 40)
+			writer := &recordingProjectionWriter{}
+			publisher, err := github.NewReviewPublisher(
+				"WuKongIM/WuKongIM",
+				"wukongim-review-agent",
+				"wukongim-review-agent[bot]",
+				fixedReviewStateReader{head: stateHead, state: state},
+				fixedReviewFactsReader{
+					permission:    test.permission,
+					permissionErr: test.permissionErr,
+					snapshot: github.PullRequestSnapshot{
+						Facts: usecase.PullRequestFacts{
+							Repository:        state.Generation.Repository,
+							PullRequest:       state.Generation.PullRequest,
+							HeadSHA:           state.Generation.HeadSHA,
+							BaseSHA:           state.Generation.BaseSHA,
+							TestMergeSHA:      state.Generation.TestMergeSHA,
+							IntentDigest:      state.Generation.IntentDigest,
+							Open:              true,
+							Mergeability:      usecase.MergeabilityClean,
+							AuthorLogin:       "external",
+							AuthorAssociation: "CONTRIBUTOR",
+						},
+						Author: "external",
+					},
+				},
+				writer,
+			)
+			require.NoError(t, err)
+
+			_, err = publisher.PublishDecision(
+				context.Background(),
+				github.ReviewPublicationRequest{
+					ExpectedStateHead: stateHead,
+					State:             state,
+					Result:            &result,
+				},
+			)
+			require.NoError(t, err)
+			require.Empty(t, writer.mergedHead)
+			require.Equal(t, usecase.FormalReviewApprove, writer.review)
+			require.Condition(t, func() bool {
+				for _, body := range writer.issueCommentBodies {
+					if strings.Contains(
+						body,
+						"This pull request requires a human merge.",
+					) {
+						return true
+					}
+				}
+				return false
+			})
+		})
+	}
+}
+
 type fixedReviewStateReader struct {
 	head  string
 	state contract.ReviewState
@@ -185,8 +499,29 @@ func (reader fixedReviewStateReader) Load(
 	}, true, nil
 }
 
+type advancingReviewStateReader struct {
+	firstHead string
+	laterHead string
+	state     contract.ReviewState
+	reads     int
+}
+
+func (reader *advancingReviewStateReader) Load(
+	context.Context,
+	int64,
+) (github.LoadedReviewState, bool, error) {
+	reader.reads++
+	head := reader.firstHead
+	if reader.reads > 1 {
+		head = reader.laterHead
+	}
+	return github.LoadedReviewState{HeadSHA: head, State: reader.state}, true, nil
+}
+
 type fixedReviewFactsReader struct {
-	snapshot github.PullRequestSnapshot
+	snapshot      github.PullRequestSnapshot
+	permission    github.Permission
+	permissionErr error
 }
 
 func (reader fixedReviewFactsReader) ReadPullRequestMetadata(
@@ -196,12 +531,20 @@ func (reader fixedReviewFactsReader) ReadPullRequestMetadata(
 	return reader.snapshot, nil
 }
 
+func (reader fixedReviewFactsReader) ActorPermission(
+	context.Context,
+	string,
+) (github.Permission, error) {
+	return reader.permission, reader.permissionErr
+}
+
 type recordingProjectionWriter struct {
 	review             usecase.FormalReview
 	inline             []github.InlineReviewComment
 	checkStatus        string
 	checkConclusion    *usecase.CheckConclusion
 	issueCommentBodies []string
+	mergedHead         string
 }
 
 func (writer *recordingProjectionWriter) CreateIssueComment(
@@ -280,6 +623,15 @@ func (writer *recordingProjectionWriter) UpdateLifecycleCheckRun(
 	return nil
 }
 
+func (writer *recordingProjectionWriter) MergePullRequest(
+	_ context.Context,
+	_ int64,
+	headSHA string,
+) error {
+	writer.mergedHead = headSHA
+	return nil
+}
+
 func conflictState() contract.ReviewState {
 	return contract.ReviewState{
 		SchemaVersion: 1,
@@ -300,4 +652,30 @@ func conflictState() contract.ReviewState {
 		StartedAt:      time.Date(2026, 7, 30, 7, 55, 0, 0, time.UTC),
 		UpdatedAt:      time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC),
 	}
+}
+
+func approvedStateAndResult(
+	t *testing.T,
+) (contract.ReviewState, contract.ReviewResult) {
+	t.Helper()
+	state := conflictState()
+	result := contract.ReviewResult{
+		SchemaVersion:     1,
+		Generation:        state.Generation,
+		Decision:          contract.DecisionApproved,
+		Summary:           "The exact candidate is approved.",
+		InventoryComplete: true,
+		FileAssessments: []contract.FileAssessment{{
+			Path: "README.md", Risk: contract.FileRiskLow,
+			Summary: "The change is bounded.",
+		}},
+	}
+	resultDigest, err := contract.ReviewResultDigest(result)
+	require.NoError(t, err)
+	state.Phase = contract.PhaseApproved
+	state.DecisionSource = contract.DecisionSourceModel
+	state.Reason = "review approved"
+	state.EvidenceDigest = "sha256:" + strings.Repeat("1", 64)
+	state.ResultDigest = resultDigest
+	return state, result
 }

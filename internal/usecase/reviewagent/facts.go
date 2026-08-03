@@ -41,58 +41,17 @@ type PullRequestFacts struct {
 	ChangedLines          int64
 	AuthorLogin           string
 	AuthorAssociation     string
-	ControlPlaneChanged   bool
-	OwnerApproved         bool
 	HumanChangesRequested bool
 }
 
-// GovernanceReview is the normalized portion of a formal Review needed for
-// deterministic control-plane and human-blocking policy.
-type GovernanceReview struct {
+// ReviewFact is the normalized portion of a formal Review needed for
+// deterministic human-blocking policy.
+type ReviewFact struct {
 	Author      string
 	AuthorType  string
 	State       string
 	CommitSHA   string
 	SubmittedAt time.Time
-}
-
-// GovernanceInput contains exact-head Review and path facts.
-type GovernanceInput struct {
-	Files                []contract.ChangedFile
-	ControlPlanePrefixes []string
-	Reviews              []GovernanceReview
-	HeadSHA              string
-	Author               string
-	OwnerLogins          []string
-}
-
-// EvaluatedGovernance contains pure lifecycle facts derived from normalized
-// adapter data and protected owner/path policy.
-type EvaluatedGovernance struct {
-	ControlPlaneChanged   bool
-	OwnerApproved         bool
-	HumanChangesRequested bool
-}
-
-// EvaluateGovernance applies exact-head Review precedence, rejects author
-// self-approval, and classifies protected control-plane paths.
-func EvaluateGovernance(input GovernanceInput) EvaluatedGovernance {
-	return EvaluatedGovernance{
-		ControlPlaneChanged: controlPlaneChanged(
-			input.Files,
-			input.ControlPlanePrefixes,
-		),
-		OwnerApproved: ownerApproved(
-			input.Reviews,
-			input.HeadSHA,
-			input.Author,
-			input.OwnerLogins,
-		),
-		HumanChangesRequested: humanChangesRequested(
-			input.Reviews,
-			input.HeadSHA,
-		),
-	}
 }
 
 // SchedulerLimits are the protected repository-wide lease bounds.
@@ -181,42 +140,13 @@ func firstTimeExternal(association string) bool {
 	}
 }
 
-func controlPlaneChanged(
-	files []contract.ChangedFile,
-	configuredPrefixes []string,
-) bool {
-	for _, file := range files {
-		for _, candidate := range []string{file.Path, file.PreviousPath} {
-			if candidate == "" {
-				continue
-			}
-			if slices.ContainsFunc(
-				configuredPrefixes,
-				func(prefix string) bool {
-					return strings.HasPrefix(candidate, prefix)
-				},
-			) ||
-				candidate == "AGENTS.md" ||
-				candidate == ".github/CODEOWNERS" ||
-				strings.HasPrefix(candidate, "cmd/wkreviewcheckmcp/") ||
-				strings.HasSuffix(candidate, "/AGENTS.md") ||
-				strings.HasSuffix(candidate, "/FLOW.md") ||
-				strings.HasPrefix(candidate, ".github/review-agent/") ||
-				strings.HasPrefix(candidate, ".github/workflows/review-agent") ||
-				strings.Contains(candidate, "/reviewagent") ||
-				strings.Contains(candidate, "/review_agent") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func humanChangesRequested(
-	reviews []GovernanceReview,
+// HumanChangesRequested reports whether the latest exact-head Review from any
+// human reviewer still requests changes.
+func HumanChangesRequested(
+	reviews []ReviewFact,
 	headSHA string,
 ) bool {
-	latest := make(map[string]GovernanceReview)
+	latest := make(map[string]ReviewFact)
 	for _, review := range reviews {
 		if review.AuthorType != "User" || review.CommitSHA != headSHA {
 			continue
@@ -229,40 +159,6 @@ func humanChangesRequested(
 	}
 	for _, review := range latest {
 		if review.State == "CHANGES_REQUESTED" {
-			return true
-		}
-	}
-	return false
-}
-
-func ownerApproved(
-	reviews []GovernanceReview,
-	headSHA string,
-	author string,
-	ownerLogins []string,
-) bool {
-	owners := make(map[string]struct{}, len(ownerLogins))
-	for _, owner := range ownerLogins {
-		owners[strings.ToLower(owner)] = struct{}{}
-	}
-	latest := make(map[string]GovernanceReview)
-	for _, review := range reviews {
-		if review.AuthorType != "User" ||
-			strings.EqualFold(review.Author, author) ||
-			review.CommitSHA != headSHA {
-			continue
-		}
-		normalized := strings.ToLower(review.Author)
-		if _, owner := owners[normalized]; !owner {
-			continue
-		}
-		current, exists := latest[normalized]
-		if !exists || review.SubmittedAt.After(current.SubmittedAt) {
-			latest[normalized] = review
-		}
-	}
-	for _, review := range latest {
-		if review.State == "APPROVED" {
 			return true
 		}
 	}

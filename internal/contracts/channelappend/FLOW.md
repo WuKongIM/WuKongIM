@@ -15,7 +15,8 @@ entry adapter
   -> channel authority router or local append runtime
   -> append contract
   -> committed envelope
-  -> recipient batch and owner push contracts
+  -> subscriber recipient selection
+  -> canonical Online Delivery plan contract
 ```
 
 The package only defines data, sentinel errors, and clone helpers. It does not
@@ -23,9 +24,9 @@ resolve routes, append messages, dispatch recipients, or push gateway frames.
 
 ## Ownership Rules
 
-- `SendCommand`, `Message`, `AppendBatchRequest`, `CommittedEnvelope`,
-  `RecipientBatch`, and push/result DTOs provide clone helpers when they own
-  slices.
+- `SendCommand`, `Message`, `AppendBatchRequest`, and `CommittedEnvelope`
+  provide clone helpers when they own slices. Recipient plans, routes, and
+  push/result DTOs belong to `internal/contracts/onlinedelivery`.
 - SEND hot-path implementations may pass payload and message-scoped UID slices
   by reference. Callers and callees must treat those slices as immutable until a
   concrete ownership boundary, such as durable storage, takes its own copy.

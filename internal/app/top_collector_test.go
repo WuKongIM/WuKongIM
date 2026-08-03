@@ -9,7 +9,6 @@ import (
 	"time"
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -539,7 +538,6 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 	})
 	observer := topChannelObserver{top: collector}
 	storage := topStorageObserver{top: collector}
-	delivery := topDeliveryObserver{top: collector}
 
 	collector.recordSampleAt(time.Unix(100, 0))
 	observer.SetChannelRuntimeCount(0, ch.RoleLeader, 2)
@@ -567,19 +565,9 @@ func TestTopCollectorAllViewIncludesRuntimeSections(t *testing.T) {
 		TotalDuration:  13 * time.Millisecond,
 	})
 
-	delivery.ObserveFanoutResolve(runtimedelivery.FanoutResolveEvent{
-		Result:   runtimedelivery.DeliveryResultOK,
-		Duration: 3 * time.Millisecond,
-		Routes:   9,
-	})
-	delivery.ObserveFanoutPush(runtimedelivery.FanoutPushEvent{
-		Result:   runtimedelivery.DeliveryResultOK,
-		Duration: 8 * time.Millisecond,
-		Routes:   9,
-		Accepted: 7,
-	})
-	delivery.ObserveRetry(runtimedelivery.RetryEvent{QueueDepth: 2})
-	delivery.ObserveManagerTerminal(runtimedelivery.ManagerTerminalEvent{Result: runtimedelivery.DeliveryResultOK, QueueDepth: 1})
+	collector.ObserveDeliveryRoutes(9)
+	collector.ObserveDeliveryPush("ok", 7, 8*time.Millisecond)
+	collector.SetDeliveryRetryQueueDepth(2)
 	collector.SetDeliveryAckBindings(12)
 	collector.SetDeliveryRecipientQueue(3, 16)
 	collector.recordSampleAt(time.Unix(110, 0))
@@ -1073,7 +1061,7 @@ func TestTopCollectorHistogramSamplesAreBoundedAndReset(t *testing.T) {
 	}
 
 	for i := 0; i < topMaxHistogramValuesPerSample+500; i++ {
-		collector.ObserveDeliveryPush(runtimedelivery.DeliveryResultOK, 1, 10*time.Millisecond)
+		collector.ObserveDeliveryPush("ok", 1, 10*time.Millisecond)
 	}
 	if got := len(collector.histos[topHistogramDeliveryPush]); got != topMaxHistogramValuesPerSample {
 		t.Fatalf("delivery histogram len = %d, want cap %d", got, topMaxHistogramValuesPerSample)
@@ -1128,29 +1116,5 @@ func TestTopCollectorStopHonorsContextWhenSnapshotBlocks(t *testing.T) {
 	close(release)
 	if err := collector.Stop(context.Background()); err != nil {
 		t.Fatalf("final Stop() error = %v", err)
-	}
-}
-
-func TestTopDeliveryObserverMapsAckEventToAckBindings(t *testing.T) {
-	collector := newTopCollector(topCollectorOptions{
-		ClusterSnapshot: func() cluster.Snapshot {
-			return cluster.Snapshot{RoutesReady: true, SlotsReady: true, ChannelsReady: true}
-		},
-	})
-	observer := topDeliveryObserver{top: collector}
-
-	collector.recordSampleAt(time.Unix(100, 0))
-	observer.ObserveAck(runtimedelivery.AckEvent{PendingCount: 7})
-	collector.recordSampleAt(time.Unix(110, 0))
-
-	snapshot, err := collector.SnapshotTop(context.Background(), accessapi.TopSnapshotQuery{
-		Window: 10 * time.Second,
-		View:   accessapi.TopViewDelivery,
-	})
-	if err != nil {
-		t.Fatalf("SnapshotTop() error = %v", err)
-	}
-	if snapshot.Delivery == nil || snapshot.Delivery.AckBindings != 7 {
-		t.Fatalf("delivery snapshot = %#v, want ack_bindings 7", snapshot.Delivery)
 	}
 }

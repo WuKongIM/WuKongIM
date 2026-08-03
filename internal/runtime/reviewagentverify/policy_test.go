@@ -35,6 +35,16 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 			want: []string{"go-unit", "go-vet", "workflow-contracts"},
 		},
 		{
+			name: "review agent javascript",
+			files: []contract.ChangedFile{
+				changed(".github/review-agent/responses-budget-proxy.mjs"),
+			},
+			want: []string{
+				"go-unit", "go-vet", "review-proxy-contracts",
+				"workflow-contracts",
+			},
+		},
+		{
 			name: "config and docker",
 			files: []contract.ChangedFile{
 				changed("wukongim.toml.example"),
@@ -105,8 +115,16 @@ func TestPolicySelectsMandatoryChecksFromCompletePaths(t *testing.T) {
 			},
 		},
 		{
+			name: "root documentation stays on the exclusive fast path",
+			files: []contract.ChangedFile{
+				changed("README.md"),
+				changed("README_CN.md"),
+			},
+			want: []string{"docs-contracts"},
+		},
+		{
 			name:  "unclassified repository path gets safe default",
-			files: []contract.ChangedFile{changed("README.md")},
+			files: []contract.ChangedFile{changed("LICENSE")},
 			want:  []string{"go-unit", "go-vet"},
 		},
 	}
@@ -149,7 +167,8 @@ func testVerificationPolicy() verify.Policy {
 		TrustedChecks: map[string]verify.CheckPlan{
 			"go-unit": {}, "go-vet": {}, "scripts-integration": {},
 			"workflow-contracts": {}, "docs-contracts": {},
-			"web-lint": {}, "web-test": {}, "web-typecheck": {},
+			"review-proxy-contracts": {},
+			"web-lint":               {}, "web-test": {}, "web-typecheck": {},
 			"web-build": {}, "web-bundle": {}, "demo-test": {},
 			"demo-build": {}, "demo-bundle": {}, "go-race": {},
 			"go-integration": {}, "go-e2e": {}, "three-node-cluster": {},
@@ -172,6 +191,14 @@ func testVerificationPolicy() verify.Policy {
 				Name:     "workflow",
 				Prefixes: []string{".github/"},
 				Checks:   []string{"go-unit", "workflow-contracts"},
+			},
+			{
+				Name:     "review agent javascript",
+				Prefixes: []string{".github/review-agent/"},
+				Suffixes: []string{".mjs"},
+				Checks: []string{
+					"go-unit", "review-proxy-contracts", "workflow-contracts",
+				},
 			},
 			{
 				Name:   "codeowners",
@@ -214,6 +241,7 @@ func testVerificationPolicy() verify.Policy {
 			},
 			{
 				Name:      "documentation-only",
+				Paths:     []string{"README.md", "README_CN.md"},
 				Prefixes:  []string{"docs/", "docs-site/"},
 				Suffixes:  []string{".md", ".mdx"},
 				Checks:    []string{"docs-contracts"},

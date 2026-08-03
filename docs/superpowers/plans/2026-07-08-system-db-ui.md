@@ -68,7 +68,7 @@ test("filters table rail and marks the inspected table", async () => {
 Run:
 
 ```bash
-cd web && /Users/tt/.bun/bin/bun run test -- src/pages/db-inspect/page.test.tsx
+cd web && bun run test -- src/pages/db-inspect/page.test.tsx
 ```
 
 Expected: the new test fails because `Search tables`, `3 tables`, and `aria-current` are not implemented yet.
@@ -155,7 +155,7 @@ Use `filteredTables` and `filteredTablesByDomain`, render a compact search input
 Run:
 
 ```bash
-cd web && /Users/tt/.bun/bin/bun run test -- src/pages/db-inspect/page.test.tsx
+cd web && bun run test -- src/pages/db-inspect/page.test.tsx
 ```
 
 Expected: the new table rail test passes with the existing tests.
@@ -208,7 +208,7 @@ Add metadata chips inside `StatsStrip` for `node_id`, `generated_at`, and return
 Run:
 
 ```bash
-cd web && /Users/tt/.bun/bin/bun run test -- src/pages/db-inspect/page.test.tsx src/lib/manager-api.test.ts
+cd web && bun run test -- src/pages/db-inspect/page.test.tsx src/lib/manager-api.test.ts
 ```
 
 Expected: all tests pass.
@@ -226,7 +226,7 @@ Expected: all tests pass.
 Run:
 
 ```bash
-cd web && /Users/tt/.bun/bin/bunx tsc -b
+cd web && bunx tsc -b
 ```
 
 Expected: exits 0.
@@ -236,7 +236,7 @@ Expected: exits 0.
 Run:
 
 ```bash
-cd web && /Users/tt/.bun/bin/bun run test -- src/pages/db-inspect/page.test.tsx src/lib/manager-api.test.ts
+cd web && bun run test -- src/pages/db-inspect/page.test.tsx src/lib/manager-api.test.ts
 ```
 
 Expected: exits 0.

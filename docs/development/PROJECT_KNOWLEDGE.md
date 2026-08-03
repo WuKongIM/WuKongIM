@@ -7,6 +7,11 @@
 - Review Agent invalidation is generation-bound. Fresh PR facts and signed
   scheduler state supersede stale workers; only the dedicated App-owned
   `Review Agent Verdict` may represent the current automated decision.
+- Review Agent model work starts only from an exact `@review-agent review`
+  comment whose author has fresh repository `admin` permission. Lifecycle,
+  Review, and manual Controller signals may cancel or repair existing work but
+  must never create a generation. Administrator manual merge authority remains
+  independent of Review Agent state.
 - Review Agent `workflow_run` identity must be authenticated by its stable
   workflow path; dynamic run names are not an authority boundary.
 - Review Agent role identity must be verified with the App JWT before minting
@@ -30,12 +35,30 @@
   and tracked candidate-tree mutation is rejected. The protected Check MCP is
   required at Codex startup and keeps candidate checks inside the rootless
   network namespace and per-command Bubblewrap sandbox.
+- Review Agent model transport has one root-owned loopback Responses proxy. It
+  injects the OpenRouter credential and clamps `max_output_tokens` to 32,768;
+  its root-only credential handoff file is deleted before the listener is
+  published. Runner-user Codex must have no second, unclamped credential path.
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker
   and `sudo` but retains runner transport for pinned post-job Artifact actions.
 - A Review Agent generation has one signed 90-minute deadline and at most one
   automatic infrastructure retry. Merge conflicts deterministically publish
   `changes_required`; late results are always `inconclusive`.
+- Review Agent interaction budgets are per head, not per control revision. An
+  authorized reconsideration for the current head binds fresh eligible
+  control, intent, base, and test-merge facts and consumes the existing signed
+  reconsideration allowance; it must not fall through to a second automatic
+  review when those generation facts changed.
+- Review Agent protected binaries are built once per Worker from the exact
+  control SHA and distributed only through a run-scoped, SHA-256-verified
+  Artifact. Consumers install a role-specific allowlist and never share a
+  cross-run build cache. Root `README.md` and `README_CN.md` join `docs/` and
+  `docs-site/` on the exclusive `docs-contracts` path.
+- Review Agent Controller runs also compile their protected binary once. A
+  true no-op never enters the credentialed State Writer or Publisher and never
+  dispatches; mutation and projection paths reuse the exact run-scoped,
+  control-SHA-bound binary Artifact.
 - Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
 - Saving backup repository configuration is a durable Controller operation and never proves connectivity. Only the exact saved plan revision that completes the repository and all-active-data-node probe is verified and eligible for backup admission. A nil verification record is legacy verified state until the effective repository changes.
 - Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository`, Alibaba OSS, Tencent COS, or a generic S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and object-storage credentials are encrypted in Controller state while archive payloads are not encrypted.
@@ -284,7 +307,10 @@
   review-only Review Agent. Its signed generation binds the exact head, base,
   test-merge commit, intent digest, trusted checks, and model result. Only the
   dedicated Review Agent App may project the required `Review Agent Verdict`
-  Check; the Agent never edits code or merges. There is no periodic PR scan.
+  Check. The model never edits code or merges; the protected Publisher may
+  merge only the exact approved head of a repository administrator or
+  organization member, while every other author requires a human merge. There
+  is no periodic PR scan.
 - The GitHub Issue Agent is a GitHub-Actions-only stateless system. Canonical App-authored, GitHub-signed commits on `agent-state/issue-<number>` are its sole durable authority; event payloads are wake-up hints. A full-SHA-pinned official Codex Action performs one complete ephemeral engineering task with public internet but no GitHub/App/cloud/deploy credentials or Docker socket. Filesystem capture ignores Codex Git metadata, a clean credential-free Verifier owns test evidence and risk, and only the protected Publisher may create an expected-head signed commit on `agent/issue-<number>`, one complete Draft PR, and the status/state projections. Humans remain the only merge authority; setup and boundaries live in `docs/agents/issue-agent.md`.
 - Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.

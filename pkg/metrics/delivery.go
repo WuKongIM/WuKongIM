@@ -25,8 +25,6 @@ type DeliveryMetrics struct {
 	pushRPCRoutesTotal         *prometheus.CounterVec
 	eventQueueTotal            *prometheus.CounterVec
 	errorsTotal                *prometheus.CounterVec
-	fanoutTaskTotal            *prometheus.CounterVec
-	fanoutTaskDuration         *prometheus.HistogramVec
 	retryTotal                 *prometheus.CounterVec
 	retryQueueDepth            prometheus.Gauge
 	actorInflight              prometheus.Gauge
@@ -120,17 +118,6 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 			Help:        "Total number of normalized delivery errors.",
 			ConstLabels: labels,
 		}, []string{"class"}),
-		fanoutTaskTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:        "wukongim_delivery_fanout_task_total",
-			Help:        "Total number of delivery fanout task routing attempts.",
-			ConstLabels: labels,
-		}, []string{"target_node", "result"}),
-		fanoutTaskDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        "wukongim_delivery_fanout_task_duration_seconds",
-			Help:        "Delivery fanout task routing latency in seconds.",
-			ConstLabels: labels,
-			Buckets:     gatewayFrameDurationBuckets,
-		}, []string{"target_node", "result"}),
 		retryTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_delivery_retry_total",
 			Help:        "Total number of delivery retry scheduler events.",
@@ -267,8 +254,6 @@ func newDeliveryMetrics(registry prometheus.Registerer, labels prometheus.Labels
 		m.pushRPCRoutesTotal,
 		m.eventQueueTotal,
 		m.errorsTotal,
-		m.fanoutTaskTotal,
-		m.fanoutTaskDuration,
 		m.retryTotal,
 		m.retryQueueDepth,
 		m.actorInflight,
@@ -332,17 +317,6 @@ func (m *DeliveryMetrics) ObserveError(class string) {
 		return
 	}
 	m.errorsTotal.WithLabelValues(normalizeDeliveryLabel(class, "unknown")).Inc()
-}
-
-// ObserveFanoutTask records one fanout task routing attempt.
-func (m *DeliveryMetrics) ObserveFanoutTask(targetNode, result string, dur time.Duration) {
-	if m == nil {
-		return
-	}
-	targetNode = normalizeDeliveryLabel(targetNode, "0")
-	result = normalizeDeliveryLabel(result, "unknown")
-	m.fanoutTaskTotal.WithLabelValues(targetNode, result).Inc()
-	m.fanoutTaskDuration.WithLabelValues(targetNode, result).Observe(dur.Seconds())
 }
 
 // ObserveRetry records one delivery retry scheduler event.

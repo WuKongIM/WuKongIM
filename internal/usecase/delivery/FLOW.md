@@ -2,10 +2,15 @@
 
 ## Responsibility
 
-`internal/usecase/delivery` owns the entry-agnostic online delivery
-orchestration boundary. It accepts committed-message events from message
-orchestration and forwards receive-ack and session-close feedback to the
-configured runtime port.
+`internal/usecase/delivery` is the temporary entry-agnostic gateway feedback
+facade for receive-ack and session-close commands.
+
+Production app composition now uses this package only as the temporary gateway
+feedback facade. Channelappend submits canonical recipient plans directly to
+`internal/contracts/onlinedelivery`. `SubmitCommitted` remains temporarily as
+an explicit compatibility rejection surface for callers compiled against the
+old usecase API; production composition returns the canonical-plan-required
+error and never converts the event into fanout work.
 
 The package must not import gateway frames, access adapters, app composition,
 or concrete cluster/runtime implementations. Runtime adapters are responsible
@@ -14,9 +19,9 @@ for bridging these usecase DTOs to concrete runtime DTOs.
 ## Flow
 
 ```text
-MessageCommitted
+MessageCommitted compatibility call
   -> App.SubmitCommitted
-  -> runtime.SubmitCommitted
+  -> production runtime adapter rejects: canonical recipient plan required
 
 RecvackCommand
   -> App.Recvack

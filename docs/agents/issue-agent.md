@@ -61,9 +61,12 @@ unbounded repair attempts.
 
 ## Authorization
 
-An Issue by an `OWNER`, `MEMBER`, or `COLLABORATOR` with current `write`,
-`maintain`, or `admin` permission may start automatically. Other reports need
-an exact first-line `/agent fix` from an actor whose permission is re-read.
+An Issue whose author currently has `write`, `maintain`, or `admin` permission
+may start automatically. GitHub's credential-sensitive `author_association`
+is context only and never gates that decision. Other reports need an exact
+first-line `/agent fix` from an actor whose permission is re-read. Transient
+permission API failures are retried for at most 3.1 seconds; a definitive
+non-write result waits and an unresolved API failure aborts reconciliation.
 The other commands are:
 
 - `/agent retry` — one fresh ephemeral attempt after `needs_human`;
@@ -169,8 +172,10 @@ Configure:
 
 The App installation is limited to this repository and the exact permissions
 validated by `internal/infra/issueagentgithub/app_token.go`. Branch protection
-must require the dedicated App-owned `Review Agent Verdict`; neither Agent can
-merge.
+must require the dedicated App-owned `Review Agent Verdict`. Issue Agent cannot
+merge. Review Agent may merge only an exact-head approved PR whose author is a
+repository administrator or organization member; Issue Agent Bot PRs otherwise
+wait for a human merge.
 
 Action or Codex upgrades require a reviewed policy/workflow change updating
 the full Action SHA, exact CLI version, contract tests, and this document.

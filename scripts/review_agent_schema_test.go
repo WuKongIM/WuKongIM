@@ -29,7 +29,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 
 	require.Equal(t, 1, policy.SchemaVersion)
 	require.Equal(t, []string{"main"}, policy.SupportedBaseBranches)
-	require.Equal(t, "moonshotai/kimi-k3", policy.Reviewer.Model)
+	require.Equal(t, "deepseek/deepseek-v4-flash", policy.Reviewer.Model)
 	require.Equal(t, "high", policy.Reviewer.ReasoningEffort)
 	require.Regexp(t, `^[0-9a-f]{40}$`, policy.Reviewer.ActionSHA)
 	require.NotEmpty(t, policy.Reviewer.CodexVersion)
@@ -45,7 +45,10 @@ func TestReviewAgentPolicy(t *testing.T) {
 	require.Equal(t, reviewagent.MaxInlineComments, policy.Limits.MaxInlineComments)
 	require.Equal(t, reviewagent.MaxFindings, policy.Limits.MaxFindings)
 	require.Equal(t, reviewagent.MaxChangedFiles, policy.Limits.MaxChangedFiles)
-	require.Equal(t, 393216, policy.Limits.MaxContextBytes)
+	require.Equal(t, reviewagent.MaxChangedBytes, policy.Limits.MaxChangedBytes)
+	require.Equal(t, reviewagent.MaxChangedLines, policy.Limits.MaxChangedLines)
+	require.Equal(t, reviewagent.MaxContextBytes, policy.Limits.MaxContextBytes)
+	require.Equal(t, 32768, policy.Limits.MaxModelOutputTokens)
 	require.Equal(t, 240000, policy.Limits.MaxContextTokens)
 	require.Equal(t, 216000, policy.Limits.AutoCompactTokens)
 	require.Equal(t, 3600, policy.Limits.MaxCPUSecondsPerProcess)
@@ -73,6 +76,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 		t,
 		map[string]string{
 			"checks":        "write",
+			"contents":      "write",
 			"issues":        "write",
 			"metadata":      "read",
 			"pull_requests": "write",
@@ -113,8 +117,39 @@ func TestReviewAgentPolicy(t *testing.T) {
 		)
 		require.Positive(t, check.MaxOutputBytes)
 	}
+	proxyCheck, ok := policy.TrustedChecks["review-proxy-contracts"]
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]string{
+			"node", "--test",
+			".github/review-agent/responses-budget-proxy.test.mjs",
+		},
+		proxyCheck.Arguments,
+	)
 	require.NotEmpty(t, policy.PathRules)
-	require.NotEmpty(t, policy.ControlPlanePaths)
+	var javascriptRule *reviewAgentPathRule
+	var documentationRule *reviewAgentPathRule
+	for index := range policy.PathRules {
+		switch policy.PathRules[index].Name {
+		case "review-agent-javascript":
+			javascriptRule = &policy.PathRules[index]
+		case "documentation-only":
+			documentationRule = &policy.PathRules[index]
+		}
+	}
+	require.NotNil(t, javascriptRule)
+	require.Equal(t, []string{".github/review-agent/"}, javascriptRule.Prefixes)
+	require.Equal(t, []string{".mjs"}, javascriptRule.Suffixes)
+	require.Contains(t, javascriptRule.Checks, "review-proxy-contracts")
+	require.NotNil(t, documentationRule)
+	require.True(t, documentationRule.Exclusive)
+	require.ElementsMatch(
+		t,
+		[]string{"README.md", "README_CN.md"},
+		documentationRule.Paths,
+	)
+	require.Equal(t, []string{"docs-contracts"}, documentationRule.Checks)
 	require.NotEmpty(t, policy.Network.BlockedCIDRs)
 	require.Contains(t, policy.Credentials.Denied, "github")
 	require.Contains(t, policy.Credentials.Denied, "cloud")
@@ -128,6 +163,9 @@ func TestReviewAgentPolicy(t *testing.T) {
 		`"schedule"`,
 		`"cron"`,
 		`"arbitrary_command"`,
+		`"governance"`,
+		`"owner_logins"`,
+		`"control_plane_paths"`,
 	} {
 		require.NotContains(t, string(raw), forbidden)
 	}
@@ -366,17 +404,10 @@ type reviewAgentPolicy struct {
 	Environments          reviewAgentEnvironments     `json:"environments"`
 	Apps                  reviewAgentApps             `json:"apps"`
 	State                 reviewAgentStatePolicy      `json:"state"`
-	Governance            reviewAgentGovernance       `json:"governance"`
 	Network               reviewAgentNetwork          `json:"network"`
 	Credentials           reviewAgentCredentials      `json:"credentials"`
-	ControlPlanePaths     []string                    `json:"control_plane_paths"`
 	TrustedChecks         map[string]reviewAgentCheck `json:"trusted_checks"`
 	PathRules             []reviewAgentPathRule       `json:"path_rules"`
-}
-
-type reviewAgentGovernance struct {
-	OwnerTeam   string   `json:"owner_team"`
-	OwnerLogins []string `json:"owner_logins"`
 }
 
 type reviewAgentReviewer struct {
@@ -408,10 +439,11 @@ type reviewAgentInteraction struct {
 
 type reviewAgentLimits struct {
 	MaxChangedFiles                 int   `json:"max_changed_files"`
-	MaxChangedBytes                 int   `json:"max_changed_bytes"`
-	MaxChangedLines                 int   `json:"max_changed_lines"`
-	MaxContextBytes                 int   `json:"max_context_bytes"`
+	MaxChangedBytes                 int64 `json:"max_changed_bytes"`
+	MaxChangedLines                 int64 `json:"max_changed_lines"`
+	MaxContextBytes                 int64 `json:"max_context_bytes"`
 	MaxModelResponseBytes           int   `json:"max_model_response_bytes"`
+	MaxModelOutputTokens            int   `json:"max_model_output_tokens"`
 	MaxContextTokens                int   `json:"max_context_tokens"`
 	AutoCompactTokens               int   `json:"auto_compact_tokens"`
 	MaxCPUSecondsPerProcess         int   `json:"max_cpu_seconds_per_process"`

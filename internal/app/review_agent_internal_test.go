@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,6 +141,88 @@ func TestResolveReviewCommandIgnoresMalformedCommandPrefix(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.False(t, found)
+}
+
+func TestResolveReviewCommandRequiresFreshAdminPermission(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name       string
+		permission string
+		wantFound  bool
+	}{
+		{name: "admin", permission: "admin", wantFound: true},
+		{name: "maintainer", permission: "maintain", wantFound: false},
+		{name: "unproven permission", permission: "unknown", wantFound: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				if request.URL.Path !=
+					"/repos/WuKongIM/WuKongIM/collaborators/alice/permission" {
+					http.NotFound(writer, request)
+					return
+				}
+				writer.Header().Set("Content-Type", "application/json")
+				_, _ = writer.Write([]byte(
+					`{"permission":"` + test.permission +
+						`","user":{"login":"alice"}}`,
+				))
+			}))
+			t.Cleanup(server.Close)
+			client, err := reviewagentgithub.NewClient(
+				reviewagentgithub.ClientConfig{
+					BaseURL: server.URL, GraphQLURL: server.URL + "/graphql",
+					Repository: "WuKongIM/WuKongIM", Token: "token",
+					MaxPages: 10, MaxBodyBytes: 2 << 20,
+				},
+				server.Client(),
+			)
+			require.NoError(t, err)
+			now := time.Now().UTC()
+			command, found, resolveErr := resolveReviewCommand(
+				context.Background(),
+				client,
+				reviewagentgithub.PullRequestSnapshot{
+					Author: "alice",
+					IssueComments: []reviewagentgithub.IssueComment{{
+						ID: 9, Author: "alice", Body: "@review-agent review",
+						CreatedAt: now, UpdatedAt: now,
+					}},
+				},
+				9,
+			)
+			require.NoError(t, resolveErr)
+			require.Equal(t, test.wantFound, found)
+			if test.wantFound {
+				require.Equal(t, reviewagent.CommandReview, command.Kind)
+			}
+		})
+	}
+}
+
+func TestResolveReviewStatusCommandDoesNotNeedPermissionLookup(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	command, found, err := resolveReviewCommand(
+		context.Background(),
+		nil,
+		reviewagentgithub.PullRequestSnapshot{
+			Author: "alice",
+			IssueComments: []reviewagentgithub.IssueComment{{
+				ID: 10, Author: "contributor", Body: "@review-agent status",
+				CreatedAt: now, UpdatedAt: now,
+			}},
+		},
+		10,
+	)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, reviewagent.CommandStatus, command.Kind)
 }
 
 func TestReviewDiscussionPreservesEveryGitHubSurface(t *testing.T) {

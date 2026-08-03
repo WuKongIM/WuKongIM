@@ -87,15 +87,14 @@ type App struct {
 	// opsMCPEndpoint serves stateless MCP on every configured Manager listener.
 	opsMCPEndpoint *accessops.Endpoint
 	// opsMCPCalls owns node-local rate budgets and rotated audit output.
-	opsMCPCalls                 *runtimeops.CallControl
-	gateway                     GatewayRuntime
-	handler                     *accessgateway.Handler
-	messages                    *message.App
-	apiMessages                 accessapi.MessageUsecase
-	channelAppends              *channelappend.Group
-	channelAppendRouter         *channelappend.Router
-	channelAppendDeliveryWorker *channelappend.RecipientDeliveryWorker
-	channelAppendMetadata       *clusterinfra.ChannelAppendMetadataCache
+	opsMCPCalls           *runtimeops.CallControl
+	gateway               GatewayRuntime
+	handler               *accessgateway.Handler
+	messages              *message.App
+	apiMessages           accessapi.MessageUsecase
+	channelAppends        *channelappend.Group
+	channelAppendRouter   *channelappend.Router
+	channelAppendMetadata *clusterinfra.ChannelAppendMetadataCache
 	// messageIDs owns the node-scoped allocator so activated restore fences can
 	// be installed before ordinary traffic starts.
 	messageIDs *nodeMessageIDs
@@ -116,16 +115,16 @@ type App struct {
 	// webhookPresence adapts owner-local online status transitions into webhook events.
 	webhookPresence presence.OnlineStatusObserver
 	// plugins exposes v2 plugin lifecycle and hook usecases.
-	plugins          *pluginusecase.App
-	channels         *channelusecase.App
-	cmdSync          *cmdsyncusecase.App
-	conversations    *conversationusecase.App
-	users            *userusecase.App
-	delivery         *deliveryusecase.App
-	deliveryManager  *runtimedelivery.Manager
-	deliveryRetry    *runtimedelivery.RetryScheduler
-	deliveryWorker   WorkerRuntime
-	localOwnerPusher runtimedelivery.Pusher
+	plugins       *pluginusecase.App
+	channels      *channelusecase.App
+	cmdSync       *cmdsyncusecase.App
+	conversations *conversationusecase.App
+	users         *userusecase.App
+	delivery      *deliveryusecase.App
+	// onlineDelivery owns canonical recipient-plan processing and owner-local ACK state.
+	onlineDelivery *runtimedelivery.Runtime
+	// deliveryWorker owns the canonical delivery runtime lifecycle.
+	deliveryWorker WorkerRuntime
 	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
 	seedJoinLoop                seedJoinRuntime
 	conversationRouteLifecycle  WorkerRuntime
@@ -133,7 +132,7 @@ type App struct {
 	conversationAuthority       *conversationAuthority
 	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
-	deliverySubscribers     runtimedelivery.ChannelSubscriberSource
+	deliverySubscribers     channelappend.SubscriberSource
 	deliveryMeta            *deliveryMetaStore
 	presence                *presence.App
 	presenceAuthorityClient *clusterinfra.PresenceAuthorityClient
@@ -266,10 +265,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireNodeLifecycleRPC()
 	app.wireSeedJoinLoop()
 	app.wireUsers()
-	app.wireDelivery()
 	if err := app.wirePluginSubsystem(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}
+	app.wireDelivery()
 	app.wireManagerPluginRPC()
 	if err := app.wireChannelAppend(clusterCfg.NodeID); err != nil {
 		return nil, err
@@ -346,8 +345,8 @@ func WithOnlineRegistry(reg *online.Registry) Option {
 	return func(a *App) { a.online = reg }
 }
 
-// WithDeliverySubscriberSource overrides the durable subscriber source used by delivery fanout.
-func WithDeliverySubscriberSource(source runtimedelivery.ChannelSubscriberSource) Option {
+// WithDeliverySubscriberSource overrides the durable subscriber source used by channelappend.
+func WithDeliverySubscriberSource(source channelappend.SubscriberSource) Option {
 	return func(a *App) { a.deliverySubscribers = source }
 }
 

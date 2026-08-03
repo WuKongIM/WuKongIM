@@ -10,7 +10,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -23,27 +22,18 @@ type ClientConfig struct {
 	Token        string
 	MaxPages     int
 	MaxBodyBytes int64
-	// ControlOwnerLogins is the protected snapshot of members in
-	// @WuKongIM/review-agent-owners. An empty snapshot fails control-plane
-	// approval closed.
-	ControlOwnerLogins []string
-	// ControlPlanePaths are protected policy prefixes whose candidate changes
-	// require independent owner approval.
-	ControlPlanePaths []string
 }
 
 // Client performs bounded GitHub reads and the narrow writes implemented by
 // dedicated adapters.
 type Client struct {
-	baseURL       *url.URL
-	graphqlURL    *url.URL
-	repository    string
-	token         string
-	maxPages      int
-	maxBodyBytes  int64
-	controlOwners map[string]struct{}
-	controlPaths  []string
-	httpClient    *http.Client
+	baseURL      *url.URL
+	graphqlURL   *url.URL
+	repository   string
+	token        string
+	maxPages     int
+	maxBodyBytes int64
+	httpClient   *http.Client
 }
 
 // NewClient constructs a redirect-rejecting, repository-specific client.
@@ -60,43 +50,6 @@ func NewClient(config ClientConfig, httpClient *http.Client) (*Client, error) {
 		httpClient == nil {
 		return nil, errors.New("GitHub client configuration is invalid")
 	}
-	owners := make(map[string]struct{}, len(config.ControlOwnerLogins))
-	for _, owner := range config.ControlOwnerLogins {
-		if !githubLoginPattern.MatchString(owner) {
-			return nil, errors.New("GitHub control owner login is invalid")
-		}
-		normalized := strings.ToLower(owner)
-		if _, duplicate := owners[normalized]; duplicate {
-			return nil, errors.New("GitHub control owner login is duplicated")
-		}
-		owners[normalized] = struct{}{}
-	}
-	if len(owners) > 128 {
-		return nil, errors.New("GitHub control owner list is too large")
-	}
-	controlPaths := make([]string, 0, len(config.ControlPlanePaths))
-	seenPaths := make(map[string]struct{}, len(config.ControlPlanePaths))
-	for _, controlPath := range config.ControlPlanePaths {
-		if controlPath == "" ||
-			len(controlPath) > 512 ||
-			strings.HasPrefix(controlPath, "/") ||
-			strings.Contains(controlPath, `\`) ||
-			strings.ContainsRune(controlPath, '\x00') ||
-			strings.Contains(controlPath, "..") {
-			return nil, errors.New("GitHub control-plane path is invalid")
-		}
-		if _, duplicate := seenPaths[controlPath]; duplicate {
-			return nil, errors.New(
-				"GitHub control-plane path is duplicated",
-			)
-		}
-		seenPaths[controlPath] = struct{}{}
-		controlPaths = append(controlPaths, controlPath)
-	}
-	if len(controlPaths) > 256 {
-		return nil, errors.New("GitHub control-plane path list is too large")
-	}
-	slices.Sort(controlPaths)
 	baseURL, err := parseGitHubURL(config.BaseURL)
 	if err != nil {
 		return nil, err
@@ -117,23 +70,8 @@ func NewClient(config ClientConfig, httpClient *http.Client) (*Client, error) {
 		baseURL: baseURL, graphqlURL: graphqlURL,
 		repository: config.Repository, token: config.Token,
 		maxPages: config.MaxPages, maxBodyBytes: config.MaxBodyBytes,
-		controlOwners: owners,
-		controlPaths:  controlPaths,
-		httpClient:    &cloned,
+		httpClient: &cloned,
 	}, nil
-}
-
-// ControlOwnerLogins returns the stable sorted protected owner snapshot.
-func (client *Client) ControlOwnerLogins() []string {
-	if client == nil {
-		return nil
-	}
-	owners := make([]string, 0, len(client.controlOwners))
-	for owner := range client.controlOwners {
-		owners = append(owners, owner)
-	}
-	slices.Sort(owners)
-	return owners
 }
 
 func parseGitHubURL(value string) (*url.URL, error) {

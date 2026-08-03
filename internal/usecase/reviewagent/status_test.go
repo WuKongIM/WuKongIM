@@ -31,7 +31,7 @@ func TestRenderStatusUsesOnlySignedState(t *testing.T) {
 		"generation 1",
 		strings.Repeat("a", 40),
 		"generation elapsed: `4h0m0s`",
-		"automatic reviews: 1/1",
+		"initial reviews: 1/1",
 		"reconsiderations: 1/2",
 		"explanations: 2/3",
 	} {

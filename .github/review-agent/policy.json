@@ -6,7 +6,7 @@
   "reviewer": {
     "action_sha": "52fe01ec70a42f454c9d2ebd47598f9fd6893d56",
     "codex_version": "0.146.0",
-    "model": "moonshotai/kimi-k3",
+    "model": "deepseek/deepseek-v4-flash",
     "reasoning_effort": "high",
     "sandbox": "read-only",
     "ephemeral": true,
@@ -28,10 +28,11 @@
   },
   "limits": {
     "max_changed_files": 50,
-    "max_changed_bytes": 131072,
-    "max_changed_lines": 10000,
-    "max_context_bytes": 393216,
+    "max_changed_bytes": 1048576,
+    "max_changed_lines": 30000,
+    "max_context_bytes": 2097152,
     "max_model_response_bytes": 4194304,
+    "max_model_output_tokens": 32768,
     "max_context_tokens": 240000,
     "auto_compact_tokens": 216000,
     "max_cpu_seconds_per_process": 3600,
@@ -53,6 +54,7 @@
       "login": "wukongim-review-agent[bot]",
       "permissions": {
         "checks": "write",
+        "contents": "write",
         "issues": "write",
         "metadata": "read",
         "pull_requests": "write"
@@ -73,13 +75,6 @@
     "scheduler_ref": "review-state/scheduler",
     "scheduler_path": ".review-agent-state/scheduler.json",
     "require_verified_signature": true
-  },
-  "governance": {
-    "owner_team": "WuKongIM/review-agent-owners",
-    "owner_logins": [
-      "No8blackball",
-      "tangtaoit"
-    ]
   },
   "network": {
     "public_internet": true,
@@ -116,34 +111,6 @@
       "organization_private"
     ]
   },
-  "control_plane_paths": [
-    ".github/CODEOWNERS",
-    ".github/review-agent",
-    ".github/workflows/review-agent-pr-signal.yml",
-    ".github/workflows/review-agent-issue-signal.yml",
-    ".github/workflows/review-agent-run.yml",
-    ".github/workflows/review-agent.yml",
-    ".github/workflows/README.md",
-    "AGENTS.md",
-    "cmd/wkreviewagent",
-    "cmd/wkreviewcheck",
-    "cmd/wkreviewcheckmcp",
-    "internal/access/reviewagentcheckmcp",
-    "internal/access/reviewagentcli",
-    "internal/app/review_agent",
-    "internal/contracts/reviewagent",
-    "internal/infra/reviewagentgithub",
-    "internal/runtime/reviewagentverify",
-    "internal/usecase/reviewagent",
-    "scripts/review_agent",
-    "scripts/github_workflows_test.go",
-    "docs/agents/review-agent.md",
-    "docs/development/CI.md",
-    "docs/development/PROJECT_KNOWLEDGE.md",
-    "docs/superpowers/plans/2026-07-30-review-agent-implementation.md",
-    "docs/superpowers/runbooks/review-agent-bootstrap.md",
-    "docs/superpowers/specs/2026-07-30-review-agent-design.md"
-  ],
   "trusted_checks": {
     "go-unit": {
       "arguments": [
@@ -218,6 +185,16 @@
       "working_dir": ".",
       "timeout_seconds": 900,
       "max_output_bytes": 8388608
+    },
+    "review-proxy-contracts": {
+      "arguments": [
+        "node",
+        "--test",
+        ".github/review-agent/responses-budget-proxy.test.mjs"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 300,
+      "max_output_bytes": 1048576
     },
     "web-quality": {
       "arguments": [
@@ -416,6 +393,21 @@
       "exclusive": false
     },
     {
+      "name": "review-agent-javascript",
+      "prefixes": [
+        ".github/review-agent/"
+      ],
+      "suffixes": [
+        ".mjs"
+      ],
+      "checks": [
+        "review-proxy-contracts",
+        "workflow-contracts",
+        "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
       "name": "manager-web",
       "prefixes": [
         "web/",
@@ -441,6 +433,10 @@
     },
     {
       "name": "documentation-only",
+      "paths": [
+        "README.md",
+        "README_CN.md"
+      ],
       "prefixes": [
         "docs/",
         "docs-site/"

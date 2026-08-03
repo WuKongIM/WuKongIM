@@ -30,16 +30,6 @@ const (
 	channelAppendResultOther              = "other"
 )
 
-const (
-	recipientDeliveryResultAccepted = "accepted"
-	recipientDeliveryResultClosed   = "closed"
-	recipientDeliveryResultCanceled = "canceled"
-	recipientDeliveryResultTimeout  = "timeout"
-	recipientDeliveryResultError    = "error"
-	recipientDeliveryResultOK       = "ok"
-	recipientDeliveryResultPanic    = "panic"
-)
-
 func observeRouterGroup(observer RouterObserver, event RouterObservation) {
 	if observer == nil {
 		return
@@ -117,82 +107,6 @@ func observePostCommitFailure(observer AppendObserver, event PostCommitFailureOb
 		event.Result = channelAppendResultOther
 	}
 	failureObserver.ObserveChannelAppendPostCommitFailure(event)
-}
-
-func observeRecipientDeliveryQueue(observer AppendObserver, event RecipientDeliveryQueueObservation) {
-	queueObserver, ok := observer.(RecipientDeliveryQueueObserver)
-	if !ok || queueObserver == nil {
-		return
-	}
-	if event.QueueDepth < 0 {
-		event.QueueDepth = 0
-	}
-	if event.QueueCapacity < 0 {
-		event.QueueCapacity = 0
-	}
-	queueObserver.SetChannelAppendRecipientDeliveryQueue(event)
-}
-
-func observeRecipientDeliveryWorkerPressure(observer AppendObserver, event RecipientDeliveryWorkerPressureObservation) {
-	pressureObserver, ok := observer.(RecipientDeliveryWorkerPressureObserver)
-	if !ok || pressureObserver == nil {
-		return
-	}
-	if event.Inflight < 0 {
-		event.Inflight = 0
-	}
-	if event.Capacity < 0 {
-		event.Capacity = 0
-	}
-	pressureObserver.SetChannelAppendRecipientDeliveryWorkerPressure(event)
-}
-
-func observeRecipientDeliveryAdmission(observer AppendObserver, event RecipientDeliveryAdmissionObservation) {
-	admissionObserver, ok := observer.(RecipientDeliveryAdmissionObserver)
-	if !ok || admissionObserver == nil {
-		return
-	}
-	event.Result = recipientDeliveryResult(event.Result)
-	if event.QueueDepth < 0 {
-		event.QueueDepth = 0
-	}
-	if event.QueueCapacity < 0 {
-		event.QueueCapacity = 0
-	}
-	if event.Duration < 0 {
-		event.Duration = 0
-	}
-	admissionObserver.ObserveChannelAppendRecipientDeliveryAdmission(event)
-}
-
-func observeRecipientDeliveryProcess(observer AppendObserver, event RecipientDeliveryProcessObservation) {
-	processObserver, ok := observer.(RecipientDeliveryProcessObserver)
-	if !ok || processObserver == nil {
-		return
-	}
-	event.Result = recipientDeliveryResult(event.Result)
-	if event.Recipients < 0 {
-		event.Recipients = 0
-	}
-	if event.Duration < 0 {
-		event.Duration = 0
-	}
-	processObserver.ObserveChannelAppendRecipientDeliveryProcess(event)
-}
-
-func recipientDeliveryResult(result string) string {
-	switch result {
-	case recipientDeliveryResultAccepted,
-		recipientDeliveryResultClosed,
-		recipientDeliveryResultCanceled,
-		recipientDeliveryResultTimeout,
-		recipientDeliveryResultError,
-		recipientDeliveryResultOK,
-		recipientDeliveryResultPanic:
-		return result
-	default:
-		return recipientDeliveryResultError
-	}
 }
 
 func routerResultsClass(results []SendBatchItemResult) string {

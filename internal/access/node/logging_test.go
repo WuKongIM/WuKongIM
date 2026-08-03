@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -85,14 +84,12 @@ func TestPresenceRPCLogsDecodeAndRejectedErrors(t *testing.T) {
 	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.presence_authority_rejected")
 }
 
-func TestDeliveryRPCLogsRejectedPushAndFanout(t *testing.T) {
+func TestDeliveryRPCLogsRejectedPush(t *testing.T) {
 	logger := newRecordingNodeLogger("internal.access.node")
 	pushErr := errors.New("owner push failed")
-	fanoutErr := errors.New("fanout failed")
 	adapter := New(Options{
-		Logger:         logger,
-		Delivery:       &fakeDeliveryOwnerPush{err: pushErr},
-		DeliveryFanout: &fakeDeliveryFanoutRunner{err: fanoutErr},
+		Logger:   logger,
+		Delivery: &fakeDeliveryOwnerPush{err: pushErr},
 	})
 
 	pushBody, err := encodeDeliveryPushRequest(deliveryPushRequest{Command: testDeliveryPushCommand()})
@@ -103,15 +100,6 @@ func TestDeliveryRPCLogsRejectedPushAndFanout(t *testing.T) {
 		t.Fatalf("HandleDeliveryPushRPC() error = %v", err)
 	}
 	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.delivery_push_rejected")
-
-	fanoutBody, err := encodeDeliveryFanoutRequest(deliveryFanoutRequest{Task: runtimedelivery.FanoutTask{Envelope: testDeliveryPushCommand().Envelope}})
-	if err != nil {
-		t.Fatalf("encodeDeliveryFanoutRequest() error = %v", err)
-	}
-	if _, err := adapter.HandleDeliveryFanoutRPC(context.Background(), fanoutBody); err != nil {
-		t.Fatalf("HandleDeliveryFanoutRPC() error = %v", err)
-	}
-	requireNodeLogEntry(t, logger, "WARN", "internal.access.node.rpc", "internal.access.node.delivery_fanout_rejected")
 }
 
 func requireNodeLogEntry(t *testing.T, logger *recordingNodeLogger, level, module, event string) recordedNodeLogEntry {

@@ -446,16 +446,6 @@
           "refId": "B"
         },
         {
-          "expr": "sum(rate(wukongim_delivery_fanout_task_total{node_name=~\"$node_name\"}[$__rate_interval])) by (target_node, result)",
-          "legendFormat": "fanout {{target_node}} {{result}}",
-          "refId": "C"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_delivery_fanout_task_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, target_node, result))",
-          "legendFormat": "fanout {{target_node}} {{result}} p95",
-          "refId": "D"
-        },
-        {
           "expr": "sum(rate(wukongim_delivery_retry_total{node_name=~\"$node_name\"}[$__rate_interval])) by (event, result)",
           "legendFormat": "retry {{event}} {{result}}",
           "refId": "E"
@@ -466,7 +456,7 @@
           "refId": "F"
         }
       ],
-      "title": "Delivery Queues And Fanout",
+      "title": "Delivery Queues And Errors",
       "type": "timeseries"
     },
     {
