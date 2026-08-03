@@ -29,7 +29,7 @@ func TestReviewAgentPolicy(t *testing.T) {
 
 	require.Equal(t, 1, policy.SchemaVersion)
 	require.Equal(t, []string{"main"}, policy.SupportedBaseBranches)
-	require.Equal(t, "moonshotai/kimi-k3", policy.Reviewer.Model)
+	require.Equal(t, "deepseek/deepseek-v4-flash", policy.Reviewer.Model)
 	require.Equal(t, "high", policy.Reviewer.ReasoningEffort)
 	require.Regexp(t, `^[0-9a-f]{40}$`, policy.Reviewer.ActionSHA)
 	require.NotEmpty(t, policy.Reviewer.CodexVersion)

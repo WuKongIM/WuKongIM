@@ -80,7 +80,7 @@ Require:
 
 - one policy schema version;
 - `main` as the initial protected base;
-- `moonshotai/kimi-k3` with `high` effort;
+- `deepseek/deepseek-v4-flash` with `high` effort;
 - immutable Codex Action/CLI identifiers;
 - three active repository leases and one per PR;
 - 90-minute generation timeout;

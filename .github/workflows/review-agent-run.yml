@@ -584,7 +584,7 @@ jobs:
               --output-last-message \
                 "$RUNNER_TEMP/review-agent-result-artifact/review-agent-output.json" \
               --output-schema "$RUNNER_TEMP/review-output.schema.json" \
-              --model moonshotai/kimi-k3 \
+              --model deepseek/deepseek-v4-flash \
               --config 'model_reasoning_effort="high"' \
               --ephemeral \
               --config model_context_window=240000 \

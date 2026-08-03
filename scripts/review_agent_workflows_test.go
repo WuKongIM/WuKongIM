@@ -275,7 +275,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "persist-credentials: false"))
 	require.Contains(t, raw, "ref: ${{ needs.recover.outputs.test_merge_sha }}")
 	require.Equal(t, 1, strings.Count(raw, "openai/codex-action@"))
-	require.Contains(t, raw, "--model moonshotai/kimi-k3")
+	require.Contains(t, raw, "--model deepseek/deepseek-v4-flash")
 	require.Contains(t, raw, `--config 'model_reasoning_effort="high"'`)
 	require.Contains(t, raw, "codex-version: 0.146.0")
 	require.Contains(t, raw, `node-version: "22.12.0"`)

@@ -353,7 +353,7 @@ do not participate in this build boundary.
 
 Each generation uses one ephemeral Codex session:
 
-- initial model: `moonshotai/kimi-k3`;
+- initial model: `deepseek/deepseek-v4-flash`;
 - reasoning effort: `high`;
 - official Codex Action and CLI pinned to reviewed immutable versions;
 - no inherited Issue Agent or previous Review Agent hidden context;

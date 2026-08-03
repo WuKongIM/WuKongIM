@@ -90,7 +90,7 @@ failure, or a context too large for complete risk coverage yields
 ## Checks and model
 
 Protected policy fixes the official Codex Action, Codex version,
-`moonshotai/kimi-k3`, high reasoning effort, deterministic check catalog, path
+`deepseek/deepseek-v4-flash`, high reasoning effort, deterministic check catalog, path
 rules, a 32,768-token maximum model output, and network fences. One root-owned
 loopback proxy applies that ceiling and the OpenRouter credential; its
 root-only credential handoff is deleted before Codex starts, so no unclamped
