@@ -1,0 +1,55 @@
+---
+title: Logs & Observability
+description: Configure the boundaries and costs of logs, metrics, Prometheus, Top, diagnostics, and Debug.
+---
+
+Build a baseline that can answer which node, when, and which resource or queue changed before enabling expensive diagnostics. Observability consumes CPU, memory, disk, and network, and may expose topology or request information.
+
+## Capability layers
+
+| Capability | Section | Purpose | Exposure boundary |
+| --- | --- | --- | --- |
+| Logs | `[log]` | Level, format, console, and rolling files | Central collection with bounded retention and reads |
+| Prometheus metrics | `[observability]` | Controls whether `/metrics` is available | Collector network only, never public Internet |
+| Prometheus service | `[prometheus]` | Optional app-managed child process or an external query address | Plan ownership and capacity separately from the node |
+| Top | `[top]` | Real-time node snapshots with bounded history | Administrative network and restricted callers |
+| Diagnostic sampling | `[diagnostics]` | Buffer, normal/error/deep sampling, and slow thresholds | Raise gradually with cost and expiry controls |
+| Debug/pprof | `observability.debug_api_enable` | Expensive process diagnostics | Off by default and temporarily exposed only to authorized operators |
+
+## Logs
+
+Production logs should use a parseable format, carry node identity and time, and be collected centrally. `log.max_size`, `max_age`, `max_backups`, and `compress` bound local use together. Alert on the log directory anyway so logs cannot crowd out message data.
+
+Before raising the level to `debug`, evaluate write volume, sensitive data, and performance cost. Restore the original level afterward and retain who changed it, the time window, and the related incident.
+
+## Metrics and Prometheus
+
+Enable node metrics with:
+
+```toml
+[observability]
+metrics_enable = true
+debug_api_enable = false
+```
+
+`prometheus.enable = true` starts an app-managed Prometheus child process. If an external Prometheus already exists, keep it `false` and use `prometheus.query_base_url` for Manager queries. Do not treat both modes as the same ownership model.
+
+The repository example reserves `127.0.0.1:9099` for local app-managed Prometheus to avoid common port conflicts. It is a development example, not a production listener or retention policy. The observability owner must define production scrape targets, TSDB directory, time and size retention, interval, and availability.
+
+Load balancers still use `/readyz` for admission. Metrics and logs explain why a node is not ready; they do not replace the readiness gate.
+
+## Top, diagnostics, and Debug
+
+Top collection interval and history window create sampling and memory cost. Start diagnostic `buffer_size`, rates, slow thresholds, deep sampling, and debug matches at low cost. At high traffic and with 100,000-member groups, excessive sampling can amplify CPU, memory, and contention.
+
+pprof is available only with `debug_api_enable = true`. During temporary access, restrict sources, record start and end times, bound captures, and disable it afterward. Treat diagnostic artifacts as internal sensitive data even after configured fields are redacted.
+
+## Minimum production evidence
+
+- Logs, metrics, and identity labels correlate for every node.
+- CPU, memory, file descriptors, goroutines, disk, network, request latency, queues, and errors have baselines.
+- `/readyz` failure, disk pressure, sustained queue backlog, and critical errors have alerts and owners.
+- Collector failure cannot block the message path.
+- Retention and sampling costs are load-tested; one peak result is not sustainable capacity evidence.
+
+Complete alert, dashboard, and incident procedures remain in the planned operations documentation. For now, finish the [Production Checklist](/en/server/deployment/production-checklist).

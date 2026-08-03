@@ -7,28 +7,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	contract "github.com/WuKongIM/WuKongIM/internal/contracts/reviewagent"
 	reviewagent "github.com/WuKongIM/WuKongIM/internal/usecase/reviewagent"
 )
 
-func TestEvaluateGovernanceAppliesProtectedPathsAndReviewPrecedence(
+func TestHumanChangesRequestedUsesLatestExactHeadHumanReview(
 	t *testing.T,
 ) {
 	t.Parallel()
 
 	head := strings.Repeat("a", 40)
 	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
-	facts := reviewagent.EvaluateGovernance(reviewagent.GovernanceInput{
-		Files: []contract.ChangedFile{{
-			Path:         "docs/new.md",
-			PreviousPath: "custom/control/old.json",
-		}},
-		ControlPlanePrefixes: []string{"custom/control"},
-		Reviews: []reviewagent.GovernanceReview{
-			{
-				Author: "owner", AuthorType: "User", State: "APPROVED",
-				CommitSHA: head, SubmittedAt: now,
-			},
+	requested := reviewagent.HumanChangesRequested(
+		[]reviewagent.ReviewFact{
 			{
 				Author: "reviewer", AuthorType: "User",
 				State:     "CHANGES_REQUESTED",
@@ -40,30 +30,32 @@ func TestEvaluateGovernanceAppliesProtectedPathsAndReviewPrecedence(
 				CommitSHA: head, SubmittedAt: now.Add(time.Minute),
 			},
 		},
-		HeadSHA: head, Author: "alice", OwnerLogins: []string{"OWNER"},
-	})
+		head,
+	)
 
-	require.True(t, facts.ControlPlaneChanged)
-	require.True(t, facts.OwnerApproved)
-	require.False(t, facts.HumanChangesRequested)
+	require.False(t, requested)
 }
 
-func TestEvaluateGovernanceRejectsAuthorSelfApproval(t *testing.T) {
+func TestHumanChangesRequestedIgnoresBotsAndOtherHeads(t *testing.T) {
 	t.Parallel()
 
 	head := strings.Repeat("a", 40)
-	facts := reviewagent.EvaluateGovernance(reviewagent.GovernanceInput{
-		Files: []contract.ChangedFile{{Path: "docs/ordinary.md"}},
-		Reviews: []reviewagent.GovernanceReview{{
-			Author: "Alice", AuthorType: "User", State: "APPROVED",
-			CommitSHA: head,
-			SubmittedAt: time.Date(
-				2026, 7, 30, 8, 0, 0, 0, time.UTC,
-			),
-		}},
-		HeadSHA: head, Author: "alice", OwnerLogins: []string{"ALICE"},
-	})
+	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
+	requested := reviewagent.HumanChangesRequested(
+		[]reviewagent.ReviewFact{
+			{
+				Author: "bot", AuthorType: "Bot",
+				State: "CHANGES_REQUESTED", CommitSHA: head,
+				SubmittedAt: now,
+			},
+			{
+				Author: "reviewer", AuthorType: "User",
+				State: "CHANGES_REQUESTED", CommitSHA: strings.Repeat("b", 40),
+				SubmittedAt: now,
+			},
+		},
+		head,
+	)
 
-	require.False(t, facts.ControlPlaneChanged)
-	require.False(t, facts.OwnerApproved)
+	require.False(t, requested)
 }

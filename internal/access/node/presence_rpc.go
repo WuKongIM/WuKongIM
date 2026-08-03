@@ -79,11 +79,6 @@ type DeliveryOwnerPush interface {
 	Push(context.Context, runtimedelivery.PushCommand) (runtimedelivery.PushResult, error)
 }
 
-// DeliveryFanoutRunner accepts authority-node fanout tasks over node RPC.
-type DeliveryFanoutRunner interface {
-	RunTask(context.Context, runtimedelivery.FanoutTask) error
-}
-
 // ConversationAuthority handles UID-owned conversation active cache and durable hide requests.
 type ConversationAuthority interface {
 	AdmitPatches(context.Context, conversationusecase.RouteTarget, []conversationusecase.ActivePatch) error
@@ -250,8 +245,6 @@ type Options struct {
 	Owner PresenceOwner
 	// Delivery handles owner-local delivery push batches after payload decoding.
 	Delivery DeliveryOwnerPush
-	// DeliveryFanout handles authority-node delivery fanout tasks after payload decoding.
-	DeliveryFanout DeliveryFanoutRunner
 	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
 	ConversationAuthority ConversationAuthority
 	// ManagerConnections handles owner-local manager connection inventory requests.
@@ -314,8 +307,6 @@ type Adapter struct {
 	owner PresenceOwner
 	// delivery pushes messages into owner-local delivery sessions.
 	delivery DeliveryOwnerPush
-	// deliveryFanout runs subscriber fanout tasks for this authority node.
-	deliveryFanout DeliveryFanoutRunner
 	// conversation owns UID conversation active cache decisions.
 	conversation ConversationAuthority
 	// managerConnections reads owner-local connection inventory for manager pages.
@@ -379,7 +370,6 @@ func New(opts Options) *Adapter {
 		authority:                opts.Authority,
 		owner:                    opts.Owner,
 		delivery:                 opts.Delivery,
-		deliveryFanout:           opts.DeliveryFanout,
 		conversation:             opts.ConversationAuthority,
 		managerConnections:       opts.ManagerConnections,
 		managerLogs:              opts.ManagerLogs,

@@ -14,8 +14,6 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 
 	tests := []struct {
 		phase      contract.Phase
-		control    bool
-		owner      bool
 		review     reviewagent.FormalReview
 		conclusion reviewagent.CheckConclusion
 	}{
@@ -34,19 +32,6 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 			review:     reviewagent.FormalReviewComment,
 			conclusion: reviewagent.CheckActionRequired,
 		},
-		{
-			phase:      contract.PhaseApproved,
-			control:    true,
-			review:     reviewagent.FormalReviewApprove,
-			conclusion: reviewagent.CheckActionRequired,
-		},
-		{
-			phase:      contract.PhaseApproved,
-			control:    true,
-			owner:      true,
-			review:     reviewagent.FormalReviewApprove,
-			conclusion: reviewagent.CheckSuccess,
-		},
 	}
 	for _, test := range tests {
 		state := testReviewingState()
@@ -56,10 +41,7 @@ func TestPlanPublicationMapsTrustedStateToSoleVerdict(t *testing.T) {
 		state.ResultDigest = digest("b")
 		plan, err := reviewagent.PlanPublication(
 			state,
-			reviewagent.GovernanceFacts{
-				ControlPlaneChanged: test.control,
-				OwnerApproved:       test.owner,
-			},
+			reviewagent.PublicationFacts{},
 		)
 		require.NoError(t, err)
 		require.Equal(t, "Review Agent Verdict", plan.CheckName)
@@ -80,11 +62,117 @@ func TestPlanPublicationDoesNotOverrideHumanChangesRequest(t *testing.T) {
 	state.ResultDigest = digest("b")
 	plan, err := reviewagent.PlanPublication(
 		state,
-		reviewagent.GovernanceFacts{HumanChangesRequested: true},
+		reviewagent.PublicationFacts{HumanChangesRequested: true},
 	)
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.CheckSuccess, plan.Conclusion)
 	require.True(t, plan.HumanReviewStillBlocks)
+}
+
+func TestPlanPublicationAllowsAutomaticMergeForApprovedMember(t *testing.T) {
+	t.Parallel()
+
+	state := testReviewingState()
+	state.Phase = contract.PhaseApproved
+	state.DecisionSource = contract.DecisionSourceModel
+	state.EvidenceDigest = digest("a")
+	state.ResultDigest = digest("b")
+	plan, err := reviewagent.PlanPublication(
+		state,
+		reviewagent.PublicationFacts{
+			AuthorAssociation: "MEMBER",
+			Mergeability:      reviewagent.MergeabilityClean,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, plan.AutomaticMerge)
+}
+
+func TestPlanPublicationAllowsAutomaticMergeForRepositoryAdmin(t *testing.T) {
+	t.Parallel()
+
+	state := testReviewingState()
+	state.Phase = contract.PhaseApproved
+	state.DecisionSource = contract.DecisionSourceModel
+	state.EvidenceDigest = digest("a")
+	state.ResultDigest = digest("b")
+	plan, err := reviewagent.PlanPublication(
+		state,
+		reviewagent.PublicationFacts{
+			AuthorAssociation: "COLLABORATOR",
+			AuthorPermission:  reviewagent.PermissionAdmin,
+			Mergeability:      reviewagent.MergeabilityClean,
+		},
+	)
+	require.NoError(t, err)
+	require.True(t, plan.AutomaticMerge)
+}
+
+func TestPlanPublicationRequiresTrustedAuthorAndSafeMergeState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		phase contract.Phase
+		facts reviewagent.PublicationFacts
+	}{
+		{
+			name:  "external contributor",
+			phase: contract.PhaseApproved,
+			facts: reviewagent.PublicationFacts{
+				AuthorAssociation: "CONTRIBUTOR",
+				AuthorPermission:  reviewagent.PermissionRead,
+				Mergeability:      reviewagent.MergeabilityClean,
+			},
+		},
+		{
+			name:  "write collaborator",
+			phase: contract.PhaseApproved,
+			facts: reviewagent.PublicationFacts{
+				AuthorAssociation: "COLLABORATOR",
+				AuthorPermission:  reviewagent.PermissionWrite,
+				Mergeability:      reviewagent.MergeabilityClean,
+			},
+		},
+		{
+			name:  "human changes requested",
+			phase: contract.PhaseApproved,
+			facts: reviewagent.PublicationFacts{
+				HumanChangesRequested: true,
+				AuthorAssociation:     "MEMBER",
+				Mergeability:          reviewagent.MergeabilityClean,
+			},
+		},
+		{
+			name:  "mergeability unresolved",
+			phase: contract.PhaseApproved,
+			facts: reviewagent.PublicationFacts{
+				AuthorAssociation: "MEMBER",
+				Mergeability:      reviewagent.MergeabilityUnknown,
+			},
+		},
+		{
+			name:  "changes required",
+			phase: contract.PhaseChangesRequired,
+			facts: reviewagent.PublicationFacts{
+				AuthorAssociation: "MEMBER",
+				Mergeability:      reviewagent.MergeabilityClean,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			state := testReviewingState()
+			state.Phase = test.phase
+			state.DecisionSource = contract.DecisionSourceModel
+			state.EvidenceDigest = digest("a")
+			state.ResultDigest = digest("b")
+			plan, err := reviewagent.PlanPublication(state, test.facts)
+			require.NoError(t, err)
+			require.False(t, plan.AutomaticMerge)
+		})
+	}
 }
 
 func TestPlanPublicationMapsDeterministicConflictWithoutArtifacts(t *testing.T) {
@@ -96,7 +184,7 @@ func TestPlanPublicationMapsDeterministicConflictWithoutArtifacts(t *testing.T) 
 	state.Reason = "pull request has merge conflicts"
 	plan, err := reviewagent.PlanPublication(
 		state,
-		reviewagent.GovernanceFacts{},
+		reviewagent.PublicationFacts{},
 	)
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.FormalReviewRequestChanges, plan.Review)

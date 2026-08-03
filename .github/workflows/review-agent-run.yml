@@ -37,8 +37,60 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  protected-tools:
+    name: Build exact protected tool bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Validate protected control revision before checkout
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_CONTROL_SHA: ${{ inputs.control_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$INPUT_CONTROL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" \
+            --jq .object.sha)"
+          test "$INPUT_CONTROL_SHA" = "$current"
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.control_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Build protected Review Agent tools once
+        shell: bash
+        env:
+          INPUT_CONTROL_SHA: ${{ inputs.control_sha }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/review-agent-tools"
+          mkdir -p "$bundle"
+          GOWORK=off go build -trimpath -o "$bundle/" \
+            ./cmd/wkreviewagent \
+            ./cmd/wkreviewcheck \
+            ./cmd/wkreviewcheckmcp
+          printf '%s\n' "$INPUT_CONTROL_SHA" >"$bundle/control-sha"
+          (
+            cd "$bundle"
+            sha256sum control-sha wkreviewagent wkreviewcheck \
+              wkreviewcheckmcp >SHA256SUMS
+          )
+          chmod 0444 "$bundle/control-sha" "$bundle/SHA256SUMS"
+          chmod 0555 "$bundle/wkreviewagent" "$bundle/wkreviewcheck" \
+            "$bundle/wkreviewcheckmcp"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          path: ${{ runner.temp }}/review-agent-tools/
+          if-no-files-found: error
+          retention-days: 1
+
   recover:
     name: Recover exact signed generation
+    needs: protected-tools
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
@@ -67,9 +119,12 @@ jobs:
           ref: ${{ inputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - name: Build protected recovery boundary
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent
       - name: Recover from GitHub and signed state
         id: recover
         shell: bash
@@ -123,7 +178,7 @@ jobs:
 
   context:
     name: Build complete Context Bundle
-    needs: recover
+    needs: [protected-tools, recover]
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
@@ -138,13 +193,16 @@ jobs:
           ref: ${{ inputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-recovery-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-recovery
-      - name: Build protected Context Builder
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent
       - name: Build complete bounded context
         shell: bash
         env:
@@ -174,7 +232,7 @@ jobs:
 
   baseline:
     name: Run deterministic minimum checks
-    needs: [recover, context]
+    needs: [protected-tools, recover, context]
     if: inputs.operation == 'review'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -211,18 +269,22 @@ jobs:
             sudo apt-get install -y --no-install-recommends \
               bubblewrap slirp4netns
           fi
-          GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
-          GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewcheck" ./cmd/wkreviewcheck
           cp .github/review-agent/policy.json "$RUNNER_TEMP/review-agent-policy.json"
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent wkreviewcheck
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.recover.outputs.test_merge_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-context-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-context
@@ -273,9 +335,10 @@ jobs:
 
   review:
     name: Run one ephemeral Review Agent
-    needs: [recover, context, baseline]
+    needs: [protected-tools, recover, context, baseline]
     if: >-
-      always() && needs.context.result == 'success' &&
+      always() && needs.protected-tools.result == 'success' &&
+      needs.context.result == 'success' &&
       (inputs.operation == 'explain' ||
        (inputs.operation == 'review' && needs.baseline.result == 'success'))
     runs-on: ubuntu-24.04
@@ -295,7 +358,6 @@ jobs:
         with:
           bun-version: "1.3.11"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        if: inputs.operation == 'review'
         with:
           node-version: "22.12.0"
       - name: Freeze frontend package managers
@@ -324,11 +386,10 @@ jobs:
           cp .github/review-agent/network-fence.sh \
             "$RUNNER_TEMP/review-agent-network-fence.sh"
           chmod 0555 "$RUNNER_TEMP/review-agent-network-fence.sh"
+          sudo install -o root -g root -m 0555 \
+            .github/review-agent/responses-budget-proxy.mjs \
+            "$RUNNER_TEMP/review-agent-responses-budget-proxy.mjs"
           if [[ "$INPUT_OPERATION" == review ]]; then
-            GOWORK=off go build -trimpath \
-              -o "$RUNNER_TEMP/wkreviewcheckmcp" ./cmd/wkreviewcheckmcp
-            GOWORK=off go build -trimpath \
-              -o "$RUNNER_TEMP/wkreviewcheck" ./cmd/wkreviewcheck
             cp .github/review-agent/prompts/review.md \
               "$RUNNER_TEMP/review-agent-prompt.md"
             cp .github/review-agent/review-result.schema.json \
@@ -358,7 +419,14 @@ jobs:
             cat "$RUNNER_TEMP/review-output.schema.json"
             printf '\n</trusted-output-schema>\n'
           } >>"$RUNNER_TEMP/review-agent-prompt.md"
-      - name: Install pinned Codex CLI and Responses proxy
+      - name: Verify protected tool bundle
+        if: inputs.operation == 'review'
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewcheck wkreviewcheckmcp
+      - name: Install pinned Codex CLI
         uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1.11
         with:
           codex-version: 0.146.0
@@ -370,15 +438,15 @@ jobs:
           ref: ${{ needs.recover.outputs.test_merge_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-context-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-context
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-recovery-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-recovery
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         if: inputs.operation == 'review'
         with:
           name: review-agent-baseline-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
@@ -397,32 +465,41 @@ jobs:
               "$RUNNER_TEMP/review-agent-session/recovery.json"
           fi
           chmod -R a-w "$RUNNER_TEMP/review-agent-session"
-      - name: Start protected Responses API proxy
+      - name: Start protected budgeted Responses API proxy
         shell: bash
         env:
           PROXY_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+          api_key_file="$RUNNER_TEMP/review-agent-api-key"
           server_info="$RUNNER_TEMP/review-agent-proxy.json"
-          (
-            printenv PROXY_API_KEY |
-              env -u PROXY_API_KEY codex-responses-api-proxy \
-                --http-shutdown \
-                --server-info "$server_info" \
-                --upstream-url https://openrouter.ai/api/v1/responses
-          ) &
+          max_output_tokens="$(jq -er '.limits.max_model_output_tokens |
+            select(type == "number" and . >= 1)' \
+            "$RUNNER_TEMP/review-agent-policy.json")"
+          sudo install -o root -g root -m 0600 /dev/null "$api_key_file"
+          printenv PROXY_API_KEY | sudo -n tee "$api_key_file" >/dev/null
           unset PROXY_API_KEY
+          node_binary="$(command -v node)"
+          sudo -n "$node_binary" \
+            "$RUNNER_TEMP/review-agent-responses-budget-proxy.mjs" \
+            --api-key-file "$api_key_file" \
+            --upstream-url https://openrouter.ai/api/v1/responses \
+            --server-info "$server_info" \
+            --max-output-tokens "$max_output_tokens" &
           for _ in {1..100}; do
-            if jq -e '.port | type == "number" and
+            if sudo -n jq -e '.port | type == "number" and
               . >= 1 and . <= 65535' "$server_info" >/dev/null 2>&1; then
               break
             fi
             sleep 0.1
           done
+          sudo -n jq -e '.port | type == "number" and
+            . >= 1 and . <= 65535' "$server_info" >/dev/null
+          test ! -e "$api_key_file"
+          test "$(stat -c '%U:%G:%a' "$server_info")" = root:root:600
+          sudo -n chmod 0444 "$server_info"
           jq -e '.port | type == "number" and
             . >= 1 and . <= 65535' "$server_info" >/dev/null
-          sudo chown root:root "$server_info"
-          sudo chmod 0444 "$server_info"
       - name: Freeze private-network, MCP, and tree boundaries
         shell: bash
         env:
@@ -507,7 +584,7 @@ jobs:
               --output-last-message \
                 "$RUNNER_TEMP/review-agent-result-artifact/review-agent-output.json" \
               --output-schema "$RUNNER_TEMP/review-output.schema.json" \
-              --model moonshotai/kimi-k3 \
+              --model deepseek/deepseek-v4-flash \
               --config 'model_reasoning_effort="high"' \
               --ephemeral \
               --config model_context_window=240000 \
@@ -550,9 +627,10 @@ jobs:
 
   evidence:
     name: Validate trusted evidence and advisory result
-    needs: [recover, context, baseline, review]
+    needs: [protected-tools, recover, context, baseline, review]
     if: >-
-      always() && needs.recover.result == 'success' &&
+      always() && needs.protected-tools.result == 'success' &&
+      needs.recover.result == 'success' &&
       (inputs.operation == 'review' || inputs.operation == 'explain')
     runs-on: ubuntu-24.04
     timeout-minutes: 7
@@ -565,33 +643,38 @@ jobs:
           ref: ${{ inputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         continue-on-error: true
         with:
           name: review-agent-context-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-context
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-recovery-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-recovery
       - name: Download reviewer output
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-result-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-result
       - name: Download trusted baseline
         if: inputs.operation == 'review'
         continue-on-error: true
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-baseline-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-trusted-baseline
-      - name: Build clean trusted validator
+      - name: Prepare clean trusted validator home
         shell: bash
         run: |
           set -euo pipefail
-          GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
           mkdir -p "$RUNNER_TEMP/review-agent-home"
       - name: Collect ledger and force a valid terminal result
         id: finalize
@@ -817,9 +900,10 @@ jobs:
 
   state-writer:
     name: Append terminal signed state
-    needs: [recover, evidence]
+    needs: [protected-tools, recover, evidence]
     if: >-
       always() && needs.evidence.result == 'success' &&
+      needs.protected-tools.result == 'success' &&
       (inputs.operation == 'review' || inputs.operation == 'explain')
     runs-on: ubuntu-24.04
     timeout-minutes: 7
@@ -838,13 +922,16 @@ jobs:
           ref: ${{ inputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-evidence-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-evidence
-      - name: Build protected terminal State Writer
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
       - name: Reconcile completion and append exact states
         id: append
         shell: bash
@@ -943,9 +1030,10 @@ jobs:
 
   review-publisher:
     name: Publish formal Review, Verdict, or explanation
-    needs: [evidence, state-writer]
+    needs: [protected-tools, evidence, state-writer]
     if: >-
       always() && needs.state-writer.result == 'success' &&
+      needs.protected-tools.result == 'success' &&
       (inputs.operation == 'review' || inputs.operation == 'explain')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -962,17 +1050,20 @@ jobs:
           ref: ${{ inputs.control_sha }}
           fetch-depth: 1
           persist-credentials: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - name: Verify protected tool bundle
+        uses: ./.github/actions/install-review-agent-tools
+        with:
+          artifact-name: review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
+          control-sha: ${{ inputs.control_sha }}
+          tools: wkreviewagent
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-evidence-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-evidence
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-terminal-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-terminal
-      - name: Build protected Review Publisher
-        shell: bash
-        run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkreviewagent" ./cmd/wkreviewagent
       - name: Publish without candidate code or State Writer authority
         shell: bash
         env:
@@ -1017,7 +1108,7 @@ jobs:
     permissions:
       actions: write
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: review-agent-terminal-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}
           path: ${{ runner.temp }}/review-agent-terminal

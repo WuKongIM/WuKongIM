@@ -1,0 +1,55 @@
+---
+title: 网络与客户端接入
+description: 区分节点 Transport、HTTP、Gateway、Manager 和对客户端发布的地址。
+---
+
+一个节点同时服务多种流量面。监听地址回答“本进程在哪里接收连接”，广告地址回答“其他系统应该连接哪里”；两者不能混用。
+
+## 流量面
+
+| 流量 | 主要配置 | 消费者 | 生产建议 |
+| --- | --- | --- | --- |
+| 节点间 Transport | `cluster.listen_addr`，静态 `nodes[].addr` 或 `cluster.advertise_addr` | 其他 WuKongIM 节点 | 只开放给集群网络，保证双向可达 |
+| 产品 HTTP API | `api.listen_addr` | 业务后端、健康检查、观察采集 | 放在受信任网络或外部鉴权代理后 |
+| 客户端 Gateway | `gateway.listeners` | TCP、WebSocket 客户端 | 通过受控入口暴露并实施连接容量限制 |
+| 客户端发现地址 | `api.external_tcp_addr`、`external_ws_addr`、`external_wss_addr` | `/route` 的调用者 | 必须能从目标客户端网络访问 |
+| Manager | `manager.listen_addr` | 管理员和自动化 | 独立受限网络，启用认证 |
+| Prometheus | `prometheus.listen_addr` 或外部服务 | Manager、采集系统 | 不直接暴露到互联网 |
+
+## 监听不等于广告
+
+`0.0.0.0` 和 `[::]` 适合监听所有接口，却不是其他节点或客户端可路由的目标。静态集群使用 `nodes[].addr` 作为节点互连地址；种子加入使用 `cluster.advertise_addr`。它们必须包含稳定、可解析、可达的主机与端口。
+
+客户端广告字段描述客户端最终连接的位置，可以是负载均衡器或边缘代理地址：
+
+```toml
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "im.example.com:5100"
+external_wss_addr = "wss://im.example.com/ws"
+
+[gateway]
+listeners = [
+  { name = "tcp", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" },
+  { name = "ws", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }
+]
+```
+
+这里的域名和端口只是结构示例。若 TLS 在负载均衡器、反向代理或 Service Mesh 终止，仍需验证外部 WSS 地址、证书、Host/路径转发和上游协议一致。
+
+## 暴露策略
+
+- 公网入口只应包含业务需要的客户端端口和经过保护的产品 API。
+- 节点 Transport、Manager、`/metrics`、`/top/v1/*`、`/debug/pprof/*`、Benchmark 与诊断能力分别设置网络策略，不要因共用 HTTP Listener 就赋予相同信任。
+- WuKongIM 的产品 HTTP API 不提供通用业务身份校验；应由受信任网络、API Gateway 或外部鉴权代理建立安全边界。
+- 负载均衡器用 `/readyz` 决定流量准入。`/healthz` 只说明进程存活，不能证明节点已经具备服务条件。
+
+## 发布前验证
+
+1. 从每个节点测试到所有节点广告地址的双向 Transport 连接。
+2. 从业务网络访问 HTTP API，从目标客户端网络访问 `/route` 返回的每个地址。
+3. 验证 TCP、WS/WSS 握手、TLS 链、超时和代理空闲连接策略。
+4. 确认 Manager、指标、Debug、Benchmark 和诊断端点无法从非授权网络访问。
+5. 对每个节点单独检查 `/readyz`，只把返回 `200` 且 `ready: true` 的节点加入后端池。
+
+网络路径明确后，再按[安全与权限](/zh/server/configuration/security)收紧凭据和管理面。

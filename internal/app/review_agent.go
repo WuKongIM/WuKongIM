@@ -142,8 +142,6 @@ func reconcileReviewGitHub(
 	client, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.ReconcileGitHubResponse{}, err
@@ -319,20 +317,22 @@ func resolveReviewCommand(
 	if target == nil {
 		return usecase.Command{}, false, nil
 	}
-	if !strings.HasPrefix(target.Body, "@review-agent") {
+	if !strings.HasPrefix(target.Body, "@review-agent ") {
 		return usecase.Command{}, false, nil
 	}
 	permission := usecase.PermissionNone
-	if target.Author != snapshot.Author {
+	if target.Body != "@review-agent status" {
 		resolved, err := client.ActorPermission(ctx, target.Author)
 		if err != nil {
-			return usecase.Command{}, false, err
+			// A command without freshly proven admin authority is an observed
+			// no-op. This also prevents untrusted comments from turning
+			// permission lookup failures into Controller retry work.
+			return usecase.Command{}, false, nil
 		}
 		permission = usecase.Permission(resolved)
 	}
 	command, err := usecase.ParseCommand(usecase.CommandInput{
-		Body: target.Body, Actor: target.Author,
-		PRWriter: snapshot.Author, Permission: permission,
+		Body: target.Body, Permission: permission,
 		Edited: !target.UpdatedAt.Equal(target.CreatedAt),
 	})
 	if err != nil {
@@ -353,8 +353,6 @@ func buildReviewContext(
 	client, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.BuildContextResponse{}, err
@@ -573,7 +571,7 @@ func appendReviewState(
 	if err != nil {
 		return cli.AppendStateResponse{}, err
 	}
-	client, err := newReviewGitHubClient(config, token.Token, nil, nil)
+	client, err := newReviewGitHubClient(config, token.Token)
 	if err != nil {
 		return cli.AppendStateResponse{}, err
 	}
@@ -670,8 +668,6 @@ func publishReview(
 	reader, err := newReviewGitHubClient(
 		config,
 		config.GitHubReadToken,
-		policy.Governance.OwnerLogins,
-		policy.ControlPlanePaths,
 	)
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
@@ -686,7 +682,7 @@ func publishReview(
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
 	}
-	writer, err := newReviewGitHubClient(config, token.Token, nil, nil)
+	writer, err := newReviewGitHubClient(config, token.Token)
 	if err != nil {
 		return cli.PublishReviewResponse{}, err
 	}
@@ -727,8 +723,6 @@ func publishReview(
 func newReviewGitHubClient(
 	config ReviewAgentConfig,
 	token string,
-	owners []string,
-	controlPaths []string,
 ) (*github.Client, error) {
 	if config.HTTPClient == nil {
 		return nil, errors.New("Review GitHub HTTP client is unavailable")
@@ -737,8 +731,6 @@ func newReviewGitHubClient(
 		BaseURL: config.APIBaseURL, GraphQLURL: config.GraphQLURL,
 		Repository: config.Repository, Token: token,
 		MaxPages: 100, MaxBodyBytes: 16 << 20,
-		ControlOwnerLogins: append([]string(nil), owners...),
-		ControlPlanePaths:  append([]string(nil), controlPaths...),
 	}, config.HTTPClient)
 }
 

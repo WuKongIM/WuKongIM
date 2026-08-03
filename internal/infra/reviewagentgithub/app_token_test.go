@@ -63,7 +63,8 @@ func TestAppTokenMinterUsesExactCompileTimeRoleProfiles(t *testing.T) {
 
 	for role, want := range map[github.AppRole]map[string]string{
 		github.AppRoleReviewPublisher: {
-			"checks": "write", "issues": "write", "metadata": "read",
+			"checks": "write", "contents": "write", "issues": "write",
+			"metadata":      "read",
 			"pull_requests": "write",
 		},
 		github.AppRoleStateWriter: {

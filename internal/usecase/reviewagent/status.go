@@ -29,7 +29,7 @@ func RenderStatus(state contract.ReviewState, now time.Time) (string, error) {
 			"- base: [`%s`](%s/commit/%s)\n"+
 			"- test merge: [`%s`](%s/commit/%s)\n"+
 			"- generation elapsed: `%s`\n"+
-			"- automatic reviews: %d/1\n"+
+			"- initial reviews: %d/1\n"+
 			"- reconsiderations: %d/2\n"+
 			"- explanations: %d/3\n",
 		state.Generation.PullRequest,

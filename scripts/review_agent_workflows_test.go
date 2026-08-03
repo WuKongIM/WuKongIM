@@ -21,6 +21,7 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 		"pull_request_target:",
 		"pull_request_review:",
 		"issue_comment:",
+		"startsWith(github.event.comment.body, '@review-agent review')",
 		"startsWith(github.event.comment.body, '@review-agent status')",
 		"startsWith(github.event.comment.body, '@review-agent explain')",
 		"startsWith(github.event.comment.body, '@review-agent reconsider')",
@@ -47,40 +48,22 @@ func TestReviewAgentSignalWorkflowIsAuthorityFree(t *testing.T) {
 	}
 }
 
-func TestReviewAgentIssueSignalIsBoundedAndExplicit(t *testing.T) {
-	raw := readIssueAgentFile(
-		t,
-		".github/workflows/review-agent-issue-signal.yml",
-	)
-	var document any
-	require.NoError(t, yaml.Unmarshal([]byte(raw), &document))
-	for _, required := range []string{
-		"types: [edited, closed, reopened]",
-		"actions: write",
-		"pull-requests: read",
-		"for page in {1..10}",
-		"close(s|d)?|fix(es|ed)?|resolve(s|d)?",
-		"gh workflow run review-agent.yml",
-	} {
-		require.Contains(t, raw, required)
-	}
-	require.NotContains(t, raw, "schedule:")
-	require.NotContains(t, raw, "cron:")
-}
-
 func TestReviewAgentCodeownersCoversItsControlPlane(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/CODEOWNERS")
 	for _, required := range []string{
-		"/internal/app/review_agent* @WuKongIM/review-agent-owners",
-		"/.github/workflows/README.md @WuKongIM/review-agent-owners",
-		"/docs/agents/review-agent.md @WuKongIM/review-agent-owners",
-		"/docs/development/CI.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/specs/2026-07-30-review-agent-design.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/plans/2026-07-30-review-agent-implementation.md @WuKongIM/review-agent-owners",
-		"/docs/superpowers/runbooks/review-agent-bootstrap.md @WuKongIM/review-agent-owners",
+		"/.github/actions/install-review-agent-tools/ @tangtaoit",
+		"/internal/app/review_agent* @tangtaoit",
+		"/.github/workflows/README.md @tangtaoit",
+		"/docs/agents/review-agent.md @tangtaoit",
+		"/docs/development/CI.md @tangtaoit",
+		"/docs/superpowers/specs/2026-07-30-review-agent-design.md @tangtaoit",
+		"/docs/superpowers/plans/2026-07-30-review-agent-implementation.md @tangtaoit",
+		"/docs/superpowers/runbooks/review-agent-bootstrap.md @tangtaoit",
 	} {
 		require.Contains(t, raw, required)
 	}
+	require.NotContains(t, raw, "No8blackball")
+	require.NotContains(t, raw, "review-agent-owners")
 }
 
 func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
@@ -150,7 +133,9 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.Contains(
 		t,
 		dispatch,
-		"group: review-agent-dispatch-${{ needs.state-writer.outputs.pull_request }}",
+		"group: review-agent-dispatch-${{ needs.state-writer.result == 'success' && "+
+			"needs.state-writer.outputs.pull_request || "+
+			"needs.reconcile.outputs.pull_request }}",
 	)
 	require.Contains(t, dispatch, "cancel-in-progress: false")
 	require.Contains(t, dispatch, "gh workflow run review-agent-run.yml")
@@ -182,8 +167,52 @@ func TestReviewAgentControllerWorkflowSeparatesAuthority(t *testing.T) {
 	require.NotContains(t, recovery, "APP_PRIVATE_KEY")
 }
 
+func TestReviewAgentControllerWorkflowHasNoOpFastPath(t *testing.T) {
+	raw := readIssueAgentFile(t, ".github/workflows/review-agent.yml")
+	reconcile := issueAgentJobText(t, raw, "reconcile")
+	writer := issueAgentJobText(t, raw, "state-writer")
+	publisher := issueAgentJobText(t, raw, "status-publisher")
+	dispatch := issueAgentJobText(t, raw, "dispatch")
+
+	require.Equal(
+		t,
+		1,
+		strings.Count(raw, "GOWORK=off go build"),
+		"the protected Controller binary must be built once per run",
+	)
+	require.Contains(t, reconcile, "review-agent-controller-tools-${{ github.run_id }}")
+	require.Contains(t, reconcile, "steps.plan.outputs.tools_required == 'true'")
+	for _, consumer := range []string{writer, publisher} {
+		require.NotContains(t, consumer, "go build")
+		require.Contains(
+			t,
+			consumer,
+			"uses: ./.github/actions/install-review-agent-tools",
+		)
+		require.Contains(t, consumer, "bundle-tools: wkreviewagent")
+		require.Contains(t, consumer, "tools: wkreviewagent")
+	}
+	require.Contains(
+		t,
+		writer,
+		"needs.reconcile.outputs.state_changed == 'true' ||\n"+
+			"       needs.reconcile.outputs.scheduler_changed == 'true'",
+		"a true no-op must not enter the credentialed State Writer job",
+	)
+	require.Contains(t, publisher, "needs.state-writer.result == 'skipped'")
+	require.Contains(t, publisher, "needs.reconcile.outputs.publish == 'true'")
+	require.Contains(t, dispatch, "needs.state-writer.result == 'skipped'")
+	require.Contains(t, dispatch, "needs.reconcile.outputs.dispatch == 'true'")
+}
+
 func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	raw := readIssueAgentFile(t, ".github/workflows/review-agent-run.yml")
+	installer := readIssueAgentFile(
+		t,
+		".github/actions/install-review-agent-tools/action.yml",
+	)
+	var installerDocument any
+	require.NoError(t, yaml.Unmarshal([]byte(installer), &installerDocument))
 	var document struct {
 		RunName string `yaml:"run-name"`
 	}
@@ -196,6 +225,7 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		document.RunName,
 	)
 	for _, job := range []string{
+		"protected-tools:",
 		"recover:",
 		"context:",
 		"baseline:",
@@ -206,6 +236,51 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		"drain:",
 	} {
 		require.Contains(t, raw, "\n  "+job)
+	}
+	require.Equal(
+		t,
+		1,
+		strings.Count(raw, "GOWORK=off go build"),
+		"the protected control revision must be built once per Worker run",
+	)
+	require.Contains(
+		t,
+		raw,
+		"review-agent-tools-${{ inputs.pull_request }}-${{ inputs.lease_run_id }}",
+	)
+	for _, job := range []string{
+		"recover", "context", "baseline", "review", "evidence",
+		"state-writer", "review-publisher",
+	} {
+		jobText := issueAgentJobText(t, raw, job)
+		require.NotContains(t, jobText, "go build")
+		require.Contains(t, jobText, "Verify protected tool bundle")
+	}
+	require.Contains(
+		t,
+		installer,
+		"actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+	)
+	for _, required := range []string{
+		"sha256sum --check SHA256SUMS",
+		`test "$(cat "$bundle/control-sha")" = "$INPUT_CONTROL_SHA"`,
+		`INPUT_BUNDLE_TOOLS: ${{ inputs.bundle-tools }}`,
+		"expected_files=(control-sha)",
+		`if [[ -n "${bundled_tools[$tool]:-}" ]]`,
+		"protected Review Agent tool is absent from bundle inventory",
+		`test ! -L "$bundle/SHA256SUMS"`,
+		"wkreviewagent|wkreviewcheck|wkreviewcheckmcp",
+		`rm -rf "$bundle"`,
+	} {
+		require.Contains(t, installer, required)
+	}
+	for _, forbidden := range []string{
+		"secrets.",
+		"actions/cache",
+		"github.token",
+		"checkout",
+	} {
+		require.NotContains(t, installer, forbidden)
 	}
 	require.Contains(t, raw, "workflow_dispatch:")
 	require.NotContains(t, raw, "workflow_call:")
@@ -223,12 +298,38 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 		strings.Count(raw, "persist-credentials: false"))
 	require.Contains(t, raw, "ref: ${{ needs.recover.outputs.test_merge_sha }}")
 	require.Equal(t, 1, strings.Count(raw, "openai/codex-action@"))
-	require.Contains(t, raw, "--model moonshotai/kimi-k3")
+	require.Contains(t, raw, "--model deepseek/deepseek-v4-flash")
 	require.Contains(t, raw, `--config 'model_reasoning_effort="high"'`)
 	require.Contains(t, raw, "codex-version: 0.146.0")
-	require.Contains(t, raw, "codex-responses-api-proxy")
-	require.Contains(t, raw, "env -u PROXY_API_KEY")
+	require.Contains(t, raw, `node-version: "22.12.0"`)
+	require.NotContains(
+		t,
+		raw,
+		"if: inputs.operation == 'review'\n        with:\n"+
+			`          node-version: "22.12.0"`,
+	)
+	require.NotContains(t, raw, "codex-responses-api-proxy")
+	require.Contains(t, raw, `api_key_file="$RUNNER_TEMP/review-agent-api-key"`)
+	require.Contains(t, raw, `sudo -n tee "$api_key_file"`)
+	require.Contains(t, raw, `test ! -e "$api_key_file"`)
+	require.Contains(t, raw, `sudo -n "$node_binary"`)
+	require.Contains(t, raw, `if sudo -n jq -e '.port | type == "number" and`)
 	require.Contains(t, raw, "--upstream-url https://openrouter.ai/api/v1/responses")
+	require.Contains(
+		t,
+		raw,
+		`max_output_tokens="$(jq -er '.limits.max_model_output_tokens |`,
+	)
+	require.Contains(t, raw, `select(type == "number" and . >= 1)' \`)
+	require.Contains(t, raw, "review-agent-responses-budget-proxy.mjs")
+	require.Contains(t, raw, `--max-output-tokens "$max_output_tokens"`)
+	require.Contains(t, raw, `--server-info "$server_info"`)
+	require.Contains(
+		t,
+		raw,
+		`proxy_port="$(jq -er .port `+
+			`"$RUNNER_TEMP/review-agent-proxy.json")"`,
+	)
 	require.Contains(t, raw, "--cpu=2400:2400")
 	require.Contains(t, raw, "--as=8589934592:8589934592")
 	require.Contains(t, raw, "--nproc=512:512")

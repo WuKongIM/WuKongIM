@@ -29,22 +29,29 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 		reason string
 	}{
 		{
-			name:   "opened ready PR dispatches",
+			name:   "opened ready PR waits for administrator",
 			facts:  ready,
 			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 101},
+			want:   reviewagent.ActionNoop,
+			reason: "awaiting an administrator @review-agent review command",
+		},
+		{
+			name:   "administrator review command dispatches",
+			facts:  ready,
+			signal: adminReviewSignal(102),
 			want:   reviewagent.ActionAcquireAndDispatch,
 			phase:  contract.PhaseReviewing,
 		},
 		{
-			name: "draft waits without model",
+			name: "administrator cannot start a draft review",
 			facts: func() reviewagent.PullRequestFacts {
 				facts := ready
 				facts.Draft = true
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 102},
-			want:   reviewagent.ActionAppendState,
-			phase:  contract.PhaseAwaitingReady,
+			signal: adminReviewSignal(103),
+			want:   reviewagent.ActionNoop,
+			reason: "administrator review command requires an open, ready pull request",
 		},
 		{
 			name: "wrong base fails closed",
@@ -53,7 +60,7 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 				facts.BaseRef = "release"
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 103},
+			signal: adminReviewSignal(104),
 			want:   reviewagent.ActionRecordInconclusive,
 			phase:  contract.PhaseInconclusive,
 			reason: "unsupported base branch",
@@ -65,7 +72,7 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 				facts.TestMergeSHA = ""
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 104},
+			signal: adminReviewSignal(105),
 			want:   reviewagent.ActionRecordInconclusive,
 			phase:  contract.PhaseInconclusive,
 			reason: "test-merge revision is unavailable",
@@ -77,7 +84,7 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 				facts.Mergeability = reviewagent.MergeabilityConflicting
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 105},
+			signal: adminReviewSignal(106),
 			want:   reviewagent.ActionRecordChangesRequired,
 			phase:  contract.PhaseChangesRequired,
 			reason: "pull request has merge conflicts",
@@ -89,21 +96,21 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 				facts.ChangedBytes = policy.MaxChangedBytes + 1
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalOpened, RunID: 106},
+			signal: adminReviewSignal(107),
 			want:   reviewagent.ActionRecordInconclusive,
 			phase:  contract.PhaseInconclusive,
 			reason: "changed-byte budget exceeded",
 		},
 		{
-			name: "closed PR records closure",
+			name: "closed PR without prior review remains untouched",
 			facts: func() reviewagent.PullRequestFacts {
 				facts := ready
 				facts.Open = false
 				return facts
 			}(),
-			signal: reviewagent.Signal{Kind: reviewagent.SignalClosed, RunID: 107},
-			want:   reviewagent.ActionAppendState,
-			phase:  contract.PhaseClosed,
+			signal: reviewagent.Signal{Kind: reviewagent.SignalClosed, RunID: 108},
+			want:   reviewagent.ActionNoop,
+			reason: "awaiting an administrator @review-agent review command",
 		},
 	}
 
@@ -122,7 +129,9 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.Equal(t, test.want, plan.Action)
-			require.Equal(t, test.phase, plan.DesiredPhase)
+			if test.phase != "" {
+				require.Equal(t, test.phase, plan.DesiredPhase)
+			}
 			if test.reason != "" {
 				require.Equal(t, test.reason, plan.Reason)
 			}
@@ -130,7 +139,7 @@ func TestReconcilePullRequestEventMatrix(t *testing.T) {
 	}
 }
 
-func TestReconcilePullRequestSupersedesStaleGeneration(t *testing.T) {
+func TestReconcilePullRequestCancelsStaleGenerationWithoutRedispatch(t *testing.T) {
 	t.Parallel()
 
 	facts := testFacts()
@@ -147,12 +156,11 @@ func TestReconcilePullRequestSupersedesStaleGeneration(t *testing.T) {
 		Now:       time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionSupersedeAndDispatch, plan.Action)
-	require.Equal(t, uint64(2), plan.Generation.Generation)
-	require.Equal(t, facts.HeadSHA, plan.Generation.HeadSHA)
+	require.Equal(t, reviewagent.ActionCancel, plan.Action)
+	require.Equal(t, old.Generation, plan.Generation)
 	require.Equal(t, int64(201), plan.CancelRunID)
-	require.True(t, plan.Dispatch)
-	require.Equal(t, int64(202), plan.LeaseRunID)
+	require.False(t, plan.Dispatch)
+	require.Empty(t, plan.NextScheduler.Active)
 }
 
 func TestReconcilePullRequestRejectsOldCompletionAfterHeadChanges(t *testing.T) {
@@ -204,8 +212,8 @@ func TestReconcilePullRequestSupersedesOldFailedWorkerFacts(t *testing.T) {
 		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionSupersedeAndDispatch, plan.Action)
-	require.Equal(t, facts.HeadSHA, plan.Generation.HeadSHA)
+	require.Equal(t, reviewagent.ActionCancel, plan.Action)
+	require.Equal(t, state.Generation, plan.Generation)
 	require.Equal(t, int64(204), plan.CancelRunID)
 }
 
@@ -223,9 +231,7 @@ func TestReconcilePullRequestCarriesFindingsAcrossSynchronize(t *testing.T) {
 	facts.TestMergeSHA = strings.Repeat("8", 40)
 	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
 		Facts: facts, State: &state, Scheduler: testScheduler(),
-		Signal: reviewagent.Signal{
-			Kind: reviewagent.SignalSynchronize, RunID: 205,
-		},
+		Signal: adminReviewSignal(205),
 		Policy: testPolicy(),
 		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
@@ -269,7 +275,7 @@ func TestReconcilePullRequestAcquiresItsPersistedQueuedGeneration(t *testing.T) 
 	require.Len(t, plan.NextScheduler.Active, 1)
 }
 
-func TestReconcilePullRequestRecoversSchedulerFirstPartialWrite(t *testing.T) {
+func TestReconcilePullRequestRemovesUnauthorizedSchedulerFirstWork(t *testing.T) {
 	t.Parallel()
 
 	generation := testReviewingState().Generation
@@ -284,11 +290,10 @@ func TestReconcilePullRequestRecoversSchedulerFirstPartialWrite(t *testing.T) {
 		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionAcquireAndDispatch, plan.Action)
-	require.Equal(t, contract.PhaseReviewing, plan.DesiredPhase)
-	require.True(t, plan.Dispatch)
-	require.Equal(t, int64(221), plan.LeaseRunID)
-	require.Equal(t, testSchedulerWithLease(generation, 221, false), plan.NextScheduler)
+	require.Equal(t, reviewagent.ActionNoop, plan.Action)
+	require.False(t, plan.Dispatch)
+	require.Equal(t, int64(221), plan.CancelRunID)
+	require.Empty(t, plan.NextScheduler.Active)
 }
 
 func TestReconcilePullRequestManualRecoveryReusesActiveLease(t *testing.T) {
@@ -329,12 +334,9 @@ func TestReconcilePullRequestNeverAcquiresAnotherPullRequestLease(t *testing.T) 
 	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
 		Facts:     testFacts(),
 		Scheduler: scheduler,
-		Signal: reviewagent.Signal{
-			Kind:  reviewagent.SignalOpened,
-			RunID: 241,
-		},
-		Policy: testPolicy(),
-		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
+		Signal:    adminReviewSignal(241),
+		Policy:    testPolicy(),
+		Now:       time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.ActionEnqueue, plan.Action)
@@ -426,18 +428,13 @@ func TestReconcilePullRequestDraftReleasesActiveLease(t *testing.T) {
 		Now:    now.Add(time.Minute),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionRecordInconclusive, readyPlan.Action)
+	require.Equal(t, reviewagent.ActionNoop, readyPlan.Action)
 	require.False(t, readyPlan.Dispatch)
-	ready, err := reviewagent.BuildNextState(
-		&draft,
-		readyPlan,
-		now.Add(time.Minute),
-	)
-	require.NoError(t, err)
-	require.Equal(t, state.PriorFindings, ready.PriorFindings)
+	require.Equal(t, draft.Generation, readyPlan.Generation)
+	require.Contains(t, readyPlan.Reason, "administrator")
 }
 
-func TestReconcilePullRequestIntentEditFailsClosedAfterAutomaticReview(
+func TestReconcilePullRequestIntentEditWaitsForAdministratorReview(
 	t *testing.T,
 ) {
 	t.Parallel()
@@ -461,10 +458,10 @@ func TestReconcilePullRequestIntentEditFailsClosedAfterAutomaticReview(
 		Now:       time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionRecordInconclusive, plan.Action)
+	require.Equal(t, reviewagent.ActionNoop, plan.Action)
 	require.False(t, plan.Dispatch)
-	require.Equal(t, old.PriorFindings, plan.PriorFindings)
-	require.Equal(t, uint64(2), plan.Generation.Generation)
+	require.Equal(t, old.Generation, plan.Generation)
+	require.Contains(t, plan.Reason, "administrator")
 }
 
 func TestReconcilePullRequestReopenPreservesFindingsWithoutSecondAutomaticReview(
@@ -510,20 +507,10 @@ func TestReconcilePullRequestReopenPreservesFindingsWithoutSecondAutomaticReview
 		},
 	)
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionRecordInconclusive, reopenPlan.Action)
+	require.Equal(t, reviewagent.ActionNoop, reopenPlan.Action)
 	require.False(t, reopenPlan.Dispatch)
-	require.Equal(
-		t,
-		closed.Generation.Generation+1,
-		reopenPlan.Generation.Generation,
-	)
-	reopened, err := reviewagent.BuildNextState(
-		&closed,
-		reopenPlan,
-		now.Add(time.Minute),
-	)
-	require.NoError(t, err)
-	require.Equal(t, decided.PriorFindings, reopened.PriorFindings)
+	require.Equal(t, closed.Generation, reopenPlan.Generation)
+	require.Contains(t, reopenPlan.Reason, "administrator")
 }
 
 func TestReconcilePullRequestRejectsStaleCompletion(t *testing.T) {
@@ -773,7 +760,7 @@ func TestReconcilePullRequestExpiresPersistedWorkerRetry(t *testing.T) {
 	require.Empty(t, plan.NextScheduler.Active)
 }
 
-func TestReconcilePullRequestExpiresSchedulerFirstRecoveredLease(t *testing.T) {
+func TestReconcilePullRequestDropsSchedulerFirstLeaseWithoutReviewCommand(t *testing.T) {
 	t.Parallel()
 
 	generation := testReviewingState().Generation
@@ -790,13 +777,8 @@ func TestReconcilePullRequestExpiresSchedulerFirstRecoveredLease(t *testing.T) {
 		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
 	})
 	require.NoError(t, err)
-	require.Equal(t, reviewagent.ActionRecordInconclusive, plan.Action)
-	require.Equal(t, contract.PhaseInconclusive, plan.DesiredPhase)
-	require.Equal(
-		t,
-		contract.DecisionSourceInfrastructure,
-		plan.DecisionSource,
-	)
+	require.Equal(t, reviewagent.ActionNoop, plan.Action)
+	require.False(t, plan.Dispatch)
 	require.Empty(t, plan.NextScheduler.Active)
 	require.Equal(t, int64(435), plan.CancelRunID)
 }
@@ -978,6 +960,96 @@ func TestReconcilePullRequestSeparatesInteractionEffects(t *testing.T) {
 	require.Equal(t, decided.PriorFindings, reconsider.PriorFindings)
 }
 
+func TestReconcilePullRequestHonorsReconsiderForEligibleCurrentHead(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*reviewagent.PullRequestFacts){
+		"control revision changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.StateParentSHA = strings.Repeat("f", 40)
+		},
+		"intent changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.IntentDigest = digest("f")
+		},
+		"base and test merge changed": func(facts *reviewagent.PullRequestFacts) {
+			facts.BaseSHA = strings.Repeat("1", 40)
+			facts.TestMergeSHA = strings.Repeat("2", 40)
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			state := testReviewingState()
+			state.Phase = contract.PhaseInconclusive
+			state.DecisionSource = contract.DecisionSourcePolicy
+			state.Reason = "Review request budget exhausted for current head"
+			state.Budget.AutomaticReviewsUsed = 1
+
+			facts := testFacts()
+			mutate(&facts)
+			plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+				Facts:     facts,
+				State:     &state,
+				Scheduler: testScheduler(),
+				Signal: reviewagent.Signal{
+					Kind:  reviewagent.SignalCommand,
+					RunID: 706,
+					Command: &reviewagent.Command{
+						Kind:    reviewagent.CommandReconsider,
+						Payload: "The protected model transport is repaired.",
+					},
+				},
+				Policy: testPolicy(),
+				Now:    time.Date(2026, 8, 3, 2, 20, 0, 0, time.UTC),
+			})
+			require.NoError(t, err)
+			require.Equal(t, reviewagent.ActionReconsiderAndDispatch, plan.Action)
+			require.True(t, plan.Dispatch)
+			require.Equal(t, uint64(2), plan.Generation.Generation)
+			require.Equal(t, facts.HeadSHA, plan.Generation.HeadSHA)
+			require.Equal(t, facts.BaseSHA, plan.Generation.BaseSHA)
+			require.Equal(t, facts.TestMergeSHA, plan.Generation.TestMergeSHA)
+			require.Equal(t, facts.IntentDigest, plan.Generation.IntentDigest)
+			require.Equal(t, facts.StateParentSHA, plan.Generation.StateParentSHA)
+			require.Equal(t, uint32(1), plan.NextBudget.AutomaticReviewsUsed)
+			require.Equal(t, uint32(1), plan.NextBudget.ReconsiderationsUsed)
+		})
+	}
+}
+
+func TestReconcilePullRequestDoesNotReconsiderIneligibleCurrentHead(t *testing.T) {
+	t.Parallel()
+
+	state := testReviewingState()
+	state.Phase = contract.PhaseInconclusive
+	state.DecisionSource = contract.DecisionSourcePolicy
+	state.Reason = "Review request budget exhausted for current head"
+	state.Budget.AutomaticReviewsUsed = 1
+
+	facts := testFacts()
+	facts.StateParentSHA = strings.Repeat("f", 40)
+	facts.Mergeability = reviewagent.MergeabilityConflicting
+	facts.TestMergeSHA = ""
+	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+		Facts:     facts,
+		State:     &state,
+		Scheduler: testScheduler(),
+		Signal: reviewagent.Signal{
+			Kind:  reviewagent.SignalCommand,
+			RunID: 707,
+			Command: &reviewagent.Command{
+				Kind:    reviewagent.CommandReconsider,
+				Payload: "Please review the current head again.",
+			},
+		},
+		Policy: testPolicy(),
+		Now:    time.Date(2026, 8, 3, 2, 20, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionRecordChangesRequired, plan.Action)
+	require.Equal(t, contract.PhaseChangesRequired, plan.DesiredPhase)
+	require.False(t, plan.Dispatch)
+	require.Equal(t, uint32(0), plan.NextBudget.ReconsiderationsUsed)
+}
+
 func TestReconcilePullRequestBoundsAndRecoversPendingExplanation(t *testing.T) {
 	t.Parallel()
 
@@ -1134,7 +1206,7 @@ func TestReconcilePullRequestEnforcesSameHeadInteractionBudgets(t *testing.T) {
 	}
 }
 
-func TestReconcilePullRequestLimitsAutomaticReviewsPerHead(t *testing.T) {
+func TestReconcilePullRequestLimitsAdministratorReviewRequestsPerHead(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 7, 30, 6, 0, 0, 0, time.UTC)
@@ -1150,9 +1222,7 @@ func TestReconcilePullRequestLimitsAutomaticReviewsPerHead(t *testing.T) {
 	exhausted, err := reviewagent.ReconcilePullRequest(
 		reviewagent.ReconcileInput{
 			Facts: edited, State: &state, Scheduler: testScheduler(),
-			Signal: reviewagent.Signal{
-				Kind: reviewagent.SignalEdited, RunID: 705,
-			},
+			Signal: adminReviewSignal(705),
 			Policy: testPolicy(), Now: now,
 		},
 	)
@@ -1168,9 +1238,7 @@ func TestReconcilePullRequestLimitsAutomaticReviewsPerHead(t *testing.T) {
 	dispatched, err := reviewagent.ReconcilePullRequest(
 		reviewagent.ReconcileInput{
 			Facts: newHead, State: &state, Scheduler: testScheduler(),
-			Signal: reviewagent.Signal{
-				Kind: reviewagent.SignalSynchronize, RunID: 706,
-			},
+			Signal: adminReviewSignal(706),
 			Policy: testPolicy(), Now: now,
 		},
 	)
@@ -1364,6 +1432,16 @@ func testFacts() reviewagent.PullRequestFacts {
 		ChangedLines:      80,
 		AuthorLogin:       "contributor",
 		AuthorAssociation: "CONTRIBUTOR",
+	}
+}
+
+func adminReviewSignal(runID int64) reviewagent.Signal {
+	return reviewagent.Signal{
+		Kind:  reviewagent.SignalCommand,
+		RunID: runID,
+		Command: &reviewagent.Command{
+			Kind: reviewagent.CommandReview,
+		},
 	}
 }
 

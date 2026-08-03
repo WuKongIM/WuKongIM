@@ -81,7 +81,7 @@ func TestWukongIMThreeNodeScriptBuildsStartsAndStopsNodes(t *testing.T) {
 	}
 
 	goCalls := readFile(t, filepath.Join(callsDir, "go.calls"))
-	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongim") {
+	if !strings.Contains(goCalls, "build -buildvcs=true -o "+outputBin+" ./cmd/wukongim") {
 		t.Fatalf("expected build command, got:\n%s", goCalls)
 	}
 
@@ -201,8 +201,15 @@ case "$1" in
     exit 0
     ;;
   build)
-    if [[ "$2" == "-o" && "$4" == "./cmd/wukongim" ]]; then
-      cat > "$3" <<'BIN'
+    output=""
+    target="${!#}"
+    if [[ "$2" == "-buildvcs=true" && "$3" == "-o" ]]; then
+      output="$4"
+    elif [[ "$2" == "-o" ]]; then
+      output="$3"
+    fi
+    if [[ -n "$output" && "$target" == "./cmd/wukongim" ]]; then
+      cat > "$output" <<'BIN'
 #!/usr/bin/env bash
 set -euo pipefail
 echo "$*" >> "` + callsDir + `/wukongim.calls"
@@ -251,7 +258,7 @@ while true; do
   sleep 1
 done
 BIN
-      chmod +x "$3"
+      chmod +x "$output"
       exit 0
     fi
     if [[ "$2" == "-o" && "$4" == "./cmd/prometheus" ]]; then
@@ -280,12 +287,12 @@ func writeFakeGoWukongIMExits(t *testing.T, path string, exitCode int) {
 	t.Helper()
 	script := `#!/usr/bin/env bash
 set -euo pipefail
-if [[ "$1" == "build" && "$2" == "-o" && "$4" == "./cmd/wukongim" ]]; then
-  cat > "$3" <<'BIN'
+if [[ "$1" == "build" && "$2" == "-buildvcs=true" && "$3" == "-o" && "$5" == "./cmd/wukongim" ]]; then
+  cat > "$4" <<'BIN'
 #!/usr/bin/env bash
 exit ` + fmt.Sprintf("%d", exitCode) + `
 BIN
-  chmod +x "$3"
+  chmod +x "$4"
   exit 0
 fi
 echo "unexpected go args: $*" >&2

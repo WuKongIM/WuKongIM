@@ -1,0 +1,55 @@
+---
+title: Networking & Client Access
+description: Separate node Transport, HTTP, Gateway, Manager, and client-advertised addresses.
+---
+
+A node serves several traffic planes. A listen address answers where this process accepts connections; an advertised address answers where another system should connect. They are different contracts.
+
+## Traffic planes
+
+| Traffic | Primary configuration | Consumer | Production boundary |
+| --- | --- | --- | --- |
+| Inter-node Transport | `cluster.listen_addr`, static `nodes[].addr`, or `cluster.advertise_addr` | Other WuKongIM nodes | Restrict to the cluster network and require bidirectional reachability |
+| Product HTTP API | `api.listen_addr` | Business backends, health checks, observability collectors | Place on a trusted network or behind external authentication |
+| Client Gateway | `gateway.listeners` | TCP and WebSocket clients | Expose through a controlled edge and enforce connection capacity |
+| Client discovery | `api.external_tcp_addr`, `external_ws_addr`, `external_wss_addr` | Callers of `/route` | Reachable from every target client network |
+| Manager | `manager.listen_addr` | Administrators and automation | A separate restricted network with authentication enabled |
+| Prometheus | `prometheus.listen_addr` or an external service | Manager and collectors | Never expose directly to the Internet |
+
+## Listen is not advertise
+
+`0.0.0.0` and `[::]` are useful wildcard listeners, but they are not routable peer or client destinations. Static clusters use `nodes[].addr` for peer connections; seed joining uses `cluster.advertise_addr`. Those values need stable, resolvable, reachable hosts and ports.
+
+Client-advertised fields describe the address clients ultimately use, which may be a load balancer or edge proxy:
+
+```toml
+[api]
+listen_addr = "0.0.0.0:5001"
+external_tcp_addr = "im.example.com:5100"
+external_wss_addr = "wss://im.example.com/ws"
+
+[gateway]
+listeners = [
+  { name = "tcp", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" },
+  { name = "ws", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }
+]
+```
+
+The names and ports are structural examples. If a load balancer, reverse proxy, or service mesh terminates TLS, still verify the external WSS address, certificate, host and path forwarding, and upstream protocol together.
+
+## Exposure policy
+
+- Public ingress should contain only required client ports and a protected product API.
+- Give node Transport, Manager, `/metrics`, `/top/v1/*`, `/debug/pprof/*`, Benchmark, and diagnostics separate network policies. Sharing an HTTP listener does not give them the same trust level.
+- WuKongIM product HTTP routes do not provide general business identity validation. Establish that boundary with a trusted network, API gateway, or external authentication proxy.
+- Load balancers must use `/readyz` for traffic admission. `/healthz` only proves process liveness and cannot prove the node is ready to serve.
+
+## Validate before publishing
+
+1. Test bidirectional Transport connections from each node to every peer-advertised address.
+2. Reach the HTTP API from the business network and every `/route` result from the target client network.
+3. Verify TCP, WS/WSS handshakes, the TLS chain, timeouts, and proxy idle-connection policy.
+4. Confirm Manager, metrics, debug, benchmark, and diagnostic endpoints are unreachable from unauthorized networks.
+5. Check `/readyz` per node and admit only nodes returning `200` with `ready: true`.
+
+Once paths are explicit, use [Security & Access](/en/server/configuration/security) to constrain credentials and administrative surfaces.

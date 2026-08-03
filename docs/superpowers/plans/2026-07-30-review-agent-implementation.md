@@ -15,8 +15,10 @@ signed per-PR/scheduler state. A protected dispatched Workflow builds a bounded 
 Bundle, runs deterministic minimum checks, gives their evidence and a named
 Check MCP to one ephemeral Codex reviewer, validates the complete result, then
 uses separate State Writer and Review Publisher Apps to persist authority and
-project it into GitHub. No scheduled scanner, compatibility path, code-writing
-reviewer, or automatic merge exists.
+project it into GitHub. No scheduled scanner, compatibility path, or
+code-writing reviewer exists. The protected Publisher may automatically merge
+only an exact approved head authored by a repository administrator or
+organization member; every other PR requires a human merge.
 
 **Tech stack:** Go 1.25, GitHub Actions YAML, GitHub REST/GraphQL APIs,
 GitHub Apps, official Codex Action, JSON Schema, stdio MCP, repository Rulesets,
@@ -78,12 +80,13 @@ Require:
 
 - one policy schema version;
 - `main` as the initial protected base;
-- `moonshotai/kimi-k3` with `high` effort;
+- `deepseek/deepseek-v4-flash` with `high` effort;
 - immutable Codex Action/CLI identifiers;
 - three active repository leases and one per PR;
 - 90-minute generation timeout;
 - two reconsiderations and one infrastructure retry;
 - a finite per-head explanation-session and response-byte budget;
+- a 32,768-token maximum output budget on every model request;
 - 20 inline comments;
 - separate Review App and State Writer App identities/Environments;
 - no rollout, compatibility, legacy label, arbitrary command, or scheduled
@@ -140,8 +143,9 @@ Use table tests for:
   oversize classification;
 - duplicate and reordered hints;
 - stale worker completion after a new generation;
-- automatic first attempt, two same-head reconsiderations, retry, and cancel;
-- human Review changes and control-plane owner Approval;
+- administrator-command first attempt, two same-head reconsiderations, retry,
+  and cancel;
+- human Review changes;
 - exact `agent/issue-N` classification without trusting Issue Agent state.
 
 Run:
@@ -176,6 +180,7 @@ Accept only:
 
 ```text
 @review-agent status
+@review-agent review
 @review-agent explain <question>
 @review-agent reconsider <reason>
 @review-agent retry
@@ -183,9 +188,9 @@ Accept only:
 ```
 
 Reject quoted/code-block text, ambiguous mentions, missing reasons, edited
-authority, unknown commands, and unauthorized actor roles. `reconsider` is
-limited to the author or a current write-capable actor; retry/cancel require
-current `write`, `maintain`, or `admin`.
+authority, unknown commands, and unauthorized actor roles. Every model or
+state-mutating command requires current repository `admin`; status remains
+public and deterministic.
 
 - [ ] **Step 3a: Separate status, explanation, and reconsideration effects**
 
@@ -216,8 +221,9 @@ Pure plans must render:
 - Review summary metadata;
 - exact Check external identity and conclusion;
 - projection repair versus creation;
-- control-plane waiting state;
-- no merge, close, dismiss, resolve, branch, or commit effect.
+- exact-head automatic-merge eligibility for approved administrator/member
+  PRs, with every other approved author routed to human merge;
+- no close-without-merge, dismiss, resolve, branch, or commit effect.
 
 - [ ] **Step 6: Run the package GREEN and commit**
 
@@ -275,10 +281,15 @@ Review App token profile:
 
 ```text
 checks: write
+contents: write
 issues: write
 metadata: read
 pull_requests: write
 ```
+
+GitHub requires `contents:write` for the pull-request merge endpoint. The
+protected adapter must still expose no generic contents, branch, or commit
+write.
 
 State Writer App token profile:
 
@@ -299,13 +310,14 @@ Use stable hidden markers and Check `external_id` values. Before every write:
 - re-read exact PR and generation;
 - re-read authoritative state;
 - verify configured Review App identity;
-- verify human `REQUEST_CHANGES` and control-plane Approval facts;
+- verify human `REQUEST_CHANGES` facts;
 - reject stale or superseded work.
 
 The adapter may create/update the one status comment, submit one Review per
 generation, create bounded inline comments, and create/update the one Check
-Run. It exposes no merge, branch, commit, close, dismiss, or thread-resolution
-method.
+Run. It may merge only the freshly re-read exact approved head after the pure
+plan authorizes an administrator/member author. It exposes no generic contents,
+branch, commit, close, dismiss, or thread-resolution method.
 
 - [ ] **Step 5: Run adapter tests and commit**
 
@@ -509,8 +521,10 @@ Prove that:
 - candidate/model roles cannot reach publisher methods;
 - state and Review private keys are rejected outside their exact commands;
 - all GitHub writes require fresh generation fences;
-- no method can merge, close, dismiss, resolve, commit code, or write a
-  non-state ref.
+- only the protected Review Publisher can merge, and only the exact approved
+  administrator/member head;
+- no method can close without merging, dismiss, resolve, commit code, or write
+  a non-state ref.
 
 - [ ] **Step 4: Update FLOW and directory documentation**
 
@@ -649,8 +663,9 @@ The contract must prove:
 - failure paths still produce an authoritative `inconclusive` state when
   identity is recoverable;
 - successful Artifacts retain 7 days and non-success evidence 30 days;
-- the Workflow has no merge, push, branch, close, dismiss, or arbitrary
-  repository-dispatch operation.
+- the Workflow exposes only the protected Publisher's exact-head authorized
+  merge and no push, branch, close, dismiss, or arbitrary repository-dispatch
+  operation.
 
 - [ ] **Step 2: Build trusted preparation**
 
@@ -670,6 +685,11 @@ Use the protected policy's exact:
 - output JSON Schema;
 - system prompt and Context Bundle;
 - local stdio Check MCP.
+
+Route every model request through one root-owned loopback Responses proxy that
+both clamps `max_output_tokens` to 32,768 and injects the OpenRouter credential.
+Delete its root-only credential handoff before publishing the listener; do not
+leave a second unclamped proxy reachable to runner-user Codex.
 
 Drop `sudo`, disable Docker socket access, expose full public internet through
 the tested private-network fence, and keep the model job within the 90-minute
@@ -706,7 +726,7 @@ Fixtures must prove:
 - `approved` -> `APPROVE` + Check `success`;
 - `changes_required` -> `REQUEST_CHANGES` + Check `failure`;
 - `inconclusive` -> `COMMENT` + Check `action_required`;
-- control-plane approval missing -> Agent Review retained, Check waiting;
+- approved control-plane change without human Approval -> Check `success`;
 - stale generation -> no state/projection write;
 - human requested changes -> preserved independently of Agent approval.
 
@@ -828,38 +848,38 @@ Cloud analysis/remediation tests and scripts must wait for the automatically
 created `Review Agent Verdict`; they must not add `agent-ci/run`, publish a
 validation plan, or select suites.
 
-- [ ] **Step 4: Install control-plane ownership**
+- [ ] **Step 4: Record control-plane maintenance ownership**
 
 Add:
 
 ```text
-/.github/review-agent/ @WuKongIM/review-agent-owners
-/.github/workflows/review-agent*.yml @WuKongIM/review-agent-owners
-/cmd/wkreviewagent/ @WuKongIM/review-agent-owners
-/internal/access/reviewagentcli/ @WuKongIM/review-agent-owners
-/internal/access/reviewagentcheckmcp/ @WuKongIM/review-agent-owners
-/internal/contracts/reviewagent/ @WuKongIM/review-agent-owners
-/internal/usecase/reviewagent/ @WuKongIM/review-agent-owners
-/internal/runtime/reviewagentverify/ @WuKongIM/review-agent-owners
-/internal/infra/reviewagentgithub/ @WuKongIM/review-agent-owners
-/internal/app/review_agent.go @WuKongIM/review-agent-owners
-/internal/app/review_agent_internal_test.go @WuKongIM/review-agent-owners
-/internal/app/review_agent_test.go @WuKongIM/review-agent-owners
-/scripts/review_agent* @WuKongIM/review-agent-owners
-/AGENTS.md @WuKongIM/review-agent-owners
-**/AGENTS.md @WuKongIM/review-agent-owners
-**/FLOW.md @WuKongIM/review-agent-owners
-/.github/CODEOWNERS @WuKongIM/review-agent-owners @tangtaoit @No8blackball
+/.github/review-agent/ @tangtaoit
+/.github/workflows/review-agent*.yml @tangtaoit
+/cmd/wkreviewagent/ @tangtaoit
+/internal/access/reviewagentcli/ @tangtaoit
+/internal/access/reviewagentcheckmcp/ @tangtaoit
+/internal/contracts/reviewagent/ @tangtaoit
+/internal/usecase/reviewagent/ @tangtaoit
+/internal/runtime/reviewagentverify/ @tangtaoit
+/internal/infra/reviewagentgithub/ @tangtaoit
+/internal/app/review_agent.go @tangtaoit
+/internal/app/review_agent_internal_test.go @tangtaoit
+/internal/app/review_agent_test.go @tangtaoit
+/scripts/review_agent* @tangtaoit
+/AGENTS.md @tangtaoit
+**/AGENTS.md @tangtaoit
+**/FLOW.md @tangtaoit
+/.github/CODEOWNERS @tangtaoit
 ```
 
-Keep non-Review control-plane owners accurate. `CODEOWNERS` itself must remain
-owned by the Review Agent owners and existing repository owners.
+Keep maintenance ownership accurate. CODEOWNERS does not add a required human
+approval; the signed `Review Agent Verdict` remains the sole automated gate.
 
 - [ ] **Step 5: Rewrite active CI documentation**
 
 Document:
 
-- automatic non-Draft `main` review;
+- administrator-command non-Draft `main` review;
 - no scheduled scanner;
 - one status comment, formal Review, and required Check;
 - three decisions and exact binding;
@@ -918,7 +938,7 @@ Before merge:
 
 - protect `main` and all non-state refs from the State Writer App;
 - allow the State Writer App only under `review-state/**`;
-- require one Code Owner Approval for Review Agent control paths;
+- keep CODEOWNERS informational and do not require Code Owner Approval;
 - configure the emergency administrator bypass with audit expectations;
 - retain the old required check until the migration merge completes.
 
@@ -926,7 +946,7 @@ Before merge:
 
 The operator sequence is:
 
-1. provision Apps, team, Environments, secrets, and Rulesets;
+1. provision Apps, Environments, secrets, and Rulesets;
 2. merge the migration PR under the old gate;
 3. accept temporary merge freeze;
 4. dispatch exact reconciliation for every open non-Draft `main` PR;
@@ -946,7 +966,7 @@ Include read-back commands for:
 - App installations and exact permissions;
 - Environment names;
 - Ruleset ref patterns and bypass actors;
-- CODEOWNERS enforcement;
+- CODEOWNERS maintenance entries;
 - branch protection strictness, administrator enforcement, and exact App ID;
 - open PR Check ownership;
 - absence of old labels and Workflows.
@@ -1037,7 +1057,8 @@ Require every negative mutation to fail:
 - accept an incomplete inventory;
 - publish from a stale generation;
 - let the State Writer target a non-state ref;
-- let the Review App create a commit or merge;
+- let the Review App create a commit, branch, generic contents write, or merge
+  any head/author outside the protected exact-head administrator/member rule;
 - accept a same-named Check from the wrong App;
 - approve with failed/missing evidence;
 - exceed reconsideration, retry, queue, or comment budgets.
@@ -1051,7 +1072,8 @@ Only after explicit operator authorization:
 - seeded code defect -> `changes_required`;
 - seeded provider/network failure -> `inconclusive`;
 - new commit while reviewer runs -> old publisher rejected;
-- control-plane change -> waits for Review Agent owner Approval;
+- control-plane change -> approved Review Agent decision succeeds without
+  human Approval;
 - Issue Agent PR -> bounded review/fix/re-review loop.
 
 - [ ] **Step 7: Verify repository state**

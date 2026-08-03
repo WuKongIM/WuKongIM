@@ -1,0 +1,43 @@
+---
+title: Security & Access
+description: Protect cluster joining, Manager, product APIs, benchmark, diagnostics, and configuration secrets.
+---
+
+Configuration security starts with who can reach each traffic plane, not merely with moving passwords into environment variables. Give clients, product APIs, node Transport, Manager, and observability separate trust boundaries.
+
+## Values to protect
+
+| Configuration | Risk | Production handling |
+| --- | --- | --- |
+| `cluster.join_token` | Grants seed-join capability | Inject from a secret system, restrict reads, and support rotation |
+| `manager.jwt_secret` | Signs Manager sessions | Use an independent high-entropy secret and audit rotation |
+| `manager.users` | Administrative accounts, passwords, and permissions | Remove example users and grant least privilege |
+| `bench.api_token` | Authorizes a high-load benchmark API | Disable by default; require a capability token whenever remotely reachable |
+| External URLs and match configuration | May reveal internal topology or diagnostic targets | Treat as sensitive in diagnostic artifacts and support bundles |
+
+The startup snapshot redacts fields declared sensitive, and diagnostic output also redacts diagnostic-sensitive fields. This does not replace log review, a secret store, or least-read permissions.
+
+## Manager and product APIs
+
+Enable `manager.auth_on` in production, replace example JWT secrets and users, and expose Manager only to an administrative network or identity-aware proxy. Grant only required resources and actions; the example's global wildcard is not a production baseline.
+
+WuKongIM product HTTP routes do not provide general business token validation. Manager authentication does not protect the product API. Put business routes on a trusted network or behind an API gateway, reverse proxy, and business identity check.
+
+## TLS and endpoint exposure
+
+Production TLS is commonly terminated by a load balancer, reverse proxy, or service mesh. Verify that client TCP/TLS and WS/WSS addresses match certificates, and protect the upstream link from the proxy to each node.
+
+Disable unused Benchmark and Debug capabilities. `/metrics`, Top, diagnostics, pprof, Manager, and node Transport need their own network policy, authorization, audit, and temporary-access expiry even when they share a host.
+
+## TOML, environment, and validation
+
+- TOML files and deployment templates may enter artifacts, backups, or code review; never commit real secrets.
+- Environment variables may appear in process inspection, crash reports, or a platform control plane. Treat them as an injection channel, not a complete secret-management system.
+- Unknown TOML paths and unknown `WK_*` environment variables fail startup, preventing misspellings from silently doing nothing.
+- Environment values override TOML. List values are JSON and replace the complete list, so deployment audits must inspect both sources.
+
+## Rotation
+
+Before rotation, determine whether a field affects peer trust, sessions, or external clients. Prepare an overlap window that accepts old and new values, or schedule a controlled rolling restart with an explicit interruption and rollback. Wait for `/readyz` before returning each node to traffic, then verify peer connections, Manager login, product messaging, and observability collection.
+
+See [Configuration Reference](/en/server/configuration/reference) for redaction flags. Secret distribution, certificates, and firewall implementation remain responsibilities of the deployment platform.
