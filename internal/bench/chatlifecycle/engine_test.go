@@ -500,6 +500,7 @@ func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByAct
 	}
 	route := func(raw uint64, at time.Time) (TrafficIntent, error) {
 		t.Helper()
+		fixture.clock.Set(at)
 		primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
 		if err != nil {
 			return TrafficIntent{}, err
@@ -542,7 +543,7 @@ func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByAct
 		return 0
 	}
 	firstRaw := findNonSampled(0)
-	for _, beforeDeadline := range []time.Duration{0, eligibilityWindow / 2} {
+	for _, beforeDeadline := range []time.Duration{0, eligibilityWindow / 2, eligibilityWindow - 2*time.Nanosecond} {
 		routed, err := route(firstRaw, now.Add(beforeDeadline))
 		if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
 			t.Fatalf("active fallback before deadline at %v = %+v, %v", beforeDeadline, routed.Logical, err)
@@ -552,7 +553,7 @@ func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByAct
 		}
 		firstRaw = findNonSampled(firstRaw + 1)
 	}
-	_, err := route(firstRaw, now.Add(eligibilityWindow))
+	_, err := route(firstRaw, now.Add(eligibilityWindow-time.Nanosecond))
 	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
 	expired, err := fixture.engine.Snapshot()
 	if err != nil {

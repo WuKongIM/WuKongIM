@@ -1637,8 +1637,8 @@ func (e *Engine) deferActivity(activity *engineWork, now time.Time) error {
 	if !deferred.After(now) {
 		return errEngineConfig
 	}
-	if deferred.After(activity.eligibilityDeadline) {
-		deferred = activity.eligibilityDeadline
+	if !deferred.Before(activity.eligibilityDeadline) {
+		return e.expireActivity(activity)
 	}
 	activity.due = deferred
 	return e.addActivity(activity)

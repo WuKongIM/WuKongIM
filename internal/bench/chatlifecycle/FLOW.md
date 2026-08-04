@@ -219,7 +219,9 @@ or canary send requires a distinct second online fixed-directory member. A
 mandatory initial or revisit activity owns an explicit checked eligibility
 deadline. A temporarily ineligible due activity is reinserted once just beyond
 the current advance boundary, with route scans bounded independently of queue
-size. At the deadline it is physically removed and records one closed
+size. If that deferral would reach or cross the eligibility deadline, the
+activity closes immediately instead of inserting an unroutable boundary item.
+At the deadline it is physically removed and records one closed
 `offered_load_under_delivery` harness event before any active channel can fill
 that grant. Joined shutdown records one aggregate event for any still-pending
 mandatory activities before clearing the heap; a fully drained shutdown adds
