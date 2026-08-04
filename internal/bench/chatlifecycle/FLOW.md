@@ -47,6 +47,29 @@ long plans contain only their bounded active durations. All lifecycle classes
 stop scheduled activity and cool naturally. The model never emits polling or
 keepalive work for a Channel runtime.
 
+The primary SEND rate is one global integer budget, never one bucket per
+worker. Cumulative weighted boundaries produce per-tick grants whose sum is
+exactly the configured global rate; a rotating phase removes long-run worker
+rounding drift. Each worker retains only its own two most recent grant
+generations, so all retained credit sums to the single global two-second burst
+without giving every worker a global-sized bucket. Capacity-rate changes are
+staged for the next tick and discard old-rate credit rather than creating
+retroactive token debt.
+
+Primary traffic kind, payload size, and person direction use independent
+run-rotated ordinal cycles. Formal cycles are exactly 90/10 person/group,
+70/25/4/1 for 256 B/1 KiB/4 KiB/16 KiB, and 70/30 alternating/one-way.
+Payloads start with an 80-byte versioned binary marker, so the smallest 256-byte
+class carries run, logical-send, worker, sender, target, and stable-message
+fingerprints plus strict length, reserved-byte, deterministic-padding, and
+checksum validation. Raw run IDs and endpoint identities are never embedded.
+
+One logical SEND deterministically owns one bounded `client_msg_no`. Attempt
+zero has no retry delay; attempts one through three reuse that exact identity
+with 100 ms, 500 ms, and 2 s bases plus deterministic nonnegative jitter in
+`[0, base/5]`. A fourth retry is rejected and duration addition is checked for
+overflow.
+
 The person relationship graph is reconstructed from global indexes and keeps
 no adjacency history. Each owner has a run-rotated repeating degree pattern
 `3,4,4,5` and owns edges to the next consecutive indexes. Thus every four
@@ -70,6 +93,18 @@ replicas. The lifecycle runner does not start Docker; it connects to an
 already-running target through declared non-secret observation endpoints. A
 capacity-mode run requires the formal profile, a typed completed passing
 72-hour aged checkpoint, and the fixed 2,000 start/recovery-rate staircase.
+
+The fixed formal group catalog contains 1,600 small, 300 medium, 99 large, and
+one 100,000-member very-large group. A group descriptor retains one checked
+member base and reconstructs one UID at a time, so even the largest group never
+allocates a membership slice or history-sized map. Primary group targets use
+an exact 80/15/5 small/medium/large cycle. The very-large group is reachable
+only through a separately reported one-per-minute canary and is excluded from
+the 2,000 SEND/s denominator. When a local catalog omits a primary class, its
+weight is deterministically omitted and the remaining available weights are
+normalized; the canary is never promoted into primary traffic. Fixed group
+channels add no historical-channel growth, leaving the formal hot set at
+8,000 person plus 2,000 group channels.
 
 `LocalConfig` is the reviewed three-node, three-worker shakeout baseline. It
 keeps the formal topology and real sync request (`version=0`, `limit=500`,
