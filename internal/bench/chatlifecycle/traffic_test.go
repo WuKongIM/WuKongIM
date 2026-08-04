@@ -116,6 +116,83 @@ func TestTrafficGeneratorsPartitionFormalGlobalGrantByWorker(t *testing.T) {
 	}
 }
 
+func TestTrafficGeneratorsEmitEveryFormalGroupGrantOnlyOnCatalogOwner(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	generators := make([]*TrafficGenerator, cfg.Workload.Workers)
+	verifiers := make([]*Verifier, cfg.Workload.Workers)
+	for workerID := range generators {
+		generators[workerID] = newTrafficTestGenerator(t, cfg, start, uint64(workerID))
+		evidence, err := NewEvidenceRecorder(1, 1)
+		if err != nil {
+			t.Fatalf("worker %d NewEvidenceRecorder: %v", workerID, err)
+		}
+		verifiers[workerID], err = NewVerifier(generators[workerID].model, VerifierConfig{
+			PendingCapacity: 512, SequenceCapacity: 512, CorrelationCapacity: 512, CorrelationDeadline: time.Minute,
+		}, evidence)
+		if err != nil {
+			t.Fatalf("worker %d NewVerifier: %v", workerID, err)
+		}
+	}
+
+	var total TrafficTickSnapshot
+	categories := map[GroupCategory]int{}
+	sampledGroups := 0
+	for workerID, generator := range generators {
+		tick, err := generator.Tick([]uint64{10_000, 10_000, 10_000}, func(intent TrafficIntent) error {
+			if intent.Kind != TrafficGroup {
+				return nil
+			}
+			groupIndex, ok := generator.catalog.IndexFromGroupID(intent.ChannelID)
+			if !ok {
+				t.Fatalf("worker %d emitted unknown group %q", workerID, intent.ChannelID)
+			}
+			owner := groupIndex % uint64(cfg.Workload.Workers)
+			if owner != uint64(workerID) {
+				t.Fatalf("worker %d emitted group %d owned by worker %d", workerID, groupIndex, owner)
+			}
+			categories[intent.GroupCategory]++
+			sampled, sampleErr := verifiers[workerID].ShouldCorrelate(intent.Logical)
+			if sampleErr != nil {
+				t.Fatalf("worker %d ShouldCorrelate: %v", workerID, sampleErr)
+			}
+			if sampled {
+				sampledGroups++
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("worker %d Tick: %v", workerID, err)
+		}
+		total.Add(tick)
+	}
+	if total.Released != 2_000 || total.Person != 1_800 || total.Group != 200 || total.PayloadCounts != [4]uint64{1_400, 500, 80, 20} {
+		t.Fatalf("owned formal aggregate = %+v", total)
+	}
+	if categories[GroupSmall] != 160 || categories[GroupMedium] != 30 || categories[GroupLarge] != 10 || sampledGroups != 2 {
+		t.Fatalf("owned formal group normal/sample categories = %v sampled=%d, want 160/30/10 and 198/2", categories, sampledGroups)
+	}
+
+	dueCount := 0
+	for workerID, generator := range generators {
+		intent, due, err := generator.NextCanary(start.Add(time.Minute))
+		if err != nil {
+			t.Fatalf("worker %d NextCanary: %v", workerID, err)
+		}
+		if !due {
+			continue
+		}
+		dueCount++
+		groupIndex, ok := generator.catalog.IndexFromGroupID(intent.ChannelID)
+		if !ok || groupIndex%uint64(cfg.Workload.Workers) != uint64(workerID) {
+			t.Fatalf("worker %d emitted non-owned canary group %d/%v: %+v", workerID, groupIndex, ok, intent)
+		}
+	}
+	if dueCount != 1 {
+		t.Fatalf("owned canary count = %d, want 1", dueCount)
+	}
+}
+
 func TestTrafficGeneratorVeryLargeCanaryIsOncePerMinuteAndOutsidePrimaryRate(t *testing.T) {
 	t.Parallel()
 	start := time.Unix(1_700_000_000, 0)
@@ -160,6 +237,30 @@ func TestTrafficGeneratorVeryLargeCanaryIsOncePerMinuteAndOutsidePrimaryRate(t *
 	}
 	if got := canaries; got != 3 {
 		t.Fatalf("canaries = %d, want 3", got)
+	}
+}
+
+func TestTrafficGeneratorRejectsPrimaryCategoryWithoutOneGroupPerWorker(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.Workload.Workers = 4
+	identity, err := NewIdentitySpace("traffic-owner-capacity", 73, 4)
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	model, err := NewTrafficModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewTrafficModel: %v", err)
+	}
+	catalog, err := NewGroupCatalog(identity, cfg.Workload.Groups)
+	if err != nil {
+		t.Fatalf("NewGroupCatalog: %v", err)
+	}
+	_, err = NewTrafficGenerator(TrafficGeneratorConfig{
+		Identity: identity, Model: model, Catalog: catalog, Workload: cfg.Workload,
+		Start: time.Unix(1_700_000_000, 0), WorkerID: 0, WorkerCount: 4,
+	})
+	if !errors.Is(err, errTrafficGeneratorConfig) {
+		t.Fatalf("NewTrafficGenerator with 3 medium groups/4 workers error = %v, want %v", err, errTrafficGeneratorConfig)
 	}
 }
 

@@ -111,10 +111,15 @@ func NewRelationshipGraph(identity *IdentitySpace) (RelationshipGraph, error) {
 	}, nil
 }
 
-// Degree returns the exact repeating 3/4/4/5 forward degree, rotated by a
-// run-seeded phase without changing the distribution of any four-index block.
+// Degree returns the exact interleaved 3/4/4/5 global degree cycle from the
+// owner's worker-local lane without creating cross-worker edges.
 func (g RelationshipGraph) Degree(ownerIndex uint64) uint8 {
-	phase := (ownerIndex%uint64(len(relationshipDegreePattern)) + g.degreePhase) % uint64(len(relationshipDegreePattern))
+	workerID, localOwner := g.identity.Owner(ownerIndex)
+	cycle := uint64(len(relationshipDegreePattern))
+	// Interleave worker-local owner lanes into the one global degree cycle.
+	// Edges still move only within the owner's local lane.
+	position := (localOwner%cycle)*(g.identity.Workers()%cycle) + workerID%cycle
+	phase := (position + g.degreePhase) % cycle
 	return relationshipDegreePattern[phase]
 }
 
@@ -122,9 +127,14 @@ func (g RelationshipGraph) Degree(ownerIndex uint64) uint8 {
 func (g RelationshipGraph) Outgoing(ownerIndex uint64) (ForwardRelationshipSet, error) {
 	var result ForwardRelationshipSet
 	degree := int(g.Degree(ownerIndex))
+	workerID, localOwner := g.identity.Owner(ownerIndex)
 	ownerUID := g.identity.UID(ownerIndex)
 	for offset := 1; offset <= degree; offset++ {
-		peerIndex, err := checkedAddIndex(ownerIndex, uint64(offset))
+		peerLocal, err := checkedAddIndex(localOwner, uint64(offset))
+		if err != nil {
+			return ForwardRelationshipSet{}, err
+		}
+		peerIndex, err := g.identity.GlobalIndex(workerID, peerLocal)
 		if err != nil {
 			return ForwardRelationshipSet{}, err
 		}
@@ -137,8 +147,12 @@ func (g RelationshipGraph) Outgoing(ownerIndex uint64) (ForwardRelationshipSet, 
 // Incoming reconstructs edges from at most the previous five owner indexes.
 func (g RelationshipGraph) Incoming(userIndex uint64) ForwardRelationshipSet {
 	var result ForwardRelationshipSet
-	for distance := uint64(1); distance <= MaxForwardRelationships && distance <= userIndex; distance++ {
-		ownerIndex := userIndex - distance
+	workerID, localUser := g.identity.Owner(userIndex)
+	for distance := uint64(1); distance <= MaxForwardRelationships && distance <= localUser; distance++ {
+		ownerIndex, err := g.identity.GlobalIndex(workerID, localUser-distance)
+		if err != nil {
+			return result
+		}
 		if uint64(g.Degree(ownerIndex)) < distance {
 			continue
 		}

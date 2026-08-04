@@ -182,6 +182,15 @@ func NewGroupCatalog(identity *IdentitySpace, config GroupCatalogConfig) (GroupC
 // Count returns the fixed number of group channels.
 func (c GroupCatalog) Count() int { return c.total }
 
+// GroupOwner assigns one fixed worker to a group for traffic and roster
+// ownership. The catalog index partition is stable and needs no retained map.
+func (c GroupCatalog) GroupOwner(index uint64) (uint64, error) {
+	if index >= uint64(c.total) || c.identity == nil || c.identity.Workers() == 0 {
+		return 0, errGroupIndex
+	}
+	return index % c.identity.Workers(), nil
+}
+
 // GroupForMemberIndex reverses the fixed strided roster without scanning the
 // catalog. One identity can belong to at most one group in this layout.
 func (c GroupCatalog) GroupForMemberIndex(userIndex uint64) (Group, int, bool, error) {
@@ -239,6 +248,22 @@ func (c GroupCatalog) IndexFromGroupID(groupID string) (uint64, bool) {
 // classes exist. Missing local classes are omitted and available weights are
 // normalized without ever selecting the very-large canary.
 func (c GroupCatalog) PrimaryTarget(logicalOrdinal uint64) (Group, error) {
+	return c.primaryTarget(logicalOrdinal, 0, 1)
+}
+
+// PrimaryTargetForWorker preserves the global category cycle while selecting
+// only a group whose fixed owner is workerID.
+func (c GroupCatalog) PrimaryTargetForWorker(logicalOrdinal, workerID uint64) (Group, error) {
+	if c.identity == nil || workerID >= c.identity.Workers() {
+		return Group{}, errGroupIndex
+	}
+	if c.identity.Workers() == 1 {
+		return c.PrimaryTarget(logicalOrdinal)
+	}
+	return c.primaryTarget(logicalOrdinal, workerID, c.identity.Workers())
+}
+
+func (c GroupCatalog) primaryTarget(logicalOrdinal, workerID, workerCount uint64) (Group, error) {
 	position := (logicalOrdinal%c.primaryTotal + c.primaryPhase) % c.primaryTotal
 	boundary := uint64(0)
 	categoryIndex := -1
@@ -252,16 +277,32 @@ func (c GroupCatalog) PrimaryTarget(logicalOrdinal uint64) (Group, error) {
 	if categoryIndex < 0 || c.counts[categoryIndex] == 0 {
 		return Group{}, errGroupPrimaryClasses
 	}
-	offset, err := c.identity.decisionBelow(
-		"primary-group-index/v1",
-		uint64(c.counts[categoryIndex]),
-		logicalOrdinal,
-		uint64(categoryIndex),
-	)
+	categoryStart := c.starts[categoryIndex]
+	categoryCount := uint64(c.counts[categoryIndex])
+	first := categoryStart
+	ownedCount := categoryCount
+	purpose := "primary-group-index/v1"
+	if workerCount > 1 {
+		delta := (workerID + workerCount - categoryStart%workerCount) % workerCount
+		first += delta
+		categoryEnd := categoryStart + categoryCount
+		if first >= categoryEnd {
+			return Group{}, errGroupPrimaryClasses
+		}
+		ownedCount = 1 + (categoryEnd-1-first)/workerCount
+		purpose = "primary-owned-group-index/v1"
+	}
+	var offset uint64
+	var err error
+	if workerCount == 1 {
+		offset, err = c.identity.decisionBelow(purpose, ownedCount, logicalOrdinal, uint64(categoryIndex))
+	} else {
+		offset, err = c.identity.decisionBelow(purpose, ownedCount, logicalOrdinal, uint64(categoryIndex), workerID)
+	}
 	if err != nil {
 		return Group{}, err
 	}
-	return c.Group(c.starts[categoryIndex] + offset)
+	return c.Group(first + offset*workerCount)
 }
 
 // VeryLargeCanary returns the one separately scheduled correctness target.
@@ -294,15 +335,79 @@ func (c GroupCatalog) ReturningMember(category GroupCategory, categoryOrdinal, m
 	if !ok {
 		return GroupReturningMember{}, false, nil
 	}
-	span := last - first + 1
+	period := c.identity.Workers() / greatestCommonDivisor(group.memberStride, c.identity.Workers())
+	if remainder := first % period; remainder != 0 {
+		first += period - remainder
+	}
+	if first > last {
+		return GroupReturningMember{}, false, nil
+	}
+	span := (last-first)/period + 1
 	round := categoryOrdinal / (2 * count)
 	memberOffset := ((round%span)*2 + categoryOrdinal%2) % span
-	memberOrdinal := first + memberOffset
+	memberOrdinal := first + memberOffset*period
 	userIndex, err := group.MemberIndex(int(memberOrdinal))
 	if err != nil {
 		return GroupReturningMember{}, false, err
 	}
 	return GroupReturningMember{Group: group, MemberOrdinal: int(memberOrdinal), UserIndex: userIndex}, true, nil
+}
+
+// ReturningMemberForWorker rotates only through groups owned by workerID and
+// selects same-owner roster members in pairs. Worker-local session pools can
+// therefore satisfy sampled delivery without borrowing another worker's UID.
+func (c GroupCatalog) ReturningMemberForWorker(category GroupCategory, categoryOrdinal, minimum, maximum, workerID uint64) (GroupReturningMember, bool, error) {
+	categoryStart, categoryCount, ok := c.categoryRange(category)
+	if !ok || minimum > maximum || c.identity == nil || workerID >= c.identity.Workers() {
+		return GroupReturningMember{}, false, nil
+	}
+	if c.identity.Workers() == 1 {
+		return c.ReturningMember(category, categoryOrdinal, minimum, maximum)
+	}
+	workerCount := c.identity.Workers()
+	delta := (workerID + workerCount - categoryStart%workerCount) % workerCount
+	firstGroup := categoryStart + delta
+	categoryEnd := categoryStart + uint64(categoryCount)
+	if firstGroup >= categoryEnd {
+		return GroupReturningMember{}, false, nil
+	}
+	ownedGroups := 1 + (categoryEnd-1-firstGroup)/workerCount
+	pairOrdinal := categoryOrdinal / 2
+	groupIndex := firstGroup + (pairOrdinal%ownedGroups)*workerCount
+	group, err := c.Group(groupIndex)
+	if err != nil {
+		return GroupReturningMember{}, false, err
+	}
+	first, last, ok := group.memberOrdinalsInRangeIncludingZero(minimum, maximum)
+	if !ok {
+		return GroupReturningMember{}, false, nil
+	}
+	period := workerCount / greatestCommonDivisor(group.memberStride, workerCount)
+	if remainder := first % period; remainder != 0 {
+		first += period - remainder
+	}
+	if first > last {
+		return GroupReturningMember{}, false, nil
+	}
+	span := (last-first)/period + 1
+	if span < 2 {
+		return GroupReturningMember{}, false, nil
+	}
+	round := pairOrdinal / ownedGroups
+	memberRank := ((round%span)*2 + categoryOrdinal%2) % span
+	memberOrdinal := first + memberRank*period
+	userIndex, err := group.MemberIndex(int(memberOrdinal))
+	if err != nil {
+		return GroupReturningMember{}, false, err
+	}
+	return GroupReturningMember{Group: group, MemberOrdinal: int(memberOrdinal), UserIndex: userIndex}, true, nil
+}
+
+func greatestCommonDivisor(left, right uint64) uint64 {
+	for right != 0 {
+		left, right = right, left%right
+	}
+	return left
 }
 
 // HotSet combines active person channels with this fixed catalog and records
@@ -348,6 +453,26 @@ func (g Group) memberOrdinalsInRange(minimum, maximum uint64) (uint64, uint64, b
 		}
 		if first < 1 {
 			first = 1
+		}
+	}
+	last := (maximum - g.memberBase) / g.memberStride
+	memberLast := uint64(g.MemberCount - 1)
+	if last > memberLast {
+		last = memberLast
+	}
+	return first, last, first <= last
+}
+
+func (g Group) memberOrdinalsInRangeIncludingZero(minimum, maximum uint64) (uint64, uint64, bool) {
+	if g.identity == nil || g.memberStride == 0 || g.MemberCount <= 1 || maximum < g.memberBase {
+		return 0, 0, false
+	}
+	first := uint64(0)
+	if minimum > g.memberBase {
+		delta := minimum - g.memberBase
+		first = delta / g.memberStride
+		if delta%g.memberStride != 0 {
+			first++
 		}
 	}
 	last := (maximum - g.memberBase) / g.memberStride

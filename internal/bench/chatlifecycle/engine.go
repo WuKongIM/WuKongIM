@@ -134,6 +134,7 @@ type sessionScheduler struct {
 	lastStep                      time.Time
 	credit                        uint64
 	creditRemainder               uint64
+	globalLoginTokens             uint64
 	replacements                  uint64
 	loginOrdinal                  uint64
 	nextNewIndex                  uint64
@@ -170,6 +171,7 @@ func (s *sessionScheduler) reset(now time.Time) {
 	s.lastStep = now
 	s.credit = 0
 	s.creditRemainder = 0
+	s.globalLoginTokens = 0
 	s.replacements = 0
 	s.loginOrdinal = 0
 	s.bootstrapping = true
@@ -198,18 +200,36 @@ func (s *sessionScheduler) release(now time.Time) (int, error) {
 	if denominator == 0 || hi >= denominator {
 		return 0, errSchedulerClock
 	}
-	whole, remainder := bits.Div64(hi, lo, denominator)
+	globalWhole, remainder := bits.Div64(hi, lo, denominator)
 	remainder += s.creditRemainder
 	if remainder >= denominator {
-		whole++
+		globalWhole++
 		remainder -= denominator
 	}
 	s.creditRemainder = remainder
-	burst := uint64(s.workload.MaxGlobalBurst)
-	if whole >= burst || s.credit >= burst-whole {
+	nextGlobalTokens := s.globalLoginTokens + globalWhole
+	if nextGlobalTokens < s.globalLoginTokens {
+		return 0, errSchedulerClock
+	}
+	before, err := workerTokenCount(s.globalLoginTokens, s.workerID, s.workerCount)
+	if err != nil {
+		return 0, err
+	}
+	after, err := workerTokenCount(nextGlobalTokens, s.workerID, s.workerCount)
+	if err != nil {
+		return 0, err
+	}
+	s.globalLoginTokens = nextGlobalTokens
+	localWhole := after - before
+	localBurst, err := workerOnlineTarget(s.workload.MaxGlobalBurst, s.workerID, s.workerCount)
+	if err != nil {
+		return 0, err
+	}
+	burst := uint64(localBurst)
+	if localWhole >= burst || s.credit >= burst-localWhole {
 		s.credit = burst
 	} else {
-		s.credit += whole
+		s.credit += localWhole
 	}
 	due := s.credit
 	if s.replacements > due {
@@ -221,6 +241,19 @@ func (s *sessionScheduler) release(now time.Time) (int, error) {
 	return int(due), nil
 }
 
+// workerTokenCount returns how many ordinals in [0,total) belong to workerID
+// under the stable ordinal modulo partition. It is exact for every prefix.
+func workerTokenCount(total, workerID, workerCount uint64) (uint64, error) {
+	if workerCount == 0 || workerCount > maxRateWorkers || workerID >= workerCount {
+		return 0, errEngineConfig
+	}
+	count := total / workerCount
+	if workerID < total%workerCount {
+		count++
+	}
+	return count, nil
+}
+
 func (s *sessionScheduler) consumeOne() {
 	if s.credit > 0 {
 		s.credit--
@@ -228,6 +261,18 @@ func (s *sessionScheduler) consumeOne() {
 	if s.replacements > 0 {
 		s.replacements--
 	}
+}
+
+// nextGlobalLoginOrdinal advances this worker's local attempt sequence and
+// maps it into the shared interleaved login schedule without shared state.
+func (s *sessionScheduler) nextGlobalLoginOrdinal() (uint64, error) {
+	hi, lo := bits.Mul64(s.loginOrdinal, s.workerCount)
+	if hi != 0 || lo > math.MaxUint64-s.workerID {
+		return 0, errEngineConfig
+	}
+	ordinal := lo + s.workerID
+	s.loginOrdinal++
+	return ordinal, nil
 }
 
 func (s *sessionScheduler) planLogin(
@@ -322,7 +367,7 @@ func (s *sessionScheduler) nextGroupReturningMember(catalog GroupCatalog, minimu
 			return GroupReturningMember{}, false, errEngineConfig
 		}
 		s.groupReturningCategoryOrdinal[candidate]++
-		return catalog.ReturningMember(GroupCategory(candidate+1), ordinal, minimum, maximum)
+		return catalog.ReturningMemberForWorker(GroupCategory(candidate+1), ordinal, minimum, maximum, s.workerID)
 	}
 	return GroupReturningMember{}, false, errEngineConfig
 }
@@ -970,8 +1015,10 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		if poolBeforeLogins.Online+poolBeforeLogins.Starting+scheduled >= e.onlineTarget {
 			break
 		}
-		ordinal := e.scheduler.loginOrdinal
-		e.scheduler.loginOrdinal++
+		ordinal, ordinalErr := e.scheduler.nextGlobalLoginOrdinal()
+		if ordinalErr != nil {
+			return result, ordinalErr
+		}
 		loginSchedule, scheduleErr := e.schedule.Login(ordinal)
 		if scheduleErr != nil {
 			return result, scheduleErr
@@ -1901,6 +1948,10 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 	if err != nil {
 		return TrafficIntent{}, err
 	}
+	groupOwner, err := e.generator.catalog.GroupOwner(groupIndex)
+	if err != nil || groupOwner != e.workerID || grant.Logical.WorkerID != uint32(e.workerID) {
+		return TrafficIntent{}, errEngineConfig
+	}
 	correlate, err := e.verifier.ShouldCorrelate(grant.Logical)
 	if err != nil {
 		return TrafficIntent{}, err
@@ -1908,7 +1959,7 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 	sender, ok := e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
 	if !ok && group.Category != GroupVeryLarge {
 		var routedIndex uint64
-		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(group.Category, grant.Logical.LogicalSend, correlate)
+		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(group.Category, grant.Logical.LogicalSend, correlate, e.workerID)
 		if ok {
 			group, err = e.generator.catalog.Group(routedIndex)
 			if err != nil {

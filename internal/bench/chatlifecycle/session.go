@@ -624,7 +624,7 @@ func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireReci
 	}, true
 }
 
-func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool) (SessionLogin, uint64, bool) {
+func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64) (SessionLogin, uint64, bool) {
 	start, count, ok := p.catalog.categoryRange(category)
 	if !ok {
 		return SessionLogin{}, 0, false
@@ -638,6 +638,10 @@ func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordina
 	first := ordinal % uint64(count)
 	for offset := 0; offset < count; offset++ {
 		groupIndex := start + (first+uint64(offset))%uint64(count)
+		groupOwner, err := p.catalog.GroupOwner(groupIndex)
+		if err != nil || groupOwner != owner {
+			continue
+		}
 		members := p.onlineGroupMembers[groupIndex]
 		if len(members) < needed {
 			continue

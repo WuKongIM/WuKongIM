@@ -129,6 +129,15 @@ func TestGroupCatalogSelectsPairedFixedMembersFromAgedHistoricalRange(t *testing
 		if first.Group.Index != second.Group.Index || first.UserIndex == second.UserIndex || first.MemberOrdinal == 0 || second.MemberOrdinal == 0 {
 			t.Fatalf("category %d pair = %+v / %+v, want two non-zero members of one fixed group", category, first, second)
 		}
+		groupOwner, err := catalog.GroupOwner(first.Group.Index)
+		if err != nil {
+			t.Fatalf("category %d GroupOwner: %v", category, err)
+		}
+		firstOwner, _ := catalog.identity.Owner(first.UserIndex)
+		secondOwner, _ := catalog.identity.Owner(second.UserIndex)
+		if firstOwner != groupOwner || secondOwner != groupOwner {
+			t.Fatalf("category %d pair owners = %d/%d, want group owner %d: %+v / %+v", category, firstOwner, secondOwner, groupOwner, first, second)
+		}
 		for _, member := range []GroupReturningMember{first, second} {
 			if member.UserIndex < minimum || member.UserIndex > maximum || !member.Group.ContainsIndex(member.UserIndex) {
 				t.Fatalf("category %d aged member = %+v, range=%d..%d", category, member, minimum, maximum)
@@ -139,6 +148,67 @@ func TestGroupCatalogSelectsPairedFixedMembersFromAgedHistoricalRange(t *testing
 		if err != nil || !ok || (third.Group.Index != first.Group.Index) != wantRotatedGroup || third.UserIndex == first.UserIndex || third.UserIndex == second.UserIndex {
 			t.Fatalf("category %d did not rotate after a complete pair: first=%+v third=%+v ok=%v err=%v", category, first, third, ok, err)
 		}
+	}
+}
+
+func TestGroupCatalogFormalOwnerRosterPairsCoverAllGroups(t *testing.T) {
+	catalog := newTestGroupCatalog(t, FormalConfig())
+	seen := make(map[uint64]struct{}, catalog.Count())
+	for groupIndex := uint64(0); groupIndex < uint64(catalog.Count()); groupIndex++ {
+		group, err := catalog.Group(groupIndex)
+		if err != nil {
+			t.Fatalf("Group(%d): %v", groupIndex, err)
+		}
+		owner, err := catalog.GroupOwner(groupIndex)
+		if err != nil {
+			t.Fatalf("GroupOwner(%d): %v", groupIndex, err)
+		}
+		for _, memberOrdinal := range []int{0, 3} {
+			memberIndex, memberErr := group.MemberIndex(memberOrdinal)
+			if memberErr != nil {
+				t.Fatalf("Group(%d) MemberIndex(%d): %v", groupIndex, memberOrdinal, memberErr)
+			}
+			memberOwner, _ := catalog.identity.Owner(memberIndex)
+			if memberOwner != owner {
+				t.Fatalf("group %d member %d owner = %d, want %d", groupIndex, memberOrdinal, memberOwner, owner)
+			}
+		}
+	}
+
+	for category := GroupSmall; category <= GroupVeryLarge; category++ {
+		start, count, ok := catalog.categoryRange(category)
+		if !ok {
+			continue
+		}
+		for workerID := uint64(0); workerID < catalog.identity.Workers(); workerID++ {
+			owned := make([]uint64, 0, count)
+			for groupIndex := start; groupIndex < start+uint64(count); groupIndex++ {
+				owner, _ := catalog.GroupOwner(groupIndex)
+				if owner == workerID {
+					owned = append(owned, groupIndex)
+				}
+			}
+			for rank, wantGroup := range owned {
+				first, firstOK, firstErr := catalog.ReturningMemberForWorker(category, uint64(rank*2), 0, math.MaxUint64, workerID)
+				second, secondOK, secondErr := catalog.ReturningMemberForWorker(category, uint64(rank*2+1), 0, math.MaxUint64, workerID)
+				if firstErr != nil || secondErr != nil || !firstOK || !secondOK {
+					t.Fatalf("category %d worker %d pair %d = %+v/%v/%v %+v/%v/%v", category, workerID, rank, first, firstOK, firstErr, second, secondOK, secondErr)
+				}
+				if first.Group.Index != wantGroup || second.Group.Index != wantGroup || first.UserIndex == second.UserIndex {
+					t.Fatalf("category %d worker %d pair %d groups = %d/%d users=%d/%d, want group %d distinct", category, workerID, rank, first.Group.Index, second.Group.Index, first.UserIndex, second.UserIndex, wantGroup)
+				}
+				for _, member := range []GroupReturningMember{first, second} {
+					memberOwner, _ := catalog.identity.Owner(member.UserIndex)
+					if memberOwner != workerID {
+						t.Fatalf("group %d returning member %d owner = %d, want %d", wantGroup, member.UserIndex, memberOwner, workerID)
+					}
+				}
+				seen[wantGroup] = struct{}{}
+			}
+		}
+	}
+	if len(seen) != catalog.Count() {
+		t.Fatalf("owned returning pair coverage = %d, want all %d groups", len(seen), catalog.Count())
 	}
 }
 

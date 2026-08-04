@@ -55,6 +55,13 @@ scheduler retains a monotonic worker-local arrival index and calls
 `GlobalIndex` at the production login boundary. Quotient/remainder partitioning
 assigns the 10,000 formal online target as 3,334, 3,333, and 3,333 without
 overlapping UIDs.
+Login arrivals likewise form one checked global rational token stream. Every
+worker advances the same cumulative integer prefix but owns only token ordinals
+whose modulo is its worker ID; per-worker burst caps partition the global cap.
+The owned local attempt ordinal is mapped back to the interleaved global login
+ordinal before schedule selection, so three workers preserve exact aggregate
+250,000/62,500 daily new/returning counts instead of replaying three 80/20
+prefixes.
 
 Login identity, session bucket, and channel lifecycle class use independent
 run-rotated ordinal cycles, giving exact 80/20, 25/50/20/5, and 60/25/10/5
@@ -185,9 +192,12 @@ exact primary traffic, payload, direction, and fixed group-target cycles. A
 grant carries worker, generation-scoped logical position, traffic class, and
 payload class but deliberately has no sender, packet, or claimed online route.
 The engine binds person grants to eligible lifecycle activity and group grants
-to a currently online fixed-directory member. The very-large group remains an
-independently counted one-per-minute canary. The generator has no product
-metadata or runtime mutation interface.
+to a currently online fixed-directory member on the group's unique owner
+worker. Group-domain identities use the consecutive global group ordinal, so
+the group stream itself has exact one-percent sampled delivery rather than
+locking its sampling phase to the 90/10 traffic-kind cycle. The very-large
+group remains an independently counted one-per-minute owner-routed canary. The
+generator has no product metadata or runtime mutation interface.
 
 The private session scheduler derives checked rational login credit from
 `new_users_per_day` and the 80% new share, which is about 3.6 total logins per
@@ -283,8 +293,9 @@ credit, and queue ownership. The generation number remains in the checked
 logical identity prefix, so no first-run identity reaches the second run even
 though per-domain ordinals restart from zero.
 
-Exact delivery correlation uses one run-keyed position in every 100 logical
-sends per worker. A sampled entry has one map row and one indexed min-heap
+Exact delivery correlation uses one run-keyed position in every 100 person
+logical sends per worker and one position in every 100 globally consecutive
+group-domain ordinals. A sampled entry has one map row and one indexed min-heap
 deadline; successful ACK-plus-RECV delivery and deadline expiry both physically
 remove both indexes. A terminal SEND remains until that deadline so expiry also
 records its confirmed sampled loss. RECV correlation is observed before
@@ -299,13 +310,15 @@ first/last redacted examples are mutex-protected, deeply copied in snapshots,
 and bounded independently of elapsed run history. Product failure takes
 precedence and cannot be cleared by later success or harness evidence.
 
-The person relationship graph is reconstructed from global indexes and keeps
-no adjacency history. Each owner has a run-rotated repeating degree pattern
-`3,4,4,5` and owns edges to the next consecutive indexes. Thus every four
-owners create exactly 16 unique lower-to-higher relationships, every edge
-becomes available when its higher endpoint arrives, and incoming reconstruction
-checks only the previous five owners. Fixed-capacity results bound one user's
-incoming plus outgoing conversations to ten.
+The person relationship graph is reconstructed from worker-local owner
+ordinals and keeps no adjacency history. The interleaved worker lanes preserve
+the run-rotated `3,4,4,5` global degree cycle, while each edge maps
+`localOwner+distance` through `GlobalIndex` on the same owner worker. Thus every
+four global owners still create exactly 16 unique relationships, 250,000 new
+owners still create exactly 1,000,000 edges, and no activation depends on a
+different worker's session pool. Incoming reconstruction checks only the
+previous five local owners. Fixed-capacity results bound one user's incoming
+plus outgoing conversations to ten.
 
 Fast unit allocation gates cover UID round trips, five-edge reconstruction,
 payload choice, login/channel schedules, and one-at-a-time group/member
@@ -345,20 +358,25 @@ The fixed formal group catalog contains 1,600 small, 300 medium, 99 large, and
 one 100,000-member very-large group. A group descriptor retains one checked
 member base plus the fixed catalog-size stride and reconstructs one UID at a
 time. Member zero is the catalog index, so every class intersects the initial
-online roster, while later members span deterministic arrival cohorts. Older
-returning logins select nonzero fixed members in same-group pairs and rotate
-through every category. If a primary target currently has no eligible member,
-the route searches only the requested category's fixed catalog and retargets
-to a group with one online member, or two for sampled correctness, preserving
-the exact class share. The very-large canary is never retargeted and is kept
+online roster, while later members span deterministic arrival cohorts. Each
+group index modulo the worker count is its unique traffic and roster owner.
+Older returning logins rotate only through groups owned by their worker and
+select two distinct roster members whose stride-derived identity owner matches
+the group owner. With the formal 2,000-group stride and three workers, member
+ordinals zero and three are the first compatible pair. If a primary target
+currently has no eligible member, the route searches only same-owner groups in
+the requested category and retargets to a group with one online member, or two
+for sampled correctness, preserving the exact class share. The very-large
+canary is never retargeted, is emitted only by its fixed owner, and is kept
 reachable by its paired fixed-roster returners. Even the largest group never
 allocates a membership slice or history-sized map. Primary group targets use
 an exact 80/15/5 small/medium/large cycle. The very-large group is reachable
 only through a separately reported one-per-minute canary and is excluded from
 the 2,000 SEND/s denominator. When a local catalog omits a primary class, its
 weight is deterministically omitted and the remaining available weights are
-normalized; the canary is never promoted into primary traffic. Fixed group
-channels add no historical-channel growth, leaving the formal hot set at
+normalized; every available primary class must still contain at least one
+group per worker, and the canary is never promoted into primary traffic. Fixed
+group channels add no historical-channel growth, leaving the formal hot set at
 8,000 person plus 2,000 group channels.
 
 `LocalConfig` is the reviewed three-node, three-worker shakeout baseline. It

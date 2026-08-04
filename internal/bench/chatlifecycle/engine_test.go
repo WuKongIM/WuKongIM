@@ -1972,6 +1972,190 @@ func TestEngineWorkerSchedulersPartitionFormalOnlineTargetAndUIDs(t *testing.T) 
 	}
 }
 
+func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInitialBursts(t *testing.T) {
+	const (
+		workerCount    = 3
+		usersPerWorker = 100
+	)
+	var aggregateConsidered, aggregateActivated, aggregateInitialBursts int
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		fixture := newEngineTestFixture(t, engineTestLimits{
+			WorkerID: workerID, WorkerCount: workerCount, OnlineUsers: workerCount * usersPerWorker,
+			WorkCapacity: 8_192, MaxWorkPerAdvance: 8_192,
+		})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("worker %d Start: %v", workerID, err)
+		}
+		for localIndex := uint64(0); localIndex < usersPerWorker; localIndex++ {
+			globalIndex, err := fixture.identity.GlobalIndex(workerID, localIndex)
+			if err != nil {
+				t.Fatalf("worker %d GlobalIndex(%d): %v", workerID, localIndex, err)
+			}
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+				UID: fixture.identity.UID(globalIndex), UserIndex: globalIndex, LoginOrdinal: globalIndex,
+			}); err != nil {
+				t.Fatalf("worker %d Login(%d): %v", workerID, localIndex, err)
+			}
+		}
+
+		workerExpectedInitial := 0
+		for localIndex := uint64(0); localIndex < usersPerWorker; localIndex++ {
+			globalIndex, err := fixture.identity.GlobalIndex(workerID, localIndex)
+			if err != nil {
+				t.Fatalf("worker %d GlobalIndex(%d): %v", workerID, localIndex, err)
+			}
+			incoming := fixture.graph.Incoming(globalIndex)
+			for edgeIndex := 0; edgeIndex < incoming.Count; edgeIndex++ {
+				edge := incoming.Items[edgeIndex]
+				ownerWorker, _ := fixture.identity.Owner(edge.OwnerIndex)
+				peerWorker, _ := fixture.identity.Owner(edge.PeerIndex)
+				if ownerWorker != workerID || peerWorker != workerID {
+					t.Fatalf("worker %d incoming edge crosses pools: %+v owners=%d/%d", workerID, edge, ownerWorker, peerWorker)
+				}
+				ordinal := edge.OwnerIndex*MaxForwardRelationships + uint64(edgeIndex)
+				schedule, scheduleErr := fixture.schedule.Channel(ordinal, edge.OwnerIndex, edge.PeerIndex)
+				if scheduleErr != nil {
+					t.Fatalf("worker %d Channel(%d): %v", workerID, ordinal, scheduleErr)
+				}
+				workerExpectedInitial += schedule.InitialBurst.MessageCount
+			}
+			considered, activated, observeErr := fixture.engine.ObserveNewUser(globalIndex)
+			if observeErr != nil {
+				_ = fixture.engine.Stop()
+				t.Fatalf("worker %d ObserveNewUser(%d): %v", workerID, localIndex, observeErr)
+			}
+			aggregateConsidered += considered
+			aggregateActivated += activated
+		}
+		snapshot, err := fixture.engine.Snapshot()
+		if err != nil {
+			_ = fixture.engine.Stop()
+			t.Fatalf("worker %d Snapshot: %v", workerID, err)
+		}
+		if snapshot.ActivityCurrent != workerExpectedInitial {
+			_ = fixture.engine.Stop()
+			t.Fatalf("worker %d initial activity = %d, want %d", workerID, snapshot.ActivityCurrent, workerExpectedInitial)
+		}
+		aggregateInitialBursts += workerExpectedInitial
+		if err := fixture.engine.Stop(); err != nil {
+			t.Fatalf("worker %d Stop: %v", workerID, err)
+		}
+	}
+	if aggregateConsidered != aggregateActivated || aggregateActivated != 1_169 || aggregateInitialBursts == 0 {
+		t.Fatalf("aggregate relationship history considered/activated/initial = %d/%d/%d, want 1169/1169/nonzero", aggregateConsidered, aggregateActivated, aggregateInitialBursts)
+	}
+}
+
+func TestEngineWorkerSchedulersPartitionOneGlobalLoginCreditStream(t *testing.T) {
+	const workerCount = 3
+	shares := [workerCount]int{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		fixture := newEngineTestFixture(t, engineTestLimits{
+			Formal: true, WorkerID: workerID, WorkerCount: workerCount,
+			StartingCapacity: 512, WorkCapacity: 8_192, MaxWorkPerAdvance: 512,
+		})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("worker %d Start: %v", workerID, err)
+		}
+		now := fixture.clock.Now().Add(100 * time.Second)
+		fixture.clock.Set(now)
+		step, err := fixture.engine.Step(context.Background(), now, nil)
+		if err != nil {
+			_ = fixture.engine.Stop()
+			t.Fatalf("worker %d Step: %v", workerID, err)
+		}
+		shares[workerID] = step.PlannedNew + step.PlannedReturning
+		if err := fixture.engine.Stop(); err != nil {
+			t.Fatalf("worker %d Stop: %v", workerID, err)
+		}
+	}
+
+	total := shares[0] + shares[1] + shares[2]
+	if total != 361 {
+		t.Fatalf("100-second global login credit = %d (%v), want exact 361", total, shares)
+	}
+	minimum, maximum := shares[0], shares[0]
+	for _, share := range shares[1:] {
+		if share < minimum {
+			minimum = share
+		}
+		if share > maximum {
+			maximum = share
+		}
+	}
+	if maximum-minimum > 1 {
+		t.Fatalf("100-second worker login shares = %v, want difference <= 1", shares)
+	}
+}
+
+func TestSessionSchedulersPreserveExactFormalDailyGrowthAndCombinedEightyTwenty(t *testing.T) {
+	const workerCount = 3
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace("scheduler-daily-partition", 101, workerCount)
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	start := time.Unix(1_700_000_000, 0)
+	schedulers := [workerCount]sessionScheduler{}
+	shares := [workerCount]uint64{}
+	var plannedNew, plannedReturning uint64
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID] = sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount, onlineTarget: 1_000_000,
+		}
+		schedulers[workerID].reset(start)
+	}
+
+	for second := 1; second <= secondsPerDay; second++ {
+		now := start.Add(time.Duration(second) * time.Second)
+		for workerID := uint64(0); workerID < workerCount; workerID++ {
+			scheduler := &schedulers[workerID]
+			budget, releaseErr := scheduler.release(now)
+			if releaseErr != nil {
+				t.Fatalf("worker %d release(%d): %v", workerID, second, releaseErr)
+			}
+			for ; budget > 0; budget-- {
+				ordinal, ordinalErr := scheduler.nextGlobalLoginOrdinal()
+				if ordinalErr != nil {
+					t.Fatalf("worker %d nextGlobalLoginOrdinal: %v", workerID, ordinalErr)
+				}
+				login, loginErr := schedule.Login(ordinal)
+				if loginErr != nil {
+					t.Fatalf("worker %d Login(%d): %v", workerID, ordinal, loginErr)
+				}
+				if login.Identity == LoginNew {
+					plannedNew++
+				} else {
+					plannedReturning++
+				}
+				scheduler.consumeOne()
+				shares[workerID]++
+			}
+		}
+	}
+
+	total := plannedNew + plannedReturning
+	if total != 312_500 || plannedNew != 250_000 || plannedReturning != 62_500 {
+		t.Fatalf("formal daily login stream total/new/returning = %d/%d/%d shares=%v, want 312500/250000/62500", total, plannedNew, plannedReturning, shares)
+	}
+	minimum, maximum := shares[0], shares[0]
+	for _, share := range shares[1:] {
+		if share < minimum {
+			minimum = share
+		}
+		if share > maximum {
+			maximum = share
+		}
+	}
+	if maximum-minimum > 1 {
+		t.Fatalf("formal daily worker shares = %v, want difference <= 1", shares)
+	}
+}
+
 func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *testing.T) {
 	cfg := FormalConfig()
 	identity, err := NewIdentitySpace("formal-bootstrap-churn", 101, uint64(cfg.Workload.Workers))
@@ -2144,7 +2328,9 @@ func TestEngineAgedRosterRoutesTwoHundredGroupGrantsAtFixedSharesAndCanary(t *te
 		if scopedErr != nil {
 			t.Fatalf("candidate canary logical: %v", scopedErr)
 		}
-		sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: candidate, WorkerID: 0})
+		sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{
+			LogicalSend: candidate, WorkerID: 0, Kind: TrafficGroup,
+		})
 		if sampleErr != nil {
 			t.Fatalf("ShouldCorrelate canary: %v", sampleErr)
 		}
@@ -2169,6 +2355,113 @@ func TestEngineAgedRosterRoutesTwoHundredGroupGrantsAtFixedSharesAndCanary(t *te
 	canarySender, ok := fixture.identity.IndexFromUID(routedCanary.Logical.Sender)
 	if !ok || !canary.Group.ContainsIndex(canarySender) || !fixture.pool.IsOnline(routedCanary.Logical.Sender) {
 		t.Fatalf("aged canary sender = %+v index=%d/%v", routedCanary.Logical, canarySender, ok)
+	}
+}
+
+func TestEngineThreeWorkerPoolsRouteSampledGroupsOnlyOnOwnerWithPairedRoster(t *testing.T) {
+	const workerCount = 3
+	fixtures := [workerCount]engineTestFixture{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		fixtures[workerID] = newEngineTestFixture(t, engineTestLimits{
+			Formal: true, WorkerID: workerID, WorkerCount: workerCount,
+			WorkCapacity: 1_024, MaxWorkPerAdvance: 1_024,
+		})
+		if err := fixtures[workerID].engine.Start(context.Background()); err != nil {
+			t.Fatalf("worker %d Start: %v", workerID, err)
+		}
+	}
+	defer func() {
+		for workerID := range fixtures {
+			_ = fixtures[workerID].engine.Stop()
+		}
+	}()
+
+	type routeResult struct {
+		intent TrafficIntent
+		err    error
+	}
+	for owner := uint64(0); owner < workerCount; owner++ {
+		fixture := &fixtures[owner]
+		first, ok, err := fixture.engine.scheduler.nextGroupReturningMember(fixture.engine.generator.catalog, 0, ^uint64(0))
+		if err != nil || !ok {
+			t.Fatalf("worker %d first returning member = %+v, %v, %v", owner, first, ok, err)
+		}
+		second, ok, err := fixture.engine.scheduler.nextGroupReturningMember(fixture.engine.generator.catalog, 0, ^uint64(0))
+		if err != nil || !ok {
+			t.Fatalf("worker %d second returning member = %+v, %v, %v", owner, second, ok, err)
+		}
+		groupOwner, err := fixture.engine.generator.catalog.GroupOwner(first.Group.Index)
+		if err != nil || groupOwner != owner || second.Group.Index != first.Group.Index || second.UserIndex == first.UserIndex {
+			t.Fatalf("worker %d returning pair = %+v / %+v group_owner=%d err=%v", owner, first, second, groupOwner, err)
+		}
+		for pairIndex, member := range []GroupReturningMember{first, second} {
+			memberOwner, _ := fixture.identity.Owner(member.UserIndex)
+			if memberOwner != owner {
+				t.Fatalf("worker %d pair member %d owner = %d: %+v", owner, pairIndex, memberOwner, member)
+			}
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+				UID: fixture.identity.UID(member.UserIndex), UserIndex: member.UserIndex, LoginOrdinal: uint64(pairIndex),
+			}); err != nil {
+				t.Fatalf("worker %d pair Login(%d): %v", owner, pairIndex, err)
+			}
+			_, hasRecipient := fixture.pool.onlineGroupMember(first.Group, uint64(pairIndex), true)
+			if (pairIndex == 0 && hasRecipient) || (pairIndex == 1 && !hasRecipient) {
+				t.Fatalf("worker %d sampled recipient readiness after member %d = %v", owner, pairIndex+1, hasRecipient)
+			}
+		}
+
+		var sampledLogical uint64
+		for raw := uint64(0); raw < 1_000; raw++ {
+			candidate, scopedErr := scopedLogicalOrdinal(1, LogicalDomainGroup, raw)
+			if scopedErr != nil {
+				t.Fatalf("worker %d scoped group ordinal: %v", owner, scopedErr)
+			}
+			sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{
+				LogicalSend: candidate, WorkerID: uint32(owner), Kind: TrafficGroup,
+			})
+			if sampleErr != nil {
+				t.Fatalf("worker %d ShouldCorrelate: %v", owner, sampleErr)
+			}
+			if sampled {
+				sampledLogical = candidate
+				break
+			}
+		}
+		if sampledLogical == 0 {
+			t.Fatalf("worker %d found no sampled group logical ordinal", owner)
+		}
+		grant := TrafficIntent{
+			Logical: LogicalSend{LogicalSend: sampledLogical, WorkerID: uint32(owner), Kind: TrafficGroup},
+			Kind:    TrafficGroup, ChannelID: first.Group.ID, GroupCategory: first.Group.Category,
+			PayloadBytes: 256, Domain: LogicalDomainGroup,
+		}
+		route := func(target *engineTestFixture) (TrafficIntent, error) {
+			response := make(chan routeResult, 1)
+			if err := target.engine.enqueue(engineCommand{run: func() {
+				intent, routeErr := target.engine.routeGroupGrant(grant)
+				response <- routeResult{intent: intent, err: routeErr}
+			}}); err != nil {
+				return TrafficIntent{}, err
+			}
+			result := <-response
+			return result.intent, result.err
+		}
+		routed, err := route(fixture)
+		senderIndex, senderOK := fixture.identity.IndexFromUID(routed.Logical.Sender)
+		if err != nil || routed.Packet == nil || !senderOK || !first.Group.ContainsIndex(senderIndex) {
+			t.Fatalf("worker %d owned sampled route = %+v sender=%d/%v err=%v", owner, routed, senderIndex, senderOK, err)
+		}
+		for other := uint64(0); other < workerCount; other++ {
+			if other == owner {
+				continue
+			}
+			if _, err := route(&fixtures[other]); !errors.Is(err, errEngineConfig) {
+				t.Fatalf("worker %d routed group owned by %d: %v", other, owner, err)
+			}
+			if evidence := fixtures[other].evidence.Snapshot(); evidenceCountForClass(evidence, FailureClassHarness) != 0 {
+				t.Fatalf("worker %d recorded responsibility evidence for owner %d: %+v", other, owner, evidence)
+			}
+		}
 	}
 }
 
@@ -2457,7 +2750,9 @@ func TestEngineFormalTickRoutesTwoThousandGrantsToOnlineEligibleSenders(t *testi
 		t.Fatalf("Start: %v", err)
 	}
 	defer fixture.engine.Stop()
-	for index := uint64(0); index < 2_000; index++ {
+	// Two fixed-roster members per group are online so the exact sampled group
+	// grants exercise a real distinct delivery recipient.
+	for index := uint64(0); index < 4_000; index++ {
 		uid := fixture.identity.UID(index)
 		if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index}); err != nil {
 			t.Fatalf("Login(%d): %v", index, err)

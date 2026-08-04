@@ -827,7 +827,15 @@ func (v *Verifier) resetRuntime() {
 }
 
 func (v *Verifier) sampledLocked(logical LogicalSend) (bool, error) {
-	phase, err := v.model.identity.decisionBelow("verification-sample-phase/v1", 100, uint64(logical.WorkerID))
+	var phase uint64
+	var err error
+	if logical.Kind == TrafficGroup {
+		// Group-domain ordinals form one global sequence across workers, so a
+		// shared phase preserves exact one-percent group sampling.
+		phase, err = v.model.identity.decisionBelow("verification-group-sample-phase/v1", 100)
+	} else {
+		phase, err = v.model.identity.decisionBelow("verification-sample-phase/v1", 100, uint64(logical.WorkerID))
+	}
 	if err != nil {
 		return false, err
 	}

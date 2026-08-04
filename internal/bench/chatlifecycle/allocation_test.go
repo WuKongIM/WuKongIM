@@ -233,7 +233,11 @@ func newAllocationFixture(t *testing.T) allocationFixture {
 }
 
 func firstOrdinalWithDegree(graph RelationshipGraph, want int) uint64 {
-	for ordinal := uint64(0); ordinal < uint64(len(relationshipDegreePattern)); ordinal++ {
+	for localOrdinal := uint64(0); localOrdinal < uint64(len(relationshipDegreePattern)); localOrdinal++ {
+		ordinal, err := graph.identity.GlobalIndex(0, localOrdinal)
+		if err != nil {
+			panic(err)
+		}
 		if int(graph.Degree(ordinal)) == want {
 			return ordinal
 		}
@@ -289,7 +293,8 @@ func scanLifecycleHistory(fixture *allocationFixture, users uint64) (historySumm
 			summary.checksum = mixHistoryChecksum(summary.checksum, edge.OwnerIndex, edge.PeerIndex, uint64(len(edge.PersonChannelID)))
 		}
 
-		if owner >= MaxForwardRelationships {
+		_, localOwner := fixture.identity.Owner(owner)
+		if localOwner >= MaxForwardRelationships {
 			matureDegree := fixture.graph.Incoming(owner).Count + outgoing.Count
 			if matureDegree < summary.minimumMatureDegree {
 				summary.minimumMatureDegree = matureDegree

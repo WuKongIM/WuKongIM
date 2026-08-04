@@ -9,8 +9,12 @@ import (
 )
 
 func newTestRelationshipGraph(t *testing.T) (RelationshipGraph, *IdentitySpace) {
+	return newTestRelationshipGraphWithWorkers(t, 1)
+}
+
+func newTestRelationshipGraphWithWorkers(t *testing.T, workers uint64) (RelationshipGraph, *IdentitySpace) {
 	t.Helper()
-	space, err := NewIdentitySpace("relationship-test", 71, 3)
+	space, err := NewIdentitySpace("relationship-test", 71, workers)
 	if err != nil {
 		t.Fatalf("NewIdentitySpace() error = %v", err)
 	}
@@ -62,6 +66,36 @@ func TestRelationshipGraphVirtualDayHasExactDegreeDistribution(t *testing.T) {
 	}
 	if relationships != 1_000_000 {
 		t.Fatalf("relationships = %d, want 1000000", relationships)
+	}
+}
+
+func TestRelationshipGraphPartitionsEveryEdgeWithinOwnerWorker(t *testing.T) {
+	graph, identity := newTestRelationshipGraphWithWorkers(t, 3)
+	const ownersPerWorker = uint64(10_000)
+	var relationships uint64
+	for workerID := uint64(0); workerID < identity.Workers(); workerID++ {
+		for localOwner := uint64(0); localOwner < ownersPerWorker; localOwner++ {
+			ownerIndex, err := identity.GlobalIndex(workerID, localOwner)
+			if err != nil {
+				t.Fatalf("GlobalIndex(%d, %d): %v", workerID, localOwner, err)
+			}
+			outgoing, err := graph.Outgoing(ownerIndex)
+			if err != nil {
+				t.Fatalf("Outgoing(%d): %v", ownerIndex, err)
+			}
+			relationships += uint64(outgoing.Count)
+			for edgeIndex := 0; edgeIndex < outgoing.Count; edgeIndex++ {
+				edge := outgoing.Items[edgeIndex]
+				ownerWorker, _ := identity.Owner(edge.OwnerIndex)
+				peerWorker, _ := identity.Owner(edge.PeerIndex)
+				if ownerWorker != workerID || peerWorker != workerID {
+					t.Fatalf("worker %d local owner %d edge %d crosses workers: %+v owners=%d/%d", workerID, localOwner, edgeIndex, edge, ownerWorker, peerWorker)
+				}
+			}
+		}
+	}
+	if want := ownersPerWorker * identity.Workers() * 4; relationships != want {
+		t.Fatalf("relationship total = %d, want exact average-four total %d", relationships, want)
 	}
 }
 

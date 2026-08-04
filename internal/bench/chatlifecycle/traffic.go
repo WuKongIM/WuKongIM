@@ -173,6 +173,13 @@ func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, erro
 		config.WorkerID >= config.WorkerCount {
 		return nil, errTrafficGeneratorConfig
 	}
+	// Every primary category must have at least one fixed group per worker;
+	// otherwise exact category shares and single-owner routing cannot coexist.
+	for category, weight := range config.Catalog.primaryWeight {
+		if weight > 0 && config.Catalog.counts[category] < int(config.WorkerCount) {
+			return nil, errTrafficGeneratorConfig
+		}
+	}
 	weights := make([]int64, config.Workload.Workers)
 	for index := range weights {
 		weights[index] = 1
@@ -248,7 +255,10 @@ func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error
 		return TrafficIntent{}, false, err
 	}
 	group := canary.Group
-	workerID := g.canaryOrdinal % g.workers
+	workerID, err := g.catalog.GroupOwner(group.Index)
+	if err != nil {
+		return TrafficIntent{}, false, err
+	}
 	logicalOrdinal, err := scopedLogicalOrdinal(g.generation, LogicalDomainCanary, g.canaryOrdinal)
 	if err != nil {
 		return TrafficIntent{}, false, err
@@ -319,6 +329,7 @@ func (g *TrafficGenerator) primaryIntent() (TrafficIntent, error) {
 		return TrafficIntent{}, err
 	}
 	intent := TrafficIntent{Kind: kind, PayloadBytes: payloadBytes, Domain: LogicalDomainPrimary}
+	domainOrdinal := ordinal
 	if kind == TrafficPerson {
 		personOrdinal, ordinalErr := exactCycleChoiceOrdinal(ordinal, g.model.trafficPhase, 0, g.model.traffic[:])
 		if ordinalErr != nil {
@@ -334,7 +345,8 @@ func (g *TrafficGenerator) primaryIntent() (TrafficIntent, error) {
 		if ordinalErr != nil {
 			return TrafficIntent{}, ordinalErr
 		}
-		group, err := g.catalog.PrimaryTarget(groupOrdinal)
+		domainOrdinal = groupOrdinal
+		group, err := g.catalog.PrimaryTargetForWorker(groupOrdinal, g.workerID)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
@@ -346,7 +358,7 @@ func (g *TrafficGenerator) primaryIntent() (TrafficIntent, error) {
 		domain = LogicalDomainGroup
 		intent.Domain = LogicalDomainGroup
 	}
-	scopedOrdinal, err := scopedLogicalOrdinal(g.generation, domain, ordinal)
+	scopedOrdinal, err := scopedLogicalOrdinal(g.generation, domain, domainOrdinal)
 	if err != nil {
 		return TrafficIntent{}, err
 	}
