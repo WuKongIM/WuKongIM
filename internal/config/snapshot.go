@@ -9,7 +9,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/app"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	channelreactor "github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
-	channelworker "github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 )
 
@@ -81,18 +80,10 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		applyWorkers = channelreactor.DefaultStoreApplyWorkerCount(reactorCount)
 		applyDerived = true
 	}
-	rpcWorkers := cfg.Cluster.Channel.RPCWorkers
-	rpcDerived := false
-	if rpcWorkers == 0 {
-		rpcWorkers = channelreactor.DefaultRPCWorkerCount(reactorCount)
-		rpcDerived = true
-	}
-	rpcBatchMaxItems := cfg.Cluster.Channel.RPCBatchMaxItems
-	rpcBatchDerived := false
-	if rpcBatchMaxItems == 0 {
-		rpcBatchMaxItems = channelworker.DefaultRPCBatchMaxItems
-		rpcBatchDerived = true
-	}
+	rpcWorkers := clusterCfg.Channel.RPCWorkers
+	rpcDerived := cfg.Cluster.Channel.RPCWorkers == 0
+	rpcBatchMaxItems := clusterCfg.Channel.RPCBatchMaxItems
+	rpcBatchDerived := cfg.Cluster.Channel.RPCBatchMaxItems == 0
 	gatewayRuntime := gateway.NormalizeRuntimeOptions(cfg.Gateway.Runtime)
 	eventLoopsDerived := !configuredPositive(values, "WK_GATEWAY_GNET_NUM_EVENT_LOOP")
 	multicoreDerived := values.sources["WK_GATEWAY_GNET_MULTICORE"] == ""

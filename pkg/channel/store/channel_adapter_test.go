@@ -653,6 +653,13 @@ func TestNewMessageDBFactoryWithOptionsConfiguresCommitCoordinatorTuning(t *test
 	require.Equal(t, 4, cfg.Shards)
 }
 
+func TestNewMessageDBFactoryUsesQPSValidatedCommitShardsByDefault(t *testing.T) {
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+
+	require.Equal(t, 4, factory.CommitCoordinatorConfig().Shards)
+}
+
 func TestMessageDBFactoryMetricsSnapshotReportsPhysicalStore(t *testing.T) {
 	factory := NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() { _ = factory.Close() })

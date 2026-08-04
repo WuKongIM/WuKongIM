@@ -36,6 +36,8 @@ Submit(ctx, Task)
 `PoolConfig.QueueSize` is the admission queue capacity. `QueueDepth` reports
 current workqueue admission occupancy, including accepted work not yet entered
 by the executor. `PoolConfig.Workers` is the workqueue ants executor capacity.
+The Channel reactor supplies the QPS-validated 160-worker default for the RPC
+pool when its composition config leaves that capacity unset.
 `Pools.MetaResolve` is created only when `Deps.MetaResolver` is configured;
 otherwise metadata-resolve submission returns `ErrInvalidConfig`, depth is zero,
 and observer installation and shutdown skip the absent pool safely.
@@ -51,7 +53,7 @@ values remain available to package integrators.
 
 RPC pull and pull-hint tasks can batch when they have the same task kind and
 target node. Workqueue chooses the collection policy from the first accepted
-task. Both use the configured `RPCBatchMaxItems`, defaulting to eight, and the
+task. Both use the configured `RPCBatchMaxItems`, defaulting to 16, and the
 built-in 250-microsecond collection window. This is not strict queue isolation;
 later tasks of another RPC kind or target can enter the same window and are
 partitioned into serial subgroups whose first-run priority rotates across
@@ -75,7 +77,7 @@ deployments shorten the extra worker-side wait without removing batching from
 throughput-oriented configurations.
 
 `PoolConfig.RPCBatchMaxItems` bounds same-target Pull and PullHint transport
-batches; zero uses the default of eight. The default is deliberately a batch
+batches; zero uses the default of 16. The default is deliberately a batch
 capacity change rather than a worker-count increase, so the RPC runtime keeps
 its configured goroutine and remote-call concurrency bound while amortizing a
 blocking transport cycle across more channels.

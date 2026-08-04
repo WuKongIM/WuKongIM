@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,8 +22,27 @@ func TestRootTOMLExampleLoads(t *testing.T) {
 	if cfg.Cluster.Slots.InitialSlotCount != 10 {
 		t.Fatalf("InitialSlotCount = %d, want 10", cfg.Cluster.Slots.InitialSlotCount)
 	}
-	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
-		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
+	if cfg.Cluster.Channel.RPCWorkers != 160 || cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
+		t.Fatalf("Channel RPC workers/batch = %d/%d, want 160/16", cfg.Cluster.Channel.RPCWorkers, cfg.Cluster.Channel.RPCBatchMaxItems)
+	}
+	if cfg.Cluster.Storage.CommitShards != 4 {
+		t.Fatalf("CommitShards = %d, want 4", cfg.Cluster.Storage.CommitShards)
+	}
+}
+
+func TestScriptThreeNodeClusterUsesQPSValidatedRPCDefaults(t *testing.T) {
+	for node := 1; node <= 3; node++ {
+		path := filepath.Join("..", "..", "scripts", "wukongim", fmt.Sprintf("wukongim-node%d.toml", node))
+		cfg, err := Load(Options{Args: []string{"-config", path}, Environ: cleanEnv()})
+		if err != nil {
+			t.Fatalf("Load(%s) error = %v", path, err)
+		}
+		if cfg.Cluster.Channel.RPCWorkers != 160 || cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
+			t.Fatalf("%s Channel RPC workers/batch = %d/%d, want 160/16", path, cfg.Cluster.Channel.RPCWorkers, cfg.Cluster.Channel.RPCBatchMaxItems)
+		}
+		if cfg.Cluster.Storage.CommitShards != 4 {
+			t.Fatalf("%s CommitShards = %d, want 4", path, cfg.Cluster.Storage.CommitShards)
+		}
 	}
 }
 
@@ -37,8 +57,8 @@ func TestCommandTOMLExampleLoads(t *testing.T) {
 	if cfg.Cluster.Slots.InitialSlotCount != 10 || cfg.Cluster.Slots.HashSlotCount != 256 {
 		t.Fatalf("cmd topology = logical Slot Groups %d / physical hash slots %d, want 10 / 256", cfg.Cluster.Slots.InitialSlotCount, cfg.Cluster.Slots.HashSlotCount)
 	}
-	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
-		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
+	if cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
+		t.Fatalf("RPCBatchMaxItems = %d, want 16", cfg.Cluster.Channel.RPCBatchMaxItems)
 	}
 }
 
@@ -50,8 +70,8 @@ func TestScriptSingleNodeClusterUsesTenLogicalAndDefaultPhysicalSlots(t *testing
 	if cfg.Cluster.Slots.InitialSlotCount != 10 || cfg.Cluster.Slots.HashSlotCount != 256 {
 		t.Fatalf("script topology = logical Slot Groups %d / physical hash slots %d, want 10 / 256", cfg.Cluster.Slots.InitialSlotCount, cfg.Cluster.Slots.HashSlotCount)
 	}
-	if cfg.Cluster.Channel.RPCBatchMaxItems != 8 {
-		t.Fatalf("RPCBatchMaxItems = %d, want 8", cfg.Cluster.Channel.RPCBatchMaxItems)
+	if cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
+		t.Fatalf("RPCBatchMaxItems = %d, want 16", cfg.Cluster.Channel.RPCBatchMaxItems)
 	}
 }
 

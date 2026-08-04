@@ -246,6 +246,72 @@ func TestCollectAvailableWriteItemsAddsImmediateSchedulerBacklog(t *testing.T) {
 	}
 }
 
+func TestCollectAvailableWriteItemsWaitsForRPCBatch(t *testing.T) {
+	limits := testLimits()
+	limits.WriteBatchMaxWait = 100 * time.Microsecond
+	c := New(newDeadlineConn(), Config{Limits: limits}, nil)
+	batch := []sched.Item{{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value: Outbound{
+			Kind:     core.FrameKindRPCRequest,
+			Priority: core.PriorityRPC,
+			Payload:  core.CopyOwnedBuffer([]byte("one")),
+		},
+	}}
+
+	oldWaitForWriteBatch := waitForWriteBatch
+	waitForWriteBatch = func(wait time.Duration) {
+		if wait != limits.WriteBatchMaxWait {
+			t.Fatalf("write batch wait = %s, want %s", wait, limits.WriteBatchMaxWait)
+		}
+		if err := c.scheduler.Enqueue(context.Background(), sched.Item{
+			Priority: core.PriorityRPC,
+			Bytes:    3,
+			Value: Outbound{
+				Kind:     core.FrameKindRPCRequest,
+				Priority: core.PriorityRPC,
+				Payload:  core.CopyOwnedBuffer([]byte("two")),
+			},
+		}); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+	}
+	t.Cleanup(func() { waitForWriteBatch = oldWaitForWriteBatch })
+
+	batch, scratch := c.collectAvailableWriteItems(batch, nil)
+	defer releaseSchedItems(batch)
+	if len(batch) != 2 || len(scratch) != 1 {
+		t.Fatalf("collectAvailableWriteItems() batch/scratch = %d/%d, want 2/1", len(batch), len(scratch))
+	}
+}
+
+func TestCollectAvailableWriteItemsDoesNotWaitForControl(t *testing.T) {
+	limits := testLimits()
+	limits.WriteBatchMaxWait = 100 * time.Microsecond
+	c := New(newDeadlineConn(), Config{Limits: limits}, nil)
+	batch := []sched.Item{{
+		Priority: core.PriorityControl,
+		Bytes:    3,
+		Value: Outbound{
+			Kind:     core.FrameKindData,
+			Priority: core.PriorityControl,
+			Payload:  core.CopyOwnedBuffer([]byte("control")),
+		},
+	}}
+
+	oldWaitForWriteBatch := waitForWriteBatch
+	waited := false
+	waitForWriteBatch = func(time.Duration) { waited = true }
+	t.Cleanup(func() { waitForWriteBatch = oldWaitForWriteBatch })
+
+	batch, _ = c.collectAvailableWriteItems(batch, nil)
+	defer releaseSchedItems(batch)
+	if waited {
+		t.Fatal("control write unexpectedly waited for batch coalescing")
+	}
+}
+
 func TestWriteLoopReusesScratchAcrossBatches(t *testing.T) {
 	clientSide, serverSide := net.Pipe()
 	defer clientSide.Close()
