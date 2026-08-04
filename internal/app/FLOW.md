@@ -47,6 +47,11 @@ New(Config)
   -> create metrics registry when Observability.MetricsEnabled=true and attach
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure and low-cardinality preferred-leader reconcile decisions/strict-wait latency, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and online delivery)
+     plus authoritative Channel runtime metadata create outcomes at
+     `wukongim_channelv2_meta_created_total`, labeled only by physical `slot_id`
+     and the closed `created|already_existing|error` result;
+     unexpected result inputs collapse to `error` instead of creating a series;
+     the combined Channel observer forwards this hook once to each capable child
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus canonical Online Delivery local and remote owner-push attempts on the
      bounded delivery push metric families, conversation list request latency/page-shape metrics, conversation

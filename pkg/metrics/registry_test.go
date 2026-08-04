@@ -913,6 +913,31 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 	}))
 }
 
+func TestChannelRuntimeMetaCreateMetricUsesOnlyBoundedLabels(t *testing.T) {
+	reg := New(8, "node-8")
+	for _, result := range []string{"created", "already_existing", "error"} {
+		reg.ChannelRuntime.ObserveMetaCreate(37, result)
+	}
+	reg.ChannelRuntime.ObserveMetaCreate(37, "channel-123/unbounded")
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	created := requireMetricFamily(t, families, "wukongim_channelv2_meta_created_total")
+	require.Len(t, created.GetMetric(), 3)
+	for _, result := range []string{"created", "already_existing", "error"} {
+		metric := findMetricByLabels(t, created, map[string]string{"slot_id": "37", "result": result})
+		require.Len(t, metric.GetLabel(), 2, "meta create metric must not expose node, channel, UID, or run labels")
+		want := float64(1)
+		if result == "error" {
+			want = 2
+		}
+		require.Equal(t, want, metric.GetCounter().GetValue())
+	}
+
+	promoted := requireMetricFamily(t, families, "wukongim_channel_meta_created_total")
+	require.Len(t, promoted.GetMetric(), 3)
+}
+
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {
 	reg := New(9, "node-9")
 

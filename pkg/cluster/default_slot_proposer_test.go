@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
@@ -53,6 +56,168 @@ func TestDefaultSlotProposerProposeResultReturnsApplyData(t *testing.T) {
 	}
 	if runtime.proposeCalls != 1 || runtime.slotID != 7 {
 		t.Fatalf("runtime propose = %d slot=%d, want one call to slot 7", runtime.proposeCalls, runtime.slotID)
+	}
+}
+
+func TestDefaultSlotProposerObservesAuthoritativeMetaCreateResultOnce(t *testing.T) {
+	tests := []struct {
+		name       string
+		applyData  []byte
+		waitErr    error
+		wantResult clusterchannels.MetaCreateResult
+	}{
+		{name: "created", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true}), wantResult: clusterchannels.MetaCreateCreated},
+		{name: "already existing", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}), wantResult: clusterchannels.MetaCreateAlreadyExisting},
+		{name: "wait error", waitErr: errors.New("apply failed"), wantResult: clusterchannels.MetaCreateError},
+		{name: "decode error", applyData: []byte("invalid"), wantResult: clusterchannels.MetaCreateError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: tt.applyData, err: tt.waitErr}}
+			observer := &recordingMetaCreateObserver{}
+			proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+				ChannelID: "authoritative", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+				Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+			})
+
+			_, _ = proposer.ProposeResult(context.Background(), 37, propose.EncodePayload(11, command))
+
+			if len(observer.events) != 1 {
+				t.Fatalf("events = %#v, want exactly one authoritative observation", observer.events)
+			}
+			if got := observer.events[0]; got.slotID != 37 || got.result != tt.wantResult {
+				t.Fatalf("event = %#v, want slot 37 result %q", got, tt.wantResult)
+			}
+		})
+	}
+}
+
+func TestDefaultSlotProposerDoesNotObserveRejectedMetaCreateSubmission(t *testing.T) {
+	runtime := &recordingSlotRuntime{err: multiraft.ErrNotLeader}
+	observer := &recordingMetaCreateObserver{}
+	proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+		ChannelID: "rejected", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+	})
+
+	_, err := proposer.ProposeResult(context.Background(), 37, propose.EncodePayload(11, command))
+	if !errors.Is(err, propose.ErrNotLeader) {
+		t.Fatalf("ProposeResult() error = %v, want ErrNotLeader", err)
+	}
+	if len(observer.events) != 0 {
+		t.Fatalf("events = %#v, want no event before an authoritative future exists", observer.events)
+	}
+}
+
+func TestDefaultSlotProposerForwardHandlerObservesMetaCreateOnlyOnLeader(t *testing.T) {
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})}}
+	observer := &recordingMetaCreateObserver{}
+	leader := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+	handler := propose.NewForwardHandler(leader)
+	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+		ChannelID: "forwarded", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1,
+	})
+	payload, err := propose.EncodeForwardRequest(propose.ForwardRequest{
+		SlotID: 41, HashSlot: 19, WantResult: true,
+		Payload: propose.EncodePayload(19, command),
+	})
+	if err != nil {
+		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	}
+
+	_, err = handler.HandleRPC(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("HandleRPC() error = %v", err)
+	}
+	if len(observer.events) != 1 || observer.events[0].slotID != 41 || observer.events[0].result != clusterchannels.MetaCreateCreated {
+		t.Fatalf("events = %#v, want one leader-side forwarded create observation", observer.events)
+	}
+}
+
+func TestDefaultSlotProposerMetaCreateObservationIsNotReplicaApplied(t *testing.T) {
+	observer := &recordingMetaCreateObserver{}
+	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+		ChannelID: "three-replicas", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, MinISR: 2,
+	})
+
+	for replica := 1; replica <= 3; replica++ {
+		db, err := metadb.Open(t.TempDir())
+		if err != nil {
+			t.Fatalf("Open(replica %d) error = %v", replica, err)
+		}
+		sm, err := metafsm.NewStateMachineWithHashSlots(db, 37, []uint16{11})
+		if err != nil {
+			_ = db.Close()
+			t.Fatalf("NewStateMachineWithHashSlots(replica %d) error = %v", replica, err)
+		}
+		_, err = sm.Apply(context.Background(), multiraft.Command{
+			SlotID: 37, HashSlot: 11, Index: 1, Term: 1, Data: command,
+		})
+		closeErr := db.Close()
+		if err != nil {
+			t.Fatalf("Apply(replica %d) error = %v", replica, err)
+		}
+		if closeErr != nil {
+			t.Fatalf("Close(replica %d) error = %v", replica, closeErr)
+		}
+	}
+	if len(observer.events) != 0 {
+		t.Fatalf("replica apply events = %#v, want none", observer.events)
+	}
+
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})}}
+	proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+	_, err := proposer.ProposeResult(context.Background(), 37, propose.EncodePayload(11, command))
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if len(observer.events) != 1 || observer.events[0].result != clusterchannels.MetaCreateCreated {
+		t.Fatalf("authoritative events = %#v, want one created observation", observer.events)
+	}
+}
+
+func TestDefaultSlotProposerDoesNotObserveNonCreateProposal(t *testing.T) {
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{}}
+	observer := &recordingMetaCreateObserver{}
+	proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+
+	_, err := proposer.ProposeResult(context.Background(), 7, propose.EncodePayload(11, metafsm.EncodeUpsertChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{ChannelID: "repair", ChannelType: 1})))
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if len(observer.events) != 0 {
+		t.Fatalf("events = %#v, want no observation for ordinary upsert", observer.events)
+	}
+}
+
+func TestDefaultChannelRuntimeMetaStoreCreatesWithAuthoritativeResult(t *testing.T) {
+	proposer := &recordingNodeResultProposer{
+		result: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}),
+	}
+	node := &Node{proposer: proposer}
+	node.started.Store(true)
+	store := defaultChannelRuntimeMetaStore{node: node}
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID: "create-result", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+	}
+
+	result, err := store.CreateChannelRuntimeMeta(context.Background(), meta)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta() error = %v", err)
+	}
+	if result.Created {
+		t.Fatal("CreateChannelRuntimeMeta() Created = true, want authoritative already-existing result")
+	}
+	if proposer.resultCalls != 1 || proposer.proposeCalls != 0 {
+		t.Fatalf("resultCalls=%d proposeCalls=%d, want result proposal only", proposer.resultCalls, proposer.proposeCalls)
+	}
+	if !metafsm.IsCreateChannelRuntimeMetaCommand(proposer.last.Command) {
+		t.Fatalf("command = %x, want create-only runtime metadata command", proposer.last.Command)
 	}
 }
 
@@ -129,6 +294,37 @@ func (o *recordingAppendStageObserver) ObserveChannelAppendStage(stage string, r
 type recordedAppendStage struct {
 	stage  string
 	result string
+}
+
+type recordingMetaCreateObserver struct {
+	events []recordedMetaCreate
+}
+
+func (o *recordingMetaCreateObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {
+	o.events = append(o.events, recordedMetaCreate{slotID: slotID, result: result})
+}
+
+type recordedMetaCreate struct {
+	slotID uint32
+	result clusterchannels.MetaCreateResult
+}
+
+type recordingNodeResultProposer struct {
+	result       []byte
+	last         propose.Request
+	proposeCalls int
+	resultCalls  int
+}
+
+func (p *recordingNodeResultProposer) Propose(context.Context, propose.Request) error {
+	p.proposeCalls++
+	return nil
+}
+
+func (p *recordingNodeResultProposer) ProposeResult(_ context.Context, req propose.Request) ([]byte, error) {
+	p.resultCalls++
+	p.last = req
+	return append([]byte(nil), p.result...), nil
 }
 
 func requireRecordedAppendStage(t *testing.T, events []recordedAppendStage, stage string, result string) {

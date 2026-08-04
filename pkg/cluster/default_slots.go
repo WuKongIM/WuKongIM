@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/slots"
@@ -113,10 +114,19 @@ func (n *Node) ensureDefaultSlots() error {
 	n.defaultSlotRuntime = runtime
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB
-	n.defaultSlotProposer = defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireWriteAdmission}
+	var metaCreateObserver channels.MetaCreateObserver
+	if n.cfg.Channel.Observer != nil {
+		metaCreateObserver, _ = n.cfg.Channel.Observer.(channels.MetaCreateObserver)
+	}
+	slotProposer := defaultSlotProposer{
+		runtime:            runtime,
+		acquireAdmission:   n.acquireWriteAdmission,
+		metaCreateObserver: metaCreateObserver,
+	}
+	n.defaultSlotProposer = slotProposer
 	n.slotStatusRuntime = runtime
 	n.defaultSlotProxy = slotproxy.NewChannelMetadataStore(n, metaDB)
-	n.registerDefaultSlotHandlers(runtime)
+	n.registerDefaultSlotHandlers(runtime, slotProposer)
 	n.defaultSlots = true
 	return nil
 }
@@ -128,12 +138,12 @@ func (n *Node) defaultSlotTransport() multiraft.Transport {
 	return networkSlotTransport{sender: n.transportClient}
 }
 
-func (n *Node) registerDefaultSlotHandlers(runtime *multiraft.Runtime) {
+func (n *Node) registerDefaultSlotHandlers(runtime *multiraft.Runtime, slotProposer defaultSlotProposer) {
 	if n == nil || n.transportServer == nil || runtime == nil {
 		return
 	}
 	n.transportServer.Register(clusternet.MsgSlotRaftBatch, slotRaftBatchHandler{runtime: runtime})
-	n.transportServer.Register(clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(defaultSlotProposer{runtime: runtime, acquireAdmission: n.acquireWriteAdmission}))
+	n.transportServer.Register(clusternet.RPCSlotForwardPropose, propose.NewForwardHandler(slotProposer))
 	n.transportServer.Register(clusternet.RPCPluginBindingScan, pluginBindingScanHandler{node: n})
 	n.transportServer.Register(clusternet.RPCSlotStatus, slotStatusHandler{runtime: runtime})
 	n.transportServer.Register(clusternet.RPCChannelMigrationMeta, channelMigrationMetaHandler{node: n})

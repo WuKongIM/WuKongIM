@@ -20,9 +20,9 @@ const (
 
 // SlotMetaSource resolves Channel metadata from Slot authoritative runtime metadata.
 type SlotMetaSource struct {
-	reader RuntimeMetaReader
-	writer RuntimeMetaWriter
-	opts   SlotMetaSourceOptions
+	reader  RuntimeMetaReader
+	creator RuntimeMetaCreator
+	opts    SlotMetaSourceOptions
 }
 
 // NewSlotMetaSource creates a Slot-backed ChannelMetaSource.
@@ -31,14 +31,14 @@ func NewSlotMetaSource(reader RuntimeMetaReader, opts ...SlotMetaSourceOptions) 
 	if len(opts) > 0 {
 		cfg = opts[0]
 	}
-	writer := cfg.Writer
-	if writer == nil {
-		if w, ok := reader.(RuntimeMetaWriter); ok {
-			writer = w
+	creator := cfg.Creator
+	if creator == nil {
+		if c, ok := reader.(RuntimeMetaCreator); ok {
+			creator = c
 		}
 	}
 	cfg.DefaultReplicas = append([]ch.NodeID(nil), cfg.DefaultReplicas...)
-	return &SlotMetaSource{reader: reader, writer: writer, opts: cfg}
+	return &SlotMetaSource{reader: reader, creator: creator, opts: cfg}
 }
 
 // ResolveChannelMeta returns metadata for id from authoritative Slot storage.
@@ -72,8 +72,8 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	if !errors.Is(err, metadb.ErrNotFound) {
 		return ch.Meta{}, err
 	}
-	if s.writer == nil {
-		return ch.Meta{}, fmt.Errorf("%w: missing slot metadata writer", ch.ErrChannelNotFound)
+	if s.creator == nil {
+		return ch.Meta{}, fmt.Errorf("%w: missing slot metadata creator", ch.ErrChannelNotFound)
 	}
 	started = time.Now()
 	buildStarted := time.Now()
@@ -81,7 +81,7 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	s.observeMetaStage(channelMetaStageCreateBuild, metaStageResult(err), time.Since(buildStarted))
 	if err == nil {
 		proposeStarted := time.Now()
-		err = s.writer.UpsertChannelRuntimeMeta(ctx, candidate)
+		_, err = s.creator.CreateChannelRuntimeMeta(ctx, candidate)
 		s.observeMetaStage(channelMetaStageCreatePropose, metaStageResult(err), time.Since(proposeStarted))
 	}
 	s.observeMetaStage(channelMetaStageCreateWrite, metaStageResult(err), time.Since(started))
@@ -92,12 +92,6 @@ func (s *SlotMetaSource) EnsureChannelMeta(ctx context.Context, id ch.ChannelID)
 	meta, err = s.readRuntimeMeta(ctx, id)
 	s.observeMetaStage(channelMetaStageFinalRead, metaStageResult(err), time.Since(started))
 	if err != nil {
-		if errors.Is(err, metadb.ErrNotFound) {
-			// Remote Slot proposals can commit before this node's local Slot
-			// follower has applied the new row. The initial metadata is
-			// deterministic for a route snapshot, so the caller can proceed.
-			return projectRuntimeMeta(candidate), nil
-		}
 		return ch.Meta{}, err
 	}
 	return projectRuntimeMeta(meta), nil

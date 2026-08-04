@@ -32,6 +32,35 @@ type RuntimeMetaWriter interface {
 	UpsertChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) error
 }
 
+// RuntimeMetaCreateResult reports whether the authoritative create inserted the row.
+type RuntimeMetaCreateResult struct {
+	Created bool
+}
+
+// RuntimeMetaCreator creates initial ChannelRuntimeMeta without overwriting an existing row.
+type RuntimeMetaCreator interface {
+	// CreateChannelRuntimeMeta creates meta and returns the authoritative apply result.
+	CreateChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) (RuntimeMetaCreateResult, error)
+}
+
+// MetaCreateResult is the closed authoritative outcome vocabulary for initial metadata creation.
+type MetaCreateResult string
+
+const (
+	// MetaCreateCreated means the authoritative Slot apply inserted the row.
+	MetaCreateCreated MetaCreateResult = "created"
+	// MetaCreateAlreadyExisting means another authoritative create already inserted the row.
+	MetaCreateAlreadyExisting MetaCreateResult = "already_existing"
+	// MetaCreateError means proposal, apply, or result decoding failed.
+	MetaCreateError MetaCreateResult = "error"
+)
+
+// MetaCreateObserver receives one outcome after the authoritative Slot proposal resolves.
+type MetaCreateObserver interface {
+	// ObserveChannelMetaCreate records the physical Slot and closed create outcome.
+	ObserveChannelMetaCreate(slotID uint32, result MetaCreateResult)
+}
+
 // ChannelPlacement describes the initial Channel data-plane placement.
 type ChannelPlacement struct {
 	// Leader is the initial Channel leader.
@@ -67,8 +96,9 @@ type SlotMetaSourceOptions struct {
 	DefaultMinISR int
 	// Placement resolves initial Channel data replicas after Slot route readiness.
 	Placement ChannelPlacementResolver
-	// Writer persists missing metadata; when nil, reader is used if it implements RuntimeMetaWriter.
-	Writer RuntimeMetaWriter
+	// Creator persists missing metadata with create-only semantics; when nil,
+	// reader is used if it implements RuntimeMetaCreator.
+	Creator RuntimeMetaCreator
 	// Observer receives low-cardinality metadata resolve stage metrics.
 	Observer AppendStageObserver
 }

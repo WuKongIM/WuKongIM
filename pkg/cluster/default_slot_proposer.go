@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -31,6 +32,8 @@ type defaultSlotProposer struct {
 	// acquireAdmission linearizes ordinary Slot proposal admission against the
 	// one-way source fence. The returned release must cover the runtime enqueue.
 	acquireAdmission func() (release func(), err error)
+	// metaCreateObserver receives one result at this authoritative proposal boundary.
+	metaCreateObserver clusterchannels.MetaCreateObserver
 }
 
 // IsLocalLeader reports whether the local default Slot runtime leads slotID.
@@ -64,6 +67,7 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 	if err != nil {
 		return nil, err
 	}
+	metaCreate := metafsm.IsCreateChannelRuntimeMetaCommand(command)
 	if observer := propose.StageObserverFromContext(ctx); observer != nil {
 		ctx = multiraft.WithProposalStageObserver(ctx, defaultSlotProposalStageObserver{observer: observer})
 	}
@@ -92,16 +96,36 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 	propose.ObserveStage(ctx, defaultSlotStageMetaCreateWait, err, time.Since(started))
 	if err == nil {
 		if applyErr := mapSlotApplyResult(command, result.Data); applyErr != nil {
+			p.observeMetaCreate(slotID, metaCreate, clusterchannels.MetaCreateError)
 			return nil, applyErr
 		}
 	}
 	if err != nil {
+		p.observeMetaCreate(slotID, metaCreate, clusterchannels.MetaCreateError)
 		return nil, mapMultiraftProposeError(err)
+	}
+	if metaCreate {
+		createResult, decodeErr := metafsm.DecodeCreateChannelRuntimeMetaResult(result.Data)
+		if decodeErr != nil {
+			p.observeMetaCreate(slotID, true, clusterchannels.MetaCreateError)
+			return nil, decodeErr
+		}
+		observed := clusterchannels.MetaCreateAlreadyExisting
+		if createResult.Created {
+			observed = clusterchannels.MetaCreateCreated
+		}
+		p.observeMetaCreate(slotID, true, observed)
 	}
 	if !wantResult {
 		return nil, nil
 	}
 	return append([]byte(nil), result.Data...), nil
+}
+
+func (p defaultSlotProposer) observeMetaCreate(slotID uint32, metaCreate bool, result clusterchannels.MetaCreateResult) {
+	if metaCreate && p.metaCreateObserver != nil {
+		p.metaCreateObserver.ObserveChannelMetaCreate(slotID, result)
+	}
 }
 
 // multiraftPayload converts cluster's propose envelope into Multi-Raft's hash-slot envelope.

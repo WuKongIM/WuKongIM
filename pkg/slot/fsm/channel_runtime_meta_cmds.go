@@ -41,6 +41,11 @@ func EncodeCreateChannelRuntimeMetaCommand(meta metadb.ChannelRuntimeMeta) []byt
 	return data
 }
 
+// IsCreateChannelRuntimeMetaCommand reports whether data is command 52.
+func IsCreateChannelRuntimeMetaCommand(data []byte) bool {
+	return len(data) >= 2 && data[0] == commandVersion && data[1] == cmdTypeCreateChannelRuntimeMeta
+}
+
 func decodeCreateChannelRuntimeMeta(data []byte) (command, error) {
 	decoded, err := decodeUpsertChannelRuntimeMeta(data)
 	if err != nil {

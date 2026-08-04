@@ -822,6 +822,13 @@ func (o channelMetricsObserver) ObserveChannelMetaCache(result string) {
 	o.metrics.ChannelRuntime.ObserveMetaCache(result)
 }
 
+func (o channelMetricsObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveMetaCreate(slotID, string(result))
+}
+
 func (o channelMetricsObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	if o.metrics == nil {
 		return
@@ -2042,6 +2049,15 @@ func (o multiChannelObserver) ObserveChannelMetaCache(result string) {
 	}
 }
 
+func (o multiChannelObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {
+	for _, observer := range o {
+		metaCreateObserver, ok := observer.(clusterchannels.MetaCreateObserver)
+		if ok {
+			metaCreateObserver.ObserveChannelMetaCreate(slotID, result)
+		}
+	}
+}
+
 func (o multiChannelObserver) ObserveAppendBatch(records int, bytes int, wait time.Duration) {
 	for _, observer := range o {
 		observer.ObserveAppendBatch(records, bytes, wait)
@@ -2488,6 +2504,7 @@ var _ worker.TaskObserver = channelMetricsObserver{}
 var _ worker.AntsPoolObserver = channelMetricsObserver{}
 var _ clusterchannels.MetaCacheObserver = channelMetricsObserver{}
 var _ clusterchannels.AppendStageObserver = channelMetricsObserver{}
+var _ clusterchannels.MetaCreateObserver = channelMetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
@@ -2519,6 +2536,7 @@ var _ worker.WaitObserver = multiChannelObserver{}
 var _ worker.TaskObserver = multiChannelObserver{}
 var _ clusterchannels.MetaCacheObserver = multiChannelObserver{}
 var _ clusterchannels.AppendStageObserver = multiChannelObserver{}
+var _ clusterchannels.MetaCreateObserver = multiChannelObserver{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}

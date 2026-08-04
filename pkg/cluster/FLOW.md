@@ -586,8 +586,9 @@ Node.AppendChannel / AppendChannelBatch
   -> channels.Service
   -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
       -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
-      -> if missing: derive initial replicas/leader from Slot placement and persist through RuntimeMetaWriter
-      -> reread final authoritative ChannelRuntimeMeta when local Slot state has caught up; otherwise return the deterministic initial Meta after a successful write
+      -> if missing: derive initial replicas/leader from Slot placement and submit command 52 through RuntimeMetaCreator
+      -> treat both authoritative created=true and created=false as successful create attempts
+      -> reread and return the final authoritative ChannelRuntimeMeta from the current physical Slot leader; never substitute the origin candidate
       -> if local node is channel leader: ApplyMeta to local Channel runtime runtime, then Append locally
          (durable ChannelRuntimeMeta write fences and the node-local data-plane lease guard reject new local appends)
       -> else: RPCChannelAppend / RPCChannelAppendBatch forward to the resolved channel leader
@@ -730,6 +731,13 @@ adapters, and carries create-only/flag-patch FSM results back to the proposer.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.
+Command 52 completion is observed by the physical Slot leader's proposer after
+the proposal future resolves and its authoritative result is decoded. Local and
+forwarded proposals share that boundary, while Raft replicas and the forwarding
+origin emit nothing. A submission rejected before a future exists also emits
+nothing, so leader-change retries cannot double-count one logical create.
+Outcomes are restricted to `created`,
+`already_existing`, and `error` and carry only the physical Slot ID.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot
@@ -782,7 +790,7 @@ leader-forwarding control facade as other Controller writes. Cluster fan-out,
 target readiness checks, and safety fences are owned by
 `internal/usecase/management`, not cluster.
 
-`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including `RouteGeneration` for complete append-cache versioning and the durable write-fence token/version/reason/deadline used to block new leader appends. The generation remains cache metadata and is not added to Channel replication RPC codecs or machine decisions. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned metadata writer before any Channel runtime append is attempted. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata writer call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
+`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including `RouteGeneration` for complete append-cache versioning and the durable write-fence token/version/reason/deadline used to block new leader appends. The generation remains cache metadata and is not added to Channel replication RPC codecs or machine decisions. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned create-only metadata port before any Channel runtime append is attempted. Existing rows never propose creation. Missing rows submit command 52 exactly once, accept both created and concurrent-loser results, then reread the physical Slot leader's authoritative row. Ordinary runtime-meta upsert remains separate for migration and repair. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata creator call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 
 Initial Channel runtime placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its

@@ -285,24 +285,43 @@ func (n *Node) defaultChannelMigrationStore() *channels.MigrationStore {
 	})
 }
 
-// defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node.Propose.
+// defaultChannelRuntimeMetaStore reads Slot-owned channel metadata and writes through Node proposals.
 type defaultChannelRuntimeMetaStore struct {
 	node     *Node
 	observer channels.AppendStageObserver
+}
+
+// CreateChannelRuntimeMeta submits command 52 and decodes its authoritative apply result.
+func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (channels.RuntimeMetaCreateResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channels.RuntimeMetaCreateResult{}, err
+	}
+	if s.node == nil {
+		return channels.RuntimeMetaCreateResult{}, ErrNotStarted
+	}
+	ctx = propose.WithStageObserver(ctx, s.observer)
+	data, err := s.node.ProposeResult(ctx, ProposeRequest{
+		Key:     meta.ChannelID,
+		Command: metafsm.EncodeCreateChannelRuntimeMetaCommand(meta),
+	})
+	if err != nil {
+		return channels.RuntimeMetaCreateResult{}, err
+	}
+	result, err := metafsm.DecodeCreateChannelRuntimeMetaResult(data)
+	if err != nil {
+		return channels.RuntimeMetaCreateResult{}, err
+	}
+	return channels.RuntimeMetaCreateResult{Created: result.Created}, nil
 }
 
 func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
 	if err := ctxErr(ctx); err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
-	if s.node == nil || s.node.defaultSlotMetaDB == nil {
+	if s.node == nil || s.node.defaultSlotProxy == nil {
 		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
 	}
-	route, err := s.node.RouteKey(channelID)
-	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
-	}
-	return s.node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, channelID, channelType)
+	return s.node.defaultSlotProxy.GetChannelRuntimeMeta(ctx, channelID, channelType)
 }
 
 func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {
@@ -318,6 +337,10 @@ func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Con
 		Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(meta),
 	})
 }
+
+var _ channels.RuntimeMetaReader = defaultChannelRuntimeMetaStore{}
+var _ channels.RuntimeMetaCreator = defaultChannelRuntimeMetaStore{}
+var _ channels.RuntimeMetaWriter = defaultChannelRuntimeMetaStore{}
 
 // defaultChannelMigrationStore adapts Slot-owned migration commands to Node.Propose.
 type defaultChannelMigrationStore struct {

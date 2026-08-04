@@ -36,6 +36,7 @@ type ChannelRuntimeMetrics struct {
 	pendingMetaTotal         *prometheus.CounterVec
 	needMetaPullTotal        *prometheus.CounterVec
 	metaCacheTotal           *prometheus.CounterVec
+	metaCreatedTotal         *prometheus.CounterVec
 	isrAnomalyChannels       *prometheus.GaugeVec
 	appendBatchRecords       prometheus.Histogram
 	appendBatchBytes         prometheus.Histogram
@@ -163,6 +164,10 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 			Help:        "Total Channel runtime metadata cache events by result.",
 			ConstLabels: labels,
 		}, []string{"result"}),
+		metaCreatedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "wukongim_channelv2_meta_created_total",
+			Help: "Total authoritative initial Channel runtime metadata create outcomes by physical Slot.",
+		}, []string{"slot_id", "result"}),
 		isrAnomalyChannels: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelv2_isr_anomaly_channels",
 			Help:        "Current count of Channel runtime metadata ISR anomalies by low-cardinality reason.",
@@ -256,6 +261,7 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		m.pendingMetaTotal,
 		m.needMetaPullTotal,
 		m.metaCacheTotal,
+		m.metaCreatedTotal,
 		m.isrAnomalyChannels,
 		m.appendBatchRecords,
 		m.appendBatchBytes,
@@ -409,6 +415,23 @@ func (m *ChannelRuntimeMetrics) ObserveMetaCache(result string) {
 		return
 	}
 	m.metaCacheTotal.WithLabelValues(result).Inc()
+}
+
+// ObserveMetaCreate records one authoritative initial metadata create outcome.
+func (m *ChannelRuntimeMetrics) ObserveMetaCreate(slotID uint32, result string) {
+	if m == nil {
+		return
+	}
+	m.metaCreatedTotal.WithLabelValues(strconv.FormatUint(uint64(slotID), 10), normalizeMetaCreateResult(result)).Inc()
+}
+
+func normalizeMetaCreateResult(result string) string {
+	switch result {
+	case "created", "already_existing", "error":
+		return result
+	default:
+		return "error"
+	}
 }
 
 // SetISRAnomalyChannels records bounded Channel runtime ISR anomaly counts by reason.
