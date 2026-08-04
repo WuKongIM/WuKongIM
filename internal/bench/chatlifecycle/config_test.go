@@ -104,6 +104,50 @@ func TestFormalConfigAllowsDeploymentSpecificObservationAddresses(t *testing.T) 
 	}
 }
 
+func TestFormalObservationRequiresThreeIngressAddresses(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"empty API pool", func(c *Config) { c.Observation.APIAddrs = nil }, "observation.api_addrs: must not be empty"},
+		{"one API address", func(c *Config) { c.Observation.APIAddrs = c.Observation.APIAddrs[:1] }, "observation.api_addrs: must equal formal default"},
+		{"two gateway addresses", func(c *Config) { c.Observation.GatewayTCPAddrs = c.Observation.GatewayTCPAddrs[:2] }, "observation.gateway_tcp_addrs: must equal formal default"},
+		{"four gateway addresses", func(c *Config) {
+			c.Observation.GatewayTCPAddrs = append(c.Observation.GatewayTCPAddrs, "gateway-d.example.test:5100")
+		}, "observation.gateway_tcp_addrs: must equal formal default"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestObservationNormalizesCrossRoleDuplicates(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"name", func(c *Config) { c.Observation.Workers[0].Name = " " + c.Observation.ServiceNodes[0].Name + " " }, "observation.workers[0].name: duplicates observation.service_nodes[0].name"},
+		{"address", func(c *Config) { c.Observation.Workers[0].Address = " " + c.Observation.ServiceNodes[0].Address + " " }, "observation.workers[0].address: duplicates observation.service_nodes[0].address"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormalConfigRejectsApprovedDefaultMutations(t *testing.T) {
 	tests := []struct {
 		name   string

@@ -344,15 +344,17 @@ func validateCrossRoleEndpointDuplicates(o ObservationConfig) error {
 	for _, role := range roles {
 		for index, endpoint := range role.endpoints {
 			namePath := fmt.Sprintf("%s[%d].name", role.path, index)
-			if previous, ok := seenNames[endpoint.Name]; ok {
+			name := strings.TrimSpace(endpoint.Name)
+			if previous, ok := seenNames[name]; ok {
 				return fieldError(namePath, "duplicates "+previous)
 			}
-			seenNames[endpoint.Name] = namePath
+			seenNames[name] = namePath
 			addressPath := fmt.Sprintf("%s[%d].address", role.path, index)
-			if previous, ok := seenAddresses[endpoint.Address]; ok {
+			address := strings.TrimSpace(endpoint.Address)
+			if previous, ok := seenAddresses[address]; ok {
 				return fieldError(addressPath, "duplicates "+previous)
 			}
-			seenAddresses[endpoint.Address] = addressPath
+			seenAddresses[address] = addressPath
 		}
 	}
 	return nil
@@ -733,6 +735,12 @@ func validateExactObservation(got, want ObservationConfig) error {
 	}
 	if len(got.HostMetrics) != len(want.HostMetrics) {
 		return formalError("observation.host_metrics")
+	}
+	if len(got.APIAddrs) != len(want.APIAddrs) {
+		return formalError("observation.api_addrs")
+	}
+	if len(got.GatewayTCPAddrs) != len(want.GatewayTCPAddrs) {
+		return formalError("observation.gateway_tcp_addrs")
 	}
 	return nil
 }
