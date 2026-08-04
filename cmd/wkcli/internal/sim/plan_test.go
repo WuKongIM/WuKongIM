@@ -40,7 +40,7 @@ func TestBuildPlanCreatesDeterministicUsersAndGroups(t *testing.T) {
 	if !reflect.DeepEqual(plan.Groups[0].Subscribers, []string{"u-000001", "u-000002", "u-000003"}) {
 		t.Fatalf("group 0 subscribers = %#v", plan.Groups[0].Subscribers)
 	}
-	if !reflect.DeepEqual(plan.Groups[1].Subscribers, []string{"u-000004", "u-000005", "u-000001"}) {
+	if !reflect.DeepEqual(plan.Groups[1].Subscribers, []string{"u-000002", "u-000003", "u-000004"}) {
 		t.Fatalf("group 1 subscribers = %#v", plan.Groups[1].Subscribers)
 	}
 	if !reflect.DeepEqual(identitiesFromPlan(plan), []wkclient.Identity{
@@ -90,5 +90,53 @@ func TestGroupNextMessageBuildsDeterministicRoutedMessage(t *testing.T) {
 	}
 	if string(got.Message.Payload) != "ssss" {
 		t.Fatalf("Payload = %q, want ssss", string(got.Message.Payload))
+	}
+}
+
+func TestBuildPlanSpreadsFirstGroupSendersAcrossUserPool(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Servers:      []string{"http://127.0.0.1:5001"},
+		Users:        2000,
+		Groups:       2000,
+		GroupMembers: 10,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	plan := buildPlan(cfg)
+	senders := make(map[string]struct{}, len(plan.Users))
+	for i := range plan.Groups {
+		msg := plan.Groups[i].nextMessage(cfg, uint64(i+1))
+		senders[msg.UID] = struct{}{}
+	}
+
+	if len(senders) != len(plan.Users) {
+		t.Fatalf("first group senders = %d unique users, want %d", len(senders), len(plan.Users))
+	}
+}
+
+func TestBuildPlanBalancesMembershipWhenThereAreFewerGroupsThanUsers(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Servers:      []string{"http://127.0.0.1:5001"},
+		Users:        30,
+		Groups:       6,
+		GroupMembers: 10,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	plan := buildPlan(cfg)
+	memberships := make(map[string]int, len(plan.Users))
+	for i := range plan.Groups {
+		for _, uid := range plan.Groups[i].Subscribers {
+			memberships[uid]++
+		}
+	}
+	for _, user := range plan.Users {
+		if got := memberships[user.UID]; got != 2 {
+			t.Fatalf("memberships[%q] = %d, want 2", user.UID, got)
+		}
 	}
 }
