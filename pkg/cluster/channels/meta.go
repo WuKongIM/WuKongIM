@@ -34,6 +34,8 @@ type RuntimeMetaWriter interface {
 
 // RuntimeMetaCreateResult reports whether the authoritative create inserted the row.
 type RuntimeMetaCreateResult struct {
+	// Created is true only when the authoritative Slot apply inserted the row;
+	// false is a successful concurrent-create loser result.
 	Created bool
 }
 

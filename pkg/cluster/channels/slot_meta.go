@@ -20,7 +20,9 @@ const (
 
 // SlotMetaSource resolves Channel metadata from Slot authoritative runtime metadata.
 type SlotMetaSource struct {
-	reader  RuntimeMetaReader
+	reader RuntimeMetaReader
+	// creator owns initial create-only proposals; ordinary runtime-meta upsert
+	// must remain outside this append-admission path.
 	creator RuntimeMetaCreator
 	opts    SlotMetaSourceOptions
 }

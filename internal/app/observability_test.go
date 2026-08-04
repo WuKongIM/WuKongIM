@@ -618,6 +618,35 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 	}
 }
 
+func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.T) {
+	reg := obsmetrics.New(1, "n1")
+	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}}
+	id := ch.ChannelID{ID: "reheat-existing", Type: 1}
+	store := &existingRuntimeMetaStore{meta: metadb.ChannelRuntimeMeta{
+		ChannelID: id.ID, ChannelType: int64(id.Type), ChannelEpoch: 3, LeaderEpoch: 2,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+		Status: uint8(ch.StatusActive),
+	}}
+	source := clusterchannels.NewSlotMetaSource(store, clusterchannels.SlotMetaSourceOptions{Observer: observer})
+
+	meta, err := source.EnsureChannelMeta(context.Background(), id)
+	if err != nil {
+		t.Fatalf("EnsureChannelMeta() error = %v", err)
+	}
+	if meta.ID != id || store.creates != 0 {
+		t.Fatalf("meta=%#v creates=%d, want existing reheat without create", meta, store.creates)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() error = %v", err)
+	}
+	for _, family := range families {
+		if family.GetName() == "wukongim_channelv2_meta_created_total" || family.GetName() == "wukongim_channel_meta_created_total" {
+			t.Fatalf("metric family %q found, want zero create observations on reheat", family.GetName())
+		}
+	}
+}
+
 func TestMultiChannelObserverPreservesChildLeaderPullSampleRates(t *testing.T) {
 	first := &sampledLeaderPullObserver{every: 4}
 	second := &sampledLeaderPullObserver{every: 6}
@@ -649,6 +678,20 @@ type recordingChannelMetaCreateObserver struct {
 	calls  int
 	slotID uint32
 	result clusterchannels.MetaCreateResult
+}
+
+type existingRuntimeMetaStore struct {
+	meta    metadb.ChannelRuntimeMeta
+	creates int
+}
+
+func (s *existingRuntimeMetaStore) GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error) {
+	return s.meta, nil
+}
+
+func (s *existingRuntimeMetaStore) CreateChannelRuntimeMeta(context.Context, metadb.ChannelRuntimeMeta) (clusterchannels.RuntimeMetaCreateResult, error) {
+	s.creates++
+	return clusterchannels.RuntimeMetaCreateResult{Created: true}, nil
 }
 
 func (o *recordingChannelMetaCreateObserver) ObserveChannelMetaCreate(slotID uint32, result clusterchannels.MetaCreateResult) {

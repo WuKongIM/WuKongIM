@@ -9,6 +9,7 @@ import (
 
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -112,28 +113,75 @@ func TestDefaultSlotProposerDoesNotObserveRejectedMetaCreateSubmission(t *testin
 }
 
 func TestDefaultSlotProposerForwardHandlerObservesMetaCreateOnlyOnLeader(t *testing.T) {
-	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})}}
-	observer := &recordingMetaCreateObserver{}
-	leader := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
-	handler := propose.NewForwardHandler(leader)
-	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
-		ChannelID: "forwarded", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
-		Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1,
-	})
-	payload, err := propose.EncodeForwardRequest(propose.ForwardRequest{
-		SlotID: 41, HashSlot: 19, WantResult: true,
-		Payload: propose.EncodePayload(19, command),
-	})
-	if err != nil {
-		t.Fatalf("EncodeForwardRequest() error = %v", err)
+	tests := []struct {
+		name       string
+		applyData  []byte
+		waitErr    error
+		wantResult clusterchannels.MetaCreateResult
+		wantErr    bool
+	}{
+		{name: "created", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true}), wantResult: clusterchannels.MetaCreateCreated},
+		{name: "already existing", applyData: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{}), wantResult: clusterchannels.MetaCreateAlreadyExisting},
+		{name: "future failure", waitErr: errors.New("apply failed"), wantResult: clusterchannels.MetaCreateError, wantErr: true},
+		{name: "decode failure", applyData: []byte("invalid"), wantResult: clusterchannels.MetaCreateError, wantErr: true},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: tt.applyData, err: tt.waitErr}}
+			observer := &recordingMetaCreateObserver{}
+			leader := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+			handler := propose.NewForwardHandler(leader)
+			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+				ChannelID: "forwarded", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+				Leader: 2, Replicas: []uint64{2}, ISR: []uint64{2}, MinISR: 1,
+			})
+			payload, err := propose.EncodeForwardRequest(propose.ForwardRequest{
+				SlotID: 41, HashSlot: 19, WantResult: true,
+				Payload: propose.EncodePayload(19, command),
+			})
+			if err != nil {
+				t.Fatalf("EncodeForwardRequest() error = %v", err)
+			}
 
-	_, err = handler.HandleRPC(context.Background(), payload)
-	if err != nil {
-		t.Fatalf("HandleRPC() error = %v", err)
+			_, err = handler.HandleRPC(context.Background(), payload)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("HandleRPC() error = %v, wantErr=%t", err, tt.wantErr)
+			}
+			if len(observer.events) != 1 {
+				t.Fatalf("events = %#v, want exactly one leader-side forwarded observation", observer.events)
+			}
+			if got := observer.events[0]; got.slotID != 41 || got.result != tt.wantResult {
+				t.Fatalf("event = %#v, want slot 41 result %q", got, tt.wantResult)
+			}
+		})
 	}
-	if len(observer.events) != 1 || observer.events[0].slotID != 41 || observer.events[0].result != clusterchannels.MetaCreateCreated {
-		t.Fatalf("events = %#v, want one leader-side forwarded create observation", observer.events)
+}
+
+func TestProposeServiceLeaderChangeRetryObservesMetaCreateOnce(t *testing.T) {
+	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+		ChannelID: "leader-change", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+	})
+	runtime := &retryingSlotRuntime{
+		future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(metafsm.CreateChannelRuntimeMetaResult{Created: true})},
+	}
+	observer := &recordingMetaCreateObserver{}
+	slots := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+	router := &countingProposeRouter{route: routing.Route{HashSlot: 19, SlotID: 41, Leader: 1}}
+	service := propose.NewService(propose.Config{LocalNode: 1, Router: router, Slots: slots})
+
+	_, err := service.ProposeResult(context.Background(), propose.Request{Key: "leader-change", Command: command})
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if runtime.calls != 2 || router.calls != 2 {
+		t.Fatalf("runtime calls=%d route calls=%d, want rejected attempt plus successful retry", runtime.calls, router.calls)
+	}
+	if len(observer.events) != 1 {
+		t.Fatalf("events = %#v, want only the eventual authoritative result", observer.events)
+	}
+	if got := observer.events[0]; got.slotID != 41 || got.result != clusterchannels.MetaCreateCreated {
+		t.Fatalf("event = %#v, want slot 41 created", got)
 	}
 }
 
@@ -277,6 +325,43 @@ func (r *recordingSlotRuntime) Status(multiraft.SlotID) (multiraft.Status, error
 type recordingSlotFuture struct {
 	data []byte
 	err  error
+}
+
+type retryingSlotRuntime struct {
+	calls  int
+	future multiraft.Future
+}
+
+func (r *retryingSlotRuntime) Propose(context.Context, multiraft.SlotID, []byte) (multiraft.Future, error) {
+	r.calls++
+	if r.calls == 1 {
+		return nil, multiraft.ErrNotLeader
+	}
+	return r.future, nil
+}
+
+func (r *retryingSlotRuntime) Status(multiraft.SlotID) (multiraft.Status, error) {
+	return multiraft.Status{Role: multiraft.RoleLeader}, nil
+}
+
+type countingProposeRouter struct {
+	route routing.Route
+	calls int
+}
+
+func (r *countingProposeRouter) RouteKey(string) (routing.Route, error) {
+	r.calls++
+	return r.route, nil
+}
+
+func (r *countingProposeRouter) RouteHashSlot(uint16) (routing.Route, error) {
+	r.calls++
+	return r.route, nil
+}
+
+func (r *countingProposeRouter) RouteSlot(uint32, uint16) (routing.Route, error) {
+	r.calls++
+	return r.route, nil
 }
 
 func (f recordingSlotFuture) Wait(context.Context) (multiraft.Result, error) {
