@@ -104,21 +104,39 @@ is also a product failure. Completed entries remain only until the worker calls
 window. Unknown, duplicate, and conflicting completions use fixed reason codes
 and redacted message fingerprints.
 
-Every protocol-valid RECV is reconstructed through the payload marker and
-`TrafficModel`, then checked for person peer versus group channel semantics and
-strictly increasing sequence per recipient/channel. Such a RECV is sent through
-the narrow `RecvAcker` even when payload, identity, or sequence validation
-fails, including an empty `client_msg_no`; only nil packets or packets without
-trustworthy positive server IDs are not acknowledged.
-Validation and RECVACK failures are retained independently without copying the
-underlying error. Logout calls `ReleaseRecipient` to delete that session's
-bounded monotonic state instead of accumulating historical channels.
+Every protocol-valid RECV is decoded once, reconstructed through the payload
+marker and `TrafficModel`, then checked for person peer versus group channel
+semantics and strictly increasing sequence per recipient/channel. Payload
+decoding, deterministic identity reconstruction, and checksum/padding scans run
+outside verifier state locks. SEND/correlation/deadline state and
+receive/sequence state have independent locks; neither is held while calling
+the narrow `RecvAcker`.
+
+A sequence observation becomes ACK-confirmed only after `RecvAcker` succeeds.
+Until then, an exact retransmission with the same recipient, channel, server
+message identity, sequence, and marker identity retries RECVACK without being
+counted as a duplicate. Reuse of that sequence for a different identity is
+conflicting product evidence. Payload, identity, or sequence validation
+failures are still acknowledged when the server message identity is positive;
+only nil packets or packets without trustworthy positive server IDs are not
+acknowledged. Raw, context, and otherwise unclassified RECVACK errors default
+to `harness_invalid`; only the explicit closed product-error wrapper attributes
+a RECVACK failure to the product. Evidence never copies the underlying error.
+
+P3.4 must feed each recipient from exactly one session drain in wire order.
+Logout must cancel and join that drain before calling `ReleaseRecipient`, which
+deletes the session's bounded monotonic state instead of accumulating historical
+channels.
 
 Exact delivery correlation uses one run-keyed position in every 100 logical
 sends per worker. A sampled entry has one map row and one indexed min-heap
 deadline; successful ACK-plus-RECV delivery and deadline expiry both physically
 remove both indexes. A terminal SEND remains until that deadline so expiry also
-records its confirmed sampled loss.
+records its confirmed sampled loss. RECV correlation is observed before
+sequence-capacity admission, so a saturated sequence tracker cannot manufacture
+sampled loss. A positive successful SENDACK updates correlation even after the
+SEND was terminal, completed, released, or otherwise unknown; its independent
+duplicate/conflict/unknown completion result remains product evidence.
 Pending, sequence, and correlation capacity exhaustion is `harness_invalid`,
 while loss, corruption, duplicate delivery, sequence regression, and terminal
 send failure are `product_failure`. Aggregate counters and per-class fixed

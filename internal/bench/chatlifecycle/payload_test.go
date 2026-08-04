@@ -168,6 +168,26 @@ func TestPayloadMarkerStrictlyRejectsCorruptionAndWrongDeclaration(t *testing.T)
 	}
 }
 
+func TestTrafficModelVerifiesAnAlreadyDecodedPayloadMarkerWithoutReparsing(t *testing.T) {
+	model := newTestTrafficModel(t, FormalConfig())
+	logical := mustLogicalSend(t, model, 1, 777, TrafficGroup, "sender", "group")
+	payload, err := model.BuildPayload(logical, 16*1_024)
+	if err != nil {
+		t.Fatalf("BuildPayload() error = %v", err)
+	}
+	marker, err := DecodePayloadMarker(payload)
+	if err != nil {
+		t.Fatalf("DecodePayloadMarker() error = %v", err)
+	}
+	if err := model.verifyDecodedPayloadMarker(marker, logical); err != nil {
+		t.Fatalf("verifyDecodedPayloadMarker() error = %v", err)
+	}
+	wrong := mustLogicalSend(t, model, 1, 778, TrafficGroup, "sender", "group")
+	if err := model.verifyDecodedPayloadMarker(marker, wrong); !errors.Is(err, errPayloadDeclaration) {
+		t.Fatalf("verifyDecodedPayloadMarker(wrong) error = %v, want %v", err, errPayloadDeclaration)
+	}
+}
+
 func TestPayloadMarkerRejectsInvalidOrUnboundedInputs(t *testing.T) {
 	model := newTestTrafficModel(t, FormalConfig())
 	if _, err := model.NewLogicalSend(3, 0, TrafficPerson, "sender", "target"); !errors.Is(err, errPayloadWorker) {

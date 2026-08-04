@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -309,8 +310,11 @@ func TestVerifierRecvFailuresRemainProductFailuresAndStillAck(t *testing.T) {
 	if snapshot.Classification != SyncClassificationProductFailure {
 		t.Fatal("receive correctness failure did not stick as product_failure")
 	}
-	if snapshot.DuplicateDeliveries != 1 || snapshot.SequenceRegressions != 1 {
+	if snapshot.DuplicateDeliveries != 0 || snapshot.ConflictingDeliveries != 1 || snapshot.SequenceRegressions != 1 {
 		t.Fatalf("delivery counters = %+v", snapshot)
+	}
+	if snapshot.ReceiveFailures != 4 {
+		t.Fatalf("ReceiveFailures = %d, want 4 validation failures from 5 received packets", snapshot.ReceiveFailures)
 	}
 	evidenceJSON, marshalErr := json.Marshal(verifier.EvidenceSnapshot())
 	if marshalErr != nil {
@@ -346,12 +350,12 @@ func TestVerifierRecvackFailureIsRecordedWithoutRawErrorAndProtocolInvalidIsNotA
 	rawTransportError := "dial failed with token-and-private-address"
 	acker := &recordingRecvAcker{err: errors.New(rawTransportError)}
 	err = verifier.HandleRecv(context.Background(), recipient, recv, acker)
-	assertVerificationCode(t, err, FailureCodeRecvack)
+	assertVerificationCode(t, err, FailureCodeRecvackUnclassified)
 	if strings.Contains(err.Error(), rawTransportError) {
 		t.Fatalf("recvack error leaks transport error: %q", err)
 	}
 	snapshot := verifier.Snapshot()
-	if snapshot.Received != 1 || snapshot.ReceiveAckFailures != 1 || snapshot.ReceiveAcknowledged != 0 {
+	if snapshot.Received != 1 || snapshot.ReceiveAckFailures != 1 || snapshot.ReceiveAckHarnessFailures != 1 || snapshot.ReceiveAcknowledged != 0 {
 		t.Fatalf("recvack failure counters = %+v", snapshot)
 	}
 	corrupt := *recv
@@ -395,6 +399,98 @@ func TestVerifierRecvWithPositiveServerIdentityAndEmptyClientMessageNumberIsStil
 		if strings.Contains(err.Error(), secret) || strings.Contains(string(encoded), secret) {
 			t.Fatalf("empty-client-msg failure leaks %q", secret)
 		}
+	}
+}
+
+func TestVerifierUnconfirmedRecvRetransmitRetriesAckWithoutDuplicate(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	logical := mustLogicalSend(t, model, 0, 460, TrafficPerson, "sender", "recipient")
+	recv := mustRecvPacket(t, model, logical, 460, 7)
+	acker := &scriptedRecvAcker{errs: []error{errors.New("raw local transport secret"), nil}}
+
+	firstErr := verifier.HandleRecv(context.Background(), logical.Target, recv, acker)
+	assertVerificationCode(t, firstErr, FailureCodeRecvackUnclassified)
+	var firstVerification *VerificationError
+	if !errors.As(firstErr, &firstVerification) || firstVerification.Classification() != SyncClassificationHarnessInvalid {
+		t.Fatalf("first ACK failure = %v, want harness_invalid", firstErr)
+	}
+	if err := verifier.HandleRecv(context.Background(), logical.Target, recv, acker); err != nil {
+		t.Fatalf("HandleRecv(exact retransmit) error = %v", err)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.Received != 2 || snapshot.ReceiveAcknowledged != 1 || snapshot.ReceiveAckFailures != 1 || snapshot.ReceiveAckHarnessFailures != 1 {
+		t.Fatalf("retransmit counters = %+v", snapshot)
+	}
+	if snapshot.DuplicateDeliveries != 0 || snapshot.SequenceRegressions != 0 || snapshot.ConflictingDeliveries != 0 || snapshot.ReceiveFailures != 0 {
+		t.Fatalf("exact unconfirmed retransmit became correctness failure: %+v", snapshot)
+	}
+	if snapshot.Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("classification = %q, want harness_invalid", snapshot.Classification)
+	}
+}
+
+func TestVerifierUnconfirmedRecvSameSequenceDifferentIdentityIsProductConflict(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	first := mustLogicalSend(t, model, 0, 470, TrafficPerson, "sender", "recipient")
+	second := mustLogicalSend(t, model, 0, 471, TrafficPerson, "sender", "recipient")
+	firstRecv := mustRecvPacket(t, model, first, 470, 8)
+	secondRecv := mustRecvPacket(t, model, second, 471, 8)
+	acker := &scriptedRecvAcker{errs: []error{errors.New("raw local failure"), nil}}
+	assertVerificationCode(t, verifier.HandleRecv(context.Background(), first.Target, firstRecv, acker), FailureCodeRecvackUnclassified)
+	conflictErr := verifier.HandleRecv(context.Background(), second.Target, secondRecv, acker)
+	assertVerificationCode(t, conflictErr, FailureCodeReceiveSequence)
+	snapshot := verifier.Snapshot()
+	if snapshot.ConflictingDeliveries != 1 || snapshot.DuplicateDeliveries != 0 || snapshot.SequenceRegressions != 0 {
+		t.Fatalf("same-sequence conflict counters = %+v", snapshot)
+	}
+	if snapshot.Classification != SyncClassificationProductFailure {
+		t.Fatalf("classification = %q, want product_failure", snapshot.Classification)
+	}
+}
+
+func TestVerifierRecvackFailureClassificationIsClosedAndRedacted(t *testing.T) {
+	tests := []struct {
+		name        string
+		ackErr      error
+		rawSecret   string
+		wantCode    FailureCode
+		wantClass   SyncClassification
+		wantProduct uint64
+		wantHarness uint64
+	}{
+		{name: "context canceled", ackErr: context.Canceled, wantCode: FailureCodeRecvackCanceled, wantClass: SyncClassificationHarnessInvalid, wantHarness: 1},
+		{name: "deadline exceeded", ackErr: context.DeadlineExceeded, wantCode: FailureCodeRecvackDeadline, wantClass: SyncClassificationHarnessInvalid, wantHarness: 1},
+		{name: "unclassified transport", ackErr: errors.New("raw transport with token secret"), rawSecret: "raw transport with token secret", wantCode: FailureCodeRecvackUnclassified, wantClass: SyncClassificationHarnessInvalid, wantHarness: 1},
+		{name: "explicit product", ackErr: NewProductRecvAckError(ProductRecvAckRejected, errors.New("raw target body secret")), rawSecret: "raw target body secret", wantCode: FailureCodeRecvack, wantClass: SyncClassificationProductFailure, wantProduct: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+			logical := mustLogicalSend(t, model, 0, 480, TrafficPerson, "sender-secret", "recipient-secret")
+			recv := mustRecvPacket(t, model, logical, 480, 9)
+			err := verifier.HandleRecv(context.Background(), logical.Target, recv, &recordingRecvAcker{err: test.ackErr})
+			assertVerificationCode(t, err, test.wantCode)
+			var verification *VerificationError
+			if !errors.As(err, &verification) || verification.Classification() != test.wantClass {
+				t.Fatalf("classification = %v, want %q", err, test.wantClass)
+			}
+			snapshot := verifier.Snapshot()
+			if snapshot.ReceiveAckProductFailures != test.wantProduct || snapshot.ReceiveAckHarnessFailures != test.wantHarness {
+				t.Fatalf("ACK ownership counters = %+v", snapshot)
+			}
+			encoded, marshalErr := json.Marshal(verifier.EvidenceSnapshot())
+			if marshalErr != nil {
+				t.Fatalf("Marshal(EvidenceSnapshot) error = %v", marshalErr)
+			}
+			for _, secret := range []string{"sender-secret", "recipient-secret", test.rawSecret} {
+				if secret == "" {
+					continue
+				}
+				if strings.Contains(err.Error(), secret) || strings.Contains(string(encoded), secret) {
+					t.Fatalf("ACK failure leaks %q", secret)
+				}
+			}
+		})
 	}
 }
 
@@ -562,6 +658,90 @@ func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T
 	}
 }
 
+func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(t *testing.T) {
+	tests := []struct {
+		name      string
+		release   bool
+		recvFirst bool
+		wantCode  FailureCode
+	}{
+		{name: "terminal recv then ack", recvFirst: true, wantCode: FailureCodeConflictingCompletion},
+		{name: "terminal ack then recv", recvFirst: false, wantCode: FailureCodeConflictingCompletion},
+		{name: "released terminal recv then ack", release: true, recvFirst: true, wantCode: FailureCodeUnknownSendack},
+		{name: "released terminal ack then recv", release: true, recvFirst: false, wantCode: FailureCodeUnknownSendack},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model, verifier := newTestVerifier(t, 200, 16, 4, 5*time.Second)
+			started := time.Unix(2_700, 0)
+			logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+			assertVerificationCode(t, verifier.CompleteTerminal(logical, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+			if test.release {
+				if err := verifier.ReleaseSend(logical); err != nil {
+					t.Fatalf("ReleaseSend() error = %v", err)
+				}
+			}
+			ack := &frame.SendackPacket{MessageID: 900, MessageSeq: 9, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+			recv := mustRecvPacket(t, model, logical, 900, 9)
+			if test.recvFirst {
+				if err := verifier.HandleRecv(context.Background(), logical.Target, recv, discardRecvAcker{}); err != nil {
+					t.Fatalf("HandleRecv(before late ACK) error = %v", err)
+				}
+				assertVerificationCode(t, verifier.HandleSendack(ack), test.wantCode)
+			} else {
+				assertVerificationCode(t, verifier.HandleSendack(ack), test.wantCode)
+				if err := verifier.HandleRecv(context.Background(), logical.Target, recv, discardRecvAcker{}); err != nil {
+					t.Fatalf("HandleRecv(after late ACK) error = %v", err)
+				}
+			}
+			snapshot := verifier.Snapshot()
+			if snapshot.SampledDelivered != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+				t.Fatalf("late ACK correlation = %+v", snapshot)
+			}
+			if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
+				t.Fatalf("ExpireCorrelations() = %d, want 0", expired)
+			}
+			if evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != 0 {
+				t.Fatalf("matching late ACK created correlation evidence: %+v", verifier.EvidenceSnapshot())
+			}
+		})
+	}
+}
+
+func TestVerifierSampledTerminalLateConflictingAckRecordsCorrelationConflict(t *testing.T) {
+	model, verifier := newTestVerifier(t, 200, 16, 4, 5*time.Second)
+	started := time.Unix(2_800, 0)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	assertVerificationCode(t, verifier.CompleteTerminal(logical, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+	if err := verifier.HandleRecv(context.Background(), logical.Target, mustRecvPacket(t, model, logical, 910, 10), discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv() error = %v", err)
+	}
+	conflicting := &frame.SendackPacket{MessageID: 911, MessageSeq: 10, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+	assertVerificationCode(t, verifier.HandleSendack(conflicting), FailureCodeCorrelationSequenceConflict)
+	snapshot := verifier.Snapshot()
+	if snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != 1 {
+		t.Fatalf("late conflicting ACK correlation = %+v evidence=%+v", snapshot, verifier.EvidenceSnapshot())
+	}
+	if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want 0", expired)
+	}
+}
+
+func TestVerifierSampledRepeatedAckWithConflictingIdentityRecordsCorrelationConflict(t *testing.T) {
+	model, verifier := newTestVerifier(t, 200, 16, 4, 5*time.Second)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", time.Unix(2_900, 0))
+	first := &frame.SendackPacket{MessageID: 920, MessageSeq: 11, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+	if err := verifier.HandleSendack(first); err != nil {
+		t.Fatalf("HandleSendack(first) error = %v", err)
+	}
+	conflicting := *first
+	conflicting.MessageID++
+	assertVerificationCode(t, verifier.HandleSendack(&conflicting), FailureCodeCorrelationSequenceConflict)
+	if snapshot := verifier.Snapshot(); snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != 1 {
+		t.Fatalf("repeated conflicting ACK correlation = %+v evidence=%+v", snapshot, verifier.EvidenceSnapshot())
+	}
+}
+
 func TestVerifierCapacityOverflowIsHarnessInvalidAndSequenceOwnershipCanBeReleased(t *testing.T) {
 	model, verifier := newTestVerifier(t, 500, 1, 1, 5*time.Second)
 	started := time.Unix(3_000, 0)
@@ -604,6 +784,41 @@ func TestVerifierCapacityOverflowIsHarnessInvalidAndSequenceOwnershipCanBeReleas
 	}
 	if err := verifier.HandleRecv(context.Background(), second.Target, secondRecv, acker); err != nil {
 		t.Fatalf("HandleRecv(after release) error = %v", err)
+	}
+}
+
+func TestVerifierSampledRecvCompletesBeforeSequenceCapacityAdmission(t *testing.T) {
+	model, verifier := newTestVerifier(t, 200, 1, 4, 5*time.Second)
+	started := time.Unix(3_500, 0)
+	fill := mustLogicalSend(t, model, 0, 750, TrafficPerson, "fill-sender", "fill-recipient")
+	if err := verifier.HandleRecv(context.Background(), fill.Target, mustRecvPacket(t, model, fill, 750, 1), discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv(fill sequence capacity) error = %v", err)
+	}
+
+	logical := firstSampledLogical(t, model, verifier, "sampled-sender", "sampled-recipient", started)
+	ack := &frame.SendackPacket{MessageID: 751, MessageSeq: 1, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+	if err := verifier.HandleSendack(ack); err != nil {
+		t.Fatalf("HandleSendack(sampled) error = %v", err)
+	}
+	acker := &recordingRecvAcker{}
+	recvErr := verifier.HandleRecv(context.Background(), logical.Target, mustRecvPacket(t, model, logical, 751, 1), acker)
+	assertVerificationCode(t, recvErr, FailureCodeSequenceCapacity)
+	var verification *VerificationError
+	if !errors.As(recvErr, &verification) || verification.Classification() != SyncClassificationHarnessInvalid {
+		t.Fatalf("sequence capacity error = %v, want harness_invalid", recvErr)
+	}
+	if len(acker.acks) != 1 {
+		t.Fatalf("sequence-capacity RECVACK count = %d, want 1", len(acker.acks))
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.SampledDelivered != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 {
+		t.Fatalf("sequence capacity blocked correlation = %+v", snapshot)
+	}
+	if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations() = %d, want 0", expired)
+	}
+	if evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != 0 || verifier.Snapshot().Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("sequence capacity created false loss/product evidence: snapshot=%+v evidence=%+v", verifier.Snapshot(), verifier.EvidenceSnapshot())
 	}
 }
 
@@ -761,9 +976,142 @@ func TestVerifierConcurrentSendRecvAndSnapshotsAreRaceSafe(t *testing.T) {
 	}
 }
 
+func TestVerifierConcurrentHeavyRecvAndSendackUseIndependentStateDomains(t *testing.T) {
+	model, verifier := newTestVerifier(t, 256, 256, 16, 5*time.Second)
+	const operations = 64
+	sends := make([]LogicalSend, operations)
+	for index := 0; index < operations; index++ {
+		sends[index] = mustLogicalSend(t, model, 0, uint64(10_000+index), TrafficPerson, "send-source-"+strconv.Itoa(index), "send-target-"+strconv.Itoa(index))
+		if err := verifier.RegisterSend(sends[index], time.Unix(7_000, 0)); err != nil {
+			t.Fatalf("RegisterSend(%d) error = %v", index, err)
+		}
+	}
+	group := mustLogicalSend(t, model, 1, 20_000, TrafficGroup, "group-sender", "group-channel")
+	payload, err := model.BuildPayload(group, 16*1_024)
+	if err != nil {
+		t.Fatalf("BuildPayload(16KiB) error = %v", err)
+	}
+	recv := &frame.RecvPacket{
+		MessageID:   20_000,
+		MessageSeq:  1,
+		ClientMsgNo: group.ClientMsgNo,
+		ChannelID:   group.Target,
+		ChannelType: frame.ChannelTypeGroup,
+		FromUID:     group.Sender,
+		Payload:     payload,
+	}
+
+	errs := make(chan error, operations*3)
+	var work sync.WaitGroup
+	for index := 0; index < operations; index++ {
+		work.Add(2)
+		go func(index int) {
+			defer work.Done()
+			ack := &frame.SendackPacket{MessageID: int64(30_000 + index), MessageSeq: uint64(index + 1), ClientMsgNo: sends[index].ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+			if err := verifier.HandleSendack(ack); err != nil {
+				errs <- err
+				return
+			}
+			if err := verifier.ReleaseSend(sends[index]); err != nil {
+				errs <- err
+			}
+		}(index)
+		go func(index int) {
+			defer work.Done()
+			recipient := "group-member-" + strconv.Itoa(index)
+			if err := verifier.HandleRecv(context.Background(), recipient, recv, discardRecvAcker{}); err != nil {
+				errs <- err
+				return
+			}
+			verifier.ReleaseRecipient(recipient)
+		}(index)
+	}
+	work.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent heavy verifier error = %v", err)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.Acknowledged != operations || snapshot.Received != operations || snapshot.ReceiveAcknowledged != operations {
+		t.Fatalf("concurrent heavy counters = %+v", snapshot)
+	}
+}
+
+func BenchmarkVerifierParallelGroupFanout16KiB(b *testing.B) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		b.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+	model, err := NewTrafficModel(identity, cfg.Workload)
+	if err != nil {
+		b.Fatalf("NewTrafficModel() error = %v", err)
+	}
+	evidence, err := NewEvidenceRecorder(1, 1)
+	if err != nil {
+		b.Fatalf("NewEvidenceRecorder() error = %v", err)
+	}
+	verifier, err := NewVerifier(model, VerifierConfig{
+		PendingCapacity:     128,
+		SequenceCapacity:    128,
+		CorrelationCapacity: 8,
+		CorrelationDeadline: 5 * time.Second,
+	}, evidence)
+	if err != nil {
+		b.Fatalf("NewVerifier() error = %v", err)
+	}
+	logical, err := model.NewLogicalSend(0, 30_000, TrafficGroup, "group-sender", "group-channel")
+	if err != nil {
+		b.Fatalf("NewLogicalSend() error = %v", err)
+	}
+	payload, err := model.BuildPayload(logical, 16*1_024)
+	if err != nil {
+		b.Fatalf("BuildPayload() error = %v", err)
+	}
+	recv := &frame.RecvPacket{
+		MessageID:   30_000,
+		MessageSeq:  1,
+		ClientMsgNo: logical.ClientMsgNo,
+		ChannelID:   logical.Target,
+		ChannelType: frame.ChannelTypeGroup,
+		FromUID:     logical.Sender,
+		Payload:     payload,
+	}
+	var workers atomic.Uint64
+	b.ReportAllocs()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		recipient := "benchmark-member-" + strconv.FormatUint(workers.Add(1), 10)
+		for pb.Next() {
+			if err := verifier.HandleRecv(context.Background(), recipient, recv, discardRecvAcker{}); err != nil {
+				b.Errorf("HandleRecv() error = %v", err)
+				return
+			}
+			verifier.ReleaseRecipient(recipient)
+		}
+	})
+}
+
 type recordingRecvAcker struct {
 	acks []*frame.RecvackPacket
 	err  error
+}
+
+type scriptedRecvAcker struct {
+	mu    sync.Mutex
+	calls int
+	errs  []error
+}
+
+func (a *scriptedRecvAcker) AckRecv(_ context.Context, _ *frame.RecvackPacket) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	index := a.calls
+	a.calls++
+	if index >= len(a.errs) {
+		return nil
+	}
+	return a.errs[index]
 }
 
 type discardRecvAcker struct{}

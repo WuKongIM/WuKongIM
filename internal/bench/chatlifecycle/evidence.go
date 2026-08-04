@@ -60,6 +60,9 @@ const (
 	FailureCodeCorrelationCapacity
 	FailureCodeSequenceCapacity
 	FailureCodeGeneratorInvariant
+	FailureCodeRecvackCanceled
+	FailureCodeRecvackDeadline
+	FailureCodeRecvackUnclassified
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -230,9 +233,16 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 		return event.Stage == EvidenceStageCorrelation &&
 			event.Code >= FailureCodeCorrelationExpired && event.Code <= FailureCodeCorrelationSequenceConflict
 	case FailureClassHarness:
-		return (event.Stage == EvidenceStageSend || event.Stage == EvidenceStageRecvack ||
-			event.Stage == EvidenceStageCorrelation || event.Stage == EvidenceStageCapacity) &&
-			event.Code >= FailureCodePendingCapacity && event.Code <= FailureCodeGeneratorInvariant
+		switch event.Code {
+		case FailureCodePendingCapacity, FailureCodeCorrelationCapacity, FailureCodeSequenceCapacity:
+			return event.Stage == EvidenceStageCapacity
+		case FailureCodeGeneratorInvariant:
+			return event.Stage == EvidenceStageSend || event.Stage == EvidenceStageRecvack || event.Stage == EvidenceStageCorrelation
+		case FailureCodeRecvackCanceled, FailureCodeRecvackDeadline, FailureCodeRecvackUnclassified:
+			return event.Stage == EvidenceStageRecvack
+		default:
+			return false
+		}
 	default:
 		return false
 	}

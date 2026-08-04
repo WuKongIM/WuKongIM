@@ -257,6 +257,12 @@ func (m TrafficModel) VerifyPayload(payload []byte, logical LogicalSend) error {
 	if err != nil {
 		return err
 	}
+	return m.verifyDecodedPayloadMarker(marker, logical)
+}
+
+// verifyDecodedPayloadMarker matches an already structurally verified marker
+// to a validated logical send without decoding or scanning the payload again.
+func (m TrafficModel) verifyDecodedPayloadMarker(marker PayloadMarker, logical LogicalSend) error {
 	sender := identityFingerprint(m.identity, "sender/v1", logical.Sender)
 	target := identityFingerprint(m.identity, "target/v1", logical.Target)
 	message := messageFingerprint(logical.ClientMsgNo)

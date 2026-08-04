@@ -114,6 +114,9 @@ func TestEvidenceRecorderRejectsInvalidBoundsAndClosedVocabulary(t *testing.T) {
 		{Class: FailureClassSend, Stage: EvidenceStageReceive, Code: FailureCodeUnknownSendack},
 		{Class: FailureClassReceive, Stage: EvidenceStageSendack, Code: FailureCodeReceivePayload},
 		{Class: FailureClassCorrelation, Stage: EvidenceStageCapacity, Code: FailureCodeCorrelationExpired},
+		{Class: FailureClassHarness, Stage: EvidenceStageSend, Code: FailureCodeRecvackCanceled},
+		{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: FailureCodeRecvackDeadline},
+		{Class: FailureClassHarness, Stage: EvidenceStageRecvack, Code: FailureCodePendingCapacity},
 	}
 	for _, event := range bad {
 		if err := recorder.Record(event); err == nil {
