@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -321,24 +322,50 @@ func TestBenchChannelRuntimeControllerFailureReturnsInternalServerError(t *testi
 	requireAPILogEntry(t, logger, "ERROR", "internal.access.api.http", "internal.access.api.bench_runtime_failed")
 }
 
-func TestBenchChannelRuntimeExplicitProbeFailureDoesNotLogChannelID(t *testing.T) {
+func TestBenchChannelRuntimeExplicitProbeFailureDoesNotExposeControllerError(t *testing.T) {
 	const channelID = "canonical-sensitive-person"
+	const tokenLikeValue = "probe-secret-value"
 	logger := newRecordingAPILogger("internal.access.api")
 	srv := New(Options{
 		BenchEnabled: true,
 		Logger:       logger,
 		BenchRuntime: &fakeChannelRuntimeBenchController{
-			probeErr: fmt.Errorf("runtime probe failed for %s", channelID),
+			probeErr: fmt.Errorf("runtime probe failed for %s using %s", channelID, tokenLikeValue),
 		},
 	})
 	httpSrv := httptest.NewServer(srv.Handler())
 	t.Cleanup(httpSrv.Close)
 
-	postJSON(t, httpSrv.URL+"/bench/v1/channel-runtime/probe", `{"channels":[{"channel_id":"`+channelID+`","channel_type":1}]}`, http.StatusInternalServerError)
+	resp, err := http.Post(
+		httpSrv.URL+"/bench/v1/channel-runtime/probe",
+		"application/json",
+		strings.NewReader(`{"channels":[{"channel_id":"`+channelID+`","channel_type":1}]}`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "explicit channel runtime probe failed") {
+		t.Fatalf("response = %s, want stable explicit probe failure", body)
+	}
+	for _, sensitive := range []string{channelID, tokenLikeValue} {
+		if strings.Contains(string(body), sensitive) {
+			t.Fatalf("response exposed sensitive controller error value %q", sensitive)
+		}
+	}
 	entry := requireAPILogEntry(t, logger, "ERROR", "internal.access.api.http", "internal.access.api.bench_runtime_failed")
 	for _, field := range entry.fields {
-		if strings.Contains(fmt.Sprint(field.Value), channelID) {
-			t.Fatalf("log field %q exposed explicit channel id", field.Key)
+		for _, sensitive := range []string{channelID, tokenLikeValue} {
+			if strings.Contains(fmt.Sprint(field.Value), sensitive) {
+				t.Fatalf("log field %q exposed sensitive controller error value %q", field.Key, sensitive)
+			}
 		}
 	}
 }

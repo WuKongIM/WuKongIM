@@ -64,13 +64,16 @@ func (s *Server) handleBenchChannelRuntimeProbe(c *gin.Context) {
 	resp, err := s.benchRuntime.Probe(c.Request.Context(), query)
 	if err != nil {
 		logErr := err
+		responseErr := err
 		if query.Channels != nil {
-			logErr = errors.New("explicit channel runtime probe failed")
+			safeErr := errors.New("explicit channel runtime probe failed")
+			logErr = safeErr
+			responseErr = safeErr
 		}
 		s.logBenchRuntimeFailure(c, "probe", model.ChannelRuntimeQuery{
 			RunID: query.RunID, Profile: query.Profile, ChannelType: query.ChannelType, Range: query.Range,
 		}, logErr)
-		writeBenchError(c, http.StatusInternalServerError, err.Error())
+		writeBenchError(c, http.StatusInternalServerError, responseErr.Error())
 		return
 	}
 	if resp.Version == "" {

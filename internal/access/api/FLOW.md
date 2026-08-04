@@ -243,6 +243,10 @@ identities. Concrete IDs are validated without normalization and are forwarded
 only to the read-only probe port. Snapshot and eviction keep their generated
 selector contracts; concrete identities are not accepted by the eviction
 route. Restricted bench authentication continues to cover all three routes.
+If the runtime controller fails an explicit probe, the adapter returns and logs
+only the stable `explicit channel runtime probe failed` message; raw controller
+errors can contain requested identities and therefore remain private. Generated
+probe failures retain their existing response behavior.
 
 Compatible channel and user management are adapters only. The channel adapter
 validates JSON fields, defaults `/channel/subscriber_add` with missing
