@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -183,8 +184,73 @@ func TestSessionPoolUnexpectedReadExitIsBoundedHarnessEvidence(t *testing.T) {
 	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("unexpected read evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
 	}
+	if err := fixture.pool.Logout(uid); !errors.Is(err, errSessionOffline) {
+		t.Fatalf("Logout after atomic reader removal = %v, want offline", err)
+	}
+}
+
+func TestSessionPoolNonTerminalAsyncSendErrorKeepsOrderedDrainOnline(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	uid := fixture.identity.UID(33)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 33, LoginOrdinal: 5}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	<-client.readEntered
+	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientMsgNo: "stable-send"}
+	<-client.readReturned
+	continued := false
+	for range 10_000 {
+		select {
+		case <-client.readEntered:
+			continued = true
+		default:
+		}
+		if continued || fixture.pool.Snapshot().ReadErrors > 0 {
+			break
+		}
+		runtime.Gosched()
+	}
+	if !continued {
+		t.Fatal("non-terminal async SEND error exited the session drain")
+	}
+	if !fixture.pool.IsOnline(uid) {
+		t.Fatal("non-terminal async SEND error removed the online session")
+	}
 	if err := fixture.pool.Logout(uid); err != nil {
 		t.Fatalf("Logout: %v", err)
+	}
+}
+
+func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	uid := fixture.identity.UID(34)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 34, LoginOrdinal: 6}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	<-client.readEntered
+	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorTerminal}
+	<-client.readReturned
+	for range 10_000 {
+		if !fixture.pool.IsOnline(uid) {
+			break
+		}
+		runtime.Gosched()
+	}
+	if fixture.pool.IsOnline(uid) {
+		t.Fatal("terminal remote read retained online ownership")
+	}
+	if !client.closed() {
+		t.Fatal("terminal remote read did not close the session")
+	}
+	if err := fixture.pool.Send(context.Background(), uid, &frame.SendPacket{}); !errors.Is(err, errSessionOffline) {
+		t.Fatalf("Send after terminal read = %v, want offline", err)
+	}
+	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
+		t.Fatalf("terminal remote read classification = %q, want product_failure", got)
 	}
 }
 
@@ -225,6 +291,57 @@ func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T)
 	}
 	if err := pool.CloseAll(); err != nil {
 		t.Fatalf("CloseAll: %v", err)
+	}
+}
+
+func TestSessionPoolOnlineRouteIndexesAllocateNoLookupStateAndReleaseAllChurn(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	catalog, err := NewGroupCatalog(fixture.identity, LocalConfig().Workload.Groups)
+	if err != nil {
+		t.Fatalf("NewGroupCatalog: %v", err)
+	}
+	group, err := catalog.Group(0)
+	if err != nil {
+		t.Fatalf("Group(0): %v", err)
+	}
+	memberUIDs := make([]string, 0, 2)
+	for memberOrdinal := 0; memberOrdinal < 2; memberOrdinal++ {
+		memberIndex, err := group.MemberIndex(memberOrdinal)
+		if err != nil {
+			t.Fatalf("MemberIndex(%d): %v", memberOrdinal, err)
+		}
+		uid := fixture.identity.UID(memberIndex)
+		memberUIDs = append(memberUIDs, uid)
+		if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: memberIndex, LoginOrdinal: uint64(memberOrdinal)}); err != nil {
+			t.Fatalf("Login member %d: %v", memberOrdinal, err)
+		}
+	}
+	if allocations := testing.AllocsPerRun(1_000, func() {
+		if _, ok := fixture.pool.onlineGroupMember(group, 0, true); !ok {
+			panic("online group route disappeared")
+		}
+	}); allocations != 0 {
+		t.Fatalf("online group route lookup allocations = %.2f, want 0", allocations)
+	}
+	for _, uid := range memberUIDs {
+		if err := fixture.pool.Logout(uid); err != nil {
+			t.Fatalf("member Logout(%q): %v", uid, err)
+		}
+	}
+	for index := uint64(100); index < 300; index++ {
+		uid := fixture.identity.UID(index)
+		if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index}); err != nil {
+			t.Fatalf("churn Login(%d): %v", index, err)
+		}
+		if err := fixture.pool.Logout(uid); err != nil {
+			t.Fatalf("churn Logout(%d): %v", index, err)
+		}
+	}
+	fixture.pool.mu.RLock()
+	online, byIndex := len(fixture.pool.online), len(fixture.pool.onlineByIndex)
+	fixture.pool.mu.RUnlock()
+	if online != 0 || byIndex != 0 {
+		t.Fatalf("online route indexes retained churn history: online=%d by_index=%d", online, byIndex)
 	}
 }
 
@@ -292,7 +409,7 @@ type parallelSessionFactory struct {
 	release <-chan struct{}
 }
 
-func (f *parallelSessionFactory) NewSession(_, _ string) (SessionClient, error) {
+func (f *parallelSessionFactory) NewSession(_ context.Context, _, _ string) (SessionClient, error) {
 	return &parallelSessionClient{
 		entered: f.entered, release: f.release, stop: make(chan struct{}), readExited: make(chan struct{}),
 	}, nil
@@ -332,6 +449,9 @@ func (c *parallelSessionClient) Close() error {
 	return nil
 }
 func (c *parallelSessionClient) QueueSnapshot() SessionQueueSnapshot { return SessionQueueSnapshot{} }
+func (c *parallelSessionClient) ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool) {
+	return wkproto.ReadErrorInfo{}, false
+}
 func (c *parallelSessionClient) closeReadExited() {
 	select {
 	case <-c.readExited:
@@ -395,10 +515,11 @@ type sessionFakeFactory struct {
 	clientsV []*sessionFakeClient
 }
 
-func (f *sessionFakeFactory) NewSession(_ string, token string) (SessionClient, error) {
+func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token string) (SessionClient, error) {
 	f.events.add("factory")
 	client := &sessionFakeClient{
 		events: f.events, frames: make(chan frame.Frame, 8), acked: make(chan uint64, 8),
+		readErrors: make(chan error, 8), readEntered: make(chan struct{}, 8), readReturned: make(chan struct{}, 8),
 		stop: make(chan struct{}), readExited: make(chan struct{}),
 	}
 	f.mu.Lock()
@@ -441,14 +562,17 @@ func (s *sessionFakeSyncer) requests() []target.ConversationSyncRequest {
 }
 
 type sessionFakeClient struct {
-	mu         sync.Mutex
-	events     *sessionEventLog
-	frames     chan frame.Frame
-	acked      chan uint64
-	stop       chan struct{}
-	readExited chan struct{}
-	closeOnce  sync.Once
-	isClosed   bool
+	mu           sync.Mutex
+	events       *sessionEventLog
+	frames       chan frame.Frame
+	readErrors   chan error
+	readEntered  chan struct{}
+	readReturned chan struct{}
+	acked        chan uint64
+	stop         chan struct{}
+	readExited   chan struct{}
+	closeOnce    sync.Once
+	isClosed     bool
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -457,9 +581,13 @@ func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
 }
 
 func (c *sessionFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	c.readEntered <- struct{}{}
 	select {
 	case packet := <-c.frames:
 		return packet, nil
+	case err := <-c.readErrors:
+		c.readReturned <- struct{}{}
+		return nil, err
 	case <-ctx.Done():
 		c.closeReadExited()
 		return nil, ctx.Err()
@@ -468,6 +596,21 @@ func (c *sessionFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) 
 		return nil, errors.New("session closed")
 	}
 }
+
+func (c *sessionFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {
+	var readErr *sessionFakeReadError
+	if !errors.As(err, &readErr) {
+		return wkproto.ReadErrorInfo{}, false
+	}
+	return wkproto.ReadErrorInfo{Kind: readErr.kind, ClientMsgNo: readErr.clientMsgNo}, true
+}
+
+type sessionFakeReadError struct {
+	kind        wkproto.ReadErrorKind
+	clientMsgNo string
+}
+
+func (e *sessionFakeReadError) Error() string { return "redacted fake read error" }
 
 func (c *sessionFakeClient) Send(context.Context, *frame.SendPacket) error { return nil }
 

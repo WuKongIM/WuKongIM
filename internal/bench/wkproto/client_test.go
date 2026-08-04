@@ -96,6 +96,28 @@ func TestClientQueueSnapshotReportsBoundedAdapterState(t *testing.T) {
 	}
 }
 
+func TestReadErrorKindDistinguishesAsyncSendFromTerminalSessionFailure(t *testing.T) {
+	t.Parallel()
+	session := newClientSession(nil, 2)
+	nonTerminal := errors.New("async send failed")
+	if !session.publishError(errorResult{err: nonTerminal, clientMsgNo: "stable-message"}) {
+		t.Fatal("publish non-terminal error = false")
+	}
+	if _, err := session.readFrame(context.Background()); !errors.Is(err, nonTerminal) {
+		t.Fatalf("non-terminal ReadFrame error = %v", err)
+	} else if info, ok := ReadErrorInfoOf(err); !ok || info.Kind != ReadErrorNonTerminal || info.ClientMsgNo != "stable-message" {
+		t.Fatalf("non-terminal ReadFrame info = %+v, %v", info, ok)
+	}
+
+	terminal := io.EOF
+	if !session.publishError(errorResult{err: terminal, terminal: true}) {
+		t.Fatal("publish terminal error = false")
+	}
+	if _, err := session.readFrame(context.Background()); !errors.Is(err, terminal) || ReadErrorKindOf(err) != ReadErrorTerminal {
+		t.Fatalf("terminal ReadFrame error = %v kind=%v", err, ReadErrorKindOf(err))
+	}
+}
+
 func TestClientConnectSendsConnectPacketAndAcceptsConnack(t *testing.T) {
 	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
 		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)

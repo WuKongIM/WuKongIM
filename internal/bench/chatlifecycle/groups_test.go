@@ -33,8 +33,8 @@ func TestGroupCatalogFormalShapeAndReconstructableMembership(t *testing.T) {
 			if !ok {
 				t.Fatalf("group %d member %d UID %q is not reconstructable", index, member, uid)
 			}
-			if member > 0 && memberIndex != previous+1 {
-				t.Fatalf("group %d member indexes %d then %d are not unique consecutive values", index, previous, memberIndex)
+			if member > 0 && memberIndex != previous+uint64(catalog.Count()) {
+				t.Fatalf("group %d member indexes %d then %d do not use fixed catalog stride", index, previous, memberIndex)
 			}
 			previous = memberIndex
 		}
@@ -89,6 +89,25 @@ func TestGroupPrimaryTargetsExactSharesAndCanaryIsSeparate(t *testing.T) {
 	}
 	if canary.Group.Category != GroupVeryLarge || canary.Every != time.Minute || canary.Ordinal != 7 {
 		t.Fatalf("canary = %+v, want separate one/min very-large target", canary)
+	}
+}
+
+func TestGroupCatalogEveryClassHasFixedMemberInsideInitialOnlineRoster(t *testing.T) {
+	t.Parallel()
+	cfg := FormalConfig()
+	catalog := newTestGroupCatalog(t, cfg)
+	for _, index := range []uint64{0, 1_600, 1_900, 1_999} {
+		group, err := catalog.Group(index)
+		if err != nil {
+			t.Fatalf("Group(%d): %v", index, err)
+		}
+		memberIndex, err := group.MemberIndex(0)
+		if err != nil {
+			t.Fatalf("Group(%d) MemberIndex(0): %v", index, err)
+		}
+		if memberIndex >= uint64(cfg.Workload.OnlineUsers) || !group.ContainsIndex(memberIndex) {
+			t.Fatalf("group %d class %d initial member = %d, online=%d", index, group.Category, memberIndex, cfg.Workload.OnlineUsers)
+		}
 	}
 }
 

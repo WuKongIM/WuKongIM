@@ -579,6 +579,28 @@ func TestVerifierCorrelationSamplesExactlyOnceInEveryWorkerOrdinalBlock(t *testi
 	}
 }
 
+func TestVerifierCorrelationCycleIgnoresGenerationAndIdentityDomainPrefixes(t *testing.T) {
+	_, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	sampled := 0
+	for ordinal := uint64(0); ordinal < 100; ordinal++ {
+		domain := LogicalDomain(ordinal%uint64(LogicalDomainCanary) + 1)
+		scoped, err := scopedLogicalOrdinal(7, domain, ordinal)
+		if err != nil {
+			t.Fatalf("scopedLogicalOrdinal(%d): %v", ordinal, err)
+		}
+		correlate, err := verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+		if err != nil {
+			t.Fatalf("ShouldCorrelate(%d): %v", ordinal, err)
+		}
+		if correlate {
+			sampled++
+		}
+	}
+	if sampled != 1 {
+		t.Fatalf("mixed generation/domain block sampled = %d, want exactly 1", sampled)
+	}
+}
+
 func TestVerifierSampledCorrelationSurvivesSendReleaseUntilLaterRecv(t *testing.T) {
 	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
 	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", time.Unix(2_200, 0))

@@ -42,24 +42,42 @@ const (
 // Group is one reconstructed fixed catalog entry. It holds only one base
 // index, never a member slice, even for the 100,000-member canary.
 type Group struct {
-	Index       uint64
-	ID          string
-	Category    GroupCategory
-	MemberCount int
-	identity    *IdentitySpace
-	memberBase  uint64
+	Index        uint64
+	ID           string
+	Category     GroupCategory
+	MemberCount  int
+	identity     *IdentitySpace
+	memberBase   uint64
+	memberStride uint64
 }
 
 // MemberUID reconstructs one unique member in O(1) memory.
 func (g Group) MemberUID(memberOrdinal int) (string, error) {
-	if memberOrdinal < 0 || memberOrdinal >= g.MemberCount || g.identity == nil {
-		return "", errGroupMember
-	}
-	index, err := checkedGroupMemberIndex(g.memberBase, uint64(memberOrdinal))
+	index, err := g.MemberIndex(memberOrdinal)
 	if err != nil {
 		return "", err
 	}
 	return g.identity.UID(index), nil
+}
+
+// MemberIndex reconstructs one fixed member without formatting its UID.
+func (g Group) MemberIndex(memberOrdinal int) (uint64, error) {
+	if memberOrdinal < 0 || memberOrdinal >= g.MemberCount || g.identity == nil {
+		return 0, errGroupMember
+	}
+	if uint64(memberOrdinal) > math.MaxUint64/g.memberStride {
+		return 0, errGroupMemberOverflow
+	}
+	return checkedGroupMemberIndex(g.memberBase, uint64(memberOrdinal)*g.memberStride)
+}
+
+// ContainsIndex checks fixed strided membership in O(1) memory.
+func (g Group) ContainsIndex(userIndex uint64) bool {
+	if g.identity == nil || g.memberStride == 0 || userIndex < g.memberBase {
+		return false
+	}
+	delta := userIndex - g.memberBase
+	return delta%g.memberStride == 0 && delta/g.memberStride < uint64(g.MemberCount)
 }
 
 // GroupCanary is the independent very-large-group correctness stream. It is
@@ -155,7 +173,10 @@ func NewGroupCatalog(identity *IdentitySpace, config GroupCatalogConfig) (GroupC
 // Count returns the fixed number of group channels.
 func (c GroupCatalog) Count() int { return c.total }
 
-// Group reconstructs one catalog entry and a checked contiguous membership base.
+// Group reconstructs one catalog entry and a checked strided membership base.
+// The catalog index itself is member zero, guaranteeing that the fixed
+// prepared roster intersects the initial bounded online population; later
+// members remain spread across deterministic arrival cohorts.
 func (c GroupCatalog) Group(index uint64) (Group, error) {
 	if index >= uint64(c.total) {
 		return Group{}, errGroupIndex
@@ -165,19 +186,14 @@ func (c GroupCatalog) Group(index uint64) (Group, error) {
 	if err != nil {
 		return Group{}, err
 	}
-	// Every class has at least five members, so possibleBaseCount cannot wrap.
-	possibleBaseCount := math.MaxUint64 - uint64(memberCount) + 2
-	memberBase, err := c.identity.decisionBelow("fixed-group-member-base/v1", possibleBaseCount, index, uint64(categoryIndex))
-	if err != nil {
-		return Group{}, err
-	}
 	return Group{
-		Index:       index,
-		ID:          groupIDPrefix + c.identity.namespace + "-" + strconv.FormatUint(index, 36),
-		Category:    GroupCategory(categoryIndex + 1),
-		MemberCount: memberCount,
-		identity:    c.identity,
-		memberBase:  memberBase,
+		Index:        index,
+		ID:           groupIDPrefix + c.identity.namespace + "-" + strconv.FormatUint(index, 36),
+		Category:     GroupCategory(categoryIndex + 1),
+		MemberCount:  memberCount,
+		identity:     c.identity,
+		memberBase:   index,
+		memberStride: uint64(c.total),
 	}, nil
 }
 

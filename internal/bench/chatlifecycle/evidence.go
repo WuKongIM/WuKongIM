@@ -69,6 +69,9 @@ const (
 	FailureCodeEngineRetrySaturated
 	FailureCodeSessionReadFailed
 	FailureCodeSessionLoginSaturated
+	FailureCodeSessionRemoteTerminal
+	FailureCodeOfferedLoadUnderDelivery
+	FailureCodeSessionSchedulerCPUSaturated
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -244,8 +247,9 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 		return (event.Stage == EvidenceStageSend || event.Stage == EvidenceStageSendack) &&
 			event.Code >= FailureCodeUnknownSendack && event.Code <= FailureCodeTerminalSend
 	case FailureClassReceive:
-		return (event.Stage == EvidenceStageReceive || event.Stage == EvidenceStageRecvack) &&
-			event.Code >= FailureCodeReceiveProtocol && event.Code <= FailureCodeRecvack
+		return ((event.Stage == EvidenceStageReceive || event.Stage == EvidenceStageRecvack) &&
+			event.Code >= FailureCodeReceiveProtocol && event.Code <= FailureCodeRecvack) ||
+			(event.Stage == EvidenceStageReceive && event.Code == FailureCodeSessionRemoteTerminal)
 	case FailureClassCorrelation:
 		return event.Stage == EvidenceStageCorrelation &&
 			event.Code >= FailureCodeCorrelationExpired && event.Code <= FailureCodeCorrelationSequenceConflict
@@ -258,7 +262,8 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 		case FailureCodeRecvackCanceled, FailureCodeRecvackDeadline, FailureCodeRecvackUnclassified:
 			return event.Stage == EvidenceStageRecvack
 		case FailureCodeEngineQueueSaturated, FailureCodeEngineCPUSaturated,
-			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated:
+			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated,
+			FailureCodeOfferedLoadUnderDelivery, FailureCodeSessionSchedulerCPUSaturated:
 			return event.Stage == EvidenceStageCapacity
 		case FailureCodeSessionReadFailed:
 			return event.Stage == EvidenceStageReceive

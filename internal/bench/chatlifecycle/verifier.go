@@ -359,6 +359,16 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	return nil
 }
 
+// ShouldCorrelate reports the immutable exact one-percent sampling decision.
+// Routing uses it before registration so sampled sends can require an online
+// delivery recipient without changing the verifier's cycle or retained state.
+func (v *Verifier) ShouldCorrelate(logical LogicalSend) (bool, error) {
+	if v == nil || v.model.identity == nil || uint64(logical.WorkerID) >= v.model.identity.Workers() {
+		return false, errVerifierConfig
+	}
+	return v.sampledLocked(logical)
+}
+
 // ObserveAttempt verifies that a retry did not mint a replacement identity.
 func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt) error {
 	v.sendMu.Lock()
@@ -966,6 +976,12 @@ func failureCodeName(code FailureCode) string {
 		return "session_read_failed"
 	case FailureCodeSessionLoginSaturated:
 		return "session_login_saturated"
+	case FailureCodeSessionRemoteTerminal:
+		return "session_remote_terminal"
+	case FailureCodeOfferedLoadUnderDelivery:
+		return "offered_load_under_delivery"
+	case FailureCodeSessionSchedulerCPUSaturated:
+		return "session_scheduler_cpu_saturated"
 	default:
 		return "unknown"
 	}

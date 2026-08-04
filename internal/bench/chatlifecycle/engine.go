@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"math/bits"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,7 @@ var (
 	errEngineConfig     = errors.New("chat lifecycle engine: configuration is invalid")
 	errEngineRunning    = errors.New("chat lifecycle engine: already running")
 	errEngineNotRunning = errors.New("chat lifecycle engine: not running")
+	errSchedulerClock   = errors.New("chat lifecycle scheduler: clock moved backwards or login credit overflowed")
 )
 
 // EngineConfig fixes every local retained-state and per-advance CPU bound.
@@ -64,7 +66,17 @@ type EngineSnapshot struct {
 	TransportInflight       int
 	RelationshipLookback    int
 	ActiveLifecycleTimers   int
+	ActiveHotChannels       int
 	ColdEvidencePending     int
+	LoginPlannedNew         uint64
+	LoginPlannedReturning   uint64
+	LoginAdmittedNew        uint64
+	LoginAdmittedReturning  uint64
+	LoginCompletedNew       uint64
+	LoginCompletedReturning uint64
+	LoginSkipped            uint64
+	LoginReplacements       uint64
+	SessionsExpired         uint64
 	RetryAttempts           uint64
 	FinalFailures           uint64
 	HarnessInvalid          uint64
@@ -74,6 +86,152 @@ type EngineSnapshot struct {
 	Classification          SyncClassification
 	NextFutureAt            time.Time
 	NextRetryAt             time.Time
+}
+
+// EngineStepSnapshot is one bounded orchestration result. Login counters
+// distinguish requested shape from actual admission and completed sync.
+type EngineStepSnapshot struct {
+	PlannedNew         int
+	PlannedReturning   int
+	AdmittedNew        int
+	AdmittedReturning  int
+	CompletedNew       int
+	CompletedReturning int
+	LoginsCompleted    int
+	BootstrapNew       int
+	LoginsSkipped      int
+	ReplacementLogins  int
+	Expired            int
+	Online             int
+	Traffic            TrafficTickSnapshot
+	Advanced           int
+}
+
+type sessionScheduler struct {
+	workload        WorkloadConfig
+	lastStep        time.Time
+	credit          uint64
+	creditRemainder uint64
+	replacements    uint64
+	loginOrdinal    uint64
+	nextNewIndex    uint64
+	bootstrapping   bool
+}
+
+type sessionSchedulerMetrics struct {
+	plannedNew         atomic.Uint64
+	plannedReturning   atomic.Uint64
+	admittedNew        atomic.Uint64
+	admittedReturning  atomic.Uint64
+	completedNew       atomic.Uint64
+	completedReturning atomic.Uint64
+	skipped            atomic.Uint64
+	replacements       atomic.Uint64
+	expired            atomic.Uint64
+}
+
+func (m *sessionSchedulerMetrics) reset() {
+	m.plannedNew.Store(0)
+	m.plannedReturning.Store(0)
+	m.admittedNew.Store(0)
+	m.admittedReturning.Store(0)
+	m.completedNew.Store(0)
+	m.completedReturning.Store(0)
+	m.skipped.Store(0)
+	m.replacements.Store(0)
+	m.expired.Store(0)
+}
+
+func (s *sessionScheduler) reset(now time.Time) {
+	s.lastStep = now
+	s.credit = 0
+	s.creditRemainder = 0
+	s.replacements = 0
+	s.loginOrdinal = 0
+	s.bootstrapping = true
+}
+
+func (s *sessionScheduler) addReplacements(count uint64) {
+	limit := uint64(s.workload.OnlineUsers)
+	if count > limit-s.replacements {
+		s.replacements = limit
+		return
+	}
+	s.replacements += count
+}
+
+func (s *sessionScheduler) release(now time.Time) (int, error) {
+	if now.Before(s.lastStep) {
+		return 0, errSchedulerClock
+	}
+	elapsed := uint64(now.Sub(s.lastStep))
+	s.lastStep = now
+	numerator := uint64(s.workload.NewUsersPerDay) * distributionCycle
+	denominator := uint64(secondsPerDay) * uint64(time.Second) * uint64(s.workload.Login.NewPercent)
+	hi, lo := bits.Mul64(elapsed, numerator)
+	if denominator == 0 || hi >= denominator {
+		return 0, errSchedulerClock
+	}
+	whole, remainder := bits.Div64(hi, lo, denominator)
+	remainder += s.creditRemainder
+	if remainder >= denominator {
+		whole++
+		remainder -= denominator
+	}
+	s.creditRemainder = remainder
+	burst := uint64(s.workload.MaxGlobalBurst)
+	if whole >= burst || s.credit >= burst-whole {
+		s.credit = burst
+	} else {
+		s.credit += whole
+	}
+	due := s.credit
+	if s.replacements > due {
+		due = s.replacements
+	}
+	if due > uint64(s.workload.OnlineUsers) {
+		due = uint64(s.workload.OnlineUsers)
+	}
+	return int(due), nil
+}
+
+func (s *sessionScheduler) consumeOne() {
+	if s.credit > 0 {
+		s.credit--
+	}
+	if s.replacements > 0 {
+		s.replacements--
+	}
+}
+
+func (s *sessionScheduler) planLogin(
+	sessions *SessionPool,
+	graph RelationshipGraph,
+	schedule ScheduleModel,
+	loginOrdinal uint64,
+	kind LoginIdentity,
+) (SessionLogin, LoginIdentity, ReturningCandidate, bool, error) {
+	if kind == LoginNew || s.bootstrapping {
+		uid := graph.identity.UID(s.nextNewIndex)
+		return SessionLogin{UID: uid, UserIndex: s.nextNewIndex, LoginOrdinal: loginOrdinal}, LoginNew, ReturningCandidate{}, true, nil
+	}
+	for probe := uint64(0); probe < 64; probe++ {
+		if probe > (math.MaxUint64-loginOrdinal)/distributionCycle {
+			return SessionLogin{}, kind, ReturningCandidate{}, false, errEngineConfig
+		}
+		candidateOrdinal := loginOrdinal + probe*distributionCycle
+		candidate, err := graph.ReturningCandidate(s.nextNewIndex, candidateOrdinal, uint64(schedule.newUsersPerDay))
+		if err != nil {
+			return SessionLogin{}, kind, ReturningCandidate{}, false, err
+		}
+		if !candidate.Available || sessions.isOwned(candidate.UserUID) {
+			continue
+		}
+		return SessionLogin{
+			UID: candidate.UserUID, UserIndex: candidate.UserIndex, LoginOrdinal: loginOrdinal,
+		}, LoginReturning, candidate, true, nil
+	}
+	return SessionLogin{}, kind, ReturningCandidate{}, false, nil
 }
 
 type engineWorkKind uint8
@@ -132,6 +290,11 @@ type engineInflight struct {
 	timeout        *engineWork
 }
 
+type engineActiveChannel struct {
+	edge      RelationshipEdge
+	direction PersonDirection
+}
+
 type engineCommand struct {
 	run func()
 }
@@ -139,6 +302,8 @@ type engineCommand struct {
 type engineCompletion struct {
 	ack             *frame.SendackPacket
 	verificationErr error
+	clientMsgNo     string
+	sessionExit     bool
 }
 
 type advanceResult struct {
@@ -171,17 +336,23 @@ type Engine struct {
 	maxWork          int
 	attemptTimeout   time.Duration
 
-	lifecycleMu sync.Mutex
-	running     bool
-	accepting   bool
-	stopping    bool
-	generation  uint64
-	commands    chan engineCommand
-	completions chan engineCompletion
-	stop        chan struct{}
-	done        chan struct{}
-	cached      EngineSnapshot
-	sessionOps  sync.WaitGroup
+	lifecycleMu        sync.Mutex
+	stepMu             sync.Mutex
+	running            bool
+	accepting          bool
+	stopping           bool
+	generation         uint64
+	commands           chan engineCommand
+	completions        chan engineCompletion
+	stop               chan struct{}
+	done               chan struct{}
+	generationCtx      context.Context
+	generationCancel   context.CancelFunc
+	cached             EngineSnapshot
+	sessionOps         sync.WaitGroup
+	replacementSignals atomic.Int64
+	scheduler          sessionScheduler
+	schedulerMetrics   sessionSchedulerMetrics
 
 	activeLoops       atomic.Int64
 	commandSaturation atomic.Uint64
@@ -197,9 +368,13 @@ type Engine struct {
 	nextOrder             uint64
 	activeLifecycleTimers int
 	lifecycleByChannel    map[string]*engineWork
+	activeChannels        []engineActiveChannel
+	activePosition        map[string]int
+	activeCursor          uint64
 	retryAttempts         uint64
 	finalFailures         uint64
 	harnessInvalid        uint64
+	domainOrdinals        [6]uint64
 	now                   time.Time
 }
 
@@ -226,8 +401,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		commandCapacity: config.CommandCapacity, workCapacity: config.WorkCapacity,
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
+		scheduler: sessionScheduler{workload: config.Generator.workload, bootstrapping: true},
 	}
-	if err := config.Sessions.setSendackObserver(engine.sessionSendack); err != nil {
+	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError, engine.sessionExit); err != nil {
 		return nil, err
 	}
 	engine.cached = engine.emptySnapshot(false)
@@ -255,7 +431,11 @@ func (e *Engine) Start(ctx context.Context) error {
 	if err := e.sessions.resetRuntime(); err != nil {
 		return err
 	}
-	if err := e.generator.reset(e.clock.Now()); err != nil {
+	nextGeneration := e.generation + 1
+	if nextGeneration == 0 || nextGeneration > maxLogicalGeneration {
+		return errEngineConfig
+	}
+	if err := e.generator.reset(e.clock.Now(), nextGeneration); err != nil {
 		return err
 	}
 	retries, err := NewRetryScheduler(e.retry, e.retryCapacity)
@@ -269,6 +449,9 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.retries = retries
 	e.inflight = make(map[string]*engineInflight)
 	e.lifecycleByChannel = make(map[string]*engineWork)
+	e.activeChannels = nil
+	e.activePosition = make(map[string]int)
+	e.activeCursor = 0
 	e.workPeak = 0
 	e.queuedSends = 0
 	e.inflightPeak = 0
@@ -277,13 +460,18 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.retryAttempts = 0
 	e.finalFailures = 0
 	e.harnessInvalid = 0
+	e.domainOrdinals = [6]uint64{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
+	e.scheduler.reset(e.now)
+	e.schedulerMetrics.reset()
+	e.replacementSignals.Store(0)
 	e.commands = make(chan engineCommand, e.commandCapacity)
 	e.completions = make(chan engineCompletion, e.commandCapacity)
 	e.stop = make(chan struct{})
 	e.done = make(chan struct{})
-	e.generation++
+	e.generationCtx, e.generationCancel = context.WithCancel(ctx)
+	e.generation = nextGeneration
 	e.running = true
 	e.accepting = true
 	e.stopping = false
@@ -311,10 +499,12 @@ func (e *Engine) Stop() error {
 	}
 	e.stopping = true
 	e.accepting = false
+	generationCancel := e.generationCancel
 	stop := e.stop
 	done := e.done
 	e.lifecycleMu.Unlock()
 
+	generationCancel()
 	e.sessionOps.Wait()
 	closeErr := e.sessions.CloseAll()
 	barrier := make(chan struct{}, 1)
@@ -336,30 +526,33 @@ func (e *Engine) Stop() error {
 
 // Login serializes fresh session ownership through the engine generation.
 func (e *Engine) Login(ctx context.Context, login SessionLogin) (SessionSnapshot, error) {
-	if !e.beginSessionOp() {
+	generationCtx, ok := e.beginSessionOp()
+	if !ok {
 		return SessionSnapshot{}, errEngineNotRunning
 	}
 	defer e.sessionOps.Done()
-	return e.sessions.Login(ctx, login)
+	loginCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	return e.sessions.login(loginCtx, generationCtx, login)
 }
 
 // Logout applies the joined session boundary inside the active generation.
 func (e *Engine) Logout(uid string) error {
-	if !e.beginSessionOp() {
+	if _, ok := e.beginSessionOp(); !ok {
 		return errEngineNotRunning
 	}
 	defer e.sessionOps.Done()
 	return e.sessions.Logout(uid)
 }
 
-func (e *Engine) beginSessionOp() bool {
+func (e *Engine) beginSessionOp() (context.Context, bool) {
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
 	if !e.running || !e.accepting {
-		return false
+		return nil, false
 	}
 	e.sessionOps.Add(1)
-	return true
+	return e.generationCtx, true
 }
 
 // SubmitGranted retains one transient SEND whose caller already owns a primary
@@ -383,13 +576,14 @@ func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, erro
 	if err := e.enqueue(engineCommand{run: func() {
 		e.now = now
 		snapshot, tickErr := e.generator.Tick(demand, func(intent TrafficIntent) error {
-			if intent.Kind == TrafficPerson && len(e.activity) > 0 && !e.activity[0].due.After(now) {
-				activity := heap.Pop(&e.activity).(*engineWork)
-				var retargetErr error
-				intent, retargetErr = e.retargetPersonGrant(intent, activity.intent)
-				if retargetErr != nil {
-					return retargetErr
-				}
+			var routeErr error
+			if intent.Kind == TrafficPerson {
+				intent, routeErr = e.routePersonGrant(intent, now)
+			} else {
+				intent, routeErr = e.routeGroupGrant(intent)
+			}
+			if routeErr != nil {
+				return routeErr
 			}
 			return e.addSendWork(intent, 0, now)
 		})
@@ -397,7 +591,11 @@ func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, erro
 			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
 				tickErr = canaryErr
 			} else if due {
-				tickErr = e.addSendWork(canary, 0, now)
+				if canary, canaryErr = e.routeGroupGrant(canary); canaryErr == nil {
+					tickErr = e.addSendWork(canary, 0, now)
+				} else {
+					tickErr = canaryErr
+				}
 			}
 		}
 		response <- struct {
@@ -478,9 +676,72 @@ func (e *Engine) ApproveColdRevisit(personChannelID string) (bool, error) {
 	return <-response, nil
 }
 
+func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginOrdinal uint64, now time.Time) error {
+	response := make(chan error, 1)
+	if err := e.enqueue(engineCommand{run: func() {
+		if candidate.ConversationCount <= 0 || candidate.ConversationCount > len(candidate.Conversations) {
+			response <- errEngineConfig
+			return
+		}
+		if candidate.ConversationCount > e.workCapacity-e.futureCount() {
+			response <- e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
+			return
+		}
+		for index := 0; index < candidate.ConversationCount; index++ {
+			conversation := candidate.Conversations[index]
+			ownerIndex, peerIndex := candidate.UserIndex, conversation.PeerIndex
+			if ownerIndex > peerIndex {
+				ownerIndex, peerIndex = peerIndex, ownerIndex
+			}
+			edge := e.graph.edge(ownerIndex, peerIndex)
+			if edge.PersonChannelID != conversation.PersonChannelID {
+				response <- errEngineConfig
+				return
+			}
+			if e.lifecycleByChannel[edge.PersonChannelID] != nil {
+				continue
+			}
+			delay, err := e.schedule.durationInRange(
+				"returning-login-revisit-delay/v1", minimumRevisitDelay, maximumRevisitDelay,
+				loginOrdinal, candidate.UserIndex, uint64(index),
+			)
+			if err != nil {
+				response <- err
+				return
+			}
+			messages, err := e.schedule.intInRange(
+				"returning-login-revisit-message-count/v1", e.schedule.relationship.ReturningMessages,
+				loginOrdinal, candidate.UserIndex, uint64(index),
+			)
+			if err != nil {
+				response <- err
+				return
+			}
+			work := &engineWork{
+				due: now.Add(delay), kind: engineWorkLifecycle, edge: edge,
+				schedule: ChannelSchedule{
+					Class: LifecycleRevisit, RevisitMessages: messages,
+					RequiresColdRuntimeEvidence: true, NaturalCooling: true,
+				},
+				relationshipOrdinal: loginOrdinal*2 + uint64(index),
+			}
+			if err := e.addWork(work); err != nil {
+				response <- err
+				return
+			}
+			e.lifecycleByChannel[edge.PersonChannelID] = work
+			e.activeLifecycleTimers++
+		}
+		response <- nil
+	}}); err != nil {
+		return err
+	}
+	return <-response
+}
+
 // Advance processes due heaps with a fixed CPU work budget.
 func (e *Engine) Advance(now time.Time) (int, error) {
-	if !e.beginSessionOp() {
+	if _, ok := e.beginSessionOp(); !ok {
 		return 0, errEngineNotRunning
 	}
 	e.sessions.Expire(now)
@@ -491,6 +752,139 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 	}
 	result := <-response
 	return result.processed, result.err
+}
+
+// Step is the narrow worker-run boundary: it advances bounded session
+// scheduling, optional primary traffic, and due engine work for one fake or
+// real clock instant. Control-plane code does not assemble private schedulers.
+func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (EngineStepSnapshot, error) {
+	if e == nil {
+		return EngineStepSnapshot{}, errEngineConfig
+	}
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+
+	if _, ok := e.beginSessionOp(); !ok {
+		return EngineStepSnapshot{}, errEngineNotRunning
+	}
+	expired := e.sessions.Expire(now)
+	e.schedulerMetrics.expired.Add(uint64(expired))
+	e.sessionOps.Done()
+	replacementCount := uint64(expired) + uint64(e.replacementSignals.Swap(0))
+	poolBeforeLogins := e.sessions.Snapshot()
+	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.scheduler.workload.OnlineUsers {
+		shortage := uint64(e.scheduler.workload.OnlineUsers - poolBeforeLogins.Online - poolBeforeLogins.Starting)
+		if shortage > replacementCount {
+			replacementCount = shortage
+		}
+	}
+	e.scheduler.addReplacements(replacementCount)
+	loginBudget, err := e.scheduler.release(now)
+	if err != nil {
+		return EngineStepSnapshot{}, err
+	}
+	result := EngineStepSnapshot{Expired: expired}
+	for loginBudget > 0 && result.LoginsCompleted+result.LoginsSkipped < e.maxWork {
+		pool := e.sessions.Snapshot()
+		if pool.Online+pool.Starting >= e.scheduler.workload.OnlineUsers {
+			break
+		}
+		ordinal := e.scheduler.loginOrdinal
+		e.scheduler.loginOrdinal++
+		loginSchedule, scheduleErr := e.schedule.Login(ordinal)
+		if scheduleErr != nil {
+			return result, scheduleErr
+		}
+		identityKind := loginSchedule.Identity
+		if identityKind == LoginNew {
+			result.PlannedNew++
+			e.schedulerMetrics.plannedNew.Add(1)
+		} else {
+			result.PlannedReturning++
+			e.schedulerMetrics.plannedReturning.Add(1)
+		}
+		login, actualKind, candidate, available, planErr := e.scheduler.planLogin(e.sessions, e.graph, e.schedule, ordinal, identityKind)
+		if planErr != nil {
+			return result, planErr
+		}
+		wasReplacement := e.scheduler.replacements > 0
+		e.scheduler.consumeOne()
+		loginBudget--
+		if !available {
+			result.LoginsSkipped++
+			e.schedulerMetrics.skipped.Add(1)
+			continue
+		}
+		if identityKind == LoginReturning && actualKind == LoginNew {
+			result.BootstrapNew++
+		}
+		if actualKind == LoginNew {
+			result.AdmittedNew++
+			e.schedulerMetrics.admittedNew.Add(1)
+		} else {
+			result.AdmittedReturning++
+			e.schedulerMetrics.admittedReturning.Add(1)
+		}
+		if _, loginErr := e.Login(ctx, login); loginErr != nil {
+			result.LoginsSkipped++
+			e.schedulerMetrics.skipped.Add(1)
+			return result, loginErr
+		}
+		if actualKind == LoginNew {
+			e.scheduler.nextNewIndex++
+			result.CompletedNew++
+			e.schedulerMetrics.completedNew.Add(1)
+			if _, _, observeErr := e.ObserveNewUser(login.UserIndex); observeErr != nil {
+				return result, observeErr
+			}
+		} else {
+			result.CompletedReturning++
+			e.schedulerMetrics.completedReturning.Add(1)
+			if scheduleErr := e.scheduleReturningCandidate(candidate, ordinal, now); scheduleErr != nil {
+				return result, scheduleErr
+			}
+		}
+		result.LoginsCompleted++
+		if wasReplacement {
+			result.ReplacementLogins++
+			e.schedulerMetrics.replacements.Add(1)
+		}
+	}
+	poolAfterLogins := e.sessions.Snapshot()
+	if poolAfterLogins.Online >= e.scheduler.workload.OnlineUsers {
+		e.scheduler.bootstrapping = false
+		e.scheduler.credit = 0
+		e.scheduler.replacements = 0
+	}
+	if result.LoginsCompleted+result.LoginsSkipped >= e.maxWork &&
+		poolAfterLogins.Online+poolAfterLogins.Starting < e.scheduler.workload.OnlineUsers &&
+		(e.scheduler.credit > 0 || e.scheduler.replacements > 0) {
+		result.Online = poolAfterLogins.Online
+		return result, e.recordRuntimeFailureSync(RuntimeFailureSchedulerCPUSaturated, uint64(e.maxWork))
+	}
+	if demand != nil {
+		traffic, tickErr := e.Tick(now, demand)
+		result.Traffic = traffic
+		if tickErr != nil {
+			return result, tickErr
+		}
+	}
+	advanced, advanceErr := e.Advance(now)
+	result.Advanced = advanced
+	result.Online = e.sessions.Snapshot().Online
+	return result, advanceErr
+}
+
+func mergeGenerationContext(generation, caller context.Context) (context.Context, context.CancelFunc) {
+	if caller == nil {
+		caller = context.Background()
+	}
+	ctx, cancel := context.WithCancel(generation)
+	stopCaller := context.AfterFunc(caller, cancel)
+	return ctx, func() {
+		stopCaller()
+		cancel()
+	}
 }
 
 // ObserveSendack completes engine inflight ownership after Verifier processing.
@@ -533,6 +927,8 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		}
 		e.activeLifecycleTimers = 0
 		e.lifecycleByChannel = nil
+		e.activeChannels = nil
+		e.activePosition = nil
 		e.activeLoops.Add(-1)
 		snapshot := e.buildSnapshot(false)
 		e.lifecycleMu.Lock()
@@ -545,7 +941,7 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		case command := <-commands:
 			command.run()
 		case completion := <-e.completions:
-			_ = e.observeSendack(completion.ack, completion.verificationErr)
+			e.observeCompletion(completion)
 		case <-stop:
 			return
 		}
@@ -580,6 +976,19 @@ func (e *Engine) enqueueBlocking(command engineCommand) error {
 }
 
 func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verificationErr error) {
+	e.enqueueSessionCompletion(engineCompletion{ack: ack, verificationErr: verificationErr})
+}
+
+func (e *Engine) sessionAsyncSendError(_ string, clientMsgNo string) {
+	e.enqueueSessionCompletion(engineCompletion{clientMsgNo: clientMsgNo})
+}
+
+func (e *Engine) sessionExit(_ string) {
+	e.replacementSignals.Add(1)
+	e.enqueueSessionCompletion(engineCompletion{sessionExit: true})
+}
+
+func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
 	e.lifecycleMu.Lock()
 	if !e.running {
 		e.lifecycleMu.Unlock()
@@ -589,7 +998,7 @@ func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verification
 	stop := e.stop
 	e.lifecycleMu.Unlock()
 	select {
-	case completions <- engineCompletion{ack: ack, verificationErr: verificationErr}:
+	case completions <- completion:
 	case <-stop:
 	}
 }
@@ -672,10 +1081,24 @@ func (e *Engine) drainCompletions() {
 	for {
 		select {
 		case completion := <-e.completions:
-			_ = e.observeSendack(completion.ack, completion.verificationErr)
+			e.observeCompletion(completion)
 		default:
 			return
 		}
+	}
+}
+
+func (e *Engine) observeCompletion(completion engineCompletion) {
+	switch {
+	case completion.ack != nil:
+		_ = e.observeSendack(completion.ack, completion.verificationErr)
+	case completion.clientMsgNo != "":
+		inflight := e.inflight[completion.clientMsgNo]
+		if inflight != nil {
+			_ = e.scheduleRetry(inflight, e.clock.Now())
+		}
+	case completion.sessionExit:
+		// The private scheduler consumes this bounded replacement signal in Step.
 	}
 }
 
@@ -692,6 +1115,9 @@ func (e *Engine) processWork(work *engineWork, now time.Time) error {
 		return e.scheduleRetry(inflight, now)
 	case engineWorkLifecycle:
 		delete(e.lifecycleByChannel, work.edge.PersonChannelID)
+		if work.schedule.Class == LifecycleRotating || work.schedule.Class == LifecycleLong {
+			e.removeActiveChannel(work.edge.PersonChannelID)
+		}
 		if e.activeLifecycleTimers > 0 {
 			e.activeLifecycleTimers--
 		}
@@ -859,12 +1285,21 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 	if err != nil {
 		return false, err
 	}
+	if schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong {
+		if _, active := e.activePosition[edge.PersonChannelID]; active {
+			return false, nil
+		}
+	}
 	needed := schedule.InitialBurst.MessageCount
 	if schedule.Class != LifecycleOneShot {
 		needed++
 	}
 	if needed > e.workCapacity-e.futureCount() {
 		return false, e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
+	}
+	if (schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong) &&
+		len(e.activeChannels) >= e.generator.workload.HotSet.PersonChannels {
+		return false, nil
 	}
 	if err := e.scheduleRelationshipMessages(edge, relationshipOrdinal, 0, schedule.InitialBurst.MessageCount, e.now, schedule.InitialBurst.Window); err != nil {
 		return false, err
@@ -875,6 +1310,13 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		lifecycleDue = e.now.Add(schedule.RevisitAfter)
 	case LifecycleRotating, LifecycleLong:
 		lifecycleDue = e.now.Add(schedule.ActiveFor)
+		direction, directionErr := e.traffic.DirectionFor(relationshipOrdinal)
+		if directionErr != nil {
+			return false, directionErr
+		}
+		e.addActiveChannel(engineActiveChannel{
+			edge: edge, direction: direction,
+		})
 	}
 	if !lifecycleDue.IsZero() {
 		work := &engineWork{
@@ -928,9 +1370,13 @@ func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshi
 		if err != nil {
 			return err
 		}
+		domain := LogicalDomainLifecycle
+		if logicalOffset >= 8 {
+			domain = LogicalDomainRevisit
+		}
 		intent := TrafficIntent{
 			Logical: logical, Packet: packetForTrafficIntent(logical, payload), Kind: TrafficPerson,
-			Direction: direction, ChannelID: edge.PersonChannelID, PayloadBytes: payloadBytes,
+			Direction: direction, ChannelID: edge.PersonChannelID, PayloadBytes: payloadBytes, Domain: domain,
 		}
 		if err := e.addActivity(&engineWork{due: start.Add(offset), kind: engineWorkSend, intent: intent}); err != nil {
 			return err
@@ -940,8 +1386,21 @@ func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshi
 }
 
 func (e *Engine) retargetPersonGrant(grant, activity TrafficIntent) (TrafficIntent, error) {
+	logicalOrdinal := grant.Logical.LogicalSend
+	if activity.Domain == LogicalDomainLifecycle || activity.Domain == LogicalDomainRevisit {
+		ordinal := e.domainOrdinals[activity.Domain]
+		if ordinal > maxLogicalOrdinal {
+			return TrafficIntent{}, errEngineConfig
+		}
+		e.domainOrdinals[activity.Domain]++
+		var err error
+		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, activity.Domain, ordinal)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+	}
 	logical, err := e.traffic.NewLogicalSend(
-		uint64(grant.Logical.WorkerID), grant.Logical.LogicalSend, TrafficPerson,
+		uint64(grant.Logical.WorkerID), logicalOrdinal, TrafficPerson,
 		activity.Logical.Sender, activity.Logical.Target,
 	)
 	if err != nil {
@@ -954,7 +1413,134 @@ func (e *Engine) retargetPersonGrant(grant, activity TrafficIntent) (TrafficInte
 	activity.Logical = logical
 	activity.Packet = packetForTrafficIntent(logical, payload)
 	activity.PayloadBytes = grant.PayloadBytes
+	if activity.Domain == 0 {
+		activity.Domain = LogicalDomainPrimary
+	}
 	return activity, nil
+}
+
+func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain) (bool, error) {
+	logicalOrdinal := grant.Logical.LogicalSend
+	if domain == LogicalDomainLifecycle || domain == LogicalDomainRevisit {
+		ordinal := e.domainOrdinals[domain]
+		if ordinal > maxLogicalOrdinal {
+			return false, errEngineConfig
+		}
+		var err error
+		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, domain, ordinal)
+		if err != nil {
+			return false, err
+		}
+	}
+	return e.verifier.ShouldCorrelate(LogicalSend{LogicalSend: logicalOrdinal, WorkerID: grant.Logical.WorkerID})
+}
+
+func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
+	for len(e.activity) > 0 && !e.activity[0].due.After(now) {
+		activity := heap.Pop(&e.activity).(*engineWork)
+		if !e.sessions.IsOnline(activity.intent.Logical.Sender) {
+			continue
+		}
+		correlate, err := e.grantShouldCorrelate(grant, activity.intent.Domain)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+		if correlate && !e.sessions.IsOnline(activity.intent.Logical.Target) {
+			continue
+		}
+		return e.retargetPersonGrant(grant, activity.intent)
+	}
+	correlate, err := e.grantShouldCorrelate(grant, LogicalDomainPrimary)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	for scan := 0; scan < len(e.activeChannels); scan++ {
+		position := int((e.activeCursor + uint64(scan)) % uint64(len(e.activeChannels)))
+		active := e.activeChannels[position]
+		sender, err := SenderFor(active.direction, grant.Logical.LogicalSend, active.edge.OwnerUID, active.edge.PeerUID)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+		if !e.sessions.IsOnline(sender) {
+			continue
+		}
+		target := active.edge.OwnerUID
+		if sender == active.edge.OwnerUID {
+			target = active.edge.PeerUID
+		}
+		if correlate && !e.sessions.IsOnline(target) {
+			continue
+		}
+		e.activeCursor = uint64(position + 1)
+		template := TrafficIntent{
+			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
+			Direction: active.direction, ChannelID: active.edge.PersonChannelID, Domain: LogicalDomainPrimary,
+		}
+		return e.retargetPersonGrant(grant, template)
+	}
+	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
+}
+
+func (e *Engine) addActiveChannel(channel engineActiveChannel) {
+	if _, exists := e.activePosition[channel.edge.PersonChannelID]; exists {
+		return
+	}
+	e.activePosition[channel.edge.PersonChannelID] = len(e.activeChannels)
+	e.activeChannels = append(e.activeChannels, channel)
+}
+
+func (e *Engine) removeActiveChannel(channelID string) {
+	position, ok := e.activePosition[channelID]
+	if !ok {
+		return
+	}
+	last := len(e.activeChannels) - 1
+	if position != last {
+		moved := e.activeChannels[last]
+		e.activeChannels[position] = moved
+		e.activePosition[moved.edge.PersonChannelID] = position
+	}
+	e.activeChannels[last] = engineActiveChannel{}
+	e.activeChannels = e.activeChannels[:last]
+	delete(e.activePosition, channelID)
+	if len(e.activeChannels) == 0 {
+		e.activeCursor = 0
+	} else {
+		e.activeCursor %= uint64(len(e.activeChannels))
+	}
+}
+
+func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
+	groupIndex, ok := e.generator.catalog.IndexFromGroupID(grant.ChannelID)
+	if !ok {
+		return TrafficIntent{}, errEngineConfig
+	}
+	group, err := e.generator.catalog.Group(groupIndex)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	correlate, err := e.verifier.ShouldCorrelate(grant.Logical)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	sender, ok := e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
+	if !ok {
+		return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
+	}
+	logical, err := e.traffic.NewLogicalSend(
+		uint64(grant.Logical.WorkerID), grant.Logical.LogicalSend, TrafficGroup, sender.UID, group.ID,
+	)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	payload, err := e.traffic.BuildPayload(logical, grant.PayloadBytes)
+	if err != nil {
+		return TrafficIntent{}, err
+	}
+	grant.Logical = logical
+	grant.Packet = packetForTrafficIntent(logical, payload)
+	grant.ChannelID = group.ID
+	return grant, nil
 }
 
 func (e *Engine) cleanupInflight() {
@@ -979,9 +1565,21 @@ func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) err
 		failureCode = FailureCodeEngineInflightSaturated
 	case RuntimeFailureRetryQueueSaturated:
 		failureCode = FailureCodeEngineRetrySaturated
+	case RuntimeFailureUnderDelivery:
+		failureCode = FailureCodeOfferedLoadUnderDelivery
+	case RuntimeFailureSchedulerCPUSaturated:
+		failureCode = FailureCodeSessionSchedulerCPUSaturated
 	}
 	_ = e.evidence.Record(EvidenceEvent{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: failureCode, Value: value})
 	return &RuntimeError{code: code}
+}
+
+func (e *Engine) recordRuntimeFailureSync(code RuntimeFailureCode, value uint64) error {
+	response := make(chan error, 1)
+	if err := e.enqueue(engineCommand{run: func() { response <- e.recordRuntimeFailure(code, value) }}); err != nil {
+		return err
+	}
+	return <-response
 }
 
 func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
@@ -1000,8 +1598,14 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,
 		TransportInflight: sessions.TransportInflight, RelationshipLookback: MaxForwardRelationships,
 		ActiveLifecycleTimers: e.activeLifecycleTimers, ColdEvidencePending: len(e.lifecycleByChannel),
-		RetryAttempts: e.retryAttempts,
-		FinalFailures: e.finalFailures, HarnessInvalid: e.harnessInvalid + e.commandSaturation.Load(),
+		ActiveHotChannels: len(e.activeChannels),
+		LoginPlannedNew:   e.schedulerMetrics.plannedNew.Load(), LoginPlannedReturning: e.schedulerMetrics.plannedReturning.Load(),
+		LoginAdmittedNew: e.schedulerMetrics.admittedNew.Load(), LoginAdmittedReturning: e.schedulerMetrics.admittedReturning.Load(),
+		LoginCompletedNew: e.schedulerMetrics.completedNew.Load(), LoginCompletedReturning: e.schedulerMetrics.completedReturning.Load(),
+		LoginSkipped: e.schedulerMetrics.skipped.Load(), LoginReplacements: e.schedulerMetrics.replacements.Load(),
+		SessionsExpired: e.schedulerMetrics.expired.Load(),
+		RetryAttempts:   e.retryAttempts,
+		FinalFailures:   e.finalFailures, HarnessInvalid: e.harnessInvalid + e.commandSaturation.Load(),
 		CommandSaturation: e.commandSaturation.Load(), Classification: e.evidence.Snapshot().Classification,
 		CompletionQueueDepth: len(e.completions), CompletionQueueCapacity: cap(e.completions),
 	}

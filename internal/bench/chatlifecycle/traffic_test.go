@@ -18,8 +18,11 @@ func TestTrafficGeneratorPreservesFormalAggregateGrantAndMix(t *testing.T) {
 			if intent.Canary {
 				t.Fatal("primary tick emitted very-large canary")
 			}
-			if intent.Logical.ClientMsgNo == "" || len(intent.Packet.Payload) != intent.PayloadBytes {
-				t.Fatalf("invalid primary intent: %+v", intent)
+			if intent.Packet != nil || intent.Logical.ClientMsgNo != "" || intent.Logical.Sender != "" || intent.Logical.Target != "" {
+				t.Fatalf("generator grant claimed a concrete online route: %+v", intent)
+			}
+			if intent.Logical.LogicalSend == 0 || uint64(intent.Logical.WorkerID) >= uint64(cfg.Workload.Workers) {
+				t.Fatalf("invalid route-free primary grant: %+v", intent)
 			}
 			if intent.Kind == TrafficPerson {
 				directions[intent.Direction]++
@@ -77,6 +80,28 @@ func TestTrafficGeneratorVeryLargeCanaryIsOncePerMinuteAndOutsidePrimaryRate(t *
 	}
 	if got := generator.Snapshot().Canaries; got != 3 {
 		t.Fatalf("canaries = %d, want 3", got)
+	}
+}
+
+func TestLogicalDomainEncodingHasCheckedSeventyTwoHourBudget(t *testing.T) {
+	t.Parallel()
+	const seventyTwoHourPrimary = uint64(72 * 60 * 60 * 2_000)
+	seen := map[uint64]struct{}{}
+	for domain := LogicalDomainPrimary; domain <= LogicalDomainCanary; domain++ {
+		ordinal, err := scopedLogicalOrdinal(7, domain, seventyTwoHourPrimary)
+		if err != nil {
+			t.Fatalf("scopedLogicalOrdinal(%d): %v", domain, err)
+		}
+		if _, duplicate := seen[ordinal]; duplicate {
+			t.Fatalf("domain %d reused ordinal %d", domain, ordinal)
+		}
+		seen[ordinal] = struct{}{}
+	}
+	if _, err := scopedLogicalOrdinal(maxLogicalGeneration+1, LogicalDomainPrimary, 0); err == nil {
+		t.Fatal("generation overflow accepted")
+	}
+	if _, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, maxLogicalOrdinal+1); err == nil {
+		t.Fatal("domain ordinal overflow accepted")
 	}
 }
 
@@ -188,16 +213,12 @@ func newTrafficTestGenerator(t *testing.T, cfg Config, start time.Time) *Traffic
 	if err != nil {
 		t.Fatalf("NewTrafficModel: %v", err)
 	}
-	graph, err := NewRelationshipGraph(identity)
-	if err != nil {
-		t.Fatalf("NewRelationshipGraph: %v", err)
-	}
 	catalog, err := NewGroupCatalog(identity, cfg.Workload.Groups)
 	if err != nil {
 		t.Fatalf("NewGroupCatalog: %v", err)
 	}
 	generator, err := NewTrafficGenerator(TrafficGeneratorConfig{
-		Identity: identity, Model: model, Graph: graph, Catalog: catalog,
+		Identity: identity, Model: model, Catalog: catalog,
 		Workload: cfg.Workload, Start: start,
 	})
 	if err != nil {

@@ -9,7 +9,33 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-const canaryLogicalBase = uint64(1) << 63
+const (
+	logicalOrdinalBits    = 43
+	logicalGenerationBits = 18
+	maxLogicalOrdinal     = uint64(1)<<logicalOrdinalBits - 1
+	maxLogicalGeneration  = uint64(1)<<logicalGenerationBits - 1
+)
+
+func scopedLogicalOrdinal(generation uint64, domain LogicalDomain, ordinal uint64) (uint64, error) {
+	if generation == 0 || generation > maxLogicalGeneration || domain < LogicalDomainPrimary || domain > LogicalDomainCanary || ordinal > maxLogicalOrdinal {
+		return 0, errTrafficGeneratorConfig
+	}
+	return uint64(domain)<<(logicalGenerationBits+logicalOrdinalBits) |
+		generation<<logicalOrdinalBits | ordinal, nil
+}
+
+// LogicalDomain partitions the payload-visible uint64 identity space. The
+// 43-bit ordinal budget holds over 8.7e12 messages per domain/generation;
+// 72 hours at 2,000 SEND/s uses about 5.2e8.
+type LogicalDomain uint8
+
+const (
+	LogicalDomainPrimary LogicalDomain = iota + 1
+	LogicalDomainLifecycle
+	LogicalDomainRevisit
+	LogicalDomainGroup
+	LogicalDomainCanary
+)
 
 var (
 	errTrafficGeneratorConfig = errors.New("chat lifecycle traffic runtime: configuration is incomplete")
@@ -25,11 +51,13 @@ var (
 type RuntimeFailureCode string
 
 const (
-	RuntimeFailureRetryQueueSaturated  RuntimeFailureCode = "retry_queue_saturated"
-	RuntimeFailureEngineQueueSaturated RuntimeFailureCode = "engine_queue_saturated"
-	RuntimeFailureEngineCPUSaturated   RuntimeFailureCode = "engine_cpu_saturated"
-	RuntimeFailureInflightSaturated    RuntimeFailureCode = "engine_inflight_saturated"
-	RuntimeFailureLoginSaturated       RuntimeFailureCode = "session_login_saturated"
+	RuntimeFailureRetryQueueSaturated   RuntimeFailureCode = "retry_queue_saturated"
+	RuntimeFailureEngineQueueSaturated  RuntimeFailureCode = "engine_queue_saturated"
+	RuntimeFailureEngineCPUSaturated    RuntimeFailureCode = "engine_cpu_saturated"
+	RuntimeFailureInflightSaturated     RuntimeFailureCode = "engine_inflight_saturated"
+	RuntimeFailureLoginSaturated        RuntimeFailureCode = "session_login_saturated"
+	RuntimeFailureUnderDelivery         RuntimeFailureCode = "offered_load_under_delivery"
+	RuntimeFailureSchedulerCPUSaturated RuntimeFailureCode = "session_scheduler_cpu_saturated"
 )
 
 // RuntimeError is redacted worker-runtime evidence with harness ownership.
@@ -64,7 +92,6 @@ func (e *RuntimeError) Code() RuntimeFailureCode {
 type TrafficGeneratorConfig struct {
 	Identity *IdentitySpace
 	Model    TrafficModel
-	Graph    RelationshipGraph
 	Catalog  GroupCatalog
 	Workload WorkloadConfig
 	Start    time.Time
@@ -81,6 +108,7 @@ type TrafficIntent struct {
 	GroupCategory GroupCategory
 	PayloadBytes  int
 	Canary        bool
+	Domain        LogicalDomain
 }
 
 // TrafficTickSnapshot is one streaming aggregate; it never retains intents.
@@ -118,7 +146,6 @@ type TrafficGeneratorSnapshot struct {
 type TrafficGenerator struct {
 	identity  *IdentitySpace
 	model     TrafficModel
-	graph     RelationshipGraph
 	catalog   GroupCatalog
 	workload  WorkloadConfig
 	allocator *RateAllocator
@@ -129,12 +156,13 @@ type TrafficGenerator struct {
 	groupOrdinal   uint64
 	canaryOrdinal  uint64
 	nextCanary     time.Time
+	generation     uint64
 	snapshot       TrafficGeneratorSnapshot
 }
 
 // NewTrafficGenerator constructs fixed-size allocator and catalog state.
 func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, error) {
-	if config.Identity == nil || config.Model.identity != config.Identity || config.Graph.identity != config.Identity ||
+	if config.Identity == nil || config.Model.identity != config.Identity ||
 		config.Catalog.identity != config.Identity || config.Workload.Workers <= 0 || config.Workload.SendRatePerSecond <= 0 ||
 		config.Workload.MaxGlobalBurst != 2*config.Workload.SendRatePerSecond || config.Start.IsZero() {
 		return nil, errTrafficGeneratorConfig
@@ -152,8 +180,9 @@ func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, erro
 		return nil, errTrafficGeneratorConfig
 	}
 	generator := &TrafficGenerator{
-		identity: config.Identity, model: config.Model, graph: config.Graph, catalog: config.Catalog,
+		identity: config.Identity, model: config.Model, catalog: config.Catalog,
 		workload: config.Workload, allocator: allocator, hotSet: hotSet,
+		generation: 1,
 	}
 	if config.Workload.Groups.VeryLarge > 0 {
 		generator.nextCanary = config.Start.Add(config.Workload.Groups.VeryLargeSendEvery)
@@ -214,27 +243,18 @@ func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error
 		return TrafficIntent{}, false, err
 	}
 	group := canary.Group
-	sender, err := group.MemberUID(int(g.canaryOrdinal % uint64(group.MemberCount)))
-	if err != nil {
-		return TrafficIntent{}, false, err
-	}
 	workerID := g.canaryOrdinal % g.identity.Workers()
-	logicalOrdinal := canaryLogicalBase + g.canaryOrdinal
-	logical, err := g.model.NewLogicalSend(workerID, logicalOrdinal, TrafficGroup, sender, group.ID)
+	logicalOrdinal, err := scopedLogicalOrdinal(g.generation, LogicalDomainCanary, g.canaryOrdinal)
 	if err != nil {
 		return TrafficIntent{}, false, err
 	}
-	payloadBytes, err := g.model.PayloadSizeFor(logicalOrdinal)
-	if err != nil {
-		return TrafficIntent{}, false, err
-	}
-	payload, err := g.model.BuildPayload(logical, payloadBytes)
+	payloadBytes, err := g.model.PayloadSizeFor(g.canaryOrdinal)
 	if err != nil {
 		return TrafficIntent{}, false, err
 	}
 	intent := TrafficIntent{
-		Logical: logical, Packet: packetForTrafficIntent(logical, payload), Kind: TrafficGroup,
-		ChannelID: group.ID, GroupCategory: GroupVeryLarge, PayloadBytes: payloadBytes, Canary: true,
+		Logical: LogicalSend{LogicalSend: logicalOrdinal, WorkerID: uint32(workerID), Kind: TrafficGroup}, Kind: TrafficGroup,
+		ChannelID: group.ID, GroupCategory: GroupVeryLarge, PayloadBytes: payloadBytes, Canary: true, Domain: LogicalDomainCanary,
 	}
 	g.canaryOrdinal++
 	g.snapshot.Canaries++
@@ -252,8 +272,8 @@ func (g *TrafficGenerator) Snapshot() TrafficGeneratorSnapshot {
 
 // reset discards one run's transient ordinals and credit before a new engine
 // generation starts. The immutable identity/model/catalog inputs are reused.
-func (g *TrafficGenerator) reset(start time.Time) error {
-	if g == nil || start.IsZero() {
+func (g *TrafficGenerator) reset(start time.Time, generation uint64) error {
+	if g == nil || start.IsZero() || generation == 0 || generation > maxLogicalGeneration {
 		return errTrafficGeneratorConfig
 	}
 	weights := make([]int64, g.workload.Workers)
@@ -265,6 +285,7 @@ func (g *TrafficGenerator) reset(start time.Time) error {
 		return err
 	}
 	g.allocator = allocator
+	g.generation = generation
 	g.primaryOrdinal = 0
 	g.personOrdinal = 0
 	g.groupOrdinal = 0
@@ -279,7 +300,7 @@ func (g *TrafficGenerator) reset(start time.Time) error {
 
 func (g *TrafficGenerator) primaryIntent(workerID uint64) (TrafficIntent, error) {
 	ordinal := g.primaryOrdinal
-	if ordinal >= canaryLogicalBase {
+	if ordinal > maxLogicalOrdinal {
 		return TrafficIntent{}, errTrafficGeneratorConfig
 	}
 	g.primaryOrdinal++
@@ -291,54 +312,33 @@ func (g *TrafficGenerator) primaryIntent(workerID uint64) (TrafficIntent, error)
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	intent := TrafficIntent{Kind: kind, PayloadBytes: payloadBytes}
-	var sender, target string
+	intent := TrafficIntent{Kind: kind, PayloadBytes: payloadBytes, Domain: LogicalDomainPrimary}
 	if kind == TrafficPerson {
-		channelOrdinal := g.personOrdinal % uint64(g.workload.HotSet.PersonChannels)
-		edges, err := g.graph.Outgoing(channelOrdinal)
-		if err != nil || edges.Count == 0 {
-			return TrafficIntent{}, errTrafficGeneratorConfig
-		}
-		edge := edges.Items[0]
 		direction, err := g.model.DirectionFor(g.personOrdinal)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
-		sender, err = SenderFor(direction, g.personOrdinal, edge.OwnerUID, edge.PeerUID)
-		if err != nil {
-			return TrafficIntent{}, err
-		}
-		target = edge.OwnerUID
-		if sender == edge.OwnerUID {
-			target = edge.PeerUID
-		}
 		intent.Direction = direction
-		intent.ChannelID = edge.PersonChannelID
 		g.personOrdinal++
 	} else {
 		group, err := g.catalog.PrimaryTarget(g.groupOrdinal)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
-		sender, err = group.MemberUID(int(g.groupOrdinal % uint64(group.MemberCount)))
-		if err != nil {
-			return TrafficIntent{}, err
-		}
-		target = group.ID
 		intent.ChannelID = group.ID
 		intent.GroupCategory = group.Category
 		g.groupOrdinal++
 	}
-	logical, err := g.model.NewLogicalSend(workerID, ordinal, kind, sender, target)
+	domain := LogicalDomainPrimary
+	if kind == TrafficGroup {
+		domain = LogicalDomainGroup
+		intent.Domain = LogicalDomainGroup
+	}
+	scopedOrdinal, err := scopedLogicalOrdinal(g.generation, domain, ordinal)
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	payload, err := g.model.BuildPayload(logical, payloadBytes)
-	if err != nil {
-		return TrafficIntent{}, err
-	}
-	intent.Logical = logical
-	intent.Packet = packetForTrafficIntent(logical, payload)
+	intent.Logical = LogicalSend{LogicalSend: scopedOrdinal, WorkerID: uint32(workerID), Kind: kind}
 	return intent, nil
 }
 

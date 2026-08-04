@@ -138,19 +138,40 @@ RECVACK, close, and numeric queue gauges to the existing non-dropping
 Independent login I/O runs concurrently under one explicit starting-session
 capacity and retains only the UIDs whose CONNECT/sync is active; capacity
 exhaustion is harness-invalid. Only a validated sync starts the recipient's
-sole ordered frame drain. Expected logout and expiry first remove online
-admission, then cancel and close the
-socket, join the drain, and finally release recipient sequence state. An
-unexpected read exit increments a bounded aggregate and emits the closed
-`session_read_failed` harness reason without copying the transport error.
+sole ordered frame drain. The session factory, CONNECT, sync, and drain are
+children of the active engine-generation context; stopping a generation fences
+new admission, cancels that context, then joins startup work and drains.
+Expected logout and expiry first remove online admission, then cancel and close
+the socket, join the drain, and finally release recipient sequence state. The
+WKProto result queue distinguishes a non-terminal asynchronous SEND publication
+error, which keeps the same drain online and returns the stable
+`client_msg_no` to the engine-owned retry state, from a terminal remote reader
+exit, which atomically removes online ownership, records product evidence, and
+signals a scheduler replacement. Unknown unexpected read exits remain bounded
+`session_read_failed` harness evidence. The pool's UID and user-index routing
+indexes contain current online sessions only and allocate no per-lookup
+history.
 
 `TrafficGenerator` streams, rather than retains, each global per-second grant.
-It reuses `RateAllocator`, `TrafficModel`, `RelationshipGraph`, and
-`GroupCatalog` to preserve the exact primary traffic, payload, direction, and
-fixed hot-set cycles. Person targets reconstruct one of the bounded hot person
-relationships, group targets reconstruct a fixed catalog entry, and the
-very-large group remains an independently counted one-per-minute canary. The
-generator has no product metadata or runtime mutation interface.
+It reuses `RateAllocator`, `TrafficModel`, and `GroupCatalog` to preserve the
+exact primary traffic, payload, direction, and fixed group-target cycles. A
+grant carries worker, generation-scoped logical position, traffic class, and
+payload class but deliberately has no sender, packet, or claimed online route.
+The engine binds person grants to eligible lifecycle activity and group grants
+to a currently online fixed-directory member. The very-large group remains an
+independently counted one-per-minute canary. The generator has no product
+metadata or runtime mutation interface.
+
+The private session scheduler derives checked rational login credit from
+`new_users_per_day` and the 80% new share, which is about 3.6 total logins per
+second in the formal profile. Bootstrap substitutes new identities until the
+online target is first reached. Steady scheduling preserves the exact 80/20
+planned, admitted, and completed split, uses `ReturningCandidate` for real
+offline history, schedules bounded cold revisits on those old edges, and
+replaces expiry or unexpected terminal exits. `Engine.Step` is the narrow
+bounded orchestration boundary; aggregate snapshots expose planned, admitted,
+completed, skipped, expired, and replacement counts without exposing scheduler
+state.
 
 `Engine` owns one bounded command loop for the active generation. One activity
 min-heap holds relationship SEND eligibility, a runtime min-heap holds granted
@@ -164,14 +185,26 @@ checked future-work capacity except the retry heap, which has its own explicit
 capacity. New-user
 observation reconstructs only the prior five possible relationship owners,
 schedules an initial burst only while both sessions are online, and retains at
-most one lifecycle deadline for revisit or natural cooling. Due relationship
+most one lifecycle deadline for revisit or natural cooling. Rotating and long
+channels additionally occupy a fixed active array and swap-delete index capped
+by the configured person hot set; primary person grants keep those channels hot
+only until their 20-40 minute or 2-4 hour deadline, after which newly activated
+relationships reuse the released positions. Due relationship
 activity cannot be sent by clock advancement alone: a person grant from the
 single global tick substitutes its target while retaining the grant's worker,
 logical ordinal, payload class, and primary denominator. Initial and revisit
-messages use disjoint positions inside the same relationship identity block.
+messages use distinct generation-scoped lifecycle and revisit identity domains;
+primary, group, and canary work have their own domains, so restarts and repeated
+activation cannot reuse `client_msg_no`.
 Revisit timers that require cold-runtime evidence also have one bounded active
 channel index; only an explicit prior all-node cold approval can let the timer
 add revisit activity, and expiry physically removes that index.
+Person routing always requires an online sender. For the verifier's exact one
+position in every 100 logical sends, it also requires an online target; other
+person sends may keep a channel hot while its peer is offline. A sampled group
+or canary send requires a distinct second online fixed-directory member. A
+missing eligible route is harness-invalid under-delivery before SEND
+registration and therefore cannot become a retry or product terminal result.
 No historical user or channel owns a goroutine, timer, or retained map row.
 
 Attempt zero plus retries one through three reuse the same Phase 2 logical
@@ -183,7 +216,9 @@ heap entry. Work queue, command queue, retry heap, inflight, or per-advance CPU
 budget saturation is closed `harness_invalid` evidence and never becomes a
 product terminal result. A new engine generation starts only after prior session
 drains join, then clears bounded verifier indexes, counters, evidence, allocator
-credit, and queue ownership so no first-run identity reaches the second run.
+credit, and queue ownership. The generation number remains in the checked
+logical identity prefix, so no first-run identity reaches the second run even
+though per-domain ordinals restart from zero.
 
 Exact delivery correlation uses one run-keyed position in every 100 logical
 sends per worker. A sampled entry has one map row and one indexed min-heap
@@ -245,8 +280,10 @@ capacity-mode run requires the formal profile, a typed completed passing
 
 The fixed formal group catalog contains 1,600 small, 300 medium, 99 large, and
 one 100,000-member very-large group. A group descriptor retains one checked
-member base and reconstructs one UID at a time, so even the largest group never
-allocates a membership slice or history-sized map. Primary group targets use
+member base plus the fixed catalog-size stride and reconstructs one UID at a
+time. Member zero is the catalog index, so every class intersects the initial
+online roster, while later members span deterministic arrival cohorts. Even the
+largest group never allocates a membership slice or history-sized map. Primary group targets use
 an exact 80/15/5 small/medium/large cycle. The very-large group is reachable
 only through a separately reported one-per-minute canary and is excluded from
 the 2,000 SEND/s denominator. When a local catalog omits a primary class, its

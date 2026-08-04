@@ -34,12 +34,13 @@ type SessionClient interface {
 	AckRecv(context.Context, *frame.RecvackPacket) error
 	Close() error
 	QueueSnapshot() SessionQueueSnapshot
+	ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool)
 }
 
 // SessionClientFactory constructs a client with the deterministic per-UID
 // token already installed in its CONNECT configuration.
 type SessionClientFactory interface {
-	NewSession(uid, token string) (SessionClient, error)
+	NewSession(context.Context, string, string) (SessionClient, error)
 }
 
 // WKProtoSessionAdapter binds the existing production benchmark client to the
@@ -83,6 +84,10 @@ func (a *WKProtoSessionAdapter) QueueSnapshot() SessionQueueSnapshot {
 	}
 }
 
+func (a *WKProtoSessionAdapter) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {
+	return wkproto.ReadErrorInfoOf(err)
+}
+
 var _ SessionClient = (*WKProtoSessionAdapter)(nil)
 
 // SessionQueueSnapshot is the bounded common projection needed by the engine.
@@ -107,6 +112,12 @@ type SessionPoolConfig struct {
 	// OnSendack runs inline after verifier processing and may apply bounded
 	// backpressure; the receive drain never drops a completion to avoid waiting.
 	OnSendack func(uid string, ack *frame.SendackPacket, verificationErr error)
+	// OnAsyncSendError transfers one non-terminal result-queue error to the
+	// engine that owns retry state. The raw transport error is never exposed.
+	OnAsyncSendError func(uid, clientMsgNo string)
+	// OnSessionExit reports an atomically removed unexpected session so the
+	// bounded scheduler can plan replacement admission.
+	OnSessionExit func(uid string)
 }
 
 // SessionLogin binds a reconstructed identity to one global login ordinal.
@@ -160,9 +171,12 @@ type SessionPool struct {
 	deviceID         string
 	startingCapacity int
 	onSendack        func(string, *frame.SendackPacket, error)
+	onAsyncSendError func(string, string)
+	onSessionExit    func(string)
 
 	mu                 sync.RWMutex
 	online             map[string]*onlineSession
+	onlineByIndex      map[uint64]*onlineSession
 	starting           map[string]struct{}
 	readErrors         uint64
 	verificationErrors uint64
@@ -179,7 +193,9 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		identity: config.Identity, schedule: config.Schedule, factory: config.Factory,
 		syncer: config.Syncer, verifier: config.Verifier, clock: config.Clock,
 		deviceID: config.DeviceID, startingCapacity: config.StartingCapacity, onSendack: config.OnSendack,
-		online: make(map[string]*onlineSession), starting: make(map[string]struct{}),
+		onAsyncSendError: config.OnAsyncSendError, onSessionExit: config.OnSessionExit,
+		online: make(map[string]*onlineSession), onlineByIndex: make(map[uint64]*onlineSession),
+		starting: make(map[string]struct{}),
 	}, nil
 }
 
@@ -187,7 +203,17 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 // sync through RunLoginSync, and starts the sole ordered receive drain only
 // after the session is traffic-ready.
 func (p *SessionPool) Login(ctx context.Context, login SessionLogin) (SessionSnapshot, error) {
+	return p.login(ctx, context.Background(), login)
+}
+
+// login binds the long-lived receive drain to drainParent while startup uses
+// the separately cancelable caller context. Engine generations use this seam
+// so stopping a generation cancels both admission and every ordered drain.
+func (p *SessionPool) login(ctx, drainParent context.Context, login SessionLogin) (SessionSnapshot, error) {
 	if p == nil || login.UID == "" || p.identity.UID(login.UserIndex) != login.UID {
+		return SessionSnapshot{}, errSessionConfig
+	}
+	if ctx == nil || drainParent == nil {
 		return SessionSnapshot{}, errSessionConfig
 	}
 	p.mu.Lock()
@@ -217,7 +243,7 @@ func (p *SessionPool) Login(ctx context.Context, login SessionLogin) (SessionSna
 	if err != nil {
 		return SessionSnapshot{}, err
 	}
-	client, err := p.factory.NewSession(login.UID, p.tokenForUID(login.UID))
+	client, err := p.factory.NewSession(ctx, login.UID, p.tokenForUID(login.UID))
 	if err != nil {
 		return SessionSnapshot{}, err
 	}
@@ -236,11 +262,12 @@ func (p *SessionPool) Login(ctx context.Context, login SessionLogin) (SessionSna
 		ConversationSyncLatency:   result.ConversationSyncLatency,
 		SynchronizedConversations: len(result.Conversations),
 	}
-	drainCtx, cancel := context.WithCancel(context.Background())
+	drainCtx, cancel := context.WithCancel(drainParent)
 	session := &onlineSession{snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{})}
 	p.mu.Lock()
 	delete(p.starting, login.UID)
 	p.online[login.UID] = session
+	p.onlineByIndex[login.UserIndex] = session
 	p.mu.Unlock()
 	go p.drain(drainCtx, session)
 	return snapshot, nil
@@ -255,6 +282,17 @@ func (p *SessionPool) IsOnline(uid string) bool {
 	defer p.mu.RUnlock()
 	_, ok := p.online[uid]
 	return ok
+}
+
+func (p *SessionPool) isOwned(uid string) bool {
+	if p == nil {
+		return false
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	_, online := p.online[uid]
+	_, starting := p.starting[uid]
+	return online || starting
 }
 
 // CanActivate enforces the relationship contract at the point work is admitted.
@@ -310,7 +348,7 @@ func (p *SessionPool) Logout(uid string) error {
 	p.mu.Lock()
 	session := p.online[uid]
 	if session != nil {
-		delete(p.online, uid)
+		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
 	}
 	p.mu.Unlock()
 	if session == nil {
@@ -366,18 +404,24 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 	return snapshot
 }
 
-// setSendackObserver is wired once by Engine before sessions start. Keeping it
-// package-private prevents control-plane callers from replacing ownership mid-run.
-func (p *SessionPool) setSendackObserver(observer func(string, *frame.SendackPacket, error)) error {
-	if p == nil || observer == nil {
+// setEngineObservers is wired once before sessions start. Keeping it private
+// prevents control-plane callers from replacing retry or scheduler ownership.
+func (p *SessionPool) setEngineObservers(
+	sendack func(string, *frame.SendackPacket, error),
+	asyncSendError func(string, string),
+	sessionExit func(string),
+) error {
+	if p == nil || sendack == nil || asyncSendError == nil || sessionExit == nil {
 		return errSessionConfig
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.online) != 0 || p.onSendack != nil {
+	if len(p.online) != 0 || p.onSendack != nil || p.onAsyncSendError != nil || p.onSessionExit != nil {
 		return errSessionConfig
 	}
-	p.onSendack = observer
+	p.onSendack = sendack
+	p.onAsyncSendError = asyncSendError
+	p.onSessionExit = sessionExit
 	return nil
 }
 
@@ -392,6 +436,7 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.readErrors = 0
 	p.verificationErrors = 0
+	p.onlineByIndex = make(map[uint64]*onlineSession)
 	return nil
 }
 
@@ -400,13 +445,19 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 	for {
 		packet, err := session.client.ReadFrame(ctx)
 		if err != nil {
+			info, classified := session.client.ReadErrorInfo(err)
+			if classified && info.Kind == wkproto.ReadErrorNonTerminal {
+				if info.ClientMsgNo == "" {
+					_ = p.verifier.evidence.Record(EvidenceEvent{
+						Class: FailureClassHarness, Stage: EvidenceStageReceive, Code: FailureCodeSessionReadFailed,
+					})
+				} else if p.onAsyncSendError != nil {
+					p.onAsyncSendError(session.snapshot.UID, info.ClientMsgNo)
+				}
+				continue
+			}
 			if ctx.Err() == nil {
-				p.mu.Lock()
-				p.readErrors++
-				p.mu.Unlock()
-				_ = p.verifier.evidence.Record(EvidenceEvent{
-					Class: FailureClassHarness, Stage: EvidenceStageReceive, Code: FailureCodeSessionReadFailed,
-				})
+				p.detachUnexpected(session, classified && info.Kind == wkproto.ReadErrorTerminal)
 			}
 			return
 		}
@@ -429,6 +480,71 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 			}
 		}
 	}
+}
+
+func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bool) {
+	p.mu.Lock()
+	if p.online[session.snapshot.UID] != session {
+		p.mu.Unlock()
+		return
+	}
+	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
+	p.readErrors++
+	p.mu.Unlock()
+
+	session.cancel()
+	_ = session.client.Close()
+	p.verifier.ReleaseRecipient(session.snapshot.UID)
+	class := FailureClassHarness
+	code := FailureCodeSessionReadFailed
+	if remoteTerminal {
+		class = FailureClassReceive
+		code = FailureCodeSessionRemoteTerminal
+	}
+	_ = p.verifier.evidence.Record(EvidenceEvent{Class: class, Stage: EvidenceStageReceive, Code: code})
+	if p.onSessionExit != nil {
+		p.onSessionExit(session.snapshot.UID)
+	}
+}
+
+func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
+	delete(p.online, uid)
+	delete(p.onlineByIndex, userIndex)
+}
+
+func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireRecipient bool) (SessionLogin, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if group.MemberCount <= 0 || len(p.onlineByIndex) == 0 {
+		return SessionLogin{}, false
+	}
+	start := int(ordinal % uint64(group.MemberCount))
+	var sender SessionLogin
+	for offset := 0; offset < group.MemberCount; offset++ {
+		member := start + offset
+		if member >= group.MemberCount {
+			member -= group.MemberCount
+		}
+		index, err := group.MemberIndex(member)
+		if err != nil {
+			return SessionLogin{}, false
+		}
+		session := p.onlineByIndex[index]
+		if session != nil && session.snapshot.TrafficReady {
+			candidate := SessionLogin{UID: session.snapshot.UID, UserIndex: index, LoginOrdinal: session.snapshot.LoginOrdinal}
+			if sender.UID == "" {
+				sender = candidate
+				if !requireRecipient {
+					return sender, true
+				}
+				continue
+			}
+			if candidate.UID != sender.UID {
+				return sender, true
+			}
+		}
+	}
+	return SessionLogin{}, false
 }
 
 func (p *SessionPool) tokenForUID(uid string) string {

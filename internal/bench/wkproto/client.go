@@ -137,8 +137,59 @@ type clientSession struct {
 }
 
 type errorResult struct {
-	err      error
-	terminal bool
+	err         error
+	terminal    bool
+	clientMsgNo string
+}
+
+// ReadErrorKind is the closed disposition of an asynchronous error delivered
+// by ReadFrame. Callers may continue after a non-terminal SEND publication
+// error, while a terminal error means the remote session reader has exited.
+type ReadErrorKind uint8
+
+const (
+	// ReadErrorUnknown is not an error emitted from the client's result queue.
+	ReadErrorUnknown ReadErrorKind = iota
+	// ReadErrorNonTerminal belongs to one asynchronous SEND publication.
+	ReadErrorNonTerminal
+	// ReadErrorTerminal means the shared remote session reader has exited.
+	ReadErrorTerminal
+)
+
+type readFrameError struct {
+	kind        ReadErrorKind
+	clientMsgNo string
+	err         error
+}
+
+func (e *readFrameError) Error() string { return e.err.Error() }
+func (e *readFrameError) Unwrap() error { return e.err }
+
+// ReadErrorInfo is the closed redacted ownership carried by one result-queue
+// error. ClientMsgNo is populated only for a non-terminal asynchronous SEND.
+type ReadErrorInfo struct {
+	Kind        ReadErrorKind
+	ClientMsgNo string
+}
+
+// ReadErrorInfoOf classifies only errors emitted from the bounded result
+// queue. Context cancellation and local-close errors remain unclassified so
+// owners can use their own generation state.
+func ReadErrorInfoOf(err error) (ReadErrorInfo, bool) {
+	var readErr *readFrameError
+	if !errors.As(err, &readErr) {
+		return ReadErrorInfo{}, false
+	}
+	return ReadErrorInfo{Kind: readErr.kind, ClientMsgNo: readErr.clientMsgNo}, true
+}
+
+// ReadErrorKindOf is the kind-only projection for callers without SEND retry ownership.
+func ReadErrorKindOf(err error) ReadErrorKind {
+	info, ok := ReadErrorInfoOf(err)
+	if !ok {
+		return ReadErrorUnknown
+	}
+	return info.Kind
 }
 
 // NewClient builds a WKProto client for a single gateway address.
@@ -236,7 +287,7 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 		session.completePendingPublication()
 		return err
 	}
-	go c.forwardSendack(session, future)
+	go c.forwardSendack(session, future, pkt.ClientMsgNo)
 	return nil
 }
 
@@ -340,14 +391,14 @@ func (c *Client) forwardReadFrames(session *clientSession) {
 	}
 }
 
-func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture) {
+func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture, clientMsgNo string) {
 	result, err := future.Wait(context.Background())
 	defer session.completePendingPublication()
 	if err != nil && result.ClientSeq == 0 && result.ClientMsgNo == "" {
 		if wkclient.IsSessionReadError(err) {
 			return
 		}
-		session.publishError(errorResult{err: err})
+		session.publishError(errorResult{err: err, clientMsgNo: clientMsgNo})
 		return
 	}
 	ack := &frame.SendackPacket{
@@ -556,7 +607,11 @@ func (s *clientSession) consumeError(result errorResult) (frame.Frame, error) {
 	if s.priorityBurst < priorityResultQuota {
 		s.priorityBurst++
 	}
-	return nil, result.err
+	kind := ReadErrorNonTerminal
+	if result.terminal {
+		kind = ReadErrorTerminal
+	}
+	return nil, &readFrameError{kind: kind, clientMsgNo: result.clientMsgNo, err: result.err}
 }
 
 func (s *clientSession) isStopped() bool {
