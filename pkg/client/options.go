@@ -50,7 +50,7 @@ type Config struct {
 	BatchMaxWait time.Duration
 	// ReadBufferSize is the socket read buffer size used by the reader loop.
 	ReadBufferSize int
-	// InboundFrameBufferSize is the inbound RECV queue size.
+	// InboundFrameBufferSize is the inbound RECV queue size before socket backpressure.
 	InboundFrameBufferSize int
 	// AutoRecvAck makes the client automatically acknowledge RECV frames.
 	AutoRecvAck bool

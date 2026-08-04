@@ -871,16 +871,9 @@ func TestClientReaderPreservesPartialFrameBytes(t *testing.T) {
 	}
 }
 
-func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
-	c, err := New(Config{
-		Addr:                   "pipe",
-		InboundFrameBufferSize: 2,
-	})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-
-	for i := int64(1); i <= 3; i++ {
+func TestRouteInboundRecvBackpressuresWithBoundedWireOrder(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{InboundFrameBufferSize: 2})
+	for i := int64(1); i <= 2; i++ {
 		if err := c.routeInboundFrame(&frame.RecvPacket{
 			Setting:   frame.SettingNoEncrypt,
 			MessageID: i,
@@ -889,11 +882,35 @@ func TestRouteInboundRecvEnqueuesWithBoundedOverwriteOldest(t *testing.T) {
 			t.Fatalf("routeInboundFrame(RECV %d) error = %v", i, err)
 		}
 	}
+	thirdDone := make(chan error, 1)
+	go func() {
+		thirdDone <- c.routeInboundFrame(&frame.RecvPacket{
+			Setting:   frame.SettingNoEncrypt,
+			MessageID: 3,
+			Payload:   []byte{3},
+		})
+	}()
+	select {
+	case <-thirdDone:
+	case <-time.After(20 * time.Millisecond):
+	}
 
 	first := <-c.recvCh
+	if first.MessageID != 1 {
+		t.Fatalf("first queued MessageID = %d, want 1", first.MessageID)
+	}
+	select {
+	case err := <-thirdDone:
+		if err != nil {
+			t.Fatalf("routeInboundFrame(RECV 3) error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("third RECV did not resume after queue drain")
+	}
 	second := <-c.recvCh
-	if first.MessageID != 2 || second.MessageID != 3 {
-		t.Fatalf("queued MessageIDs = %d,%d, want 2,3", first.MessageID, second.MessageID)
+	third := <-c.recvCh
+	if second.MessageID != 2 || third.MessageID != 3 {
+		t.Fatalf("queued MessageIDs = %d,%d, want 2,3", second.MessageID, third.MessageID)
 	}
 }
 
@@ -1399,54 +1416,78 @@ func TestClientRecvReturnsOnConnectionReadFailure(t *testing.T) {
 	}
 }
 
-func TestEnqueueRecvConcurrentOverwriteDoesNotBlock(t *testing.T) {
-	c, err := New(Config{
-		Addr:                   "pipe",
-		InboundFrameBufferSize: 1,
-	})
+func TestClientPendingSendClassifiesSessionReadFailureAndPreservesCause(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{})
+	entry, err := c.pending.add(pendingKey{ClientSeq: 1, ClientMsgNo: "read-failure"}, time.Second)
 	if err != nil {
-		t.Fatalf("New() error = %v", err)
+		t.Fatalf("pending.add() error = %v", err)
 	}
-	c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
-
-	var wg sync.WaitGroup
-	done := make(chan struct{})
-	for i := int64(2); i <= 16; i++ {
-		wg.Add(1)
-		go func(messageID int64) {
-			defer wg.Done()
-			c.enqueueRecv(&frame.RecvPacket{MessageID: messageID}, nil)
-		}(i)
+	if err := serverConn.Close(); err != nil {
+		t.Fatalf("server Close() error = %v", err)
 	}
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
 
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("concurrent enqueueRecv calls blocked")
+	outcome := readPendingOutcomeOrFatal(t, entry)
+	if !IsSessionReadError(outcome.err) {
+		t.Fatalf("pending error = %T %[1]v, want session read classification", outcome.err)
+	}
+	if !errors.Is(outcome.err, io.EOF) {
+		t.Fatalf("pending error = %v, want preserved EOF cause", outcome.err)
 	}
 }
 
-func TestEnqueueRecvZeroCapacityDoesNotBlock(t *testing.T) {
-	c, err := New(Config{Addr: "pipe"})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	c.recvCh = make(chan *frame.RecvPacket)
+func TestEnqueueRecvBackpressuresAndPreservesOrder(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{InboundFrameBufferSize: 1})
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
 
+	started := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
-		c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
+		close(started)
+		c.enqueueRecv(&frame.RecvPacket{MessageID: 2}, nil)
 		close(done)
 	}()
+	<-started
+	select {
+	case <-done:
+	case <-time.After(20 * time.Millisecond):
+	}
 
+	first := <-c.recvCh
+	if first.MessageID != 1 {
+		t.Fatalf("first queued RECV message id = %d, want 1", first.MessageID)
+	}
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("enqueueRecv blocked on zero-capacity channel")
+		t.Fatal("second RECV publisher did not resume after queue drain")
+	}
+	second := <-c.recvCh
+	if second.MessageID != 2 {
+		t.Fatalf("second queued RECV message id = %d, want 2", second.MessageID)
+	}
+}
+
+func TestEnqueueRecvZeroCapacityUnblocksOnClose(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{})
+	c.mu.Lock()
+	c.recvCh = make(chan *frame.RecvPacket)
+	c.mu.Unlock()
+
+	started := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		close(started)
+		c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
+		close(done)
+	}()
+	<-started
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("enqueueRecv did not unblock after Close")
 	}
 }
 
@@ -1498,6 +1539,8 @@ func TestClientReaderUsesSessionCryptoSnapshot(t *testing.T) {
 	c.crypto.mu.Unlock()
 	c.mu.Lock()
 	c.conn = clientConn
+	c.recvNotify = make(chan struct{})
+	c.recvErr = nil
 	c.startLoops(clientConn, c.pending, oldSession)
 	c.mu.Unlock()
 

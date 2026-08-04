@@ -129,35 +129,28 @@ func recvDecryptError(pkt *frame.RecvPacket, err error) error {
 	)
 }
 
-// enqueueRecv appends a current-session RECV packet, dropping the oldest queued packet when full.
+// enqueueRecv appends a current-session RECV packet and backpressures the socket
+// reader while the bounded queue is full. Close or session replacement releases
+// the blocked publisher.
 func (c *Client) enqueueRecv(pkt *frame.RecvPacket, conn net.Conn) {
 	if pkt == nil {
 		return
 	}
-	c.recvMu.Lock()
-	defer c.recvMu.Unlock()
 	c.mu.Lock()
 	if c.closed || (conn != nil && c.conn != conn) {
 		c.mu.Unlock()
 		return
 	}
 	recvCh := c.recvCh
+	recvNotify := c.recvNotify
 	c.mu.Unlock()
-	if recvCh == nil || cap(recvCh) == 0 {
+	if recvCh == nil {
 		return
 	}
 	select {
 	case recvCh <- pkt:
-		return
-	default:
-	}
-	select {
-	case <-recvCh:
-	default:
-	}
-	select {
-	case recvCh <- pkt:
-	default:
+	case <-recvNotify:
+	case <-c.closeCh:
 	}
 }
 
@@ -182,7 +175,7 @@ func (c *Client) failRead(conn net.Conn, pending *pendingTracker, err error) {
 	}
 	c.mu.Unlock()
 	if closePending && pending != nil {
-		pending.close(err)
+		pending.close(wrapSessionReadError(err))
 	}
 	if conn != nil {
 		_ = conn.Close()

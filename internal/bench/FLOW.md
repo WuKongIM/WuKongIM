@@ -50,12 +50,20 @@ owns CONNECT/CONNACK, optional payload encryption, socket decoding, SENDACK
 matching, RECV decryption, and the single writer/reader pumps. The bench adapter
 keeps the existing workload-facing `Send` / `ReadFrame` contract by converting
 `pkg/client` SEND futures back into local SENDACK frames and forwarding RECV
-frames from the shared reader into the same bounded queue. Worker clients are
-created from an optional worker-local `client` profile. Its send queue, maximum
-inflight SEND count, socket read buffer, and frame buffer capacities flow from
-the selected worker assignment through the default connection manager factory;
-the frame buffer capacity bounds both the adapter queue and the inner inbound
-RECV queue. Omitting the complete profile retains the tooling defaults. Worker
+frames through independent bounded RECV, SENDACK, and error queues. A full RECV
+queue backpressures the shared reader and then the socket; neither layer evicts
+receive evidence. `ReadFrame` serializes arbitration, prefers at most four
+queued SENDACKs before an already queued RECV, and drains published frames and
+SEND results before returning the original remote terminal error exactly once.
+Its numeric queue snapshot exposes only depths and capacities for saturation
+gauges. Worker clients are created from an optional worker-local `client`
+profile. Its send queue, maximum inflight SEND count, socket read buffer, and
+frame buffer capacities flow from the selected worker assignment through the
+default connection manager factory. `frame_buffer_size` independently bounds
+the shared client's inbound RECV queue and each of the adapter RECV, SENDACK,
+and error queues, for four fixed-size inbound queues per session; no hidden
+slice grows with backlog. Omitting the complete profile retains the tooling
+defaults. Worker
 clients may also receive an optional worker-local `tcp_source` pool. The pool
 contains explicit, unique, non-unspecified IPv4 addresses plus an inclusive
 port range. The planner requires its finite capacity to cover the worker's
@@ -536,11 +544,12 @@ teardown cancels drains, closes their owning connections to unblock reads, and
 waits for every drain before acknowledging stop.
 
 The shared `pkg/client` session owns WKProto CONNECT reads, socket decoding,
-crypto, pending SENDACK matching, and the bounded RECV queue. The benchmark
-adapter preserves the old workload-facing frame API by converting send futures
-back into local `SendackPacket` frames and forwarding decrypted RECV packets
-through the wrapper queue. The receive-ack drainer consumes that wrapper queue
-and briefly yields to foreground sendack/recv matchers when they are queued.
+crypto, pending SENDACK matching, and a bounded lossless RECV queue. The
+benchmark adapter preserves the old workload-facing frame API by converting
+send futures back into local `SendackPacket` frames and forwarding decrypted
+RECV packets through its independent bounded queue. The receive-ack drainer
+consumes the adapter queues through the fixed SENDACK-priority arbitration and
+briefly yields to foreground sendack/recv matchers when they are queued.
 
 ### Warmup, Run, Cooldown
 

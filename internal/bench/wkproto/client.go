@@ -16,6 +16,7 @@ const (
 	defaultOperationTimeout = 5 * time.Second
 	defaultFrameBufferSize  = 1024
 	defaultAckTimeoutSlack  = time.Second
+	sendackPriorityQuota    = 4
 )
 
 var errClientNotConnected = errors.New("wkproto client: not connected")
@@ -40,7 +41,7 @@ type ClientConfig struct {
 	MaxInflight int
 	// ReadBufferSize is the socket reader scratch-buffer size in bytes.
 	ReadBufferSize int
-	// FrameBufferSize bounds decoded inbound frames queued by the background reader.
+	// FrameBufferSize independently bounds the inner RECV queue and each adapter queue.
 	FrameBufferSize int
 }
 
@@ -64,17 +65,50 @@ type Client struct {
 	session *clientSession
 }
 
+// QueueSnapshot is a bounded numeric view of one client's receive queues.
+// It never exposes queued frames or mutable queue storage.
+type QueueSnapshot struct {
+	// InnerRecvCapacity is the configured pkg/client inbound RECV bound.
+	InnerRecvCapacity int
+	// AdapterDepth is the total number of results queued by the bench adapter.
+	AdapterDepth int
+	// AdapterCapacity is the total fixed capacity of the bench adapter queues.
+	AdapterCapacity int
+	// RecvDepth is the number of lossless RECV frames waiting for consumers.
+	RecvDepth int
+	// RecvCapacity is the fixed adapter RECV capacity.
+	RecvCapacity int
+	// SendackDepth is the number of SENDACK frames waiting for consumers.
+	SendackDepth int
+	// SendackCapacity is the fixed adapter SENDACK capacity.
+	SendackCapacity int
+	// ErrorDepth is the number of asynchronous errors waiting for consumers.
+	ErrorDepth int
+	// ErrorCapacity is the fixed adapter error capacity.
+	ErrorCapacity int
+}
+
 type clientSession struct {
 	// inner owns the TCP session, WKProto crypto, reader, writer, and SENDACK matching.
 	inner *wkclient.Client
-	// frameCh is the bench-facing queue of synthetic SENDACKs and forwarded RECVs.
-	frameCh chan frameResult
+	// recvCh backpressures lossless RECV delivery in wire order.
+	recvCh chan frame.Frame
+	// sendackCh isolates SEND futures from RECV pressure.
+	sendackCh chan *frame.SendackPacket
+	// errCh isolates asynchronous send errors and the remote terminal error.
+	errCh chan errorResult
 	// stopCh closes when this session is no longer active.
 	stopCh chan struct{}
 	// closeOnce makes session shutdown idempotent.
 	closeOnce sync.Once
-	// publishMu serializes priority eviction and requeue operations on frameCh.
-	publishMu sync.Mutex
+	// readMu serializes bounded-priority arbitration across concurrent readers.
+	readMu sync.Mutex
+	// sendackBurst counts consecutive preferred SENDACKs while RECV is queued.
+	sendackBurst int
+	// terminalDelivered prevents the original remote terminal error from repeating.
+	terminalDelivered bool
+	// drainCh wakes a terminal publisher when a consumer frees queue capacity.
+	drainCh chan struct{}
 	// pendingMu protects pendingSendacks and pendingDone.
 	pendingMu sync.Mutex
 	// pendingSendacks counts SEND futures that still need to publish a SENDACK frame.
@@ -83,9 +117,9 @@ type clientSession struct {
 	pendingDone chan struct{}
 }
 
-type frameResult struct {
-	frame frame.Frame
-	err   error
+type errorResult struct {
+	err      error
+	terminal bool
 }
 
 // NewClient builds a WKProto client for a single gateway address.
@@ -195,17 +229,29 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	if err != nil {
 		return nil, err
 	}
-	select {
-	case result := <-session.frameCh:
-		if result.err != nil {
-			return nil, result.err
-		}
-		return result.frame, nil
-	case <-session.stopCh:
-		return nil, errClientNotConnected
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	return session.readFrame(ctx)
+}
+
+// QueueSnapshot reports fixed-capacity receive queue occupancy for observability.
+func (c *Client) QueueSnapshot() QueueSnapshot {
+	if c == nil {
+		return QueueSnapshot{}
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	snapshot := QueueSnapshot{InnerRecvCapacity: c.frameBufferSize}
+	if c.session == nil {
+		return snapshot
+	}
+	snapshot.RecvDepth = len(c.session.recvCh)
+	snapshot.RecvCapacity = cap(c.session.recvCh)
+	snapshot.SendackDepth = len(c.session.sendackCh)
+	snapshot.SendackCapacity = cap(c.session.sendackCh)
+	snapshot.ErrorDepth = len(c.session.errCh)
+	snapshot.ErrorCapacity = cap(c.session.errCh)
+	snapshot.AdapterDepth = snapshot.RecvDepth + snapshot.SendackDepth + snapshot.ErrorDepth
+	snapshot.AdapterCapacity = snapshot.RecvCapacity + snapshot.SendackCapacity + snapshot.ErrorCapacity
+	return snapshot
 }
 
 // RecvAck sends one receive acknowledgment for a delivered message.
@@ -252,18 +298,26 @@ func (c *Client) forwardReadFrames(session *clientSession) {
 			if !session.waitPendingSendacks() {
 				return
 			}
-			session.publishFrameResult(frameResult{err: err})
+			if !session.waitPublishedResultsDrained() {
+				return
+			}
+			session.publishError(errorResult{err: err, terminal: true})
 			return
 		}
-		session.publishFrameResult(frameResult{frame: f})
+		if !session.publishRecv(f) {
+			return
+		}
 	}
 }
 
 func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture) {
 	result, err := future.Wait(context.Background())
+	defer session.finishPendingSendack()
 	if err != nil && result.ClientSeq == 0 && result.ClientMsgNo == "" {
-		session.finishPendingSendack()
-		session.publishFrameResult(frameResult{err: err})
+		if wkclient.IsSessionReadError(err) {
+			return
+		}
+		session.publishError(errorResult{err: err})
 		return
 	}
 	ack := &frame.SendackPacket{
@@ -273,79 +327,154 @@ func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFut
 		MessageSeq:  result.MessageSeq,
 		ReasonCode:  result.ReasonCode,
 	}
-	session.finishPendingSendack()
-	session.publishFrameResult(frameResult{frame: ack})
+	session.publishSendack(ack)
 }
 
-func (c *Client) publishFrameResult(frameCh chan frameResult, stopCh <-chan struct{}, result frameResult) {
-	publishFrameResult(frameCh, stopCh, result)
-}
-
-func (s *clientSession) publishFrameResult(result frameResult) {
-	s.publishMu.Lock()
-	defer s.publishMu.Unlock()
-	publishFrameResult(s.frameCh, s.stopCh, result)
-}
-
-func publishFrameResult(frameCh chan frameResult, stopCh <-chan struct{}, result frameResult) {
+func (s *clientSession) publishRecv(f frame.Frame) bool {
 	select {
-	case frameCh <- result:
-		return
-	case <-stopCh:
-		return
-	default:
-	}
-	if !isPriorityFrameResult(result) {
-		return
-	}
-	buffered := make([]frameResult, 0, len(frameCh))
-	droppedNonPriority := false
-	for {
-		select {
-		case queued := <-frameCh:
-			if !droppedNonPriority && !isPriorityFrameResult(queued) {
-				droppedNonPriority = true
-				continue
-			}
-			buffered = append(buffered, queued)
-		default:
-			goto drained
-		}
-	}
-
-drained:
-	for _, queued := range buffered {
-		select {
-		case frameCh <- queued:
-		case <-stopCh:
-			return
-		default:
-			return
-		}
-	}
-	if !droppedNonPriority {
-		return
-	}
-	select {
-	case frameCh <- result:
-	case <-stopCh:
-	default:
-	}
-}
-
-func isPriorityFrameResult(result frameResult) bool {
-	if result.err != nil {
+	case s.recvCh <- f:
 		return true
+	case <-s.stopCh:
+		return false
 	}
-	_, ok := result.frame.(*frame.SendackPacket)
-	return ok
+}
+
+func (s *clientSession) publishSendack(ack *frame.SendackPacket) bool {
+	select {
+	case s.sendackCh <- ack:
+		return true
+	case <-s.stopCh:
+		return false
+	}
+}
+
+func (s *clientSession) publishError(result errorResult) bool {
+	select {
+	case s.errCh <- result:
+		return true
+	case <-s.stopCh:
+		return false
+	}
+}
+
+func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
+	s.readMu.Lock()
+	defer s.readMu.Unlock()
+	for {
+		if s.terminalDelivered {
+			return nil, errClientNotConnected
+		}
+		if s.isStopped() {
+			return nil, errClientNotConnected
+		}
+
+		if s.sendackBurst < sendackPriorityQuota {
+			select {
+			case ack := <-s.sendackCh:
+				return s.consumeSendack(ack)
+			default:
+			}
+		}
+		select {
+		case recv := <-s.recvCh:
+			return s.consumeRecv(recv)
+		default:
+		}
+		select {
+		case ack := <-s.sendackCh:
+			return s.consumeSendack(ack)
+		default:
+		}
+		select {
+		case result := <-s.errCh:
+			return s.consumeError(result)
+		default:
+		}
+
+		if s.sendackBurst >= sendackPriorityQuota {
+			select {
+			case recv := <-s.recvCh:
+				return s.consumeRecv(recv)
+			case ack := <-s.sendackCh:
+				return s.consumeSendack(ack)
+			case result := <-s.errCh:
+				return s.consumeError(result)
+			case <-s.stopCh:
+				return nil, errClientNotConnected
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		select {
+		case ack := <-s.sendackCh:
+			return s.consumeSendack(ack)
+		case recv := <-s.recvCh:
+			return s.consumeRecv(recv)
+		case result := <-s.errCh:
+			return s.consumeError(result)
+		case <-s.stopCh:
+			return nil, errClientNotConnected
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (s *clientSession) consumeSendack(ack *frame.SendackPacket) (frame.Frame, error) {
+	s.notifyQueueDrain()
+	if s.isStopped() {
+		return nil, errClientNotConnected
+	}
+	if s.sendackBurst < sendackPriorityQuota {
+		s.sendackBurst++
+	}
+	return ack, nil
+}
+
+func (s *clientSession) consumeRecv(recv frame.Frame) (frame.Frame, error) {
+	s.notifyQueueDrain()
+	if s.isStopped() {
+		return nil, errClientNotConnected
+	}
+	s.sendackBurst = 0
+	return recv, nil
+}
+
+func (s *clientSession) consumeError(result errorResult) (frame.Frame, error) {
+	s.notifyQueueDrain()
+	if s.isStopped() {
+		return nil, errClientNotConnected
+	}
+	if result.terminal {
+		s.terminalDelivered = true
+	}
+	return nil, result.err
+}
+
+func (s *clientSession) isStopped() bool {
+	select {
+	case <-s.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *clientSession) notifyQueueDrain() {
+	select {
+	case s.drainCh <- struct{}{}:
+	default:
+	}
 }
 
 func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
 	return &clientSession{
-		inner:   inner,
-		frameCh: make(chan frameResult, frameBufferSize),
-		stopCh:  make(chan struct{}),
+		inner:     inner,
+		recvCh:    make(chan frame.Frame, frameBufferSize),
+		sendackCh: make(chan *frame.SendackPacket, frameBufferSize),
+		errCh:     make(chan errorResult, frameBufferSize),
+		stopCh:    make(chan struct{}),
+		drainCh:   make(chan struct{}, 1),
 	}
 }
 
@@ -395,6 +524,19 @@ func (s *clientSession) waitPendingSendacks() bool {
 
 		select {
 		case <-done:
+		case <-s.stopCh:
+			return false
+		}
+	}
+}
+
+func (s *clientSession) waitPublishedResultsDrained() bool {
+	for {
+		if len(s.recvCh) == 0 && len(s.sendackCh) == 0 && len(s.errCh) == 0 {
+			return true
+		}
+		select {
+		case <-s.drainCh:
 		case <-s.stopCh:
 			return false
 		}

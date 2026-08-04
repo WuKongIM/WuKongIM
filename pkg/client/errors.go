@@ -28,6 +28,32 @@ var (
 	ErrInvalidMessage = errors.New("client: invalid message")
 )
 
+type sessionReadError struct {
+	cause error
+}
+
+func (e *sessionReadError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *sessionReadError) Unwrap() error {
+	return e.cause
+}
+
+// IsSessionReadError reports a pending SEND failure caused by the session
+// reader's terminal error. ReadFrame returns the original terminal cause.
+func IsSessionReadError(err error) bool {
+	var target *sessionReadError
+	return errors.As(err, &target)
+}
+
+func wrapSessionReadError(err error) error {
+	if err == nil {
+		err = ErrClosed
+	}
+	return &sessionReadError{cause: err}
+}
+
 // SendError reports a non-success SENDACK for one SEND item.
 type SendError struct {
 	// ClientSeq is the client sequence echoed by the server.

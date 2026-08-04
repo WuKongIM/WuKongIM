@@ -41,9 +41,7 @@ type Client struct {
 	inflight chan struct{}
 	// pending tracks SEND requests waiting for SENDACK frames from the reader loop.
 	pending *pendingTracker
-	// recvMu protects bounded overwrite semantics for recvCh.
-	recvMu sync.Mutex
-	// recvCh buffers inbound RECV frames for future public receive APIs.
+	// recvCh backpressures inbound RECV frames for future public receive APIs.
 	recvCh chan *frame.RecvPacket
 	// recvNotify closes when the current receive session becomes unavailable.
 	recvNotify chan struct{}
