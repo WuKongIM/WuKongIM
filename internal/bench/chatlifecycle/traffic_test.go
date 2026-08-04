@@ -57,8 +57,36 @@ func TestTrafficGeneratorPreservesFormalAggregateGrantAndMix(t *testing.T) {
 		t.Fatalf("payload bytes = %d", total.PayloadBytes)
 	}
 	hotSet := generators[0].Snapshot().HotSet
-	if hotSet.PersonChannels != 8_000 || hotSet.GroupChannels != 2_000 || hotSet.TotalChannels != 10_000 || hotSet.HistoricalGroupGrowth != 0 {
+	if hotSet.PersonChannels != 2_667 || hotSet.GroupChannels != 2_000 || hotSet.TotalChannels != 4_667 || hotSet.HistoricalGroupGrowth != 0 {
 		t.Fatalf("hot set = %+v", hotSet)
+	}
+}
+
+func TestTrafficGeneratorsPartitionFormalPersonHotSetByWorker(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	want := []int{2_667, 2_667, 2_666}
+	total := 0
+	for workerID, wantPersonChannels := range want {
+		generator := newTrafficTestGenerator(t, cfg, start, uint64(workerID))
+		hotSet := generator.Snapshot().HotSet
+		if hotSet.PersonChannels != wantPersonChannels || hotSet.GroupChannels != 2_000 || hotSet.TotalChannels != wantPersonChannels+2_000 {
+			t.Fatalf("worker %d hot set = %+v, want person=%d group=2000", workerID, hotSet, wantPersonChannels)
+		}
+		total += hotSet.PersonChannels
+	}
+	if total != cfg.Workload.HotSet.PersonChannels {
+		t.Fatalf("partitioned person hot set = %d, want %d", total, cfg.Workload.HotSet.PersonChannels)
+	}
+}
+
+func TestTrafficGeneratorSingleWorkerRetainsGlobalPersonHotSet(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.Workload.Workers = 1
+	generator := newTrafficTestGenerator(t, cfg, time.Unix(1_700_000_000, 0), 0)
+	hotSet := generator.Snapshot().HotSet
+	if hotSet.PersonChannels != 8_000 || hotSet.GroupChannels != 2_000 || hotSet.TotalChannels != 10_000 {
+		t.Fatalf("single-worker hot set = %+v", hotSet)
 	}
 }
 

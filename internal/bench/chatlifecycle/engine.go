@@ -1841,7 +1841,7 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		}
 		e.activeLifecycleTimers++
 		if schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong {
-			if len(e.activeChannels) < e.generator.workload.HotSet.PersonChannels {
+			if len(e.activeChannels) < e.generator.hotSet.PersonChannels {
 				e.addActiveChannel(active)
 			} else if !e.addPendingChannel(active, work) {
 				return true, e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
@@ -2080,7 +2080,7 @@ func (e *Engine) removePendingChannel(channelID string) bool {
 }
 
 func (e *Engine) promotePendingChannels(now time.Time) {
-	for len(e.activeChannels) < e.generator.workload.HotSet.PersonChannels && len(e.pendingChannels) > 0 {
+	for len(e.activeChannels) < e.generator.hotSet.PersonChannels && len(e.pendingChannels) > 0 {
 		pending := e.pendingChannels[len(e.pendingChannels)-1]
 		e.removePendingChannel(pending.active.edge.PersonChannelID)
 		if pending.lifecycle == nil || !pending.lifecycle.due.After(now) {

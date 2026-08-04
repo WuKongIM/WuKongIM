@@ -250,9 +250,12 @@ the owner's bounded forward set, schedules an initial burst only while both
 sessions are online and the peer's new-user publication is complete, and
 retains at most one lifecycle deadline for revisit or natural cooling. Rotating
 and long channels additionally occupy a fixed active array and swap-delete
-index capped by the configured person hot set. A full hot set never drops a mandatory
-initial burst: its later hot ownership waits in a work-capacity-bounded pending
-array and is promoted when an active deadline releases a position. Primary
+index capped by this worker's quotient/remainder share of the configured global
+person hot set. Lower worker IDs receive the remainder, so the formal three
+worker limits are exactly 2,667, 2,667, and 2,666 and sum to 8,000. A full hot
+set never drops a mandatory initial burst: its later hot ownership waits in a
+work-capacity-bounded pending array and is promoted when an active deadline
+releases a position. Primary
 person grants keep channels hot only until their 20-40 minute or 2-4 hour
 deadline, after which pending or newly activated relationships reuse the
 released positions. Due relationship
@@ -407,7 +410,9 @@ weight is deterministically omitted and the remaining available weights are
 normalized; every available primary class must still contain at least one
 group per worker, and the canary is never promoted into primary traffic. Fixed
 group channels add no historical-channel growth, leaving the formal hot set at
-8,000 person plus 2,000 group channels.
+8,000 person plus 2,000 group channels. The person target is global: generator
+snapshots expose the local quotient/remainder limit, and engine active/pending
+ownership enforces that local limit. A single worker retains the full 8,000.
 
 `LocalConfig` is the reviewed three-node, three-worker shakeout baseline. It
 keeps the formal topology and real sync request (`version=0`, `limit=500`,

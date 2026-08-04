@@ -3119,7 +3119,7 @@ func TestEngineActiveHotSetRotatesAtFixedCapacityWithoutHistoricalGrowth(t *test
 	if err != nil {
 		t.Fatalf("full Snapshot: %v", err)
 	}
-	if full.ActiveHotChannels != fixture.engine.generator.workload.HotSet.PersonChannels || full.ActiveHotChannels != 80 {
+	if full.ActiveHotChannels != fixture.engine.generator.hotSet.PersonChannels || full.ActiveHotChannels != 80 {
 		t.Fatalf("initial active hot set = %+v", full)
 	}
 
@@ -3135,8 +3135,69 @@ func TestEngineActiveHotSetRotatesAtFixedCapacityWithoutHistoricalGrowth(t *test
 
 	loginAndObserve(200, 300)
 	refilled, _ := fixture.engine.Snapshot()
-	if refilled.ActiveHotChannels != 80 || refilled.ActiveHotChannels > fixture.engine.generator.workload.HotSet.PersonChannels {
+	if refilled.ActiveHotChannels != 80 || refilled.ActiveHotChannels > fixture.engine.generator.hotSet.PersonChannels {
 		t.Fatalf("rotated active hot set = %+v", refilled)
+	}
+}
+
+func TestEnginePartitionsFormalGlobalPersonHotSetAcrossWorkers(t *testing.T) {
+	want := []int{2_667, 2_667, 2_666}
+	totalActive := 0
+	totalPending := 0
+	for workerID, wantActive := range want {
+		fixture := newEngineTestFixture(t, engineTestLimits{
+			Formal: true, WorkerID: uint64(workerID), WorkerCount: uint64(len(want)),
+			WorkCapacity: 512, MaxWorkPerAdvance: 512,
+		})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("worker %d Start: %v", workerID, err)
+		}
+		t.Cleanup(func() { _ = fixture.engine.Stop() })
+
+		userIndex, err := fixture.identity.GlobalIndex(uint64(workerID), 18)
+		if err != nil {
+			t.Fatalf("worker %d GlobalIndex: %v", workerID, err)
+		}
+		edge := fixture.graph.Incoming(userIndex).Items[0]
+		for _, endpoint := range []struct {
+			uid   string
+			index uint64
+		}{{edge.OwnerUID, edge.OwnerIndex}, {edge.PeerUID, edge.PeerIndex}} {
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+				UID: endpoint.uid, UserIndex: endpoint.index, LoginOrdinal: endpoint.index,
+			}); err != nil {
+				t.Fatalf("worker %d Login(%q): %v", workerID, endpoint.uid, err)
+			}
+		}
+
+		filled := make(chan struct{}, 1)
+		if err := fixture.engine.enqueue(engineCommand{run: func() {
+			for index := 0; index < wantActive; index++ {
+				fixture.engine.addActiveChannel(engineActiveChannel{edge: RelationshipEdge{
+					PersonChannelID: fmt.Sprintf("worker-%d-occupied-%d", workerID, index),
+				}})
+			}
+			filled <- struct{}{}
+		}}); err != nil {
+			t.Fatalf("worker %d fill active set: %v", workerID, err)
+		}
+		<-filled
+		relationshipOrdinal, _ := findLifecycleSchedule(t, fixture.schedule, edge, LifecycleRotating)
+		if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
+			t.Fatalf("worker %d extra activation = %v, %v", workerID, activated, err)
+		}
+		snapshot, err := fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("worker %d Snapshot: %v", workerID, err)
+		}
+		if snapshot.ActiveHotChannels != wantActive || snapshot.PendingHotChannels != 1 {
+			t.Fatalf("worker %d hot-set cap = active %d pending %d, want %d/1", workerID, snapshot.ActiveHotChannels, snapshot.PendingHotChannels, wantActive)
+		}
+		totalActive += snapshot.ActiveHotChannels
+		totalPending += snapshot.PendingHotChannels
+	}
+	if totalActive != 8_000 || totalPending != len(want) {
+		t.Fatalf("aggregate hot set = active %d pending %d, want 8000/%d", totalActive, totalPending, len(want))
 	}
 }
 
@@ -3159,7 +3220,7 @@ func TestEngineFullHotSetRetainsMandatoryInitialBurst(t *testing.T) {
 	}
 	filled := make(chan struct{}, 1)
 	if err := fixture.engine.enqueue(engineCommand{run: func() {
-		for index := 0; index < fixture.engine.generator.workload.HotSet.PersonChannels; index++ {
+		for index := 0; index < fixture.engine.generator.hotSet.PersonChannels; index++ {
 			fixture.engine.addActiveChannel(engineActiveChannel{edge: RelationshipEdge{PersonChannelID: fmt.Sprintf("occupied-%d", index)}})
 		}
 		if err := fixture.engine.addWork(&engineWork{
@@ -3183,7 +3244,7 @@ func TestEngineFullHotSetRetainsMandatoryInitialBurst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Snapshot: %v", err)
 	}
-	if snapshot.ActivityCurrent != schedule.InitialBurst.MessageCount || snapshot.ActiveHotChannels != fixture.engine.generator.workload.HotSet.PersonChannels || snapshot.PendingHotChannels != 1 || snapshot.ActiveLifecycleTimers != 2 {
+	if snapshot.ActivityCurrent != schedule.InitialBurst.MessageCount || snapshot.ActiveHotChannels != fixture.engine.generator.hotSet.PersonChannels || snapshot.PendingHotChannels != 1 || snapshot.ActiveLifecycleTimers != 2 {
 		t.Fatalf("full hot-set activation dropped mandatory lifecycle work: %+v schedule=%+v", snapshot, schedule)
 	}
 	due := fixture.clock.Now().Add(time.Nanosecond)
@@ -3195,7 +3256,7 @@ func TestEngineFullHotSetRetainsMandatoryInitialBurst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("promoted Snapshot: %v", err)
 	}
-	if promoted.ActiveHotChannels != fixture.engine.generator.workload.HotSet.PersonChannels || promoted.PendingHotChannels != 0 || promoted.ActiveLifecycleTimers != 1 {
+	if promoted.ActiveHotChannels != fixture.engine.generator.hotSet.PersonChannels || promoted.PendingHotChannels != 0 || promoted.ActiveLifecycleTimers != 1 {
 		t.Fatalf("pending lifecycle was not promoted after capacity opened: %+v", promoted)
 	}
 }

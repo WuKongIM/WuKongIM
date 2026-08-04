@@ -142,7 +142,9 @@ type TrafficGeneratorSnapshot struct {
 	Group           uint64
 	Canaries        uint64
 	PayloadBytes    uint64
-	HotSet          GroupHotSet
+	// HotSet contains this worker's person-channel limit and the fixed global
+	// group catalog size; person limits sum exactly to the configured target.
+	HotSet GroupHotSet
 }
 
 // TrafficGenerator streams deterministic work from one global allocator. One
@@ -188,10 +190,17 @@ func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, erro
 	if err != nil {
 		return nil, err
 	}
-	hotSet, err := config.Catalog.HotSet(config.Workload.HotSet.PersonChannels)
-	if err != nil || hotSet.GroupChannels != config.Workload.HotSet.GroupChannels {
+	globalHotSet, err := config.Catalog.HotSet(config.Workload.HotSet.PersonChannels)
+	if err != nil || globalHotSet.GroupChannels != config.Workload.HotSet.GroupChannels {
 		return nil, errTrafficGeneratorConfig
 	}
+	personChannels, err := workerPersonHotSetTarget(config.Workload.HotSet.PersonChannels, config.WorkerID, config.WorkerCount)
+	if err != nil {
+		return nil, err
+	}
+	hotSet := globalHotSet
+	hotSet.PersonChannels = personChannels
+	hotSet.TotalChannels = personChannels + hotSet.GroupChannels
 	generator := &TrafficGenerator{
 		identity: config.Identity, model: config.Model, catalog: config.Catalog,
 		workload: config.Workload, allocator: allocator, hotSet: hotSet,
@@ -203,6 +212,17 @@ func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, erro
 	}
 	generator.snapshot.HotSet = hotSet
 	return generator, nil
+}
+
+func workerPersonHotSetTarget(total int, workerID, workerCount uint64) (int, error) {
+	if total <= 0 || workerCount == 0 || workerID >= workerCount {
+		return 0, errTrafficGeneratorConfig
+	}
+	target := total / int(workerCount)
+	if workerID < uint64(total%int(workerCount)) {
+		target++
+	}
+	return target, nil
 }
 
 // Tick releases one exact global per-second grant and streams every transient
