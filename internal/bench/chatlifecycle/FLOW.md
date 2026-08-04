@@ -243,9 +243,12 @@ most one approved retry per logical message, and the inflight map is explicitly
 capacity-bounded. A separate bounded completion queue lets ordered session
 drains report SENDACKs under backpressure without competing with control
 commands; long clock advances consume completions between scheduled work, and
-shutdown joins drains before its final completion barrier. All heaps share one
-checked future-work capacity except the retry heap, which has its own explicit
-capacity. New-user observation reconstructs the prior five possible owners plus
+shutdown joins drains before its final completion barrier. After each fixed
+32-SEND work quantum with outstanding attempts, the engine yields one Go
+scheduler turn and drains completions again. This bounded event-fairness point
+does not use wall-clock sleeps or extra queue capacity and works with one
+logical processor. All heaps share one checked future-work capacity except the
+retry heap, which has its own explicit capacity. New-user observation reconstructs the prior five possible owners plus
 the owner's bounded forward set, schedules an initial burst only while both
 sessions are online and the peer's new-user publication is complete, and
 retains at most one lifecycle deadline for revisit or natural cooling. Rotating

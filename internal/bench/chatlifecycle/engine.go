@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"math/bits"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +19,9 @@ const relationshipLogicalBase = uint64(1) << 62
 const (
 	maxActivityRouteScans = 64
 	activityRouteDeferral = time.Nanosecond
+	// completionFairnessQuantum bounds consecutive SEND work before the engine
+	// yields one scheduler turn to session drains and rechecks completions.
+	completionFairnessQuantum = 32
 )
 
 var (
@@ -1456,26 +1460,40 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 	e.verifier.ExpireCorrelations(now)
 	e.drainCompletions()
 	var result advanceResult
+	sentWorkSinceYield := 0
 	for result.processed < e.maxWork {
 		workDue := len(e.work) > 0 && !e.work[0].due.After(now)
 		retryDue := e.retries != nil && e.retries.due(now)
 		if !workDue && !retryDue {
 			break
 		}
+		processedSend := false
 		if retryDue && (!workDue || !e.work[0].due.Before(e.retries.entries[0].Due)) {
 			retries := e.retries.PopDue(now, 1)
 			if len(retries) == 1 {
+				processedSend = true
 				result.err = errors.Join(result.err, e.processAttempt(ctx, retries[0].Intent, retries[0].Attempt.Attempt, now))
 			}
 		} else {
 			work := heap.Pop(&e.work).(*engineWork)
 			if work.kind == engineWorkSend {
 				e.queuedSends--
+				processedSend = true
 			}
 			result.err = errors.Join(result.err, e.processWork(ctx, work, now))
 		}
 		result.processed++
 		e.drainCompletions()
+		if processedSend {
+			sentWorkSinceYield++
+		}
+		if sentWorkSinceYield >= completionFairnessQuantum {
+			if len(e.inflight) > 0 {
+				runtime.Gosched()
+				e.drainCompletions()
+			}
+			sentWorkSinceYield = 0
+		}
 	}
 	if (len(e.work) > 0 && !e.work[0].due.After(now)) || (e.retries != nil && e.retries.due(now)) {
 		result.err = errors.Join(result.err, e.recordRuntimeFailure(RuntimeFailureEngineCPUSaturated, uint64(e.maxWork)))

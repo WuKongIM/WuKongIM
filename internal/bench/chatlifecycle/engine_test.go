@@ -3422,7 +3422,7 @@ type engineTestFixture struct {
 	engine   *Engine
 }
 
-func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixture {
+func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixture {
 	t.Helper()
 	cfg := LocalConfig()
 	if limits.Formal {
@@ -3569,7 +3569,7 @@ func (f engineTestFixture) settleScheduledLogins(t *testing.T, now time.Time, in
 	return initial
 }
 
-func (f engineTestFixture) intent(t *testing.T, sender, target string, ordinal uint64, kind TrafficKind) TrafficIntent {
+func (f engineTestFixture) intent(t testing.TB, sender, target string, ordinal uint64, kind TrafficKind) TrafficIntent {
 	t.Helper()
 	logical, err := f.traffic.NewLogicalSend(0, ordinal, kind, sender, target)
 	if err != nil {
