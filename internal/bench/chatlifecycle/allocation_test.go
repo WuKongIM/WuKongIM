@@ -10,8 +10,11 @@ import (
 const (
 	formalVirtualDayUsers = uint64(250_000)
 	retainedSampleCount   = 3
-	retainedHeapNoise     = uint64(256 << 10)
-	retainedObjectNoise   = uint64(2_048)
+	// The heap allowance is below the 245,000-byte one-byte-per-user growth
+	// between the small and formal scans; the calibrated retained slice must fail.
+	retainedHeapNoise = uint64(128 << 10)
+	// The object gate complements heap bytes by catching many small live objects.
+	retainedObjectNoise = uint64(2_048)
 )
 
 var allocationSink struct {
@@ -137,8 +140,8 @@ func TestLifecycleModelAllocationBudgets(t *testing.T) {
 
 func TestLifecycleVirtualDayDoesNotRetainHistory(t *testing.T) {
 	const smallHistoryUsers = uint64(5_000)
-	small := retainedHistorySamples(t, smallHistoryUsers)
-	large := retainedHistorySamples(t, formalVirtualDayUsers)
+	small := retainedHistorySamples(t, smallHistoryUsers, nil)
+	large := retainedHistorySamples(t, formalVirtualDayUsers, nil)
 
 	for sampleIndex, sample := range large {
 		if sample.summary.users != formalVirtualDayUsers {
@@ -159,24 +162,37 @@ func TestLifecycleVirtualDayDoesNotRetainHistory(t *testing.T) {
 	// retained growth is the signal: a history slice/map would scale by 50x,
 	// while transient UID/channel strings disappear. The fixed allowances cover
 	// runtime and test-runner noise, not historical model state.
-	smallHeap, smallObjects := medianRetained(small)
-	largeHeap, largeObjects := medianRetained(large)
-	if largeHeap > smallHeap+retainedHeapNoise {
-		t.Fatalf("retained heap after %d users = %d bytes, after %d = %d; allowed relative noise = %d", formalVirtualDayUsers, largeHeap, smallHistoryUsers, smallHeap, retainedHeapNoise)
+	growth := compareRetainedHistory(small, large)
+	t.Logf("retained median: small heap/objects=%d/%d, large=%d/%d", growth.smallHeap, growth.smallObjects, growth.largeHeap, growth.largeObjects)
+	if growth.heapExceedsNoise() {
+		t.Fatalf("retained heap after %d users = %d bytes, after %d = %d; allowed relative noise = %d", formalVirtualDayUsers, growth.largeHeap, smallHistoryUsers, growth.smallHeap, retainedHeapNoise)
 	}
-	if largeObjects > smallObjects+retainedObjectNoise {
-		t.Fatalf("retained objects after %d users = %d, after %d = %d; allowed relative noise = %d", formalVirtualDayUsers, largeObjects, smallHistoryUsers, smallObjects, retainedObjectNoise)
+	if growth.objectsExceedNoise() {
+		t.Fatalf("retained objects after %d users = %d, after %d = %d; allowed relative noise = %d", formalVirtualDayUsers, growth.largeObjects, smallHistoryUsers, growth.smallObjects, retainedObjectNoise)
+	}
+}
+
+func TestRetainedHistoryGateCalibrationDetectsOneBytePerUser(t *testing.T) {
+	const smallHistoryUsers = uint64(5_000)
+	small := retainedHistorySamples(t, smallHistoryUsers, retainOneBytePerUser)
+	large := retainedHistorySamples(t, formalVirtualDayUsers, retainOneBytePerUser)
+	growth := compareRetainedHistory(small, large)
+	t.Logf("calibration retained median: small heap/objects=%d/%d, large=%d/%d", growth.smallHeap, growth.smallObjects, growth.largeHeap, growth.largeObjects)
+	if !growth.heapExceedsNoise() {
+		t.Fatalf("one-byte-per-user calibration escaped heap gate: small=%d, large=%d, noise=%d", growth.smallHeap, growth.largeHeap, retainedHeapNoise)
 	}
 }
 
 type allocationFixture struct {
-	identity           *IdentitySpace
-	graph              RelationshipGraph
-	traffic            TrafficModel
-	schedule           ScheduleModel
-	groups             GroupCatalog
-	fiveEdgeOwner      uint64
-	longChannelOrdinal uint64
+	identity             *IdentitySpace
+	graph                RelationshipGraph
+	traffic              TrafficModel
+	schedule             ScheduleModel
+	groups               GroupCatalog
+	fiveEdgeOwner        uint64
+	longChannelOrdinal   uint64
+	retentionCalibration func(*allocationFixture, uint64)
+	calibrationHistory   []byte
 }
 
 func newAllocationFixture(t *testing.T) allocationFixture {
@@ -248,7 +264,10 @@ type historySummary struct {
 	checksum            uint64
 }
 
-func scanLifecycleHistory(fixture allocationFixture, users uint64) (historySummary, error) {
+func scanLifecycleHistory(fixture *allocationFixture, users uint64) (historySummary, error) {
+	if fixture.retentionCalibration != nil {
+		fixture.retentionCalibration(fixture, users)
+	}
 	summary := historySummary{users: users, minimumMatureDegree: MaxUserRelationships}
 	for owner := uint64(0); owner < users; owner++ {
 		uid := fixture.identity.UID(owner)
@@ -331,11 +350,13 @@ type retainedHistorySample struct {
 	summary     historySummary
 }
 
-func retainedHistorySamples(t *testing.T, users uint64) []retainedHistorySample {
+func retainedHistorySamples(t *testing.T, users uint64, calibration func(*allocationFixture, uint64)) []retainedHistorySample {
 	t.Helper()
 	samples := make([]retainedHistorySample, 0, retainedSampleCount)
 	for sampleIndex := 0; sampleIndex < retainedSampleCount; sampleIndex++ {
-		fixture := newAllocationFixture(t)
+		fixtureValue := newAllocationFixture(t)
+		fixture := &fixtureValue
+		fixture.retentionCalibration = calibration
 		if _, err := scanLifecycleHistory(fixture, 64); err != nil {
 			t.Fatalf("warm-up scan: %v", err)
 		}
@@ -364,6 +385,13 @@ func retainedHistorySamples(t *testing.T, users uint64) []retainedHistorySample 
 	return samples
 }
 
+func retainOneBytePerUser(fixture *allocationFixture, users uint64) {
+	fixture.calibrationHistory = make([]byte, users)
+	if users > 0 {
+		fixture.calibrationHistory[users-1] = 1
+	}
+}
+
 func positiveDelta(after, before uint64) uint64 {
 	if after <= before {
 		return 0
@@ -381,4 +409,30 @@ func medianRetained(samples []retainedHistorySample) (heapBytes, heapObjects uin
 	sort.Slice(heapValues, func(i, j int) bool { return heapValues[i] < heapValues[j] })
 	sort.Slice(objectValues, func(i, j int) bool { return objectValues[i] < objectValues[j] })
 	return heapValues[len(heapValues)/2], objectValues[len(objectValues)/2]
+}
+
+type retainedHistoryComparison struct {
+	smallHeap    uint64
+	largeHeap    uint64
+	smallObjects uint64
+	largeObjects uint64
+}
+
+func compareRetainedHistory(small, large []retainedHistorySample) retainedHistoryComparison {
+	smallHeap, smallObjects := medianRetained(small)
+	largeHeap, largeObjects := medianRetained(large)
+	return retainedHistoryComparison{
+		smallHeap:    smallHeap,
+		largeHeap:    largeHeap,
+		smallObjects: smallObjects,
+		largeObjects: largeObjects,
+	}
+}
+
+func (c retainedHistoryComparison) heapExceedsNoise() bool {
+	return c.largeHeap > c.smallHeap+retainedHeapNoise
+}
+
+func (c retainedHistoryComparison) objectsExceedNoise() bool {
+	return c.largeObjects > c.smallObjects+retainedObjectNoise
 }

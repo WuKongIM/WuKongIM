@@ -90,8 +90,14 @@ do not permit retained history or repeated owner-UID formatting. A formal
 250,000-user/1,000,000-edge scanner retains only counters and a checksum, also
 reconstructs payload, schedule, group, and one group member at a time, and
 compares repeated post-GC retained heap/object deltas with a much smaller scan.
-This gate detects history-sized slices/maps without constructing a 100,000-member
-slice or relying on a machine-specific absolute heap size.
+The scanner and post-GC `KeepAlive` use the same fixture pointer, so model state
+mutated during reconstruction cannot disappear before measurement. Its 128 KiB
+relative heap allowance is calibrated through the same warm-up, scan, double-GC,
+three-sample-median path with a test-only one-byte-per-user retained slice: the
+245,000-user scale difference must trip the heap gate. The complementary object
+allowance detects many small live objects that byte growth alone could obscure.
+Together these gates detect history-sized slices/maps without constructing a
+100,000-member slice or relying on a machine-specific absolute heap size.
 
 Returning-login planning selects mature historical candidates rather than
 claiming they are offline; offline admission remains worker-owned. Four of each
