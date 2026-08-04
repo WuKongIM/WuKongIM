@@ -1277,7 +1277,8 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 		clientSeqs[packet.ClientSeq] = struct{}{}
 	}
 	ack := &frame.SendackPacket{
-		ClientMsgNo: intent.Logical.ClientMsgNo, MessageID: 901, MessageSeq: 77, ReasonCode: frame.ReasonSuccess,
+		ClientSeq: packets[len(packets)-1].ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
+		MessageID: 901, MessageSeq: 77, ReasonCode: frame.ReasonSuccess,
 	}
 	verificationErr := fixture.verifier.HandleSendack(ack)
 	if verificationErr != nil {
@@ -1317,7 +1318,10 @@ func TestEngineNonRetriableSendackFailsWithoutRetry(t *testing.T) {
 	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	ack := &frame.SendackPacket{ClientMsgNo: intent.Logical.ClientMsgNo, ReasonCode: frame.ReasonAuthFail}
+	ack := &frame.SendackPacket{
+		ClientSeq:   fixture.factory.sentPackets()[0].ClientSeq,
+		ClientMsgNo: intent.Logical.ClientMsgNo, ReasonCode: frame.ReasonAuthFail,
+	}
 	verificationErr := fixture.verifier.HandleSendack(ack)
 	var rejected *SendackRejectedError
 	if !errors.As(verificationErr, &rejected) {
@@ -1363,7 +1367,8 @@ func TestEngineLateSuccessfulSendackCancelsScheduledRetry(t *testing.T) {
 		t.Fatalf("retry queue before late ACK = %+v", snapshot)
 	}
 	ack := &frame.SendackPacket{
-		ClientMsgNo: intent.Logical.ClientMsgNo, MessageID: 902, MessageSeq: 78, ReasonCode: frame.ReasonSuccess,
+		ClientSeq: fixture.factory.sentPackets()[0].ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
+		MessageID: 902, MessageSeq: 78, ReasonCode: frame.ReasonSuccess,
 	}
 	verificationErr := fixture.verifier.HandleSendack(ack)
 	if verificationErr != nil {
@@ -1404,7 +1409,8 @@ func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *
 		t.Fatalf("Advance: %v", err)
 	}
 	client := fixture.factory.clients()[0]
-	client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientMsgNo: intent.Logical.ClientMsgNo}
+	clientSeq := fixture.factory.sentPackets()[0].ClientSeq
+	client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientSeq: clientSeq, clientMsgNo: intent.Logical.ClientMsgNo}
 	<-client.readReturned
 	<-readCycles
 	snapshot, err := fixture.engine.Snapshot()
@@ -1416,6 +1422,161 @@ func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *
 	}
 	if fixture.evidence.Snapshot().Classification == SyncClassificationProductFailure {
 		t.Fatalf("async SEND error became product evidence: %+v", fixture.evidence.Snapshot())
+	}
+}
+
+func TestEngineOverlappingAttemptsKeepCurrentOwnershipAndAcceptEitherSuccess(t *testing.T) {
+	type overlapFixture struct {
+		fixture engineTestFixture
+		intent  TrafficIntent
+		now     time.Time
+		first   uint64
+		current uint64
+	}
+	startOverlap := func(t *testing.T) overlapFixture {
+		t.Helper()
+		fixture := newEngineTestFixture(t, engineTestLimits{AttemptTimeout: time.Millisecond})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		t.Cleanup(func() { _ = fixture.engine.Stop() })
+		uid := fixture.identity.UID(9)
+		if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 9, LoginOrdinal: 8}); err != nil {
+			t.Fatalf("Login: %v", err)
+		}
+		intent := fixture.intent(t, uid, "overlap-group", 148, TrafficGroup)
+		now := fixture.clock.Now()
+		if err := fixture.engine.SubmitGranted(intent, now); err != nil {
+			t.Fatalf("SubmitGranted: %v", err)
+		}
+		if _, err := fixture.engine.Advance(now); err != nil {
+			t.Fatalf("attempt zero Advance: %v", err)
+		}
+		now = now.Add(time.Millisecond)
+		fixture.clock.Set(now)
+		if _, err := fixture.engine.Advance(now); err != nil {
+			t.Fatalf("attempt zero timeout Advance: %v", err)
+		}
+		retry, err := fixture.retry.Attempt(intent.Logical, 1)
+		if err != nil {
+			t.Fatalf("retry Attempt: %v", err)
+		}
+		now = now.Add(retry.Delay)
+		fixture.clock.Set(now)
+		if _, err := fixture.engine.Advance(now); err != nil {
+			t.Fatalf("attempt one Advance: %v", err)
+		}
+		packets := fixture.factory.sentPackets()
+		if len(packets) != 2 || packets[0].ClientSeq == packets[1].ClientSeq || packets[0].ClientMsgNo != packets[1].ClientMsgNo {
+			t.Fatalf("overlapping packets = %+v", packets)
+		}
+		return overlapFixture{
+			fixture: fixture, intent: intent, now: now,
+			first: packets[0].ClientSeq, current: packets[1].ClientSeq,
+		}
+	}
+	observeAck := func(t *testing.T, overlap overlapFixture, clientSeq uint64, reason frame.ReasonCode) error {
+		t.Helper()
+		ack := &frame.SendackPacket{
+			ClientSeq: clientSeq, ClientMsgNo: overlap.intent.Logical.ClientMsgNo,
+			ReasonCode: reason,
+		}
+		if reason == frame.ReasonSuccess {
+			ack.MessageID, ack.MessageSeq = 701, 801
+		}
+		verificationErr := overlap.fixture.verifier.HandleSendack(ack)
+		return overlap.fixture.engine.ObserveSendack(overlap.intent.Logical.Sender, ack, verificationErr)
+	}
+	assertCurrent := func(t *testing.T, overlap overlapFixture) {
+		t.Helper()
+		snapshot, err := overlap.fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("Snapshot: %v", err)
+		}
+		if snapshot.InflightCurrent != 1 || snapshot.RetryQueueDepth != 0 || snapshot.FutureCurrent != 1 || snapshot.FinalFailures != 0 {
+			t.Fatalf("current attempt ownership changed: %+v", snapshot)
+		}
+	}
+	assertCompleteWithoutAttemptEvidence := func(t *testing.T, overlap overlapFixture, releasedAttempts int) {
+		t.Helper()
+		snapshot, err := overlap.fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("Snapshot: %v", err)
+		}
+		verifier := overlap.fixture.verifier.Snapshot()
+		if snapshot.InflightCurrent != 0 || snapshot.FutureCurrent != 0 || snapshot.FinalFailures != 0 ||
+			verifier.UnknownSendacks != 0 || verifier.DuplicateCompletions != 0 || verifier.ConflictingCompletions != 0 || verifier.ReleasedAttemptCurrent != releasedAttempts {
+			t.Fatalf("completed overlap engine=%+v verifier=%+v", snapshot, verifier)
+		}
+	}
+
+	t.Run("stale_rejection", func(t *testing.T) {
+		overlap := startOverlap(t)
+		if err := observeAck(t, overlap, overlap.first, frame.ReasonRateLimit); err != nil {
+			t.Fatalf("stale rejection: %v", err)
+		}
+		assertCurrent(t, overlap)
+		if err := observeAck(t, overlap, overlap.current, frame.ReasonSuccess); err != nil {
+			t.Fatalf("current success: %v", err)
+		}
+		assertCompleteWithoutAttemptEvidence(t, overlap, 0)
+	})
+
+	t.Run("stale_async_error", func(t *testing.T) {
+		overlap := startOverlap(t)
+		overlap.fixture.engine.sessionAsyncSendError(overlap.intent.Logical.Sender, overlap.first, overlap.intent.Logical.ClientMsgNo)
+		assertCurrent(t, overlap)
+		if err := observeAck(t, overlap, overlap.current, frame.ReasonSuccess); err != nil {
+			t.Fatalf("current success: %v", err)
+		}
+		assertCompleteWithoutAttemptEvidence(t, overlap, 0)
+	})
+
+	t.Run("stale_timeout", func(t *testing.T) {
+		overlap := startOverlap(t)
+		added := make(chan error, 1)
+		if err := overlap.fixture.engine.enqueue(engineCommand{run: func() {
+			added <- overlap.fixture.engine.addWork(&engineWork{
+				due: overlap.now, kind: engineWorkTimeout, intent: overlap.intent,
+				attempt: 0, clientSeq: overlap.first,
+			})
+		}}); err != nil {
+			t.Fatalf("enqueue stale timeout: %v", err)
+		}
+		if err := <-added; err != nil {
+			t.Fatalf("add stale timeout: %v", err)
+		}
+		if _, err := overlap.fixture.engine.Advance(overlap.now); err != nil {
+			t.Fatalf("stale timeout Advance: %v", err)
+		}
+		assertCurrent(t, overlap)
+		if err := observeAck(t, overlap, overlap.current, frame.ReasonSuccess); err != nil {
+			t.Fatalf("current success: %v", err)
+		}
+		assertCompleteWithoutAttemptEvidence(t, overlap, 1)
+	})
+
+	for _, testCase := range []struct {
+		name        string
+		winnerFirst bool
+	}{
+		{name: "older_attempt_success", winnerFirst: true},
+		{name: "current_attempt_success", winnerFirst: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			overlap := startOverlap(t)
+			winner, sibling := overlap.current, overlap.first
+			if testCase.winnerFirst {
+				winner, sibling = overlap.first, overlap.current
+			}
+			if err := observeAck(t, overlap, winner, frame.ReasonSuccess); err != nil {
+				t.Fatalf("winner success: %v", err)
+			}
+			if err := observeAck(t, overlap, sibling, frame.ReasonSuccess); err != nil {
+				t.Fatalf("released sibling success: %v", err)
+			}
+			assertCompleteWithoutAttemptEvidence(t, overlap, 0)
+		})
 	}
 }
 
@@ -2263,6 +2424,85 @@ func TestEngineRealAsyncNewLoginOrderPublishesOneIdenticalRelationship(t *testin
 		forward.ActivityCurrent != reversed.ActivityCurrent ||
 		forward.FutureCurrent != reversed.FutureCurrent || forward.ActiveLifecycleTimers != reversed.ActiveLifecycleTimers {
 		t.Fatalf("real async relationship totals forward=%+v reversed=%+v", forward, reversed)
+	}
+}
+
+func TestEngineStopCancelsBlockedStepSendBeforeClosingSessions(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	fixture.factory.sendStarted = make(chan context.Context, 1)
+	fixture.factory.sendCanceled = make(chan struct{}, 1)
+	fixture.factory.sendReturn = make(chan struct{})
+	fixture.factory.sendAbort = make(chan struct{})
+	fixture.factory.closeCalled = make(chan struct{}, 1)
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	sender := fixture.identity.UID(0)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: sender, UserIndex: 0, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	now := fixture.clock.Now()
+	if err := fixture.engine.SubmitGranted(fixture.intent(t, sender, "group-1", 1, TrafficGroup), now); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+
+	stepDone := make(chan error, 1)
+	go func() {
+		_, err := fixture.engine.Step(context.Background(), now, nil)
+		stepDone <- err
+	}()
+	var sendCtx context.Context
+	select {
+	case sendCtx = <-fixture.factory.sendStarted:
+	case <-time.After(time.Second):
+		close(fixture.factory.sendAbort)
+		t.Fatal("Step never reached the blocking SessionClient.Send")
+	}
+	if sendCtx == nil || sendCtx.Done() == nil {
+		close(fixture.factory.sendAbort)
+		t.Fatal("SessionClient.Send received a non-cancelable context")
+	}
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+	select {
+	case <-fixture.factory.sendCanceled:
+	case <-time.After(time.Second):
+		close(fixture.factory.sendAbort)
+		<-stopDone
+		t.Fatal("Stop did not cancel the blocked SessionClient.Send")
+	}
+	select {
+	case <-fixture.factory.closeCalled:
+		close(fixture.factory.sendAbort)
+		t.Fatal("SessionClient.Close ran before the blocked Step joined")
+	default:
+	}
+	close(fixture.factory.sendReturn)
+	if err := <-stepDone; err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatalf("Step error = %v, want nil or context cancellation", err)
+	}
+	select {
+	case err := <-stopDone:
+		if err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+	case <-time.After(time.Second):
+		close(fixture.factory.sendAbort)
+		t.Fatal("Stop remained blocked after the canceled Send returned")
+	}
+	select {
+	case <-fixture.factory.closeCalled:
+	default:
+		t.Fatal("Stop returned without closing the session after Step joined")
+	}
+	if evidence := fixture.evidence.Snapshot(); evidence.Classification != "" || len(evidence.Classes) != 0 {
+		t.Fatalf("generation cancellation recorded evidence: %+v", evidence)
 	}
 }
 
@@ -3301,6 +3541,11 @@ type engineFakeFactory struct {
 	readContexts      chan<- context.Context
 	readStartedUID    chan string
 	readCycles        chan<- struct{}
+	sendStarted       chan context.Context
+	sendCanceled      chan struct{}
+	sendReturn        chan struct{}
+	sendAbort         chan struct{}
+	closeCalled       chan struct{}
 }
 
 func (f *engineFakeFactory) NewSession(ctx context.Context, uid, _ string) (SessionClient, error) {
@@ -3432,23 +3677,44 @@ func (c *engineFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
 		return nil, errors.New("closed")
 	}
 }
-func (c *engineFakeClient) Send(_ context.Context, packet *frame.SendPacket) error {
+func (c *engineFakeClient) Send(ctx context.Context, packet *frame.SendPacket) error {
 	c.mu.Lock()
 	c.sent = append(c.sent, packet)
 	messageID := int64(len(c.sent))
 	c.mu.Unlock()
 	c.factory.recordRoute(engineSentRoute{uid: c.uid, packet: packet})
+	if c.factory.sendStarted != nil {
+		c.factory.sendStarted <- ctx
+		select {
+		case <-ctx.Done():
+			c.factory.sendCanceled <- struct{}{}
+		case <-c.factory.sendAbort:
+			return errors.New("test send abort")
+		}
+		select {
+		case <-c.factory.sendReturn:
+			return context.Cause(ctx)
+		case <-c.factory.sendAbort:
+			return errors.New("test send abort")
+		}
+	}
 	err := c.factory.nextSendError()
 	if err == nil && c.factory.autoAck {
 		c.frames <- &frame.SendackPacket{
-			ClientMsgNo: packet.ClientMsgNo, MessageID: messageID, MessageSeq: uint64(messageID), ReasonCode: frame.ReasonSuccess,
+			ClientSeq: packet.ClientSeq, ClientMsgNo: packet.ClientMsgNo,
+			MessageID: messageID, MessageSeq: uint64(messageID), ReasonCode: frame.ReasonSuccess,
 		}
 	}
 	return err
 }
 func (c *engineFakeClient) AckRecv(context.Context, *frame.RecvackPacket) error { return nil }
 func (c *engineFakeClient) Close() error {
-	c.closeOnce.Do(func() { close(c.stop) })
+	c.closeOnce.Do(func() {
+		close(c.stop)
+		if c.factory.closeCalled != nil {
+			c.factory.closeCalled <- struct{}{}
+		}
+	})
 	return nil
 }
 func (c *engineFakeClient) QueueSnapshot() SessionQueueSnapshot { return SessionQueueSnapshot{} }
@@ -3457,11 +3723,12 @@ func (c *engineFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool
 	if !errors.As(err, &readErr) {
 		return wkproto.ReadErrorInfo{}, false
 	}
-	return wkproto.ReadErrorInfo{Kind: readErr.kind, ClientMsgNo: readErr.clientMsgNo}, true
+	return wkproto.ReadErrorInfo{Kind: readErr.kind, ClientSeq: readErr.clientSeq, ClientMsgNo: readErr.clientMsgNo}, true
 }
 
 type engineFakeReadError struct {
 	kind        wkproto.ReadErrorKind
+	clientSeq   uint64
 	clientMsgNo string
 }
 

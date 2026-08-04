@@ -100,12 +100,12 @@ func TestReadErrorKindDistinguishesAsyncSendFromTerminalSessionFailure(t *testin
 	t.Parallel()
 	session := newClientSession(nil, 2)
 	nonTerminal := errors.New("async send failed")
-	if !session.publishError(errorResult{err: nonTerminal, clientMsgNo: "stable-message"}) {
+	if !session.publishError(errorResult{err: nonTerminal, clientSeq: 17, clientMsgNo: "stable-message"}) {
 		t.Fatal("publish non-terminal error = false")
 	}
 	if _, err := session.readFrame(context.Background()); !errors.Is(err, nonTerminal) {
 		t.Fatalf("non-terminal ReadFrame error = %v", err)
-	} else if info, ok := ReadErrorInfoOf(err); !ok || info.Kind != ReadErrorNonTerminal || info.ClientMsgNo != "stable-message" {
+	} else if info, ok := ReadErrorInfoOf(err); !ok || info.Kind != ReadErrorNonTerminal || info.ClientSeq != 17 || info.ClientMsgNo != "stable-message" {
 		t.Fatalf("non-terminal ReadFrame info = %+v, %v", info, ok)
 	}
 

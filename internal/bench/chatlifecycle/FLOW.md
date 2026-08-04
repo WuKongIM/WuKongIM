@@ -117,16 +117,17 @@ with 100 ms, 500 ms, and 2 s bases plus deterministic nonnegative jitter in
 overflow.
 
 The concurrent verifier registers that attempt-independent identity in an
-explicitly bounded pending map. Only a matching successful SENDACK with
-positive server message identity completes it. An incomplete SEND accepts a
+explicitly bounded pending map together with the fixed maximum of four
+distinct wire-attempt `ClientSeq` values. Only a matching registered SENDACK
+with positive server message identity completes the logical send. An incomplete SEND accepts a
 rejected SENDACK as a retry decision input only when both server identity fields
 are zero; nonzero identity on rejection is invalid product evidence. Once a
-SEND is acknowledged or terminal, every later ACK is duplicate/conflicting
-product evidence regardless of its reason code. Explicit terminal completion
-is also a product failure. Completed entries remain only until the worker calls
-`ReleaseSend`, which provides a bounded duplicate/conflict discrimination
-window. Unknown, duplicate, and conflicting completions use fixed reason codes
-and redacted message fingerprints.
+SEND is acknowledged, another registered overlapping attempt may resolve once
+without duplicate/conflict evidence. `ReleaseSend` retains only those unresolved
+sibling attempt identities through the existing correlation deadline in a
+bounded grace index; unknown sequence values remain product evidence. Explicit
+terminal completion is also a product failure. Unknown, duplicate, and
+conflicting completions use fixed reason codes and redacted message fingerprints.
 
 Every protocol-valid RECV is decoded once, reconstructed through the payload
 marker and `TrafficModel`, then checked for person peer versus group channel
@@ -175,8 +176,8 @@ new admission, cancels that context, then joins startup work and drains.
 Expected logout and expiry first remove online admission, then cancel and close
 the socket, join the drain, and finally release recipient sequence state. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication
-error, which keeps the same drain online and returns the stable
-`client_msg_no` to the engine-owned retry state, from a terminal remote reader
+error, which keeps the same drain online and returns both the wire `ClientSeq`
+and stable `client_msg_no` to the engine-owned retry state, from a terminal remote reader
 exit. Under the pool ownership lock, an unexpected exit records bounded
 evidence before publishing the session offline; socket close and recipient
 release remain outside that lock. The UID moves atomically from online to a
@@ -230,7 +231,9 @@ bounded orchestration boundary; aggregate snapshots expose planned, admitted,
 completed, skipped, expired, and replacement counts without exposing scheduler
 state. A generation lease covers the whole Step, including time waiting for
 the serial Step lock. Stop first fences admission and cancels the generation,
-then joins every Step and login startup before session and engine cleanup;
+so a Step blocked in session SEND admission returns before Stop joins every Step
+and login startup and then closes sessions and cleans engine state. Generation
+cancellation aborts that incomplete local attempt without product evidence;
 Start cannot reset state while old-generation work is still live.
 
 `Engine` owns one bounded command loop for the active generation. One activity
@@ -296,8 +299,12 @@ Attempt zero plus retries one through three reuse the same Phase 2 logical
 identity and `client_msg_no`, while every wire attempt receives a distinct
 generation-local monotonic `ClientSeq`. The real transport pending key therefore
 keeps overlapping attempts independent; a late ACK is attributed to its exact
-attempt while a successful logical completion cancels scheduled future retry
-work. Timeouts and closed temporary SENDACK reasons schedule the existing
+attempt. Only the current attempt may schedule or cancel retry work after a
+timeout, rejection, or asynchronous transport error; stale outcomes leave it
+unchanged. A successful ACK from any registered attempt completes the logical
+send exactly once, cancels current timeout/future retry work, and moves
+unresolved sibling attempt identities into the verifier's bounded grace index.
+Timeouts and closed temporary SENDACK reasons schedule the existing
 100 ms, 500 ms, and 2 s deterministic delays; non-retriable SENDACK reasons
 complete immediately. A late successful SENDACK removes a scheduled retry in
 O(log n), and every accepted SENDACK physically removes that attempt's timeout

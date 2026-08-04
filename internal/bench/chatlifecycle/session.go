@@ -115,7 +115,7 @@ type SessionPoolConfig struct {
 	OnSendack func(uid string, ack *frame.SendackPacket, verificationErr error)
 	// OnAsyncSendError transfers one non-terminal result-queue error to the
 	// engine that owns retry state. The raw transport error is never exposed.
-	OnAsyncSendError func(uid, clientMsgNo string)
+	OnAsyncSendError func(uid string, clientSeq uint64, clientMsgNo string)
 }
 
 // SessionLogin binds a reconstructed identity to one global login ordinal.
@@ -184,7 +184,7 @@ type SessionPool struct {
 	deviceID         string
 	startingCapacity int
 	onSendack        func(string, *frame.SendackPacket, error)
-	onAsyncSendError func(string, string)
+	onAsyncSendError func(string, uint64, string)
 
 	mu                 sync.RWMutex
 	online             map[string]*onlineSession
@@ -511,7 +511,7 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 // prevents control-plane callers from replacing retry or scheduler ownership.
 func (p *SessionPool) setEngineObservers(
 	sendack func(string, *frame.SendackPacket, error),
-	asyncSendError func(string, string),
+	asyncSendError func(string, uint64, string),
 ) error {
 	if p == nil || sendack == nil || asyncSendError == nil {
 		return errSessionConfig
@@ -553,8 +553,12 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 					_ = p.verifier.evidence.Record(EvidenceEvent{
 						Class: FailureClassHarness, Stage: EvidenceStageReceive, Code: FailureCodeSessionReadFailed,
 					})
+				} else if info.ClientSeq == 0 {
+					_ = p.verifier.evidence.Record(EvidenceEvent{
+						Class: FailureClassHarness, Stage: EvidenceStageReceive, Code: FailureCodeSessionReadFailed,
+					})
 				} else if p.onAsyncSendError != nil {
-					p.onAsyncSendError(session.snapshot.UID, info.ClientMsgNo)
+					p.onAsyncSendError(session.snapshot.UID, info.ClientSeq, info.ClientMsgNo)
 				}
 				continue
 			}

@@ -12,6 +12,8 @@ import (
 
 const maxVerifierCapacity = 10_000_000
 
+const maxSendAttemptIdentities = len(fixedRetryBases) + 1
+
 var (
 	errVerifierConfig = errors.New("chat lifecycle verifier: capacities and deadline are invalid")
 )
@@ -68,7 +70,8 @@ func (e *VerificationError) Code() FailureCode {
 // SendackRejectedError reports a retryable or terminal decision input without
 // completing the logical send. The retry engine owns the eventual decision.
 type SendackRejectedError struct {
-	reason frame.ReasonCode
+	reason    frame.ReasonCode
+	clientSeq uint64
 }
 
 func (e *SendackRejectedError) Error() string {
@@ -81,6 +84,14 @@ func (e *SendackRejectedError) ReasonCode() frame.ReasonCode {
 		return frame.ReasonUnknown
 	}
 	return e.reason
+}
+
+// ClientSeq identifies the exact rejected wire attempt.
+func (e *SendackRejectedError) ClientSeq() uint64 {
+	if e == nil {
+		return 0
+	}
+	return e.clientSeq
 }
 
 // ProductRecvAckFailureCode is the explicit closed vocabulary by which a
@@ -142,6 +153,8 @@ type VerifierSnapshot struct {
 	CorrelationCurrent        int
 	CorrelationPeak           int
 	DeadlineCurrent           int
+	ReleasedAttemptCurrent    int
+	ReleasedAttemptPeak       int
 }
 
 type verifierSendCounters struct {
@@ -188,11 +201,75 @@ const (
 )
 
 type pendingSend struct {
-	logical    LogicalSend
-	completion sendCompletion
-	messageID  int64
-	messageSeq uint64
-	terminal   TerminalSendCode
+	logical             LogicalSend
+	registeredAt        time.Time
+	completion          sendCompletion
+	completionClientSeq uint64
+	messageID           int64
+	messageSeq          uint64
+	terminal            TerminalSendCode
+	attempts            [maxSendAttemptIdentities]sendAttemptIdentity
+	attemptCount        uint8
+}
+
+type sendAttemptIdentity struct {
+	clientSeq   uint64
+	outstanding bool
+}
+
+func (s *pendingSend) attempt(clientSeq uint64) *sendAttemptIdentity {
+	if s == nil || clientSeq == 0 {
+		return nil
+	}
+	for index := uint8(0); index < s.attemptCount; index++ {
+		if s.attempts[index].clientSeq == clientSeq {
+			return &s.attempts[index]
+		}
+	}
+	return nil
+}
+
+type releasedAttemptKey struct {
+	clientSeq   uint64
+	clientMsgNo string
+}
+
+type releasedAttempt struct {
+	key       releasedAttemptKey
+	deadline  time.Time
+	heapIndex int
+}
+
+type releasedAttemptDeadlineHeap []*releasedAttempt
+
+func (h releasedAttemptDeadlineHeap) Len() int { return len(h) }
+func (h releasedAttemptDeadlineHeap) Less(i, j int) bool {
+	if h[i].deadline.Equal(h[j].deadline) {
+		if h[i].key.clientMsgNo == h[j].key.clientMsgNo {
+			return h[i].key.clientSeq < h[j].key.clientSeq
+		}
+		return h[i].key.clientMsgNo < h[j].key.clientMsgNo
+	}
+	return h[i].deadline.Before(h[j].deadline)
+}
+func (h releasedAttemptDeadlineHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].heapIndex = i
+	h[j].heapIndex = j
+}
+func (h *releasedAttemptDeadlineHeap) Push(value any) {
+	item := value.(*releasedAttempt)
+	item.heapIndex = len(*h)
+	*h = append(*h, item)
+}
+func (h *releasedAttemptDeadlineHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	item := old[last]
+	old[last] = nil
+	item.heapIndex = -1
+	*h = old[:last]
+	return item
 }
 
 type recipientSequenceState struct {
@@ -292,6 +369,9 @@ type Verifier struct {
 	correlations      map[string]*sampledCorrelation
 	deadlines         correlationDeadlineHeap
 	correlationPeak   int
+	releasedAttempts  map[releasedAttemptKey]*releasedAttempt
+	releasedDeadlines releasedAttemptDeadlineHeap
+	releasedPeak      int
 
 	sendCounters verifierSendCounters
 	recvCounters verifierReceiveCounters
@@ -305,14 +385,16 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		return nil, errVerifierConfig
 	}
 	v := &Verifier{
-		model:        model,
-		config:       config,
-		evidence:     evidence,
-		pending:      make(map[string]*pendingSend),
-		sequences:    make(map[string]*recipientSequenceState),
-		correlations: make(map[string]*sampledCorrelation),
+		model:            model,
+		config:           config,
+		evidence:         evidence,
+		pending:          make(map[string]*pendingSend),
+		sequences:        make(map[string]*recipientSequenceState),
+		correlations:     make(map[string]*sampledCorrelation),
+		releasedAttempts: make(map[releasedAttemptKey]*releasedAttempt),
 	}
 	heap.Init(&v.deadlines)
+	heap.Init(&v.releasedDeadlines)
 	return v, nil
 }
 
@@ -337,7 +419,7 @@ func (v *Verifier) RegisterSend(logical LogicalSend, registeredAt time.Time) err
 	if sampled && len(v.correlations) >= v.config.CorrelationCapacity {
 		return v.recordHarnessLocked(FailureCodeCorrelationCapacity, logical, EvidenceStageCapacity, uint64(v.config.CorrelationCapacity))
 	}
-	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical}
+	v.pending[logical.ClientMsgNo] = &pendingSend{logical: logical, registeredAt: registeredAt}
 	v.pendingUnfinished++
 	v.sendCounters.sent++
 	if len(v.pending) > v.pendingPeak {
@@ -369,15 +451,19 @@ func (v *Verifier) ShouldCorrelate(logical LogicalSend) (bool, error) {
 	return v.sampledLocked(logical)
 }
 
-// ObserveAttempt verifies that a retry did not mint a replacement identity.
-func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt) error {
+// ObserveAttempt registers one explicit wire-attempt identity and verifies that
+// a retry did not mint a replacement logical message identity.
+func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, clientSeq uint64) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
 	if pending == nil || pending.logical != logical || pending.completion != sendIncomplete ||
-		attempt.ClientMsgNo != logical.ClientMsgNo || attempt.Attempt > 3 {
+		attempt.ClientMsgNo != logical.ClientMsgNo || attempt.Attempt > 3 || clientSeq == 0 ||
+		pending.attemptCount >= uint8(maxSendAttemptIdentities) || pending.attempt(clientSeq) != nil {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(attempt.Attempt))
 	}
+	pending.attempts[pending.attemptCount] = sendAttemptIdentity{clientSeq: clientSeq, outstanding: true}
+	pending.attemptCount++
 	v.sendCounters.attempts++
 	if attempt.Attempt > 0 {
 		v.sendCounters.retryAttempts++
@@ -393,15 +479,32 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 	if ack == nil || ack.ClientMsgNo == "" {
 		return v.recordSendFailureLocked(FailureCodeInvalidSendack, 0, [16]byte{}, EvidenceStageSendack, 0)
 	}
-	var correlationErr error
-	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
-		correlationErr = v.observeSendackCorrelationLocked(ack)
+	if ack.ClientSeq != 0 && v.consumeReleasedAttemptLocked(releasedAttemptKey{clientSeq: ack.ClientSeq, clientMsgNo: ack.ClientMsgNo}) {
+		return nil
 	}
 	pending := v.pending[ack.ClientMsgNo]
 	if pending == nil {
-		v.sendCounters.unknownSendacks++
-		completionErr := v.recordSendFailureLocked(FailureCodeUnknownSendack, 0, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
-		return errors.Join(correlationErr, completionErr)
+		var correlationErr error
+		if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+			correlationErr = v.observeSendackCorrelationLocked(ack)
+		}
+		return errors.Join(correlationErr, v.recordUnknownSendackLocked(0, ack))
+	}
+	var attempt *sendAttemptIdentity
+	if pending.attemptCount > 0 {
+		attempt = pending.attempt(ack.ClientSeq)
+		if attempt == nil {
+			return v.recordUnknownSendackLocked(pending.logical.LogicalSend, ack)
+		}
+		if pending.completion != sendIncomplete && ack.ClientSeq != pending.completionClientSeq {
+			attempt.outstanding = false
+			return nil
+		}
+		attempt.outstanding = false
+	}
+	var correlationErr error
+	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+		correlationErr = v.observeSendackCorrelationLocked(ack)
 	}
 	if pending.completion != sendIncomplete {
 		if pending.completion == sendAcknowledged && pending.messageID == ack.MessageID && pending.messageSeq == ack.MessageSeq {
@@ -423,17 +526,26 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 			return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 		}
 		v.sendCounters.sendackRejections++
-		return &SendackRejectedError{reason: ack.ReasonCode}
+		return &SendackRejectedError{reason: ack.ReasonCode, clientSeq: ack.ClientSeq}
 	}
 	if ack.MessageID <= 0 || ack.MessageSeq == 0 {
 		return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 	}
 	pending.completion = sendAcknowledged
+	pending.completionClientSeq = ack.ClientSeq
 	pending.messageID = ack.MessageID
 	pending.messageSeq = ack.MessageSeq
 	v.pendingUnfinished--
 	v.sendCounters.acknowledged++
 	return correlationErr
+}
+
+func (v *Verifier) recordUnknownSendackLocked(logicalSend uint64, ack *frame.SendackPacket) error {
+	v.sendCounters.unknownSendacks++
+	return v.recordSendFailureLocked(
+		FailureCodeUnknownSendack, logicalSend, messageFingerprint(ack.ClientMsgNo),
+		EvidenceStageSendack, ack.MessageSeq,
+	)
 }
 
 func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket) error {
@@ -682,6 +794,10 @@ func (v *Verifier) ExpireCorrelations(now time.Time) int {
 			Value:       uint64(v.config.CorrelationDeadline),
 		})
 	}
+	for len(v.releasedDeadlines) > 0 && !v.releasedDeadlines[0].deadline.After(now) {
+		attempt := heap.Pop(&v.releasedDeadlines).(*releasedAttempt)
+		delete(v.releasedAttempts, attempt.key)
+	}
 	return expired
 }
 
@@ -718,8 +834,9 @@ func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) 
 	return v.recordSendFailureLocked(FailureCodeTerminalSend, logical.LogicalSend, messageFingerprint(logical.ClientMsgNo), EvidenceStageSend, uint64(code))
 }
 
-// ReleaseSend physically removes a completed pending identity. The worker calls
-// this after it no longer needs duplicate-completion discrimination.
+// ReleaseSend physically removes a completed pending identity while retaining
+// only its unresolved sibling wire attempts until the existing verifier
+// deadline. The retained set is bounded by pending capacity times MaxAttempts.
 func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
@@ -727,8 +844,70 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	if pending == nil || pending.logical != logical || pending.completion == sendIncomplete {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
 	}
+	unresolved := 0
+	for index := uint8(0); index < pending.attemptCount; index++ {
+		attempt := pending.attempts[index]
+		if attempt.outstanding && attempt.clientSeq != pending.completionClientSeq {
+			unresolved++
+		}
+	}
+	capacity := v.config.PendingCapacity * maxSendAttemptIdentities
+	if unresolved > capacity-len(v.releasedAttempts) {
+		return v.recordHarnessLocked(FailureCodePendingCapacity, logical, EvidenceStageCapacity, uint64(capacity))
+	}
+	deadline := pending.registeredAt.Add(v.config.CorrelationDeadline)
+	for index := uint8(0); index < pending.attemptCount; index++ {
+		attempt := pending.attempts[index]
+		if !attempt.outstanding || attempt.clientSeq == pending.completionClientSeq {
+			continue
+		}
+		key := releasedAttemptKey{clientSeq: attempt.clientSeq, clientMsgNo: logical.ClientMsgNo}
+		if _, exists := v.releasedAttempts[key]; exists {
+			return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, attempt.clientSeq)
+		}
+		released := &releasedAttempt{key: key, deadline: deadline, heapIndex: -1}
+		v.releasedAttempts[key] = released
+		heap.Push(&v.releasedDeadlines, released)
+	}
+	if len(v.releasedAttempts) > v.releasedPeak {
+		v.releasedPeak = len(v.releasedAttempts)
+	}
 	delete(v.pending, logical.ClientMsgNo)
 	return nil
+}
+
+// ResolveAttemptError removes one registered wire attempt after an async or
+// immediate transport failure. A released sibling is consumed without making
+// the already completed logical send unknown.
+func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) error {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	key := releasedAttemptKey{clientSeq: clientSeq, clientMsgNo: clientMsgNo}
+	if clientSeq != 0 && clientMsgNo != "" && v.consumeReleasedAttemptLocked(key) {
+		return nil
+	}
+	pending := v.pending[clientMsgNo]
+	if pending == nil || pending.attemptCount == 0 {
+		return v.recordUnknownSendackLocked(0, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
+	}
+	attempt := pending.attempt(clientSeq)
+	if attempt == nil {
+		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
+	}
+	attempt.outstanding = false
+	return nil
+}
+
+func (v *Verifier) consumeReleasedAttemptLocked(key releasedAttemptKey) bool {
+	attempt := v.releasedAttempts[key]
+	if attempt == nil {
+		return false
+	}
+	if attempt.heapIndex >= 0 {
+		heap.Remove(&v.releasedDeadlines, attempt.heapIndex)
+	}
+	delete(v.releasedAttempts, key)
+	return true
 }
 
 // abortSendHarness removes an incomplete SEND after the worker has already
@@ -775,6 +954,8 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.CorrelationCurrent = len(v.correlations)
 	snapshot.CorrelationPeak = v.correlationPeak
 	snapshot.DeadlineCurrent = len(v.deadlines)
+	snapshot.ReleasedAttemptCurrent = len(v.releasedAttempts)
+	snapshot.ReleasedAttemptPeak = v.releasedPeak
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -815,6 +996,10 @@ func (v *Verifier) resetRuntime() {
 	v.deadlines = nil
 	heap.Init(&v.deadlines)
 	v.correlationPeak = 0
+	v.releasedAttempts = make(map[releasedAttemptKey]*releasedAttempt)
+	v.releasedDeadlines = nil
+	heap.Init(&v.releasedDeadlines)
+	v.releasedPeak = 0
 	v.sendCounters = verifierSendCounters{}
 	v.sendMu.Unlock()
 

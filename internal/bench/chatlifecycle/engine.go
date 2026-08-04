@@ -386,6 +386,7 @@ type engineWork struct {
 	kind                engineWorkKind
 	intent              TrafficIntent
 	attempt             uint8
+	clientSeq           uint64
 	order               uint64
 	index               int
 	edge                RelationshipEdge
@@ -425,10 +426,34 @@ func (h *engineWorkHeap) Pop() any {
 }
 
 type engineInflight struct {
-	intent         TrafficIntent
-	attempt        uint8
-	retryScheduled bool
-	timeout        *engineWork
+	intent           TrafficIntent
+	attempt          uint8
+	currentClientSeq uint64
+	clientSeqs       [maxSendAttemptIdentities]uint64
+	clientSeqCount   uint8
+	retryScheduled   bool
+	timeout          *engineWork
+}
+
+func (i *engineInflight) registerClientSeq(clientSeq uint64) bool {
+	if i == nil || clientSeq == 0 || i.clientSeqCount >= uint8(maxSendAttemptIdentities) || i.hasClientSeq(clientSeq) {
+		return false
+	}
+	i.clientSeqs[i.clientSeqCount] = clientSeq
+	i.clientSeqCount++
+	return true
+}
+
+func (i *engineInflight) hasClientSeq(clientSeq uint64) bool {
+	if i == nil || clientSeq == 0 {
+		return false
+	}
+	for index := uint8(0); index < i.clientSeqCount; index++ {
+		if i.clientSeqs[index] == clientSeq {
+			return true
+		}
+	}
+	return false
 }
 
 type engineActiveChannel struct {
@@ -448,6 +473,7 @@ type engineCommand struct {
 type engineCompletion struct {
 	ack             *frame.SendackPacket
 	verificationErr error
+	clientSeq       uint64
 	clientMsgNo     string
 }
 
@@ -1032,13 +1058,18 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 
 // Advance processes due heaps with a fixed CPU work budget.
 func (e *Engine) Advance(now time.Time) (int, error) {
-	if _, ok := e.beginSessionOp(); !ok {
+	generationCtx, ok := e.beginSessionOp()
+	if !ok {
 		return 0, errEngineNotRunning
 	}
+	defer e.sessionOps.Done()
 	e.sessions.Expire(now)
-	e.sessionOps.Done()
+	return e.advanceWithContext(generationCtx, now)
+}
+
+func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
 	response := make(chan advanceResult, 1)
-	if err := e.enqueue(engineCommand{run: func() { response <- e.advance(now) }}); err != nil {
+	if err := e.enqueue(engineCommand{run: func() { response <- e.advance(ctx, now) }}); err != nil {
 		return 0, err
 	}
 	result := <-response
@@ -1175,7 +1206,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			resultErr = errors.Join(resultErr, tickErr)
 		}
 	}
-	advanced, advanceErr := e.Advance(now)
+	advanced, advanceErr := e.advanceWithContext(stepCtx, now)
 	result.Advanced = advanced
 	resultErr = errors.Join(resultErr, advanceErr)
 	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
@@ -1335,8 +1366,8 @@ func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verification
 	e.enqueueSessionCompletion(engineCompletion{ack: ack, verificationErr: verificationErr})
 }
 
-func (e *Engine) sessionAsyncSendError(_ string, clientMsgNo string) {
-	e.enqueueSessionCompletion(engineCompletion{clientMsgNo: clientMsgNo})
+func (e *Engine) sessionAsyncSendError(_ string, clientSeq uint64, clientMsgNo string) {
+	e.enqueueSessionCompletion(engineCompletion{clientSeq: clientSeq, clientMsgNo: clientMsgNo})
 }
 
 func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
@@ -1420,7 +1451,7 @@ func (e *Engine) observeWorkPeak() {
 	}
 }
 
-func (e *Engine) advance(now time.Time) advanceResult {
+func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 	e.now = now
 	e.verifier.ExpireCorrelations(now)
 	e.drainCompletions()
@@ -1434,14 +1465,14 @@ func (e *Engine) advance(now time.Time) advanceResult {
 		if retryDue && (!workDue || !e.work[0].due.Before(e.retries.entries[0].Due)) {
 			retries := e.retries.PopDue(now, 1)
 			if len(retries) == 1 {
-				result.err = errors.Join(result.err, e.processAttempt(retries[0].Intent, retries[0].Attempt.Attempt, now))
+				result.err = errors.Join(result.err, e.processAttempt(ctx, retries[0].Intent, retries[0].Attempt.Attempt, now))
 			}
 		} else {
 			work := heap.Pop(&e.work).(*engineWork)
 			if work.kind == engineWorkSend {
 				e.queuedSends--
 			}
-			result.err = errors.Join(result.err, e.processWork(work, now))
+			result.err = errors.Join(result.err, e.processWork(ctx, work, now))
 		}
 		result.processed++
 		e.drainCompletions()
@@ -1468,20 +1499,21 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 	case completion.ack != nil:
 		_ = e.observeSendack(completion.ack, completion.verificationErr)
 	case completion.clientMsgNo != "":
+		_ = e.verifier.ResolveAttemptError(completion.clientMsgNo, completion.clientSeq)
 		inflight := e.inflight[completion.clientMsgNo]
-		if inflight != nil {
+		if inflight != nil && inflight.currentClientSeq == completion.clientSeq {
 			_ = e.scheduleRetry(inflight, e.clock.Now())
 		}
 	}
 }
 
-func (e *Engine) processWork(work *engineWork, now time.Time) error {
+func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Time) error {
 	switch work.kind {
 	case engineWorkSend:
-		return e.processAttempt(work.intent, work.attempt, now)
+		return e.processAttempt(ctx, work.intent, work.attempt, now)
 	case engineWorkTimeout:
 		inflight := e.inflight[work.intent.Logical.ClientMsgNo]
-		if inflight == nil || inflight.attempt != work.attempt {
+		if inflight == nil || inflight.attempt != work.attempt || inflight.currentClientSeq != work.clientSeq {
 			return nil
 		}
 		inflight.timeout = nil
@@ -1569,7 +1601,7 @@ func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
 	}
 }
 
-func (e *Engine) processAttempt(intent TrafficIntent, attempt uint8, now time.Time) error {
+func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, now time.Time) error {
 	logical := intent.Logical
 	inflight := e.inflight[logical.ClientMsgNo]
 	if attempt == 0 {
@@ -1595,31 +1627,53 @@ func (e *Engine) processAttempt(intent TrafficIntent, attempt uint8, now time.Ti
 	if err != nil {
 		return e.abortHarness(inflight, err)
 	}
-	if err := e.verifier.ObserveAttempt(logical, attemptPlan); err != nil {
-		return e.abortHarness(inflight, err)
-	}
-	inflight.attempt = attempt
-	if attempt > 0 {
-		e.retryAttempts++
-	}
 	if intent.Packet == nil || e.nextClientSeq >= math.MaxUint32 {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
 	e.nextClientSeq++
+	clientSeq := e.nextClientSeq
+	if err := e.verifier.ObserveAttempt(logical, attemptPlan, clientSeq); err != nil {
+		return e.abortHarness(inflight, err)
+	}
+	if !inflight.registerClientSeq(clientSeq) {
+		return e.abortHarness(inflight, errEngineConfig)
+	}
+	inflight.attempt = attempt
+	inflight.currentClientSeq = clientSeq
+	if attempt > 0 {
+		e.retryAttempts++
+	}
 	packet := *intent.Packet
-	packet.ClientSeq = e.nextClientSeq
-	if err := e.sessions.Send(context.Background(), logical.Sender, &packet); err != nil {
-		return e.scheduleRetry(inflight, now)
+	packet.ClientSeq = clientSeq
+	if err := e.sessions.Send(ctx, logical.Sender, &packet); err != nil {
+		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+			return e.cancelAttempt(inflight)
+		}
+		return errors.Join(e.verifier.ResolveAttemptError(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now))
 	}
 	deadline := now.Add(e.attemptTimeout)
 	if deadline.Before(now) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
-	timeout := &engineWork{due: deadline, kind: engineWorkTimeout, intent: intent, attempt: attempt}
+	timeout := &engineWork{due: deadline, kind: engineWorkTimeout, intent: intent, attempt: attempt, clientSeq: clientSeq}
 	if err := e.addWork(timeout); err != nil {
 		return e.abortHarness(inflight, err)
 	}
 	inflight.timeout = timeout
+	return nil
+}
+
+func (e *Engine) cancelAttempt(inflight *engineInflight) error {
+	if inflight == nil {
+		return nil
+	}
+	logical := inflight.intent.Logical
+	e.cancelAttemptTimeout(inflight)
+	e.retries.cancel(logical.ClientMsgNo)
+	if err := e.verifier.abortSendHarness(logical); err != nil {
+		return err
+	}
+	delete(e.inflight, logical.ClientMsgNo)
 	return nil
 }
 
@@ -1657,8 +1711,14 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	if inflight == nil {
 		return verificationErr
 	}
+	if !inflight.hasClientSeq(ack.ClientSeq) {
+		return verificationErr
+	}
 	var rejected *SendackRejectedError
 	if errors.As(verificationErr, &rejected) {
+		if ack.ClientSeq != inflight.currentClientSeq {
+			return nil
+		}
 		if !retriableSendackReason(rejected.ReasonCode()) {
 			logical := inflight.intent.Logical
 			e.cancelAttemptTimeout(inflight)
@@ -1677,6 +1737,9 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 		e.retries.cancel(ack.ClientMsgNo)
 		delete(e.inflight, ack.ClientMsgNo)
 		return errors.Join(verificationErr, e.verifier.ReleaseSend(logical))
+	}
+	if ack.ClientSeq != inflight.currentClientSeq {
+		return verificationErr
 	}
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(ack.ClientMsgNo)

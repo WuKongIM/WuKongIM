@@ -27,11 +27,12 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Attempt(%d) error = %v", number, err)
 		}
-		if err := verifier.ObserveAttempt(logical, attempt); err != nil {
+		if err := verifier.ObserveAttempt(logical, attempt, uint64(number)+1); err != nil {
 			t.Fatalf("ObserveAttempt(%d) error = %v", number, err)
 		}
 	}
 	ack := &frame.SendackPacket{
+		ClientSeq:   4,
 		MessageID:   9001,
 		MessageSeq:  77,
 		ClientMsgNo: logical.ClientMsgNo,
@@ -66,6 +67,52 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	if snapshot.Classification != SyncClassificationProductFailure {
 		t.Fatalf("classification = %q, want product_failure", snapshot.Classification)
 	}
+}
+
+func TestVerifierReleasedLogicalSendConsumesRegisteredSiblingAttempts(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
+	logical := mustLogicalSend(t, model, 0, 44, TrafficGroup, "sender", "group")
+	registeredAt := time.Unix(100, 0)
+	if err := verifier.RegisterSend(logical, registeredAt); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	policy := newTestRetryPolicy(t, model)
+	for attemptNumber, clientSeq := range []uint64{101, 102} {
+		attempt, err := policy.Attempt(logical, uint8(attemptNumber))
+		if err != nil {
+			t.Fatalf("Attempt(%d): %v", attemptNumber, err)
+		}
+		if err := verifier.ObserveAttempt(logical, attempt, clientSeq); err != nil {
+			t.Fatalf("ObserveAttempt(%d, %d): %v", attemptNumber, clientSeq, err)
+		}
+	}
+	first := &frame.SendackPacket{
+		ClientSeq: 101, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 501, MessageSeq: 601, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(first); err != nil {
+		t.Fatalf("HandleSendack(first): %v", err)
+	}
+	if err := verifier.ReleaseSend(logical); err != nil {
+		t.Fatalf("ReleaseSend: %v", err)
+	}
+	if snapshot := verifier.Snapshot(); snapshot.ReleasedAttemptCurrent != 1 {
+		t.Fatalf("released attempt current = %d, want 1", snapshot.ReleasedAttemptCurrent)
+	}
+	second := &frame.SendackPacket{
+		ClientSeq: 102, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: 501, MessageSeq: 601, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(second); err != nil {
+		t.Fatalf("HandleSendack(released sibling): %v", err)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.ReleasedAttemptCurrent != 0 || snapshot.UnknownSendacks != 0 || snapshot.DuplicateCompletions != 0 || snapshot.ConflictingCompletions != 0 {
+		t.Fatalf("released sibling snapshot = %+v", snapshot)
+	}
+	unknown := *second
+	unknown.ClientSeq = 999
+	assertVerificationCode(t, verifier.HandleSendack(&unknown), FailureCodeUnknownSendack)
 }
 
 func TestVerifierRejectsUnknownDuplicateAndConflictingSendacks(t *testing.T) {
@@ -108,7 +155,7 @@ func TestVerifierRequiresValidSuccessfulSendackAndStableAttemptIdentity(t *testi
 		t.Fatalf("RegisterSend() error = %v", err)
 	}
 	tampered := RetryAttempt{Attempt: 1, ClientMsgNo: logical.ClientMsgNo + "-new"}
-	assertVerificationCode(t, verifier.ObserveAttempt(logical, tampered), FailureCodeGeneratorInvariant)
+	assertVerificationCode(t, verifier.ObserveAttempt(logical, tampered, 1), FailureCodeGeneratorInvariant)
 
 	badAcks := []*frame.SendackPacket{
 		nil,

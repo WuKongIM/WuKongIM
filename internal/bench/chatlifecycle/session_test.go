@@ -200,7 +200,7 @@ func TestSessionPoolNonTerminalAsyncSendErrorKeepsOrderedDrainOnline(t *testing.
 	}
 	client := fixture.factory.clients()[0]
 	<-client.readEntered
-	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientMsgNo: "stable-send"}
+	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientSeq: 1, clientMsgNo: "stable-send"}
 	<-client.readReturned
 	<-client.readEntered
 	if !fixture.pool.IsOnline(uid) {
@@ -709,11 +709,12 @@ func (c *sessionFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, boo
 	if !errors.As(err, &readErr) {
 		return wkproto.ReadErrorInfo{}, false
 	}
-	return wkproto.ReadErrorInfo{Kind: readErr.kind, ClientMsgNo: readErr.clientMsgNo}, true
+	return wkproto.ReadErrorInfo{Kind: readErr.kind, ClientSeq: readErr.clientSeq, ClientMsgNo: readErr.clientMsgNo}, true
 }
 
 type sessionFakeReadError struct {
 	kind        wkproto.ReadErrorKind
+	clientSeq   uint64
 	clientMsgNo string
 }
 

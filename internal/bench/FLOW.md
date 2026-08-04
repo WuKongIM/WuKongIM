@@ -50,7 +50,9 @@ owns CONNECT/CONNACK, optional payload encryption, socket decoding, SENDACK
 matching, RECV decryption, and the single writer/reader pumps. The bench adapter
 keeps the existing workload-facing `Send` / `ReadFrame` contract by converting
 `pkg/client` SEND futures back into local SENDACK frames and forwarding RECV
-frames through independent bounded RECV, SENDACK, and error queues. A full RECV
+frames through independent bounded RECV, SENDACK, and error queues. Asynchronous
+SEND errors preserve both `ClientSeq` and `ClientMsgNo`, so overlapping retries
+can affect only their exact attempt. A full RECV
 queue backpressures the shared reader and then the socket; neither layer evicts
 receive evidence. `ReadFrame` acquires a one-reader arbitration permit through
 the caller context and session stop signal, so a reader waiting behind another

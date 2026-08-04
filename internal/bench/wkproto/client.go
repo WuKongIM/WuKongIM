@@ -140,6 +140,7 @@ type clientSession struct {
 type errorResult struct {
 	err         error
 	terminal    bool
+	clientSeq   uint64
 	clientMsgNo string
 }
 
@@ -159,6 +160,7 @@ const (
 
 type readFrameError struct {
 	kind        ReadErrorKind
+	clientSeq   uint64
 	clientMsgNo string
 	err         error
 }
@@ -170,6 +172,7 @@ func (e *readFrameError) Unwrap() error { return e.err }
 // error. ClientMsgNo is populated only for a non-terminal asynchronous SEND.
 type ReadErrorInfo struct {
 	Kind        ReadErrorKind
+	ClientSeq   uint64
 	ClientMsgNo string
 }
 
@@ -181,7 +184,7 @@ func ReadErrorInfoOf(err error) (ReadErrorInfo, bool) {
 	if !errors.As(err, &readErr) {
 		return ReadErrorInfo{}, false
 	}
-	return ReadErrorInfo{Kind: readErr.kind, ClientMsgNo: readErr.clientMsgNo}, true
+	return ReadErrorInfo{Kind: readErr.kind, ClientSeq: readErr.clientSeq, ClientMsgNo: readErr.clientMsgNo}, true
 }
 
 // ReadErrorKindOf is the kind-only projection for callers without SEND retry ownership.
@@ -288,7 +291,7 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 		session.completePendingPublication()
 		return err
 	}
-	go c.forwardSendack(session, future, pkt.ClientMsgNo)
+	go c.forwardSendack(session, future, pkt.ClientSeq, pkt.ClientMsgNo)
 	return nil
 }
 
@@ -393,14 +396,14 @@ func (c *Client) forwardReadFrames(session *clientSession) {
 	}
 }
 
-func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture, clientMsgNo string) {
+func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture, clientSeq uint64, clientMsgNo string) {
 	result, err := future.Wait(context.Background())
 	defer session.completePendingPublication()
 	if err != nil && result.ClientSeq == 0 && result.ClientMsgNo == "" {
 		if wkclient.IsSessionReadError(err) {
 			return
 		}
-		session.publishError(errorResult{err: err, clientMsgNo: clientMsgNo})
+		session.publishError(errorResult{err: err, clientSeq: clientSeq, clientMsgNo: clientMsgNo})
 		return
 	}
 	ack := &frame.SendackPacket{
@@ -613,7 +616,7 @@ func (s *clientSession) consumeError(result errorResult) (frame.Frame, error) {
 	if result.terminal {
 		kind = ReadErrorTerminal
 	}
-	return nil, &readFrameError{kind: kind, clientMsgNo: result.clientMsgNo, err: result.err}
+	return nil, &readFrameError{kind: kind, clientSeq: result.clientSeq, clientMsgNo: result.clientMsgNo, err: result.err}
 }
 
 func (s *clientSession) isStopped() bool {
