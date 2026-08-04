@@ -127,6 +127,8 @@ type Limits struct {
 	MaxBatchBytes int
 	// MaxBatchFrames is the maximum frame count written in one batch; it must be positive.
 	MaxBatchFrames int
+	// WriteBatchMaxWait is the bounded coalescing delay for isolated RPC or bulk frames; zero disables it.
+	WriteBatchMaxWait time.Duration
 	// DialFailureCooldown is the peer reconnect backoff after a dial failure; zero disables cooldown.
 	DialFailureCooldown time.Duration
 	// WriteTimeout bounds individual connection writes; zero disables the write deadline.
@@ -152,7 +154,7 @@ func (l Limits) Validate() error {
 	if l.MaxBatchFrames <= 0 {
 		return fmt.Errorf("%w: MaxBatchFrames must be positive", ErrInvalidConfig)
 	}
-	if l.DialFailureCooldown < 0 || l.WriteTimeout < 0 || l.ReadIdleTimeout < 0 {
+	if l.WriteBatchMaxWait < 0 || l.DialFailureCooldown < 0 || l.WriteTimeout < 0 || l.ReadIdleTimeout < 0 {
 		return fmt.Errorf("%w: timeouts must be non-negative", ErrInvalidConfig)
 	}
 	return nil

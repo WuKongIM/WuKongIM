@@ -202,6 +202,8 @@
 - In wukongim three-node Channel runtime activation, `routing.Route.Leader` is the observed Slot Raft leader for metadata proposals; `routing.Route.PreferredLeader` is the control-plane data-plane placement target for initial Channel runtime leader selection.
 - wukongim single hot-channel SEND stress is sensitive to gateway async SEND shard count: too many default shards shrink per-channel queue headroom and can close sessions with `async_dispatch_queue_full` before Channel runtime saturates.
 - wukongim 1000-channel three-node real-QPS stress with 4096 online users needs about 2048 gateway async SEND dispatch workers; 1024 workers creates per-shard SEND head-of-line blocking before Channel runtime is fully saturated.
+- The local three-node 5000-offered-QPS gate uses Channel replication RPC workers 160, same-target Pull/PullHint batch size 16, and four partition-hashed synchronous commit coordinators. These defaults passed the 30-second durable gate with p99 below 600ms; an oversized 500-worker pool and larger transport batches increased scheduler or tail-latency pressure.
+- Cluster transport may wait at most 100 microseconds to coalesce an isolated RPC or Bulk frame. Raft and Control frames remain immediate; keep the generic transport default at zero so the latency tradeoff stays cluster-specific.
 - SENDACK must only follow a crash-safe durable message commit; message append `NoSync` is unsafe for this guarantee and must not be exposed as runtime/user configuration. Durable QPS work should optimize message DB grouped commits, not acknowledge before fsync.
 
 ## Cluster Membership
@@ -259,9 +261,16 @@
 - PullHint is only a wakeup/refresh trigger. Unloaded followers must resolve authoritative metadata before opening storage through a dedicated bounded cold-activation pool; loaded newer-fence recovery uses its separate authoritative refresh pool.
 
 ### Node scale-in
-- Manager-driven node scale-in drains a node to `ready_to_remove`; it must not call physical Slot removal or Kubernetes scale-down directly.
-- Scale-in manager reads require `cluster.node:r` and `cluster.slot:r`; start/advance/cancel require `cluster.node:w` and `cluster.slot:w`.
-- Node scale-in readiness must account for channel leaders, channel replicas, and active channel migration tasks before reporting `ready_to_remove`.
+- Manager-driven node scale-in drains until authoritative status reports
+  `safe_to_remove=true`; dynamic diagnostics then derives the
+  `ready_to_remove` recommendation. This recommendation is not a lifecycle
+  state. Manager must not call physical Slot removal or Kubernetes scale-down.
+- Scale-in status/diagnostics routes require `cluster.node:r`; plan, start,
+  drain, advance, and remove require `cluster.node:w`. Separate Slot inventory
+  and mutation routes retain their own `cluster.slot:r/w` permissions. Scale-in
+  has no cancel route.
+- Node scale-in safety must account for channel leaders, channel replicas, and
+  active channel migration tasks before reporting `safe_to_remove=true`.
 
 ## Plugin Subsystem
 
@@ -281,6 +290,13 @@
 - A documentation route is published only when both language variants are ready. Planned routes remain visible with a badge but are `noindex` and excluded from search, sitemap, and LLM outputs.
 - `docs-site` is a Bun-managed Fumadocs/Next.js static export. Phase 1 does not deploy it, cut over DNS, migrate legacy page bodies, or publish the known-stale v2 OpenAPI document as v3 reference.
 - Phase 5 configuration reference pages are checked against every public field returned by `internal/config.SchemaFields()` in both locales. `wukongim.toml.example` is a loadable development baseline, not a promise that its explicit values are runtime defaults for omitted fields.
+- Phase 6 public operations guidance treats Manager as a privileged boundary,
+  distinguishes `/healthz` liveness from `/readyz` admission, keeps dynamic
+  node onboarding explicit and scale-in fail-closed, and keeps all 256 physical
+  hash slots. Backup configuration lives only in Manager; a saved plan is not a
+  verified repository, restore accepts only the current cluster identity, and
+  mixed-version or v2-to-v3 migration is never promised without exact
+  release-specific evidence.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level
@@ -380,7 +396,7 @@
 - Stage 2 package promotion has physically moved the canonical runtimes to `pkg/channel`, `pkg/cluster`, `pkg/controller`, and `pkg/transport`; the old implementations have been removed, and new imports must not target `pkg/*v2`.
 - Promoted production roots must not import old runtime paths; `pkg/slot/proxy` has no legacy imports.
 - `pkg/cluster.Node` satisfies `pkg/slot/proxy.Cluster` plus the optional hash-slot proposer port; Slot proxy RPC handler registration goes through `pkg/cluster.Node.RegisterRPC`.
-- In local three-node real-QPS runs, message DB commit shards are an experimental default-off knob: 3000, 4000, and 16k evidence all show that multiple coordinators on one physical store fragment group commits and increase sync tail; prefer one coordinator with bounded store append/apply workers unless nodes use independently proven storage parallelism.
+- Commit-coordinator shard count is workload-sensitive: older 3000, 4000, and 16k local evidence found that multiple coordinators fragmented group commits, while the current 5000-QPS three-node SEND workload benefits from four partition-hashed synchronous coordinators. Keep four as the shipped default validated by the current acceptance gate, preserve per-channel partition affinity, and remeasure before changing it for another workload or storage topology.
 - Typed Raft receive services must preserve message order from each stable peer connection; concurrent handling can apply a later Heartbeat before its earlier Append and advance commit beyond the follower log.
 - Shell scripts that must stop and wait for a background sampler must start it in the owning shell; command substitution creates a subshell-owned child that the parent cannot reliably wait or clean up.
 - Stage 2 package promotion extracted protocol-facing channel ID helpers to `pkg/protocol/channelid`; v1 and v2 server packages must not add new imports of old `internal/runtime/channelid`.

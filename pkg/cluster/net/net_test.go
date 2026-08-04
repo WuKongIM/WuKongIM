@@ -187,6 +187,9 @@ func TestTransportClientUsesClusterSizedQueuesByDefault(t *testing.T) {
 	if limits.MaxQueuedItemsPerConn != defaultTransportQueueSize {
 		t.Fatalf("MaxQueuedItemsPerConn = %d, want %d", limits.MaxQueuedItemsPerConn, defaultTransportQueueSize)
 	}
+	if limits.WriteBatchMaxWait != defaultTransportWriteBatchMaxWait {
+		t.Fatalf("WriteBatchMaxWait = %s, want %s", limits.WriteBatchMaxWait, defaultTransportWriteBatchMaxWait)
+	}
 }
 
 func TestTransportClientUsesClusterPoolSizeByDefault(t *testing.T) {

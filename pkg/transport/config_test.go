@@ -70,6 +70,12 @@ func TestLimitsValidateAcceptsDefaultsAndRejectsNegativeValues(t *testing.T) {
 	if !errors.Is(limits.Validate(), ErrInvalidConfig) {
 		t.Fatalf("zero MaxBatchBytes should return ErrInvalidConfig")
 	}
+
+	limits = DefaultLimits()
+	limits.WriteBatchMaxWait = -time.Microsecond
+	if !errors.Is(limits.Validate(), ErrInvalidConfig) {
+		t.Fatalf("negative WriteBatchMaxWait should return ErrInvalidConfig")
+	}
 }
 
 func TestServiceOptionsValidateRequiresConcurrency(t *testing.T) {

@@ -13,9 +13,11 @@ import (
 )
 
 const (
+	// DefaultRPCWorkers bounds the QPS-validated blocking replication pool.
+	DefaultRPCWorkers = 160
 	// DefaultRPCBatchMaxItems amortizes one blocking replication transport call
 	// across a bounded number of Pull or PullHint items.
-	DefaultRPCBatchMaxItems      = 8
+	DefaultRPCBatchMaxItems      = 16
 	rpcBatchMaxWait              = 250 * time.Microsecond
 	storeAppendBatchMaxItems     = 64
 	storeAppendBatchMaxWait      = 250 * time.Microsecond

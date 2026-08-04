@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/channel/reactor"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
@@ -17,7 +19,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
-const minDefaultChannelReactorCount = 4
+const (
+	minDefaultChannelReactorCount      = 4
+	defaultChannelRPCWorkers           = worker.DefaultRPCWorkers
+	defaultCommitCoordinatorShardCount = channelstore.DefaultCommitShards
+)
 
 // Config contains cluster runtime configuration.
 type Config struct {
@@ -173,10 +179,10 @@ type ChannelConfig struct {
 	StoreAppendBatchMaxWait time.Duration
 	// StoreApplyWorkers caps blocking follower apply store workers. Zero keeps the Channel runtime default.
 	StoreApplyWorkers int
-	// RPCWorkers caps blocking Channel replication RPC workers. Zero keeps the Channel runtime default.
+	// RPCWorkers caps blocking Channel replication RPC workers. Zero uses the QPS-validated default of 160.
 	RPCWorkers int
 	// RPCBatchMaxItems caps same-target Channel Pull or PullHint items in one
-	// blocking transport call. Zero keeps the Channel runtime default.
+	// blocking transport call. Zero uses the Channel worker default of 16.
 	RPCBatchMaxItems int
 	// MailboxSize bounds each Channel reactor mailbox.
 	MailboxSize int
@@ -250,7 +256,7 @@ type StorageConfig struct {
 	CommitMaxRecords int
 	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
 	CommitMaxBytes int
-	// CommitShards routes message DB commit requests across independent coordinators. Zero keeps one coordinator.
+	// CommitShards routes message DB commit requests across independent coordinators. Zero uses four partition-hashed coordinators.
 	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
@@ -370,6 +376,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Channel.ReactorCount == 0 {
 		c.Channel.ReactorCount = defaultChannelReactorCount()
+	}
+	if c.Channel.RPCWorkers == 0 {
+		c.Channel.RPCWorkers = defaultChannelRPCWorkers
+	}
+	if c.Channel.RPCBatchMaxItems == 0 {
+		c.Channel.RPCBatchMaxItems = worker.DefaultRPCBatchMaxItems
+	}
+	if c.Storage.CommitShards == 0 {
+		c.Storage.CommitShards = defaultCommitCoordinatorShardCount
 	}
 	c.applyControlDefaults()
 	c.applySlotDefaults()

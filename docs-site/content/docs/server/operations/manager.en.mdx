@@ -1,0 +1,50 @@
+---
+title: Manager
+description: Access Manager safely and understand its permissions, state views, and high-risk operation boundaries.
+---
+
+Manager is a dedicated administrative listener with an embedded Web console. It aggregates cluster state and operational tasks, but it does not replace change approval, backup verification, or product acceptance.
+
+## Safe access
+
+Enable `manager.auth_on` in production, replace fixed-user passwords and `manager.jwt_secret`, expose `manager.listen_addr` only to an administrative network, and terminate TLS at the external boundary. Do not share an unprotected entry point with product HTTP APIs, client traffic, or public metrics.
+
+Disabling authentication does not open mutation access. A fresh Web client can enter only the read-only Backups view; it receives no synthetic persisted session, and all writes remain denied.
+
+## Main views
+
+| Area | Purpose | What it does not prove |
+| --- | --- | --- |
+| Nodes and realtime | Node health, readiness, roles, resources, and work queues | Sufficient capacity or safe removal |
+| Controller and tasks | Consensus state, control tasks, and advancement results | Every product Channel has migrated |
+| Slots | Replica, leader, ISR, and log state for all 256 physical hash slots | That the physical hash-slot count should change |
+| Channels and product queries | Channel, subscriber, user, device, and message projections | Permission to bypass product data boundaries |
+| Backups | Plan, repository verification, archives, and restore workflow | Recoverability immediately after saving settings |
+
+The node configuration view is a bounded, redacted snapshot of effective startup configuration. It never returns raw Manager credentials, join tokens, or complete sensitive environment values, and it does not imply hot reload.
+
+## Least privilege
+
+- Node and realtime reads generally require `cluster.node:r`; Slot reads require `cluster.slot:r`.
+- Node join, activation, onboarding, and scale-in reads and writes are guarded by
+  `cluster.node:r` and `cluster.node:w`, respectively. Separate Slot inventory,
+  log, leader-transfer, and compaction operations use `cluster.slot:r` and
+  `cluster.slot:w`; they are not additional gates on the scale-in routes.
+- Backup reads and mutations use `cluster.backup:r` and `cluster.backup:w`.
+- Restore requires the explicit `cluster.restore:w`; wildcard permission does not substitute for it.
+
+Product queries and mutations use their own fine-grained permissions. Avoid permanent broad access. Use separate roles for observation, scaling, backup, and restore.
+
+## Executing a mutation
+
+1. Record the operator, target node or task, current configuration/control revision, and expected result.
+2. Inspect `/readyz`, Manager state, active control tasks, and affected Slots or Channels.
+3. Use plan or preview first; confirm targets, blockers, and bounded batches.
+4. Execute one step, wait for terminal task state, then reread authoritative state.
+5. Advance only after product verification. Stop on conflicts, stale revisions, or unknown state.
+
+<Callout type="warn" title="A button is not safety evidence">
+  Manager actions and status hints are operating entry points, not approval conclusions. Scale-in must wait for authoritative `safe_to_remove=true` (after which diagnostics recommends `ready_to_remove`); restore must complete full verification and confirmation.
+</Callout>
+
+Next, establish a baseline in [Health & Monitoring](/en/server/operations/health-and-monitoring), or continue with [Scaling](/en/server/operations/scaling) and [Backup & Restore](/en/server/operations/backup-and-restore).

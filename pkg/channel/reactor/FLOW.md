@@ -17,8 +17,10 @@ through worker tasks, so metadata activation and runtime eviction do not wait on
 store I/O inside the reactor loop.
 Store append and follower apply pools default to twice the reactor count, capped
 at 128 workers, because quorum traffic produces both leader appends and follower
-apply work while the hosted message DB still has one shared commit coordinator.
-Read and RPC pools default to the reactor count unless explicitly configured.
+apply work while the hosted message DB still has one shared partition-hashed
+commit-coordinator set.
+The Read pool defaults to the reactor count. The RPC pool defaults to the
+QPS-validated 160-worker bound unless explicitly configured.
 Production composition roots may still cap store append/apply worker counts to
 reduce pressure on the shared message DB commit coordinator; this only limits
 blocking task concurrency and does not relax store sync, quorum progress, or

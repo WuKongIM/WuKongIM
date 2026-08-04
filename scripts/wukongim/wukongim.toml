@@ -46,11 +46,13 @@ channel_store_append_workers = 0
 
 channel_store_apply_workers = 0
 
-channel_rpc_workers = 50
+# Bounds blocking replication RPC work. The 160-worker default avoids the scheduler
+# and allocation overhead observed with oversized pools while retaining burst headroom.
+channel_rpc_workers = 160
 
 # Maximum same-target Pull or PullHint items coalesced into one bounded
 # replication transport call. Zero uses the runtime default.
-channel_rpc_batch_max_items = 8
+channel_rpc_batch_max_items = 16
 
 # Maximum loaded Channel runtimes on this node. 0 keeps unlimited behavior.
 max_channels = 0
@@ -76,7 +78,9 @@ commit_coordinator_max_records = 0
 
 commit_coordinator_max_bytes = 0
 
-commit_coordinator_shards = 0
+# Four partition-hashed coordinators preserve per-channel append locking and
+# synchronous durable commits while allowing unrelated channels to commit concurrently.
+commit_coordinator_shards = 4
 
 [api]
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.

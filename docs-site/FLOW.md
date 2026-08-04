@@ -56,6 +56,16 @@ content/docs/**/*.mdx
   runtime-default promise; configuration pages MUST distinguish listeners from
   advertised addresses, preserve cluster-only and 256-hash-slot semantics, and
   leave full operational procedures planned.
+- Phase 6 publishes Manager, health and monitoring, scaling, backup and
+  restore, and upgrade/migration guidance. Operations MUST use `/readyz` for
+  traffic admission, keep physical hash slots fixed at 256, make dynamic-node
+  onboarding explicit, and fail scale-in closed until authoritative status
+  reports `safe_to_remove=true`; diagnostics then derives the
+  `ready_to_remove` recommendation. Backup plans live only in Manager; saving is distinct from
+  repository testing, restore is limited to the current cluster identity, and
+  all 256 slots are verified before switch. Mixed-version rolling upgrades
+  MUST require an exact release compatibility statement; no generic v2-to-v3
+  in-place storage migration is promised. Troubleshooting remains planned.
 
 ## Static delivery
 

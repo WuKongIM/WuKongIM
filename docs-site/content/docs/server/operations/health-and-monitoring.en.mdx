@@ -1,0 +1,51 @@
+---
+title: Health & Monitoring
+description: Separate process liveness, cluster readiness, metrics, Top, realtime views, and temporary diagnostics.
+---
+
+Health checks drive automated admission, monitoring explains trends, and diagnostics answer one bounded question. They are not interchangeable.
+
+## Endpoints and purpose
+
+| Signal | Meaning | Automation use |
+| --- | --- | --- |
+| `GET /healthz` | The HTTP process is alive; success returns `200 {"status":"ok"}` | Process restart probe, never product admission |
+| `GET /readyz` | The node currently meets its product-traffic gate; failure returns 503 with a reason | Load balancing and traffic admission |
+| `GET /metrics` | Prometheus metrics when metrics are enabled | Trends, alerts, and capacity baselines |
+| `GET /top/v1/snapshot` | Node-local resources and bounded-history snapshot, independent of Prometheus | Fast inspection and short-term correlation |
+| Manager realtime | Aggregated nodes, resources, queues, and cluster projections | Operations overview, not a standalone safety gate |
+| Debug/pprof | Expensive diagnostics when Debug API is enabled | Authorized, time-bounded investigation |
+
+During restore maintenance, health, readiness, metrics, Debug, and Top remain observable while product, route, and Benchmark requests are rejected by the maintenance gate. A 200 from `/healthz` is never a reason to restore product traffic.
+
+## Probe examples
+
+```bash
+curl --fail http://127.0.0.1:5001/healthz
+curl --fail http://127.0.0.1:5001/readyz
+curl --fail http://127.0.0.1:5001/metrics
+```
+
+Use the configured API listener address. `curl --fail` treats `/readyz` 503 as failure; retain the response `reason` for alert context and investigation.
+
+## Minimum monitoring surface
+
+- **Requests and connections**: connections, send errors, request rate, latency, reconnects, and routing failures.
+- **Cluster control plane**: Controller availability, Slot leaders/replicas/ISR, control tasks, and stale state.
+- **Message runtime**: Channel activity, delivery/push backlogs, and webhook or plugin failures.
+- **Resources**: CPU, memory, goroutines, FDs, disk capacity/IO, network, and log growth.
+- **Backpressure**: bounded queue depth, rejection, drop, retry, and processing duration.
+
+Derive alert thresholds from the current version, hardware, and representative load. With 100,000-member groups, high message rates, and many online connections, averages hide hot spots. Observe latency percentiles, maximum queues, and per-node skew.
+
+## Conditions that require alerts
+
+- Sustained `/readyz` 503 or readiness flapping.
+- Missing or stale Controller/Slot state, unstable leaders, or abnormal replica/ISR state.
+- Sustained queue backlog, rejection, drops, delivery failure, or rising error rate.
+- Low disk headroom, worsening IO latency, or unbounded memory/FD/goroutine growth.
+- Monitoring collection failure that makes state unknown.
+
+Each alert needs an owner, impact, dashboard, first read-only check, and escalation condition. Keep unknown state fail-closed; do not trigger topology mutations automatically.
+
+See [Logs & Observability](/en/server/configuration/observability) for configuration and cost controls.

@@ -483,9 +483,11 @@ func DefaultStoreApplyWorkerCount(reactorCount int) int {
 	return min(max(1, reactorCount)*defaultStoreApplyWorkerMultiplier, defaultStoreWorkerCap)
 }
 
-// DefaultRPCWorkerCount returns the runtime-derived replication RPC pool size.
-func DefaultRPCWorkerCount(reactorCount int) int {
-	return max(1, reactorCount)
+// DefaultRPCWorkerCount returns the QPS-validated replication RPC pool size.
+// The parameter is retained for source compatibility with callers that
+// previously consumed a reactor-derived default.
+func DefaultRPCWorkerCount(_ int) int {
+	return worker.DefaultRPCWorkers
 }
 
 func defaultPoolConfig(cfg worker.PoolConfig, name string, workers int, queueSize int) worker.PoolConfig {

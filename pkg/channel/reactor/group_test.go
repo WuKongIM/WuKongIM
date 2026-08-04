@@ -249,7 +249,7 @@ func TestDefaultWorkerPoolsUseExtraStoreWorkers(t *testing.T) {
 	require.Equal(t, 32, pools.StoreRead.Workers)
 	require.Equal(t, 64, pools.StoreApply.Workers)
 	require.Equal(t, 16, pools.StoreCheckpoint.Workers)
-	require.Equal(t, 32, pools.RPC.Workers)
+	require.Equal(t, 160, pools.RPC.Workers)
 }
 
 func TestDefaultWorkerPoolsCapStoreWorkers(t *testing.T) {
@@ -259,7 +259,7 @@ func TestDefaultWorkerPoolsCapStoreWorkers(t *testing.T) {
 	require.Equal(t, 128, pools.StoreApply.Workers)
 	require.Equal(t, 32, pools.StoreCheckpoint.Workers)
 	require.Equal(t, 128, pools.StoreRead.Workers)
-	require.Equal(t, 128, pools.RPC.Workers)
+	require.Equal(t, 160, pools.RPC.Workers)
 }
 
 func TestDefaultWorkerPoolsScaleCheckpointWorkersFromExplicitApplyCapacity(t *testing.T) {
