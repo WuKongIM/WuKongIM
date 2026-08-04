@@ -98,6 +98,28 @@ type ChannelRuntimeQuery struct {
 	Range ChannelRuntimeRange `json:"range"`
 }
 
+// ChannelRuntimeChannelIdentity is one concrete Channel runtime identity.
+type ChannelRuntimeChannelIdentity struct {
+	// ChannelID is the exact canonical channel identifier presented to the runtime.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the WuKong channel type paired with ChannelID.
+	ChannelType uint8 `json:"channel_type"`
+}
+
+// ChannelRuntimeProbeQuery selects generated or concrete identities after HTTP validation.
+type ChannelRuntimeProbeQuery struct {
+	// RunID identifies the benchmark run that generated the channels.
+	RunID string
+	// Profile identifies the generated channel profile.
+	Profile string
+	// ChannelType is the WuKong channel type used by the generated selector.
+	ChannelType uint8
+	// Range selects generated channel indexes in [start,end).
+	Range ChannelRuntimeRange
+	// Channels contains exact identities for the explicit selector mode.
+	Channels []ChannelRuntimeChannelIdentity
+}
+
 // ChannelRuntimeSnapshot describes local Channel runtime state for diagnostics.
 type ChannelRuntimeSnapshot struct {
 	// Version is the target bench API version that produced the snapshot.
@@ -146,7 +168,7 @@ type ChannelRuntimeWorkerQueue struct {
 	Depth int `json:"depth"`
 }
 
-// ChannelRuntimeProbeRequest selects generated channels for a bounded runtime probe.
+// ChannelRuntimeProbeRequest selects either generated or concrete channels for a bounded runtime probe.
 type ChannelRuntimeProbeRequest struct {
 	// RunID identifies the benchmark run that generated the channels.
 	RunID string `json:"run_id"`
@@ -156,6 +178,8 @@ type ChannelRuntimeProbeRequest struct {
 	ChannelType uint8 `json:"channel_type"`
 	// Range selects generated channel indexes in [start,end).
 	Range ChannelRuntimeRange `json:"range"`
+	// Channels selects concrete channel identities and is mutually exclusive with the generated selector.
+	Channels []ChannelRuntimeChannelIdentity `json:"channels,omitempty"`
 }
 
 // ChannelRuntimeProbeResult reports the result of a bounded runtime probe.
@@ -168,14 +192,38 @@ type ChannelRuntimeProbeResult struct {
 	RunID string `json:"run_id"`
 	// Profile identifies the generated channel profile.
 	Profile string `json:"profile"`
-	// Checked is the number of generated channels checked by the probe.
+	// Checked is the number of selected channels checked by the probe.
 	Checked int `json:"checked"`
 	// LoadedLeader is the number of probed channels loaded as leaders.
 	LoadedLeader int `json:"loaded_leader"`
 	// LoadedFollower is the number of probed channels loaded as followers.
 	LoadedFollower int `json:"loaded_follower"`
-	// Missing lists generated channel IDs that were not loaded.
+	// Missing lists selected channel IDs that were not loaded for compatibility clients.
 	Missing []string `json:"missing,omitempty"`
+	// Channels contains one ordered runtime evidence row for each selected channel.
+	Channels []ChannelRuntimeProbeChannel `json:"channels,omitempty"`
+}
+
+// ChannelRuntimeProbeChannel is the bounded runtime evidence for one selected channel.
+type ChannelRuntimeProbeChannel struct {
+	// ChannelID is the exact canonical channel identifier requested by the caller.
+	ChannelID string `json:"channel_id"`
+	// ChannelType is the WuKong channel type paired with ChannelID.
+	ChannelType uint8 `json:"channel_type"`
+	// Role is leader, follower, missing, or unknown.
+	Role string `json:"role"`
+	// Status is the runtime lifecycle status, missing, or unknown.
+	Status string `json:"status"`
+	// LEO is the local log end offset, or zero when the runtime is missing.
+	LEO uint64 `json:"leo"`
+	// HW is the local committed high watermark, or zero when the runtime is missing.
+	HW uint64 `json:"hw"`
+	// CheckpointHW is the durable checkpoint high watermark, or zero when the runtime is missing.
+	CheckpointHW uint64 `json:"checkpoint_hw"`
+	// LeaderEpoch is the local runtime leader epoch, or zero when the runtime is missing.
+	LeaderEpoch uint32 `json:"leader_epoch"`
+	// ChannelEpoch is the local runtime membership epoch, or zero when the runtime is missing.
+	ChannelEpoch uint32 `json:"channel_epoch"`
 }
 
 // ChannelRuntimeEvictRequest selects generated channels for bounded runtime eviction.

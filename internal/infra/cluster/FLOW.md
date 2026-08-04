@@ -547,7 +547,7 @@ node; aggregate target selection, skipped-node notes, tracking-rule fan-out,
 and response DTO shaping stay in `internal/usecase/management`. The adapter
 does not query legacy `internal` diagnostics state.
 
-Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
+Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path. Probe queries either preserve the existing generated-range expansion or forward up to 1,200 concrete identities unchanged; the two modes never mix. The adapter maps loaded runtime proof fields and runtime-reported missing identities into input-ordered bench rows. A missing row carries `missing` role/status and zero runtime watermarks/epochs, so absence remains explicit without inventing loaded state. Concrete identities never enter the eviction selector. Because the bench/v1 response contract uses 32-bit leader and channel epochs while the runtime stores wider counters, the adapter fails closed when an observed epoch cannot be represented instead of truncating fencing evidence.
 
 ## Channel Metadata Flow
 

@@ -14,7 +14,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxBenchRuntimeRange = 100000
+const (
+	maxBenchRuntimeRange            = 100000
+	maxBenchRuntimeExplicitChannels = 1200
+)
 
 func (s *Server) handleBenchChannelRuntimeSnapshot(c *gin.Context) {
 	if s.benchRuntime == nil {
@@ -53,14 +56,20 @@ func (s *Server) handleBenchChannelRuntimeProbe(c *gin.Context) {
 		return
 	}
 	query := runtimeQueryFromProbeRequest(req)
-	query, err := validateRuntimeQuery(query, true)
+	query, err := validateRuntimeProbeQuery(query)
 	if err != nil {
 		writeBenchError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	resp, err := s.benchRuntime.Probe(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(c, "probe", query, err)
+		logErr := err
+		if query.Channels != nil {
+			logErr = errors.New("explicit channel runtime probe failed")
+		}
+		s.logBenchRuntimeFailure(c, "probe", model.ChannelRuntimeQuery{
+			RunID: query.RunID, Profile: query.Profile, ChannelType: query.ChannelType, Range: query.Range,
+		}, logErr)
 		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -159,13 +168,59 @@ func snapshotRangeBoundPresent(c *gin.Context) bool {
 	return hasStart || hasEnd
 }
 
-func runtimeQueryFromProbeRequest(req model.ChannelRuntimeProbeRequest) model.ChannelRuntimeQuery {
-	return model.ChannelRuntimeQuery{
+func runtimeQueryFromProbeRequest(req model.ChannelRuntimeProbeRequest) model.ChannelRuntimeProbeQuery {
+	return model.ChannelRuntimeProbeQuery{
 		RunID:       req.RunID,
 		Profile:     req.Profile,
 		ChannelType: req.ChannelType,
 		Range:       req.Range,
+		Channels:    req.Channels,
 	}
+}
+
+func validateRuntimeProbeQuery(query model.ChannelRuntimeProbeQuery) (model.ChannelRuntimeProbeQuery, error) {
+	hasExplicitSelector := query.Channels != nil
+	hasGeneratedSelector := query.RunID != "" || query.Profile != "" || query.ChannelType != 0 ||
+		query.Range.Start != 0 || query.Range.End != 0
+	if hasExplicitSelector && hasGeneratedSelector {
+		return query, fmt.Errorf("exactly one channel runtime selector is required")
+	}
+	if hasExplicitSelector {
+		if len(query.Channels) == 0 {
+			return query, fmt.Errorf("channels must contain at least one identity")
+		}
+		if len(query.Channels) > maxBenchRuntimeExplicitChannels {
+			return query, fmt.Errorf("channels exceeds max %d", maxBenchRuntimeExplicitChannels)
+		}
+		seen := make(map[model.ChannelRuntimeChannelIdentity]struct{}, len(query.Channels))
+		for _, identity := range query.Channels {
+			if strings.TrimSpace(identity.ChannelID) == "" {
+				return query, fmt.Errorf("channel_id is required")
+			}
+			if identity.ChannelType == 0 {
+				return query, fmt.Errorf("channel_type is required")
+			}
+			if _, ok := seen[identity]; ok {
+				return query, fmt.Errorf("channels must contain unique identities")
+			}
+			seen[identity] = struct{}{}
+		}
+		return query, nil
+	}
+	if !hasGeneratedSelector {
+		return query, fmt.Errorf("exactly one channel runtime selector is required")
+	}
+	generated, err := validateRuntimeQuery(model.ChannelRuntimeQuery{
+		RunID: query.RunID, Profile: query.Profile, ChannelType: query.ChannelType, Range: query.Range,
+	}, true)
+	if err != nil {
+		return query, err
+	}
+	query.RunID = generated.RunID
+	query.Profile = generated.Profile
+	query.ChannelType = generated.ChannelType
+	query.Range = generated.Range
+	return query, nil
 }
 
 func runtimeQueryFromEvictRequest(req model.ChannelRuntimeEvictRequest) model.ChannelRuntimeQuery {

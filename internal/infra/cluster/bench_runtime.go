@@ -41,12 +41,17 @@ func (c *ChannelRuntimeBenchController) Snapshot(ctx context.Context, query mode
 	return fromRuntimeSnapshot(snapshot, c.node.NodeID(), query), nil
 }
 
-// Probe checks whether generated benchmark channels are loaded in the local channel runtime.
-func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error) {
+// Probe checks whether generated or explicit channels are loaded in the local channel runtime.
+func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.ChannelRuntimeProbeQuery) (model.ChannelRuntimeProbeResult, error) {
 	if c == nil || c.node == nil {
 		return model.ChannelRuntimeProbeResult{}, fmt.Errorf("cluster: channel runtime bench node is required")
 	}
-	result, err := c.node.ChannelRuntimeProbe(ctx, runtimeSelectorFromQuery(query))
+	selector := runtimeSelectorFromProbeQuery(query)
+	result, err := c.node.ChannelRuntimeProbe(ctx, selector)
+	if err != nil {
+		return model.ChannelRuntimeProbeResult{}, err
+	}
+	channels, err := runtimeProbeChannels(selector.ChannelIDs, result)
 	if err != nil {
 		return model.ChannelRuntimeProbeResult{}, err
 	}
@@ -59,6 +64,7 @@ func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.C
 		LoadedLeader:   result.LoadedLeader,
 		LoadedFollower: result.LoadedFollower,
 		Missing:        missingChannelIDs(result.Missing),
+		Channels:       channels,
 	}, nil
 }
 
@@ -67,7 +73,7 @@ func (c *ChannelRuntimeBenchController) Evict(ctx context.Context, query model.C
 	if c == nil || c.node == nil {
 		return model.ChannelRuntimeEvictResult{}, fmt.Errorf("cluster: channel runtime bench node is required")
 	}
-	result, err := c.node.ChannelRuntimeEvict(ctx, runtimeSelectorFromQuery(query))
+	result, err := c.node.ChannelRuntimeEvict(ctx, runtimeSelectorFromGeneratedQuery(query))
 	if err != nil {
 		return model.ChannelRuntimeEvictResult{}, err
 	}
@@ -134,20 +140,104 @@ func fromRuntimeWorkerQueues(in []channelruntime.RuntimeWorkerQueue) []model.Cha
 	return out
 }
 
-func runtimeSelectorFromQuery(query model.ChannelRuntimeQuery) channelruntime.RuntimeSelector {
-	channelIDs := make([]channelruntime.ChannelID, 0)
-	if query.Range.End > query.Range.Start {
-		channelIDs = make([]channelruntime.ChannelID, 0, query.Range.End-query.Range.Start)
+func runtimeSelectorFromProbeQuery(query model.ChannelRuntimeProbeQuery) channelruntime.RuntimeSelector {
+	if query.Channels != nil {
+		channelIDs := make([]channelruntime.ChannelID, 0, len(query.Channels))
+		for _, identity := range query.Channels {
+			channelIDs = append(channelIDs, channelruntime.ChannelID{ID: identity.ChannelID, Type: identity.ChannelType})
+		}
+		return channelruntime.RuntimeSelector{ChannelIDs: channelIDs}
 	}
-	runID := strings.TrimSpace(query.RunID)
-	profile := strings.TrimSpace(query.Profile)
-	for index := query.Range.Start; index < query.Range.End; index++ {
+	return runtimeSelectorFromGeneratedFields(query.RunID, query.Profile, query.ChannelType, query.Range)
+}
+
+func runtimeSelectorFromGeneratedQuery(query model.ChannelRuntimeQuery) channelruntime.RuntimeSelector {
+	return runtimeSelectorFromGeneratedFields(query.RunID, query.Profile, query.ChannelType, query.Range)
+}
+
+func runtimeSelectorFromGeneratedFields(runID, profile string, channelType uint8, selectedRange model.ChannelRuntimeRange) channelruntime.RuntimeSelector {
+	channelIDs := make([]channelruntime.ChannelID, 0)
+	if selectedRange.End > selectedRange.Start {
+		channelIDs = make([]channelruntime.ChannelID, 0, selectedRange.End-selectedRange.Start)
+	}
+	runID = strings.TrimSpace(runID)
+	profile = strings.TrimSpace(profile)
+	for index := selectedRange.Start; index < selectedRange.End; index++ {
 		channelIDs = append(channelIDs, channelruntime.ChannelID{
 			ID:   fmt.Sprintf("%s-%s-%d", runID, profile, index),
-			Type: query.ChannelType,
+			Type: channelType,
 		})
 	}
 	return channelruntime.RuntimeSelector{ChannelIDs: channelIDs}
+}
+
+func runtimeProbeChannels(requested []channelruntime.ChannelID, result channelruntime.RuntimeProbeResult) ([]model.ChannelRuntimeProbeChannel, error) {
+	if len(requested) == 0 {
+		return nil, nil
+	}
+	loaded := make(map[channelruntime.ChannelID]channelruntime.RuntimeProbeChannel, len(result.Channels))
+	for _, channel := range result.Channels {
+		loaded[channel.ChannelID] = channel
+	}
+	missing := make(map[channelruntime.ChannelID]struct{}, len(result.Missing))
+	for _, identity := range result.Missing {
+		missing[identity] = struct{}{}
+	}
+	out := make([]model.ChannelRuntimeProbeChannel, 0, len(result.Channels)+len(result.Missing))
+	for _, identity := range requested {
+		if channel, ok := loaded[identity]; ok {
+			if channel.LeaderEpoch > uint64(^uint32(0)) || channel.ChannelEpoch > uint64(^uint32(0)) {
+				return nil, fmt.Errorf("cluster: channel runtime probe epoch exceeds bench/v1 contract")
+			}
+			out = append(out, model.ChannelRuntimeProbeChannel{
+				ChannelID:    channel.ChannelID.ID,
+				ChannelType:  channel.ChannelID.Type,
+				Role:         runtimeRoleString(channel.Role),
+				Status:       runtimeStatusString(channel.Status),
+				LEO:          channel.LEO,
+				HW:           channel.HW,
+				CheckpointHW: channel.CheckpointHW,
+				LeaderEpoch:  uint32(channel.LeaderEpoch),
+				ChannelEpoch: uint32(channel.ChannelEpoch),
+			})
+			continue
+		}
+		if _, ok := missing[identity]; ok {
+			out = append(out, model.ChannelRuntimeProbeChannel{
+				ChannelID: identity.ID, ChannelType: identity.Type, Role: "missing", Status: "missing",
+			})
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+func runtimeRoleString(role channelruntime.Role) string {
+	switch role {
+	case channelruntime.RoleLeader:
+		return "leader"
+	case channelruntime.RoleFollower:
+		return "follower"
+	default:
+		return "unknown"
+	}
+}
+
+func runtimeStatusString(status channelruntime.Status) string {
+	switch status {
+	case channelruntime.StatusCreating:
+		return "creating"
+	case channelruntime.StatusActive:
+		return "active"
+	case channelruntime.StatusDeleting:
+		return "deleting"
+	case channelruntime.StatusDeleted:
+		return "deleted"
+	default:
+		return "unknown"
+	}
 }
 
 func missingChannelIDs(in []channelruntime.ChannelID) []string {

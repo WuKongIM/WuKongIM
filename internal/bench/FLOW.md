@@ -628,12 +628,21 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `GET /readyz`
 - `GET /bench/v1/capabilities`
 - `GET /bench/v1/snapshot`
+- `GET /bench/v1/channel-runtime/snapshot`
+- `POST /bench/v1/channel-runtime/probe`
+- `POST /bench/v1/channel-runtime/evict`
 - `POST /bench/v1/users/tokens`
 - `POST /bench/v1/channels`
 - `POST /bench/v1/channels/subscribers`
 - `POST /bench/v1/channels/subscribers/remove`
 
 The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
+Channel runtime probes preserve both selector modes from the shared DTO. The
+client sends concrete identities and bearer authentication unchanged to every
+configured target and decodes ordered detailed runtime evidence; it does not
+log request identities or credentials. Probe status errors omit server response
+bodies before aggregation so an echoed identity or bearer capability cannot
+enter client error strings. Eviction remains generated-range only.
 
 ## Failure Handling
 

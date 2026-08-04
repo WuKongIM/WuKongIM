@@ -52,3 +52,11 @@ aligned without growing long-run group cardinality.
 be positive and equal the profile channel count. It means channel index `n`
 must be generated into physical hash slot `n`, not merely distributed by the
 ordinary worker shard strategy.
+
+The restricted Channel runtime probe DTO has two mutually exclusive selector
+modes. Existing clients retain the generated `run_id`, `profile`,
+`channel_type`, and half-open `range` contract. Diagnostic callers may instead
+send up to 1,200 concrete `(channel_id, channel_type)` identities. Probe
+responses retain the aggregate and `missing` compatibility fields and add
+ordered per-channel role, status, LEO, HW, checkpoint, leader-epoch, and
+channel-epoch evidence.

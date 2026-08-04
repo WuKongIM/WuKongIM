@@ -134,19 +134,19 @@ func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.Channe
 // ProbeChannelRuntime posts a bounded local runtime probe request.
 func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRuntimeProbeRequest) (model.ChannelRuntimeProbeResult, error) {
 	var out model.ChannelRuntimeProbeResult
-	if err := c.postAnyOut(ctx, "/bench/v1/channel-runtime/probe", req, &out); err != nil {
+	if err := c.postAnyOutMapped(ctx, "/bench/v1/channel-runtime/probe", req, &out, safeChannelRuntimeProbeError); err != nil {
 		return model.ChannelRuntimeProbeResult{}, err
 	}
 	return out, nil
 }
 
-// ProbeChannelRuntimeAll asks every configured target node to inspect selected generated channels.
+// ProbeChannelRuntimeAll asks every configured target node to inspect the selected channels.
 func (c *Client) ProbeChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
 	results := make([]model.ChannelRuntimeProbeResult, 0, len(c.addrs()))
 	err := c.postAll(func(addr string) error {
 		var out model.ChannelRuntimeProbeResult
 		if err := c.doJSON(ctx, http.MethodPost, addr, "/bench/v1/channel-runtime/probe", req, &out); err != nil {
-			return err
+			return safeChannelRuntimeProbeError(err)
 		}
 		results = append(results, out)
 		return nil
@@ -240,6 +240,10 @@ func (c *Client) postAny(ctx context.Context, path string, body any) error {
 }
 
 func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any) error {
+	return c.postAnyOutMapped(ctx, path, body, out, nil)
+}
+
+func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, out any, mapErr func(error) error) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
 		return fmt.Errorf("no target api addresses configured")
@@ -251,6 +255,9 @@ func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any)
 			return err
 		}
 		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, attemptOut); err != nil {
+			if mapErr != nil {
+				err = mapErr(err)
+			}
 			errs = append(errs, err.Error())
 			continue
 		}
@@ -258,6 +265,14 @@ func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any)
 		return nil
 	}
 	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
+}
+
+func safeChannelRuntimeProbeError(err error) error {
+	var statusErr *httpStatusError
+	if !errors.As(err, &statusErr) {
+		return err
+	}
+	return fmt.Errorf("%s %s returned status %d", statusErr.method, statusErr.url, statusErr.statusCode)
 }
 
 func freshDecodeTarget(out any) (any, error) {

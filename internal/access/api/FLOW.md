@@ -237,6 +237,13 @@ unsupported.
 owner-local route counts and authority-side virtual route counts for wkbench
 reports, but it does not expose or mutate concrete gateway sessions.
 
+`POST /bench/v1/channel-runtime/probe` accepts exactly one bounded selector:
+the existing generated benchmark range or 1..1,200 unique concrete Channel
+identities. Concrete IDs are validated without normalization and are forwarded
+only to the read-only probe port. Snapshot and eviction keep their generated
+selector contracts; concrete identities are not accepted by the eviction
+route. Restricted bench authentication continues to cover all three routes.
+
 Compatible channel and user management are adapters only. The channel adapter
 validates JSON fields, defaults `/channel/subscriber_add` with missing
 `channel_type` to group, rejects personal-channel subscriber mutations, and

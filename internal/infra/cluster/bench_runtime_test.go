@@ -70,7 +70,7 @@ func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 	}
 	controller := NewChannelRuntimeBenchController(node)
 
-	got, err := controller.Probe(context.Background(), model.ChannelRuntimeQuery{
+	got, err := controller.Probe(context.Background(), model.ChannelRuntimeProbeQuery{
 		RunID:       " run-a ",
 		Profile:     " activate-groups ",
 		ChannelType: 2,
@@ -98,9 +98,93 @@ func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 		LoadedLeader:   1,
 		LoadedFollower: 1,
 		Missing:        []string{"run-a-activate-groups-4"},
+		Channels: []model.ChannelRuntimeProbeChannel{
+			{ChannelID: "run-a-activate-groups-4", ChannelType: 2, Role: "missing", Status: "missing"},
+		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Probe() = %#v, want %#v", got, want)
+	}
+}
+
+func TestChannelRuntimeBenchControllerProbesExplicitChannelsUnchanged(t *testing.T) {
+	requested := []model.ChannelRuntimeChannelIdentity{
+		{ChannelID: "canonical-person-b", ChannelType: 1},
+		{ChannelID: "canonical-person-missing", ChannelType: 1},
+		{ChannelID: "canonical-person-a", ChannelType: 1},
+	}
+	node := &fakeChannelRuntimeBenchNode{
+		nodeID: 12,
+		probe: channelruntime.RuntimeProbeResult{
+			Checked:        3,
+			LoadedLeader:   1,
+			LoadedFollower: 1,
+			Channels: []channelruntime.RuntimeProbeChannel{
+				{
+					ChannelID: channelruntime.ChannelID{ID: "canonical-person-b", Type: 1},
+					Role:      channelruntime.RoleFollower, Status: channelruntime.StatusCreating,
+					LEO: 20, HW: 18, CheckpointHW: 17, LeaderEpoch: 9, ChannelEpoch: 7,
+				},
+				{
+					ChannelID: channelruntime.ChannelID{ID: "canonical-person-a", Type: 1},
+					Role:      channelruntime.RoleLeader, Status: channelruntime.StatusActive,
+					LEO: 33, HW: 31, CheckpointHW: 29, LeaderEpoch: 11, ChannelEpoch: 8,
+				},
+			},
+			Missing: []channelruntime.ChannelID{{ID: "canonical-person-missing", Type: 1}},
+		},
+	}
+	controller := NewChannelRuntimeBenchController(node)
+
+	got, err := controller.Probe(context.Background(), model.ChannelRuntimeProbeQuery{Channels: requested})
+	if err != nil {
+		t.Fatalf("Probe() error = %v", err)
+	}
+
+	wantSelector := channelruntime.RuntimeSelector{ChannelIDs: []channelruntime.ChannelID{
+		{ID: "canonical-person-b", Type: 1},
+		{ID: "canonical-person-missing", Type: 1},
+		{ID: "canonical-person-a", Type: 1},
+	}}
+	if !reflect.DeepEqual(node.probeSelector, wantSelector) {
+		t.Fatalf("probe selector = %#v, want exact explicit identities %#v", node.probeSelector, wantSelector)
+	}
+	wantChannels := []model.ChannelRuntimeProbeChannel{
+		{ChannelID: "canonical-person-b", ChannelType: 1, Role: "follower", Status: "creating", LEO: 20, HW: 18, CheckpointHW: 17, LeaderEpoch: 9, ChannelEpoch: 7},
+		{ChannelID: "canonical-person-missing", ChannelType: 1, Role: "missing", Status: "missing"},
+		{ChannelID: "canonical-person-a", ChannelType: 1, Role: "leader", Status: "active", LEO: 33, HW: 31, CheckpointHW: 29, LeaderEpoch: 11, ChannelEpoch: 8},
+	}
+	if !reflect.DeepEqual(got.Channels, wantChannels) {
+		t.Fatalf("probe channels = %#v, want ordered detailed rows %#v", got.Channels, wantChannels)
+	}
+	if !reflect.DeepEqual(got.Missing, []string{"canonical-person-missing"}) {
+		t.Fatalf("missing = %#v, want explicit missing identity", got.Missing)
+	}
+}
+
+func TestChannelRuntimeBenchControllerRejectsUnrepresentableProbeEpoch(t *testing.T) {
+	const channelID = "canonical-person-overflow"
+	node := &fakeChannelRuntimeBenchNode{
+		probe: channelruntime.RuntimeProbeResult{
+			Checked:      1,
+			LoadedLeader: 1,
+			Channels: []channelruntime.RuntimeProbeChannel{{
+				ChannelID: channelruntime.ChannelID{ID: channelID, Type: 1},
+				Role:      channelruntime.RoleLeader, Status: channelruntime.StatusActive,
+				LeaderEpoch: uint64(^uint32(0)) + 1,
+			}},
+		},
+	}
+	controller := NewChannelRuntimeBenchController(node)
+
+	_, err := controller.Probe(context.Background(), model.ChannelRuntimeProbeQuery{
+		Channels: []model.ChannelRuntimeChannelIdentity{{ChannelID: channelID, ChannelType: 1}},
+	})
+	if err == nil {
+		t.Fatal("Probe() error = nil, want unrepresentable epoch failure")
+	}
+	if got := err.Error(); got != "cluster: channel runtime probe epoch exceeds bench/v1 contract" {
+		t.Fatalf("Probe() error = %q, want bounded error without channel identity", got)
 	}
 }
 

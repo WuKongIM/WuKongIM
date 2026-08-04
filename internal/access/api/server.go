@@ -47,7 +47,7 @@ type GatewayAddresses struct {
 // ChannelRuntimeBenchController exposes benchmark-only channel runtime controls.
 type ChannelRuntimeBenchController interface {
 	Snapshot(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeSnapshot, error)
-	Probe(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeProbeResult, error)
+	Probe(context.Context, model.ChannelRuntimeProbeQuery) (model.ChannelRuntimeProbeResult, error)
 	Evict(context.Context, model.ChannelRuntimeQuery) (model.ChannelRuntimeEvictResult, error)
 }
 

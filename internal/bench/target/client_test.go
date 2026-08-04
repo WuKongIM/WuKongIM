@@ -3,6 +3,7 @@ package target
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -263,6 +264,69 @@ func TestClientProbeChannelRuntimePostsRequest(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, model.ChannelRuntimeProbeResult{Version: "bench/v1", NodeID: 1, Checked: 10}, got)
+}
+
+func TestClientProbeChannelRuntimeAllPostsExplicitChannelsWithAuthAndDecodesDetails(t *testing.T) {
+	const token = "probe-secret-token"
+	channels := []model.ChannelRuntimeChannelIdentity{
+		{ChannelID: "canonical-person-a", ChannelType: 1},
+		{ChannelID: "canonical-person-b", ChannelType: 1},
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/bench/v1/channel-runtime/probe", r.URL.Path)
+		require.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"run_id":"",
+			"profile":"",
+			"channel_type":0,
+			"range":{"start":0,"end":0},
+			"channels":[
+				{"channel_id":"canonical-person-a","channel_type":1},
+				{"channel_id":"canonical-person-b","channel_type":1}
+			]
+		}`, string(body))
+		writeJSON(t, w, model.ChannelRuntimeProbeResult{
+			Version: "bench/v1", NodeID: 2, Checked: 2, LoadedLeader: 1,
+			Channels: []model.ChannelRuntimeProbeChannel{
+				{ChannelID: "canonical-person-a", ChannelType: 1, Role: "leader", Status: "active", LEO: 17, HW: 16, CheckpointHW: 15, LeaderEpoch: 8, ChannelEpoch: 5},
+				{ChannelID: "canonical-person-b", ChannelType: 1, Role: "missing", Status: "missing"},
+			},
+		})
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}, Token: token})
+
+	got, err := client.ProbeChannelRuntimeAll(context.Background(), model.ChannelRuntimeProbeRequest{Channels: channels})
+
+	require.NoError(t, err)
+	require.Equal(t, []model.ChannelRuntimeProbeResult{{
+		Version: "bench/v1", NodeID: 2, Checked: 2, LoadedLeader: 1,
+		Channels: []model.ChannelRuntimeProbeChannel{
+			{ChannelID: "canonical-person-a", ChannelType: 1, Role: "leader", Status: "active", LEO: 17, HW: 16, CheckpointHW: 15, LeaderEpoch: 8, ChannelEpoch: 5},
+			{ChannelID: "canonical-person-b", ChannelType: 1, Role: "missing", Status: "missing"},
+		},
+	}}, got)
+}
+
+func TestClientProbeChannelRuntimeErrorDoesNotExposeCredentialsOrRequestIDs(t *testing.T) {
+	const token = "probe-secret-token"
+	const channelID = "canonical-sensitive-person"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "probe rejected for "+channelID+" using "+token, http.StatusBadRequest)
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}, Token: token})
+
+	_, err := client.ProbeChannelRuntime(context.Background(), model.ChannelRuntimeProbeRequest{
+		Channels: []model.ChannelRuntimeChannelIdentity{{ChannelID: channelID, ChannelType: 1}},
+	})
+
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), token)
+	require.NotContains(t, err.Error(), channelID)
 }
 
 func TestClientProbeChannelRuntimeAllCallsEveryTarget(t *testing.T) {
