@@ -1,8 +1,8 @@
-// Package chatlifecycle defines the pure, deterministic configuration model for
-// a long-running chat lifecycle workload.
+// Package chatlifecycle defines the deterministic model and narrow startup
+// orchestration for a long-running chat lifecycle workload.
 //
-// It intentionally contains no target mutation, transport, scheduler, or host
-// credential logic. Later layers turn a validated Config into a deterministic
-// plan, execute it through public APIs and WKProto, and evaluate bounded
+// It intentionally contains no target mutation, concrete transport, worker
+// loop, or host credential logic. Runtime layers execute its validated plans
+// through narrow public-API and WKProto interfaces and evaluate bounded
 // observations against its thresholds.
 package chatlifecycle

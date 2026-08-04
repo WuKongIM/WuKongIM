@@ -13,7 +13,7 @@ Shared wkbench schema, plan, report, and bench/v1 API DTOs live in `pkg/bench/mo
 - `capacity`: maximum stable ingress QPS search used by `wkbench capacity send` and `wkbench capacity hot-channel`; it discovers target gateway addresses, generates attempt scenarios, runs a temporary local worker, and writes capacity summaries.
 - `messageevent`: fixed-shape `/message/event` stream pressure runner used by `wkbench capacity message-event`; it creates channels through public `/channel`, sends stream base messages through `/message/send`, sends cache-only `stream.delta` updates, completes each stream with `stream.finish`, captures `/metrics` before/after snapshots, and writes message event reports.
 - `workload`: reusable connection, person traffic, and group traffic executors.
-- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongim` route real metadata writes through their cluster runtime.
+- `target`: black-box HTTP client for target health, readiness, bench capabilities, capacity target, setup snapshot, presence snapshot, conversation sync, token, channel, and subscriber APIs. Setup mutation calls use the first healthy target API address and fall back on failure; targets such as `cmd/wukongim` route real metadata writes through their cluster runtime.
 - `wkproto`: benchmark WKProto client implementation.
 - `metrics`: worker-local counters, histograms, bounded error samples, aggregation helpers, and low-cardinality Prometheus attribution parsing.
 - `report`: deterministic report construction and report directory writing.
@@ -661,6 +661,7 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `POST /bench/v1/channels`
 - `POST /bench/v1/channels/subscribers`
 - `POST /bench/v1/channels/subscribers/remove`
+- `POST /conversation/sync`
 
 The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
 Channel runtime probes preserve both selector modes from the shared DTO. The
@@ -678,6 +679,15 @@ detailed row per requested identity in the same order, with an exact matching
 channel ID and type at every index. Generated responses must not contain detailed
 rows. These validation errors contain no request or response identities.
 Eviction remains generated-range only.
+
+Conversation sync is a product route, not a Bench API route, so the target
+client never attaches its Bench bearer token. It serializes the legacy zero
+values explicitly, tries configured API addresses in deterministic order, and
+decodes each attempt into fresh storage so a malformed response cannot pollute
+a later fallback. Successful top-level array responses are bounded at 256 MiB,
+which covers 499 conversations with twenty maximum-size 16 KiB payloads after
+base64 expansion and legacy JSON overhead. Status and decode errors omit request
+UIDs, channel IDs, payloads, credentials, and server error bodies.
 
 ## Failure Handling
 

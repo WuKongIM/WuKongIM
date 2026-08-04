@@ -24,7 +24,49 @@ const (
 	// request identity payload in both compatibility and detailed fields.
 	// Thirty-two MiB leaves fixed evidence overhead while keeping allocation finite.
 	maxChannelRuntimeProbeResponseBytes int64 = 32 << 20
+	// This covers 499 conversations with twenty maximum-size 16 KiB payloads
+	// after base64 expansion plus bounded legacy JSON metadata.
+	maxConversationSyncResponseBytes int64 = 256 << 20
 )
+
+// ConversationSyncRequest is the legacy product conversation sync request.
+// Zero-valued cursor fields are intentionally serialized for compatibility.
+type ConversationSyncRequest struct {
+	UID         string `json:"uid"`
+	Version     uint64 `json:"version"`
+	LastMsgSeqs string `json:"last_msg_seqs"`
+	MsgCount    int    `json:"msg_count"`
+	OnlyUnread  uint8  `json:"only_unread"`
+	Limit       int    `json:"limit"`
+}
+
+// ConversationSyncConversation is one legacy conversation sync row.
+type ConversationSyncConversation struct {
+	ChannelID       string                    `json:"channel_id"`
+	ChannelType     uint8                     `json:"channel_type"`
+	Unread          int                       `json:"unread"`
+	Timestamp       int64                     `json:"timestamp"`
+	LastMsgSeq      uint64                    `json:"last_msg_seq"`
+	LastClientMsgNo string                    `json:"last_client_msg_no"`
+	OffsetMsgSeq    int64                     `json:"offset_msg_seq"`
+	ReadedToMsgSeq  uint64                    `json:"readed_to_msg_seq"`
+	Version         int64                     `json:"version"`
+	Recents         []ConversationSyncMessage `json:"recents"`
+}
+
+// ConversationSyncMessage is the verifier-facing recent-message projection.
+// Encoding/json decodes the product's base64 payload string into Payload bytes.
+type ConversationSyncMessage struct {
+	MessageID    int64  `json:"message_id"`
+	MessageIDStr string `json:"message_idstr"`
+	MessageSeq   uint64 `json:"message_seq"`
+	ClientMsgNo  string `json:"client_msg_no"`
+	FromUID      string `json:"from_uid"`
+	ChannelID    string `json:"channel_id"`
+	ChannelType  uint8  `json:"channel_type"`
+	Timestamp    int64  `json:"timestamp"`
+	Payload      []byte `json:"payload"`
+}
 
 // Config controls the black-box target bench API client.
 type Config struct {
@@ -110,6 +152,27 @@ func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, erro
 	var out model.CapacityTarget
 	if err := c.getAny(ctx, "/bench/v1/capacity-target", &out); err != nil {
 		return model.CapacityTarget{}, fmt.Errorf("bench api capacity target unavailable: %w", err)
+	}
+	return out, nil
+}
+
+// ConversationSync calls the product route without the bench API bearer token.
+func (c *Client) ConversationSync(ctx context.Context, req ConversationSyncRequest) ([]ConversationSyncConversation, error) {
+	var out []ConversationSyncConversation
+	if err := c.postAnyOutMappedAuth(
+		ctx,
+		"/conversation/sync",
+		req,
+		&out,
+		maxConversationSyncResponseBytes,
+		safeConversationSyncError,
+		false,
+		"conversation sync response exceeds byte limit",
+	); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		return nil, errors.New("invalid conversation sync response: expected array")
 	}
 	return out, nil
 }
@@ -263,6 +326,13 @@ func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any)
 }
 
 func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, out any, maxResponseBytes int64, mapErr func(error) error) error {
+	return c.postAnyOutMappedAuth(ctx, path, body, out, maxResponseBytes, mapErr, true, "channel runtime probe response exceeds byte limit")
+}
+
+func (c *Client) postAnyOutMappedAuth(ctx context.Context, path string, body any, out any, maxResponseBytes int64, mapErr func(error) error, includeBenchToken bool, responseLimitError string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	addrs := c.addrs()
 	if len(addrs) == 0 {
 		return fmt.Errorf("no target api addresses configured")
@@ -273,7 +343,10 @@ func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, ou
 		if err != nil {
 			return err
 		}
-		if err := c.doJSONLimited(ctx, http.MethodPost, addr, path, body, attemptOut, maxResponseBytes); err != nil {
+		if err := c.doJSONLimitedAuth(ctx, http.MethodPost, addr, path, body, attemptOut, maxResponseBytes, includeBenchToken, responseLimitError); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
 			if mapErr != nil {
 				err = mapErr(err)
 			}
@@ -287,6 +360,14 @@ func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, ou
 }
 
 func safeChannelRuntimeProbeError(err error) error {
+	var statusErr *httpStatusError
+	if !errors.As(err, &statusErr) {
+		return err
+	}
+	return fmt.Errorf("%s %s returned status %d", statusErr.method, statusErr.url, statusErr.statusCode)
+}
+
+func safeConversationSyncError(err error) error {
 	var statusErr *httpStatusError
 	if !errors.As(err, &statusErr) {
 		return err
@@ -346,6 +427,10 @@ func (c *Client) doJSON(ctx context.Context, method, base, path string, body any
 }
 
 func (c *Client) doJSONLimited(ctx context.Context, method, base, path string, body any, out any, maxResponseBytes int64) error {
+	return c.doJSONLimitedAuth(ctx, method, base, path, body, out, maxResponseBytes, true, "channel runtime probe response exceeds byte limit")
+}
+
+func (c *Client) doJSONLimitedAuth(ctx context.Context, method, base, path string, body any, out any, maxResponseBytes int64, includeBenchToken bool, responseLimitError string) error {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -361,7 +446,7 @@ func (c *Client) doJSONLimited(ctx context.Context, method, base, path string, b
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if c.cfg.Token != "" {
+	if includeBenchToken && c.cfg.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
 	}
 	resp, err := c.http.Do(req)
@@ -376,15 +461,11 @@ func (c *Client) doJSONLimited(ctx context.Context, method, base, path string, b
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
+	if maxResponseBytes > 0 && resp.ContentLength > maxResponseBytes {
+		return errors.New(responseLimitError)
+	}
 	if maxResponseBytes > 0 {
-		data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
-		if err != nil {
-			return fmt.Errorf("read %s %s: %w", method, req.URL.String(), err)
-		}
-		if int64(len(data)) > maxResponseBytes {
-			return fmt.Errorf("channel runtime probe response exceeds byte limit")
-		}
-		if err := json.Unmarshal(data, out); err != nil {
+		if err := decodeJSONLimited(resp.Body, out, maxResponseBytes, responseLimitError); err != nil {
 			return fmt.Errorf("decode %s %s: %w", method, req.URL.String(), err)
 		}
 		return nil
@@ -393,6 +474,30 @@ func (c *Client) doJSONLimited(ctx context.Context, method, base, path string, b
 		return fmt.Errorf("decode %s %s: %w", method, req.URL.String(), err)
 	}
 	return nil
+}
+
+func decodeJSONLimited(reader io.Reader, out any, maxResponseBytes int64, responseLimitError string) error {
+	limited := &io.LimitedReader{R: reader, N: maxResponseBytes + 1}
+	decoder := json.NewDecoder(limited)
+	if err := decoder.Decode(out); err != nil {
+		if limited.N == 0 {
+			return errors.New(responseLimitError)
+		}
+		return err
+	}
+
+	var trailing any
+	err := decoder.Decode(&trailing)
+	if limited.N == 0 {
+		return errors.New(responseLimitError)
+	}
+	if err == io.EOF {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return errors.New("multiple JSON values in response")
 }
 
 func (c *Client) addrs() []string {

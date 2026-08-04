@@ -559,6 +559,162 @@ func TestClientProbeChannelRuntimeFallbackDoesNotKeepStaleDecodedFields(t *testi
 	require.Equal(t, model.ChannelRuntimeProbeResult{NodeID: 2}, got)
 }
 
+func TestClientConversationSyncPostsExactProductRequestAndDecodesRecents(t *testing.T) {
+	const benchToken = "bench-secret-not-for-product-routes"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/conversation/sync", r.URL.Path)
+		require.Empty(t, r.Header.Get("Authorization"))
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"uid":"derived-user",
+			"version":0,
+			"last_msg_seqs":"",
+			"msg_count":20,
+			"only_unread":0,
+			"limit":500
+		}`, string(body))
+		_, _ = io.WriteString(w, `[{
+			"channel_id":"peer-user",
+			"channel_type":1,
+			"unread":3,
+			"timestamp":1722787200,
+			"last_msg_seq":19,
+			"last_client_msg_no":"client-19",
+			"offset_msg_seq":7,
+			"readed_to_msg_seq":16,
+			"version":23,
+			"recents":[{
+				"message_id":101,
+				"message_idstr":"101",
+				"message_seq":19,
+				"client_msg_no":"client-19",
+				"from_uid":"sender-user",
+				"channel_id":"peer-user",
+				"channel_type":1,
+				"timestamp":1722787200,
+				"payload":"bGlmZWN5Y2xlLW1hcmtlcg=="
+			}]
+		}]`)
+	}))
+	defer server.Close()
+
+	client := NewClient(Config{APIAddrs: []string{server.URL}, Token: benchToken})
+	got, err := client.ConversationSync(context.Background(), ConversationSyncRequest{
+		UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, OnlyUnread: 0, Limit: 500,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []ConversationSyncConversation{{
+		ChannelID: "peer-user", ChannelType: 1, Unread: 3, Timestamp: 1722787200,
+		LastMsgSeq: 19, LastClientMsgNo: "client-19", OffsetMsgSeq: 7,
+		ReadedToMsgSeq: 16, Version: 23,
+		Recents: []ConversationSyncMessage{{
+			MessageID: 101, MessageIDStr: "101", MessageSeq: 19,
+			ClientMsgNo: "client-19", FromUID: "sender-user", ChannelID: "peer-user",
+			ChannelType: 1, Timestamp: 1722787200, Payload: []byte("lifecycle-marker"),
+		}},
+	}}, got)
+}
+
+func TestClientConversationSyncFallbackDoesNotKeepStaleDecodedRows(t *testing.T) {
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/conversation/sync", r.URL.Path)
+		_, _ = io.WriteString(w, `[{"channel_id":"stale","channel_type":1},{"channel_type":"bad"}]`)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/conversation/sync", r.URL.Path)
+		_, _ = io.WriteString(w, `[{"channel_id":"fresh","channel_type":2}]`)
+	}))
+	defer second.Close()
+
+	got, err := NewClient(Config{APIAddrs: []string{first.URL, second.URL}}).ConversationSync(
+		context.Background(),
+		ConversationSyncRequest{UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, Limit: 500},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, []ConversationSyncConversation{{ChannelID: "fresh", ChannelType: 2}}, got)
+}
+
+func TestClientConversationSyncErrorsDoNotExposeProductIdentitiesOrBenchToken(t *testing.T) {
+	const uid = "sensitive-derived-user"
+	const payload = "sensitive-payload"
+	const benchToken = "sensitive-bench-token"
+	statusServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Empty(t, r.Header.Get("Authorization"))
+		http.Error(w, uid+" "+payload+" "+benchToken, http.StatusBadRequest)
+	}))
+	defer statusServer.Close()
+	invalidBase64Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `[{"channel_id":"peer","channel_type":1,"recents":[{"payload":"%%%not-base64%%%"}]}]`)
+	}))
+	defer invalidBase64Server.Close()
+
+	_, err := NewClient(Config{
+		APIAddrs: []string{statusServer.URL, invalidBase64Server.URL},
+		Token:    benchToken,
+	}).ConversationSync(context.Background(), ConversationSyncRequest{UID: uid, MsgCount: 20, Limit: 500})
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "decode")
+	require.NotContains(t, err.Error(), uid)
+	require.NotContains(t, err.Error(), payload)
+	require.NotContains(t, err.Error(), benchToken)
+}
+
+func TestClientConversationSyncRejectsMalformedRecentJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `[{"channel_id":"peer","channel_type":1,"recents":[{"message_seq":1,]}]`)
+	}))
+	defer server.Close()
+
+	_, err := NewClient(Config{APIAddrs: []string{server.URL}}).ConversationSync(
+		context.Background(),
+		ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500},
+	)
+
+	require.ErrorContains(t, err, "decode")
+	require.NotContains(t, err.Error(), "derived-user")
+}
+
+func TestClientConversationSyncRejectsOversizedSuccessBody(t *testing.T) {
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode:    http.StatusOK,
+			Header:        make(http.Header),
+			Body:          io.NopCloser(strings.NewReader("")),
+			ContentLength: maxConversationSyncResponseBytes + 1,
+			Request:       req,
+		}, nil
+	})}
+
+	_, err := NewClient(Config{APIAddrs: []string{"http://api.example.test"}, HTTPClient: httpClient}).ConversationSync(
+		context.Background(),
+		ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500},
+	)
+
+	require.ErrorContains(t, err, "conversation sync response exceeds byte limit")
+}
+
+func TestClientConversationSyncPreservesContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("transport must not start for a canceled conversation sync")
+		return nil, nil
+	})}
+
+	_, err := NewClient(Config{
+		APIAddrs:   []string{"http://api-1.example.test", "http://api-2.example.test"},
+		HTTPClient: httpClient,
+	}).ConversationSync(ctx, ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500})
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestClientEvictChannelRuntimePostsRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
@@ -781,4 +937,10 @@ func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
 	require.NoError(t, json.NewEncoder(w).Encode(v))
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

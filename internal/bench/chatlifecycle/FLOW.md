@@ -1,10 +1,11 @@
 # Chat Lifecycle Flow
 
-`chatlifecycle` owns only the pure deterministic configuration and workload
-planning model for the formal or local chat-lifecycle workload. `profile`
-selects formal versus local scale, while `mode` separately selects soak versus
-capacity coordination. It contains no sockets, HTTP clients, worker loops,
-secrets, target mutation, Docker, or host inspection.
+`chatlifecycle` owns the deterministic configuration and workload planning
+model plus narrow lifecycle-specific startup orchestration for the formal or
+local chat-lifecycle workload. `profile` selects formal versus local scale,
+while `mode` separately selects soak versus capacity coordination. It contains
+no concrete sockets or HTTP clients, worker loops, secrets, target mutation,
+Docker, or host inspection; transport is supplied through narrow interfaces.
 
 ```text
 config
@@ -20,6 +21,23 @@ retaining unbounded activity history. Target mutation uses public benchmark APIs
 and WKProto only. It exercises real sync behavior (`version=0`, runtime-owned
 empty last-message sequences, bounded sync limit), never a synthetic history
 shortcut.
+
+Every login first completes WKProto CONNECT and then issues a newly constructed
+product conversation-sync request with `version=0`, empty `last_msg_seqs`,
+`msg_count=20`, `only_unread=0`, and `limit=500`. No response version, cursor,
+or conversation state can seed a later login. CONNECT and HTTP sync latencies
+are measured independently, and traffic is admitted only after the HTTP result
+passes validation. A canceled or failed CONNECT never starts sync; a canceled,
+failed, or invalid sync never becomes traffic-ready.
+
+Conversation sync accepts at most 499 unique conversation identities. A result
+with 500 or more rows is `harness_invalid` because the harness cannot prove that
+the full directory fit in one response. Each recent message must carry the same
+client-facing channel ID and type as its conversation (including peer IDs for
+person channels), have a positive message sequence, and appear in strictly
+descending sequence order. Duplicate conversations, mismatched recent identity,
+duplicate/reascending recent sequences, malformed JSON, or invalid base64
+payloads fail the login with bounded low-cardinality errors.
 
 Identity planning uses zero-based worker IDs. Worker-local index `n` on worker
 `w` maps to global index `n*workers+w`; division and remainder recover the
