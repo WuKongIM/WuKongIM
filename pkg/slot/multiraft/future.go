@@ -92,10 +92,9 @@ func (c futureCompletion) dispatch() {
 	observer := f.completionObserver
 	f.completionObserver = nil
 	result, err := f.result, f.err
-	done := f.done
+	close(f.done)
 	f.mu.Unlock()
 
-	close(done)
 	if observer != nil {
 		observer.ObserveFutureCompletion(result, err)
 	}

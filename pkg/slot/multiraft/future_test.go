@@ -84,6 +84,37 @@ func TestFutureCompletionObserverRegistrationRacesResolution(t *testing.T) {
 	}
 }
 
+func TestLateFutureCompletionObserverAlwaysStartsAfterWaitIsReady(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		future := newFuture(nil)
+		completion := future.resolve(Result{Index: uint64(i + 1)}, nil)
+		observer := &waitReadyFutureCompletionObserver{future: future}
+		start := make(chan struct{})
+		registered := make(chan bool, 1)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			completion.dispatch()
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			registered <- future.ObserveCompletion(observer)
+		}()
+		close(start)
+		wg.Wait()
+
+		if !<-registered {
+			t.Fatalf("iteration %d ObserveCompletion() = false, want registered", i)
+		}
+		if !observer.waitReady {
+			t.Fatalf("iteration %d completion observer started before Future.Wait was ready", i)
+		}
+	}
+}
+
 func TestFutureCompletionObserverRegisteredBeforeDispatchWaitsForDispatchSafety(t *testing.T) {
 	runtime := &Runtime{slots: make(map[SlotID]*slot)}
 	future := newFuture(nil)
@@ -237,4 +268,17 @@ func (o *gatedReentrantRuntimeStatusObserver) ObserveFutureCompletion(Result, er
 	o.entered <- struct{}{}
 	_, err := o.runtime.Status(o.slotID)
 	o.result <- err
+}
+
+type waitReadyFutureCompletionObserver struct {
+	future    *future
+	waitReady bool
+}
+
+func (o *waitReadyFutureCompletionObserver) ObserveFutureCompletion(Result, error) {
+	select {
+	case <-o.future.done:
+		o.waitReady = true
+	default:
+	}
 }
