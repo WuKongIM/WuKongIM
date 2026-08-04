@@ -466,6 +466,235 @@ func TestEngineDueActivityIsDeferredInsteadOfDroppedWhenRouteTemporarilyIneligib
 	}
 }
 
+func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByActiveTraffic(t *testing.T) {
+	const eligibilityWindow = 10 * time.Nanosecond
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 64, MaxWorkPerAdvance: 64, ActivityEligibilityWindow: eligibilityWindow,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	activeEdge := fixture.graph.edge(40, 41)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: activeEdge.OwnerUID, UserIndex: activeEdge.OwnerIndex, LoginOrdinal: activeEdge.OwnerIndex,
+	}); err != nil {
+		t.Fatalf("active sender Login: %v", err)
+	}
+	now := fixture.clock.Now()
+	added := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		fixture.engine.addActiveChannel(engineActiveChannel{edge: activeEdge, direction: DirectionOneWay})
+		added <- fixture.engine.addActivity(&engineWork{
+			due: now, kind: engineWorkSend,
+			intent: TrafficIntent{
+				Logical: LogicalSend{Sender: fixture.identity.UID(500), Target: fixture.identity.UID(501)},
+				Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
+			},
+		})
+	}}); err != nil {
+		t.Fatalf("enqueue setup: %v", err)
+	}
+	if err := <-added; err != nil {
+		t.Fatalf("add mandatory activity: %v", err)
+	}
+	route := func(raw uint64, at time.Time) (TrafficIntent, error) {
+		t.Helper()
+		primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+		response := make(chan struct {
+			intent TrafficIntent
+			err    error
+		}, 1)
+		if err := fixture.engine.enqueue(engineCommand{run: func() {
+			intent, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+				Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+				Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+			}, at)
+			response <- struct {
+				intent TrafficIntent
+				err    error
+			}{intent: intent, err: routeErr}
+		}}); err != nil {
+			return TrafficIntent{}, err
+		}
+		result := <-response
+		return result.intent, result.err
+	}
+	findNonSampled := func(start uint64) uint64 {
+		t.Helper()
+		for raw := start; raw < start+100; raw++ {
+			scoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, raw)
+			if err != nil {
+				t.Fatalf("scoped lifecycle ordinal: %v", err)
+			}
+			sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+			if err != nil {
+				t.Fatalf("ShouldCorrelate: %v", err)
+			}
+			if !sampled {
+				return raw
+			}
+		}
+		t.Fatal("no non-sampled lifecycle grant in exact cycle")
+		return 0
+	}
+	firstRaw := findNonSampled(0)
+	for _, beforeDeadline := range []time.Duration{0, eligibilityWindow / 2} {
+		routed, err := route(firstRaw, now.Add(beforeDeadline))
+		if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
+			t.Fatalf("active fallback before deadline at %v = %+v, %v", beforeDeadline, routed.Logical, err)
+		}
+		if snapshot, _ := fixture.engine.Snapshot(); snapshot.ActivityCurrent != 1 || snapshot.ActivityUnderDelivered != 0 {
+			t.Fatalf("mandatory activity was not retained inside eligibility window: %+v", snapshot)
+		}
+		firstRaw = findNonSampled(firstRaw + 1)
+	}
+	_, err := route(firstRaw, now.Add(eligibilityWindow))
+	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
+	expired, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("expired Snapshot: %v", err)
+	}
+	if expired.ActivityCurrent != 0 || expired.ActivityUnderDelivered != 1 || expired.HarnessInvalid != 1 || expired.Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("expired mandatory activity = %+v", expired)
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+	nextRaw := findNonSampled(firstRaw + 1)
+	routed, err := route(nextRaw, now.Add(eligibilityWindow+time.Nanosecond))
+	if err != nil || routed.Logical.Sender != activeEdge.OwnerUID {
+		t.Fatalf("active route after physical expiry = %+v, %v", routed.Logical, err)
+	}
+	stable, _ := fixture.engine.Snapshot()
+	if stable.ActivityCurrent != 0 || stable.ActivityUnderDelivered != 1 || stable.HarnessInvalid != 1 || evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassHarness) != 1 {
+		t.Fatalf("expired activity was retried or re-recorded: %+v evidence=%+v", stable, fixture.evidence.Snapshot())
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+}
+
+func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedStop(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		drain         bool
+		terminal      bool
+		wantAbandoned uint64
+	}{
+		{name: "pending_is_closed", wantAbandoned: 1},
+		{name: "pending_preserves_terminal_product", terminal: true, wantAbandoned: 1},
+		{name: "drained_is_clean", drain: true},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{
+				WorkCapacity: 16, MaxWorkPerAdvance: 16, ActivityEligibilityWindow: time.Minute,
+			})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			now := fixture.clock.Now()
+			senderIndex := uint64(600)
+			sender := fixture.identity.UID(senderIndex)
+			if test.drain {
+				if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+					UID: sender, UserIndex: senderIndex, LoginOrdinal: senderIndex,
+				}); err != nil {
+					t.Fatalf("sender Login: %v", err)
+				}
+			}
+			added := make(chan error, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				added <- fixture.engine.addActivity(&engineWork{
+					due: now, kind: engineWorkSend,
+					intent: TrafficIntent{
+						Logical: LogicalSend{Sender: sender, Target: fixture.identity.UID(601)},
+						Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
+					},
+				})
+			}}); err != nil {
+				t.Fatalf("enqueue mandatory activity: %v", err)
+			}
+			if err := <-added; err != nil {
+				t.Fatalf("add mandatory activity: %v", err)
+			}
+			if test.drain {
+				var raw uint64
+				for ; raw < 100; raw++ {
+					scoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, raw)
+					if err != nil {
+						t.Fatalf("scoped lifecycle: %v", err)
+					}
+					sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+					if err != nil {
+						t.Fatalf("ShouldCorrelate: %v", err)
+					}
+					if !sampled {
+						break
+					}
+				}
+				primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+				if err != nil {
+					t.Fatalf("scoped primary: %v", err)
+				}
+				routed := make(chan error, 1)
+				if err := fixture.engine.enqueue(engineCommand{run: func() {
+					_, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+						Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+						Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+					}, now)
+					routed <- routeErr
+				}}); err != nil {
+					t.Fatalf("enqueue route: %v", err)
+				}
+				if err := <-routed; err != nil {
+					t.Fatalf("drain mandatory activity: %v", err)
+				}
+			}
+			if test.terminal {
+				terminalIndex := uint64(700)
+				terminalUID := fixture.identity.UID(terminalIndex)
+				if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+					UID: terminalUID, UserIndex: terminalIndex, LoginOrdinal: terminalIndex,
+				}); err != nil {
+					t.Fatalf("terminal Login: %v", err)
+				}
+				client := fixture.factory.clients()[0]
+				fixture.pool.mu.RLock()
+				drainDone := fixture.pool.online[terminalUID].done
+				fixture.pool.mu.RUnlock()
+				client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorTerminal}
+				<-drainDone
+				if got := fixture.evidence.Snapshot().Classification; got != SyncClassificationProductFailure {
+					t.Fatalf("terminal classification before Stop = %q", got)
+				}
+			}
+			if err := fixture.engine.Stop(); err != nil {
+				t.Fatalf("Stop: %v", err)
+			}
+			snapshot, err := fixture.engine.Snapshot()
+			if err != nil {
+				t.Fatalf("stopped Snapshot: %v", err)
+			}
+			wantHarness := test.wantAbandoned
+			wantClassification := SyncClassification("")
+			if wantHarness > 0 {
+				wantClassification = SyncClassificationHarnessInvalid
+			}
+			if test.terminal {
+				wantClassification = SyncClassificationProductFailure
+			}
+			if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != test.wantAbandoned || snapshot.HarnessInvalid != wantHarness || snapshot.Classification != wantClassification {
+				t.Fatalf("stopped mandatory activity accounting = %+v", snapshot)
+			}
+			assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), wantHarness)
+			if test.terminal && evidenceCountForClass(fixture.evidence.Snapshot(), FailureClassReceive) != 1 {
+				t.Fatalf("terminal product evidence was lost or duplicated: %+v", fixture.evidence.Snapshot())
+			}
+		})
+	}
+}
+
 func TestEngineRevisitRequiresExplicitColdRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	for _, confirm := range []bool{false, true} {
@@ -1962,16 +2191,37 @@ func assertRuntimeFailure(t *testing.T, err error, code RuntimeFailureCode) {
 	}
 }
 
+func assertUnderDeliveryEvidence(t *testing.T, snapshot EvidenceSnapshot, want uint64) {
+	t.Helper()
+	if got := evidenceCountForClass(snapshot, FailureClassHarness); got != want {
+		t.Fatalf("under-delivery evidence count = %d, want %d: %+v", got, want, snapshot)
+	}
+	if want == 0 {
+		return
+	}
+	for _, class := range snapshot.Classes {
+		if class.Class != FailureClassHarness {
+			continue
+		}
+		if len(class.First) == 0 || class.First[0].Code != FailureCodeOfferedLoadUnderDelivery {
+			t.Fatalf("under-delivery evidence code = %+v, want %d", class.First, FailureCodeOfferedLoadUnderDelivery)
+		}
+		return
+	}
+	t.Fatal("under-delivery harness class is missing")
+}
+
 type engineTestLimits struct {
-	Formal            bool
-	CommandCapacity   int
-	WorkCapacity      int
-	InflightCapacity  int
-	MaxWorkPerAdvance int
-	AttemptTimeout    time.Duration
-	OnlineUsers       int
-	NewUsersPerDay    int
-	SessionDuration   time.Duration
+	Formal                    bool
+	CommandCapacity           int
+	WorkCapacity              int
+	InflightCapacity          int
+	MaxWorkPerAdvance         int
+	AttemptTimeout            time.Duration
+	ActivityEligibilityWindow time.Duration
+	OnlineUsers               int
+	NewUsersPerDay            int
+	SessionDuration           time.Duration
 }
 
 type engineTestFixture struct {
@@ -2064,6 +2314,10 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 	if attemptTimeout == 0 {
 		attemptTimeout = time.Second
 	}
+	activityEligibilityWindow := limits.ActivityEligibilityWindow
+	if activityEligibilityWindow == 0 {
+		activityEligibilityWindow = 5 * time.Minute
+	}
 	commandCapacity := limits.CommandCapacity
 	if commandCapacity == 0 {
 		commandCapacity = 64
@@ -2077,6 +2331,7 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 		Generator: generator, Retry: retry, Verifier: verifier, Evidence: evidence,
 		CommandCapacity: commandCapacity, WorkCapacity: workCapacity, RetryCapacity: 64,
 		InflightCapacity: inflightCapacity, MaxWorkPerAdvance: maxWork, AttemptTimeout: attemptTimeout,
+		ActivityEligibilityWindow: activityEligibilityWindow,
 	})
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)

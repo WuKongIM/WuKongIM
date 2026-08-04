@@ -216,10 +216,16 @@ Person routing always requires an online sender. For the verifier's exact one
 position in every 100 logical sends, it also requires an online target; other
 person sends may keep a channel hot while its peer is offline. A sampled group
 or canary send requires a distinct second online fixed-directory member. A
-temporarily ineligible due activity is reinserted once just beyond the current
-advance boundary, with route scans bounded independently of queue size. A
-missing eligible primary route is harness-invalid under-delivery before SEND
-registration and therefore cannot become a retry or product terminal result.
+mandatory initial or revisit activity owns an explicit checked eligibility
+deadline. A temporarily ineligible due activity is reinserted once just beyond
+the current advance boundary, with route scans bounded independently of queue
+size. At the deadline it is physically removed and records one closed
+`offered_load_under_delivery` harness event before any active channel can fill
+that grant. Joined shutdown records one aggregate event for any still-pending
+mandatory activities before clearing the heap; a fully drained shutdown adds
+no evidence. A missing eligible primary route is harness-invalid under-delivery
+before SEND registration and therefore cannot become a retry or product
+terminal result.
 No historical user or channel owns a goroutine, timer, or retained map row.
 
 Attempt zero plus retries one through three reuse the same Phase 2 logical

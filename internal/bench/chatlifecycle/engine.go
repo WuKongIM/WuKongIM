@@ -45,6 +45,9 @@ type EngineConfig struct {
 	InflightCapacity  int
 	MaxWorkPerAdvance int
 	AttemptTimeout    time.Duration
+	// ActivityEligibilityWindow bounds how long a due mandatory initial or
+	// revisit SEND may wait for an eligible online route.
+	ActivityEligibilityWindow time.Duration
 }
 
 // EngineSnapshot is constant-size worker runtime evidence.
@@ -58,6 +61,7 @@ type EngineSnapshot struct {
 	QueueCurrent            int
 	FutureCurrent           int
 	ActivityCurrent         int
+	ActivityUnderDelivered  uint64
 	QueuePeak               int
 	QueueCapacity           int
 	RetryQueueDepth         int
@@ -308,6 +312,7 @@ const (
 
 type engineWork struct {
 	due                 time.Time
+	eligibilityDeadline time.Time
 	kind                engineWorkKind
 	intent              TrafficIntent
 	attempt             uint8
@@ -398,12 +403,13 @@ type Engine struct {
 	verifier  *Verifier
 	evidence  *EvidenceRecorder
 
-	commandCapacity  int
-	workCapacity     int
-	retryCapacity    int
-	inflightCapacity int
-	maxWork          int
-	attemptTimeout   time.Duration
+	commandCapacity           int
+	workCapacity              int
+	retryCapacity             int
+	inflightCapacity          int
+	maxWork                   int
+	attemptTimeout            time.Duration
+	activityEligibilityWindow time.Duration
 
 	lifecycleMu      sync.Mutex
 	stepMu           sync.Mutex
@@ -426,25 +432,26 @@ type Engine struct {
 	commandSaturation atomic.Uint64
 
 	// The fields below are owned exclusively by the active command loop.
-	work                  engineWorkHeap
-	activity              engineWorkHeap
-	retries               *RetryScheduler
-	inflight              map[string]*engineInflight
-	workPeak              int
-	queuedSends           int
-	inflightPeak          int
-	nextOrder             uint64
-	activeLifecycleTimers int
-	lifecycleByChannel    map[string]*engineWork
-	activeChannels        []engineActiveChannel
-	activePosition        map[string]int
-	pendingChannels       []enginePendingChannel
-	pendingPosition       map[string]int
-	activeCursor          uint64
-	retryAttempts         uint64
-	finalFailures         uint64
-	harnessInvalid        uint64
-	now                   time.Time
+	work                   engineWorkHeap
+	activity               engineWorkHeap
+	retries                *RetryScheduler
+	inflight               map[string]*engineInflight
+	workPeak               int
+	queuedSends            int
+	inflightPeak           int
+	nextOrder              uint64
+	activeLifecycleTimers  int
+	lifecycleByChannel     map[string]*engineWork
+	activeChannels         []engineActiveChannel
+	activePosition         map[string]int
+	pendingChannels        []enginePendingChannel
+	pendingPosition        map[string]int
+	activeCursor           uint64
+	retryAttempts          uint64
+	finalFailures          uint64
+	harnessInvalid         uint64
+	activityUnderDelivered uint64
+	now                    time.Time
 }
 
 // NewEngine wires the existing deterministic models and bounded verifier.
@@ -453,7 +460,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
 		config.CommandCapacity <= 0 || config.WorkCapacity <= 0 || config.RetryCapacity <= 0 ||
-		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 ||
+		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 || config.ActivityEligibilityWindow <= 0 ||
 		config.CommandCapacity > maxVerifierCapacity || config.WorkCapacity > maxVerifierCapacity ||
 		config.RetryCapacity > maxVerifierCapacity || config.InflightCapacity > maxVerifierCapacity {
 		return nil, errEngineConfig
@@ -470,7 +477,8 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		commandCapacity: config.CommandCapacity, workCapacity: config.WorkCapacity,
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
-		scheduler: sessionScheduler{workload: config.Generator.workload, bootstrapping: true},
+		activityEligibilityWindow: config.ActivityEligibilityWindow,
+		scheduler:                 sessionScheduler{workload: config.Generator.workload, bootstrapping: true},
 	}
 	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
@@ -531,6 +539,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.retryAttempts = 0
 	e.finalFailures = 0
 	e.harnessInvalid = 0
+	e.activityUnderDelivered = 0
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
 	e.scheduler.reset(e.now)
@@ -988,6 +997,7 @@ func (e *Engine) Snapshot() (EngineSnapshot, error) {
 func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done chan<- struct{}) {
 	defer func() {
 		e.cleanupInflight()
+		e.cleanupPendingActivities()
 		e.work = nil
 		e.activity = nil
 		e.queuedSends = 0
@@ -1094,6 +1104,18 @@ func (e *Engine) addWork(work *engineWork) error {
 }
 
 func (e *Engine) addActivity(work *engineWork) error {
+	if work == nil || work.kind != engineWorkSend {
+		return errEngineConfig
+	}
+	if work.eligibilityDeadline.IsZero() {
+		if work.due.UnixNano() > math.MaxInt64-int64(e.activityEligibilityWindow) {
+			return errEngineConfig
+		}
+		work.eligibilityDeadline = work.due.Add(e.activityEligibilityWindow)
+	}
+	if !work.eligibilityDeadline.After(work.due) {
+		return errEngineConfig
+	}
 	if e.futureCount() >= e.workCapacity {
 		return e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 	}
@@ -1552,6 +1574,9 @@ func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain)
 func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
 	for scans := 0; scans < maxActivityRouteScans && len(e.activity) > 0 && !e.activity[0].due.After(now); scans++ {
 		activity := heap.Pop(&e.activity).(*engineWork)
+		if !activity.eligibilityDeadline.After(now) {
+			return TrafficIntent{}, e.expireActivity(activity)
+		}
 		if !e.sessions.IsOnline(activity.intent.Logical.Sender) {
 			if err := e.deferActivity(activity, now); err != nil {
 				return TrafficIntent{}, err
@@ -1602,12 +1627,26 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 }
 
 func (e *Engine) deferActivity(activity *engineWork, now time.Time) error {
+	if activity == nil || activity.eligibilityDeadline.IsZero() {
+		return errEngineConfig
+	}
+	if !activity.eligibilityDeadline.After(now) {
+		return e.expireActivity(activity)
+	}
 	deferred := now.Add(activityRouteDeferral)
 	if !deferred.After(now) {
 		return errEngineConfig
 	}
+	if deferred.After(activity.eligibilityDeadline) {
+		deferred = activity.eligibilityDeadline
+	}
 	activity.due = deferred
 	return e.addActivity(activity)
+}
+
+func (e *Engine) expireActivity(_ *engineWork) error {
+	e.activityUnderDelivered++
+	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }
 
 func (e *Engine) addActiveChannel(channel engineActiveChannel) {
@@ -1736,6 +1775,15 @@ func (e *Engine) cleanupInflight() {
 	}
 }
 
+func (e *Engine) cleanupPendingActivities() {
+	pending := len(e.activity)
+	if pending == 0 {
+		return
+	}
+	e.activityUnderDelivered += uint64(pending)
+	_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(pending))
+}
+
 func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) error {
 	e.harnessInvalid++
 	failureCode := FailureCodeEngineQueueSaturated
@@ -1773,7 +1821,8 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		Running: running, Generation: e.generation, ActiveLoops: int(e.activeLoops.Load()),
 		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
 		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
-		QueuePeak: e.workPeak, QueueCapacity: e.workCapacity,
+		ActivityUnderDelivered: e.activityUnderDelivered,
+		QueuePeak:              e.workPeak, QueueCapacity: e.workCapacity,
 		RetryQueueDepth: retries.Depth, RetryQueuePeak: retries.Peak, RetryQueueCapacity: e.retryCapacity,
 		InflightCurrent: len(e.inflight), InflightPeak: e.inflightPeak, InflightCapacity: e.inflightCapacity,
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,
