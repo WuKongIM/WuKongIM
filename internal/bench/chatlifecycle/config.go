@@ -2,6 +2,7 @@ package chatlifecycle
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	pathpkg "path"
@@ -219,10 +220,21 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 	if w.BurstCredit <= 0 {
 		return fieldError("workload.burst_credit", "must be greater than zero")
 	}
+	if w.BurstCredit%time.Second != 0 {
+		return fieldError("workload.burst_credit", "must be an exact whole number of seconds")
+	}
+	creditSeconds64 := int64(w.BurstCredit / time.Second)
+	if creditSeconds64 > int64(math.MaxInt) {
+		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
+	}
+	expectedBurst, ok := checkedMultiplyPositiveInt(int(creditSeconds64), w.SendRatePerSecond)
+	if !ok {
+		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
+	}
 	if w.MaxGlobalBurst <= 0 {
 		return fieldError("workload.max_global_burst", "must be greater than zero")
 	}
-	if int64(w.BurstCredit)*int64(w.SendRatePerSecond) != int64(w.MaxGlobalBurst)*int64(time.Second) {
+	if w.MaxGlobalBurst != expectedBurst {
 		return fieldError("workload.max_global_burst", "must equal burst_credit times send_rate_per_second")
 	}
 	if w.MaxChannelsPerNode <= 0 {
@@ -230,7 +242,11 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 	}
 	// The current planner assigns both active person and group hot-set channels
 	// against this per-node allocation bound.
-	if w.HotSet.PersonChannels+w.HotSet.GroupChannels > w.MaxChannelsPerNode {
+	if w.HotSet.PersonChannels > w.MaxChannelsPerNode || w.HotSet.GroupChannels > w.MaxChannelsPerNode {
+		return fieldError("workload.max_channels_per_node", "must cover active person and group hot-set channels")
+	}
+	hotSetTotal, ok := checkedAddNonnegativeInt(w.HotSet.PersonChannels, w.HotSet.GroupChannels)
+	if !ok || hotSetTotal > w.MaxChannelsPerNode {
 		return fieldError("workload.max_channels_per_node", "must cover active person and group hot-set channels")
 	}
 	if err := validatePercentPair("workload.traffic", w.Traffic.PersonPercent, w.Traffic.GroupPercent); err != nil {
@@ -286,12 +302,17 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 		{"workload.groups.large", w.Groups.Large},
 		{"workload.groups.very_large", w.Groups.VeryLarge},
 	}
+	groupTotal := 0
 	for _, category := range groupCategories {
 		if category.count < 0 || category.count > formalGroupCatalogTotal {
 			return fieldError(category.path, "must be in 0..2000")
 		}
+		var ok bool
+		groupTotal, ok = checkedAddNonnegativeInt(groupTotal, category.count)
+		if !ok {
+			return fieldError("workload.groups", "catalog total must be in 1..2000")
+		}
 	}
-	groupTotal := w.Groups.Small + w.Groups.Medium + w.Groups.Large + w.Groups.VeryLarge
 	if groupTotal <= 0 || groupTotal > formalGroupCatalogTotal {
 		return fieldError("workload.groups", "catalog total must be in 1..2000")
 	}
@@ -691,7 +712,11 @@ func validateCapacity(c CapacityConfig, profile Profile, mode Mode) error {
 			return err
 		}
 	}
-	if c.Step.Stabilize+c.Step.Measure != capacityStepDuration {
+	stepDuration, ok := checkedAddPositiveDuration(c.Step.Stabilize, c.Step.Measure)
+	if !ok {
+		return fieldError("capacity.step", "stabilize plus measure exceeds supported duration")
+	}
+	if stepDuration != capacityStepDuration {
 		return fieldError("capacity.step", "stabilize plus measure must equal 30m0s")
 	}
 	if mode != ModeCapacity {
@@ -1079,6 +1104,7 @@ func validatePercentPair(path string, first, second int) error {
 	if first < 0 || first > 100 || second < 0 || second > 100 {
 		return fieldError(path, "percentages must be in 0..100")
 	}
+	// Validate both shares before adding so the total is bounded to 0..200.
 	if first+second != 100 {
 		return fieldError(path, "percentages must total 100")
 	}
@@ -1094,6 +1120,7 @@ func validateDurationShares(path string, shares []DurationShare, requireRange bo
 		if share.Percent < 0 || share.Percent > 100 {
 			return fieldError(fmt.Sprintf("%s[%d].percent", path, i), "must be in 0..100")
 		}
+		// Each share is bounded before it contributes to the total.
 		total += share.Percent
 		if share.Min == 0 && share.Max == 0 && !requireRange {
 			continue
@@ -1130,6 +1157,7 @@ func validateLifecycle(lifecycle LifecycleDistribution) error {
 		if entry.bucket.Percent < 0 || entry.bucket.Percent > 100 {
 			return fieldError(entry.path+".percent", "must be in 0..100")
 		}
+		// Each of the four shares is bounded before it contributes to the total.
 		total += entry.bucket.Percent
 		rangeValue := entry.bucket.ActiveDuration
 		if !entry.requiresRange {
@@ -1166,12 +1194,34 @@ func validatePayloads(shares []PayloadShare) error {
 		if share.Bytes <= 0 {
 			return fieldError(fmt.Sprintf("workload.payloads[%d].bytes", i), "must be greater than zero")
 		}
+		// Each share is bounded before it contributes to the total.
 		total += share.Percent
 	}
 	if total != 100 {
 		return fieldError("workload.payloads", "percentages must total 100")
 	}
 	return nil
+}
+
+func checkedMultiplyPositiveInt(left, right int) (int, bool) {
+	if left <= 0 || right <= 0 || left > math.MaxInt/right {
+		return 0, false
+	}
+	return left * right, true
+}
+
+func checkedAddNonnegativeInt(left, right int) (int, bool) {
+	if left < 0 || right < 0 || left > math.MaxInt-right {
+		return 0, false
+	}
+	return left + right, true
+}
+
+func checkedAddPositiveDuration(left, right time.Duration) (time.Duration, bool) {
+	if left <= 0 || right <= 0 || left > time.Duration(math.MaxInt64)-right {
+		return 0, false
+	}
+	return left + right, true
 }
 
 func validateIntRange(path string, r IntRange) error {
