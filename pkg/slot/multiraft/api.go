@@ -17,15 +17,17 @@ func (r *Runtime) Close() error {
 	}
 	r.closed = true
 	slots := make([]*slot, 0, len(r.slots))
+	var completions []futureCompletion
 	for _, g := range r.slots {
 		slots = append(slots, g)
 		g.mu.Lock()
 		g.closed = true
-		g.failPendingLocked(ErrRuntimeClosed)
+		completions = append(completions, g.failPendingLocked(ErrRuntimeClosed)...)
 		g.mu.Unlock()
 	}
 	close(r.stopCh)
 	r.mu.Unlock()
+	dispatchFutureCompletions(completions)
 
 	r.wg.Wait()
 
@@ -139,10 +141,11 @@ func (r *Runtime) CloseSlot(ctx context.Context, slotID SlotID) error {
 	}
 	g.mu.Lock()
 	g.closed = true
-	g.failPendingLocked(ErrSlotClosed)
+	completions := g.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
 	r.mu.Unlock()
 	g.mu.Unlock()
+	dispatchFutureCompletions(completions)
 	var applyQueue *applyQueue
 	if r.apply != nil {
 		applyQueue = r.apply.closeSlot(slotID)
@@ -179,10 +182,11 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 	}
 	current.mu.Lock()
 	current.closed = true
-	current.failPendingLocked(ErrSlotClosed)
+	completions := current.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
 	r.mu.Unlock()
 	current.mu.Unlock()
+	dispatchFutureCompletions(completions)
 
 	var applyQueue *applyQueue
 	if r.apply != nil {

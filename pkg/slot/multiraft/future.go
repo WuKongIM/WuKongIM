@@ -52,9 +52,11 @@ func (f *future) ObserveCompletion(observer FutureCompletionObserver) bool {
 		return false
 	}
 	f.completionObserverRegistered = true
-	f.completionObserver = observer
 	resolved := f.resolved
 	result, err := f.result, f.err
+	if !resolved {
+		f.completionObserver = observer
+	}
 	f.mu.Unlock()
 	if resolved {
 		observer.ObserveFutureCompletion(result, err)
@@ -62,19 +64,55 @@ func (f *future) ObserveCompletion(observer FutureCompletionObserver) bool {
 	return true
 }
 
-func (f *future) resolve(result Result, err error) {
+// futureCompletion carries bounded terminal callback work captured during
+// resolution. Callers that own Runtime or Slot locks must dispatch after unlock.
+type futureCompletion struct {
+	done     chan struct{}
+	observer FutureCompletionObserver
+	result   Result
+	err      error
+}
+
+func (c futureCompletion) dispatch() {
+	if c.done == nil {
+		return
+	}
+	close(c.done)
+	if c.observer != nil {
+		c.observer.ObserveFutureCompletion(c.result, c.err)
+	}
+}
+
+func dispatchFutureCompletions(completions []futureCompletion) {
+	for _, completion := range completions {
+		completion.dispatch()
+	}
+}
+
+func (f *future) resolve(result Result, err error) futureCompletion {
+	var completion futureCompletion
+	if f == nil {
+		return completion
+	}
 	f.once.Do(func() {
 		f.mu.Lock()
 		f.result = result
 		f.err = err
 		f.resolved = true
-		observer := f.completionObserver
-		f.mu.Unlock()
-		if observer != nil {
-			observer.ObserveFutureCompletion(result, err)
+		completion = futureCompletion{
+			done:     f.done,
+			observer: f.completionObserver,
+			result:   result,
+			err:      err,
 		}
-		close(f.done)
+		f.completionObserver = nil
+		f.mu.Unlock()
 	})
+	return completion
+}
+
+func (f *future) resolveAndDispatch(result Result, err error) {
+	f.resolve(result, err).dispatch()
 }
 
 func (f *future) observeStage(stage string, err error, d time.Duration) {

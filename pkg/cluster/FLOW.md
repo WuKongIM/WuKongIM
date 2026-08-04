@@ -736,10 +736,16 @@ the accepted proposal future's single bounded completion observer after its
 authoritative result resolves and is decoded. The observer follows the
 runtime-owned future rather than the caller-scoped `Wait(ctx)`, so caller
 cancellation emits nothing and a later terminal result is still counted exactly
-once without a detached waiter goroutine. Local and forwarded proposals share
-that boundary, while Raft replicas and the forwarding origin emit nothing. A
-submission rejected before a future exists also emits nothing, so leader-change
-retries cannot double-count one logical create.
+once without a detached waiter goroutine. Slot pending ownership and Future
+terminal state retain their respective synchronization, while terminal observer
+work is dispatched immediately after Runtime and Slot locks are released so an
+observer may safely perform read-only runtime queries. Local and forwarded
+proposals share that boundary, while Raft replicas and the forwarding origin
+emit nothing. Only a submission
+rejected before a future exists is silent. Once accepted, each proposal future
+emits its own authoritative outcome: an accepted old-leader proposal may emit
+`error`, and a later retry may emit another proposal outcome. This metric counts
+authoritative proposal outcomes, not deduplicated logical create attempts.
 Outcomes are restricted to `created`,
 `already_existing`, and `error` and carry only the physical Slot ID.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.

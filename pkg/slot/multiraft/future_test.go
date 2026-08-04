@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestFutureCompletionObserverFollowsRuntimeResolutionAfterCanceledWait(t *testing.T) {
@@ -23,8 +24,11 @@ func TestFutureCompletionObserverFollowsRuntimeResolutionAfterCanceledWait(t *te
 	}
 
 	want := Result{Index: 7, Term: 3, Data: []byte("created")}
-	future.resolve(want, nil)
-	future.resolve(Result{}, errors.New("duplicate"))
+	future.resolveAndDispatch(want, nil)
+	future.resolveAndDispatch(Result{}, errors.New("duplicate"))
+	if future.completionObserver != nil {
+		t.Fatal("resolved future retained completion observer")
+	}
 	if observer.calls != 1 || observer.result.Index != want.Index || observer.result.Term != want.Term || string(observer.result.Data) != string(want.Data) || observer.err != nil {
 		t.Fatalf("observer = calls:%d result:%#v err:%v, want one %#v nil", observer.calls, observer.result, observer.err, want)
 	}
@@ -33,7 +37,7 @@ func TestFutureCompletionObserverFollowsRuntimeResolutionAfterCanceledWait(t *te
 func TestFutureCompletionObserverRegisteredAfterResolutionRunsOnce(t *testing.T) {
 	future := newFuture(nil)
 	wantErr := errors.New("apply failed")
-	future.resolve(Result{Index: 9}, wantErr)
+	future.resolveAndDispatch(Result{Index: 9}, wantErr)
 	observer := &recordingFutureCompletionObserver{}
 
 	if !future.ObserveCompletion(observer) {
@@ -41,6 +45,9 @@ func TestFutureCompletionObserverRegisteredAfterResolutionRunsOnce(t *testing.T)
 	}
 	if observer.calls != 1 || observer.result.Index != 9 || !errors.Is(observer.err, wantErr) {
 		t.Fatalf("observer = calls:%d result:%#v err:%v, want one index 9 apply failure", observer.calls, observer.result, observer.err)
+	}
+	if future.completionObserver != nil {
+		t.Fatal("late registration retained completion observer on resolved future")
 	}
 	if future.ObserveCompletion(&recordingFutureCompletionObserver{}) {
 		t.Fatal("second ObserveCompletion() = true, want bounded single observer")
@@ -63,7 +70,7 @@ func TestFutureCompletionObserverRegistrationRacesResolution(t *testing.T) {
 		go func(index uint64) {
 			defer wg.Done()
 			<-start
-			future.resolve(Result{Index: index}, nil)
+			future.resolveAndDispatch(Result{Index: index}, nil)
 		}(uint64(i + 1))
 		close(start)
 		wg.Wait()
@@ -77,6 +84,63 @@ func TestFutureCompletionObserverRegistrationRacesResolution(t *testing.T) {
 	}
 }
 
+func TestRuntimeCloseDispatchesFutureCompletionObserverAfterUnlock(t *testing.T) {
+	runtime, err := New(Options{
+		NodeID:       1,
+		TickInterval: time.Hour,
+		Workers:      1,
+		Transport:    &internalFakeTransport{},
+		Raft: RaftOptions{
+			ElectionTick:  10,
+			HeartbeatTick: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	const slotID SlotID = 91
+	if err := runtime.OpenSlot(context.Background(), newInternalSlotOptions(slotID)); err != nil {
+		t.Fatalf("OpenSlot() error = %v", err)
+	}
+
+	future := newFuture(nil)
+	observer := &reentrantRuntimeStatusObserver{
+		runtime: runtime,
+		slotID:  slotID,
+		result:  make(chan error, 1),
+	}
+	if !future.ObserveCompletion(observer) {
+		t.Fatal("ObserveCompletion() = false, want registered")
+	}
+	runtime.mu.RLock()
+	slot := runtime.slots[slotID]
+	runtime.mu.RUnlock()
+	slot.mu.Lock()
+	slot.submittedProposals = append(slot.submittedProposals, future)
+	slot.mu.Unlock()
+
+	closed := make(chan error, 1)
+	go func() {
+		closed <- runtime.Close()
+	}()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("Close() deadlocked while completion observer re-entered Runtime.Status")
+	}
+	select {
+	case err := <-observer.result:
+		if !errors.Is(err, ErrRuntimeClosed) {
+			t.Fatalf("observer Status() error = %v, want runtime closed", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("completion observer did not run")
+	}
+}
+
 type recordingFutureCompletionObserver struct {
 	calls  int
 	result Result
@@ -87,4 +151,15 @@ func (o *recordingFutureCompletionObserver) ObserveFutureCompletion(result Resul
 	o.calls++
 	o.result = result
 	o.err = err
+}
+
+type reentrantRuntimeStatusObserver struct {
+	runtime *Runtime
+	slotID  SlotID
+	result  chan error
+}
+
+func (o *reentrantRuntimeStatusObserver) ObserveFutureCompletion(Result, error) {
+	_, err := o.runtime.Status(o.slotID)
+	o.result <- err
 }

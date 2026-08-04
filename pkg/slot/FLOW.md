@@ -197,8 +197,10 @@ Worker 循环:
 control queue、Raft commit、FSM apply、FSM commit 和 MarkApplied 阶段仍能归属到同一次上游
 Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
 其中包含 `meta_create_slot_fsm_commit` 子阶段。每个 concrete Future 还只允许注册一个
-`FutureCompletionObserver`；它由 Future 的 runtime-owned `resolve` 同步触发，因此调用方
-`Wait(ctx)` 取消后仍能得到最终完成观测，又不会为取消请求遗留等待 goroutine。
+`FutureCompletionObserver`；Slot pending ownership 和 Future terminal state 各自在原有同步边界内
+更新，Future 解析时取走 observer，再在所有 Runtime / Slot 锁释放后立即同步派发。因此调用方
+`Wait(ctx)` 取消后仍能得到最终完成观测，observer 可安全重入只读 Runtime / Slot API，又不会为
+取消请求遗留等待 goroutine 或无界队列。
 
 ### 5.4 Slot 生命周期
 

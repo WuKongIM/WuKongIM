@@ -112,8 +112,9 @@ func TestClosingSlotCancelsQueuedStrictLeaderTransfer(t *testing.T) {
 
 	g.mu.Lock()
 	g.closed = true
-	g.failPendingLocked(ErrSlotClosed)
+	completions := g.failPendingLocked(ErrSlotClosed)
 	g.mu.Unlock()
+	dispatchFutureCompletions(completions)
 
 	select {
 	case response := <-request.resp:
