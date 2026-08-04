@@ -381,6 +381,90 @@ func TestClientProbeChannelRuntimeRejectsInvalidDetailedCardinality(t *testing.T
 	}
 }
 
+func TestClientProbeChannelRuntimeRejectsInvalidExplicitRequestCardinalityBeforeSending(t *testing.T) {
+	const sentinel = "canonical-sensitive-request-token"
+	tests := []struct {
+		name     string
+		channels []model.ChannelRuntimeChannelIdentity
+	}{
+		{name: "empty", channels: make([]model.ChannelRuntimeChannelIdentity, 0)},
+		{name: "over bound", channels: make([]model.ChannelRuntimeChannelIdentity, 1201)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.channels) > 0 {
+				tt.channels[0] = model.ChannelRuntimeChannelIdentity{ChannelID: sentinel, ChannelType: 1}
+			}
+			hits := 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				hits++
+				writeJSON(t, w, model.ChannelRuntimeProbeResult{})
+			}))
+			defer ts.Close()
+
+			_, err := NewClient(Config{APIAddrs: []string{ts.URL}, Token: sentinel}).ProbeChannelRuntime(
+				context.Background(),
+				model.ChannelRuntimeProbeRequest{Channels: tt.channels},
+			)
+
+			require.ErrorContains(t, err, "invalid channel runtime probe request")
+			require.NotContains(t, err.Error(), sentinel)
+			require.Zero(t, hits)
+		})
+	}
+}
+
+func TestClientProbeChannelRuntimeValidatesExplicitResponseIdentityAndOrder(t *testing.T) {
+	const (
+		firstID  = "canonical-sensitive-first-token"
+		secondID = "canonical-sensitive-second-token"
+		extraID  = "canonical-sensitive-extra-token"
+		auth     = "probe-sensitive-auth-token"
+	)
+	requested := []model.ChannelRuntimeChannelIdentity{
+		{ChannelID: firstID, ChannelType: 1},
+		{ChannelID: secondID, ChannelType: 2},
+	}
+	first := model.ChannelRuntimeProbeChannel{ChannelID: firstID, ChannelType: 1, Role: "leader", Status: "active"}
+	second := model.ChannelRuntimeProbeChannel{ChannelID: secondID, ChannelType: 2, Role: "missing", Status: "missing"}
+	tests := []struct {
+		name    string
+		rows    []model.ChannelRuntimeProbeChannel
+		wantErr bool
+	}{
+		{name: "zero rows", rows: nil, wantErr: true},
+		{name: "omission", rows: []model.ChannelRuntimeProbeChannel{first}, wantErr: true},
+		{name: "duplicate substitution", rows: []model.ChannelRuntimeProbeChannel{first, first}, wantErr: true},
+		{name: "unrequested substitution", rows: []model.ChannelRuntimeProbeChannel{first, {ChannelID: extraID, ChannelType: 2}}, wantErr: true},
+		{name: "extra row", rows: []model.ChannelRuntimeProbeChannel{first, second, {ChannelID: extraID, ChannelType: 3}}, wantErr: true},
+		{name: "reordered", rows: []model.ChannelRuntimeProbeChannel{second, first}, wantErr: true},
+		{name: "valid ordered result", rows: []model.ChannelRuntimeProbeChannel{first, second}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(t, w, model.ChannelRuntimeProbeResult{Checked: len(requested), Channels: tt.rows})
+			}))
+			defer ts.Close()
+
+			got, err := NewClient(Config{APIAddrs: []string{ts.URL}, Token: auth}).ProbeChannelRuntime(
+				context.Background(),
+				model.ChannelRuntimeProbeRequest{Channels: requested},
+			)
+
+			if !tt.wantErr {
+				require.NoError(t, err)
+				require.Equal(t, tt.rows, got.Channels)
+				return
+			}
+			require.ErrorContains(t, err, "invalid channel runtime probe response")
+			for _, secret := range []string{firstID, secondID, extraID, auth} {
+				require.NotContains(t, err.Error(), secret)
+			}
+		})
+	}
+}
+
 func TestClientProbeChannelRuntimeAllCallsEveryTarget(t *testing.T) {
 	seen := make([]string, 0, 2)
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

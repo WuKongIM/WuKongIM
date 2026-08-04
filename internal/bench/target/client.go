@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	defaultTimeout = 60 * time.Second
+	defaultTimeout                         = 60 * time.Second
+	maxExplicitChannelRuntimeProbeChannels = 1200
 	// A valid all-missing explicit response can repeat the configured 10 MiB
 	// request identity payload in both compatibility and detailed fields.
 	// Thirty-two MiB leaves fixed evidence overhead while keeping allocation finite.
@@ -139,6 +140,9 @@ func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.Channe
 
 // ProbeChannelRuntime posts a bounded local runtime probe request.
 func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRuntimeProbeRequest) (model.ChannelRuntimeProbeResult, error) {
+	if err := validateChannelRuntimeProbeRequest(req); err != nil {
+		return model.ChannelRuntimeProbeResult{}, err
+	}
 	var out model.ChannelRuntimeProbeResult
 	if err := c.postAnyOutMapped(ctx, "/bench/v1/channel-runtime/probe", req, &out, maxChannelRuntimeProbeResponseBytes, safeChannelRuntimeProbeError); err != nil {
 		return model.ChannelRuntimeProbeResult{}, err
@@ -151,6 +155,9 @@ func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRunti
 
 // ProbeChannelRuntimeAll asks every configured target node to inspect the selected channels.
 func (c *Client) ProbeChannelRuntimeAll(ctx context.Context, req model.ChannelRuntimeProbeRequest) ([]model.ChannelRuntimeProbeResult, error) {
+	if err := validateChannelRuntimeProbeRequest(req); err != nil {
+		return nil, err
+	}
 	results := make([]model.ChannelRuntimeProbeResult, 0, len(c.addrs()))
 	err := c.postAll(func(addr string) error {
 		var out model.ChannelRuntimeProbeResult
@@ -287,6 +294,16 @@ func safeChannelRuntimeProbeError(err error) error {
 	return fmt.Errorf("%s %s returned status %d", statusErr.method, statusErr.url, statusErr.statusCode)
 }
 
+func validateChannelRuntimeProbeRequest(req model.ChannelRuntimeProbeRequest) error {
+	if req.Channels == nil {
+		return nil
+	}
+	if len(req.Channels) == 0 || len(req.Channels) > maxExplicitChannelRuntimeProbeChannels {
+		return errors.New("invalid channel runtime probe request: explicit selector cardinality is out of bounds")
+	}
+	return nil
+}
+
 func validateChannelRuntimeProbeResponse(req model.ChannelRuntimeProbeRequest, result model.ChannelRuntimeProbeResult) error {
 	if req.Channels == nil {
 		if len(result.Channels) != 0 {
@@ -294,8 +311,14 @@ func validateChannelRuntimeProbeResponse(req model.ChannelRuntimeProbeRequest, r
 		}
 		return nil
 	}
-	if len(result.Channels) > 1200 || len(result.Channels) > len(req.Channels) {
-		return fmt.Errorf("invalid channel runtime probe response: detailed row count exceeds request bound")
+	if len(result.Channels) != len(req.Channels) {
+		return errors.New("invalid channel runtime probe response: explicit row count does not match request")
+	}
+	for i, requested := range req.Channels {
+		returned := result.Channels[i]
+		if returned.ChannelID != requested.ChannelID || returned.ChannelType != requested.ChannelType {
+			return errors.New("invalid channel runtime probe response: explicit row identity does not match request")
+		}
 	}
 	return nil
 }

@@ -646,9 +646,11 @@ enter client error strings. Successful probe bodies are read through a 32 MiB
 endpoint-specific cap. An all-missing response may repeat the current 10 MiB
 target request identity payload in both compatibility and detailed fields; the
 cap covers both copies plus fixed evidence overhead for 1,200 rows without
-permitting unbounded JSON allocation. Explicit responses may not contain more detailed rows than the
-request or the 1,200-row protocol bound; generated responses must not contain
-detailed rows. These validation errors contain no response identities.
+permitting unbounded JSON allocation. Before transport, explicit selectors must
+contain between 1 and 1,200 identities. Their responses must contain exactly one
+detailed row per requested identity in the same order, with an exact matching
+channel ID and type at every index. Generated responses must not contain detailed
+rows. These validation errors contain no request or response identities.
 Eviction remains generated-range only.
 
 ## Failure Handling
