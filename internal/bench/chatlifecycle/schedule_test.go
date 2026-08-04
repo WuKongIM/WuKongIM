@@ -213,8 +213,8 @@ func TestScheduleRejectsInvalidInputsAndBoundsOffsets(t *testing.T) {
 	}
 	invalidBurst := cfg.Workload
 	invalidBurst.Relationship.InitialMessages.Min = 1
-	if _, err := NewScheduleModel(identity, invalidBurst); err == nil {
-		t.Fatal("NewScheduleModel() accepted an initial burst with fewer than two messages")
+	if _, err := NewScheduleModel(identity, invalidBurst); !errors.Is(err, errScheduleInitialMessageRange) {
+		t.Fatalf("NewScheduleModel(initial minimum below two) error = %v, want %v", err, errScheduleInitialMessageRange)
 	}
 
 	model := newScheduleTestModel(t)
@@ -399,19 +399,27 @@ func TestScheduleModelCopiesSessionBucketsAtConstruction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewScheduleModel() error = %v", err)
 	}
-	const ordinal = uint64(31)
-	before, err := model.Login(ordinal)
-	if err != nil {
-		t.Fatalf("Login() before mutation error = %v", err)
+	var before [100]LoginSchedule
+	for ordinal := uint64(0); ordinal < uint64(len(before)); ordinal++ {
+		before[ordinal], err = model.Login(ordinal)
+		if err != nil {
+			t.Fatalf("Login(%d) before mutation error = %v", ordinal, err)
+		}
 	}
-	cfg.Workload.Sessions[before.SessionBucket].Percent = 100
-	cfg.Workload.Sessions[before.SessionBucket].Min = time.Nanosecond
-	cfg.Workload.Sessions[before.SessionBucket].Max = time.Nanosecond
-	after, err := model.Login(ordinal)
-	if err != nil {
-		t.Fatalf("Login() after mutation error = %v", err)
+	mutated := []DurationShare{
+		{Percent: 50, Min: time.Minute, Max: 2 * time.Minute},
+		{Percent: 25, Min: 2 * time.Minute, Max: 3 * time.Minute},
+		{Percent: 20, Min: 3 * time.Minute, Max: 4 * time.Minute},
+		{Percent: 5, Min: 4 * time.Minute, Max: 5 * time.Minute},
 	}
-	if after != before {
-		t.Fatalf("constructed model changed after source mutation: before=%+v after=%+v", before, after)
+	copy(cfg.Workload.Sessions, mutated)
+	for ordinal := uint64(0); ordinal < uint64(len(before)); ordinal++ {
+		after, err := model.Login(ordinal)
+		if err != nil {
+			t.Fatalf("Login(%d) after mutation error = %v", ordinal, err)
+		}
+		if after != before[ordinal] {
+			t.Fatalf("Login(%d) changed after source mutation: before=%+v after=%+v", ordinal, before[ordinal], after)
+		}
 	}
 }
