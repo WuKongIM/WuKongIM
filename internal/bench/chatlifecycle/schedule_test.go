@@ -418,6 +418,67 @@ func TestScheduleModelComputesGlobalNewOrdinalFromLoginPrefix(t *testing.T) {
 	}
 }
 
+func TestScheduleModelResolvesWorkerLocalNewOrdinalsAcrossPhasesAndWorkers(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		runID   string
+		seed    uint64
+		workers uint64
+	}{
+		{name: "formal_default", runID: FormalConfig().RunID, seed: FormalConfig().Seed, workers: 3},
+		{name: "seed_40", runID: "phase-repro", seed: 40, workers: 3},
+		{name: "one_hundred_by_four", runID: "resolver-100x4", seed: 71, workers: 4},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			cfg.RunID = testCase.runID
+			cfg.Seed = testCase.seed
+			cfg.Workload.Workers = int(testCase.workers)
+			identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, testCase.workers)
+			if err != nil {
+				t.Fatalf("NewIdentitySpace: %v", err)
+			}
+			model, err := NewScheduleModel(identity, cfg.Workload)
+			if err != nil {
+				t.Fatalf("NewScheduleModel: %v", err)
+			}
+
+			localCounts := make([]uint64, testCase.workers)
+			for loginOrdinal := uint64(0); ; loginOrdinal++ {
+				complete := true
+				for _, count := range localCounts {
+					if count < 100 {
+						complete = false
+						break
+					}
+				}
+				if complete {
+					break
+				}
+				login, loginErr := model.Login(loginOrdinal)
+				if loginErr != nil {
+					t.Fatalf("Login(%d): %v", loginOrdinal, loginErr)
+				}
+				if login.Identity != LoginNew {
+					continue
+				}
+				workerID := loginOrdinal % testCase.workers
+				localNewIndex := localCounts[workerID]
+				if localNewIndex < 100 {
+					got, resolveErr := model.GlobalNewOrdinalFor(workerID, localNewIndex)
+					if resolveErr != nil {
+						t.Fatalf("GlobalNewOrdinalFor(%d, %d): %v", workerID, localNewIndex, resolveErr)
+					}
+					if got != login.NewOrdinal {
+						t.Fatalf("worker %d local new %d resolved %d, want login %d new ordinal %d", workerID, localNewIndex, got, loginOrdinal, login.NewOrdinal)
+					}
+				}
+				localCounts[workerID]++
+			}
+		})
+	}
+}
+
 func TestScheduleModelCopiesSessionBucketsAtConstruction(t *testing.T) {
 	cfg := DefaultConfig()
 	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))

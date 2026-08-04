@@ -123,6 +123,9 @@ type SessionLogin struct {
 	UID          string
 	UserIndex    uint64
 	LoginOrdinal uint64
+	// NewIdentity keeps relationship publication pending until the engine has
+	// observed this first successful synchronized login.
+	NewIdentity bool
 }
 
 // SessionSnapshot is an identity-safe in-process view used only by the owner.
@@ -159,12 +162,13 @@ type SessionCounts struct {
 }
 
 type onlineSession struct {
-	snapshot      SessionSnapshot
-	client        SessionClient
-	cancel        context.CancelFunc
-	done          chan struct{}
-	groupIndex    int
-	groupPosition int
+	snapshot              SessionSnapshot
+	client                SessionClient
+	cancel                context.CancelFunc
+	done                  chan struct{}
+	groupIndex            int
+	groupPosition         int
+	relationshipsObserved bool
 }
 
 // SessionPool owns only currently online clients. A UID has exactly one
@@ -290,7 +294,7 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	drainCtx, cancel := context.WithCancel(drainParent)
 	session := &onlineSession{
 		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}),
-		groupIndex: -1, groupPosition: -1,
+		groupIndex: -1, groupPosition: -1, relationshipsObserved: !login.NewIdentity,
 	}
 	if group, _, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
 		cancel()
@@ -357,6 +361,38 @@ func (p *SessionPool) CanActivate(edge RelationshipEdge) bool {
 	owner := p.online[edge.OwnerUID]
 	peer := p.online[edge.PeerUID]
 	return owner != nil && peer != nil && owner.snapshot.TrafficReady && peer.snapshot.TrafficReady
+}
+
+// relationshipObservation reports whether one traffic-ready identity is
+// online and whether its initial new-user relationship publication completed.
+func (p *SessionPool) relationshipObservation(userIndex uint64) (online, observed bool) {
+	if p == nil {
+		return false, false
+	}
+	p.mu.RLock()
+	session := p.onlineByIndex[userIndex]
+	if session != nil {
+		online = session.snapshot.TrafficReady
+		observed = online && session.relationshipsObserved
+	}
+	p.mu.RUnlock()
+	return online, observed
+}
+
+// markRelationshipsObserved completes the bounded per-online-session
+// publication fence. It returns false for an offline or already observed UID.
+func (p *SessionPool) markRelationshipsObserved(userIndex uint64) bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	session := p.onlineByIndex[userIndex]
+	if session == nil || !session.snapshot.TrafficReady || session.relationshipsObserved {
+		return false
+	}
+	session.relationshipsObserved = true
+	return true
 }
 
 // Send writes through the currently owned WKProto connection only.

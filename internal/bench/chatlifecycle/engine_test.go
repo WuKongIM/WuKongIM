@@ -30,7 +30,7 @@ func TestEngineOwnsBoundedSessionsRelationshipsAndFutureWork(t *testing.T) {
 	if activated, err := fixture.engine.ActivateRelationship(edge, 100); err != nil || activated {
 		t.Fatalf("offline ActivateRelationship = %v, %v", activated, err)
 	}
-	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: 2}); err != nil {
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: 2, NewIdentity: true}); err != nil {
 		t.Fatalf("peer Login: %v", err)
 	}
 	considered, activated, err := fixture.engine.ObserveNewUser(edge.PeerIndex)
@@ -135,7 +135,7 @@ func TestEngineTickRoutesEveryGrantThroughCurrentlyOnlineEligibleSender(t *testi
 		}
 	}
 	for index := uint64(100); index < 150; index++ {
-		if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: fixture.identity.UID(index), UserIndex: index, LoginOrdinal: index}); err != nil {
+		if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: fixture.identity.UID(index), UserIndex: index, LoginOrdinal: index, NewIdentity: true}); err != nil {
 			t.Fatalf("replacement Login(%d): %v", index, err)
 		}
 		if _, _, err := fixture.engine.ObserveNewUser(index); err != nil {
@@ -1014,7 +1014,7 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 	var candidate ReturningCandidate
 	var loginOrdinal uint64
 	for ordinal := uint64(0); ordinal < 1_000; ordinal++ {
-		planned, err := fixture.graph.ReturningCandidate(100, ordinal, 100)
+		planned, err := fixture.graph.ReturningCandidate(fixture.schedule, 100, ordinal, 100)
 		if err != nil {
 			t.Fatalf("ReturningCandidate(%d): %v", ordinal, err)
 		}
@@ -1090,7 +1090,7 @@ func TestEngineReturningColdRevisitUsesOnlineReturningSenderWhenOldPeerIsOffline
 			var candidate ReturningCandidate
 			var loginOrdinal uint64
 			for ordinal := uint64(0); ordinal < 10_000; ordinal++ {
-				planned, err := fixture.graph.ReturningCandidate(1_000, ordinal, 1_000)
+				planned, err := fixture.graph.ReturningCandidate(fixture.schedule, 1_000, ordinal, 1_000)
 				if err != nil {
 					t.Fatalf("ReturningCandidate(%d): %v", ordinal, err)
 				}
@@ -1520,7 +1520,7 @@ func TestEngineGenerationScopesRealPrimaryLifecycleGroupAndCanaryIdentities(t *t
 		}
 		for index := uint64(0); index < 100; index++ {
 			uid := fixture.identity.UID(index)
-			if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index}); err != nil {
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index, NewIdentity: true}); err != nil {
 				t.Fatalf("Login(%d): %v", index, err)
 			}
 			if _, _, err := fixture.engine.ObserveNewUser(index); err != nil {
@@ -2002,7 +2002,7 @@ func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInit
 				t.Fatalf("worker %d GlobalIndex(%d): %v", workerID, localIndex, err)
 			}
 			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
-				UID: fixture.identity.UID(globalIndex), UserIndex: globalIndex, LoginOrdinal: globalIndex,
+				UID: fixture.identity.UID(globalIndex), UserIndex: globalIndex, LoginOrdinal: globalIndex, NewIdentity: true,
 			}); err != nil {
 				t.Fatalf("worker %d Login(%d): %v", workerID, localIndex, err)
 			}
@@ -2096,7 +2096,7 @@ func TestEnginePlannedNewRelationshipsIgnoreAsyncCompletionOrder(t *testing.T) {
 			}
 			uid := fixture.identity.UID(userIndex)
 			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
-				UID: uid, UserIndex: userIndex, LoginOrdinal: newOrdinal,
+				UID: uid, UserIndex: userIndex, LoginOrdinal: newOrdinal, NewIdentity: true,
 			}); err != nil {
 				t.Fatalf("%s Login(%d): %v", name, localIndex, err)
 			}
@@ -2111,7 +2111,7 @@ func TestEnginePlannedNewRelationshipsIgnoreAsyncCompletionOrder(t *testing.T) {
 				login: SessionLogin{
 					UID: fixture.identity.UID(userIndex), UserIndex: userIndex,
 				},
-				kind: LoginNew, globalNewOrdinal: newOrdinals[localIndex], scheduledNewOrdinal: true,
+				kind: LoginNew, globalNewOrdinal: newOrdinals[localIndex],
 			}
 		}
 		step, err := fixture.engine.Step(context.Background(), fixture.clock.Now(), nil)
@@ -2134,6 +2134,135 @@ func TestEnginePlannedNewRelationshipsIgnoreAsyncCompletionOrder(t *testing.T) {
 	reversed := run("reversed", true)
 	if forward != reversed || forward.completedNew != 13 || forward.activity == 0 {
 		t.Fatalf("planned new relationship totals forward=%+v reversed=%+v, want identical nonzero plans", forward, reversed)
+	}
+}
+
+func TestEngineRealAsyncNewLoginOrderPublishesOneIdenticalRelationship(t *testing.T) {
+	run := func(name string, reverse bool) EngineSnapshot {
+		t.Helper()
+		fixture := newEngineTestFixture(t, engineTestLimits{
+			Formal: true, WorkerID: 0, WorkerCount: 3, OnlineUsers: 6,
+			StartingCapacity: 4, WorkCapacity: 512, MaxWorkPerAdvance: 512,
+		})
+		lowIndex, err := fixture.identity.GlobalIndex(0, 0)
+		if err != nil {
+			t.Fatalf("%s low GlobalIndex: %v", name, err)
+		}
+		highIndex, err := fixture.identity.GlobalIndex(0, 1)
+		if err != nil {
+			t.Fatalf("%s high GlobalIndex: %v", name, err)
+		}
+		lowUID := fixture.identity.UID(lowIndex)
+		highUID := fixture.identity.UID(highIndex)
+		lowRelease := make(chan struct{})
+		highRelease := make(chan struct{})
+		fixture.factory.connectStartedUID = make(chan string, 2)
+		fixture.factory.readStartedUID = make(chan string, 2)
+		fixture.factory.connectReleaseUID = map[string]<-chan struct{}{
+			lowUID: lowRelease, highUID: highRelease,
+		}
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("%s Start: %v", name, err)
+		}
+		defer fixture.engine.Stop()
+		fixture.engine.scheduler.bootstrapping = false
+
+		now := fixture.clock.Now().Add(7 * time.Second)
+		fixture.clock.Set(now)
+		for attempts := 0; attempts < 32 && fixture.pool.Counts().Starting < 2; attempts++ {
+			if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+				t.Fatalf("%s scheduling Step %d: %v", name, attempts, err)
+			}
+			runtime.Gosched()
+		}
+		if counts := fixture.pool.Counts(); counts.Starting != 2 || counts.Online != 0 {
+			t.Fatalf("%s reserved startup counts = %+v, want two starting and none online", name, counts)
+		}
+		started := map[string]bool{}
+		for attempts := 0; attempts < 10_000 && len(started) < 2; attempts++ {
+			select {
+			case uid := <-fixture.factory.connectStartedUID:
+				started[uid] = true
+			default:
+				runtime.Gosched()
+			}
+		}
+		if !started[lowUID] || !started[highUID] {
+			t.Fatalf("%s CONNECT starts = %v, want low/high", name, started)
+		}
+
+		firstUID, secondUID := lowUID, highUID
+		firstRelease, secondRelease := lowRelease, highRelease
+		if reverse {
+			firstUID, secondUID = highUID, lowUID
+			firstRelease, secondRelease = highRelease, lowRelease
+		}
+		drainOne := func(uid string, release chan struct{}) {
+			t.Helper()
+			close(release)
+			readStarted := false
+			for attempts := 0; attempts < 10_000 && !readStarted; attempts++ {
+				select {
+				case got := <-fixture.factory.readStartedUID:
+					if got != uid {
+						t.Fatalf("%s released %s but read drain started for %s", name, uid, got)
+					}
+					readStarted = true
+				default:
+					runtime.Gosched()
+				}
+			}
+			if !readStarted {
+				t.Fatalf("%s login %s never became traffic-ready", name, uid)
+			}
+			completed := 0
+			for attempts := 0; attempts < 10_000 && completed == 0; attempts++ {
+				step, stepErr := fixture.engine.Step(context.Background(), now, nil)
+				if stepErr != nil {
+					t.Fatalf("%s completion Step for %s: %v", name, uid, stepErr)
+				}
+				completed += step.CompletedNew
+				if completed == 0 {
+					runtime.Gosched()
+				}
+			}
+			if completed != 1 {
+				t.Fatalf("%s completed new for %s = %d, want one", name, uid, completed)
+			}
+		}
+		drainOne(firstUID, firstRelease)
+		drainOne(secondUID, secondRelease)
+
+		snapshot, err := fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("%s Snapshot: %v", name, err)
+		}
+		for localNewIndex, userIndex := range []uint64{lowIndex, highIndex} {
+			globalNewOrdinal, ordinalErr := fixture.schedule.GlobalNewOrdinalFor(0, uint64(localNewIndex))
+			if ordinalErr != nil {
+				t.Fatalf("%s duplicate ordinal %d: %v", name, localNewIndex, ordinalErr)
+			}
+			considered, activated, observeErr := fixture.engine.ObserveNewUserForOrdinal(userIndex, globalNewOrdinal)
+			if observeErr != nil || considered != 0 || activated != 0 {
+				t.Fatalf("%s duplicate ObserveNewUserForOrdinal(%d) = %d/%d, %v", name, userIndex, considered, activated, observeErr)
+			}
+		}
+		afterDuplicate, err := fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("%s duplicate Snapshot: %v", name, err)
+		}
+		if afterDuplicate.ActivityCurrent != snapshot.ActivityCurrent || afterDuplicate.FutureCurrent != snapshot.FutureCurrent {
+			t.Fatalf("%s duplicate observation changed activity before=%+v after=%+v", name, snapshot, afterDuplicate)
+		}
+		return snapshot
+	}
+
+	forward := run("forward", false)
+	reversed := run("reversed", true)
+	if forward.ActivityCurrent != 3 || forward.FutureCurrent != 3 ||
+		forward.ActivityCurrent != reversed.ActivityCurrent ||
+		forward.FutureCurrent != reversed.FutureCurrent || forward.ActiveLifecycleTimers != reversed.ActiveLifecycleTimers {
+		t.Fatalf("real async relationship totals forward=%+v reversed=%+v", forward, reversed)
 	}
 }
 
@@ -2737,7 +2866,7 @@ func TestEngineActiveHotSetRotatesAtFixedCapacityWithoutHistoricalGrowth(t *test
 		t.Helper()
 		for index := start; index < end; index++ {
 			uid := fixture.identity.UID(index)
-			if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index}); err != nil {
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index, NewIdentity: true}); err != nil {
 				t.Fatalf("Login(%d): %v", index, err)
 			}
 			if _, _, err := fixture.engine.ObserveNewUser(index); err != nil {
@@ -3167,7 +3296,10 @@ type engineFakeFactory struct {
 	newSessionStarted chan context.Context
 	connectStarted    chan context.Context
 	connectRelease    <-chan struct{}
+	connectStartedUID chan string
+	connectReleaseUID map[string]<-chan struct{}
 	readContexts      chan<- context.Context
+	readStartedUID    chan string
 	readCycles        chan<- struct{}
 }
 
@@ -3251,6 +3383,18 @@ type engineFakeClient struct {
 }
 
 func (c *engineFakeClient) Connect(ctx context.Context, _, _ string) error {
+	if c.factory.connectStartedUID != nil {
+		c.factory.connectStartedUID <- c.uid
+		c.factory.mu.Lock()
+		release := c.factory.connectReleaseUID[c.uid]
+		c.factory.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-release:
+			return nil
+		}
+	}
 	if c.factory.connectStarted == nil {
 		return nil
 	}
@@ -3267,6 +3411,9 @@ func (c *engineFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
 		c.factory.readCycles <- struct{}{}
 	}
 	c.readOnce.Do(func() {
+		if c.factory.readStartedUID != nil {
+			c.factory.readStartedUID <- c.uid
+		}
 		if c.readContexts != nil {
 			c.readContexts <- ctx
 		}

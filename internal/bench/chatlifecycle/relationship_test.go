@@ -25,6 +25,17 @@ func newTestRelationshipGraphWithWorkers(t *testing.T, workers uint64) (Relation
 	return graph, space
 }
 
+func newTestRelationshipSchedule(t *testing.T, identity *IdentitySpace) ScheduleModel {
+	t.Helper()
+	cfg := FormalConfig()
+	cfg.Workload.Workers = int(identity.Workers())
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel() error = %v", err)
+	}
+	return schedule
+}
+
 func TestNewRelationshipGraphRejectsNilIdentity(t *testing.T) {
 	_, err := NewRelationshipGraph(nil)
 	if !errors.Is(err, errRelationshipIdentityRequired) {
@@ -164,6 +175,127 @@ func TestFormalLoginAndRelationshipPhasesComposeToExactMillion(t *testing.T) {
 	}
 }
 
+func TestAvailableRelationshipsUsesTheLiveGlobalNewOrdinal(t *testing.T) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	graph, err := NewRelationshipGraph(identity)
+	if err != nil {
+		t.Fatalf("NewRelationshipGraph: %v", err)
+	}
+
+	const (
+		workerID      = uint64(0)
+		localNewIndex = uint64(1)
+		userIndex     = uint64(3)
+	)
+	globalNewOrdinal, err := schedule.GlobalNewOrdinalFor(workerID, localNewIndex)
+	if err != nil {
+		t.Fatalf("GlobalNewOrdinalFor(%d, %d): %v", workerID, localNewIndex, err)
+	}
+	if globalNewOrdinal != 1 {
+		t.Fatalf("GlobalNewOrdinalFor(%d, %d) = %d, want 1", workerID, localNewIndex, globalNewOrdinal)
+	}
+	live, err := graph.OutgoingForOrdinal(userIndex, globalNewOrdinal)
+	if err != nil {
+		t.Fatalf("OutgoingForOrdinal(%d, %d): %v", userIndex, globalNewOrdinal, err)
+	}
+	if live.Count != 4 {
+		t.Fatalf("live outgoing count = %d, want 4", live.Count)
+	}
+
+	history, err := graph.AvailableRelationships(schedule, userIndex, 100)
+	if err != nil {
+		t.Fatalf("AvailableRelationships(%d): %v", userIndex, err)
+	}
+	for edgeIndex := 0; edgeIndex < history.Count; edgeIndex++ {
+		edge := history.Items[edgeIndex]
+		if edge.OwnerIndex == userIndex && edge.PeerIndex == 18 {
+			t.Fatalf("history invented edge %d -> %d from identity index instead of global new ordinal %d", edge.OwnerIndex, edge.PeerIndex, globalNewOrdinal)
+		}
+	}
+}
+
+func TestAvailableRelationshipsMatchesLiveObservedGraphAcrossSchedules(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		runID   string
+		seed    uint64
+		workers uint64
+	}{
+		{name: "formal_default", runID: FormalConfig().RunID, seed: FormalConfig().Seed, workers: 3},
+		{name: "seed_40", runID: "phase-repro", seed: 40, workers: 3},
+		{name: "one_hundred_by_four", runID: "relationships-100x4", seed: 71, workers: 4},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			cfg.RunID = testCase.runID
+			cfg.Seed = testCase.seed
+			cfg.Workload.Workers = int(testCase.workers)
+			identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, testCase.workers)
+			if err != nil {
+				t.Fatalf("NewIdentitySpace: %v", err)
+			}
+			schedule, err := NewScheduleModel(identity, cfg.Workload)
+			if err != nil {
+				t.Fatalf("NewScheduleModel: %v", err)
+			}
+			graph, err := NewRelationshipGraph(identity)
+			if err != nil {
+				t.Fatalf("NewRelationshipGraph: %v", err)
+			}
+
+			const usersPerWorker = uint64(100)
+			nextNewIndex := usersPerWorker * testCase.workers
+			live := make([]map[string]RelationshipEdge, int(nextNewIndex))
+			for userIndex := range live {
+				live[userIndex] = make(map[string]RelationshipEdge, MaxUserRelationships)
+			}
+			for ownerIndex := uint64(0); ownerIndex < nextNewIndex; ownerIndex++ {
+				workerID, localNewIndex := identity.Owner(ownerIndex)
+				globalNewOrdinal, resolveErr := schedule.GlobalNewOrdinalFor(workerID, localNewIndex)
+				if resolveErr != nil {
+					t.Fatalf("GlobalNewOrdinalFor(%d, %d): %v", workerID, localNewIndex, resolveErr)
+				}
+				outgoing, outgoingErr := graph.OutgoingForOrdinal(ownerIndex, globalNewOrdinal)
+				if outgoingErr != nil {
+					t.Fatalf("OutgoingForOrdinal(%d, %d): %v", ownerIndex, globalNewOrdinal, outgoingErr)
+				}
+				for edgeIndex := 0; edgeIndex < outgoing.Count; edgeIndex++ {
+					edge := outgoing.Items[edgeIndex]
+					if edge.AvailableAtIndex >= nextNewIndex {
+						continue
+					}
+					live[int(edge.OwnerIndex)][edge.PersonChannelID] = edge
+					live[int(edge.PeerIndex)][edge.PersonChannelID] = edge
+				}
+			}
+
+			for userIndex := uint64(0); userIndex < nextNewIndex; userIndex++ {
+				history, historyErr := graph.AvailableRelationships(schedule, userIndex, nextNewIndex)
+				if historyErr != nil {
+					t.Fatalf("AvailableRelationships(%d): %v", userIndex, historyErr)
+				}
+				if history.Count != len(live[int(userIndex)]) {
+					t.Fatalf("user %d history count = %d, live count = %d", userIndex, history.Count, len(live[int(userIndex)]))
+				}
+				for edgeIndex := 0; edgeIndex < history.Count; edgeIndex++ {
+					edge := history.Items[edgeIndex]
+					if liveEdge, ok := live[int(userIndex)][edge.PersonChannelID]; !ok || liveEdge != edge {
+						t.Fatalf("user %d history edge %+v is absent from live observed graph", userIndex, edge)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestEveryLoginAndDegreePhaseComposesToExactFormalRelationshipTotal(t *testing.T) {
 	cfg := FormalConfig()
 	identity, err := NewIdentitySpace("relationship-phase-matrix", 71, uint64(cfg.Workload.Workers))
@@ -276,9 +408,10 @@ func TestRelationshipGraphRejectsForwardIndexOverflow(t *testing.T) {
 }
 
 func TestReturningCandidateIsUnavailableWithoutMatureHistory(t *testing.T) {
-	graph, _ := newTestRelationshipGraph(t)
+	graph, identity := newTestRelationshipGraph(t)
+	schedule := newTestRelationshipSchedule(t, identity)
 	for _, nextNewIndex := range []uint64{0, 10} {
-		candidate, err := graph.ReturningCandidate(nextNewIndex, 0, 250_000)
+		candidate, err := graph.ReturningCandidate(schedule, nextNewIndex, 0, 250_000)
 		if err != nil {
 			t.Fatalf("ReturningCandidate(%d) error = %v", nextNewIndex, err)
 		}
@@ -286,19 +419,20 @@ func TestReturningCandidateIsUnavailableWithoutMatureHistory(t *testing.T) {
 			t.Fatalf("ReturningCandidate(%d) = %+v, want unavailable", nextNewIndex, candidate)
 		}
 	}
-	if _, err := graph.ReturningCandidate(100, 0, 0); !errors.Is(err, errReturningHistoryWindow) {
+	if _, err := graph.ReturningCandidate(schedule, 100, 0, 0); !errors.Is(err, errReturningHistoryWindow) {
 		t.Fatalf("ReturningCandidate(zero new users per day) error = %v, want %v", err, errReturningHistoryWindow)
 	}
 }
 
 func TestReturningCandidateFallsBackFromOlderToRecentBeforeFirstDay(t *testing.T) {
-	graph, _ := newTestRelationshipGraph(t)
+	graph, identity := newTestRelationshipGraph(t)
+	schedule := newTestRelationshipSchedule(t, identity)
 	const nextNewIndex = uint64(1_000)
 	const newUsersPerDay = uint64(250_000)
 
 	var candidate ReturningCandidate
 	for ordinal := uint64(0); ordinal < 5; ordinal++ {
-		got, err := graph.ReturningCandidate(nextNewIndex, ordinal, newUsersPerDay)
+		got, err := graph.ReturningCandidate(schedule, nextNewIndex, ordinal, newUsersPerDay)
 		if err != nil {
 			t.Fatalf("ReturningCandidate(%d) error = %v", ordinal, err)
 		}
@@ -319,11 +453,12 @@ func TestReturningCandidateFallsBackFromOlderToRecentBeforeFirstDay(t *testing.T
 }
 
 func TestReturningCandidateUsesUnbiasedCandidateRangeSampling(t *testing.T) {
-	graph, _ := newTestRelationshipGraph(t)
+	graph, identity := newTestRelationshipGraph(t)
+	schedule := newTestRelationshipSchedule(t, identity)
 	newUsersPerDay := uint64(1<<63) + 6
 	nextNewIndex := newUsersPerDay + 100
 
-	candidate, err := graph.ReturningCandidate(nextNewIndex, 1, newUsersPerDay)
+	candidate, err := graph.ReturningCandidate(schedule, nextNewIndex, 1, newUsersPerDay)
 	if err != nil {
 		t.Fatalf("ReturningCandidate() error = %v", err)
 	}
@@ -338,6 +473,7 @@ func TestReturningCandidateUsesUnbiasedCandidateRangeSampling(t *testing.T) {
 
 func TestReturningCandidateHasExactMatureBucketCyclesAndRealDistinctEdges(t *testing.T) {
 	graph, identity := newTestRelationshipGraph(t)
+	schedule := newTestRelationshipSchedule(t, identity)
 	const nextNewIndex = uint64(1_000_011)
 	const newUsersPerDay = uint64(250_000)
 	boundary := nextNewIndex - newUsersPerDay
@@ -346,7 +482,7 @@ func TestReturningCandidateHasExactMatureBucketCyclesAndRealDistinctEdges(t *tes
 	var oneConversation, twoConversations int
 
 	for ordinal := uint64(0); ordinal < 1_000; ordinal++ {
-		candidate, err := graph.ReturningCandidate(nextNewIndex, ordinal, newUsersPerDay)
+		candidate, err := graph.ReturningCandidate(schedule, nextNewIndex, ordinal, newUsersPerDay)
 		if err != nil {
 			t.Fatalf("ReturningCandidate(%d) error = %v", ordinal, err)
 		}
@@ -420,10 +556,11 @@ func TestReturningCandidateHasExactMatureBucketCyclesAndRealDistinctEdges(t *tes
 
 func TestRelationshipGraphDecisionsAreIndependentOfReturningDraws(t *testing.T) {
 	graph, identity := newTestRelationshipGraph(t)
+	schedule := newTestRelationshipSchedule(t, identity)
 	wantDegree := graph.Degree(12_345)
 	wantUID := identity.UID(12_345)
 	for ordinal := uint64(0); ordinal < 100; ordinal++ {
-		_, _ = graph.ReturningCandidate(500_000, ordinal, 250_000)
+		_, _ = graph.ReturningCandidate(schedule, 500_000, ordinal, 250_000)
 	}
 	if got := graph.Degree(12_345); got != wantDegree {
 		t.Fatalf("Degree() shifted from %d to %d", wantDegree, got)

@@ -171,6 +171,32 @@ func (g RelationshipGraph) Incoming(userIndex uint64) ForwardRelationshipSet {
 	return result
 }
 
+// IncomingForSchedule reconstructs prior owners with their immutable global
+// new-user ordinals. It is the canonical path for planned and historical users.
+func (g RelationshipGraph) IncomingForSchedule(schedule ScheduleModel, userIndex uint64) (ForwardRelationshipSet, error) {
+	var result ForwardRelationshipSet
+	if schedule.identity != g.identity {
+		return result, errRelationshipIdentityRequired
+	}
+	workerID, localUser := g.identity.Owner(userIndex)
+	for distance := uint64(1); distance <= MaxForwardRelationships && distance <= localUser; distance++ {
+		ownerGlobalNewOrdinal, err := schedule.GlobalNewOrdinalFor(workerID, localUser-distance)
+		if err != nil {
+			return ForwardRelationshipSet{}, err
+		}
+		edge, available, err := g.IncomingEdgeForOrdinal(userIndex, distance, ownerGlobalNewOrdinal)
+		if err != nil {
+			return ForwardRelationshipSet{}, err
+		}
+		if !available {
+			continue
+		}
+		result.Items[result.Count] = edge
+		result.Count++
+	}
+	return result, nil
+}
+
 // IncomingEdgeForOrdinal reconstructs one possible previous local endpoint
 // while taking its global new-user degree ordinal as a distinct argument.
 func (g RelationshipGraph) IncomingEdgeForOrdinal(userIndex, distance, ownerGlobalNewOrdinal uint64) (RelationshipEdge, bool, error) {
@@ -193,9 +219,15 @@ func (g RelationshipGraph) IncomingEdgeForOrdinal(userIndex, distance, ownerGlob
 
 // AvailableRelationships reconstructs only real edges whose higher endpoint
 // is below nextNewIndex. Its fixed result cannot grow with run history.
-func (g RelationshipGraph) AvailableRelationships(userIndex, nextNewIndex uint64) (UserRelationshipSet, error) {
+func (g RelationshipGraph) AvailableRelationships(schedule ScheduleModel, userIndex, nextNewIndex uint64) (UserRelationshipSet, error) {
 	var result UserRelationshipSet
-	incoming := g.Incoming(userIndex)
+	if schedule.identity != g.identity {
+		return result, errRelationshipIdentityRequired
+	}
+	incoming, err := g.IncomingForSchedule(schedule, userIndex)
+	if err != nil {
+		return UserRelationshipSet{}, err
+	}
 	for edgeIndex := 0; edgeIndex < incoming.Count; edgeIndex++ {
 		edge := incoming.Items[edgeIndex]
 		if edge.AvailableAtIndex < nextNewIndex {
@@ -203,7 +235,12 @@ func (g RelationshipGraph) AvailableRelationships(userIndex, nextNewIndex uint64
 			result.Count++
 		}
 	}
-	outgoing, err := g.Outgoing(userIndex)
+	workerID, localUser := g.identity.Owner(userIndex)
+	globalNewOrdinal, err := schedule.GlobalNewOrdinalFor(workerID, localUser)
+	if err != nil {
+		return UserRelationshipSet{}, err
+	}
+	outgoing, err := g.OutgoingForOrdinal(userIndex, globalNewOrdinal)
 	if err != nil {
 		return UserRelationshipSet{}, err
 	}
@@ -220,7 +257,10 @@ func (g RelationshipGraph) AvailableRelationships(userIndex, nextNewIndex uint64
 // ReturningCandidate selects a mature historical user plus one or two real
 // adjacent conversations. Preference follows an exact seeded four-recent,
 // one-older cycle; unavailable older history explicitly falls back to recent.
-func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUsersPerDay uint64) (ReturningCandidate, error) {
+func (g RelationshipGraph) ReturningCandidate(schedule ScheduleModel, nextNewIndex, loginOrdinal, newUsersPerDay uint64) (ReturningCandidate, error) {
+	if schedule.identity != g.identity {
+		return ReturningCandidate{}, errRelationshipIdentityRequired
+	}
 	if newUsersPerDay < MaxForwardRelationships+1 {
 		return ReturningCandidate{}, errReturningHistoryWindow
 	}
@@ -258,13 +298,16 @@ func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUse
 	}
 	userIndex := selectedRange.min + draw
 	result.ActualBucket = actualBucket
-	return g.buildReturningCandidate(result, nextNewIndex, loginOrdinal, userIndex)
+	return g.buildReturningCandidate(schedule, result, nextNewIndex, loginOrdinal, userIndex)
 }
 
 // returningCandidateAt reconstructs conversation history for one explicit
 // historical identity selected by another bounded runtime index, such as the
 // fixed group roster. It preserves the same preferred/actual history buckets.
-func (g RelationshipGraph) returningCandidateAt(nextNewIndex, loginOrdinal, newUsersPerDay, userIndex uint64) (ReturningCandidate, error) {
+func (g RelationshipGraph) returningCandidateAt(schedule ScheduleModel, nextNewIndex, loginOrdinal, newUsersPerDay, userIndex uint64) (ReturningCandidate, error) {
+	if schedule.identity != g.identity {
+		return ReturningCandidate{}, errRelationshipIdentityRequired
+	}
 	if newUsersPerDay < MaxForwardRelationships+1 {
 		return ReturningCandidate{}, errReturningHistoryWindow
 	}
@@ -287,11 +330,11 @@ func (g RelationshipGraph) returningCandidateAt(nextNewIndex, loginOrdinal, newU
 		return result, nil
 	}
 	result.Fallback = result.ActualBucket != result.PreferredBucket
-	return g.buildReturningCandidate(result, nextNewIndex, loginOrdinal, userIndex)
+	return g.buildReturningCandidate(schedule, result, nextNewIndex, loginOrdinal, userIndex)
 }
 
-func (g RelationshipGraph) buildReturningCandidate(result ReturningCandidate, nextNewIndex, loginOrdinal, userIndex uint64) (ReturningCandidate, error) {
-	relationships, err := g.AvailableRelationships(userIndex, nextNewIndex)
+func (g RelationshipGraph) buildReturningCandidate(schedule ScheduleModel, result ReturningCandidate, nextNewIndex, loginOrdinal, userIndex uint64) (ReturningCandidate, error) {
+	relationships, err := g.AvailableRelationships(schedule, userIndex, nextNewIndex)
 	if err != nil {
 		return ReturningCandidate{}, err
 	}

@@ -237,33 +237,62 @@ func (m ScheduleModel) NewOrdinalBefore(loginOrdinal uint64) uint64 {
 	return result
 }
 
-// PreviousNewOrdinalOnWorker returns the requested previous LoginNew decision
-// owned by workerID. It derives only from the immutable login cycle, never from
-// asynchronous completion order.
-func (m ScheduleModel) PreviousNewOrdinalOnWorker(currentNewOrdinal, workerID, workerCount, distance uint64) (uint64, bool, error) {
-	if workerCount == 0 || workerID >= workerCount || distance == 0 {
-		return 0, false, errScheduleNewOrdinal
+// GlobalNewOrdinalFor resolves a worker-local new identity to the same global
+// new-user ordinal used by Login. The login and worker cycles repeat within at
+// most 100 lane positions, so lookup is bounded and retains no runtime history.
+func (m ScheduleModel) GlobalNewOrdinalFor(workerID, localNewIndex uint64) (uint64, error) {
+	if m.identity == nil {
+		return 0, errScheduleIdentityRequired
 	}
-	currentLoginOrdinal, err := m.loginOrdinalForNewOrdinal(currentNewOrdinal)
-	if err != nil || currentLoginOrdinal%workerCount != workerID {
-		return 0, false, errScheduleNewOrdinal
+	workerCount := m.identity.Workers()
+	if workerCount == 0 || workerID >= workerCount {
+		return 0, errScheduleNewOrdinal
 	}
-	found := uint64(0)
-	for candidate := currentNewOrdinal; candidate > 0; {
-		candidate--
-		loginOrdinal, candidateErr := m.loginOrdinalForNewOrdinal(candidate)
-		if candidateErr != nil {
-			return 0, false, candidateErr
+	lanePeriod := distributionCycle / greatestCommonDivisor(distributionCycle, workerCount)
+	if workerCount > math.MaxUint64/lanePeriod {
+		return 0, errScheduleNewOrdinal
+	}
+	supercycleLogins := workerCount * lanePeriod
+	cyclesPerSupercycle := supercycleLogins / distributionCycle
+	newPercent := uint64(m.login.NewPercent)
+	if cyclesPerSupercycle > math.MaxUint64/newPercent {
+		return 0, errScheduleNewOrdinal
+	}
+	newPerSupercycle := cyclesPerSupercycle * newPercent
+
+	laneNewCount := uint64(0)
+	for lanePosition := uint64(0); lanePosition < lanePeriod; lanePosition++ {
+		loginOrdinal := workerID + lanePosition*workerCount
+		if ordinalPercent(loginOrdinal, m.loginPhase) < m.login.NewPercent {
+			laneNewCount++
 		}
-		if loginOrdinal%workerCount != workerID {
+	}
+	if laneNewCount == 0 {
+		return 0, errScheduleNewOrdinal
+	}
+
+	supercycle := localNewIndex / laneNewCount
+	laneRank := localNewIndex % laneNewCount
+	if supercycle > math.MaxUint64/newPerSupercycle {
+		return 0, errScheduleNewOrdinal
+	}
+	ordinalBase := supercycle * newPerSupercycle
+	for lanePosition := uint64(0); lanePosition < lanePeriod; lanePosition++ {
+		loginOrdinal := workerID + lanePosition*workerCount
+		if ordinalPercent(loginOrdinal, m.loginPhase) >= m.login.NewPercent {
 			continue
 		}
-		found++
-		if found == distance {
-			return candidate, true, nil
+		if laneRank != 0 {
+			laneRank--
+			continue
 		}
+		withinSupercycle := m.NewOrdinalBefore(loginOrdinal)
+		if ordinalBase > math.MaxUint64-withinSupercycle {
+			return 0, errScheduleNewOrdinal
+		}
+		return ordinalBase + withinSupercycle, nil
 	}
-	return 0, false, nil
+	return 0, errScheduleNewOrdinal
 }
 
 func (m ScheduleModel) loginOrdinalForNewOrdinal(globalNewOrdinal uint64) (uint64, error) {

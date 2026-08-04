@@ -127,20 +127,17 @@ type EngineStepSnapshot struct {
 }
 
 type sessionScheduler struct {
-	workload          WorkloadConfig
-	workerID          uint64
-	workerCount       uint64
-	onlineTarget      int
-	lastStep          time.Time
-	credit            uint64
-	creditRemainder   uint64
-	globalLoginTokens uint64
-	replacements      uint64
-	loginOrdinal      uint64
-	nextNewIndex      uint64
-	// bootstrapNewBoundary separates identity-aligned bootstrap degrees from
-	// plan-time global new-user ordinals in this worker's local UID lane.
-	bootstrapNewBoundary          uint64
+	workload                      WorkloadConfig
+	workerID                      uint64
+	workerCount                   uint64
+	onlineTarget                  int
+	lastStep                      time.Time
+	credit                        uint64
+	creditRemainder               uint64
+	globalLoginTokens             uint64
+	replacements                  uint64
+	loginOrdinal                  uint64
+	nextNewIndex                  uint64
 	bootstrapping                 bool
 	groupReturningOrdinal         uint64
 	groupReturningCategoryOrdinal [4]uint64
@@ -177,7 +174,6 @@ func (s *sessionScheduler) reset(now time.Time) {
 	s.globalLoginTokens = 0
 	s.replacements = 0
 	s.loginOrdinal = 0
-	s.bootstrapNewBoundary = 0
 	s.bootstrapping = true
 	s.groupReturningOrdinal = 0
 	s.groupReturningCategoryOrdinal = [4]uint64{}
@@ -293,7 +289,7 @@ func (s *sessionScheduler) planLogin(
 			return SessionLogin{}, kind, ReturningCandidate{}, false, err
 		}
 		uid := graph.identity.UID(globalIndex)
-		return SessionLogin{UID: uid, UserIndex: globalIndex, LoginOrdinal: loginOrdinal}, LoginNew, ReturningCandidate{}, true, nil
+		return SessionLogin{UID: uid, UserIndex: globalIndex, LoginOrdinal: loginOrdinal, NewIdentity: true}, LoginNew, ReturningCandidate{}, true, nil
 	}
 	frontier, err := graph.identity.GlobalIndex(s.workerID, s.nextNewIndex)
 	if err != nil {
@@ -304,7 +300,7 @@ func (s *sessionScheduler) planLogin(
 			return SessionLogin{}, kind, ReturningCandidate{}, false, errEngineConfig
 		}
 		candidateOrdinal := loginOrdinal + probe*distributionCycle
-		candidate, err := graph.ReturningCandidate(frontier, candidateOrdinal, uint64(schedule.newUsersPerDay))
+		candidate, err := graph.ReturningCandidate(schedule, frontier, candidateOrdinal, uint64(schedule.newUsersPerDay))
 		if err != nil {
 			return SessionLogin{}, kind, ReturningCandidate{}, false, err
 		}
@@ -323,7 +319,7 @@ func (s *sessionScheduler) planLogin(
 			}
 			if memberOK {
 				rosterCandidate, rosterErr := graph.returningCandidateAt(
-					frontier, candidateOrdinal, uint64(schedule.newUsersPerDay), member.UserIndex,
+					schedule, frontier, candidateOrdinal, uint64(schedule.newUsersPerDay), member.UserIndex,
 				)
 				if rosterErr != nil {
 					return SessionLogin{}, kind, ReturningCandidate{}, false, rosterErr
@@ -456,15 +452,13 @@ type engineCompletion struct {
 }
 
 type engineLoginResult struct {
-	login                SessionLogin
-	kind                 LoginIdentity
-	candidate            ReturningCandidate
-	ordinal              uint64
-	globalNewOrdinal     uint64
-	scheduledNewOrdinal  bool
-	bootstrapNewBoundary uint64
-	replacement          bool
-	err                  error
+	login            SessionLogin
+	kind             LoginIdentity
+	candidate        ReturningCandidate
+	ordinal          uint64
+	globalNewOrdinal uint64
+	replacement      bool
+	err              error
 }
 
 type advanceResult struct {
@@ -837,19 +831,24 @@ func (e *Engine) ActivateRelationship(edge RelationshipEdge, relationshipOrdinal
 	return result.activated, result.err
 }
 
-// ObserveNewUser retains the identity-aligned compatibility path used by
-// bootstrap and direct callers; planned logins use ObserveNewUserForOrdinal.
+// ObserveNewUser resolves the identity's immutable global new-user ordinal and
+// publishes every newly real incoming or outgoing relationship exactly once.
 func (e *Engine) ObserveNewUser(userIndex uint64) (considered, activated int, err error) {
-	return e.observeNewUser(userIndex, userIndex, 0, false)
+	workerID, localNewIndex := e.graph.identity.Owner(userIndex)
+	globalNewOrdinal, err := e.schedule.GlobalNewOrdinalFor(workerID, localNewIndex)
+	if err != nil {
+		return 0, 0, err
+	}
+	return e.observeNewUser(userIndex, globalNewOrdinal)
 }
 
 // ObserveNewUserForOrdinal schedules one planned LoginNew completion using its
 // plan-time global new-user ordinal, independent of startup completion order.
 func (e *Engine) ObserveNewUserForOrdinal(userIndex, globalNewOrdinal uint64) (considered, activated int, err error) {
-	return e.observeNewUser(userIndex, globalNewOrdinal, 0, true)
+	return e.observeNewUser(userIndex, globalNewOrdinal)
 }
 
-func (e *Engine) observeNewUser(userIndex, globalNewOrdinal, bootstrapNewBoundary uint64, scheduledOrdinal bool) (considered, activated int, err error) {
+func (e *Engine) observeNewUser(userIndex, globalNewOrdinal uint64) (considered, activated int, err error) {
 	response := make(chan struct {
 		considered int
 		activated  int
@@ -861,41 +860,40 @@ func (e *Engine) observeNewUser(userIndex, globalNewOrdinal, bootstrapNewBoundar
 			activated  int
 			err        error
 		}{}
-		workerID, localUser := e.graph.identity.Owner(userIndex)
-		for distance := uint64(1); distance <= MaxForwardRelationships && distance <= localUser; distance++ {
-			ownerIndex, indexErr := e.graph.identity.GlobalIndex(workerID, localUser-distance)
-			if indexErr != nil {
-				result.err = indexErr
-				break
-			}
-			ownerDegreeOrdinal := ownerIndex
-			if scheduledOrdinal && localUser-distance >= bootstrapNewBoundary {
-				previous, available, previousErr := e.schedule.PreviousNewOrdinalOnWorker(
-					globalNewOrdinal, workerID, e.workers, distance,
-				)
-				if previousErr != nil {
-					result.err = previousErr
-					break
-				}
-				if !available {
-					continue
-				}
-				ownerDegreeOrdinal = previous
-			}
-			edge, available, edgeErr := e.graph.IncomingEdgeForOrdinal(userIndex, distance, ownerDegreeOrdinal)
-			if edgeErr != nil {
-				result.err = edgeErr
-				break
-			}
-			if !available {
+		workerID, localNewIndex := e.graph.identity.Owner(userIndex)
+		resolvedOrdinal, resolveErr := e.schedule.GlobalNewOrdinalFor(workerID, localNewIndex)
+		if resolveErr != nil || resolvedOrdinal != globalNewOrdinal {
+			result.err = errors.Join(resolveErr, errScheduleNewOrdinal)
+			response <- result
+			return
+		}
+		online, alreadyObserved := e.sessions.relationshipObservation(userIndex)
+		if !online || alreadyObserved {
+			response <- result
+			return
+		}
+
+		incoming, incomingErr := e.graph.IncomingForSchedule(e.schedule, userIndex)
+		if incomingErr != nil {
+			result.err = incomingErr
+			response <- result
+			return
+		}
+		for edgeIndex := 0; edgeIndex < incoming.Count; edgeIndex++ {
+			edge := incoming.Items[edgeIndex]
+			_, ownerObserved := e.sessions.relationshipObservation(edge.OwnerIndex)
+			if !ownerObserved {
 				continue
 			}
-			result.considered++
-			if ownerDegreeOrdinal > (math.MaxUint64-(distance-1))/MaxForwardRelationships {
-				result.err = errEngineConfig
+			_, ownerLocalNewIndex := e.graph.identity.Owner(edge.OwnerIndex)
+			ownerGlobalNewOrdinal, ordinalErr := e.schedule.GlobalNewOrdinalFor(workerID, ownerLocalNewIndex)
+			distance := localNewIndex - ownerLocalNewIndex
+			if ordinalErr != nil || ownerGlobalNewOrdinal > (math.MaxUint64-(distance-1))/MaxForwardRelationships {
+				result.err = errors.Join(ordinalErr, errEngineConfig)
 				break
 			}
-			ordinal := ownerDegreeOrdinal*MaxForwardRelationships + distance - 1
+			ordinal := ownerGlobalNewOrdinal*MaxForwardRelationships + distance - 1
+			result.considered++
 			wasActivated, activationErr := e.activateRelationship(edge, ordinal)
 			if activationErr != nil {
 				result.err = activationErr
@@ -904,6 +902,37 @@ func (e *Engine) observeNewUser(userIndex, globalNewOrdinal, bootstrapNewBoundar
 			if wasActivated {
 				result.activated++
 			}
+		}
+		if result.err == nil {
+			outgoing, outgoingErr := e.graph.OutgoingForOrdinal(userIndex, globalNewOrdinal)
+			if outgoingErr != nil {
+				result.err = outgoingErr
+			} else {
+				for edgeIndex := 0; edgeIndex < outgoing.Count; edgeIndex++ {
+					edge := outgoing.Items[edgeIndex]
+					_, peerObserved := e.sessions.relationshipObservation(edge.PeerIndex)
+					if !peerObserved {
+						continue
+					}
+					if globalNewOrdinal > (math.MaxUint64-uint64(edgeIndex))/MaxForwardRelationships {
+						result.err = errEngineConfig
+						break
+					}
+					ordinal := globalNewOrdinal*MaxForwardRelationships + uint64(edgeIndex)
+					result.considered++
+					wasActivated, activationErr := e.activateRelationship(edge, ordinal)
+					if activationErr != nil {
+						result.err = activationErr
+						break
+					}
+					if wasActivated {
+						result.activated++
+					}
+				}
+			}
+		}
+		if result.err == nil {
+			e.sessions.markRelationshipsObserved(userIndex)
 		}
 		response <- result
 	}}); enqueueErr != nil {
@@ -1072,7 +1101,6 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			return result, scheduleErr
 		}
 		identityKind := loginSchedule.Identity
-		wasBootstrapping := e.scheduler.bootstrapping
 		if identityKind == LoginNew {
 			result.PlannedNew++
 			e.schedulerMetrics.plannedNew.Add(1)
@@ -1093,6 +1121,15 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			scheduled++
 			continue
 		}
+		globalNewOrdinal := uint64(0)
+		if actualKind == LoginNew {
+			workerID, localNewIndex := e.graph.identity.Owner(login.UserIndex)
+			globalNewOrdinal, planErr = e.schedule.GlobalNewOrdinalFor(workerID, localNewIndex)
+			if planErr != nil {
+				return result, planErr
+			}
+			login.NewIdentity = true
+		}
 		if reserveErr := e.sessions.reserveLogin(login.UID); reserveErr != nil {
 			result.LoginsSkipped++
 			e.schedulerMetrics.skipped.Add(1)
@@ -1112,15 +1149,8 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			e.schedulerMetrics.admittedReturning.Add(1)
 		}
 		completion := engineLoginResult{
-			login: login, kind: actualKind, candidate: candidate, ordinal: ordinal, replacement: wasReplacement,
-		}
-		if actualKind == LoginNew {
-			completion.globalNewOrdinal = login.UserIndex
-			if identityKind == LoginNew && !wasBootstrapping {
-				completion.globalNewOrdinal = loginSchedule.NewOrdinal
-				completion.scheduledNewOrdinal = true
-				completion.bootstrapNewBoundary = e.scheduler.bootstrapNewBoundary
-			}
+			login: login, kind: actualKind, candidate: candidate, ordinal: ordinal,
+			globalNewOrdinal: globalNewOrdinal, replacement: wasReplacement,
 		}
 		e.startScheduledLogin(generationCtx, completion)
 		scheduled++
@@ -1129,7 +1159,6 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	poolAfterLogins := e.sessions.Counts()
 	if e.scheduler.bootstrapping && poolAfterLogins.Online >= e.onlineTarget {
 		e.scheduler.bootstrapping = false
-		e.scheduler.bootstrapNewBoundary = e.scheduler.nextNewIndex
 		e.scheduler.credit = 0
 		e.scheduler.replacements = 0
 	}
@@ -1181,15 +1210,7 @@ func (e *Engine) drainLoginResults(now time.Time, snapshot *EngineStepSnapshot) 
 			if completion.kind == LoginNew {
 				snapshot.CompletedNew++
 				e.schedulerMetrics.completedNew.Add(1)
-				var observeErr error
-				if completion.scheduledNewOrdinal {
-					_, _, observeErr = e.observeNewUser(
-						completion.login.UserIndex, completion.globalNewOrdinal,
-						completion.bootstrapNewBoundary, true,
-					)
-				} else {
-					_, _, observeErr = e.ObserveNewUser(completion.login.UserIndex)
-				}
+				_, _, observeErr := e.observeNewUser(completion.login.UserIndex, completion.globalNewOrdinal)
 				result = errors.Join(result, observeErr)
 			} else {
 				snapshot.CompletedReturning++

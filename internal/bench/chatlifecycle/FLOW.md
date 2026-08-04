@@ -64,6 +64,11 @@ ordinal before schedule selection, so three workers preserve exact aggregate
 prefixes. `LoginSchedule` also carries the O(1) cycle-prefix count of prior
 `LoginNew` decisions. For a new decision this is its globally consecutive
 new-user ordinal, independent of the uneven per-worker identity-index lanes.
+`GlobalNewOrdinalFor` also resolves any worker-local new-identity index through
+the immutable login/worker least-common-multiple cycle. The cycle visits at
+most 100 lane positions, uses checked arithmetic, and retains no plan or result
+history; bootstrap users, asynchronous results, relationship history, and
+returning candidates all use this same resolver.
 
 Login identity, session bucket, and channel lifecycle class use independent
 run-rotated ordinal cycles, giving exact 80/20, 25/50/20/5, and 60/25/10/5
@@ -188,8 +193,14 @@ aggregate pool snapshot copies client handles and scalar session metadata while
 holding the ownership read lock, releases it, and only then samples transport
 queue gauges; a slow client gauge cannot block login, logout, or detach.
 Each asynchronous startup result retains the plan-time global login and
-new-user ordinals. Relationship planning therefore never assigns degree or
-schedule ordinals from startup completion order.
+canonically resolved new-user ordinals. A first-login session retains one
+bounded publication bit while it is online; returning sessions are already
+published. When a new result is consumed, the engine reconstructs both incoming
+and outgoing real edges and activates an edge only when the other endpoint is
+online and published. Whichever endpoint result is consumed second therefore
+publishes the edge exactly once even when CONNECT and full-sync completion
+reverse plan order. Relationship planning never assigns degree or schedule
+ordinals from startup completion order and retains no historical activated set.
 
 `TrafficGenerator` streams, rather than retains, each global per-second grant.
 It reuses `RateAllocator`, `TrafficModel`, and `GroupCatalog` to preserve the
@@ -231,12 +242,12 @@ drains report SENDACKs under backpressure without competing with control
 commands; long clock advances consume completions between scheduled work, and
 shutdown joins drains before its final completion barrier. All heaps share one
 checked future-work capacity except the retry heap, which has its own explicit
-capacity. New-user
-observation reconstructs only the prior five possible relationship owners,
-schedules an initial burst only while both sessions are online, and retains at
-most one lifecycle deadline for revisit or natural cooling. Rotating and long
-channels additionally occupy a fixed active array and swap-delete index capped
-by the configured person hot set. A full hot set never drops a mandatory
+capacity. New-user observation reconstructs the prior five possible owners plus
+the owner's bounded forward set, schedules an initial burst only while both
+sessions are online and the peer's new-user publication is complete, and
+retains at most one lifecycle deadline for revisit or natural cooling. Rotating
+and long channels additionally occupy a fixed active array and swap-delete
+index capped by the configured person hot set. A full hot set never drops a mandatory
 initial burst: its later hot ownership waits in a work-capacity-bounded pending
 array and is promoted when an active deadline releases a position. Primary
 person grants keep channels hot only until their 20-40 minute or 2-4 hour
@@ -325,7 +336,10 @@ phases and all four degree phases even though three formal worker lanes contain
 create exactly 16 relationships, 250,000 new owners create exactly 1,000,000
 edges, and no activation depends on a different worker's session pool.
 Incoming reconstruction derives each prior local owner's degree ordinal from
-the immutable login cycle and checks only the previous five local owners.
+the same immutable worker-local resolver and checks only the previous five
+local owners. Available history and returning-candidate conversations resolve
+both incoming and outgoing degree ordinals through that boundary, so they
+cannot invent an edge from a raw identity index.
 Fixed-capacity results bound one user's incoming plus outgoing conversations to
 ten.
 
