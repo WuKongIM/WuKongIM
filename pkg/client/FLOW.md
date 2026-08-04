@@ -62,7 +62,8 @@ reader loop
 The inbound RECV queue is bounded and lossless. When it is full, the reader
 backpressures the socket until a consumer frees capacity. Client close or
 session replacement releases a blocked publisher, so bounded delivery cannot
-strand an old reader loop.
+strand an old reader loop. `InboundQueueSnapshot` exposes only the current
+queue depth and capacity for bounded saturation observation.
 
 ## Control Flow
 
@@ -89,7 +90,7 @@ NewPool(PoolConfig)
 `ReadFrame` API. It converts `SendFuture` results back into local
 `SendackPacket` frames and forwards decrypted RECV packets. Separate bounded
 RECV, SENDACK, and error queues isolate acknowledgement progress without
-discarding receive evidence; the adapter applies a fixed SENDACK preference
-quota so an already queued RECV cannot starve.
+discarding receive evidence. Error and SENDACK results share a fixed priority
+burst quota so neither errors nor an already queued RECV can starve.
 
 `test/e2e/suite` uses the same package for CONNECT, crypto, SENDACK matching, and RECV decryption while keeping black-box helper methods outside the client package.

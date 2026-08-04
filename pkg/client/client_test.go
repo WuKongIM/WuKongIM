@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -76,6 +77,24 @@ func TestClientConnectSendsConnectPacketAndStartsLoops(t *testing.T) {
 	}
 	if err := <-serverErr; err != nil {
 		t.Fatalf("server error = %v", err)
+	}
+}
+
+func TestClientInboundQueueSnapshotReportsCurrentBoundedState(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{InboundFrameBufferSize: 1})
+	c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
+
+	snapshot := c.InboundQueueSnapshot()
+
+	if snapshot.Depth != 1 || snapshot.Capacity != 1 {
+		t.Fatalf("inbound queue = %d/%d, want saturated 1/1", snapshot.Depth, snapshot.Capacity)
+	}
+	typ := reflect.TypeOf(snapshot)
+	for i := 0; i < typ.NumField(); i++ {
+		switch typ.Field(i).Type.Kind() {
+		case reflect.Chan, reflect.Map, reflect.Pointer, reflect.Slice:
+			t.Fatalf("InboundQueueSnapshot field %s exposes mutable state through %s", typ.Field(i).Name, typ.Field(i).Type)
+		}
 	}
 }
 
@@ -882,16 +901,23 @@ func TestRouteInboundRecvBackpressuresWithBoundedWireOrder(t *testing.T) {
 			t.Fatalf("routeInboundFrame(RECV %d) error = %v", i, err)
 		}
 	}
+	if snapshot := c.InboundQueueSnapshot(); snapshot.Depth != 2 || snapshot.Capacity != 2 {
+		t.Fatalf("inbound queue = %d/%d, want saturated 2/2", snapshot.Depth, snapshot.Capacity)
+	}
+	thirdStarted := make(chan struct{})
 	thirdDone := make(chan error, 1)
 	go func() {
+		close(thirdStarted)
 		thirdDone <- c.routeInboundFrame(&frame.RecvPacket{
 			Setting:   frame.SettingNoEncrypt,
 			MessageID: 3,
 			Payload:   []byte{3},
 		})
 	}()
+	waitForClientTestSignal(t, thirdStarted, "third RECV publisher start")
 	select {
-	case <-thirdDone:
+	case err := <-thirdDone:
+		t.Fatalf("third RECV completed before queue drain: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
 
@@ -1446,9 +1472,13 @@ func TestEnqueueRecvBackpressuresAndPreservesOrder(t *testing.T) {
 		c.enqueueRecv(&frame.RecvPacket{MessageID: 2}, nil)
 		close(done)
 	}()
-	<-started
+	waitForClientTestSignal(t, started, "second RECV publisher start")
+	if snapshot := c.InboundQueueSnapshot(); snapshot.Depth != 1 || snapshot.Capacity != 1 {
+		t.Fatalf("inbound queue = %d/%d, want saturated 1/1", snapshot.Depth, snapshot.Capacity)
+	}
 	select {
 	case <-done:
+		t.Fatal("second RECV publisher completed before queue drain")
 	case <-time.After(20 * time.Millisecond):
 	}
 
@@ -1480,7 +1510,12 @@ func TestEnqueueRecvZeroCapacityUnblocksOnClose(t *testing.T) {
 		c.enqueueRecv(&frame.RecvPacket{MessageID: 1}, nil)
 		close(done)
 	}()
-	<-started
+	waitForClientTestSignal(t, started, "zero-capacity RECV publisher start")
+	select {
+	case <-done:
+		t.Fatal("zero-capacity RECV publisher completed before Close")
+	case <-time.After(20 * time.Millisecond):
+	}
 	if err := c.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
@@ -1488,6 +1523,15 @@ func TestEnqueueRecvZeroCapacityUnblocksOnClose(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("enqueueRecv did not unblock after Close")
+	}
+}
+
+func waitForClientTestSignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", description)
 	}
 }
 

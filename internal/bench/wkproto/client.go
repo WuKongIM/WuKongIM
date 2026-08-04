@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
@@ -16,7 +17,7 @@ const (
 	defaultOperationTimeout = 5 * time.Second
 	defaultFrameBufferSize  = 1024
 	defaultAckTimeoutSlack  = time.Second
-	sendackPriorityQuota    = 4
+	priorityResultQuota     = 4
 )
 
 var errClientNotConnected = errors.New("wkproto client: not connected")
@@ -68,6 +69,8 @@ type Client struct {
 // QueueSnapshot is a bounded numeric view of one client's receive queues.
 // It never exposes queued frames or mutable queue storage.
 type QueueSnapshot struct {
+	// InnerRecvDepth is the number of RECV packets queued by pkg/client.
+	InnerRecvDepth int
 	// InnerRecvCapacity is the configured pkg/client inbound RECV bound.
 	InnerRecvCapacity int
 	// AdapterDepth is the total number of results queued by the bench adapter.
@@ -86,6 +89,14 @@ type QueueSnapshot struct {
 	ErrorDepth int
 	// ErrorCapacity is the fixed adapter error capacity.
 	ErrorCapacity int
+	// PublicationCurrent is the number of SEND futures admitted for publication.
+	PublicationCurrent int
+	// PublicationCapacity is the fixed admission bound for SEND future publishers.
+	PublicationCapacity int
+	// PublicationPeak is the session high-water mark of admitted publishers.
+	PublicationPeak int
+	// PublicationBlocked is the number of Send callers waiting for publication admission.
+	PublicationBlocked int
 }
 
 type clientSession struct {
@@ -103,12 +114,20 @@ type clientSession struct {
 	closeOnce sync.Once
 	// readPermit makes bounded-priority arbitration serial and cancelable.
 	readPermit chan struct{}
-	// sendackBurst counts consecutive preferred SENDACKs while RECV is queued.
-	sendackBurst int
+	// priorityBurst counts consecutive errors or SENDACKs while RECV is queued.
+	priorityBurst int
 	// terminalDelivered prevents the original remote terminal error from repeating.
 	terminalDelivered bool
 	// drainCh wakes a terminal publisher when a consumer frees queue capacity.
 	drainCh chan struct{}
+	// publicationPermit bounds SEND future publisher goroutines before admission.
+	publicationPermit chan struct{}
+	// publicationCurrent counts admitted SEND future publishers.
+	publicationCurrent atomic.Int64
+	// publicationPeak is the monotonic admitted-publisher high-water mark.
+	publicationPeak atomic.Int64
+	// publicationBlocked counts Send callers currently waiting for a permit.
+	publicationBlocked atomic.Int64
 	// pendingMu protects pendingSendacks and pendingDone.
 	pendingMu sync.Mutex
 	// pendingSendacks counts SEND futures that still need to publish a SENDACK frame.
@@ -198,6 +217,9 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 	if err != nil {
 		return err
 	}
+	if err := session.acquirePublication(ctx); err != nil {
+		return err
+	}
 
 	session.beginPendingSendack()
 	future, err := session.inner.SendAsync(ctx, wkclient.Message{
@@ -211,7 +233,7 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 		Payload:     pkt.Payload,
 	})
 	if err != nil {
-		session.finishPendingSendack()
+		session.completePendingPublication()
 		return err
 	}
 	go c.forwardSendack(session, future)
@@ -243,12 +265,19 @@ func (c *Client) QueueSnapshot() QueueSnapshot {
 	if c.session == nil {
 		return snapshot
 	}
+	innerSnapshot := c.session.inner.InboundQueueSnapshot()
+	snapshot.InnerRecvDepth = innerSnapshot.Depth
+	snapshot.InnerRecvCapacity = innerSnapshot.Capacity
 	snapshot.RecvDepth = len(c.session.recvCh)
 	snapshot.RecvCapacity = cap(c.session.recvCh)
 	snapshot.SendackDepth = len(c.session.sendackCh)
 	snapshot.SendackCapacity = cap(c.session.sendackCh)
 	snapshot.ErrorDepth = len(c.session.errCh)
 	snapshot.ErrorCapacity = cap(c.session.errCh)
+	snapshot.PublicationCurrent = int(c.session.publicationCurrent.Load())
+	snapshot.PublicationCapacity = cap(c.session.publicationPermit)
+	snapshot.PublicationPeak = int(c.session.publicationPeak.Load())
+	snapshot.PublicationBlocked = int(c.session.publicationBlocked.Load())
 	snapshot.AdapterDepth = snapshot.RecvDepth + snapshot.SendackDepth + snapshot.ErrorDepth
 	snapshot.AdapterCapacity = snapshot.RecvCapacity + snapshot.SendackCapacity + snapshot.ErrorCapacity
 	return snapshot
@@ -276,7 +305,8 @@ func (c *Client) Ping(ctx context.Context) error {
 	return session.inner.Ping(ctx)
 }
 
-// Close closes the active TCP connection, if any.
+// Close signals adapter waiters and closes the active shared TCP client, if any.
+// Shared-client loop joining belongs to the worker lifecycle teardown.
 func (c *Client) Close() error {
 	if c == nil {
 		return nil
@@ -312,7 +342,7 @@ func (c *Client) forwardReadFrames(session *clientSession) {
 
 func (c *Client) forwardSendack(session *clientSession, future *wkclient.SendFuture) {
 	result, err := future.Wait(context.Background())
-	defer session.finishPendingSendack()
+	defer session.completePendingPublication()
 	if err != nil && result.ClientSeq == 0 && result.ClientMsgNo == "" {
 		if wkclient.IsSessionReadError(err) {
 			return
@@ -370,7 +400,12 @@ func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
 			return nil, errClientNotConnected
 		}
 
-		if s.sendackBurst < sendackPriorityQuota {
+		if s.priorityBurst < priorityResultQuota {
+			select {
+			case result := <-s.errCh:
+				return s.consumeError(result)
+			default:
+			}
 			select {
 			case ack := <-s.sendackCh:
 				return s.consumeSendack(ack)
@@ -383,17 +418,17 @@ func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
 		default:
 		}
 		select {
-		case ack := <-s.sendackCh:
-			return s.consumeSendack(ack)
-		default:
-		}
-		select {
 		case result := <-s.errCh:
 			return s.consumeError(result)
 		default:
 		}
+		select {
+		case ack := <-s.sendackCh:
+			return s.consumeSendack(ack)
+		default:
+		}
 
-		if s.sendackBurst >= sendackPriorityQuota {
+		if s.priorityBurst >= priorityResultQuota {
 			select {
 			case recv := <-s.recvCh:
 				return s.consumeRecv(recv)
@@ -433,6 +468,59 @@ func (s *clientSession) acquireReadPermit(ctx context.Context) error {
 	}
 }
 
+func (s *clientSession) acquirePublication(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.isStopped() {
+		return errClientNotConnected
+	}
+	select {
+	case <-s.publicationPermit:
+		if s.isStopped() {
+			s.publicationPermit <- struct{}{}
+			return errClientNotConnected
+		}
+		s.recordPublicationAdmission()
+		return nil
+	default:
+	}
+
+	s.publicationBlocked.Add(1)
+	defer s.publicationBlocked.Add(-1)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.stopCh:
+		return errClientNotConnected
+	case <-s.publicationPermit:
+		if s.isStopped() {
+			s.publicationPermit <- struct{}{}
+			return errClientNotConnected
+		}
+		s.recordPublicationAdmission()
+		return nil
+	}
+}
+
+func (s *clientSession) recordPublicationAdmission() {
+	current := s.publicationCurrent.Add(1)
+	for {
+		peak := s.publicationPeak.Load()
+		if current <= peak || s.publicationPeak.CompareAndSwap(peak, current) {
+			return
+		}
+	}
+}
+
+func (s *clientSession) releasePublication() {
+	s.publicationCurrent.Add(-1)
+	s.publicationPermit <- struct{}{}
+}
+
 func (s *clientSession) releaseReadPermit() {
 	s.readPermit <- struct{}{}
 }
@@ -442,8 +530,8 @@ func (s *clientSession) consumeSendack(ack *frame.SendackPacket) (frame.Frame, e
 	if s.isStopped() {
 		return nil, errClientNotConnected
 	}
-	if s.sendackBurst < sendackPriorityQuota {
-		s.sendackBurst++
+	if s.priorityBurst < priorityResultQuota {
+		s.priorityBurst++
 	}
 	return ack, nil
 }
@@ -453,7 +541,7 @@ func (s *clientSession) consumeRecv(recv frame.Frame) (frame.Frame, error) {
 	if s.isStopped() {
 		return nil, errClientNotConnected
 	}
-	s.sendackBurst = 0
+	s.priorityBurst = 0
 	return recv, nil
 }
 
@@ -464,6 +552,9 @@ func (s *clientSession) consumeError(result errorResult) (frame.Frame, error) {
 	}
 	if result.terminal {
 		s.terminalDelivered = true
+	}
+	if s.priorityBurst < priorityResultQuota {
+		s.priorityBurst++
 	}
 	return nil, result.err
 }
@@ -486,15 +577,19 @@ func (s *clientSession) notifyQueueDrain() {
 
 func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
 	session := &clientSession{
-		inner:      inner,
-		recvCh:     make(chan frame.Frame, frameBufferSize),
-		sendackCh:  make(chan *frame.SendackPacket, frameBufferSize),
-		errCh:      make(chan errorResult, frameBufferSize),
-		stopCh:     make(chan struct{}),
-		drainCh:    make(chan struct{}, 1),
-		readPermit: make(chan struct{}, 1),
+		inner:             inner,
+		recvCh:            make(chan frame.Frame, frameBufferSize),
+		sendackCh:         make(chan *frame.SendackPacket, frameBufferSize),
+		errCh:             make(chan errorResult, frameBufferSize),
+		stopCh:            make(chan struct{}),
+		drainCh:           make(chan struct{}, 1),
+		readPermit:        make(chan struct{}, 1),
+		publicationPermit: make(chan struct{}, frameBufferSize),
 	}
 	session.readPermit <- struct{}{}
+	for i := 0; i < frameBufferSize; i++ {
+		session.publicationPermit <- struct{}{}
+	}
 	return session
 }
 
@@ -521,10 +616,12 @@ func (s *clientSession) beginPendingSendack() {
 	s.pendingMu.Unlock()
 }
 
-func (s *clientSession) finishPendingSendack() {
+func (s *clientSession) completePendingPublication() {
 	s.pendingMu.Lock()
 	if s.pendingSendacks > 0 {
 		s.pendingSendacks--
+		s.publicationCurrent.Add(-1)
+		s.publicationPermit <- struct{}{}
 		if s.pendingSendacks == 0 {
 			close(s.pendingDone)
 		}

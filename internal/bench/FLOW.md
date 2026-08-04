@@ -55,10 +55,17 @@ queue backpressures the shared reader and then the socket; neither layer evicts
 receive evidence. `ReadFrame` acquires a one-reader arbitration permit through
 the caller context and session stop signal, so a reader waiting behind another
 reader remains cancelable. The permit preserves one shared preference state:
-at most four queued SENDACKs precede an already queued RECV. Published frames
-and SEND results drain before the original remote terminal error returns once.
-Its numeric queue snapshot exposes only depths and capacities for saturation
-gauges. Worker clients are created from an optional worker-local `client`
+non-terminal errors precede SENDACKs, while at most four combined priority
+results precede an already queued RECV. Before `SendAsync` admission, each SEND
+also acquires one publication permit. The `frame_buffer_size` permits bound both
+publisher goroutines and pending SENDACKs; a caller waiting for a permit remains
+in its own workload goroutine and observes context cancellation or session
+stop. A future releases its permit only after its ACK/error enters a fixed queue
+or stop aborts publication. Published frames and SEND results drain before the
+original remote terminal error returns once. The numeric queue snapshot exposes
+the inner and adapter depths/capacities plus publication current, capacity,
+monotonic peak, and currently blocked Send callers. Worker clients are created
+from an optional worker-local `client`
 profile. Its send queue, maximum inflight SEND count, socket read buffer, and
 frame buffer capacities flow from the selected worker assignment through the
 default connection manager factory. `frame_buffer_size` independently bounds
@@ -89,6 +96,12 @@ traffic supplies the sender UID as the key in high-concurrency mode, preserving
 one in-flight `Send -> Sendack` operation per simulated TCP client. Wrapped
 clients allocate connection-local monotonic ClientSeq values so each waiter
 matches by ClientSeq plus ClientMsgNo.
+
+Adapter `Close` publishes the session stop signal before closing the shared
+client. This releases blocked publication admission, queue publishers, and
+`ReadFrame` calls. It does not itself promise to join the shared client's
+internal reader/writer loops; worker teardown and receive-drain joining remain
+the explicit lifecycle boundary completed in Phase 3 task 4.
 
 ## Coordinator Run Flow
 
@@ -550,8 +563,10 @@ crypto, pending SENDACK matching, and a bounded lossless RECV queue. The
 benchmark adapter preserves the old workload-facing frame API by converting
 send futures back into local `SendackPacket` frames and forwarding decrypted
 RECV packets through its independent bounded queue. The receive-ack drainer
-consumes the adapter queues through the fixed SENDACK-priority arbitration and
-briefly yields to foreground sendack/recv matchers when they are queued.
+consumes the adapter queues through the fixed priority arbitration: errors
+precede SENDACKs, and their combined burst yields to a queued RECV after four
+results. It briefly yields to foreground sendack/recv matchers when they are
+queued.
 
 ### Warmup, Run, Cooldown
 

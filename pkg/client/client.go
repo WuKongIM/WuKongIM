@@ -51,6 +51,15 @@ type Client struct {
 	writerDone chan struct{}
 }
 
+// InboundQueueSnapshot is a numeric view of the current bounded RECV queue.
+// It never exposes queued packets or mutable queue storage.
+type InboundQueueSnapshot struct {
+	// Depth is the number of queued RECV packets.
+	Depth int
+	// Capacity is the fixed RECV queue capacity.
+	Capacity int
+}
+
 // New creates a WKProto client with normalized configuration defaults.
 func New(cfg Config) (*Client, error) {
 	cfg, err := normalizeConfig(cfg)
@@ -322,6 +331,17 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 		}
 		return f, err
 	}
+}
+
+// InboundQueueSnapshot reports current inbound RECV queue occupancy.
+func (c *Client) InboundQueueSnapshot() InboundQueueSnapshot {
+	if c == nil {
+		return InboundQueueSnapshot{}
+	}
+	c.mu.Lock()
+	recvCh := c.recvCh
+	c.mu.Unlock()
+	return InboundQueueSnapshot{Depth: len(recvCh), Capacity: cap(recvCh)}
 }
 
 func (c *Client) readFrameFromSnapshot(ctx context.Context, recvCh <-chan *frame.RecvPacket, recvNotify <-chan struct{}) (frame.Frame, error) {
