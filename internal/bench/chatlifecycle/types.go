@@ -125,9 +125,11 @@ type LoginDistribution struct {
 	ReturningPercent int `json:"returning_percent" yaml:"returning_percent"`
 }
 
-// DurationShare assigns a percentage share to an inclusive positive duration range.
-// Zero durations are allowed only for lifecycle buckets with no duration range.
+// DurationShare assigns a positive integer percentage to an inclusive positive
+// duration range. Positive shares bound a 100-percent distribution to at most
+// 100 buckets; zero durations are allowed only when a caller permits no range.
 type DurationShare struct {
+	// Percent must be in 1..100 and all buckets must total exactly 100.
 	Percent int           `json:"percent" yaml:"percent"`
 	Min     time.Duration `json:"min" yaml:"min"`
 	Max     time.Duration `json:"max" yaml:"max"`

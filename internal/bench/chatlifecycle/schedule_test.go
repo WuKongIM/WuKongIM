@@ -3,7 +3,6 @@ package chatlifecycle
 import (
 	"errors"
 	"math"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -245,6 +244,58 @@ func TestScheduleRejectsInvalidInputsAndBoundsOffsets(t *testing.T) {
 	}
 }
 
+func TestScheduleRejectsMessageRangesOutsideApprovedBounds(t *testing.T) {
+	cfg := DefaultConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*WorkloadConfig)
+		wantErr error
+	}{
+		{
+			name: "initial maximum above eight",
+			mutate: func(workload *WorkloadConfig) {
+				workload.Relationship.InitialMessages = IntRange{Min: 2, Max: 9}
+			},
+			wantErr: errScheduleInitialMessageRange,
+		},
+		{
+			name: "returning minimum below two",
+			mutate: func(workload *WorkloadConfig) {
+				workload.Relationship.ReturningMessages = IntRange{Min: 1, Max: 5}
+			},
+			wantErr: errScheduleReturningMessageRange,
+		},
+		{
+			name: "returning maximum above five",
+			mutate: func(workload *WorkloadConfig) {
+				workload.Relationship.ReturningMessages = IntRange{Min: 2, Max: 6}
+			},
+			wantErr: errScheduleReturningMessageRange,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workload := cfg.Workload
+			tt.mutate(&workload)
+			if _, err := NewScheduleModel(identity, workload); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("NewScheduleModel() error = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	workload := cfg.Workload
+	workload.Relationship.InitialMessages = IntRange{Min: 2, Max: 8}
+	workload.Relationship.ReturningMessages = IntRange{Min: 2, Max: 5}
+	if _, err := NewScheduleModel(identity, workload); err != nil {
+		t.Fatalf("NewScheduleModel(approved boundaries) error = %v", err)
+	}
+}
+
 func TestScheduleHandlesMaximumDurationWithoutOverflow(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Workload.Sessions = []DurationShare{{Percent: 100, Min: time.Duration(math.MaxInt64), Max: time.Duration(math.MaxInt64)}}
@@ -281,7 +332,7 @@ func TestScheduleHandlesMaximumDurationWithoutOverflow(t *testing.T) {
 	}
 }
 
-func TestScheduleDecisionsChangeAcrossRunKeys(t *testing.T) {
+func TestScheduleDiscreteSequencesRotateAcrossFixedRunKeys(t *testing.T) {
 	cfg := DefaultConfig()
 	firstIdentity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
 	if err != nil {
@@ -299,21 +350,68 @@ func TestScheduleDecisionsChangeAcrossRunKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewScheduleModel(second) error = %v", err)
 	}
-	var changed bool
-	for ordinal := uint64(0); ordinal < 100; ordinal++ {
-		firstLogin, firstErr := first.Login(ordinal)
-		secondLogin, secondErr := second.Login(ordinal)
-		firstChannel, firstChannelErr := first.Channel(ordinal, ordinal, ordinal+1)
-		secondChannel, secondChannelErr := second.Channel(ordinal, ordinal, ordinal+1)
-		if firstErr != nil || secondErr != nil || firstChannelErr != nil || secondChannelErr != nil {
-			t.Fatalf("schedule error = %v / %v / %v / %v", firstErr, secondErr, firstChannelErr, secondChannelErr)
-		}
-		if !reflect.DeepEqual(firstLogin, secondLogin) || !reflect.DeepEqual(firstChannel, secondChannel) {
-			changed = true
-			break
-		}
+
+	type discreteSequences struct {
+		loginIdentity [100]LoginIdentity
+		sessionBucket [100]int
+		lifecycle     [100]LifecycleClass
 	}
-	if !changed {
-		t.Fatal("schedule decisions did not change across independent run keys")
+	derive := func(name string, model ScheduleModel) discreteSequences {
+		t.Helper()
+		var result discreteSequences
+		for ordinal := uint64(0); ordinal < 100; ordinal++ {
+			login, err := model.Login(ordinal)
+			if err != nil {
+				t.Fatalf("%s Login(%d) error = %v", name, ordinal, err)
+			}
+			channel, err := model.Channel(ordinal, ordinal, ordinal+1)
+			if err != nil {
+				t.Fatalf("%s Channel(%d) error = %v", name, ordinal, err)
+			}
+			result.loginIdentity[ordinal] = login.Identity
+			result.sessionBucket[ordinal] = login.SessionBucket
+			result.lifecycle[ordinal] = channel.Class
+		}
+		return result
+	}
+	firstSequences := derive("first", first)
+	secondSequences := derive("second", second)
+	// These fixed non-secret keys deliberately produce distinct phase draws for
+	// all three semantic streams; comparing full cycles excludes duration draws.
+	if firstSequences.loginIdentity == secondSequences.loginIdentity {
+		t.Fatal("login identity ordinal cycle did not rotate across fixed run keys")
+	}
+	if firstSequences.sessionBucket == secondSequences.sessionBucket {
+		t.Fatal("session bucket ordinal cycle did not rotate across fixed run keys")
+	}
+	if firstSequences.lifecycle == secondSequences.lifecycle {
+		t.Fatal("lifecycle class ordinal cycle did not rotate across fixed run keys")
+	}
+}
+
+func TestScheduleModelCopiesSessionBucketsAtConstruction(t *testing.T) {
+	cfg := DefaultConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+	model, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel() error = %v", err)
+	}
+	const ordinal = uint64(31)
+	before, err := model.Login(ordinal)
+	if err != nil {
+		t.Fatalf("Login() before mutation error = %v", err)
+	}
+	cfg.Workload.Sessions[before.SessionBucket].Percent = 100
+	cfg.Workload.Sessions[before.SessionBucket].Min = time.Nanosecond
+	cfg.Workload.Sessions[before.SessionBucket].Max = time.Nanosecond
+	after, err := model.Login(ordinal)
+	if err != nil {
+		t.Fatalf("Login() after mutation error = %v", err)
+	}
+	if after != before {
+		t.Fatalf("constructed model changed after source mutation: before=%+v after=%+v", before, after)
 	}
 }

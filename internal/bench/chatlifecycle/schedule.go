@@ -12,17 +12,21 @@ const (
 	minimumRevisitDelay    = 10 * time.Minute
 	maximumRevisitDelay    = 60 * time.Minute
 	minimumInitialMessages = 2
+	maximumInitialMessages = 8
+	minimumRevisitMessages = 2
+	maximumRevisitMessages = 5
 )
 
 var (
-	errScheduleIdentityRequired = errors.New("chat lifecycle schedule: identity space is required")
-	errScheduleNewUsersPerDay   = errors.New("chat lifecycle schedule: new users per day must be positive")
-	errScheduleNewLoginShare    = errors.New("chat lifecycle schedule: new login share must be positive")
-	errScheduleInitialMessages  = errors.New("chat lifecycle schedule: an initial burst requires at least two messages")
-	errScheduleMessageSpacing   = errors.New("chat lifecycle schedule: initial message window cannot space every message")
-	errScheduleEndpointOrder    = errors.New("chat lifecycle schedule: person endpoints must be distinct and ordered lower to higher")
-	errScheduleMessageIndex     = errors.New("chat lifecycle schedule: message index is outside the initial burst")
-	errScheduleMessageWindow    = errors.New("chat lifecycle schedule: initial burst window must be positive")
+	errScheduleIdentityRequired      = errors.New("chat lifecycle schedule: identity space is required")
+	errScheduleNewUsersPerDay        = errors.New("chat lifecycle schedule: new users per day must be positive")
+	errScheduleNewLoginShare         = errors.New("chat lifecycle schedule: new login share must be positive")
+	errScheduleInitialMessageRange   = errors.New("chat lifecycle schedule: initial message range must stay within 2..8")
+	errScheduleReturningMessageRange = errors.New("chat lifecycle schedule: returning message range must stay within 2..5")
+	errScheduleMessageSpacing        = errors.New("chat lifecycle schedule: initial message window cannot space every message")
+	errScheduleEndpointOrder         = errors.New("chat lifecycle schedule: person endpoints must be distinct and ordered lower to higher")
+	errScheduleMessageIndex          = errors.New("chat lifecycle schedule: message index is outside the initial burst")
+	errScheduleMessageWindow         = errors.New("chat lifecycle schedule: initial burst window must be positive")
 )
 
 // LoginIdentity identifies whether a login introduces a new UID or reuses a
@@ -144,8 +148,8 @@ func NewScheduleModel(identity *IdentitySpace, workload WorkloadConfig) (Schedul
 	if err := validateIntRange("workload.relationship.initial_messages", workload.Relationship.InitialMessages); err != nil {
 		return ScheduleModel{}, err
 	}
-	if workload.Relationship.InitialMessages.Min < minimumInitialMessages {
-		return ScheduleModel{}, errScheduleInitialMessages
+	if workload.Relationship.InitialMessages.Min < minimumInitialMessages || workload.Relationship.InitialMessages.Max > maximumInitialMessages {
+		return ScheduleModel{}, errScheduleInitialMessageRange
 	}
 	if err := validateDurationRange("workload.relationship.initial_message_window", workload.Relationship.InitialMessageWindow); err != nil {
 		return ScheduleModel{}, err
@@ -155,6 +159,9 @@ func NewScheduleModel(identity *IdentitySpace, workload WorkloadConfig) (Schedul
 	}
 	if err := validateIntRange("workload.relationship.returning_messages", workload.Relationship.ReturningMessages); err != nil {
 		return ScheduleModel{}, err
+	}
+	if workload.Relationship.ReturningMessages.Min < minimumRevisitMessages || workload.Relationship.ReturningMessages.Max > maximumRevisitMessages {
+		return ScheduleModel{}, errScheduleReturningMessageRange
 	}
 
 	loginPhase, err := identity.decisionBelow("login-identity-ordinal-phase/v1", distributionCycle)

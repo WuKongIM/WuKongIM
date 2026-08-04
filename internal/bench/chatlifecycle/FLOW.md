@@ -34,9 +34,11 @@ from a separate semantic domain plus attempt number.
 Login identity, session bucket, and channel lifecycle class use independent
 run-rotated ordinal cycles, giving exact 80/20, 25/50/20/5, and 60/25/10/5
 shares without mutable PRNG state. Keyed unbiased draws select values inside
-each duration or message-count range. At 250,000 new users per day the identity
-growth rate is about 2.9 new users/second; because new users are 80% of logins,
-the total login rate is about 3.6 logins/second.
+each duration or message-count range. Every session bucket has a positive
+integer percentage, which bounds even a local profile to at most 100 buckets.
+At 250,000 new users per day the identity growth rate is about 2.9 new
+users/second; because new users are 80% of logins, the total login rate is about
+3.6 logins/second.
 
 Each new relationship plan has a finite two-to-eight-message initial burst over
 five to thirty seconds and explicitly requires both endpoints online. Revisit

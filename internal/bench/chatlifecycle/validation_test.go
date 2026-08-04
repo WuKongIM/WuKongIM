@@ -33,6 +33,51 @@ func TestLifecycleClassesRejectMissingAndWrongClassShapes(t *testing.T) {
 	}
 }
 
+func TestSessionBucketsRequirePositiveBoundedShares(t *testing.T) {
+	zeroShare := LocalConfig()
+	zeroShare.Workload.Sessions = append(zeroShare.Workload.Sessions, DurationShare{
+		Percent: 0,
+		Min:     time.Minute,
+		Max:     2 * time.Minute,
+	})
+	wantZero := "workload.sessions[4].percent: must be in 1..100"
+	if err := zeroShare.Validate(); err == nil || err.Error() != wantZero {
+		t.Fatalf("Validate(zero share) error = %v, want %q", err, wantZero)
+	}
+	identity, err := NewIdentitySpace(zeroShare.RunID, zeroShare.Seed, uint64(zeroShare.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+	if _, err := NewScheduleModel(identity, zeroShare.Workload); err == nil || err.Error() != wantZero {
+		t.Fatalf("NewScheduleModel(zero share) error = %v, want %q", err, wantZero)
+	}
+
+	tooMany := LocalConfig()
+	tooMany.Workload.Sessions = make([]DurationShare, 101)
+	for index := range tooMany.Workload.Sessions {
+		tooMany.Workload.Sessions[index] = DurationShare{Percent: 1, Min: time.Minute, Max: 2 * time.Minute}
+	}
+	wantTooMany := "workload.sessions: must contain at most 100 buckets"
+	if err := tooMany.Validate(); err == nil || err.Error() != wantTooMany {
+		t.Fatalf("Validate(101 buckets) error = %v, want %q", err, wantTooMany)
+	}
+	if _, err := NewScheduleModel(identity, tooMany.Workload); err == nil || err.Error() != wantTooMany {
+		t.Fatalf("NewScheduleModel(101 buckets) error = %v, want %q", err, wantTooMany)
+	}
+
+	bounded := LocalConfig()
+	bounded.Workload.Sessions = make([]DurationShare, 100)
+	for index := range bounded.Workload.Sessions {
+		bounded.Workload.Sessions[index] = DurationShare{Percent: 1, Min: time.Minute, Max: 2 * time.Minute}
+	}
+	if err := bounded.Validate(); err != nil {
+		t.Fatalf("Validate(100 positive buckets) error = %v", err)
+	}
+	if _, err := NewScheduleModel(identity, bounded.Workload); err != nil {
+		t.Fatalf("NewScheduleModel(100 positive buckets) error = %v", err)
+	}
+}
+
 func TestFormalConfigRejectsApprovedDefaultMutations(t *testing.T) {
 	tests := []struct {
 		name   string

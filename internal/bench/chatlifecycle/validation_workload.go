@@ -214,10 +214,13 @@ func validateDurationShares(path string, shares []DurationShare, requireRange bo
 	if len(shares) == 0 {
 		return fieldError(path, "must not be empty")
 	}
+	if len(shares) > 100 {
+		return fieldError(path, "must contain at most 100 buckets")
+	}
 	total := 0
 	for i, share := range shares {
-		if share.Percent < 0 || share.Percent > 100 {
-			return fieldError(fmt.Sprintf("%s[%d].percent", path, i), "must be in 0..100")
+		if share.Percent <= 0 || share.Percent > 100 {
+			return fieldError(fmt.Sprintf("%s[%d].percent", path, i), "must be in 1..100")
 		}
 		// Each share is bounded before it contributes to the total.
 		total += share.Percent

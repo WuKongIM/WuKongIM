@@ -225,7 +225,7 @@ func TestPercentageTotalsValidateSharesBeforeAddition(t *testing.T) {
 		want   string
 	}{
 		{"pair", func(c *Config) { c.Workload.Traffic.PersonPercent = math.MaxInt }, "workload.traffic: percentages must be in 0..100"},
-		{"duration shares", func(c *Config) { c.Workload.Sessions[0].Percent = math.MaxInt }, "workload.sessions[0].percent: must be in 0..100"},
+		{"duration shares", func(c *Config) { c.Workload.Sessions[0].Percent = math.MaxInt }, "workload.sessions[0].percent: must be in 1..100"},
 		{"lifecycle", func(c *Config) { c.Workload.Lifecycle.OneShot.Percent = math.MaxInt }, "workload.lifecycle.one_shot.percent: must be in 0..100"},
 		{"payloads", func(c *Config) { c.Workload.Payloads[0].Percent = math.MaxInt }, "workload.payloads[0].percent: must be in 0..100"},
 	}
