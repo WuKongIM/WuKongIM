@@ -287,6 +287,73 @@ func TestCapacityModeRequiresFormalEvidenceAndExactStaircase(t *testing.T) {
 	}
 }
 
+func TestFormalSoakRequiresExactCapacityLeaves(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"start rate", func(c *Config) { c.Capacity.StartRatePerSecond = 2_001 }, "capacity.start_rate_per_second: must equal formal default"},
+		{"recovery rate", func(c *Config) { c.Capacity.RecoveryRatePerSecond = 2_001 }, "capacity.recovery_rate_per_second: must equal formal default"},
+		{"step percent", func(c *Config) { c.Capacity.StepPercent = 26 }, "capacity.step_percent: must equal formal default"},
+		{"refine percent", func(c *Config) { c.Capacity.RefinePercent = 11 }, "capacity.refine_percent: must equal formal default"},
+		{"stabilize", func(c *Config) { c.Capacity.Step.Stabilize = 11 * time.Minute }, "capacity.step.stabilize: must equal formal default"},
+		{"measure", func(c *Config) { c.Capacity.Step.Measure = 21 * time.Minute }, "capacity.step.measure: must equal formal default"},
+		{"recovery duration", func(c *Config) { c.Capacity.RecoveryDuration = 31 * time.Minute }, "capacity.recovery_duration: must equal formal default"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			if cfg.Mode != ModeSoak {
+				t.Fatalf("Mode = %q, want %q", cfg.Mode, ModeSoak)
+			}
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestFailureRatioStrictZeroBoundary(t *testing.T) {
+	tests := []struct {
+		name    string
+		limit   FailureRateLimit
+		wantErr string
+	}{
+		{
+			name:    "strict zero is unsatisfiable",
+			limit:   FailureRateLimit{MaxFailures: 0, PerAttempts: 1_000, Operator: ComparisonLessThan},
+			wantErr: "thresholds.correctness.overall_first_attempt_failure.max_failures: must be greater than zero when operator is <",
+		},
+		{
+			name:  "inclusive zero is zero tolerance",
+			limit: FailureRateLimit{MaxFailures: 0, PerAttempts: 1_000, Operator: ComparisonLessOrEqual},
+		},
+		{
+			name:  "strict one permits zero failures",
+			limit: FailureRateLimit{MaxFailures: 1, PerAttempts: 1_000, Operator: ComparisonLessThan},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			cfg.Profile = ProfileLocal
+			cfg.Thresholds.Correctness.OverallFirstAttemptFailure = tt.limit
+			err := cfg.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil || err.Error() != tt.wantErr {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestObservationRejectsUnusableFormalRoles(t *testing.T) {
 	tests := []struct {
 		name   string

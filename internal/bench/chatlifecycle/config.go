@@ -465,11 +465,16 @@ func validateCapacity(c CapacityConfig, profile Profile, mode Mode) error {
 	if c.Step.Measure <= 0 {
 		return fieldError("capacity.step.measure", "must be greater than zero")
 	}
-	if c.Step.Stabilize+c.Step.Measure != capacityStepDuration {
-		return fieldError("capacity.step", "stabilize plus measure must equal 30m0s")
-	}
 	if c.RecoveryDuration <= 0 {
 		return fieldError("capacity.recovery_duration", "must be greater than zero")
+	}
+	if profile == ProfileFormal && mode != ModeCapacity {
+		if err := validateFormalCapacity(c); err != nil {
+			return err
+		}
+	}
+	if c.Step.Stabilize+c.Step.Measure != capacityStepDuration {
+		return fieldError("capacity.step", "stabilize plus measure must equal 30m0s")
 	}
 	if mode != ModeCapacity {
 		return nil
@@ -477,6 +482,25 @@ func validateCapacity(c CapacityConfig, profile Profile, mode Mode) error {
 	if profile != ProfileFormal {
 		return fieldError("profile", "must be formal in capacity mode")
 	}
+	if err := validateFormalCapacity(c); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.AgedCheckpoint.Reference) == "" {
+		return fieldError("capacity.aged_checkpoint.reference", "is required in capacity profile")
+	}
+	if !c.AgedCheckpoint.Completed {
+		return fieldError("capacity.aged_checkpoint.completed", "must be true in capacity profile")
+	}
+	if !c.AgedCheckpoint.Passed {
+		return fieldError("capacity.aged_checkpoint.passed", "must be true in capacity profile")
+	}
+	if c.AgedCheckpoint.Duration < formalCheckpointDuration {
+		return fieldError("capacity.aged_checkpoint.duration", "must be at least 72h0m0s in capacity profile")
+	}
+	return nil
+}
+
+func validateFormalCapacity(c CapacityConfig) error {
 	expected := FormalConfig().Capacity
 	if c.StartRatePerSecond != expected.StartRatePerSecond {
 		return formalError("capacity.start_rate_per_second")
@@ -498,18 +522,6 @@ func validateCapacity(c CapacityConfig, profile Profile, mode Mode) error {
 	}
 	if c.RecoveryDuration != expected.RecoveryDuration {
 		return formalError("capacity.recovery_duration")
-	}
-	if strings.TrimSpace(c.AgedCheckpoint.Reference) == "" {
-		return fieldError("capacity.aged_checkpoint.reference", "is required in capacity profile")
-	}
-	if !c.AgedCheckpoint.Completed {
-		return fieldError("capacity.aged_checkpoint.completed", "must be true in capacity profile")
-	}
-	if !c.AgedCheckpoint.Passed {
-		return fieldError("capacity.aged_checkpoint.passed", "must be true in capacity profile")
-	}
-	if c.AgedCheckpoint.Duration < formalCheckpointDuration {
-		return fieldError("capacity.aged_checkpoint.duration", "must be at least 72h0m0s in capacity profile")
 	}
 	return nil
 }
@@ -979,6 +991,9 @@ func validateFailureRate(path string, limit FailureRateLimit) error {
 	}
 	if limit.Operator != ComparisonLessThan && limit.Operator != ComparisonLessOrEqual {
 		return fieldError(path+".operator", "must be < or <=")
+	}
+	if limit.Operator == ComparisonLessThan && limit.MaxFailures == 0 {
+		return fieldError(path+".max_failures", "must be greater than zero when operator is <")
 	}
 	return nil
 }
