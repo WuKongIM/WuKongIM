@@ -1,10 +1,11 @@
 # Chat Lifecycle Flow
 
 `chatlifecycle` owns the deterministic configuration and workload planning
-model plus narrow lifecycle-specific startup orchestration for the formal or
-local chat-lifecycle workload. `profile` selects formal versus local scale,
-while `mode` separately selects soak versus capacity coordination. It contains
-no concrete sockets or HTTP clients, worker loops, secrets, target mutation,
+model, narrow lifecycle-specific startup orchestration, bounded message
+verification, and redacted evidence retention for the formal or local
+chat-lifecycle workload. `profile` selects formal versus local scale, while
+`mode` separately selects soak versus capacity coordination. It contains no
+concrete sockets or HTTP clients, worker loops, secrets, target mutation,
 Docker, or host inspection; transport is supplied through narrow interfaces.
 
 ```text
@@ -90,6 +91,36 @@ zero has no retry delay; attempts one through three reuse that exact identity
 with 100 ms, 500 ms, and 2 s bases plus deterministic nonnegative jitter in
 `[0, base/5]`. A fourth retry is rejected and duration addition is checked for
 overflow.
+
+The concurrent verifier registers that attempt-independent identity in an
+explicitly bounded pending map. Only a matching successful SENDACK with
+positive server message identity completes it; retryable rejected SENDACKs
+remain decision inputs for the later retry engine, while explicit terminal
+completion is a product failure. Completed entries remain only until the
+worker calls `ReleaseSend`, which provides a bounded duplicate/conflict
+discrimination window. Unknown, duplicate, and conflicting completions use
+fixed reason codes and redacted message fingerprints.
+
+Every protocol-valid RECV is reconstructed through the payload marker and
+`TrafficModel`, then checked for person peer versus group channel semantics and
+strictly increasing sequence per recipient/channel. Such a RECV is sent through
+the narrow `RecvAcker` even when payload, identity, or sequence validation
+fails; packets without trustworthy positive server IDs are not acknowledged.
+Validation and RECVACK failures are retained independently without copying the
+underlying error. Logout calls `ReleaseRecipient` to delete that session's
+bounded monotonic state instead of accumulating historical channels.
+
+Exact delivery correlation uses one run-keyed position in every 100 logical
+sends per worker. A sampled entry has one map row and one indexed min-heap
+deadline; successful ACK-plus-RECV delivery and deadline expiry both physically
+remove both indexes. A terminal SEND remains until that deadline so expiry also
+records its confirmed sampled loss.
+Pending, sequence, and correlation capacity exhaustion is `harness_invalid`,
+while loss, corruption, duplicate delivery, sequence regression, and terminal
+send failure are `product_failure`. Aggregate counters and per-class fixed
+first/last redacted examples are mutex-protected, deeply copied in snapshots,
+and bounded independently of elapsed run history. Product failure takes
+precedence and cannot be cleared by later success or harness evidence.
 
 The person relationship graph is reconstructed from global indexes and keeps
 no adjacency history. Each owner has a run-rotated repeating degree pattern
