@@ -2000,23 +2000,23 @@ func (g *slot) failPendingLocked(err error) []futureCompletion {
 		}
 	}
 	for _, fut := range g.submittedProposals {
-		if completion := fut.resolve(Result{}, err); completion.done != nil {
+		if completion := fut.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 	}
 	for _, fut := range g.submittedConfigs {
-		if completion := fut.resolve(Result{}, err); completion.done != nil {
+		if completion := fut.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 	}
 	for index, pending := range g.pendingProposals {
-		if completion := pending.future.resolve(Result{}, err); completion.done != nil {
+		if completion := pending.future.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 		delete(g.pendingProposals, index)
 	}
 	for index, pending := range g.pendingConfigs {
-		if completion := pending.future.resolve(Result{}, err); completion.done != nil {
+		if completion := pending.future.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 		delete(g.pendingConfigs, index)
@@ -2032,23 +2032,23 @@ func (g *slot) failLeadershipDependentLocked(err error) []futureCompletion {
 	}
 	completions := make([]futureCompletion, 0, len(g.submittedProposals)+len(g.submittedConfigs)+len(g.pendingProposals)+len(g.pendingConfigs))
 	for _, fut := range g.submittedProposals {
-		if completion := fut.resolve(Result{}, err); completion.done != nil {
+		if completion := fut.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 	}
 	for _, fut := range g.submittedConfigs {
-		if completion := fut.resolve(Result{}, err); completion.done != nil {
+		if completion := fut.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 	}
 	for index, pending := range g.pendingProposals {
-		if completion := pending.future.resolve(Result{}, err); completion.done != nil {
+		if completion := pending.future.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 		delete(g.pendingProposals, index)
 	}
 	for index, pending := range g.pendingConfigs {
-		if completion := pending.future.resolve(Result{}, err); completion.done != nil {
+		if completion := pending.future.resolve(Result{}, err); completion.future != nil {
 			completions = append(completions, completion)
 		}
 		delete(g.pendingConfigs, index)

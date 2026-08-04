@@ -84,6 +84,66 @@ func TestFutureCompletionObserverRegistrationRacesResolution(t *testing.T) {
 	}
 }
 
+func TestFutureCompletionObserverRegisteredBeforeDispatchWaitsForDispatchSafety(t *testing.T) {
+	runtime := &Runtime{slots: make(map[SlotID]*slot)}
+	future := newFuture(nil)
+	runtime.mu.Lock()
+	completion := future.resolve(Result{Index: 11}, nil)
+	observer := &gatedReentrantRuntimeStatusObserver{
+		runtime: runtime,
+		slotID:  91,
+		entered: make(chan struct{}, 2),
+		result:  make(chan error, 2),
+	}
+	registered := make(chan bool, 1)
+	go func() {
+		registered <- future.ObserveCompletion(observer)
+	}()
+
+	select {
+	case ok := <-registered:
+		if !ok {
+			runtime.mu.Unlock()
+			completion.dispatch()
+			t.Fatal("ObserveCompletion() = false, want registered")
+		}
+	case <-observer.entered:
+		runtime.mu.Unlock()
+		completion.dispatch()
+		<-registered
+		t.Fatal("completion observer entered before outer lock release and dispatch")
+	case <-time.After(250 * time.Millisecond):
+		runtime.mu.Unlock()
+		completion.dispatch()
+		t.Fatal("ObserveCompletion() did not register during terminal pre-dispatch state")
+	}
+	select {
+	case <-observer.entered:
+		runtime.mu.Unlock()
+		completion.dispatch()
+		t.Fatal("completion observer entered before dispatch")
+	default:
+	}
+
+	runtime.mu.Unlock()
+	completion.dispatch()
+	select {
+	case err := <-observer.result:
+		if !errors.Is(err, ErrSlotNotFound) {
+			t.Fatalf("observer Status() error = %v, want slot not found", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("completion observer did not re-enter Runtime.Status after dispatch")
+	}
+	if observer.calls != 1 {
+		t.Fatalf("observer calls = %d, want exactly one", observer.calls)
+	}
+	result, err := future.Wait(context.Background())
+	if err != nil || result.Index != 11 {
+		t.Fatalf("Wait() = (%#v, %v), want terminal index 11", result, err)
+	}
+}
+
 func TestRuntimeCloseDispatchesFutureCompletionObserverAfterUnlock(t *testing.T) {
 	runtime, err := New(Options{
 		NodeID:       1,
@@ -160,6 +220,21 @@ type reentrantRuntimeStatusObserver struct {
 }
 
 func (o *reentrantRuntimeStatusObserver) ObserveFutureCompletion(Result, error) {
+	_, err := o.runtime.Status(o.slotID)
+	o.result <- err
+}
+
+type gatedReentrantRuntimeStatusObserver struct {
+	runtime *Runtime
+	slotID  SlotID
+	entered chan struct{}
+	result  chan error
+	calls   int
+}
+
+func (o *gatedReentrantRuntimeStatusObserver) ObserveFutureCompletion(Result, error) {
+	o.calls++
+	o.entered <- struct{}{}
 	_, err := o.runtime.Status(o.slotID)
 	o.result <- err
 }

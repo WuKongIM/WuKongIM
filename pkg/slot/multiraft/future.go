@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+type futureCompletionState uint8
+
+const (
+	futureCompletionPending futureCompletionState = iota
+	futureCompletionTerminalPendingDispatch
+	futureCompletionDispatchSafe
+)
+
 type future struct {
 	done chan struct{}
 
@@ -15,7 +23,7 @@ type future struct {
 	// bounded by the accepted proposal's existing runtime lifecycle.
 	completionObserver           FutureCompletionObserver
 	completionObserverRegistered bool
-	resolved                     bool
+	completionState              futureCompletionState
 	observers                    []ProposalStageObserver
 	createdAt                    time.Time
 	trackedAt                    time.Time
@@ -40,8 +48,8 @@ func (f *future) Wait(ctx context.Context) (Result, error) {
 	}
 }
 
-// ObserveCompletion registers the future's single terminal observer. When the
-// future already resolved, it invokes observer synchronously before returning.
+// ObserveCompletion registers the future's single terminal observer. Once
+// dispatch is safe, it invokes a late observer synchronously without retaining it.
 func (f *future) ObserveCompletion(observer FutureCompletionObserver) bool {
 	if observer == nil {
 		return false
@@ -52,13 +60,13 @@ func (f *future) ObserveCompletion(observer FutureCompletionObserver) bool {
 		return false
 	}
 	f.completionObserverRegistered = true
-	resolved := f.resolved
+	dispatchSafe := f.completionState == futureCompletionDispatchSafe
 	result, err := f.result, f.err
-	if !resolved {
+	if !dispatchSafe {
 		f.completionObserver = observer
 	}
 	f.mu.Unlock()
-	if resolved {
+	if dispatchSafe {
 		observer.ObserveFutureCompletion(result, err)
 	}
 	return true
@@ -67,19 +75,29 @@ func (f *future) ObserveCompletion(observer FutureCompletionObserver) bool {
 // futureCompletion carries bounded terminal callback work captured during
 // resolution. Callers that own Runtime or Slot locks must dispatch after unlock.
 type futureCompletion struct {
-	done     chan struct{}
-	observer FutureCompletionObserver
-	result   Result
-	err      error
+	future *future
 }
 
 func (c futureCompletion) dispatch() {
-	if c.done == nil {
+	if c.future == nil {
 		return
 	}
-	close(c.done)
-	if c.observer != nil {
-		c.observer.ObserveFutureCompletion(c.result, c.err)
+	f := c.future
+	f.mu.Lock()
+	if f.completionState != futureCompletionTerminalPendingDispatch {
+		f.mu.Unlock()
+		return
+	}
+	f.completionState = futureCompletionDispatchSafe
+	observer := f.completionObserver
+	f.completionObserver = nil
+	result, err := f.result, f.err
+	done := f.done
+	f.mu.Unlock()
+
+	close(done)
+	if observer != nil {
+		observer.ObserveFutureCompletion(result, err)
 	}
 }
 
@@ -98,14 +116,8 @@ func (f *future) resolve(result Result, err error) futureCompletion {
 		f.mu.Lock()
 		f.result = result
 		f.err = err
-		f.resolved = true
-		completion = futureCompletion{
-			done:     f.done,
-			observer: f.completionObserver,
-			result:   result,
-			err:      err,
-		}
-		f.completionObserver = nil
+		f.completionState = futureCompletionTerminalPendingDispatch
+		completion = futureCompletion{future: f}
 		f.mu.Unlock()
 	})
 	return completion

@@ -150,6 +150,9 @@ type Envelope struct {
 	Message raftpb.Message
 }
 
+// Future exposes a caller-cancelable wait for the terminal result. Runtime
+// dispatch closes the wait channel before invoking the completion observer, so
+// Wait may return before that observer finishes.
 type Future interface {
 	Wait(ctx context.Context) (Result, error)
 }
