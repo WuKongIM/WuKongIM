@@ -81,6 +81,18 @@ becomes available when its higher endpoint arrives, and incoming reconstruction
 checks only the previous five owners. Fixed-capacity results bound one user's
 incoming plus outgoing conversations to ten.
 
+Fast unit allocation gates cover UID round trips, five-edge reconstruction,
+payload choice, login/channel schedules, and one-at-a-time group/member
+reconstruction. UID, group ID, peer, and canonical person-channel strings are
+necessarily transient allocations because they are the protocol-visible
+result; their per-operation budgets include small compiler/runtime headroom but
+do not permit retained history or repeated owner-UID formatting. A formal
+250,000-user/1,000,000-edge scanner retains only counters and a checksum, also
+reconstructs payload, schedule, group, and one group member at a time, and
+compares repeated post-GC retained heap/object deltas with a much smaller scan.
+This gate detects history-sized slices/maps without constructing a 100,000-member
+slice or relying on a machine-specific absolute heap size.
+
 Returning-login planning selects mature historical candidates rather than
 claiming they are offline; offline admission remains worker-owned. Four of each
 five login ordinals prefer candidates and real adjacent edges created within

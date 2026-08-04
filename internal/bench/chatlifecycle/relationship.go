@@ -122,12 +122,13 @@ func (g RelationshipGraph) Degree(ownerIndex uint64) uint8 {
 func (g RelationshipGraph) Outgoing(ownerIndex uint64) (ForwardRelationshipSet, error) {
 	var result ForwardRelationshipSet
 	degree := int(g.Degree(ownerIndex))
+	ownerUID := g.identity.UID(ownerIndex)
 	for offset := 1; offset <= degree; offset++ {
 		peerIndex, err := checkedAddIndex(ownerIndex, uint64(offset))
 		if err != nil {
 			return ForwardRelationshipSet{}, err
 		}
-		result.Items[result.Count] = g.edge(ownerIndex, peerIndex)
+		result.Items[result.Count] = g.edgeWithUIDs(ownerIndex, ownerUID, peerIndex, g.identity.UID(peerIndex))
 		result.Count++
 	}
 	return result, nil
@@ -295,6 +296,10 @@ func returningConversationFor(edge RelationshipEdge, userIndex uint64) Returning
 func (g RelationshipGraph) edge(ownerIndex, peerIndex uint64) RelationshipEdge {
 	ownerUID := g.identity.UID(ownerIndex)
 	peerUID := g.identity.UID(peerIndex)
+	return g.edgeWithUIDs(ownerIndex, ownerUID, peerIndex, peerUID)
+}
+
+func (g RelationshipGraph) edgeWithUIDs(ownerIndex uint64, ownerUID string, peerIndex uint64, peerUID string) RelationshipEdge {
 	personChannelID, _ := channelid.NormalizePersonChannel(ownerUID, peerUID)
 	return RelationshipEdge{
 		OwnerIndex:       ownerIndex,
