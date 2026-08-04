@@ -1,6 +1,6 @@
 # Chat Lifecycle Soak Design
 
-**Status:** Design approved in conversation; written-spec review pending
+**Status:** Approved
 
 **Date:** 2026-08-04
 
