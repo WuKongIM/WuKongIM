@@ -479,13 +479,22 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 	if ack == nil || ack.ClientMsgNo == "" {
 		return v.recordSendFailureLocked(FailureCodeInvalidSendack, 0, [16]byte{}, EvidenceStageSendack, 0)
 	}
-	if ack.ClientSeq != 0 && v.consumeReleasedAttemptLocked(releasedAttemptKey{clientSeq: ack.ClientSeq, clientMsgNo: ack.ClientMsgNo}) {
-		return nil
+	positiveSuccess := ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0
+	if ack.ClientSeq != 0 {
+		key := releasedAttemptKey{clientSeq: ack.ClientSeq, clientMsgNo: ack.ClientMsgNo}
+		if v.releasedAttempts[key] != nil {
+			var correlationErr error
+			if positiveSuccess {
+				correlationErr = v.observeSendackCorrelationLocked(ack)
+			}
+			v.consumeReleasedAttemptLocked(key)
+			return correlationErr
+		}
 	}
 	pending := v.pending[ack.ClientMsgNo]
 	if pending == nil {
 		var correlationErr error
-		if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+		if positiveSuccess {
 			correlationErr = v.observeSendackCorrelationLocked(ack)
 		}
 		return errors.Join(correlationErr, v.recordUnknownSendackLocked(0, ack))
@@ -496,15 +505,17 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 		if attempt == nil {
 			return v.recordUnknownSendackLocked(pending.logical.LogicalSend, ack)
 		}
-		if pending.completion != sendIncomplete && ack.ClientSeq != pending.completionClientSeq {
-			attempt.outstanding = false
-			return nil
-		}
-		attempt.outstanding = false
 	}
 	var correlationErr error
-	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+	if positiveSuccess {
 		correlationErr = v.observeSendackCorrelationLocked(ack)
+	}
+	if pending.attemptCount > 0 {
+		if pending.completion != sendIncomplete && ack.ClientSeq != pending.completionClientSeq {
+			attempt.outstanding = false
+			return correlationErr
+		}
+		attempt.outstanding = false
 	}
 	if pending.completion != sendIncomplete {
 		if pending.completion == sendAcknowledged && pending.messageID == ack.MessageID && pending.messageSeq == ack.MessageSeq {

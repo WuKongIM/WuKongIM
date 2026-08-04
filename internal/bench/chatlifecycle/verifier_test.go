@@ -777,6 +777,53 @@ func TestVerifierSampledTerminalLateMatchingAckCompletesCorrelationInBothOrders(
 	}
 }
 
+func TestVerifierReleasedRegisteredAttemptLateAckCompletesSampledCorrelation(t *testing.T) {
+	model, verifier := newTestVerifier(t, 200, 16, 4, 5*time.Second)
+	started := time.Unix(2_750, 0)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", started)
+	policy := newTestRetryPolicy(t, model)
+	attempt, err := policy.Attempt(logical, 0)
+	if err != nil {
+		t.Fatalf("Attempt(0): %v", err)
+	}
+	const clientSeq = uint64(701)
+	if err := verifier.ObserveAttempt(logical, attempt, clientSeq); err != nil {
+		t.Fatalf("ObserveAttempt: %v", err)
+	}
+	assertVerificationCode(t, verifier.CompleteTerminal(logical, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+	if err := verifier.ReleaseSend(logical); err != nil {
+		t.Fatalf("ReleaseSend: %v", err)
+	}
+	if snapshot := verifier.Snapshot(); snapshot.ReleasedAttemptCurrent != 1 {
+		t.Fatalf("released attempt current = %d, want 1", snapshot.ReleasedAttemptCurrent)
+	}
+
+	const messageID, messageSeq = int64(905), uint64(15)
+	if err := verifier.HandleRecv(context.Background(), logical.Target, mustRecvPacket(t, model, logical, messageID, messageSeq), discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv: %v", err)
+	}
+	ack := &frame.SendackPacket{
+		ClientSeq: clientSeq, ClientMsgNo: logical.ClientMsgNo,
+		MessageID: messageID, MessageSeq: messageSeq, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendack(ack); err != nil {
+		t.Fatalf("HandleSendack(released registered attempt): %v", err)
+	}
+	if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
+		t.Fatalf("ExpireCorrelations = %d, want 0 after matching late ACK", expired)
+	}
+	snapshot := verifier.Snapshot()
+	if snapshot.SampledDelivered != 1 || snapshot.CorrelationCurrent != 0 || snapshot.DeadlineCurrent != 0 || snapshot.ReleasedAttemptCurrent != 0 {
+		t.Fatalf("released attempt correlation = %+v", snapshot)
+	}
+	if snapshot.Terminal != 1 || snapshot.Classification != SyncClassificationProductFailure {
+		t.Fatalf("terminal precedence = %+v", snapshot)
+	}
+	if evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != 0 {
+		t.Fatalf("matching late ACK created correlation evidence: %+v", verifier.EvidenceSnapshot())
+	}
+}
+
 func TestVerifierSampledTerminalLateConflictingAckRecordsCorrelationConflict(t *testing.T) {
 	model, verifier := newTestVerifier(t, 200, 16, 4, 5*time.Second)
 	started := time.Unix(2_800, 0)
