@@ -949,6 +949,144 @@ func TestClientReadFrameBoundedSendackPreferenceDoesNotStarveRecv(t *testing.T) 
 	}
 }
 
+func TestClientConcurrentReadFrameCancellationWhileArbitrationBusy(t *testing.T) {
+	session := newClientSession(nil, 1)
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := session.readFrame(firstCtx)
+		firstDone <- err
+	}()
+	waitForReadArbitrationHeld(t, session)
+
+	secondCtx, cancelSecond := context.WithCancel(context.Background())
+	secondStarted := make(chan struct{})
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondStarted)
+		_, err := session.readFrame(secondCtx)
+		secondDone <- err
+	}()
+	<-secondStarted
+	cancelSecond()
+
+	select {
+	case err := <-secondDone:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("second readFrame() error = %v, want %v", err, context.Canceled)
+		}
+	case <-time.After(100 * time.Millisecond):
+		cancelFirst()
+		<-firstDone
+		if err := session.close(); err != nil {
+			t.Fatalf("close() after arbitration timeout error = %v", err)
+		}
+		<-secondDone
+		t.Fatal("canceled reader remained blocked waiting for frame arbitration")
+	}
+
+	cancelFirst()
+	if err := <-firstDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("first readFrame() error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func TestClientConcurrentReadFrameCloseUnblocksArbitrationWaiter(t *testing.T) {
+	session := newClientSession(nil, 1)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := session.readFrame(context.Background())
+		firstDone <- err
+	}()
+	waitForReadArbitrationHeld(t, session)
+
+	secondStarted := make(chan struct{})
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondStarted)
+		_, err := session.readFrame(context.Background())
+		secondDone <- err
+	}()
+	<-secondStarted
+	if err := session.close(); err != nil {
+		t.Fatalf("close() error = %v", err)
+	}
+
+	for index, done := range []<-chan error{firstDone, secondDone} {
+		select {
+		case err := <-done:
+			if !errors.Is(err, errClientNotConnected) {
+				t.Fatalf("reader %d error = %v, want %v", index+1, err, errClientNotConnected)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("reader %d did not unblock after close", index+1)
+		}
+	}
+}
+
+func TestClientConcurrentReadFrameCancellationIsRepeatable(t *testing.T) {
+	session := newClientSession(nil, 1)
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := session.readFrame(firstCtx)
+		firstDone <- err
+	}()
+	waitForReadArbitrationHeld(t, session)
+
+	const waiterCount = 32
+	cancels := make([]context.CancelFunc, 0, waiterCount)
+	started := make(chan struct{}, waiterCount)
+	done := make(chan error, waiterCount)
+	for i := 0; i < waiterCount; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancels = append(cancels, cancel)
+		go func(ctx context.Context) {
+			started <- struct{}{}
+			_, err := session.readFrame(ctx)
+			done <- err
+		}(ctx)
+	}
+	for i := 0; i < waiterCount; i++ {
+		<-started
+	}
+	for _, cancel := range cancels {
+		cancel()
+	}
+
+	deadline := time.After(time.Second)
+	for i := 0; i < waiterCount; i++ {
+		select {
+		case err := <-done:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled reader error = %v, want %v", err, context.Canceled)
+			}
+		case <-deadline:
+			cancelFirst()
+			<-firstDone
+			t.Fatalf("only %d/%d canceled arbitration waiters returned", i, waiterCount)
+		}
+	}
+	cancelFirst()
+	if err := <-firstDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("first readFrame() error = %v, want %v", err, context.Canceled)
+	}
+}
+
+func waitForReadArbitrationHeld(t *testing.T, session *clientSession) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		if len(session.readPermit) == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("reader did not acquire frame arbitration")
+		}
+		runtime.Gosched()
+	}
+}
+
 func TestClientSessionConcurrentCloseIsIdempotent(t *testing.T) {
 	session := newClientSession(nil, 1)
 	var wg sync.WaitGroup

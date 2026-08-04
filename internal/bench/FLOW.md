@@ -52,9 +52,11 @@ keeps the existing workload-facing `Send` / `ReadFrame` contract by converting
 `pkg/client` SEND futures back into local SENDACK frames and forwarding RECV
 frames through independent bounded RECV, SENDACK, and error queues. A full RECV
 queue backpressures the shared reader and then the socket; neither layer evicts
-receive evidence. `ReadFrame` serializes arbitration, prefers at most four
-queued SENDACKs before an already queued RECV, and drains published frames and
-SEND results before returning the original remote terminal error exactly once.
+receive evidence. `ReadFrame` acquires a one-reader arbitration permit through
+the caller context and session stop signal, so a reader waiting behind another
+reader remains cancelable. The permit preserves one shared preference state:
+at most four queued SENDACKs precede an already queued RECV. Published frames
+and SEND results drain before the original remote terminal error returns once.
 Its numeric queue snapshot exposes only depths and capacities for saturation
 gauges. Worker clients are created from an optional worker-local `client`
 profile. Its send queue, maximum inflight SEND count, socket read buffer, and

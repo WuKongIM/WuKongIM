@@ -101,8 +101,8 @@ type clientSession struct {
 	stopCh chan struct{}
 	// closeOnce makes session shutdown idempotent.
 	closeOnce sync.Once
-	// readMu serializes bounded-priority arbitration across concurrent readers.
-	readMu sync.Mutex
+	// readPermit makes bounded-priority arbitration serial and cancelable.
+	readPermit chan struct{}
 	// sendackBurst counts consecutive preferred SENDACKs while RECV is queued.
 	sendackBurst int
 	// terminalDelivered prevents the original remote terminal error from repeating.
@@ -358,8 +358,10 @@ func (s *clientSession) publishError(result errorResult) bool {
 }
 
 func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
-	s.readMu.Lock()
-	defer s.readMu.Unlock()
+	if err := s.acquireReadPermit(ctx); err != nil {
+		return nil, err
+	}
+	defer s.releaseReadPermit()
 	for {
 		if s.terminalDelivered {
 			return nil, errClientNotConnected
@@ -420,6 +422,21 @@ func (s *clientSession) readFrame(ctx context.Context) (frame.Frame, error) {
 	}
 }
 
+func (s *clientSession) acquireReadPermit(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.stopCh:
+		return errClientNotConnected
+	case <-s.readPermit:
+		return nil
+	}
+}
+
+func (s *clientSession) releaseReadPermit() {
+	s.readPermit <- struct{}{}
+}
+
 func (s *clientSession) consumeSendack(ack *frame.SendackPacket) (frame.Frame, error) {
 	s.notifyQueueDrain()
 	if s.isStopped() {
@@ -468,14 +485,17 @@ func (s *clientSession) notifyQueueDrain() {
 }
 
 func newClientSession(inner *wkclient.Client, frameBufferSize int) *clientSession {
-	return &clientSession{
-		inner:     inner,
-		recvCh:    make(chan frame.Frame, frameBufferSize),
-		sendackCh: make(chan *frame.SendackPacket, frameBufferSize),
-		errCh:     make(chan errorResult, frameBufferSize),
-		stopCh:    make(chan struct{}),
-		drainCh:   make(chan struct{}, 1),
+	session := &clientSession{
+		inner:      inner,
+		recvCh:     make(chan frame.Frame, frameBufferSize),
+		sendackCh:  make(chan *frame.SendackPacket, frameBufferSize),
+		errCh:      make(chan errorResult, frameBufferSize),
+		stopCh:     make(chan struct{}),
+		drainCh:    make(chan struct{}, 1),
+		readPermit: make(chan struct{}, 1),
 	}
+	session.readPermit <- struct{}{}
+	return session
 }
 
 func (s *clientSession) close() error {
