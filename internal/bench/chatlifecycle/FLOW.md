@@ -27,7 +27,9 @@ owner without a retained UID map. A lifecycle UID contains a bounded hashed
 run/seed namespace plus the exact base-36 global index, so it is reversible and
 collision-free within the run without leaking raw run-ID characters. All
 deterministic choices use independent semantic-purpose hashes; introducing one
-choice cannot consume or shift another choice's output.
+choice cannot consume or shift another choice's output. Bounded choices whose
+range is not a power of two reject the biased hash prefix and derive retries
+from a separate semantic domain plus attempt number.
 
 The person relationship graph is reconstructed from global indexes and keeps
 no adjacency history. Each owner has a run-rotated repeating degree pattern

@@ -15,7 +15,10 @@ const (
 
 var relationshipDegreePattern = [4]uint8{3, 4, 4, 5}
 
-var errReturningHistoryWindow = errors.New("chat lifecycle relationship: new users per day must cover at least six indexes")
+var (
+	errRelationshipIdentityRequired = errors.New("chat lifecycle relationship: identity space is required")
+	errReturningHistoryWindow       = errors.New("chat lifecycle relationship: new users per day must cover at least six indexes")
+)
 
 // HistoryBucket classifies a candidate and its selected edge availability
 // relative to the preceding-new-user-day boundary.
@@ -96,12 +99,16 @@ type RelationshipGraph struct {
 	degreePhase uint64
 }
 
-// NewRelationshipGraph binds graph decisions to a validated identity space.
-func NewRelationshipGraph(identity *IdentitySpace) RelationshipGraph {
+// NewRelationshipGraph binds graph decisions to a validated identity space and
+// rejects nil rather than constructing a graph that would panic on first use.
+func NewRelationshipGraph(identity *IdentitySpace) (RelationshipGraph, error) {
+	if identity == nil {
+		return RelationshipGraph{}, errRelationshipIdentityRequired
+	}
 	return RelationshipGraph{
 		identity:    identity,
 		degreePhase: identity.decisionUint64("relationship-degree-phase/v1") % uint64(len(relationshipDegreePattern)),
-	}
+	}, nil
 }
 
 // Degree returns the exact repeating 3/4/4/5 forward degree, rotated by a
@@ -170,15 +177,18 @@ func (g RelationshipGraph) AvailableRelationships(userIndex, nextNewIndex uint64
 // adjacent conversations. Preference follows an exact seeded four-recent,
 // one-older cycle; unavailable older history explicitly falls back to recent.
 func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUsersPerDay uint64) (ReturningCandidate, error) {
-	preferencePhase := g.identity.decisionUint64("returning-history-bucket-phase/v1") % 5
+	if newUsersPerDay < MaxForwardRelationships+1 {
+		return ReturningCandidate{}, errReturningHistoryWindow
+	}
+	preferencePhase, err := g.identity.decisionBelow("returning-history-bucket-phase/v1", 5)
+	if err != nil {
+		return ReturningCandidate{}, err
+	}
 	preferredBucket := HistoryRecent
 	if (loginOrdinal%5+preferencePhase)%5 == 4 {
 		preferredBucket = HistoryOlder
 	}
 	result := ReturningCandidate{PreferredBucket: preferredBucket}
-	if newUsersPerDay < MaxForwardRelationships+1 {
-		return ReturningCandidate{}, errReturningHistoryWindow
-	}
 
 	recent, older := returningCandidateRanges(nextNewIndex, newUsersPerDay)
 	selectedRange, actualBucket, available := recent, HistoryRecent, recent.available
@@ -198,8 +208,11 @@ func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUse
 	}
 
 	span := selectedRange.max - selectedRange.min + 1
-	draw := g.identity.decisionUint64("returning-candidate-index/v1", nextNewIndex, loginOrdinal, newUsersPerDay, uint64(historyBucketCode(actualBucket)))
-	userIndex := selectedRange.min + draw%span
+	draw, err := g.identity.decisionBelow("returning-candidate-index/v1", span, nextNewIndex, loginOrdinal, newUsersPerDay, uint64(historyBucketCode(actualBucket)))
+	if err != nil {
+		return ReturningCandidate{}, err
+	}
+	userIndex := selectedRange.min + draw
 	relationships, err := g.AvailableRelationships(userIndex, nextNewIndex)
 	if err != nil {
 		return ReturningCandidate{}, err
@@ -213,11 +226,22 @@ func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUse
 	result.UserUID = g.identity.UID(userIndex)
 	result.ActualBucket = actualBucket
 	result.ConversationCount = 1 + int(g.identity.decisionUint64("returning-conversation-count/v1", nextNewIndex, loginOrdinal, userIndex)%2)
-	first := int(g.identity.decisionUint64("returning-conversation-first/v1", nextNewIndex, loginOrdinal, userIndex) % uint64(relationships.Count))
+	firstDraw, err := g.identity.decisionBelow("returning-conversation-first/v1", uint64(relationships.Count), nextNewIndex, loginOrdinal, userIndex)
+	if err != nil {
+		return ReturningCandidate{}, err
+	}
+	first := int(firstDraw)
 	result.Conversations[0] = returningConversationFor(relationships.Items[first], userIndex)
 	if result.ConversationCount == 2 {
-		offset := 1 + int(g.identity.decisionUint64("returning-conversation-second-offset/v1", nextNewIndex, loginOrdinal, userIndex)%uint64(relationships.Count-1))
-		second := (first + offset) % relationships.Count
+		offsetDraw, err := g.identity.decisionBelow("returning-conversation-second-offset/v1", uint64(relationships.Count-1), nextNewIndex, loginOrdinal, userIndex)
+		if err != nil {
+			return ReturningCandidate{}, err
+		}
+		offset := 1 + int(offsetDraw)
+		second := first + offset
+		if second >= relationships.Count {
+			second -= relationships.Count
+		}
 		result.Conversations[1] = returningConversationFor(relationships.Items[second], userIndex)
 	}
 	return result, nil

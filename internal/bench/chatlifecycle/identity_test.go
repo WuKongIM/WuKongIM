@@ -1,10 +1,41 @@
 package chatlifecycle
 
 import (
+	"errors"
 	"math"
 	"regexp"
 	"testing"
 )
+
+func TestIdentityDecisionBelowRejectsBiasedPrefixDeterministically(t *testing.T) {
+	space, err := NewIdentitySpace("relationship-test", 71, 3)
+	if err != nil {
+		t.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+	const purpose = "relationship-rejection-boundary-test/v1"
+	const want = uint64(4_998_631_288_553_997_907)
+	bound := uint64(1<<63) + 1
+	threshold := -bound % bound
+	firstDraw := space.decisionUint64(purpose, 17, 29)
+	if firstDraw >= threshold {
+		t.Fatalf("first draw %d does not exercise rejection prefix [0,%d)", firstDraw, threshold)
+	}
+
+	got, err := space.decisionBelow(purpose, bound, 17, 29)
+	if err != nil {
+		t.Fatalf("decisionBelow() error = %v", err)
+	}
+	if got != want || got >= bound {
+		t.Fatalf("decisionBelow() = %d, want %d within [0,%d)", got, want, bound)
+	}
+	again, err := space.decisionBelow(purpose, bound, 17, 29)
+	if err != nil || again != got {
+		t.Fatalf("decisionBelow() again = %d, %v; want %d, nil", again, err, got)
+	}
+	if _, err := space.decisionBelow(purpose, 0, 17, 29); !errors.Is(err, errDecisionBoundRequired) {
+		t.Fatalf("decisionBelow(zero bound) error = %v, want %v", err, errDecisionBoundRequired)
+	}
+}
 
 func TestIdentitySpaceDerivesDeterministicSafeUIDs(t *testing.T) {
 	space, err := NewIdentitySpace("formal/run @ 2026", 41, 3)

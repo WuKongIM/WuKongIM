@@ -1,6 +1,7 @@
 package chatlifecycle
 
 import (
+	"errors"
 	"math"
 	"testing"
 
@@ -13,7 +14,18 @@ func newTestRelationshipGraph(t *testing.T) (RelationshipGraph, *IdentitySpace) 
 	if err != nil {
 		t.Fatalf("NewIdentitySpace() error = %v", err)
 	}
-	return NewRelationshipGraph(space), space
+	graph, err := NewRelationshipGraph(space)
+	if err != nil {
+		t.Fatalf("NewRelationshipGraph() error = %v", err)
+	}
+	return graph, space
+}
+
+func TestNewRelationshipGraphRejectsNilIdentity(t *testing.T) {
+	_, err := NewRelationshipGraph(nil)
+	if !errors.Is(err, errRelationshipIdentityRequired) {
+		t.Fatalf("NewRelationshipGraph(nil) error = %v, want %v", err, errRelationshipIdentityRequired)
+	}
 }
 
 func TestRelationshipGraphVirtualDayHasExactDegreeDistribution(t *testing.T) {
@@ -137,8 +149,8 @@ func TestReturningCandidateIsUnavailableWithoutMatureHistory(t *testing.T) {
 			t.Fatalf("ReturningCandidate(%d) = %+v, want unavailable", nextNewIndex, candidate)
 		}
 	}
-	if _, err := graph.ReturningCandidate(100, 0, 0); err == nil {
-		t.Fatal("ReturningCandidate(zero new users per day) error = nil")
+	if _, err := graph.ReturningCandidate(100, 0, 0); !errors.Is(err, errReturningHistoryWindow) {
+		t.Fatalf("ReturningCandidate(zero new users per day) error = %v, want %v", err, errReturningHistoryWindow)
 	}
 }
 
@@ -166,6 +178,24 @@ func TestReturningCandidateFallsBackFromOlderToRecentBeforeFirstDay(t *testing.T
 	}
 	if candidate.UserIndex < 5 || candidate.UserIndex+5 >= nextNewIndex {
 		t.Fatalf("candidate user %d is not mature below high-water %d", candidate.UserIndex, nextNewIndex)
+	}
+}
+
+func TestReturningCandidateUsesUnbiasedCandidateRangeSampling(t *testing.T) {
+	graph, _ := newTestRelationshipGraph(t)
+	newUsersPerDay := uint64(1<<63) + 6
+	nextNewIndex := newUsersPerDay + 100
+
+	candidate, err := graph.ReturningCandidate(nextNewIndex, 1, newUsersPerDay)
+	if err != nil {
+		t.Fatalf("ReturningCandidate() error = %v", err)
+	}
+	if candidate.PreferredBucket != HistoryRecent || candidate.ActualBucket != HistoryRecent || candidate.Fallback {
+		t.Fatalf("candidate bucket preferred/actual/fallback = %q/%q/%v, want recent/recent/false", candidate.PreferredBucket, candidate.ActualBucket, candidate.Fallback)
+	}
+	const wantUserIndex = uint64(4_875_739_668_305_399_338)
+	if candidate.UserIndex != wantUserIndex {
+		t.Fatalf("candidate user index = %d, want unbiased rejection sample %d", candidate.UserIndex, wantUserIndex)
 	}
 }
 

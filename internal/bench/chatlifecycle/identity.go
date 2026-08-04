@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	lifecycleUIDPrefix = "wku-"
+	lifecycleUIDPrefix    = "wku-"
+	maxDecisionRejections = 128
 	// MaxLifecycleUIDLength is the maximum UID length, including a uint64 index.
 	MaxLifecycleUIDLength = len(lifecycleUIDPrefix) + 16 + 1 + 13
 )
@@ -23,6 +24,8 @@ var (
 	errIdentityWorkers       = errors.New("chat lifecycle identity: workers must be positive")
 	errIdentityWorkerID      = errors.New("chat lifecycle identity: worker ID is outside the zero-based worker range")
 	errIdentityIndexOverflow = errors.New("chat lifecycle identity: global index overflows uint64")
+	errDecisionBoundRequired = errors.New("chat lifecycle identity: decision bound must be positive")
+	errDecisionRejections    = errors.New("chat lifecycle identity: deterministic rejection sampling exhausted")
 )
 
 // IdentitySpace deterministically partitions a run's collision-free identity
@@ -105,6 +108,31 @@ func (s *IdentitySpace) IndexFromUID(uid string) (uint64, bool) {
 // decisionUint64 derives an independent deterministic decision stream for a
 // semantic purpose. Adding another purpose cannot consume or shift this value.
 func (s *IdentitySpace) decisionUint64(purpose string, values ...uint64) uint64 {
+	return s.decisionUint64WithTrailing(purpose, values, 0, false)
+}
+
+// decisionBelow maps a semantic decision uniformly into [0, bound). Values in
+// the short biased prefix are rejected; retries use an independent purpose
+// domain plus an attempt number and never consume shared mutable RNG state.
+func (s *IdentitySpace) decisionBelow(purpose string, bound uint64, values ...uint64) (uint64, error) {
+	if bound == 0 {
+		return 0, errDecisionBoundRequired
+	}
+	threshold := -bound % bound
+	draw := s.decisionUint64(purpose, values...)
+	if draw >= threshold {
+		return draw % bound, nil
+	}
+	for attempt := uint64(1); attempt <= maxDecisionRejections; attempt++ {
+		draw = s.decisionUint64WithTrailing(purpose+"/rejection-retry/v1", values, attempt, true)
+		if draw >= threshold {
+			return draw % bound, nil
+		}
+	}
+	return 0, errDecisionRejections
+}
+
+func (s *IdentitySpace) decisionUint64WithTrailing(purpose string, values []uint64, trailing uint64, includeTrailing bool) uint64 {
 	h := sha256.New()
 	_, _ = h.Write([]byte("wukongim/chat-lifecycle/decision/v1"))
 	_, _ = h.Write(s.rootKey[:])
@@ -114,6 +142,10 @@ func (s *IdentitySpace) decisionUint64(purpose string, values ...uint64) uint64 
 	_, _ = h.Write([]byte(purpose))
 	for _, value := range values {
 		binary.BigEndian.PutUint64(encoded[:], value)
+		_, _ = h.Write(encoded[:])
+	}
+	if includeTrailing {
+		binary.BigEndian.PutUint64(encoded[:], trailing)
 		_, _ = h.Write(encoded[:])
 	}
 	sum := h.Sum(nil)
