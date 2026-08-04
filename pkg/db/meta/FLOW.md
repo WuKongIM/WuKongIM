@@ -49,7 +49,11 @@ Current flow:
 13. Channel runtime metadata stores routing, leadership, retention, and write
    fence state with a runtime-backed primary row and key-aware rowcodec value;
    typed methods keep monotonic upserts, guards, and retention semantics, while
-   page scans use runtime primary-key order and cursor bounds.
+   page scans use runtime primary-key order and cursor bounds. Create-only batch
+   mutations check existence and insert under the same hash-slot lock and
+   commit, report whether they created the row, and leave an existing row
+   unchanged; ordinary monotonic upsert remains available for migration and
+   repair.
 14. Conversation state uses one kind-aware table for ordinary and CMD logical
    views. Rows are keyed by `(uid, kind, channel_id, channel_type)`, active scans
    use `(uid, kind, active_at desc, channel_id, channel_type)`, and `kind` stays
@@ -77,9 +81,10 @@ Current flow:
    order, uses table overlays for ordinary runtime tables, validates guards
    against read-your-writes overlays for runtime metadata and channel migration
    tasks, commits once, then publishes or invalidates channel cache entries.
-   Conditional channel create returns not-applied for an existing row, and the
-   business-flag patch returns not-applied for a missing row while preserving
-   every stored field except `Ban`, `Disband`, and `SendBan`.
+   Conditional channel create and channel runtime metadata create return
+   not-applied/not-created for an existing row, and the business-flag patch
+   returns not-applied for a missing row while preserving every stored field
+   except `Ban`, `Disband`, and `SendBan`.
 18. Hash-slot snapshots export row, index, and system spans for selected hash
     slots into a checksummed payload; imports validate the payload, lock slots
     in sorted order, replace existing spans, write entries in one sync commit,

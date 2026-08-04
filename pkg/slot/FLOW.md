@@ -38,7 +38,7 @@ Cluster Node.AppendMessageEvent / GetMessageEventStatesBatch
 
 // pkg/db/meta — 本地 ShardStore / WriteBatch helper
 ShardStore.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / GetChannelMigrationTask / GetActiveChannelMigrationTask / ListChannelMigrationTasks / DeleteTerminalChannelMigrationTasksBefore
-WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
+WriteBatch.CreateChannelRuntimeMeta / CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover / CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration / DeleteTerminalChannelMigrationTasksBefore
 ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPluginBindingsByPluginNo / ExistPluginBindingByUID
 WriteBatch.BindPluginUser / UnbindPluginUser
 ShardStore.GetUserChannelMembership / ListUserChannelMembershipPage
@@ -105,6 +105,10 @@ fsm/statemachine.go:43 ApplyBatch:
 Pebble:
   写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
 ```
+
+`CreateChannelRuntimeMeta` 使用命令 52，并通过通用 `resultCommand` 在同一次 FSM
+commit 后返回 `created`。Meta batch 在 hash-slot 锁内原子执行存在性检查和插入；已存在是
+成功的 `created=false` 结果且不会覆盖原记录。命令 4 的普通单调 upsert 继续用于迁移和修复。
 
 `Store.TouchUserConversationActiveAt` 是 active hint 的 best-effort 落盘路径。它仍按 UID hash slot
 拆分命令以保持迁移围栏语义；因此上游 cache 的后台 flush batch 需要保持较小，避免一次 best-effort
@@ -292,7 +296,7 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 11 | UserChannelMembership | (uid, channel_id, channel_type) | - |
 | 12 | ChannelLatest | (channel_id, channel_type) | - |
 
-## 7. FSM 命令类型（42 种，其中 2 个为保留用途）
+## 7. FSM 命令类型（44 种，其中 2 个为保留用途）
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -307,6 +311,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 13: ReservedConversationProjectionUpsert        14: ReservedConversationProjectionDelete
 15: AdvanceChannelRetentionThroughSeq
 16: HideConversations
+19: Noop
 20: ApplyDelta                         21: EnterFence
 22: AckMigrationOutbox                 23: CleanupMigrationOutbox
 30: CreateChannelMigrationTask         31: ClaimChannelMigrationTask
@@ -321,6 +326,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 46: UpsertChannelLatest               47: UpsertChannelLatestBatch
 48: AppendMessageEvent                49: AppendMessageEventsBatch
 50: CreateChannel                     51: PatchChannelBusinessFlags
+52: CreateChannelRuntimeMeta
 ```
 
 ## 8. RPC Service IDs（proxy 层）
@@ -346,6 +352,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。
 - **Manager Channel 条件写**: 命令 50/51 在 apply 内返回 `applied` 结果而不是用预期的已存在/缺失状态让 Slot fail；create-only 冲突由 proxy 映射成 `ErrAlreadyExists`，flag patch 缺失映射成 `ErrNotFound`，patch 只能改 Ban/Disband/SendBan。
+- **ChannelRuntimeMeta 首次创建**: 命令 52 在同一次 Meta batch commit 内检查并插入，返回 `created=true`；重复 apply 返回成功的 `created=false` 且不覆盖原记录。命令 4 的普通单调 upsert 不变，继续用于迁移和修复。
 - **ListChannelRuntimeMeta 扇出**: `store.go:102` 遍历所有 SlotID 发 RPC，N 个 Slot 就是 N 次 RPC，慎用。
 - **ChannelRuntimeMeta 写入单调保护**: `UpsertChannelRuntimeMeta` 会拒绝更旧的 `ChannelEpoch` / `LeaderEpoch` / `RouteGeneration`，同一 epoch 下也不会切换到不同 leader 或缩短 leader lease；已接受的写入不会降低 `RetentionThroughSeq`，相同边界下不会回退 `RetentionUpdatedAtMS`；write-fence 字段是同一通道的权威 fence 状态，`set/renew/reset/clear` 必须通过更高的 `WriteFenceVersion` 表达有效更新，单调写入不能清空或回退已有 fence；repair / bootstrap 必须通过更高 epoch、RouteGeneration 或更长 lease 表达有效更新。
 - **RuntimeMeta RPC 版本兼容**: `runtime_meta` v2 response 携带 `RouteGeneration` 和 `WriteFence*` 字段；v1 request/response 必须继续可解码，new caller 可先尝试 v2，遇到旧节点不支持 request codec 时回退 v1，responder 必须按 request codec 版本回包。
@@ -367,6 +374,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
 - **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
 - **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
+- **命令 52 升级约束**: 混合版本 Slot 副本不能安全接收 `CreateChannelRuntimeMeta`；发布时需要 stop-the-world 升级或 capability gate。
 - **统一会话投影**: 旧 `UserConversation*` / `CMDConversation*` proxy 名称只是源码兼容入口，FSM command 会映射为统一 conversation command。存储层只读写 Table ID 6，并通过 `(uid, kind, channel_id, channel_type)` 区分 `ConversationKindNormal` 与 `ConversationKindCMD`；Table ID 7 是开发期 split CMD 表保留 ID，不能注册或复用。
 - **CMD read cursor 单调推进**: `AdvanceCMDConversationReadSeq` 只在新 `ReadSeq` 更大时推进，旧 syncack 重试不能回退 cursor。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。

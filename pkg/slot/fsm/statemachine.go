@@ -300,6 +300,7 @@ commandLoop:
 	m.forwardCommittedDeltas(ctx, pendingForwardDeltas)
 	for i, decoded := range appliedCommands {
 		if decoded != nil {
+			// Conditional mutation outcomes are resolved while the batch commits.
 			results[i] = commandApplyResult(decoded)
 		}
 	}

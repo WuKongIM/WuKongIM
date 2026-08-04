@@ -108,6 +108,11 @@ type ChannelRuntimeMeta struct {
 	WriteFenceUntilMS int64
 }
 
+// ChannelRuntimeMetaCreateResult reports whether a create-only batch mutation inserted the row.
+type ChannelRuntimeMetaCreateResult struct {
+	Created bool
+}
+
 // MonotonicResult describes how a runtime metadata upsert resolved.
 type MonotonicResult uint8
 

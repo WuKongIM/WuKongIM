@@ -52,6 +52,7 @@ const (
 	cmdTypeAppendMessageEventsBatch             uint8 = 49
 	cmdTypeCreateChannel                        uint8 = 50
 	cmdTypePatchChannelBusinessFlags            uint8 = 51
+	cmdTypeCreateChannelRuntimeMeta             uint8 = 52
 	cmdTypeBindPluginUser                       uint8 = 42
 	cmdTypeUnbindPluginUser                     uint8 = 43
 
@@ -258,6 +259,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeAppendMessageEventsBatch:             decodeAppendMessageEventsBatch,
 	cmdTypeCreateChannel:                        decodeCreateChannel,
 	cmdTypePatchChannelBusinessFlags:            decodePatchChannelBusinessFlags,
+	cmdTypeCreateChannelRuntimeMeta:             decodeCreateChannelRuntimeMeta,
 	cmdTypeBindPluginUser:                       decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                     decodeUnbindPluginUser,
 	cmdTypeApplyDelta:                           decodeApplyDelta,

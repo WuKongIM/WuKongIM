@@ -44,6 +44,8 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		}), nil
 	case *upsertChannelRuntimeMetaCmd:
 		return runtimeMetaInspection("upsert_channel_runtime_meta", typed.meta), nil
+	case *createChannelRuntimeMetaCmd:
+		return runtimeMetaInspection("create_channel_runtime_meta", typed.meta), nil
 	case *deleteChannelRuntimeMetaCmd:
 		return simpleInspection("delete_channel_runtime_meta", map[string]any{
 			"channel_id":   typed.channelID,

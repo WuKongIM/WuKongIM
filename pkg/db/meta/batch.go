@@ -213,6 +213,39 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 	return MonotonicApplied, nil
 }
 
+// CreateChannelRuntimeMeta stages an insert that succeeds without replacing an existing row.
+func (b *Batch) CreateChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeMeta) (*ChannelRuntimeMetaCreateResult, error) {
+	if err := b.ensureOpen(); err != nil {
+		return nil, err
+	}
+	if err := validateChannelRuntimeMeta(meta); err != nil {
+		return nil, err
+	}
+	key := encodeChannelRuntimeMetaRowKey(hashSlot, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	result := &ChannelRuntimeMetaCreateResult{}
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		_, exists, err := state.loadRuntimeMeta(ctx, hashSlot, key, meta.ChannelID, meta.ChannelType)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+		next := normalizeChannelRuntimeMeta(meta)
+		value, err := channelRuntimeMetaTable.encodeValue(key, next)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(key, value); err != nil {
+			return err
+		}
+		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}
+		result.Created = true
+		return nil
+	})
+	return result, nil
+}
+
 // CreateChannelMigrationTask stages a migration task create with active uniqueness.
 func (b *Batch) CreateChannelMigrationTask(hashSlot HashSlot, task ChannelMigrationTask) error {
 	if err := b.ensureOpen(); err != nil {

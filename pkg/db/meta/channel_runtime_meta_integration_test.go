@@ -41,6 +41,62 @@ func TestChannelRuntimeMetaUpsertGetNormalizeAndDelete(t *testing.T) {
 	}
 }
 
+func TestBatchCreateChannelRuntimeMetaReportsCreatedWithoutOverwriting(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	original := testRuntimeMeta("runtime-create", 2)
+	firstBatch := store.db.NewBatch()
+	firstResult, err := firstBatch.CreateChannelRuntimeMeta(7, original)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(first): %v", err)
+	}
+	if err := firstBatch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(first): %v", err)
+	}
+	if !firstResult.Created {
+		t.Fatal("first create result = false, want true")
+	}
+
+	secondBatch := store.db.NewBatch()
+	secondResult, err := secondBatch.CreateChannelRuntimeMeta(7, original)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(second): %v", err)
+	}
+	if err := secondBatch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(second): %v", err)
+	}
+	if secondResult.Created {
+		t.Fatal("second create result = true, want false")
+	}
+
+	replacement := original
+	replacement.ChannelEpoch++
+	replacement.LeaderEpoch++
+	replacement.Leader = 2
+	replacementBatch := store.db.NewBatch()
+	replacementResult, err := replacementBatch.CreateChannelRuntimeMeta(7, replacement)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(replacement): %v", err)
+	}
+	if err := replacementBatch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(replacement): %v", err)
+	}
+	if replacementResult.Created {
+		t.Fatal("replacement create result = true, want false")
+	}
+
+	got, ok, err := store.db.HashSlot(7).GetChannelRuntimeMeta(ctx, original.ChannelID, original.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta() ok=%v err=%v", ok, err)
+	}
+	want := normalizeChannelRuntimeMeta(original)
+	if !equalRuntimeMeta(got, want) {
+		t.Fatalf("runtime meta after duplicate = %+v, want original %+v", got, want)
+	}
+}
+
 func TestChannelRuntimeMetaKeepsLegacyRowLayoutAndKeyBoundValue(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)

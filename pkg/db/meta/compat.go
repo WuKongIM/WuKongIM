@@ -1534,6 +1534,14 @@ func (b *WriteBatch) UpsertChannelRuntimeMeta(hashSlot uint16, meta ChannelRunti
 	return err
 }
 
+// CreateChannelRuntimeMeta stages a create-only runtime metadata mutation.
+func (b *WriteBatch) CreateChannelRuntimeMeta(hashSlot uint16, meta ChannelRuntimeMeta) (*ChannelRuntimeMetaCreateResult, error) {
+	if err := b.ensure(); err != nil {
+		return nil, err
+	}
+	return b.batch.CreateChannelRuntimeMeta(HashSlot(hashSlot), meta)
+}
+
 func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string, channelType int64) error {
 	if err := b.ensure(); err != nil {
 		return err
