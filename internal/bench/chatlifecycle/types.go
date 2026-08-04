@@ -2,22 +2,36 @@ package chatlifecycle
 
 import "time"
 
-// Profile selects the scale and evidence requirements for a lifecycle run.
+// Profile selects the formal or local workload scale.
 type Profile string
 
 const (
-	// ProfileFormal is the fixed 72-hour formal lifecycle workload.
+	// ProfileFormal is the fixed formal lifecycle workload.
 	ProfileFormal Profile = "formal"
 	// ProfileLocal permits shorter local scale while retaining cluster topology and sync semantics.
 	ProfileLocal Profile = "local"
-	// ProfileCapacity requires a passing aged formal checkpoint before capacity work begins.
-	ProfileCapacity Profile = "capacity"
+)
+
+// Mode selects the coordinator behavior for a validated lifecycle workload.
+type Mode string
+
+const (
+	// ModeSoak runs the configured lifecycle soak plan.
+	ModeSoak Mode = "soak"
+	// ModeCapacity admits capacity staircase execution after aged-soak evidence.
+	ModeCapacity Mode = "capacity"
 )
 
 // Config is the complete pure configuration for deterministic chat lifecycle planning.
 type Config struct {
-	// Identity names this deterministic run and selects its evidence profile.
-	Identity IdentityConfig `json:"identity" yaml:"identity"`
+	// RunID is the non-secret identifier attached to plans and bounded snapshots.
+	RunID string `json:"run_id" yaml:"run_id"`
+	// Seed must be nonzero so deterministic random streams do not use an implicit seed.
+	Seed uint64 `json:"seed" yaml:"seed"`
+	// Profile selects formal fixed defaults or a smaller local shakeout workload.
+	Profile Profile `json:"profile" yaml:"profile"`
+	// Mode selects soak or capacity orchestration without changing workload semantics.
+	Mode Mode `json:"mode" yaml:"mode"`
 	// Workload contains only deterministic traffic and lifecycle quantities.
 	Workload WorkloadConfig `json:"workload" yaml:"workload"`
 	// Observation declares non-secret observation sources and sampling cadence.
@@ -26,16 +40,6 @@ type Config struct {
 	Thresholds ThresholdsConfig `json:"thresholds" yaml:"thresholds"`
 	// Capacity contains aged-checkpoint and staircase requirements.
 	Capacity CapacityConfig `json:"capacity" yaml:"capacity"`
-}
-
-// IdentityConfig provides stable deterministic identity inputs without credentials.
-type IdentityConfig struct {
-	// RunID is the non-secret identifier attached to plans and bounded snapshots.
-	RunID string `json:"run_id" yaml:"run_id"`
-	// Seed must be nonzero so deterministic random streams do not use an implicit seed.
-	Seed uint64 `json:"seed" yaml:"seed"`
-	// Profile determines formal, local, or capacity validation rules.
-	Profile Profile `json:"profile" yaml:"profile"`
 }
 
 // WorkloadConfig contains deterministic quantities and distributions only.
@@ -68,8 +72,8 @@ type WorkloadConfig struct {
 	Login LoginDistribution `json:"login" yaml:"login"`
 	// Sessions selects online session lifetime buckets.
 	Sessions []DurationShare `json:"sessions" yaml:"sessions"`
-	// Lifecycle selects one-shot, revisit, rotating, and long activity behavior.
-	Lifecycle []DurationShare `json:"lifecycle" yaml:"lifecycle"`
+	// Lifecycle gives each semantically distinct activity class a named distribution bucket.
+	Lifecycle LifecycleDistribution `json:"lifecycle" yaml:"lifecycle"`
 	// Payloads selects deterministic message payload sizes.
 	Payloads []PayloadShare `json:"payloads" yaml:"payloads"`
 	// PersonDirection selects alternating versus one-way person traffic.
@@ -129,6 +133,24 @@ type DurationShare struct {
 	Max     time.Duration `json:"max" yaml:"max"`
 }
 
+// LifecycleDistribution distinguishes one-shot, revisit, rotating, and long activity behavior.
+type LifecycleDistribution struct {
+	// OneShot is activity completed in its first visit and has no active-duration range.
+	OneShot LifecycleBucket `json:"one_shot" yaml:"one_shot"`
+	// Revisit is activity that returns after its first visit and has no active-duration range.
+	Revisit LifecycleBucket `json:"revisit" yaml:"revisit"`
+	// Rotating is activity that rotates on a bounded active-duration range.
+	Rotating LifecycleBucket `json:"rotating" yaml:"rotating"`
+	// Long is long-lived activity on a bounded active-duration range.
+	Long LifecycleBucket `json:"long" yaml:"long"`
+}
+
+// LifecycleBucket assigns a class percentage and, where applicable, its active-duration range.
+type LifecycleBucket struct {
+	Percent        int           `json:"percent" yaml:"percent"`
+	ActiveDuration DurationRange `json:"active_duration" yaml:"active_duration"`
+}
+
 // PayloadShare assigns a percentage share to one deterministic payload size.
 type PayloadShare struct {
 	Percent int `json:"percent" yaml:"percent"`
@@ -182,18 +204,26 @@ type GroupCatalogConfig struct {
 
 // ObservationConfig declares observation endpoints but never bearer values or secrets.
 type ObservationConfig struct {
-	// Endpoints names the service, API, gateway, worker, and host-metrics observation sources.
-	Endpoints []EndpointDeclaration `json:"endpoints" yaml:"endpoints"`
+	// ServiceNodes declares product service-node observation endpoints.
+	ServiceNodes []EndpointDeclaration `json:"service_nodes" yaml:"service_nodes"`
+	// Workers declares workload-worker observation endpoints.
+	Workers []EndpointDeclaration `json:"workers" yaml:"workers"`
+	// HostMetrics declares node-local host-metrics observation endpoints.
+	HostMetrics []EndpointDeclaration `json:"host_metrics" yaml:"host_metrics"`
+	// APIAddrs is the non-secret balanced HTTP API observation pool.
+	APIAddrs []string `json:"api_addrs" yaml:"api_addrs"`
+	// GatewayTCPAddrs is the separate non-secret TCP gateway observation pool.
+	GatewayTCPAddrs []string `json:"gateway_tcp_addrs" yaml:"gateway_tcp_addrs"`
 	// Cadence is the interval between bounded observation snapshots.
 	Cadence time.Duration `json:"cadence" yaml:"cadence"`
 }
 
-// EndpointDeclaration names an observation source and may carry a non-secret endpoint address.
+// EndpointDeclaration names one non-secret observation source and its structurally usable address.
 type EndpointDeclaration struct {
 	// Name is the unique stable source name, such as api or host_metrics.
 	Name string `json:"name" yaml:"name"`
-	// Address is an optional non-secret endpoint declaration; credentials are supplied elsewhere.
-	Address string `json:"address,omitempty" yaml:"address,omitempty"`
+	// Address is a non-secret endpoint declaration; credentials are supplied elsewhere.
+	Address string `json:"address" yaml:"address"`
 }
 
 // ThresholdsConfig contains all pass/fail bounds outside workload generation.
@@ -219,11 +249,21 @@ type CorrectnessThresholds struct {
 	AnyMinuteFirstAttemptFailure FailureRateLimit `json:"any_minute_first_attempt_failure" yaml:"any_minute_first_attempt_failure"`
 }
 
+// Comparison defines the exact operator used by a rational failure-rate limit.
+type Comparison string
+
+const (
+	// ComparisonLessThan rejects a rate equal to the configured rational bound.
+	ComparisonLessThan Comparison = "<"
+	// ComparisonLessOrEqual permits a rate equal to the configured rational bound.
+	ComparisonLessOrEqual Comparison = "<="
+)
+
 // FailureRateLimit compares failures as an exact rational ratio without float rounding.
 type FailureRateLimit struct {
-	MaxFailures uint32 `json:"max_failures" yaml:"max_failures"`
-	PerAttempts uint32 `json:"per_attempts" yaml:"per_attempts"`
-	Inclusive   bool   `json:"inclusive" yaml:"inclusive"`
+	MaxFailures uint32     `json:"max_failures" yaml:"max_failures"`
+	PerAttempts uint32     `json:"per_attempts" yaml:"per_attempts"`
+	Operator    Comparison `json:"operator" yaml:"operator"`
 }
 
 // LatencyThresholds bounds hot, cold, and sync operations plus anomaly behavior.
@@ -266,12 +306,15 @@ type TimelineThresholds struct {
 
 // CapacityConfig controls capacity-mode admission and the staircase search schedule.
 type CapacityConfig struct {
-	AgedCheckpoint     AgedCheckpoint `json:"aged_checkpoint" yaml:"aged_checkpoint"`
-	StartRatePerSecond int            `json:"start_rate_per_second" yaml:"start_rate_per_second"`
-	StepPercent        int            `json:"step_percent" yaml:"step_percent"`
-	RefinePercent      int            `json:"refine_percent" yaml:"refine_percent"`
-	Step               CapacityStep   `json:"step" yaml:"step"`
-	RecoveryDuration   time.Duration  `json:"recovery_duration" yaml:"recovery_duration"`
+	AgedCheckpoint AgedCheckpoint `json:"aged_checkpoint" yaml:"aged_checkpoint"`
+	// StartRatePerSecond is the initial offered ingress rate for the staircase.
+	StartRatePerSecond int `json:"start_rate_per_second" yaml:"start_rate_per_second"`
+	// RecoveryRatePerSecond is the fixed reconnect/recovery rate between steps.
+	RecoveryRatePerSecond int           `json:"recovery_rate_per_second" yaml:"recovery_rate_per_second"`
+	StepPercent           int           `json:"step_percent" yaml:"step_percent"`
+	RefinePercent         int           `json:"refine_percent" yaml:"refine_percent"`
+	Step                  CapacityStep  `json:"step" yaml:"step"`
+	RecoveryDuration      time.Duration `json:"recovery_duration" yaml:"recovery_duration"`
 }
 
 // AgedCheckpoint is a typed reference to a completed passing prior lifecycle run.
