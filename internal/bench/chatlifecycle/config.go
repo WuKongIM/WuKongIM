@@ -725,44 +725,14 @@ func validateExactObservation(got, want ObservationConfig) error {
 	if got.Cadence != want.Cadence {
 		return formalError("observation.cadence")
 	}
-	if err := validateExactEndpoints("observation.service_nodes", got.ServiceNodes, want.ServiceNodes); err != nil {
-		return err
+	if len(got.ServiceNodes) != len(want.ServiceNodes) {
+		return formalError("observation.service_nodes")
 	}
-	if err := validateExactEndpoints("observation.workers", got.Workers, want.Workers); err != nil {
-		return err
+	if len(got.Workers) != len(want.Workers) {
+		return formalError("observation.workers")
 	}
-	if err := validateExactEndpoints("observation.host_metrics", got.HostMetrics, want.HostMetrics); err != nil {
-		return err
-	}
-	if err := validateExactStrings("observation.api_addrs", got.APIAddrs, want.APIAddrs); err != nil {
-		return err
-	}
-	return validateExactStrings("observation.gateway_tcp_addrs", got.GatewayTCPAddrs, want.GatewayTCPAddrs)
-}
-
-func validateExactEndpoints(path string, got, want []EndpointDeclaration) error {
-	if len(got) != len(want) {
-		return formalError(path)
-	}
-	for i := range want {
-		if got[i].Name != want[i].Name {
-			return formalError(fmt.Sprintf("%s[%d].name", path, i))
-		}
-		if got[i].Address != want[i].Address {
-			return formalError(fmt.Sprintf("%s[%d].address", path, i))
-		}
-	}
-	return nil
-}
-
-func validateExactStrings(path string, got, want []string) error {
-	if len(got) != len(want) {
-		return formalError(path)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			return formalError(fmt.Sprintf("%s[%d]", path, i))
-		}
+	if len(got.HostMetrics) != len(want.HostMetrics) {
+		return formalError("observation.host_metrics")
 	}
 	return nil
 }

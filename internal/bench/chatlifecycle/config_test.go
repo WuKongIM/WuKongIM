@@ -80,6 +80,30 @@ func TestFormalObservationTopology(t *testing.T) {
 	}
 }
 
+func TestFormalConfigAllowsDeploymentSpecificObservationAddresses(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.Observation.ServiceNodes = []EndpointDeclaration{
+		{Name: "wk-node-a", Address: "https://wk-node-a.example.test:5001"},
+		{Name: "wk-node-b", Address: "https://wk-node-b.example.test:5001"},
+		{Name: "wk-node-c", Address: "https://wk-node-c.example.test:5001"},
+	}
+	cfg.Observation.Workers = []EndpointDeclaration{
+		{Name: "load-a", Address: "https://load-a.example.test:19090"},
+		{Name: "load-b", Address: "https://load-b.example.test:19090"},
+		{Name: "load-c", Address: "https://load-c.example.test:19090"},
+	}
+	cfg.Observation.HostMetrics = []EndpointDeclaration{
+		{Name: "metrics-a", Address: "https://metrics-a.example.test:9100"},
+		{Name: "metrics-b", Address: "https://metrics-b.example.test:9100"},
+		{Name: "metrics-c", Address: "https://metrics-c.example.test:9100"},
+	}
+	cfg.Observation.APIAddrs = []string{"https://api-a.example.test:5001", "https://api-b.example.test:5001", "https://api-c.example.test:5001"}
+	cfg.Observation.GatewayTCPAddrs = []string{"gateway-a.example.test:5100", "gateway-b.example.test:5100", "gateway-c.example.test:5100"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
 func TestFormalConfigRejectsApprovedDefaultMutations(t *testing.T) {
 	tests := []struct {
 		name   string

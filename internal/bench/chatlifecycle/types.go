@@ -210,7 +210,7 @@ type ObservationConfig struct {
 	Workers []EndpointDeclaration `json:"workers" yaml:"workers"`
 	// HostMetrics declares node-local host-metrics observation endpoints.
 	HostMetrics []EndpointDeclaration `json:"host_metrics" yaml:"host_metrics"`
-	// APIAddrs is the non-secret balanced HTTP API observation pool.
+	// APIAddrs is the non-secret HTTP API observation pool.
 	APIAddrs []string `json:"api_addrs" yaml:"api_addrs"`
 	// GatewayTCPAddrs is the separate non-secret TCP gateway observation pool.
 	GatewayTCPAddrs []string `json:"gateway_tcp_addrs" yaml:"gateway_tcp_addrs"`
