@@ -12,6 +12,7 @@ import (
 
 const defaultTransportQueueSize = 4096
 const defaultTransportPoolSize = 16
+const defaultTransportWriteBatchMaxWait = 100 * time.Microsecond
 const defaultTransportServiceConcurrency = 128
 const defaultTransportForegroundWriteServiceConcurrency = 512
 const orderedRaftServiceConcurrency = 1
@@ -355,8 +356,11 @@ func normalizeTransportLimits(limits transport.Limits, queueSize int) transport.
 	if limits.MaxBatchFrames <= 0 {
 		limits.MaxBatchFrames = transport.DefaultLimits().MaxBatchFrames
 	}
-	if limits.DialFailureCooldown < 0 || limits.WriteTimeout < 0 || limits.ReadIdleTimeout < 0 {
+	if limits.WriteBatchMaxWait < 0 || limits.DialFailureCooldown < 0 || limits.WriteTimeout < 0 || limits.ReadIdleTimeout < 0 {
 		panic("cluster/net: negative transport timeout")
+	}
+	if limits.WriteBatchMaxWait == 0 {
+		limits.WriteBatchMaxWait = defaultTransportWriteBatchMaxWait
 	}
 	if limits.DialFailureCooldown == 0 {
 		limits.DialFailureCooldown = transport.DefaultLimits().DialFailureCooldown

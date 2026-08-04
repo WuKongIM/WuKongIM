@@ -17,6 +17,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
+// DefaultCommitShards is the QPS-validated partition-hashed commit coordinator count.
+const DefaultCommitShards = 4
+
 // BackupChannelCut identifies one exact committed channel boundary selected by cluster coordination.
 type BackupChannelCut struct {
 	// Key is the stable channel storage partition key.
@@ -60,7 +63,7 @@ type MessageDBFactoryOptions struct {
 	CommitMaxRecords int
 	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
 	CommitMaxBytes int
-	// CommitShards routes grouped commit requests across independent message DB coordinators. Zero keeps one coordinator.
+	// CommitShards routes grouped commit requests across independent message DB coordinators. Zero uses DefaultCommitShards.
 	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
@@ -86,6 +89,9 @@ func NewMessageDBFactory(path string) *MessageDBFactory {
 
 // NewMessageDBFactoryWithOptions opens a message DB engine behind the v2 adapter.
 func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *MessageDBFactory {
+	if opts.CommitShards == 0 {
+		opts.CommitShards = DefaultCommitShards
+	}
 	engine, err := messagedb.OpenWithLogger(path, opts.Logger)
 	if err != nil {
 		return &MessageDBFactory{}

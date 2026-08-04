@@ -1017,6 +1017,12 @@ func TestPoolUsesFirstRPCTaskBatchLimit(t *testing.T) {
 	require.Equal(t, rpcBatchMaxWait, pullHintLed.MaxWait)
 }
 
+func TestPoolUsesQPSValidatedDefaultRPCBatchLimit(t *testing.T) {
+	pool := &Pool{cfg: PoolConfig{Name: "rpc"}}
+
+	require.Equal(t, 16, pool.rpcBatchMaxItems())
+}
+
 func TestPoolBatchesStoreApplyTasksWhenFactorySupportsBatch(t *testing.T) {
 	sink := &captureSink{ch: make(chan Result, 2)}
 	stores := &batchApplyStoreFactory{}

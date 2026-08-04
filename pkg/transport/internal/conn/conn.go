@@ -17,7 +17,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/transport/wire"
 )
 
-var writeFramesInto = wire.WriteFramesInto
+var (
+	writeFramesInto   = wire.WriteFramesInto
+	waitForWriteBatch = time.Sleep
+)
 
 // Config configures a single connection actor.
 type Config struct {
@@ -275,10 +278,27 @@ func (c *Conn) collectAvailableWriteItems(batch, scratch []sched.Item) ([]sched.
 		return batch, scratch[:0]
 	}
 	scratch = c.scheduler.NextBatchInto(scratch)
-	if len(scratch) == 0 {
+	if len(scratch) > 0 {
+		return append(batch, scratch...), scratch
+	}
+	if !c.shouldWaitForWriteBatch(batch) {
 		return batch, scratch
 	}
+	waitForWriteBatch(c.cfg.Limits.WriteBatchMaxWait)
+	scratch = c.scheduler.NextBatchInto(scratch)
 	return append(batch, scratch...), scratch
+}
+
+func (c *Conn) shouldWaitForWriteBatch(batch []sched.Item) bool {
+	if c == nil || c.cfg.Limits.WriteBatchMaxWait <= 0 || len(batch) != 1 {
+		return false
+	}
+	switch batch[0].Priority {
+	case core.PriorityRPC, core.PriorityBulk:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *Conn) writeOutbound(outbound Outbound) error {
