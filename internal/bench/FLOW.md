@@ -642,7 +642,14 @@ client sends concrete identities and bearer authentication unchanged to every
 configured target and decodes ordered detailed runtime evidence; it does not
 log request identities or credentials. Probe status errors omit server response
 bodies before aggregation so an echoed identity or bearer capability cannot
-enter client error strings. Eviction remains generated-range only.
+enter client error strings. Successful probe bodies are read through a 32 MiB
+endpoint-specific cap. An all-missing response may repeat the current 10 MiB
+target request identity payload in both compatibility and detailed fields; the
+cap covers both copies plus fixed evidence overhead for 1,200 rows without
+permitting unbounded JSON allocation. Explicit responses may not contain more detailed rows than the
+request or the 1,200-row protocol bound; generated responses must not contain
+detailed rows. These validation errors contain no response identities.
+Eviction remains generated-range only.
 
 ## Failure Handling
 

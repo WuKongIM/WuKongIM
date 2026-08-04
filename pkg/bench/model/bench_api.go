@@ -1,5 +1,7 @@
 package model
 
+import "errors"
+
 // BenchCapabilities describes the target bench/v1 API feature set and limits.
 type BenchCapabilities struct {
 	// Enabled confirms the target exposes the benchmark-only API surface.
@@ -118,6 +120,69 @@ type ChannelRuntimeProbeQuery struct {
 	Range ChannelRuntimeRange
 	// Channels contains exact identities for the explicit selector mode.
 	Channels []ChannelRuntimeChannelIdentity
+}
+
+// ChannelRuntimeProbeFailureReason is a closed low-cardinality probe failure class.
+type ChannelRuntimeProbeFailureReason string
+
+const (
+	// ChannelRuntimeProbeFailureDeadline reports that the probe deadline expired.
+	ChannelRuntimeProbeFailureDeadline ChannelRuntimeProbeFailureReason = "deadline"
+	// ChannelRuntimeProbeFailureCanceled reports caller cancellation.
+	ChannelRuntimeProbeFailureCanceled ChannelRuntimeProbeFailureReason = "canceled"
+	// ChannelRuntimeProbeFailureRuntimeUnavailable reports unavailable local runtime observation.
+	ChannelRuntimeProbeFailureRuntimeUnavailable ChannelRuntimeProbeFailureReason = "runtime_unavailable"
+	// ChannelRuntimeProbeFailureInvalidEvidence reports inconsistent or unrepresentable runtime evidence.
+	ChannelRuntimeProbeFailureInvalidEvidence ChannelRuntimeProbeFailureReason = "invalid_evidence"
+	// ChannelRuntimeProbeFailureInternal reports an uncategorized controller failure.
+	ChannelRuntimeProbeFailureInternal ChannelRuntimeProbeFailureReason = "internal"
+)
+
+// ChannelRuntimeProbeFailure carries a safe reason while retaining the private source error.
+type ChannelRuntimeProbeFailure struct {
+	// Reason is safe for logs and restricted error responses.
+	Reason ChannelRuntimeProbeFailureReason
+	// Cause is retained for errors.Is/errors.As but must not be logged at entry boundaries.
+	Cause error
+}
+
+// Error returns only the bounded reason and never the private source detail.
+func (e *ChannelRuntimeProbeFailure) Error() string {
+	reason := ChannelRuntimeProbeFailureInternal
+	if e != nil {
+		reason = closedChannelRuntimeProbeFailureReason(e.Reason)
+	}
+	return "channel runtime probe failed: " + string(reason)
+}
+
+// Unwrap exposes the private source error for programmatic classification.
+func (e *ChannelRuntimeProbeFailure) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
+// ChannelRuntimeProbeFailureReasonOf returns the closed reason carried by err.
+func ChannelRuntimeProbeFailureReasonOf(err error) ChannelRuntimeProbeFailureReason {
+	var failure *ChannelRuntimeProbeFailure
+	if !errors.As(err, &failure) || failure == nil {
+		return ""
+	}
+	return closedChannelRuntimeProbeFailureReason(failure.Reason)
+}
+
+func closedChannelRuntimeProbeFailureReason(reason ChannelRuntimeProbeFailureReason) ChannelRuntimeProbeFailureReason {
+	switch reason {
+	case ChannelRuntimeProbeFailureDeadline,
+		ChannelRuntimeProbeFailureCanceled,
+		ChannelRuntimeProbeFailureRuntimeUnavailable,
+		ChannelRuntimeProbeFailureInvalidEvidence,
+		ChannelRuntimeProbeFailureInternal:
+		return reason
+	default:
+		return ChannelRuntimeProbeFailureInternal
+	}
 }
 
 // ChannelRuntimeSnapshot describes local Channel runtime state for diagnostics.

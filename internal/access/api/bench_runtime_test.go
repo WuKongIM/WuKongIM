@@ -330,7 +330,10 @@ func TestBenchChannelRuntimeExplicitProbeFailureDoesNotExposeControllerError(t *
 		BenchEnabled: true,
 		Logger:       logger,
 		BenchRuntime: &fakeChannelRuntimeBenchController{
-			probeErr: fmt.Errorf("runtime probe failed for %s using %s", channelID, tokenLikeValue),
+			probeErr: &model.ChannelRuntimeProbeFailure{
+				Reason: model.ChannelRuntimeProbeFailureInvalidEvidence,
+				Cause:  fmt.Errorf("runtime probe failed for %s using %s", channelID, tokenLikeValue),
+			},
 		},
 	})
 	httpSrv := httptest.NewServer(srv.Handler())
@@ -361,12 +364,19 @@ func TestBenchChannelRuntimeExplicitProbeFailureDoesNotExposeControllerError(t *
 		}
 	}
 	entry := requireAPILogEntry(t, logger, "ERROR", "internal.access.api.http", "internal.access.api.bench_runtime_failed")
+	foundReason := false
 	for _, field := range entry.fields {
+		if field.Key == "reason" && field.Value == string(model.ChannelRuntimeProbeFailureInvalidEvidence) {
+			foundReason = true
+		}
 		for _, sensitive := range []string{channelID, tokenLikeValue} {
 			if strings.Contains(fmt.Sprint(field.Value), sensitive) {
 				t.Fatalf("log field %q exposed sensitive controller error value %q", field.Key, sensitive)
 			}
 		}
+	}
+	if !foundReason {
+		t.Fatalf("log fields = %#v, want invalid_evidence reason", entry.fields)
 	}
 }
 

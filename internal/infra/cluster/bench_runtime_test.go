@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
@@ -98,12 +99,35 @@ func TestChannelRuntimeBenchControllerExpandsProbeRange(t *testing.T) {
 		LoadedLeader:   1,
 		LoadedFollower: 1,
 		Missing:        []string{"run-a-activate-groups-4"},
-		Channels: []model.ChannelRuntimeProbeChannel{
-			{ChannelID: "run-a-activate-groups-4", ChannelType: 2, Role: "missing", Status: "missing"},
-		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Probe() = %#v, want %#v", got, want)
+	}
+}
+
+func TestChannelRuntimeBenchControllerGeneratedAllLoadedOmitsDetailedRows(t *testing.T) {
+	node := &fakeChannelRuntimeBenchNode{
+		nodeID: 9,
+		probe: channelruntime.RuntimeProbeResult{
+			Checked: 2, LoadedLeader: 1, LoadedFollower: 1,
+			Channels: []channelruntime.RuntimeProbeChannel{
+				{ChannelID: channelruntime.ChannelID{ID: "run-a-person-0", Type: 1}, Role: channelruntime.RoleLeader, Status: channelruntime.StatusActive},
+				{ChannelID: channelruntime.ChannelID{ID: "run-a-person-1", Type: 1}, Role: channelruntime.RoleFollower, Status: channelruntime.StatusActive},
+			},
+		},
+	}
+
+	got, err := NewChannelRuntimeBenchController(node).Probe(context.Background(), model.ChannelRuntimeProbeQuery{
+		RunID: "run-a", Profile: "person", ChannelType: 1, Range: model.ChannelRuntimeRange{Start: 0, End: 2},
+	})
+	if err != nil {
+		t.Fatalf("Probe() error = %v", err)
+	}
+	if got.Checked != 2 || got.LoadedLeader != 1 || got.LoadedFollower != 1 {
+		t.Fatalf("aggregates = %+v, want checked=2 leader=1 follower=1", got)
+	}
+	if len(got.Channels) != 0 {
+		t.Fatalf("generated detailed channels = %#v, want omitted", got.Channels)
 	}
 }
 
@@ -183,8 +207,79 @@ func TestChannelRuntimeBenchControllerRejectsUnrepresentableProbeEpoch(t *testin
 	if err == nil {
 		t.Fatal("Probe() error = nil, want unrepresentable epoch failure")
 	}
-	if got := err.Error(); got != "cluster: channel runtime probe epoch exceeds bench/v1 contract" {
-		t.Fatalf("Probe() error = %q, want bounded error without channel identity", got)
+	if got := model.ChannelRuntimeProbeFailureReasonOf(err); got != model.ChannelRuntimeProbeFailureInvalidEvidence {
+		t.Fatalf("Probe() failure reason = %q, want invalid evidence", got)
+	}
+	if strings.Contains(err.Error(), channelID) {
+		t.Fatalf("Probe() error exposed channel identity: %v", err)
+	}
+}
+
+func TestChannelRuntimeBenchControllerRejectsInvalidExplicitEvidenceCover(t *testing.T) {
+	first := channelruntime.ChannelID{ID: "person|a:1/with:separators", Type: 1}
+	second := channelruntime.ChannelID{ID: "person|b:2/with:separators", Type: 1}
+	extra := channelruntime.ChannelID{ID: "person|extra:3/with:separators", Type: 1}
+	base := func() channelruntime.RuntimeProbeResult {
+		return channelruntime.RuntimeProbeResult{
+			Checked: 2, LoadedLeader: 1,
+			Channels: []channelruntime.RuntimeProbeChannel{{ChannelID: first, Role: channelruntime.RoleLeader, Status: channelruntime.StatusActive}},
+			Missing:  []channelruntime.ChannelID{second},
+		}
+	}
+	tests := []struct {
+		name   string
+		mutate func(*channelruntime.RuntimeProbeResult)
+	}{
+		{name: "duplicate loaded", mutate: func(r *channelruntime.RuntimeProbeResult) { r.Channels = append(r.Channels, r.Channels[0]) }},
+		{name: "duplicate missing", mutate: func(r *channelruntime.RuntimeProbeResult) { r.Missing = append(r.Missing, second) }},
+		{name: "extra loaded", mutate: func(r *channelruntime.RuntimeProbeResult) {
+			r.Channels = append(r.Channels, channelruntime.RuntimeProbeChannel{ChannelID: extra})
+		}},
+		{name: "extra missing", mutate: func(r *channelruntime.RuntimeProbeResult) { r.Missing = append(r.Missing, extra) }},
+		{name: "loaded and missing", mutate: func(r *channelruntime.RuntimeProbeResult) { r.Missing = append(r.Missing, first) }},
+		{name: "omission", mutate: func(r *channelruntime.RuntimeProbeResult) { r.Missing = nil }},
+		{name: "loaded aggregate mismatch", mutate: func(r *channelruntime.RuntimeProbeResult) { r.LoadedLeader = 0 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			probe := base()
+			tt.mutate(&probe)
+			controller := NewChannelRuntimeBenchController(&fakeChannelRuntimeBenchNode{probe: probe})
+			_, err := controller.Probe(context.Background(), model.ChannelRuntimeProbeQuery{Channels: []model.ChannelRuntimeChannelIdentity{
+				{ChannelID: first.ID, ChannelType: first.Type},
+				{ChannelID: second.ID, ChannelType: second.Type},
+			}})
+			if got := model.ChannelRuntimeProbeFailureReasonOf(err); got != model.ChannelRuntimeProbeFailureInvalidEvidence {
+				t.Fatalf("failure reason = %q, want %q (err=%v)", got, model.ChannelRuntimeProbeFailureInvalidEvidence, err)
+			}
+			if err != nil && (strings.Contains(err.Error(), first.ID) || strings.Contains(err.Error(), second.ID) || strings.Contains(err.Error(), extra.ID)) {
+				t.Fatalf("error exposed channel identity: %v", err)
+			}
+		})
+	}
+}
+
+func TestChannelRuntimeBenchControllerClassifiesExplicitRuntimeFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want model.ChannelRuntimeProbeFailureReason
+	}{
+		{name: "canceled", err: context.Canceled, want: model.ChannelRuntimeProbeFailureCanceled},
+		{name: "deadline", err: context.DeadlineExceeded, want: model.ChannelRuntimeProbeFailureDeadline},
+		{name: "runtime unavailable", err: channelruntime.ErrClosed, want: model.ChannelRuntimeProbeFailureRuntimeUnavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := NewChannelRuntimeBenchController(&fakeChannelRuntimeBenchNode{probeErr: tt.err})
+			_, err := controller.Probe(context.Background(), model.ChannelRuntimeProbeQuery{Channels: []model.ChannelRuntimeChannelIdentity{{ChannelID: "sentinel|private", ChannelType: 1}}})
+			if got := model.ChannelRuntimeProbeFailureReasonOf(err); got != tt.want {
+				t.Fatalf("failure reason = %q, want %q", got, tt.want)
+			}
+			if strings.Contains(err.Error(), "sentinel|private") {
+				t.Fatalf("error exposed identity: %v", err)
+			}
+		})
 	}
 }
 
@@ -230,6 +325,7 @@ type fakeChannelRuntimeBenchNode struct {
 
 	snapshot channelruntime.RuntimeSnapshot
 	probe    channelruntime.RuntimeProbeResult
+	probeErr error
 	evict    channelruntime.RuntimeEvictResult
 
 	probeSelector channelruntime.RuntimeSelector
@@ -246,7 +342,7 @@ func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeSnapshot(context.Context) (c
 
 func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeProbe(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeProbeResult, error) {
 	n.probeSelector = selector
-	return n.probe, nil
+	return n.probe, n.probeErr
 }
 
 func (n *fakeChannelRuntimeBenchNode) ChannelRuntimeEvict(_ context.Context, selector channelruntime.RuntimeSelector) (channelruntime.RuntimeEvictResult, error) {

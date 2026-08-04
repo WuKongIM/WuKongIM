@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
@@ -327,6 +328,57 @@ func TestClientProbeChannelRuntimeErrorDoesNotExposeCredentialsOrRequestIDs(t *t
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), token)
 	require.NotContains(t, err.Error(), channelID)
+}
+
+func TestClientProbeChannelRuntimeRejectsOversizedSuccessBody(t *testing.T) {
+	const token = "probe-secret-token"
+	const channelID = "canonical-sensitive-person"
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"channels":"`))
+		_, _ = io.WriteString(w, strings.Repeat("x", 32<<20))
+		_, _ = io.WriteString(w, channelID+token+`"}`)
+	}))
+	defer ts.Close()
+	client := NewClient(Config{APIAddrs: []string{ts.URL}, Token: token})
+
+	_, err := client.ProbeChannelRuntime(context.Background(), model.ChannelRuntimeProbeRequest{
+		Channels: []model.ChannelRuntimeChannelIdentity{{ChannelID: channelID, ChannelType: 1}},
+	})
+
+	require.ErrorContains(t, err, "channel runtime probe response exceeds byte limit")
+	require.NotContains(t, err.Error(), token)
+	require.NotContains(t, err.Error(), channelID)
+}
+
+func TestClientProbeChannelRuntimeRejectsInvalidDetailedCardinality(t *testing.T) {
+	const sentinel = "canonical-sensitive-person"
+	tests := []struct {
+		name string
+		req  model.ChannelRuntimeProbeRequest
+		rows int
+	}{
+		{name: "explicit over requested", req: model.ChannelRuntimeProbeRequest{Channels: []model.ChannelRuntimeChannelIdentity{{ChannelID: sentinel, ChannelType: 1}}}, rows: 2},
+		{name: "explicit over bound", req: model.ChannelRuntimeProbeRequest{Channels: make([]model.ChannelRuntimeChannelIdentity, 1200)}, rows: 1201},
+		{name: "generated carries details", req: model.ChannelRuntimeProbeRequest{RunID: "run-a", Profile: "person", ChannelType: 1, Range: model.ChannelRuntimeRange{Start: 0, End: 1}}, rows: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				rows := make([]model.ChannelRuntimeProbeChannel, tt.rows)
+				if len(rows) > 0 {
+					rows[0].ChannelID = sentinel
+				}
+				writeJSON(t, w, model.ChannelRuntimeProbeResult{Checked: len(tt.req.Channels), Channels: rows})
+			}))
+			defer ts.Close()
+
+			_, err := NewClient(Config{APIAddrs: []string{ts.URL}}).ProbeChannelRuntime(context.Background(), tt.req)
+
+			require.ErrorContains(t, err, "invalid channel runtime probe response")
+			require.NotContains(t, err.Error(), sentinel)
+		})
+	}
 }
 
 func TestClientProbeChannelRuntimeAllCallsEveryTarget(t *testing.T) {

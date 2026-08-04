@@ -59,4 +59,7 @@ modes. Existing clients retain the generated `run_id`, `profile`,
 send up to 1,200 concrete `(channel_id, channel_type)` identities. Probe
 responses retain the aggregate and `missing` compatibility fields and add
 ordered per-channel role, status, LEO, HW, checkpoint, leader-epoch, and
-channel-epoch evidence.
+channel-epoch evidence only for the explicit selector. Probe failures cross
+the shared controller boundary with one closed reason: `deadline`, `canceled`,
+`runtime_unavailable`, `invalid_evidence`, or `internal`; private source errors
+never become the safe reason text.

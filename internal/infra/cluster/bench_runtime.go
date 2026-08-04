@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -44,16 +45,19 @@ func (c *ChannelRuntimeBenchController) Snapshot(ctx context.Context, query mode
 // Probe checks whether generated or explicit channels are loaded in the local channel runtime.
 func (c *ChannelRuntimeBenchController) Probe(ctx context.Context, query model.ChannelRuntimeProbeQuery) (model.ChannelRuntimeProbeResult, error) {
 	if c == nil || c.node == nil {
-		return model.ChannelRuntimeProbeResult{}, fmt.Errorf("cluster: channel runtime bench node is required")
+		return model.ChannelRuntimeProbeResult{}, runtimeProbeFailure(query, model.ChannelRuntimeProbeFailureInternal, fmt.Errorf("cluster: channel runtime bench node is required"))
 	}
 	selector := runtimeSelectorFromProbeQuery(query)
 	result, err := c.node.ChannelRuntimeProbe(ctx, selector)
 	if err != nil {
-		return model.ChannelRuntimeProbeResult{}, err
+		return model.ChannelRuntimeProbeResult{}, runtimeProbeFailure(query, runtimeProbeRuntimeFailureReason(err), err)
 	}
-	channels, err := runtimeProbeChannels(selector.ChannelIDs, result)
-	if err != nil {
-		return model.ChannelRuntimeProbeResult{}, err
+	var channels []model.ChannelRuntimeProbeChannel
+	if query.Channels != nil {
+		channels, err = explicitRuntimeProbeChannels(selector.ChannelIDs, result)
+		if err != nil {
+			return model.ChannelRuntimeProbeResult{}, runtimeProbeFailure(query, model.ChannelRuntimeProbeFailureInvalidEvidence, err)
+		}
 	}
 	return model.ChannelRuntimeProbeResult{
 		Version:        benchRuntimeVersion,
@@ -171,17 +175,40 @@ func runtimeSelectorFromGeneratedFields(runID, profile string, channelType uint8
 	return channelruntime.RuntimeSelector{ChannelIDs: channelIDs}
 }
 
-func runtimeProbeChannels(requested []channelruntime.ChannelID, result channelruntime.RuntimeProbeResult) ([]model.ChannelRuntimeProbeChannel, error) {
+func explicitRuntimeProbeChannels(requested []channelruntime.ChannelID, result channelruntime.RuntimeProbeResult) ([]model.ChannelRuntimeProbeChannel, error) {
 	if len(requested) == 0 {
 		return nil, nil
 	}
+	requestedSet := make(map[channelruntime.ChannelID]struct{}, len(requested))
+	for _, identity := range requested {
+		requestedSet[identity] = struct{}{}
+	}
 	loaded := make(map[channelruntime.ChannelID]channelruntime.RuntimeProbeChannel, len(result.Channels))
 	for _, channel := range result.Channels {
+		if _, ok := requestedSet[channel.ChannelID]; !ok {
+			return nil, fmt.Errorf("cluster: channel runtime probe returned an unrequested loaded identity")
+		}
+		if _, ok := loaded[channel.ChannelID]; ok {
+			return nil, fmt.Errorf("cluster: channel runtime probe returned duplicate loaded evidence")
+		}
 		loaded[channel.ChannelID] = channel
 	}
 	missing := make(map[channelruntime.ChannelID]struct{}, len(result.Missing))
 	for _, identity := range result.Missing {
+		if _, ok := requestedSet[identity]; !ok {
+			return nil, fmt.Errorf("cluster: channel runtime probe returned an unrequested missing identity")
+		}
+		if _, ok := missing[identity]; ok {
+			return nil, fmt.Errorf("cluster: channel runtime probe returned duplicate missing evidence")
+		}
+		if _, ok := loaded[identity]; ok {
+			return nil, fmt.Errorf("cluster: channel runtime probe contradicted loaded and missing evidence")
+		}
 		missing[identity] = struct{}{}
+	}
+	if len(loaded)+len(missing) != len(requested) || result.Checked != len(requested) ||
+		result.LoadedLeader+result.LoadedFollower != len(loaded) {
+		return nil, fmt.Errorf("cluster: channel runtime probe returned incomplete evidence")
 	}
 	out := make([]model.ChannelRuntimeProbeChannel, 0, len(result.Channels)+len(result.Missing))
 	for _, identity := range requested {
@@ -212,6 +239,24 @@ func runtimeProbeChannels(requested []channelruntime.ChannelID, result channelru
 		return nil, nil
 	}
 	return out, nil
+}
+
+func runtimeProbeFailure(query model.ChannelRuntimeProbeQuery, reason model.ChannelRuntimeProbeFailureReason, err error) error {
+	if query.Channels == nil {
+		return err
+	}
+	return &model.ChannelRuntimeProbeFailure{Reason: reason, Cause: err}
+}
+
+func runtimeProbeRuntimeFailureReason(err error) model.ChannelRuntimeProbeFailureReason {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return model.ChannelRuntimeProbeFailureCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return model.ChannelRuntimeProbeFailureDeadline
+	default:
+		return model.ChannelRuntimeProbeFailureRuntimeUnavailable
+	}
 }
 
 func runtimeRoleString(role channelruntime.Role) string {

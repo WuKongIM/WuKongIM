@@ -17,7 +17,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
 
-const defaultTimeout = 60 * time.Second
+const (
+	defaultTimeout = 60 * time.Second
+	// A valid all-missing explicit response can repeat the configured 10 MiB
+	// request identity payload in both compatibility and detailed fields.
+	// Thirty-two MiB leaves fixed evidence overhead while keeping allocation finite.
+	maxChannelRuntimeProbeResponseBytes int64 = 32 << 20
+)
 
 // Config controls the black-box target bench API client.
 type Config struct {
@@ -134,7 +140,10 @@ func (c *Client) ChannelRuntimeSnapshots(ctx context.Context, query model.Channe
 // ProbeChannelRuntime posts a bounded local runtime probe request.
 func (c *Client) ProbeChannelRuntime(ctx context.Context, req model.ChannelRuntimeProbeRequest) (model.ChannelRuntimeProbeResult, error) {
 	var out model.ChannelRuntimeProbeResult
-	if err := c.postAnyOutMapped(ctx, "/bench/v1/channel-runtime/probe", req, &out, safeChannelRuntimeProbeError); err != nil {
+	if err := c.postAnyOutMapped(ctx, "/bench/v1/channel-runtime/probe", req, &out, maxChannelRuntimeProbeResponseBytes, safeChannelRuntimeProbeError); err != nil {
+		return model.ChannelRuntimeProbeResult{}, err
+	}
+	if err := validateChannelRuntimeProbeResponse(req, out); err != nil {
 		return model.ChannelRuntimeProbeResult{}, err
 	}
 	return out, nil
@@ -145,8 +154,11 @@ func (c *Client) ProbeChannelRuntimeAll(ctx context.Context, req model.ChannelRu
 	results := make([]model.ChannelRuntimeProbeResult, 0, len(c.addrs()))
 	err := c.postAll(func(addr string) error {
 		var out model.ChannelRuntimeProbeResult
-		if err := c.doJSON(ctx, http.MethodPost, addr, "/bench/v1/channel-runtime/probe", req, &out); err != nil {
+		if err := c.doJSONLimited(ctx, http.MethodPost, addr, "/bench/v1/channel-runtime/probe", req, &out, maxChannelRuntimeProbeResponseBytes); err != nil {
 			return safeChannelRuntimeProbeError(err)
+		}
+		if err := validateChannelRuntimeProbeResponse(req, out); err != nil {
+			return err
 		}
 		results = append(results, out)
 		return nil
@@ -240,10 +252,10 @@ func (c *Client) postAny(ctx context.Context, path string, body any) error {
 }
 
 func (c *Client) postAnyOut(ctx context.Context, path string, body any, out any) error {
-	return c.postAnyOutMapped(ctx, path, body, out, nil)
+	return c.postAnyOutMapped(ctx, path, body, out, 0, nil)
 }
 
-func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, out any, mapErr func(error) error) error {
+func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, out any, maxResponseBytes int64, mapErr func(error) error) error {
 	addrs := c.addrs()
 	if len(addrs) == 0 {
 		return fmt.Errorf("no target api addresses configured")
@@ -254,7 +266,7 @@ func (c *Client) postAnyOutMapped(ctx context.Context, path string, body any, ou
 		if err != nil {
 			return err
 		}
-		if err := c.doJSON(ctx, http.MethodPost, addr, path, body, attemptOut); err != nil {
+		if err := c.doJSONLimited(ctx, http.MethodPost, addr, path, body, attemptOut, maxResponseBytes); err != nil {
 			if mapErr != nil {
 				err = mapErr(err)
 			}
@@ -273,6 +285,19 @@ func safeChannelRuntimeProbeError(err error) error {
 		return err
 	}
 	return fmt.Errorf("%s %s returned status %d", statusErr.method, statusErr.url, statusErr.statusCode)
+}
+
+func validateChannelRuntimeProbeResponse(req model.ChannelRuntimeProbeRequest, result model.ChannelRuntimeProbeResult) error {
+	if req.Channels == nil {
+		if len(result.Channels) != 0 {
+			return fmt.Errorf("invalid channel runtime probe response: generated selector returned detailed rows")
+		}
+		return nil
+	}
+	if len(result.Channels) > 1200 || len(result.Channels) > len(req.Channels) {
+		return fmt.Errorf("invalid channel runtime probe response: detailed row count exceeds request bound")
+	}
+	return nil
 }
 
 func freshDecodeTarget(out any) (any, error) {
@@ -294,6 +319,10 @@ func copyDecodeTarget(out any, attemptOut any) {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, base, path string, body any, out any) error {
+	return c.doJSONLimited(ctx, method, base, path, body, out, 0)
+}
+
+func (c *Client) doJSONLimited(ctx context.Context, method, base, path string, body any, out any, maxResponseBytes int64) error {
 	var reader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -322,6 +351,19 @@ func (c *Client) doJSON(ctx context.Context, method, base, path string, body any
 	}
 	if out == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+	if maxResponseBytes > 0 {
+		data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
+		if err != nil {
+			return fmt.Errorf("read %s %s: %w", method, req.URL.String(), err)
+		}
+		if int64(len(data)) > maxResponseBytes {
+			return fmt.Errorf("channel runtime probe response exceeds byte limit")
+		}
+		if err := json.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("decode %s %s: %w", method, req.URL.String(), err)
+		}
 		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {

@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -75,4 +76,13 @@ func TestChannelRuntimeProbeResultJSONRoundTripDetailedChannels(t *testing.T) {
 	var got ChannelRuntimeProbeResult
 	require.NoError(t, json.Unmarshal(data, &got))
 	require.Equal(t, want, got)
+}
+
+func TestChannelRuntimeProbeFailureCollapsesUnknownReason(t *testing.T) {
+	const sensitive = "unbounded-sensitive-reason"
+	err := &ChannelRuntimeProbeFailure{Reason: ChannelRuntimeProbeFailureReason(sensitive), Cause: errors.New("private cause")}
+
+	require.Equal(t, ChannelRuntimeProbeFailureInternal, ChannelRuntimeProbeFailureReasonOf(err))
+	require.NotContains(t, err.Error(), sensitive)
+	require.NotContains(t, err.Error(), "private cause")
 }

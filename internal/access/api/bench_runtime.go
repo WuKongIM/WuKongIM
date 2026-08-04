@@ -36,7 +36,7 @@ func (s *Server) handleBenchChannelRuntimeSnapshot(c *gin.Context) {
 	}
 	resp, err := s.benchRuntime.Snapshot(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(c, "snapshot", query, err)
+		s.logBenchRuntimeFailure(c, "snapshot", query, "", err)
 		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -65,14 +65,19 @@ func (s *Server) handleBenchChannelRuntimeProbe(c *gin.Context) {
 	if err != nil {
 		logErr := err
 		responseErr := err
+		failureReason := model.ChannelRuntimeProbeFailureReason("")
 		if query.Channels != nil {
+			failureReason = model.ChannelRuntimeProbeFailureReasonOf(err)
+			if failureReason == "" {
+				failureReason = model.ChannelRuntimeProbeFailureInternal
+			}
 			safeErr := errors.New("explicit channel runtime probe failed")
 			logErr = safeErr
 			responseErr = safeErr
 		}
 		s.logBenchRuntimeFailure(c, "probe", model.ChannelRuntimeQuery{
 			RunID: query.RunID, Profile: query.Profile, ChannelType: query.ChannelType, Range: query.Range,
-		}, logErr)
+		}, failureReason, logErr)
 		writeBenchError(c, http.StatusInternalServerError, responseErr.Error())
 		return
 	}
@@ -99,7 +104,7 @@ func (s *Server) handleBenchChannelRuntimeEvict(c *gin.Context) {
 	}
 	resp, err := s.benchRuntime.Evict(c.Request.Context(), query)
 	if err != nil {
-		s.logBenchRuntimeFailure(c, "evict", query, err)
+		s.logBenchRuntimeFailure(c, "evict", query, "", err)
 		writeBenchError(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -109,7 +114,7 @@ func (s *Server) handleBenchChannelRuntimeEvict(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (s *Server) logBenchRuntimeFailure(c *gin.Context, op string, query model.ChannelRuntimeQuery, err error) {
+func (s *Server) logBenchRuntimeFailure(c *gin.Context, op string, query model.ChannelRuntimeQuery, reason model.ChannelRuntimeProbeFailureReason, err error) {
 	if err == nil {
 		return
 	}
@@ -132,6 +137,7 @@ func (s *Server) logBenchRuntimeFailure(c *gin.Context, op string, query model.C
 		wklog.ChannelType(int64(query.ChannelType)),
 		wklog.Int("rangeStart", query.Range.Start),
 		wklog.Int("rangeEnd", query.Range.End),
+		wklog.String("reason", string(reason)),
 		wklog.Error(err),
 	)
 }

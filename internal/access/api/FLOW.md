@@ -246,7 +246,9 @@ route. Restricted bench authentication continues to cover all three routes.
 If the runtime controller fails an explicit probe, the adapter returns and logs
 only the stable `explicit channel runtime probe failed` message; raw controller
 errors can contain requested identities and therefore remain private. Generated
-probe failures retain their existing response behavior.
+probe failures retain their existing response behavior. Explicit failures log
+only the shared closed reason code plus existing low-cardinality request-shape
+fields; source errors and concrete identities are not logged.
 
 Compatible channel and user management are adapters only. The channel adapter
 validates JSON fields, defaults `/channel/subscriber_add` with missing
