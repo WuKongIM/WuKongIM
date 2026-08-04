@@ -721,6 +721,24 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 	return nil
 }
 
+// abortSendHarness removes an incomplete SEND after the worker has already
+// proven that local bounded-resource saturation invalidated the run. It avoids
+// manufacturing a product terminal failure for work the harness could not own.
+func (v *Verifier) abortSendHarness(logical LogicalSend) error {
+	v.sendMu.Lock()
+	defer v.sendMu.Unlock()
+	pending := v.pending[logical.ClientMsgNo]
+	if pending == nil || pending.logical != logical || pending.completion != sendIncomplete {
+		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, 0)
+	}
+	delete(v.pending, logical.ClientMsgNo)
+	v.pendingUnfinished--
+	if correlation := v.correlations[logical.ClientMsgNo]; correlation != nil {
+		v.removeCorrelationLocked(correlation)
+	}
+	return nil
+}
+
 // Snapshot returns aggregate counters and gauges; it never enumerates identities.
 func (v *Verifier) Snapshot() VerifierSnapshot {
 	// Snapshot takes the send domain before the receive domain and never holds
@@ -771,6 +789,31 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 // EvidenceSnapshot returns the recorder's stable, deeply copied redacted view.
 func (v *Verifier) EvidenceSnapshot() EvidenceSnapshot {
 	return v.evidence.Snapshot()
+}
+
+// resetRuntime discards a fully joined worker generation's bounded identity
+// indexes and counters. Callers must first stop every sender and recipient drain.
+func (v *Verifier) resetRuntime() {
+	if v == nil {
+		return
+	}
+	v.sendMu.Lock()
+	v.pending = make(map[string]*pendingSend)
+	v.pendingUnfinished = 0
+	v.pendingPeak = 0
+	v.correlations = make(map[string]*sampledCorrelation)
+	v.deadlines = nil
+	heap.Init(&v.deadlines)
+	v.correlationPeak = 0
+	v.sendCounters = verifierSendCounters{}
+	v.sendMu.Unlock()
+
+	v.recvMu.Lock()
+	v.sequences = make(map[string]*recipientSequenceState)
+	v.sequenceCount = 0
+	v.sequencePeak = 0
+	v.recvCounters = verifierReceiveCounters{}
+	v.recvMu.Unlock()
 }
 
 func (v *Verifier) sampledLocked(logical LogicalSend) (bool, error) {
@@ -911,6 +954,18 @@ func failureCodeName(code FailureCode) string {
 		return "recvack_deadline"
 	case FailureCodeRecvackUnclassified:
 		return "recvack_unclassified"
+	case FailureCodeEngineQueueSaturated:
+		return "engine_queue_saturated"
+	case FailureCodeEngineCPUSaturated:
+		return "engine_cpu_saturated"
+	case FailureCodeEngineInflightSaturated:
+		return "engine_inflight_saturated"
+	case FailureCodeEngineRetrySaturated:
+		return "engine_retry_saturated"
+	case FailureCodeSessionReadFailed:
+		return "session_read_failed"
+	case FailureCodeSessionLoginSaturated:
+		return "session_login_saturated"
 	default:
 		return "unknown"
 	}

@@ -63,6 +63,12 @@ const (
 	FailureCodeRecvackCanceled
 	FailureCodeRecvackDeadline
 	FailureCodeRecvackUnclassified
+	FailureCodeEngineQueueSaturated
+	FailureCodeEngineCPUSaturated
+	FailureCodeEngineInflightSaturated
+	FailureCodeEngineRetrySaturated
+	FailureCodeSessionReadFailed
+	FailureCodeSessionLoginSaturated
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -201,6 +207,17 @@ func (r *EvidenceRecorder) Snapshot() EvidenceSnapshot {
 	return snapshot
 }
 
+// reset starts a fresh worker generation after all prior work has joined.
+func (r *EvidenceRecorder) reset() {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	r.classification = ""
+	r.classes = make(map[FailureClass]*retainedEvidenceClass, 4)
+	r.mu.Unlock()
+}
+
 func chronologicalLast(last []EvidenceExample, next, capacity int) []EvidenceExample {
 	if len(last) < capacity || next == 0 {
 		return append([]EvidenceExample(nil), last...)
@@ -240,6 +257,13 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 			return event.Stage == EvidenceStageSend || event.Stage == EvidenceStageRecvack || event.Stage == EvidenceStageCorrelation
 		case FailureCodeRecvackCanceled, FailureCodeRecvackDeadline, FailureCodeRecvackUnclassified:
 			return event.Stage == EvidenceStageRecvack
+		case FailureCodeEngineQueueSaturated, FailureCodeEngineCPUSaturated,
+			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated:
+			return event.Stage == EvidenceStageCapacity
+		case FailureCodeSessionReadFailed:
+			return event.Stage == EvidenceStageReceive
+		case FailureCodeSessionLoginSaturated:
+			return event.Stage == EvidenceStageCapacity
 		default:
 			return false
 		}

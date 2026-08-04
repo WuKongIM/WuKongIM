@@ -4,9 +4,10 @@
 model, narrow lifecycle-specific startup orchestration, bounded message
 verification, and redacted evidence retention for the formal or local
 chat-lifecycle workload. `profile` selects formal versus local scale, while
-`mode` separately selects soak versus capacity coordination. It contains no
-concrete sockets or HTTP clients, worker loops, secrets, target mutation,
-Docker, or host inspection; transport is supplied through narrow interfaces.
+`mode` separately selects soak versus capacity coordination. It contains one
+bounded lifecycle engine loop but no concrete sockets or HTTP clients, secrets,
+target mutation, Docker, or host inspection; transport is supplied through
+narrow interfaces.
 
 ```text
 config
@@ -127,6 +128,62 @@ P3.4 must feed each recipient from exactly one session drain in wire order.
 Logout must cancel and join that drain before calling `ReleaseRecipient`, which
 deletes the session's bounded monotonic state instead of accumulating historical
 channels.
+
+`SessionPool` owns only traffic-ready online sessions. Its factory receives a
+deterministic per-UID CONNECT token, creates a fresh client for every login, and
+then delegates CONNECT-before-version-zero-sync semantics to `RunLoginSync`.
+The narrow `WKProtoSessionAdapter` delegates CONNECT, SEND, frame reads,
+RECVACK, close, and numeric queue gauges to the existing non-dropping
+`internal/bench/wkproto.Client`; it does not recreate protocol pumps.
+Independent login I/O runs concurrently under one explicit starting-session
+capacity and retains only the UIDs whose CONNECT/sync is active; capacity
+exhaustion is harness-invalid. Only a validated sync starts the recipient's
+sole ordered frame drain. Expected logout and expiry first remove online
+admission, then cancel and close the
+socket, join the drain, and finally release recipient sequence state. An
+unexpected read exit increments a bounded aggregate and emits the closed
+`session_read_failed` harness reason without copying the transport error.
+
+`TrafficGenerator` streams, rather than retains, each global per-second grant.
+It reuses `RateAllocator`, `TrafficModel`, `RelationshipGraph`, and
+`GroupCatalog` to preserve the exact primary traffic, payload, direction, and
+fixed hot-set cycles. Person targets reconstruct one of the bounded hot person
+relationships, group targets reconstruct a fixed catalog entry, and the
+very-large group remains an independently counted one-per-minute canary. The
+generator has no product metadata or runtime mutation interface.
+
+`Engine` owns one bounded command loop for the active generation. One activity
+min-heap holds relationship SEND eligibility, a runtime min-heap holds granted
+SEND, attempt-timeout, and lifecycle deadlines, the indexed retry heap holds at
+most one approved retry per logical message, and the inflight map is explicitly
+capacity-bounded. A separate bounded completion queue lets ordered session
+drains report SENDACKs under backpressure without competing with control
+commands; long clock advances consume completions between scheduled work, and
+shutdown joins drains before its final completion barrier. All heaps share one
+checked future-work capacity except the retry heap, which has its own explicit
+capacity. New-user
+observation reconstructs only the prior five possible relationship owners,
+schedules an initial burst only while both sessions are online, and retains at
+most one lifecycle deadline for revisit or natural cooling. Due relationship
+activity cannot be sent by clock advancement alone: a person grant from the
+single global tick substitutes its target while retaining the grant's worker,
+logical ordinal, payload class, and primary denominator. Initial and revisit
+messages use disjoint positions inside the same relationship identity block.
+Revisit timers that require cold-runtime evidence also have one bounded active
+channel index; only an explicit prior all-node cold approval can let the timer
+add revisit activity, and expiry physically removes that index.
+No historical user or channel owns a goroutine, timer, or retained map row.
+
+Attempt zero plus retries one through three reuse the same Phase 2 logical
+identity. Timeouts and closed temporary SENDACK reasons schedule the existing
+100 ms, 500 ms, and 2 s deterministic delays; non-retriable SENDACK reasons
+complete immediately. A late successful SENDACK removes a scheduled retry in
+O(log n), and every accepted SENDACK physically removes that attempt's timeout
+heap entry. Work queue, command queue, retry heap, inflight, or per-advance CPU
+budget saturation is closed `harness_invalid` evidence and never becomes a
+product terminal result. A new engine generation starts only after prior session
+drains join, then clears bounded verifier indexes, counters, evidence, allocator
+credit, and queue ownership so no first-run identity reaches the second run.
 
 Exact delivery correlation uses one run-keyed position in every 100 logical
 sends per worker. A sampled entry has one map row and one indexed min-heap
