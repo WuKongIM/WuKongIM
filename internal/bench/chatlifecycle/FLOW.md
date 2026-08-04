@@ -27,3 +27,11 @@ replicas. The lifecycle runner does not start Docker; it connects to an
 already-running target through declared non-secret observation endpoints. A
 capacity-mode run requires the formal profile, a typed completed passing
 72-hour aged checkpoint, and the fixed 2,000 start/recovery-rate staircase.
+
+Service-node observation, worker control, host metrics, and API-pool endpoints
+are absolute credential-free HTTP or HTTPS URLs without query or fragment.
+Their duplicate identity lowercases the scheme and host, canonicalizes IP text
+and default ports, and cleans the base path while preserving meaningful
+non-root paths. Gateway endpoints are credential-free TCP `host:port` values;
+their duplicate identity canonicalizes the host/IP and numeric port. API and
+gateway pools must not resolve to the same canonical network authority.

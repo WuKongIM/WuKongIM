@@ -2,6 +2,10 @@ package chatlifecycle
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	pathpkg "path"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -267,18 +271,20 @@ func validateObservation(o ObservationConfig) error {
 	if err := validateEndpointRole("observation.host_metrics", o.HostMetrics); err != nil {
 		return err
 	}
-	if err := validateAddressPool("observation.api_addrs", o.APIAddrs); err != nil {
+	if err := validateHTTPAddressPool("observation.api_addrs", o.APIAddrs); err != nil {
 		return err
 	}
-	if err := validateAddressPool("observation.gateway_tcp_addrs", o.GatewayTCPAddrs); err != nil {
+	if err := validateGatewayAddressPool("observation.gateway_tcp_addrs", o.GatewayTCPAddrs); err != nil {
 		return err
 	}
 	if err := validateCrossRoleEndpointDuplicates(o); err != nil {
 		return err
 	}
 	for gatewayIndex, gateway := range o.GatewayTCPAddrs {
+		gatewayKey, _ := parseGatewayEndpoint(gateway)
 		for apiIndex, api := range o.APIAddrs {
-			if strings.TrimSpace(gateway) == strings.TrimSpace(api) {
+			apiKey, _ := parseHTTPEndpoint(api)
+			if gatewayKey == apiKey.authority {
 				return fieldError(fmt.Sprintf("observation.gateway_tcp_addrs[%d]", gatewayIndex), fmt.Sprintf("aliases observation.api_addrs[%d]", apiIndex))
 			}
 		}
@@ -304,15 +310,19 @@ func validateEndpointRole(path string, endpoints []EndpointDeclaration) error {
 		if address == "" {
 			return fieldError(fmt.Sprintf("%s[%d].address", path, i), "is required")
 		}
-		if previous, ok := seenAddresses[address]; ok {
+		parsed, reason := parseHTTPEndpoint(address)
+		if reason != "" {
+			return fieldError(fmt.Sprintf("%s[%d].address", path, i), reason)
+		}
+		if previous, ok := seenAddresses[parsed.key]; ok {
 			return fieldError(fmt.Sprintf("%s[%d].address", path, i), fmt.Sprintf("duplicates %s[%d].address", path, previous))
 		}
-		seenNames[name], seenAddresses[address] = i, i
+		seenNames[name], seenAddresses[parsed.key] = i, i
 	}
 	return nil
 }
 
-func validateAddressPool(path string, addresses []string) error {
+func validateHTTPAddressPool(path string, addresses []string) error {
 	if len(addresses) == 0 {
 		return fieldError(path, "must not be empty")
 	}
@@ -322,10 +332,35 @@ func validateAddressPool(path string, addresses []string) error {
 		if address == "" {
 			return fieldError(fmt.Sprintf("%s[%d]", path, i), "is required")
 		}
-		if previous, ok := seen[address]; ok {
+		parsed, reason := parseHTTPEndpoint(address)
+		if reason != "" {
+			return fieldError(fmt.Sprintf("%s[%d]", path, i), reason)
+		}
+		if previous, ok := seen[parsed.key]; ok {
 			return fieldError(fmt.Sprintf("%s[%d]", path, i), fmt.Sprintf("duplicates %s[%d]", path, previous))
 		}
-		seen[address] = i
+		seen[parsed.key] = i
+	}
+	return nil
+}
+
+func validateGatewayAddressPool(path string, addresses []string) error {
+	if len(addresses) == 0 {
+		return fieldError(path, "must not be empty")
+	}
+	seen := make(map[string]int, len(addresses))
+	for i, raw := range addresses {
+		if strings.TrimSpace(raw) == "" {
+			return fieldError(fmt.Sprintf("%s[%d]", path, i), "is required")
+		}
+		key, reason := parseGatewayEndpoint(raw)
+		if reason != "" {
+			return fieldError(fmt.Sprintf("%s[%d]", path, i), reason)
+		}
+		if previous, ok := seen[key]; ok {
+			return fieldError(fmt.Sprintf("%s[%d]", path, i), fmt.Sprintf("duplicates %s[%d]", path, previous))
+		}
+		seen[key] = i
 	}
 	return nil
 }
@@ -350,14 +385,105 @@ func validateCrossRoleEndpointDuplicates(o ObservationConfig) error {
 			}
 			seenNames[name] = namePath
 			addressPath := fmt.Sprintf("%s[%d].address", role.path, index)
-			address := strings.TrimSpace(endpoint.Address)
-			if previous, ok := seenAddresses[address]; ok {
+			address, _ := parseHTTPEndpoint(endpoint.Address)
+			if previous, ok := seenAddresses[address.key]; ok {
 				return fieldError(addressPath, "duplicates "+previous)
 			}
-			seenAddresses[address] = addressPath
+			seenAddresses[address.key] = addressPath
 		}
 	}
 	return nil
+}
+
+type httpEndpointKey struct {
+	key       string
+	authority string
+}
+
+func parseHTTPEndpoint(raw string) (httpEndpointKey, string) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		if strings.Contains(err.Error(), "invalid port") {
+			return httpEndpointKey{}, "port must be a number in 1..65535"
+		}
+		return httpEndpointKey{}, "must be a valid absolute HTTP URL"
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme == "" || !parsed.IsAbs() {
+		return httpEndpointKey{}, "must be a valid absolute HTTP URL"
+	}
+	if scheme != "http" && scheme != "https" {
+		return httpEndpointKey{}, "scheme must be http or https"
+	}
+	if parsed.User != nil {
+		return httpEndpointKey{}, "must not include userinfo"
+	}
+	if parsed.RawQuery != "" || parsed.ForceQuery {
+		return httpEndpointKey{}, "must not include a query"
+	}
+	if parsed.Fragment != "" {
+		return httpEndpointKey{}, "must not include a fragment"
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return httpEndpointKey{}, "host is required"
+	}
+	port := parsed.Port()
+	if strings.HasSuffix(parsed.Host, ":") {
+		return httpEndpointKey{}, "port must be a number in 1..65535"
+	}
+	if port == "" {
+		if scheme == "http" {
+			port = "80"
+		} else {
+			port = "443"
+		}
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return httpEndpointKey{}, "port must be a number in 1..65535"
+	}
+	authority := net.JoinHostPort(canonicalEndpointHost(host), strconv.Itoa(portNumber))
+	basePath := pathpkg.Clean(parsed.EscapedPath())
+	if basePath == "." || basePath == "/" {
+		basePath = ""
+	}
+	return httpEndpointKey{
+		key:       scheme + "://" + authority + basePath,
+		authority: authority,
+	}, ""
+}
+
+func parseGatewayEndpoint(raw string) (string, string) {
+	address := strings.TrimSpace(raw)
+	if strings.Contains(address, "://") {
+		return "", "must be a TCP host:port"
+	}
+	if strings.Contains(address, "@") {
+		return "", "must not include userinfo"
+	}
+	if strings.ContainsAny(address, "/?#") {
+		return "", "must not include a path, query, or fragment"
+	}
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", "must be a TCP host:port"
+	}
+	if host == "" {
+		return "", "host is required"
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", "port must be a number in 1..65535"
+	}
+	return net.JoinHostPort(canonicalEndpointHost(host), strconv.Itoa(portNumber)), ""
+}
+
+func canonicalEndpointHost(host string) string {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+	return strings.ToLower(host)
 }
 
 func validateThresholds(t ThresholdsConfig) error {
