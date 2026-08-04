@@ -151,6 +151,13 @@ type SessionPoolSnapshot struct {
 	VerificationErrors uint64
 }
 
+// SessionCounts is the O(1) ownership projection used by the scheduler.
+type SessionCounts struct {
+	Online   int
+	Starting int
+	Closing  int
+}
+
 type onlineSession struct {
 	snapshot      SessionSnapshot
 	client        SessionClient
@@ -317,6 +324,17 @@ func (p *SessionPool) IsOnline(uid string) bool {
 	return ok
 }
 
+// Counts reports current ownership map sizes without touching client gauges.
+func (p *SessionPool) Counts() SessionCounts {
+	if p == nil {
+		return SessionCounts{}
+	}
+	p.mu.RLock()
+	counts := SessionCounts{Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing)}
+	p.mu.RUnlock()
+	return counts
+}
+
 func (p *SessionPool) isOwned(uid string) bool {
 	if p == nil {
 		return false
@@ -433,15 +451,19 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 		return SessionPoolSnapshot{}
 	}
 	p.mu.RLock()
-	defer p.mu.RUnlock()
 	snapshot := SessionPoolSnapshot{
 		Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
 	}
+	clients := make([]SessionClient, 0, len(p.online))
 	for _, session := range p.online {
 		if session.snapshot.TrafficReady {
 			snapshot.TrafficReady++
 		}
-		queue := session.client.QueueSnapshot()
+		clients = append(clients, session.client)
+	}
+	p.mu.RUnlock()
+	for _, client := range clients {
+		queue := client.QueueSnapshot()
 		snapshot.QueueDepth += queue.Depth
 		snapshot.QueueCapacity += queue.Capacity
 		snapshot.TransportInflight += queue.Inflight

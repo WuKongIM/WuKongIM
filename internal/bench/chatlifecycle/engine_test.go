@@ -587,10 +587,15 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 		name          string
 		drain         bool
 		terminal      bool
+		future        bool
+		offered       bool
 		wantAbandoned uint64
+		wantCanceled  uint64
 	}{
 		{name: "pending_is_closed", wantAbandoned: 1},
 		{name: "pending_preserves_terminal_product", terminal: true, wantAbandoned: 1},
+		{name: "future_unoffered_is_cleanly_canceled", future: true, wantCanceled: 1},
+		{name: "future_already_offered_is_under_delivered", future: true, offered: true, wantAbandoned: 1},
 		{name: "drained_is_clean", drain: true},
 	} {
 		test := test
@@ -611,10 +616,14 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 					t.Fatalf("sender Login: %v", err)
 				}
 			}
+			due := now
+			if test.future {
+				due = now.Add(30 * time.Second)
+			}
 			added := make(chan error, 1)
 			if err := fixture.engine.enqueue(engineCommand{run: func() {
 				added <- fixture.engine.addActivity(&engineWork{
-					due: now, kind: engineWorkSend,
+					due: due, kind: engineWorkSend, offered: test.offered,
 					intent: TrafficIntent{
 						Logical: LogicalSend{Sender: sender, Target: fixture.identity.UID(601)},
 						Kind:    TrafficPerson, Domain: LogicalDomainLifecycle,
@@ -692,7 +701,7 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 			if test.terminal {
 				wantClassification = SyncClassificationProductFailure
 			}
-			if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != test.wantAbandoned || snapshot.HarnessInvalid != wantHarness || snapshot.Classification != wantClassification {
+			if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != test.wantAbandoned || snapshot.ActivityFutureCanceled != test.wantCanceled || snapshot.HarnessInvalid != wantHarness || snapshot.Classification != wantClassification {
 				t.Fatalf("stopped mandatory activity accounting = %+v", snapshot)
 			}
 			assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), wantHarness)
@@ -848,6 +857,140 @@ func TestEngineApprovedRevisitUsesEitherOnlineEndpointAndRetainsFullyOfflineTime
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestEngineApprovedFullyOfflineRevisitExpiresOnceAtEligibilityBoundary(t *testing.T) {
+	const eligibilityWindow = 10 * time.Nanosecond
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: 256, MaxWorkPerAdvance: 256, ActivityEligibilityWindow: eligibilityWindow,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	relationshipOrdinal, schedule := findLifecycleSchedule(t, fixture.schedule, edge, LifecycleRevisit)
+	loginOrdinal := findLoginLongerThan(t, fixture.schedule, schedule.RevisitAfter+time.Minute)
+	for _, endpoint := range []struct {
+		uid   string
+		index uint64
+	}{{edge.OwnerUID, edge.OwnerIndex}, {edge.PeerUID, edge.PeerIndex}} {
+		if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+			UID: endpoint.uid, UserIndex: endpoint.index, LoginOrdinal: loginOrdinal,
+		}); err != nil {
+			t.Fatalf("Login(%q): %v", endpoint.uid, err)
+		}
+	}
+	if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
+		t.Fatalf("ActivateRelationship = %v, %v", activated, err)
+	}
+	if approved, err := fixture.engine.ApproveColdRevisit(edge.PersonChannelID); err != nil || !approved {
+		t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
+	}
+	if err := fixture.engine.Logout(edge.OwnerUID); err != nil {
+		t.Fatalf("owner Logout: %v", err)
+	}
+	if err := fixture.engine.Logout(edge.PeerUID); err != nil {
+		t.Fatalf("peer Logout: %v", err)
+	}
+
+	due := fixture.clock.Now().Add(schedule.RevisitAfter)
+	deadline := due.Add(eligibilityWindow)
+	justBeforeExpiry := deadline.Add(-2 * time.Nanosecond)
+	fixture.clock.Set(justBeforeExpiry)
+	if _, err := fixture.engine.Advance(justBeforeExpiry); err != nil {
+		t.Fatalf("Advance before eligibility boundary: %v", err)
+	}
+	retained, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot retained: %v", err)
+	}
+	if retained.ActiveLifecycleTimers != 1 || retained.ColdEvidencePending != 1 || retained.ActivityUnderDelivered != 0 || retained.HarnessInvalid != 0 {
+		t.Fatalf("revisit before eligibility expiry = %+v", retained)
+	}
+
+	expiry := deadline.Add(-time.Nanosecond)
+	fixture.clock.Set(expiry)
+	if _, err := fixture.engine.Advance(expiry); err == nil {
+		t.Fatal("Advance at eligibility boundary returned nil, want under-delivery")
+	}
+	expired, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot expired: %v", err)
+	}
+	if expired.ActiveLifecycleTimers != 0 || expired.ColdEvidencePending != 0 || expired.ActivityUnderDelivered != 1 || expired.HarnessInvalid != 1 || expired.Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("expired offline revisit = %+v", expired)
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+
+	afterLongIdle := deadline.Add(72 * time.Hour)
+	fixture.clock.Set(afterLongIdle)
+	if _, err := fixture.engine.Advance(afterLongIdle); err != nil {
+		t.Fatalf("Advance after long idle: %v", err)
+	}
+	stable, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot stable: %v", err)
+	}
+	if stable.ActiveLifecycleTimers != 0 || stable.ColdEvidencePending != 0 || stable.ActivityUnderDelivered != 1 || stable.HarnessInvalid != 1 {
+		t.Fatalf("expired revisit changed after long idle = %+v", stable)
+	}
+	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+}
+
+func TestEngineRelationshipActivityRetainsOnlyRetargetMetadata(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 256})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	edge := fixture.graph.Incoming(18).Items[0]
+	relationshipOrdinal, schedule := findLifecycleSchedule(t, fixture.schedule, edge, LifecycleOneShot)
+	for _, endpoint := range []struct {
+		uid   string
+		index uint64
+	}{{edge.OwnerUID, edge.OwnerIndex}, {edge.PeerUID, edge.PeerIndex}} {
+		if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+			UID: endpoint.uid, UserIndex: endpoint.index, LoginOrdinal: endpoint.index,
+		}); err != nil {
+			t.Fatalf("Login(%q): %v", endpoint.uid, err)
+		}
+	}
+	if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
+		t.Fatalf("ActivateRelationship = %v, %v", activated, err)
+	}
+
+	checked := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		found := 0
+		for _, activity := range fixture.engine.activity {
+			if activity.intent.ChannelID != edge.PersonChannelID {
+				continue
+			}
+			found++
+			intent := activity.intent
+			if intent.Packet != nil || intent.PayloadBytes != 0 || intent.Logical.ClientMsgNo != "" || intent.Logical.LogicalSend != 0 || intent.Logical.WorkerID != 0 {
+				checked <- fmt.Errorf("activity retained prebuilt send state: %+v", intent)
+				return
+			}
+			if intent.Logical.Sender == "" || intent.Logical.Target == "" || intent.Kind != TrafficPerson || intent.ChannelID == "" || intent.Domain != LogicalDomainLifecycle {
+				checked <- fmt.Errorf("activity lost retarget metadata: %+v", intent)
+				return
+			}
+		}
+		if found != schedule.InitialBurst.MessageCount {
+			checked <- fmt.Errorf("retained activity count = %d, want %d", found, schedule.InitialBurst.MessageCount)
+			return
+		}
+		checked <- nil
+	}}); err != nil {
+		t.Fatalf("inspect relationship activity: %v", err)
+	}
+	if err := <-checked; err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -174,6 +174,10 @@ the atomic boundary. Unknown unexpected read exits remain bounded
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
 group-member routing indexes contain current online sessions only, use
 swap-delete on logout, and allocate no per-lookup history.
+Scheduler decisions read only O(1) online, starting, and closing counts. An
+aggregate pool snapshot copies client handles and scalar session metadata while
+holding the ownership read lock, releases it, and only then samples transport
+queue gauges; a slow client gauge cannot block login, logout, or detach.
 
 `TrafficGenerator` streams, rather than retains, each global per-second grant.
 It reuses `RateAllocator`, `TrafficModel`, and `GroupCatalog` to preserve the
@@ -229,12 +233,19 @@ logical ordinal, payload class, and primary denominator. Initial and revisit
 messages use distinct generation-scoped lifecycle and revisit identity domains;
 primary, group, and canary work have their own domains, so restarts and repeated
 activation cannot reuse `client_msg_no`.
+Relationship activity heap entries retain only sender, target, direction,
+channel, and identity-domain metadata. They do not prebuild or retain a packet,
+payload, `client_msg_no`, or wire sequence; grant-time retargeting constructs
+that transient state from the actual global traffic grant.
 Revisit timers that require cold-runtime evidence also have one bounded active
 channel index; only an explicit prior all-node cold approval can let the timer
 add revisit activity. An approved revisit uses either online endpoint as the
 sender; a returning-login revisit always uses the returning user. If its
 required sender, or both ordinary endpoints, are offline, the same timer is
-deferred to a later advance instead of being silently deleted.
+deferred to a later advance instead of being silently deleted. The timer owns
+the same checked eligibility window as the revisit activity it would create;
+an approved fully-offline timer expires at that boundary, physically releases
+its channel index, and records exactly one under-delivery event.
 Person routing always requires an online sender. For the verifier's exact one
 position in every 100 logical sends, it also requires an online target; other
 person sends may keep a channel hot while its peer is offline. A sampled group
@@ -246,9 +257,11 @@ size. If that deferral would reach or cross the eligibility deadline, the
 activity closes immediately instead of inserting an unroutable boundary item.
 At the deadline it is physically removed and records one closed
 `offered_load_under_delivery` harness event before any active channel can fill
-that grant. Joined shutdown records one aggregate event for any still-pending
-mandatory activities before clearing the heap; a fully drained shutdown adds
-no evidence. A missing eligible primary route is harness-invalid under-delivery
+that grant. Joined shutdown records one aggregate event for pending mandatory
+activities that were already offered or are due at the final workload cutoff.
+Unoffered activity strictly after that cutoff is normal future cancellation
+with its own numeric counter and no harness evidence; a fully drained shutdown
+adds no evidence. A missing eligible primary route is harness-invalid under-delivery
 before SEND registration and therefore cannot become a retry or product
 terminal result.
 No historical user or channel owns a goroutine, timer, or retained map row.

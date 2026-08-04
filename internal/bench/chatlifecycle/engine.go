@@ -70,6 +70,7 @@ type EngineSnapshot struct {
 	FutureCurrent           int
 	ActivityCurrent         int
 	ActivityUnderDelivered  uint64
+	ActivityFutureCanceled  uint64
 	QueuePeak               int
 	QueueCapacity           int
 	RetryQueueDepth         int
@@ -347,6 +348,7 @@ type engineWork struct {
 	relationshipOrdinal uint64
 	coldConfirmed       bool
 	requiredSender      string
+	offered             bool
 }
 
 type engineWorkHeap []*engineWork
@@ -492,6 +494,7 @@ type Engine struct {
 	finalFailures          uint64
 	harnessInvalid         uint64
 	activityUnderDelivered uint64
+	activityFutureCanceled uint64
 	now                    time.Time
 }
 
@@ -606,6 +609,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.finalFailures = 0
 	e.harnessInvalid = 0
 	e.activityUnderDelivered = 0
+	e.activityFutureCanceled = 0
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
 	e.scheduler.reset(e.now)
@@ -884,6 +888,12 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 				relationshipOrdinal: loginOrdinal*2 + uint64(index),
 				requiredSender:      candidate.UserUID,
 			}
+			deadline, err := e.newEligibilityDeadline(work.due)
+			if err != nil {
+				response <- err
+				return
+			}
+			work.eligibilityDeadline = deadline
 			if err := e.addWork(work); err != nil {
 				response <- err
 				return
@@ -942,7 +952,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	e.schedulerMetrics.expired.Add(uint64(expired))
 	result.Expired = expired
 	replacementCount := uint64(expired)
-	poolBeforeLogins := e.sessions.Snapshot()
+	poolBeforeLogins := e.sessions.Counts()
 	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.onlineTarget {
 		shortage := uint64(e.onlineTarget - poolBeforeLogins.Online - poolBeforeLogins.Starting)
 		if shortage > replacementCount {
@@ -1011,7 +1021,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		scheduled++
 		startingSlots--
 	}
-	poolAfterLogins := e.sessions.Snapshot()
+	poolAfterLogins := e.sessions.Counts()
 	if poolAfterLogins.Online >= e.onlineTarget {
 		e.scheduler.bootstrapping = false
 		e.scheduler.credit = 0
@@ -1034,7 +1044,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	result.Advanced = advanced
 	resultErr = errors.Join(resultErr, advanceErr)
 	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
-	result.Online = e.sessions.Snapshot().Online
+	result.Online = e.sessions.Counts().Online
 	return result, resultErr
 }
 
@@ -1237,10 +1247,11 @@ func (e *Engine) addActivity(work *engineWork) error {
 		return errEngineConfig
 	}
 	if work.eligibilityDeadline.IsZero() {
-		if work.due.UnixNano() > math.MaxInt64-int64(e.activityEligibilityWindow) {
-			return errEngineConfig
+		deadline, err := e.newEligibilityDeadline(work.due)
+		if err != nil {
+			return err
 		}
-		work.eligibilityDeadline = work.due.Add(e.activityEligibilityWindow)
+		work.eligibilityDeadline = deadline
 	}
 	if !work.eligibilityDeadline.After(work.due) {
 		return errEngineConfig
@@ -1253,6 +1264,17 @@ func (e *Engine) addActivity(work *engineWork) error {
 	heap.Push(&e.activity, work)
 	e.observeWorkPeak()
 	return nil
+}
+
+func (e *Engine) newEligibilityDeadline(due time.Time) (time.Time, error) {
+	if due.UnixNano() > math.MaxInt64-int64(e.activityEligibilityWindow) {
+		return time.Time{}, errEngineConfig
+	}
+	deadline := due.Add(e.activityEligibilityWindow)
+	if !deadline.After(due) {
+		return time.Time{}, errEngineConfig
+	}
+	return deadline, nil
 }
 
 func (e *Engine) futureCount() int { return len(e.work) + len(e.activity) }
@@ -1338,6 +1360,12 @@ func (e *Engine) processWork(work *engineWork, now time.Time) error {
 			e.completeLifecycleTimer(work, now)
 			return nil
 		}
+		if work.eligibilityDeadline.IsZero() {
+			return errEngineConfig
+		}
+		if !work.eligibilityDeadline.After(now) {
+			return e.expireLifecycleWork(work, now)
+		}
 		sender := work.requiredSender
 		if sender != "" {
 			if !e.sessions.IsOnline(sender) {
@@ -1366,12 +1394,27 @@ func (e *Engine) processWork(work *engineWork, now time.Time) error {
 }
 
 func (e *Engine) deferLifecycleWork(work *engineWork, now time.Time) error {
+	if work == nil || work.eligibilityDeadline.IsZero() {
+		return errEngineConfig
+	}
+	if !work.eligibilityDeadline.After(now) {
+		return e.expireLifecycleWork(work, now)
+	}
 	deferred := now.Add(activityRouteDeferral)
 	if !deferred.After(now) {
 		return errEngineConfig
 	}
+	if !deferred.Before(work.eligibilityDeadline) {
+		return e.expireLifecycleWork(work, now)
+	}
 	work.due = deferred
 	return e.addWork(work)
+}
+
+func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
+	e.completeLifecycleTimer(work, now)
+	e.activityUnderDelivered++
+	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }
 
 func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
@@ -1585,6 +1628,13 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 			due: lifecycleDue, kind: engineWorkLifecycle, edge: edge, schedule: schedule,
 			relationshipOrdinal: relationshipOrdinal,
 		}
+		if schedule.Class == LifecycleRevisit {
+			deadline, deadlineErr := e.newEligibilityDeadline(lifecycleDue)
+			if deadlineErr != nil {
+				return false, deadlineErr
+			}
+			work.eligibilityDeadline = deadline
+		}
 		if err := e.addWork(work); err != nil {
 			return false, err
 		}
@@ -1634,27 +1684,13 @@ func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relatio
 		if messageOffset >= 16 || relationshipOrdinal > (math.MaxUint64-relationshipLogicalBase-messageOffset)/16 {
 			return errEngineConfig
 		}
-		logicalOrdinal := relationshipLogicalBase + relationshipOrdinal*16 + messageOffset
-		workerID := edge.OwnerIndex % e.traffic.identity.Workers()
-		logical, err := e.traffic.NewLogicalSend(workerID, logicalOrdinal, TrafficPerson, sender, target)
-		if err != nil {
-			return err
-		}
-		payloadBytes, err := e.traffic.PayloadSizeFor(logicalOrdinal)
-		if err != nil {
-			return err
-		}
-		payload, err := e.traffic.BuildPayload(logical, payloadBytes)
-		if err != nil {
-			return err
-		}
 		domain := LogicalDomainLifecycle
 		if logicalOffset >= 8 {
 			domain = LogicalDomainRevisit
 		}
 		intent := TrafficIntent{
-			Logical: logical, Packet: packetForTrafficIntent(logical, payload), Kind: TrafficPerson,
-			Direction: direction, ChannelID: edge.PersonChannelID, PayloadBytes: payloadBytes, Domain: domain,
+			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
+			Direction: direction, ChannelID: edge.PersonChannelID, Domain: domain,
 		}
 		if err := e.addActivity(&engineWork{due: start.Add(offset), kind: engineWorkSend, intent: intent}); err != nil {
 			return err
@@ -1709,6 +1745,7 @@ func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain)
 func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
 	for scans := 0; scans < maxActivityRouteScans && len(e.activity) > 0 && !e.activity[0].due.After(now); scans++ {
 		activity := heap.Pop(&e.activity).(*engineWork)
+		activity.offered = true
 		if !activity.eligibilityDeadline.After(now) {
 			return TrafficIntent{}, e.expireActivity(activity)
 		}
@@ -1911,12 +1948,22 @@ func (e *Engine) cleanupInflight() {
 }
 
 func (e *Engine) cleanupPendingActivities() {
-	pending := len(e.activity)
-	if pending == 0 {
+	if len(e.activity) == 0 {
 		return
 	}
-	e.activityUnderDelivered += uint64(pending)
-	_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(pending))
+	var underDelivered, futureCanceled uint64
+	for _, activity := range e.activity {
+		if activity.offered || !activity.due.After(e.now) {
+			underDelivered++
+			continue
+		}
+		futureCanceled++
+	}
+	e.activityFutureCanceled += futureCanceled
+	if underDelivered > 0 {
+		e.activityUnderDelivered += underDelivered
+		_ = e.recordRuntimeFailure(RuntimeFailureUnderDelivery, underDelivered)
+	}
 }
 
 func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) error {
@@ -1958,6 +2005,7 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
 		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered: e.activityUnderDelivered,
+		ActivityFutureCanceled: e.activityFutureCanceled,
 		QueuePeak:              e.workPeak, QueueCapacity: e.workCapacity,
 		RetryQueueDepth: retries.Depth, RetryQueuePeak: retries.Peak, RetryQueueCapacity: e.retryCapacity,
 		InflightCurrent: len(e.inflight), InflightPeak: e.inflightPeak, InflightCapacity: e.inflightCapacity,

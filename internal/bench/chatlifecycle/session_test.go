@@ -288,6 +288,70 @@ func TestSessionPoolTerminalEvidencePrecedesOfflinePublicationAndBlockingClose(t
 	}
 }
 
+func TestSessionPoolSnapshotDoesNotHoldOwnershipLockAcrossClientQueueSnapshot(t *testing.T) {
+	for _, operation := range []string{"login", "detach"} {
+		operation := operation
+		t.Run(operation, func(t *testing.T) {
+			fixture := newSessionTestFixture(t)
+			uid := fixture.identity.UID(36)
+			if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 36, LoginOrdinal: 8}); err != nil {
+				t.Fatalf("seed Login: %v", err)
+			}
+			client := fixture.factory.clients()[0]
+			queueEntered := make(chan struct{}, 1)
+			queueRelease := make(chan struct{})
+			client.queueSnapshotEntered = queueEntered
+			client.queueSnapshotRelease = queueRelease
+			released := false
+			defer func() {
+				if !released {
+					close(queueRelease)
+				}
+				_ = fixture.pool.CloseAll()
+			}()
+			snapshotDone := make(chan struct{})
+			go func() {
+				_ = fixture.pool.Snapshot()
+				close(snapshotDone)
+			}()
+			<-queueEntered
+
+			operationDone := make(chan error, 1)
+			switch operation {
+			case "login":
+				go func() {
+					secondUID := fixture.identity.UID(37)
+					_, err := fixture.pool.Login(context.Background(), SessionLogin{UID: secondUID, UserIndex: 37, LoginOrdinal: 9})
+					operationDone <- err
+				}()
+			case "detach":
+				closeEntered := make(chan struct{}, 1)
+				client.closeEntered = closeEntered
+				<-client.readEntered
+				client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorTerminal}
+				go func() {
+					<-closeEntered
+					operationDone <- nil
+				}()
+			}
+			select {
+			case err := <-operationDone:
+				if err != nil {
+					t.Fatalf("%s while queue snapshot blocked: %v", operation, err)
+				}
+			case <-time.After(20 * time.Millisecond):
+				close(queueRelease)
+				released = true
+				<-snapshotDone
+				t.Fatalf("%s blocked behind QueueSnapshot", operation)
+			}
+			close(queueRelease)
+			released = true
+			<-snapshotDone
+		})
+	}
+}
+
 func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T) {
 	t.Parallel()
 	fixture := newSessionTestFixture(t)
@@ -601,19 +665,21 @@ func (s *sessionFakeSyncer) requests() []target.ConversationSyncRequest {
 }
 
 type sessionFakeClient struct {
-	mu           sync.Mutex
-	events       *sessionEventLog
-	frames       chan frame.Frame
-	readErrors   chan error
-	readEntered  chan struct{}
-	readReturned chan struct{}
-	acked        chan uint64
-	stop         chan struct{}
-	readExited   chan struct{}
-	closeEntered chan struct{}
-	closeRelease <-chan struct{}
-	closeOnce    sync.Once
-	isClosed     bool
+	mu                   sync.Mutex
+	events               *sessionEventLog
+	frames               chan frame.Frame
+	readErrors           chan error
+	readEntered          chan struct{}
+	readReturned         chan struct{}
+	acked                chan uint64
+	stop                 chan struct{}
+	readExited           chan struct{}
+	closeEntered         chan struct{}
+	closeRelease         <-chan struct{}
+	queueSnapshotEntered chan<- struct{}
+	queueSnapshotRelease <-chan struct{}
+	closeOnce            sync.Once
+	isClosed             bool
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -676,7 +742,15 @@ func (c *sessionFakeClient) Close() error {
 	return nil
 }
 
-func (c *sessionFakeClient) QueueSnapshot() SessionQueueSnapshot { return SessionQueueSnapshot{} }
+func (c *sessionFakeClient) QueueSnapshot() SessionQueueSnapshot {
+	if c.queueSnapshotEntered != nil {
+		c.queueSnapshotEntered <- struct{}{}
+	}
+	if c.queueSnapshotRelease != nil {
+		<-c.queueSnapshotRelease
+	}
+	return SessionQueueSnapshot{}
+}
 
 func (c *sessionFakeClient) closed() bool {
 	c.mu.Lock()
