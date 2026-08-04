@@ -5,6 +5,7 @@ package meta
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
@@ -94,6 +95,149 @@ func TestBatchCreateChannelRuntimeMetaReportsCreatedWithoutOverwriting(t *testin
 	want := normalizeChannelRuntimeMeta(original)
 	if !equalRuntimeMeta(got, want) {
 		t.Fatalf("runtime meta after duplicate = %+v, want original %+v", got, want)
+	}
+}
+
+func TestBatchCreateChannelRuntimeMetaCopiesCandidateBeforeCommit(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	candidate := testRuntimeMeta("runtime-copy", 2)
+	want := normalizeChannelRuntimeMeta(candidate)
+	batch := store.db.NewBatch()
+	result, err := batch.CreateChannelRuntimeMeta(7, candidate)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(): %v", err)
+	}
+	candidate.Replicas[0] = 99
+	candidate.ISR[0] = 99
+
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if !result.Created {
+		t.Fatal("create result = false, want true")
+	}
+	got, ok, err := store.db.HashSlot(7).GetChannelRuntimeMeta(ctx, candidate.ChannelID, candidate.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta() ok=%v err=%v", ok, err)
+	}
+	if !equalRuntimeMeta(got, want) {
+		t.Fatalf("runtime meta = %+v, want staged snapshot %+v", got, want)
+	}
+}
+
+func TestBatchCreateChannelRuntimeMetaDuplicateWithinOneBatchUsesOverlay(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	original := testRuntimeMeta("runtime-one-batch", 2)
+	replacement := original
+	replacement.ChannelEpoch++
+	replacement.LeaderEpoch++
+	replacement.Leader = 2
+	batch := store.db.NewBatch()
+	firstResult, err := batch.CreateChannelRuntimeMeta(7, original)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(first): %v", err)
+	}
+	secondResult, err := batch.CreateChannelRuntimeMeta(7, replacement)
+	if err != nil {
+		t.Fatalf("CreateChannelRuntimeMeta(second): %v", err)
+	}
+	if firstResult.Created || secondResult.Created {
+		t.Fatalf("results before commit = (%v,%v), want false,false", firstResult.Created, secondResult.Created)
+	}
+
+	if err := batch.Commit(ctx); err != nil {
+		t.Fatalf("Commit(): %v", err)
+	}
+	if !firstResult.Created || secondResult.Created {
+		t.Fatalf("results after commit = (%v,%v), want true,false", firstResult.Created, secondResult.Created)
+	}
+	got, ok, err := store.db.HashSlot(7).GetChannelRuntimeMeta(ctx, original.ChannelID, original.ChannelType)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta() ok=%v err=%v", ok, err)
+	}
+	want := normalizeChannelRuntimeMeta(original)
+	if !equalRuntimeMeta(got, want) {
+		t.Fatalf("runtime meta = %+v, want first staged row %+v", got, want)
+	}
+}
+
+func TestBatchCreateChannelRuntimeMetaConcurrentBatchesChooseOneWinner(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+
+	const contenders = 16
+	batches := make([]*Batch, contenders)
+	results := make([]*ChannelRuntimeMetaCreateResult, contenders)
+	candidates := make([]ChannelRuntimeMeta, contenders)
+	for i := range contenders {
+		candidate := testRuntimeMeta("runtime-concurrent", 2)
+		candidate.ChannelEpoch = uint64(100 + i)
+		candidate.LeaderEpoch = uint64(200 + i)
+		candidate.Features = uint64(i + 1)
+		candidates[i] = candidate
+		batches[i] = store.db.NewBatch()
+		result, err := batches[i].CreateChannelRuntimeMeta(7, candidate)
+		if err != nil {
+			t.Fatalf("CreateChannelRuntimeMeta(%d): %v", i, err)
+		}
+		if result.Created {
+			t.Fatalf("result %d created before commit", i)
+		}
+		results[i] = result
+	}
+
+	start := make(chan struct{})
+	var ready sync.WaitGroup
+	var done sync.WaitGroup
+	errs := make([]error, contenders)
+	ready.Add(contenders)
+	done.Add(contenders)
+	for i := range contenders {
+		go func(i int) {
+			defer done.Done()
+			ready.Done()
+			<-start
+			errs[i] = batches[i].Commit(ctx)
+		}(i)
+	}
+	ready.Wait()
+	close(start)
+	done.Wait()
+
+	winner := -1
+	for i := range contenders {
+		if errs[i] != nil {
+			t.Fatalf("Commit(%d): %v", i, errs[i])
+		}
+		if !results[i].Created {
+			continue
+		}
+		if winner >= 0 {
+			t.Fatalf("multiple winners: %d and %d", winner, i)
+		}
+		winner = i
+	}
+	if winner < 0 {
+		t.Fatal("no create winner")
+	}
+
+	got, ok, err := store.db.HashSlot(7).GetChannelRuntimeMeta(ctx, "runtime-concurrent", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetChannelRuntimeMeta() ok=%v err=%v", ok, err)
+	}
+	if err := validateChannelRuntimeMeta(got); err != nil {
+		t.Fatalf("stored winner is invalid: %+v: %v", got, err)
+	}
+	want := normalizeChannelRuntimeMeta(candidates[winner])
+	if !equalRuntimeMeta(got, want) {
+		t.Fatalf("stored runtime meta = %+v, want winner %d %+v", got, winner, want)
 	}
 }
 

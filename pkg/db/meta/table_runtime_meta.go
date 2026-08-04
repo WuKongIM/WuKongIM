@@ -108,8 +108,10 @@ type ChannelRuntimeMeta struct {
 	WriteFenceUntilMS int64
 }
 
-// ChannelRuntimeMetaCreateResult reports whether a create-only batch mutation inserted the row.
+// ChannelRuntimeMetaCreateResult is populated by Batch.Commit.
+// Created is meaningful only after Commit returns nil and remains false before Commit.
 type ChannelRuntimeMetaCreateResult struct {
+	// Created reports whether Commit inserted the row instead of finding it already present.
 	Created bool
 }
 

@@ -214,32 +214,33 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 }
 
 // CreateChannelRuntimeMeta stages an insert that succeeds without replacing an existing row.
+// Staging owns a canonical copy, so later caller mutations cannot affect Commit.
 func (b *Batch) CreateChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeMeta) (*ChannelRuntimeMetaCreateResult, error) {
 	if err := b.ensureOpen(); err != nil {
 		return nil, err
 	}
-	if err := validateChannelRuntimeMeta(meta); err != nil {
+	staged := normalizeChannelRuntimeMeta(meta)
+	if err := validateChannelRuntimeMeta(staged); err != nil {
 		return nil, err
 	}
-	key := encodeChannelRuntimeMetaRowKey(hashSlot, meta.ChannelID, meta.ChannelType, channelRuntimeMetaPrimaryFamilyID)
+	key := encodeChannelRuntimeMetaRowKey(hashSlot, staged.ChannelID, staged.ChannelType, channelRuntimeMetaPrimaryFamilyID)
 	result := &ChannelRuntimeMetaCreateResult{}
 	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		_, exists, err := state.loadRuntimeMeta(ctx, hashSlot, key, meta.ChannelID, meta.ChannelType)
+		_, exists, err := state.loadRuntimeMeta(ctx, hashSlot, key, staged.ChannelID, staged.ChannelType)
 		if err != nil {
 			return err
 		}
 		if exists {
 			return nil
 		}
-		next := normalizeChannelRuntimeMeta(meta)
-		value, err := channelRuntimeMetaTable.encodeValue(key, next)
+		value, err := channelRuntimeMetaTable.encodeValue(key, staged)
 		if err != nil {
 			return err
 		}
 		if err := batch.Set(key, value); err != nil {
 			return err
 		}
-		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}
+		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: staged, exists: true}
 		result.Created = true
 		return nil
 	})

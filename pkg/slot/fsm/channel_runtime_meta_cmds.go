@@ -11,6 +11,7 @@ var createChannelRuntimeMetaResultMagic = [...]byte{'W', 'K', 'R', 'M', 1}
 
 // CreateChannelRuntimeMetaResult reports whether the authoritative apply inserted the row.
 type CreateChannelRuntimeMetaResult struct {
+	// Created reports whether the authoritative FSM commit inserted the row.
 	Created bool `json:"created"`
 }
 
