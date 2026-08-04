@@ -2,6 +2,7 @@ package chatlifecycle
 
 import (
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +51,32 @@ func TestGenericWorkloadRelationships(t *testing.T) {
 	}
 }
 
+func TestBurstCreditAcceptsExactFractionalMessageCounts(t *testing.T) {
+	tests := []struct {
+		name       string
+		credit     time.Duration
+		rate       int
+		maximum    int
+		baseConfig func() Config
+	}{
+		{"formal reviewed value", 2 * time.Second, 2_000, 4_000, FormalConfig},
+		{"local reviewed value", 2 * time.Second, 100, 200, LocalConfig},
+		{"half second", 500 * time.Millisecond, 100, 50, LocalConfig},
+		{"exact nanosecond fraction", 512 * time.Nanosecond, 1_953_125, 1, LocalConfig},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.baseConfig()
+			cfg.Workload.BurstCredit = tt.credit
+			cfg.Workload.SendRatePerSecond = tt.rate
+			cfg.Workload.MaxGlobalBurst = tt.maximum
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v", err)
+			}
+		})
+	}
+}
+
 func TestBurstCreditArithmeticIsBounded(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -57,19 +84,28 @@ func TestBurstCreditArithmeticIsBounded(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "sub-second overflow collision",
+			name: "non-integral fractional message count",
 			mutate: func(c *Config) {
-				c.Workload.BurstCredit = 512 * time.Nanosecond
-				c.Workload.SendRatePerSecond = 1_953_125
-				c.Workload.MaxGlobalBurst = 1
+				c.Workload.BurstCredit = 500 * time.Millisecond
+				c.Workload.SendRatePerSecond = 99
+				c.Workload.MaxGlobalBurst = 49
 			},
-			want: "workload.burst_credit: must be an exact whole number of seconds",
+			want: "workload.max_global_burst: burst calculation must produce an integral message count",
 		},
 		{
-			name: "large whole-second multiplication overflow",
+			name: "quotient exceeds uint64",
 			mutate: func(c *Config) {
-				c.Workload.BurstCredit = time.Duration(math.MaxInt64) / time.Second * time.Second
+				c.Workload.BurstCredit = time.Duration(math.MaxInt64)
 				c.Workload.SendRatePerSecond = math.MaxInt
+				c.Workload.MaxGlobalBurst = math.MaxInt
+			},
+			want: "workload.max_global_burst: burst calculation exceeds supported range",
+		},
+		{
+			name: "quotient exceeds int",
+			mutate: func(c *Config) {
+				c.Workload.BurstCredit = 2 * time.Second
+				c.Workload.SendRatePerSecond = math.MaxInt/2 + 1
 				c.Workload.MaxGlobalBurst = math.MaxInt
 			},
 			want: "workload.max_global_burst: burst calculation exceeds supported range",
@@ -93,6 +129,23 @@ func TestBurstCreditArithmeticIsBounded(t *testing.T) {
 				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestBurstCreditRejectsWrappedNanosecondProduct(t *testing.T) {
+	if strconv.IntSize < 64 {
+		t.Skip("wrapped positive admission requires a 64-bit int")
+	}
+	cfg := LocalConfig()
+	cfg.Workload.BurstCredit = 2*time.Second + time.Nanosecond
+	cfg.Workload.SendRatePerSecond = math.MaxInt
+	// A signed 64-bit nanosecond multiplication wraps to this positive value
+	// before division, even though the exact quotient exceeds uint64.
+	wrappedMaximum := int64(9_223_372_034)
+	cfg.Workload.MaxGlobalBurst = int(wrappedMaximum)
+	want := "workload.max_global_burst: burst calculation exceeds supported range"
+	if err := cfg.Validate(); err == nil || err.Error() != want {
+		t.Fatalf("Validate() error = %v, want %q", err, want)
 	}
 }
 

@@ -85,3 +85,32 @@ func validateThresholds(t ThresholdsConfig) error {
 	}
 	return nil
 }
+
+func validateFailureRate(path string, limit FailureRateLimit) error {
+	if limit.PerAttempts == 0 {
+		return fieldError(path+".per_attempts", "must be greater than zero")
+	}
+	if limit.MaxFailures > limit.PerAttempts {
+		return fieldError(path+".max_failures", "must not exceed per_attempts")
+	}
+	if limit.Operator != ComparisonLessThan && limit.Operator != ComparisonLessOrEqual {
+		return fieldError(path+".operator", "must be < or <=")
+	}
+	if limit.Operator == ComparisonLessThan && limit.MaxFailures == 0 {
+		return fieldError(path+".max_failures", "must be greater than zero when operator is <")
+	}
+	return nil
+}
+
+func validateLatencyLimit(path string, limit LatencyLimit) error {
+	if limit.P99 <= 0 {
+		return fieldError(path+".p99", "must be greater than zero")
+	}
+	if limit.P999 <= 0 {
+		return fieldError(path+".p999", "must be greater than zero")
+	}
+	if limit.P99 > limit.P999 {
+		return fieldError(path, "p99 must not exceed p999")
+	}
+	return nil
+}

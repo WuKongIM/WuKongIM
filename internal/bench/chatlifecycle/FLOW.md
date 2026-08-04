@@ -37,6 +37,10 @@ samples, two seconds/200 SENDs of burst credit, and 10/20/30-minute timeline
 checkpoints. Its three service, worker, host-metrics, HTTP API, and TCP gateway
 roles use replaceable, unique loopback declarations by default.
 
+Burst validation multiplies the nanosecond credit window by the per-second
+send rate exactly, rejects non-integral message credit, and bounds the result
+to the platform `int` range before comparing `max_global_burst`.
+
 All profiles require the active group hot set to equal the checked group
 catalog total, and the combined person/group hot set to fit the per-node active
 channel allocation bound used by the planner. Catalog categories are each
@@ -49,7 +53,8 @@ worker observation count. The formal validator additionally retains the exact
 Service-node observation, worker control, host metrics, and API-pool endpoints
 are absolute credential-free HTTP or HTTPS URLs without query or fragment.
 Their duplicate identity lowercases the scheme and host, canonicalizes IP text
-and default ports, and cleans the base path while preserving meaningful
-non-root paths. Gateway endpoints are credential-free TCP `host:port` values;
+and default ports, removes one terminal DNS root dot, and cleans the base path
+while preserving meaningful non-root paths. Root-only hosts are rejected.
+Gateway endpoints are credential-free TCP `host:port` values;
 their duplicate identity canonicalizes the host/IP and numeric port. API and
 gateway pools must not resolve to the same canonical network authority.

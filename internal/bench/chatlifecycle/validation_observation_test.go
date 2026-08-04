@@ -102,6 +102,8 @@ func TestObservationRejectsInvalidHTTPEndpoints(t *testing.T) {
 		{"fragment", func(c *Config) { c.Observation.ServiceNodes[0].Address = "http://service.example.test/metrics#private" }, "observation.service_nodes[0].address: must not include a fragment"},
 		{"malformed port", func(c *Config) { c.Observation.APIAddrs[0] = "http://api.example.test:not-a-port" }, "observation.api_addrs[0]: port must be a number in 1..65535"},
 		{"empty host", func(c *Config) { c.Observation.HostMetrics[0].Address = "http://:9100/metrics" }, "observation.host_metrics[0].address: host is required"},
+		{"DNS root host", func(c *Config) { c.Observation.HostMetrics[0].Address = "http://.:9100/metrics" }, "observation.host_metrics[0].address: host is required"},
+		{"IPv6 terminal dot", func(c *Config) { c.Observation.HostMetrics[0].Address = "http://[::1.]:9100/metrics" }, "observation.host_metrics[0].address: must be a valid absolute HTTP URL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,6 +134,8 @@ func TestObservationRejectsInvalidGatewayEndpoints(t *testing.T) {
 		{"bad port", "gateway.example.test:not-a-port", "port must be a number in 1..65535"},
 		{"out of range port", "gateway.example.test:65536", "port must be a number in 1..65535"},
 		{"empty host", ":5100", "host is required"},
+		{"DNS root host", ".:5100", "host is required"},
+		{"IPv6 terminal dot", "[::1.]:5100", "host must be a valid IP address"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -217,6 +221,53 @@ func TestObservationCanonicalizesHTTPDuplicateKeys(t *testing.T) {
 			tt.mutate(&cfg)
 			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
 				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestObservationCanonicalizesTerminalDNSRootDot(t *testing.T) {
+	const sentinelAuthority = "sentinel-dns-authority.example.test"
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{
+			name: "same HTTP pool",
+			mutate: func(c *Config) {
+				c.Observation.APIAddrs[0] = "http://" + sentinelAuthority + ":5001/base"
+				c.Observation.APIAddrs[1] = "HTTP://SENTINEL-DNS-AUTHORITY.EXAMPLE.TEST.:05001/base/"
+			},
+			want: "observation.api_addrs[1]: duplicates observation.api_addrs[0]",
+		},
+		{
+			name: "cross-role HTTP endpoints",
+			mutate: func(c *Config) {
+				c.Observation.ServiceNodes[0].Address = "http://" + sentinelAuthority + ":5001/metrics"
+				c.Observation.Workers[0].Address = "HTTP://SENTINEL-DNS-AUTHORITY.EXAMPLE.TEST.:05001/metrics/"
+			},
+			want: "observation.workers[0].address: duplicates observation.service_nodes[0].address",
+		},
+		{
+			name: "API and gateway authority",
+			mutate: func(c *Config) {
+				c.Observation.APIAddrs[0] = "http://" + sentinelAuthority + ":5001/base"
+				c.Observation.GatewayTCPAddrs[0] = "SENTINEL-DNS-AUTHORITY.EXAMPLE.TEST.:05001"
+			},
+			want: "observation.gateway_tcp_addrs[0]: aliases observation.api_addrs[0]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			tt.mutate(&cfg)
+			err := cfg.Validate()
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+			if strings.Contains(strings.ToLower(err.Error()), sentinelAuthority) {
+				t.Fatalf("Validate() error leaked authority sentinel: %v", err)
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"fmt"
 	"math"
+	"math/bits"
 	"time"
 )
 
@@ -64,20 +65,22 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 	if w.BurstCredit <= 0 {
 		return fieldError("workload.burst_credit", "must be greater than zero")
 	}
-	if w.BurstCredit%time.Second != 0 {
-		return fieldError("workload.burst_credit", "must be an exact whole number of seconds")
-	}
-	creditSeconds64 := int64(w.BurstCredit / time.Second)
-	if creditSeconds64 > int64(math.MaxInt) {
-		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
-	}
-	expectedBurst, ok := checkedMultiplyPositiveInt(int(creditSeconds64), w.SendRatePerSecond)
-	if !ok {
-		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
-	}
 	if w.MaxGlobalBurst <= 0 {
 		return fieldError("workload.max_global_burst", "must be greater than zero")
 	}
+	productHigh, productLow := bits.Mul64(uint64(w.BurstCredit), uint64(w.SendRatePerSecond))
+	nanosecondsPerSecond := uint64(time.Second)
+	if productHigh >= nanosecondsPerSecond {
+		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
+	}
+	expectedBurst64, remainder := bits.Div64(productHigh, productLow, nanosecondsPerSecond)
+	if remainder != 0 {
+		return fieldError("workload.max_global_burst", "burst calculation must produce an integral message count")
+	}
+	if expectedBurst64 > uint64(math.MaxInt) {
+		return fieldError("workload.max_global_burst", "burst calculation exceeds supported range")
+	}
+	expectedBurst := int(expectedBurst64)
 	if w.MaxGlobalBurst != expectedBurst {
 		return fieldError("workload.max_global_burst", "must equal burst_credit times send_rate_per_second")
 	}
@@ -299,13 +302,6 @@ func validatePayloads(shares []PayloadShare) error {
 	return nil
 }
 
-func checkedMultiplyPositiveInt(left, right int) (int, bool) {
-	if left <= 0 || right <= 0 || left > math.MaxInt/right {
-		return 0, false
-	}
-	return left * right, true
-}
-
 func checkedAddNonnegativeInt(left, right int) (int, bool) {
 	if left < 0 || right < 0 || left > math.MaxInt-right {
 		return 0, false
@@ -342,35 +338,6 @@ func validateDurationRange(path string, r DurationRange) error {
 	}
 	if r.Min > r.Max {
 		return fieldError(path, "min must not exceed max")
-	}
-	return nil
-}
-
-func validateFailureRate(path string, limit FailureRateLimit) error {
-	if limit.PerAttempts == 0 {
-		return fieldError(path+".per_attempts", "must be greater than zero")
-	}
-	if limit.MaxFailures > limit.PerAttempts {
-		return fieldError(path+".max_failures", "must not exceed per_attempts")
-	}
-	if limit.Operator != ComparisonLessThan && limit.Operator != ComparisonLessOrEqual {
-		return fieldError(path+".operator", "must be < or <=")
-	}
-	if limit.Operator == ComparisonLessThan && limit.MaxFailures == 0 {
-		return fieldError(path+".max_failures", "must be greater than zero when operator is <")
-	}
-	return nil
-}
-
-func validateLatencyLimit(path string, limit LatencyLimit) error {
-	if limit.P99 <= 0 {
-		return fieldError(path+".p99", "must be greater than zero")
-	}
-	if limit.P999 <= 0 {
-		return fieldError(path+".p999", "must be greater than zero")
-	}
-	if limit.P99 > limit.P999 {
-		return fieldError(path, "p99 must not exceed p999")
 	}
 	return nil
 }

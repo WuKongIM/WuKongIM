@@ -194,9 +194,9 @@ func parseHTTPEndpoint(raw string) (httpEndpointKey, string) {
 	if parsed.Fragment != "" {
 		return httpEndpointKey{}, "must not include a fragment"
 	}
-	host := parsed.Hostname()
-	if host == "" {
-		return httpEndpointKey{}, "host is required"
+	canonicalHost, reason := canonicalEndpointHost(parsed.Hostname())
+	if reason != "" {
+		return httpEndpointKey{}, reason
 	}
 	port := parsed.Port()
 	if strings.HasSuffix(parsed.Host, ":") {
@@ -213,7 +213,7 @@ func parseHTTPEndpoint(raw string) (httpEndpointKey, string) {
 	if err != nil || portNumber < 1 || portNumber > 65535 {
 		return httpEndpointKey{}, "port must be a number in 1..65535"
 	}
-	authority := net.JoinHostPort(canonicalEndpointHost(host), strconv.Itoa(portNumber))
+	authority := net.JoinHostPort(canonicalHost, strconv.Itoa(portNumber))
 	basePath := pathpkg.Clean(parsed.EscapedPath())
 	if basePath == "." || basePath == "/" {
 		basePath = ""
@@ -239,19 +239,34 @@ func parseGatewayEndpoint(raw string) (string, string) {
 	if err != nil {
 		return "", "must be a TCP host:port"
 	}
-	if host == "" {
-		return "", "host is required"
+	canonicalHost, reason := canonicalEndpointHost(host)
+	if reason != "" {
+		return "", reason
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber < 1 || portNumber > 65535 {
 		return "", "port must be a number in 1..65535"
 	}
-	return net.JoinHostPort(canonicalEndpointHost(host), strconv.Itoa(portNumber)), ""
+	return net.JoinHostPort(canonicalHost, strconv.Itoa(portNumber)), ""
 }
 
-func canonicalEndpointHost(host string) string {
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.String()
+func canonicalEndpointHost(host string) (string, string) {
+	if strings.Contains(host, ":") {
+		ipHost, zone, hasZone := strings.Cut(host, "%")
+		if ip := net.ParseIP(ipHost); ip != nil && (!hasZone || zone != "") {
+			if hasZone {
+				return ip.String() + "%" + zone, ""
+			}
+			return ip.String(), ""
+		}
+		return "", "host must be a valid IP address"
 	}
-	return strings.ToLower(host)
+	host = strings.TrimSuffix(host, ".")
+	if host == "" || host == "." {
+		return "", "host is required"
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), ""
+	}
+	return strings.ToLower(host), ""
 }
