@@ -85,7 +85,7 @@ Route: `/{lang}/server`
   - **wkcli / wkcli** `/{lang}/server/tools/wkcli` — 查看集群状态并执行受控运维操作。 / Inspects cluster state and performs controlled operations.
   - **wkdb / wkdb** `/{lang}/server/tools/wkdb` — 执行本地只读存储诊断和离线导入导出。 / Performs node-local read-only storage diagnostics and offline import/export.
   - **wkbench / wkbench** `/{lang}/server/tools/wkbench` — 执行黑盒压力测试、容量评估和回归验证。 / Runs black-box load tests, capacity evaluations, and regression checks.
-  - **诊断能力 / Diagnostics** `/{lang}/server/tools/diagnostics` — 汇总日志、指标、pprof 和只读 Operations MCP。 / Collects logs, metrics, pprof, and the read-only Operations MCP.
+  - **诊断能力 / Diagnostics** `/{lang}/server/tools/diagnostics` — 选择日志、指标、Top、pprof 和只读 Operations MCP。 / Selects among logs, metrics, Top, pprof, and the read-only Operations MCP.
 
 - **架构 / Architecture** `/{lang}/server/architecture` — 从控制、元数据、消息和网络层理解系统。 / Understand the system through control, metadata, messaging, and network layers.
 

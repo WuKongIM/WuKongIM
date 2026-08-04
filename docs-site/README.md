@@ -14,7 +14,9 @@ storage and workload controls, security boundaries, observability, and an
 exhaustive bilingual TOML-to-environment reference. Phase 6 publishes the
 server-operations path: Manager safety, health and monitoring, explicit node
 onboarding and fail-closed scale-in, verified backup and restore, and
-compatibility-gated upgrades and migrations.
+compatibility-gated upgrades and migrations. Phase 7 publishes symptom-led
+troubleshooting plus the official wkcli, wkdb, wkbench, and bounded-diagnostics
+guides.
 
 ## Develop
 
@@ -53,4 +55,5 @@ See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
 `PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
 business-integration scope. `PHASE_4_SPEC.md` defines the server-deployment
 scope, `PHASE_5_SPEC.md` defines the server-configuration scope, and
-`PHASE_6_SPEC.md` defines the server-operations scope.
+`PHASE_6_SPEC.md` defines the server-operations scope. `PHASE_7_SPEC.md`
+defines troubleshooting and official-tool boundaries.

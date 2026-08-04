@@ -1,0 +1,105 @@
+---
+title: wkdb
+description: 离线查询、导出、导入和比较单个节点的本地 WKDB 数据。
+---
+
+`wkdb` 是面向一个 WuKongIM 节点数据目录的本地离线工具。它不会连接集群节点，也不会读取 Controller、Raft 或运行时全局状态。默认从只读查询开始；只有 `import` 会写 WKDB 存储。
+
+<Callout type="error" title="不要操作在线数据目录">
+  精确检查应针对已停止节点、文件系统快照或复制出的数据目录。在线文件可能持续变化，不能形成一致证据；`import` 必须使用明确的离线目标，并在写入前完成 dry run 与备份。
+</Callout>
+
+## 操作类别
+
+| 命令 | 源数据访问 | 额外写入 | 视图范围 |
+| --- | --- | --- | --- |
+| `query` / `repl` | 只读 | 仅标准输出 | 单节点元数据与消息存储 |
+| `export` | 只读 | 写 `--output` bundle 目录 | 单节点可导出的 bundle-v1 数据 |
+| `diff` | 两端只读 | 仅标准输出 | 两个离线节点目录的 bundle-v1 数据差异 |
+| `import` | 读取 bundle | 写离线目标 WKDB | bundle 支持的数据类型 |
+
+全局参数必须放在命令前，命令专属参数放在命令后。
+
+## 定位存储
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 query "show tables"
+wkdb --config ./wukongim.toml query "select * from meta.user limit 20"
+```
+
+- `--data-dir` 按当前节点布局推导 `slotmeta` 与 `messages`；
+- `--meta-path`、`--message-path` 可以显式覆盖路径；
+- `--config` 从 TOML 读取路径和哈希槽数量，`WK_` 环境变量仍会覆盖文件值；
+- `--hash-slot-count` 必须与源数据所属集群一致。WuKongIM 的物理哈希槽数量为 256。
+
+记录节点 ID、集群 ID、数据复制/快照时间、服务端版本和目录校验值，避免比较错目标。
+
+## 只读查询
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  query "select * from meta.user where uid='u1'"
+
+wkdb --data-dir ./node-1 \
+  query "select * from message.channels limit 20"
+
+wkdb --data-dir ./node-1 \
+  query "select * from message.message where channel_key='g1:2' limit 50"
+```
+
+包含 `uid` 或 `channel_id` 等分区键时，工具会推导对应哈希槽；没有分区键的查询会在本节点文件上进行有界扫描。`limit` 是整次查询总行数，不会对每个哈希槽重复应用。大结果使用返回的游标继续分页，不支持 `offset`：
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  query "select * from meta.user limit 100 cursor '<next_cursor>'"
+```
+
+使用 `--format table|json|jsonl` 控制输出。JSONL 会在数据行之后输出最终 stats 记录，其中包含 `has_more` 和 `next_cursor`。
+
+## 导出 bundle
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  export --output ./wkdb-dump
+```
+
+`export` 以只读方式打开源存储，只写输出目录。WKDB Import Bundle v1 包含清单和 JSONL 文件，可覆盖受支持的用户、设备、频道、订阅关系、会话、频道最新序号和消息数据，并为文件记录行数与 SHA-256。
+
+它不会聚合其他节点、创建在线一致性快照、导出增量、包含 Controller/Raft/运行时状态，也不是 Manager 备份归档。需要覆盖已有输出目录时，先核对路径再显式添加 `--overwrite`。
+
+## 导入 bundle
+
+先只验证 bundle，不打开可写目标：
+
+```bash
+wkdb --data-dir ./node-new --hash-slot-count 256 \
+  import --input ./wkdb-dump --dry-run
+```
+
+通过校验后，针对新建或明确清空的离线目标执行：
+
+```bash
+wkdb --data-dir ./node-new --hash-slot-count 256 \
+  import --input ./wkdb-dump --require-empty
+```
+
+`import` 是唯一写 WKDB 存储的命令。它不加入集群、不迁移 Controller 或 Raft 状态，也不保证把单节点 bundle 变成完整集群。写入前应保存目标副本、确认 bundle 版本与哈希槽数量、使用 `--require-empty` 防止意外合并，并在启动任何节点前执行离线 diff。
+
+## 比较两个离线目录
+
+```bash
+wkdb --hash-slot-count 256 diff \
+  --source-data-dir ./node-old \
+  --target-data-dir ./node-new
+
+wkdb --hash-slot-count 256 diff \
+  --source-data-dir ./node-old \
+  --target-data-dir ./node-new \
+  --mode full
+```
+
+默认 `summary` 比较行和 payload 校验值；`full` 还会散列消息 payload 字节。相等时退出 0，确认存在差异时退出 2。退出码必须与标准错误一起保存，避免把配置或读取错误误判为数据差异。
+
+## 与集群恢复的边界
+
+`wkdb` bundle 适合节点本地的离线检查和受控数据转移，不替代 [Manager 备份与恢复](/zh/server/operations/backup-and-restore)。集群恢复还必须验证集群身份、归档、任务以及全部 256 个物理哈希槽，并通过维护状态下的原子切换或回滚流程。

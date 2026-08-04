@@ -1,0 +1,105 @@
+---
+title: wkdb
+description: Query, export, import, and compare one node's local WKDB data while offline.
+---
+
+`wkdb` is a local offline tool for one WuKongIM node data directory. It never connects to cluster nodes and does not read global Controller, Raft, or runtime state. Begin with read-only inspection; only `import` writes WKDB storage.
+
+<Callout type="error" title="Do not operate on a live data directory">
+  Exact inspection should use a stopped node, filesystem snapshot, or copied data directory. Live files continue changing and cannot provide consistent evidence. `import` needs an explicitly offline target, a dry run, and a backup before writing.
+</Callout>
+
+## Operation classes
+
+| Command | Source access | Additional writes | View scope |
+| --- | --- | --- | --- |
+| `query` / `repl` | Read-only | Standard output only | One node's metadata and message stores |
+| `export` | Read-only | Writes the `--output` bundle directory | Exportable bundle-v1 data from one node |
+| `diff` | Both sides read-only | Standard output only | Bundle-v1 data differences between two offline node directories |
+| `import` | Reads a bundle | Writes offline target WKDB | Data kinds supported by the bundle |
+
+Global flags must precede the command; command-specific flags follow it.
+
+## Locate storage
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 query "show tables"
+wkdb --config ./wukongim.toml query "select * from meta.user limit 20"
+```
+
+- `--data-dir` derives `slotmeta` and `messages` from the current node layout.
+- `--meta-path` and `--message-path` explicitly override those paths.
+- `--config` reads paths and hash-slot count from TOML; `WK_` environment variables still override file values.
+- `--hash-slot-count` must match the cluster that produced the data. WuKongIM uses 256 physical hash slots.
+
+Record node ID, cluster ID, copy/snapshot time, server version, and directory checksums so the wrong targets are not compared.
+
+## Read-only queries
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  query "select * from meta.user where uid='u1'"
+
+wkdb --data-dir ./node-1 \
+  query "select * from message.channels limit 20"
+
+wkdb --data-dir ./node-1 \
+  query "select * from message.message where channel_key='g1:2' limit 50"
+```
+
+With a partition key such as `uid` or `channel_id`, the tool derives its hash slot. Without a partition key it performs a bounded scan over this node's files. `limit` is the total result size, not a per-slot limit. Continue a large result with the returned cursor; `offset` is unsupported:
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  query "select * from meta.user limit 100 cursor '<next_cursor>'"
+```
+
+Select `--format table|json|jsonl`. JSONL emits data rows followed by a final stats object containing `has_more` and `next_cursor`.
+
+## Export a bundle
+
+```bash
+wkdb --data-dir ./node-1 --hash-slot-count 256 \
+  export --output ./wkdb-dump
+```
+
+`export` opens the source read-only and writes only the output directory. WKDB Import Bundle v1 contains a manifest plus JSONL files for supported user, device, Channel, subscriber, conversation, latest-sequence, and message data, with file row counts and SHA-256 digests.
+
+It does not aggregate other nodes, create an online-consistent snapshot, export increments, include Controller/Raft/runtime state, or produce a Manager backup archive. Before adding `--overwrite`, resolve and verify the existing output path.
+
+## Import a bundle
+
+First validate without opening a writable target:
+
+```bash
+wkdb --data-dir ./node-new --hash-slot-count 256 \
+  import --input ./wkdb-dump --dry-run
+```
+
+After validation, use a new or deliberately empty offline target:
+
+```bash
+wkdb --data-dir ./node-new --hash-slot-count 256 \
+  import --input ./wkdb-dump --require-empty
+```
+
+`import` is the sole command that writes WKDB storage. It does not join a cluster, migrate Controller or Raft state, or turn a one-node bundle into a complete cluster. Preserve the target, confirm bundle version and hash-slot count, use `--require-empty` to avoid accidental merging, and run an offline diff before starting any node.
+
+## Compare two offline directories
+
+```bash
+wkdb --hash-slot-count 256 diff \
+  --source-data-dir ./node-old \
+  --target-data-dir ./node-new
+
+wkdb --hash-slot-count 256 diff \
+  --source-data-dir ./node-old \
+  --target-data-dir ./node-new \
+  --mode full
+```
+
+The default `summary` mode compares rows and payload checksums; `full` also hashes message payload bytes. Equal data exits 0 and a verified mismatch exits 2. Retain stderr with the exit code so a configuration or read error is not mistaken for a data mismatch.
+
+## Cluster-restore boundary
+
+A `wkdb` bundle is for node-local offline inspection and controlled transfer; it does not replace [Manager Backup & Restore](/en/server/operations/backup-and-restore). Cluster restore must also verify cluster identity, archives, tasks, and all 256 physical hash slots, then use the maintenance-mode atomic switch or rollback procedure.

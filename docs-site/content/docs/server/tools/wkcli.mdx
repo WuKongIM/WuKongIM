@@ -1,0 +1,107 @@
+---
+title: wkcli
+description: 使用命名上下文、Top、受控节点操作和轻量流量工具观察在线集群。
+---
+
+`wkcli` 是 WuKongIM 的在线运维命令行。它通过公开 HTTP、Manager、Benchmark 和 WKProto 入口工作，不导入服务端内部包。它既有只读命令，也有产生流量或调用 Manager 写 API 的命令，使用前必须区分风险。
+
+## 命令边界
+
+| 命令 | 作用 | 风险类别 |
+| --- | --- | --- |
+| `context` | 保存和选择一组 WuKongIM HTTP API 地址 | 只写本机用户配置目录 |
+| `top` | 读取并聚合一个或多个节点的 `/top/v1/snapshot` | 在线只读 |
+| `node ls` / `node diagnose` | 读取动态节点与有界根因证据 | Manager 只读 |
+| `node activate` / `node onboarding` / `node scale-in` | 推进动态节点生命周期 | Manager 受控写入 |
+| `bench send` | 进行轻量 SEND/SENDACK 检查 | 产生真实连接与消息 |
+| `sim` | 准备测试元数据并持续产生真实群消息流量 | 受控模拟环境专用 |
+
+`wkcli node` 不启动或停止服务进程，也不直接写 Controller 或 Slot 状态。Manager 的权限、审计和安全门槛仍然生效。
+
+## 配置命名上下文
+
+```bash
+go run ./cmd/wkcli context add dev \
+  --server http://127.0.0.1:5001 \
+  --server http://127.0.0.1:5002 \
+  --description "development cluster" \
+  --select
+
+go run ./cmd/wkcli context ls
+go run ./cmd/wkcli context show
+go run ./cmd/wkcli context current
+```
+
+`--server` 可以重复或使用逗号分隔，地址必须是绝对 `http://` 或 `https://` API URL。上下文保存的是目标地址，不会把“选择了 production”变成操作审批；执行前仍要核对集群身份和凭据范围。
+
+## 使用 Top
+
+```bash
+go run ./cmd/wkcli top --context dev --once
+go run ./cmd/wkcli top --context dev --once --json
+go run ./cmd/wkcli top --context dev --interval 2s --max-refresh 5
+go run ./cmd/wkcli top --context dev --alerts
+```
+
+Top 读取节点本地有界历史，不依赖 Prometheus。默认持续刷新，脚本和事件证据应使用 `--once` 或 `--max-refresh` 限定时间。聚合结果仍应与 `/readyz`、Manager 和 Prometheus 交叉验证。
+
+## 读取动态节点证据
+
+```bash
+go run ./cmd/wkcli node ls --context dev
+go run ./cmd/wkcli node diagnose 4 --context dev
+go run ./cmd/wkcli node diagnose 4 --context dev --json
+go run ./cmd/wkcli node scale-in status 4 --context dev
+```
+
+保留输出中的健康新鲜度、控制修订、`blocked_reasons`、`safe_to_remove`、网关排空计数以及有界任务、审计和 Slot 证据。缺失信息保持未知，不要用空值推断健康。
+
+## 节点写操作
+
+```bash
+go run ./cmd/wkcli node activate 4 --context dev
+go run ./cmd/wkcli node onboarding start 4 --context dev --max-slot-moves 1
+go run ./cmd/wkcli node scale-in start 4 --context dev
+go run ./cmd/wkcli node scale-in drain 4 --context dev --draining=true
+go run ./cmd/wkcli node scale-in remove 4 --context dev
+```
+
+这些命令必须放在明确的[扩容与缩容](/zh/server/operations/scaling)流程中。动态节点加入后不会自动获得 Slot 副本或 Leader；Controller voter 变化也是单独的显式决策。缩容删除必须等待权威状态给出 `safe_to_remove=true`，命令行诊断建议不能替代这个门槛。
+
+## 轻量发送检查
+
+```bash
+go run ./cmd/wkcli bench send \
+  --gateway 127.0.0.1:5100 \
+  --clients 8 \
+  --msgs 1000 \
+  --channels 10 \
+  --channel-prefix check-g \
+  --channel-type group \
+  --size 128B
+```
+
+`bench send` 用于快速检查 WKProto SEND 吞吐与 SENDACK 延迟，不替代完整 `wkbench` 场景。它会创建真实会话和消息；先限制客户端、消息、频道和运行时间，并使用专用测试身份与频道。
+
+## 长期模拟
+
+`sim` 通过 `/bench/v1/*` 准备群元数据，通过真实 WKProto 网关维持用户在线并发送 `SEND -> SENDACK` 流量。目标必须显式启用 Benchmark API，并发布可访问的网关地址。
+
+```bash
+go run ./cmd/wkcli sim \
+  --server http://127.0.0.1:5001 \
+  --users 100 \
+  --groups 50 \
+  --group-members 10 \
+  --rate 0.25/s \
+  --max-runtime 30s
+```
+
+`--rate` 是每个群的发送率，总提供速率随群数增加。仅在隔离的开发或压测集群运行，结束后关闭 Benchmark API 并清理生成数据。需要完整验证、容量搜索和报告时使用 [wkbench](/zh/server/tools/wkbench)。
+
+## 安全停止
+
+- 目标身份、Manager 权限或权威状态不清楚时不要执行节点写命令。
+- 写请求超时后先读取任务状态，不要盲目重复。
+- Top、发送检查和模拟达到时间/流量预算时立即停止。
+- 退出后确认没有遗留模拟器、临时上下文、开放的 Benchmark API 或未完成节点任务。
