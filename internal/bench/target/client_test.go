@@ -715,6 +715,52 @@ func TestClientConversationSyncPreservesContextCancellation(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestDecodeJSONLimitedRejectsStreamingLimitPlusOne(t *testing.T) {
+	const body = `{"value":1}`
+	var got struct {
+		Value int `json:"value"`
+	}
+
+	err := decodeJSONLimited(strings.NewReader(body), &got, int64(len(body)-1), "response exceeds byte limit")
+
+	require.EqualError(t, err, "response exceeds byte limit")
+}
+
+func TestDecodeJSONLimitedRejectsSecondJSONValue(t *testing.T) {
+	const body = `{"value":1} {"value":2}`
+	var got struct {
+		Value int `json:"value"`
+	}
+
+	err := decodeJSONLimited(strings.NewReader(body), &got, int64(len(body)), "response exceeds byte limit")
+
+	require.EqualError(t, err, "multiple JSON values in response")
+}
+
+func TestDecodeJSONLimitedAcceptsExactLimit(t *testing.T) {
+	const body = `{"value":1}`
+	var got struct {
+		Value int `json:"value"`
+	}
+
+	err := decodeJSONLimited(strings.NewReader(body), &got, int64(len(body)), "response exceeds byte limit")
+
+	require.NoError(t, err)
+	require.Equal(t, 1, got.Value)
+}
+
+func TestDecodeJSONLimitedAcceptsTrailingWhitespace(t *testing.T) {
+	const body = "{\"value\":1} \n\t"
+	var got struct {
+		Value int `json:"value"`
+	}
+
+	err := decodeJSONLimited(strings.NewReader(body), &got, int64(len(body)), "response exceeds byte limit")
+
+	require.NoError(t, err)
+	require.Equal(t, 1, got.Value)
+}
+
 func TestClientEvictChannelRuntimePostsRequest(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/bench/v1/channel-runtime/evict", r.URL.Path)
