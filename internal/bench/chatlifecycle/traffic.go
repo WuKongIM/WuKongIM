@@ -95,6 +95,10 @@ type TrafficGeneratorConfig struct {
 	Catalog  GroupCatalog
 	Workload WorkloadConfig
 	Start    time.Time
+	// WorkerID is this generator's zero-based worker partition.
+	WorkerID uint64
+	// WorkerCount must match both Workload.Workers and Identity.Workers.
+	WorkerCount uint64
 }
 
 // TrafficIntent is one transient SEND. It contains no target mutation path;
@@ -150,10 +154,10 @@ type TrafficGenerator struct {
 	workload  WorkloadConfig
 	allocator *RateAllocator
 	hotSet    GroupHotSet
+	workerID  uint64
+	workers   uint64
 
 	primaryOrdinal uint64
-	personOrdinal  uint64
-	groupOrdinal   uint64
 	canaryOrdinal  uint64
 	nextCanary     time.Time
 	generation     uint64
@@ -164,7 +168,9 @@ type TrafficGenerator struct {
 func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, error) {
 	if config.Identity == nil || config.Model.identity != config.Identity ||
 		config.Catalog.identity != config.Identity || config.Workload.Workers <= 0 || config.Workload.SendRatePerSecond <= 0 ||
-		config.Workload.MaxGlobalBurst != 2*config.Workload.SendRatePerSecond || config.Start.IsZero() {
+		config.Workload.MaxGlobalBurst != 2*config.Workload.SendRatePerSecond || config.Start.IsZero() ||
+		config.WorkerCount != uint64(config.Workload.Workers) || config.WorkerCount != config.Identity.Workers() ||
+		config.WorkerID >= config.WorkerCount {
 		return nil, errTrafficGeneratorConfig
 	}
 	weights := make([]int64, config.Workload.Workers)
@@ -182,6 +188,7 @@ func NewTrafficGenerator(config TrafficGeneratorConfig) (*TrafficGenerator, erro
 	generator := &TrafficGenerator{
 		identity: config.Identity, model: config.Model, catalog: config.Catalog,
 		workload: config.Workload, allocator: allocator, hotSet: hotSet,
+		workerID: config.WorkerID, workers: config.WorkerCount,
 		generation: 1,
 	}
 	if config.Workload.Groups.VeryLarge > 0 {
@@ -202,28 +209,26 @@ func (g *TrafficGenerator) Tick(demand []uint64, emit func(TrafficIntent) error)
 		return TrafficTickSnapshot{}, err
 	}
 	var snapshot TrafficTickSnapshot
-	for worker, released := range grant.Released {
-		for count := uint64(0); count < released; count++ {
-			intent, err := g.primaryIntent(uint64(worker))
-			if err != nil {
-				return snapshot, err
-			}
-			if err := emit(intent); err != nil {
-				return snapshot, err
-			}
-			snapshot.Released++
-			if intent.Kind == TrafficPerson {
-				snapshot.Person++
-			} else {
-				snapshot.Group++
-			}
-			payloadIndex, ok := payloadClassIndex(intent.PayloadBytes)
-			if !ok {
-				return snapshot, errTrafficGeneratorConfig
-			}
-			snapshot.PayloadCounts[payloadIndex]++
-			snapshot.PayloadBytes += uint64(intent.PayloadBytes)
+	for count := uint64(0); count < grant.Released[g.workerID]; count++ {
+		intent, err := g.primaryIntent()
+		if err != nil {
+			return snapshot, err
 		}
+		if err := emit(intent); err != nil {
+			return snapshot, err
+		}
+		snapshot.Released++
+		if intent.Kind == TrafficPerson {
+			snapshot.Person++
+		} else {
+			snapshot.Group++
+		}
+		payloadIndex, ok := payloadClassIndex(intent.PayloadBytes)
+		if !ok {
+			return snapshot, errTrafficGeneratorConfig
+		}
+		snapshot.PayloadCounts[payloadIndex]++
+		snapshot.PayloadBytes += uint64(intent.PayloadBytes)
 	}
 	g.snapshot.PrimaryReleased += snapshot.Released
 	g.snapshot.Person += snapshot.Person
@@ -243,7 +248,7 @@ func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error
 		return TrafficIntent{}, false, err
 	}
 	group := canary.Group
-	workerID := g.canaryOrdinal % g.identity.Workers()
+	workerID := g.canaryOrdinal % g.workers
 	logicalOrdinal, err := scopedLogicalOrdinal(g.generation, LogicalDomainCanary, g.canaryOrdinal)
 	if err != nil {
 		return TrafficIntent{}, false, err
@@ -257,8 +262,11 @@ func (g *TrafficGenerator) NextCanary(now time.Time) (TrafficIntent, bool, error
 		ChannelID: group.ID, GroupCategory: GroupVeryLarge, PayloadBytes: payloadBytes, Canary: true, Domain: LogicalDomainCanary,
 	}
 	g.canaryOrdinal++
-	g.snapshot.Canaries++
 	g.nextCanary = g.nextCanary.Add(canary.Every)
+	if workerID != g.workerID {
+		return TrafficIntent{}, false, nil
+	}
+	g.snapshot.Canaries++
 	return intent, true, nil
 }
 
@@ -287,8 +295,6 @@ func (g *TrafficGenerator) reset(start time.Time, generation uint64) error {
 	g.allocator = allocator
 	g.generation = generation
 	g.primaryOrdinal = 0
-	g.personOrdinal = 0
-	g.groupOrdinal = 0
 	g.canaryOrdinal = 0
 	g.nextCanary = time.Time{}
 	if g.workload.Groups.VeryLarge > 0 {
@@ -298,9 +304,9 @@ func (g *TrafficGenerator) reset(start time.Time, generation uint64) error {
 	return nil
 }
 
-func (g *TrafficGenerator) primaryIntent(workerID uint64) (TrafficIntent, error) {
-	ordinal := g.primaryOrdinal
-	if ordinal > maxLogicalOrdinal {
+func (g *TrafficGenerator) primaryIntent() (TrafficIntent, error) {
+	ordinal, err := g.identity.GlobalIndex(g.workerID, g.primaryOrdinal)
+	if err != nil || ordinal > maxLogicalOrdinal {
 		return TrafficIntent{}, errTrafficGeneratorConfig
 	}
 	g.primaryOrdinal++
@@ -314,20 +320,26 @@ func (g *TrafficGenerator) primaryIntent(workerID uint64) (TrafficIntent, error)
 	}
 	intent := TrafficIntent{Kind: kind, PayloadBytes: payloadBytes, Domain: LogicalDomainPrimary}
 	if kind == TrafficPerson {
-		direction, err := g.model.DirectionFor(g.personOrdinal)
+		personOrdinal, ordinalErr := exactCycleChoiceOrdinal(ordinal, g.model.trafficPhase, 0, g.model.traffic[:])
+		if ordinalErr != nil {
+			return TrafficIntent{}, ordinalErr
+		}
+		direction, err := g.model.DirectionFor(personOrdinal)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
 		intent.Direction = direction
-		g.personOrdinal++
 	} else {
-		group, err := g.catalog.PrimaryTarget(g.groupOrdinal)
+		groupOrdinal, ordinalErr := exactCycleChoiceOrdinal(ordinal, g.model.trafficPhase, 1, g.model.traffic[:])
+		if ordinalErr != nil {
+			return TrafficIntent{}, ordinalErr
+		}
+		group, err := g.catalog.PrimaryTarget(groupOrdinal)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
 		intent.ChannelID = group.ID
 		intent.GroupCategory = group.Category
-		g.groupOrdinal++
 	}
 	domain := LogicalDomainPrimary
 	if kind == TrafficGroup {
@@ -338,8 +350,27 @@ func (g *TrafficGenerator) primaryIntent(workerID uint64) (TrafficIntent, error)
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	intent.Logical = LogicalSend{LogicalSend: scopedOrdinal, WorkerID: uint32(workerID), Kind: kind}
+	intent.Logical = LogicalSend{LogicalSend: scopedOrdinal, WorkerID: uint32(g.workerID), Kind: kind}
 	return intent, nil
+}
+
+// exactCycleChoiceOrdinal counts matching positions strictly before ordinal.
+// It lets independently owned worker partitions reconstruct one global cycle.
+func exactCycleChoiceOrdinal(ordinal, phase uint64, choice int, shares []int) (uint64, error) {
+	if !validPositiveDistribution(shares) || choice < 0 || choice >= len(shares) {
+		return 0, errTrafficDistribution
+	}
+	result := (ordinal / distributionCycle) * uint64(shares[choice])
+	for position := uint64(0); position < ordinal%distributionCycle; position++ {
+		selected, err := exactCycleChoice(position, phase, shares)
+		if err != nil {
+			return 0, err
+		}
+		if selected == choice {
+			result++
+		}
+	}
+	return result, nil
 }
 
 func packetForTrafficIntent(logical LogicalSend, payload []byte) *frame.SendPacket {

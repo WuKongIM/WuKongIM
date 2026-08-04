@@ -222,13 +222,20 @@ func (p *SessionPool) login(ctx, drainParent context.Context, login SessionLogin
 	if ctx == nil || drainParent == nil {
 		return SessionSnapshot{}, errSessionConfig
 	}
+	if err := p.reserveLogin(login.UID); err != nil {
+		return SessionSnapshot{}, err
+	}
+	return p.loginReserved(ctx, drainParent, login)
+}
+
+func (p *SessionPool) reserveLogin(uid string) error {
 	p.mu.Lock()
-	_, online := p.online[login.UID]
-	_, starting := p.starting[login.UID]
-	_, closing := p.closing[login.UID]
+	_, online := p.online[uid]
+	_, starting := p.starting[uid]
+	_, closing := p.closing[uid]
 	if online || starting || closing {
 		p.mu.Unlock()
-		return SessionSnapshot{}, errSessionOnline
+		return errSessionOnline
 	}
 	if len(p.starting) >= p.startingCapacity {
 		p.mu.Unlock()
@@ -236,10 +243,14 @@ func (p *SessionPool) login(ctx, drainParent context.Context, login SessionLogin
 			Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: FailureCodeSessionLoginSaturated,
 			Value: uint64(p.startingCapacity),
 		})
-		return SessionSnapshot{}, &RuntimeError{code: RuntimeFailureLoginSaturated}
+		return &RuntimeError{code: RuntimeFailureLoginSaturated}
 	}
-	p.starting[login.UID] = struct{}{}
+	p.starting[uid] = struct{}{}
 	p.mu.Unlock()
+	return nil
+}
+
+func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login SessionLogin) (SessionSnapshot, error) {
 	defer func() {
 		p.mu.Lock()
 		delete(p.starting, login.UID)

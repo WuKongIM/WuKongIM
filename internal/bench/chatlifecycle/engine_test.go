@@ -59,7 +59,7 @@ func TestEngineOwnsBoundedSessionsRelationshipsAndFutureWork(t *testing.T) {
 	if got := fixture.factory.sentCount(); got != 0 {
 		t.Fatalf("relationship SEND bypassed global grant: %d", got)
 	}
-	if tick, err := fixture.engine.Tick(fixture.clock.Now(), []uint64{1, 0, 0}); err != nil || tick.Released != 1 {
+	if tick, err := fixture.engine.Tick(fixture.clock.Now(), fixture.demand(1)); err != nil || tick.Released != 1 {
 		t.Fatalf("Tick = %+v, %v", tick, err)
 	}
 	afterTick, err := fixture.engine.Snapshot()
@@ -88,10 +88,15 @@ func TestEngineTickAdmitsOneGlobalGrantWithoutHistoryRetention(t *testing.T) {
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	if step, err := fixture.engine.Step(context.Background(), now, nil); err != nil || step.Online != 100 {
+	step, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
 		t.Fatalf("bootstrap Step = %+v, %v", step, err)
 	}
-	tick, err := fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000})
+	step = fixture.settleScheduledLogins(t, now, step)
+	if step.Online != 100 {
+		t.Fatalf("settled bootstrap Step = %+v", step)
+	}
+	tick, err := fixture.engine.Tick(now, fixture.demand(1_000))
 	if err != nil {
 		t.Fatalf("Tick: %v", err)
 	}
@@ -119,9 +124,11 @@ func TestEngineTickRoutesEveryGrantThroughCurrentlyOnlineEligibleSender(t *testi
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
 		t.Fatalf("bootstrap Step: %v", err)
 	}
+	fixture.settleScheduledLogins(t, now, bootstrap)
 	for index := uint64(0); index < 50; index++ {
 		if err := fixture.engine.Logout(fixture.identity.UID(index)); err != nil {
 			t.Fatalf("Logout(%d): %v", index, err)
@@ -136,7 +143,7 @@ func TestEngineTickRoutesEveryGrantThroughCurrentlyOnlineEligibleSender(t *testi
 		}
 	}
 	before := fixture.factory.sentCount()
-	tick, err := fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000})
+	tick, err := fixture.engine.Tick(now, fixture.demand(1_000))
 	if err != nil {
 		t.Fatalf("Tick: %v", err)
 	}
@@ -211,7 +218,7 @@ func TestEngineExactOnePercentSampledPersonRoutesHaveOnlineRecipient(t *testing.
 	personRoutes := make([]engineSentRoute, 0, 100)
 	seenRoutes := 0
 	for len(personRoutes) < 100 {
-		if _, err := fixture.engine.Tick(now, []uint64{1, 0, 0}); err != nil {
+		if _, err := fixture.engine.Tick(now, fixture.demand(1)); err != nil {
 			t.Fatalf("Tick at person route %d: %v", len(personRoutes), err)
 		}
 		if _, err := fixture.engine.Advance(now); err != nil {
@@ -902,7 +909,7 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 	}
 	before := len(fixture.factory.sentRoutes())
 	for tick := 0; tick < 10; tick++ {
-		if _, err := fixture.engine.Tick(due, []uint64{1, 0, 0}); err != nil {
+		if _, err := fixture.engine.Tick(due, fixture.demand(1)); err != nil {
 			t.Fatalf("revisit Tick(%d): %v", tick, err)
 		}
 		if _, err := fixture.engine.Advance(due); err != nil {
@@ -1380,7 +1387,7 @@ func TestEngineGenerationScopesRealPrimaryLifecycleGroupAndCanaryIdentities(t *t
 		before := len(fixture.factory.sentPackets())
 		now := fixture.clock.Now().Add(time.Minute)
 		fixture.clock.Set(now)
-		if tick, err := fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000}); err != nil || tick.Released != 100 {
+		if tick, err := fixture.engine.Tick(now, fixture.demand(1_000)); err != nil || tick.Released != 100 {
 			t.Fatalf("Tick = %+v, %v", tick, err)
 		}
 		if _, err := fixture.engine.Advance(now); err != nil {
@@ -1455,6 +1462,150 @@ func TestEngineConcurrentSnapshotsAndStopsJoinWithoutStrandedCaller(t *testing.T
 	}
 	if snapshot, _ := fixture.engine.Snapshot(); snapshot.Running || snapshot.ActiveLoops != 0 {
 		t.Fatalf("joined concurrent stop snapshot = %+v", snapshot)
+	}
+}
+
+func TestEngineStopFencesAndJoinsWholeBlockedStepBeforeRestart(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{OnlineUsers: 1, NewUsersPerDay: 250_000})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start generation one: %v", err)
+	}
+
+	fixture.engine.stepMu.Lock()
+	stepStarted := make(chan struct{})
+	stepDone := make(chan error, 1)
+	now := fixture.clock.Now().Add(time.Second)
+	go func() {
+		close(stepStarted)
+		_, err := fixture.engine.Step(context.Background(), now, nil)
+		stepDone <- err
+	}()
+	<-stepStarted
+	deadline := time.Now().Add(time.Second)
+	for fixture.engine.activeSteps.Load() != 1 {
+		if time.Now().After(deadline) {
+			fixture.engine.stepMu.Unlock()
+			t.Fatal("Step did not acquire its generation lease")
+		}
+		runtime.Gosched()
+	}
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+
+	select {
+	case err := <-stopDone:
+		fixture.engine.stepMu.Unlock()
+		<-stepDone
+		t.Fatalf("Stop returned before blocked Step joined: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	fixture.engine.stepMu.Unlock()
+	if err := <-stepDone; !errors.Is(err, context.Canceled) && !errors.Is(err, errEngineNotRunning) {
+		t.Fatalf("fenced Step error = %v", err)
+	}
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop generation one: %v", err)
+	}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start generation two: %v", err)
+	}
+	defer fixture.engine.Stop()
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("generation two Snapshot: %v", err)
+	}
+	if snapshot.Generation != 2 || snapshot.Online != 0 || snapshot.LoginPlannedNew != 0 || snapshot.LoginCompletedNew != 0 {
+		t.Fatalf("old Step mutated generation two: %+v", snapshot)
+	}
+}
+
+func TestEngineStepStartsLoginsConcurrentlyWithoutBlockingTrafficAndStopJoinsThem(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 11, NewUsersPerDay: 250_000, StartingCapacity: 10,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	uid := fixture.identity.UID(100)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 100, LoginOrdinal: 100}); err != nil {
+		t.Fatalf("seed Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "step-traffic", 77, TrafficGroup)
+	if err := fixture.engine.SubmitGranted(intent, fixture.clock.Now()); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+
+	connectStarted := make(chan context.Context, 10)
+	connectRelease := make(chan struct{})
+	fixture.factory.connectStarted = connectStarted
+	fixture.factory.connectRelease = connectRelease
+	now := fixture.clock.Now().Add(3 * time.Second)
+	fixture.clock.Set(now)
+	stepDone := make(chan struct {
+		result EngineStepSnapshot
+		err    error
+	}, 1)
+	go func() {
+		result, err := fixture.engine.Step(context.Background(), now, nil)
+		stepDone <- struct {
+			result EngineStepSnapshot
+			err    error
+		}{result: result, err: err}
+	}()
+
+	firstCtx := <-connectStarted
+	var stepResult EngineStepSnapshot
+	select {
+	case result := <-stepDone:
+		if result.err != nil {
+			close(connectRelease)
+			t.Fatalf("nonblocking Step: %v", result.err)
+		}
+		stepResult = result.result
+	case <-time.After(20 * time.Millisecond):
+		close(connectRelease)
+		<-stepDone
+		_ = fixture.engine.Stop()
+		t.Fatal("Step blocked on the first login instead of advancing traffic")
+	}
+	if stepResult.Advanced != 1 || fixture.factory.sentCount() != 1 {
+		close(connectRelease)
+		_ = fixture.engine.Stop()
+		t.Fatalf("Step did not advance admitted traffic: result=%+v sent=%d", stepResult, fixture.factory.sentCount())
+	}
+	contexts := []context.Context{firstCtx}
+	for len(contexts) < 10 {
+		select {
+		case loginCtx := <-connectStarted:
+			contexts = append(contexts, loginCtx)
+		case <-time.After(time.Second):
+			close(connectRelease)
+			_ = fixture.engine.Stop()
+			t.Fatalf("concurrent starts = %d, want 10", len(contexts))
+		}
+	}
+	if snapshot := fixture.pool.Snapshot(); snapshot.Starting != 10 {
+		close(connectRelease)
+		_ = fixture.engine.Stop()
+		t.Fatalf("starting sessions = %+v, want 10", snapshot)
+	}
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+	for index, loginCtx := range contexts {
+		select {
+		case <-loginCtx.Done():
+		case <-time.After(time.Second):
+			close(connectRelease)
+			t.Fatalf("startup %d was not canceled", index)
+		}
+	}
+	if err := <-stopDone; err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	stopped, _ := fixture.engine.Snapshot()
+	if stopped.Running || stopped.ActiveLoops != 0 || stopped.LoginStarting != 0 {
+		t.Fatalf("stopped startup ownership = %+v", stopped)
 	}
 }
 
@@ -1559,6 +1710,7 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 	if err != nil {
 		t.Fatalf("bootstrap Step: %v", err)
 	}
+	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
 	if bootstrap.LoginsCompleted != 100 || bootstrap.BootstrapNew == 0 || bootstrap.Online != 100 {
 		t.Fatalf("bootstrap snapshot = %+v", bootstrap)
 	}
@@ -1574,6 +1726,7 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 	if err != nil {
 		t.Fatalf("steady Step: %v", err)
 	}
+	steady = fixture.settleScheduledLogins(t, now, steady)
 	if steady.PlannedNew != 80 || steady.PlannedReturning != 20 ||
 		steady.AdmittedNew != 80 || steady.AdmittedReturning != 20 ||
 		steady.CompletedNew != 80 || steady.CompletedReturning != 20 ||
@@ -1600,7 +1753,9 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 
 func TestSessionSchedulerAgedReturningMixFeedsEveryFixedGroupCategory(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{Formal: true})
-	scheduler := sessionScheduler{workload: fixture.engine.generator.workload, nextNewIndex: 750_000}
+	scheduler := fixture.engine.scheduler
+	scheduler.nextNewIndex = 750_000
+	scheduler.bootstrapping = false
 	buckets := map[HistoryBucket]int{}
 	categories := map[GroupCategory]int{}
 	for ordinal := uint64(0); ordinal < 1_000; ordinal++ {
@@ -1634,6 +1789,46 @@ func TestSessionSchedulerAgedReturningMixFeedsEveryFixedGroupCategory(t *testing
 	}
 }
 
+func TestEngineWorkerSchedulersPartitionFormalOnlineTargetAndUIDs(t *testing.T) {
+	seen := make(map[string]struct{}, 300)
+	targetTotal := 0
+	for workerID := uint64(0); workerID < 3; workerID++ {
+		fixture := newEngineTestFixture(t, engineTestLimits{Formal: true, WorkerID: workerID, WorkerCount: 3})
+		targetTotal += fixture.engine.onlineTarget
+		wantTarget := 3_333
+		if workerID == 0 {
+			wantTarget = 3_334
+		}
+		if fixture.engine.onlineTarget != wantTarget {
+			t.Fatalf("worker %d online target = %d, want %d", workerID, fixture.engine.onlineTarget, wantTarget)
+		}
+		for localIndex := uint64(0); localIndex < 100; localIndex++ {
+			login, actualKind, _, available, err := fixture.engine.scheduler.planLogin(
+				fixture.pool, fixture.graph, fixture.schedule, fixture.engine.generator.catalog,
+				localIndex, LoginNew,
+			)
+			if err != nil || !available || actualKind != LoginNew {
+				t.Fatalf("worker %d local %d planLogin = %+v kind=%d available=%v err=%v", workerID, localIndex, login, actualKind, available, err)
+			}
+			wantGlobal, err := fixture.identity.GlobalIndex(workerID, localIndex)
+			if err != nil {
+				t.Fatalf("GlobalIndex(%d, %d): %v", workerID, localIndex, err)
+			}
+			if login.UserIndex != wantGlobal || login.UID != fixture.identity.UID(wantGlobal) {
+				t.Fatalf("worker %d local %d login = %+v, want global %d", workerID, localIndex, login, wantGlobal)
+			}
+			if _, duplicate := seen[login.UID]; duplicate {
+				t.Fatalf("duplicate worker UID %q", login.UID)
+			}
+			seen[login.UID] = struct{}{}
+			fixture.engine.scheduler.nextNewIndex++
+		}
+	}
+	if targetTotal != 10_000 || len(seen) != 300 {
+		t.Fatalf("partition totals target=%d unique_uids=%d", targetTotal, len(seen))
+	}
+}
+
 func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *testing.T) {
 	cfg := FormalConfig()
 	identity, err := NewIdentitySpace("formal-bootstrap-churn", 101, uint64(cfg.Workload.Workers))
@@ -1645,7 +1840,7 @@ func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *
 		t.Fatalf("NewScheduleModel: %v", err)
 	}
 	start := time.Unix(1_700_000_000, 0)
-	scheduler := sessionScheduler{workload: cfg.Workload}
+	scheduler := sessionScheduler{workload: cfg.Workload, workerCount: 1, onlineTarget: cfg.Workload.OnlineUsers}
 	scheduler.reset(start)
 	var sessions engineWorkHeap
 	heap.Init(&sessions)
@@ -1711,7 +1906,9 @@ func TestEngineAgedRosterRoutesTwoHundredGroupGrantsAtFixedSharesAndCanary(t *te
 		t.Fatalf("Start: %v", err)
 	}
 	defer fixture.engine.Stop()
-	scheduler := sessionScheduler{workload: fixture.engine.generator.workload, nextNewIndex: 750_000}
+	scheduler := fixture.engine.scheduler
+	scheduler.nextNewIndex = 750_000
+	scheduler.bootstrapping = false
 	completed := map[LoginIdentity]int{}
 	loggedGroupMembers := 0
 	for ordinal := uint64(0); ordinal < 10_000; ordinal++ {
@@ -1843,8 +2040,13 @@ func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t 
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(10 * time.Second)
 	fixture.clock.Set(now)
-	if bootstrap, err := fixture.engine.Step(context.Background(), now, nil); err != nil || bootstrap.Online != 20 {
+	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
 		t.Fatalf("bootstrap Step = %+v, %v", bootstrap, err)
+	}
+	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
+	if bootstrap.Online != 20 {
+		t.Fatalf("settled bootstrap Step = %+v", bootstrap)
 	}
 	client := fixture.factory.clients()[0]
 	fixture.pool.mu.RLock()
@@ -1856,6 +2058,7 @@ func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t 
 	if err != nil {
 		t.Fatalf("replacement Step: %v", err)
 	}
+	replacement = fixture.settleScheduledLogins(t, now, replacement)
 	if replacement.ReplacementLogins != 1 || replacement.LoginsCompleted != 1 || replacement.Online != 20 {
 		t.Fatalf("replacement snapshot = %+v", replacement)
 	}
@@ -1873,8 +2076,13 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(10 * time.Second)
 	fixture.clock.Set(now)
-	if bootstrap, err := fixture.engine.Step(context.Background(), now, nil); err != nil || bootstrap.Online != 20 {
+	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
 		t.Fatalf("bootstrap Step = %+v, %v", bootstrap, err)
+	}
+	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
+	if bootstrap.Online != 20 {
+		t.Fatalf("settled bootstrap Step = %+v", bootstrap)
 	}
 	now = now.Add(time.Minute)
 	fixture.clock.Set(now)
@@ -1882,6 +2090,7 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	if err != nil {
 		t.Fatalf("expiry replacement Step: %v", err)
 	}
+	replacement = fixture.settleScheduledLogins(t, now, replacement)
 	if replacement.Expired != 20 || replacement.ReplacementLogins != 20 || replacement.LoginsCompleted != 20 || replacement.Online != 20 {
 		t.Fatalf("expiry replacement snapshot = %+v", replacement)
 	}
@@ -1904,7 +2113,7 @@ func TestEngineStepSchedulerCPUBudgetSaturationIsHarnessInvalid(t *testing.T) {
 	fixture.clock.Set(now)
 	step, err := fixture.engine.Step(context.Background(), now, nil)
 	assertRuntimeFailure(t, err, RuntimeFailureSchedulerCPUSaturated)
-	if step.LoginsCompleted != 1 || step.Online != 1 || fixture.evidence.Snapshot().Classification != SyncClassificationHarnessInvalid {
+	if step.AdmittedNew != 1 || fixture.evidence.Snapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("scheduler saturation step = %+v evidence=%+v", step, fixture.evidence.Snapshot())
 	}
 }
@@ -1922,15 +2131,19 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
 		t.Fatalf("bootstrap Step: %v", err)
 	}
+	fixture.settleScheduledLogins(t, now, bootstrap)
+	now = now.Add(30 * time.Second)
+	fixture.clock.Set(now)
 	for iteration := 0; iteration < 100; iteration++ {
 		snapshot, _ := fixture.engine.Snapshot()
 		if snapshot.ActivityCurrent == 0 {
 			break
 		}
-		if _, err := fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000}); err != nil {
+		if _, err := fixture.engine.Tick(now, fixture.demand(1_000)); err != nil {
 			t.Fatalf("drain activity Tick(%d): %v", iteration, err)
 		}
 		if _, err := fixture.engine.Advance(now); err != nil {
@@ -1945,7 +2158,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 		t.Fatalf("active lifecycle before deadline = %+v", beforeDeadline)
 	}
 	before := fixture.factory.sentCount()
-	activeTick, err := fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000})
+	activeTick, err := fixture.engine.Tick(now, fixture.demand(1_000))
 	if err != nil {
 		t.Fatalf("active Tick: %v", err)
 	}
@@ -1979,7 +2192,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	if afterDeadline.ActiveHotChannels != 0 {
 		t.Fatalf("active lifecycle retained after deadline: %+v", afterDeadline)
 	}
-	_, err = fixture.engine.Tick(now, []uint64{1_000, 1_000, 1_000})
+	_, err = fixture.engine.Tick(now, fixture.demand(1_000))
 	assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
 }
 
@@ -2120,7 +2333,7 @@ func TestEngineFormalTickRoutesTwoThousandGrantsToOnlineEligibleSenders(t *testi
 
 	now := fixture.clock.Now()
 	before := len(fixture.factory.sentRoutes())
-	tick, err := fixture.engine.Tick(now, []uint64{10_000, 10_000, 10_000})
+	tick, err := fixture.engine.Tick(now, fixture.demand(10_000))
 	if err != nil {
 		t.Fatalf("Tick: %v", err)
 	}
@@ -2231,6 +2444,9 @@ type engineTestLimits struct {
 	OnlineUsers               int
 	NewUsersPerDay            int
 	SessionDuration           time.Duration
+	WorkerID                  uint64
+	WorkerCount               uint64
+	StartingCapacity          int
 }
 
 type engineTestFixture struct {
@@ -2253,6 +2469,11 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 	if limits.Formal {
 		cfg = FormalConfig()
 	}
+	workerCount := limits.WorkerCount
+	if workerCount == 0 {
+		workerCount = 1
+	}
+	cfg.Workload.Workers = int(workerCount)
 	if limits.OnlineUsers > 0 {
 		cfg.Workload.OnlineUsers = limits.OnlineUsers
 	}
@@ -2291,22 +2512,27 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 		t.Fatalf("NewEvidenceRecorder: %v", err)
 	}
 	verifier, err := NewVerifier(traffic, VerifierConfig{
-		PendingCapacity: 512, SequenceCapacity: 512, CorrelationCapacity: 64, CorrelationDeadline: time.Minute,
+		PendingCapacity: 512, SequenceCapacity: 512, CorrelationCapacity: 512, CorrelationDeadline: time.Minute,
 	}, evidence)
 	if err != nil {
 		t.Fatalf("NewVerifier: %v", err)
 	}
 	clock := &sessionFakeClock{now: time.Unix(1_700_000_000, 0)}
 	factory := &engineFakeFactory{}
+	startingCapacity := limits.StartingCapacity
+	if startingCapacity == 0 {
+		startingCapacity = 128
+	}
 	pool, err := NewSessionPool(SessionPoolConfig{
 		Identity: identity, Schedule: schedule, Catalog: catalog, Factory: factory, Syncer: engineSyncer{},
-		Verifier: verifier, Clock: clock, DeviceID: "engine-test", StartingCapacity: 128,
+		Verifier: verifier, Clock: clock, DeviceID: "engine-test", StartingCapacity: startingCapacity,
 	})
 	if err != nil {
 		t.Fatalf("NewSessionPool: %v", err)
 	}
 	generator, err := NewTrafficGenerator(TrafficGeneratorConfig{
 		Identity: identity, Model: traffic, Catalog: catalog, Workload: cfg.Workload, Start: clock.Now(),
+		WorkerID: limits.WorkerID, WorkerCount: workerCount,
 	})
 	if err != nil {
 		t.Fatalf("NewTrafficGenerator: %v", err)
@@ -2338,6 +2564,7 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 	engine, err := NewEngine(EngineConfig{
 		Clock: clock, Sessions: pool, Schedule: schedule, Graph: graph, Traffic: traffic,
 		Generator: generator, Retry: retry, Verifier: verifier, Evidence: evidence,
+		WorkerID: limits.WorkerID, WorkerCount: workerCount,
 		CommandCapacity: commandCapacity, WorkCapacity: workCapacity, RetryCapacity: 64,
 		InflightCapacity: inflightCapacity, MaxWorkPerAdvance: maxWork, AttemptTimeout: attemptTimeout,
 		ActivityEligibilityWindow: activityEligibilityWindow,
@@ -2349,6 +2576,38 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 		identity: identity, schedule: schedule, graph: graph, traffic: traffic, retry: retry,
 		verifier: verifier, evidence: evidence, clock: clock, factory: factory, pool: pool, engine: engine,
 	}
+}
+
+func (f engineTestFixture) demand(perWorker uint64) []uint64 {
+	demand := make([]uint64, f.identity.Workers())
+	for worker := range demand {
+		demand[worker] = perWorker
+	}
+	return demand
+}
+
+func (f engineTestFixture) settleScheduledLogins(t *testing.T, now time.Time, initial EngineStepSnapshot) EngineStepSnapshot {
+	t.Helper()
+	f.engine.loginOps.Wait()
+	completion, err := f.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("settle scheduled logins: %v", err)
+	}
+	initial.PlannedNew += completion.PlannedNew
+	initial.PlannedReturning += completion.PlannedReturning
+	initial.AdmittedNew += completion.AdmittedNew
+	initial.AdmittedReturning += completion.AdmittedReturning
+	initial.CompletedNew += completion.CompletedNew
+	initial.CompletedReturning += completion.CompletedReturning
+	initial.LoginsCompleted += completion.LoginsCompleted
+	initial.BootstrapNew += completion.BootstrapNew
+	initial.LoginsSkipped += completion.LoginsSkipped
+	initial.ReplacementLogins += completion.ReplacementLogins
+	initial.Expired += completion.Expired
+	initial.Traffic.Add(completion.Traffic)
+	initial.Advanced += completion.Advanced
+	initial.Online = completion.Online
+	return initial
 }
 
 func (f engineTestFixture) intent(t *testing.T, sender, target string, ordinal uint64, kind TrafficKind) TrafficIntent {

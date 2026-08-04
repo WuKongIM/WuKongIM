@@ -38,6 +38,10 @@ type EngineConfig struct {
 	Retry     RetryPolicy
 	Verifier  *Verifier
 	Evidence  *EvidenceRecorder
+	// WorkerID is this engine's zero-based worker partition.
+	WorkerID uint64
+	// WorkerCount must match the workload and identity partition count.
+	WorkerCount uint64
 
 	CommandCapacity   int
 	WorkCapacity      int
@@ -54,7 +58,11 @@ type EngineConfig struct {
 type EngineSnapshot struct {
 	Running                 bool
 	Generation              uint64
+	WorkerID                uint64
+	WorkerCount             uint64
+	OnlineTarget            int
 	ActiveLoops             int
+	ActiveSteps             int
 	Online                  int
 	LoginStarting           int
 	TrafficReady            int
@@ -119,6 +127,9 @@ type EngineStepSnapshot struct {
 
 type sessionScheduler struct {
 	workload                      WorkloadConfig
+	workerID                      uint64
+	workerCount                   uint64
+	onlineTarget                  int
 	lastStep                      time.Time
 	credit                        uint64
 	creditRemainder               uint64
@@ -166,7 +177,7 @@ func (s *sessionScheduler) reset(now time.Time) {
 }
 
 func (s *sessionScheduler) addReplacements(count uint64) {
-	limit := uint64(s.workload.OnlineUsers)
+	limit := uint64(s.onlineTarget)
 	if count > limit-s.replacements {
 		s.replacements = limit
 		return
@@ -203,8 +214,8 @@ func (s *sessionScheduler) release(now time.Time) (int, error) {
 	if s.replacements > due {
 		due = s.replacements
 	}
-	if due > uint64(s.workload.OnlineUsers) {
-		due = uint64(s.workload.OnlineUsers)
+	if due > uint64(s.onlineTarget) {
+		due = uint64(s.onlineTarget)
 	}
 	return int(due), nil
 }
@@ -227,35 +238,48 @@ func (s *sessionScheduler) planLogin(
 	kind LoginIdentity,
 ) (SessionLogin, LoginIdentity, ReturningCandidate, bool, error) {
 	if kind == LoginNew || s.bootstrapping {
-		uid := graph.identity.UID(s.nextNewIndex)
-		return SessionLogin{UID: uid, UserIndex: s.nextNewIndex, LoginOrdinal: loginOrdinal}, LoginNew, ReturningCandidate{}, true, nil
+		globalIndex, err := graph.identity.GlobalIndex(s.workerID, s.nextNewIndex)
+		if err != nil {
+			return SessionLogin{}, kind, ReturningCandidate{}, false, err
+		}
+		uid := graph.identity.UID(globalIndex)
+		return SessionLogin{UID: uid, UserIndex: globalIndex, LoginOrdinal: loginOrdinal}, LoginNew, ReturningCandidate{}, true, nil
+	}
+	frontier, err := graph.identity.GlobalIndex(s.workerID, s.nextNewIndex)
+	if err != nil {
+		return SessionLogin{}, kind, ReturningCandidate{}, false, err
 	}
 	for probe := uint64(0); probe < 64; probe++ {
 		if probe > (math.MaxUint64-loginOrdinal)/distributionCycle {
 			return SessionLogin{}, kind, ReturningCandidate{}, false, errEngineConfig
 		}
 		candidateOrdinal := loginOrdinal + probe*distributionCycle
-		candidate, err := graph.ReturningCandidate(s.nextNewIndex, candidateOrdinal, uint64(schedule.newUsersPerDay))
+		candidate, err := graph.ReturningCandidate(frontier, candidateOrdinal, uint64(schedule.newUsersPerDay))
 		if err != nil {
 			return SessionLogin{}, kind, ReturningCandidate{}, false, err
 		}
 		if !candidate.Available {
 			continue
 		}
+		candidateWorker, _ := graph.identity.Owner(candidate.UserIndex)
+		if candidateWorker != s.workerID {
+			continue
+		}
 		if candidate.ActualBucket == HistoryOlder {
-			_, older := returningCandidateRanges(s.nextNewIndex, uint64(schedule.newUsersPerDay))
+			_, older := returningCandidateRanges(frontier, uint64(schedule.newUsersPerDay))
 			member, memberOK, memberErr := s.nextGroupReturningMember(catalog, older.min, older.max)
 			if memberErr != nil {
 				return SessionLogin{}, kind, ReturningCandidate{}, false, memberErr
 			}
 			if memberOK {
 				rosterCandidate, rosterErr := graph.returningCandidateAt(
-					s.nextNewIndex, candidateOrdinal, uint64(schedule.newUsersPerDay), member.UserIndex,
+					frontier, candidateOrdinal, uint64(schedule.newUsersPerDay), member.UserIndex,
 				)
 				if rosterErr != nil {
 					return SessionLogin{}, kind, ReturningCandidate{}, false, rosterErr
 				}
-				if rosterCandidate.Available && rosterCandidate.ActualBucket == HistoryOlder && !sessions.isOwned(rosterCandidate.UserUID) {
+				rosterWorker, _ := graph.identity.Owner(rosterCandidate.UserIndex)
+				if rosterCandidate.Available && rosterWorker == s.workerID && rosterCandidate.ActualBucket == HistoryOlder && !sessions.isOwned(rosterCandidate.UserUID) {
 					return SessionLogin{
 						UID: rosterCandidate.UserUID, UserIndex: rosterCandidate.UserIndex, LoginOrdinal: loginOrdinal,
 					}, LoginReturning, rosterCandidate, true, nil
@@ -380,6 +404,15 @@ type engineCompletion struct {
 	clientMsgNo     string
 }
 
+type engineLoginResult struct {
+	login       SessionLogin
+	kind        LoginIdentity
+	candidate   ReturningCandidate
+	ordinal     uint64
+	replacement bool
+	err         error
+}
+
 type advanceResult struct {
 	processed int
 	err       error
@@ -393,15 +426,18 @@ type activationResult struct {
 // Engine owns one bounded command loop, all future work heaps, and only the
 // online SessionPool. It creates no goroutine or timer per user or channel.
 type Engine struct {
-	clock     SessionClock
-	sessions  *SessionPool
-	schedule  ScheduleModel
-	graph     RelationshipGraph
-	traffic   TrafficModel
-	generator *TrafficGenerator
-	retry     RetryPolicy
-	verifier  *Verifier
-	evidence  *EvidenceRecorder
+	clock        SessionClock
+	sessions     *SessionPool
+	schedule     ScheduleModel
+	graph        RelationshipGraph
+	traffic      TrafficModel
+	generator    *TrafficGenerator
+	retry        RetryPolicy
+	verifier     *Verifier
+	evidence     *EvidenceRecorder
+	workerID     uint64
+	workers      uint64
+	onlineTarget int
 
 	commandCapacity           int
 	workCapacity              int
@@ -419,16 +455,20 @@ type Engine struct {
 	generation       uint64
 	commands         chan engineCommand
 	completions      chan engineCompletion
+	loginResults     chan engineLoginResult
 	stop             chan struct{}
 	done             chan struct{}
 	generationCtx    context.Context
 	generationCancel context.CancelFunc
 	cached           EngineSnapshot
 	sessionOps       sync.WaitGroup
+	stepOps          sync.WaitGroup
+	loginOps         sync.WaitGroup
 	scheduler        sessionScheduler
 	schedulerMetrics sessionSchedulerMetrics
 
 	activeLoops       atomic.Int64
+	activeSteps       atomic.Int64
 	commandSaturation atomic.Uint64
 
 	// The fields below are owned exclusively by the active command loop.
@@ -463,7 +503,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		config.CommandCapacity <= 0 || config.WorkCapacity <= 0 || config.RetryCapacity <= 0 ||
 		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 || config.ActivityEligibilityWindow <= 0 ||
 		config.CommandCapacity > maxVerifierCapacity || config.WorkCapacity > maxVerifierCapacity ||
-		config.RetryCapacity > maxVerifierCapacity || config.InflightCapacity > maxVerifierCapacity {
+		config.RetryCapacity > maxVerifierCapacity || config.InflightCapacity > maxVerifierCapacity ||
+		config.WorkerCount == 0 || config.WorkerCount != config.Schedule.identity.Workers() ||
+		config.WorkerID >= config.WorkerCount {
 		return nil, errEngineConfig
 	}
 	identity := config.Schedule.identity
@@ -471,21 +513,43 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		config.Generator.identity != identity || config.Sessions.identity != identity || config.Sessions.catalog != config.Generator.catalog {
 		return nil, errEngineConfig
 	}
+	if config.Generator.workerID != config.WorkerID || config.Generator.workers != config.WorkerCount {
+		return nil, errEngineConfig
+	}
+	onlineTarget, err := workerOnlineTarget(config.Generator.workload.OnlineUsers, config.WorkerID, config.WorkerCount)
+	if err != nil {
+		return nil, err
+	}
 	engine := &Engine{
 		clock: config.Clock, sessions: config.Sessions, schedule: config.Schedule, graph: config.Graph,
 		traffic: config.Traffic, generator: config.Generator, retry: config.Retry,
 		verifier: config.Verifier, evidence: config.Evidence,
+		workerID: config.WorkerID, workers: config.WorkerCount, onlineTarget: onlineTarget,
 		commandCapacity: config.CommandCapacity, workCapacity: config.WorkCapacity,
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
 		activityEligibilityWindow: config.ActivityEligibilityWindow,
-		scheduler:                 sessionScheduler{workload: config.Generator.workload, bootstrapping: true},
+		scheduler: sessionScheduler{
+			workload: config.Generator.workload, workerID: config.WorkerID,
+			workerCount: config.WorkerCount, onlineTarget: onlineTarget, bootstrapping: true,
+		},
 	}
 	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
 	}
 	engine.cached = engine.emptySnapshot(false)
 	return engine, nil
+}
+
+func workerOnlineTarget(total int, workerID, workerCount uint64) (int, error) {
+	if total <= 0 || workerCount == 0 || workerCount > maxRateWorkers || workerID >= workerCount {
+		return 0, errEngineConfig
+	}
+	target := total / int(workerCount)
+	if workerID < uint64(total%int(workerCount)) {
+		target++
+	}
+	return target, nil
 }
 
 // Start creates one fresh generation and discards all prior generator credit.
@@ -548,6 +612,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.schedulerMetrics.reset()
 	e.commands = make(chan engineCommand, e.commandCapacity)
 	e.completions = make(chan engineCompletion, e.commandCapacity)
+	e.loginResults = make(chan engineLoginResult, e.sessions.startingCapacity)
 	e.stop = make(chan struct{})
 	e.done = make(chan struct{})
 	e.generationCtx, e.generationCancel = context.WithCancel(ctx)
@@ -585,6 +650,8 @@ func (e *Engine) Stop() error {
 	e.lifecycleMu.Unlock()
 
 	generationCancel()
+	e.stepOps.Wait()
+	e.loginOps.Wait()
 	e.sessionOps.Wait()
 	closeErr := e.sessions.CloseAll()
 	barrier := make(chan struct{}, 1)
@@ -632,6 +699,17 @@ func (e *Engine) beginSessionOp() (context.Context, bool) {
 		return nil, false
 	}
 	e.sessionOps.Add(1)
+	return e.generationCtx, true
+}
+
+func (e *Engine) beginStep() (context.Context, bool) {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if !e.running || !e.accepting {
+		return nil, false
+	}
+	e.stepOps.Add(1)
+	e.activeSteps.Add(1)
 	return e.generationCtx, true
 }
 
@@ -842,19 +920,31 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	if e == nil {
 		return EngineStepSnapshot{}, errEngineConfig
 	}
-	e.stepMu.Lock()
-	defer e.stepMu.Unlock()
-
-	if _, ok := e.beginSessionOp(); !ok {
+	generationCtx, ok := e.beginStep()
+	if !ok {
 		return EngineStepSnapshot{}, errEngineNotRunning
 	}
+	defer func() {
+		e.activeSteps.Add(-1)
+		e.stepOps.Done()
+	}()
+	stepCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+	if err := stepCtx.Err(); err != nil {
+		return EngineStepSnapshot{}, err
+	}
+
+	result := EngineStepSnapshot{}
+	resultErr := e.drainLoginResults(now, &result)
 	expired := e.sessions.Expire(now)
 	e.schedulerMetrics.expired.Add(uint64(expired))
-	e.sessionOps.Done()
+	result.Expired = expired
 	replacementCount := uint64(expired)
 	poolBeforeLogins := e.sessions.Snapshot()
-	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.scheduler.workload.OnlineUsers {
-		shortage := uint64(e.scheduler.workload.OnlineUsers - poolBeforeLogins.Online - poolBeforeLogins.Starting)
+	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.onlineTarget {
+		shortage := uint64(e.onlineTarget - poolBeforeLogins.Online - poolBeforeLogins.Starting)
 		if shortage > replacementCount {
 			replacementCount = shortage
 		}
@@ -864,10 +954,10 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	if err != nil {
 		return EngineStepSnapshot{}, err
 	}
-	result := EngineStepSnapshot{Expired: expired}
-	for loginBudget > 0 && result.LoginsCompleted+result.LoginsSkipped < e.maxWork {
-		pool := e.sessions.Snapshot()
-		if pool.Online+pool.Starting >= e.scheduler.workload.OnlineUsers {
+	startingSlots := e.sessions.startingCapacity - poolBeforeLogins.Starting
+	scheduled := 0
+	for loginBudget > 0 && scheduled < e.maxWork && startingSlots > 0 {
+		if poolBeforeLogins.Online+poolBeforeLogins.Starting+scheduled >= e.onlineTarget {
 			break
 		}
 		ordinal := e.scheduler.loginOrdinal
@@ -894,6 +984,14 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		if !available {
 			result.LoginsSkipped++
 			e.schedulerMetrics.skipped.Add(1)
+			scheduled++
+			continue
+		}
+		if reserveErr := e.sessions.reserveLogin(login.UID); reserveErr != nil {
+			result.LoginsSkipped++
+			e.schedulerMetrics.skipped.Add(1)
+			resultErr = errors.Join(resultErr, reserveErr)
+			scheduled++
 			continue
 		}
 		if identityKind == LoginReturning && actualKind == LoginNew {
@@ -902,43 +1000,25 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		if actualKind == LoginNew {
 			result.AdmittedNew++
 			e.schedulerMetrics.admittedNew.Add(1)
+			e.scheduler.nextNewIndex++
 		} else {
 			result.AdmittedReturning++
 			e.schedulerMetrics.admittedReturning.Add(1)
 		}
-		if _, loginErr := e.Login(ctx, login); loginErr != nil {
-			result.LoginsSkipped++
-			e.schedulerMetrics.skipped.Add(1)
-			return result, loginErr
-		}
-		if actualKind == LoginNew {
-			e.scheduler.nextNewIndex++
-			result.CompletedNew++
-			e.schedulerMetrics.completedNew.Add(1)
-			if _, _, observeErr := e.ObserveNewUser(login.UserIndex); observeErr != nil {
-				return result, observeErr
-			}
-		} else {
-			result.CompletedReturning++
-			e.schedulerMetrics.completedReturning.Add(1)
-			if scheduleErr := e.scheduleReturningCandidate(candidate, ordinal, now); scheduleErr != nil {
-				return result, scheduleErr
-			}
-		}
-		result.LoginsCompleted++
-		if wasReplacement {
-			result.ReplacementLogins++
-			e.schedulerMetrics.replacements.Add(1)
-		}
+		e.startScheduledLogin(generationCtx, engineLoginResult{
+			login: login, kind: actualKind, candidate: candidate, ordinal: ordinal, replacement: wasReplacement,
+		})
+		scheduled++
+		startingSlots--
 	}
 	poolAfterLogins := e.sessions.Snapshot()
-	if poolAfterLogins.Online >= e.scheduler.workload.OnlineUsers {
+	if poolAfterLogins.Online >= e.onlineTarget {
 		e.scheduler.bootstrapping = false
 		e.scheduler.credit = 0
 		e.scheduler.replacements = 0
 	}
-	if result.LoginsCompleted+result.LoginsSkipped >= e.maxWork &&
-		poolAfterLogins.Online+poolAfterLogins.Starting < e.scheduler.workload.OnlineUsers &&
+	if scheduled >= e.maxWork &&
+		poolAfterLogins.Online+poolAfterLogins.Starting < e.onlineTarget &&
 		(e.scheduler.credit > 0 || e.scheduler.replacements > 0) {
 		result.Online = poolAfterLogins.Online
 		return result, e.recordRuntimeFailureSync(RuntimeFailureSchedulerCPUSaturated, uint64(e.maxWork))
@@ -947,13 +1027,60 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		traffic, tickErr := e.Tick(now, demand)
 		result.Traffic = traffic
 		if tickErr != nil {
-			return result, tickErr
+			resultErr = errors.Join(resultErr, tickErr)
 		}
 	}
 	advanced, advanceErr := e.Advance(now)
 	result.Advanced = advanced
+	resultErr = errors.Join(resultErr, advanceErr)
+	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
 	result.Online = e.sessions.Snapshot().Online
-	return result, advanceErr
+	return result, resultErr
+}
+
+func (e *Engine) startScheduledLogin(generationCtx context.Context, result engineLoginResult) {
+	e.loginOps.Add(1)
+	go func() {
+		defer e.loginOps.Done()
+		_, result.err = e.sessions.loginReserved(generationCtx, generationCtx, result.login)
+		select {
+		case e.loginResults <- result:
+		case <-generationCtx.Done():
+		}
+	}()
+}
+
+func (e *Engine) drainLoginResults(now time.Time, snapshot *EngineStepSnapshot) error {
+	var result error
+	for processed := 0; processed < e.maxWork; processed++ {
+		select {
+		case completion := <-e.loginResults:
+			if completion.err != nil {
+				snapshot.LoginsSkipped++
+				e.schedulerMetrics.skipped.Add(1)
+				result = errors.Join(result, completion.err)
+				continue
+			}
+			snapshot.LoginsCompleted++
+			if completion.kind == LoginNew {
+				snapshot.CompletedNew++
+				e.schedulerMetrics.completedNew.Add(1)
+				_, _, observeErr := e.ObserveNewUser(completion.login.UserIndex)
+				result = errors.Join(result, observeErr)
+			} else {
+				snapshot.CompletedReturning++
+				e.schedulerMetrics.completedReturning.Add(1)
+				result = errors.Join(result, e.scheduleReturningCandidate(completion.candidate, completion.ordinal, now))
+			}
+			if completion.replacement {
+				snapshot.ReplacementLogins++
+				e.schedulerMetrics.replacements.Add(1)
+			}
+		default:
+			return result
+		}
+	}
+	return result
 }
 
 func mergeGenerationContext(generation, caller context.Context) (context.Context, context.CancelFunc) {
@@ -1826,7 +1953,8 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		retries = e.retries.Snapshot()
 	}
 	snapshot := EngineSnapshot{
-		Running: running, Generation: e.generation, ActiveLoops: int(e.activeLoops.Load()),
+		Running: running, Generation: e.generation, WorkerID: e.workerID, WorkerCount: e.workers,
+		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
 		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
 		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered: e.activityUnderDelivered,
@@ -1861,7 +1989,8 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 
 func (e *Engine) emptySnapshot(running bool) EngineSnapshot {
 	return EngineSnapshot{
-		Running: running, Generation: e.generation, ActiveLoops: int(e.activeLoops.Load()),
+		Running: running, Generation: e.generation, WorkerID: e.workerID, WorkerCount: e.workers,
+		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
 		QueueCapacity: e.workCapacity, RetryQueueCapacity: e.retryCapacity,
 		InflightCapacity: e.inflightCapacity, CompletionQueueCapacity: e.commandCapacity,
 		RelationshipLookback: MaxForwardRelationships,

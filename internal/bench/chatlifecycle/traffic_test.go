@@ -9,28 +9,35 @@ import (
 func TestTrafficGeneratorPreservesFormalAggregateGrantAndMix(t *testing.T) {
 	t.Parallel()
 	cfg := FormalConfig()
-	generator := newTrafficTestGenerator(t, cfg, time.Unix(1_700_000_000, 0))
+	generators := make([]*TrafficGenerator, cfg.Workload.Workers)
+	for workerID := range generators {
+		generators[workerID] = newTrafficTestGenerator(t, cfg, time.Unix(1_700_000_000, 0), uint64(workerID))
+	}
 
 	var total TrafficTickSnapshot
 	directions := map[PersonDirection]uint64{}
 	for tick := 0; tick < 10; tick++ {
-		snapshot, err := generator.Tick([]uint64{10_000, 10_000, 10_000}, func(intent TrafficIntent) error {
-			if intent.Canary {
-				t.Fatal("primary tick emitted very-large canary")
+		var snapshot TrafficTickSnapshot
+		for workerID, generator := range generators {
+			workerSnapshot, err := generator.Tick([]uint64{10_000, 10_000, 10_000}, func(intent TrafficIntent) error {
+				if intent.Canary {
+					t.Fatal("primary tick emitted very-large canary")
+				}
+				if intent.Packet != nil || intent.Logical.ClientMsgNo != "" || intent.Logical.Sender != "" || intent.Logical.Target != "" {
+					t.Fatalf("generator grant claimed a concrete online route: %+v", intent)
+				}
+				if intent.Logical.LogicalSend == 0 || intent.Logical.WorkerID != uint32(workerID) {
+					t.Fatalf("invalid route-free primary grant: %+v", intent)
+				}
+				if intent.Kind == TrafficPerson {
+					directions[intent.Direction]++
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("Tick(%d, worker=%d): %v", tick, workerID, err)
 			}
-			if intent.Packet != nil || intent.Logical.ClientMsgNo != "" || intent.Logical.Sender != "" || intent.Logical.Target != "" {
-				t.Fatalf("generator grant claimed a concrete online route: %+v", intent)
-			}
-			if intent.Logical.LogicalSend == 0 || uint64(intent.Logical.WorkerID) >= uint64(cfg.Workload.Workers) {
-				t.Fatalf("invalid route-free primary grant: %+v", intent)
-			}
-			if intent.Kind == TrafficPerson {
-				directions[intent.Direction]++
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("Tick(%d): %v", tick, err)
+			snapshot.Add(workerSnapshot)
 		}
 		if snapshot.Released != 2_000 {
 			t.Fatalf("tick %d released = %d, want 2000", tick, snapshot.Released)
@@ -49,36 +56,109 @@ func TestTrafficGeneratorPreservesFormalAggregateGrantAndMix(t *testing.T) {
 	if total.PayloadBytes != 14_000*256+5_000*1_024+800*4_096+200*16_384 {
 		t.Fatalf("payload bytes = %d", total.PayloadBytes)
 	}
-	hotSet := generator.Snapshot().HotSet
+	hotSet := generators[0].Snapshot().HotSet
 	if hotSet.PersonChannels != 8_000 || hotSet.GroupChannels != 2_000 || hotSet.TotalChannels != 10_000 || hotSet.HistoricalGroupGrowth != 0 {
 		t.Fatalf("hot set = %+v", hotSet)
+	}
+}
+
+func TestTrafficGeneratorsPartitionFormalGlobalGrantByWorker(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	identity, err := NewIdentitySpace("traffic-worker-partition", 97, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	model, err := NewTrafficModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewTrafficModel: %v", err)
+	}
+	catalog, err := NewGroupCatalog(identity, cfg.Workload.Groups)
+	if err != nil {
+		t.Fatalf("NewGroupCatalog: %v", err)
+	}
+
+	type grantIdentity struct {
+		worker  uint32
+		logical uint64
+	}
+	seen := make(map[grantIdentity]struct{}, cfg.Workload.SendRatePerSecond)
+	var total TrafficTickSnapshot
+	for workerID := 0; workerID < cfg.Workload.Workers; workerID++ {
+		generator, err := NewTrafficGenerator(TrafficGeneratorConfig{
+			Identity: identity, Model: model, Catalog: catalog, Workload: cfg.Workload, Start: start,
+			WorkerID: uint64(workerID), WorkerCount: uint64(cfg.Workload.Workers),
+		})
+		if err != nil {
+			t.Fatalf("NewTrafficGenerator(worker=%d): %v", workerID, err)
+		}
+		tick, err := generator.Tick([]uint64{10_000, 10_000, 10_000}, func(intent TrafficIntent) error {
+			if intent.Logical.WorkerID != uint32(workerID) {
+				t.Fatalf("worker %d emitted worker %d", workerID, intent.Logical.WorkerID)
+			}
+			key := grantIdentity{worker: intent.Logical.WorkerID, logical: intent.Logical.LogicalSend}
+			if _, duplicate := seen[key]; duplicate {
+				t.Fatalf("duplicate global grant %+v", key)
+			}
+			seen[key] = struct{}{}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("Tick(worker=%d): %v", workerID, err)
+		}
+		total.Add(tick)
+	}
+	if total.Released != 2_000 || total.Person != 1_800 || total.Group != 200 || total.PayloadCounts != [4]uint64{1_400, 500, 80, 20} {
+		t.Fatalf("partitioned formal tick = %+v", total)
+	}
+	if len(seen) != cfg.Workload.SendRatePerSecond {
+		t.Fatalf("unique grants = %d, want %d", len(seen), cfg.Workload.SendRatePerSecond)
 	}
 }
 
 func TestTrafficGeneratorVeryLargeCanaryIsOncePerMinuteAndOutsidePrimaryRate(t *testing.T) {
 	t.Parallel()
 	start := time.Unix(1_700_000_000, 0)
-	generator := newTrafficTestGenerator(t, FormalConfig(), start)
+	cfg := FormalConfig()
+	generators := make([]*TrafficGenerator, cfg.Workload.Workers)
+	for workerID := range generators {
+		generators[workerID] = newTrafficTestGenerator(t, cfg, start, uint64(workerID))
+	}
 
-	if _, due, err := generator.NextCanary(start.Add(time.Minute - time.Nanosecond)); err != nil || due {
-		t.Fatalf("early canary = due %v, err %v", due, err)
+	for workerID, generator := range generators {
+		if _, due, err := generator.NextCanary(start.Add(time.Minute - time.Nanosecond)); err != nil || due {
+			t.Fatalf("worker %d early canary = due %v, err %v", workerID, due, err)
+		}
 	}
 	for minute := 1; minute <= 3; minute++ {
-		intent, due, err := generator.NextCanary(start.Add(time.Duration(minute) * time.Minute))
-		if err != nil {
-			t.Fatalf("NextCanary(%d): %v", minute, err)
+		dueCount := 0
+		for workerID, generator := range generators {
+			intent, due, err := generator.NextCanary(start.Add(time.Duration(minute) * time.Minute))
+			if err != nil {
+				t.Fatalf("NextCanary(%d, worker=%d): %v", minute, workerID, err)
+			}
+			if due {
+				dueCount++
+				if !intent.Canary || intent.GroupCategory != GroupVeryLarge || intent.Logical.WorkerID != uint32(workerID) {
+					t.Fatalf("minute %d worker %d canary = %+v", minute, workerID, intent)
+				}
+			}
+			if generator.Snapshot().PrimaryReleased != 0 {
+				t.Fatal("canary consumed primary SEND grant")
+			}
+			if _, duplicate, err := generator.NextCanary(start.Add(time.Duration(minute) * time.Minute)); err != nil || duplicate {
+				t.Fatalf("duplicate minute %d worker %d = due %v, err %v", minute, workerID, duplicate, err)
+			}
 		}
-		if !due || !intent.Canary || intent.GroupCategory != GroupVeryLarge {
-			t.Fatalf("minute %d canary = %+v, due %v", minute, intent, due)
-		}
-		if generator.Snapshot().PrimaryReleased != 0 {
-			t.Fatal("canary consumed primary SEND grant")
-		}
-		if _, duplicate, err := generator.NextCanary(start.Add(time.Duration(minute) * time.Minute)); err != nil || duplicate {
-			t.Fatalf("duplicate minute %d canary = due %v, err %v", minute, duplicate, err)
+		if dueCount != 1 {
+			t.Fatalf("minute %d canaries = %d, want 1", minute, dueCount)
 		}
 	}
-	if got := generator.Snapshot().Canaries; got != 3 {
+	var canaries uint64
+	for _, generator := range generators {
+		canaries += generator.Snapshot().Canaries
+	}
+	if got := canaries; got != 3 {
 		t.Fatalf("canaries = %d, want 3", got)
 	}
 }
@@ -203,7 +283,7 @@ func TestRetrySchedulerCapacityIsHarnessInvalidAndObservable(t *testing.T) {
 	}
 }
 
-func newTrafficTestGenerator(t *testing.T, cfg Config, start time.Time) *TrafficGenerator {
+func newTrafficTestGenerator(t *testing.T, cfg Config, start time.Time, workerID uint64) *TrafficGenerator {
 	t.Helper()
 	identity, err := NewIdentitySpace("traffic-test", 73, uint64(cfg.Workload.Workers))
 	if err != nil {
@@ -219,7 +299,7 @@ func newTrafficTestGenerator(t *testing.T, cfg Config, start time.Time) *Traffic
 	}
 	generator, err := NewTrafficGenerator(TrafficGeneratorConfig{
 		Identity: identity, Model: model, Catalog: catalog,
-		Workload: cfg.Workload, Start: start,
+		Workload: cfg.Workload, Start: start, WorkerID: workerID, WorkerCount: uint64(cfg.Workload.Workers),
 	})
 	if err != nil {
 		t.Fatalf("NewTrafficGenerator: %v", err)

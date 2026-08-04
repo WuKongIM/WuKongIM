@@ -50,6 +50,11 @@ deterministic choices use independent semantic-purpose hashes; introducing one
 choice cannot consume or shift another choice's output. Bounded choices whose
 range is not a power of two reject the biased hash prefix and derive retries
 from a separate semantic domain plus attempt number.
+Each engine declares the common worker count plus its own worker ID. Its
+scheduler retains a monotonic worker-local arrival index and calls
+`GlobalIndex` at the production login boundary. Quotient/remainder partitioning
+assigns the 10,000 formal online target as 3,334, 3,333, and 3,333 without
+overlapping UIDs.
 
 Login identity, session bucket, and channel lifecycle class use independent
 run-rotated ordinal cycles, giving exact 80/20, 25/50/20/5, and 60/25/10/5
@@ -75,6 +80,10 @@ generations, so all retained credit sums to the single global two-second burst
 without giving every worker a global-sized bucket. Capacity-rate changes are
 staged for the next tick and discard old-rate credit rather than creating
 retroactive token debt.
+Each worker-owned generator advances an equivalent global allocator but emits
+only its own released share. Its local ordinal is mapped through `GlobalIndex`,
+so aggregating the three workers reconstructs one non-duplicated global cycle
+with exactly 2,000 SENDs/s and the reviewed traffic and payload shares.
 
 Primary traffic kind, payload size, and person direction use independent
 run-rotated ordinal cycles. Formal cycles are exactly 90/10 person/group,
@@ -141,7 +150,11 @@ short-operation timeout still bounds CONNECT and control writes but never
 detaches an otherwise idle session.
 Independent login I/O runs concurrently under one explicit starting-session
 capacity and retains only the UIDs whose CONNECT/sync is active; capacity
-exhaustion is harness-invalid. Only a validated sync starts the recipient's
+exhaustion is harness-invalid. Scheduler admission reserves `starting` under
+the pool ownership lock before generation-owned CONNECT plus full-sync work is
+launched, so concurrent returning plans cannot select the same UID. Results use
+a fixed completion queue with the same capacity and are consumed by later
+steps; one slow sync never serializes traffic advancement. Only a validated sync starts the recipient's
 sole ordered frame drain. The session factory, CONNECT, sync, and drain are
 children of the active engine-generation context; stopping a generation fences
 new admission, cancels that context, then joins startup work and drains.
@@ -185,7 +198,10 @@ members online across every group category without adding sessions beyond that
 or unexpected terminal exits. `Engine.Step` is the narrow
 bounded orchestration boundary; aggregate snapshots expose planned, admitted,
 completed, skipped, expired, and replacement counts without exposing scheduler
-state.
+state. A generation lease covers the whole Step, including time waiting for
+the serial Step lock. Stop first fences admission and cancels the generation,
+then joins every Step and login startup before session and engine cleanup;
+Start cannot reset state while old-generation work is still live.
 
 `Engine` owns one bounded command loop for the active generation. One activity
 min-heap holds relationship SEND eligibility, a runtime min-heap holds granted
