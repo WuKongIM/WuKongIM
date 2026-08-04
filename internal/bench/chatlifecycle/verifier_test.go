@@ -129,6 +129,70 @@ func TestVerifierRequiresValidSuccessfulSendackAndStableAttemptIdentity(t *testi
 	}
 }
 
+func TestVerifierCompletedSendRejectsEveryLaterRejectedSendack(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	success := mustLogicalSend(t, model, 0, 90, TrafficPerson, "sender-secret", "target-secret")
+	if err := verifier.RegisterSend(success, time.Unix(1, 0)); err != nil {
+		t.Fatalf("RegisterSend(success) error = %v", err)
+	}
+	successAck := &frame.SendackPacket{MessageID: 91, MessageSeq: 9, ClientMsgNo: success.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+	if err := verifier.HandleSendack(successAck); err != nil {
+		t.Fatalf("HandleSendack(success) error = %v", err)
+	}
+	rejectedSameIdentity := *successAck
+	rejectedSameIdentity.ReasonCode = frame.ReasonRateLimit
+	assertVerificationCode(t, verifier.HandleSendack(&rejectedSameIdentity), FailureCodeDuplicateCompletion)
+	rejectedNoIdentity := &frame.SendackPacket{ClientMsgNo: success.ClientMsgNo, ReasonCode: frame.ReasonRateLimit}
+	assertVerificationCode(t, verifier.HandleSendack(rejectedNoIdentity), FailureCodeConflictingCompletion)
+
+	terminal := mustLogicalSend(t, model, 0, 91, TrafficPerson, "sender-secret", "target-secret")
+	if err := verifier.RegisterSend(terminal, time.Unix(1, 0)); err != nil {
+		t.Fatalf("RegisterSend(terminal) error = %v", err)
+	}
+	assertVerificationCode(t, verifier.CompleteTerminal(terminal, TerminalSendRetryExhausted), FailureCodeTerminalSend)
+	terminalRejected := &frame.SendackPacket{ClientMsgNo: terminal.ClientMsgNo, ReasonCode: frame.ReasonRateLimit}
+	assertVerificationCode(t, verifier.HandleSendack(terminalRejected), FailureCodeDuplicateCompletion)
+	terminalRejectedWithIdentity := &frame.SendackPacket{MessageID: 92, MessageSeq: 10, ClientMsgNo: terminal.ClientMsgNo, ReasonCode: frame.ReasonRateLimit}
+	assertVerificationCode(t, verifier.HandleSendack(terminalRejectedWithIdentity), FailureCodeConflictingCompletion)
+
+	snapshot := verifier.Snapshot()
+	if snapshot.DuplicateCompletions != 2 || snapshot.ConflictingCompletions != 2 || snapshot.SendackRejections != 0 {
+		t.Fatalf("completed/rejected counters = %+v", snapshot)
+	}
+}
+
+func TestVerifierIncompleteRejectedSendackRequiresZeroServerIdentity(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	logical := mustLogicalSend(t, model, 0, 92, TrafficPerson, "sender", "target")
+	if err := verifier.RegisterSend(logical, time.Unix(1, 0)); err != nil {
+		t.Fatalf("RegisterSend() error = %v", err)
+	}
+	zero := &frame.SendackPacket{ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonRateLimit}
+	var rejection *SendackRejectedError
+	if err := verifier.HandleSendack(zero); !errors.As(err, &rejection) {
+		t.Fatalf("HandleSendack(zero rejected) error = %T %v, want SendackRejectedError", err, err)
+	}
+	for _, identity := range []struct {
+		messageID  int64
+		messageSeq uint64
+	}{
+		{messageID: 1},
+		{messageSeq: 1},
+		{messageID: 1, messageSeq: 1},
+	} {
+		ack := &frame.SendackPacket{
+			MessageID:   identity.messageID,
+			MessageSeq:  identity.messageSeq,
+			ClientMsgNo: logical.ClientMsgNo,
+			ReasonCode:  frame.ReasonRateLimit,
+		}
+		assertVerificationCode(t, verifier.HandleSendack(ack), FailureCodeInvalidSendack)
+	}
+	if snapshot := verifier.Snapshot(); snapshot.SendackRejections != 1 || snapshot.PendingUnfinished != 1 {
+		t.Fatalf("rejected identity counters = %+v", snapshot)
+	}
+}
+
 func TestVerifierValidatesRecvAndAcknowledgesEveryPayloadClass(t *testing.T) {
 	model, verifier := newTestVerifier(t, 64, 64, 64, 10*time.Second)
 	recipient := "recipient-private"
@@ -309,6 +373,31 @@ func TestVerifierRecvackFailureIsRecordedWithoutRawErrorAndProtocolInvalidIsNotA
 	}
 }
 
+func TestVerifierRecvWithPositiveServerIdentityAndEmptyClientMessageNumberIsStillAcked(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	logical := mustLogicalSend(t, model, 0, 450, TrafficPerson, "sender-secret", "recipient-secret")
+	recv := mustRecvPacket(t, model, logical, 450, 1)
+	recv.ClientMsgNo = ""
+	acker := &recordingRecvAcker{}
+	err := verifier.HandleRecv(context.Background(), logical.Target, recv, acker)
+	assertVerificationCode(t, err, FailureCodeReceiveIdentity)
+	if len(acker.acks) != 1 || acker.acks[0].MessageID != recv.MessageID || acker.acks[0].MessageSeq != recv.MessageSeq {
+		t.Fatalf("empty-client-msg RECVACKs = %+v, want one exact ACK", acker.acks)
+	}
+	if snapshot := verifier.Snapshot(); snapshot.Received != 1 || snapshot.ReceiveFailures != 1 || snapshot.ReceiveAcknowledged != 1 {
+		t.Fatalf("empty-client-msg counters = %+v", snapshot)
+	}
+	encoded, marshalErr := json.Marshal(verifier.EvidenceSnapshot())
+	if marshalErr != nil {
+		t.Fatalf("Marshal(EvidenceSnapshot) error = %v", marshalErr)
+	}
+	for _, secret := range []string{logical.Sender, logical.Target, string(recv.Payload)} {
+		if strings.Contains(err.Error(), secret) || strings.Contains(string(encoded), secret) {
+			t.Fatalf("empty-client-msg failure leaks %q", secret)
+		}
+	}
+}
+
 func TestVerifierCorrelationSamplesExactlyOnePercentAndPhysicallyRemovesCompletedHistory(t *testing.T) {
 	model, verifier := newTestVerifier(t, 2_000, 16, 64, 10*time.Second)
 	acker := discardRecvAcker{}
@@ -372,6 +461,52 @@ func TestVerifierCorrelationSamplesExactlyOnePercentAndPhysicallyRemovesComplete
 	}
 }
 
+func TestVerifierCorrelationSamplesExactlyOnceInEveryWorkerOrdinalBlock(t *testing.T) {
+	starts := []uint64{0, 100, 37, 1_234}
+	for worker := uint64(0); worker < 3; worker++ {
+		for _, start := range starts {
+			name := "worker-" + strconv.FormatUint(worker, 10) + "-start-" + strconv.FormatUint(start, 10)
+			t.Run(name, func(t *testing.T) {
+				model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+				for ordinal := start; ordinal < start+100; ordinal++ {
+					logical := mustLogicalSend(t, model, worker, ordinal, TrafficPerson, "sender", "recipient")
+					if err := verifier.RegisterSend(logical, time.Unix(2_000, 0)); err != nil {
+						t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
+					}
+				}
+				snapshot := verifier.Snapshot()
+				if snapshot.Sampled != 1 || snapshot.CorrelationCurrent != 1 || snapshot.DeadlineCurrent != 1 {
+					t.Fatalf("worker %d block [%d,%d) sampling = %+v, want exactly one", worker, start, start+100, snapshot)
+				}
+			})
+		}
+	}
+}
+
+func TestVerifierSampledCorrelationSurvivesSendReleaseUntilLaterRecv(t *testing.T) {
+	model, verifier := newTestVerifier(t, 128, 16, 4, 5*time.Second)
+	logical := firstSampledLogical(t, model, verifier, "sender", "recipient", time.Unix(2_200, 0))
+	ack := &frame.SendackPacket{MessageID: 220, MessageSeq: 22, ClientMsgNo: logical.ClientMsgNo, ReasonCode: frame.ReasonSuccess}
+	if err := verifier.HandleSendack(ack); err != nil {
+		t.Fatalf("HandleSendack() error = %v", err)
+	}
+	if err := verifier.ReleaseSend(logical); err != nil {
+		t.Fatalf("ReleaseSend() error = %v", err)
+	}
+	before := verifier.Snapshot()
+	if before.CorrelationCurrent != 1 || before.DeadlineCurrent != 1 || before.SampledDelivered != 0 {
+		t.Fatalf("correlation after ReleaseSend = %+v", before)
+	}
+	recv := mustRecvPacket(t, model, logical, 220, 22)
+	if err := verifier.HandleRecv(context.Background(), logical.Target, recv, discardRecvAcker{}); err != nil {
+		t.Fatalf("HandleRecv() error = %v", err)
+	}
+	after := verifier.Snapshot()
+	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledDelivered != 1 {
+		t.Fatalf("correlation after later RECV = %+v", after)
+	}
+}
+
 func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T) {
 	model, verifier := newTestVerifier(t, 500, 16, 8, 5*time.Second)
 	started := time.Unix(2_000, 0)
@@ -416,6 +551,14 @@ func TestVerifierSampledTerminalSendRemainsUntilCorrelationDeadline(t *testing.T
 	after := verifier.Snapshot()
 	if after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 || after.SampledExpired != 1 {
 		t.Fatalf("sampled terminal after deadline = %+v", after)
+	}
+	evidenceCount := evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation)
+	if expired := verifier.ExpireCorrelations(started.Add(10 * time.Second)); expired != 0 {
+		t.Fatalf("second ExpireCorrelations() = %d, want 0", expired)
+	}
+	again := verifier.Snapshot()
+	if again.SampledExpired != 1 || evidenceCountForClass(verifier.EvidenceSnapshot(), FailureClassCorrelation) != evidenceCount {
+		t.Fatalf("second expiry changed counters/evidence: snapshot=%+v evidence=%+v", again, verifier.EvidenceSnapshot())
 	}
 }
 
@@ -708,4 +851,13 @@ func firstSampledLogical(t *testing.T, model TrafficModel, verifier *Verifier, s
 	}
 	t.Fatal("no sampled logical send in one exact cycle")
 	return LogicalSend{}
+}
+
+func evidenceCountForClass(snapshot EvidenceSnapshot, class FailureClass) uint64 {
+	for _, candidate := range snapshot.Classes {
+		if candidate.Class == class {
+			return candidate.Count
+		}
+	}
+	return 0
 }

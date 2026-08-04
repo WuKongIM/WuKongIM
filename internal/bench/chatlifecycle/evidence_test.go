@@ -83,6 +83,16 @@ func TestEvidenceRecorderVerdictPrecedenceAndStableOrdering(t *testing.T) {
 	if recorder.Snapshot().Classification != SyncClassificationProductFailure {
 		t.Fatal("product failure verdict was not sticky")
 	}
+	if err := recorder.Record(EvidenceEvent{
+		Class: FailureClassHarness,
+		Stage: EvidenceStageCapacity,
+		Code:  FailureCodeSequenceCapacity,
+	}); err != nil {
+		t.Fatalf("Record(harness after product) error = %v", err)
+	}
+	if recorder.Snapshot().Classification != SyncClassificationProductFailure {
+		t.Fatal("later harness evidence overrode product_failure")
+	}
 }
 
 func TestEvidenceRecorderRejectsInvalidBoundsAndClosedVocabulary(t *testing.T) {

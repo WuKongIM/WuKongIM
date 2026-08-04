@@ -94,18 +94,22 @@ overflow.
 
 The concurrent verifier registers that attempt-independent identity in an
 explicitly bounded pending map. Only a matching successful SENDACK with
-positive server message identity completes it; retryable rejected SENDACKs
-remain decision inputs for the later retry engine, while explicit terminal
-completion is a product failure. Completed entries remain only until the
-worker calls `ReleaseSend`, which provides a bounded duplicate/conflict
-discrimination window. Unknown, duplicate, and conflicting completions use
-fixed reason codes and redacted message fingerprints.
+positive server message identity completes it. An incomplete SEND accepts a
+rejected SENDACK as a retry decision input only when both server identity fields
+are zero; nonzero identity on rejection is invalid product evidence. Once a
+SEND is acknowledged or terminal, every later ACK is duplicate/conflicting
+product evidence regardless of its reason code. Explicit terminal completion
+is also a product failure. Completed entries remain only until the worker calls
+`ReleaseSend`, which provides a bounded duplicate/conflict discrimination
+window. Unknown, duplicate, and conflicting completions use fixed reason codes
+and redacted message fingerprints.
 
 Every protocol-valid RECV is reconstructed through the payload marker and
 `TrafficModel`, then checked for person peer versus group channel semantics and
 strictly increasing sequence per recipient/channel. Such a RECV is sent through
 the narrow `RecvAcker` even when payload, identity, or sequence validation
-fails; packets without trustworthy positive server IDs are not acknowledged.
+fails, including an empty `client_msg_no`; only nil packets or packets without
+trustworthy positive server IDs are not acknowledged.
 Validation and RECVACK failures are retained independently without copying the
 underlying error. Logout calls `ReleaseRecipient` to delete that session's
 bounded monotonic state instead of accumulating historical channels.

@@ -301,20 +301,27 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 		v.counters.UnknownSendacks++
 		return v.recordSendFailureLocked(FailureCodeUnknownSendack, 0, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 	}
-	if ack.ReasonCode != frame.ReasonSuccess {
-		v.counters.SendackRejections++
-		return &SendackRejectedError{reason: ack.ReasonCode}
-	}
-	if ack.MessageID <= 0 || ack.MessageSeq == 0 {
-		return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
-	}
 	if pending.completion != sendIncomplete {
 		if pending.completion == sendAcknowledged && pending.messageID == ack.MessageID && pending.messageSeq == ack.MessageSeq {
 			v.counters.DuplicateCompletions++
 			return v.recordSendFailureLocked(FailureCodeDuplicateCompletion, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 		}
+		if pending.completion == sendTerminal && ack.MessageID == 0 && ack.MessageSeq == 0 {
+			v.counters.DuplicateCompletions++
+			return v.recordSendFailureLocked(FailureCodeDuplicateCompletion, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, 0)
+		}
 		v.counters.ConflictingCompletions++
 		return v.recordSendFailureLocked(FailureCodeConflictingCompletion, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
+	}
+	if ack.ReasonCode != frame.ReasonSuccess {
+		if ack.MessageID != 0 || ack.MessageSeq != 0 {
+			return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
+		}
+		v.counters.SendackRejections++
+		return &SendackRejectedError{reason: ack.ReasonCode}
+	}
+	if ack.MessageID <= 0 || ack.MessageSeq == 0 {
+		return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 	}
 	pending.completion = sendAcknowledged
 	pending.messageID = ack.MessageID
@@ -341,7 +348,7 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 // retained; neither error includes packet or transport text.
 func (v *Verifier) HandleRecv(ctx context.Context, recipient string, recv *frame.RecvPacket, acker RecvAcker) error {
 	v.mu.Lock()
-	if recv == nil || recv.MessageID <= 0 || recv.MessageSeq == 0 || recv.ClientMsgNo == "" {
+	if recv == nil || recv.MessageID <= 0 || recv.MessageSeq == 0 {
 		v.counters.ReceiveFailures++
 		validationErr := v.recordReceiveFailureLocked(FailureCodeReceiveProtocol, 0, [16]byte{}, EvidenceStageReceive, 0)
 		v.mu.Unlock()
