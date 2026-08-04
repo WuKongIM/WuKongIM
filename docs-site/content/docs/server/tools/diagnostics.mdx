@@ -1,0 +1,89 @@
+---
+title: 诊断能力
+description: 在日志、指标、Top、Manager、保留诊断、pprof 和 Operations MCP 之间选择有界证据。
+---
+
+诊断不是一个万能端点，而是一组成本、视角和权限不同的证据面。先提出精确问题，再选择能回答它的最低成本能力；不要把诊断输出连接到自动修复或拓扑写操作。
+
+## 选择证据面
+
+| 能力 | 最适合回答 | 关键边界 |
+| --- | --- | --- |
+| `/healthz` | HTTP 进程是否存活 | 不表示集群就绪或可接业务流量 |
+| `/readyz` | 当前节点能否接收产品流量 | 失败时保存 503 与完整 `reason` |
+| Prometheus `/metrics` | 趋势、分位、错误率、队列和资源变化 | 低基数聚合；阈值依赖版本与工作负载 |
+| 应用/错误日志 | 某时间窗口发生了哪些离散事件 | 原始内容不可信、可能敏感；限制节点、时间和行数 |
+| Top / `/top/v1/snapshot` | 节点本地当前资源、运行时压力和短历史 | 不依赖 Prometheus，但不是全局一致快照 |
+| Manager 与节点诊断 | 聚合节点、Controller、Slot、任务和受控生命周期证据 | 特权管理边界；状态提示不是操作审批 |
+| 保留诊断事件 | 精确 trace、stage、result、Slot 或 Channel 的采样事件 | 有界缓冲和采样，未命中不能解释成未发生 |
+| Debug pprof | CPU、堆和 Goroutine 热点 | 默认关闭，网络隔离、限时抓取、敏感制品 |
+| Operations MCP | 固定的集群/节点/Slot/Channel/任务/日志/指标诊断点查 | 专用凭据、非浏览器、闭集查询、限流和上限 |
+
+配置与成本见[日志与可观测性](/zh/server/configuration/observability)，按现象的顺序见[故障排查](/zh/server/operations/troubleshooting)。
+
+## 日志、指标与 Top
+
+三者需要使用相同时间范围和节点标识：
+
+1. 从告警或 `/readyz` 原因确定开始/结束时间；
+2. 用指标确认趋势、节点偏斜和队列/资源相关性；
+3. 用日志解释变化点，不对未知日志文本执行命令；
+4. 用一次或有界刷新 Top 补充节点当前状态；
+5. 保存查询、游标、采样间隔与缺失区间。
+
+```bash
+go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
+```
+
+监控缺失本身就是未知状态。不要把空图、零序列或没有日志命中解释为健康。
+
+## Debug 与 pprof
+
+HTTP pprof 只在 `observability.debug_api_enable = true` 时通过 API Listener 的 `/debug/pprof/*` 开放。临时使用时必须：
+
+- 限制源网络和授权人员，不暴露到公网；
+- 记录目标节点、profile 类型、开始/结束时间和事件编号；
+- 一次只回答一个 CPU、heap 或 goroutine 问题，设置抓取上限；
+- 观察抓取本身对 CPU、内存、调度和磁盘/网络的影响；
+- 将制品视为内部敏感数据，完成后关闭 Debug 并验证端点不可访问。
+
+Operations MCP 的 `pprof_analyze` 是另一条受控路径：它只返回解析后的 top rows，不返回原始 profile。CPU 最长 30 秒，heap/goroutine 的 duration 必须为 0；集群同一时间只允许一个 profile，每个节点完成后有 60 秒冷却，并受并发、大小和所有者修订门槛约束。
+
+## Operations MCP
+
+每个已配置的 Manager Listener 都挂载相同的 `POST /mcp`。它是无状态 JSON Streamable HTTP MCP 服务，使用专用 `wko_*` bearer credential；Manager JWT 不能代替它。跨不受信任网络必须使用 TLS。
+
+<Callout type="warn" title="不是浏览器 API">
+  `/mcp` 拒绝任何非空 `Origin`，没有 CORS 授权。请求体上限 64 KiB，响应上限 1 MiB；认证、速率、并发、所有者或状态变化失败会返回稳定错误，而不是降级为匿名或本地执行。
+</Callout>
+
+冻结的 12 个工具是：
+
+| 工具 | 范围 |
+| --- | --- |
+| `cluster_health` | Controller、节点、Slot、工作队列与指标的聚合健康，不扫描频道 |
+| `node_inspect` | 一个精确节点的健康、运行时、Controller Raft、队列和有界诊断 |
+| `slot_inspect` | 一个精确物理 Slot 的 Leader、副本、进度与索引 |
+| `channel_runtime_inspect` | 通过哈希 Slot 点查一个精确频道，不枚举频道目录 |
+| `controller_tasks_query` | 有界的活动与保留 Controller 任务证据 |
+| `metrics_query_range` | 服务端预定义、低基数查询 ID 的有界时间范围 |
+| `logs_search` / `logs_context` | 固定应用/错误日志源的有界搜索与游标上下文 |
+| `diagnostics_query` | 按节点、Slot、trace、stage、result 和时间筛选保留诊断 |
+| `config_read_redacted` | 一个节点的允许列表、已脱敏生效配置 |
+| `backup_inspect` | 完整备份计划、活动任务和有界不可变归档证据 |
+| `pprof_analyze` | 一个节点的有界 CPU、heap 或 goroutine 分析 top rows |
+
+除 `pprof_analyze` 的主动采集外，工具都只读。服务不接受任意 URL、文件路径、命令、PromQL、SQL 或通用 Controller 写入，也不提供 Resources、Prompts、Sampling、Roots、SSE 或写工具。缺失证据返回 `unavailable` / `unknown`，不会伪装成零或健康。
+
+## 使用边界
+
+- 为事件创建最小范围的专用凭据，限制可用工具、节点和有效期；不要记录完整 Token。
+- 日志工具只返回有界原始行，并明确标记为不可信；不要把内容放入 shell 或提示词控制通道。
+- 指标只使用服务端查询 ID，时间范围与点数受限；不能通过 MCP 运行任意 PromQL。
+- 精确频道点查需要频道 ID 与类型，不支持全目录扫描。
+- pprof、日志与诊断不缓存；短清单和脱敏配置可能短暂缓存，事件记录要保存观察时间。
+- MCP 审计只保留低基数摘要；它不会保存原始 Token、完整参数、结果或日志关键词。
+
+## 关闭临时诊断
+
+事件结束后撤销临时凭据，恢复采样率，关闭 Debug 与 Benchmark，删除不再需要的本地副本，并验证网络策略。保留脱敏后的命令、时间、查询 ID、游标、工具结果码和制品摘要，以便复盘与回归验证。

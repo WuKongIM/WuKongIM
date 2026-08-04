@@ -124,6 +124,12 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/operations/scaling`,
         `/${locale}/server/operations/backup-and-restore`,
         `/${locale}/server/operations/upgrade-and-migration`,
+        `/${locale}/server/operations/troubleshooting`,
+        `/${locale}/server/tools`,
+        `/${locale}/server/tools/wkcli`,
+        `/${locale}/server/tools/wkdb`,
+        `/${locale}/server/tools/wkbench`,
+        `/${locale}/server/tools/diagnostics`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
@@ -207,8 +213,20 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/operations/manager.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/operations/backup-and-restore.mdx')).toBe(true);
     expect(isPublishedContentPath('server/operations/backup-and-restore.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/operations/troubleshooting.mdx')).toBe(false);
-    expect(isPublishedContentPath('server/operations/troubleshooting.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/operations/troubleshooting.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/troubleshooting.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkcli.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkcli.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkdb.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkdb.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkbench.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkbench.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/diagnostics.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/diagnostics.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/controller.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/architecture/controller.en.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);

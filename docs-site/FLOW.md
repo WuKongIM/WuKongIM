@@ -65,7 +65,16 @@ content/docs/**/*.mdx
   repository testing, restore is limited to the current cluster identity, and
   all 256 slots are verified before switch. Mixed-version rolling upgrades
   MUST require an exact release compatibility statement; no generic v2-to-v3
-  in-place storage migration is promised. Troubleshooting remains planned.
+  in-place storage migration is promised.
+- Phase 7 publishes symptom-led troubleshooting and the official-tool path.
+  Investigation starts with the least expensive trustworthy evidence and keeps
+  unknown or contradictory state fail-closed. `wkcli` operations retain Manager
+  safety gates; `wkdb` remains node-local and offline, with `import` as its only
+  storage-writing command; and `wkbench` is restricted to controlled benchmark
+  clusters. Operations MCP remains a dedicated-credential, non-browser,
+  closed-world observation surface with no write tool; its bounded
+  `pprof_analyze` capture is the sole active observation. Architecture remains
+  planned.
 
 ## Static delivery
 

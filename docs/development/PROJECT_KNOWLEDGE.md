@@ -297,6 +297,12 @@
   verified repository, restore accepts only the current cluster identity, and
   mixed-version or v2-to-v3 migration is never promised without exact
   release-specific evidence.
+- Phase 7 public troubleshooting starts with low-cost, read-only evidence and
+  keeps unknown state fail-closed. `wkcli` uses public APIs and Manager safety
+  gates; `wkdb` is node-local/offline and only `import` writes storage;
+  `wkbench` targets controlled benchmark clusters; Operations MCP exposes a
+  closed 12-tool observation registry with no write tool, while its bounded
+  `pprof_analyze` capture is the only active observation.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level

@@ -555,7 +555,7 @@ export const domains: DocumentationDomain[] = [
             '说明兼容性、滚动升级、回滚和 v2 到 v3 迁移。',
             'Covers compatibility, rolling upgrades, rollback, and v2-to-v3 migration.',
           ),
-          plannedPage(
+          publishedPage(
             'troubleshooting',
             '故障排查',
             'Troubleshooting',
@@ -564,40 +564,40 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'tools',
         '工具',
         'Tools',
         '使用官方工具观察、验证和评估集群。',
         'Use official tools to inspect, verify, and evaluate clusters.',
         [
-          plannedPage(
+          publishedPage(
             'wkcli',
             'wkcli',
             'wkcli',
             '查看集群状态并执行受控运维操作。',
             'Inspects cluster state and performs controlled operations.',
           ),
-          plannedPage(
+          publishedPage(
             'wkdb',
             'wkdb',
             'wkdb',
             '执行本地只读存储诊断和离线导入导出。',
             'Performs node-local read-only storage diagnostics and offline import/export.',
           ),
-          plannedPage(
+          publishedPage(
             'wkbench',
             'wkbench',
             'wkbench',
             '执行黑盒压力测试、容量评估和回归验证。',
             'Runs black-box load tests, capacity evaluations, and regression checks.',
           ),
-          plannedPage(
+          publishedPage(
             'diagnostics',
             '诊断能力',
             'Diagnostics',
-            '汇总日志、指标、pprof 和只读 Operations MCP。',
-            'Collects logs, metrics, pprof, and the read-only Operations MCP.',
+            '选择日志、指标、Top、pprof 和只读 Operations MCP。',
+            'Selects among logs, metrics, Top, pprof, and the read-only Operations MCP.',
           ),
         ],
       ),
