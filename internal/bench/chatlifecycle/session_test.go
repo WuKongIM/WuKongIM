@@ -3,7 +3,6 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -176,10 +175,13 @@ func TestSessionPoolUnexpectedReadExitIsBoundedHarnessEvidence(t *testing.T) {
 		t.Fatalf("Login: %v", err)
 	}
 	client := fixture.factory.clients()[0]
+	fixture.pool.mu.RLock()
+	drainDone := fixture.pool.online[uid].done
+	fixture.pool.mu.RUnlock()
 	if err := client.Close(); err != nil {
 		t.Fatalf("unexpected Close: %v", err)
 	}
-	<-client.readExited
+	<-drainDone
 	snapshot := fixture.pool.Snapshot()
 	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("unexpected read evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
@@ -200,21 +202,7 @@ func TestSessionPoolNonTerminalAsyncSendErrorKeepsOrderedDrainOnline(t *testing.
 	<-client.readEntered
 	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientMsgNo: "stable-send"}
 	<-client.readReturned
-	continued := false
-	for range 10_000 {
-		select {
-		case <-client.readEntered:
-			continued = true
-		default:
-		}
-		if continued || fixture.pool.Snapshot().ReadErrors > 0 {
-			break
-		}
-		runtime.Gosched()
-	}
-	if !continued {
-		t.Fatal("non-terminal async SEND error exited the session drain")
-	}
+	<-client.readEntered
 	if !fixture.pool.IsOnline(uid) {
 		t.Fatal("non-terminal async SEND error removed the online session")
 	}
@@ -231,15 +219,12 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 		t.Fatalf("Login: %v", err)
 	}
 	client := fixture.factory.clients()[0]
+	fixture.pool.mu.RLock()
+	drainDone := fixture.pool.online[uid].done
+	fixture.pool.mu.RUnlock()
 	<-client.readEntered
 	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorTerminal}
-	<-client.readReturned
-	for range 10_000 {
-		if !fixture.pool.IsOnline(uid) {
-			break
-		}
-		runtime.Gosched()
-	}
+	<-drainDone
 	if fixture.pool.IsOnline(uid) {
 		t.Fatal("terminal remote read retained online ownership")
 	}
@@ -254,6 +239,40 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 	}
 }
 
+func TestSessionPoolTerminalEvidencePrecedesOfflinePublicationAndBlockingClose(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	uid := fixture.identity.UID(35)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 35, LoginOrdinal: 7}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	closeEntered := make(chan struct{}, 1)
+	closeRelease := make(chan struct{})
+	client.closeEntered = closeEntered
+	client.closeRelease = closeRelease
+	defer func() {
+		select {
+		case <-closeRelease:
+		default:
+			close(closeRelease)
+		}
+	}()
+	fixture.pool.mu.RLock()
+	drainDone := fixture.pool.online[uid].done
+	fixture.pool.mu.RUnlock()
+	<-client.readEntered
+	client.readErrors <- &sessionFakeReadError{kind: wkproto.ReadErrorTerminal}
+	<-closeEntered
+	if fixture.pool.IsOnline(uid) {
+		t.Fatal("terminal session remained online after detach reached socket close")
+	}
+	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
+		t.Fatalf("offline state became observable before terminal evidence: %q", got)
+	}
+	close(closeRelease)
+	<-drainDone
+}
+
 func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T) {
 	t.Parallel()
 	fixture := newSessionTestFixture(t)
@@ -261,7 +280,7 @@ func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T)
 	release := make(chan struct{})
 	factory := &parallelSessionFactory{entered: entered, release: release}
 	pool, err := NewSessionPool(SessionPoolConfig{
-		Identity: fixture.identity, Schedule: fixture.schedule, Factory: factory,
+		Identity: fixture.identity, Schedule: fixture.schedule, Catalog: fixture.catalog, Factory: factory,
 		Syncer: fixture.syncer, Verifier: fixture.verifier, Clock: fixture.clock,
 		DeviceID: "parallel-login", StartingCapacity: 2,
 	})
@@ -350,6 +369,7 @@ type sessionTestFixture struct {
 	schedule ScheduleModel
 	graph    RelationshipGraph
 	traffic  TrafficModel
+	catalog  GroupCatalog
 	verifier *Verifier
 	clock    *sessionFakeClock
 	events   *sessionEventLog
@@ -377,6 +397,10 @@ func newSessionTestFixture(t *testing.T) sessionTestFixture {
 	if err != nil {
 		t.Fatalf("NewTrafficModel: %v", err)
 	}
+	catalog, err := NewGroupCatalog(identity, cfg.Workload.Groups)
+	if err != nil {
+		t.Fatalf("NewGroupCatalog: %v", err)
+	}
 	evidence, err := NewEvidenceRecorder(2, 2)
 	if err != nil {
 		t.Fatalf("NewEvidenceRecorder: %v", err)
@@ -392,14 +416,14 @@ func newSessionTestFixture(t *testing.T) sessionTestFixture {
 	factory := &sessionFakeFactory{events: events}
 	syncer := &sessionFakeSyncer{events: events}
 	pool, err := NewSessionPool(SessionPoolConfig{
-		Identity: identity, Schedule: schedule, Factory: factory, Syncer: syncer,
+		Identity: identity, Schedule: schedule, Catalog: catalog, Factory: factory, Syncer: syncer,
 		Verifier: verifier, Clock: clock, DeviceID: "wkbench-lifecycle", StartingCapacity: 128,
 	})
 	if err != nil {
 		t.Fatalf("NewSessionPool: %v", err)
 	}
 	return sessionTestFixture{
-		identity: identity, schedule: schedule, graph: graph, traffic: traffic, verifier: verifier,
+		identity: identity, schedule: schedule, graph: graph, traffic: traffic, catalog: catalog, verifier: verifier,
 		clock: clock, events: events, factory: factory, syncer: syncer, pool: pool,
 	}
 }
@@ -571,6 +595,8 @@ type sessionFakeClient struct {
 	acked        chan uint64
 	stop         chan struct{}
 	readExited   chan struct{}
+	closeEntered chan struct{}
+	closeRelease <-chan struct{}
 	closeOnce    sync.Once
 	isClosed     bool
 }
@@ -620,6 +646,12 @@ func (c *sessionFakeClient) AckRecv(_ context.Context, ack *frame.RecvackPacket)
 }
 
 func (c *sessionFakeClient) Close() error {
+	if c.closeEntered != nil {
+		c.closeEntered <- struct{}{}
+	}
+	if c.closeRelease != nil {
+		<-c.closeRelease
+	}
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
 		c.isClosed = true

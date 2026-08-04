@@ -146,11 +146,14 @@ the socket, join the drain, and finally release recipient sequence state. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication
 error, which keeps the same drain online and returns the stable
 `client_msg_no` to the engine-owned retry state, from a terminal remote reader
-exit, which atomically removes online ownership, records product evidence, and
-signals a scheduler replacement. Unknown unexpected read exits remain bounded
-`session_read_failed` harness evidence. The pool's UID and user-index routing
-indexes contain current online sessions only and allocate no per-lookup
-history.
+exit. Under the pool ownership lock, an unexpected exit records bounded
+evidence before publishing the session offline; socket close and recipient
+release remain outside that lock. `Engine.Step` derives replacement demand from
+the resulting online-target deficit, so no blocking exit callback is part of
+the atomic boundary. Unknown unexpected read exits remain bounded
+`session_read_failed` harness evidence. The pool's UID, user-index, and fixed
+group-member routing indexes contain current online sessions only, use
+swap-delete on logout, and allocate no per-lookup history.
 
 `TrafficGenerator` streams, rather than retains, each global per-second grant.
 It reuses `RateAllocator`, `TrafficModel`, and `GroupCatalog` to preserve the
@@ -165,10 +168,14 @@ metadata or runtime mutation interface.
 The private session scheduler derives checked rational login credit from
 `new_users_per_day` and the 80% new share, which is about 3.6 total logins per
 second in the formal profile. Bootstrap substitutes new identities until the
-online target is first reached. Steady scheduling preserves the exact 80/20
+online target is first reached; fake-clock churn coverage proves that formal
+startup reaches 10,000 online within the bounded startup window and then exits
+the all-new substitution state. Steady scheduling preserves the exact 80/20
 planned, admitted, and completed split, uses `ReturningCandidate` for real
-offline history, schedules bounded cold revisits on those old edges, and
-replaces expiry or unexpected terminal exits. `Engine.Step` is the narrow
+offline history, and uses the older-history fifth to keep paired fixed-roster
+members online across every group category without adding sessions beyond that
+80/20 mix. It schedules bounded cold revisits on old edges and replaces expiry
+or unexpected terminal exits. `Engine.Step` is the narrow
 bounded orchestration boundary; aggregate snapshots expose planned, admitted,
 completed, skipped, expired, and replacement counts without exposing scheduler
 state.
@@ -187,9 +194,12 @@ observation reconstructs only the prior five possible relationship owners,
 schedules an initial burst only while both sessions are online, and retains at
 most one lifecycle deadline for revisit or natural cooling. Rotating and long
 channels additionally occupy a fixed active array and swap-delete index capped
-by the configured person hot set; primary person grants keep those channels hot
-only until their 20-40 minute or 2-4 hour deadline, after which newly activated
-relationships reuse the released positions. Due relationship
+by the configured person hot set. A full hot set never drops a mandatory
+initial burst: its later hot ownership waits in a work-capacity-bounded pending
+array and is promoted when an active deadline releases a position. Primary
+person grants keep channels hot only until their 20-40 minute or 2-4 hour
+deadline, after which pending or newly activated relationships reuse the
+released positions. Due relationship
 activity cannot be sent by clock advancement alone: a person grant from the
 single global tick substitutes its target while retaining the grant's worker,
 logical ordinal, payload class, and primary denominator. Initial and revisit
@@ -198,12 +208,17 @@ primary, group, and canary work have their own domains, so restarts and repeated
 activation cannot reuse `client_msg_no`.
 Revisit timers that require cold-runtime evidence also have one bounded active
 channel index; only an explicit prior all-node cold approval can let the timer
-add revisit activity, and expiry physically removes that index.
+add revisit activity. An approved revisit uses either online endpoint as the
+sender; a returning-login revisit always uses the returning user. If its
+required sender, or both ordinary endpoints, are offline, the same timer is
+deferred to a later advance instead of being silently deleted.
 Person routing always requires an online sender. For the verifier's exact one
 position in every 100 logical sends, it also requires an online target; other
 person sends may keep a channel hot while its peer is offline. A sampled group
 or canary send requires a distinct second online fixed-directory member. A
-missing eligible route is harness-invalid under-delivery before SEND
+temporarily ineligible due activity is reinserted once just beyond the current
+advance boundary, with route scans bounded independently of queue size. A
+missing eligible primary route is harness-invalid under-delivery before SEND
 registration and therefore cannot become a retry or product terminal result.
 No historical user or channel owns a goroutine, timer, or retained map row.
 
@@ -282,8 +297,14 @@ The fixed formal group catalog contains 1,600 small, 300 medium, 99 large, and
 one 100,000-member very-large group. A group descriptor retains one checked
 member base plus the fixed catalog-size stride and reconstructs one UID at a
 time. Member zero is the catalog index, so every class intersects the initial
-online roster, while later members span deterministic arrival cohorts. Even the
-largest group never allocates a membership slice or history-sized map. Primary group targets use
+online roster, while later members span deterministic arrival cohorts. Older
+returning logins select nonzero fixed members in same-group pairs and rotate
+through every category. If a primary target currently has no eligible member,
+the route searches only the requested category's fixed catalog and retargets
+to a group with one online member, or two for sampled correctness, preserving
+the exact class share. The very-large canary is never retargeted and is kept
+reachable by its paired fixed-roster returners. Even the largest group never
+allocates a membership slice or history-sized map. Primary group targets use
 an exact 80/15/5 small/medium/large cycle. The very-large group is reachable
 only through a separately reported one-per-minute canary and is excluded from
 the 2,000 SEND/s denominator. When a local catalog omits a primary class, its

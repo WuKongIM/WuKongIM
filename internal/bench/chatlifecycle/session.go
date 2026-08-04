@@ -101,6 +101,7 @@ type SessionQueueSnapshot struct {
 type SessionPoolConfig struct {
 	Identity *IdentitySpace
 	Schedule ScheduleModel
+	Catalog  GroupCatalog
 	Factory  SessionClientFactory
 	Syncer   ConversationSyncer
 	Verifier *Verifier
@@ -115,9 +116,6 @@ type SessionPoolConfig struct {
 	// OnAsyncSendError transfers one non-terminal result-queue error to the
 	// engine that owns retry state. The raw transport error is never exposed.
 	OnAsyncSendError func(uid, clientMsgNo string)
-	// OnSessionExit reports an atomically removed unexpected session so the
-	// bounded scheduler can plan replacement admission.
-	OnSessionExit func(uid string)
 }
 
 // SessionLogin binds a reconstructed identity to one global login ordinal.
@@ -153,10 +151,12 @@ type SessionPoolSnapshot struct {
 }
 
 type onlineSession struct {
-	snapshot SessionSnapshot
-	client   SessionClient
-	cancel   context.CancelFunc
-	done     chan struct{}
+	snapshot      SessionSnapshot
+	client        SessionClient
+	cancel        context.CancelFunc
+	done          chan struct{}
+	groupIndex    int
+	groupPosition int
 }
 
 // SessionPool owns only currently online clients. A UID has exactly one
@@ -164,6 +164,7 @@ type onlineSession struct {
 type SessionPool struct {
 	identity         *IdentitySpace
 	schedule         ScheduleModel
+	catalog          GroupCatalog
 	factory          SessionClientFactory
 	syncer           ConversationSyncer
 	verifier         *Verifier
@@ -172,11 +173,11 @@ type SessionPool struct {
 	startingCapacity int
 	onSendack        func(string, *frame.SendackPacket, error)
 	onAsyncSendError func(string, string)
-	onSessionExit    func(string)
 
 	mu                 sync.RWMutex
 	online             map[string]*onlineSession
 	onlineByIndex      map[uint64]*onlineSession
+	onlineGroupMembers [][]*onlineSession
 	starting           map[string]struct{}
 	readErrors         uint64
 	verificationErrors uint64
@@ -184,18 +185,20 @@ type SessionPool struct {
 
 // NewSessionPool validates all lifecycle seams before any client is created.
 func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
-	if config.Identity == nil || config.Schedule.identity != config.Identity || config.Factory == nil ||
+	if config.Identity == nil || config.Schedule.identity != config.Identity || config.Catalog.identity != config.Identity || config.Factory == nil ||
 		config.Syncer == nil || config.Verifier == nil || config.Clock == nil || config.DeviceID == "" ||
 		config.StartingCapacity <= 0 || config.StartingCapacity > maxVerifierCapacity {
 		return nil, errSessionConfig
 	}
 	return &SessionPool{
-		identity: config.Identity, schedule: config.Schedule, factory: config.Factory,
+		identity: config.Identity, schedule: config.Schedule, catalog: config.Catalog, factory: config.Factory,
 		syncer: config.Syncer, verifier: config.Verifier, clock: config.Clock,
 		deviceID: config.DeviceID, startingCapacity: config.StartingCapacity, onSendack: config.OnSendack,
-		onAsyncSendError: config.OnAsyncSendError, onSessionExit: config.OnSessionExit,
-		online: make(map[string]*onlineSession), onlineByIndex: make(map[uint64]*onlineSession),
-		starting: make(map[string]struct{}),
+		onAsyncSendError:   config.OnAsyncSendError,
+		online:             make(map[string]*onlineSession),
+		onlineByIndex:      make(map[uint64]*onlineSession),
+		onlineGroupMembers: make([][]*onlineSession, config.Catalog.Count()),
+		starting:           make(map[string]struct{}),
 	}, nil
 }
 
@@ -263,11 +266,26 @@ func (p *SessionPool) login(ctx, drainParent context.Context, login SessionLogin
 		SynchronizedConversations: len(result.Conversations),
 	}
 	drainCtx, cancel := context.WithCancel(drainParent)
-	session := &onlineSession{snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{})}
+	session := &onlineSession{
+		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}),
+		groupIndex: -1, groupPosition: -1,
+	}
+	if group, _, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
+		cancel()
+		_ = client.Close()
+		return SessionSnapshot{}, groupErr
+	} else if member {
+		session.groupIndex = int(group.Index)
+	}
 	p.mu.Lock()
 	delete(p.starting, login.UID)
 	p.online[login.UID] = session
 	p.onlineByIndex[login.UserIndex] = session
+	if session.groupIndex >= 0 {
+		members := p.onlineGroupMembers[session.groupIndex]
+		session.groupPosition = len(members)
+		p.onlineGroupMembers[session.groupIndex] = append(members, session)
+	}
 	p.mu.Unlock()
 	go p.drain(drainCtx, session)
 	return snapshot, nil
@@ -409,19 +427,17 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 func (p *SessionPool) setEngineObservers(
 	sendack func(string, *frame.SendackPacket, error),
 	asyncSendError func(string, string),
-	sessionExit func(string),
 ) error {
-	if p == nil || sendack == nil || asyncSendError == nil || sessionExit == nil {
+	if p == nil || sendack == nil || asyncSendError == nil {
 		return errSessionConfig
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.online) != 0 || p.onSendack != nil || p.onAsyncSendError != nil || p.onSessionExit != nil {
+	if len(p.online) != 0 || p.onSendack != nil || p.onAsyncSendError != nil {
 		return errSessionConfig
 	}
 	p.onSendack = sendack
 	p.onAsyncSendError = asyncSendError
-	p.onSessionExit = sessionExit
 	return nil
 }
 
@@ -437,6 +453,7 @@ func (p *SessionPool) resetRuntime() error {
 	p.readErrors = 0
 	p.verificationErrors = 0
 	p.onlineByIndex = make(map[uint64]*onlineSession)
+	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
 	return nil
 }
 
@@ -483,11 +500,21 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 }
 
 func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bool) {
+	class := FailureClassHarness
+	code := FailureCodeSessionReadFailed
+	if remoteTerminal {
+		class = FailureClassReceive
+		code = FailureCodeSessionRemoteTerminal
+	}
 	p.mu.Lock()
 	if p.online[session.snapshot.UID] != session {
 		p.mu.Unlock()
 		return
 	}
+	// Evidence is bounded in-process state. Recording it while ownership is
+	// locked makes the terminal transition observable in one direction only:
+	// callers may see evidence before removal, but never offline before evidence.
+	_ = p.verifier.evidence.Record(EvidenceEvent{Class: class, Stage: EvidenceStageReceive, Code: code})
 	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
 	p.readErrors++
 	p.mu.Unlock()
@@ -495,19 +522,25 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 	session.cancel()
 	_ = session.client.Close()
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
-	class := FailureClassHarness
-	code := FailureCodeSessionReadFailed
-	if remoteTerminal {
-		class = FailureClassReceive
-		code = FailureCodeSessionRemoteTerminal
-	}
-	_ = p.verifier.evidence.Record(EvidenceEvent{Class: class, Stage: EvidenceStageReceive, Code: code})
-	if p.onSessionExit != nil {
-		p.onSessionExit(session.snapshot.UID)
-	}
 }
 
 func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
+	session := p.online[uid]
+	if session != nil && session.groupIndex >= 0 {
+		members := p.onlineGroupMembers[session.groupIndex]
+		position := session.groupPosition
+		if position >= 0 && position < len(members) && members[position] == session {
+			last := len(members) - 1
+			if position != last {
+				moved := members[last]
+				members[position] = moved
+				moved.groupPosition = position
+			}
+			members[last] = nil
+			p.onlineGroupMembers[session.groupIndex] = members[:last]
+		}
+		session.groupPosition = -1
+	}
 	delete(p.online, uid)
 	delete(p.onlineByIndex, userIndex)
 }
@@ -515,36 +548,47 @@ func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
 func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireRecipient bool) (SessionLogin, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	if group.MemberCount <= 0 || len(p.onlineByIndex) == 0 {
+	if group.Index >= uint64(len(p.onlineGroupMembers)) {
 		return SessionLogin{}, false
 	}
-	start := int(ordinal % uint64(group.MemberCount))
-	var sender SessionLogin
-	for offset := 0; offset < group.MemberCount; offset++ {
-		member := start + offset
-		if member >= group.MemberCount {
-			member -= group.MemberCount
-		}
-		index, err := group.MemberIndex(member)
-		if err != nil {
-			return SessionLogin{}, false
-		}
-		session := p.onlineByIndex[index]
-		if session != nil && session.snapshot.TrafficReady {
-			candidate := SessionLogin{UID: session.snapshot.UID, UserIndex: index, LoginOrdinal: session.snapshot.LoginOrdinal}
-			if sender.UID == "" {
-				sender = candidate
-				if !requireRecipient {
-					return sender, true
-				}
-				continue
-			}
-			if candidate.UID != sender.UID {
-				return sender, true
-			}
-		}
+	members := p.onlineGroupMembers[group.Index]
+	needed := 1
+	if requireRecipient {
+		needed = 2
 	}
-	return SessionLogin{}, false
+	if len(members) < needed {
+		return SessionLogin{}, false
+	}
+	session := members[ordinal%uint64(len(members))]
+	return SessionLogin{
+		UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
+	}, true
+}
+
+func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool) (SessionLogin, uint64, bool) {
+	start, count, ok := p.catalog.categoryRange(category)
+	if !ok {
+		return SessionLogin{}, 0, false
+	}
+	needed := 1
+	if requireRecipient {
+		needed = 2
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	first := ordinal % uint64(count)
+	for offset := 0; offset < count; offset++ {
+		groupIndex := start + (first+uint64(offset))%uint64(count)
+		members := p.onlineGroupMembers[groupIndex]
+		if len(members) < needed {
+			continue
+		}
+		session := members[ordinal%uint64(len(members))]
+		return SessionLogin{
+			UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
+		}, groupIndex, true
+	}
+	return SessionLogin{}, 0, false
 }
 
 func (p *SessionPool) tokenForUID(uid string) string {

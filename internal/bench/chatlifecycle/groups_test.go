@@ -111,6 +111,37 @@ func TestGroupCatalogEveryClassHasFixedMemberInsideInitialOnlineRoster(t *testin
 	}
 }
 
+func TestGroupCatalogSelectsPairedFixedMembersFromAgedHistoricalRange(t *testing.T) {
+	catalog := newTestGroupCatalog(t, FormalConfig())
+	const (
+		minimum = uint64(5)
+		maximum = uint64(499_994)
+	)
+	for _, category := range []GroupCategory{GroupSmall, GroupMedium, GroupLarge, GroupVeryLarge} {
+		first, ok, err := catalog.ReturningMember(category, 0, minimum, maximum)
+		if err != nil || !ok {
+			t.Fatalf("ReturningMember(%d, first) = %+v, %v, %v", category, first, ok, err)
+		}
+		second, ok, err := catalog.ReturningMember(category, 1, minimum, maximum)
+		if err != nil || !ok {
+			t.Fatalf("ReturningMember(%d, second) = %+v, %v, %v", category, second, ok, err)
+		}
+		if first.Group.Index != second.Group.Index || first.UserIndex == second.UserIndex || first.MemberOrdinal == 0 || second.MemberOrdinal == 0 {
+			t.Fatalf("category %d pair = %+v / %+v, want two non-zero members of one fixed group", category, first, second)
+		}
+		for _, member := range []GroupReturningMember{first, second} {
+			if member.UserIndex < minimum || member.UserIndex > maximum || !member.Group.ContainsIndex(member.UserIndex) {
+				t.Fatalf("category %d aged member = %+v, range=%d..%d", category, member, minimum, maximum)
+			}
+		}
+		third, ok, err := catalog.ReturningMember(category, 2, minimum, maximum)
+		wantRotatedGroup := category != GroupVeryLarge
+		if err != nil || !ok || (third.Group.Index != first.Group.Index) != wantRotatedGroup || third.UserIndex == first.UserIndex || third.UserIndex == second.UserIndex {
+			t.Fatalf("category %d did not rotate after a complete pair: first=%+v third=%+v ok=%v err=%v", category, first, third, ok, err)
+		}
+	}
+}
+
 func TestGroupCatalogLocalProfileHandlesMissingLargeClass(t *testing.T) {
 	cfg := LocalConfig()
 	catalog := newTestGroupCatalog(t, cfg)

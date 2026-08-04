@@ -15,6 +15,11 @@ import (
 
 const relationshipLogicalBase = uint64(1) << 62
 
+const (
+	maxActivityRouteScans = 64
+	activityRouteDeferral = time.Nanosecond
+)
+
 var (
 	errEngineConfig     = errors.New("chat lifecycle engine: configuration is invalid")
 	errEngineRunning    = errors.New("chat lifecycle engine: already running")
@@ -67,6 +72,7 @@ type EngineSnapshot struct {
 	RelationshipLookback    int
 	ActiveLifecycleTimers   int
 	ActiveHotChannels       int
+	PendingHotChannels      int
 	ColdEvidencePending     int
 	LoginPlannedNew         uint64
 	LoginPlannedReturning   uint64
@@ -108,14 +114,16 @@ type EngineStepSnapshot struct {
 }
 
 type sessionScheduler struct {
-	workload        WorkloadConfig
-	lastStep        time.Time
-	credit          uint64
-	creditRemainder uint64
-	replacements    uint64
-	loginOrdinal    uint64
-	nextNewIndex    uint64
-	bootstrapping   bool
+	workload                      WorkloadConfig
+	lastStep                      time.Time
+	credit                        uint64
+	creditRemainder               uint64
+	replacements                  uint64
+	loginOrdinal                  uint64
+	nextNewIndex                  uint64
+	bootstrapping                 bool
+	groupReturningOrdinal         uint64
+	groupReturningCategoryOrdinal [4]uint64
 }
 
 type sessionSchedulerMetrics struct {
@@ -149,6 +157,8 @@ func (s *sessionScheduler) reset(now time.Time) {
 	s.replacements = 0
 	s.loginOrdinal = 0
 	s.bootstrapping = true
+	s.groupReturningOrdinal = 0
+	s.groupReturningCategoryOrdinal = [4]uint64{}
 }
 
 func (s *sessionScheduler) addReplacements(count uint64) {
@@ -208,6 +218,7 @@ func (s *sessionScheduler) planLogin(
 	sessions *SessionPool,
 	graph RelationshipGraph,
 	schedule ScheduleModel,
+	catalog GroupCatalog,
 	loginOrdinal uint64,
 	kind LoginIdentity,
 ) (SessionLogin, LoginIdentity, ReturningCandidate, bool, error) {
@@ -224,7 +235,30 @@ func (s *sessionScheduler) planLogin(
 		if err != nil {
 			return SessionLogin{}, kind, ReturningCandidate{}, false, err
 		}
-		if !candidate.Available || sessions.isOwned(candidate.UserUID) {
+		if !candidate.Available {
+			continue
+		}
+		if candidate.ActualBucket == HistoryOlder {
+			_, older := returningCandidateRanges(s.nextNewIndex, uint64(schedule.newUsersPerDay))
+			member, memberOK, memberErr := s.nextGroupReturningMember(catalog, older.min, older.max)
+			if memberErr != nil {
+				return SessionLogin{}, kind, ReturningCandidate{}, false, memberErr
+			}
+			if memberOK {
+				rosterCandidate, rosterErr := graph.returningCandidateAt(
+					s.nextNewIndex, candidateOrdinal, uint64(schedule.newUsersPerDay), member.UserIndex,
+				)
+				if rosterErr != nil {
+					return SessionLogin{}, kind, ReturningCandidate{}, false, rosterErr
+				}
+				if rosterCandidate.Available && rosterCandidate.ActualBucket == HistoryOlder && !sessions.isOwned(rosterCandidate.UserUID) {
+					return SessionLogin{
+						UID: rosterCandidate.UserUID, UserIndex: rosterCandidate.UserIndex, LoginOrdinal: loginOrdinal,
+					}, LoginReturning, rosterCandidate, true, nil
+				}
+			}
+		}
+		if sessions.isOwned(candidate.UserUID) {
 			continue
 		}
 		return SessionLogin{
@@ -232,6 +266,36 @@ func (s *sessionScheduler) planLogin(
 		}, LoginReturning, candidate, true, nil
 	}
 	return SessionLogin{}, kind, ReturningCandidate{}, false, nil
+}
+
+func (s *sessionScheduler) nextGroupReturningMember(catalog GroupCatalog, minimum, maximum uint64) (GroupReturningMember, bool, error) {
+	if s.groupReturningOrdinal == math.MaxUint64 {
+		return GroupReturningMember{}, false, errEngineConfig
+	}
+	position := s.groupReturningOrdinal % 100
+	s.groupReturningOrdinal++
+	categoryIndex := 3
+	switch {
+	case position < 80:
+		categoryIndex = 0
+	case position < 95:
+		categoryIndex = 1
+	case position < 99:
+		categoryIndex = 2
+	}
+	for probe := 0; probe < len(catalog.counts); probe++ {
+		candidate := (categoryIndex + probe) % len(catalog.counts)
+		if catalog.counts[candidate] == 0 {
+			continue
+		}
+		ordinal := s.groupReturningCategoryOrdinal[candidate]
+		if ordinal == math.MaxUint64 {
+			return GroupReturningMember{}, false, errEngineConfig
+		}
+		s.groupReturningCategoryOrdinal[candidate]++
+		return catalog.ReturningMember(GroupCategory(candidate+1), ordinal, minimum, maximum)
+	}
+	return GroupReturningMember{}, false, errEngineConfig
 }
 
 type engineWorkKind uint8
@@ -253,6 +317,7 @@ type engineWork struct {
 	schedule            ChannelSchedule
 	relationshipOrdinal uint64
 	coldConfirmed       bool
+	requiredSender      string
 }
 
 type engineWorkHeap []*engineWork
@@ -295,6 +360,11 @@ type engineActiveChannel struct {
 	direction PersonDirection
 }
 
+type enginePendingChannel struct {
+	active    engineActiveChannel
+	lifecycle *engineWork
+}
+
 type engineCommand struct {
 	run func()
 }
@@ -303,7 +373,6 @@ type engineCompletion struct {
 	ack             *frame.SendackPacket
 	verificationErr error
 	clientMsgNo     string
-	sessionExit     bool
 }
 
 type advanceResult struct {
@@ -336,23 +405,22 @@ type Engine struct {
 	maxWork          int
 	attemptTimeout   time.Duration
 
-	lifecycleMu        sync.Mutex
-	stepMu             sync.Mutex
-	running            bool
-	accepting          bool
-	stopping           bool
-	generation         uint64
-	commands           chan engineCommand
-	completions        chan engineCompletion
-	stop               chan struct{}
-	done               chan struct{}
-	generationCtx      context.Context
-	generationCancel   context.CancelFunc
-	cached             EngineSnapshot
-	sessionOps         sync.WaitGroup
-	replacementSignals atomic.Int64
-	scheduler          sessionScheduler
-	schedulerMetrics   sessionSchedulerMetrics
+	lifecycleMu      sync.Mutex
+	stepMu           sync.Mutex
+	running          bool
+	accepting        bool
+	stopping         bool
+	generation       uint64
+	commands         chan engineCommand
+	completions      chan engineCompletion
+	stop             chan struct{}
+	done             chan struct{}
+	generationCtx    context.Context
+	generationCancel context.CancelFunc
+	cached           EngineSnapshot
+	sessionOps       sync.WaitGroup
+	scheduler        sessionScheduler
+	schedulerMetrics sessionSchedulerMetrics
 
 	activeLoops       atomic.Int64
 	commandSaturation atomic.Uint64
@@ -370,11 +438,12 @@ type Engine struct {
 	lifecycleByChannel    map[string]*engineWork
 	activeChannels        []engineActiveChannel
 	activePosition        map[string]int
+	pendingChannels       []enginePendingChannel
+	pendingPosition       map[string]int
 	activeCursor          uint64
 	retryAttempts         uint64
 	finalFailures         uint64
 	harnessInvalid        uint64
-	domainOrdinals        [6]uint64
 	now                   time.Time
 }
 
@@ -391,7 +460,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	identity := config.Schedule.identity
 	if config.Graph.identity != identity || config.Traffic.identity != identity || config.Retry.identity != identity ||
-		config.Generator.identity != identity || config.Sessions.identity != identity {
+		config.Generator.identity != identity || config.Sessions.identity != identity || config.Sessions.catalog != config.Generator.catalog {
 		return nil, errEngineConfig
 	}
 	engine := &Engine{
@@ -403,7 +472,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
 		scheduler: sessionScheduler{workload: config.Generator.workload, bootstrapping: true},
 	}
-	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError, engine.sessionExit); err != nil {
+	if err := config.Sessions.setEngineObservers(engine.sessionSendack, engine.sessionAsyncSendError); err != nil {
 		return nil, err
 	}
 	engine.cached = engine.emptySnapshot(false)
@@ -451,6 +520,8 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.lifecycleByChannel = make(map[string]*engineWork)
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
+	e.pendingChannels = nil
+	e.pendingPosition = make(map[string]int)
 	e.activeCursor = 0
 	e.workPeak = 0
 	e.queuedSends = 0
@@ -460,12 +531,10 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.retryAttempts = 0
 	e.finalFailures = 0
 	e.harnessInvalid = 0
-	e.domainOrdinals = [6]uint64{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
 	e.scheduler.reset(e.now)
 	e.schedulerMetrics.reset()
-	e.replacementSignals.Store(0)
 	e.commands = make(chan engineCommand, e.commandCapacity)
 	e.completions = make(chan engineCompletion, e.commandCapacity)
 	e.stop = make(chan struct{})
@@ -724,6 +793,7 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 					RequiresColdRuntimeEvidence: true, NaturalCooling: true,
 				},
 				relationshipOrdinal: loginOrdinal*2 + uint64(index),
+				requiredSender:      candidate.UserUID,
 			}
 			if err := e.addWork(work); err != nil {
 				response <- err
@@ -770,7 +840,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	expired := e.sessions.Expire(now)
 	e.schedulerMetrics.expired.Add(uint64(expired))
 	e.sessionOps.Done()
-	replacementCount := uint64(expired) + uint64(e.replacementSignals.Swap(0))
+	replacementCount := uint64(expired)
 	poolBeforeLogins := e.sessions.Snapshot()
 	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.scheduler.workload.OnlineUsers {
 		shortage := uint64(e.scheduler.workload.OnlineUsers - poolBeforeLogins.Online - poolBeforeLogins.Starting)
@@ -803,7 +873,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 			result.PlannedReturning++
 			e.schedulerMetrics.plannedReturning.Add(1)
 		}
-		login, actualKind, candidate, available, planErr := e.scheduler.planLogin(e.sessions, e.graph, e.schedule, ordinal, identityKind)
+		login, actualKind, candidate, available, planErr := e.scheduler.planLogin(e.sessions, e.graph, e.schedule, e.generator.catalog, ordinal, identityKind)
 		if planErr != nil {
 			return result, planErr
 		}
@@ -929,6 +999,8 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		e.lifecycleByChannel = nil
 		e.activeChannels = nil
 		e.activePosition = nil
+		e.pendingChannels = nil
+		e.pendingPosition = nil
 		e.activeLoops.Add(-1)
 		snapshot := e.buildSnapshot(false)
 		e.lifecycleMu.Lock()
@@ -981,11 +1053,6 @@ func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verification
 
 func (e *Engine) sessionAsyncSendError(_ string, clientMsgNo string) {
 	e.enqueueSessionCompletion(engineCompletion{clientMsgNo: clientMsgNo})
-}
-
-func (e *Engine) sessionExit(_ string) {
-	e.replacementSignals.Add(1)
-	e.enqueueSessionCompletion(engineCompletion{sessionExit: true})
 }
 
 func (e *Engine) enqueueSessionCompletion(completion engineCompletion) {
@@ -1097,8 +1164,6 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 		if inflight != nil {
 			_ = e.scheduleRetry(inflight, e.clock.Now())
 		}
-	case completion.sessionExit:
-		// The private scheduler consumes this bounded replacement signal in Step.
 	}
 }
 
@@ -1114,22 +1179,64 @@ func (e *Engine) processWork(work *engineWork, now time.Time) error {
 		inflight.timeout = nil
 		return e.scheduleRetry(inflight, now)
 	case engineWorkLifecycle:
-		delete(e.lifecycleByChannel, work.edge.PersonChannelID)
-		if work.schedule.Class == LifecycleRotating || work.schedule.Class == LifecycleLong {
-			e.removeActiveChannel(work.edge.PersonChannelID)
-		}
-		if e.activeLifecycleTimers > 0 {
-			e.activeLifecycleTimers--
-		}
-		if work.schedule.Class != LifecycleRevisit || !e.sessions.CanActivate(work.edge) {
+		if work.schedule.Class != LifecycleRevisit {
+			e.completeLifecycleTimer(work, now)
 			return nil
 		}
 		if work.schedule.RequiresColdRuntimeEvidence && !work.coldConfirmed {
+			e.completeLifecycleTimer(work, now)
 			return nil
 		}
-		return e.scheduleRelationshipMessages(work.edge, work.relationshipOrdinal, 8, work.schedule.RevisitMessages, work.due, work.schedule.InitialBurst.Window)
+		sender := work.requiredSender
+		if sender != "" {
+			if !e.sessions.IsOnline(sender) {
+				return e.deferLifecycleWork(work, now)
+			}
+		} else {
+			ownerOnline := e.sessions.IsOnline(work.edge.OwnerUID)
+			peerOnline := e.sessions.IsOnline(work.edge.PeerUID)
+			switch {
+			case !ownerOnline && !peerOnline:
+				return e.deferLifecycleWork(work, now)
+			case ownerOnline && !peerOnline:
+				sender = work.edge.OwnerUID
+			case !ownerOnline && peerOnline:
+				sender = work.edge.PeerUID
+			}
+		}
+		e.completeLifecycleTimer(work, now)
+		return e.scheduleRelationshipMessagesFrom(
+			work.edge, work.relationshipOrdinal, 8, work.schedule.RevisitMessages,
+			work.due, work.schedule.InitialBurst.Window, sender,
+		)
 	default:
 		return errEngineConfig
+	}
+}
+
+func (e *Engine) deferLifecycleWork(work *engineWork, now time.Time) error {
+	deferred := now.Add(activityRouteDeferral)
+	if !deferred.After(now) {
+		return errEngineConfig
+	}
+	work.due = deferred
+	return e.addWork(work)
+}
+
+func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
+	if e.lifecycleByChannel[work.edge.PersonChannelID] == work {
+		delete(e.lifecycleByChannel, work.edge.PersonChannelID)
+	}
+	removedActive := false
+	if work.schedule.Class == LifecycleRotating || work.schedule.Class == LifecycleLong {
+		removedActive = e.removeActiveChannel(work.edge.PersonChannelID)
+		e.removePendingChannel(work.edge.PersonChannelID)
+	}
+	if e.activeLifecycleTimers > 0 {
+		e.activeLifecycleTimers--
+	}
+	if removedActive {
+		e.promotePendingChannels(now)
 	}
 }
 
@@ -1289,6 +1396,9 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		if _, active := e.activePosition[edge.PersonChannelID]; active {
 			return false, nil
 		}
+		if _, pending := e.pendingPosition[edge.PersonChannelID]; pending {
+			return false, nil
+		}
 	}
 	needed := schedule.InitialBurst.MessageCount
 	if schedule.Class != LifecycleOneShot {
@@ -1297,14 +1407,8 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 	if needed > e.workCapacity-e.futureCount() {
 		return false, e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 	}
-	if (schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong) &&
-		len(e.activeChannels) >= e.generator.workload.HotSet.PersonChannels {
-		return false, nil
-	}
-	if err := e.scheduleRelationshipMessages(edge, relationshipOrdinal, 0, schedule.InitialBurst.MessageCount, e.now, schedule.InitialBurst.Window); err != nil {
-		return false, err
-	}
 	var lifecycleDue time.Time
+	var active engineActiveChannel
 	switch schedule.Class {
 	case LifecycleRevisit:
 		lifecycleDue = e.now.Add(schedule.RevisitAfter)
@@ -1314,9 +1418,10 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		if directionErr != nil {
 			return false, directionErr
 		}
-		e.addActiveChannel(engineActiveChannel{
-			edge: edge, direction: direction,
-		})
+		active = engineActiveChannel{edge: edge, direction: direction}
+	}
+	if err := e.scheduleRelationshipMessages(edge, relationshipOrdinal, 0, schedule.InitialBurst.MessageCount, e.now, schedule.InitialBurst.Window); err != nil {
+		return false, err
 	}
 	if !lifecycleDue.IsZero() {
 		work := &engineWork{
@@ -1330,11 +1435,22 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 			e.lifecycleByChannel[edge.PersonChannelID] = work
 		}
 		e.activeLifecycleTimers++
+		if schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong {
+			if len(e.activeChannels) < e.generator.workload.HotSet.PersonChannels {
+				e.addActiveChannel(active)
+			} else if !e.addPendingChannel(active, work) {
+				return true, e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
+			}
+		}
 	}
 	return true, nil
 }
 
 func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration) error {
+	return e.scheduleRelationshipMessagesFrom(edge, relationshipOrdinal, logicalOffset, count, start, window, "")
+}
+
+func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration, requiredSender string) error {
 	direction, err := e.traffic.DirectionFor(relationshipOrdinal)
 	if err != nil {
 		return err
@@ -1344,9 +1460,14 @@ func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshi
 		if count > 1 {
 			offset = time.Duration((uint64(window) * uint64(messageIndex)) / uint64(count-1))
 		}
-		sender, err := SenderFor(direction, uint64(messageIndex), edge.OwnerUID, edge.PeerUID)
-		if err != nil {
-			return err
+		sender := requiredSender
+		if sender == "" {
+			sender, err = SenderFor(direction, uint64(messageIndex), edge.OwnerUID, edge.PeerUID)
+			if err != nil {
+				return err
+			}
+		} else if sender != edge.OwnerUID && sender != edge.PeerUID {
+			return errEngineConfig
 		}
 		target := edge.OwnerUID
 		if sender == edge.OwnerUID {
@@ -1387,14 +1508,13 @@ func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshi
 
 func (e *Engine) retargetPersonGrant(grant, activity TrafficIntent) (TrafficIntent, error) {
 	logicalOrdinal := grant.Logical.LogicalSend
-	if activity.Domain == LogicalDomainLifecycle || activity.Domain == LogicalDomainRevisit {
-		ordinal := e.domainOrdinals[activity.Domain]
-		if ordinal > maxLogicalOrdinal {
-			return TrafficIntent{}, errEngineConfig
-		}
-		e.domainOrdinals[activity.Domain]++
+	domain := activity.Domain
+	if domain == 0 {
+		domain = LogicalDomainPrimary
+	}
+	if domain != LogicalDomainPrimary {
 		var err error
-		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, activity.Domain, ordinal)
+		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, domain, grant.Logical.LogicalSend&maxLogicalOrdinal)
 		if err != nil {
 			return TrafficIntent{}, err
 		}
@@ -1413,21 +1533,15 @@ func (e *Engine) retargetPersonGrant(grant, activity TrafficIntent) (TrafficInte
 	activity.Logical = logical
 	activity.Packet = packetForTrafficIntent(logical, payload)
 	activity.PayloadBytes = grant.PayloadBytes
-	if activity.Domain == 0 {
-		activity.Domain = LogicalDomainPrimary
-	}
+	activity.Domain = domain
 	return activity, nil
 }
 
 func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain) (bool, error) {
 	logicalOrdinal := grant.Logical.LogicalSend
-	if domain == LogicalDomainLifecycle || domain == LogicalDomainRevisit {
-		ordinal := e.domainOrdinals[domain]
-		if ordinal > maxLogicalOrdinal {
-			return false, errEngineConfig
-		}
+	if domain != LogicalDomainPrimary {
 		var err error
-		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, domain, ordinal)
+		logicalOrdinal, err = scopedLogicalOrdinal(e.generation, domain, grant.Logical.LogicalSend&maxLogicalOrdinal)
 		if err != nil {
 			return false, err
 		}
@@ -1436,9 +1550,12 @@ func (e *Engine) grantShouldCorrelate(grant TrafficIntent, domain LogicalDomain)
 }
 
 func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIntent, error) {
-	for len(e.activity) > 0 && !e.activity[0].due.After(now) {
+	for scans := 0; scans < maxActivityRouteScans && len(e.activity) > 0 && !e.activity[0].due.After(now); scans++ {
 		activity := heap.Pop(&e.activity).(*engineWork)
 		if !e.sessions.IsOnline(activity.intent.Logical.Sender) {
+			if err := e.deferActivity(activity, now); err != nil {
+				return TrafficIntent{}, err
+			}
 			continue
 		}
 		correlate, err := e.grantShouldCorrelate(grant, activity.intent.Domain)
@@ -1446,6 +1563,9 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 			return TrafficIntent{}, err
 		}
 		if correlate && !e.sessions.IsOnline(activity.intent.Logical.Target) {
+			if err := e.deferActivity(activity, now); err != nil {
+				return TrafficIntent{}, err
+			}
 			continue
 		}
 		return e.retargetPersonGrant(grant, activity.intent)
@@ -1481,6 +1601,15 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
 }
 
+func (e *Engine) deferActivity(activity *engineWork, now time.Time) error {
+	deferred := now.Add(activityRouteDeferral)
+	if !deferred.After(now) {
+		return errEngineConfig
+	}
+	activity.due = deferred
+	return e.addActivity(activity)
+}
+
 func (e *Engine) addActiveChannel(channel engineActiveChannel) {
 	if _, exists := e.activePosition[channel.edge.PersonChannelID]; exists {
 		return
@@ -1489,10 +1618,10 @@ func (e *Engine) addActiveChannel(channel engineActiveChannel) {
 	e.activeChannels = append(e.activeChannels, channel)
 }
 
-func (e *Engine) removeActiveChannel(channelID string) {
+func (e *Engine) removeActiveChannel(channelID string) bool {
 	position, ok := e.activePosition[channelID]
 	if !ok {
-		return
+		return false
 	}
 	last := len(e.activeChannels) - 1
 	if position != last {
@@ -1507,6 +1636,48 @@ func (e *Engine) removeActiveChannel(channelID string) {
 		e.activeCursor = 0
 	} else {
 		e.activeCursor %= uint64(len(e.activeChannels))
+	}
+	return true
+}
+
+func (e *Engine) addPendingChannel(active engineActiveChannel, lifecycle *engineWork) bool {
+	channelID := active.edge.PersonChannelID
+	if channelID == "" || lifecycle == nil || len(e.pendingChannels) >= e.workCapacity {
+		return false
+	}
+	if _, exists := e.pendingPosition[channelID]; exists {
+		return false
+	}
+	e.pendingPosition[channelID] = len(e.pendingChannels)
+	e.pendingChannels = append(e.pendingChannels, enginePendingChannel{active: active, lifecycle: lifecycle})
+	return true
+}
+
+func (e *Engine) removePendingChannel(channelID string) bool {
+	position, ok := e.pendingPosition[channelID]
+	if !ok {
+		return false
+	}
+	last := len(e.pendingChannels) - 1
+	if position != last {
+		moved := e.pendingChannels[last]
+		e.pendingChannels[position] = moved
+		e.pendingPosition[moved.active.edge.PersonChannelID] = position
+	}
+	e.pendingChannels[last] = enginePendingChannel{}
+	e.pendingChannels = e.pendingChannels[:last]
+	delete(e.pendingPosition, channelID)
+	return true
+}
+
+func (e *Engine) promotePendingChannels(now time.Time) {
+	for len(e.activeChannels) < e.generator.workload.HotSet.PersonChannels && len(e.pendingChannels) > 0 {
+		pending := e.pendingChannels[len(e.pendingChannels)-1]
+		e.removePendingChannel(pending.active.edge.PersonChannelID)
+		if pending.lifecycle == nil || !pending.lifecycle.due.After(now) {
+			continue
+		}
+		e.addActiveChannel(pending.active)
 	}
 }
 
@@ -1524,6 +1695,16 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 		return TrafficIntent{}, err
 	}
 	sender, ok := e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
+	if !ok && group.Category != GroupVeryLarge {
+		var routedIndex uint64
+		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(group.Category, grant.Logical.LogicalSend, correlate)
+		if ok {
+			group, err = e.generator.catalog.Group(routedIndex)
+			if err != nil {
+				return TrafficIntent{}, err
+			}
+		}
+	}
 	if !ok {
 		return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(group.MemberCount))
 	}
@@ -1598,8 +1779,8 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,
 		TransportInflight: sessions.TransportInflight, RelationshipLookback: MaxForwardRelationships,
 		ActiveLifecycleTimers: e.activeLifecycleTimers, ColdEvidencePending: len(e.lifecycleByChannel),
-		ActiveHotChannels: len(e.activeChannels),
-		LoginPlannedNew:   e.schedulerMetrics.plannedNew.Load(), LoginPlannedReturning: e.schedulerMetrics.plannedReturning.Load(),
+		ActiveHotChannels: len(e.activeChannels), PendingHotChannels: len(e.pendingChannels),
+		LoginPlannedNew: e.schedulerMetrics.plannedNew.Load(), LoginPlannedReturning: e.schedulerMetrics.plannedReturning.Load(),
 		LoginAdmittedNew: e.schedulerMetrics.admittedNew.Load(), LoginAdmittedReturning: e.schedulerMetrics.admittedReturning.Load(),
 		LoginCompletedNew: e.schedulerMetrics.completedNew.Load(), LoginCompletedReturning: e.schedulerMetrics.completedReturning.Load(),
 		LoginSkipped: e.schedulerMetrics.skipped.Load(), LoginReplacements: e.schedulerMetrics.replacements.Load(),

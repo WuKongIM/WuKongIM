@@ -1,8 +1,10 @@
 package chatlifecycle
 
 import (
+	"container/heap"
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"sync"
 	"testing"
@@ -347,6 +349,123 @@ func TestEngineSampledGroupRouteRequiresDistinctOnlineRecipient(t *testing.T) {
 	}
 }
 
+func TestEngineDueActivityIsDeferredInsteadOfDroppedWhenRouteTemporarilyIneligible(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		loginSender   bool
+		loginTarget   bool
+		requireSample bool
+	}{
+		{name: "sampled_target_offline", loginSender: true, requireSample: true},
+		{name: "sender_offline", loginTarget: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer fixture.engine.Stop()
+			senderIndex, targetIndex := uint64(500), uint64(501)
+			sender, target := fixture.identity.UID(senderIndex), fixture.identity.UID(targetIndex)
+			login := func(index uint64, uid string) {
+				t.Helper()
+				if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: index, LoginOrdinal: index}); err != nil {
+					t.Fatalf("Login(%d): %v", index, err)
+				}
+			}
+			if test.loginSender {
+				login(senderIndex, sender)
+			}
+			if test.loginTarget {
+				login(targetIndex, target)
+			}
+			now := fixture.clock.Now()
+			response := make(chan error, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				response <- fixture.engine.addActivity(&engineWork{due: now, kind: engineWorkSend, intent: TrafficIntent{
+					Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson, Domain: LogicalDomainLifecycle,
+				}})
+			}}); err != nil {
+				t.Fatalf("enqueue activity: %v", err)
+			}
+			if err := <-response; err != nil {
+				t.Fatalf("addActivity: %v", err)
+			}
+			rawOrdinal := uint64(0)
+			if test.requireSample {
+				for ; rawOrdinal < 100; rawOrdinal++ {
+					scoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, rawOrdinal)
+					if err != nil {
+						t.Fatalf("scopedLogicalOrdinal: %v", err)
+					}
+					sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+					if err != nil {
+						t.Fatalf("ShouldCorrelate: %v", err)
+					}
+					if sampled {
+						break
+					}
+				}
+				if rawOrdinal == 100 {
+					t.Fatal("no sampled lifecycle grant in exact cycle")
+				}
+			}
+			route := func(raw uint64, at time.Time) (TrafficIntent, error) {
+				t.Helper()
+				primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+				if err != nil {
+					return TrafficIntent{}, err
+				}
+				grant := TrafficIntent{Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson}, Kind: TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary}
+				type routeResult struct {
+					intent TrafficIntent
+					err    error
+				}
+				routed := make(chan routeResult, 1)
+				if err := fixture.engine.enqueue(engineCommand{run: func() {
+					intent, routeErr := fixture.engine.routePersonGrant(grant, at)
+					routed <- routeResult{intent: intent, err: routeErr}
+				}}); err != nil {
+					return TrafficIntent{}, err
+				}
+				result := <-routed
+				return result.intent, result.err
+			}
+			if _, err := route(rawOrdinal, now); err == nil {
+				t.Fatal("temporarily ineligible activity unexpectedly routed")
+			} else {
+				assertRuntimeFailure(t, err, RuntimeFailureUnderDelivery)
+			}
+			if snapshot, _ := fixture.engine.Snapshot(); snapshot.ActivityCurrent != 1 {
+				t.Fatalf("temporarily ineligible activity was dropped: %+v", snapshot)
+			}
+			if !test.loginSender {
+				login(senderIndex, sender)
+			}
+			if test.requireSample {
+				nextScoped, err := scopedLogicalOrdinal(1, LogicalDomainLifecycle, rawOrdinal+1)
+				if err != nil {
+					t.Fatalf("next scoped ordinal: %v", err)
+				}
+				if sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: nextScoped, WorkerID: 0}); err != nil || sampled {
+					t.Fatalf("next lifecycle grant sampled=%v err=%v, want non-sampled", sampled, err)
+				}
+			}
+			later := now.Add(time.Nanosecond)
+			routed, err := route(rawOrdinal+1, later)
+			if err != nil {
+				t.Fatalf("deferred eligible route: %v", err)
+			}
+			if routed.Logical.Sender != sender || routed.Logical.Target != target {
+				t.Fatalf("deferred route = %+v, want %q -> %q", routed.Logical, sender, target)
+			}
+			if snapshot, _ := fixture.engine.Snapshot(); snapshot.ActivityCurrent != 0 {
+				t.Fatalf("successfully routed deferred activity retained: %+v", snapshot)
+			}
+		})
+	}
+}
+
 func TestEngineRevisitRequiresExplicitColdRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	for _, confirm := range []bool{false, true} {
@@ -398,6 +517,98 @@ func TestEngineRevisitRequiresExplicitColdRuntimeEvidence(t *testing.T) {
 			}
 			if after.ActivityCurrent != wantActivity || after.ColdEvidencePending != 0 {
 				t.Fatalf("revisit evidence transition = before %+v after %+v want activity %d", before, after, wantActivity)
+			}
+		})
+	}
+}
+
+func TestEngineApprovedRevisitUsesEitherOnlineEndpointAndRetainsFullyOfflineTimer(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		logoutOwner bool
+		logoutPeer  bool
+	}{
+		{name: "owner_only_online", logoutPeer: true},
+		{name: "peer_only_online", logoutOwner: true},
+		{name: "both_offline", logoutOwner: true, logoutPeer: true},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 256, MaxWorkPerAdvance: 256})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer fixture.engine.Stop()
+			edge := fixture.graph.Incoming(18).Items[0]
+			relationshipOrdinal, schedule := findLifecycleSchedule(t, fixture.schedule, edge, LifecycleRevisit)
+			loginOrdinal := findLoginLongerThan(t, fixture.schedule, schedule.RevisitAfter+time.Minute)
+			for _, endpoint := range []struct {
+				uid   string
+				index uint64
+			}{{edge.OwnerUID, edge.OwnerIndex}, {edge.PeerUID, edge.PeerIndex}} {
+				if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+					UID: endpoint.uid, UserIndex: endpoint.index, LoginOrdinal: loginOrdinal,
+				}); err != nil {
+					t.Fatalf("Login(%q): %v", endpoint.uid, err)
+				}
+			}
+			if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
+				t.Fatalf("ActivateRelationship = %v, %v", activated, err)
+			}
+			if approved, err := fixture.engine.ApproveColdRevisit(edge.PersonChannelID); err != nil || !approved {
+				t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
+			}
+			before, err := fixture.engine.Snapshot()
+			if err != nil {
+				t.Fatalf("Snapshot before: %v", err)
+			}
+			if test.logoutOwner {
+				if err := fixture.engine.Logout(edge.OwnerUID); err != nil {
+					t.Fatalf("owner Logout: %v", err)
+				}
+			}
+			if test.logoutPeer {
+				if err := fixture.engine.Logout(edge.PeerUID); err != nil {
+					t.Fatalf("peer Logout: %v", err)
+				}
+			}
+
+			due := fixture.clock.Now().Add(schedule.RevisitAfter)
+			fixture.clock.Set(due)
+			if _, err := fixture.engine.Advance(due); err != nil {
+				t.Fatalf("Advance revisit: %v", err)
+			}
+			after, err := fixture.engine.Snapshot()
+			if err != nil {
+				t.Fatalf("Snapshot after: %v", err)
+			}
+			if test.logoutOwner && test.logoutPeer {
+				if after.ActivityCurrent != before.ActivityCurrent || after.ColdEvidencePending != 1 || after.ActiveLifecycleTimers != 1 {
+					t.Fatalf("fully offline revisit was not retained: before=%+v after=%+v", before, after)
+				}
+				return
+			}
+			wantSender := edge.OwnerUID
+			if test.logoutOwner {
+				wantSender = edge.PeerUID
+			}
+			if after.ActivityCurrent != before.ActivityCurrent+schedule.RevisitMessages || after.ColdEvidencePending != 0 || after.ActiveLifecycleTimers != 0 {
+				t.Fatalf("one-sided revisit transition: before=%+v after=%+v", before, after)
+			}
+			checked := make(chan error, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				for _, activity := range fixture.engine.activity {
+					if activity.intent.Domain == LogicalDomainRevisit && activity.intent.Logical.Sender != wantSender {
+						checked <- fmt.Errorf("revisit sender = %q, want online endpoint %q", activity.intent.Logical.Sender, wantSender)
+						return
+					}
+				}
+				checked <- nil
+			}}); err != nil {
+				t.Fatalf("inspect activity: %v", err)
+			}
+			if err := <-checked; err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
@@ -485,6 +696,125 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 		}
 	}
 	t.Fatal("approved returning cold revisit did not produce a revisit-domain SEND")
+}
+
+func TestEngineReturningColdRevisitUsesOnlineReturningSenderWhenOldPeerIsOffline(t *testing.T) {
+	for _, returningOfflineAtDue := range []bool{false, true} {
+		name := map[bool]string{false: "peer_only_offline", true: "returning_temporarily_offline"}[returningOfflineAtDue]
+		t.Run(name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{SessionDuration: 2 * time.Hour, WorkCapacity: 256, MaxWorkPerAdvance: 256})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer fixture.engine.Stop()
+			var candidate ReturningCandidate
+			var loginOrdinal uint64
+			for ordinal := uint64(0); ordinal < 10_000; ordinal++ {
+				planned, err := fixture.graph.ReturningCandidate(1_000, ordinal, 1_000)
+				if err != nil {
+					t.Fatalf("ReturningCandidate(%d): %v", ordinal, err)
+				}
+				if planned.Available && planned.ConversationCount == 1 && planned.UserIndex >= 100 && planned.Conversations[0].PeerIndex >= 100 {
+					candidate, loginOrdinal = planned, ordinal
+					break
+				}
+			}
+			if !candidate.Available {
+				t.Fatal("no isolated returning candidate available")
+			}
+			loginReturning := func() {
+				t.Helper()
+				if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+					UID: candidate.UserUID, UserIndex: candidate.UserIndex, LoginOrdinal: loginOrdinal,
+				}); err != nil {
+					t.Fatalf("returning Login: %v", err)
+				}
+			}
+			loginReturning()
+			now := fixture.clock.Now()
+			if err := fixture.engine.scheduleReturningCandidate(candidate, loginOrdinal, now); err != nil {
+				t.Fatalf("scheduleReturningCandidate: %v", err)
+			}
+			conversation := candidate.Conversations[0]
+			if approved, err := fixture.engine.ApproveColdRevisit(conversation.PersonChannelID); err != nil || !approved {
+				t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
+			}
+			delay, err := fixture.schedule.durationInRange(
+				"returning-login-revisit-delay/v1", minimumRevisitDelay, maximumRevisitDelay,
+				loginOrdinal, candidate.UserIndex, 0,
+			)
+			if err != nil {
+				t.Fatalf("revisit delay: %v", err)
+			}
+			due := now.Add(delay)
+			if returningOfflineAtDue {
+				if err := fixture.engine.Logout(candidate.UserUID); err != nil {
+					t.Fatalf("returning Logout: %v", err)
+				}
+			}
+			fixture.clock.Set(due)
+			if _, err := fixture.engine.Advance(due); err != nil {
+				t.Fatalf("deadline Advance: %v", err)
+			}
+			if returningOfflineAtDue {
+				snapshot, _ := fixture.engine.Snapshot()
+				if snapshot.ActivityCurrent != 0 || snapshot.ColdEvidencePending != 1 || snapshot.ActiveLifecycleTimers != 1 {
+					t.Fatalf("offline returning work was not retained: %+v", snapshot)
+				}
+				loginReturning()
+				due = due.Add(time.Nanosecond)
+				fixture.clock.Set(due)
+				if _, err := fixture.engine.Advance(due); err != nil {
+					t.Fatalf("relogin Advance: %v", err)
+				}
+			}
+			snapshot, _ := fixture.engine.Snapshot()
+			if snapshot.ActivityCurrent < 2 || snapshot.ActivityCurrent > 5 || snapshot.ColdEvidencePending != 0 {
+				t.Fatalf("returning-only revisit activity = %+v, want 2..5 and no pending timer", snapshot)
+			}
+			var raw uint64
+			for ; raw < 100; raw++ {
+				scoped, err := scopedLogicalOrdinal(1, LogicalDomainRevisit, raw)
+				if err != nil {
+					t.Fatalf("scoped revisit: %v", err)
+				}
+				sampled, err := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: scoped, WorkerID: 0})
+				if err != nil {
+					t.Fatalf("ShouldCorrelate: %v", err)
+				}
+				if !sampled {
+					break
+				}
+			}
+			primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+			if err != nil {
+				t.Fatalf("scoped primary: %v", err)
+			}
+			routed := make(chan struct {
+				intent TrafficIntent
+				err    error
+			}, 1)
+			if err := fixture.engine.enqueue(engineCommand{run: func() {
+				intent, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+					Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+					Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+				}, due)
+				routed <- struct {
+					intent TrafficIntent
+					err    error
+				}{intent: intent, err: routeErr}
+			}}); err != nil {
+				t.Fatalf("enqueue route: %v", err)
+			}
+			result := <-routed
+			if result.err != nil {
+				t.Fatalf("route returning revisit: %v", result.err)
+			}
+			if result.intent.Logical.Sender != candidate.UserUID || result.intent.Logical.Target != conversation.PeerUID || fixture.pool.IsOnline(conversation.PeerUID) {
+				t.Fatalf("returning revisit route = %+v peer_online=%v", result.intent.Logical, fixture.pool.IsOnline(conversation.PeerUID))
+			}
+		})
+	}
 }
 
 func findLifecycleSchedule(t *testing.T, model ScheduleModel, edge RelationshipEdge, class LifecycleClass) (uint64, ChannelSchedule) {
@@ -666,6 +996,8 @@ func TestEngineLateSuccessfulSendackCancelsScheduledRetry(t *testing.T) {
 func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{})
+	readCycles := make(chan struct{})
+	fixture.factory.readCycles = readCycles
 	if err := fixture.engine.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -674,6 +1006,7 @@ func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *
 	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 8, LoginOrdinal: 7}); err != nil {
 		t.Fatalf("Login: %v", err)
 	}
+	<-readCycles
 	intent := fixture.intent(t, uid, "async-error-group", 47, TrafficGroup)
 	now := fixture.clock.Now()
 	if err := fixture.engine.SubmitGranted(intent, now); err != nil {
@@ -685,6 +1018,7 @@ func TestEngineNonTerminalAsyncSendErrorSchedulesOwnedRetryWithoutDisconnect(t *
 	client := fixture.factory.clients()[0]
 	client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorNonTerminal, clientMsgNo: intent.Logical.ClientMsgNo}
 	<-client.readReturned
+	<-readCycles
 	snapshot, err := fixture.engine.Snapshot()
 	if err != nil {
 		t.Fatalf("Snapshot: %v", err)
@@ -907,22 +1241,10 @@ func TestEngineStopCancelsBlockedConnectBeforeWaitingForLogin(t *testing.T) {
 	stopDone := make(chan error, 1)
 	go func() { stopDone <- fixture.engine.Stop() }()
 
-	for range 10_000 {
-		if _, err := fixture.engine.Snapshot(); errors.Is(err, errEngineNotRunning) {
-			break
-		}
-		runtime.Gosched()
-	}
-	select {
-	case <-connectCtx.Done():
-		if !errors.Is(context.Cause(connectCtx), context.Canceled) {
-			t.Fatalf("CONNECT context cause = %v, want canceled generation", context.Cause(connectCtx))
-		}
-	default:
+	<-connectCtx.Done()
+	if !errors.Is(context.Cause(connectCtx), context.Canceled) {
 		close(connectRelease)
-		<-loginDone
-		<-stopDone
-		t.Fatal("Stop fenced admission without canceling the blocked CONNECT context")
+		t.Fatalf("CONNECT context cause = %v, want canceled generation", context.Cause(connectCtx))
 	}
 	if err := <-loginDone; !errors.Is(err, context.Canceled) {
 		t.Fatalf("Login error = %v, want context canceled", err)
@@ -950,19 +1272,9 @@ func TestEngineStopCancelsBlockedSessionFactoryBeforeWaitingForLogin(t *testing.
 	factoryCtx := <-factoryStarted
 	stopDone := make(chan error, 1)
 	go func() { stopDone <- fixture.engine.Stop() }()
-	for range 10_000 {
-		if _, err := fixture.engine.Snapshot(); errors.Is(err, errEngineNotRunning) {
-			break
-		}
-		runtime.Gosched()
-	}
-	select {
-	case <-factoryCtx.Done():
-		if !errors.Is(context.Cause(factoryCtx), context.Canceled) {
-			t.Fatalf("factory context cause = %v, want canceled generation", context.Cause(factoryCtx))
-		}
-	default:
-		t.Fatal("Stop fenced admission without canceling the blocked factory context")
+	<-factoryCtx.Done()
+	if !errors.Is(context.Cause(factoryCtx), context.Canceled) {
+		t.Fatalf("factory context cause = %v, want canceled generation", context.Cause(factoryCtx))
 	}
 	if err := <-loginDone; !errors.Is(err, context.Canceled) {
 		t.Fatalf("Login error = %v, want context canceled", err)
@@ -1048,6 +1360,240 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 	}
 }
 
+func TestSessionSchedulerAgedReturningMixFeedsEveryFixedGroupCategory(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{Formal: true})
+	scheduler := sessionScheduler{workload: fixture.engine.generator.workload, nextNewIndex: 750_000}
+	buckets := map[HistoryBucket]int{}
+	categories := map[GroupCategory]int{}
+	for ordinal := uint64(0); ordinal < 1_000; ordinal++ {
+		login, actualKind, candidate, available, err := scheduler.planLogin(
+			fixture.pool, fixture.graph, fixture.schedule, fixture.engine.generator.catalog, ordinal, LoginReturning,
+		)
+		if err != nil || !available || actualKind != LoginReturning {
+			t.Fatalf("planLogin(%d) = %+v kind=%d candidate=%+v available=%v err=%v", ordinal, login, actualKind, candidate, available, err)
+		}
+		buckets[candidate.ActualBucket]++
+		if candidate.ActualBucket != HistoryOlder {
+			continue
+		}
+		catalog := fixture.engine.generator.catalog
+		group, err := catalog.Group(candidate.UserIndex % uint64(catalog.Count()))
+		if err != nil || !group.ContainsIndex(candidate.UserIndex) {
+			t.Fatalf("older candidate %d is not in a fixed group roster: %+v group=%+v err=%v", ordinal, candidate, group, err)
+		}
+		if candidate.UserIndex/uint64(catalog.Count()) == 0 {
+			t.Fatalf("older candidate %d reused member zero: %+v", ordinal, candidate)
+		}
+		categories[group.Category]++
+	}
+	if buckets[HistoryRecent] != 800 || buckets[HistoryOlder] != 200 {
+		t.Fatalf("aged returning history mix = %v, want 800/200", buckets)
+	}
+	for _, category := range []GroupCategory{GroupSmall, GroupMedium, GroupLarge, GroupVeryLarge} {
+		if categories[category] == 0 {
+			t.Fatalf("aged roster category %d was not fed: %v", category, categories)
+		}
+	}
+}
+
+func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *testing.T) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace("formal-bootstrap-churn", 101, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	start := time.Unix(1_700_000_000, 0)
+	scheduler := sessionScheduler{workload: cfg.Workload}
+	scheduler.reset(start)
+	var sessions engineWorkHeap
+	heap.Init(&sessions)
+	bootstrapPlanned := map[LoginIdentity]int{}
+	bootstrapCompletedNew := 0
+	exitSecond := -1
+	for second := 1; second <= 7_000 && scheduler.bootstrapping; second++ {
+		now := start.Add(time.Duration(second) * time.Second)
+		expired := 0
+		for len(sessions) > 0 && !sessions[0].due.After(now) {
+			heap.Pop(&sessions)
+			expired++
+		}
+		scheduler.addReplacements(uint64(expired))
+		budget, releaseErr := scheduler.release(now)
+		if releaseErr != nil {
+			t.Fatalf("release(%d): %v", second, releaseErr)
+		}
+		for budget > 0 && len(sessions) < cfg.Workload.OnlineUsers {
+			loginSchedule, scheduleErr := schedule.Login(scheduler.loginOrdinal)
+			if scheduleErr != nil {
+				t.Fatalf("Login(%d): %v", scheduler.loginOrdinal, scheduleErr)
+			}
+			bootstrapPlanned[loginSchedule.Identity]++
+			bootstrapCompletedNew++
+			scheduler.loginOrdinal++
+			scheduler.nextNewIndex++
+			scheduler.consumeOne()
+			budget--
+			heap.Push(&sessions, &engineWork{due: now.Add(loginSchedule.SessionDuration)})
+		}
+		if len(sessions) == cfg.Workload.OnlineUsers {
+			scheduler.bootstrapping = false
+			scheduler.credit = 0
+			scheduler.replacements = 0
+			exitSecond = second
+		}
+	}
+	if exitSecond < 0 || exitSecond > 7_000 || len(sessions) != cfg.Workload.OnlineUsers {
+		t.Fatalf("formal bootstrap did not reach 10k under churn: exit=%d online=%d", exitSecond, len(sessions))
+	}
+	if excess := bootstrapCompletedNew - bootstrapPlanned[LoginNew]; excess != bootstrapPlanned[LoginReturning] || excess <= 0 {
+		t.Fatalf("bootstrap cumulative new excess = %d, planned=%v completed_new=%d", excess, bootstrapPlanned, bootstrapCompletedNew)
+	}
+	steady := map[LoginIdentity]int{}
+	for offset := uint64(0); offset < 100; offset++ {
+		loginSchedule, scheduleErr := schedule.Login(scheduler.loginOrdinal + offset)
+		if scheduleErr != nil {
+			t.Fatalf("steady Login(%d): %v", scheduler.loginOrdinal+offset, scheduleErr)
+		}
+		steady[loginSchedule.Identity]++
+	}
+	if steady[LoginNew] != 80 || steady[LoginReturning] != 20 {
+		t.Fatalf("post-bootstrap login cycle remained all-new: %v exit_second=%d", steady, exitSecond)
+	}
+}
+
+func TestEngineAgedRosterRoutesTwoHundredGroupGrantsAtFixedSharesAndCanary(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		Formal: true, WorkCapacity: 8_192, InflightCapacity: 512, MaxWorkPerAdvance: 8_192,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	scheduler := sessionScheduler{workload: fixture.engine.generator.workload, nextNewIndex: 750_000}
+	completed := map[LoginIdentity]int{}
+	loggedGroupMembers := 0
+	for ordinal := uint64(0); ordinal < 10_000; ordinal++ {
+		loginSchedule, err := fixture.schedule.Login(ordinal)
+		if err != nil {
+			t.Fatalf("Login schedule(%d): %v", ordinal, err)
+		}
+		login, actualKind, candidate, available, err := scheduler.planLogin(
+			fixture.pool, fixture.graph, fixture.schedule, fixture.engine.generator.catalog, ordinal, loginSchedule.Identity,
+		)
+		if err != nil || !available {
+			t.Fatalf("aged planLogin(%d) = %+v candidate=%+v available=%v err=%v", ordinal, login, candidate, available, err)
+		}
+		if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+			t.Fatalf("aged Login(%d): %v", ordinal, err)
+		}
+		completed[actualKind]++
+		if actualKind == LoginNew {
+			scheduler.nextNewIndex++
+		} else if candidate.ActualBucket == HistoryOlder {
+			loggedGroupMembers++
+		}
+	}
+	if completed[LoginNew] != 8_000 || completed[LoginReturning] != 2_000 || loggedGroupMembers != 400 || fixture.pool.Snapshot().Online != 10_000 {
+		t.Fatalf("aged steady online mix = completed %v group_anchors=%d pool=%+v", completed, loggedGroupMembers, fixture.pool.Snapshot())
+	}
+
+	type routeResult struct {
+		intent TrafficIntent
+		err    error
+	}
+	route := func(grant TrafficIntent) (TrafficIntent, error) {
+		t.Helper()
+		response := make(chan routeResult, 1)
+		if err := fixture.engine.enqueue(engineCommand{run: func() {
+			intent, routeErr := fixture.engine.routeGroupGrant(grant)
+			response <- routeResult{intent: intent, err: routeErr}
+		}}); err != nil {
+			return TrafficIntent{}, err
+		}
+		result := <-response
+		return result.intent, result.err
+	}
+	categories := map[GroupCategory]int{}
+	retargeted := 0
+	for ordinal := uint64(0); ordinal < 200; ordinal++ {
+		group, err := fixture.engine.generator.catalog.PrimaryTarget(ordinal)
+		if err != nil {
+			t.Fatalf("PrimaryTarget(%d): %v", ordinal, err)
+		}
+		logicalOrdinal, err := scopedLogicalOrdinal(1, LogicalDomainGroup, ordinal)
+		if err != nil {
+			t.Fatalf("group logical(%d): %v", ordinal, err)
+		}
+		grant := TrafficIntent{
+			Logical: LogicalSend{LogicalSend: logicalOrdinal, WorkerID: 0, Kind: TrafficGroup},
+			Kind:    TrafficGroup, PayloadBytes: 256, ChannelID: group.ID, GroupCategory: group.Category, Domain: LogicalDomainGroup,
+		}
+		routed, err := route(grant)
+		if err != nil {
+			t.Fatalf("route group grant %d/%d: %v", ordinal, group.Category, err)
+		}
+		routedIndex, ok := fixture.engine.generator.catalog.IndexFromGroupID(routed.ChannelID)
+		if !ok {
+			t.Fatalf("routed group ID %q is outside fixed catalog", routed.ChannelID)
+		}
+		routedGroup, err := fixture.engine.generator.catalog.Group(routedIndex)
+		if err != nil || routedGroup.Category != group.Category {
+			t.Fatalf("routed group %d = %+v err=%v, requested category %d", ordinal, routedGroup, err, group.Category)
+		}
+		senderIndex, ok := fixture.identity.IndexFromUID(routed.Logical.Sender)
+		if !ok || !fixture.pool.IsOnline(routed.Logical.Sender) || !routedGroup.ContainsIndex(senderIndex) {
+			t.Fatalf("routed sender is not an actual online fixed member: %+v group=%+v index=%d/%v", routed.Logical, routedGroup, senderIndex, ok)
+		}
+		if routed.ChannelID != group.ID {
+			retargeted++
+		}
+		categories[routedGroup.Category]++
+	}
+	if categories[GroupSmall] != 160 || categories[GroupMedium] != 30 || categories[GroupLarge] != 10 || retargeted == 0 {
+		t.Fatalf("aged 200 group routes = categories %v retargeted=%d, want 160/30/10 and real retargeting", categories, retargeted)
+	}
+	canary, err := fixture.engine.generator.catalog.VeryLargeCanary(0)
+	if err != nil {
+		t.Fatalf("VeryLargeCanary: %v", err)
+	}
+	var canaryRaw uint64
+	for ; canaryRaw < 100; canaryRaw++ {
+		candidate, scopedErr := scopedLogicalOrdinal(1, LogicalDomainCanary, canaryRaw)
+		if scopedErr != nil {
+			t.Fatalf("candidate canary logical: %v", scopedErr)
+		}
+		sampled, sampleErr := fixture.verifier.ShouldCorrelate(LogicalSend{LogicalSend: candidate, WorkerID: 0})
+		if sampleErr != nil {
+			t.Fatalf("ShouldCorrelate canary: %v", sampleErr)
+		}
+		if sampled {
+			break
+		}
+	}
+	if canaryRaw == 100 {
+		t.Fatal("no sampled canary ordinal in exact cycle")
+	}
+	canaryOrdinal, err := scopedLogicalOrdinal(1, LogicalDomainCanary, canaryRaw)
+	if err != nil {
+		t.Fatalf("sampled canary logical: %v", err)
+	}
+	routedCanary, err := route(TrafficIntent{
+		Logical: LogicalSend{LogicalSend: canaryOrdinal, WorkerID: 0, Kind: TrafficGroup},
+		Kind:    TrafficGroup, PayloadBytes: 256, ChannelID: canary.Group.ID, GroupCategory: GroupVeryLarge, Domain: LogicalDomainCanary,
+	})
+	if err != nil || routedCanary.ChannelID != canary.Group.ID {
+		t.Fatalf("aged canary route = %+v, %v", routedCanary, err)
+	}
+	canarySender, ok := fixture.identity.IndexFromUID(routedCanary.Logical.Sender)
+	if !ok || !canary.Group.ContainsIndex(canarySender) || !fixture.pool.IsOnline(routedCanary.Logical.Sender) {
+		t.Fatalf("aged canary sender = %+v index=%d/%v", routedCanary.Logical, canarySender, ok)
+	}
+}
+
 func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{
@@ -1063,14 +1609,11 @@ func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t 
 		t.Fatalf("bootstrap Step = %+v, %v", bootstrap, err)
 	}
 	client := fixture.factory.clients()[0]
+	fixture.pool.mu.RLock()
+	drainDone := fixture.pool.online[client.uid].done
+	fixture.pool.mu.RUnlock()
 	client.readErrors <- &engineFakeReadError{kind: wkproto.ReadErrorTerminal}
-	<-client.readReturned
-	for range 10_000 {
-		if fixture.pool.Snapshot().Online == 19 {
-			break
-		}
-		runtime.Gosched()
-	}
+	<-drainDone
 	replacement, err := fixture.engine.Step(context.Background(), now, nil)
 	if err != nil {
 		t.Fatalf("replacement Step: %v", err)
@@ -1247,6 +1790,66 @@ func TestEngineActiveHotSetRotatesAtFixedCapacityWithoutHistoricalGrowth(t *test
 	refilled, _ := fixture.engine.Snapshot()
 	if refilled.ActiveHotChannels != 80 || refilled.ActiveHotChannels > fixture.engine.generator.workload.HotSet.PersonChannels {
 		t.Fatalf("rotated active hot set = %+v", refilled)
+	}
+}
+
+func TestEngineFullHotSetRetainsMandatoryInitialBurst(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 512, MaxWorkPerAdvance: 512})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	edge := fixture.graph.Incoming(18).Items[0]
+	for _, endpoint := range []struct {
+		uid   string
+		index uint64
+	}{{edge.OwnerUID, edge.OwnerIndex}, {edge.PeerUID, edge.PeerIndex}} {
+		if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+			UID: endpoint.uid, UserIndex: endpoint.index, LoginOrdinal: endpoint.index,
+		}); err != nil {
+			t.Fatalf("Login(%q): %v", endpoint.uid, err)
+		}
+	}
+	filled := make(chan struct{}, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		for index := 0; index < fixture.engine.generator.workload.HotSet.PersonChannels; index++ {
+			fixture.engine.addActiveChannel(engineActiveChannel{edge: RelationshipEdge{PersonChannelID: fmt.Sprintf("occupied-%d", index)}})
+		}
+		if err := fixture.engine.addWork(&engineWork{
+			due: fixture.clock.Now().Add(time.Nanosecond), kind: engineWorkLifecycle,
+			edge: RelationshipEdge{PersonChannelID: "occupied-0"}, schedule: ChannelSchedule{Class: LifecycleRotating},
+		}); err != nil {
+			t.Errorf("add occupied lifecycle: %v", err)
+		}
+		fixture.engine.activeLifecycleTimers++
+		filled <- struct{}{}
+	}}); err != nil {
+		t.Fatalf("fill active hot set: %v", err)
+	}
+	<-filled
+	relationshipOrdinal, schedule := findLifecycleSchedule(t, fixture.schedule, edge, LifecycleRotating)
+	activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal)
+	if err != nil || !activated {
+		t.Fatalf("ActivateRelationship at full hot set = %v, %v", activated, err)
+	}
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if snapshot.ActivityCurrent != schedule.InitialBurst.MessageCount || snapshot.ActiveHotChannels != fixture.engine.generator.workload.HotSet.PersonChannels || snapshot.PendingHotChannels != 1 || snapshot.ActiveLifecycleTimers != 2 {
+		t.Fatalf("full hot-set activation dropped mandatory lifecycle work: %+v schedule=%+v", snapshot, schedule)
+	}
+	due := fixture.clock.Now().Add(time.Nanosecond)
+	fixture.clock.Set(due)
+	if _, err := fixture.engine.Advance(due); err != nil {
+		t.Fatalf("Advance occupied expiry: %v", err)
+	}
+	promoted, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("promoted Snapshot: %v", err)
+	}
+	if promoted.ActiveHotChannels != fixture.engine.generator.workload.HotSet.PersonChannels || promoted.PendingHotChannels != 0 || promoted.ActiveLifecycleTimers != 1 {
+		t.Fatalf("pending lifecycle was not promoted after capacity opened: %+v", promoted)
 	}
 }
 
@@ -1437,7 +2040,7 @@ func newEngineTestFixture(t *testing.T, limits engineTestLimits) engineTestFixtu
 	clock := &sessionFakeClock{now: time.Unix(1_700_000_000, 0)}
 	factory := &engineFakeFactory{}
 	pool, err := NewSessionPool(SessionPoolConfig{
-		Identity: identity, Schedule: schedule, Factory: factory, Syncer: engineSyncer{},
+		Identity: identity, Schedule: schedule, Catalog: catalog, Factory: factory, Syncer: engineSyncer{},
 		Verifier: verifier, Clock: clock, DeviceID: "engine-test", StartingCapacity: 128,
 	})
 	if err != nil {
@@ -1513,6 +2116,7 @@ type engineFakeFactory struct {
 	connectStarted    chan context.Context
 	connectRelease    <-chan struct{}
 	readContexts      chan<- context.Context
+	readCycles        chan<- struct{}
 }
 
 func (f *engineFakeFactory) NewSession(ctx context.Context, uid, _ string) (SessionClient, error) {
@@ -1607,6 +2211,9 @@ func (c *engineFakeClient) Connect(ctx context.Context, _, _ string) error {
 	}
 }
 func (c *engineFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if c.factory.readCycles != nil {
+		c.factory.readCycles <- struct{}{}
+	}
 	c.readOnce.Do(func() {
 		if c.readContexts != nil {
 			c.readContexts <- ctx

@@ -51,6 +51,15 @@ type Group struct {
 	memberStride uint64
 }
 
+// GroupReturningMember is one fixed-roster identity selected for a historical
+// returning login. Consecutive ordinals form a same-group pair so sampled
+// delivery can require a distinct online recipient without synthetic users.
+type GroupReturningMember struct {
+	Group         Group
+	MemberOrdinal int
+	UserIndex     uint64
+}
+
 // MemberUID reconstructs one unique member in O(1) memory.
 func (g Group) MemberUID(memberOrdinal int) (string, error) {
 	index, err := g.MemberIndex(memberOrdinal)
@@ -173,6 +182,24 @@ func NewGroupCatalog(identity *IdentitySpace, config GroupCatalogConfig) (GroupC
 // Count returns the fixed number of group channels.
 func (c GroupCatalog) Count() int { return c.total }
 
+// GroupForMemberIndex reverses the fixed strided roster without scanning the
+// catalog. One identity can belong to at most one group in this layout.
+func (c GroupCatalog) GroupForMemberIndex(userIndex uint64) (Group, int, bool, error) {
+	if c.total <= 0 {
+		return Group{}, 0, false, errGroupCatalog
+	}
+	groupIndex := userIndex % uint64(c.total)
+	group, err := c.Group(groupIndex)
+	if err != nil {
+		return Group{}, 0, false, err
+	}
+	memberOrdinal := userIndex / uint64(c.total)
+	if memberOrdinal >= uint64(group.MemberCount) {
+		return Group{}, 0, false, nil
+	}
+	return group, int(memberOrdinal), true, nil
+}
+
 // Group reconstructs one catalog entry and a checked strided membership base.
 // The catalog index itself is member zero, guaranteeing that the fixed
 // prepared roster intersects the initial bounded online population; later
@@ -249,6 +276,35 @@ func (c GroupCatalog) VeryLargeCanary(ordinal uint64) (GroupCanary, error) {
 	return GroupCanary{Group: group, Ordinal: ordinal, Every: c.veryLargeEvery}, nil
 }
 
+// ReturningMember selects fixed members from one historical index range in
+// pairs, then rotates to the next group in the requested category. Member zero
+// is deliberately excluded because it only proves initial-roster reachability.
+func (c GroupCatalog) ReturningMember(category GroupCategory, categoryOrdinal, minimum, maximum uint64) (GroupReturningMember, bool, error) {
+	categoryIndex := int(category) - 1
+	if categoryIndex < 0 || categoryIndex >= len(c.counts) || c.counts[categoryIndex] == 0 || minimum > maximum {
+		return GroupReturningMember{}, false, nil
+	}
+	count := uint64(c.counts[categoryIndex])
+	groupOffset := (categoryOrdinal / 2) % count
+	group, err := c.Group(c.starts[categoryIndex] + groupOffset)
+	if err != nil {
+		return GroupReturningMember{}, false, err
+	}
+	first, last, ok := group.memberOrdinalsInRange(minimum, maximum)
+	if !ok {
+		return GroupReturningMember{}, false, nil
+	}
+	span := last - first + 1
+	round := categoryOrdinal / (2 * count)
+	memberOffset := ((round%span)*2 + categoryOrdinal%2) % span
+	memberOrdinal := first + memberOffset
+	userIndex, err := group.MemberIndex(int(memberOrdinal))
+	if err != nil {
+		return GroupReturningMember{}, false, err
+	}
+	return GroupReturningMember{Group: group, MemberOrdinal: int(memberOrdinal), UserIndex: userIndex}, true, nil
+}
+
 // HotSet combines active person channels with this fixed catalog and records
 // zero historical group growth.
 func (c GroupCatalog) HotSet(personChannels int) (GroupHotSet, error) {
@@ -269,6 +325,37 @@ func (c GroupCatalog) categoryIndex(index uint64) int {
 		}
 	}
 	return 0
+}
+
+func (c GroupCatalog) categoryRange(category GroupCategory) (uint64, int, bool) {
+	categoryIndex := int(category) - 1
+	if categoryIndex < 0 || categoryIndex >= len(c.counts) || c.counts[categoryIndex] == 0 {
+		return 0, 0, false
+	}
+	return c.starts[categoryIndex], c.counts[categoryIndex], true
+}
+
+func (g Group) memberOrdinalsInRange(minimum, maximum uint64) (uint64, uint64, bool) {
+	if g.identity == nil || g.memberStride == 0 || g.MemberCount <= 1 || maximum < g.memberBase {
+		return 0, 0, false
+	}
+	first := uint64(1)
+	if minimum > g.memberBase {
+		delta := minimum - g.memberBase
+		first = delta / g.memberStride
+		if delta%g.memberStride != 0 {
+			first++
+		}
+		if first < 1 {
+			first = 1
+		}
+	}
+	last := (maximum - g.memberBase) / g.memberStride
+	memberLast := uint64(g.MemberCount - 1)
+	if last > memberLast {
+		last = memberLast
+	}
+	return first, last, first <= last
 }
 
 func (c GroupCatalog) memberCount(index uint64, categoryIndex int) (int, error) {

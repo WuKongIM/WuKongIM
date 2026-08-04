@@ -214,6 +214,40 @@ func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUse
 		return ReturningCandidate{}, err
 	}
 	userIndex := selectedRange.min + draw
+	result.ActualBucket = actualBucket
+	return g.buildReturningCandidate(result, nextNewIndex, loginOrdinal, userIndex)
+}
+
+// returningCandidateAt reconstructs conversation history for one explicit
+// historical identity selected by another bounded runtime index, such as the
+// fixed group roster. It preserves the same preferred/actual history buckets.
+func (g RelationshipGraph) returningCandidateAt(nextNewIndex, loginOrdinal, newUsersPerDay, userIndex uint64) (ReturningCandidate, error) {
+	if newUsersPerDay < MaxForwardRelationships+1 {
+		return ReturningCandidate{}, errReturningHistoryWindow
+	}
+	preferencePhase, err := g.identity.decisionBelow("returning-history-bucket-phase/v1", 5)
+	if err != nil {
+		return ReturningCandidate{}, err
+	}
+	preferredBucket := HistoryRecent
+	if (loginOrdinal%5+preferencePhase)%5 == 4 {
+		preferredBucket = HistoryOlder
+	}
+	result := ReturningCandidate{PreferredBucket: preferredBucket}
+	recent, older := returningCandidateRanges(nextNewIndex, newUsersPerDay)
+	switch {
+	case recent.available && userIndex >= recent.min && userIndex <= recent.max:
+		result.ActualBucket = HistoryRecent
+	case older.available && userIndex >= older.min && userIndex <= older.max:
+		result.ActualBucket = HistoryOlder
+	default:
+		return result, nil
+	}
+	result.Fallback = result.ActualBucket != result.PreferredBucket
+	return g.buildReturningCandidate(result, nextNewIndex, loginOrdinal, userIndex)
+}
+
+func (g RelationshipGraph) buildReturningCandidate(result ReturningCandidate, nextNewIndex, loginOrdinal, userIndex uint64) (ReturningCandidate, error) {
 	relationships, err := g.AvailableRelationships(userIndex, nextNewIndex)
 	if err != nil {
 		return ReturningCandidate{}, err
@@ -225,7 +259,6 @@ func (g RelationshipGraph) ReturningCandidate(nextNewIndex, loginOrdinal, newUse
 	result.Available = true
 	result.UserIndex = userIndex
 	result.UserUID = g.identity.UID(userIndex)
-	result.ActualBucket = actualBucket
 	result.ConversationCount = 1 + int(g.identity.decisionUint64("returning-conversation-count/v1", nextNewIndex, loginOrdinal, userIndex)%2)
 	firstDraw, err := g.identity.decisionBelow("returning-conversation-first/v1", uint64(relationships.Count), nextNewIndex, loginOrdinal, userIndex)
 	if err != nil {
