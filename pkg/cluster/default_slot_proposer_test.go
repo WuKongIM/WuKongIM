@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -109,6 +110,75 @@ func TestDefaultSlotProposerDoesNotObserveRejectedMetaCreateSubmission(t *testin
 	}
 	if len(observer.events) != 0 {
 		t.Fatalf("events = %#v, want no event before an authoritative future exists", observer.events)
+	}
+}
+
+func TestDefaultSlotProposerObservesMetaCreateOnlyAfterCanceledCallerFutureResolves(t *testing.T) {
+	tests := []struct {
+		name       string
+		result     multiraft.Result
+		resolveErr error
+		wantResult clusterchannels.MetaCreateResult
+	}{
+		{
+			name: "created",
+			result: multiraft.Result{Data: metafsm.EncodeCreateChannelRuntimeMetaResult(
+				metafsm.CreateChannelRuntimeMetaResult{Created: true},
+			)},
+			wantResult: clusterchannels.MetaCreateCreated,
+		},
+		{
+			name: "already existing",
+			result: multiraft.Result{Data: metafsm.EncodeCreateChannelRuntimeMetaResult(
+				metafsm.CreateChannelRuntimeMetaResult{},
+			)},
+			wantResult: clusterchannels.MetaCreateAlreadyExisting,
+		},
+		{
+			name:       "authoritative failure",
+			resolveErr: errors.New("apply failed"),
+			wantResult: clusterchannels.MetaCreateError,
+		},
+		{
+			name:       "decode failure",
+			result:     multiraft.Result{Data: []byte("invalid")},
+			wantResult: clusterchannels.MetaCreateError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			future := newPendingSlotFuture()
+			runtime := &recordingSlotRuntime{future: future}
+			observer := &recordingMetaCreateObserver{}
+			proposer := defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}
+			command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+				ChannelID: "canceled", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+				Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+			})
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan error, 1)
+			go func() {
+				_, err := proposer.ProposeResult(ctx, 37, propose.EncodePayload(11, command))
+				done <- err
+			}()
+
+			<-future.waitStarted
+			cancel()
+			if err := <-done; !errors.Is(err, context.Canceled) {
+				t.Fatalf("ProposeResult() error = %v, want context canceled", err)
+			}
+			if len(observer.events) != 0 {
+				t.Fatalf("events at caller cancellation = %#v, want none before future resolution", observer.events)
+			}
+
+			future.resolve(tt.result, tt.resolveErr)
+			if len(observer.events) != 1 {
+				t.Fatalf("events after future resolution = %#v, want exactly one", observer.events)
+			}
+			if got := observer.events[0]; got.slotID != 37 || got.result != tt.wantResult {
+				t.Fatalf("event = %#v, want slot 37 result %q", got, tt.wantResult)
+			}
+		})
 	}
 }
 
@@ -327,6 +397,63 @@ type recordingSlotFuture struct {
 	err  error
 }
 
+type pendingSlotFuture struct {
+	waitStarted chan struct{}
+	done        chan struct{}
+	mu          sync.Mutex
+	result      multiraft.Result
+	err         error
+	observer    multiraft.FutureCompletionObserver
+	resolved    bool
+}
+
+func newPendingSlotFuture() *pendingSlotFuture {
+	return &pendingSlotFuture{waitStarted: make(chan struct{}), done: make(chan struct{})}
+}
+
+func (f *pendingSlotFuture) Wait(ctx context.Context) (multiraft.Result, error) {
+	select {
+	case <-f.waitStarted:
+	default:
+		close(f.waitStarted)
+	}
+	select {
+	case <-ctx.Done():
+		return multiraft.Result{}, ctx.Err()
+	case <-f.done:
+		return f.result, f.err
+	}
+}
+
+func (f *pendingSlotFuture) resolve(result multiraft.Result, err error) {
+	f.mu.Lock()
+	f.result = result
+	f.err = err
+	f.resolved = true
+	observer := f.observer
+	f.mu.Unlock()
+	if observer != nil {
+		observer.ObserveFutureCompletion(result, err)
+	}
+	close(f.done)
+}
+
+func (f *pendingSlotFuture) ObserveCompletion(observer multiraft.FutureCompletionObserver) bool {
+	f.mu.Lock()
+	if f.observer != nil {
+		f.mu.Unlock()
+		return false
+	}
+	f.observer = observer
+	resolved := f.resolved
+	result, err := f.result, f.err
+	f.mu.Unlock()
+	if resolved {
+		observer.ObserveFutureCompletion(result, err)
+	}
+	return true
+}
+
 type retryingSlotRuntime struct {
 	calls  int
 	future multiraft.Future
@@ -366,6 +493,14 @@ func (r *countingProposeRouter) RouteSlot(uint32, uint16) (routing.Route, error)
 
 func (f recordingSlotFuture) Wait(context.Context) (multiraft.Result, error) {
 	return multiraft.Result{Data: append([]byte(nil), f.data...)}, f.err
+}
+
+func (f recordingSlotFuture) ObserveCompletion(observer multiraft.FutureCompletionObserver) bool {
+	if observer == nil {
+		return false
+	}
+	observer.ObserveFutureCompletion(multiraft.Result{Data: append([]byte(nil), f.data...)}, f.err)
+	return true
 }
 
 type recordingAppendStageObserver struct {

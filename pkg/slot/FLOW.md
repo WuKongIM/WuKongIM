@@ -61,7 +61,7 @@ Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / C
 |------|------|------|
 | `SlotID` / `NodeID` | multiraft/types.go | Slot / 节点标识 |
 | `Command` | multiraft/types.go | 状态机命令：SlotID(物理 Raft 组), HashSlot(逻辑哈希分片), Index, Term, Data(TLV编码) |
-| `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 阻塞到提交 |
+| `Future` / `Result` | multiraft/types.go | 异步提案结果，Wait(ctx) 是调用方可取消的等待视图；`CompletionFuture` 的单一有界 observer 跟随运行时最终解析，不受调用方取消影响 |
 | `ProposalStageObserver` | multiraft/stage_observer.go | 低基数 proposal stage 观测接口；可从上游 ctx 进入 Future 并随 apply/commit 路径传播 |
 | `LeaderChangeObserver` | multiraft/types.go | Slot leader election 观测接口；用于把本地运行时观察到的 leader 变化映射到低基数指标 |
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
@@ -196,7 +196,9 @@ Worker 循环:
 `Runtime.Propose` 会把 ctx 中的 `ProposalStageObserver` 复制到 Future 上，保证异步
 control queue、Raft commit、FSM apply、FSM commit 和 MarkApplied 阶段仍能归属到同一次上游
 Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/ApplyBatch 总耗时，
-其中包含 `meta_create_slot_fsm_commit` 子阶段。
+其中包含 `meta_create_slot_fsm_commit` 子阶段。每个 concrete Future 还只允许注册一个
+`FutureCompletionObserver`；它由 Future 的 runtime-owned `resolve` 同步触发，因此调用方
+`Wait(ctx)` 取消后仍能得到最终完成观测，又不会为取消请求遗留等待 goroutine。
 
 ### 5.4 Slot 生命周期
 

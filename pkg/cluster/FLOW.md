@@ -731,11 +731,15 @@ adapters, and carries create-only/flag-patch FSM results back to the proposer.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.
-Command 52 completion is observed by the physical Slot leader's proposer after
-the proposal future resolves and its authoritative result is decoded. Local and
-forwarded proposals share that boundary, while Raft replicas and the forwarding
-origin emit nothing. A submission rejected before a future exists also emits
-nothing, so leader-change retries cannot double-count one logical create.
+Command 52 completion is observed by the physical Slot leader's proposer through
+the accepted proposal future's single bounded completion observer after its
+authoritative result resolves and is decoded. The observer follows the
+runtime-owned future rather than the caller-scoped `Wait(ctx)`, so caller
+cancellation emits nothing and a later terminal result is still counted exactly
+once without a detached waiter goroutine. Local and forwarded proposals share
+that boundary, while Raft replicas and the forwarding origin emit nothing. A
+submission rejected before a future exists also emits nothing, so leader-change
+retries cannot double-count one logical create.
 Outcomes are restricted to `created`,
 `already_existing`, and `error` and carry only the physical Slot ID.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.

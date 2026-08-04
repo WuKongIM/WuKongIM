@@ -154,6 +154,19 @@ type Future interface {
 	Wait(ctx context.Context) (Result, error)
 }
 
+// FutureCompletionObserver receives the runtime-owned terminal result of an
+// accepted proposal. Implementations must not block the Slot worker.
+type FutureCompletionObserver interface {
+	ObserveFutureCompletion(Result, error)
+}
+
+// CompletionFuture supports one bounded observer that follows the accepted
+// proposal to terminal runtime resolution independently of caller cancellation.
+type CompletionFuture interface {
+	Future
+	ObserveCompletion(FutureCompletionObserver) bool
+}
+
 type Result struct {
 	Index uint64
 	Term  uint64
