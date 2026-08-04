@@ -194,6 +194,27 @@ func TestRuntimeStaggersGroupTrafficWithoutLocalQueueFull(t *testing.T) {
 	}
 }
 
+func TestTrafficPacerBatchesHighRatesAndCatchesUpAfterDelayedTicks(t *testing.T) {
+	const totalRate = 4000.0
+	if got := trafficTickInterval(totalRate); got != 10*time.Millisecond {
+		t.Fatalf("trafficTickInterval() = %s, want 10ms", got)
+	}
+
+	var scheduled uint64
+	due := trafficMessagesDue(totalRate, 10*time.Millisecond, scheduled)
+	if due != 40 {
+		t.Fatalf("trafficMessagesDue(10ms) = %d, want 40", due)
+	}
+	scheduled += due
+
+	// If the runtime does not observe the next timer tick until 30ms, it must
+	// schedule all 80 messages that became due instead of losing two ticks.
+	due = trafficMessagesDue(totalRate, 30*time.Millisecond, scheduled)
+	if due != 80 {
+		t.Fatalf("trafficMessagesDue(30ms) = %d, want 80", due)
+	}
+}
+
 func TestClientObserverIgnoresShutdownErrorsAfterRuntimeStops(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -208,6 +229,25 @@ func TestClientObserverIgnoresShutdownErrorsAfterRuntimeStops(t *testing.T) {
 	snapshot := status.snapshot()
 	if snapshot.SendErrors != 0 {
 		t.Fatalf("SendErrors = %d, want 0 for shutdown observer errors; last error %q", snapshot.SendErrors, snapshot.LastError)
+	}
+}
+
+func TestClientObserverIgnoresMaxRuntimeDeadlineDuringStopRace(t *testing.T) {
+	status := newStatus("run-1")
+	var stopping atomic.Bool
+	stopping.Store(true)
+	observer := &clientObserver{
+		status:   status,
+		ctx:      context.Background(),
+		stopping: &stopping,
+	}
+
+	observer.OnSendBatch(wkclient.SendBatchEvent{Err: context.DeadlineExceeded})
+	observer.OnSendAck(wkclient.SendAckEvent{Err: context.DeadlineExceeded})
+
+	snapshot := status.snapshot()
+	if snapshot.SendErrors != 0 {
+		t.Fatalf("SendErrors = %d, want 0 while max-runtime stop is propagating; last error %q", snapshot.SendErrors, snapshot.LastError)
 	}
 }
 
@@ -276,6 +316,39 @@ func TestSimClientPoolHeartbeatsConnectedClientBeforeConnectReturns(t *testing.T
 	}
 	if err := pool.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
+	}
+}
+
+func TestSimClientPoolUsesBoundedPerClientBuffers(t *testing.T) {
+	cfg, err := normalizeConfig(Config{
+		Gateways:     []string{"127.0.0.1:5100"},
+		Users:        1,
+		Groups:       1,
+		GroupMembers: 1,
+		RatePerGroup: "1/s",
+		RunID:        "run-1",
+		Concurrency:  2800,
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig() error = %v", err)
+	}
+
+	pool := newSimClientPool(cfg, cfg.Gateways, nil)
+	t.Cleanup(func() {
+		_ = pool.Close()
+	})
+	clientCfg := pool.clientConfig(cfg.Gateways[0])
+	if got := clientCfg.SendQueueCapacity; got != simClientSendQueueCapacity {
+		t.Fatalf("SendQueueCapacity = %d, want %d", got, simClientSendQueueCapacity)
+	}
+	if got := clientCfg.MaxInflight; got != simClientMaxInflight {
+		t.Fatalf("MaxInflight = %d, want %d", got, simClientMaxInflight)
+	}
+	if got := clientCfg.InboundFrameBufferSize; got != simInboundFrameBufferSize {
+		t.Fatalf("InboundFrameBufferSize = %d, want %d", got, simInboundFrameBufferSize)
+	}
+	if !clientCfg.AutoRecvAck {
+		t.Fatal("AutoRecvAck = false, want true")
 	}
 }
 

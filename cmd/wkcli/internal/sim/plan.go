@@ -51,8 +51,12 @@ func buildPlan(cfg Config) Plan {
 		group := &plan.Groups[i]
 		group.ChannelID = fmt.Sprintf("%s-%06d", cfg.ChannelPrefix, i+1)
 		group.Subscribers = make([]string, 0, cfg.GroupMembers)
+		groupStart := i * len(plan.Users) / len(plan.Groups)
 		for j := 0; j < cfg.GroupMembers; j++ {
-			userIndex := (i*cfg.GroupMembers + j) % len(plan.Users)
+			// Evenly space each group's membership window across the user pool.
+			// This keeps coverage balanced while preventing repeated groups from
+			// synchronizing their round-robin sender on the same small UID set.
+			userIndex := (groupStart + j) % len(plan.Users)
 			group.Subscribers = append(group.Subscribers, plan.Users[userIndex].UID)
 		}
 	}

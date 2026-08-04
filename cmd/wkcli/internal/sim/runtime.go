@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,22 @@ import (
 )
 
 const runtimeRetryBackoff = 2 * time.Second
+
+const batchedTrafficTickInterval = 10 * time.Millisecond
+
+// simClientMaxInflight bounds one user's WKProto SEND pipeline independently
+// from the simulator-wide worker count.
+const simClientMaxInflight = 32
+
+// simClientSendQueueCapacity absorbs short per-user bursts without multiplying
+// the global concurrency setting across every simulated client.
+const simClientSendQueueCapacity = 128
+
+// simInboundFrameBufferSize keeps only the newest delivered frame because the
+// send-load simulator auto-acks RECV packets and never consumes their payloads.
+// A per-client buffer derived from global SEND concurrency otherwise retains
+// millions of frames during sustained fanout tests and distorts generator QPS.
+const simInboundFrameBufferSize = 1
 
 // targetAPI is the HTTP bench setup surface required by the runtime.
 type targetAPI interface {
@@ -64,6 +81,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	cfg := r.Config
 	status := r.Status
+	var stopping atomic.Bool
 	if status == nil {
 		status = newStatus(cfg.RunID)
 	}
@@ -80,8 +98,17 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	if cfg.MaxRuntime > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, cfg.MaxRuntime)
-		defer cancel()
+		ctx, cancel = context.WithCancel(ctx)
+		timer := time.AfterFunc(cfg.MaxRuntime, func() {
+			// Publish shutdown before cancellation reaches client observers so
+			// deadline errors racing with max-runtime expiry are not counted.
+			stopping.Store(true)
+			cancel()
+		})
+		defer func() {
+			timer.Stop()
+			cancel()
+		}()
 	}
 
 	status.setState(statePreflighting)
@@ -109,7 +136,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 	var sequence atomic.Uint64
 	for {
 		status.setState(stateConnecting)
-		observer := &clientObserver{status: status, ctx: ctx}
+		observer := &clientObserver{status: status, ctx: ctx, stopping: &stopping}
 		pool, err := r.NewPool(cfg, resolved.GatewayTCPAddrs, observer)
 		if err != nil {
 			status.addSendErrors(0, err.Error())
@@ -152,10 +179,6 @@ func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, seque
 		return nil
 	}
 	totalRate := r.Config.Rate.PerSecond * float64(len(plan.Groups))
-	interval := time.Duration(float64(time.Second) / totalRate)
-	if interval <= 0 {
-		interval = time.Nanosecond
-	}
 
 	workers := r.Config.Concurrency
 	if workers <= 0 {
@@ -209,33 +232,61 @@ func (r *Runtime) runTraffic(ctx context.Context, pool simPool, plan Plan, seque
 		}()
 	}
 
-	ticker := time.NewTicker(interval)
+	started := time.Now()
+	ticker := time.NewTicker(trafficTickInterval(totalRate))
 	defer ticker.Stop()
 	defer func() {
 		close(work)
 		wg.Wait()
 	}()
 	nextGroup := 0
+	var scheduled uint64
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
-			group := &plan.Groups[nextGroup]
-			nextGroup++
-			if nextGroup >= len(plan.Groups) {
-				nextGroup = 0
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case work <- group:
-			}
-			if err := loadErr(); err != nil {
-				return err
+		case tickAt := <-ticker.C:
+			due := trafficMessagesDue(totalRate, tickAt.Sub(started), scheduled)
+			for ; due > 0; due-- {
+				group := &plan.Groups[nextGroup]
+				nextGroup++
+				if nextGroup >= len(plan.Groups) {
+					nextGroup = 0
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case work <- group:
+					scheduled++
+				}
+				if err := loadErr(); err != nil {
+					return err
+				}
 			}
 		}
 	}
+}
+
+func trafficTickInterval(totalRate float64) time.Duration {
+	interval := time.Duration(float64(time.Second) / totalRate)
+	if interval <= 0 {
+		return time.Nanosecond
+	}
+	if interval < batchedTrafficTickInterval {
+		return batchedTrafficTickInterval
+	}
+	return interval
+}
+
+func trafficMessagesDue(totalRate float64, elapsed time.Duration, scheduled uint64) uint64 {
+	if totalRate <= 0 || elapsed <= 0 {
+		return 0
+	}
+	target := uint64(math.Floor(float64(elapsed)*totalRate/float64(time.Second) + 1e-9))
+	if target <= scheduled {
+		return 0
+	}
+	return target - scheduled
 }
 
 func newClientPool(cfg Config, gateways []string, observer wkclient.Observer) (simPool, error) {
@@ -449,9 +500,9 @@ func (p *simClientPool) clientConfig(addr string) wkclient.Config {
 		Addr:                   addr,
 		OperationTimeout:       p.cfg.OperationTimeout,
 		AckTimeout:             p.cfg.AckTimeout,
-		SendQueueCapacity:      p.cfg.Concurrency * 4,
-		MaxInflight:            p.cfg.Concurrency,
-		InboundFrameBufferSize: p.cfg.Concurrency * 4,
+		SendQueueCapacity:      simClientSendQueueCapacity,
+		MaxInflight:            simClientMaxInflight,
+		InboundFrameBufferSize: simInboundFrameBufferSize,
 		AutoRecvAck:            true,
 		Observer:               p.observer,
 	}
@@ -558,13 +609,14 @@ func (p *simClientPool) removeAndClose(clients map[string]simClient) {
 }
 
 type clientObserver struct {
-	status *statusModel
-	ctx    context.Context
+	status   *statusModel
+	ctx      context.Context
+	stopping *atomic.Bool
 }
 
 func (o *clientObserver) OnConnect(event wkclient.ConnectEvent) {
 	if event.Err != nil {
-		if isRuntimeStopError(o.ctx, event.Err) {
+		if o.shouldIgnoreError(event.Err) {
 			return
 		}
 		o.status.addSendErrors(0, event.Err.Error())
@@ -575,7 +627,7 @@ func (o *clientObserver) OnSendQueue(event wkclient.SendQueueEvent) {}
 
 func (o *clientObserver) OnSendBatch(event wkclient.SendBatchEvent) {
 	if event.Err != nil {
-		if isRuntimeStopError(o.ctx, event.Err) {
+		if o.shouldIgnoreError(event.Err) {
 			return
 		}
 		o.status.addSendErrors(1, event.Err.Error())
@@ -584,7 +636,7 @@ func (o *clientObserver) OnSendBatch(event wkclient.SendBatchEvent) {
 
 func (o *clientObserver) OnSendAck(event wkclient.SendAckEvent) {
 	if event.Err != nil {
-		if isRuntimeStopError(o.ctx, event.Err) {
+		if o.shouldIgnoreError(event.Err) {
 			return
 		}
 		o.status.addSendErrors(1, event.Err.Error())
@@ -601,19 +653,29 @@ func (o *clientObserver) OnRecv(event wkclient.RecvEvent) {
 
 func (o *clientObserver) OnError(event wkclient.ErrorEvent) {
 	if event.Err != nil {
-		if isRuntimeStopError(o.ctx, event.Err) {
+		if o.shouldIgnoreError(event.Err) {
 			return
 		}
 		o.status.addSendErrors(1, fmt.Sprintf("%s: %v", event.Op, event.Err))
 	}
 }
 
+func (o *clientObserver) shouldIgnoreError(err error) bool {
+	if isRuntimeStopError(o.ctx, err) {
+		return true
+	}
+	return o.stopping != nil && o.stopping.Load() && isShutdownError(err)
+}
+
 func isRuntimeStopError(ctx context.Context, err error) bool {
 	if err == nil || ctx == nil || ctx.Err() == nil {
 		return false
 	}
-	return errors.Is(err, ctx.Err()) ||
-		errors.Is(err, context.Canceled) ||
+	return errors.Is(err, ctx.Err()) || isShutdownError(err)
+}
+
+func isShutdownError(err error) bool {
+	return errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(err, net.ErrClosed)
 }
