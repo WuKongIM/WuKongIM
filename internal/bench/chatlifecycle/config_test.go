@@ -1,6 +1,7 @@
 package chatlifecycle
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,52 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.RunID == "" || cfg.Seed == 0 {
 		t.Fatalf("identity = run_id %q, seed %d; want non-empty run ID and nonzero seed", cfg.RunID, cfg.Seed)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestLocalConfigValid(t *testing.T) {
+	cfg := LocalConfig()
+
+	if cfg.RunID != "local-chat-lifecycle" || cfg.Seed != 1 || cfg.Profile != ProfileLocal || cfg.Mode != ModeSoak {
+		t.Fatalf("identity/profile/mode = %q/%d/%q/%q", cfg.RunID, cfg.Seed, cfg.Profile, cfg.Mode)
+	}
+	if cfg.Workload.Workers != 3 || cfg.Workload.OnlineUsers != 100 || cfg.Workload.NewUsersPerDay != 1_000 || cfg.Workload.SendRatePerSecond != 100 {
+		t.Fatalf("core workload = %+v", cfg.Workload)
+	}
+	if cfg.Workload.HotSet != (HotSetConfig{PersonChannels: 80, GroupChannels: 20}) {
+		t.Fatalf("hot set = %+v", cfg.Workload.HotSet)
+	}
+	if cfg.Workload.Topology != (TopologyConfig{LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3}) {
+		t.Fatalf("topology = %+v", cfg.Workload.Topology)
+	}
+	if cfg.Workload.RuntimeSampling != (RuntimeSamplingConfig{Every: time.Minute, Size: 12}) {
+		t.Fatalf("runtime sampling = %+v", cfg.Workload.RuntimeSampling)
+	}
+	if cfg.Workload.Sync != (SyncConfig{Version: 0, Limit: 500, MessageCount: 20}) {
+		t.Fatalf("sync = %+v", cfg.Workload.Sync)
+	}
+	if cfg.Workload.BurstCredit != 2*time.Second || cfg.Workload.MaxGlobalBurst != 200 || cfg.Workload.MaxChannelsPerNode != 500 {
+		t.Fatalf("burst/channel limits = %+v", cfg.Workload)
+	}
+	if cfg.Workload.Groups != (GroupCatalogConfig{Small: 16, Medium: 3, VeryLarge: 1, VeryLargeMembers: 1_000, FixedMembership: true, VeryLargeSendEvery: time.Minute}) {
+		t.Fatalf("groups = %+v", cfg.Workload.Groups)
+	}
+	wantObservation := ObservationConfig{
+		ServiceNodes:    []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
+		Workers:         []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
+		HostMetrics:     []EndpointDeclaration{{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101"}, {Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102"}, {Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103"}},
+		APIAddrs:        []string{"http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"},
+		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
+		Cadence:         2 * time.Second,
+	}
+	if !reflect.DeepEqual(cfg.Observation, wantObservation) {
+		t.Fatalf("observation = %+v, want %+v", cfg.Observation, wantObservation)
+	}
+	if cfg.Thresholds.MinimumDataFilesystemBytes != 10_000_000_000 || cfg.Thresholds.Timeline != (TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}) {
+		t.Fatalf("local thresholds = %+v", cfg.Thresholds)
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
@@ -391,13 +438,100 @@ func TestLocalProfilePreservesTopologyAndRealSync(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := DefaultConfig()
-			cfg.Profile = ProfileLocal
+			cfg := LocalConfig()
 			tt.mutate(&cfg)
 			if err := cfg.Validate(); err == nil || !strings.HasPrefix(err.Error(), tt.want+":") {
 				t.Fatalf("Validate() error = %v, want %s field path", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestGenericWorkloadRelationships(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"worker count", func(c *Config) { c.Workload.Workers = 2 }, "workload.workers: must equal observation worker count"},
+		{"negative group category", func(c *Config) { c.Workload.Groups.Large = -1 }, "workload.groups.large: must be in 0..2000"},
+		{"group category over bound", func(c *Config) { c.Workload.Groups.Small = 2_001 }, "workload.groups.small: must be in 0..2000"},
+		{"empty group catalog", func(c *Config) {
+			c.Workload.Groups.Small = 0
+			c.Workload.Groups.Medium = 0
+			c.Workload.Groups.VeryLarge = 0
+			c.Workload.Groups.VeryLargeMembers = 0
+			c.Workload.Groups.VeryLargeSendEvery = 0
+		}, "workload.groups: catalog total must be in 1..2000"},
+		{"group total over bound", func(c *Config) { c.Workload.Groups.Small = 2_000 }, "workload.groups: catalog total must be in 1..2000"},
+		{"group total differs from hot set", func(c *Config) { c.Workload.HotSet.GroupChannels-- }, "workload.hot_set.group_channels: must equal group catalog total"},
+		{"membership is not fixed", func(c *Config) { c.Workload.Groups.FixedMembership = false }, "workload.groups.fixed_membership: must be true"},
+		{"very-large members missing", func(c *Config) { c.Workload.Groups.VeryLargeMembers = 0 }, "workload.groups.very_large_members: must be greater than zero when very_large is positive"},
+		{"very-large cadence missing", func(c *Config) { c.Workload.Groups.VeryLargeSendEvery = 0 }, "workload.groups.very_large_send_every: must be greater than zero when very_large is positive"},
+		{"members without very-large group", func(c *Config) {
+			c.Workload.Groups.Small++
+			c.Workload.Groups.VeryLarge = 0
+		}, "workload.groups.very_large_members: must be zero when very_large is zero"},
+		{"cadence without very-large group", func(c *Config) {
+			c.Workload.Groups.Small++
+			c.Workload.Groups.VeryLarge = 0
+			c.Workload.Groups.VeryLargeMembers = 0
+		}, "workload.groups.very_large_send_every: must be zero when very_large is zero"},
+		{"hot set exceeds channel bound", func(c *Config) { c.Workload.MaxChannelsPerNode = 99 }, "workload.max_channels_per_node: must cover active person and group hot-set channels"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestGenericGroupCatalogAllowsReducedValues(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.Workload.Groups = GroupCatalogConfig{Small: 17, Medium: 3, FixedMembership: true}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestLocalObservationRequiresThreeRoleDeclarations(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"service nodes", func(c *Config) { c.Observation.ServiceNodes = c.Observation.ServiceNodes[:2] }, "observation.service_nodes: must contain exactly 3 entries for local baseline"},
+		{"workers", func(c *Config) { c.Observation.Workers = c.Observation.Workers[:2] }, "observation.workers: must contain exactly 3 entries for local baseline"},
+		{"host metrics", func(c *Config) { c.Observation.HostMetrics = c.Observation.HostMetrics[:2] }, "observation.host_metrics: must contain exactly 3 entries for local baseline"},
+		{"API pool", func(c *Config) { c.Observation.APIAddrs = c.Observation.APIAddrs[:2] }, "observation.api_addrs: must contain exactly 3 entries for local baseline"},
+		{"gateway pool", func(c *Config) { c.Observation.GatewayTCPAddrs = c.Observation.GatewayTCPAddrs[:2] }, "observation.gateway_tcp_addrs: must contain exactly 3 entries for local baseline"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLocalConfigAllowsReplacementObservationAddresses(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.Observation.ServiceNodes[0].Address = "http://127.0.0.1:25001"
+	cfg.Observation.Workers[0].Address = "http://127.0.0.1:29091"
+	cfg.Observation.HostMetrics[0].Address = "http://127.0.0.1:29101"
+	cfg.Observation.APIAddrs[0] = "http://127.0.0.1:25011"
+	cfg.Observation.GatewayTCPAddrs[0] = "127.0.0.1:25101"
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
 	}
 }
 

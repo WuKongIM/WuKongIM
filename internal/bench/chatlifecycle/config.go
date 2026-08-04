@@ -30,6 +30,39 @@ func DefaultConfig() Config {
 	return FormalConfig()
 }
 
+// LocalConfig returns a three-worker, three-node shakeout baseline. It keeps
+// the formal cluster topology and real-sync shape while reducing the workload
+// to 100 online users, 100 SENDs/s, 100 active channels, and a 30-minute run.
+func LocalConfig() Config {
+	cfg := FormalConfig()
+	cfg.RunID = "local-chat-lifecycle"
+	cfg.Profile = ProfileLocal
+	cfg.Workload.Workers = formalWorkers
+	cfg.Workload.OnlineUsers = 100
+	cfg.Workload.NewUsersPerDay = 1_000
+	cfg.Workload.SendRatePerSecond = 100
+	cfg.Workload.HotSet = HotSetConfig{PersonChannels: 80, GroupChannels: 20}
+	cfg.Workload.RuntimeSampling = RuntimeSamplingConfig{Every: time.Minute, Size: 12}
+	cfg.Workload.BurstCredit = 2 * time.Second
+	cfg.Workload.MaxGlobalBurst = 200
+	cfg.Workload.MaxChannelsPerNode = 500
+	cfg.Workload.Groups = GroupCatalogConfig{
+		Small: 16, Medium: 3, VeryLarge: 1, VeryLargeMembers: 1_000,
+		FixedMembership: true, VeryLargeSendEvery: time.Minute,
+	}
+	cfg.Observation = ObservationConfig{
+		ServiceNodes:    []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
+		Workers:         []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
+		HostMetrics:     []EndpointDeclaration{{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101"}, {Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102"}, {Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103"}},
+		APIAddrs:        []string{"http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"},
+		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
+		Cadence:         2 * time.Second,
+	}
+	cfg.Thresholds.MinimumDataFilesystemBytes = 10_000_000_000
+	cfg.Thresholds.Timeline = TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}
+	return cfg
+}
+
 // FormalConfig returns all reviewed formal workload, threshold, and staircase defaults.
 func FormalConfig() Config {
 	return Config{
@@ -106,7 +139,7 @@ func (c Config) Validate() error {
 	if c.Mode != ModeSoak && c.Mode != ModeCapacity {
 		return fieldError("mode", "must be soak or capacity")
 	}
-	if err := validateWorkload(c.Workload); err != nil {
+	if err := validateWorkload(c.Workload, c.Profile); err != nil {
 		return err
 	}
 	if err := validateObservation(c.Observation); err != nil {
@@ -119,11 +152,16 @@ func (c Config) Validate() error {
 		if err := validateFormalDefaults(c); err != nil {
 			return err
 		}
+	} else if err := validateLocalObservationShape(c.Observation); err != nil {
+		return err
+	}
+	if c.Workload.Workers != len(c.Observation.Workers) {
+		return fieldError("workload.workers", "must equal observation worker count")
 	}
 	return validateCapacity(c.Capacity, c.Profile, c.Mode)
 }
 
-func validateWorkload(w WorkloadConfig) error {
+func validateWorkload(w WorkloadConfig, profile Profile) error {
 	if w.Workers <= 0 {
 		return fieldError("workload.workers", "must be greater than zero")
 	}
@@ -190,6 +228,11 @@ func validateWorkload(w WorkloadConfig) error {
 	if w.MaxChannelsPerNode <= 0 {
 		return fieldError("workload.max_channels_per_node", "must be greater than zero")
 	}
+	// The current planner assigns both active person and group hot-set channels
+	// against this per-node allocation bound.
+	if w.HotSet.PersonChannels+w.HotSet.GroupChannels > w.MaxChannelsPerNode {
+		return fieldError("workload.max_channels_per_node", "must cover active person and group hot-set channels")
+	}
 	if err := validatePercentPair("workload.traffic", w.Traffic.PersonPercent, w.Traffic.GroupPercent); err != nil {
 		return err
 	}
@@ -234,26 +277,75 @@ func validateWorkload(w WorkloadConfig) error {
 			return fieldError(fmt.Sprintf("workload.retry.delays[%d]", i), "must be greater than zero")
 		}
 	}
-	if w.Groups.Small < 0 || w.Groups.Medium < 0 || w.Groups.Large < 0 || w.Groups.VeryLarge < 0 {
-		return fieldError("workload.groups", "counts must not be negative")
+	groupCategories := []struct {
+		path  string
+		count int
+	}{
+		{"workload.groups.small", w.Groups.Small},
+		{"workload.groups.medium", w.Groups.Medium},
+		{"workload.groups.large", w.Groups.Large},
+		{"workload.groups.very_large", w.Groups.VeryLarge},
 	}
-	if w.Groups.Small+w.Groups.Medium+w.Groups.Large+w.Groups.VeryLarge != formalGroupCatalogTotal {
+	for _, category := range groupCategories {
+		if category.count < 0 || category.count > formalGroupCatalogTotal {
+			return fieldError(category.path, "must be in 0..2000")
+		}
+	}
+	groupTotal := w.Groups.Small + w.Groups.Medium + w.Groups.Large + w.Groups.VeryLarge
+	if groupTotal <= 0 || groupTotal > formalGroupCatalogTotal {
+		return fieldError("workload.groups", "catalog total must be in 1..2000")
+	}
+	if profile == ProfileFormal && groupTotal != formalGroupCatalogTotal {
 		return fieldError("workload.groups", "catalog counts must total 2000")
 	}
-	if w.Groups.VeryLarge != 1 {
+	if profile == ProfileFormal && w.Groups.VeryLarge != 1 {
 		return fieldError("workload.groups.very_large", "must equal 1")
 	}
-	if w.Groups.VeryLargeMembers != formalVeryLargeMembers {
+	if profile == ProfileFormal && w.Groups.VeryLargeMembers != formalVeryLargeMembers {
 		return fieldError("workload.groups.very_large_members", "must equal 100000")
+	}
+	if w.HotSet.GroupChannels != groupTotal {
+		return fieldError("workload.hot_set.group_channels", "must equal group catalog total")
 	}
 	if !w.Groups.FixedMembership {
 		return fieldError("workload.groups.fixed_membership", "must be true")
 	}
-	if w.Groups.VeryLargeSendEvery <= 0 {
-		return fieldError("workload.groups.very_large_send_every", "must be greater than zero")
+	if w.Groups.VeryLarge > 0 {
+		if w.Groups.VeryLargeMembers <= 0 {
+			return fieldError("workload.groups.very_large_members", "must be greater than zero when very_large is positive")
+		}
+		if w.Groups.VeryLargeSendEvery <= 0 {
+			return fieldError("workload.groups.very_large_send_every", "must be greater than zero when very_large is positive")
+		}
+	} else {
+		if w.Groups.VeryLargeMembers != 0 {
+			return fieldError("workload.groups.very_large_members", "must be zero when very_large is zero")
+		}
+		if w.Groups.VeryLargeSendEvery != 0 {
+			return fieldError("workload.groups.very_large_send_every", "must be zero when very_large is zero")
+		}
 	}
 	if w.Topology.LogicalSlotGroups != formalLogicalSlotGroups || w.Topology.HashSlots != formalHashSlots || w.Topology.SlotReplicas != formalReplicas || w.Topology.ChannelReplicas != formalReplicas {
 		return fieldError("workload.topology", "must preserve 12 logical slot groups, 256 hash slots, and 3 replicas")
+	}
+	return nil
+}
+
+func validateLocalObservationShape(o ObservationConfig) error {
+	roles := []struct {
+		path  string
+		count int
+	}{
+		{"observation.service_nodes", len(o.ServiceNodes)},
+		{"observation.workers", len(o.Workers)},
+		{"observation.host_metrics", len(o.HostMetrics)},
+		{"observation.api_addrs", len(o.APIAddrs)},
+		{"observation.gateway_tcp_addrs", len(o.GatewayTCPAddrs)},
+	}
+	for _, role := range roles {
+		if role.count != formalWorkers {
+			return fieldError(role.path, "must contain exactly 3 entries for local baseline")
+		}
 	}
 	return nil
 }
