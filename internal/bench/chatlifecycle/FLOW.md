@@ -61,7 +61,9 @@ whose modulo is its worker ID; per-worker burst caps partition the global cap.
 The owned local attempt ordinal is mapped back to the interleaved global login
 ordinal before schedule selection, so three workers preserve exact aggregate
 250,000/62,500 daily new/returning counts instead of replaying three 80/20
-prefixes.
+prefixes. `LoginSchedule` also carries the O(1) cycle-prefix count of prior
+`LoginNew` decisions. For a new decision this is its globally consecutive
+new-user ordinal, independent of the uneven per-worker identity-index lanes.
 
 Login identity, session bucket, and channel lifecycle class use independent
 run-rotated ordinal cycles, giving exact 80/20, 25/50/20/5, and 60/25/10/5
@@ -185,6 +187,9 @@ Scheduler decisions read only O(1) online, starting, and closing counts. An
 aggregate pool snapshot copies client handles and scalar session metadata while
 holding the ownership read lock, releases it, and only then samples transport
 queue gauges; a slow client gauge cannot block login, logout, or detach.
+Each asynchronous startup result retains the plan-time global login and
+new-user ordinals. Relationship planning therefore never assigns degree or
+schedule ordinals from startup completion order.
 
 `TrafficGenerator` streams, rather than retains, each global per-second grant.
 It reuses `RateAllocator`, `TrafficModel`, and `GroupCatalog` to preserve the
@@ -310,15 +315,19 @@ first/last redacted examples are mutex-protected, deeply copied in snapshots,
 and bounded independently of elapsed run history. Product failure takes
 precedence and cannot be cleared by later success or harness evidence.
 
-The person relationship graph is reconstructed from worker-local owner
-ordinals and keeps no adjacency history. The interleaved worker lanes preserve
-the run-rotated `3,4,4,5` global degree cycle, while each edge maps
-`localOwner+distance` through `GlobalIndex` on the same owner worker. Thus every
-four global owners still create exactly 16 unique relationships, 250,000 new
-owners still create exactly 1,000,000 edges, and no activation depends on a
-different worker's session pool. Incoming reconstruction checks only the
-previous five local owners. Fixed-capacity results bound one user's incoming
-plus outgoing conversations to ten.
+The person relationship graph keeps degree identity and endpoint identity
+explicitly separate and retains no adjacency history. Degree uses the globally
+consecutive new-user ordinal and the run-rotated `3,4,4,5` cycle; endpoints use
+worker-local identity ordinals and map `localOwner+distance` through
+`GlobalIndex` on the same owner worker. This remains exact for all 100 login
+phases and all four degree phases even though three formal worker lanes contain
+83,334, 83,334, and 83,332 new identities. Every four global new-user ordinals
+create exactly 16 relationships, 250,000 new owners create exactly 1,000,000
+edges, and no activation depends on a different worker's session pool.
+Incoming reconstruction derives each prior local owner's degree ordinal from
+the immutable login cycle and checks only the previous five local owners.
+Fixed-capacity results bound one user's incoming plus outgoing conversations to
+ten.
 
 Fast unit allocation gates cover UID round trips, five-edge reconstruction,
 payload choice, login/channel schedules, and one-at-a-time group/member

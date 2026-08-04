@@ -18,6 +18,7 @@ var relationshipDegreePattern = [4]uint8{3, 4, 4, 5}
 var (
 	errRelationshipIdentityRequired = errors.New("chat lifecycle relationship: identity space is required")
 	errReturningHistoryWindow       = errors.New("chat lifecycle relationship: new users per day must cover at least six indexes")
+	errRelationshipDistance         = errors.New("chat lifecycle relationship: edge distance must be in 1..5")
 )
 
 // HistoryBucket classifies a candidate and its selected edge availability
@@ -111,22 +112,25 @@ func NewRelationshipGraph(identity *IdentitySpace) (RelationshipGraph, error) {
 	}, nil
 }
 
-// Degree returns the exact interleaved 3/4/4/5 global degree cycle from the
-// owner's worker-local lane without creating cross-worker edges.
-func (g RelationshipGraph) Degree(ownerIndex uint64) uint8 {
-	workerID, localOwner := g.identity.Owner(ownerIndex)
+// Degree returns the exact 3/4/4/5 degree for one global new-user ordinal.
+// Endpoint identity indexes deliberately do not participate in this decision.
+func (g RelationshipGraph) Degree(globalNewOrdinal uint64) uint8 {
 	cycle := uint64(len(relationshipDegreePattern))
-	// Interleave worker-local owner lanes into the one global degree cycle.
-	// Edges still move only within the owner's local lane.
-	position := (localOwner%cycle)*(g.identity.Workers()%cycle) + workerID%cycle
-	phase := (position + g.degreePhase) % cycle
+	phase := (globalNewOrdinal%cycle + g.degreePhase) % cycle
 	return relationshipDegreePattern[phase]
 }
 
-// Outgoing reconstructs all unique forward edges owned by ownerIndex.
+// Outgoing reconstructs the identity-aligned compatibility vector. Planned
+// multi-worker logins must use OutgoingForOrdinal to keep degree explicit.
 func (g RelationshipGraph) Outgoing(ownerIndex uint64) (ForwardRelationshipSet, error) {
+	return g.OutgoingForOrdinal(ownerIndex, ownerIndex)
+}
+
+// OutgoingForOrdinal separates the endpoint's global identity index from its
+// global new-user degree ordinal while keeping every edge in the owner lane.
+func (g RelationshipGraph) OutgoingForOrdinal(ownerIndex, globalNewOrdinal uint64) (ForwardRelationshipSet, error) {
 	var result ForwardRelationshipSet
-	degree := int(g.Degree(ownerIndex))
+	degree := int(g.Degree(globalNewOrdinal))
 	workerID, localOwner := g.identity.Owner(ownerIndex)
 	ownerUID := g.identity.UID(ownerIndex)
 	for offset := 1; offset <= degree; offset++ {
@@ -144,7 +148,8 @@ func (g RelationshipGraph) Outgoing(ownerIndex uint64) (ForwardRelationshipSet, 
 	return result, nil
 }
 
-// Incoming reconstructs edges from at most the previous five owner indexes.
+// Incoming reconstructs the identity-aligned compatibility vector from at most
+// five prior owners. Planned logins use IncomingEdgeForOrdinal.
 func (g RelationshipGraph) Incoming(userIndex uint64) ForwardRelationshipSet {
 	var result ForwardRelationshipSet
 	workerID, localUser := g.identity.Owner(userIndex)
@@ -153,13 +158,37 @@ func (g RelationshipGraph) Incoming(userIndex uint64) ForwardRelationshipSet {
 		if err != nil {
 			return result
 		}
-		if uint64(g.Degree(ownerIndex)) < distance {
+		edge, available, err := g.IncomingEdgeForOrdinal(userIndex, distance, ownerIndex)
+		if err != nil {
+			return result
+		}
+		if !available {
 			continue
 		}
-		result.Items[result.Count] = g.edge(ownerIndex, userIndex)
+		result.Items[result.Count] = edge
 		result.Count++
 	}
 	return result
+}
+
+// IncomingEdgeForOrdinal reconstructs one possible previous local endpoint
+// while taking its global new-user degree ordinal as a distinct argument.
+func (g RelationshipGraph) IncomingEdgeForOrdinal(userIndex, distance, ownerGlobalNewOrdinal uint64) (RelationshipEdge, bool, error) {
+	workerID, localUser := g.identity.Owner(userIndex)
+	if distance == 0 || distance > MaxForwardRelationships {
+		return RelationshipEdge{}, false, errRelationshipDistance
+	}
+	if distance > localUser {
+		return RelationshipEdge{}, false, nil
+	}
+	ownerIndex, err := g.identity.GlobalIndex(workerID, localUser-distance)
+	if err != nil {
+		return RelationshipEdge{}, false, err
+	}
+	if uint64(g.Degree(ownerGlobalNewOrdinal)) < distance {
+		return RelationshipEdge{}, false, nil
+	}
+	return g.edge(ownerIndex, userIndex), true, nil
 }
 
 // AvailableRelationships reconstructs only real edges whose higher endpoint

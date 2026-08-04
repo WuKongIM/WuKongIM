@@ -1977,7 +1977,7 @@ func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInit
 		workerCount    = 3
 		usersPerWorker = 100
 	)
-	var aggregateConsidered, aggregateActivated, aggregateInitialBursts int
+	var aggregateConsidered, aggregateActivated, aggregateInitialBursts, aggregateExpected int
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
 		fixture := newEngineTestFixture(t, engineTestLimits{
 			WorkerID: workerID, WorkerCount: workerCount, OnlineUsers: workerCount * usersPerWorker,
@@ -1985,6 +1985,16 @@ func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInit
 		})
 		if err := fixture.engine.Start(context.Background()); err != nil {
 			t.Fatalf("worker %d Start: %v", workerID, err)
+		}
+		newOrdinals := make([]uint64, 0, usersPerWorker)
+		for newOrdinal := uint64(0); len(newOrdinals) < usersPerWorker; newOrdinal++ {
+			loginOrdinal, err := fixture.schedule.loginOrdinalForNewOrdinal(newOrdinal)
+			if err != nil {
+				t.Fatalf("worker %d loginOrdinalForNewOrdinal(%d): %v", workerID, newOrdinal, err)
+			}
+			if loginOrdinal%workerCount == workerID {
+				newOrdinals = append(newOrdinals, newOrdinal)
+			}
 		}
 		for localIndex := uint64(0); localIndex < usersPerWorker; localIndex++ {
 			globalIndex, err := fixture.identity.GlobalIndex(workerID, localIndex)
@@ -2004,22 +2014,29 @@ func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInit
 			if err != nil {
 				t.Fatalf("worker %d GlobalIndex(%d): %v", workerID, localIndex, err)
 			}
-			incoming := fixture.graph.Incoming(globalIndex)
-			for edgeIndex := 0; edgeIndex < incoming.Count; edgeIndex++ {
-				edge := incoming.Items[edgeIndex]
+			for distance := uint64(1); distance <= MaxForwardRelationships && distance <= localIndex; distance++ {
+				ownerOrdinal := newOrdinals[localIndex-distance]
+				edge, available, edgeErr := fixture.graph.IncomingEdgeForOrdinal(globalIndex, distance, ownerOrdinal)
+				if edgeErr != nil {
+					t.Fatalf("worker %d IncomingEdgeForOrdinal(%d, %d): %v", workerID, localIndex, distance, edgeErr)
+				}
+				if !available {
+					continue
+				}
+				aggregateExpected++
 				ownerWorker, _ := fixture.identity.Owner(edge.OwnerIndex)
 				peerWorker, _ := fixture.identity.Owner(edge.PeerIndex)
 				if ownerWorker != workerID || peerWorker != workerID {
 					t.Fatalf("worker %d incoming edge crosses pools: %+v owners=%d/%d", workerID, edge, ownerWorker, peerWorker)
 				}
-				ordinal := edge.OwnerIndex*MaxForwardRelationships + uint64(edgeIndex)
+				ordinal := ownerOrdinal*MaxForwardRelationships + distance - 1
 				schedule, scheduleErr := fixture.schedule.Channel(ordinal, edge.OwnerIndex, edge.PeerIndex)
 				if scheduleErr != nil {
 					t.Fatalf("worker %d Channel(%d): %v", workerID, ordinal, scheduleErr)
 				}
 				workerExpectedInitial += schedule.InitialBurst.MessageCount
 			}
-			considered, activated, observeErr := fixture.engine.ObserveNewUser(globalIndex)
+			considered, activated, observeErr := fixture.engine.ObserveNewUserForOrdinal(globalIndex, newOrdinals[localIndex])
 			if observeErr != nil {
 				_ = fixture.engine.Stop()
 				t.Fatalf("worker %d ObserveNewUser(%d): %v", workerID, localIndex, observeErr)
@@ -2041,8 +2058,82 @@ func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInit
 			t.Fatalf("worker %d Stop: %v", workerID, err)
 		}
 	}
-	if aggregateConsidered != aggregateActivated || aggregateActivated != 1_169 || aggregateInitialBursts == 0 {
-		t.Fatalf("aggregate relationship history considered/activated/initial = %d/%d/%d, want 1169/1169/nonzero", aggregateConsidered, aggregateActivated, aggregateInitialBursts)
+	if aggregateExpected != 1_169 || aggregateConsidered != 1_169 || aggregateActivated != 1_169 || aggregateInitialBursts != 5_932 {
+		t.Fatalf("aggregate relationship history expected/considered/activated/initial = %d/%d/%d/%d, want 1169/1169/1169/5932", aggregateExpected, aggregateConsidered, aggregateActivated, aggregateInitialBursts)
+	}
+}
+
+func TestEnginePlannedNewRelationshipsIgnoreAsyncCompletionOrder(t *testing.T) {
+	type relationshipTotals struct {
+		completedNew, activity, future, lifecycle, hot, pending, cold int
+	}
+	run := func(name string, reverse bool) relationshipTotals {
+		t.Helper()
+		const users = 13
+		fixture := newEngineTestFixture(t, engineTestLimits{
+			WorkerID: 0, WorkerCount: 3, OnlineUsers: 3 * users,
+			WorkCapacity: 8_192, MaxWorkPerAdvance: 8_192,
+		})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("%s Start: %v", name, err)
+		}
+		defer fixture.engine.Stop()
+
+		newOrdinals := make([]uint64, 0, users)
+		for newOrdinal := uint64(0); len(newOrdinals) < users; newOrdinal++ {
+			loginOrdinal, err := fixture.schedule.loginOrdinalForNewOrdinal(newOrdinal)
+			if err != nil {
+				t.Fatalf("%s loginOrdinalForNewOrdinal(%d): %v", name, newOrdinal, err)
+			}
+			if loginOrdinal%fixture.identity.Workers() == fixture.engine.workerID {
+				newOrdinals = append(newOrdinals, newOrdinal)
+			}
+		}
+		for localIndex, newOrdinal := range newOrdinals {
+			userIndex, err := fixture.identity.GlobalIndex(fixture.engine.workerID, uint64(localIndex))
+			if err != nil {
+				t.Fatalf("%s GlobalIndex(%d): %v", name, localIndex, err)
+			}
+			uid := fixture.identity.UID(userIndex)
+			if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+				UID: uid, UserIndex: userIndex, LoginOrdinal: newOrdinal,
+			}); err != nil {
+				t.Fatalf("%s Login(%d): %v", name, localIndex, err)
+			}
+		}
+		for position := range newOrdinals {
+			localIndex := position
+			if reverse {
+				localIndex = len(newOrdinals) - 1 - position
+			}
+			userIndex, _ := fixture.identity.GlobalIndex(fixture.engine.workerID, uint64(localIndex))
+			fixture.engine.loginResults <- engineLoginResult{
+				login: SessionLogin{
+					UID: fixture.identity.UID(userIndex), UserIndex: userIndex,
+				},
+				kind: LoginNew, globalNewOrdinal: newOrdinals[localIndex], scheduledNewOrdinal: true,
+			}
+		}
+		step, err := fixture.engine.Step(context.Background(), fixture.clock.Now(), nil)
+		if err != nil {
+			t.Fatalf("%s Step: %v", name, err)
+		}
+		snapshot, err := fixture.engine.Snapshot()
+		if err != nil {
+			t.Fatalf("%s Snapshot: %v", name, err)
+		}
+		return relationshipTotals{
+			completedNew: step.CompletedNew, activity: snapshot.ActivityCurrent,
+			future: snapshot.FutureCurrent, lifecycle: snapshot.ActiveLifecycleTimers,
+			hot: snapshot.ActiveHotChannels, pending: snapshot.PendingHotChannels,
+			cold: snapshot.ColdEvidencePending,
+		}
+	}
+
+	forward := run("forward", false)
+	reversed := run("reversed", true)
+	if forward != reversed || forward.completedNew != 13 || forward.activity == 0 {
+		t.Fatalf("planned new relationship totals forward=%+v reversed=%+v, want identical nonzero plans", forward, reversed)
 	}
 }
 

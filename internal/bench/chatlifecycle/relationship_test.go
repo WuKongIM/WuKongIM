@@ -99,6 +99,109 @@ func TestRelationshipGraphPartitionsEveryEdgeWithinOwnerWorker(t *testing.T) {
 	}
 }
 
+func TestFormalLoginAndRelationshipPhasesComposeToExactMillion(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		runID string
+		seed  uint64
+	}{
+		{name: "default", runID: FormalConfig().RunID, seed: FormalConfig().Seed},
+		{name: "opposite_rounding", runID: "phase-repro", seed: 40},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			cfg.RunID = testCase.runID
+			cfg.Seed = testCase.seed
+			identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+			if err != nil {
+				t.Fatalf("NewIdentitySpace: %v", err)
+			}
+			schedule, err := NewScheduleModel(identity, cfg.Workload)
+			if err != nil {
+				t.Fatalf("NewScheduleModel: %v", err)
+			}
+			graph, err := NewRelationshipGraph(identity)
+			if err != nil {
+				t.Fatalf("NewRelationshipGraph: %v", err)
+			}
+
+			var localNew [formalWorkers]uint64
+			var relationships uint64
+			for loginOrdinal := uint64(0); loginOrdinal < 312_500; loginOrdinal++ {
+				login, loginErr := schedule.Login(loginOrdinal)
+				if loginErr != nil {
+					t.Fatalf("Login(%d): %v", loginOrdinal, loginErr)
+				}
+				if login.Identity != LoginNew {
+					continue
+				}
+				workerID := loginOrdinal % uint64(cfg.Workload.Workers)
+				ownerIndex, indexErr := identity.GlobalIndex(workerID, localNew[workerID])
+				if indexErr != nil {
+					t.Fatalf("GlobalIndex(%d, %d): %v", workerID, localNew[workerID], indexErr)
+				}
+				localNew[workerID]++
+				outgoing, outgoingErr := graph.OutgoingForOrdinal(ownerIndex, login.NewOrdinal)
+				if outgoingErr != nil {
+					t.Fatalf("Outgoing(%d): %v", ownerIndex, outgoingErr)
+				}
+				relationships += uint64(outgoing.Count)
+				for edgeIndex := 0; edgeIndex < outgoing.Count; edgeIndex++ {
+					ownerWorker, _ := identity.Owner(outgoing.Items[edgeIndex].OwnerIndex)
+					peerWorker, _ := identity.Owner(outgoing.Items[edgeIndex].PeerIndex)
+					if ownerWorker != workerID || peerWorker != workerID {
+						t.Fatalf("login %d relationship crosses workers: %+v", loginOrdinal, outgoing.Items[edgeIndex])
+					}
+				}
+			}
+			if localNew != [formalWorkers]uint64{83_334, 83_334, 83_332} && testCase.name == "default" {
+				t.Fatalf("default formal new-user lanes = %v", localNew)
+			}
+			if relationships != 1_000_000 {
+				t.Fatalf("formal relationships = %d, want 1000000 (login_phase=%d degree_phase=%d lanes=%v)", relationships, schedule.loginPhase, graph.degreePhase, localNew)
+			}
+		})
+	}
+}
+
+func TestEveryLoginAndDegreePhaseComposesToExactFormalRelationshipTotal(t *testing.T) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace("relationship-phase-matrix", 71, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	graph, err := NewRelationshipGraph(identity)
+	if err != nil {
+		t.Fatalf("NewRelationshipGraph: %v", err)
+	}
+
+	for loginPhase := uint64(0); loginPhase < distributionCycle; loginPhase++ {
+		schedule.loginPhase = loginPhase
+		newUsers := schedule.NewOrdinalBefore(312_500)
+		if newUsers != 250_000 {
+			t.Fatalf("login phase %d new users = %d, want 250000", loginPhase, newUsers)
+		}
+		for degreePhase := uint64(0); degreePhase < uint64(len(relationshipDegreePattern)); degreePhase++ {
+			graph.degreePhase = degreePhase
+			var cycleRelationships uint64
+			for newOrdinal := uint64(0); newOrdinal < uint64(len(relationshipDegreePattern)); newOrdinal++ {
+				cycleRelationships += uint64(graph.Degree(newOrdinal))
+			}
+			relationships := (newUsers / uint64(len(relationshipDegreePattern))) * cycleRelationships
+			for newOrdinal := newUsers - newUsers%uint64(len(relationshipDegreePattern)); newOrdinal < newUsers; newOrdinal++ {
+				relationships += uint64(graph.Degree(newOrdinal))
+			}
+			if relationships != 1_000_000 {
+				t.Fatalf("login phase %d degree phase %d relationships = %d, want 1000000", loginPhase, degreePhase, relationships)
+			}
+		}
+	}
+}
+
 func TestRelationshipGraphReconstructsIncomingEdgesFromPreviousFiveOwners(t *testing.T) {
 	graph, _ := newTestRelationshipGraph(t)
 	for user := uint64(100); user < 2_000; user++ {

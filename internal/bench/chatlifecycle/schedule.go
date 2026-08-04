@@ -2,6 +2,7 @@ package chatlifecycle
 
 import (
 	"errors"
+	"math"
 	"math/bits"
 	"time"
 )
@@ -27,6 +28,7 @@ var (
 	errScheduleEndpointOrder         = errors.New("chat lifecycle schedule: person endpoints must be distinct and ordered lower to higher")
 	errScheduleMessageIndex          = errors.New("chat lifecycle schedule: message index is outside the initial burst")
 	errScheduleMessageWindow         = errors.New("chat lifecycle schedule: initial burst window must be positive")
+	errScheduleNewOrdinal            = errors.New("chat lifecycle schedule: global new-user ordinal is outside the login stream")
 )
 
 // LoginIdentity identifies whether a login introduces a new UID or reuses a
@@ -57,7 +59,10 @@ const (
 // LoginSchedule is a pure login decision reconstructed from one global login
 // ordinal. SessionBucket indexes the validated WorkloadConfig.Sessions slice.
 type LoginSchedule struct {
-	Identity        LoginIdentity
+	Identity LoginIdentity
+	// NewOrdinal is the count of LoginNew decisions before this global login.
+	// It is this login's zero-based global new-user ordinal when Identity is new.
+	NewOrdinal      uint64
 	SessionBucket   int
 	SessionDuration time.Duration
 }
@@ -214,7 +219,71 @@ func (m ScheduleModel) Login(loginOrdinal uint64) (LoginSchedule, error) {
 	if err != nil {
 		return LoginSchedule{}, err
 	}
-	return LoginSchedule{Identity: identity, SessionBucket: sessionBucket, SessionDuration: duration}, nil
+	return LoginSchedule{
+		Identity: identity, NewOrdinal: m.NewOrdinalBefore(loginOrdinal),
+		SessionBucket: sessionBucket, SessionDuration: duration,
+	}, nil
+}
+
+// NewOrdinalBefore counts LoginNew decisions in [0, loginOrdinal). The fixed
+// 100-position cycle makes the prefix calculation O(1) and history-independent.
+func (m ScheduleModel) NewOrdinalBefore(loginOrdinal uint64) uint64 {
+	result := (loginOrdinal / distributionCycle) * uint64(m.login.NewPercent)
+	for position := uint64(0); position < loginOrdinal%distributionCycle; position++ {
+		if ordinalPercent(position, m.loginPhase) < m.login.NewPercent {
+			result++
+		}
+	}
+	return result
+}
+
+// PreviousNewOrdinalOnWorker returns the requested previous LoginNew decision
+// owned by workerID. It derives only from the immutable login cycle, never from
+// asynchronous completion order.
+func (m ScheduleModel) PreviousNewOrdinalOnWorker(currentNewOrdinal, workerID, workerCount, distance uint64) (uint64, bool, error) {
+	if workerCount == 0 || workerID >= workerCount || distance == 0 {
+		return 0, false, errScheduleNewOrdinal
+	}
+	currentLoginOrdinal, err := m.loginOrdinalForNewOrdinal(currentNewOrdinal)
+	if err != nil || currentLoginOrdinal%workerCount != workerID {
+		return 0, false, errScheduleNewOrdinal
+	}
+	found := uint64(0)
+	for candidate := currentNewOrdinal; candidate > 0; {
+		candidate--
+		loginOrdinal, candidateErr := m.loginOrdinalForNewOrdinal(candidate)
+		if candidateErr != nil {
+			return 0, false, candidateErr
+		}
+		if loginOrdinal%workerCount != workerID {
+			continue
+		}
+		found++
+		if found == distance {
+			return candidate, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+func (m ScheduleModel) loginOrdinalForNewOrdinal(globalNewOrdinal uint64) (uint64, error) {
+	newPerCycle := uint64(m.login.NewPercent)
+	cycle := globalNewOrdinal / newPerCycle
+	rank := globalNewOrdinal % newPerCycle
+	position := uint64(0)
+	for ; position < distributionCycle; position++ {
+		if ordinalPercent(position, m.loginPhase) >= m.login.NewPercent {
+			continue
+		}
+		if rank == 0 {
+			break
+		}
+		rank--
+	}
+	if position == distributionCycle || cycle > (math.MaxUint64-position)/distributionCycle {
+		return 0, errScheduleNewOrdinal
+	}
+	return cycle*distributionCycle + position, nil
 }
 
 // LoginRates derives the reviewed identity-growth and total-login rates. For

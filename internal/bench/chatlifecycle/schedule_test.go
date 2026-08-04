@@ -389,6 +389,35 @@ func TestScheduleDiscreteSequencesRotateAcrossFixedRunKeys(t *testing.T) {
 	}
 }
 
+func TestScheduleModelComputesGlobalNewOrdinalFromLoginPrefix(t *testing.T) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	model, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	if model.loginPhase != 79 {
+		t.Fatalf("formal login phase = %d, want fixed regression phase 79", model.loginPhase)
+	}
+
+	for loginOrdinal, want := range map[uint64]uint64{
+		0: 0, 1: 1, 21: 1, 22: 2, 100: 80, 312_500: 250_000,
+	} {
+		if got := model.NewOrdinalBefore(loginOrdinal); got != want {
+			t.Fatalf("NewOrdinalBefore(%d) = %d, want %d", loginOrdinal, got, want)
+		}
+	}
+	for loginOrdinal, want := range map[uint64]uint64{0: 0, 21: 1, 99: 79, 100: 80} {
+		login, loginErr := model.Login(loginOrdinal)
+		if loginErr != nil || login.Identity != LoginNew || login.NewOrdinal != want {
+			t.Fatalf("Login(%d) = %+v, %v; want new ordinal %d", loginOrdinal, login, loginErr, want)
+		}
+	}
+}
+
 func TestScheduleModelCopiesSessionBucketsAtConstruction(t *testing.T) {
 	cfg := DefaultConfig()
 	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
