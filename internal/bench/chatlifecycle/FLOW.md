@@ -21,6 +21,31 @@ and WKProto only. It exercises real sync behavior (`version=0`, runtime-owned
 empty last-message sequences, bounded sync limit), never a synthetic history
 shortcut.
 
+Identity planning uses zero-based worker IDs. Worker-local index `n` on worker
+`w` maps to global index `n*workers+w`; division and remainder recover the
+owner without a retained UID map. A lifecycle UID contains a bounded hashed
+run/seed namespace plus the exact base-36 global index, so it is reversible and
+collision-free within the run without leaking raw run-ID characters. All
+deterministic choices use independent semantic-purpose hashes; introducing one
+choice cannot consume or shift another choice's output.
+
+The person relationship graph is reconstructed from global indexes and keeps
+no adjacency history. Each owner has a run-rotated repeating degree pattern
+`3,4,4,5` and owns edges to the next consecutive indexes. Thus every four
+owners create exactly 16 unique lower-to-higher relationships, every edge
+becomes available when its higher endpoint arrives, and incoming reconstruction
+checks only the previous five owners. Fixed-capacity results bound one user's
+incoming plus outgoing conversations to ten.
+
+Returning-login planning selects mature historical candidates rather than
+claiming they are offline; offline admission remains worker-owned. Four of each
+five login ordinals prefer candidates and real adjacent edges created within
+the preceding `new_users_per_day` indexes, while one prefers history strictly
+before that boundary. Before older history exists, an older preference is
+explicitly reported as a fallback to available recent history. If neither
+bucket contains a mature candidate, selection is explicitly unavailable and no
+historical channel is invented.
+
 Every deployment remains a cluster, including a single-node cluster. Planning
 uses 12 logical Slot groups over 256 hash slots with three Slot and channel
 replicas. The lifecycle runner does not start Docker; it connects to an
