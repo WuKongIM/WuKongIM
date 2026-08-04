@@ -142,6 +142,7 @@ type SessionSnapshot struct {
 type SessionPoolSnapshot struct {
 	Online             int
 	Starting           int
+	Closing            int
 	TrafficReady       int
 	QueueDepth         int
 	QueueCapacity      int
@@ -179,6 +180,7 @@ type SessionPool struct {
 	onlineByIndex      map[uint64]*onlineSession
 	onlineGroupMembers [][]*onlineSession
 	starting           map[string]struct{}
+	closing            map[string]*onlineSession
 	readErrors         uint64
 	verificationErrors uint64
 }
@@ -199,6 +201,7 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		onlineByIndex:      make(map[uint64]*onlineSession),
 		onlineGroupMembers: make([][]*onlineSession, config.Catalog.Count()),
 		starting:           make(map[string]struct{}),
+		closing:            make(map[string]*onlineSession),
 	}, nil
 }
 
@@ -222,7 +225,8 @@ func (p *SessionPool) login(ctx, drainParent context.Context, login SessionLogin
 	p.mu.Lock()
 	_, online := p.online[login.UID]
 	_, starting := p.starting[login.UID]
-	if online || starting {
+	_, closing := p.closing[login.UID]
+	if online || starting || closing {
 		p.mu.Unlock()
 		return SessionSnapshot{}, errSessionOnline
 	}
@@ -310,7 +314,8 @@ func (p *SessionPool) isOwned(uid string) bool {
 	defer p.mu.RUnlock()
 	_, online := p.online[uid]
 	_, starting := p.starting[uid]
-	return online || starting
+	_, closing := p.closing[uid]
+	return online || starting || closing
 }
 
 // CanActivate enforces the relationship contract at the point work is admitted.
@@ -367,6 +372,7 @@ func (p *SessionPool) Logout(uid string) error {
 	session := p.online[uid]
 	if session != nil {
 		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
+		p.closing[uid] = session
 	}
 	p.mu.Unlock()
 	if session == nil {
@@ -376,6 +382,7 @@ func (p *SessionPool) Logout(uid string) error {
 	closeErr := session.client.Close()
 	<-session.done
 	p.verifier.ReleaseRecipient(uid)
+	p.finishClosing(uid, session)
 	return closeErr
 }
 
@@ -397,6 +404,15 @@ func (p *SessionPool) CloseAll() error {
 			result = errors.Join(result, err)
 		}
 	}
+	p.mu.RLock()
+	closing := make([]<-chan struct{}, 0, len(p.closing))
+	for _, session := range p.closing {
+		closing = append(closing, session.done)
+	}
+	p.mu.RUnlock()
+	for _, done := range closing {
+		<-done
+	}
 	return result
 }
 
@@ -408,7 +424,7 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	snapshot := SessionPoolSnapshot{
-		Online: len(p.online), Starting: len(p.starting), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
+		Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
 	}
 	for _, session := range p.online {
 		if session.snapshot.TrafficReady {
@@ -447,7 +463,7 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.online) != 0 || len(p.starting) != 0 {
+	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 {
 		return errSessionOnline
 	}
 	p.readErrors = 0
@@ -516,12 +532,22 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 	// callers may see evidence before removal, but never offline before evidence.
 	_ = p.verifier.evidence.Record(EvidenceEvent{Class: class, Stage: EvidenceStageReceive, Code: code})
 	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
+	p.closing[session.snapshot.UID] = session
 	p.readErrors++
 	p.mu.Unlock()
 
 	session.cancel()
 	_ = session.client.Close()
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
+	p.finishClosing(session.snapshot.UID, session)
+}
+
+func (p *SessionPool) finishClosing(uid string, session *onlineSession) {
+	p.mu.Lock()
+	if p.closing[uid] == session {
+		delete(p.closing, uid)
+	}
+	p.mu.Unlock()
 }
 
 func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {

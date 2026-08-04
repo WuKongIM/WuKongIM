@@ -266,11 +266,26 @@ func TestSessionPoolTerminalEvidencePrecedesOfflinePublicationAndBlockingClose(t
 	if fixture.pool.IsOnline(uid) {
 		t.Fatal("terminal session remained online after detach reached socket close")
 	}
+	if !fixture.pool.isOwned(uid) {
+		t.Fatal("terminal session released UID ownership before close and verifier cleanup")
+	}
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 35, LoginOrdinal: 8}); !errors.Is(err, errSessionOnline) {
+		t.Fatalf("Login during terminal cleanup = %v, want %v", err, errSessionOnline)
+	}
 	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
 		t.Fatalf("offline state became observable before terminal evidence: %q", got)
 	}
 	close(closeRelease)
 	<-drainDone
+	if fixture.pool.isOwned(uid) {
+		t.Fatal("terminal session retained UID ownership after verifier cleanup")
+	}
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 35, LoginOrdinal: 9}); err != nil {
+		t.Fatalf("Login after terminal cleanup: %v", err)
+	}
+	if err := fixture.pool.Logout(uid); err != nil {
+		t.Fatalf("Logout replacement: %v", err)
+	}
 }
 
 func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T) {

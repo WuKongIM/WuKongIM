@@ -1113,10 +1113,18 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 	if len(packets) != 4 {
 		t.Fatalf("SEND attempts = %d, want 4", len(packets))
 	}
+	clientSeqs := make(map[uint64]struct{}, len(packets))
 	for index, packet := range packets {
 		if packet.ClientMsgNo != intent.Logical.ClientMsgNo {
 			t.Fatalf("attempt %d client_msg_no = %q, want %q", index, packet.ClientMsgNo, intent.Logical.ClientMsgNo)
 		}
+		if packet.ClientSeq == 0 {
+			t.Fatalf("attempt %d ClientSeq = 0", index)
+		}
+		if _, exists := clientSeqs[packet.ClientSeq]; exists {
+			t.Fatalf("attempt %d reused ClientSeq %d", index, packet.ClientSeq)
+		}
+		clientSeqs[packet.ClientSeq] = struct{}{}
 	}
 	ack := &frame.SendackPacket{
 		ClientMsgNo: intent.Logical.ClientMsgNo, MessageID: 901, MessageSeq: 77, ReasonCode: frame.ReasonSuccess,

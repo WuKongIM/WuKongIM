@@ -118,6 +118,41 @@ func TestReadErrorKindDistinguishesAsyncSendFromTerminalSessionFailure(t *testin
 	}
 }
 
+func TestClientReadFrameIgnoresShortOperationTimeoutUntilCallerCancels(t *testing.T) {
+	client, err := NewClient(ClientConfig{
+		Addr:             "127.0.0.1:5100",
+		OperationTimeout: time.Nanosecond,
+		FrameBufferSize:  1,
+	})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	client.session = newClientSession(nil, client.frameBufferSize)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, readErr := client.ReadFrame(ctx)
+		result <- readErr
+	}()
+
+	select {
+	case readErr := <-result:
+		t.Fatalf("ReadFrame returned after operation timeout: %v", readErr)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case readErr := <-result:
+		if !errors.Is(readErr, context.Canceled) {
+			t.Fatalf("ReadFrame cancellation error = %v, want %v", readErr, context.Canceled)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ReadFrame did not return after caller cancellation")
+	}
+}
+
 func TestClientConnectSendsConnectPacketAndAcceptsConnack(t *testing.T) {
 	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
 		f, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
@@ -809,6 +844,122 @@ func TestClientAckTimeoutCanExceedOperationTimeout(t *testing.T) {
 	}
 	if _, ok := f.(*frame.SendackPacket); !ok {
 		t.Fatalf("ReadFrame() = %T, want *frame.SendackPacket", f)
+	}
+}
+
+func TestClientParallelAttemptsDisambiguateStableMessageIdentityByClientSeq(t *testing.T) {
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		if _, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion); err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+
+		attempts := make([]*frame.SendPacket, 2)
+		for index := range attempts {
+			packet, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+			if err != nil {
+				t.Fatalf("decode attempt %d: %v", index, err)
+			}
+			attempts[index] = packet.(*frame.SendPacket)
+		}
+		if attempts[0].ClientMsgNo != "stable-retry" || attempts[1].ClientMsgNo != "stable-retry" {
+			t.Fatalf("client_msg_no changed across attempts: %q %q", attempts[0].ClientMsgNo, attempts[1].ClientMsgNo)
+		}
+		if attempts[0].ClientSeq == attempts[1].ClientSeq {
+			t.Fatalf("parallel attempts reused ClientSeq %d", attempts[0].ClientSeq)
+		}
+		writeFrame(t, conn, sendackForAttempt(attempts[1], 902))
+		writeFrame(t, conn, sendackForAttempt(attempts[0], 901))
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second, AckTimeout: time.Second})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+	if err := client.Connect(context.Background(), "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	for _, clientSeq := range []uint64{41, 42} {
+		if err := client.Send(context.Background(), &frame.SendPacket{
+			ClientSeq: clientSeq, ClientMsgNo: "stable-retry", ChannelID: "u2",
+			ChannelType: frame.ChannelTypePerson, Payload: []byte("attempt"),
+		}); err != nil {
+			t.Fatalf("Send(ClientSeq=%d) error = %v", clientSeq, err)
+		}
+	}
+
+	seen := make(map[uint64]int64, 2)
+	for range 2 {
+		packet, readErr := client.ReadFrame(context.Background())
+		if readErr != nil {
+			t.Fatalf("ReadFrame() error = %v", readErr)
+		}
+		ack := packet.(*frame.SendackPacket)
+		seen[ack.ClientSeq] = ack.MessageID
+	}
+	if seen[41] != 901 || seen[42] != 902 {
+		t.Fatalf("attempt ACK ownership = %+v", seen)
+	}
+}
+
+func TestClientTimedOutAttemptLateAckCannotStealRetry(t *testing.T) {
+	server := newFakeWKProtoServer(t, func(t *testing.T, conn net.Conn) {
+		if _, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion); err != nil {
+			t.Fatalf("decode connect: %v", err)
+		}
+		writeFrame(t, conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion})
+
+		firstFrame, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode first attempt: %v", err)
+		}
+		secondFrame, err := codec.New().DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			t.Fatalf("decode retry: %v", err)
+		}
+		first := firstFrame.(*frame.SendPacket)
+		second := secondFrame.(*frame.SendPacket)
+		writeFrame(t, conn, sendackForAttempt(first, 911))
+		writeFrame(t, conn, sendackForAttempt(second, 912))
+	})
+	defer server.close()
+
+	client, err := NewClient(ClientConfig{Addr: server.addr, OperationTimeout: time.Second, AckTimeout: 5 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	defer client.Close()
+	if err := client.Connect(context.Background(), "u1", "d1"); err != nil {
+		t.Fatalf("Connect() error = %v", err)
+	}
+	first := &frame.SendPacket{ClientSeq: 51, ClientMsgNo: "stable-timeout", ChannelID: "u2", ChannelType: frame.ChannelTypePerson, Payload: []byte("first")}
+	if err := client.Send(context.Background(), first); err != nil {
+		t.Fatalf("first Send() error = %v", err)
+	}
+	if _, readErr := client.ReadFrame(context.Background()); !errors.Is(readErr, wkclient.ErrAckTimeout) {
+		t.Fatalf("first result = %v, want %v", readErr, wkclient.ErrAckTimeout)
+	}
+	retry := *first
+	retry.ClientSeq = 52
+	if err := client.Send(context.Background(), &retry); err != nil {
+		t.Fatalf("retry Send() error = %v", err)
+	}
+	packet, readErr := client.ReadFrame(context.Background())
+	if readErr != nil {
+		t.Fatalf("retry ReadFrame() error = %v", readErr)
+	}
+	ack := packet.(*frame.SendackPacket)
+	if ack.ClientSeq != retry.ClientSeq || ack.ClientMsgNo != retry.ClientMsgNo || ack.MessageID != 912 {
+		t.Fatalf("retry ACK = %+v", ack)
+	}
+}
+
+func sendackForAttempt(send *frame.SendPacket, messageID int64) *frame.SendackPacket {
+	return &frame.SendackPacket{
+		ClientSeq: send.ClientSeq, ClientMsgNo: send.ClientMsgNo,
+		MessageID: messageID, MessageSeq: uint64(messageID), ReasonCode: frame.ReasonSuccess,
 	}
 }
 

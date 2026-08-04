@@ -440,6 +440,7 @@ type Engine struct {
 	queuedSends            int
 	inflightPeak           int
 	nextOrder              uint64
+	nextClientSeq          uint64
 	activeLifecycleTimers  int
 	lifecycleByChannel     map[string]*engineWork
 	activeChannels         []engineActiveChannel
@@ -535,6 +536,7 @@ func (e *Engine) Start(ctx context.Context) error {
 	e.queuedSends = 0
 	e.inflightPeak = 0
 	e.nextOrder = 0
+	e.nextClientSeq = 0
 	e.activeLifecycleTimers = 0
 	e.retryAttempts = 0
 	e.finalFailures = 0
@@ -1295,7 +1297,13 @@ func (e *Engine) processAttempt(intent TrafficIntent, attempt uint8, now time.Ti
 	if attempt > 0 {
 		e.retryAttempts++
 	}
-	if err := e.sessions.Send(context.Background(), logical.Sender, intent.Packet); err != nil {
+	if intent.Packet == nil || e.nextClientSeq >= math.MaxUint32 {
+		return e.abortHarness(inflight, errEngineConfig)
+	}
+	e.nextClientSeq++
+	packet := *intent.Packet
+	packet.ClientSeq = e.nextClientSeq
+	if err := e.sessions.Send(context.Background(), logical.Sender, &packet); err != nil {
 		return e.scheduleRetry(inflight, now)
 	}
 	deadline := now.Add(e.attemptTimeout)

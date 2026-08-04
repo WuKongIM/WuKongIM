@@ -135,6 +135,10 @@ then delegates CONNECT-before-version-zero-sync semantics to `RunLoginSync`.
 The narrow `WKProtoSessionAdapter` delegates CONNECT, SEND, frame reads,
 RECVACK, close, and numeric queue gauges to the existing non-dropping
 `internal/bench/wkproto.Client`; it does not recreate protocol pumps.
+The ordered session drain uses an explicit streaming read whose lifetime is
+owned only by the generation or caller context; the transport's default
+short-operation timeout still bounds CONNECT and control writes but never
+detaches an otherwise idle session.
 Independent login I/O runs concurrently under one explicit starting-session
 capacity and retains only the UIDs whose CONNECT/sync is active; capacity
 exhaustion is harness-invalid. Only a validated sync starts the recipient's
@@ -148,7 +152,10 @@ error, which keeps the same drain online and returns the stable
 `client_msg_no` to the engine-owned retry state, from a terminal remote reader
 exit. Under the pool ownership lock, an unexpected exit records bounded
 evidence before publishing the session offline; socket close and recipient
-release remain outside that lock. `Engine.Step` derives replacement demand from
+release remain outside that lock. The UID moves atomically from online to a
+bounded closing tombstone for that unlocked cleanup interval. It is not
+routable, but it rejects replacement login and remains owned until the old
+drain has joined and recipient verifier state has been released. `Engine.Step` derives replacement demand from
 the resulting online-target deficit, so no blocking exit callback is part of
 the atomic boundary. Unknown unexpected read exits remain bounded
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
@@ -231,7 +238,11 @@ terminal result.
 No historical user or channel owns a goroutine, timer, or retained map row.
 
 Attempt zero plus retries one through three reuse the same Phase 2 logical
-identity. Timeouts and closed temporary SENDACK reasons schedule the existing
+identity and `client_msg_no`, while every wire attempt receives a distinct
+generation-local monotonic `ClientSeq`. The real transport pending key therefore
+keeps overlapping attempts independent; a late ACK is attributed to its exact
+attempt while a successful logical completion cancels scheduled future retry
+work. Timeouts and closed temporary SENDACK reasons schedule the existing
 100 ms, 500 ms, and 2 s deterministic delays; non-retriable SENDACK reasons
 complete immediately. A late successful SENDACK removes a scheduled retry in
 O(log n), and every accepted SENDACK physically removes that attempt's timeout

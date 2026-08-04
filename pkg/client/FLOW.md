@@ -26,6 +26,9 @@ New(Config)
 `Client` represents one authenticated WKProto TCP session. Reconnect is allowed by calling `Connect` again; the new connection gets a fresh pending tracker and reader loop, and the old connection is closed after the new session is published.
 
 Synchronous CONNECT reads and writes use `OperationTimeout` and clear socket deadlines before the background reader takes over. `Close` is terminal for a `Client`; use a new `Client` or `Pool` entry after a terminal close.
+`ReadFrame` and `Recv` are streaming waits: they have no implicit
+`OperationTimeout` and return only for a frame, session transition, close, or
+their caller context. Short control operations retain the configured timeout.
 
 ## SEND Flow
 
@@ -46,6 +49,10 @@ Send / SendAsync / SendBatch
 `SendBatch` returns results in input order. The writer batcher only coalesces socket writes; the wire format remains normal WKProto SEND frames. `AckTimeout` belongs to the client pending tracker and should be set high enough for callers whose own contexts own benchmark-level sendack deadlines.
 
 `SendAsync` is the low-level API used by adapters that need to expose SENDACKs through an older frame-oriented interface. It admits the SEND and returns a `SendFuture`; callers can wait with their own context.
+The pending tracker keys each wire attempt by both `ClientSeq` and
+`ClientMsgNo`. Retries may reuse the idempotent `ClientMsgNo`, but each
+overlapping attempt must provide a distinct nonzero `ClientSeq`; late and
+out-of-order ACKs then resolve only their exact attempt.
 
 ## RECV Flow
 

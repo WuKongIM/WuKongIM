@@ -32,7 +32,8 @@ type ClientConfig struct {
 	Dialer interface {
 		DialContext(context.Context, string, string) (net.Conn, error)
 	}
-	// OperationTimeout bounds handshake, read, and write operations when ctx has no deadline.
+	// OperationTimeout bounds handshake and short write operations when ctx has no deadline.
+	// Streaming ReadFrame calls remain owned exclusively by their caller context.
 	OperationTimeout time.Duration
 	// AckTimeout bounds the internal pending SENDACK wait; use a value above workload waits.
 	AckTimeout time.Duration
@@ -296,8 +297,9 @@ func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	if c == nil {
 		return nil, errClientNotConnected
 	}
-	ctx, cancel := c.withDefaultTimeout(ctx)
-	defer cancel()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	session, err := c.currentSession()
 	if err != nil {
 		return nil, err
