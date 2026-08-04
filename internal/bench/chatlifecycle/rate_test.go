@@ -176,6 +176,64 @@ func TestRateRejectsUnboundedOrInvalidState(t *testing.T) {
 	}
 }
 
+func TestRateSupportsReviewedExtremeBounds(t *testing.T) {
+	maximumRate := uint64(math.MaxUint64 / 2)
+	allocator, err := NewRateAllocator(maximumRate, math.MaxUint64-1, []int64{math.MaxInt64, math.MaxInt64, 1})
+	if err != nil {
+		t.Fatalf("NewRateAllocator(maximum) error = %v", err)
+	}
+	result, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	if err != nil {
+		t.Fatalf("maximum Tick() error = %v", err)
+	}
+	if got := sumUint64(result.Fresh); got != maximumRate {
+		t.Fatalf("maximum fresh = %d, want %d", got, maximumRate)
+	}
+
+	one, err := NewRateAllocator(1, 2, []int64{1})
+	if err != nil {
+		t.Fatalf("NewRateAllocator(one worker) error = %v", err)
+	}
+	if tick, err := one.Tick([]uint64{1}); err != nil || len(tick.Fresh) != 1 || tick.Fresh[0] != 1 {
+		t.Fatalf("one-worker Tick() = %+v, %v", tick, err)
+	}
+
+	weights := make([]int64, maxRateWorkers)
+	demand := make([]uint64, maxRateWorkers)
+	for index := range weights {
+		weights[index] = 1
+		demand[index] = math.MaxUint64
+	}
+	many, err := NewRateAllocator(1_024, 2_048, weights)
+	if err != nil {
+		t.Fatalf("NewRateAllocator(1024 workers) error = %v", err)
+	}
+	if tick, err := many.Tick(demand); err != nil || len(tick.Fresh) != maxRateWorkers || sumUint64(tick.Fresh) != 1_024 {
+		t.Fatalf("1024-worker Tick() total/len = %d/%d, %v", sumUint64(tick.Fresh), len(tick.Fresh), err)
+	}
+}
+
+func TestRateCopiesWeightsAndDoesNotAliasTickResults(t *testing.T) {
+	weights := []int64{1, 1, 1}
+	allocator, err := NewRateAllocator(3, 6, weights)
+	if err != nil {
+		t.Fatalf("NewRateAllocator() error = %v", err)
+	}
+	weights[0], weights[1], weights[2] = -1, math.MaxInt64, 0
+	first, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	if err != nil {
+		t.Fatalf("first Tick() error = %v", err)
+	}
+	first.Fresh[0], first.Released[1], first.Credit[2] = 99, 99, 99
+	second, err := allocator.Tick([]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	if err != nil {
+		t.Fatalf("second Tick() error = %v", err)
+	}
+	if sumUint64(second.Fresh) != 3 || sumUint64(second.Released) != 3 || sumUint64(second.Credit) != 0 {
+		t.Fatalf("second Tick() = %+v, caller mutation leaked into allocator", second)
+	}
+}
+
 func sumUint64(values []uint64) uint64 {
 	var total uint64
 	for _, value := range values {

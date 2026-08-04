@@ -89,6 +89,9 @@ func TestPayloadMarkerIsCompactVersionedAndAttemptIndependent(t *testing.T) {
 	if decoded.Version != payloadMarkerVersion || decoded.LogicalSend != 42 || decoded.WorkerID != 2 || decoded.Kind != TrafficPerson || decoded.PayloadBytes != 256 {
 		t.Fatalf("decoded marker = %+v", decoded)
 	}
+	if payloadMarkerBytes != 104 || len(decoded.RunFingerprint) != 16 || len(decoded.SenderFingerprint) != 16 || len(decoded.TargetFingerprint) != 16 {
+		t.Fatalf("marker layout = %d bytes with fingerprints %d/%d/%d, want 104 and 16/16/16", payloadMarkerBytes, len(decoded.RunFingerprint), len(decoded.SenderFingerprint), len(decoded.TargetFingerprint))
+	}
 
 	again, err := model.NewLogicalSend(2, 42, TrafficPerson, "sender-a", "receiver-b")
 	if err != nil {
@@ -123,8 +126,8 @@ func TestPayloadMarkerStrictlyRejectsCorruptionAndWrongDeclaration(t *testing.T)
 		{name: "version", mutate: func(p []byte) []byte { p[4]++; return p }, want: errPayloadVersion},
 		{name: "reserved flags", mutate: func(p []byte) []byte { p[6] = 1; return p }, want: errPayloadReserved},
 		{name: "declared length", mutate: func(p []byte) []byte { p[11]--; return p }, want: errPayloadLength},
-		{name: "identity", mutate: func(p []byte) []byte { p[32] ^= 1; return p }, want: errPayloadChecksum},
-		{name: "checksum", mutate: func(p []byte) []byte { p[64] ^= 1; return p }, want: errPayloadChecksum},
+		{name: "identity", mutate: func(p []byte) []byte { p[40] ^= 1; return p }, want: errPayloadChecksum},
+		{name: "checksum", mutate: func(p []byte) []byte { p[88] ^= 1; return p }, want: errPayloadChecksum},
 		{name: "padding", mutate: func(p []byte) []byte { p[len(p)-1] ^= 1; return p }, want: errPayloadPadding},
 	}
 	for _, tt := range tests {
@@ -137,12 +140,31 @@ func TestPayloadMarkerStrictlyRejectsCorruptionAndWrongDeclaration(t *testing.T)
 		})
 	}
 
-	wrong, err := model.NewLogicalSend(1, 7, TrafficGroup, "sender", "another-group")
+	wrongRunConfig := FormalConfig()
+	wrongRunConfig.RunID = "another-run"
+	wrongRunModel := newTestTrafficModel(t, wrongRunConfig)
+	wrongRunLogical, err := wrongRunModel.NewLogicalSend(1, 7, TrafficGroup, "sender", "group")
 	if err != nil {
-		t.Fatalf("NewLogicalSend(wrong target) error = %v", err)
+		t.Fatalf("wrong-run NewLogicalSend() error = %v", err)
 	}
-	if err := model.VerifyPayload(payload, wrong); !errors.Is(err, errPayloadDeclaration) {
-		t.Fatalf("VerifyPayload(wrong target) error = %v, want %v", err, errPayloadDeclaration)
+	declarations := []struct {
+		name    string
+		model   TrafficModel
+		logical LogicalSend
+	}{
+		{name: "run", model: wrongRunModel, logical: wrongRunLogical},
+		{name: "worker", model: model, logical: mustLogicalSend(t, model, 2, 7, TrafficGroup, "sender", "group")},
+		{name: "logical send", model: model, logical: mustLogicalSend(t, model, 1, 8, TrafficGroup, "sender", "group")},
+		{name: "kind", model: model, logical: mustLogicalSend(t, model, 1, 7, TrafficPerson, "sender", "group")},
+		{name: "sender", model: model, logical: mustLogicalSend(t, model, 1, 7, TrafficGroup, "another-sender", "group")},
+		{name: "target", model: model, logical: mustLogicalSend(t, model, 1, 7, TrafficGroup, "sender", "another-group")},
+	}
+	for _, declaration := range declarations {
+		t.Run("wrong declaration "+declaration.name, func(t *testing.T) {
+			if err := declaration.model.VerifyPayload(payload, declaration.logical); !errors.Is(err, errPayloadDeclaration) {
+				t.Fatalf("VerifyPayload() error = %v, want %v", err, errPayloadDeclaration)
+			}
+		})
 	}
 }
 
@@ -167,6 +189,54 @@ func TestPayloadMarkerRejectsInvalidOrUnboundedInputs(t *testing.T) {
 	if _, err := model.BuildPayload(logical, maxPayloadBytes+1); !errors.Is(err, errPayloadSize) {
 		t.Fatalf("BuildPayload(large) error = %v, want %v", err, errPayloadSize)
 	}
+}
+
+func TestPayloadMarkerFitsMinimumAndMaximumPayloadClasses(t *testing.T) {
+	model := newTestTrafficModel(t, FormalConfig())
+	logical := mustLogicalSend(t, model, 0, 99, TrafficPerson, "sender", "target")
+	for _, size := range []int{payloadMarkerBytes, 256, 16 * 1_024} {
+		payload, err := model.BuildPayload(logical, size)
+		if err != nil {
+			t.Fatalf("BuildPayload(%d) error = %v", size, err)
+		}
+		if len(payload) != size {
+			t.Fatalf("BuildPayload(%d) length = %d", size, len(payload))
+		}
+		if err := model.VerifyPayload(payload, logical); err != nil {
+			t.Fatalf("VerifyPayload(%d) error = %v", size, err)
+		}
+	}
+}
+
+func TestTrafficModelCopiesPayloadConfiguration(t *testing.T) {
+	cfg := FormalConfig()
+	identity, err := NewIdentitySpace(cfg.RunID, cfg.Seed, uint64(cfg.Workload.Workers))
+	if err != nil {
+		t.Fatalf("NewIdentitySpace() error = %v", err)
+	}
+	model, err := NewTrafficModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewTrafficModel() error = %v", err)
+	}
+	cfg.Workload.Payloads[0] = PayloadShare{Percent: 100, Bytes: 999}
+	for ordinal := uint64(0); ordinal < 100; ordinal++ {
+		size, err := model.PayloadSizeFor(ordinal)
+		if err != nil {
+			t.Fatalf("PayloadSizeFor(%d) error = %v", ordinal, err)
+		}
+		if size == 999 {
+			t.Fatalf("PayloadSizeFor(%d) observed caller mutation", ordinal)
+		}
+	}
+}
+
+func mustLogicalSend(t *testing.T, model TrafficModel, workerID, logicalOrdinal uint64, kind TrafficKind, sender, target string) LogicalSend {
+	t.Helper()
+	logical, err := model.NewLogicalSend(workerID, logicalOrdinal, kind, sender, target)
+	if err != nil {
+		t.Fatalf("NewLogicalSend() error = %v", err)
+	}
+	return logical
 }
 
 func newTestTrafficModel(t *testing.T, cfg Config) TrafficModel {

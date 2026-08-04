@@ -187,8 +187,9 @@ func (c GroupCatalog) IndexFromGroupID(groupID string) (uint64, bool) {
 	if !strings.HasPrefix(groupID, prefix) || len(groupID) == len(prefix) {
 		return 0, false
 	}
-	index, err := strconv.ParseUint(groupID[len(prefix):], 36, 64)
-	return index, err == nil && index < uint64(c.total)
+	suffix := groupID[len(prefix):]
+	index, err := strconv.ParseUint(suffix, 36, 64)
+	return index, err == nil && index < uint64(c.total) && suffix == strconv.FormatUint(index, 36)
 }
 
 // PrimaryTarget returns the exact 80/15/5 category cycle when all primary

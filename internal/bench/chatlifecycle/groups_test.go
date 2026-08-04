@@ -50,6 +50,23 @@ func TestGroupCatalogFormalShapeAndReconstructableMembership(t *testing.T) {
 	}
 }
 
+func TestGroupIDRejectsNonCanonicalBase36Aliases(t *testing.T) {
+	catalog := newTestGroupCatalog(t, FormalConfig())
+	group, err := catalog.Group(35)
+	if err != nil {
+		t.Fatalf("Group(35) error = %v", err)
+	}
+	if index, ok := catalog.IndexFromGroupID(group.ID); !ok || index != 35 {
+		t.Fatalf("canonical round trip = %d, %v; want 35, true", index, ok)
+	}
+	prefix := group.ID[:len(group.ID)-1]
+	for _, alias := range []string{prefix + "0z", prefix + "Z"} {
+		if index, ok := catalog.IndexFromGroupID(alias); ok {
+			t.Fatalf("IndexFromGroupID(%q) = %d, true; want canonical rejection", alias, index)
+		}
+	}
+}
+
 func TestGroupPrimaryTargetsExactSharesAndCanaryIsSeparate(t *testing.T) {
 	catalog := newTestGroupCatalog(t, FormalConfig())
 	counts := map[GroupCategory]int{}

@@ -59,10 +59,13 @@ retroactive token debt.
 Primary traffic kind, payload size, and person direction use independent
 run-rotated ordinal cycles. Formal cycles are exactly 90/10 person/group,
 70/25/4/1 for 256 B/1 KiB/4 KiB/16 KiB, and 70/30 alternating/one-way.
-Payloads start with an 80-byte versioned binary marker, so the smallest 256-byte
+Payloads start with a 104-byte versioned binary marker, so the smallest 256-byte
 class carries run, logical-send, worker, sender, target, and stable-message
 fingerprints plus strict length, reserved-byte, deterministic-padding, and
-checksum validation. Raw run IDs and endpoint identities are never embedded.
+checksum validation. Run, sender, and target use 128-bit correctness
+fingerprints (about 1.32e-26 birthday-collision probability at three million
+identifiers); they are correlation evidence rather than authentication. Raw run
+IDs and endpoint identities are never embedded.
 
 One logical SEND deterministically owns one bounded `client_msg_no`. Attempt
 zero has no retry delay; attempts one through three reuse that exact identity

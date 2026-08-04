@@ -10,10 +10,16 @@ import (
 )
 
 const (
-	payloadMarkerVersion = uint8(1)
-	payloadMarkerBytes   = 80
-	maxPayloadBytes      = 16 * 1_024
-	maxMarkerIdentityLen = 1_024
+	payloadMarkerVersion     = uint8(1)
+	payloadMarkerHeaderEnd   = 24
+	payloadMarkerRunEnd      = 40
+	payloadMarkerSenderEnd   = 56
+	payloadMarkerTargetEnd   = 72
+	payloadMarkerMessageEnd  = 88
+	payloadMarkerChecksumEnd = 104
+	payloadMarkerBytes       = payloadMarkerChecksumEnd
+	maxPayloadBytes          = 16 * 1_024
+	maxMarkerIdentityLen     = 1_024
 )
 
 var (
@@ -68,17 +74,19 @@ type LogicalSend struct {
 	ClientMsgNo string
 }
 
-// PayloadMarker is the decoded non-secret marker. String identities are stored
-// only as run-bound fingerprints so payloads never expose raw run IDs or UIDs.
+// PayloadMarker is the decoded non-secret v1 marker. Its binary layout is a
+// 24-byte header, then 16-byte run, sender, target, message, and checksum
+// fields; deterministic padding starts at byte 104. String identities are
+// stored only as run-bound fingerprints, never as raw run IDs or UIDs.
 type PayloadMarker struct {
 	Version           uint8
 	Kind              TrafficKind
 	PayloadBytes      uint32
 	WorkerID          uint32
 	LogicalSend       uint64
-	RunFingerprint    [8]byte
-	SenderFingerprint [8]byte
-	TargetFingerprint [8]byte
+	RunFingerprint    [16]byte
+	SenderFingerprint [16]byte
+	TargetFingerprint [16]byte
 	MessageIdentity   [16]byte
 }
 
@@ -93,7 +101,7 @@ type TrafficModel struct {
 	trafficPhase    uint64
 	payloadPhase    uint64
 	directionPhase  uint64
-	runFingerprint  [8]byte
+	runFingerprint  [16]byte
 }
 
 // NewTrafficModel copies bounded distribution inputs. Each semantic decision
@@ -227,16 +235,16 @@ func (m TrafficModel) BuildPayload(logical LogicalSend, payloadBytes int) ([]byt
 	binary.BigEndian.PutUint32(payload[8:12], uint32(payloadBytes))
 	binary.BigEndian.PutUint32(payload[12:16], logical.WorkerID)
 	binary.BigEndian.PutUint64(payload[16:24], logical.LogicalSend)
-	copy(payload[24:32], m.runFingerprint[:])
+	copy(payload[payloadMarkerHeaderEnd:payloadMarkerRunEnd], m.runFingerprint[:])
 	sender := identityFingerprint(m.identity, "sender/v1", logical.Sender)
 	target := identityFingerprint(m.identity, "target/v1", logical.Target)
 	message := messageFingerprint(logical.ClientMsgNo)
-	copy(payload[32:40], sender[:])
-	copy(payload[40:48], target[:])
-	copy(payload[48:64], message[:])
+	copy(payload[payloadMarkerRunEnd:payloadMarkerSenderEnd], sender[:])
+	copy(payload[payloadMarkerSenderEnd:payloadMarkerTargetEnd], target[:])
+	copy(payload[payloadMarkerTargetEnd:payloadMarkerMessageEnd], message[:])
 	fillPayloadPadding(payload[payloadMarkerBytes:])
 	checksum := payloadChecksum(payload)
-	copy(payload[64:80], checksum[:])
+	copy(payload[payloadMarkerMessageEnd:payloadMarkerChecksumEnd], checksum[:])
 	return payload, nil
 }
 
@@ -285,7 +293,7 @@ func DecodePayloadMarker(payload []byte) (PayloadMarker, error) {
 		return PayloadMarker{}, errPayloadPadding
 	}
 	wantChecksum := payloadChecksum(payload)
-	if !bytes.Equal(payload[64:80], wantChecksum[:]) {
+	if !bytes.Equal(payload[payloadMarkerMessageEnd:payloadMarkerChecksumEnd], wantChecksum[:]) {
 		return PayloadMarker{}, errPayloadChecksum
 	}
 	marker := PayloadMarker{
@@ -295,10 +303,10 @@ func DecodePayloadMarker(payload []byte) (PayloadMarker, error) {
 		WorkerID:     binary.BigEndian.Uint32(payload[12:16]),
 		LogicalSend:  binary.BigEndian.Uint64(payload[16:24]),
 	}
-	copy(marker.RunFingerprint[:], payload[24:32])
-	copy(marker.SenderFingerprint[:], payload[32:40])
-	copy(marker.TargetFingerprint[:], payload[40:48])
-	copy(marker.MessageIdentity[:], payload[48:64])
+	copy(marker.RunFingerprint[:], payload[payloadMarkerHeaderEnd:payloadMarkerRunEnd])
+	copy(marker.SenderFingerprint[:], payload[payloadMarkerRunEnd:payloadMarkerSenderEnd])
+	copy(marker.TargetFingerprint[:], payload[payloadMarkerSenderEnd:payloadMarkerTargetEnd])
+	copy(marker.MessageIdentity[:], payload[payloadMarkerTargetEnd:payloadMarkerMessageEnd])
 	return marker, nil
 }
 
@@ -375,13 +383,16 @@ func validMarkerIdentity(value string) bool {
 	return len(value) > 0 && len(value) <= maxMarkerIdentityLen
 }
 
-func identityFingerprint(identity *IdentitySpace, purpose, value string) [8]byte {
+// identityFingerprint is a correctness correlation fingerprint, not an
+// authentication primitive. At three million identifiers, a 128-bit birthday
+// collision is approximately 1.32e-26; raw identities remain outside payloads.
+func identityFingerprint(identity *IdentitySpace, purpose, value string) [16]byte {
 	h := sha256.New()
 	_, _ = h.Write([]byte("wukongim/chat-lifecycle/marker-fingerprint/v1"))
 	_, _ = h.Write(identity.rootKey[:])
 	_, _ = h.Write([]byte(purpose))
 	_, _ = h.Write([]byte(value))
-	var fingerprint [8]byte
+	var fingerprint [16]byte
 	copy(fingerprint[:], h.Sum(nil))
 	return fingerprint
 }
@@ -413,7 +424,7 @@ func validPayloadPadding(padding []byte) bool {
 func payloadChecksum(payload []byte) [16]byte {
 	h := sha256.New()
 	_, _ = h.Write([]byte("wukongim/chat-lifecycle/payload-checksum/v1"))
-	_, _ = h.Write(payload[:64])
+	_, _ = h.Write(payload[:payloadMarkerMessageEnd])
 	_, _ = h.Write(payload[payloadMarkerBytes:])
 	var checksum [16]byte
 	copy(checksum[:], h.Sum(nil))

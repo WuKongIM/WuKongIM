@@ -31,7 +31,8 @@ type scheduledRate struct {
 
 // RateAllocator apportions one global integer-per-second budget across a
 // bounded worker set. It retains at most the configured global burst and gives
-// every worker only its weighted share of that burst.
+// every worker only its weighted share of that burst. One coordinator goroutine
+// must own the allocator; concurrent ScheduleRate and Tick calls are unsafe.
 type RateAllocator struct {
 	weights    []uint64
 	weightSum  uint64
