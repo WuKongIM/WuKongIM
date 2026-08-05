@@ -317,6 +317,15 @@
   Gateway transport and node transport are separate, while exact UID presence
   authority is in-memory and target-fenced and concrete sessions remain
   owner-local.
+- Phase 9 public guide foundations keep product capability claims
+  workload-qualified and define stable user-facing vocabulary for clusters,
+  physical hash slots, logical Slot Raft Groups, Channels, messages, users,
+  devices, and UID-owned conversations. Plain non-command `NoPersist` is a
+  compatibility success without realtime delivery; command-style `NoPersist`
+  alone enters transient delivery. Plugins are node-local `.wkp` processes:
+  Send hooks are synchronous and fail closed by default, while Receive and
+  PersistAfter are post-commit effects; Slot-owned UID bindings do not prove a
+  compatible plugin is running on every node.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level

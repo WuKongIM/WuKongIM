@@ -1,0 +1,66 @@
+---
+title: Conversations
+description: Understand UID-owned recent-conversation projections, ordering, unread counts, delete boundaries, and their relationship to message logs.
+---
+
+A Conversation is a recent-interaction view for one UID. It helps clients display the conversation list, latest message, read position, and unread count, but it is not the Channel message log and does not own message commit order.
+
+## Projection and log
+
+```text
+Channel-owned committed messages
+          |
+          +-> newest visible message reads
+          |
+          +-> post-commit recipient activity
+                    |
+                    v
+          UID-owned ConversationState
+```
+
+Channel owns message payload and sequence. ConversationState stores one user's view under UID, kind, Channel ID, and Channel type. Ordinary and CMD-sync conversations share one kind-aware metadata table but remain different kinds.
+
+## Important fields
+
+| Field | Meaning |
+| --- | --- |
+| `active_at` | Recent-activity ordering anchor; list order is not recomputed from latest-message time |
+| `read_seq` | User read position, affecting only that user's unread view |
+| `deleted_to_seq` | Delete-visibility floor; messages at or below it do not reappear |
+| `message_seq` | Message fence observed by the projection, preventing stale activity from crossing a delete barrier |
+| `sparse_active` | Marks a sparse active projection without changing active-index position semantics |
+
+Conceptually, unread is:
+
+```text
+unread = max(last_visible_message_seq - max(read_seq, deleted_to_seq), 0)
+```
+
+In the compatibility sync path, a user's own sent message does not become unread for that same user.
+
+## List and sync are different
+
+### Conversation list
+
+List pages the UID-owned active index by `(active_at desc, channel_id, channel_type)` and batch-reads the newest visible ordinary message from each Channel. A projection without a visible message may still be returned with `LastMessage=nil` and unread 0.
+
+### Compatibility sync
+
+Sync merges a bounded active working set with client-known Channel overlays, reads latest messages, filters delete floors and excluded types, and then orders the final window by latest-message time. A client overlay is not a request to scan the full conversation directory.
+
+## Read and delete
+
+- Clear unread advances `read_seq` to the newest visible message or compatible request position.
+- Set unread derives `read_seq` from the newest message; it does not copy messages.
+- Delete conversation writes a monotonic `deleted_to_seq` barrier and clears active state; it does not delete the Channel log.
+- New activity above the barrier can reactivate the Conversation. Old projections and retries cannot cross that barrier.
+
+## Cache and persistence
+
+The UID Authority coalesces high-frequency activity in a bounded active cache and flushes to Slot periodically, under pressure, or during hash-slot handoff. Admission does not wait for durable flush. Cache pressure rejects explicitly rather than growing without bound or silently dropping dirty state. Version and delete fences prevent a concurrent flush from rolling newer state backward.
+
+<Callout type="info" title="Commit boundary">
+  A Conversation update is a post-commit user view. Projection failure cannot roll back an already committed Channel message. Applications should treat “the message exists” and “the conversation view is updated” as separate observations.
+</Callout>
+
+Continue with [Messages](/en/guide/core-concepts/messages), [Users & Devices](/en/guide/core-concepts/users-and-devices), and [Messaging Integration](/en/guide/integration/messaging).

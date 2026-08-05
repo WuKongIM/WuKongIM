@@ -1,0 +1,71 @@
+---
+title: 插件扩展
+description: 理解 v3 Beta 节点内插件的适用范围、生命周期、Hook、绑定与安全边界。
+---
+
+WuKongIM v3 Beta 支持以本地 `.wkp` 进程扩展消息路径和 Host RPC。插件适合需要在 WuKongIM 节点附近执行的受控扩展，但不是业务服务、可靠队列或集群级部署编排的替代品。
+
+<Callout type="warn" title="节点内能力">
+  插件进程、配置和启停 desired/observed 状态属于每个节点。启用一个节点的插件不会自动证明所有节点已经安装、配置或运行同一版本。
+</Callout>
+
+## 何时使用插件
+
+| 需求 | 推荐边界 |
+| --- | --- |
+| 在 SENDACK 前同步检查或修改 Payload | Send Hook；保持链路短，并接受它影响发送延迟与可用性 |
+| 观察特定离线接收者的已提交消息 | Receive Hook；提交后、按 UID 绑定、尽力而为 |
+| 观察每次 durable commit | PersistAfter；提交后、尽力而为 |
+| 向业务系统交付普通异步事件 | 优先使用 Webhook 或业务消息队列边界 |
+| 复杂业务编排、外部事务或长任务 | 放在独立业务服务，不放入同步 Send Hook |
+
+## 生命周期
+
+```text
+local plugin directory
+  -> plugin process starts and calls /plugin/start
+  -> server validates observed manifest
+  -> merge node-local desired enable/config state
+  -> running + enabled + advertised method = hook candidate
+```
+
+Manager 更新配置时会保留被 `SecretHidden` 占位的已有 secret，返回详情时对 secret 脱敏。运行中且声明 `ConfigUpdate` 的插件会收到同步配置更新调用。Uninstall 先写 disabled desired state，再停止并移除本地进程。
+
+## 三类 Hook
+
+| Hook | 时机 | 失败语义 |
+| --- | --- | --- |
+| Send | 权限成功后、Channel append admission 前 | 同步；默认 fail-closed，可显式配置 fail-open；可修改 Payload 或拒绝 |
+| Receive | durable commit 后，针对离线 UID batch | 独立接收者失败不改变 SENDACK、在线投递或会话投影 |
+| PersistAfter | durable commit 后 | 失败只进入 worker 日志/指标，不回滚消息 |
+
+候选插件按 priority 降序、plugin number 升序稳定选择。Send 响应只能替换 Payload，不能篡改发送者、Channel、Session 或路由字段。插件来源的发送仍进入消息用例、权限检查、递归 guard 和 Channel authority。
+
+## UID 绑定
+
+UID 到 plugin number 的绑定是 Slot-authoritative 元数据，以 UID 作为物理哈希槽路由键。绑定只表达集群关系，不保存某节点上的插件进程、配置或运行状态。Receive 执行时会把绑定与当前节点 running/enabled/method candidates 交集，选择最高优先级插件。
+
+这意味着“绑定存在”不等于“所有节点都能执行”。上线前要验证目标 UID 可能落到的执行节点都具有兼容插件。
+
+## Host RPC
+
+当前兼容能力包括：
+
+- 通过普通消息用例发送消息；
+- 读取显式 Channel 的已提交消息；
+- 读取集群节点和物理哈希槽快照、解析 Channel owner；
+- 读取 UID 的会话 Channel；
+- 在本地或指定节点转发有界 HTTP 请求到插件 route。
+
+Host RPC 仍遵守 body、header、query、timeout 和目标验证。`toNodeId=-1` 的 fanout 当前明确未实现，不会偷偷执行部分节点广播。
+
+## 安全与容量检查
+
+1. 只安装经过审查的插件制品，并固定版本与摘要。
+2. 对每个节点验证安装、desired config、observed methods 和运行状态。
+3. 为外部调用设置短超时；同步 Send Hook 不执行长任务。
+4. 监控 `method="send"` 等低基数调用指标、worker 队列、失败与超时。
+5. 让 Hook 重入和插件来源发送保留递归 guard，不构造无限消息环。
+6. 把 Receive/PersistAfter 当作可失败副作用；需要可靠处理时再写入业务系统自己的 durable queue。
+
+继续阅读[集成架构](/zh/guide/integration/architecture)、[消息收发](/zh/guide/integration/messaging)和[Webhook](/zh/guide/integration/webhooks)。

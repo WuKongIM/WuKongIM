@@ -1,0 +1,55 @@
+---
+title: 用户与设备
+description: 区分 UID、设备元数据、连接 Session、多设备在线和分布式 Presence。
+---
+
+业务系统用稳定 UID 标识用户。WuKongIM 在 UID 下保存设备元数据并管理连接，但不会替代产品账号系统。一个用户可以拥有多个设备，每个设备也可能经历多次连接。
+
+## 身份层次
+
+| 概念 | 生命周期 | 存放位置 |
+| --- | --- | --- |
+| UID | 业务账号生命周期 | Slot 权威用户元数据和业务系统 |
+| Device | UID 下某类客户端身份，包含 device flag、device ID、level 与 Token 元数据 | UID 所属 Slot 元数据 |
+| Connection / Session | 一次 TCP 或 WebSocket 连接 | 连接 owner 节点内存 |
+| OwnerRoute | 可跨节点解析的在线端点投影 | UID 物理哈希槽的 Presence Authority 内存 |
+
+不要把 Session ID、连接 ID 或设备 ID 当作 UID。路由投影也不携带可直接操作的 TCP Session handle。
+
+## 连接建立
+
+```text
+client CONNECT
+  -> Gateway protocol authentication and negotiation
+  -> pending owner-local Session
+  -> exact-target Presence registration
+  -> conflict actions and active re-check
+  -> active Session and successful CONNACK
+```
+
+如果成功 CONNACK 写出前连接关闭，Gateway 会回滚已经接受的 Presence 激活，避免留下幽灵在线路由。
+
+<Callout type="warn" title="当前 v3 Beta 安全边界">
+  用户与设备表可以保存 Token，但默认应用组合尚不能被理解为“已自动为所有 CONNECT 校验存储 Token”。产品 HTTP API 也没有内建业务鉴权中间件。生产接入必须使用受信网络或鉴权代理，并明确实现连接凭据校验。
+</Callout>
+
+## 多设备与冲突
+
+Presence Authority 对每条 route 使用 UID、设备标识、owner 节点、Boot ID、Session ID 和 owner sequence 进行精确 fence。新连接发生冲突时先进入 pending；只有 owner 节点完成需要的关闭动作并提交新 route 后，旧 route 才被替换。
+
+Token 更新或 device quit 会修改 UID-owned 设备元数据，并调度 owner-local 的匹配 Session 关闭。它们不能通过一个全局进程内 Session 表关闭远端节点连接。
+
+## 在线状态与投递
+
+在线查询优先读取当前 Presence Authority 的 active routes。投递先解析虚拟 OwnerRoute，再按 owner node 合并：本地 owner 写本地 Session，远端 owner 通过 owner-push RPC 接收计划并重新验证具体 Session fence。
+
+路由有 TTL 和 touch，但过期不是显式注销。显式 unregister 会留下 owner-sequence tombstone，阻止延迟 heartbeat 复活旧连接。
+
+## 设计建议
+
+- UID 在所有业务系统与客户端中保持稳定且不可由不可信客户端自行选择。
+- Device Flag 表示平台类别，Device ID 表示具体安装或客户端实例；不要混用。
+- Token 撤销、设备退出和账号封禁需要同时设计元数据变更与现有 Session 关闭。
+- 在线状态是瞬时观察，不应作为资金、权限或一次性业务动作的唯一事实来源。
+
+继续阅读[身份认证](/zh/guide/integration/authentication)和[用户连接路由](/zh/server/architecture/user-routing)。

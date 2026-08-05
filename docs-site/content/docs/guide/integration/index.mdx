@@ -16,6 +16,7 @@ WuKongIM 负责实时连接、频道消息、持久化、集群路由和在线�
   <Card title="身份认证" description="设计 UID、设备、Token、连接和撤销生命周期。" href="/zh/guide/integration/authentication" />
   <Card title="消息收发" description="理解客户端和服务端消息路径、确认与恢复边界。" href="/zh/guide/integration/messaging" />
   <Card title="Webhook" description="安全、幂等地消费消息和在线状态事件。" href="/zh/guide/integration/webhooks" />
+  <Card title="插件扩展" description="评估节点内 Hook、生命周期、UID 绑定与安全边界。" href="/zh/guide/integration/plugins" />
 </Cards>
 
 ## 最小业务闭环
@@ -38,4 +39,4 @@ WuKongIM 负责实时连接、频道消息、持久化、集群路由和在线�
 | 回调 | 接收端先持久化再返回 200，处理逻辑可重复执行 |
 | 运维 | 监控队列压力、失败、重试耗尽和端到端延迟 |
 
-插件扩展仍处于规划阶段。先使用稳定的服务端接口与 Webhook 完成边界清晰的集成。
+优先用稳定的服务端接口与 Webhook 建立边界清晰的集成；只有确实需要节点附近的同步或提交后 Hook 时，再引入[插件扩展](/zh/guide/integration/plugins)。

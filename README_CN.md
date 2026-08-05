@@ -150,11 +150,11 @@ flowchart TB
     end
 ```
 
-- **Controller** 维护权威的成员关系、节点健康、Hash Slot 表、物理 Slot 放置和运维任务。
-- **Slot** 对用户、频道、成员关系、会话、插件绑定和 Channel 运行时元数据进行分片，默认通过 256 个逻辑 Hash Slot 路由。
+- **Controller** 维护权威的成员关系、节点健康、物理哈希槽表、逻辑 Slot 放置和运维任务。
+- **Slot** Raft Group 对用户、频道、成员关系、会话、插件绑定和 Channel 运行时元数据进行分片。稳定路由默认先使用 256 个物理哈希槽，再把这些 fence 映射到逻辑 Slot Group。
 - **Channel** 维护有序消息日志、副本、提交进度、保留边界和运行时生命周期。
 
-一个节点的部署也是**单节点集群**，不存在绕开集群语义的独立单机路径。深入设计请阅读[分布式架构指南](./docs/wiki/architecture/README.md)。
+一个节点的部署也是**单节点集群**，不存在绕开集群语义的独立单机路径。深入设计请阅读[服务端架构指南](https://docs.githubim.com/zh/server/architecture)。
 
 ### 消息生命周期
 

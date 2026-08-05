@@ -16,6 +16,7 @@ WuKongIM owns real-time connections, channel messaging, persistence, cluster rou
   <Card title="Authentication" description="Design UID, device, token, connection, and revocation lifecycles." href="/en/guide/integration/authentication" />
   <Card title="Messaging" description="Understand client and server send paths, acknowledgements, and recovery boundaries." href="/en/guide/integration/messaging" />
   <Card title="Webhooks" description="Consume message and presence events securely and idempotently." href="/en/guide/integration/webhooks" />
+  <Card title="Plugin Extensions" description="Evaluate node-local hooks, lifecycle, UID bindings, and safety boundaries." href="/en/guide/integration/plugins" />
 </Cards>
 
 ## Minimum product loop
@@ -38,4 +39,4 @@ WuKongIM owns real-time connections, channel messaging, persistence, cluster rou
 | Callbacks | The receiver persists first, returns 200 second, and tolerates duplicates |
 | Operations | Queue pressure, failures, retry exhaustion, and end-to-end latency are monitored |
 
-Plugin Extensions remains planned. Start with stable server boundaries and webhooks before introducing in-process extensions.
+Begin with stable server boundaries and webhooks. Introduce [Plugin Extensions](/en/guide/integration/plugins) only when a synchronous or post-commit hook genuinely needs to run near a node.
