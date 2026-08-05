@@ -958,11 +958,15 @@ failure may retry the identical worker snapshot cut.
 
 Capacity admission accepts only a validated final passing formal Soak report of
 at least 72 hours whose persisted dataset-reference digest still matches a
-later exact three-node live-target probe. That probe must be after the report,
-prove uninterrupted aged/non-clean state, and complete no later than capacity
-start. Admission is cloned and validated before preflight, setup, worker
-assignment, or target mutation. The capacity invocation starts after that
-report's end and cannot substitute a clean dataset. The reducer retains no
+later exact three-node live-target probe. The caller supplies only the frozen
+checkpoint reference: after static checkpoint validation and successful
+preflight, `Coordinator.Run` synchronously invokes the probe before group setup
+or worker mutation. All three direct responses must carry distinct nonzero node
+IDs, the same checkpoint dataset/process-generation digest, `live_aged` state,
+and coordinator-stamped observation times inside that exact probe call. A cached
+aggregate, restarted generation, duplicate node, stale response, or clean-data
+substitute is rejected. The capacity invocation starts after the report's end
+and cannot substitute a clean dataset. The reducer retains no
 unbounded history: it owns one current phase, checked pass/fail bounds, fixed
 counters, and only the latest 32 of at most 192 measured steps.
 
@@ -989,8 +993,10 @@ allocator applies it on that Tick, discards every credit generation retained at
 the old rate, and starts the next stabilization or recovery clock only after
 the complete new-rate grant is successfully delivered. Capacity evidence is
 also collected asynchronously at the exact completed window while grants
-continue. No rate transition restarts workers or service nodes, changes the
-assignment generation, or cleans the target dataset.
+continue. Parent cancellation is distinguished from a bounded evidence failure,
+and the coordinator cancels and joins every in-flight evidence or rate round
+before stopping workers or returning. No rate transition restarts workers or
+service nodes, changes the assignment generation, or cleans the target dataset.
 
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result

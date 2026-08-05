@@ -11,21 +11,39 @@ import (
 
 func TestCapacityAdmissionRequiresPassingAgedReportAndSameLiveDataset(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	if staircase, err := NewCapacityStaircase(cfg, admission, start); err != nil || staircase == nil {
+	live := capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, start)
+	token, err := validateCapacityLiveDataset(cfg, admission, live, start, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if staircase, err := newCapacityStaircase(cfg, token, start); err != nil || staircase == nil {
 		t.Fatalf("valid admission = %#v, %v", staircase, err)
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*CapacityLiveDatasetEvidence)
+	}{
+		{"not live", func(e *CapacityLiveDatasetEvidence) { e.Nodes[0].State = CapacityDatasetUnavailable }},
+		{"clean substitute", func(e *CapacityLiveDatasetEvidence) { e.Nodes[0].State = CapacityDatasetClean }},
+		{"duplicate node", func(e *CapacityLiveDatasetEvidence) { e.Nodes[2].NodeID = e.Nodes[1].NodeID }},
+		{"dataset mismatch", func(e *CapacityLiveDatasetEvidence) { e.Nodes[1].DatasetDigest = hashReportValue("other-dataset") }},
+		{"stale probe result", func(e *CapacityLiveDatasetEvidence) { e.Nodes[2].ObservedAt = start.Add(-time.Nanosecond) }},
+		{"future probe result", func(e *CapacityLiveDatasetEvidence) { e.Nodes[2].ObservedAt = start.Add(time.Nanosecond) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := live
+			test.mutate(&candidate)
+			if _, err := validateCapacityLiveDataset(cfg, admission, candidate, start, start); !errors.Is(err, ErrCapacityAdmission) {
+				t.Fatalf("admission error = %v", err)
+			}
+		})
 	}
 	for _, test := range []struct {
 		name   string
 		mutate func(*CapacityAdmission)
 	}{
-		{"not live", func(a *CapacityAdmission) { a.LiveDataset.State = CapacityDatasetUnavailable }},
-		{"clean substitute", func(a *CapacityAdmission) { a.LiveDataset.State = CapacityDatasetClean }},
-		{"restarted target", func(a *CapacityAdmission) { a.LiveDataset.Uninterrupted = false }},
-		{"wrong node count", func(a *CapacityAdmission) { a.LiveDataset.ServiceNodeCount = 2 }},
 		{"reference mismatch", func(a *CapacityAdmission) { a.Reference = "other" }},
 		{"malformed checkpoint digest", func(a *CapacityAdmission) { a.Checkpoint.DatasetDigest = "dataset" }},
-		{"dataset mismatch", func(a *CapacityAdmission) { a.LiveDataset.ReferenceDigest = hashReportValue("other-dataset") }},
-		{"probe before checkpoint", func(a *CapacityAdmission) { a.LiveDataset.ObservedAt = a.Checkpoint.Window.End }},
 		{"not final", func(a *CapacityAdmission) { a.Checkpoint.Kind = CheckpointQualification }},
 		{"not pass", func(a *CapacityAdmission) {
 			a.Checkpoint.Verdict.Outcome = VerdictProductFailure
@@ -36,13 +54,15 @@ func TestCapacityAdmissionRequiresPassingAgedReportAndSameLiveDataset(t *testing
 		t.Run(test.name, func(t *testing.T) {
 			candidate := admission
 			test.mutate(&candidate)
-			if staircase, err := NewCapacityStaircase(cfg, candidate, start); !errors.Is(err, ErrCapacityAdmission) || staircase != nil {
-				t.Fatalf("admission = %#v, %v", staircase, err)
+			if err := validateCapacityCheckpoint(cfg, candidate); !errors.Is(err, ErrCapacityAdmission) {
+				t.Fatalf("admission error = %v", err)
 			}
 		})
 	}
-	if staircase, err := NewCapacityStaircase(cfg, admission, admission.Checkpoint.Window.End); !errors.Is(err, ErrCapacityAdmission) || staircase != nil {
-		t.Fatalf("same-instant admission = %#v, %v", staircase, err)
+	if _, err := validateCapacityLiveDataset(
+		cfg, admission, live, admission.Checkpoint.Window.End, admission.Checkpoint.Window.End,
+	); !errors.Is(err, ErrCapacityAdmission) {
+		t.Fatalf("same-instant admission error = %v", err)
 	}
 }
 
@@ -54,7 +74,7 @@ func TestZeroCapacitySnapshotDoesNotClaimAnAttempt(t *testing.T) {
 
 func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +144,7 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 
 func TestCapacityRateWindowStartsOnlyAfterOwnerCommit(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +169,7 @@ func TestCapacityRateWindowStartsOnlyAfterOwnerCommit(t *testing.T) {
 
 func TestCapacityRateFailureFreezesHarnessWithoutStartingWindow(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +188,7 @@ func TestCapacityRateFailureFreezesHarnessWithoutStartingWindow(t *testing.T) {
 
 func TestCapacityCorrectnessFailureTerminatesImmediately(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +208,7 @@ func TestCapacityCorrectnessFailureTerminatesImmediately(t *testing.T) {
 
 func TestCapacityRecoveryRequiresEveryBaselineGate(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +245,7 @@ func TestCapacityRecoveryRequiresReadinessAndLifecycleActivity(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			cfg, admission, start := capacityTestAdmission(t)
-			staircase, err := NewCapacityStaircase(cfg, admission, start)
+			staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -245,7 +265,7 @@ func TestCapacityRecoveryRequiresReadinessAndLifecycleActivity(t *testing.T) {
 
 func TestCapacityIncompleteMeasurementIsHarnessInvalidWithoutUnboundedHistory(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +280,7 @@ func TestCapacityIncompleteMeasurementIsHarnessInvalidWithoutUnboundedHistory(t 
 
 func TestCapacityMissedPhaseBoundaryIsHarnessInvalid(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +297,7 @@ func TestCapacityRateMathRejectsOverflowAndNeverLoopsForever(t *testing.T) {
 		t.Fatal("overflowing two-tick rate was accepted")
 	}
 	cfg, admission, start := capacityTestAdmission(t)
-	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,6 +540,9 @@ func TestCoordinatorRunExecutesCapacityModeThroughRecovery(t *testing.T) {
 			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		}),
 		Clock: clock, CapacityAdmission: &admission, CapacityEvidence: evidence,
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -562,9 +585,71 @@ func TestCoordinatorRunExecutesCapacityModeThroughRecovery(t *testing.T) {
 	}
 }
 
+func TestCoordinatorCapacityEvidenceParentCancellationIsStoppedAndJoined(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log, grantCalled: grantCalls}
+	}
+	evidence := &cancelJoiningCapacityEvidence{started: make(chan struct{}), returned: make(chan struct{})}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 1,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, CapacityAdmission: &admission, CapacityEvidence: evidence,
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runContext, cancelRun := context.WithCancel(context.Background())
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(runContext, cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	for second := 1; second <= int((30*time.Minute)/time.Second); second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			<-grantCalls
+		}
+		if second == int((10*time.Minute)/time.Second) || second == int((30*time.Minute)/time.Second) {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	<-evidence.started
+	cancelRun()
+	result := <-resultChannel
+	if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+		t.Fatalf("parent cancellation result = %+v", result)
+	}
+	select {
+	case <-evidence.returned:
+	default:
+		t.Fatal("coordinator returned before joining capacity evidence")
+	}
+}
+
 func TestCoordinatorRejectsCapacityAdmissionBeforeTargetMutation(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
-	admission.LiveDataset.State = CapacityDatasetClean
 	log := []string{}
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 	for workerID := range workers {
@@ -587,6 +672,12 @@ func TestCoordinatorRejectsCapacityAdmissionBeforeTargetMutation(t *testing.T) {
 		}),
 		Clock: fixedCoordinatorClock{now: start}, CapacityAdmission: &admission,
 		CapacityEvidence: &scriptedCapacityEvidence{requests: make(chan CapacityEvidenceRequest, 1)},
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			appendCoordinatorTestLog(&log, "dataset_probe")
+			live := capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, start)
+			live.Nodes[2].State = CapacityDatasetClean
+			return live, nil
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -595,8 +686,8 @@ func TestCoordinatorRejectsCapacityAdmissionBeforeTargetMutation(t *testing.T) {
 	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeCapacity {
 		t.Fatalf("invalid admission result = %+v", result)
 	}
-	if got := coordinatorTestLogSnapshot(&log); len(got) != 0 {
-		t.Fatalf("invalid admission mutated target/workers: %v", got)
+	if got := coordinatorTestLogSnapshot(&log); len(got) != 2 || got[0] != "preflight" || got[1] != "dataset_probe" {
+		t.Fatalf("invalid admission crossed the read-only gate: %v", got)
 	}
 }
 
@@ -636,6 +727,9 @@ func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T)
 			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		}),
 		Clock: clock, CapacityAdmission: &admission, CapacityEvidence: evidence,
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -712,15 +806,30 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 	cfg.RunID = "capacity-run"
 	cfg.Mode = ModeCapacity
 	cfg.Capacity.AgedCheckpoint = AgedCheckpoint{Reference: "reports/formal-72h", Completed: true, Passed: true, Duration: 72 * time.Hour}
-	dataset := hashReportValue("service-dataset-generation-1")
 	admission := CapacityAdmission{
 		Reference: cfg.Capacity.AgedCheckpoint.Reference, Checkpoint: checkpoint,
-		LiveDataset: CapacityLiveDatasetEvidence{
-			ReferenceDigest: dataset, ObservedAt: checkpoint.Window.End.Add(30 * time.Second),
-			ServiceNodeCount: 3, Uninterrupted: true, State: CapacityDatasetLiveAged,
-		},
 	}
 	return cfg, admission, checkpoint.Window.End.Add(time.Minute)
+}
+
+func capacityLiveDatasetFixture(digest string, observedAt time.Time) CapacityLiveDatasetEvidence {
+	var evidence CapacityLiveDatasetEvidence
+	for index := range evidence.Nodes {
+		evidence.Nodes[index] = CapacityLiveDatasetNodeEvidence{
+			NodeID: uint64(index + 1), DatasetDigest: digest,
+			ObservedAt: observedAt, State: CapacityDatasetLiveAged,
+		}
+	}
+	return evidence
+}
+
+func newCapacityStaircaseForTest(cfg Config, admission CapacityAdmission, start time.Time) (*CapacityStaircase, error) {
+	live := capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, start)
+	token, err := validateCapacityLiveDataset(cfg, admission, live, start, start)
+	if err != nil {
+		return nil, err
+	}
+	return newCapacityStaircase(cfg, token, start)
 }
 
 func capacityFinishStabilization(t *testing.T, staircase *CapacityStaircase) {
@@ -797,6 +906,24 @@ type scriptedCapacityEvidence struct {
 	calls        int
 	requests     chan CapacityEvidenceRequest
 	observations []CapacityObservation
+}
+
+type cancelJoiningCapacityEvidence struct {
+	started  chan struct{}
+	returned chan struct{}
+}
+
+func (e *cancelJoiningCapacityEvidence) ObserveCapacity(ctx context.Context, _ CapacityEvidenceRequest) (CapacityObservation, error) {
+	close(e.started)
+	<-ctx.Done()
+	close(e.returned)
+	return CapacityObservation{}, ctx.Err()
+}
+
+type coordinatorCapacityDatasetProbeFunc func(context.Context, Config) (CapacityLiveDatasetEvidence, error)
+
+func (f coordinatorCapacityDatasetProbeFunc) ProbeCapacityDataset(ctx context.Context, cfg Config) (CapacityLiveDatasetEvidence, error) {
+	return f(ctx, cfg)
 }
 
 func (e *scriptedCapacityEvidence) ObserveCapacity(_ context.Context, request CapacityEvidenceRequest) (CapacityObservation, error) {

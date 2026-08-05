@@ -33,25 +33,33 @@ const (
 	CapacityDatasetClean       CapacityDatasetState = "clean"
 )
 
-// CapacityLiveDatasetEvidence is the narrow, all-node live-target probe result
-// compared with the dataset digest persisted in the 72-hour checkpoint.
-type CapacityLiveDatasetEvidence struct {
-	// ReferenceDigest is the target-issued opaque dataset identity.
-	ReferenceDigest string
-	// ObservedAt is the all-node live probe completion time.
-	ObservedAt       time.Time
-	ServiceNodeCount uint64
-	// Uninterrupted proves the declared service generation did not restart after the checkpoint.
-	Uninterrupted bool
+// CapacityLiveDatasetNodeEvidence is one direct service-node response from the
+// current capacity admission probe. DatasetDigest includes the service process
+// generation, so a restart cannot reuse the frozen checkpoint identity.
+type CapacityLiveDatasetNodeEvidence struct {
+	NodeID        uint64
+	DatasetDigest string
+	ObservedAt    time.Time
 	State         CapacityDatasetState
 }
 
-// CapacityAdmission binds the frozen Soak report to one live target probe.
-type CapacityAdmission struct {
-	Reference   string
-	Checkpoint  Report
-	LiveDataset CapacityLiveDatasetEvidence
+// CapacityLiveDatasetEvidence contains exactly one direct response for each
+// service node. The coordinator obtains it during Run; callers cannot attach a
+// previously cached aggregate to CapacityAdmission.
+type CapacityLiveDatasetEvidence struct {
+	Nodes [coordinatorWorkerCount]CapacityLiveDatasetNodeEvidence
 }
+
+// CapacityAdmission identifies the frozen 72-hour Soak report. Live evidence
+// is always collected independently by the coordinator during Run.
+type CapacityAdmission struct {
+	Reference  string
+	Checkpoint Report
+}
+
+// capacityAdmissionToken is created only after the coordinator's current
+// all-node probe has matched the frozen checkpoint.
+type capacityAdmissionToken struct{}
 
 // CapacityPhase is the closed staircase lifecycle.
 type CapacityPhase string
@@ -203,24 +211,52 @@ type CapacityStaircase struct {
 	recentSize   int
 }
 
-// NewCapacityStaircase admits only a passing formal Soak report bound to the
-// exact same currently live, non-clean aged service dataset.
-func NewCapacityStaircase(cfg Config, admission CapacityAdmission, start time.Time) (*CapacityStaircase, error) {
-	if start.IsZero() || cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Validate() != nil {
-		return nil, ErrCapacityConfig
-	}
+func validateCapacityCheckpoint(cfg Config, admission CapacityAdmission) error {
 	checkpoint := admission.Checkpoint
-	live := admission.LiveDataset
-	if admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
-		!validReportHash(checkpoint.DatasetDigest) || checkpoint.DatasetDigest != live.ReferenceDigest ||
-		live.State != CapacityDatasetLiveAged || !live.Uninterrupted || live.ServiceNodeCount != coordinatorWorkerCount ||
-		live.ObservedAt.IsZero() || !live.ObservedAt.After(checkpoint.Window.End) || start.Before(live.ObservedAt) ||
-		validateReport(checkpoint) != nil || checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak ||
+	if cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Validate() != nil ||
+		admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
+		!validReportHash(checkpoint.DatasetDigest) || validateReport(checkpoint) != nil ||
+		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||
 		!checkpoint.Verdict.Terminal || checkpoint.Verdict.Outcome != VerdictPass || checkpoint.Verdict.Cause != VerdictCauseCompleted ||
 		checkpoint.Window.Elapsed < formalCheckpointDuration || checkpoint.Capacity.Attempted ||
-		!start.After(checkpoint.Window.End) || cfg.Capacity.AgedCheckpoint.Duration > checkpoint.Window.Elapsed {
-		return nil, ErrCapacityAdmission
+		cfg.Capacity.AgedCheckpoint.Duration > checkpoint.Window.Elapsed {
+		return ErrCapacityAdmission
+	}
+	return nil
+}
+
+func validateCapacityLiveDataset(
+	cfg Config,
+	admission CapacityAdmission,
+	live CapacityLiveDatasetEvidence,
+	probeStartedAt time.Time,
+	probeCompletedAt time.Time,
+) (capacityAdmissionToken, error) {
+	if probeStartedAt.IsZero() || probeCompletedAt.Before(probeStartedAt) ||
+		validateCapacityCheckpoint(cfg, admission) != nil || !probeStartedAt.After(admission.Checkpoint.Window.End) {
+		return capacityAdmissionToken{}, ErrCapacityAdmission
+	}
+	seen := make(map[uint64]struct{}, coordinatorWorkerCount)
+	for _, node := range live.Nodes {
+		if node.NodeID == 0 || node.DatasetDigest != admission.Checkpoint.DatasetDigest ||
+			node.State != CapacityDatasetLiveAged || node.ObservedAt.Before(probeStartedAt) ||
+			node.ObservedAt.After(probeCompletedAt) {
+			return capacityAdmissionToken{}, ErrCapacityAdmission
+		}
+		if _, duplicate := seen[node.NodeID]; duplicate {
+			return capacityAdmissionToken{}, ErrCapacityAdmission
+		}
+		seen[node.NodeID] = struct{}{}
+	}
+	return capacityAdmissionToken{}, nil
+}
+
+// newCapacityStaircase starts only from a token produced by the coordinator's
+// current all-node aged-dataset probe.
+func newCapacityStaircase(cfg Config, _ capacityAdmissionToken, start time.Time) (*CapacityStaircase, error) {
+	if start.IsZero() || cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Validate() != nil {
+		return nil, ErrCapacityConfig
 	}
 	rate := uint64(cfg.Capacity.StartRatePerSecond)
 	return &CapacityStaircase{

@@ -140,6 +140,13 @@ type CoordinatorCapacityEvidence interface {
 	ObserveCapacity(context.Context, CapacityEvidenceRequest) (CapacityObservation, error)
 }
 
+// CoordinatorCapacityDatasetProbe reads the current dataset identity directly
+// from every declared service node. It is called synchronously during Run after
+// preflight and before setup or worker mutation.
+type CoordinatorCapacityDatasetProbe interface {
+	ProbeCapacityDataset(context.Context, Config) (CapacityLiveDatasetEvidence, error)
+}
+
 // CoordinatorClock owns readiness, grant, status, and final-cutoff time.
 type CoordinatorClock interface {
 	Now() time.Time
@@ -158,6 +165,7 @@ type CoordinatorOptions struct {
 	RoundTimeout      time.Duration
 	CapacityAdmission *CapacityAdmission
 	CapacityEvidence  CoordinatorCapacityEvidence
+	CapacityDataset   CoordinatorCapacityDatasetProbe
 }
 
 // Coordinator owns one non-resumable assignment generation.
@@ -172,6 +180,7 @@ type Coordinator struct {
 	roundTimeout      time.Duration
 	capacityAdmission *CapacityAdmission
 	capacityEvidence  CoordinatorCapacityEvidence
+	capacityDataset   CoordinatorCapacityDatasetProbe
 
 	mu   sync.Mutex
 	used bool
@@ -218,6 +227,7 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 		workers: workers, observer: options.Observer, clock: options.Clock,
 		cleanupTimeout: options.CleanupTimeout, roundTimeout: options.RoundTimeout,
 		capacityAdmission: capacityAdmission, capacityEvidence: options.CapacityEvidence,
+		capacityDataset: options.CapacityDataset,
 	}, nil
 }
 
@@ -234,11 +244,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 	c.used = true
 	c.mu.Unlock()
-	if cfg.Mode == ModeCapacity && (c.capacityAdmission == nil || c.capacityEvidence == nil) {
+	if cfg.Mode == ModeCapacity && (c.capacityAdmission == nil || c.capacityEvidence == nil || c.capacityDataset == nil) {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
 	}
 	if cfg.Mode == ModeCapacity {
-		if _, err := NewCapacityStaircase(cfg, *c.capacityAdmission, c.clock.Now()); err != nil {
+		if err := validateCapacityCheckpoint(cfg, *c.capacityAdmission); err != nil {
 			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
 		}
 	}
@@ -250,6 +260,31 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			outcome = CoordinatorInfrastructureFailure
 		}
 		return CoordinatorResult{Outcome: outcome, Code: CoordinatorCodePreflight}
+	}
+	var capacityAdmission capacityAdmissionToken
+	if cfg.Mode == ModeCapacity {
+		probeStartedAt := c.clock.Now()
+		probeContext, cancelProbe := context.WithTimeoutCause(ctx, c.roundTimeout, errCoordinatorRoundDeadline)
+		liveDataset, probeErr := c.capacityDataset.ProbeCapacityDataset(probeContext, cfg)
+		probeCause := context.Cause(probeContext)
+		probeCompletedAt := c.clock.Now()
+		cancelProbe()
+		if probeErr != nil {
+			if ctx.Err() != nil && errors.Is(probeErr, ctx.Err()) && errors.Is(probeCause, ctx.Err()) {
+				return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
+			}
+			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
+		}
+		var admissionErr error
+		capacityAdmission, admissionErr = validateCapacityLiveDataset(
+			cfg, *c.capacityAdmission, liveDataset, probeStartedAt, probeCompletedAt,
+		)
+		if admissionErr != nil {
+			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
+		}
+		if ctx.Err() != nil {
+			return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
+		}
 	}
 	if err := c.setup.Run(ctx, cfg); err != nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeSetup}
@@ -384,7 +419,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	grantBarrierAt := c.clock.Now()
 	var capacityStaircase *CapacityStaircase
 	if cfg.Mode == ModeCapacity {
-		capacityStaircase, err = NewCapacityStaircase(cfg, *c.capacityAdmission, grantBarrierAt)
+		capacityStaircase, err = newCapacityStaircase(cfg, capacityAdmission, grantBarrierAt)
 		if err != nil {
 			reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeCapacity, coordinatorRoundStageFailed)
 			joinFailureObservation()
@@ -463,11 +498,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	failureCode := CoordinatorCode("")
 	failureDisposition := coordinatorRoundStageFailed
 	var failureReason coordinatorTerminationReason
+	var joinCapacityAsync func()
 	if capacityStaircase != nil {
 		type capacityEvidenceResult struct {
 			request     CapacityEvidenceRequest
 			observation CapacityObservation
-			err         error
+			disposition coordinatorRoundDisposition
 		}
 		type capacityRateResult struct {
 			rate        uint64
@@ -475,9 +511,20 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 		var evidenceResults <-chan capacityEvidenceResult
 		var rateResults <-chan capacityRateResult
+		joinCapacityAsync = func() {
+			if evidenceResults != nil {
+				<-evidenceResults
+				evidenceResults = nil
+			}
+			if rateResults != nil {
+				<-rateResults
+				rateResults = nil
+			}
+		}
 		completeCapacityFailure := func(snapshot CapacitySnapshot) CoordinatorResult {
 			result.Capacity = snapshot
 			observation = joinObservation()
+			joinCapacityAsync()
 			result.Code = CoordinatorCodeCapacity
 			switch snapshot.Outcome {
 			case CapacityProductFailure:
@@ -506,7 +553,16 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				)
 				defer cancel()
 				observed, observeErr := c.capacityEvidence.ObserveCapacity(evidenceContext, request)
-				results <- capacityEvidenceResult{request: request, observation: observed, err: observeErr}
+				disposition := coordinatorRoundStageFailed
+				if observeErr == nil {
+					disposition = coordinatorRoundSucceeded
+				} else if ctx.Err() != nil && errors.Is(observeErr, ctx.Err()) &&
+					errors.Is(context.Cause(evidenceContext), ctx.Err()) {
+					disposition = coordinatorRoundParentCanceled
+				}
+				results <- capacityEvidenceResult{
+					request: request, observation: observed, disposition: disposition,
+				}
 			}()
 		}
 		startCapacityRateRound := func(rate uint64) {
@@ -559,10 +615,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			select {
 			case observation = <-observationChannel:
 				observationJoined = true
+				cancelObservation()
+				joinCapacityAsync()
 				goto observationComplete
 			case evidence := <-evidenceResults:
 				evidenceResults = nil
-				if evidence.err != nil {
+				if evidence.disposition == coordinatorRoundParentCanceled {
+					result.Capacity = capacityStaircase.Snapshot()
+					cancelObservation()
+					joinCapacityAsync()
+					return completeParentCancellation()
+				}
+				if evidence.disposition != coordinatorRoundSucceeded {
 					evidence.observation.HarnessInvalid = true
 				}
 				transition, advanceErr := capacityStaircase.Advance(evidence.request.End, evidence.observation)
@@ -582,6 +646,8 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				rateResults = nil
 				if rateResult.disposition == coordinatorRoundParentCanceled {
 					result.Capacity = capacityStaircase.Snapshot()
+					cancelObservation()
+					joinCapacityAsync()
 					return completeParentCancellation()
 				}
 				if rateResult.disposition != coordinatorRoundSucceeded {
@@ -606,6 +672,8 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				}
 				if ctx.Err() != nil {
 					result.Capacity = capacityStaircase.Snapshot()
+					cancelObservation()
+					joinCapacityAsync()
 					return completeParentCancellation()
 				}
 				if grantCoverageMissing(now) {
@@ -623,6 +691,8 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			case tickAt := <-grantTicker.C():
 				if ctx.Err() != nil {
 					result.Capacity = capacityStaircase.Snapshot()
+					cancelObservation()
+					joinCapacityAsync()
 					return completeParentCancellation()
 				}
 				if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
@@ -635,6 +705,8 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				}
 			case <-ctx.Done():
 				result.Capacity = capacityStaircase.Snapshot()
+				cancelObservation()
+				joinCapacityAsync()
 				return completeParentCancellation()
 			}
 		}
@@ -756,11 +828,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 observationFailure:
 	failureReason = lockCoordinatorTerminationReason(ctx, failureCode, failureDisposition)
 	joinFailureObservation()
+	if joinCapacityAsync != nil {
+		joinCapacityAsync()
+	}
 	result.Outcome, result.Code = coordinatorConcurrentFailure(observation, failureReason)
 	c.stopAfterFailure(fence, attempted)
 	return result
 
 observationComplete:
+	if joinCapacityAsync != nil {
+		cancelObservation()
+		joinCapacityAsync()
+	}
 	if observation.Outcome != ObserverStopped {
 		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeObserver
