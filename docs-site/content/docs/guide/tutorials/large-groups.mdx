@@ -1,0 +1,110 @@
+---
+title: 群聊与超大群
+description: 实现群 Channel、成员协调、群消息、成员变更，以及十万成员负载边界。
+---
+
+本教程先创建一个普通群，再把同一模型扩展到十万成员。业务系统始终拥有群资料、成员角色、邀请审批、禁言、内容治理和成员数据库；WuKongIM 保存 Channel 权威元数据、成员投影与有序消息日志。
+
+## 1. 创建群 Channel
+
+选择稳定且不可复用的业务群 ID，例如 `team-42`。在受信服务网络中创建 Channel，并用一个小的初始成员集完成验证：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"team-42",
+    "channel_type":2,
+    "reset":1,
+    "subscribers":["alice","bob","carol"]
+  }'
+```
+
+成功兼容响应是 `{"status":200}`。`channel_type=2` 表示群组 Channel。不要用这个成员列表替代业务群数据库；它是消息权限、同步与投递需要的集群权威投影。
+
+<Callout type="warn" title="成员接口是受信控制面">
+  当前产品 HTTP 路由没有通用业务鉴权。终端用户应先调用你的业务 API，由业务服务验证群角色和审批规则，再执行 WuKongIM 成员变更。
+</Callout>
+
+## 2. 协调成员变化
+
+新增成员：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/subscriber_add \
+  -H 'Content-Type: application/json' \
+  -d '{"channel_id":"team-42","channel_type":2,"subscribers":["dave","erin"]}'
+```
+
+移除成员使用 `/channel/subscriber_remove` 和相同请求结构。普通成员变更会去重、写入单调 mutation version，并更新 UID-owned membership projection。业务服务仍应保存自己的期望成员版本、操作审计和补偿任务。
+
+## 3. 发送并验证群消息
+
+发送者必须满足当前群权限与成员策略。客户端 SDK 使用 `channel_id=team-42`、`channel_type=2`；受信服务端示例：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"team-42",
+    "channel_type":2,
+    "client_msg_no":"team-42-0001",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGV4dCIsInRleHQiOiJoZWxsbyB0ZWFtIn0="
+  }'
+```
+
+`reason=1` 表示这个 Channel 的消息已达到 quorum commit。它不表示所有成员都在线、所有在线 Session 都写入成功，或者每位用户的会话投影已经刷新。
+
+Bob 可以同步群日志：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/messagesync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "login_uid":"bob",
+    "channel_id":"team-42",
+    "channel_type":2,
+    "start_message_seq":0,
+    "limit":20,
+    "pull_mode":1
+  }'
+```
+
+群内 `message_seq` 定义唯一顺序。成员的在线投递、RECVACK、未读数和重连恢复仍是不同观测。
+
+## 4. 验证离群边界
+
+业务系统先提交自己的成员状态，再通过受信调用移除订阅者，并记录可重试任务。成员移除决定之后的发送权限和投递计划，但不会删除既有 Channel 日志，也不会自动清理业务数据库、客户端缓存或历史会话展示策略。
+
+明确产品策略：离群用户能看到哪个历史 sequence、是否删除本地记录、再次入群从哪里同步。这些产品规则不能从“成员行已经删除”自动推导。
+
+## 扩展到十万成员
+
+不要把十万 UID 放入一次 `/channel` 或 `subscriber_add` JSON 请求。推荐使用业务侧协调器：
+
+```text
+business membership snapshot/version
+  -> read next bounded UID batch
+  -> POST subscriber_add or subscriber_remove
+  -> persist checkpoint and result
+  -> retry/reconcile until desired == observed
+```
+
+- 使用几百到约一千 UID 的有界应用批次，并按实际请求大小、延迟和错误率调节；不要把内部 chunk 默认值当作永久 API 上限。
+- 每个请求内部仍会分块和去重，但跨多个 HTTP 请求不是一个全局事务。失败时保留已成功进度，再通过期望/实际差异修复。
+- `channel.large_group_subscriber_threshold` 默认是 `500`；普通成员变更后，成员数**大于**阈值会刷新 large-group 标记。改变阈值后，要通过受控成员协调和验证确认现有 Channel 状态。
+- 大群提交后 Fan-out 分页读取成员、按 Presence Authority 分组并创建有界投递计划；它不会为十万成员写十万份 Channel 持久日志。
+- SENDACK 保证 Channel quorum commit，不等待完整 Fan-out。需要业务“全部处理”语义时，另建业务回执与聚合流程。
+
+## 容量验证
+
+上线前至少分别测量：
+
+1. 热点 Channel append、quorum commit 与 P99；
+2. 成员分页、Presence authority 解析和 post-commit handoff 队列；
+3. owner push、Session 写入、断线比例与重连同步；
+4. 成员变更吞吐、部分失败恢复和 mutation version 推进；
+5. CPU、内存、磁盘、网络、队列深度、拒绝和端到端尾延迟。
+
+不要只用平均 QPS 推导十万成员容量。继续阅读[Channel 核心概念](/zh/guide/core-concepts/channels)、[集群配置](/zh/server/configuration/cluster)和[性能测试工具](/zh/server/tools/wkbench)。

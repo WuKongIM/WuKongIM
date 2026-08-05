@@ -92,6 +92,19 @@ content/docs/**/*.mdx
   delivery, while only command-style `NoPersist` enters transient delivery.
   Plugins remain node-local: Send is synchronous and fail-closed by default,
   while Receive and PersistAfter are bounded post-commit effects.
+- Phase 10 publishes the first scenario tutorials: direct chat and groups
+  through 100,000-member workloads. Direct chat uses the peer UID and
+  `channel_type=1`; the server owns canonical person-Channel derivation. Group
+  chat uses product-owned group IDs and `channel_type=2`; the product service
+  remains authoritative for group lifecycle and reconciles subscriber
+  metadata through bounded requests. Durable SEND success means Channel
+  quorum commit, not complete fanout, RECVACK, conversation projection, or a
+  business result. Current product HTTP routes remain a trusted service-side
+  boundary without general product authentication. Large-group guidance MUST
+  use bounded application batches and post-commit paged fanout, never one
+  100,000-member request or a context-free capacity promise. `ClearUnread`
+  advances to the newest server-visible message and MUST NOT be documented as
+  an exact client-supplied read-sequence update.
 
 ## Static delivery
 

@@ -1,0 +1,108 @@
+---
+title: 单聊
+description: 实现两个用户之间的持久消息、在线投递、离线同步、未读状态与多设备恢复。
+---
+
+本教程以 `alice` 和 `bob` 为例。最终结果是：两端通过自己的业务身份连接，Alice 向 Bob 的个人 Channel 发送一条持久消息，Bob 可以在线接收，也能在断线后从日志恢复，并在自己的会话投影中处理未读状态。
+
+## 开始前
+
+- 完成[启动单节点集群](/zh/guide/quick-start/single-node-cluster)或准备一个测试集群。
+- 理解[身份认证](/zh/guide/integration/authentication)的当前 Beta 限制。
+- HTTP 示例只能在本地或受保护的业务服务网络中执行。
+
+```text
+Alice product session                         Bob product session
+        |                                             |
+        +-> SDK CONNECT -> Gateway       Gateway <- CONNECT <-+
+        |                                             |
+        +-> SEND peer=bob, type=1                    |
+                    -> canonical person Channel      |
+                    -> quorum commit -> SENDACK       |
+                    -> Bob RECV / offline sync -------+
+```
+
+## 1. 建立业务身份
+
+业务服务应拥有账号登录、好友关系、封禁和内容策略。为两个测试用户选择稳定 UID；不要使用昵称、连接 ID 或设备 ID 代替 UID。
+
+本地兼容环境可以保存设备 Token 元数据：
+
+```bash
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"alice","token":"alice-local-only","device_flag":0,"device_level":1}'
+```
+
+<Callout type="error" title="这不是生产鉴权证明">
+  默认 v3 Beta Gateway 不会自动使用已存 Token 验证每个 CONNECT。生产发布前必须接入显式凭据校验，并证明错误、过期或撤销 Token 无法连接。
+</Callout>
+
+为 Bob 保存独立凭据，然后让两个客户端分别使用自己的 UID、设备标识和 Token 建立连接。没有 SDK 集成时，可以先用[内嵌 Chat Demo](/zh/guide/quick-start/first-message)验证两个浏览器会话。
+
+## 2. 发送个人消息
+
+客户端发送时使用**对端 UID** 作为 `channel_id`，并设置 `channel_type=1`。不要拼接或存储内部 canonical person Channel ID；服务端会用发送方和接收方 UID 归一化。
+
+受信业务服务也可以用同一语义发送：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"bob",
+    "channel_type":1,
+    "client_msg_no":"dm-alice-bob-0001",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGV4dCIsInRleHQiOiJoZWxsbyBCb2IifQ=="
+  }'
+```
+
+保留稳定且唯一的 `client_msg_no`。网络结果不明确时，用同一个编号重试同一次逻辑发送，不要换编号制造重复消息。HTTP 返回 `reason=1` 表示持久发送到达 Channel quorum commit；它不表示 Bob 的每台设备都已收到。
+
+## 3. 验证在线与离线结果
+
+在线 Bob 应收到 `RECV` 并在处理后发送 `RECVACK`。再用兼容同步接口验证持久日志；个人频道查询仍使用对端 UID：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/messagesync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "login_uid":"bob",
+    "channel_id":"alice",
+    "channel_type":1,
+    "start_message_seq":0,
+    "limit":20,
+    "pull_mode":1
+  }'
+```
+
+响应中的 `channel_id` 会映射回 `alice`，`message_seq` 只在这一个 person Channel 内有序。客户端应按消息 ID、`client_msg_no` 和 Channel sequence 合并在线投递与重连同步，允许重复到达。
+
+## 4. 检查会话和未读
+
+```bash
+curl -sS http://127.0.0.1:5001/conversation/list \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","limit":20}'
+```
+
+Bob 的会话项使用 `channel_id=alice`。`unread` 是 Bob 的 UID-owned 投影视角，不是全局投递计数。用户确认当前会话已读后，由受信边界调用：
+
+```bash
+curl -sS http://127.0.0.1:5001/conversations/clearUnread \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","channel_id":"alice","channel_type":1}'
+```
+
+`clearUnread` 会读取服务端最新可见消息，并把 Bob 的已读位置推进到该 sequence；请求里的可选 `message_seq` 仅在服务端找不到最新消息时作为兼容回退。它不是精确记录客户端最后阅读 sequence 的接口，因此并发新消息可能一起被标记为已读。会话投影更新失败不会回滚已经 quorum commit 的消息。
+
+## 5. 验证多设备与恢复
+
+1. 用不同 `device_id` 建立 Bob 的第二个 Session。
+2. 明确产品的主/从设备冲突策略，不把“同 UID”理解为“只有一条连接”。
+3. 断开其中一个设备，再发送一条新的持久消息。
+4. 重连后通过 SDK 同步或 `/channel/messagesync` 恢复缺失 sequence。
+5. 验证在线投递、离线恢复和会话未读不会被当成同一个完成信号。
+
+上线前还要测试好友解除、黑名单、Token 撤销、断线重试、重复发送、热点单聊分布和 Webhook 重复消费。继续阅读[群聊与超大群](/zh/guide/tutorials/large-groups)或[消息收发](/zh/guide/integration/messaging)。
