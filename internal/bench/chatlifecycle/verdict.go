@@ -769,6 +769,9 @@ func (v *VerdictEvaluator) Finalize(at time.Time) error {
 		}
 		return ErrVerdictObservation
 	}
+	if v.snapshot.Terminal {
+		return nil
+	}
 	v.last = at
 	for _, state := range v.resources {
 		if state.used && state.burstActive {

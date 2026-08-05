@@ -185,6 +185,25 @@ func TestVerdictFinalizeRejectsEmptyEvidence(t *testing.T) {
 	}
 }
 
+func TestVerdictFinalizePreservesEarlierTerminalWithoutPassEvidence(t *testing.T) {
+	start := time.Unix(52_000, 0)
+	thresholds := FormalConfig().Thresholds
+	evaluator, err := NewVerdictEvaluator(start, thresholds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	correctness := CorrectnessCounters{FirstAttempts: 1, Losses: 1}
+	if err := evaluator.Observe(VerdictObservation{At: start, Correctness: &correctness}); err != nil {
+		t.Fatal(err)
+	}
+	if err := evaluator.Finalize(start.Add(thresholds.Timeline.Final)); err != nil {
+		t.Fatalf("Finalize returned %v for an already frozen product failure", err)
+	}
+	if got := evaluator.Snapshot(); !got.Terminal || got.Outcome != VerdictProductFailure || got.Cause != VerdictCauseMessageLoss {
+		t.Fatalf("final verdict = %+v, want frozen product message-loss failure", got)
+	}
+}
+
 func TestVerdictConfigurationBindsTenSecondAnomalyThreshold(t *testing.T) {
 	thresholds := FormalConfig().Thresholds
 	thresholds.Latency.SingleAnomaly = 9 * time.Second
