@@ -181,23 +181,32 @@ echo the channel ID; the server delegates to `engineWorkerGeneration`, which
 calls `ApproveColdRevisitContext`. Owner admission requires the exact canonical
 ID, timer token, and activity version, so a stale lease cannot approve a
 same-channel replacement timer or a timer with newer activity; exact replay is
-idempotent. Before setting the timer's cold-confirmed bit, the owner records a
-generation-bound replay tombstone keyed by the generation-global timer token
-and containing only the activity version plus a SHA-256 digest of the canonical
-channel ID. A reverse digest-to-token index rejects same-channel ABA replacement
-without a scan. Both maps are capped at the 1,200-candidate cohort size and are
-reset by Start and Stop; capacity exhaustion is harness-invalid and leaves the
-live timer unconfirmed and indexed. This bounded digest tombstone is the only
-completed approval state. Activity after approval removes its exact tombstone,
-clears admission, and records a dedicated bounded harness failure, and the invalidated timer also fails explicitly rather
-than silently dropping at its due time. The approval only unlocks the existing
-deterministic revisit timer. The proof intentionally allows early approval only
-after the all-node cold observation and strictly before the deterministic
-`ReheatAt` instant. The serialized owner reads its clock at admission, so a
-request queued before the boundary is rejected if it executes at or after due;
-that rejection neither confirms nor removes the indexed timer. A first
-pre-boundary approval remains idempotently true for its exact token/version
-replay even after due, without performing admission again. Approval at or after that instant, or another absent
+idempotent. While the timer is live, its current exact token/version and
+`coldConfirmed` bit are the replay state; live approvals consume no completed
+tombstone capacity. Immediately before the owner deletes that live timer, it
+atomically records a generation-bound completed replay tombstone; the successful
+eligible path then admits its real reheat SEND. The tombstone is keyed by the
+generation-wide unique timer token and contains
+only the activity version, a SHA-256 digest of the canonical channel ID, and a
+one-minute expiry. A reverse digest-to-token index rejects same-channel ABA
+replacement without a scan. Both maps are capped at 7,200 entries: one
+1,200-candidate cohort times the ceiling of the 60-minute maximum revisit delay
+over the ten-minute proof cadence, covering six full cohorts that can complete
+together even on one worker. Capacity pressure performs one bounded expired-row
+scan; if the maps remain full, completion is harness-invalid and leaves the live
+timer intact without executing reheat. Start and Stop reset both maps. This
+bounded digest tombstone is the only completed approval state. Activity after
+approval clears live admission and records a dedicated bounded harness failure,
+and the invalidated timer also fails explicitly rather than silently dropping
+at its due time. The approval only unlocks the existing deterministic revisit
+timer. The proof intentionally allows early approval only after the all-node
+cold observation and strictly before the deterministic `ReheatAt` instant. The
+serialized owner reads its clock at admission, so a request queued before the
+boundary is rejected if it executes at or after due; that rejection neither
+confirms nor removes the indexed timer. A first pre-boundary approval remains
+idempotently true from live state through due, then from its completed tombstone
+only inside the bounded one-minute retry window, without performing admission
+again. Approval at or after that instant, or another absent
 observation at that instant without approval, is harness-invalid. At its due time the ordinary
 Engine/WKProto SEND path performs the real reheat, and reheat completion latency
 uses that due instant as its baseline; control code never manufactures a

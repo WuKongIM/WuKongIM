@@ -21,6 +21,13 @@ const relationshipLogicalBase = uint64(1) << 62
 const (
 	maxActivityRouteScans = 64
 	activityRouteDeferral = time.Nanosecond
+	// lifecycleApprovalReplayRetention covers twelve maximum five-second
+	// coordinator control rounds after one completed reheat admission.
+	lifecycleApprovalReplayRetention = time.Minute
+	// lifecycleApprovalReplayCapacity covers the worst case in which six full
+	// ten-minute cohorts choose 10..60-minute revisits that complete together.
+	lifecycleApprovalReplayOverlappingCohorts = int((maximumRevisitDelay + LifecycleProofCadence - 1) / LifecycleProofCadence)
+	lifecycleApprovalReplayCapacity           = lifecycleCohortSize * lifecycleApprovalReplayOverlappingCohorts
 	// completionFairnessQuantum bounds consecutive SEND work before the engine
 	// yields one scheduler turn to session drains and rechecks completions.
 	completionFairnessQuantum = 32
@@ -454,6 +461,7 @@ type engineLifecycleCandidateEntry struct {
 type engineLifecycleApprovalReplay struct {
 	channelDigest   [sha256.Size]byte
 	activityVersion uint64
+	expiresAt       time.Time
 }
 
 type engineLifecycleCandidateBucket struct {
@@ -664,9 +672,9 @@ type Engine struct {
 	nextLifecycleTimerToken uint64
 	activeLifecycleTimers   int
 	lifecycleByChannel      map[string]*engineWork
-	// lifecycleApprovalReplays retains at most one completed approval per proof
-	// candidate. The reverse digest index rejects same-channel ABA replacements
-	// without scanning retained state or storing channel identities.
+	// lifecycleApprovalReplays retains only bounded one-minute completed retry
+	// windows across the worst-case overlapping proof cohorts. The reverse digest
+	// index rejects same-channel ABA without storing channel identities.
 	lifecycleApprovalReplays         map[uint64]engineLifecycleApprovalReplay
 	lifecycleApprovalReplayByChannel map[[sha256.Size]byte]uint64
 	// lifecycleCandidateSlots is the immutable no-migration mapping used to
@@ -815,8 +823,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.retries = retries
 	e.inflight = make(map[string]*engineInflight)
 	e.lifecycleByChannel = make(map[string]*engineWork)
-	e.lifecycleApprovalReplays = make(map[uint64]engineLifecycleApprovalReplay, lifecycleCohortSize)
-	e.lifecycleApprovalReplayByChannel = make(map[[sha256.Size]byte]uint64, lifecycleCohortSize)
+	e.lifecycleApprovalReplays = make(map[uint64]engineLifecycleApprovalReplay, lifecycleApprovalReplayCapacity)
+	e.lifecycleApprovalReplayByChannel = make(map[[sha256.Size]byte]uint64, lifecycleApprovalReplayCapacity)
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
 	e.pendingChannels = nil
@@ -1280,7 +1288,7 @@ func (e *Engine) observeNewUser(userIndex, globalNewOrdinal uint64) (considered,
 }
 
 // ApproveColdRevisit attaches prior all-node cold evidence to one still-active
-// revisit timer. It never creates a timer or retains historical channel state.
+// revisit timer. It never creates a timer or retains a raw channel identity.
 func (e *Engine) ApproveColdRevisit(personChannelID string, timerToken, activityVersion uint64) (bool, error) {
 	return e.ApproveColdRevisitContext(context.Background(), personChannelID, timerToken, activityVersion)
 }
@@ -1328,6 +1336,11 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 		}
 		channelDigest := sha256.Sum256([]byte(personChannelID))
 		if replay, exists := e.lifecycleApprovalReplays[timerToken]; exists {
+			if !e.clock.Now().Before(replay.expiresAt) {
+				e.removeLifecycleApprovalReplayToken(timerToken, replay)
+				response <- approvalResult{}
+				return
+			}
 			response <- approvalResult{approved: replay.activityVersion == activityVersion && replay.channelDigest == channelDigest}
 			return
 		}
@@ -1344,10 +1357,6 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 		}
 		if !e.clock.Now().Before(work.due) {
 			response <- approvalResult{}
-			return
-		}
-		if err := e.retainLifecycleApprovalReplay(work); err != nil {
-			response <- approvalResult{err: err}
 			return
 		}
 		work.coldConfirmed = true
@@ -2245,20 +2254,16 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 		return e.scheduleRetry(inflight, now)
 	case engineWorkLifecycle:
 		if work.schedule.Class != LifecycleRevisit {
-			e.completeLifecycleTimer(work, now)
-			return nil
+			return e.completeLifecycleTimer(work, now)
 		}
 		if work.lifecycleLeaseInvalidated {
-			e.completeLifecycleTimer(work, now)
-			return &RuntimeError{code: RuntimeFailureLifecycleLeaseInvalidated}
+			return errors.Join(e.completeLifecycleTimer(work, now), &RuntimeError{code: RuntimeFailureLifecycleLeaseInvalidated})
 		}
 		if work.lifecycleFenceExhausted {
-			e.completeLifecycleTimer(work, now)
-			return &RuntimeError{code: RuntimeFailureLifecycleFenceExhausted}
+			return errors.Join(e.completeLifecycleTimer(work, now), &RuntimeError{code: RuntimeFailureLifecycleFenceExhausted})
 		}
 		if work.schedule.RequiresColdRuntimeEvidence && !work.coldConfirmed {
-			e.completeLifecycleTimer(work, now)
-			return nil
+			return e.completeLifecycleTimer(work, now)
 		}
 		if work.eligibilityDeadline.IsZero() {
 			return errEngineConfig
@@ -2283,7 +2288,9 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 				sender = work.edge.PeerUID
 			}
 		}
-		e.completeLifecycleTimer(work, now)
+		if err := e.completeLifecycleTimer(work, now); err != nil {
+			return err
+		}
 		return e.scheduleRelationshipMessagesFrom(
 			work.edge, work.relationshipOrdinal, 8, work.schedule.RevisitMessages,
 			work.due, work.schedule.InitialBurst.Window, sender,
@@ -2312,7 +2319,9 @@ func (e *Engine) deferLifecycleWork(work *engineWork, now time.Time) error {
 }
 
 func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
-	e.completeLifecycleTimer(work, now)
+	if err := e.completeLifecycleTimer(work, now); err != nil {
+		return err
+	}
 	e.activityUnderDelivered++
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }
@@ -2330,35 +2339,43 @@ func (e *Engine) installLifecycleTimer(work *engineWork) {
 	e.lifecycleByChannel[work.edge.PersonChannelID] = work
 }
 
-// retainLifecycleApprovalReplay linearizes approval idempotency before the
-// live timer becomes cold-confirmed. Capacity exhaustion is harness-invalid,
-// so an approval is never returned without a replay record.
-func (e *Engine) retainLifecycleApprovalReplay(work *engineWork) error {
+// retainCompletedLifecycleApprovalReplay atomically creates the bounded retry
+// window before a confirmed live timer is removed. It prunes only under
+// capacity pressure, so ordinary completion remains constant-time.
+func (e *Engine) retainCompletedLifecycleApprovalReplay(work *engineWork, now time.Time) error {
 	if work == nil || work.edge.PersonChannelID == "" || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
-		e.lifecycleApprovalReplays == nil || e.lifecycleApprovalReplayByChannel == nil {
+		now.IsZero() || e.lifecycleApprovalReplays == nil || e.lifecycleApprovalReplayByChannel == nil {
 		return errEngineConfig
 	}
 	digest := sha256.Sum256([]byte(work.edge.PersonChannelID))
 	if replay, exists := e.lifecycleApprovalReplays[work.lifecycleTimerToken]; exists {
 		if replay.channelDigest == digest && replay.activityVersion == work.activityVersion {
+			replay.expiresAt = now.Add(lifecycleApprovalReplayRetention)
+			e.lifecycleApprovalReplays[work.lifecycleTimerToken] = replay
 			return nil
 		}
 		return e.recordRuntimeFailure(RuntimeFailureLifecycleReplaySaturated, uint64(len(e.lifecycleApprovalReplays)))
 	}
 	previousToken, replacesChannel := e.lifecycleApprovalReplayByChannel[digest]
-	if !replacesChannel && len(e.lifecycleApprovalReplays) >= lifecycleCohortSize {
-		return e.recordRuntimeFailure(RuntimeFailureLifecycleReplaySaturated, lifecycleCohortSize)
+	if !replacesChannel && len(e.lifecycleApprovalReplays) >= lifecycleApprovalReplayCapacity {
+		e.pruneExpiredLifecycleApprovalReplays(now)
+		if len(e.lifecycleApprovalReplays) >= lifecycleApprovalReplayCapacity {
+			return e.recordRuntimeFailure(RuntimeFailureLifecycleReplaySaturated, uint64(lifecycleApprovalReplayCapacity))
+		}
 	}
 	if replacesChannel {
 		delete(e.lifecycleApprovalReplays, previousToken)
 	}
 	e.lifecycleApprovalReplays[work.lifecycleTimerToken] = engineLifecycleApprovalReplay{
 		channelDigest: digest, activityVersion: work.activityVersion,
+		expiresAt: now.Add(lifecycleApprovalReplayRetention),
 	}
 	e.lifecycleApprovalReplayByChannel[digest] = work.lifecycleTimerToken
 	return nil
 }
 
+// removeLifecycleApprovalReplay removes only the exact timer tuple and keeps
+// the token and digest indexes consistent when activity invalidates approval.
 func (e *Engine) removeLifecycleApprovalReplay(work *engineWork) {
 	if work == nil || work.edge.PersonChannelID == "" {
 		return
@@ -2368,12 +2385,11 @@ func (e *Engine) removeLifecycleApprovalReplay(work *engineWork) {
 	if !exists || replay.channelDigest != digest || replay.activityVersion != work.activityVersion {
 		return
 	}
-	delete(e.lifecycleApprovalReplays, work.lifecycleTimerToken)
-	if token, indexed := e.lifecycleApprovalReplayByChannel[digest]; indexed && token == work.lifecycleTimerToken {
-		delete(e.lifecycleApprovalReplayByChannel, digest)
-	}
+	e.removeLifecycleApprovalReplayToken(work.lifecycleTimerToken, replay)
 }
 
+// removeLifecycleApprovalReplayForChannel rejects a completed same-channel
+// ABA token while preserving an exact reinstall and dual-index consistency.
 func (e *Engine) removeLifecycleApprovalReplayForChannel(personChannelID string, exceptToken uint64) {
 	if personChannelID == "" {
 		return
@@ -2385,6 +2401,26 @@ func (e *Engine) removeLifecycleApprovalReplayForChannel(personChannelID string,
 	}
 	delete(e.lifecycleApprovalReplays, token)
 	delete(e.lifecycleApprovalReplayByChannel, digest)
+}
+
+// removeLifecycleApprovalReplayToken deletes one known token record and the
+// reverse digest entry only when it still points back to that exact token.
+func (e *Engine) removeLifecycleApprovalReplayToken(token uint64, replay engineLifecycleApprovalReplay) {
+	delete(e.lifecycleApprovalReplays, token)
+	if indexedToken, indexed := e.lifecycleApprovalReplayByChannel[replay.channelDigest]; indexed && indexedToken == token {
+		delete(e.lifecycleApprovalReplayByChannel, replay.channelDigest)
+	}
+}
+
+// pruneExpiredLifecycleApprovalReplays performs one capacity-bounded scan and
+// preserves both indexes while reclaiming completed retry windows.
+func (e *Engine) pruneExpiredLifecycleApprovalReplays(now time.Time) {
+	for token, replay := range e.lifecycleApprovalReplays {
+		if now.Before(replay.expiresAt) {
+			continue
+		}
+		e.removeLifecycleApprovalReplayToken(token, replay)
+	}
 }
 
 // offerLifecycleCandidate keeps every production-eligible live timer in the
@@ -2587,7 +2623,17 @@ func lifecycleCandidateWorkLess(left, right *engineWork) bool {
 	return left.lifecycleTimerToken < right.lifecycleTimerToken
 }
 
-func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
+// completeLifecycleTimer atomically retains the completed approval retry
+// window before deleting its live identity. A retention failure leaves the
+// live timer intact so the real reheat cannot run without idempotent replay.
+func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) error {
+	if e.lifecycleByChannel[work.edge.PersonChannelID] == work && work.schedule.Class == LifecycleRevisit &&
+		work.schedule.RequiresColdRuntimeEvidence && work.coldConfirmed &&
+		!work.lifecycleLeaseInvalidated && !work.lifecycleFenceExhausted {
+		if err := e.retainCompletedLifecycleApprovalReplay(work, now); err != nil {
+			return err
+		}
+	}
 	e.removeLifecycleCandidate(work)
 	if e.lifecycleByChannel[work.edge.PersonChannelID] == work {
 		delete(e.lifecycleByChannel, work.edge.PersonChannelID)
@@ -2603,6 +2649,7 @@ func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
 	if removedActive {
 		e.promotePendingChannels(now)
 	}
+	return nil
 }
 
 func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attempt uint8, now time.Time) error {

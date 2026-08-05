@@ -552,41 +552,83 @@ func TestEngineApprovedRevisitReplaySurvivesRealDueCompletion(t *testing.T) {
 }
 
 func TestEngineLifecycleApprovalReplayCapacityFailsClosedAndRedactsIdentity(t *testing.T) {
-	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 2_048, MaxWorkPerAdvance: 2_048})
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		WorkCapacity: lifecycleApprovalReplayCapacity + 1, MaxWorkPerAdvance: lifecycleApprovalReplayCapacity + 1,
+	})
 	if err := fixture.engine.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	defer fixture.engine.Stop()
+	senderIndex := uint64(500)
+	senderUID := fixture.identity.UID(senderIndex)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: senderUID, UserIndex: senderIndex, LoginOrdinal: senderIndex}); err != nil {
+		t.Fatalf("Login completion sender: %v", err)
+	}
 	now := fixture.clock.Now()
-	var overflowIdentity string
-	var overflowWork *engineWork
-	for index := 0; index <= lifecycleCohortSize; index++ {
-		identity := channelid.EncodePersonChannel(fmt.Sprintf("replay-capacity-%04d-a", index), fmt.Sprintf("replay-capacity-%04d-b", index))
-		work := &engineWork{
-			due: now.Add(10 * time.Minute), eligibilityDeadline: now.Add(11 * time.Minute), kind: engineWorkLifecycle,
-			edge:                RelationshipEdge{PersonChannelID: identity},
-			schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
-			lifecycleTimerToken: uint64(index + 1), activityVersion: 1, initialSequence: 1,
-			lastActivityAt: now, observedLoaded: true,
-		}
-		if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
-			fixture.engine.installLifecycleTimer(work)
-			fixture.engine.offerLifecycleCandidate(work)
-		}}); err != nil {
-			t.Fatal(err)
-		}
-		approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), identity, work.lifecycleTimerToken, work.activityVersion)
-		if index < lifecycleCohortSize {
-			if err != nil || !approved {
-				t.Fatalf("approval %d = %v, %v", index, approved, err)
+	due := now.Add(10 * time.Minute)
+	works := make([]*engineWork, lifecycleApprovalReplayCapacity+1)
+	installed := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for index := range works {
+			identity := channelid.EncodePersonChannel(fmt.Sprintf("replay-capacity-%04d-a", index), fmt.Sprintf("replay-capacity-%04d-b", index))
+			work := &engineWork{
+				due: due, eligibilityDeadline: due.Add(time.Minute), kind: engineWorkLifecycle,
+				edge:                RelationshipEdge{PersonChannelID: identity},
+				schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: uint64(index + 1), activityVersion: 1,
 			}
-			continue
+			works[index] = work
+			fixture.engine.installLifecycleTimer(work)
 		}
-		overflowIdentity, overflowWork = identity, work
-		var runtimeErr *RuntimeError
-		if approved || !errors.As(err, &runtimeErr) || runtimeErr.Code() != RuntimeFailureLifecycleReplaySaturated {
-			t.Fatalf("overflow approval = %v, %v; want replay saturation", approved, err)
+		installed <- struct{}{}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	<-installed
+	for index, work := range works {
+		approved, err := fixture.engine.ApproveColdRevisitContext(context.Background(), work.edge.PersonChannelID, work.lifecycleTimerToken, work.activityVersion)
+		if err != nil || !approved {
+			t.Fatalf("approval %d = %v, %v", index, approved, err)
 		}
+	}
+	approvalState := make(chan [2]int, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		approvalState <- [2]int{len(fixture.engine.lifecycleApprovalReplays), len(fixture.engine.lifecycleApprovalReplayByChannel)}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if sizes := <-approvalState; sizes != [2]int{} {
+		t.Fatalf("live approvals retained completed replay state: %v", sizes)
+	}
+
+	fixture.clock.Set(due)
+	completionResult := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		for _, work := range works[:lifecycleApprovalReplayCapacity] {
+			if err := fixture.engine.completeLifecycleTimer(work, due); err != nil {
+				completionResult <- err
+				return
+			}
+		}
+		completionResult <- nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-completionResult; err != nil {
+		t.Fatalf("fill completed replay capacity: %v", err)
+	}
+	overflowWork := works[lifecycleApprovalReplayCapacity]
+	overflowIdentity := overflowWork.edge.PersonChannelID
+	overflowWork.requiredSender = senderUID
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		completionResult <- fixture.engine.processWork(context.Background(), overflowWork, due)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	overflowErr := <-completionResult
+	var runtimeErr *RuntimeError
+	if !errors.As(overflowErr, &runtimeErr) || runtimeErr.Code() != RuntimeFailureLifecycleReplaySaturated {
+		t.Fatalf("overflow completion = %v; want replay saturation", overflowErr)
 	}
 
 	type replayState struct {
@@ -594,8 +636,8 @@ func TestEngineLifecycleApprovalReplayCapacityFailsClosedAndRedactsIdentity(t *t
 		channels     int
 		overflowCold bool
 		overflowSeen bool
-		overflowTier engineLifecycleCandidateTier
-		indexed      int
+		overflowLive bool
+		activity     int
 	}
 	stateResult := make(chan replayState, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
@@ -603,24 +645,24 @@ func TestEngineLifecycleApprovalReplayCapacityFailsClosedAndRedactsIdentity(t *t
 		stateResult <- replayState{
 			replays: len(fixture.engine.lifecycleApprovalReplays), channels: len(fixture.engine.lifecycleApprovalReplayByChannel),
 			overflowCold: overflowWork.coldConfirmed, overflowSeen: overflowSeen,
-			overflowTier: overflowWork.lifecycleCandidateTier, indexed: fixture.engine.lifecycleCandidateIndexed,
+			overflowLive: fixture.engine.lifecycleByChannel[overflowIdentity] == overflowWork,
+			activity:     len(fixture.engine.activity),
 		}
 	}}); err != nil {
 		t.Fatal(err)
 	}
 	state := <-stateResult
-	if state.replays != lifecycleCohortSize || state.channels != lifecycleCohortSize || state.overflowCold || state.overflowSeen ||
-		state.overflowTier == engineLifecycleCandidateNone || state.indexed != 1 {
-		t.Fatalf("capacity state = %+v, want %d retained and overflow unconfirmed", state, lifecycleCohortSize)
-	}
-	leased, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t))
-	if err != nil || len(leased) != 1 || leased[0].TimerToken != overflowWork.lifecycleTimerToken || leased[0].ActivityVersion != overflowWork.activityVersion {
-		t.Fatalf("overflow candidate lease after saturation = %+v, %v", leased, err)
+	if state.replays != lifecycleApprovalReplayCapacity || state.channels != lifecycleApprovalReplayCapacity ||
+		!state.overflowCold || state.overflowSeen || !state.overflowLive || state.activity != 0 {
+		t.Fatalf("capacity state = %+v, want %d completed and overflow live", state, lifecycleApprovalReplayCapacity)
 	}
 	if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(),
 		channelid.EncodePersonChannel("replay-capacity-0000-a", "replay-capacity-0000-b"), 1, 1,
 	); err != nil || !replay {
 		t.Fatalf("retained replay after saturation = %v, %v", replay, err)
+	}
+	if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(), overflowIdentity, overflowWork.lifecycleTimerToken, overflowWork.activityVersion); err != nil || !replay {
+		t.Fatalf("live overflow approval after failed completion = %v, %v", replay, err)
 	}
 	snapshot, err := fixture.engine.Snapshot()
 	if err != nil {
@@ -629,11 +671,148 @@ func TestEngineLifecycleApprovalReplayCapacityFailsClosedAndRedactsIdentity(t *t
 	snapshotJSON, _ := json.Marshal(snapshot)
 	evidenceJSON, _ := json.Marshal(fixture.evidence.Snapshot())
 	observable := string(snapshotJSON) + string(evidenceJSON) + (&RuntimeError{code: RuntimeFailureLifecycleReplaySaturated}).Error()
-	if strings.Contains(observable, overflowIdentity) || strings.Contains(observable, "replay-capacity-1200") {
+	if strings.Contains(observable, overflowIdentity) || strings.Contains(observable, fmt.Sprintf("replay-capacity-%04d", lifecycleApprovalReplayCapacity)) {
 		t.Fatalf("overflow channel identity leaked into observable evidence: %s", observable)
 	}
 	if evidence := fixture.evidence.Snapshot(); evidence.Classification != SyncClassificationHarnessInvalid || !workerEvidenceHasCode(evidence, FailureCodeLifecycleReplaySaturated) {
 		t.Fatalf("replay saturation evidence = %+v", evidence)
+	}
+}
+
+func TestEngineLifecycleApprovalReplayBoundsCoverWorstCaseCadenceOverlap(t *testing.T) {
+	if lifecycleApprovalReplayRetention != time.Minute || lifecycleApprovalReplayRetention >= LifecycleProofCadence {
+		t.Fatalf("replay retention = %v, want 1m and less than %v", lifecycleApprovalReplayRetention, LifecycleProofCadence)
+	}
+	wantOverlapping := int((maximumRevisitDelay + LifecycleProofCadence - 1) / LifecycleProofCadence)
+	if lifecycleApprovalReplayOverlappingCohorts != wantOverlapping || lifecycleApprovalReplayCapacity != lifecycleCohortSize*wantOverlapping {
+		t.Fatalf("replay bounds = cohorts %d capacity %d, want %d and %d", lifecycleApprovalReplayOverlappingCohorts, lifecycleApprovalReplayCapacity, wantOverlapping, lifecycleCohortSize*wantOverlapping)
+	}
+	if lifecycleApprovalReplayOverlappingCohorts != 6 || lifecycleApprovalReplayCapacity != 7_200 {
+		t.Fatalf("reviewed replay bounds = cohorts %d capacity %d, want 6 and 7200", lifecycleApprovalReplayOverlappingCohorts, lifecycleApprovalReplayCapacity)
+	}
+}
+
+func TestEngineLifecycleApprovalReplayRotatesWorstCaseOverlappingCohortsAcrossGeneration(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 8_000, MaxWorkPerAdvance: 8_000})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	base := fixture.clock.Now()
+	var nextToken uint64
+	retainedCompleted := 0
+	for wave, waveOffset := range []time.Duration{0, 72 * time.Hour} {
+		due := base.Add(waveOffset + maximumRevisitDelay)
+		works := make([]*engineWork, 0, lifecycleApprovalReplayCapacity)
+		for cohort := 0; cohort < lifecycleApprovalReplayOverlappingCohorts; cohort++ {
+			approvalAt := base.Add(waveOffset + time.Duration(cohort)*LifecycleProofCadence)
+			fixture.clock.Set(approvalAt)
+			cohortWorks := make([]*engineWork, lifecycleCohortSize)
+			installed := make(chan struct{}, 1)
+			if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+				for index := range cohortWorks {
+					nextToken++
+					identity := channelid.EncodePersonChannel(
+						fmt.Sprintf("replay-overlap-%d-%d-%04d-a", wave, cohort, index),
+						fmt.Sprintf("replay-overlap-%d-%d-%04d-b", wave, cohort, index),
+					)
+					work := &engineWork{
+						due: due, eligibilityDeadline: due.Add(time.Minute), kind: engineWorkLifecycle,
+						edge:                RelationshipEdge{PersonChannelID: identity},
+						schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+						lifecycleTimerToken: nextToken, activityVersion: 1,
+					}
+					cohortWorks[index] = work
+					fixture.engine.installLifecycleTimer(work)
+				}
+				installed <- struct{}{}
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			<-installed
+			for index, work := range cohortWorks {
+				approved, err := fixture.engine.ApproveColdRevisitContext(
+					context.Background(), work.edge.PersonChannelID, work.lifecycleTimerToken, work.activityVersion,
+				)
+				if err != nil || !approved {
+					t.Fatalf("wave %d cohort %d approval %d = %v, %v", wave, cohort, index, approved, err)
+				}
+			}
+			works = append(works, cohortWorks...)
+		}
+		mapSize := make(chan [2]int, 1)
+		if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+			mapSize <- [2]int{len(fixture.engine.lifecycleApprovalReplays), len(fixture.engine.lifecycleApprovalReplayByChannel)}
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		if sizes := <-mapSize; sizes != [2]int{retainedCompleted, retainedCompleted} {
+			t.Fatalf("wave %d live approval replay sizes = %v", wave, sizes)
+		}
+
+		fixture.clock.Set(due)
+		completed := make(chan error, 1)
+		if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+			for _, work := range works {
+				if err := fixture.engine.completeLifecycleTimer(work, due); err != nil {
+					completed <- err
+					return
+				}
+			}
+			completed <- nil
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-completed; err != nil {
+			t.Fatalf("wave %d complete overlapping cohorts: %v", wave, err)
+		}
+		if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+			mapSize <- [2]int{len(fixture.engine.lifecycleApprovalReplays), len(fixture.engine.lifecycleApprovalReplayByChannel)}
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		wantCompleted := len(works)
+		if sizes := <-mapSize; sizes != [2]int{wantCompleted, wantCompleted} {
+			t.Fatalf("wave %d completed replay sizes = %v, want %d", wave, sizes, wantCompleted)
+		}
+
+		fixture.clock.Set(due.Add(30 * time.Second))
+		for cohort := 0; cohort < lifecycleApprovalReplayOverlappingCohorts; cohort++ {
+			sample := works[cohort*lifecycleCohortSize+cohort]
+			if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(), sample.edge.PersonChannelID, sample.lifecycleTimerToken, sample.activityVersion); err != nil || !replay {
+				t.Fatalf("wave %d cohort %d in-window replay = %v, %v", wave, cohort, replay, err)
+			}
+		}
+		sample := works[0]
+		wrongChannel := channelid.EncodePersonChannel(fmt.Sprintf("replay-overlap-wrong-%d-a", wave), fmt.Sprintf("replay-overlap-wrong-%d-b", wave))
+		if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(), wrongChannel, sample.lifecycleTimerToken, sample.activityVersion); err != nil || replay {
+			t.Fatalf("wave %d wrong-channel replay = %v, %v", wave, replay, err)
+		}
+		if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(), sample.edge.PersonChannelID, sample.lifecycleTimerToken, sample.activityVersion+1); err != nil || replay {
+			t.Fatalf("wave %d wrong-version replay = %v, %v", wave, replay, err)
+		}
+		fixture.clock.Set(due.Add(time.Minute))
+		for cohort := 0; cohort < lifecycleApprovalReplayOverlappingCohorts; cohort++ {
+			sample := works[cohort*lifecycleCohortSize+cohort]
+			if replay, err := fixture.engine.ApproveColdRevisitContext(context.Background(), sample.edge.PersonChannelID, sample.lifecycleTimerToken, sample.activityVersion); err != nil || replay {
+				t.Fatalf("wave %d cohort %d expired replay = %v, %v; want false", wave, cohort, replay, err)
+			}
+		}
+		if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+			mapSize <- [2]int{len(fixture.engine.lifecycleApprovalReplays), len(fixture.engine.lifecycleApprovalReplayByChannel)}
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		expiredSizes := <-mapSize
+		if expiredSizes[0] != expiredSizes[1] || expiredSizes[0] > lifecycleApprovalReplayCapacity {
+			t.Fatalf("wave %d expired replay sizes = %v", wave, expiredSizes)
+		}
+		retainedCompleted = expiredSizes[0]
+	}
+	if snapshot, err := fixture.engine.Snapshot(); err != nil {
+		t.Fatal(err)
+	} else if snapshot.HarnessInvalid != 0 || snapshot.Classification == SyncClassificationHarnessInvalid {
+		t.Fatalf("overlapping cohorts saturated lifecycle replay state: %+v", snapshot)
 	}
 }
 
