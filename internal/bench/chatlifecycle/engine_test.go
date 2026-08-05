@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"sync"
 	"testing"
@@ -1896,6 +1897,166 @@ func TestEngineContextControlsCancelBehindOwnerWithoutLateRateMutation(t *testin
 			t.Fatalf("stale generation rate mutated allocator: rate=%d burst=%d pending=%v", allocator.rate, allocator.burst, allocator.hasPending)
 		}
 	})
+}
+
+func TestEngineCanceledQueuedAdvanceLeavesRuntimeStateUnchanged(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now()
+	uid := fixture.identity.UID(0)
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	future := session.Deadline.Add(time.Hour)
+	if err := fixture.engine.SubmitGranted(fixture.intent(t, uid, "future-group", 1, TrafficGroup), now.Add(time.Second)); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	firstSampledLogical(t, fixture.traffic, fixture.verifier, "correlation-sender", "correlation-target", now)
+
+	edge, err := fixture.graph.Outgoing(0)
+	if err != nil || edge.Count == 0 {
+		t.Fatalf("Outgoing(0) = %+v, %v", edge, err)
+	}
+	prepared := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		_, retryErr := fixture.engine.retries.Schedule(
+			fixture.intent(t, uid, "retry-group", 2, TrafficGroup), 0, now,
+		)
+		if retryErr != nil {
+			prepared <- retryErr
+			return
+		}
+		lifecycle := &engineWork{
+			due: now.Add(time.Second), kind: engineWorkLifecycle, edge: edge.Items[0],
+			schedule: ChannelSchedule{Class: LifecycleOneShot},
+		}
+		if addErr := fixture.engine.addWork(lifecycle); addErr != nil {
+			prepared <- addErr
+			return
+		}
+		fixture.engine.lifecycleByChannel[edge.Items[0].PersonChannelID] = lifecycle
+		fixture.engine.activeLifecycleTimers++
+		prepared <- nil
+	}}); err != nil {
+		t.Fatalf("prepare mutable state: %v", err)
+	}
+	if err := <-prepared; err != nil {
+		t.Fatalf("prepare mutable state: %v", err)
+	}
+	before := captureCanceledAdvanceState(t, fixture)
+
+	entered, release := blockEngineOwner(t, fixture.engine)
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	<-entered
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(ctx, future)
+		result <- advanceErr
+	}()
+	waitForEngineQueuedCommand(t, fixture.engine)
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("AdvanceContext error = %v, want context cancellation", err)
+	}
+	barrier := make(chan struct{}, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { barrier <- struct{}{} }}); err != nil {
+		t.Fatalf("enqueue owner barrier: %v", err)
+	}
+	close(release)
+	released = true
+	<-barrier
+	after := captureCanceledAdvanceState(t, fixture)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("canceled queued Advance mutated runtime state:\nbefore = %#v\nafter  = %#v", before, after)
+	}
+}
+
+type canceledAdvanceState struct {
+	sessions               []SessionSnapshot
+	sessionCounts          SessionCounts
+	now                    time.Time
+	verifier               VerifierSnapshot
+	work                   []engineWork
+	activity               []engineWork
+	retries                []ScheduledRetry
+	retrySnapshot          RetrySchedulerSnapshot
+	lifecycleByChannel     map[string]engineWork
+	activeLifecycleTimers  int
+	queuedSends            int
+	workPeak               int
+	inflightPeak           int
+	nextOrder              uint64
+	nextClientSeq          uint64
+	retryAttempts          uint64
+	finalFailures          uint64
+	harnessInvalid         uint64
+	activityUnderDelivered uint64
+	activityFutureCanceled uint64
+	evidence               EvidenceSnapshot
+}
+
+func captureCanceledAdvanceState(t *testing.T, fixture engineTestFixture) canceledAdvanceState {
+	t.Helper()
+	state := canceledAdvanceState{
+		sessionCounts: fixture.pool.Counts(),
+		verifier:      fixture.verifier.Snapshot(),
+		evidence:      fixture.evidence.Snapshot(),
+	}
+	fixture.pool.mu.RLock()
+	state.sessions = make([]SessionSnapshot, 0, len(fixture.pool.online))
+	for _, session := range fixture.pool.online {
+		state.sessions = append(state.sessions, session.snapshot)
+	}
+	fixture.pool.mu.RUnlock()
+
+	result := make(chan canceledAdvanceState, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		state.now = fixture.engine.now
+		state.work = cloneEngineWorkHeap(fixture.engine.work)
+		state.activity = cloneEngineWorkHeap(fixture.engine.activity)
+		state.retries = make([]ScheduledRetry, len(fixture.engine.retries.entries))
+		for index, retry := range fixture.engine.retries.entries {
+			state.retries[index] = *retry
+		}
+		state.retrySnapshot = fixture.engine.retries.Snapshot()
+		state.lifecycleByChannel = make(map[string]engineWork, len(fixture.engine.lifecycleByChannel))
+		for channelID, work := range fixture.engine.lifecycleByChannel {
+			state.lifecycleByChannel[channelID] = *work
+		}
+		state.activeLifecycleTimers = fixture.engine.activeLifecycleTimers
+		state.queuedSends = fixture.engine.queuedSends
+		state.workPeak = fixture.engine.workPeak
+		state.inflightPeak = fixture.engine.inflightPeak
+		state.nextOrder = fixture.engine.nextOrder
+		state.nextClientSeq = fixture.engine.nextClientSeq
+		state.retryAttempts = fixture.engine.retryAttempts
+		state.finalFailures = fixture.engine.finalFailures
+		state.harnessInvalid = fixture.engine.harnessInvalid
+		state.activityUnderDelivered = fixture.engine.activityUnderDelivered
+		state.activityFutureCanceled = fixture.engine.activityFutureCanceled
+		result <- state
+	}}); err != nil {
+		t.Fatalf("capture engine state: %v", err)
+	}
+	return <-result
+}
+
+func cloneEngineWorkHeap(source engineWorkHeap) []engineWork {
+	result := make([]engineWork, len(source))
+	for index, work := range source {
+		result[index] = *work
+	}
+	return result
 }
 
 func TestEngineContextControlsReturnWhenGenerationStopsBehindBlockedOwner(t *testing.T) {

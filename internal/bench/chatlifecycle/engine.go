@@ -1108,8 +1108,7 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 		return 0, errEngineNotRunning
 	}
 	defer e.sessionOps.Done()
-	e.sessions.Expire(now)
-	return e.advanceWithContext(generationCtx, now)
+	return e.advanceWithSessionExpiry(generationCtx, now)
 }
 
 // AdvanceContext is the cancelable form used by bounded worker drain.
@@ -1121,13 +1120,36 @@ func (e *Engine) AdvanceContext(ctx context.Context, now time.Time) (int, error)
 	defer e.sessionOps.Done()
 	advanceCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
-	e.sessions.Expire(now)
-	return e.advanceWithContext(advanceCtx, now)
+	return e.advanceWithSessionExpiry(advanceCtx, now)
 }
 
 func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
+	return e.enqueueAdvance(ctx, now, false)
+}
+
+func (e *Engine) advanceWithSessionExpiry(ctx context.Context, now time.Time) (int, error) {
+	return e.enqueueAdvance(ctx, now, true)
+}
+
+func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time, expireSessions bool) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	response := make(chan advanceResult, 1)
-	if err := e.enqueue(engineCommand{run: func() { response <- e.advance(ctx, now) }}); err != nil {
+	if err := e.enqueue(engineCommand{run: func() {
+		if err := ctx.Err(); err != nil {
+			response <- advanceResult{err: err}
+			return
+		}
+		if expireSessions {
+			e.sessions.Expire(now)
+		}
+		if err := ctx.Err(); err != nil {
+			response <- advanceResult{err: err}
+			return
+		}
+		response <- e.advance(ctx, now)
+	}}); err != nil {
 		return 0, err
 	}
 	select {
@@ -1672,6 +1694,9 @@ func (e *Engine) observeWorkPeak() {
 }
 
 func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
+	if err := ctx.Err(); err != nil {
+		return advanceResult{err: err}
+	}
 	e.now = now
 	e.verifier.ExpireCorrelations(now)
 	e.drainCompletions()

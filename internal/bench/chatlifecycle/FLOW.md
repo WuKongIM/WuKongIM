@@ -46,7 +46,12 @@ overlaid with a newer fence. Engine snapshot, consistent worker-runtime
 snapshot, rate update, and bounded drain advancement expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating
-the allocator, and every late response uses a one-slot owner-safe channel.
+the allocator. Public Advance moves session expiry into the same owner command
+as clock, correlation, completion, retry, and lifecycle advancement; that
+command checks the merged caller-plus-generation context before expiry and
+again before engine state mutation. An Advance canceled while queued therefore
+leaves session ownership, deadlines, clocks, heaps, counters, correlations, and
+evidence unchanged, and every late response uses a one-slot owner-safe channel.
 Engine stop fences control admission, cancels the generation, joins admitted
 step/login/session callers, and then crosses an owner-command barrier before it
 closes sessions; a canceled caller therefore cannot leave SEND using a client
