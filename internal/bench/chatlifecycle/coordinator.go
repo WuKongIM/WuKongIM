@@ -89,6 +89,12 @@ type CoordinatorObserver interface {
 	Run(context.Context, Config) ObserverResult
 }
 
+// CoordinatorClock owns the final observation cutoff and worker-status cadence.
+type CoordinatorClock interface {
+	Now() time.Time
+	NewTicker(time.Duration) ObserverTicker
+}
+
 // CoordinatorOptions fixes the only generation this coordinator may run.
 type CoordinatorOptions struct {
 	Generation     uint64
@@ -96,7 +102,7 @@ type CoordinatorOptions struct {
 	Setup          CoordinatorGroupSetup
 	Workers        []CoordinatorWorker
 	Observer       CoordinatorObserver
-	Clock          ObserverClock
+	Clock          CoordinatorClock
 	CleanupTimeout time.Duration
 }
 
@@ -107,7 +113,7 @@ type Coordinator struct {
 	setup          CoordinatorGroupSetup
 	workers        []CoordinatorWorker
 	observer       CoordinatorObserver
-	clock          ObserverClock
+	clock          CoordinatorClock
 	cleanupTimeout time.Duration
 
 	mu   sync.Mutex
@@ -141,7 +147,7 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 	}, nil
 }
 
-// Run enforces preflight -> setup -> assign -> start -> observe -> checkpoint/finalize.
+// Run enforces preflight -> setup -> assign -> start -> final cutoff -> checkpoint/finalize.
 func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	if c == nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
@@ -175,11 +181,13 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 	fence := assignments[0].WorkerFence
 	result := CoordinatorResult{Fence: fence}
+	attempted := [coordinatorWorkerCount]bool{}
 	assigned := [coordinatorWorkerCount]bool{}
 	for workerID, assignment := range assignments {
+		attempted[workerID] = true
 		status, assignErr := c.workers[workerID].Assign(ctx, assignment.WorkerAssignment)
 		if assignErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseAssigned) {
-			c.stopAfterFailure(fence, assigned)
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
 			return result
 		}
@@ -188,14 +196,14 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	for workerID, assignment := range assignments {
 		status, startErr := c.workers[workerID].Start(ctx, WorkerStartRequest{WorkerFence: fence})
 		if startErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseRunning) {
-			c.stopAfterFailure(fence, assigned)
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeStart
 			return result
 		}
 	}
 	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 	if err != nil {
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeGrant
 		return result
 	}
@@ -205,17 +213,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			WorkerFence: fence, RatePerSecond: grantPlan.rate, MaxBurst: grantPlan.burst,
 		})
 		if rateErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseRunning) {
-			c.stopAfterFailure(fence, assigned)
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeGrant
 			return result
 		}
 	}
 
+	observationDeadline := c.clock.Now().Add(cfg.Thresholds.Timeline.Final)
 	observationContext, cancelObservation := context.WithCancel(ctx)
 	ticker := c.clock.NewTicker(cfg.Observation.Cadence)
 	if ticker == nil {
 		cancelObservation()
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeRuntime
 		return result
 	}
@@ -223,18 +232,37 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	observationChannel := make(chan ObserverResult, 1)
 	go func() { observationChannel <- c.observer.Run(observationContext, cfg) }()
 	var observation ObserverResult
+	cutoffOwned := false
 	for {
 		select {
 		case observation = <-observationChannel:
 			cancelObservation()
 			goto observationComplete
 		case <-ticker.C():
+			if ctx.Err() != nil {
+				cancelObservation()
+				<-observationChannel
+				c.stopAfterFailure(fence, attempted)
+				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+				return result
+			}
+			if !c.clock.Now().Before(observationDeadline) {
+				cancelObservation()
+				observation = <-observationChannel
+				if ctx.Err() != nil {
+					c.stopAfterFailure(fence, attempted)
+					result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+					return result
+				}
+				cutoffOwned = true
+				goto observationComplete
+			}
 			for workerID, assignment := range assignments {
 				status, statusErr := c.workers[workerID].Status(observationContext)
 				if statusErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseRunning) {
 					cancelObservation()
 					<-observationChannel
-					c.stopAfterFailure(fence, assigned)
+					c.stopAfterFailure(fence, attempted)
 					result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeRuntime
 					return result
 				}
@@ -242,7 +270,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		case <-ctx.Done():
 			cancelObservation()
 			<-observationChannel
-			c.stopAfterFailure(fence, assigned)
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
@@ -250,7 +278,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 
 observationComplete:
 	if observation.Outcome != ObserverStopped {
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeObserver
 		if observation.Outcome == ObserverProductFailure {
 			result.Outcome = CoordinatorProductFailure
@@ -258,14 +286,19 @@ observationComplete:
 		return result
 	}
 	if ctx.Err() != nil {
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+		return result
+	}
+	if !cutoffOwned {
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeObserver
 		return result
 	}
 
 	aggregator, err := NewCoordinatorSnapshotAggregator(fence)
 	if err != nil {
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
 	}
@@ -273,14 +306,14 @@ observationComplete:
 	for workerID := range c.workers {
 		snapshot, checkpointErr := c.workers[workerID].Checkpoint(ctx, WorkerCheckpointRequest{WorkerFence: fence})
 		if checkpointErr != nil {
-			c.stopAfterFailure(fence, assigned)
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 			return result
 		}
 		checkpoint[workerID] = snapshot
 	}
 	if _, err := aggregator.Aggregate(checkpoint); err != nil {
-		c.stopAfterFailure(fence, assigned)
+		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
 	}
@@ -304,9 +337,9 @@ func validCoordinatorStatus(status WorkerStatus, assignment WorkerAssignment, ph
 		status.WorkerCount == assignment.WorkerCount && status.Phase == phase && !status.Unexpected
 }
 
-func (c *Coordinator) stopAfterFailure(fence WorkerFence, assigned [coordinatorWorkerCount]bool) {
+func (c *Coordinator) stopAfterFailure(fence WorkerFence, attempted [coordinatorWorkerCount]bool) {
 	for workerID, worker := range c.workers {
-		if !assigned[workerID] {
+		if !attempted[workerID] {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), c.cleanupTimeout)

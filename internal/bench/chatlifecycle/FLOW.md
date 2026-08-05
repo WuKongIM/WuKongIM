@@ -629,12 +629,27 @@ equivalent allocator and emits only its deterministic local share; the
 coordinator does not create three global token buckets.
 
 Continuous observation and worker status polling begin only after that rate
-barrier. An assignment, start, rate, status, checkpoint, or runtime failure is
-`harness_invalid`; the coordinator cancels and joins observation and attempts an
-independently bounded exact-fence stop on every already-assigned worker. A
-service observer `product_failure` remains the first terminal classification
-even when cleanup also fails. Failed preflight performs no setup or assignment,
-and failed setup performs no assignment. The same coordinator object refuses a
+barrier. The coordinator records that instant with its injected clock and owns
+one normal observation cutoff at `thresholds.timeline.final`: 30 minutes for
+local and 72 hours for formal. The healthy observer deliberately has no success
+terminal result. Before the cutoff, an observer product or harness result ends
+the run with that failure. At the exact cutoff, the coordinator cancels and
+joins the observer child; only the resulting healthy `stopped` permits the one
+final checkpoint followed by bounded worker stop and final aggregation. A
+product or harness result racing with that cancellation remains a failure. An
+outer caller cancellation instead returns coordinator `stopped` without a
+checkpoint. The future 24-hour checkpoint/report flow is not part of this
+startup coordinator. Assignment, start, rate, status, checkpoint, aggregation,
+or runtime failures remain `harness_invalid`.
+
+Before dispatching each assignment, the coordinator marks that worker as
+attempted. If the response is lost after the worker installs the assignment,
+cleanup therefore still sends an independently bounded exact-fence stop to that
+worker and every earlier attempt, using a background context even when the
+caller is canceled. Stop conflicts and cleanup errors never overwrite the
+original harness cause. Only validated assignment responses permit the later
+start and rate barriers. Failed preflight performs no setup or assignment, and
+failed setup performs no assignment. The same coordinator object refuses a
 second run or generation reuse.
 
 Worker status and snapshot responses carry the exact non-secret control fence.
