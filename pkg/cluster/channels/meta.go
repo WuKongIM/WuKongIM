@@ -59,7 +59,7 @@ const (
 
 // MetaCreateObserver receives one outcome after the authoritative Slot proposal resolves.
 type MetaCreateObserver interface {
-	// ObserveChannelMetaCreate records the physical Slot and closed create outcome.
+	// ObserveChannelMetaCreate records the route's logical Slot Raft Group ID and closed create outcome.
 	ObserveChannelMetaCreate(slotID uint32, result MetaCreateResult)
 }
 

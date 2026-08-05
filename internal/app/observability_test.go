@@ -602,9 +602,9 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 	recorder := &recordingChannelMetaCreateObserver{}
 	observer := multiChannelObserver{channelMetricsObserver{metrics: reg}, recorder}
 
-	observer.ObserveChannelMetaCreate(23, clusterchannels.MetaCreateAlreadyExisting)
+	observer.ObserveChannelMetaCreate(3, clusterchannels.MetaCreateAlreadyExisting)
 
-	if recorder.calls != 1 || recorder.slotID != 23 || recorder.result != clusterchannels.MetaCreateAlreadyExisting {
+	if recorder.calls != 1 || recorder.slotID != 3 || recorder.result != clusterchannels.MetaCreateAlreadyExisting {
 		t.Fatalf("recorder calls=%d slot=%d result=%q, want one forwarded observation", recorder.calls, recorder.slotID, recorder.result)
 	}
 	families, err := reg.Gather()
@@ -612,7 +612,7 @@ func TestMultiChannelObserverForwardsMetaCreateOncePerChild(t *testing.T) {
 		t.Fatalf("Gather() error = %v", err)
 	}
 	created := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_created_total")
-	metric := findAppMetricByLabels(t, created, map[string]string{"slot_id": "23", "result": "already_existing"})
+	metric := findAppMetricByLabels(t, created, map[string]string{"slot_id": "3", "result": "already_existing"})
 	if got := metric.GetCounter().GetValue(); got != 1 {
 		t.Fatalf("meta create count = %v, want 1", got)
 	}

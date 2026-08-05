@@ -95,6 +95,35 @@ func TestDefaultSlotProposerObservesAuthoritativeMetaCreateResultOnce(t *testing
 	}
 }
 
+func TestDefaultSlotProposerMetaCreateObserverUsesRouteSlotRaftGroupNotPayloadHashSlot(t *testing.T) {
+	const (
+		routeSlotID     = uint32(3)
+		payloadHashSlot = uint16(37)
+	)
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: metafsm.EncodeCreateChannelRuntimeMetaResult(
+		metafsm.CreateChannelRuntimeMetaResult{Created: true},
+	)}}
+	observer := &recordingMetaCreateObserver{}
+	command := metafsm.EncodeCreateChannelRuntimeMetaCommand(metadb.ChannelRuntimeMeta{
+		ChannelID: "slot-contract", ChannelType: 1, ChannelEpoch: 1, LeaderEpoch: 1,
+		Leader: 1, Replicas: []uint64{1}, ISR: []uint64{1}, MinISR: 1,
+	})
+
+	_, err := (defaultSlotProposer{runtime: runtime, metaCreateObserver: observer}).ProposeResult(
+		context.Background(), routeSlotID, propose.EncodePayload(payloadHashSlot, command),
+	)
+	if err != nil {
+		t.Fatalf("ProposeResult() error = %v", err)
+	}
+	if runtime.slotID != multiraft.SlotID(routeSlotID) || binary.BigEndian.Uint16(runtime.payload[:2]) != payloadHashSlot {
+		t.Fatalf("runtime slot=%d payload hash slot=%d, want route Slot Raft Group %d and hash slot %d",
+			runtime.slotID, binary.BigEndian.Uint16(runtime.payload[:2]), routeSlotID, payloadHashSlot)
+	}
+	if len(observer.events) != 1 || observer.events[0].slotID != routeSlotID || observer.events[0].result != clusterchannels.MetaCreateCreated {
+		t.Fatalf("events = %#v, want one created observation for route Slot Raft Group %d", observer.events, routeSlotID)
+	}
+}
+
 func TestDefaultSlotProposerDoesNotObserveRejectedMetaCreateSubmission(t *testing.T) {
 	runtime := &recordingSlotRuntime{err: multiraft.ErrNotLeader}
 	observer := &recordingMetaCreateObserver{}

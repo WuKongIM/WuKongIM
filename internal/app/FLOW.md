@@ -48,10 +48,11 @@ New(Config)
      runtime observers for metrics/logging
      (gateway runtime pressure, Slot scheduler/proposal/apply-gap/leader-election pressure and low-cardinality preferred-leader reconcile decisions/strict-wait latency, Controller Raft step queue/bounded outbound send queue/apply gap, Transport service RPC totals/latency and observed write-batch shape, Channel runtime append/replication/PullHint/PullBatch/leader-Pull/runtime pressure stages, message DB grouped commit pressure, and online delivery)
      plus authoritative Channel runtime metadata create outcomes at
-     `wukongim_channelv2_meta_created_total`, labeled only by physical `slot_id`
-     and the closed `created|already_existing|error` result;
+     `wukongim_channelv2_meta_created_total`, labeled only by logical Slot Raft
+     Group `slot_id` (`route.SlotID`) and the closed
+     `created|already_existing|error` result;
      unexpected result inputs collapse to `error` instead of creating a series;
-     clean startup materializes all three results at physical Slot 1 as true
+     clean startup materializes all three results at logical Slot Raft Group 1 as true
      zeroes so strict preflight can distinguish an observed zero from a missing
      family without recording a metadata-create event;
      the combined Channel observer forwards this hook once to each capable child

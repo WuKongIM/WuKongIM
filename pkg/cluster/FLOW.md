@@ -741,7 +741,7 @@ adapters, and carries create-only/flag-patch FSM results back to the proposer.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.
-Command 52 completion is observed by the physical Slot leader's proposer through
+Command 52 completion is observed by the routed Slot Raft Group leader's proposer through
 the accepted proposal future's single bounded completion observer after its
 authoritative result resolves and is decoded. The observer follows the
 runtime-owned future rather than the caller-scoped `Wait(ctx)`, so caller
@@ -757,7 +757,9 @@ emits its own authoritative outcome: an accepted old-leader proposal may emit
 `error`, and a later retry may emit another proposal outcome. This metric counts
 authoritative proposal outcomes, not deduplicated logical create attempts.
 Outcomes are restricted to `created`,
-`already_existing`, and `error` and carry only the physical Slot ID.
+`already_existing`, and `error` and carry only the logical Slot Raft Group ID
+from `route.SlotID`; the independent physical hash slot remains inside the
+proposal payload and is not used as the metric's `slot_id` label.
 `Config.Slots.Observer` is passed to the default Slot Multi-Raft runtime so composition roots can expose scheduler pressure without changing Slot processing semantics.
 `Config.Slots.LogCompaction` is also passed through to the default Slot
 Multi-Raft runtime so composition roots can tune local Slot Raft snapshot

@@ -933,9 +933,9 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 func TestChannelRuntimeMetaCreateMetricUsesOnlyBoundedLabels(t *testing.T) {
 	reg := New(8, "node-8")
 	for _, result := range []string{"created", "already_existing", "error"} {
-		reg.ChannelRuntime.ObserveMetaCreate(37, result)
+		reg.ChannelRuntime.ObserveMetaCreate(3, result)
 	}
-	reg.ChannelRuntime.ObserveMetaCreate(37, "channel-123/unbounded")
+	reg.ChannelRuntime.ObserveMetaCreate(3, "channel-123/unbounded")
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
@@ -946,7 +946,7 @@ func TestChannelRuntimeMetaCreateMetricUsesOnlyBoundedLabels(t *testing.T) {
 		require.Len(t, baseline.GetLabel(), 2, "zero baseline must not expose node, channel, UID, or run labels")
 		require.Equal(t, float64(0), baseline.GetCounter().GetValue())
 
-		metric := findMetricByLabels(t, created, map[string]string{"slot_id": "37", "result": result})
+		metric := findMetricByLabels(t, created, map[string]string{"slot_id": "3", "result": result})
 		require.Len(t, metric.GetLabel(), 2, "meta create metric must not expose node, channel, UID, or run labels")
 		want := float64(1)
 		if result == "error" {
