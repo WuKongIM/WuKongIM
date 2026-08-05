@@ -76,6 +76,13 @@ type coordinatorRoundEvidence struct {
 	valid bool
 }
 
+// coordinatorTerminationReason freezes the first terminal control-round cause
+// before observer joining or worker cleanup can admit a later caller cancel.
+type coordinatorTerminationReason struct {
+	fallback    CoordinatorCode
+	disposition coordinatorRoundDisposition
+}
+
 // CoordinatorResult contains only bounded orchestration state.
 type CoordinatorResult struct {
 	Outcome  CoordinatorOutcome
@@ -261,51 +268,71 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 		return observation
 	}
-	joinFailureObservation := func(fallback CoordinatorCode) CoordinatorCode {
+	joinFailureObservation := func() {
 		select {
 		case observation = <-observationChannel:
 			observationJoined = true
-			return CoordinatorCodeObserver
 		default:
 			observation = joinObservation()
-			return fallback
 		}
 	}
+	completeParentCancellation := func() CoordinatorResult {
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeStopped, coordinatorRoundParentCanceled)
+		observation = joinObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
+		c.stopAfterFailure(fence, attempted)
+		return result
+	}
 
-	ready, earlyObservation, observerDone := c.waitForTrafficReady(
+	ready, earlyObservation, observerDone, readyDisposition := c.waitForTrafficReady(
 		observationContext, observationChannel, assignments, startStatuses, cfg.Thresholds.Timeline.Warmup,
 	)
 	if !ready {
 		failureCode := CoordinatorCodeRuntime
 		if observerDone {
 			observation, observationJoined = earlyObservation, true
-			failureCode = CoordinatorCodeObserver
+			if readyDisposition == coordinatorRoundSucceeded {
+				failureCode = CoordinatorCodeObserver
+			}
 		}
+		if readyDisposition == coordinatorRoundSucceeded {
+			readyDisposition = coordinatorRoundStageFailed
+		}
+		reason := lockCoordinatorTerminationReason(ctx, failureCode, readyDisposition)
 		observation = joinObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
 		return result
 	}
 	select {
 	case observation = <-observationChannel:
 		observationJoined = true
+		observationDisposition := coordinatorRoundStageFailed
+		if observation.Outcome == ObserverStopped {
+			observationDisposition = coordinatorRoundParentCanceled
+		}
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeObserver, observationDisposition)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeObserver)
 		return result
 	default:
 	}
 	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 	if err != nil {
-		failureCode := joinFailureObservation(CoordinatorCodeGrant)
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, coordinatorRoundStageFailed)
+		joinFailureObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
 		return result
 	}
 	result.Grant = grant
-	if !c.deliverGrant(observationContext, assignments, grantPlan.request(fence, grant)) {
-		failureCode := joinFailureObservation(CoordinatorCodeGrant)
+	if grantDisposition := c.deliverGrant(
+		observationContext, assignments, grantPlan.request(fence, grant),
+	); grantDisposition != coordinatorRoundSucceeded {
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, grantDisposition)
+		joinFailureObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
 		return result
 	}
 
@@ -313,41 +340,50 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	observationDeadline := grantBarrierAt.Add(cfg.Thresholds.Timeline.Final)
 	statusTicker := c.clock.NewTicker(cfg.Observation.Cadence)
 	if statusTicker == nil {
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeRuntime, coordinatorRoundStageFailed)
 		observation = joinObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeRuntime)
 		return result
 	}
 	defer statusTicker.Stop()
 	grantTickerStartedAt := c.clock.Now()
 	grantTicker := c.clock.NewTicker(coordinatorGrantCadence)
 	if grantTicker == nil {
+		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeRuntime, coordinatorRoundStageFailed)
 		observation = joinObservation()
+		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeRuntime)
 		return result
 	}
 	defer grantTicker.Stop()
 	lastGrantTickAt := grantTickerStartedAt
 	haveGrantTick := false
-	deliverScheduledGrant := func(tickAt time.Time) bool {
+	deliverScheduledGrant := func(tickAt time.Time) coordinatorRoundDisposition {
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
-			return false
+			return coordinatorRoundStageFailed
 		}
 		grant, grantErr := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
-		if grantErr != nil || !c.deliverGrant(observationContext, assignments, grantPlan.request(fence, grant)) {
-			return false
+		if grantErr != nil {
+			return coordinatorRoundStageFailed
+		}
+		if disposition := c.deliverGrant(
+			observationContext, assignments, grantPlan.request(fence, grant),
+		); disposition != coordinatorRoundSucceeded {
+			return disposition
 		}
 		lastGrantTickAt, haveGrantTick = tickAt, true
 		result.Grant = grant
-		return true
+		return coordinatorRoundSucceeded
 	}
 	grantCoverageMissing := func(at time.Time) bool {
 		return at.Sub(lastGrantTickAt) > coordinatorGrantCadence
 	}
 	cutoffOwned := false
 	failureCode := CoordinatorCode("")
+	failureDisposition := coordinatorRoundStageFailed
+	var failureReason coordinatorTerminationReason
 	for {
 		now := c.clock.Now()
 		if !now.Before(observationDeadline) {
@@ -358,8 +394,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					goto observationFailure
 				}
 				if tickAt.Before(observationDeadline) {
-					if !deliverScheduledGrant(tickAt) {
+					if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
 						failureCode = CoordinatorCodeGrant
+						failureDisposition = disposition
 						goto observationFailure
 					}
 					continue
@@ -377,8 +414,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 
 		select {
 		case tickAt := <-grantTicker.C():
-			if !deliverScheduledGrant(tickAt) {
+			if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
 				failureCode = CoordinatorCodeGrant
+				failureDisposition = disposition
 				goto observationFailure
 			}
 			continue
@@ -402,18 +440,16 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					goto observationFailure
 				}
 				if now.Before(observationDeadline) || tickAt.Before(observationDeadline) {
-					if !deliverScheduledGrant(tickAt) {
+					if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
 						failureCode = CoordinatorCodeGrant
+						failureDisposition = disposition
 						goto observationFailure
 					}
 				}
 			default:
 			}
 			if ctx.Err() != nil {
-				observation = joinObservation()
-				c.stopAfterFailure(fence, attempted)
-				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-				return result
+				return completeParentCancellation()
 			}
 			now = c.clock.Now()
 			if !now.Before(observationDeadline) {
@@ -429,17 +465,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
-			statuses, valid := c.statusRound(observationContext, assignments)
-			if !valid || !allCoordinatorTrafficReady(statuses) {
+			statuses, disposition := c.statusRound(observationContext, assignments)
+			if disposition != coordinatorRoundSucceeded || !allCoordinatorTrafficReady(statuses) {
 				failureCode = CoordinatorCodeRuntime
+				failureDisposition = disposition
+				if disposition == coordinatorRoundSucceeded {
+					failureDisposition = coordinatorRoundStageFailed
+				}
 				goto observationFailure
 			}
 		case tickAt := <-grantTicker.C():
 			if ctx.Err() != nil {
-				observation = joinObservation()
-				c.stopAfterFailure(fence, attempted)
-				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-				return result
+				return completeParentCancellation()
 			}
 			now = c.clock.Now()
 			if !now.Before(observationDeadline) && !tickAt.Before(observationDeadline) {
@@ -451,22 +488,21 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				cutoffOwned = true
 				goto observationComplete
 			}
-			if !deliverScheduledGrant(tickAt) {
+			if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
 				failureCode = CoordinatorCodeGrant
+				failureDisposition = disposition
 				goto observationFailure
 			}
 		case <-ctx.Done():
-			observation = joinObservation()
-			c.stopAfterFailure(fence, attempted)
-			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-			return result
+			return completeParentCancellation()
 		}
 	}
 
 observationFailure:
-	failureCode = joinFailureObservation(failureCode)
+	failureReason = lockCoordinatorTerminationReason(ctx, failureCode, failureDisposition)
+	joinFailureObservation()
+	result.Outcome, result.Code = coordinatorConcurrentFailure(observation, failureReason)
 	c.stopAfterFailure(fence, attempted)
-	result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
 	return result
 
 observationComplete:
@@ -529,18 +565,33 @@ observationComplete:
 	return result
 }
 
-func coordinatorConcurrentFailure(ctx context.Context, observation ObserverResult, fallback CoordinatorCode) (CoordinatorOutcome, CoordinatorCode) {
-	if ctx.Err() != nil {
-		return CoordinatorStopped, CoordinatorCodeStopped
+func lockCoordinatorTerminationReason(
+	ctx context.Context,
+	fallback CoordinatorCode,
+	disposition coordinatorRoundDisposition,
+) coordinatorTerminationReason {
+	if disposition == coordinatorRoundParentCanceled && ctx.Err() == nil {
+		return coordinatorTerminationReason{
+			fallback: CoordinatorCodeObserver, disposition: coordinatorRoundStageFailed,
+		}
 	}
+	return coordinatorTerminationReason{fallback: fallback, disposition: disposition}
+}
+
+func coordinatorConcurrentFailure(
+	observation ObserverResult,
+	reason coordinatorTerminationReason,
+) (CoordinatorOutcome, CoordinatorCode) {
 	switch observation.Outcome {
 	case ObserverProductFailure:
 		return CoordinatorProductFailure, CoordinatorCodeObserver
 	case ObserverHarnessInvalid:
 		return CoordinatorHarnessInvalid, CoordinatorCodeObserver
-	default:
-		return CoordinatorHarnessInvalid, fallback
 	}
+	if reason.disposition == coordinatorRoundParentCanceled {
+		return CoordinatorStopped, CoordinatorCodeStopped
+	}
+	return CoordinatorHarnessInvalid, reason.fallback
 }
 
 func validCoordinatorStatus(status WorkerStatus, assignment WorkerAssignment, phase WorkerPhase) bool {
@@ -724,47 +775,47 @@ func (c *Coordinator) waitForTrafficReady(
 	assignments []CoordinatorAssignment,
 	statuses [coordinatorWorkerCount]WorkerStatus,
 	maximumWait time.Duration,
-) (ready bool, result ObserverResult, observerDone bool) {
+) (ready bool, result ObserverResult, observerDone bool, disposition coordinatorRoundDisposition) {
 	select {
 	case result = <-observation:
-		return false, result, true
+		return false, result, true, coordinatorRoundParentCanceled
 	default:
 	}
 	if allCoordinatorTrafficReady(statuses) {
-		return true, ObserverResult{}, false
+		return true, ObserverResult{}, false, coordinatorRoundSucceeded
 	}
 	ticker := c.clock.NewTicker(time.Second)
 	if ticker == nil {
-		return false, ObserverResult{}, false
+		return false, ObserverResult{}, false, coordinatorRoundStageFailed
 	}
 	defer ticker.Stop()
 	deadline := c.clock.Now().Add(maximumWait)
 	for {
 		select {
 		case result = <-observation:
-			return false, result, true
+			return false, result, true, coordinatorRoundParentCanceled
 		case <-ctx.Done():
 			select {
 			case result = <-observation:
-				return false, result, true
+				return false, result, true, coordinatorRoundParentCanceled
 			default:
-				return false, ObserverResult{}, false
+				return false, ObserverResult{}, false, coordinatorRoundParentCanceled
 			}
 		case <-ticker.C():
-			observed, valid := c.statusRound(ctx, assignments)
-			if !valid {
+			observed, roundDisposition := c.statusRound(ctx, assignments)
+			if roundDisposition != coordinatorRoundSucceeded {
 				select {
 				case result = <-observation:
-					return false, result, true
+					return false, result, true, roundDisposition
 				default:
-					return false, ObserverResult{}, false
+					return false, ObserverResult{}, false, roundDisposition
 				}
 			}
 			if allCoordinatorTrafficReady(observed) {
-				return true, ObserverResult{}, false
+				return true, ObserverResult{}, false, coordinatorRoundSucceeded
 			}
 			if !c.clock.Now().Before(deadline) {
-				return false, ObserverResult{}, false
+				return false, ObserverResult{}, false, coordinatorRoundStageFailed
 			}
 		}
 	}
@@ -789,15 +840,15 @@ func (c *Coordinator) deliverGrant(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
 	request WorkerGrantRequest,
-) bool {
+) coordinatorRoundDisposition {
 	grantRoundTimeout := min(c.roundTimeout, coordinatorGrantCadence)
-	roundContext, cancel := context.WithTimeout(parent, grantRoundTimeout)
+	roundContext, cancel := context.WithTimeoutCause(parent, grantRoundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type grantResult struct {
 		response WorkerGrantResponse
 		err      error
 	}
-	results := make([]grantResult, coordinatorWorkerCount)
+	results := [coordinatorWorkerCount]grantResult{}
 	var wait sync.WaitGroup
 	wait.Add(coordinatorWorkerCount)
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
@@ -816,48 +867,52 @@ func (c *Coordinator) deliverGrant(
 		}()
 	}
 	wait.Wait()
-	if roundContext.Err() != nil {
-		return false
-	}
+	var evidence [coordinatorWorkerCount]coordinatorRoundEvidence
 	for workerID, result := range results {
 		expectedReleased, _ := request.Released.worker(uint64(workerID))
-		if result.err != nil || !sameWorkerFence(result.response.WorkerFence, assignments[workerID].WorkerFence) ||
-			result.response.WorkerID != uint64(workerID) || result.response.WorkerCount != coordinatorWorkerCount ||
-			result.response.Sequence != request.Sequence || result.response.Released != expectedReleased {
-			return false
-		}
+		evidence[workerID] = coordinatorRoundEvidence{err: result.err, valid: result.err == nil &&
+			sameWorkerFence(result.response.WorkerFence, assignments[workerID].WorkerFence) &&
+			result.response.WorkerID == uint64(workerID) && result.response.WorkerCount == coordinatorWorkerCount &&
+			result.response.Sequence == request.Sequence && result.response.Released == expectedReleased}
 	}
-	return true
+	return resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
 }
 
-func (c *Coordinator) statusRound(parent context.Context, assignments []CoordinatorAssignment) ([coordinatorWorkerCount]WorkerStatus, bool) {
-	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+func (c *Coordinator) statusRound(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
+	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type statusResult struct {
 		status WorkerStatus
-		err    error
+		coordinatorRoundEvidence
 	}
-	results := make([]statusResult, coordinatorWorkerCount)
+	results := [coordinatorWorkerCount]statusResult{}
 	var statuses [coordinatorWorkerCount]WorkerStatus
 	var wait sync.WaitGroup
 	wait.Add(coordinatorWorkerCount)
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		go func() {
 			defer wait.Done()
-			results[workerID].status, results[workerID].err = c.workers[workerID].Status(roundContext)
+			result := &results[workerID]
+			result.status, result.err = c.workers[workerID].Status(roundContext)
+			result.valid = result.err == nil && validCoordinatorStatus(
+				result.status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning,
+			)
 		}()
 	}
 	wait.Wait()
-	if roundContext.Err() != nil {
-		return [coordinatorWorkerCount]WorkerStatus{}, false
-	}
+	var evidence [coordinatorWorkerCount]coordinatorRoundEvidence
 	for workerID, result := range results {
-		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning) {
-			return [coordinatorWorkerCount]WorkerStatus{}, false
-		}
+		evidence[workerID] = result.coordinatorRoundEvidence
 		statuses[workerID] = result.status
 	}
-	return statuses, true
+	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
+	if disposition != coordinatorRoundSucceeded {
+		return [coordinatorWorkerCount]WorkerStatus{}, disposition
+	}
+	return statuses, disposition
 }
 
 func (c *Coordinator) stopAfterFailure(fence WorkerFence, attempted [coordinatorWorkerCount]bool) {

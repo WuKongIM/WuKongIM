@@ -694,15 +694,22 @@ concurrent shape with the stricter one-second cap. A blocked control request
 therefore cannot starve the final cutoff indefinitely. Each control round
 retains each response's error and validity evidence. An ordinary non-context
 error or a nil-error invalid response remains `harness_invalid` regardless of
-when an outer cancellation is observed. Only response errors causally matching
-the canceled parent can make assignment, Start, or final checkpoint `stopped`;
-a canceled final checkpoint is never aggregated as completed. The round's own
-deadline always remains a stage failure, even if the parent is canceled later.
+when an outer cancellation is observed. With no stage evidence, a canceled
+parent makes assignment, Start, grant, status, or final checkpoint `stopped`;
+an invalid response can participate in that result only when its error causally
+matches the canceled parent. A canceled final checkpoint is never aggregated
+as completed. The round's own deadline always remains a stage failure, even if
+the parent is canceled later. Grant, status, and observer termination reasons
+are frozen before joining the observer or starting failure cleanup, so a later
+caller cancellation cannot replace an established stage result. An observed
+product or harness failure has priority over the frozen round reason, while an
+observer `stopped` preserves a stage failure and otherwise reflects a causal
+caller cancellation.
 Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.
-Observer product failure keeps precedence when it races a grant or status
-harness failure.
+Observer product or harness failure keeps precedence when it races a grant or
+status harness failure.
 
 Before dispatching the concurrent assignment round, the coordinator marks all
 three workers attempted. If a response is lost after any worker installs the

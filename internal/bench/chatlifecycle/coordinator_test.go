@@ -1386,6 +1386,190 @@ func TestResolveCoordinatorRoundDispositionClassifiesEvidenceCausally(t *testing
 	}
 }
 
+func TestCoordinatorGrantAndStatusTerminationSurvivesLateCallerCancellation(t *testing.T) {
+	tests := []struct {
+		name        string
+		stage       lateCancellationRoundStage
+		evidence    lateCancellationRoundEvidence
+		wantOutcome CoordinatorOutcome
+		wantCode    CoordinatorCode
+	}{
+		{name: "grant ordinary error", stage: lateCancellationGrant, evidence: lateCancellationOrdinaryError, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeGrant},
+		{name: "grant nil invalid response", stage: lateCancellationGrant, evidence: lateCancellationInvalidResponse, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeGrant},
+		{name: "grant own deadline", stage: lateCancellationGrant, evidence: lateCancellationOwnDeadline, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeGrant},
+		{name: "grant causal parent cancel", stage: lateCancellationGrant, evidence: lateCancellationParentCancel, wantOutcome: CoordinatorStopped, wantCode: CoordinatorCodeStopped},
+		{name: "status ordinary error", stage: lateCancellationStatus, evidence: lateCancellationOrdinaryError, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeRuntime},
+		{name: "status nil invalid response", stage: lateCancellationStatus, evidence: lateCancellationInvalidResponse, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeRuntime},
+		{name: "status own deadline", stage: lateCancellationStatus, evidence: lateCancellationOwnDeadline, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeRuntime},
+		{name: "status causal parent cancel", stage: lateCancellationStatus, evidence: lateCancellationParentCancel, wantOutcome: CoordinatorStopped, wantCode: CoordinatorCodeStopped},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.RunID = "coordinator-locked-termination-" + strings.ReplaceAll(test.name, " ", "-")
+			statusTicker := newFakeObserverTicker()
+			observerStarted := make(chan struct{})
+			roundEntered := make(chan struct{})
+			cleanup := newLateCancellationCleanupGate()
+			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+			for workerID := range workers {
+				workers[workerID] = &lateCancellationCoordinatorWorker{
+					recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+					stage:                      test.stage, evidence: test.evidence, roundEntered: roundEntered, cleanup: cleanup,
+				}
+			}
+			options := CoordinatorOptions{
+				Generation: 39,
+				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+				}),
+				Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+				Workers: workers,
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					close(observerStarted)
+					<-ctx.Done()
+					return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+				}),
+				Clock:          fixedCoordinatorClock{now: time.Unix(1_700_000_000, 0), ticker: statusTicker},
+				CleanupTimeout: time.Second,
+				RoundTimeout:   time.Second,
+			}
+			if test.evidence == lateCancellationOwnDeadline {
+				options.RoundTimeout = 10 * time.Millisecond
+			}
+			coordinator, err := NewCoordinator(options)
+			if err != nil {
+				t.Fatalf("NewCoordinator() error = %v", err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			resultChannel := make(chan CoordinatorResult, 1)
+			go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+			<-observerStarted
+			if test.stage == lateCancellationStatus {
+				statusTicker.ticks <- time.Unix(1_700_000_005, 0)
+			}
+			if test.evidence == lateCancellationParentCancel {
+				waitForCoordinatorSignal(t, roundEntered, "round entry")
+				cancel()
+			}
+			waitForCoordinatorSignal(t, cleanup.entered, "failure cleanup")
+			if test.evidence != lateCancellationParentCancel {
+				cancel()
+			}
+			close(cleanup.release)
+
+			select {
+			case result := <-resultChannel:
+				if result.Outcome != test.wantOutcome || result.Code != test.wantCode {
+					t.Fatalf("Run() = %+v, want %s/%s", result, test.wantOutcome, test.wantCode)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Run() did not finish after cleanup release")
+			}
+		})
+	}
+}
+
+func TestCoordinatorObservedFailureSurvivesLateCallerCancellation(t *testing.T) {
+	tests := []struct {
+		name                    string
+		observation             ObserverResult
+		cancelBeforeObservation bool
+		wantOutcome             CoordinatorOutcome
+	}{
+		{
+			name:        "product failure",
+			observation: ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth},
+			wantOutcome: CoordinatorProductFailure,
+		},
+		{
+			name:        "harness invalid",
+			observation: ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology},
+			wantOutcome: CoordinatorHarnessInvalid,
+		},
+		{
+			name:                    "product failure observed after caller cancellation",
+			observation:             ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth},
+			cancelBeforeObservation: true,
+			wantOutcome:             CoordinatorProductFailure,
+		},
+		{
+			name:                    "harness invalid observed after caller cancellation",
+			observation:             ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology},
+			cancelBeforeObservation: true,
+			wantOutcome:             CoordinatorHarnessInvalid,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.RunID = "coordinator-observer-locked-" + strings.ReplaceAll(test.name, " ", "-")
+			cleanup := newLateCancellationCleanupGate()
+			clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+			observerStarted := make(chan struct{})
+			observerCancelSeen := make(chan struct{})
+			observerRelease := make(chan struct{})
+			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+			for workerID := range workers {
+				workers[workerID] = &lateCancellationCoordinatorWorker{
+					recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+					cleanup:                    cleanup,
+				}
+			}
+			coordinator, err := NewCoordinator(CoordinatorOptions{
+				Generation: 40,
+				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+				}),
+				Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+				Workers: workers,
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					close(observerStarted)
+					if test.cancelBeforeObservation {
+						<-ctx.Done()
+						close(observerCancelSeen)
+						<-observerRelease
+					}
+					return test.observation
+				}),
+				Clock:          clock,
+				CleanupTimeout: time.Second,
+			})
+			if err != nil {
+				t.Fatalf("NewCoordinator() error = %v", err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			resultChannel := make(chan CoordinatorResult, 1)
+			go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+			if test.cancelBeforeObservation {
+				waitForCoordinatorSignal(t, observerStarted, "observer start")
+				for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+					<-clock.created
+				}
+				cancel()
+				waitForCoordinatorSignal(t, observerCancelSeen, "observer cancellation")
+				close(observerRelease)
+			}
+			waitForCoordinatorSignal(t, cleanup.entered, "observer failure cleanup")
+			if !test.cancelBeforeObservation {
+				cancel()
+			}
+			close(cleanup.release)
+
+			select {
+			case result := <-resultChannel:
+				if result.Outcome != test.wantOutcome || result.Code != CoordinatorCodeObserver {
+					t.Fatalf("Run() = %+v, want %s/observer", result, test.wantOutcome)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Run() did not finish after cleanup release")
+			}
+		})
+	}
+}
+
 func TestCoordinatorStageFailureBeforeOuterCancellationKeepsStageFailure(t *testing.T) {
 	for _, stage := range []CoordinatorCode{
 		CoordinatorCodeAssignment,
@@ -2031,6 +2215,102 @@ type failureThenCancellationCoordinatorWorker struct {
 	*recordingCoordinatorWorker
 	stage CoordinatorCode
 	gate  *coordinatorFailureCancellationGate
+}
+
+type lateCancellationRoundStage uint8
+
+const (
+	lateCancellationNoRound lateCancellationRoundStage = iota
+	lateCancellationGrant
+	lateCancellationStatus
+)
+
+type lateCancellationRoundEvidence uint8
+
+const (
+	lateCancellationOrdinaryError lateCancellationRoundEvidence = iota
+	lateCancellationInvalidResponse
+	lateCancellationOwnDeadline
+	lateCancellationParentCancel
+)
+
+type lateCancellationCleanupGate struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newLateCancellationCleanupGate() *lateCancellationCleanupGate {
+	return &lateCancellationCleanupGate{entered: make(chan struct{}), release: make(chan struct{})}
+}
+
+type lateCancellationCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	stage            lateCancellationRoundStage
+	evidence         lateCancellationRoundEvidence
+	roundEntered     chan struct{}
+	roundEnteredOnce sync.Once
+	cleanup          *lateCancellationCleanupGate
+}
+
+func (w *lateCancellationCoordinatorWorker) signalRoundEntered() {
+	if w.roundEntered == nil {
+		return
+	}
+	w.roundEnteredOnce.Do(func() { close(w.roundEntered) })
+}
+
+func (w *lateCancellationCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	if w.stage != lateCancellationGrant || w.id != 0 {
+		return w.recordingCoordinatorWorker.Grant(ctx, request)
+	}
+	w.signalRoundEntered()
+	switch w.evidence {
+	case lateCancellationOrdinaryError:
+		return WorkerGrantResponse{}, errors.New("injected ordinary grant failure")
+	case lateCancellationInvalidResponse:
+		return WorkerGrantResponse{}, nil
+	case lateCancellationOwnDeadline, lateCancellationParentCancel:
+		<-ctx.Done()
+		return WorkerGrantResponse{}, ctx.Err()
+	default:
+		return w.recordingCoordinatorWorker.Grant(ctx, request)
+	}
+}
+
+func (w *lateCancellationCoordinatorWorker) Status(ctx context.Context) (WorkerStatus, error) {
+	if w.stage != lateCancellationStatus || w.id != 0 {
+		return w.recordingCoordinatorWorker.Status(ctx)
+	}
+	w.signalRoundEntered()
+	switch w.evidence {
+	case lateCancellationOrdinaryError:
+		return WorkerStatus{}, errors.New("injected ordinary status failure")
+	case lateCancellationInvalidResponse:
+		return WorkerStatus{}, nil
+	case lateCancellationOwnDeadline, lateCancellationParentCancel:
+		<-ctx.Done()
+		return WorkerStatus{}, ctx.Err()
+	default:
+		return w.recordingCoordinatorWorker.Status(ctx)
+	}
+}
+
+func (w *lateCancellationCoordinatorWorker) Stop(ctx context.Context, request WorkerStopRequest) (WorkerSnapshot, error) {
+	if w.cleanup != nil {
+		w.cleanup.once.Do(func() { close(w.cleanup.entered) })
+		<-w.cleanup.release
+	}
+	return w.recordingCoordinatorWorker.Stop(ctx, request)
+}
+
+func waitForCoordinatorSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
 }
 
 type cancelBeforeStageEvidenceWorker struct {
