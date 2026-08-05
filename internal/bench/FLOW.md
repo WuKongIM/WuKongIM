@@ -654,6 +654,10 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 
 - `GET /healthz`
 - `GET /readyz`
+- `GET /debug/config`
+- `GET /debug/cluster`
+- `GET /debug/pprof/heap?gc=1`
+- `GET /metrics`
 - `GET /bench/v1/capabilities`
 - `GET /bench/v1/snapshot`
 - `GET /bench/v1/channel-runtime/snapshot`
@@ -666,6 +670,12 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `POST /conversation/sync`
 
 The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
+The observation calls use the same optional Bench bearer as the restricted
+Bench API. Debug/config responses, per-node live Slot snapshots, forced-GC
+responses, and Prometheus scrapes have independent byte, row, Slot, replica,
+line, and series bounds. Metrics decoding retains only the fixed Go/process,
+runtime queue/inflight, Channel queue/rejection, and metadata-create families;
+status failures and parse errors never include response bodies.
 Channel runtime probes preserve both selector modes from the shared DTO. The
 client sends concrete identities and bearer authentication unchanged to every
 configured target and decodes ordered detailed runtime evidence; it does not

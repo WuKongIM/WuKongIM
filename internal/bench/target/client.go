@@ -1,12 +1,14 @@
 package target
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -26,8 +28,88 @@ const (
 	maxChannelRuntimeProbeResponseBytes int64 = 32 << 20
 	// This covers 499 conversations with twenty maximum-size 16 KiB payloads
 	// after base64 expansion plus bounded legacy JSON metadata.
-	maxConversationSyncResponseBytes int64 = 256 << 20
+	maxConversationSyncResponseBytes   int64 = 256 << 20
+	maxObservationDebugResponseBytes   int64 = 64 << 10
+	maxObservationClusterResponseBytes int64 = 1 << 20
+	maxObservationMetricsResponseBytes int64 = 8 << 20
+	maxObservationProfileResponseBytes int64 = 32 << 20
+	maxObservationClusterSlots               = 256
+	maxObservationSlotReplicas               = 64
+	maxObservationMetricLines                = 100_000
+	maxObservationMetricLineBytes            = 64 << 10
+	maxObservationMetricSeries               = 32_768
 )
+
+// DebugConfig is the bounded effective configuration required by formal preflight.
+type DebugConfig struct {
+	NodeID              uint64 `json:"node_id"`
+	InitialSlotCount    uint32 `json:"initial_slot_count"`
+	HashSlotCount       uint16 `json:"hash_slot_count"`
+	SlotReplicaCount    int    `json:"slot_replica_count"`
+	ChannelReplicaCount int    `json:"channel_replica_count"`
+	MaxChannels         int    `json:"channel_max_loaded_count"`
+}
+
+// DebugCluster is one node's bounded live Slot Raft observation.
+type DebugCluster struct {
+	NodeID        uint64        `json:"node_id"`
+	StateRevision uint64        `json:"state_revision"`
+	Slots         []ClusterSlot `json:"slots"`
+}
+
+// ClusterSlot separates desired replicas from live voters and leader progress.
+type ClusterSlot struct {
+	SlotID          uint32            `json:"slot_id"`
+	LeaderID        uint64            `json:"leader_id"`
+	Replicas        []uint64          `json:"replicas"`
+	Voters          []uint64          `json:"voters"`
+	Term            uint64            `json:"term"`
+	CommitIndex     uint64            `json:"commit_index"`
+	AppliedIndex    uint64            `json:"applied_index"`
+	ReplicaProgress []ReplicaProgress `json:"replica_progress"`
+}
+
+// ReplicaProgress is a leader-reported bounded Raft progress projection.
+type ReplicaProgress struct {
+	NodeID     uint64 `json:"node_id"`
+	MatchIndex uint64 `json:"match_index"`
+	LagEntries uint64 `json:"lag_entries"`
+	State      string `json:"state"`
+}
+
+const (
+	metricGoGoroutines uint16 = 1 << iota
+	metricGoHeapAlloc
+	metricProcessRSS
+	metricRuntimeQueue
+	metricRuntimeInflight
+	metricChannelWorkerQueue
+	metricActivationRejected
+	metricMetaCreated
+	metricRequired = metricGoGoroutines | metricGoHeapAlloc | metricProcessRSS | metricRuntimeQueue |
+		metricRuntimeInflight | metricChannelWorkerQueue | metricActivationRejected | metricMetaCreated
+)
+
+// MetricsSnapshot contains only the low-cardinality families needed by lifecycle observation.
+type MetricsSnapshot struct {
+	GoGoroutines               float64
+	GoHeapAllocBytes           float64
+	ProcessResidentMemoryBytes float64
+	RuntimeQueueDepth          float64
+	RuntimeInflight            float64
+	ChannelWorkerQueueDepth    float64
+	ActivationRejectedTotal    float64
+	MetaCreatedTotal           map[string]float64
+	present                    uint16
+}
+
+// ValidateRequired rejects a scrape that omitted a required product or runtime family.
+func (s MetricsSnapshot) ValidateRequired() error {
+	if s.present != metricRequired {
+		return errors.New("observation metrics missing required families")
+	}
+	return nil
+}
 
 // ConversationSyncRequest is the legacy product conversation sync request.
 // Zero-valued cursor fields are intentionally serialized for compatibility.
@@ -101,6 +183,42 @@ func (c *Client) Healthz(ctx context.Context) error {
 // Readyz checks /readyz on configured target API addresses.
 func (c *Client) Readyz(ctx context.Context) error {
 	return c.getAny(ctx, "/readyz", nil)
+}
+
+// DebugConfig reads the protected effective configuration snapshot.
+func (c *Client) DebugConfig(ctx context.Context) (DebugConfig, error) {
+	var out DebugConfig
+	if err := c.getObservationJSON(ctx, "/debug/config", &out, maxObservationDebugResponseBytes); err != nil {
+		return DebugConfig{}, err
+	}
+	return out, nil
+}
+
+// DebugCluster reads and validates one bounded live Slot Raft snapshot.
+func (c *Client) DebugCluster(ctx context.Context) (DebugCluster, error) {
+	var out DebugCluster
+	if err := c.getObservationJSON(ctx, "/debug/cluster", &out, maxObservationClusterResponseBytes); err != nil {
+		return DebugCluster{}, err
+	}
+	if err := validateDebugCluster(out); err != nil {
+		return DebugCluster{}, err
+	}
+	return out, nil
+}
+
+// Metrics scrapes a bounded allowlist of Prometheus product and Go/process metrics.
+func (c *Client) Metrics(ctx context.Context) (MetricsSnapshot, error) {
+	encoded, err := c.getObservationBytes(ctx, "/metrics", maxObservationMetricsResponseBytes, "observation metrics response exceeds byte limit")
+	if err != nil {
+		return MetricsSnapshot{}, err
+	}
+	return parseObservationMetrics(encoded)
+}
+
+// ForceGC uses the stdlib pprof heap gc=1 trigger and discards its bounded profile response.
+func (c *Client) ForceGC(ctx context.Context) error {
+	_, err := c.getObservationBytes(ctx, "/debug/pprof/heap?gc=1", maxObservationProfileResponseBytes, "observation profile response exceeds byte limit")
+	return err
 }
 
 // Capabilities reads the target bench/v1 capability document.
@@ -315,6 +433,78 @@ func (c *Client) getAny(ctx context.Context, path string, out any) error {
 		return nil
 	}
 	return fmt.Errorf("all target api addresses failed: %s", strings.Join(errs, "; "))
+}
+
+func (c *Client) getObservationJSON(ctx context.Context, path string, out any, limit int64) error {
+	encoded, err := c.getObservationBytes(ctx, path, limit, "observation JSON response exceeds byte limit")
+	if err != nil {
+		return err
+	}
+	if err := decodeJSONLimited(bytes.NewReader(encoded), out, limit, "observation JSON response exceeds byte limit"); err != nil {
+		return errors.New("observation endpoint returned invalid JSON")
+	}
+	return nil
+}
+
+func (c *Client) getObservationBytes(ctx context.Context, path string, limit int64, limitError string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	addrs := c.addrs()
+	if len(addrs) == 0 {
+		return nil, errors.New("no target api addresses configured")
+	}
+	var failures int
+	for _, addr := range addrs {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, joinURL(addr, path), nil)
+		if err != nil {
+			failures++
+			continue
+		}
+		if c.cfg.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
+			failures++
+			continue
+		}
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			status := resp.StatusCode
+			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
+			_ = resp.Body.Close()
+			if status == http.StatusUnauthorized || status == http.StatusForbidden {
+				return nil, fmt.Errorf("GET %s returned status %d", observationPath(path), status)
+			}
+			failures++
+			continue
+		}
+		if resp.ContentLength > limit {
+			_ = resp.Body.Close()
+			return nil, errors.New(limitError)
+		}
+		encoded, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+		_ = resp.Body.Close()
+		if readErr != nil {
+			failures++
+			continue
+		}
+		if int64(len(encoded)) > limit {
+			return nil, errors.New(limitError)
+		}
+		return encoded, nil
+	}
+	return nil, fmt.Errorf("GET %s failed on %d target addresses", observationPath(path), failures)
+}
+
+func observationPath(path string) string {
+	if before, _, ok := strings.Cut(path, "?"); ok {
+		return before
+	}
+	return path
 }
 
 func (c *Client) postAny(ctx context.Context, path string, body any) error {
@@ -572,4 +762,290 @@ func channelRuntimeQueryString(query model.ChannelRuntimeQuery) string {
 		return ""
 	}
 	return "?" + strings.Join(parts, "&")
+}
+
+func validateDebugCluster(snapshot DebugCluster) error {
+	if len(snapshot.Slots) > maxObservationClusterSlots {
+		return errors.New("observation cluster slot cardinality exceeds limit")
+	}
+	seenSlots := make(map[uint32]struct{}, len(snapshot.Slots))
+	for _, slot := range snapshot.Slots {
+		if slot.SlotID == 0 {
+			return errors.New("observation cluster contains invalid slot identity")
+		}
+		if _, exists := seenSlots[slot.SlotID]; exists {
+			return errors.New("observation cluster contains duplicate slot identity")
+		}
+		seenSlots[slot.SlotID] = struct{}{}
+		if len(slot.Replicas) > maxObservationSlotReplicas || len(slot.Voters) > maxObservationSlotReplicas || len(slot.ReplicaProgress) > maxObservationSlotReplicas {
+			return errors.New("observation cluster replica cardinality exceeds limit")
+		}
+		if !validUniqueNodeIDs(slot.Replicas) || !validUniqueNodeIDs(slot.Voters) {
+			return errors.New("observation cluster contains invalid replica identity")
+		}
+		if len(slot.ReplicaProgress) > 0 && slot.LeaderID != snapshot.NodeID {
+			return errors.New("observation cluster non-leader reported replica progress")
+		}
+		seenProgress := make(map[uint64]struct{}, len(slot.ReplicaProgress))
+		for _, progress := range slot.ReplicaProgress {
+			if progress.NodeID == 0 || !validReplicaProgressState(progress.State) {
+				return errors.New("observation cluster contains invalid replica progress")
+			}
+			if _, exists := seenProgress[progress.NodeID]; exists {
+				return errors.New("observation cluster contains duplicate replica progress")
+			}
+			seenProgress[progress.NodeID] = struct{}{}
+			if progress.MatchIndex > slot.CommitIndex || slot.CommitIndex-progress.MatchIndex != progress.LagEntries {
+				return errors.New("observation cluster contains inconsistent replica lag")
+			}
+		}
+	}
+	return nil
+}
+
+func validUniqueNodeIDs(ids []uint64) bool {
+	seen := make(map[uint64]struct{}, len(ids))
+	for _, id := range ids {
+		if id == 0 {
+			return false
+		}
+		if _, exists := seen[id]; exists {
+			return false
+		}
+		seen[id] = struct{}{}
+	}
+	return true
+}
+
+func validReplicaProgressState(state string) bool {
+	switch state {
+	case "StateProbe", "StateReplicate", "StateSnapshot":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(encoded))
+	scanner.Buffer(make([]byte, 4096), maxObservationMetricLineBytes)
+	var snapshot MetricsSnapshot
+	var lines, series int
+	for scanner.Scan() {
+		lines++
+		if lines > maxObservationMetricLines {
+			return MetricsSnapshot{}, errors.New("observation metrics line limit exceeded")
+		}
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		series++
+		if series > maxObservationMetricSeries {
+			return MetricsSnapshot{}, errors.New("observation metrics series cardinality limit exceeded")
+		}
+		name := observationMetricName(line)
+		kind := observationMetricKind(name)
+		if kind == 0 {
+			continue
+		}
+		token, valueText, err := splitObservationMetricSample(line)
+		if err != nil {
+			return MetricsSnapshot{}, err
+		}
+		_, labels, err := parseObservationMetricToken(token)
+		if err != nil {
+			return MetricsSnapshot{}, err
+		}
+		value, err := strconv.ParseFloat(valueText, 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			return MetricsSnapshot{}, errors.New("observation metrics contains invalid value")
+		}
+		if err := snapshot.addMetric(kind, labels, value); err != nil {
+			return MetricsSnapshot{}, err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return MetricsSnapshot{}, errors.New("observation metrics line limit exceeded")
+	}
+	return snapshot, nil
+}
+
+func observationMetricName(line string) string {
+	for index, character := range line {
+		if character == '{' || character == ' ' || character == '\t' {
+			return line[:index]
+		}
+	}
+	return line
+}
+
+func splitObservationMetricSample(line string) (token, value string, err error) {
+	open := strings.IndexByte(line, '{')
+	if open < 0 {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			return "", "", errors.New("observation metrics contains invalid sample")
+		}
+		return fields[0], fields[1], nil
+	}
+	quoted, escaped := false, false
+	closeIndex := -1
+	for index := open + 1; index < len(line); index++ {
+		switch {
+		case escaped:
+			escaped = false
+		case line[index] == '\\' && quoted:
+			escaped = true
+		case line[index] == '"':
+			quoted = !quoted
+		case line[index] == '}' && !quoted:
+			closeIndex = index
+			index = len(line)
+		}
+	}
+	if closeIndex < 0 || quoted {
+		return "", "", errors.New("observation metrics contains invalid labels")
+	}
+	fields := strings.Fields(line[closeIndex+1:])
+	if len(fields) != 1 {
+		return "", "", errors.New("observation metrics contains invalid sample")
+	}
+	return line[:closeIndex+1], fields[0], nil
+}
+
+func observationMetricKind(name string) uint16 {
+	switch name {
+	case "go_goroutines":
+		return metricGoGoroutines
+	case "go_memstats_heap_alloc_bytes":
+		return metricGoHeapAlloc
+	case "process_resident_memory_bytes":
+		return metricProcessRSS
+	case "wukongim_runtime_pool_queue_depth":
+		return metricRuntimeQueue
+	case "wukongim_runtime_pool_inflight":
+		return metricRuntimeInflight
+	case "wukongim_channelv2_worker_queue_depth":
+		return metricChannelWorkerQueue
+	case "wukongim_channelv2_activation_rejected_total":
+		return metricActivationRejected
+	case "wukongim_channelv2_meta_created_total":
+		return metricMetaCreated
+	default:
+		return 0
+	}
+}
+
+func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value float64) error {
+	s.present |= kind
+	var destination *float64
+	switch kind {
+	case metricGoGoroutines:
+		destination = &s.GoGoroutines
+	case metricGoHeapAlloc:
+		destination = &s.GoHeapAllocBytes
+	case metricProcessRSS:
+		destination = &s.ProcessResidentMemoryBytes
+	case metricRuntimeQueue:
+		destination = &s.RuntimeQueueDepth
+	case metricRuntimeInflight:
+		destination = &s.RuntimeInflight
+	case metricChannelWorkerQueue:
+		destination = &s.ChannelWorkerQueueDepth
+	case metricActivationRejected:
+		destination = &s.ActivationRejectedTotal
+	case metricMetaCreated:
+		result := labels["result"]
+		switch result {
+		case "created", "already_existing", "error":
+		default:
+			return errors.New("observation metrics contains invalid metadata-create result")
+		}
+		if s.MetaCreatedTotal == nil {
+			s.MetaCreatedTotal = make(map[string]float64, 3)
+		}
+		current := s.MetaCreatedTotal[result]
+		if current > math.MaxFloat64-value {
+			return errors.New("observation metrics aggregate overflow")
+		}
+		s.MetaCreatedTotal[result] = current + value
+		return nil
+	default:
+		return errors.New("observation metrics contains unsupported family")
+	}
+	if *destination > math.MaxFloat64-value {
+		return errors.New("observation metrics aggregate overflow")
+	}
+	*destination += value
+	return nil
+}
+
+func parseObservationMetricToken(token string) (string, map[string]string, error) {
+	open := strings.IndexByte(token, '{')
+	if open < 0 {
+		if strings.ContainsRune(token, '}') || token == "" {
+			return "", nil, errors.New("observation metrics contains invalid sample name")
+		}
+		return token, nil, nil
+	}
+	if !strings.HasSuffix(token, "}") || open == 0 {
+		return "", nil, errors.New("observation metrics contains invalid labels")
+	}
+	labels, err := parseObservationLabels(token[open+1 : len(token)-1])
+	if err != nil {
+		return "", nil, err
+	}
+	return token[:open], labels, nil
+}
+
+func parseObservationLabels(raw string) (map[string]string, error) {
+	labels := make(map[string]string)
+	for len(raw) > 0 {
+		raw = strings.TrimLeft(raw, " \t")
+		equals := strings.IndexByte(raw, '=')
+		if equals <= 0 || equals > 64 {
+			return nil, errors.New("observation metrics contains invalid labels")
+		}
+		name := strings.TrimSpace(raw[:equals])
+		raw = raw[equals+1:]
+		if name == "" || len(raw) == 0 || raw[0] != '"' {
+			return nil, errors.New("observation metrics contains invalid labels")
+		}
+		end := 1
+		escaped := false
+		for ; end < len(raw); end++ {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if raw[end] == '\\' {
+				escaped = true
+				continue
+			}
+			if raw[end] == '"' {
+				break
+			}
+		}
+		if end >= len(raw) {
+			return nil, errors.New("observation metrics contains invalid labels")
+		}
+		value, err := strconv.Unquote(raw[:end+1])
+		if err != nil || len(value) > 1024 {
+			return nil, errors.New("observation metrics contains invalid labels")
+		}
+		if _, exists := labels[name]; exists || len(labels) >= 32 {
+			return nil, errors.New("observation metrics label cardinality limit exceeded")
+		}
+		labels[name] = value
+		raw = strings.TrimLeft(raw[end+1:], " \t")
+		if raw == "" {
+			break
+		}
+		if raw[0] != ',' {
+			return nil, errors.New("observation metrics contains invalid labels")
+		}
+		raw = raw[1:]
+	}
+	return labels, nil
 }

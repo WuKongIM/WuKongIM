@@ -13,6 +13,34 @@ func TestFormalObservationTopology(t *testing.T) {
 	if len(observation.APIAddrs) != 3 || len(observation.GatewayTCPAddrs) != 3 {
 		t.Fatalf("API/gateway pools = %+v", observation)
 	}
+	for index, endpoint := range observation.HostMetrics {
+		if endpoint.Mountpoint == "" || endpoint.Device == "" {
+			t.Fatalf("host metrics[%d] disk selector = %+v, want explicit mountpoint/device", index, endpoint)
+		}
+	}
+}
+
+func TestDiskSelectorsAreRequiredOnlyForHostMetrics(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+		want   string
+	}{
+		{"missing mountpoint", func(c *Config) { c.Observation.HostMetrics[0].Mountpoint = "" }, "observation.host_metrics[0].mountpoint: is required"},
+		{"missing device", func(c *Config) { c.Observation.HostMetrics[0].Device = "" }, "observation.host_metrics[0].device: is required"},
+		{"relative mountpoint", func(c *Config) { c.Observation.HostMetrics[0].Mountpoint = "data" }, "observation.host_metrics[0].mountpoint: must be an absolute clean path"},
+		{"service selector", func(c *Config) { c.Observation.ServiceNodes[0].Mountpoint = "/data" }, "observation.service_nodes[0].mountpoint: is only valid for host metrics"},
+		{"worker selector", func(c *Config) { c.Observation.Workers[0].Device = "/dev/data" }, "observation.workers[0].device: is only valid for host metrics"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			tt.mutate(&cfg)
+			if err := cfg.Validate(); err == nil || err.Error() != tt.want {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
 }
 
 func TestFormalConfigAllowsDeploymentSpecificObservationAddresses(t *testing.T) {
@@ -28,9 +56,9 @@ func TestFormalConfigAllowsDeploymentSpecificObservationAddresses(t *testing.T) 
 		{Name: "load-c", Address: "https://load-c.example.test:19090"},
 	}
 	cfg.Observation.HostMetrics = []EndpointDeclaration{
-		{Name: "metrics-a", Address: "https://metrics-a.example.test:9100"},
-		{Name: "metrics-b", Address: "https://metrics-b.example.test:9100"},
-		{Name: "metrics-c", Address: "https://metrics-c.example.test:9100"},
+		{Name: "metrics-a", Address: "https://metrics-a.example.test:9100", Mountpoint: "/data", Device: "/dev/data"},
+		{Name: "metrics-b", Address: "https://metrics-b.example.test:9100", Mountpoint: "/data", Device: "/dev/data"},
+		{Name: "metrics-c", Address: "https://metrics-c.example.test:9100", Mountpoint: "/data", Device: "/dev/data"},
 	}
 	cfg.Observation.APIAddrs = []string{"https://api-a.example.test:5001", "https://api-b.example.test:5001", "https://api-c.example.test:5001"}
 	cfg.Observation.GatewayTCPAddrs = []string{"gateway-a.example.test:5100", "gateway-b.example.test:5100", "gateway-c.example.test:5100"}
@@ -166,9 +194,9 @@ func TestObservationAcceptsRoleSpecificEndpointForms(t *testing.T) {
 		{Name: "worker-ipv6", Address: "https://[2001:db8::20]/control/"},
 	}
 	cfg.Observation.HostMetrics = []EndpointDeclaration{
-		{Name: "metrics-dns", Address: "http://metrics.example.test:9100/metrics"},
-		{Name: "metrics-ipv4", Address: "http://192.0.2.30:9100/metrics"},
-		{Name: "metrics-ipv6", Address: "http://[2001:db8::30]:9100/metrics"},
+		{Name: "metrics-dns", Address: "http://metrics.example.test:9100/metrics", Mountpoint: "/data", Device: "/dev/data"},
+		{Name: "metrics-ipv4", Address: "http://192.0.2.30:9100/metrics", Mountpoint: "/data", Device: "/dev/data"},
+		{Name: "metrics-ipv6", Address: "http://[2001:db8::30]:9100/metrics", Mountpoint: "/data", Device: "/dev/data"},
 	}
 	cfg.Observation.APIAddrs = []string{
 		"http://api.example.test:5001/base",

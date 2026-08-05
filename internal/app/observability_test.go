@@ -2259,7 +2259,7 @@ func TestNewWiresDebugSnapshotAPI(t *testing.T) {
 			DebugAPIEnabled: true,
 		},
 	}
-	app, err := newTestApp(t, cfg, WithCluster(&fakeCluster{}))
+	app, err := newTestApp(t, cfg, WithCluster(&debugClusterRuntimeStub{control: control.Snapshot{Revision: 1}}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

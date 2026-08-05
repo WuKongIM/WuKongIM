@@ -41,6 +41,15 @@ func validateObservation(o ObservationConfig) error {
 	if err := validateEndpointRole("observation.host_metrics", o.HostMetrics); err != nil {
 		return err
 	}
+	if err := validateNonHostFilesystemSelectors("observation.service_nodes", o.ServiceNodes); err != nil {
+		return err
+	}
+	if err := validateNonHostFilesystemSelectors("observation.workers", o.Workers); err != nil {
+		return err
+	}
+	if err := validateHostFilesystemSelectors(o.HostMetrics); err != nil {
+		return err
+	}
 	if err := validateHTTPAddressPool("observation.api_addrs", o.APIAddrs); err != nil {
 		return err
 	}
@@ -57,6 +66,38 @@ func validateObservation(o ObservationConfig) error {
 			if gatewayKey == apiKey.authority {
 				return fieldError(fmt.Sprintf("observation.gateway_tcp_addrs[%d]", gatewayIndex), fmt.Sprintf("aliases observation.api_addrs[%d]", apiIndex))
 			}
+		}
+	}
+	return nil
+}
+
+func validateNonHostFilesystemSelectors(path string, endpoints []EndpointDeclaration) error {
+	for index, endpoint := range endpoints {
+		if endpoint.Mountpoint != "" {
+			return fieldError(fmt.Sprintf("%s[%d].mountpoint", path, index), "is only valid for host metrics")
+		}
+		if endpoint.Device != "" {
+			return fieldError(fmt.Sprintf("%s[%d].device", path, index), "is only valid for host metrics")
+		}
+	}
+	return nil
+}
+
+func validateHostFilesystemSelectors(endpoints []EndpointDeclaration) error {
+	for index, endpoint := range endpoints {
+		mountpoint := strings.TrimSpace(endpoint.Mountpoint)
+		if mountpoint == "" {
+			return fieldError(fmt.Sprintf("observation.host_metrics[%d].mountpoint", index), "is required")
+		}
+		if len(mountpoint) > 1024 || !strings.HasPrefix(mountpoint, "/") || pathpkg.Clean(mountpoint) != mountpoint {
+			return fieldError(fmt.Sprintf("observation.host_metrics[%d].mountpoint", index), "must be an absolute clean path")
+		}
+		device := strings.TrimSpace(endpoint.Device)
+		if device == "" {
+			return fieldError(fmt.Sprintf("observation.host_metrics[%d].device", index), "is required")
+		}
+		if len(device) > 1024 || device != endpoint.Device {
+			return fieldError(fmt.Sprintf("observation.host_metrics[%d].device", index), "must be a bounded exact label")
 		}
 	}
 	return nil

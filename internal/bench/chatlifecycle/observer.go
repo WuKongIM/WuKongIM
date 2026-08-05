@@ -1,0 +1,216 @@
+package chatlifecycle
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+)
+
+// ObserverOutcome is the closed terminal class for continuous target observation.
+type ObserverOutcome string
+
+const (
+	ObserverStopped        ObserverOutcome = "stopped"
+	ObserverProductFailure ObserverOutcome = "product_failure"
+	ObserverHarnessInvalid ObserverOutcome = "harness_invalid"
+)
+
+// ObserverCode is a bounded, non-secret reason for observer termination.
+type ObserverCode string
+
+const (
+	ObserverCodeStopped         ObserverCode = "stopped"
+	ObserverCodeTopology        ObserverCode = "topology"
+	ObserverCodeServiceHealth   ObserverCode = "service_health"
+	ObserverCodeClusterHealth   ObserverCode = "cluster_health"
+	ObserverCodeLeaderImbalance ObserverCode = "leader_imbalance"
+)
+
+// ObserverResult contains no raw endpoint response, identity, or credential value.
+type ObserverResult struct {
+	Outcome ObserverOutcome `json:"outcome"`
+	Code    ObserverCode    `json:"code"`
+}
+
+// ClusterHealthTarget is the node-local service and Slot observation boundary.
+type ClusterHealthTarget interface {
+	Healthz(context.Context) error
+	Readyz(context.Context) error
+	DebugCluster(context.Context) (target.DebugCluster, error)
+}
+
+type clusterHealthTarget = ClusterHealthTarget
+
+// ObserverClock makes all continuous-failure windows deterministic in unit tests.
+type ObserverClock interface {
+	Now() time.Time
+	NewTicker(time.Duration) ObserverTicker
+}
+
+// ObserverTicker is the minimal ticker lifetime used by Observer.
+type ObserverTicker interface {
+	C() <-chan time.Time
+	Stop()
+}
+
+// ObserverOptions supplies authenticated observation and bounded hot Slot declarations.
+type ObserverOptions struct {
+	BenchToken string
+	HTTPClient *http.Client
+	Clock      ObserverClock
+	// HotSlotGroups identifies the bounded logical Slot groups whose leader progress
+	// is health-critical. Empty means every configured logical Slot group is hot.
+	HotSlotGroups []uint32
+	TargetFactory func(int, EndpointDeclaration, string) ClusterHealthTarget
+}
+
+// Observer polls all declared service nodes and owns only continuous-window state.
+type Observer struct {
+	options ObserverOptions
+}
+
+// NewObserver constructs an observer. Static configuration remains validated by Run.
+func NewObserver(options ObserverOptions) *Observer {
+	if options.HTTPClient == nil {
+		options.HTTPClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	if options.Clock == nil {
+		options.Clock = realObserverClock{}
+	}
+	if options.TargetFactory == nil {
+		options.TargetFactory = func(_ int, endpoint EndpointDeclaration, token string) ClusterHealthTarget {
+			return target.NewClient(target.Config{
+				APIAddrs: []string{endpoint.Address}, Token: token, HTTPClient: options.HTTPClient,
+			})
+		}
+	}
+	options.HotSlotGroups = append([]uint32(nil), options.HotSlotGroups...)
+	return &Observer{options: options}
+}
+
+type observerWindows struct {
+	serviceUnhealthySince *time.Time
+	clusterUnhealthySince *time.Time
+	leaderImbalancedSince *time.Time
+}
+
+// Run performs an immediate poll and then polls at the configured five-second cadence.
+func (o *Observer) Run(ctx context.Context, cfg Config) ObserverResult {
+	if o == nil || cfg.Validate() != nil || strings.TrimSpace(o.options.BenchToken) == "" ||
+		!validHotSlotDeclaration(o.options.HotSlotGroups, cfg.Workload.Topology.LogicalSlotGroups) {
+		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}
+	}
+	targets := make([]clusterHealthTarget, len(cfg.Observation.ServiceNodes))
+	for index, endpoint := range cfg.Observation.ServiceNodes {
+		targets[index] = o.options.TargetFactory(index, endpoint, o.options.BenchToken)
+		if targets[index] == nil {
+			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}
+		}
+	}
+
+	ticker := o.options.Clock.NewTicker(cfg.Observation.Cadence)
+	defer ticker.Stop()
+	windows := observerWindows{}
+	if result, terminal := o.poll(ctx, cfg, targets, &windows, o.options.Clock.Now()); terminal {
+		return result
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		case <-ticker.C():
+			if result, terminal := o.poll(ctx, cfg, targets, &windows, o.options.Clock.Now()); terminal {
+				return result
+			}
+		}
+	}
+}
+
+func (o *Observer) poll(
+	ctx context.Context,
+	cfg Config,
+	targets []clusterHealthTarget,
+	windows *observerWindows,
+	now time.Time,
+) (ObserverResult, bool) {
+	serviceHealthy := true
+	snapshots := make([]target.DebugCluster, 0, len(targets))
+	for _, observed := range targets {
+		if observed.Healthz(ctx) != nil {
+			serviceHealthy = false
+		}
+		if observed.Readyz(ctx) != nil {
+			serviceHealthy = false
+		}
+		snapshot, err := observed.DebugCluster(ctx)
+		if err != nil {
+			serviceHealthy = false
+			continue
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	if updateContinuousWindow(&windows.serviceUnhealthySince, !serviceHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
+		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}, true
+	}
+
+	cluster, err := mergeClusterObservations(snapshots, cfg)
+	clusterHealthy := err == nil
+	if clusterHealthy {
+		hotHealthy, valid := hotSlotProgressHealthy(cluster, o.options.HotSlotGroups)
+		if !valid {
+			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
+		}
+		clusterHealthy = hotHealthy
+	}
+	if updateContinuousWindow(&windows.clusterUnhealthySince, !clusterHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
+		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeClusterHealth}, true
+	}
+
+	imbalanced := err == nil && leaderImbalanced(cluster.leaderCounts, len(cluster.slots), cfg.Thresholds.Cluster.LeaderImbalancePercent)
+	if updateContinuousWindow(&windows.leaderImbalancedSince, imbalanced, now, cfg.Thresholds.Cluster.LeaderImbalanceFor) {
+		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeLeaderImbalance}, true
+	}
+	return ObserverResult{}, false
+}
+
+func validHotSlotDeclaration(slotIDs []uint32, maximum int) bool {
+	if len(slotIDs) > maximum {
+		return false
+	}
+	seen := make(map[uint32]struct{}, len(slotIDs))
+	for _, slotID := range slotIDs {
+		if _, duplicate := seen[slotID]; duplicate {
+			return false
+		}
+		seen[slotID] = struct{}{}
+	}
+	return true
+}
+
+func updateContinuousWindow(since **time.Time, unhealthy bool, now time.Time, threshold time.Duration) bool {
+	if !unhealthy {
+		*since = nil
+		return false
+	}
+	if *since == nil {
+		started := now
+		*since = &started
+		return threshold <= 0
+	}
+	return now.Sub(**since) >= threshold
+}
+
+type realObserverClock struct{}
+
+func (realObserverClock) Now() time.Time { return time.Now() }
+func (realObserverClock) NewTicker(period time.Duration) ObserverTicker {
+	return realObserverTicker{ticker: time.NewTicker(period)}
+}
+
+type realObserverTicker struct{ ticker *time.Ticker }
+
+func (t realObserverTicker) C() <-chan time.Time { return t.ticker.C }
+func (t realObserverTicker) Stop()               { t.ticker.Stop() }

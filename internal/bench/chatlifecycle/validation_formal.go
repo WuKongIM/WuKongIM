@@ -294,6 +294,9 @@ func validateExactThresholds(got, want ThresholdsConfig) error {
 	if got.Cluster.UnhealthyFailAfter != want.Cluster.UnhealthyFailAfter {
 		return formalError("thresholds.cluster.unhealthy_fail_after")
 	}
+	if got.Cluster.MaxHotReplicaLagEntries != want.Cluster.MaxHotReplicaLagEntries {
+		return formalError("thresholds.cluster.max_hot_replica_lag_entries")
+	}
 	if got.Cluster.LeaderImbalancePercent != want.Cluster.LeaderImbalancePercent {
 		return formalError("thresholds.cluster.leader_imbalance_percent")
 	}

@@ -47,12 +47,16 @@ func TestLocalConfigValid(t *testing.T) {
 		t.Fatalf("groups = %+v", cfg.Workload.Groups)
 	}
 	wantObservation := ObservationConfig{
-		ServiceNodes:    []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
-		Workers:         []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
-		HostMetrics:     []EndpointDeclaration{{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101"}, {Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102"}, {Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103"}},
+		ServiceNodes: []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
+		Workers:      []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
+		HostMetrics: []EndpointDeclaration{
+			{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101", Mountpoint: "/var/lib/wukongim-1", Device: "/dev/local-data-1"},
+			{Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102", Mountpoint: "/var/lib/wukongim-2", Device: "/dev/local-data-2"},
+			{Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103", Mountpoint: "/var/lib/wukongim-3", Device: "/dev/local-data-3"},
+		},
 		APIAddrs:        []string{"http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"},
 		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
-		Cadence:         2 * time.Second,
+		Cadence:         5 * time.Second,
 	}
 	if !reflect.DeepEqual(cfg.Observation, wantObservation) {
 		t.Fatalf("observation = %+v, want %+v", cfg.Observation, wantObservation)

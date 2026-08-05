@@ -45,12 +45,16 @@ func LocalConfig() Config {
 		FixedMembership: true, VeryLargeSendEvery: time.Minute,
 	}
 	cfg.Observation = ObservationConfig{
-		ServiceNodes:    []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
-		Workers:         []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
-		HostMetrics:     []EndpointDeclaration{{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101"}, {Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102"}, {Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103"}},
+		ServiceNodes: []EndpointDeclaration{{Name: "local-service-1", Address: "http://127.0.0.1:15001"}, {Name: "local-service-2", Address: "http://127.0.0.1:15002"}, {Name: "local-service-3", Address: "http://127.0.0.1:15003"}},
+		Workers:      []EndpointDeclaration{{Name: "local-worker-1", Address: "http://127.0.0.1:19091"}, {Name: "local-worker-2", Address: "http://127.0.0.1:19092"}, {Name: "local-worker-3", Address: "http://127.0.0.1:19093"}},
+		HostMetrics: []EndpointDeclaration{
+			{Name: "local-host-metrics-1", Address: "http://127.0.0.1:19101", Mountpoint: "/var/lib/wukongim-1", Device: "/dev/local-data-1"},
+			{Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102", Mountpoint: "/var/lib/wukongim-2", Device: "/dev/local-data-2"},
+			{Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103", Mountpoint: "/var/lib/wukongim-3", Device: "/dev/local-data-3"},
+		},
 		APIAddrs:        []string{"http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"},
 		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
-		Cadence:         2 * time.Second,
+		Cadence:         5 * time.Second,
 	}
 	cfg.Thresholds.MinimumDataFilesystemBytes = 10_000_000_000
 	cfg.Thresholds.Timeline = TimelineThresholds{Warmup: 10 * time.Minute, Checkpoint: 20 * time.Minute, Final: 30 * time.Minute}
@@ -100,19 +104,23 @@ func FormalConfig() Config {
 			Groups: GroupCatalogConfig{Small: 1_600, Medium: 300, Large: 99, VeryLarge: 1, VeryLargeMembers: formalVeryLargeMembers, FixedMembership: true, VeryLargeSendEvery: time.Minute},
 		},
 		Observation: ObservationConfig{
-			ServiceNodes:    []EndpointDeclaration{{Name: "service-1", Address: "http://service-1.invalid"}, {Name: "service-2", Address: "http://service-2.invalid"}, {Name: "service-3", Address: "http://service-3.invalid"}},
-			Workers:         []EndpointDeclaration{{Name: "worker-1", Address: "http://worker-1.invalid"}, {Name: "worker-2", Address: "http://worker-2.invalid"}, {Name: "worker-3", Address: "http://worker-3.invalid"}},
-			HostMetrics:     []EndpointDeclaration{{Name: "host-metrics-1", Address: "http://host-metrics-1.invalid"}, {Name: "host-metrics-2", Address: "http://host-metrics-2.invalid"}, {Name: "host-metrics-3", Address: "http://host-metrics-3.invalid"}},
+			ServiceNodes: []EndpointDeclaration{{Name: "service-1", Address: "http://service-1.invalid"}, {Name: "service-2", Address: "http://service-2.invalid"}, {Name: "service-3", Address: "http://service-3.invalid"}},
+			Workers:      []EndpointDeclaration{{Name: "worker-1", Address: "http://worker-1.invalid"}, {Name: "worker-2", Address: "http://worker-2.invalid"}, {Name: "worker-3", Address: "http://worker-3.invalid"}},
+			HostMetrics: []EndpointDeclaration{
+				{Name: "host-metrics-1", Address: "http://host-metrics-1.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
+				{Name: "host-metrics-2", Address: "http://host-metrics-2.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
+				{Name: "host-metrics-3", Address: "http://host-metrics-3.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
+			},
 			APIAddrs:        []string{"http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"},
 			GatewayTCPAddrs: []string{"gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"},
-			Cadence:         10 * time.Second,
+			Cadence:         5 * time.Second,
 		},
 		Thresholds: ThresholdsConfig{
 			MinimumDataFilesystemBytes: formalFilesystemBytes, DiskSafeStopFreePercent: 5,
 			Correctness: CorrectnessThresholds{OverallFirstAttemptFailure: FailureRateLimit{MaxFailures: 1, PerAttempts: 10_000, Operator: ComparisonLessThan}, AnyMinuteFirstAttemptFailure: FailureRateLimit{MaxFailures: 1, PerAttempts: 1_000, Operator: ComparisonLessOrEqual}},
 			Latency:     LatencyThresholds{HotSendACK: LatencyLimit{P99: 200 * time.Millisecond, P999: time.Second}, Cold: LatencyLimit{P99: 2 * time.Second, P999: 5 * time.Second}, Sync: LatencyLimit{P99: time.Second, P999: 3 * time.Second}, SingleAnomaly: 10 * time.Second, SustainedBreachWindow: 5 * time.Minute},
 			Resource:    ResourceThresholds{ForcedGCLiveHeapGrowthPercent: 5, ForcedGCLiveHeapWindow: 6 * time.Hour, GoroutineGrowthPercent: 5, GoroutineGrowthWindow: 24 * time.Hour},
-			Cluster:     ClusterThresholds{HealthPollEvery: 5 * time.Second, UnhealthyFailAfter: 30 * time.Second, LeaderImbalancePercent: 20, LeaderImbalanceFor: 10 * time.Minute},
+			Cluster:     ClusterThresholds{HealthPollEvery: 5 * time.Second, UnhealthyFailAfter: 30 * time.Second, MaxHotReplicaLagEntries: 0, LeaderImbalancePercent: 20, LeaderImbalanceFor: 10 * time.Minute},
 			Timeline:    TimelineThresholds{Warmup: 2 * time.Hour, Checkpoint: 24 * time.Hour, Final: formalCheckpointDuration},
 		},
 		Capacity: CapacityConfig{StartRatePerSecond: 2_000, RecoveryRatePerSecond: 2_000, StepPercent: 25, RefinePercent: 10, Step: CapacityStep{Stabilize: 10 * time.Minute, Measure: 20 * time.Minute}, RecoveryDuration: 30 * time.Minute},

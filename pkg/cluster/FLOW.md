@@ -6,6 +6,12 @@
 
 The root `Node` stays thin: it owns lifecycle, readiness, public API delegation, and snapshot fan-out only. Foreground routing, Slot propose, Channel runtime replication, Controller state mapping, and node RPC each live in focused subpackages.
 
+`Node.LocalSlotRaftStatus` also projects a bounded diagnostic view of current
+Slot voters and leader replica progress. Replica rows are sorted by node ID and
+deep-copied from the runtime. More than 256 progress rows marks the diagnostic
+projection incomplete as a defensive response bound, not as a Slot voter or
+deployment-topology assumption; callers must reject incomplete evidence.
+
 ## Source Reading Path
 
 - Start with `api.go`, `config.go`, and `node.go` for the public surface.

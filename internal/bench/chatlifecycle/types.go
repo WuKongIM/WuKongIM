@@ -226,6 +226,10 @@ type EndpointDeclaration struct {
 	Name string `json:"name" yaml:"name"`
 	// Address is a non-secret endpoint declaration; credentials are supplied elsewhere.
 	Address string `json:"address" yaml:"address"`
+	// Mountpoint is the exact node_exporter data-filesystem mountpoint label; only host-metrics declarations use it.
+	Mountpoint string `json:"mountpoint,omitempty" yaml:"mountpoint,omitempty"`
+	// Device is the exact node_exporter data-filesystem device label; only host-metrics declarations use it.
+	Device string `json:"device,omitempty" yaml:"device,omitempty"`
 }
 
 // ThresholdsConfig contains all pass/fail bounds outside workload generation.
@@ -293,10 +297,12 @@ type ResourceThresholds struct {
 
 // ClusterThresholds bounds health and leader-distribution evidence.
 type ClusterThresholds struct {
-	HealthPollEvery        time.Duration `json:"health_poll_every" yaml:"health_poll_every"`
-	UnhealthyFailAfter     time.Duration `json:"unhealthy_fail_after" yaml:"unhealthy_fail_after"`
-	LeaderImbalancePercent int           `json:"leader_imbalance_percent" yaml:"leader_imbalance_percent"`
-	LeaderImbalanceFor     time.Duration `json:"leader_imbalance_for" yaml:"leader_imbalance_for"`
+	HealthPollEvery    time.Duration `json:"health_poll_every" yaml:"health_poll_every"`
+	UnhealthyFailAfter time.Duration `json:"unhealthy_fail_after" yaml:"unhealthy_fail_after"`
+	// MaxHotReplicaLagEntries is the largest leader-reported Raft entry lag still considered in sync for a hot Slot group.
+	MaxHotReplicaLagEntries uint64        `json:"max_hot_replica_lag_entries" yaml:"max_hot_replica_lag_entries"`
+	LeaderImbalancePercent  int           `json:"leader_imbalance_percent" yaml:"leader_imbalance_percent"`
+	LeaderImbalanceFor      time.Duration `json:"leader_imbalance_for" yaml:"leader_imbalance_for"`
 }
 
 // TimelineThresholds defines warmup, aged checkpoint, and final evidence times.

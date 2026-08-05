@@ -227,7 +227,7 @@ type Options struct {
 	Maintenance func() bool
 	// BenchEnabled exposes /bench/v1/* routes for controlled benchmark runs.
 	BenchEnabled bool
-	// BenchToken optionally requires an exact bearer capability on every /bench/v1/* route.
+	// BenchToken optionally requires one exact bearer capability on every /bench/v1/* and /debug/* route.
 	BenchToken string
 	// BenchMaxBatchSize limits top-level records accepted by one bench mutation request.
 	BenchMaxBatchSize int
@@ -269,8 +269,8 @@ type Options struct {
 	DebugAPIEnabled bool
 	// DebugConfig returns a bounded configuration snapshot for /debug/config.
 	DebugConfig func() any
-	// DebugCluster returns a bounded cluster snapshot for /debug/cluster.
-	DebugCluster func() any
+	// DebugCluster returns a bounded live cluster snapshot for /debug/cluster.
+	DebugCluster func(context.Context) (any, error)
 	// Diagnostics reads the node-local diagnostics store for debug query endpoints.
 	Diagnostics DiagnosticsReader
 	// GoroutineSnapshot returns the current goroutine registry snapshot. Nil disables the endpoint.
@@ -311,7 +311,7 @@ type Server struct {
 	metricsHandler           http.Handler
 	debugAPIEnabled          bool
 	debugConfig              func() any
-	debugCluster             func() any
+	debugCluster             func(context.Context) (any, error)
 	goroutineSnapshot        func() any
 	diagnostics              DiagnosticsReader
 	logger                   wklog.Logger
@@ -363,9 +363,21 @@ func New(opts Options) *Server {
 	if s.logger == nil {
 		s.logger = wklog.NewNop()
 	}
+	s.engine.Use(s.debugBearerMiddleware())
 	s.engine.Use(s.restoreMaintenanceMiddleware())
 	s.registerRoutes()
 	return s
+}
+
+func (s *Server) debugBearerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if s == nil || s.benchToken == "" || (path != "/debug" && !strings.HasPrefix(path, "/debug/")) {
+			c.Next()
+			return
+		}
+		s.requireBenchToken(c)
+	}
 }
 
 func (s *Server) restoreMaintenanceMiddleware() gin.HandlerFunc {

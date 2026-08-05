@@ -8,7 +8,7 @@ chat-lifecycle workload. `profile` selects formal versus local scale, while
 bounded lifecycle engine loop; the production worker composition adapts the
 existing target HTTP and WKProto clients through the same narrow interfaces
 used by tests. It does not recreate transport pumps, persist secrets, mutate
-targets outside public APIs, use Docker, or inspect hosts.
+targets outside public APIs, use Docker, or inspect host internals.
 
 ```text
 config
@@ -557,6 +557,34 @@ samples, two seconds/200 SENDs of burst credit, and 10/20/30-minute timeline
 checkpoints. Its three service, worker, host-metrics, HTTP API, and TCP gateway
 roles use replaceable, unique loopback declarations by default.
 
+Formal and local execution are traffic-denied until one black-box preflight
+passes. Static validation first proves three distinct service-node, worker,
+host-metrics, API-pool, and separately addressed TCP-gateway declarations, so
+an invalid topology performs no I/O. Authenticated service checks then prove
+health/readiness, effective 12-logical-Slot/256-physical-hash-slot topology,
+3/3 replicas, the Channel bound, forced-GC metrics, required Bench capability,
+and a complete live Slot view from all three nodes. Worker health/info and TCP
+gateway connectivity are checked through narrow replaceable boundaries; no
+assignment is installed by preflight.
+
+Each host-metrics declaration carries an exact node_exporter `mountpoint` and
+`device`. The bounded parser accepts exactly one size and one available-byte
+series for that pair. Missing or duplicate pairs make the harness invalid; a
+filesystem below the profile minimum is an infrastructure capacity failure.
+Formal minimum size is 1,000,000,000,000 bytes. Free space below 5 percent
+returns an infrastructure failure and emits one narrow coordinated-stop signal;
+the observer does not own assignment control.
+
+After preflight, the target observer immediately polls and then repeats every
+five seconds using bounded state. It requires complete stable reports for all
+12 logical Slot groups, one leader, three desired replicas, three live voters,
+and leader-only progress. Hot Slot groups are an optional bounded, unique
+declaration; an empty declaration means all 12 workload groups. Any healthy
+sample resets the corresponding 30-second service or hot-replication failure
+window. Leader balance compares each node with the exact rational `slots/nodes`
+share rather than assuming 4/4/4; a deviation above 20 percent must remain
+continuous for ten minutes before product failure.
+
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result
 to the platform `int` range before comparing `max_global_burst`.
@@ -578,3 +606,5 @@ while preserving meaningful non-root paths. Root-only hosts are rejected.
 Gateway endpoints are credential-free TCP `host:port` values;
 their duplicate identity canonicalizes the host/IP and numeric port. API and
 gateway pools must not resolve to the same canonical network authority.
+Only host-metrics declarations may carry filesystem selectors; their
+mountpoint is an absolute clean path and their device is a bounded exact label.

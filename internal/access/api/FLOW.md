@@ -22,8 +22,10 @@ benchmark data writer,
 mutations through that writer; for `cmd/wukongim` delivery benchmarks the
 writer persists real cluster Slot metadata.
 When `bench.api_token` is configured, every `/bench/v1/*` request must carry
-the exact `Authorization: Bearer <token>` capability; health, readiness,
-metrics, debug, and product routes remain outside that middleware.
+the exact `Authorization: Bearer <token>` capability. The same capability
+protects every enabled `/debug` and `/debug/*` route, including pprof; health,
+readiness, metrics, and product routes remain outside that middleware. An empty
+token retains the existing controlled-environment debug compatibility mode.
 
 Controller restore maintenance places a node-local middleware in front of all
 product, route-discovery, and benchmark endpoints. It returns HTTP `503` with
@@ -116,9 +118,11 @@ views can explain why the alert fired without scraping Prometheus metrics.
 
 All `/debug...` routes are enabled only when the composition root passes
 `DebugAPIEnabled=true`. In `cmd/wukongim`, that switch is
-`WK_DEBUG_API_ENABLE`. Diagnostics debug routes also require a diagnostics reader
-and query the node-local bounded diagnostics store for controlled performance and
-troubleshooting runs.
+`WK_DEBUG_API_ENABLE`. When `bench.api_token` is nonempty, the complete debug
+subtree requires that bearer capability. Diagnostics debug routes also require
+a diagnostics reader and query the node-local bounded diagnostics store for
+controlled performance and troubleshooting runs. A failed live cluster
+snapshot returns a fixed `503` response and never exposes its internal cause.
 
 `GET /demo` and `HEAD /demo` permanently redirect to `/demo/`. The `/demo/*`
 surface serves the production Vite bundle embedded at Go build time; exact

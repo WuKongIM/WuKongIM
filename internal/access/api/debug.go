@@ -37,7 +37,12 @@ func (s *Server) handleDebugCluster(c *gin.Context) {
 		writeDebugJSONError(c, http.StatusNotFound, "not found")
 		return
 	}
-	c.JSON(http.StatusOK, s.debugCluster())
+	snapshot, err := s.debugCluster(c.Request.Context())
+	if err != nil {
+		writeDebugJSONError(c, http.StatusServiceUnavailable, "cluster snapshot unavailable")
+		return
+	}
+	c.JSON(http.StatusOK, snapshot)
 }
 
 func (s *Server) handleDebugGoroutines(c *gin.Context) {

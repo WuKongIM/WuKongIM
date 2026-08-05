@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -221,6 +222,30 @@ func TestSlotRaftStatusFromRuntimeIncludesCurrentVoters(t *testing.T) {
 
 	if !equalUint64s(got.CurrentVoters, []uint64{1, 2, 3}) {
 		t.Fatalf("CurrentVoters = %v, want [1 2 3]", got.CurrentVoters)
+	}
+}
+
+func TestSlotRaftStatusFromRuntimeIncludesSortedReplicaProgress(t *testing.T) {
+	runtimeProgress := map[multiraft.NodeID]multiraft.PeerProgress{
+		3: {Match: 8, Next: 9, State: "StateProbe"},
+		1: {Match: 10, Next: 11, State: "StateReplicate"},
+		2: {Match: 9, Next: 10, State: "StateSnapshot"},
+	}
+	got := slotRaftStatusFromRuntime(1, 9, multiraft.Status{
+		SlotID: 9, NodeID: 1, LeaderID: 1, CommitIndex: 10, Progress: runtimeProgress,
+	})
+
+	want := []SlotRaftReplicaProgress{
+		{NodeID: 1, MatchIndex: 10, NextIndex: 11, State: "StateReplicate"},
+		{NodeID: 2, MatchIndex: 9, NextIndex: 10, State: "StateSnapshot"},
+		{NodeID: 3, MatchIndex: 8, NextIndex: 9, State: "StateProbe"},
+	}
+	if !reflect.DeepEqual(got.ReplicaProgress, want) {
+		t.Fatalf("ReplicaProgress = %#v, want %#v", got.ReplicaProgress, want)
+	}
+	runtimeProgress[1] = multiraft.PeerProgress{Match: 99}
+	if got.ReplicaProgress[0].MatchIndex != 10 {
+		t.Fatalf("ReplicaProgress aliased runtime map: %#v", got.ReplicaProgress)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -107,7 +108,26 @@ type SlotRaftStatus struct {
 	AppliedIndex uint64
 	// CurrentVoters is the current Slot Raft voter set observed by the runtime.
 	CurrentVoters []uint64
+	// ReplicaProgress is the leader's bounded per-replica replication progress sorted by node ID.
+	ReplicaProgress []SlotRaftReplicaProgress
+	// ReplicaProgressComplete is false when the runtime progress exceeded its fixed diagnostic bound.
+	ReplicaProgressComplete bool
 }
+
+// SlotRaftReplicaProgress is one bounded live Raft progress row.
+type SlotRaftReplicaProgress struct {
+	// NodeID identifies the current voter or learner.
+	NodeID uint64
+	// MatchIndex is the highest index known replicated on this node.
+	MatchIndex uint64
+	// NextIndex is the next index the leader will send to this node.
+	NextIndex uint64
+	// State is the closed etcd/raft progress state name.
+	State string
+}
+
+// maxSlotRaftReplicaProgress is a diagnostic response defense, not a Slot voter topology assumption.
+const maxSlotRaftReplicaProgress = 256
 
 // SlotRaftCompactionResult describes one node-local Slot Raft compaction attempt.
 type SlotRaftCompactionResult struct {
@@ -400,15 +420,31 @@ func slotRaftStatusFromRuntime(nodeID uint64, slotID uint32, status multiraft.St
 		slotID = uint32(status.SlotID)
 	}
 	return SlotRaftStatus{
-		NodeID:        nodeID,
-		SlotID:        slotID,
-		LeaderID:      uint64(status.LeaderID),
-		Role:          slotRaftRoleName(status.Role),
-		Term:          status.Term,
-		CommitIndex:   status.CommitIndex,
-		AppliedIndex:  status.AppliedIndex,
-		CurrentVoters: slotRaftVotersFromRuntime(status.CurrentVoters),
+		NodeID:                  nodeID,
+		SlotID:                  slotID,
+		LeaderID:                uint64(status.LeaderID),
+		Role:                    slotRaftRoleName(status.Role),
+		Term:                    status.Term,
+		CommitIndex:             status.CommitIndex,
+		AppliedIndex:            status.AppliedIndex,
+		CurrentVoters:           slotRaftVotersFromRuntime(status.CurrentVoters),
+		ReplicaProgress:         slotRaftReplicaProgressFromRuntime(status.Progress),
+		ReplicaProgressComplete: len(status.Progress) <= maxSlotRaftReplicaProgress,
 	}
+}
+
+func slotRaftReplicaProgressFromRuntime(progress map[multiraft.NodeID]multiraft.PeerProgress) []SlotRaftReplicaProgress {
+	if len(progress) == 0 || len(progress) > maxSlotRaftReplicaProgress {
+		return nil
+	}
+	rows := make([]SlotRaftReplicaProgress, 0, len(progress))
+	for nodeID, item := range progress {
+		rows = append(rows, SlotRaftReplicaProgress{
+			NodeID: uint64(nodeID), MatchIndex: item.Match, NextIndex: item.Next, State: item.State,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].NodeID < rows[j].NodeID })
+	return rows
 }
 
 func slotRaftVotersFromRuntime(voters []multiraft.NodeID) []uint64 {

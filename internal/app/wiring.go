@@ -859,8 +859,10 @@ func (a *App) wireAPI() {
 			MetricsHandler:           a.metricsHandler(),
 			DebugAPIEnabled:          a.cfg.Observability.DebugAPIEnabled,
 			DebugConfig:              a.debugConfigSnapshot,
-			DebugCluster:             a.debugClusterSnapshot,
-			Diagnostics:              a,
+			DebugCluster: func(ctx context.Context) (any, error) {
+				return a.debugClusterSnapshot(ctx)
+			},
+			Diagnostics: a,
 			GoroutineSnapshot: func() any {
 				return a.goroutines.Snapshot()
 			},

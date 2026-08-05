@@ -116,6 +116,7 @@ func TestFormalConfigRejectsApprovedDefaultMutations(t *testing.T) {
 		{"hot latency", func(c *Config) { c.Thresholds.Latency.HotSendACK.P99 = 201 * time.Millisecond }, "thresholds.latency.hot_sendack.p99"},
 		{"resource", func(c *Config) { c.Thresholds.Resource.GoroutineGrowthPercent = 6 }, "thresholds.resource.goroutine_growth_percent"},
 		{"health", func(c *Config) { c.Thresholds.Cluster.HealthPollEvery = 6 * time.Second }, "thresholds.cluster.health_poll_every"},
+		{"hot replica lag", func(c *Config) { c.Thresholds.Cluster.MaxHotReplicaLagEntries = 1 }, "thresholds.cluster.max_hot_replica_lag_entries"},
 		{"warmup", func(c *Config) { c.Thresholds.Timeline.Warmup = 3 * time.Hour }, "thresholds.timeline.warmup"},
 	}
 	for _, tt := range tests {

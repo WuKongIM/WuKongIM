@@ -458,6 +458,16 @@ Stop(ctx)
      JSONL file after the Controller runtime can no longer emit observer calls
 ```
 
+The debug configuration snapshot exposes only the bounded effective topology
+facts needed by black-box preflight: node ID, 12 logical Slot groups, 256
+physical hash slots, Slot/channel replica counts, and the per-node loaded
+Channel bound. The live cluster snapshot is assembled from
+`LocalControlSnapshot` plus each local `LocalSlotRaftStatus`; desired replicas
+come from Controller state, while actual leader, voters, term, indexes, and
+leader-only replica progress come from Slot Raft. It never substitutes the
+preferred leader or fabricates ISR state. Incomplete or impossible progress is
+rejected before the access adapter emits a response.
+
 The app always installs the process-wide `pkg/goroutine` registry, passes it to
 Cluster and Gateway configuration, projects it into the management goroutine
 read model for Manager node RPC readers, exposes the concrete snapshot only

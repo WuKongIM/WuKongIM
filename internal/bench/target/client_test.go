@@ -979,6 +979,99 @@ func TestSnapshotMapsNon2xxStatusAndBody(t *testing.T) {
 	require.ErrorContains(t, err, "database unavailable")
 }
 
+func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
+	const token = "observer-secret-token"
+	seen := make(map[string]int)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen[r.URL.RequestURI()]++
+		require.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
+		switch r.URL.Path {
+		case "/debug/config":
+			_, _ = io.WriteString(w, `{"node_id":1,"initial_slot_count":12,"hash_slot_count":256,"slot_replica_count":3,"channel_replica_count":3,"channel_max_loaded_count":50000,"future_field":"ignored"}`)
+		case "/debug/cluster":
+			_, _ = io.WriteString(w, `{"node_id":1,"state_revision":9,"slots":[{"slot_id":1,"leader_id":1,"replicas":[1,2,3],"voters":[1,2,3],"term":7,"commit_index":100,"applied_index":100,"replica_progress":[{"node_id":1,"match_index":100,"lag_entries":0,"state":"StateReplicate"},{"node_id":2,"match_index":99,"lag_entries":1,"state":"StateReplicate"},{"node_id":3,"match_index":98,"lag_entries":2,"state":"StateProbe"}],"future_field":true}],"future_field":"ignored"}`)
+		case "/metrics":
+			_, _ = io.WriteString(w, strings.Join([]string{
+				`unrelated_future_metric{description="value with spaces"} 1`,
+				"go_goroutines 42",
+				"go_memstats_heap_alloc_bytes 1024",
+				"process_resident_memory_bytes 2048",
+				`wukongim_runtime_pool_queue_depth{pool="append"} 3`,
+				`wukongim_runtime_pool_inflight{pool="append"} 2`,
+				`wukongim_channelv2_worker_queue_depth{worker="meta"} 4`,
+				`wukongim_channelv2_activation_rejected_total{reason="capacity"} 5`,
+				`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 6`,
+				`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 7`,
+				`wukongim_channelv2_meta_created_total{slot_id="1",result="error"} 8`,
+			}, "\n")+"\n")
+		case "/debug/pprof/heap":
+			require.Equal(t, "1", r.URL.Query().Get("gc"))
+			_, _ = io.WriteString(w, "bounded-profile")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client := NewClient(Config{APIAddrs: []string{server.URL}, Token: token})
+
+	config, err := client.DebugConfig(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, DebugConfig{NodeID: 1, InitialSlotCount: 12, HashSlotCount: 256, SlotReplicaCount: 3, ChannelReplicaCount: 3, MaxChannels: 50000}, config)
+	cluster, err := client.DebugCluster(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), cluster.StateRevision)
+	require.Equal(t, []ClusterSlot{{
+		SlotID: 1, LeaderID: 1, Replicas: []uint64{1, 2, 3}, Voters: []uint64{1, 2, 3}, Term: 7, CommitIndex: 100, AppliedIndex: 100,
+		ReplicaProgress: []ReplicaProgress{{NodeID: 1, MatchIndex: 100, State: "StateReplicate"}, {NodeID: 2, MatchIndex: 99, LagEntries: 1, State: "StateReplicate"}, {NodeID: 3, MatchIndex: 98, LagEntries: 2, State: "StateProbe"}},
+	}}, cluster.Slots)
+	metrics, err := client.Metrics(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, float64(42), metrics.GoGoroutines)
+	require.Equal(t, float64(1024), metrics.GoHeapAllocBytes)
+	require.Equal(t, float64(2048), metrics.ProcessResidentMemoryBytes)
+	require.Equal(t, float64(3), metrics.RuntimeQueueDepth)
+	require.Equal(t, float64(2), metrics.RuntimeInflight)
+	require.Equal(t, float64(4), metrics.ChannelWorkerQueueDepth)
+	require.Equal(t, float64(5), metrics.ActivationRejectedTotal)
+	require.Equal(t, map[string]float64{"created": 6, "already_existing": 7, "error": 8}, metrics.MetaCreatedTotal)
+	require.NoError(t, metrics.ValidateRequired())
+	require.NoError(t, client.ForceGC(context.Background()))
+	require.Equal(t, 1, seen["/debug/config"])
+	require.Equal(t, 1, seen["/debug/cluster"])
+	require.Equal(t, 1, seen["/metrics"])
+	require.Equal(t, 1, seen["/debug/pprof/heap?gc=1"])
+}
+
+func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {
+	const token = "observer-redaction-secret"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/debug/config":
+			http.Error(w, "rejected "+token, http.StatusUnauthorized)
+		case "/debug/cluster":
+			_, _ = io.WriteString(w, `{"node_id":1,"slots":[`+strings.Repeat(`{"slot_id":1},`, 300)+`{}]}`)
+		case "/metrics":
+			_, _ = io.WriteString(w, strings.Repeat("# padding\n", 900000))
+		case "/debug/pprof/heap":
+			_, _ = io.WriteString(w, strings.Repeat("x", int(maxObservationProfileResponseBytes)+1))
+		}
+	}))
+	defer server.Close()
+	client := NewClient(Config{APIAddrs: []string{server.URL}, Token: token})
+
+	_, err := client.DebugConfig(context.Background())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "401")
+	require.NotContains(t, err.Error(), token)
+	_, err = client.DebugCluster(context.Background())
+	require.ErrorContains(t, err, "cardinality")
+	_, err = client.Metrics(context.Background())
+	require.ErrorContains(t, err, "limit")
+	err = client.ForceGC(context.Background())
+	require.ErrorContains(t, err, "limit")
+	require.NotContains(t, err.Error(), token)
+}
+
 func writeJSON(t *testing.T, w http.ResponseWriter, v any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
