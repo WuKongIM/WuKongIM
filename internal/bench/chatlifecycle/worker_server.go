@@ -797,19 +797,25 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	if newTicker == nil {
 		newTicker = newWallWorkerGenerationTicker
 	}
+	trafficDemand := make([]uint64, assignment.WorkerCount)
+	for index := range trafficDemand {
+		trafficDemand[index] = ^uint64(0)
+	}
 	return &engineWorkerGeneration{
 		engine: engine, verifier: verifier, evidence: evidence,
-		workerCount: assignment.WorkerCount,
-		generation:  assignment.Generation,
-		clock:       clock,
-		newTicker:   newTicker,
-		done:        make(chan error, 1),
+		onlineTarget:  limits.online,
+		trafficDemand: trafficDemand,
+		generation:    assignment.Generation,
+		clock:         clock,
+		newTicker:     newTicker,
+		done:          make(chan error, 1),
 	}, nil
 }
 
 type workerEngineLimits struct {
 	command, work, retry, inflight, maxWork  int
 	pending, sequence, correlation, starting int
+	online                                   int
 }
 
 func workerEngineLimitsFor(assignment WorkerAssignment) (workerEngineLimits, error) {
@@ -849,7 +855,7 @@ func workerEngineLimitsFor(assignment WorkerAssignment) (workerEngineLimits, err
 	}
 	return workerEngineLimits{
 		command: command, work: work, retry: pending, inflight: pending, maxWork: maxWork,
-		pending: pending, sequence: sequence, correlation: correlation, starting: starting,
+		pending: pending, sequence: sequence, correlation: correlation, starting: starting, online: online,
 	}, nil
 }
 
@@ -934,13 +940,16 @@ func (f engineWorkerSessionFactory) NewSession(_ context.Context, _, token strin
 }
 
 type engineWorkerGeneration struct {
-	engine      *Engine
-	verifier    *Verifier
-	evidence    *EvidenceRecorder
-	workerCount uint64
-	generation  uint64
-	clock       SessionClock
-	newTicker   func(time.Duration) workerGenerationTicker
+	engine   *Engine
+	verifier *Verifier
+	evidence *EvidenceRecorder
+	// onlineTarget and trafficDemand are immutable O(1) tick inputs derived
+	// from the assignment; coordinator snapshots are never used by the latch.
+	onlineTarget  int
+	trafficDemand []uint64
+	generation    uint64
+	clock         SessionClock
+	newTicker     func(time.Duration) workerGenerationTicker
 
 	mu      sync.Mutex
 	started bool
@@ -995,22 +1004,14 @@ func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struc
 }
 
 func (g *engineWorkerGeneration) step(ctx context.Context, now time.Time) error {
-	runtime, err := g.engine.WorkerRuntimeSnapshotContext(ctx)
-	if err != nil {
-		return err
-	}
-	if !g.trafficStarted && runtime.Engine.Online >= runtime.Engine.OnlineTarget &&
-		runtime.Engine.LoginCompletedNew+runtime.Engine.LoginCompletedReturning >= uint64(runtime.Engine.OnlineTarget) {
-		g.trafficStarted = true
-	}
 	var demand []uint64
 	if g.trafficStarted {
-		demand = make([]uint64, g.workerCount)
-		for index := range demand {
-			demand[index] = ^uint64(0)
-		}
+		demand = g.trafficDemand
 	}
-	_, err = g.engine.Step(ctx, now, demand)
+	step, err := g.engine.Step(ctx, now, demand)
+	if !g.trafficStarted && step.Online >= g.onlineTarget {
+		g.trafficStarted = true
+	}
 	return err
 }
 

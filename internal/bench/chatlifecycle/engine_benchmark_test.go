@@ -3,8 +3,49 @@ package chatlifecycle
 import (
 	"context"
 	"runtime"
+	"strconv"
 	"testing"
+	"time"
 )
+
+func BenchmarkEngineWorkerGenerationBootstrapTick10000(b *testing.B) {
+	const sessionCount = 10_000
+	fixture := newEngineTestFixture(b, engineTestLimits{OnlineUsers: sessionCount})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		b.Fatalf("Start: %v", err)
+	}
+	client := &engineFakeClient{}
+	deadline := fixture.clock.Now().Add(time.Hour)
+	fixture.pool.mu.Lock()
+	for index := 0; index < sessionCount; index++ {
+		uid := "benchmark-worker-user-" + strconv.Itoa(index)
+		fixture.pool.online[uid] = &onlineSession{
+			snapshot: SessionSnapshot{UID: uid, UserIndex: uint64(index), Deadline: deadline, TrafficReady: true},
+			client:   client,
+		}
+	}
+	fixture.pool.mu.Unlock()
+	b.Cleanup(func() {
+		fixture.pool.mu.Lock()
+		fixture.pool.online = make(map[string]*onlineSession)
+		fixture.pool.mu.Unlock()
+		_ = fixture.engine.Stop()
+	})
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, onlineTarget: sessionCount, trafficDemand: []uint64{^uint64(0)},
+	}
+	now := fixture.clock.Now()
+
+	b.ReportAllocs()
+	b.ReportMetric(sessionCount, "sessions/tick")
+	b.ResetTimer()
+	for iteration := 0; iteration < b.N; iteration++ {
+		generation.trafficStarted = false
+		if err := generation.step(context.Background(), now); err != nil {
+			b.Fatalf("step: %v", err)
+		}
+	}
+}
 
 func BenchmarkEngineAdvanceAutoAck2000(b *testing.B) {
 	const workPerIteration = 2_000

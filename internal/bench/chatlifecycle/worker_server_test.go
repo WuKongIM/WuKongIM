@@ -387,6 +387,93 @@ func TestWorkerEngineSequenceCapacityCoversPersonAndFixedGroupChannels(t *testin
 	}
 }
 
+func TestWorkerEngineTrafficLatchDoesNotPollSessionQueues(t *testing.T) {
+	config := LocalConfig()
+	config.RunID = "worker-o1-latch"
+	config.Workload.OnlineUsers = config.Workload.Workers
+	if err := config.Validate(); err != nil {
+		t.Fatalf("latch config: %v", err)
+	}
+	clock := &sessionFakeClock{now: time.Unix(1_700_000_000, 0)}
+	sessions := &engineFakeFactory{}
+	factory := engineWorkerGenerationFactory{
+		clock: clock,
+		newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) {
+			return sessions, nil
+		},
+		newSyncer: func(WorkerAssignment) (ConversationSyncer, error) {
+			return engineSyncer{}, nil
+		},
+	}
+	worker, err := factory.New(WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "o1-latch", Generation: 7},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+	})
+	if err != nil {
+		t.Fatalf("New generation: %v", err)
+	}
+	generation := worker.(*engineWorkerGeneration)
+	if err := generation.engine.StartGeneration(context.Background(), 7); err != nil {
+		t.Fatalf("StartGeneration: %v", err)
+	}
+	defer generation.Stop()
+	uid := generation.engine.sessions.identity.UID(0)
+	if _, err := generation.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	client := sessions.clients()[0]
+	queueEntered := make(chan struct{}, 1)
+	queueRelease := make(chan struct{})
+	client.queueSnapshotEntered = queueEntered
+	client.queueSnapshotRelease = queueRelease
+
+	stepResult := make(chan error, 1)
+	go func() { stepResult <- generation.step(context.Background(), clock.Now()) }()
+	select {
+	case <-queueEntered:
+		close(queueRelease)
+		if err := <-stepResult; err != nil {
+			t.Fatalf("blocked step: %v", err)
+		}
+		t.Fatal("traffic latch polled a session QueueSnapshot")
+	case err := <-stepResult:
+		close(queueRelease)
+		if err != nil {
+			t.Fatalf("step: %v", err)
+		}
+	}
+	if !generation.trafficStarted {
+		t.Fatal("traffic latch did not observe the synchronized local online target")
+	}
+
+	// Coordinator polling remains the complete projection and therefore still
+	// gathers every transport queue snapshot outside the tick hot path.
+	pollEntered := make(chan struct{}, 1)
+	pollRelease := make(chan struct{})
+	client.queueSnapshotEntered = pollEntered
+	client.queueSnapshotRelease = pollRelease
+	pollResult := make(chan struct {
+		snapshot WorkerSnapshot
+		err      error
+	}, 1)
+	go func() {
+		snapshot, snapshotErr := generation.Snapshot(context.Background())
+		pollResult <- struct {
+			snapshot WorkerSnapshot
+			err      error
+		}{snapshot: snapshot, err: snapshotErr}
+	}()
+	<-pollEntered
+	close(pollRelease)
+	poll := <-pollResult
+	if poll.err != nil {
+		t.Fatalf("Snapshot: %v", poll.err)
+	}
+	if poll.snapshot.Sessions.Online != 1 || poll.snapshot.Sessions.Target != 1 {
+		t.Fatalf("complete coordinator snapshot = %+v", poll.snapshot.Sessions)
+	}
+}
+
 func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(t *testing.T) {
 	config := LocalConfig()
 	config.RunID = "worker-bootstrap"
