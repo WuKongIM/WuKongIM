@@ -167,7 +167,7 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		}, []string{"result"}),
 		metaCreatedTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "wukongim_channelv2_meta_created_total",
-			Help: "Total authoritative initial Channel runtime metadata create outcomes by physical Slot.",
+			Help: "Total authoritative initial Channel runtime metadata create outcomes by logical Slot Raft Group.",
 		}, []string{"slot_id", "result"}),
 		isrAnomalyChannels: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelv2_isr_anomaly_channels",
@@ -242,7 +242,7 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 
 	// CounterVec collectors do not emit a family until at least one bounded
 	// label tuple exists. Materialize true zeroes for clean-cluster observation
-	// without recording an event. Slot 1 is the stable first physical Slot.
+	// without recording an event. Slot Raft Group 1 is the stable first logical group.
 	_ = m.activationRejectedTotal.WithLabelValues("max_channels")
 	for _, result := range channelRuntimeMetaCreateResults {
 		_ = m.metaCreatedTotal.WithLabelValues("1", result)
