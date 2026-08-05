@@ -58,6 +58,7 @@ const (
 	RuntimeFailureLoginSaturated        RuntimeFailureCode = "session_login_saturated"
 	RuntimeFailureUnderDelivery         RuntimeFailureCode = "offered_load_under_delivery"
 	RuntimeFailureSchedulerCPUSaturated RuntimeFailureCode = "session_scheduler_cpu_saturated"
+	RuntimeFailureClockMovedBackwards   RuntimeFailureCode = "engine_clock_moved_backwards"
 )
 
 // RuntimeError is redacted worker-runtime evidence with harness ownership.

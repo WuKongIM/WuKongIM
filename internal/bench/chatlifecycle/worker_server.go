@@ -1022,6 +1022,12 @@ func workerStepErrorIsEvidence(err error) bool {
 	if err == nil {
 		return true
 	}
+	var runtimeErr *RuntimeError
+	// Clock rollback is classified but deliberately records no evidence because
+	// admission must fail before mutation; terminate the invalid generation.
+	if errors.As(err, &runtimeErr) && runtimeErr.Code() == RuntimeFailureClockMovedBackwards {
+		return false
+	}
 	if classified, ok := err.(interface{ Classification() SyncClassification }); ok {
 		classification := classified.Classification()
 		return classification == SyncClassificationHarnessInvalid || classification == SyncClassificationProductFailure

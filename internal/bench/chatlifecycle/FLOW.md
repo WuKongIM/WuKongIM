@@ -61,7 +61,10 @@ fence, then joins session expiry outside the owner so that owner can continue
 consuming the bounded, non-dropping SENDACK completion queue. The serial Step
 lock covers that admission, expiry, and the subsequent owner clock,
 correlation, completion, retry, and lifecycle advancement, preventing
-concurrent advances from overtaking or rewinding owner time. Caller
+concurrent advances from overtaking. Public Tick shares the same serial time
+boundary. The owner admission atomically rejects a requested time earlier than
+its committed time with a classified harness failure before any session,
+scheduler, generator, or owner-state mutation; equal time is valid. Caller
 cancellation wins only before the post-admission commit check; after commit the
 transaction is controlled by generation lifetime. An Advance canceled while
 queued therefore leaves session ownership, deadlines, clocks, heaps, counters,
@@ -94,9 +97,10 @@ the tick hot path neither builds a full worker snapshot nor calls any session
 projection. The traffic-start latch remains set across later churn.
 Consequently a long bootstrap can retain at most the configured two-second
 burst and cannot accumulate elapsed-time debt. Classified product or harness
-evidence is recorded without terminating the worker command loop; an
-unclassified fatal runtime error stops the joined engine and is the only tick
-failure published through `Done` as an unexpected exit.
+workload evidence is recorded without terminating the worker command loop. A
+classified owner-clock rollback instead fails before workload mutation, stops
+the joined engine, and is published through `Done`; any other unclassified
+fatal runtime error follows that same unexpected-exit path.
 
 The eventual plan and runtime must keep history-independent memory: generated
 identity and relationship decisions derive from the stable run seed instead of
@@ -304,8 +308,9 @@ bounded closing tombstone for that unlocked cleanup interval. It is not
 routable, but it rejects replacement login and remains owned until the old
 drain has joined and recipient verifier state has been released. `Engine.Step` derives replacement demand from
 the resulting online-target deficit, so no blocking exit callback is part of
-the atomic boundary. Public Advance shares the serial Step lock across owner
-admission, joined expiry, and final owner advancement. Unknown unexpected read exits remain bounded
+the atomic boundary. Public Advance and Tick share the serial Step lock; Step
+and Advance cross the monotonic owner-time admission before joined expiry or
+scheduler mutation. Unknown unexpected read exits remain bounded
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
 group-member routing indexes contain current online sessions only, use
 swap-delete on logout, and allocate no per-lookup history.

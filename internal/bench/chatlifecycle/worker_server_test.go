@@ -653,7 +653,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 	}
 }
 
-func TestWorkerEngineGenerationRejectsOverflowAndReportsOnlyFatalRuntimeTermination(t *testing.T) {
+func TestWorkerEngineGenerationRejectsOverflowAndReportsClockRollbackAsFatalRuntimeTermination(t *testing.T) {
 	config := LocalConfig()
 	assignment := WorkerAssignment{
 		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "fatal", Generation: maxLogicalGeneration + 1},
@@ -689,9 +689,7 @@ func TestWorkerEngineGenerationRejectsOverflowAndReportsOnlyFatalRuntimeTerminat
 	ticker.tick(t)
 	select {
 	case doneErr := <-generation.Done():
-		if !errors.Is(doneErr, errSchedulerClock) {
-			t.Fatalf("fatal Done error = %v, want %v", doneErr, errSchedulerClock)
-		}
+		assertClockRollbackFailure(t, doneErr)
 	case <-time.After(time.Second):
 		generation.Stop()
 		t.Fatal("fatal runtime termination did not signal Done")

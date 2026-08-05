@@ -850,11 +850,24 @@ func (e *Engine) SubmitGranted(intent TrafficIntent, due time.Time) error {
 // Tick streams one global TrafficGenerator grant into the bounded future heap
 // and admits at most one independently due canary.
 func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+	return e.tick(now, demand)
+}
+
+func (e *Engine) tick(now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
 	response := make(chan struct {
 		snapshot TrafficTickSnapshot
 		err      error
 	}, 1)
 	if err := e.enqueue(engineCommand{run: func() {
+		if timeErr := e.validateOwnerTime(now); timeErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: timeErr}
+			return
+		}
 		e.now = now
 		snapshot, tickErr := e.generator.Tick(demand, func(intent TrafficIntent) error {
 			var routeErr error
@@ -1134,7 +1147,7 @@ func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, er
 }
 
 func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time) (int, error) {
-	if err := e.awaitAdvanceAdmission(admissionCtx); err != nil {
+	if err := e.awaitOwnerTimeAdmission(admissionCtx, now); err != nil {
 		return 0, err
 	}
 	if err := admissionCtx.Err(); err != nil {
@@ -1153,15 +1166,19 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	return processed, err
 }
 
-// awaitAdvanceAdmission preserves the owner-order cancellation fence before
-// session expiry performs any externally visible mutation.
-func (e *Engine) awaitAdvanceAdmission(ctx context.Context) error {
+// awaitOwnerTimeAdmission preserves the cancellation and monotonic-time fence
+// before session expiry or scheduler work performs visible mutation.
+func (e *Engine) awaitOwnerTimeAdmission(ctx context.Context, now time.Time) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	response := make(chan error, 1)
 	if err := e.enqueue(engineCommand{run: func() {
-		response <- ctx.Err()
+		if err := ctx.Err(); err != nil {
+			response <- err
+			return
+		}
+		response <- e.validateOwnerTime(now)
 	}}); err != nil {
 		return err
 	}
@@ -1171,6 +1188,15 @@ func (e *Engine) awaitAdvanceAdmission(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// validateOwnerTime runs only on the engine owner and returns a stable,
+// classified failure without changing owner state or evidence.
+func (e *Engine) validateOwnerTime(now time.Time) error {
+	if now.Before(e.now) {
+		return &RuntimeError{code: RuntimeFailureClockMovedBackwards}
+	}
+	return nil
 }
 
 func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time) (int, error) {
@@ -1215,6 +1241,9 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	e.stepMu.Lock()
 	defer e.stepMu.Unlock()
 	if err := stepCtx.Err(); err != nil {
+		return EngineStepSnapshot{}, err
+	}
+	if err := e.awaitOwnerTimeAdmission(stepCtx, now); err != nil {
 		return EngineStepSnapshot{}, err
 	}
 
@@ -1321,7 +1350,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		return result, e.recordRuntimeFailureSync(RuntimeFailureSchedulerCPUSaturated, uint64(e.maxWork))
 	}
 	if demand != nil {
-		traffic, tickErr := e.Tick(now, demand)
+		traffic, tickErr := e.tick(now, demand)
 		result.Traffic = traffic
 		if tickErr != nil {
 			resultErr = errors.Join(resultErr, tickErr)

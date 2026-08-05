@@ -2174,6 +2174,212 @@ func TestEngineConcurrentAdvancesSerializeExpiryAndOwnerTime(t *testing.T) {
 	}
 }
 
+func TestEngineAdvanceRejectsOwnerTimeRollbackBeforeMutation(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, SessionDuration: time.Minute, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	start := fixture.clock.Now()
+	newer := start.Add(10 * time.Minute)
+	if _, err := fixture.engine.Advance(newer); err != nil {
+		t.Fatalf("newer Advance: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	before := captureCanceledAdvanceState(t, fixture)
+
+	_, rollbackErr := fixture.engine.Advance(start.Add(5 * time.Minute))
+	assertClockRollbackFailure(t, rollbackErr)
+	after := captureCanceledAdvanceState(t, fixture)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("rollback Advance mutated runtime state:\nbefore = %#v\nafter  = %#v", before, after)
+	}
+}
+
+func TestEngineConcurrentOlderAdvanceFailsBeforeExpiryAfterNewerCommit(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, SessionDuration: time.Hour, CommandCapacity: 4,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	firstCloseStarted := make(chan struct{})
+	releaseFirstClose := make(chan struct{})
+	firstClient := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "rollback-first"},
+	}
+	firstClient.onClose = func() {
+		close(firstCloseStarted)
+		<-releaseFirstClose
+		close(firstClient.releaseAck)
+	}
+	secondClient := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 2, ClientMsgNo: "rollback-second"},
+	}
+	secondClient.onClose = func() { close(secondClient.releaseAck) }
+	fixture.pool.factory = &queuedSessionClientFactory{clients: []SessionClient{firstClient, secondClient}}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	start := fixture.clock.Now()
+	first, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	})
+	if err != nil {
+		t.Fatalf("first Login: %v", err)
+	}
+
+	newerDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), first.Deadline)
+		newerDone <- advanceErr
+	}()
+	<-firstCloseStarted
+	fixture.clock.Set(start.Add(-30 * time.Minute))
+	second, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(1), UserIndex: 1, LoginOrdinal: 1,
+	})
+	if err != nil {
+		close(releaseFirstClose)
+		<-newerDone
+		t.Fatalf("second Login: %v", err)
+	}
+	older := start.Add(45 * time.Minute)
+	if second.Deadline.After(older) || !older.Before(first.Deadline) {
+		close(releaseFirstClose)
+		<-newerDone
+		t.Fatalf("rollback fixture deadlines = first %v second %v older %v", first.Deadline, second.Deadline, older)
+	}
+	olderDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), older)
+		olderDone <- advanceErr
+	}()
+	close(releaseFirstClose)
+	if err := <-newerDone; err != nil {
+		t.Fatalf("newer AdvanceContext: %v", err)
+	}
+	assertClockRollbackFailure(t, <-olderDone)
+	if counts := fixture.pool.Counts(); counts != (SessionCounts{Online: 1}) {
+		t.Fatalf("rollback Advance session ownership = %+v, want second session online", counts)
+	}
+	ownerNow := make(chan time.Time, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
+		t.Fatalf("read owner time: %v", err)
+	}
+	if now := <-ownerNow; !now.Equal(first.Deadline) {
+		t.Fatalf("rollback Advance owner time = %v, want committed %v", now, first.Deadline)
+	}
+}
+
+func TestEngineStepRejectsOwnerTimeRollbackBeforeSessionOrSchedulerMutation(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, SessionDuration: time.Minute, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	start := fixture.clock.Now()
+	newer := start.Add(10 * time.Minute)
+	if _, err := fixture.engine.Advance(newer); err != nil {
+		t.Fatalf("newer Advance: %v", err)
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	before := captureCanceledAdvanceState(t, fixture)
+	beforeScheduler := fixture.engine.scheduler
+
+	_, rollbackErr := fixture.engine.Step(context.Background(), start.Add(5*time.Minute), nil)
+	assertClockRollbackFailure(t, rollbackErr)
+	after := captureCanceledAdvanceState(t, fixture)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("rollback Step mutated runtime state:\nbefore = %#v\nafter  = %#v", before, after)
+	}
+	if !reflect.DeepEqual(fixture.engine.scheduler, beforeScheduler) {
+		t.Fatalf("rollback Step mutated scheduler:\nbefore = %#v\nafter  = %#v", beforeScheduler, fixture.engine.scheduler)
+	}
+}
+
+func TestEngineTimeAdmissionAllowsEqualAndIncreasingAdvanceAndStep(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	start := fixture.clock.Now()
+	for _, now := range []time.Time{start, start.Add(time.Second), start.Add(time.Second)} {
+		if _, err := fixture.engine.Advance(now); err != nil {
+			t.Fatalf("Advance(%v): %v", now, err)
+		}
+	}
+	for _, now := range []time.Time{start.Add(time.Second), start.Add(2 * time.Second)} {
+		if _, err := fixture.engine.Step(context.Background(), now, nil); err != nil {
+			t.Fatalf("Step(%v): %v", now, err)
+		}
+	}
+	ownerNow := make(chan time.Time, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
+		t.Fatalf("read owner time: %v", err)
+	}
+	if now := <-ownerNow; !now.Equal(start.Add(2 * time.Second)) {
+		t.Fatalf("monotonic owner time = %v, want %v", now, start.Add(2*time.Second))
+	}
+}
+
+func TestEngineTickRejectsOwnerTimeRollbackWithoutGeneratorMutation(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	start := fixture.clock.Now()
+	newer := start.Add(10 * time.Minute)
+	if _, err := fixture.engine.Advance(newer); err != nil {
+		t.Fatalf("newer Advance: %v", err)
+	}
+	beforeEngine := captureCanceledAdvanceState(t, fixture)
+	beforeGenerator := fixture.engine.generator.Snapshot()
+
+	_, rollbackErr := fixture.engine.Tick(start.Add(5*time.Minute), fixture.demand(0))
+	assertClockRollbackFailure(t, rollbackErr)
+	afterEngine := captureCanceledAdvanceState(t, fixture)
+	if !reflect.DeepEqual(afterEngine, beforeEngine) {
+		t.Fatalf("rollback Tick mutated engine state:\nbefore = %#v\nafter  = %#v", beforeEngine, afterEngine)
+	}
+	if afterGenerator := fixture.engine.generator.Snapshot(); !reflect.DeepEqual(afterGenerator, beforeGenerator) {
+		t.Fatalf("rollback Tick mutated generator:\nbefore = %#v\nafter  = %#v", beforeGenerator, afterGenerator)
+	}
+}
+
+func assertClockRollbackFailure(t *testing.T, err error) {
+	t.Helper()
+	var runtimeErr *RuntimeError
+	if !errors.As(err, &runtimeErr) {
+		t.Errorf("clock rollback error = %v, want classified RuntimeError", err)
+		return
+	}
+	if runtimeErr.Code() != RuntimeFailureClockMovedBackwards {
+		t.Errorf("clock rollback code = %q, want engine_clock_moved_backwards", runtimeErr.Code())
+	}
+	if runtimeErr.Classification() != SyncClassificationHarnessInvalid {
+		t.Errorf("clock rollback classification = %q, want %q", runtimeErr.Classification(), SyncClassificationHarnessInvalid)
+	}
+	if got, want := runtimeErr.Error(), "chat lifecycle runtime failed: engine_clock_moved_backwards"; got != want {
+		t.Errorf("clock rollback error = %q, want stable %q", got, want)
+	}
+}
+
 func TestEngineStopCompletesDuringExpiryCompletionBackpressure(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		OnlineUsers: 1, CommandCapacity: 4, WorkCapacity: 64, MaxWorkPerAdvance: 64,
