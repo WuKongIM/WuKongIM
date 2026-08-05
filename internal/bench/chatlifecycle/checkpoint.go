@@ -78,26 +78,10 @@ func NewCheckpointRecorder(cfg Config, fence WorkerFence, start time.Time) (*Che
 	return &CheckpointRecorder{cfg: cfg, fence: fence, start: start, configDigest: digest, aggregator: aggregator}, nil
 }
 
-// Capture validates one complete three-worker cut without stopping, starting,
-// reassigning, or otherwise mutating any worker process.
-func (r *CheckpointRecorder) Capture(at time.Time, snapshots []WorkerSnapshot, evidence CheckpointEvidence) (Report, error) {
-	if r == nil {
-		return Report{}, ErrCheckpointConfig
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	report, nextAggregator, qualificationCaptured, closed, err := r.prepareLocked(at, snapshots, evidence)
-	if err != nil {
-		return Report{}, err
-	}
-	r.aggregator = nextAggregator
-	r.qualificationCaptured = qualificationCaptured
-	r.closed = closed
-	return report, nil
-}
-
 // CaptureAndWrite persists both versioned formats before committing recorder
-// sequence state, so an output failure can retry the identical snapshot cut.
+// sequence state. It validates snapshot cuts without stopping, starting,
+// reassigning, or otherwise mutating any worker process, and an output failure
+// can retry the identical snapshot cut.
 func (r *CheckpointRecorder) CaptureAndWrite(
 	at time.Time,
 	snapshots []WorkerSnapshot,

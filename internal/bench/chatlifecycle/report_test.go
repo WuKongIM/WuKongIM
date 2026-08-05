@@ -68,7 +68,7 @@ func TestReportRedactsRawCredentialsIdentitiesChannelsAndPayloadMarkers(t *testi
 	}
 	evidence := checkpointEvidenceFixture(false)
 	evidence.Samples = []ReportSample{{Class: ReportSampleLifecycle, Index: 42, Hash: hashReportValue(marker)}}
-	report, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), evidence)
+	report, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), evidence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func reportFixture(t *testing.T) Report {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 10, 24*time.Hour, 100), checkpointEvidenceFixture(false))
+	report, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 10, 24*time.Hour, 100), checkpointEvidenceFixture(false))
 	if err != nil {
 		t.Fatal(err)
 	}

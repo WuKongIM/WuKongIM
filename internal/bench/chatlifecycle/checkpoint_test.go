@@ -19,7 +19,7 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 	}
 
 	qualificationSnapshots := coordinatorSnapshotFixture(fence, 101, 24*time.Hour, 1_000)
-	qualification, err := recorder.Capture(
+	qualification, err := captureCheckpoint(t, recorder,
 		start.Add(cfg.Thresholds.Timeline.Checkpoint),
 		qualificationSnapshots,
 		checkpointEvidenceFixture(false),
@@ -48,7 +48,7 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 	}
 	finalEvidence := checkpointEvidenceFixture(true)
 	finalEvidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
-	final, err := recorder.Capture(start.Add(cfg.Thresholds.Timeline.Final), finalSnapshots, finalEvidence)
+	final, err := captureCheckpoint(t, recorder, start.Add(cfg.Thresholds.Timeline.Final), finalSnapshots, finalEvidence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 	if final.Workers[0].Generation != qualification.Workers[0].Generation || final.Workers[0].SnapshotSequence <= qualification.Workers[0].SnapshotSequence {
 		t.Fatalf("worker generation did not continue: qualification=%+v final=%+v", qualification.Workers, final.Workers)
 	}
-	if _, err := recorder.Capture(start.Add(73*time.Hour), finalSnapshots, finalEvidence); !errors.Is(err, ErrCheckpointSequence) {
+	if _, err := captureCheckpoint(t, recorder, start.Add(73*time.Hour), finalSnapshots, finalEvidence); !errors.Is(err, ErrCheckpointSequence) {
 		t.Fatalf("duplicate final error = %v, want %v", err, ErrCheckpointSequence)
 	}
 }
@@ -77,7 +77,7 @@ func TestCheckpointRecorderRejectsEarlyDuplicateAndGenerationChanges(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = recorder.Capture(start.Add(cfg.Thresholds.Timeline.Checkpoint-time.Nanosecond), coordinatorSnapshotFixture(fence, 1, time.Hour, 1), checkpointEvidenceFixture(false))
+		_, err = captureCheckpoint(t, recorder, start.Add(cfg.Thresholds.Timeline.Checkpoint-time.Nanosecond), coordinatorSnapshotFixture(fence, 1, time.Hour, 1), checkpointEvidenceFixture(false))
 		if !errors.Is(err, ErrCheckpointSequence) {
 			t.Fatalf("early error = %v", err)
 		}
@@ -88,10 +88,10 @@ func TestCheckpointRecorderRejectsEarlyDuplicateAndGenerationChanges(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
+		if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := recorder.Capture(start.Add(25*time.Hour), coordinatorSnapshotFixture(fence, 2, 25*time.Hour, 2), checkpointEvidenceFixture(false)); !errors.Is(err, ErrCheckpointSequence) {
+		if _, err := captureCheckpoint(t, recorder, start.Add(25*time.Hour), coordinatorSnapshotFixture(fence, 2, 25*time.Hour, 2), checkpointEvidenceFixture(false)); !errors.Is(err, ErrCheckpointSequence) {
 			t.Fatalf("duplicate qualification error = %v", err)
 		}
 	})
@@ -101,12 +101,12 @@ func TestCheckpointRecorderRejectsEarlyDuplicateAndGenerationChanges(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
+		if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 			t.Fatal(err)
 		}
 		changed := fence
 		changed.Generation++
-		_, err = recorder.Capture(start.Add(72*time.Hour), coordinatorSnapshotFixture(changed, 2, 72*time.Hour, 2), checkpointEvidenceFixture(true))
+		_, err = captureCheckpoint(t, recorder, start.Add(72*time.Hour), coordinatorSnapshotFixture(changed, 2, 72*time.Hour, 2), checkpointEvidenceFixture(true))
 		if err == nil {
 			t.Fatal("changed generation was accepted")
 		}
@@ -124,14 +124,14 @@ func TestCheckpointTerminalQualificationStopsContinuation(t *testing.T) {
 	}
 	evidence := checkpointEvidenceFixture(false)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictProductFailure, Cause: VerdictCauseMessageLoss}
-	report, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), evidence)
+	report, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), evidence)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if report.Continue || !report.Final || report.Verdict.Outcome != VerdictProductFailure {
 		t.Fatalf("terminal qualification = %+v", report)
 	}
-	if _, err := recorder.Capture(start.Add(72*time.Hour), coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2), evidence); !errors.Is(err, ErrCheckpointSequence) {
+	if _, err := captureCheckpoint(t, recorder, start.Add(72*time.Hour), coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2), evidence); !errors.Is(err, ErrCheckpointSequence) {
 		t.Fatalf("post-terminal capture error = %v", err)
 	}
 }
@@ -152,7 +152,7 @@ func TestCheckpointFinalPassRequiresQualificationAndContinuousWorkerUptime(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := missingQualification.Capture(start.Add(72*time.Hour), finalSnapshots, passing); !errors.Is(err, ErrCheckpointSequence) {
+	if _, err := captureCheckpoint(t, missingQualification, start.Add(72*time.Hour), finalSnapshots, passing); !errors.Is(err, ErrCheckpointSequence) {
 		t.Fatalf("final pass without qualification error = %v", err)
 	}
 
@@ -160,17 +160,17 @@ func TestCheckpointFinalPassRequiresQualificationAndContinuousWorkerUptime(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
+	if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 		t.Fatal(err)
 	}
 	restarted := coordinatorSnapshotFixture(fence, 2, time.Hour, 2)
 	for index := range restarted {
 		restarted[index].Phase = WorkerPhaseFinal
 	}
-	if _, err := recorder.Capture(start.Add(72*time.Hour), restarted, passing); !errors.Is(err, ErrCheckpointEvidence) {
+	if _, err := captureCheckpoint(t, recorder, start.Add(72*time.Hour), restarted, passing); !errors.Is(err, ErrCheckpointEvidence) {
 		t.Fatalf("restarted worker error = %v, want %v", err, ErrCheckpointEvidence)
 	}
-	if _, err := recorder.Capture(start.Add(72*time.Hour), finalSnapshots, passing); err != nil {
+	if _, err := captureCheckpoint(t, recorder, start.Add(72*time.Hour), finalSnapshots, passing); err != nil {
 		t.Fatalf("valid retry after rejected uptime: %v", err)
 	}
 }
@@ -184,12 +184,12 @@ func TestCheckpointTerminalAfterQualificationFinalizesImmediately(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := recorder.Capture(start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
+	if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 		t.Fatal(err)
 	}
 	evidence := checkpointEvidenceFixture(false)
 	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash}
-	report, err := recorder.Capture(start.Add(25*time.Hour), coordinatorSnapshotFixture(fence, 2, 25*time.Hour, 2), evidence)
+	report, err := captureCheckpoint(t, recorder, start.Add(25*time.Hour), coordinatorSnapshotFixture(fence, 2, 25*time.Hour, 2), evidence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +242,20 @@ func TestCheckpointCaptureAndWriteCommitsOnlyAfterBothAtomicOutputs(t *testing.T
 	if _, err := recorder.CaptureAndWrite(start.Add(24*time.Hour), snapshots, evidence, outputs); !errors.Is(err, ErrCheckpointSequence) {
 		t.Fatalf("duplicate persisted qualification error = %v", err)
 	}
+}
+
+func captureCheckpoint(
+	t *testing.T,
+	recorder *CheckpointRecorder,
+	at time.Time,
+	snapshots []WorkerSnapshot,
+	evidence CheckpointEvidence,
+) (Report, error) {
+	t.Helper()
+	directory := t.TempDir()
+	return recorder.CaptureAndWrite(at, snapshots, evidence, CheckpointOutputPaths{
+		JSON: filepath.Join(directory, "checkpoint.json"), Markdown: filepath.Join(directory, "checkpoint.md"),
+	})
 }
 
 func checkpointEvidenceFixture(final bool) CheckpointEvidence {
