@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -260,7 +261,8 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 		work := &engineWork{due: now.Add(10 * time.Minute), eligibilityDeadline: now.Add(11 * time.Minute), kind: engineWorkLifecycle, edge: edge,
 			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true, NaturalCooling: true}, lifecycleTimerToken: 41,
 			activityVersion: 1, initialSequence: 42, lastActivityAt: now, observedLoaded: true}
-		fixture.engine.lifecycleByChannel[edge.PersonChannelID] = work
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
 		installed <- struct{}{}
 	}}); err != nil {
 		t.Fatal(err)
@@ -359,6 +361,22 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 	if !<-invalidated {
 		t.Fatal("approved timer activity did not retain harness-invalidated state")
 	}
+	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t)); leaseErr != nil || len(leased) != 0 {
+		t.Fatalf("invalidated timer lease = %+v,%v", leased, leaseErr)
+	}
+	if washed, washErr := fixture.engine.ApproveColdRevisitContext(context.Background(), candidate.ChannelID, candidate.TimerToken, candidate.ActivityVersion+1); washErr != nil || washed {
+		t.Fatalf("invalidated timer reapproval = %v,%v", washed, washErr)
+	}
+	dueResult := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		dueResult <- fixture.engine.processWork(context.Background(), fixture.engine.lifecycleByChannel[candidate.ChannelID], candidate.ReheatAt)
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var dueRuntime *RuntimeError
+	if dueErr := <-dueResult; !errors.As(dueErr, &dueRuntime) || dueRuntime.Code() != RuntimeFailureLifecycleLeaseInvalidated {
+		t.Fatalf("invalidated timer due error = %v", dueErr)
+	}
 	if missing, missingErr := fixture.engine.ApproveColdRevisitContext(context.Background(), channelid.EncodePersonChannel("missing-a", "missing-b"), candidate.TimerToken, candidate.ActivityVersion); missingErr != nil || missing {
 		t.Fatalf("missing approval = %v, %v", missing, missingErr)
 	}
@@ -367,7 +385,8 @@ func TestLifecycleCandidateEngineLeaseReconstructsCurrentTimerAndAdmitsRealSched
 		replacement := &engineWork{due: now.Add(20 * time.Minute), kind: engineWorkLifecycle, edge: edge,
 			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true}, lifecycleTimerToken: 42,
 			activityVersion: 1, initialSequence: 50, lastActivityAt: now.Add(2 * time.Minute), observedLoaded: true}
-		fixture.engine.lifecycleByChannel[candidate.ChannelID] = replacement
+		fixture.engine.installLifecycleTimer(replacement)
+		fixture.engine.offerLifecycleCandidate(replacement)
 		replacementChecked <- replacement.coldConfirmed
 	}}); err != nil {
 		t.Fatal(err)
@@ -416,6 +435,134 @@ func TestEngineLifecycleTimerTokenMonotonicOverflowIsHarnessInvalid(t *testing.T
 	}
 }
 
+func TestEngineLifecycleCandidateLeaseUsesFixedBalancedIndex(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now()
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	type replacementFence struct {
+		identity string
+		token    uint64
+		counts   [formalLogicalSlotGroups]int
+	}
+	replaced := make(chan replacementFence, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		var nextToken uint64
+		for slotID := uint32(1); slotID <= formalLogicalSlotGroups; slotID++ {
+			works := make([]*engineWork, 0, 150)
+			for ordinal := 0; len(works) < 150; ordinal++ {
+				identity := channelid.EncodePersonChannel(
+					fmt.Sprintf("indexed-%02d-%06d-a", slotID, ordinal),
+					fmt.Sprintf("indexed-%02d-%06d-b", slotID, ordinal),
+				)
+				hashSlot := lifecycleHashSlotForKey(identity, formalHashSlots)
+				assigned, _ := assignment.Lookup(hashSlot)
+				if assigned != slotID {
+					continue
+				}
+				nextToken++
+				works = append(works, &engineWork{
+					due: now.Add(10*time.Minute + time.Duration(len(works))*time.Second), kind: engineWorkLifecycle,
+					edge:                RelationshipEdge{PersonChannelID: identity},
+					schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+					lifecycleTimerToken: nextToken, activityVersion: 1, initialSequence: 10, lastActivityAt: now, observedLoaded: true,
+				})
+			}
+			for index := 50; index < len(works); index++ {
+				fixture.engine.installLifecycleTimer(works[index])
+				fixture.engine.offerLifecycleCandidate(works[index])
+			}
+			for index := 0; index < 50; index++ {
+				fixture.engine.installLifecycleTimer(works[index])
+				fixture.engine.offerLifecycleCandidate(works[index])
+			}
+		}
+		for index := 0; index < 5_000; index++ {
+			identity := fmt.Sprintf("poison-unindexed-%05d", index)
+			fixture.engine.lifecycleByChannel[identity] = &engineWork{
+				due: now.Add(6 * time.Minute), kind: engineWorkLifecycle,
+				edge:                RelationshipEdge{PersonChannelID: identity},
+				schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				lifecycleTimerToken: uint64(index + 100_000), activityVersion: 1, initialSequence: 10, lastActivityAt: now, observedLoaded: true,
+			}
+		}
+		var counts [formalLogicalSlotGroups]int
+		for slot := range formalLogicalSlotGroups {
+			counts[slot] = int(fixture.engine.lifecycleCandidates[slot].count)
+		}
+		old := fixture.engine.lifecycleCandidates[0].items[0].work
+		replacement := &engineWork{
+			due: now.Add(10 * time.Minute), kind: engineWorkLifecycle,
+			edge:                RelationshipEdge{PersonChannelID: old.edge.PersonChannelID},
+			schedule:            ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+			lifecycleTimerToken: nextToken + 1, activityVersion: 1, initialSequence: 11, lastActivityAt: now, observedLoaded: true,
+		}
+		fixture.engine.installLifecycleTimer(replacement)
+		fixture.engine.offerLifecycleCandidate(replacement)
+		fixture.engine.completeLifecycleTimer(replacement, now)
+		replacement.lifecycleTimerToken++
+		fixture.engine.installLifecycleTimer(replacement)
+		fixture.engine.offerLifecycleCandidate(replacement)
+		replaced <- replacementFence{identity: replacement.edge.PersonChannelID, token: replacement.lifecycleTimerToken, counts: counts}
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	replacement := <-replaced
+	for slot, count := range replacement.counts {
+		if count != lifecyclePerSlot {
+			t.Fatalf("slot %d indexed count = %d, want %d", slot+1, count, lifecyclePerSlot)
+		}
+	}
+	candidates, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), lifecycleCohortSize, assignment)
+	if err != nil || len(candidates) != lifecycleCohortSize {
+		t.Fatalf("bounded lease = %d,%v", len(candidates), err)
+	}
+	var perSlot [formalLogicalSlotGroups]int
+	foundReplacement := false
+	for _, candidate := range candidates {
+		if strings.HasPrefix(candidate.ChannelID, "poison-") {
+			t.Fatalf("unindexed poison leaked into lease: %+v", candidate)
+		}
+		perSlot[candidate.SlotID-1]++
+		if candidate.ChannelID == replacement.identity {
+			if candidate.TimerToken != replacement.token {
+				t.Fatalf("ABA replacement token = %d, want %d", candidate.TimerToken, replacement.token)
+			}
+			foundReplacement = true
+		}
+	}
+	for slot, count := range perSlot {
+		if count != lifecyclePerSlot {
+			t.Fatalf("slot %d lease count = %d, want %d", slot+1, count, lifecyclePerSlot)
+		}
+	}
+	if !foundReplacement {
+		t.Fatal("current ABA replacement missing from bounded lease")
+	}
+	scanned := make(chan int, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { scanned <- fixture.engine.lifecycleCandidateLeaseScanned }}); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-scanned; got != lifecycleCohortSize {
+		t.Fatalf("lease scanned = %d, want fixed %d", got, lifecycleCohortSize)
+	}
+	mapping := make([]uint32, formalHashSlots)
+	for hashSlot := range formalHashSlots {
+		mapping[hashSlot], _ = assignment.Lookup(uint16(hashSlot))
+	}
+	mapping[0], mapping[22] = mapping[22], mapping[0]
+	mismatch, err := NewLifecycleSlotAssignment(mapping)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mismatch); !errors.Is(err, ErrLifecycleHarnessInvalid) {
+		t.Fatalf("mismatched mapping error = %v, want harness invalid", err)
+	}
+}
+
 func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 	if err := fixture.engine.Start(context.Background()); err != nil {
@@ -437,7 +584,8 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 		work := &engineWork{due: now.Add(10 * time.Minute), kind: engineWorkLifecycle, edge: edge,
 			schedule: ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true}, lifecycleTimerToken: 1,
 			activityVersion: math.MaxUint64, initialSequence: 42, lastActivityAt: now, observedLoaded: true}
-		fixture.engine.lifecycleByChannel[edge.PersonChannelID] = work
+		fixture.engine.installLifecycleTimer(work)
+		fixture.engine.offerLifecycleCandidate(work)
 		inflight := &engineInflight{intent: intent, currentClientSeq: 1}
 		inflight.registerClientSeq(1)
 		fixture.engine.inflight[intent.Logical.ClientMsgNo] = inflight
@@ -465,6 +613,22 @@ func TestEngineLifecycleActivityVersionOverflowIsHarnessInvalid(t *testing.T) {
 	}
 	if !<-unchanged {
 		t.Fatal("activity overflow mutated the fenced quiet window")
+	}
+	if leased, leaseErr := fixture.engine.LeaseLifecycleCandidates(context.Background(), 1, mustInitialLifecycleSlotAssignment(t)); leaseErr != nil || len(leased) != 0 {
+		t.Fatalf("exhausted timer lease = %+v,%v", leased, leaseErr)
+	}
+	if washed, washErr := fixture.engine.ApproveColdRevisitContext(context.Background(), edge.PersonChannelID, 1, math.MaxUint64); washErr != nil || washed {
+		t.Fatalf("exhausted timer reapproval = %v,%v", washed, washErr)
+	}
+	dueResult := make(chan error, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+		dueResult <- fixture.engine.processWork(context.Background(), fixture.engine.lifecycleByChannel[edge.PersonChannelID], now.Add(10*time.Minute))
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	var dueRuntime *RuntimeError
+	if dueErr := <-dueResult; !errors.As(dueErr, &dueRuntime) || dueRuntime.Code() != RuntimeFailureLifecycleFenceExhausted {
+		t.Fatalf("exhausted timer due error = %v", dueErr)
 	}
 }
 

@@ -104,9 +104,19 @@ polling cannot pin that owner barrier ahead of socket cleanup.
 Request bodies, client responses, and server responses have fixed byte caps
 and strict JSON schemas. A running, exactly fenced worker may lease at most
 1,200 current revisit candidates. The Engine reconstructs those rows only from
-its already bounded live `lifecycleByChannel` timer index, including the highest
-successful initial SENDACK sequence and last activity time retained on that
-timer; completed and expired timers disappear through the existing cleanup.
+a fixed owner-loop index of 12 logical-Slot buckets with at most 100 entries per
+bucket; it never scans the potentially much larger live timer map. A first
+successful SENDACK offers the exact current timer token/version to its bucket.
+When full, the bucket deterministically retains the 100 earliest due timers by
+due time, canonical channel ID, and token, so a later better candidate can
+replace the bounded worst entry. Approval, completion, expiry, replacement, and
+later activity remove or refresh the exact pointer/token/version entry. A timer
+invalidated after approval or exhausted at the activity-version boundary never
+re-enters or passes admission, and still fails explicitly at its due time. Lease
+copies and scans at most 1,200 entries and sorts only after leaving the owner
+loop. It includes the highest successful initial SENDACK sequence and last
+activity time retained on each timer; completed and expired timers disappear
+through the existing cleanup.
 Each transient row carries a canonical person-channel ID, recomputed physical
 hash slot in the 256-slot space, its owning Slot Raft Group, quiet lower/upper
 bounds, deterministic reheat time, a generation-local timer token, and a
@@ -116,12 +126,14 @@ quiet-window lease. Both values are transient and never enter snapshots or
 reports. Worker protocol validation never trusts the declared hash slot. The
 current worker generation uses a strictly validated
 continuous 256-to-12 assignment for the reviewed no-migration execution
-profile. The immutable assignment constructor and cohort selector also accept
-and recheck a complete live 256-entry mapping, without assuming equal
-one-twelfth distribution or modulo ownership. Preflight does not yet transmit
-that live mapping into the worker assignment, so a migration-active lifecycle
-proof requires the future coordinator integration to inject it before the run;
-this module alone does not claim that dynamic migration has been proved.
+profile. A lease whose assignment differs from the mapping used to build the
+fixed Engine index is harness-invalid. The immutable assignment constructor and
+standalone cohort selector can validate another complete live 256-entry mapping,
+without assuming equal one-twelfth distribution or modulo ownership, but
+preflight does not yet transmit and install that mapping into the worker index.
+A migration-active lifecycle proof therefore requires future coordinator
+integration; this module alone does not claim that dynamic migration has been
+proved.
 
 Every ten minutes, starting ten minutes after the measured-run boundary, the
 independent lifecycle-proof module selects exactly 1,200 rows: 100 for each of

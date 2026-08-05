@@ -421,17 +421,33 @@ type engineWork struct {
 	// lifecycleLeaseInvalidated preserves the harness failure after activity
 	// arrives on a timer whose exact cold lease was already approved.
 	lifecycleLeaseInvalidated bool
+	// lifecycleFenceExhausted permanently fences a timer whose activity version
+	// cannot advance without wrapping.
+	lifecycleFenceExhausted bool
 	// lifecycleTimerToken distinguishes replacement timers for the same channel;
 	// activityVersion distinguishes quiet windows within one live timer.
-	lifecycleTimerToken uint64
-	activityVersion     uint64
-	requiredSender      string
-	offered             bool
+	lifecycleTimerToken        uint64
+	activityVersion            uint64
+	lifecycleCandidateSlot     uint8
+	lifecycleCandidatePosition uint8
+	requiredSender             string
+	offered                    bool
 	// initialSequence and lastActivityAt are retained only on one live revisit
 	// timer so a lifecycle lease can be reconstructed without channel history.
 	initialSequence uint64
 	lastActivityAt  time.Time
 	observedLoaded  bool
+}
+
+type engineLifecycleCandidateEntry struct {
+	work            *engineWork
+	timerToken      uint64
+	activityVersion uint64
+}
+
+type engineLifecycleCandidateBucket struct {
+	items [lifecyclePerSlot]engineLifecycleCandidateEntry
+	count uint8
 }
 
 type engineWorkHeap []*engineWork
@@ -602,17 +618,22 @@ type Engine struct {
 	nextLifecycleTimerToken uint64
 	activeLifecycleTimers   int
 	lifecycleByChannel      map[string]*engineWork
-	activeChannels          []engineActiveChannel
-	activePosition          map[string]int
-	pendingChannels         []enginePendingChannel
-	pendingPosition         map[string]int
-	activeCursor            uint64
-	retryAttempts           uint64
-	finalFailures           uint64
-	harnessInvalid          uint64
-	activityUnderDelivered  uint64
-	activityFutureCanceled  uint64
-	now                     time.Time
+	// lifecycleCandidateSlots is the immutable no-migration mapping used to
+	// build the fixed twelve-by-one-hundred live lease index.
+	lifecycleCandidateSlots        LifecycleSlotAssignment
+	lifecycleCandidates            [formalLogicalSlotGroups]engineLifecycleCandidateBucket
+	lifecycleCandidateLeaseScanned int
+	activeChannels                 []engineActiveChannel
+	activePosition                 map[string]int
+	pendingChannels                []enginePendingChannel
+	pendingPosition                map[string]int
+	activeCursor                   uint64
+	retryAttempts                  uint64
+	finalFailures                  uint64
+	harnessInvalid                 uint64
+	activityUnderDelivered         uint64
+	activityFutureCanceled         uint64
+	now                            time.Time
 }
 
 // NewEngine wires the existing deterministic models and bounded verifier.
@@ -636,6 +657,10 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if config.Generator.workerID != config.WorkerID || config.Generator.workers != config.WorkerCount {
 		return nil, errEngineConfig
 	}
+	lifecycleCandidateSlots, err := newInitialLifecycleSlotAssignment()
+	if err != nil {
+		return nil, errEngineConfig
+	}
 	onlineTarget, err := workerOnlineTarget(config.Generator.workload.OnlineUsers, config.WorkerID, config.WorkerCount)
 	if err != nil {
 		return nil, err
@@ -649,6 +674,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
 		activityEligibilityWindow: config.ActivityEligibilityWindow,
+		lifecycleCandidateSlots:   lifecycleCandidateSlots,
 		scheduler: sessionScheduler{
 			workload: config.Generator.workload, workerID: config.WorkerID,
 			workerCount: config.WorkerCount, onlineTarget: onlineTarget, bootstrapping: true,
@@ -746,6 +772,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.nextClientSeq = 0
 	e.nextLifecycleTimerToken = 0
 	e.activeLifecycleTimers = 0
+	e.lifecycleCandidates = [formalLogicalSlotGroups]engineLifecycleCandidateBucket{}
+	e.lifecycleCandidateLeaseScanned = 0
 	e.retryAttempts = 0
 	e.finalFailures = 0
 	e.harnessInvalid = 0
@@ -1206,12 +1234,14 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		work := e.lifecycleByChannel[personChannelID]
 		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
-			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion {
+			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion ||
+			work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted {
 			response <- false
 			return
 		}
 		work.coldConfirmed = true
 		work.lifecycleLeaseInvalidated = false
+		e.removeLifecycleCandidate(work)
 		response <- true
 	}}); err != nil {
 		return false, err
@@ -1230,28 +1260,48 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 	if ctx == nil || requested <= 0 || requested > lifecycleCohortSize || assignment.HashSlotCount() != formalHashSlots {
 		return nil, errEngineConfig
 	}
+	if assignment != e.lifecycleCandidateSlots {
+		return nil, ErrLifecycleHarnessInvalid
+	}
 	response := make(chan []LifecycleCandidate, 1)
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
-		candidates := make([]LifecycleCandidate, 0, min(requested, len(e.lifecycleByChannel)))
-		for identity, work := range e.lifecycleByChannel {
-			if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
-				work.lifecycleTimerToken == 0 || work.activityVersion == 0 || work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded {
-				continue
+		candidates := make([]LifecycleCandidate, 0, lifecycleCohortSize)
+		e.lifecycleCandidateLeaseScanned = 0
+		for slot := range formalLogicalSlotGroups {
+			bucket := &e.lifecycleCandidates[slot]
+			for position := 0; position < int(bucket.count); position++ {
+				e.lifecycleCandidateLeaseScanned++
+				entry := bucket.items[position]
+				work := entry.work
+				if work == nil || work.lifecycleCandidateSlot != uint8(slot+1) || work.lifecycleCandidatePosition != uint8(position+1) ||
+					work.lifecycleTimerToken != entry.timerToken || work.activityVersion != entry.activityVersion ||
+					e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
+					!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted ||
+					work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded {
+					continue
+				}
+				quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
+				quietDeadline := work.due.Add(-time.Nanosecond)
+				if !quietDeadline.After(quietNotBefore) {
+					continue
+				}
+				identity := work.edge.PersonChannelID
+				hash := lifecycleHashSlotForKey(identity, formalHashSlots)
+				slotID, ok := e.lifecycleCandidateSlots.Lookup(hash)
+				if !ok || slotID != uint32(slot+1) {
+					continue
+				}
+				candidates = append(candidates, LifecycleCandidate{ChannelID: identity, ChannelType: 1, HashSlot: hash, SlotID: slotID,
+					TimerToken: work.lifecycleTimerToken, ActivityVersion: work.activityVersion, InitialSequence: work.initialSequence,
+					QuietNotBefore: quietNotBefore, QuietDeadline: quietDeadline, ReheatAt: work.due, ObservedLoaded: true})
 			}
-			quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
-			quietDeadline := work.due.Add(-time.Nanosecond)
-			if !quietDeadline.After(quietNotBefore) {
-				continue
-			}
-			hash := lifecycleHashSlotForKey(identity, formalHashSlots)
-			slotID, ok := assignment.Lookup(hash)
-			if !ok {
-				continue
-			}
-			candidates = append(candidates, LifecycleCandidate{ChannelID: identity, ChannelType: 1, HashSlot: hash, SlotID: slotID,
-				TimerToken: work.lifecycleTimerToken, ActivityVersion: work.activityVersion, InitialSequence: work.initialSequence,
-				QuietNotBefore: quietNotBefore, QuietDeadline: quietDeadline, ReheatAt: work.due, ObservedLoaded: true})
 		}
+		response <- candidates
+	}}); err != nil {
+		return nil, err
+	}
+	select {
+	case candidates := <-response:
 		sort.Slice(candidates, func(i, j int) bool {
 			if !candidates[i].ReheatAt.Equal(candidates[j].ReheatAt) {
 				return candidates[i].ReheatAt.Before(candidates[j].ReheatAt)
@@ -1261,12 +1311,6 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 		if len(candidates) > requested {
 			candidates = candidates[:requested]
 		}
-		response <- candidates
-	}}); err != nil {
-		return nil, err
-	}
-	select {
-	case candidates := <-response:
 		return candidates, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -1339,7 +1383,7 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 				response <- err
 				return
 			}
-			e.lifecycleByChannel[edge.PersonChannelID] = work
+			e.installLifecycleTimer(work)
 			e.activeLifecycleTimers++
 		}
 		response <- nil
@@ -1835,6 +1879,8 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		}
 		e.activeLifecycleTimers = 0
 		e.lifecycleByChannel = nil
+		e.lifecycleCandidates = [formalLogicalSlotGroups]engineLifecycleCandidateBucket{}
+		e.lifecycleCandidateLeaseScanned = 0
 		e.activeChannels = nil
 		e.activePosition = nil
 		e.pendingChannels = nil
@@ -2083,6 +2129,10 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			e.completeLifecycleTimer(work, now)
 			return &RuntimeError{code: RuntimeFailureLifecycleLeaseInvalidated}
 		}
+		if work.lifecycleFenceExhausted {
+			e.completeLifecycleTimer(work, now)
+			return &RuntimeError{code: RuntimeFailureLifecycleFenceExhausted}
+		}
 		if work.schedule.RequiresColdRuntimeEvidence && !work.coldConfirmed {
 			e.completeLifecycleTimer(work, now)
 			return nil
@@ -2144,7 +2194,113 @@ func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }
 
+func (e *Engine) installLifecycleTimer(work *engineWork) {
+	if work == nil || work.edge.PersonChannelID == "" {
+		return
+	}
+	if existing := e.lifecycleByChannel[work.edge.PersonChannelID]; existing != nil && existing != work {
+		e.removeLifecycleCandidate(existing)
+	}
+	e.lifecycleByChannel[work.edge.PersonChannelID] = work
+}
+
+func (e *Engine) offerLifecycleCandidate(work *engineWork) {
+	if work == nil || e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
+		!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
+		work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded || !validLifecyclePersonChannelID(work.edge.PersonChannelID) {
+		return
+	}
+	if work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted {
+		e.removeLifecycleCandidate(work)
+		return
+	}
+	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
+	quietDeadline := work.due.Add(-time.Nanosecond)
+	if !quietDeadline.After(quietNotBefore) {
+		e.removeLifecycleCandidate(work)
+		return
+	}
+	if work.lifecycleCandidateSlot != 0 {
+		slot := int(work.lifecycleCandidateSlot) - 1
+		position := int(work.lifecycleCandidatePosition) - 1
+		if slot >= 0 && slot < formalLogicalSlotGroups && position >= 0 && position < int(e.lifecycleCandidates[slot].count) {
+			entry := &e.lifecycleCandidates[slot].items[position]
+			if entry.work == work {
+				entry.timerToken, entry.activityVersion = work.lifecycleTimerToken, work.activityVersion
+				return
+			}
+		}
+		e.removeLifecycleCandidate(work)
+	}
+	hashSlot := lifecycleHashSlotForKey(work.edge.PersonChannelID, formalHashSlots)
+	slotID, ok := e.lifecycleCandidateSlots.Lookup(hashSlot)
+	if !ok || slotID == 0 || slotID > formalLogicalSlotGroups {
+		return
+	}
+	bucket := &e.lifecycleCandidates[slotID-1]
+	if int(bucket.count) == lifecyclePerSlot {
+		worst := 0
+		for position := 1; position < int(bucket.count); position++ {
+			if lifecycleCandidateWorkLess(bucket.items[worst].work, bucket.items[position].work) {
+				worst = position
+			}
+		}
+		if !lifecycleCandidateWorkLess(work, bucket.items[worst].work) {
+			return
+		}
+		e.removeLifecycleCandidate(bucket.items[worst].work)
+		bucket = &e.lifecycleCandidates[slotID-1]
+	}
+	position := int(bucket.count)
+	bucket.items[position] = engineLifecycleCandidateEntry{work: work, timerToken: work.lifecycleTimerToken, activityVersion: work.activityVersion}
+	bucket.count++
+	work.lifecycleCandidateSlot = uint8(slotID)
+	work.lifecycleCandidatePosition = uint8(position + 1)
+}
+
+func (e *Engine) removeLifecycleCandidate(work *engineWork) {
+	if work == nil || work.lifecycleCandidateSlot == 0 || work.lifecycleCandidatePosition == 0 {
+		return
+	}
+	slot := int(work.lifecycleCandidateSlot) - 1
+	position := int(work.lifecycleCandidatePosition) - 1
+	work.lifecycleCandidateSlot, work.lifecycleCandidatePosition = 0, 0
+	if slot < 0 || slot >= formalLogicalSlotGroups {
+		return
+	}
+	bucket := &e.lifecycleCandidates[slot]
+	if position < 0 || position >= int(bucket.count) || bucket.items[position].work != work {
+		return
+	}
+	last := int(bucket.count) - 1
+	if position != last {
+		bucket.items[position] = bucket.items[last]
+		moved := bucket.items[position].work
+		moved.lifecycleCandidateSlot = uint8(slot + 1)
+		moved.lifecycleCandidatePosition = uint8(position + 1)
+	}
+	bucket.items[last] = engineLifecycleCandidateEntry{}
+	bucket.count--
+}
+
+func lifecycleCandidateWorkLess(left, right *engineWork) bool {
+	if left == nil {
+		return right != nil
+	}
+	if right == nil {
+		return false
+	}
+	if !left.due.Equal(right.due) {
+		return left.due.Before(right.due)
+	}
+	if left.edge.PersonChannelID != right.edge.PersonChannelID {
+		return left.edge.PersonChannelID < right.edge.PersonChannelID
+	}
+	return left.lifecycleTimerToken < right.lifecycleTimerToken
+}
+
 func (e *Engine) completeLifecycleTimer(work *engineWork, now time.Time) {
+	e.removeLifecycleCandidate(work)
 	if e.lifecycleByChannel[work.edge.PersonChannelID] == work {
 		delete(e.lifecycleByChannel, work.edge.PersonChannelID)
 	}
@@ -2302,6 +2458,8 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 				lifecycleErr = e.recordRuntimeFailure(RuntimeFailureLifecycleLeaseInvalidated, lifecycle.activityVersion)
 			}
 			if lifecycle.activityVersion == math.MaxUint64 {
+				lifecycle.lifecycleFenceExhausted = true
+				e.removeLifecycleCandidate(lifecycle)
 				lifecycleErr = errors.Join(lifecycleErr, e.recordRuntimeFailure(RuntimeFailureLifecycleFenceExhausted, lifecycle.activityVersion))
 			} else {
 				lifecycle.activityVersion++
@@ -2310,6 +2468,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 				}
 				lifecycle.lastActivityAt = e.clock.Now()
 				lifecycle.observedLoaded = true
+				e.offerLifecycleCandidate(lifecycle)
 			}
 		}
 		e.cancelAttemptTimeout(inflight)
@@ -2422,7 +2581,7 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 			return false, err
 		}
 		if schedule.RequiresColdRuntimeEvidence {
-			e.lifecycleByChannel[edge.PersonChannelID] = work
+			e.installLifecycleTimer(work)
 		}
 		e.activeLifecycleTimers++
 		if schedule.Class == LifecycleRotating || schedule.Class == LifecycleLong {
