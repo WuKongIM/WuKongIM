@@ -204,18 +204,29 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.phase != WorkerPhaseUnassigned && s.phase != WorkerPhaseFinal {
+		s.mu.Unlock()
 		writeWorkerError(response, http.StatusConflict, WorkerErrorAssignmentConflict)
 		return
 	}
 	if s.phase == WorkerPhaseFinal && assignment.Generation <= s.assignment.Generation {
+		s.mu.Unlock()
 		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	if request.Context().Err() != nil {
+		s.mu.Unlock()
 		return
 	}
 	generation, err := s.factory.New(assignment)
 	if err != nil || generation == nil {
+		s.mu.Unlock()
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	if request.Context().Err() != nil {
+		s.mu.Unlock()
+		generation.Stop()
 		return
 	}
 	s.assignment = assignment
@@ -230,7 +241,9 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	s.lastGrantRequest = WorkerGrantRequest{}
 	s.lastGrantResult = WorkerGrantResponse{}
 	s.lastGrantFailed = false
-	writeWorkerJSON(response, http.StatusOK, s.statusLocked())
+	status := s.statusLocked()
+	s.mu.Unlock()
+	writeWorkerJSON(response, http.StatusOK, status)
 }
 
 func (s *WorkerServer) handleStart(response http.ResponseWriter, request *http.Request) {
@@ -257,14 +270,34 @@ func (s *WorkerServer) handleStart(response http.ResponseWriter, request *http.R
 		writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
 		return
 	}
-	if err := s.generation.Start(context.Background()); err != nil {
+	if request.Context().Err() != nil {
+		return
+	}
+	if err := s.generation.Start(request.Context()); err != nil {
+		if request.Context().Err() != nil {
+			s.beginCanceledStartCleanupLocked()
+			return
+		}
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	if request.Context().Err() != nil {
+		s.beginCanceledStartCleanupLocked()
 		return
 	}
 	s.startedAt = s.now()
 	s.phase = WorkerPhaseRunning
 	go s.watchGeneration(s.generation)
 	writeWorkerJSON(response, http.StatusOK, s.statusLocked())
+}
+
+// beginCanceledStartCleanupLocked fences a generation whose Start crossed its
+// request deadline so it cannot be started again after being stopped.
+func (s *WorkerServer) beginCanceledStartCleanupLocked() {
+	task := &workerStopTask{done: make(chan struct{})}
+	s.stop = task
+	s.phase = WorkerPhaseStopping
+	go s.runStop(s.generation, task, false)
 }
 
 func (s *WorkerServer) handleStatus(response http.ResponseWriter, _ *http.Request) {

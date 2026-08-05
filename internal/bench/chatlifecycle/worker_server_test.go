@@ -95,6 +95,102 @@ func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
 	}
 }
 
+func TestWorkerServerCanceledAssignmentCannotInstallAfterFactoryReturns(t *testing.T) {
+	generation := newFakeWorkerGeneration()
+	factoryEntered := make(chan struct{})
+	releaseFactory := make(chan struct{})
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			close(factoryEntered)
+			<-releaseFactory
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new worker server: %v", err)
+	}
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "canceled-assignment", Generation: 1},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	}
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	assignDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		assignDone <- workerRequestWithContext(t, server, requestContext, http.MethodPost, "/v1/chat-lifecycle/assign", assignment)
+	}()
+	<-factoryEntered
+	cancelRequest()
+	close(releaseFactory)
+	<-assignDone
+
+	statusResponse := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	var status WorkerStatus
+	if err := json.Unmarshal(statusResponse.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	if status.Phase != WorkerPhaseUnassigned {
+		t.Fatalf("phase after canceled assignment = %s, want unassigned", status.Phase)
+	}
+	if generation.stops != 1 {
+		t.Fatalf("discarded generation stops = %d, want 1 cleanup", generation.stops)
+	}
+}
+
+func TestWorkerServerCanceledStartCannotLeaveStoppedGenerationAssigned(t *testing.T) {
+	generation := &blockingStartWorkerGeneration{
+		fakeWorkerGeneration: newFakeWorkerGeneration(),
+		startEntered:         make(chan struct{}),
+		startRelease:         make(chan struct{}),
+	}
+	generation.stopped = make(chan struct{})
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new worker server: %v", err)
+	}
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "canceled-start", Generation: 1},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", assignment)
+
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	startDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		startDone <- workerRequestWithContext(
+			t, server, requestContext, http.MethodPost, "/v1/chat-lifecycle/start",
+			WorkerStartRequest{WorkerFence: assignment.WorkerFence},
+		)
+	}()
+	<-generation.startEntered
+	cancelRequest()
+	close(generation.startRelease)
+	<-startDone
+	server.mu.Lock()
+	stopTask := server.stop
+	server.mu.Unlock()
+	if stopTask == nil {
+		t.Fatal("canceled late-success Start did not install server-owned cleanup")
+	}
+	<-stopTask.done
+
+	statusResponse := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	var status WorkerStatus
+	if err := json.Unmarshal(statusResponse.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode status: %v", err)
+	}
+	if status.Phase != WorkerPhaseFinal {
+		t.Fatalf("phase after canceled late-success Start = %s, want final", status.Phase)
+	}
+}
+
 func TestWorkerServerAppliesCoordinatorGrantOnceAndFencesSequence(t *testing.T) {
 	t.Parallel()
 
@@ -1655,6 +1751,19 @@ type fakeWorkerGeneration struct {
 	drainErr     error
 	snapshotErr  error
 	doneOnce     sync.Once
+}
+
+type blockingStartWorkerGeneration struct {
+	*fakeWorkerGeneration
+	startEntered chan struct{}
+	startRelease chan struct{}
+}
+
+func (g *blockingStartWorkerGeneration) Start(context.Context) error {
+	g.starts++
+	close(g.startEntered)
+	<-g.startRelease
+	return nil
 }
 
 func newFakeWorkerGeneration() *fakeWorkerGeneration {

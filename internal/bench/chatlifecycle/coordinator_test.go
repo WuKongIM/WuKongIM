@@ -243,6 +243,7 @@ func TestCoordinatorDeliversOneGlobalGrantAfterAllWorkersReadyAndRetriesSameSequ
 	log := []string{}
 	typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	barrierClock := newGrantBarrierCoordinatorClock(time.Unix(1_700_000_000, 0))
 	for workerID := range workers {
 		typedWorkers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
 		workers[workerID] = typedWorkers[workerID]
@@ -256,8 +257,10 @@ func TestCoordinatorDeliversOneGlobalGrantAfterAllWorkersReadyAndRetriesSameSequ
 		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
 		Workers: workers,
 		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			<-barrierClock.reached
 			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
 		}),
+		Clock: barrierClock,
 	})
 	if err != nil {
 		t.Fatalf("NewCoordinator() error = %v", err)
@@ -297,13 +300,16 @@ func TestCoordinatorDoesNotConsumeGrantBeforeEveryWorkerTrafficReady(t *testing.
 	cfg.RunID = "coordinator-ready-barrier"
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	statusCalls := make(chan uint64, coordinatorWorkerCount*3)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
 	typedWorkers := make([]*staggeredReadyCoordinatorWorker, coordinatorWorkerCount)
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 	for workerID := range workers {
 		typedWorkers[workerID] = &staggeredReadyCoordinatorWorker{
-			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
-			readyAfter:                 workerID + 1,
-			statusCalls:                statusCalls,
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{
+				id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+			},
+			readyAfter:  workerID + 1,
+			statusCalls: statusCalls,
 		}
 		workers[workerID] = typedWorkers[workerID]
 	}
@@ -315,6 +321,9 @@ func TestCoordinatorDoesNotConsumeGrantBeforeEveryWorkerTrafficReady(t *testing.
 		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
 		Workers: workers,
 		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+				<-grantCalls
+			}
 			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
 		}),
 		Clock: clock,
@@ -368,10 +377,13 @@ func TestCoordinatorTrafficReadinessIsBoundedByWarmupDeadline(t *testing.T) {
 		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
 			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
 		}),
-		Setup:    coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
-		Workers:  workers,
-		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult { return ObserverResult{} }),
-		Clock:    clock,
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
 	})
 	if err != nil {
 		t.Fatalf("NewCoordinator() error = %v", err)
@@ -390,6 +402,88 @@ func TestCoordinatorTrafficReadinessIsBoundedByWarmupDeadline(t *testing.T) {
 		}
 	case <-time.After(250 * time.Millisecond):
 		t.Fatal("traffic readiness remained unbounded beyond warmup deadline")
+	}
+}
+
+func TestCoordinatorObserverProductFailureStopsWorkersBeforeTrafficReady(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-observer-before-ready"
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &staggeredReadyCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &log},
+			readyAfter:                 math.MaxInt,
+			statusCalls:                make(chan uint64, 1),
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 32,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	result := coordinator.Run(ctx, cfg)
+	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
+		t.Fatalf("Run() pre-ready observer result = %+v, want product_failure/observer", result)
+	}
+	wantStops := []string{"stop-0", "stop-1", "stop-2"}
+	canonical := canonicalCoordinatorLog(&log)
+	if len(canonical) < len(wantStops) || !reflect.DeepEqual(canonical[len(canonical)-len(wantStops):], wantStops) {
+		t.Fatalf("pre-ready observer cleanup = %v, want all fixed workers stopped", canonical)
+	}
+}
+
+func TestCoordinatorReadinessTimeoutPreservesObserverProductRace(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-ready-timeout-product-race"
+	cfg.Thresholds.Timeline.Warmup = time.Second
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	statusCalls := make(chan uint64, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &staggeredReadyCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			readyAfter:                 math.MaxInt,
+			statusCalls:                statusCalls,
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 33,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-clock.created
+	clock.advance(time.Second)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-statusCalls
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
+		t.Fatalf("Run() readiness timeout race = %+v, want product_failure/observer", result)
 	}
 }
 
@@ -417,15 +511,25 @@ func coordinatorSnapshotFixture(fence WorkerFence, sequence uint64, uptime time.
 	return snapshots
 }
 
+func configureFastCoordinatorCutoff(cfg *Config) {
+	cfg.Observation.Cadence = 250 * time.Millisecond
+	cfg.Thresholds.Timeline = TimelineThresholds{
+		Warmup: 100 * time.Millisecond, Checkpoint: 500 * time.Millisecond, Final: 750 * time.Millisecond,
+	}
+}
+
 func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-start-order"
+	configureFastCoordinatorCutoff(&cfg)
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	observerStarted := make(chan struct{})
 	log := []string{}
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &log, grantBarrier: observerStarted,
+		}
 	}
 	coordinator, err := NewCoordinator(CoordinatorOptions{
 		Generation: 17,
@@ -452,7 +556,10 @@ func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 	resultChannel := make(chan CoordinatorResult, 1)
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
 	<-observerStarted
-	clock.advance(30 * time.Minute)
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	clock.advance(cfg.Thresholds.Timeline.Final)
 	result := <-resultChannel
 	if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted {
 		t.Fatalf("Run() result = %+v", result)
@@ -494,28 +601,20 @@ func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 
 func TestCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T) {
 	cfg := LocalConfig()
-	assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t, cfg, 30*time.Minute)
-}
-
-func TestCoordinatorFormalHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T) {
-	cfg := FormalConfig()
-	assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t, cfg, 72*time.Hour)
-}
-
-func assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T, cfg Config, final time.Duration) {
-	t.Helper()
-	if cfg.Thresholds.Timeline.Final != final {
-		t.Fatalf("configured final cutoff = %s, want %s", cfg.Thresholds.Timeline.Final, final)
+	cfg.RunID = "coordinator-final-cutoff"
+	cfg.Observation.Cadence = 500 * time.Millisecond
+	cfg.Thresholds.Timeline = TimelineThresholds{
+		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
 	}
-	cfg.RunID = "coordinator-final-cutoff-" + string(cfg.Profile)
 	observerFixture := newObserverFixture(cfg)
 	coordinatorClock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	statusCalls := make(chan uint64, coordinatorWorkerCount)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
 	log := []string{}
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		workers[workerID] = &recordingCoordinatorWorker{
-			id: uint64(workerID), log: &log, statusCalls: statusCalls,
+			id: uint64(workerID), log: &log, statusCalls: statusCalls, grantCalled: grantCalls,
 		}
 	}
 	coordinator, err := NewCoordinator(CoordinatorOptions{
@@ -537,13 +636,22 @@ func assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T,
 	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
 
 	observerFixture.waitPoll(t)
-	for poll := 0; poll < 2; poll++ {
-		observerFixture.clock.advance(cfg.Observation.Cadence)
-		observerFixture.waitPoll(t)
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-coordinatorClock.created
 	}
-	coordinatorClock.advance(final - cfg.Observation.Cadence)
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-		<-statusCalls
+		<-grantCalls // initial grant barrier
+	}
+	for step := 1; step <= 4; step++ {
+		coordinatorClock.advance(cfg.Observation.Cadence)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			<-statusCalls
+		}
+		if step%2 == 0 {
+			for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+				<-grantCalls
+			}
+		}
 	}
 	select {
 	case result := <-resultChannel:
@@ -558,20 +666,7 @@ func assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T,
 	}
 
 	coordinatorClock.advance(cfg.Observation.Cadence)
-	var result CoordinatorResult
-	statusAfterFinal := 0
-	for statusAfterFinal < coordinatorWorkerCount {
-		select {
-		case result = <-resultChannel:
-			statusAfterFinal = coordinatorWorkerCount
-		case <-statusCalls:
-			statusAfterFinal++
-		}
-	}
-	if result == (CoordinatorResult{}) {
-		cancel()
-		result = <-resultChannel
-	}
+	result := <-resultChannel
 	if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted {
 		t.Fatalf("Run() at final cutoff = %+v, want completed/completed", result)
 	}
@@ -583,6 +678,7 @@ func assertCoordinatorHealthyObservationCompletesOnlyAtFinalCutoff(t *testing.T,
 func TestCoordinatorFinalCutoffPreservesConcurrentProductFailure(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-cutoff-product-race"
+	configureFastCoordinatorCutoff(&cfg)
 	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
 	observerStarted := make(chan struct{})
 	log := []string{}
@@ -610,7 +706,10 @@ func TestCoordinatorFinalCutoffPreservesConcurrentProductFailure(t *testing.T) {
 	resultChannel := make(chan CoordinatorResult, 1)
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
 	<-observerStarted
-	clock.advance(30 * time.Minute)
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	clock.advance(cfg.Thresholds.Timeline.Final)
 	result := <-resultChannel
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
 		t.Fatalf("Run() cutoff race = %+v, want product_failure/observer", result)
@@ -660,6 +759,9 @@ func TestCoordinatorGrantFailurePreservesConcurrentObserverProductFailure(t *tes
 	resultChannel := make(chan CoordinatorResult, 1)
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
 	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
 	clock.advance(time.Second)
 	result := <-resultChannel
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
@@ -713,14 +815,15 @@ func TestCoordinatorCallerCancellationStopsWithoutCheckpoint(t *testing.T) {
 func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 	errInjected := errors.New("injected coordinator failure")
 	tests := []struct {
-		name         string
-		preflight    PreflightResult
-		setupErr     error
-		workerChange func([]*recordingCoordinatorWorker)
-		observer     ObserverResult
-		wantOutcome  CoordinatorOutcome
-		wantCode     CoordinatorCode
-		wantLog      []string
+		name                   string
+		preflight              PreflightResult
+		setupErr               error
+		workerChange           func([]*recordingCoordinatorWorker)
+		observer               ObserverResult
+		observerWaitsForCancel bool
+		wantOutcome            CoordinatorOutcome
+		wantCode               CoordinatorCode
+		wantLog                []string
 	}{
 		{
 			name:        "failed preflight performs no setup or assignment",
@@ -745,7 +848,7 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			},
 			observer:    ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped},
 			wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeAssignment,
-			wantLog: []string{"preflight", "setup", "assign-0", "assign-1", "stop-0", "stop-1"},
+			wantLog: []string{"preflight", "setup", "assign-0", "assign-1", "assign-2", "stop-0", "stop-1", "stop-2"},
 		},
 		{
 			name:      "rejected assignment still stops attempted worker and ignores cleanup error",
@@ -756,7 +859,7 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			},
 			observer:    ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped},
 			wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeAssignment,
-			wantLog: []string{"preflight", "setup", "assign-0", "assign-1", "stop-0", "stop-1"},
+			wantLog: []string{"preflight", "setup", "assign-0", "assign-1", "assign-2", "stop-0", "stop-1", "stop-2"},
 		},
 		{
 			name:      "start failure stops every assigned worker despite cleanup error",
@@ -768,7 +871,7 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			observer:    ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped},
 			wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeStart,
 			wantLog: []string{
-				"preflight", "setup", "assign-0", "assign-1", "assign-2", "start-0", "start-1",
+				"preflight", "setup", "assign-0", "assign-1", "assign-2", "start-0", "start-1", "start-2",
 				"stop-0", "stop-1", "stop-2",
 			},
 		},
@@ -778,11 +881,13 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			workerChange: func(workers []*recordingCoordinatorWorker) {
 				workers[1].rateErr = errInjected
 			},
-			observer:    ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped},
-			wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeGrant,
+			observer:               ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped},
+			observerWaitsForCancel: true,
+			wantOutcome:            CoordinatorHarnessInvalid, wantCode: CoordinatorCodeGrant,
 			wantLog: []string{
 				"preflight", "setup", "assign-0", "assign-1", "assign-2",
 				"start-0", "start-1", "start-2", "grant-0", "grant-1", "grant-1", "grant-2",
+				"observe",
 				"stop-0", "stop-1", "stop-2",
 			},
 		},
@@ -846,8 +951,11 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 					return testCase.setupErr
 				}),
 				Workers: workers,
-				Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
 					appendCoordinatorTestLog(&log, "observe")
+					if testCase.observerWaitsForCancel {
+						<-ctx.Done()
+					}
 					return testCase.observer
 				}),
 			})
@@ -907,7 +1015,9 @@ func TestCoordinatorAssignmentCleanupUsesIndependentContextAfterCallerCancel(t *
 	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeAssignment {
 		t.Fatalf("Run() result = %+v, want harness_invalid/assignment", result)
 	}
-	if want := []string{"preflight", "setup", "assign-0", "stop-0"}; !reflect.DeepEqual(canonicalCoordinatorLog(&log), want) {
+	if want := []string{
+		"preflight", "setup", "assign-0", "assign-1", "assign-2", "stop-0", "stop-1", "stop-2",
+	}; !reflect.DeepEqual(canonicalCoordinatorLog(&log), want) {
 		t.Fatalf("call log = %v, want %v", log, want)
 	}
 	if typedWorkers[0].stopSawCanceledContext {
@@ -1034,6 +1144,108 @@ func TestCoordinatorStatusRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	}
 }
 
+func TestCoordinatorAssignAndStartRoundsUseOneConcurrentDeadline(t *testing.T) {
+	for _, stage := range []CoordinatorCode{CoordinatorCodeAssignment, CoordinatorCodeStart} {
+		t.Run(string(stage), func(t *testing.T) {
+			const roundTimeout = 80 * time.Millisecond
+			cfg := LocalConfig()
+			cfg.RunID = "coordinator-stage-round-" + string(stage)
+			probe := newCoordinatorStageProbe()
+			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+			for workerID := range workers {
+				workers[workerID] = &blockingCoordinatorStageWorker{
+					recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+					stage:                      stage, probe: probe,
+				}
+			}
+			coordinator, err := NewCoordinator(CoordinatorOptions{
+				Generation: 34,
+				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+				}),
+				Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+				Workers: workers,
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					<-ctx.Done()
+					return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+				}),
+				RoundTimeout: roundTimeout,
+			})
+			if err != nil {
+				t.Fatalf("NewCoordinator() error = %v", err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+			result := coordinator.Run(ctx, cfg)
+			elapsed := time.Since(started)
+			if result.Outcome != CoordinatorHarnessInvalid || result.Code != stage {
+				t.Fatalf("Run() %s result = %+v, want harness_invalid/%s", stage, result, stage)
+			}
+			if elapsed < roundTimeout/2 || elapsed >= 220*time.Millisecond {
+				t.Fatalf("Run() %s elapsed = %s, want one %s shared deadline", stage, elapsed, roundTimeout)
+			}
+			assertCoordinatorStageProbe(t, probe, started, 160*time.Millisecond)
+		})
+	}
+}
+
+func TestCoordinatorCheckpointRoundUsesOneConcurrentDeadline(t *testing.T) {
+	const roundTimeout = 80 * time.Millisecond
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-checkpoint-round"
+	cfg.Observation.Cadence = 500 * time.Millisecond
+	cfg.Thresholds.Timeline = TimelineThresholds{
+		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+	}
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	probe := newCoordinatorStageProbe()
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &blockingCoordinatorStageWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			stage:                      CoordinatorCodeCheckpoint, probe: probe,
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 35,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, RoundTimeout: roundTimeout,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	resultChannel := make(chan CoordinatorResult, 1)
+	started := time.Now()
+	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	clock.advance(cfg.Thresholds.Timeline.Final)
+	result := <-resultChannel
+	elapsed := time.Since(started)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeCheckpoint {
+		t.Fatalf("Run() checkpoint result = %+v, want harness_invalid/checkpoint", result)
+	}
+	if elapsed >= 300*time.Millisecond {
+		t.Fatalf("Run() checkpoint elapsed = %s, want one %s shared deadline", elapsed, roundTimeout)
+	}
+	assertCoordinatorStageProbe(t, probe, started, 200*time.Millisecond)
+}
+
 func TestBlockingGrantProbeDetectsSequentialDispatch(t *testing.T) {
 	probe := &grantRoundProbe{}
 	workers := make([]*blockingGrantCoordinatorWorker, coordinatorWorkerCount)
@@ -1075,9 +1287,10 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 		}),
 		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
 		Workers: workers,
-		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
 			observerEntered <- struct{}{}
-			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		}),
 		RoundTimeout: roundTimeout,
 	})
@@ -1099,8 +1312,8 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	}
 	select {
 	case <-observerEntered:
-		t.Fatal("observer ran after the initial grant round failed")
 	default:
+		t.Fatal("observer did not start before the initial grant round")
 	}
 
 	contexts := make([]coordinatorGrantContext, coordinatorWorkerCount)
@@ -1122,6 +1335,252 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 		}
 		if workerID > 0 && observed.request != contexts[0].request {
 			t.Fatalf("worker %d grant request differs: %+v versus %+v", workerID, observed.request, contexts[0].request)
+		}
+	}
+}
+
+func TestCoordinatorGrantRoundRejectsLateSuccessWithinOneCadence(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-grant-late-success"
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &lateSuccessGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			lateAfter:                  2 * time.Second,
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 30,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	started := time.Now()
+	result := coordinator.Run(ctx, cfg)
+	elapsed := time.Since(started)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
+		t.Fatalf("Run() late grant result = %+v, want harness_invalid/grant", result)
+	}
+	if elapsed >= 1500*time.Millisecond {
+		t.Fatalf("Run() late grant elapsed = %s, want fail-closed within one-second cadence", elapsed)
+	}
+}
+
+func TestCoordinatorRejectsStaleGrantTickerWithoutAdvancingGrant(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-stale-grant-tick"
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		typedWorkers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}}
+		workers[workerID] = typedWorkers[workerID]
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 31,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	grantTicker := clock.ticker(time.Second)
+	if grantTicker == nil {
+		t.Fatal("coordinator did not create the one-second grant ticker")
+	}
+	grantTicker.ticks <- clock.Now().Add(-2 * time.Second)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
+		t.Fatalf("Run() stale tick result = %+v, want harness_invalid/grant", result)
+	}
+	for workerID, worker := range typedWorkers {
+		if len(worker.grantRequests) != 1 {
+			t.Fatalf("worker %d grant requests = %d, want only initial grant", workerID, len(worker.grantRequests))
+		}
+	}
+}
+
+func TestValidCoordinatorGrantTickRejectsUnscheduledOrStaleTimestamps(t *testing.T) {
+	startedAt := time.Unix(1_700_000_000, 0)
+	tests := []struct {
+		name         string
+		now          time.Time
+		tickAt       time.Time
+		lastTickAt   time.Time
+		haveLastTick bool
+		want         bool
+	}{
+		{name: "zero tick", now: startedAt.Add(time.Second), lastTickAt: startedAt},
+		{name: "future tick", now: startedAt, tickAt: startedAt.Add(time.Nanosecond), lastTickAt: startedAt},
+		{name: "exactly one cadence stale", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(time.Second), lastTickAt: startedAt},
+		{name: "first tick too early", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second - time.Nanosecond), lastTickAt: startedAt},
+		{name: "first scheduled tick", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second), lastTickAt: startedAt, want: true},
+		{name: "next exact scheduled tick", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(2 * time.Second), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
+		{name: "next tick skips cadence", now: startedAt.Add(2500 * time.Millisecond), tickAt: startedAt.Add(2500 * time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := validCoordinatorGrantTick(testCase.now, testCase.tickAt, testCase.lastTickAt, testCase.haveLastTick); got != testCase.want {
+				t.Fatalf("validCoordinatorGrantTick(%s, %s, %s, %v) = %v, want %v", testCase.now, testCase.tickAt, testCase.lastTickAt, testCase.haveLastTick, got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestCoordinatorFinalCutoffCannotBypassQueuedStaleGrant(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-cutoff-stale-grant"
+	cfg.Observation.Cadence = 500 * time.Millisecond
+	cfg.Thresholds.Timeline = TimelineThresholds{
+		Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 2500 * time.Millisecond,
+	}
+	startedAt := time.Unix(1_700_000_000, 0)
+	clock := newManualCoordinatorClock(startedAt)
+	observerStarted := make(chan struct{})
+	typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		typedWorkers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}}
+		workers[workerID] = typedWorkers[workerID]
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 36,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	clock.setNowAndQueue(
+		startedAt.Add(cfg.Thresholds.Timeline.Final),
+		map[time.Duration]time.Time{
+			cfg.Observation.Cadence: startedAt.Add(cfg.Thresholds.Timeline.Final),
+			coordinatorGrantCadence: startedAt.Add(coordinatorGrantCadence),
+		},
+	)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
+		t.Fatalf("Run() queued stale cutoff result = %+v, want harness_invalid/grant", result)
+	}
+	for workerID, worker := range typedWorkers {
+		if len(worker.grantRequests) != 1 {
+			t.Fatalf("worker %d grant requests = %d, want only initial sequence", workerID, len(worker.grantRequests))
+		}
+	}
+}
+
+func TestCoordinatorScheduledGrantsKeepExactFixedThreeWorkerVectors(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-scheduled-grant-vectors"
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		typedWorkers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls, grantFailSequence: 4,
+		}
+		workers[workerID] = typedWorkers[workerID]
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 37,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	for sequence := uint64(1); sequence <= 4; sequence++ {
+		if sequence > 1 {
+			clock.advance(coordinatorGrantCadence)
+		}
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			got := <-grantCalls
+			if got != sequence {
+				t.Fatalf("grant notification sequence = %d, want %d", got, sequence)
+			}
+		}
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
+		t.Fatalf("Run() terminal grant result = %+v, want harness_invalid/grant", result)
+	}
+	for sequenceIndex := 0; sequenceIndex < 4; sequenceIndex++ {
+		common := typedWorkers[0].grantRequests[sequenceIndex]
+		if common.Sequence != uint64(sequenceIndex+1) {
+			t.Fatalf("grant request sequence = %d, want %d", common.Sequence, sequenceIndex+1)
+		}
+		released, ok := sumWorkerGrantCounts(common.Released)
+		if !ok || released != uint64(cfg.Workload.SendRatePerSecond) {
+			t.Fatalf("sequence %d released total = %d/%v, want %d", common.Sequence, released, ok, cfg.Workload.SendRatePerSecond)
+		}
+		for workerID, worker := range typedWorkers {
+			if len(worker.grantRequests) != 4 {
+				t.Fatalf("worker %d grant requests = %d, want 4", workerID, len(worker.grantRequests))
+			}
+			if worker.grantRequests[sequenceIndex] != common {
+				t.Fatalf("sequence %d worker %d vector differs: %+v versus %+v", common.Sequence, workerID, worker.grantRequests[sequenceIndex], common)
+			}
 		}
 	}
 }
@@ -1181,6 +1640,100 @@ type coordinatorGrantContext struct {
 	hasDeadline bool
 }
 
+type coordinatorStageContext struct {
+	workerID    uint64
+	deadline    time.Time
+	hasDeadline bool
+}
+
+type coordinatorStageProbe struct {
+	mu                       sync.Mutex
+	entered                  int
+	returnedBeforeAllEntered bool
+	contexts                 chan coordinatorStageContext
+}
+
+func newCoordinatorStageProbe() *coordinatorStageProbe {
+	return &coordinatorStageProbe{contexts: make(chan coordinatorStageContext, coordinatorWorkerCount)}
+}
+
+func (p *coordinatorStageProbe) block(ctx context.Context, workerID uint64) {
+	deadline, ok := ctx.Deadline()
+	p.mu.Lock()
+	p.entered++
+	p.mu.Unlock()
+	p.contexts <- coordinatorStageContext{workerID: workerID, deadline: deadline, hasDeadline: ok}
+	<-ctx.Done()
+	p.mu.Lock()
+	if p.entered != coordinatorWorkerCount {
+		p.returnedBeforeAllEntered = true
+	}
+	p.mu.Unlock()
+}
+
+func assertCoordinatorStageProbe(t *testing.T, probe *coordinatorStageProbe, started time.Time, maximumDeadline time.Duration) {
+	t.Helper()
+	contexts := make([]coordinatorStageContext, coordinatorWorkerCount)
+	seen := [coordinatorWorkerCount]bool{}
+	for attempt := 0; attempt < coordinatorWorkerCount; attempt++ {
+		observed := <-probe.contexts
+		if observed.workerID >= coordinatorWorkerCount || seen[observed.workerID] {
+			t.Fatalf("stage worker attempts contain invalid or duplicate worker %d", observed.workerID)
+		}
+		seen[observed.workerID] = true
+		contexts[observed.workerID] = observed
+	}
+	probe.mu.Lock()
+	returnedBeforeAll := probe.returnedBeforeAllEntered
+	probe.mu.Unlock()
+	if returnedBeforeAll {
+		t.Fatal("a stage call returned before all fixed workers entered")
+	}
+	for workerID, observed := range contexts {
+		if !observed.hasDeadline {
+			t.Fatalf("worker %d stage context has no deadline", workerID)
+		}
+		if observed.deadline.Sub(started) > maximumDeadline {
+			t.Fatalf("worker %d stage deadline = %s after start, want <= %s", workerID, observed.deadline.Sub(started), maximumDeadline)
+		}
+		if workerID > 0 && !observed.deadline.Equal(contexts[0].deadline) {
+			t.Fatalf("stage deadlines differ: %v versus %v", observed.deadline, contexts[0].deadline)
+		}
+	}
+}
+
+type blockingCoordinatorStageWorker struct {
+	*recordingCoordinatorWorker
+	stage CoordinatorCode
+	probe *coordinatorStageProbe
+}
+
+func (w *blockingCoordinatorStageWorker) Assign(ctx context.Context, assignment WorkerAssignment) (WorkerStatus, error) {
+	w.attempted, w.assignment = assignment, assignment
+	if w.stage == CoordinatorCodeAssignment {
+		w.probe.block(ctx, w.id)
+		return w.status(WorkerPhaseAssigned), nil
+	}
+	return w.recordingCoordinatorWorker.Assign(ctx, assignment)
+}
+
+func (w *blockingCoordinatorStageWorker) Start(ctx context.Context, request WorkerStartRequest) (WorkerStatus, error) {
+	if w.stage == CoordinatorCodeStart {
+		w.probe.block(ctx, w.id)
+		return w.status(WorkerPhaseRunning), nil
+	}
+	return w.recordingCoordinatorWorker.Start(ctx, request)
+}
+
+func (w *blockingCoordinatorStageWorker) Checkpoint(ctx context.Context, _ WorkerCheckpointRequest) (WorkerSnapshot, error) {
+	if w.stage == CoordinatorCodeCheckpoint {
+		w.probe.block(ctx, w.id)
+		w.sequence++
+		return w.snapshot(WorkerPhaseRunning), nil
+	}
+	return w.recordingCoordinatorWorker.Checkpoint(ctx, WorkerCheckpointRequest{WorkerFence: w.assignment.WorkerFence})
+}
+
 type grantRoundProbe struct {
 	mu                       sync.Mutex
 	entered                  int
@@ -1211,6 +1764,25 @@ type blockingGrantCoordinatorWorker struct {
 	*recordingCoordinatorWorker
 	probe   *grantRoundProbe
 	entered chan<- coordinatorGrantContext
+}
+
+type lateSuccessGrantCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	lateAfter time.Duration
+}
+
+func (w *lateSuccessGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	timer := time.NewTimer(w.lateAfter)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	released, _ := request.Released.worker(w.id)
+	return WorkerGrantResponse{
+		WorkerFence: request.WorkerFence, WorkerID: w.id, WorkerCount: coordinatorWorkerCount,
+		Sequence: request.Sequence, Released: released,
+	}, nil
 }
 
 func (w *blockingGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
@@ -1278,6 +1850,25 @@ type fixedCoordinatorClock struct {
 	ticker ObserverTicker
 }
 
+type grantBarrierCoordinatorClock struct {
+	now     time.Time
+	reached chan struct{}
+	once    sync.Once
+}
+
+func newGrantBarrierCoordinatorClock(now time.Time) *grantBarrierCoordinatorClock {
+	return &grantBarrierCoordinatorClock{now: now, reached: make(chan struct{})}
+}
+
+func (c *grantBarrierCoordinatorClock) Now() time.Time {
+	c.once.Do(func() { close(c.reached) })
+	return c.now
+}
+
+func (c *grantBarrierCoordinatorClock) NewTicker(time.Duration) ObserverTicker {
+	return newFakeObserverTicker()
+}
+
 func (c fixedCoordinatorClock) Now() time.Time { return c.now }
 func (c fixedCoordinatorClock) NewTicker(period time.Duration) ObserverTicker {
 	if period == time.Second {
@@ -1289,14 +1880,38 @@ func (c fixedCoordinatorClock) NewTicker(period time.Duration) ObserverTicker {
 type manualCoordinatorClock struct {
 	mu      sync.Mutex
 	now     time.Time
-	tickers map[time.Duration]*fakeObserverTicker
+	tickers []*manualCoordinatorTicker
 	created chan time.Duration
+}
+
+type manualCoordinatorTicker struct {
+	period time.Duration
+	next   time.Time
+	ticker *fakeObserverTicker
 }
 
 func newManualCoordinatorClock(now time.Time) *manualCoordinatorClock {
 	return &manualCoordinatorClock{
-		now: now, tickers: make(map[time.Duration]*fakeObserverTicker), created: make(chan time.Duration, 8),
+		now: now, created: make(chan time.Duration, 8),
 	}
+}
+
+func (c *manualCoordinatorClock) ticker(period time.Duration) *fakeObserverTicker {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for index := len(c.tickers) - 1; index >= 0; index-- {
+		state := c.tickers[index]
+		if state.period != period {
+			continue
+		}
+		select {
+		case <-state.ticker.stopped:
+			continue
+		default:
+			return state.ticker
+		}
+	}
+	return nil
 }
 
 func TestManualCoordinatorClockAdvanceDoesNotBlockOnBackloggedTicker(t *testing.T) {
@@ -1326,7 +1941,9 @@ func (c *manualCoordinatorClock) NewTicker(period time.Duration) ObserverTicker 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	ticker := newFakeObserverTicker()
-	c.tickers[period] = ticker
+	c.tickers = append(c.tickers, &manualCoordinatorTicker{
+		period: period, next: c.now.Add(period), ticker: ticker,
+	})
 	c.created <- period
 	return ticker
 }
@@ -1335,17 +1952,51 @@ func (c *manualCoordinatorClock) advance(duration time.Duration) {
 	c.mu.Lock()
 	c.now = c.now.Add(duration)
 	now := c.now
-	tickers := make([]*fakeObserverTicker, 0, len(c.tickers))
-	for _, ticker := range c.tickers {
-		tickers = append(tickers, ticker)
+	type dueTick struct {
+		ticker *fakeObserverTicker
+		at     time.Time
+	}
+	due := make([]dueTick, 0, len(c.tickers))
+	for _, state := range c.tickers {
+		select {
+		case <-state.ticker.stopped:
+			continue
+		default:
+		}
+		if now.Before(state.next) {
+			continue
+		}
+		due = append(due, dueTick{ticker: state.ticker, at: state.next})
+		periods := now.Sub(state.next)/state.period + 1
+		state.next = state.next.Add(periods * state.period)
 	}
 	c.mu.Unlock()
-	for _, ticker := range tickers {
+	for _, tick := range due {
 		select {
-		case ticker.ticks <- now:
+		case tick.ticker.ticks <- tick.at:
 		default:
 		}
 	}
+}
+
+func (c *manualCoordinatorClock) setNowAndQueue(now time.Time, ticks map[time.Duration]time.Time) {
+	c.mu.Lock()
+	c.now = now
+	for period, tickAt := range ticks {
+		for index := len(c.tickers) - 1; index >= 0; index-- {
+			state := c.tickers[index]
+			if state.period != period {
+				continue
+			}
+			select {
+			case <-state.ticker.stopped:
+				continue
+			case state.ticker.ticks <- tickAt:
+			}
+			break
+		}
+	}
+	c.mu.Unlock()
 }
 
 type coordinatorPreflightFunc func(context.Context, Config) PreflightResult
@@ -1381,6 +2032,8 @@ type recordingCoordinatorWorker struct {
 	stopSawCanceledContext       bool
 	grantResponseLossOnce        bool
 	grantFailSequence            uint64
+	grantCalled                  chan<- uint64
+	grantBarrier                 <-chan struct{}
 	grantRequests                []WorkerGrantRequest
 	appliedGrantSequences        map[uint64]int
 }
@@ -1421,8 +2074,14 @@ func (w *recordingCoordinatorWorker) Status(context.Context) (WorkerStatus, erro
 }
 
 func (w *recordingCoordinatorWorker) Grant(_ context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	if w.grantBarrier != nil {
+		<-w.grantBarrier
+	}
 	appendCoordinatorTestLog(w.log, "grant-"+strconv.FormatUint(w.id, 10))
 	w.grantRequests = append(w.grantRequests, request)
+	if w.grantCalled != nil {
+		w.grantCalled <- request.Sequence
+	}
 	if request.Sequence == w.grantFailSequence {
 		return WorkerGrantResponse{}, &WorkerAPIError{Code: WorkerErrorRuntimeFailure, Status: http.StatusUnprocessableEntity}
 	}
@@ -1479,7 +2138,10 @@ func canonicalCoordinatorLog(log *[]string) []string {
 }
 
 func coordinatorConcurrentLogPrefix(operation string) string {
-	for _, prefix := range []string{"grant-", "status-", "stop-"} {
+	if operation == "observe" || strings.HasPrefix(operation, "grant-") {
+		return "grant-observer"
+	}
+	for _, prefix := range []string{"assign-", "start-", "status-", "checkpoint-", "stop-"} {
 		if strings.HasPrefix(operation, prefix) {
 			return prefix
 		}

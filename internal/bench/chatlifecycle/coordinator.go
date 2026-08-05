@@ -15,6 +15,7 @@ import (
 const (
 	coordinatorWorkerCount      = 3
 	coordinatorDefaultRoundTime = 5 * time.Second
+	coordinatorGrantCadence     = time.Second
 )
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
@@ -159,8 +160,8 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 	}, nil
 }
 
-// Run enforces preflight -> setup -> assign -> start -> readiness -> grants ->
-// final cutoff -> checkpoint/finalize.
+// Run enforces preflight -> setup -> assign -> start -> observed readiness ->
+// grants -> final cutoff -> checkpoint/finalize.
 func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	if c == nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
@@ -194,135 +195,244 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 	fence := assignments[0].WorkerFence
 	result := CoordinatorResult{Fence: fence}
-	attempted := [coordinatorWorkerCount]bool{}
+	attempted := [coordinatorWorkerCount]bool{true, true, true}
 	assigned := [coordinatorWorkerCount]bool{}
-	for workerID, assignment := range assignments {
-		attempted[workerID] = true
-		status, assignErr := c.workers[workerID].Assign(ctx, assignment.WorkerAssignment)
-		if assignErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseAssigned) {
-			c.stopAfterFailure(fence, attempted)
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
-			return result
-		}
-		assigned[workerID] = true
-	}
-	startStatuses := [coordinatorWorkerCount]WorkerStatus{}
-	for workerID, assignment := range assignments {
-		status, startErr := c.workers[workerID].Start(ctx, WorkerStartRequest{WorkerFence: fence})
-		if startErr != nil || !validCoordinatorStatus(status, assignment.WorkerAssignment, WorkerPhaseRunning) {
-			c.stopAfterFailure(fence, attempted)
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeStart
-			return result
-		}
-		startStatuses[workerID] = status
-	}
-	ready, stopped := c.waitForTrafficReady(ctx, assignments, startStatuses, cfg.Thresholds.Timeline.Warmup)
-	if !ready {
+	if _, valid := c.assignRound(ctx, assignments); !valid {
 		c.stopAfterFailure(fence, attempted)
-		if stopped {
-			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-		} else {
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeRuntime
-		}
+		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
 		return result
 	}
-	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
-	if err != nil {
+	assigned = [coordinatorWorkerCount]bool{true, true, true}
+	startStatuses, valid := c.startRound(ctx, assignments, fence)
+	if !valid {
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeGrant
-		return result
-	}
-	result.Grant = grant
-	if !c.deliverGrant(ctx, assignments, grantPlan.request(fence, grant)) {
-		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeGrant
+		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeStart
 		return result
 	}
 
-	observationDeadline := c.clock.Now().Add(cfg.Thresholds.Timeline.Final)
 	observationContext, cancelObservation := context.WithCancel(ctx)
-	statusTicker := c.clock.NewTicker(cfg.Observation.Cadence)
-	grantTicker := c.clock.NewTicker(time.Second)
-	if statusTicker == nil || grantTicker == nil {
+	observationChannel := make(chan ObserverResult, 1)
+	go func() {
+		observationChannel <- c.observer.Run(observationContext, cfg)
 		cancelObservation()
+	}()
+	var observation ObserverResult
+	observationJoined := false
+	joinObservation := func() ObserverResult {
+		if !observationJoined {
+			cancelObservation()
+			observation = <-observationChannel
+			observationJoined = true
+		}
+		return observation
+	}
+	joinFailureObservation := func(fallback CoordinatorCode) CoordinatorCode {
+		select {
+		case observation = <-observationChannel:
+			observationJoined = true
+			return CoordinatorCodeObserver
+		default:
+			observation = joinObservation()
+			return fallback
+		}
+	}
+
+	ready, earlyObservation, observerDone := c.waitForTrafficReady(
+		observationContext, observationChannel, assignments, startStatuses, cfg.Thresholds.Timeline.Warmup,
+	)
+	if !ready {
+		failureCode := CoordinatorCodeRuntime
+		if observerDone {
+			observation, observationJoined = earlyObservation, true
+			failureCode = CoordinatorCodeObserver
+		}
+		observation = joinObservation()
 		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeRuntime
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
+		return result
+	}
+	select {
+	case observation = <-observationChannel:
+		observationJoined = true
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeObserver)
+		return result
+	default:
+	}
+	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	if err != nil {
+		failureCode := joinFailureObservation(CoordinatorCodeGrant)
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
+		return result
+	}
+	result.Grant = grant
+	if !c.deliverGrant(observationContext, assignments, grantPlan.request(fence, grant)) {
+		failureCode := joinFailureObservation(CoordinatorCodeGrant)
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
+		return result
+	}
+
+	grantBarrierAt := c.clock.Now()
+	observationDeadline := grantBarrierAt.Add(cfg.Thresholds.Timeline.Final)
+	statusTicker := c.clock.NewTicker(cfg.Observation.Cadence)
+	if statusTicker == nil {
+		observation = joinObservation()
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeRuntime)
 		return result
 	}
 	defer statusTicker.Stop()
+	grantTickerStartedAt := c.clock.Now()
+	grantTicker := c.clock.NewTicker(coordinatorGrantCadence)
+	if grantTicker == nil {
+		observation = joinObservation()
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeRuntime)
+		return result
+	}
 	defer grantTicker.Stop()
-	observationChannel := make(chan ObserverResult, 1)
-	go func() { observationChannel <- c.observer.Run(observationContext, cfg) }()
-	var observation ObserverResult
+	lastGrantTickAt := grantTickerStartedAt
+	haveGrantTick := false
+	deliverScheduledGrant := func(tickAt time.Time) bool {
+		now := c.clock.Now()
+		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
+			return false
+		}
+		grant, grantErr := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+		if grantErr != nil || !c.deliverGrant(observationContext, assignments, grantPlan.request(fence, grant)) {
+			return false
+		}
+		lastGrantTickAt, haveGrantTick = tickAt, true
+		result.Grant = grant
+		return true
+	}
+	grantCoverageMissing := func(at time.Time) bool {
+		return at.Sub(lastGrantTickAt) > coordinatorGrantCadence
+	}
 	cutoffOwned := false
+	failureCode := CoordinatorCode("")
 	for {
+		now := c.clock.Now()
+		if !now.Before(observationDeadline) {
+			select {
+			case tickAt := <-grantTicker.C():
+				if tickAt.IsZero() || tickAt.After(now) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
+				}
+				if tickAt.Before(observationDeadline) {
+					if !deliverScheduledGrant(tickAt) {
+						failureCode = CoordinatorCodeGrant
+						goto observationFailure
+					}
+					continue
+				}
+			default:
+			}
+			if grantCoverageMissing(observationDeadline) {
+				failureCode = CoordinatorCodeGrant
+				goto observationFailure
+			}
+			observation = joinObservation()
+			cutoffOwned = true
+			goto observationComplete
+		}
+
+		select {
+		case tickAt := <-grantTicker.C():
+			if !deliverScheduledGrant(tickAt) {
+				failureCode = CoordinatorCodeGrant
+				goto observationFailure
+			}
+			continue
+		default:
+		}
+		if grantCoverageMissing(now) {
+			failureCode = CoordinatorCodeGrant
+			goto observationFailure
+		}
+
 		select {
 		case observation = <-observationChannel:
-			cancelObservation()
+			observationJoined = true
 			goto observationComplete
 		case <-statusTicker.C():
+			now = c.clock.Now()
+			select {
+			case tickAt := <-grantTicker.C():
+				if tickAt.IsZero() || tickAt.After(now) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
+				}
+				if now.Before(observationDeadline) || tickAt.Before(observationDeadline) {
+					if !deliverScheduledGrant(tickAt) {
+						failureCode = CoordinatorCodeGrant
+						goto observationFailure
+					}
+				}
+			default:
+			}
 			if ctx.Err() != nil {
-				cancelObservation()
-				<-observationChannel
+				observation = joinObservation()
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 				return result
 			}
-			if !c.clock.Now().Before(observationDeadline) {
-				cancelObservation()
-				observation = <-observationChannel
-				if ctx.Err() != nil {
-					c.stopAfterFailure(fence, attempted)
-					result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-					return result
+			now = c.clock.Now()
+			if !now.Before(observationDeadline) {
+				if grantCoverageMissing(observationDeadline) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
 				}
+				observation = joinObservation()
 				cutoffOwned = true
 				goto observationComplete
+			}
+			if grantCoverageMissing(now) {
+				failureCode = CoordinatorCodeGrant
+				goto observationFailure
 			}
 			statuses, valid := c.statusRound(observationContext, assignments)
 			if !valid || !allCoordinatorTrafficReady(statuses) {
-				cancelObservation()
-				observation = <-observationChannel
-				c.stopAfterFailure(fence, attempted)
-				result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeRuntime)
-				return result
+				failureCode = CoordinatorCodeRuntime
+				goto observationFailure
 			}
-		case <-grantTicker.C():
+		case tickAt := <-grantTicker.C():
 			if ctx.Err() != nil {
-				cancelObservation()
-				<-observationChannel
+				observation = joinObservation()
 				c.stopAfterFailure(fence, attempted)
 				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 				return result
 			}
-			if !c.clock.Now().Before(observationDeadline) {
-				cancelObservation()
-				observation = <-observationChannel
-				if ctx.Err() != nil {
-					c.stopAfterFailure(fence, attempted)
-					result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-					return result
+			now = c.clock.Now()
+			if !now.Before(observationDeadline) && !tickAt.Before(observationDeadline) {
+				if tickAt.IsZero() || tickAt.After(now) || grantCoverageMissing(observationDeadline) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
 				}
+				observation = joinObservation()
 				cutoffOwned = true
 				goto observationComplete
 			}
-			grant, grantErr := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
-			if grantErr != nil || !c.deliverGrant(observationContext, assignments, grantPlan.request(fence, grant)) {
-				cancelObservation()
-				observation = <-observationChannel
-				c.stopAfterFailure(fence, attempted)
-				result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, CoordinatorCodeGrant)
-				return result
+			if !deliverScheduledGrant(tickAt) {
+				failureCode = CoordinatorCodeGrant
+				goto observationFailure
 			}
-			result.Grant = grant
 		case <-ctx.Done():
-			cancelObservation()
-			<-observationChannel
+			observation = joinObservation()
 			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
 	}
+
+observationFailure:
+	failureCode = joinFailureObservation(failureCode)
+	c.stopAfterFailure(fence, attempted)
+	result.Outcome, result.Code = coordinatorConcurrentFailure(ctx, observation, failureCode)
+	return result
 
 observationComplete:
 	if observation.Outcome != ObserverStopped {
@@ -350,15 +460,11 @@ observationComplete:
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
 	}
-	checkpoint := make([]WorkerSnapshot, coordinatorWorkerCount)
-	for workerID := range c.workers {
-		snapshot, checkpointErr := c.workers[workerID].Checkpoint(ctx, WorkerCheckpointRequest{WorkerFence: fence})
-		if checkpointErr != nil {
-			c.stopAfterFailure(fence, attempted)
-			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
-			return result
-		}
-		checkpoint[workerID] = snapshot
+	checkpoint, valid := c.checkpointRound(ctx, assignments, fence)
+	if !valid {
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+		return result
 	}
 	if _, err := aggregator.Aggregate(checkpoint); err != nil {
 		c.stopAfterFailure(fence, attempted)
@@ -408,38 +514,187 @@ func allCoordinatorTrafficReady(statuses [coordinatorWorkerCount]WorkerStatus) b
 	return true
 }
 
+func (c *Coordinator) assignRound(parent context.Context, assignments []CoordinatorAssignment) ([coordinatorWorkerCount]WorkerStatus, bool) {
+	if len(assignments) != coordinatorWorkerCount {
+		return [coordinatorWorkerCount]WorkerStatus{}, false
+	}
+	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	defer cancel()
+	type assignmentResult struct {
+		status WorkerStatus
+		err    error
+	}
+	results := [coordinatorWorkerCount]assignmentResult{}
+	var wait sync.WaitGroup
+	wait.Add(coordinatorWorkerCount)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		go func() {
+			defer wait.Done()
+			results[workerID].status, results[workerID].err = c.workers[workerID].Assign(
+				roundContext, assignments[workerID].WorkerAssignment,
+			)
+		}()
+	}
+	wait.Wait()
+	if roundContext.Err() != nil {
+		return [coordinatorWorkerCount]WorkerStatus{}, false
+	}
+	var statuses [coordinatorWorkerCount]WorkerStatus
+	for workerID, result := range results {
+		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseAssigned) {
+			return [coordinatorWorkerCount]WorkerStatus{}, false
+		}
+		statuses[workerID] = result.status
+	}
+	return statuses, true
+}
+
+func (c *Coordinator) startRound(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+) ([coordinatorWorkerCount]WorkerStatus, bool) {
+	if len(assignments) != coordinatorWorkerCount {
+		return [coordinatorWorkerCount]WorkerStatus{}, false
+	}
+	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	defer cancel()
+	type startResult struct {
+		status WorkerStatus
+		err    error
+	}
+	results := [coordinatorWorkerCount]startResult{}
+	var wait sync.WaitGroup
+	wait.Add(coordinatorWorkerCount)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		go func() {
+			defer wait.Done()
+			results[workerID].status, results[workerID].err = c.workers[workerID].Start(
+				roundContext, WorkerStartRequest{WorkerFence: fence},
+			)
+		}()
+	}
+	wait.Wait()
+	if roundContext.Err() != nil {
+		return [coordinatorWorkerCount]WorkerStatus{}, false
+	}
+	var statuses [coordinatorWorkerCount]WorkerStatus
+	for workerID, result := range results {
+		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning) {
+			return [coordinatorWorkerCount]WorkerStatus{}, false
+		}
+		statuses[workerID] = result.status
+	}
+	return statuses, true
+}
+
+func (c *Coordinator) checkpointRound(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	fence WorkerFence,
+) ([]WorkerSnapshot, bool) {
+	if len(assignments) != coordinatorWorkerCount {
+		return nil, false
+	}
+	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	defer cancel()
+	type checkpointResult struct {
+		snapshot WorkerSnapshot
+		err      error
+	}
+	results := [coordinatorWorkerCount]checkpointResult{}
+	var wait sync.WaitGroup
+	wait.Add(coordinatorWorkerCount)
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		go func() {
+			defer wait.Done()
+			results[workerID].snapshot, results[workerID].err = c.workers[workerID].Checkpoint(
+				roundContext, WorkerCheckpointRequest{WorkerFence: fence},
+			)
+		}()
+	}
+	wait.Wait()
+	if roundContext.Err() != nil {
+		return nil, false
+	}
+	snapshots := make([]WorkerSnapshot, coordinatorWorkerCount)
+	for workerID, result := range results {
+		if result.err != nil || result.snapshot.WorkerID != uint64(workerID) ||
+			!sameWorkerFence(WorkerFence{
+				RunID: result.snapshot.RunID, AssignmentID: result.snapshot.AssignmentID, Generation: result.snapshot.Generation,
+			}, assignments[workerID].WorkerFence) {
+			return nil, false
+		}
+		snapshots[workerID] = result.snapshot
+	}
+	return snapshots, true
+}
+
 func (c *Coordinator) waitForTrafficReady(
 	ctx context.Context,
+	observation <-chan ObserverResult,
 	assignments []CoordinatorAssignment,
 	statuses [coordinatorWorkerCount]WorkerStatus,
 	maximumWait time.Duration,
-) (ready bool, stopped bool) {
+) (ready bool, result ObserverResult, observerDone bool) {
+	select {
+	case result = <-observation:
+		return false, result, true
+	default:
+	}
 	if allCoordinatorTrafficReady(statuses) {
-		return true, false
+		return true, ObserverResult{}, false
 	}
 	ticker := c.clock.NewTicker(time.Second)
 	if ticker == nil {
-		return false, false
+		return false, ObserverResult{}, false
 	}
 	defer ticker.Stop()
 	deadline := c.clock.Now().Add(maximumWait)
 	for {
 		select {
+		case result = <-observation:
+			return false, result, true
 		case <-ctx.Done():
-			return false, true
+			select {
+			case result = <-observation:
+				return false, result, true
+			default:
+				return false, ObserverResult{}, false
+			}
 		case <-ticker.C():
 			observed, valid := c.statusRound(ctx, assignments)
 			if !valid {
-				return false, false
+				select {
+				case result = <-observation:
+					return false, result, true
+				default:
+					return false, ObserverResult{}, false
+				}
 			}
 			if allCoordinatorTrafficReady(observed) {
-				return true, false
+				return true, ObserverResult{}, false
 			}
 			if !c.clock.Now().Before(deadline) {
-				return false, false
+				return false, ObserverResult{}, false
 			}
 		}
 	}
+}
+
+func validCoordinatorGrantTick(now, tickAt, lastTickAt time.Time, haveLastTick bool) bool {
+	if now.IsZero() || tickAt.IsZero() || lastTickAt.IsZero() || tickAt.After(now) {
+		return false
+	}
+	age := now.Sub(tickAt)
+	if age < 0 || age >= coordinatorGrantCadence {
+		return false
+	}
+	interval := tickAt.Sub(lastTickAt)
+	if haveLastTick {
+		return interval == coordinatorGrantCadence
+	}
+	return interval >= coordinatorGrantCadence && interval < 2*coordinatorGrantCadence
 }
 
 func (c *Coordinator) deliverGrant(
@@ -447,7 +702,8 @@ func (c *Coordinator) deliverGrant(
 	assignments []CoordinatorAssignment,
 	request WorkerGrantRequest,
 ) bool {
-	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	grantRoundTimeout := min(c.roundTimeout, coordinatorGrantCadence)
+	roundContext, cancel := context.WithTimeout(parent, grantRoundTimeout)
 	defer cancel()
 	type grantResult struct {
 		response WorkerGrantResponse
@@ -472,6 +728,9 @@ func (c *Coordinator) deliverGrant(
 		}()
 	}
 	wait.Wait()
+	if roundContext.Err() != nil {
+		return false
+	}
 	for workerID, result := range results {
 		expectedReleased, _ := request.Released.worker(uint64(workerID))
 		if result.err != nil || !sameWorkerFence(result.response.WorkerFence, assignments[workerID].WorkerFence) ||
@@ -501,6 +760,9 @@ func (c *Coordinator) statusRound(parent context.Context, assignments []Coordina
 		}()
 	}
 	wait.Wait()
+	if roundContext.Err() != nil {
+		return [coordinatorWorkerCount]WorkerStatus{}, false
+	}
 	for workerID, result := range results {
 		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning) {
 			return [coordinatorWorkerCount]WorkerStatus{}, false

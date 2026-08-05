@@ -43,6 +43,14 @@ deadline sets `drain_timed_out`. They never downgrade prior product evidence.
 The final Evidence and Harness classification fields always contain the same
 merged value.
 
+Assignment installation is linearized with its request context while the
+worker state lock is held across generation construction. Cancellation before
+or immediately after construction leaves the server unassigned and stops any
+constructed generation exactly once. `Start` receives the request context; a
+cancellation that races a successful return installs a server-owned no-drain
+stop task and moves through `stopping -> final`, so a stopped generation can
+never remain restartable in `assigned`.
+
 A matching stop is also valid while assigned, including after `Start` fails.
 That path skips drain because no Engine generation is running, performs one
 idempotent generation cleanup, caches `final`, and permits only a strictly
@@ -641,21 +649,32 @@ the configured global online prefix without overlap or gaps. A single
 coordinator `RateAllocator` owns the `1/1/1` rate-weight vector and the one
 global two-second credit bound. No allocator tick is consumed until all three
 version-2 statuses report traffic-ready; this bootstrap barrier is bounded by
-the configured warmup duration. The coordinator then produces one complete
+the configured warmup duration. Continuous observation starts immediately
+after the successful Start round and remains active throughout that readiness
+barrier, so a product or harness result can terminate bootstrap. The coordinator
+then produces one complete
 fixed three-worker grant vector per logical second and sends that same vector,
 sequence, rate, burst, and credit evidence to all three exact-fence grant
 endpoints concurrently. One transport failure may retry the identical sequence;
-an unconfirmed vector stops the run. Each worker emits only its vector share and
-never advances an equivalent local allocator, so bootstrap phase differences or
-delivery retry cannot multiply the global budget.
+an unconfirmed vector stops the run. A grant response round has one shared
+deadline capped at the one-second grant cadence. Scheduled grant timestamps
+must be nonzero, non-future, and younger than one cadence. The first accepted
+tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
+must be exactly one logical second after the preceding accepted tick. Missing,
+stale, skipped, or catch-up ticks fail closed without advancing the grant plan.
+Final-cutoff and status branches inspect an already queued grant before they
+may complete the run. Each worker emits only its vector share and never advances
+an equivalent local allocator, so bootstrap phase differences or delivery retry
+cannot multiply the global budget.
 
-Continuous observation and worker status polling begin only after that grant
-barrier. The coordinator records that instant with its injected clock and owns
-one normal observation cutoff at `thresholds.timeline.final`: 30 minutes for
-local and 72 hours for formal. The healthy observer deliberately has no success
-terminal result. Before the cutoff, an observer product or harness result ends
-the run with that failure. At the exact cutoff, the coordinator cancels and
-joins the observer child; only the resulting healthy `stopped` permits the one
+Worker status polling and the measured final timeline begin only after the
+initial grant barrier. The coordinator records that instant with its injected
+clock and owns one normal observation cutoff at `thresholds.timeline.final`:
+30 minutes for local and 72 hours for formal. The healthy observer deliberately
+has no success terminal result. Before the cutoff, an observer product or
+harness result ends the run with that failure. At the exact cutoff, the
+coordinator cancels and joins the observer child; only the resulting healthy
+`stopped` permits the one
 final checkpoint followed by bounded worker stop and final aggregation. A
 product or harness result racing with that cancellation remains a failure. An
 outer caller cancellation instead returns coordinator `stopped` without a
@@ -663,19 +682,21 @@ checkpoint. The future 24-hour checkpoint/report flow is not part of this
 startup coordinator. Assignment, start, grant, status, checkpoint, aggregation,
 or runtime failures remain `harness_invalid`.
 
-Every status round launches exactly three requests with one shared at-most-five-
-second deadline and validates results in worker-index order. Every grant round
-uses the same bounded concurrent shape. A blocked control request therefore
-cannot starve the final cutoff indefinitely. Failure cleanup and successful
+Assignment, Start, status, and checkpoint rounds each launch exactly three
+requests with one shared at-most-five-second deadline, join every attempted
+request, reject a valid-looking result returned after that deadline, and
+validate results in worker-index order. Every grant round uses the same bounded
+concurrent shape with the stricter one-second cap. A blocked control request
+therefore cannot starve the final cutoff indefinitely. Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.
 Observer product failure keeps precedence when it races a grant or status
 harness failure.
 
-Before dispatching each assignment, the coordinator marks that worker as
-attempted. If the response is lost after the worker installs the assignment,
-cleanup therefore still sends an independently bounded exact-fence stop to that
-worker and every earlier attempt, using a background context even when the
+Before dispatching the concurrent assignment round, the coordinator marks all
+three workers attempted. If a response is lost after any worker installs the
+assignment, cleanup therefore still sends an independently bounded exact-fence
+stop to every worker, using a background context even when the
 caller is canceled. Stop conflicts and cleanup errors never overwrite the
 original harness cause. Only validated assignment responses permit the later
 start and grant barriers. Failed preflight performs no setup or assignment, and
