@@ -432,25 +432,28 @@ func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Re
 }
 
 func (s *WorkerServer) runStop(generation WorkerGeneration, task *workerStopTask, drain bool) {
-	var operationErr error
+	var drainErr error
+	drainTimedOut := false
 	ctx, cancel := context.WithTimeout(context.Background(), s.drainTimeout)
 	if drain {
-		operationErr = generation.Drain(ctx)
+		drainErr = generation.Drain(ctx)
+		drainTimedOut = drainErr != nil && (errors.Is(drainErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded))
 	}
 	generation.Stop()
 	cancel()
 	snapshotCtx, snapshotCancel := context.WithTimeout(context.Background(), s.drainTimeout)
 	final, snapshotErr := generation.Snapshot(snapshotCtx)
 	snapshotCancel()
-	operationErr = errors.Join(operationErr, snapshotErr)
 
 	s.mu.Lock()
 	s.phase = WorkerPhaseFinal
 	final = s.overlaySnapshotLocked(final)
-	if operationErr != nil {
+	if drainErr != nil {
 		addWorkerHarnessFailure(&final)
-		final.Harness.DrainTimedOut = final.Harness.DrainTimedOut ||
-			errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
+		final.Harness.DrainTimedOut = final.Harness.DrainTimedOut || drainTimedOut
+	}
+	if snapshotErr != nil {
+		addWorkerHarnessFailure(&final)
 	}
 	final = s.closedFinalSnapshotLocked(final)
 	s.final = final

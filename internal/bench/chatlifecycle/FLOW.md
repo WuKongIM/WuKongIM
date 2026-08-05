@@ -34,9 +34,11 @@ publishes a process signal so the dedicated worker server shuts down and exits
 nonzero. Finalization merges evidence and harness classification through one
 closed precedence rule: `product_failure` outranks `harness_invalid`, which
 outranks empty. Drain timeout, unexpected exit, snapshot failure, and invalid
-snapshot fallback add saturating harness failures and preserve their flags;
-they never downgrade prior product evidence. The final Evidence and Harness
-classification fields always contain the same merged value.
+snapshot fallback each add their own saturating harness failure and preserve
+their flags; only a failed drain whose own context or result reached its
+deadline sets `drain_timed_out`. They never downgrade prior product evidence.
+The final Evidence and Harness classification fields always contain the same
+merged value.
 
 A matching stop is also valid while assigned, including after `Start` fails.
 That path skips drain because no Engine generation is running, performs one

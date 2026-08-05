@@ -136,6 +136,49 @@ func TestWorkerServerDrainTimeoutProducesClosedHarnessFinalState(t *testing.T) {
 	}
 }
 
+func TestWorkerServerCountsDrainAndFinalSnapshotFailuresIndependently(t *testing.T) {
+	for _, test := range []struct {
+		name             string
+		drainErr         error
+		snapshotErr      error
+		wantFailures     uint64
+		wantDrainTimeout bool
+	}{
+		{
+			name: "snapshot timeout is not a drain timeout", snapshotErr: context.DeadlineExceeded,
+			wantFailures: 6,
+		},
+		{
+			name: "drain and snapshot failures count separately", drainErr: context.DeadlineExceeded,
+			snapshotErr: errors.New("redacted snapshot failure"), wantFailures: 7, wantDrainTimeout: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			generation := newFakeWorkerGeneration()
+			generation.drainErr = test.drainErr
+			generation.snapshotErr = test.snapshotErr
+			generation.snapshot.Harness.Failures = 5
+			server, fence := startFakeWorkerServer(t, generation, "independent-final-errors")
+
+			response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence})
+			if response.Code != http.StatusOK {
+				t.Fatalf("stop status = %d; body = %q", response.Code, response.Body.String())
+			}
+			var snapshot WorkerSnapshot
+			if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+				t.Fatalf("decode stop snapshot: %v", err)
+			}
+			if snapshot.Harness.Failures != test.wantFailures || snapshot.Harness.DrainTimedOut != test.wantDrainTimeout {
+				t.Fatalf("final harness = %+v, want failures=%d drain_timed_out=%v", snapshot.Harness, test.wantFailures, test.wantDrainTimeout)
+			}
+			if snapshot.Harness.Classification != SyncClassificationHarnessInvalid ||
+				snapshot.Evidence.Classification != SyncClassificationHarnessInvalid {
+				t.Fatalf("final classifications disagree: harness=%q evidence=%q", snapshot.Harness.Classification, snapshot.Evidence.Classification)
+			}
+		})
+	}
+}
+
 func TestWorkerServerUnexpectedGenerationExitPublishesRedactedFinalSignal(t *testing.T) {
 	t.Parallel()
 
@@ -1345,6 +1388,7 @@ type fakeWorkerGeneration struct {
 	drainRelease chan struct{}
 	stopped      chan struct{}
 	drainErr     error
+	snapshotErr  error
 	doneOnce     sync.Once
 }
 
@@ -1391,7 +1435,7 @@ func (g *fakeWorkerGeneration) Stop() {
 }
 
 func (g *fakeWorkerGeneration) Snapshot(context.Context) (WorkerSnapshot, error) {
-	return g.snapshot, nil
+	return g.snapshot, g.snapshotErr
 }
 
 func (g *fakeWorkerGeneration) Done() <-chan error { return g.done }
