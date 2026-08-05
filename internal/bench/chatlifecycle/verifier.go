@@ -126,6 +126,8 @@ type VerifierSnapshot struct {
 	Classification            SyncClassification
 	Sent                      uint64
 	Attempts                  uint64
+	FirstAttempts             uint64
+	FirstAttemptFailures      uint64
 	RetryAttempts             uint64
 	Acknowledged              uint64
 	SendackRejections         uint64
@@ -140,11 +142,14 @@ type VerifierSnapshot struct {
 	ReceiveAckProductFailures uint64
 	ReceiveAckHarnessFailures uint64
 	DuplicateDeliveries       uint64
+	Corruptions               uint64
 	SequenceRegressions       uint64
 	ConflictingDeliveries     uint64
 	Sampled                   uint64
 	SampledDelivered          uint64
 	SampledExpired            uint64
+	Losses                    uint64
+	Duplicates                uint64
 	PendingCurrent            int
 	PendingUnfinished         int
 	PendingPeak               int
@@ -162,6 +167,8 @@ type VerifierSnapshot struct {
 type verifierSendCounters struct {
 	sent                   uint64
 	attempts               uint64
+	firstAttempts          uint64
+	firstAttemptFailures   uint64
 	retryAttempts          uint64
 	acknowledged           uint64
 	sendackRejections      uint64
@@ -182,6 +189,7 @@ type verifierReceiveCounters struct {
 	receiveAckProductFailures uint64
 	receiveAckHarnessFailures uint64
 	duplicateDeliveries       uint64
+	corruptions               uint64
 	sequenceRegressions       uint64
 	conflictingDeliveries     uint64
 }
@@ -212,10 +220,12 @@ type pendingSend struct {
 	terminal            TerminalSendCode
 	attempts            [maxSendAttemptIdentities]sendAttemptIdentity
 	attemptCount        uint8
+	firstAttemptFailed  bool
 }
 
 type sendAttemptIdentity struct {
 	clientSeq   uint64
+	attempt     uint8
 	outstanding bool
 }
 
@@ -468,10 +478,12 @@ func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, cli
 		pending.attemptCount >= uint8(maxSendAttemptIdentities) || pending.attempt(clientSeq) != nil {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(attempt.Attempt))
 	}
-	pending.attempts[pending.attemptCount] = sendAttemptIdentity{clientSeq: clientSeq, outstanding: true}
+	pending.attempts[pending.attemptCount] = sendAttemptIdentity{clientSeq: clientSeq, attempt: attempt.Attempt, outstanding: true}
 	pending.attemptCount++
 	v.sendCounters.attempts++
-	if attempt.Attempt > 0 {
+	if attempt.Attempt == 0 {
+		v.sendCounters.firstAttempts++
+	} else {
 		v.sendCounters.retryAttempts++
 	}
 	return nil
@@ -551,12 +563,15 @@ func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Ti
 	}
 	if ack.ReasonCode != frame.ReasonSuccess {
 		if ack.MessageID != 0 || ack.MessageSeq != 0 {
+			v.recordFirstAttemptFailureLocked(pending, attempt)
 			return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 		}
+		v.recordFirstAttemptFailureLocked(pending, attempt)
 		v.sendCounters.sendackRejections++
 		return &SendackRejectedError{reason: ack.ReasonCode, clientSeq: ack.ClientSeq}
 	}
 	if ack.MessageID <= 0 || ack.MessageSeq == 0 {
+		v.recordFirstAttemptFailureLocked(pending, attempt)
 		return v.recordSendFailureLocked(FailureCodeInvalidSendack, pending.logical.LogicalSend, messageFingerprint(ack.ClientMsgNo), EvidenceStageSendack, ack.MessageSeq)
 	}
 	pending.completion = sendAcknowledged
@@ -690,7 +705,7 @@ func (v *Verifier) prepareRecv(recipient string, recv *frame.RecvPacket) (prepar
 	evidenceFingerprint := messageFingerprint(recv.ClientMsgNo)
 	marker, err := DecodePayloadMarker(recv.Payload)
 	if err != nil {
-		return preparedRecv{}, v.recordReceiveFailureLocked(FailureCodeReceivePayload, 0, evidenceFingerprint, EvidenceStageReceive, uint64(len(recv.Payload)))
+		return preparedRecv{}, v.recordPayloadCorruption(0, evidenceFingerprint, uint64(len(recv.Payload)))
 	}
 
 	var target string
@@ -706,7 +721,7 @@ func (v *Verifier) prepareRecv(recipient string, recv *frame.RecvPacket) (prepar
 		}
 		target = recv.ChannelID
 	default:
-		return preparedRecv{}, v.recordReceiveFailureLocked(FailureCodeReceivePayload, marker.LogicalSend, evidenceFingerprint, EvidenceStageReceive, recv.MessageSeq)
+		return preparedRecv{}, v.recordPayloadCorruption(marker.LogicalSend, evidenceFingerprint, recv.MessageSeq)
 	}
 
 	logical, err := v.model.NewLogicalSend(uint64(marker.WorkerID), marker.LogicalSend, marker.Kind, recv.FromUID, target)
@@ -714,7 +729,7 @@ func (v *Verifier) prepareRecv(recipient string, recv *frame.RecvPacket) (prepar
 		return preparedRecv{}, v.recordReceiveFailureLocked(FailureCodeReceiveIdentity, marker.LogicalSend, evidenceFingerprint, EvidenceStageReceive, recv.MessageSeq)
 	}
 	if err := v.model.verifyDecodedPayloadMarker(marker, logical); err != nil {
-		return preparedRecv{}, v.recordReceiveFailureLocked(FailureCodeReceivePayload, marker.LogicalSend, evidenceFingerprint, EvidenceStageReceive, uint64(len(recv.Payload)))
+		return preparedRecv{}, v.recordPayloadCorruption(marker.LogicalSend, evidenceFingerprint, uint64(len(recv.Payload)))
 	}
 	return preparedRecv{logical: logical, marker: marker, evidenceFingerprint: evidenceFingerprint}, nil
 }
@@ -883,6 +898,12 @@ func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) 
 		v.sendCounters.duplicateCompletions++
 		return v.recordSendFailureLocked(FailureCodeDuplicateCompletion, logical.LogicalSend, messageFingerprint(logical.ClientMsgNo), EvidenceStageSend, uint64(code))
 	}
+	for index := uint8(0); index < pending.attemptCount; index++ {
+		if pending.attempts[index].attempt == 0 {
+			v.recordFirstAttemptFailureLocked(pending, &pending.attempts[index])
+			break
+		}
+	}
 	pending.completion = sendTerminal
 	pending.terminal = code
 	v.pendingUnfinished--
@@ -950,6 +971,9 @@ func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) err
 	if attempt == nil {
 		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
 	}
+	if pending.completion == sendIncomplete {
+		v.recordFirstAttemptFailureLocked(pending, attempt)
+	}
 	attempt.outstanding = false
 	return nil
 }
@@ -993,6 +1017,8 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot := VerifierSnapshot{
 		Sent:                   send.sent,
 		Attempts:               send.attempts,
+		FirstAttempts:          send.firstAttempts,
+		FirstAttemptFailures:   send.firstAttemptFailures,
 		RetryAttempts:          send.retryAttempts,
 		Acknowledged:           send.acknowledged,
 		SendackRejections:      send.sendackRejections,
@@ -1003,6 +1029,7 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 		Sampled:                send.sampled,
 		SampledDelivered:       send.sampledDelivered,
 		SampledExpired:         send.sampledExpired,
+		Losses:                 send.sampledExpired,
 	}
 	snapshot.PendingCurrent = len(v.pending)
 	snapshot.PendingUnfinished = v.pendingUnfinished
@@ -1024,6 +1051,8 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.ReceiveAckProductFailures = recv.receiveAckProductFailures
 	snapshot.ReceiveAckHarnessFailures = recv.receiveAckHarnessFailures
 	snapshot.DuplicateDeliveries = recv.duplicateDeliveries
+	snapshot.Duplicates = recv.duplicateDeliveries
+	snapshot.Corruptions = recv.corruptions
 	snapshot.SequenceRegressions = recv.sequenceRegressions
 	snapshot.ConflictingDeliveries = recv.conflictingDeliveries
 	snapshot.SequenceCurrent = v.sequenceCount
@@ -1143,6 +1172,21 @@ func (v *Verifier) recordReceiveFailureLocked(code FailureCode, sample uint64, f
 		Fingerprint: fingerprint,
 		Value:       value,
 	})
+}
+
+func (v *Verifier) recordPayloadCorruption(sample uint64, fingerprint [16]byte, value uint64) error {
+	v.recvMu.Lock()
+	v.recvCounters.corruptions++
+	v.recvMu.Unlock()
+	return v.recordReceiveFailureLocked(FailureCodeReceivePayload, sample, fingerprint, EvidenceStageReceive, value)
+}
+
+func (v *Verifier) recordFirstAttemptFailureLocked(pending *pendingSend, attempt *sendAttemptIdentity) {
+	if pending == nil || attempt == nil || attempt.attempt != 0 || pending.firstAttemptFailed {
+		return
+	}
+	pending.firstAttemptFailed = true
+	v.sendCounters.firstAttemptFailures++
 }
 
 func (v *Verifier) recordRecvAckFailureLocked(ackErr error, recv *frame.RecvPacket) error {

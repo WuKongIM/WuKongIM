@@ -715,6 +715,16 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.verifier.recvMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.recvackLatency, 50*time.Millisecond)
 	engineGeneration.verifier.recvMu.Unlock()
+	engineGeneration.verifier.sendMu.Lock()
+	engineGeneration.verifier.sendCounters.firstAttempts = 101
+	engineGeneration.verifier.sendCounters.firstAttemptFailures = 2
+	engineGeneration.verifier.sendCounters.sampledExpired = 3
+	engineGeneration.verifier.sendMu.Unlock()
+	engineGeneration.verifier.recvMu.Lock()
+	engineGeneration.verifier.recvCounters.duplicateDeliveries = 4
+	engineGeneration.verifier.recvCounters.corruptions = 5
+	engineGeneration.verifier.recvCounters.sequenceRegressions = 6
+	engineGeneration.verifier.recvMu.Unlock()
 	snapshot, err = generation.Snapshot(context.Background())
 	if err != nil {
 		t.Fatalf("latency Snapshot: %v", err)
@@ -727,6 +737,11 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||
 		snapshot.Sync.SyncStarted != 8 || snapshot.Sync.SyncCompleted != 5 || snapshot.Sync.SyncFailed != 2 || snapshot.Sync.SyncCanceled != 1 || snapshot.Sync.Failures != 2 {
 		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
+	}
+	if snapshot.Messages.FirstAttempts != 101 || snapshot.Messages.FirstAttemptFailures != 2 ||
+		snapshot.Messages.Losses != 3 || snapshot.Messages.Duplicates != 4 ||
+		snapshot.Messages.Corruptions != 5 || snapshot.Messages.SequenceRegressions != 6 {
+		t.Fatalf("worker correctness projection = %+v", snapshot.Messages)
 	}
 }
 

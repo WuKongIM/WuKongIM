@@ -69,6 +69,80 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	}
 }
 
+func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
+	policy := newTestRetryPolicy(t, model)
+
+	rejected := mustLogicalSend(t, model, 0, 51, TrafficPerson, "sender", "recipient")
+	if err := verifier.RegisterSend(rejected, time.Unix(100, 0)); err != nil {
+		t.Fatalf("RegisterSend(rejected): %v", err)
+	}
+	first, err := policy.Attempt(rejected, 0)
+	if err != nil {
+		t.Fatalf("Attempt(rejected, 0): %v", err)
+	}
+	if err := verifier.ObserveAttempt(rejected, first, 101); err != nil {
+		t.Fatalf("ObserveAttempt(rejected, 0): %v", err)
+	}
+	rejection := &frame.SendackPacket{ClientSeq: 101, ClientMsgNo: rejected.ClientMsgNo, ReasonCode: frame.ReasonSystemError}
+	for duplicate := 0; duplicate < 2; duplicate++ {
+		var rejectedErr *SendackRejectedError
+		if err := verifier.HandleSendack(rejection); !errors.As(err, &rejectedErr) {
+			t.Fatalf("HandleSendack(rejected %d) = %v, want SendackRejectedError", duplicate, err)
+		}
+	}
+	retry, err := policy.Attempt(rejected, 1)
+	if err != nil {
+		t.Fatalf("Attempt(rejected, 1): %v", err)
+	}
+	if err := verifier.ObserveAttempt(rejected, retry, 102); err != nil {
+		t.Fatalf("ObserveAttempt(rejected, 1): %v", err)
+	}
+	if err := verifier.ResolveAttemptError(rejected.ClientMsgNo, 102); err != nil {
+		t.Fatalf("ResolveAttemptError(retry): %v", err)
+	}
+
+	transportFailed := mustLogicalSend(t, model, 0, 52, TrafficPerson, "sender", "recipient")
+	if err := verifier.RegisterSend(transportFailed, time.Unix(101, 0)); err != nil {
+		t.Fatalf("RegisterSend(transport): %v", err)
+	}
+	first, err = policy.Attempt(transportFailed, 0)
+	if err != nil {
+		t.Fatalf("Attempt(transport, 0): %v", err)
+	}
+	if err := verifier.ObserveAttempt(transportFailed, first, 201); err != nil {
+		t.Fatalf("ObserveAttempt(transport, 0): %v", err)
+	}
+	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptError(first): %v", err)
+	}
+	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptError(first duplicate): %v", err)
+	}
+
+	succeeded := mustLogicalSend(t, model, 0, 53, TrafficPerson, "sender", "recipient")
+	if err := verifier.RegisterSend(succeeded, time.Unix(102, 0)); err != nil {
+		t.Fatalf("RegisterSend(success): %v", err)
+	}
+	first, err = policy.Attempt(succeeded, 0)
+	if err != nil {
+		t.Fatalf("Attempt(success, 0): %v", err)
+	}
+	if err := verifier.ObserveAttempt(succeeded, first, 301); err != nil {
+		t.Fatalf("ObserveAttempt(success, 0): %v", err)
+	}
+	if err := verifier.HandleSendack(&frame.SendackPacket{
+		ClientSeq: 301, ClientMsgNo: succeeded.ClientMsgNo, MessageID: 1, MessageSeq: 1, ReasonCode: frame.ReasonSuccess,
+	}); err != nil {
+		t.Fatalf("HandleSendack(success): %v", err)
+	}
+
+	snapshot := verifier.Snapshot()
+	if snapshot.FirstAttempts != 3 || snapshot.FirstAttemptFailures != 2 {
+		t.Fatalf("first-attempt counters = %d/%d, want 3/2; snapshot=%+v", snapshot.FirstAttempts, snapshot.FirstAttemptFailures, snapshot)
+	}
+}
+
 func TestVerifierRecordsExplicitClockSendackAndRecvackLatency(t *testing.T) {
 	t.Parallel()
 	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
@@ -399,6 +473,9 @@ func TestVerifierRecvFailuresRemainProductFailuresAndStillAck(t *testing.T) {
 	if snapshot.DuplicateDeliveries != 0 || snapshot.ConflictingDeliveries != 1 || snapshot.SequenceRegressions != 1 {
 		t.Fatalf("delivery counters = %+v", snapshot)
 	}
+	if snapshot.Corruptions != 1 {
+		t.Fatalf("Corruptions = %d, want one payload corruption", snapshot.Corruptions)
+	}
 	if snapshot.ReceiveFailures != 4 {
 		t.Fatalf("ReceiveFailures = %d, want 4 validation failures from 5 received packets", snapshot.ReceiveFailures)
 	}
@@ -413,6 +490,23 @@ func TestVerifierRecvFailuresRemainProductFailuresAndStillAck(t *testing.T) {
 		if strings.Contains(string(evidenceJSON), secret) {
 			t.Fatalf("evidence leaks secret %q: %s", secret, evidenceJSON)
 		}
+	}
+}
+
+func TestVerifierCountsOnlyConfirmedExactRetransmissionAsDuplicate(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
+	logical := mustLogicalSend(t, model, 0, 311, TrafficPerson, "sender", "recipient")
+	recv := mustRecvPacket(t, model, logical, 311, 1)
+	acker := &recordingRecvAcker{}
+	if err := verifier.HandleRecv(context.Background(), logical.Target, recv, acker); err != nil {
+		t.Fatalf("HandleRecv(first): %v", err)
+	}
+	assertVerificationCode(t, verifier.HandleRecv(context.Background(), logical.Target, recv, acker), FailureCodeReceiveSequence)
+
+	snapshot := verifier.Snapshot()
+	if snapshot.DuplicateDeliveries != 1 || snapshot.Duplicates != 1 ||
+		snapshot.ConflictingDeliveries != 0 || snapshot.SequenceRegressions != 0 {
+		t.Fatalf("duplicate counters = %+v", snapshot)
 	}
 }
 
@@ -728,7 +822,7 @@ func TestVerifierCorrelationExpiryIsConfirmedLossAndDrainIsBounded(t *testing.T)
 		t.Fatalf("ExpireCorrelations() = %d, want 2", expired)
 	}
 	after := verifier.Snapshot()
-	if after.SampledExpired != 2 || after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 {
+	if after.SampledExpired != 2 || after.Losses != 2 || after.CorrelationCurrent != 0 || after.DeadlineCurrent != 0 {
 		t.Fatalf("after expiry = %+v", after)
 	}
 	if after.Classification != SyncClassificationProductFailure {

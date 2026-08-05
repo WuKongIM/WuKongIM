@@ -958,6 +958,9 @@ func sumWorkerGrantCounts(counts WorkerGrantCounts) (uint64, bool) {
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
+	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts {
+		return false
+	}
 	if len(snapshot.Evidence.Classes) > int(FailureClassHarness) {
 		return false
 	}
@@ -1513,9 +1516,12 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		},
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
+			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: verification.FirstAttemptFailures,
 			SendRejected: verification.SendackRejections, Received: verification.Received,
 			ReceiveAcknowledged: verification.ReceiveAcknowledged, ReceiveAckFailures: verification.ReceiveAckFailures,
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
+			Losses: verification.Losses, Duplicates: verification.Duplicates,
+			Corruptions: verification.Corruptions, SequenceRegressions: verification.SequenceRegressions,
 		},
 		Sync: WorkerSyncSnapshot{
 			CompletedNew: engine.LoginCompletedNew, CompletedReturning: engine.LoginCompletedReturning,

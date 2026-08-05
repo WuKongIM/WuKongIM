@@ -284,15 +284,21 @@ type WorkerGeneratedSnapshot struct {
 
 // WorkerMessageSnapshot exposes end-to-end aggregate correctness counters.
 type WorkerMessageSnapshot struct {
-	Sent                uint64 `json:"sent"`
-	SendAttempts        uint64 `json:"send_attempts"`
-	SendAcknowledged    uint64 `json:"send_acknowledged"`
-	SendRejected        uint64 `json:"send_rejected"`
-	Received            uint64 `json:"received"`
-	ReceiveAcknowledged uint64 `json:"receive_acknowledged"`
-	ReceiveAckFailures  uint64 `json:"receive_ack_failures"`
-	RetryAttempts       uint64 `json:"retry_attempts"`
-	Terminal            uint64 `json:"terminal"`
+	Sent                 uint64 `json:"sent"`
+	SendAttempts         uint64 `json:"send_attempts"`
+	FirstAttempts        uint64 `json:"first_attempts"`
+	FirstAttemptFailures uint64 `json:"first_attempt_failures"`
+	SendAcknowledged     uint64 `json:"send_acknowledged"`
+	SendRejected         uint64 `json:"send_rejected"`
+	Received             uint64 `json:"received"`
+	ReceiveAcknowledged  uint64 `json:"receive_acknowledged"`
+	ReceiveAckFailures   uint64 `json:"receive_ack_failures"`
+	RetryAttempts        uint64 `json:"retry_attempts"`
+	Terminal             uint64 `json:"terminal"`
+	Losses               uint64 `json:"losses"`
+	Duplicates           uint64 `json:"duplicates"`
+	Corruptions          uint64 `json:"corruptions"`
+	SequenceRegressions  uint64 `json:"sequence_regressions"`
 }
 
 // WorkerSyncSnapshot exposes cumulative real factory, CONNECT, and full-sync
