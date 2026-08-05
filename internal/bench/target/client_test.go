@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/stretchr/testify/require"
@@ -987,7 +988,9 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 		require.Equal(t, "Bearer "+token, r.Header.Get("Authorization"))
 		switch r.URL.Path {
 		case "/debug/config":
-			_, _ = io.WriteString(w, `{"node_id":1,"initial_slot_count":12,"hash_slot_count":256,"slot_replica_count":3,"channel_replica_count":3,"channel_max_loaded_count":50000,"future_field":"ignored"}`)
+			_, _ = io.WriteString(w, `{"node_id":1,"node_data_dir":"/srv/wukongim/node-1","initial_slot_count":12,"hash_slot_count":256,"slot_replica_count":3,"channel_replica_count":3,"channel_max_loaded_count":50000,"future_field":"ignored"}`)
+		case "/debug/goroutines/summary":
+			_, _ = io.WriteString(w, `{"generated_at":"2030-03-17T17:46:41Z","process_started_at":"2030-03-14T17:46:40Z","boot_id":"process-1","process_total":42,"future_field":"ignored"}`)
 		case "/debug/cluster":
 			_, _ = io.WriteString(w, `{"node_id":1,"state_revision":9,"slots":[{"slot_id":1,"leader_id":1,"replicas":[1,2,3],"voters":[1,2,3],"term":7,"commit_index":100,"applied_index":100,"replica_progress":[{"node_id":1,"match_index":100,"lag_entries":0,"state":"StateReplicate"},{"node_id":2,"match_index":99,"lag_entries":1,"state":"StateReplicate"},{"node_id":3,"match_index":98,"lag_entries":2,"state":"StateProbe"}],"future_field":true}],"future_field":"ignored"}`)
 		case "/metrics":
@@ -1016,7 +1019,14 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 
 	config, err := client.DebugConfig(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, DebugConfig{NodeID: 1, InitialSlotCount: 12, HashSlotCount: 256, SlotReplicaCount: 3, ChannelReplicaCount: 3, MaxChannels: 50000}, config)
+	require.Equal(t, DebugConfig{NodeID: 1, NodeDataDir: "/srv/wukongim/node-1", InitialSlotCount: 12, HashSlotCount: 256, SlotReplicaCount: 3, ChannelReplicaCount: 3, MaxChannels: 50000}, config)
+	goroutines, err := client.DebugGoroutineSummary(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, DebugGoroutineSummary{
+		GeneratedAt:      time.Date(2030, time.March, 17, 17, 46, 41, 0, time.UTC),
+		ProcessStartedAt: time.Date(2030, time.March, 14, 17, 46, 40, 0, time.UTC),
+		BootID:           "process-1",
+	}, goroutines)
 	cluster, err := client.DebugCluster(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, uint64(9), cluster.StateRevision)
@@ -1038,6 +1048,7 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 	require.NoError(t, metrics.ValidateRequired())
 	require.NoError(t, client.ForceGC(context.Background()))
 	require.Equal(t, 1, seen["/debug/config"])
+	require.Equal(t, 1, seen["/debug/goroutines/summary"])
 	require.Equal(t, 1, seen["/debug/cluster"])
 	require.Equal(t, 1, seen["/metrics"])
 	require.Equal(t, 1, seen["/debug/pprof/heap?gc=1"])
@@ -1094,6 +1105,8 @@ func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {
 		switch r.URL.Path {
 		case "/debug/config":
 			http.Error(w, "rejected "+token, http.StatusUnauthorized)
+		case "/debug/goroutines/summary":
+			http.Error(w, "rejected "+token, http.StatusUnauthorized)
 		case "/debug/cluster":
 			_, _ = io.WriteString(w, `{"node_id":1,"slots":[`+strings.Repeat(`{"slot_id":1},`, 300)+`{}]}`)
 		case "/metrics":
@@ -1106,6 +1119,10 @@ func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {
 	client := NewClient(Config{APIAddrs: []string{server.URL}, Token: token})
 
 	_, err := client.DebugConfig(context.Background())
+	require.Error(t, err)
+	require.ErrorContains(t, err, "401")
+	require.NotContains(t, err.Error(), token)
+	_, err = client.DebugGoroutineSummary(context.Background())
 	require.Error(t, err)
 	require.ErrorContains(t, err, "401")
 	require.NotContains(t, err.Error(), token)

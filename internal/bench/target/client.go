@@ -46,11 +46,20 @@ const (
 // DebugConfig is the bounded effective configuration required by formal preflight.
 type DebugConfig struct {
 	NodeID              uint64 `json:"node_id"`
+	NodeDataDir         string `json:"node_data_dir"`
 	InitialSlotCount    uint32 `json:"initial_slot_count"`
 	HashSlotCount       uint16 `json:"hash_slot_count"`
 	SlotReplicaCount    int    `json:"slot_replica_count"`
 	ChannelReplicaCount int    `json:"channel_replica_count"`
 	MaxChannels         int    `json:"channel_max_loaded_count"`
+}
+
+// DebugGoroutineSummary is the bounded process identity required by the
+// chat-lifecycle dataset-generation probe. It intentionally omits task rows.
+type DebugGoroutineSummary struct {
+	GeneratedAt      time.Time `json:"generated_at"`
+	ProcessStartedAt time.Time `json:"process_started_at"`
+	BootID           string    `json:"boot_id"`
 }
 
 // DebugCluster is one node's bounded live Slot Raft observation.
@@ -204,6 +213,15 @@ func (c *Client) DebugConfig(ctx context.Context) (DebugConfig, error) {
 	var out DebugConfig
 	if err := c.getObservationJSON(ctx, "/debug/config", &out, maxObservationDebugResponseBytes); err != nil {
 		return DebugConfig{}, err
+	}
+	return out, nil
+}
+
+// DebugGoroutineSummary reads the protected process identity snapshot.
+func (c *Client) DebugGoroutineSummary(ctx context.Context) (DebugGoroutineSummary, error) {
+	var out DebugGoroutineSummary
+	if err := c.getObservationJSON(ctx, "/debug/goroutines/summary", &out, maxObservationDebugResponseBytes); err != nil {
+		return DebugGoroutineSummary{}, err
 	}
 	return out, nil
 }
