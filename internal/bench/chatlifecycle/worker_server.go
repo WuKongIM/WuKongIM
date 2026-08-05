@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
@@ -25,9 +26,12 @@ const workerMaxDrainTimeout = 30 * time.Second
 // Implementations must make Stop idempotent and must not bind their lifetime to
 // an individual HTTP request context. Done signals only after an unexpected
 // runtime has performed its own bounded teardown or after explicit Stop joins.
+// TrafficReady must be an O(1), non-blocking generation-local read.
 type WorkerGeneration interface {
 	Start(context.Context) error
 	UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error
+	ApplyGrant(context.Context, uint64) error
+	TrafficReady() bool
 	Checkpoint(context.Context) (WorkerSnapshot, error)
 	Drain(context.Context) error
 	Stop()
@@ -72,12 +76,21 @@ type WorkerServer struct {
 	snapshotSequence uint64
 	unexpected       bool
 	stop             *workerStopTask
+	grantInFlight    *workerGrantTask
+	lastGrantRequest WorkerGrantRequest
+	lastGrantResult  WorkerGrantResponse
+	lastGrantFailed  bool
 
 	unexpectedExit chan struct{}
 }
 
 type workerStopTask struct {
 	done chan struct{}
+}
+
+type workerGrantTask struct {
+	request WorkerGrantRequest
+	done    chan struct{}
 }
 
 type workerControlState struct {
@@ -122,6 +135,7 @@ func (s *WorkerServer) routes() {
 	s.mux.HandleFunc("GET /v1/chat-lifecycle/snapshot", s.handleSnapshot)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/checkpoint", s.handleCheckpoint)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/rate", s.handleRate)
+	s.mux.HandleFunc("POST /v1/chat-lifecycle/grant", s.handleGrant)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/stop", s.handleStop)
 }
 
@@ -147,7 +161,7 @@ func workerEndpointMethod(path string) (string, bool) {
 	switch path {
 	case "/healthz", "/v1/info", "/v1/chat-lifecycle/status", "/v1/chat-lifecycle/snapshot":
 		return http.MethodGet, true
-	case "/v1/chat-lifecycle/assign", "/v1/chat-lifecycle/start", "/v1/chat-lifecycle/checkpoint", "/v1/chat-lifecycle/rate", "/v1/chat-lifecycle/stop":
+	case "/v1/chat-lifecycle/assign", "/v1/chat-lifecycle/start", "/v1/chat-lifecycle/checkpoint", "/v1/chat-lifecycle/rate", "/v1/chat-lifecycle/grant", "/v1/chat-lifecycle/stop":
 		return http.MethodPost, true
 	default:
 		return "", false
@@ -173,7 +187,7 @@ func (s *WorkerServer) handleHealth(response http.ResponseWriter, _ *http.Reques
 
 func (s *WorkerServer) handleInfo(response http.ResponseWriter, _ *http.Request) {
 	writeWorkerJSON(response, http.StatusOK, WorkerInfo{
-		ProtocolVersion:  1,
+		ProtocolVersion:  workerProtocolVersion,
 		MaxRequestBytes:  workerMaxRequestBytes,
 		MaxResponseBytes: workerMaxResponseBytes,
 	})
@@ -212,6 +226,10 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	s.snapshotSequence = 0
 	s.unexpected = false
 	s.stop = nil
+	s.grantInFlight = nil
+	s.lastGrantRequest = WorkerGrantRequest{}
+	s.lastGrantResult = WorkerGrantResponse{}
+	s.lastGrantFailed = false
 	writeWorkerJSON(response, http.StatusOK, s.statusLocked())
 }
 
@@ -380,6 +398,107 @@ func (s *WorkerServer) handleRate(response http.ResponseWriter, request *http.Re
 	writeWorkerJSON(response, http.StatusOK, status)
 }
 
+func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.Request) {
+	var grant WorkerGrantRequest
+	if !decodeWorkerJSON(response, request, &grant) {
+		return
+	}
+	if !validWorkerGrant(grant) {
+		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
+		return
+	}
+
+	for {
+		s.mu.Lock()
+		if !s.runningFenceLocked(response, grant.WorkerFence) {
+			s.mu.Unlock()
+			return
+		}
+		if !s.assignment.CoordinatorGrants {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
+			return
+		}
+		if grant.Sequence == s.lastGrantRequest.Sequence && grant.Sequence != 0 {
+			if grant != s.lastGrantRequest {
+				s.mu.Unlock()
+				writeWorkerError(response, http.StatusConflict, WorkerErrorGrantConflict)
+				return
+			}
+			result, failed := s.lastGrantResult, s.lastGrantFailed
+			s.mu.Unlock()
+			if failed {
+				writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			} else {
+				writeWorkerJSON(response, http.StatusOK, result)
+			}
+			return
+		}
+		if grant.Sequence < s.lastGrantRequest.Sequence {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorGrantStale)
+			return
+		}
+		if active := s.grantInFlight; active != nil {
+			if grant != active.request {
+				s.mu.Unlock()
+				writeWorkerError(response, http.StatusConflict, WorkerErrorGrantConflict)
+				return
+			}
+			s.mu.Unlock()
+			select {
+			case <-request.Context().Done():
+				return
+			case <-active.done:
+				continue
+			}
+		}
+		if grant.Sequence != s.lastGrantRequest.Sequence+1 {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorGrantGap)
+			return
+		}
+		generation := s.generation
+		workerID := s.assignment.WorkerID
+		control := workerControlState{generation: generation, phase: s.phase, fence: grant.WorkerFence}
+		task := &workerGrantTask{request: grant, done: make(chan struct{})}
+		s.grantInFlight = task
+		s.mu.Unlock()
+
+		released, _ := grant.Released.worker(workerID)
+		grantErr := generation.ApplyGrant(request.Context(), released)
+		s.mu.Lock()
+		if !s.controlStateMatchesLocked(control) {
+			if s.grantInFlight == task {
+				s.grantInFlight = nil
+			}
+			close(task.done)
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+			return
+		}
+		result := WorkerGrantResponse{
+			WorkerFence: grant.WorkerFence, WorkerID: s.assignment.WorkerID,
+			WorkerCount: s.assignment.WorkerCount, Sequence: grant.Sequence, Released: released,
+		}
+		s.lastGrantRequest = grant
+		s.lastGrantResult = result
+		s.lastGrantFailed = grantErr != nil
+		s.grantInFlight = nil
+		close(task.done)
+		s.mu.Unlock()
+		if grantErr != nil {
+			if request.Context().Err() != nil {
+				return
+			}
+			writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			return
+		}
+		writeWorkerJSON(response, http.StatusOK, result)
+		return
+	}
+}
+
 func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Request) {
 	var stop WorkerStopRequest
 	if !decodeWorkerJSON(response, request, &stop) {
@@ -525,6 +644,10 @@ func (s *WorkerServer) controlStateMatchesLocked(control workerControlState) boo
 }
 
 func (s *WorkerServer) statusLocked() WorkerStatus {
+	trafficReady := false
+	if s.phase == WorkerPhaseRunning && s.generation != nil {
+		trafficReady = s.generation.TrafficReady()
+	}
 	return WorkerStatus{
 		RunID:        s.assignment.RunID,
 		AssignmentID: s.assignment.AssignmentID,
@@ -533,6 +656,7 @@ func (s *WorkerServer) statusLocked() WorkerStatus {
 		WorkerID:     s.assignment.WorkerID,
 		WorkerCount:  s.assignment.WorkerCount,
 		Unexpected:   s.unexpected,
+		TrafficReady: trafficReady,
 	}
 }
 
@@ -630,6 +754,29 @@ func validWorkerAssignment(assignment WorkerAssignment) bool {
 		return false
 	}
 	return assignment.Config.Validate() == nil
+}
+
+func validWorkerGrant(grant WorkerGrantRequest) bool {
+	if !validWorkerFence(grant.WorkerFence) || grant.Sequence == 0 || grant.RatePerSecond == 0 ||
+		grant.RatePerSecond > ^uint64(0)/2 || grant.MaxBurst != 2*grant.RatePerSecond {
+		return false
+	}
+	fresh, freshOK := sumWorkerGrantCounts(grant.Fresh)
+	released, releasedOK := sumWorkerGrantCounts(grant.Released)
+	credit, creditOK := sumWorkerGrantCounts(grant.Credit)
+	return freshOK && releasedOK && creditOK && fresh == grant.RatePerSecond &&
+		released <= grant.MaxBurst && credit <= grant.MaxBurst
+}
+
+func sumWorkerGrantCounts(counts WorkerGrantCounts) (uint64, bool) {
+	if ^uint64(0)-counts.Worker0 < counts.Worker1 {
+		return 0, false
+	}
+	total := counts.Worker0 + counts.Worker1
+	if ^uint64(0)-total < counts.Worker2 {
+		return 0, false
+	}
+	return total + counts.Worker2, true
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
@@ -819,12 +966,13 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	}
 	return &engineWorkerGeneration{
 		engine: engine, verifier: verifier, evidence: evidence,
-		onlineTarget:  limits.online,
-		trafficDemand: trafficDemand,
-		generation:    assignment.Generation,
-		clock:         clock,
-		newTicker:     newTicker,
-		done:          make(chan error, 1),
+		onlineTarget:   limits.online,
+		trafficDemand:  trafficDemand,
+		externalGrants: assignment.CoordinatorGrants,
+		generation:     assignment.Generation,
+		clock:          clock,
+		newTicker:      newTicker,
+		done:           make(chan error, 1),
 	}, nil
 }
 
@@ -961,21 +1109,22 @@ type engineWorkerGeneration struct {
 	evidence *EvidenceRecorder
 	// onlineTarget and trafficDemand are immutable O(1) tick inputs derived
 	// from the assignment; coordinator snapshots are never used by the latch.
-	onlineTarget  int
-	trafficDemand []uint64
-	generation    uint64
-	clock         SessionClock
-	newTicker     func(time.Duration) workerGenerationTicker
+	onlineTarget   int
+	trafficDemand  []uint64
+	externalGrants bool
+	generation     uint64
+	clock          SessionClock
+	newTicker      func(time.Duration) workerGenerationTicker
 
 	mu      sync.Mutex
 	started bool
-	// trafficStarted is owned by runTicks and remains sticky across churn once
-	// the local generation has completed its initial synchronized online set.
-	trafficStarted bool
-	tickCancel     context.CancelFunc
-	tickDone       chan struct{}
-	done           chan error
-	doneOnce       sync.Once
+	// trafficReady remains sticky across churn once the initial synchronized
+	// online target has been observed. Status reads it without engine I/O.
+	trafficReady atomic.Bool
+	tickCancel   context.CancelFunc
+	tickDone     chan struct{}
+	done         chan error
+	doneOnce     sync.Once
 }
 
 func (g *engineWorkerGeneration) Start(_ context.Context) error {
@@ -1021,12 +1170,12 @@ func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struc
 
 func (g *engineWorkerGeneration) step(ctx context.Context, now time.Time) error {
 	var demand []uint64
-	if g.trafficStarted {
+	if !g.externalGrants && g.trafficReady.Load() {
 		demand = g.trafficDemand
 	}
 	step, err := g.engine.Step(ctx, now, demand)
-	if !g.trafficStarted && step.Online >= g.onlineTarget {
-		g.trafficStarted = true
+	if !g.trafficReady.Load() && step.Online >= g.onlineTarget {
+		g.trafficReady.Store(true)
 	}
 	return err
 }
@@ -1066,6 +1215,16 @@ func workerStepErrorIsEvidence(err error) bool {
 func (g *engineWorkerGeneration) UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error {
 	return g.engine.ScheduleRateContext(ctx, ratePerSecond, maxBurst)
 }
+
+func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64) error {
+	if !g.externalGrants || !g.trafficReady.Load() {
+		return errWorkerServerConfig
+	}
+	_, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
+	return err
+}
+
+func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }
 
 func (g *engineWorkerGeneration) Checkpoint(ctx context.Context) (WorkerSnapshot, error) {
 	return g.workerSnapshot(ctx)

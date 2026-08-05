@@ -52,6 +52,7 @@ type GroupSetup struct {
 	runID       string
 	fingerprint [sha256.Size]byte
 	complete    bool
+	inFlight    chan struct{}
 }
 
 // NewGroupSetup validates all setup bounds before target mutation is possible.
@@ -87,31 +88,53 @@ func (s *GroupSetup) Run(ctx context.Context, cfg Config) error {
 		return ErrGroupSetupConfig
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.hasRun {
-		if s.runID != cfg.RunID {
-			return ErrGroupSetupRunConflict
+	for {
+		s.mu.Lock()
+		if s.hasRun {
+			if s.runID != cfg.RunID {
+				s.mu.Unlock()
+				return ErrGroupSetupRunConflict
+			}
+			if s.fingerprint != fingerprint {
+				s.mu.Unlock()
+				return ErrGroupSetupShapeMismatch
+			}
+			if s.complete {
+				s.mu.Unlock()
+				return nil
+			}
+		} else {
+			s.hasRun = true
+			s.runID = cfg.RunID
+			s.fingerprint = fingerprint
 		}
-		if s.fingerprint != fingerprint {
-			return ErrGroupSetupShapeMismatch
+		if active := s.inFlight; active != nil {
+			s.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-active:
+				continue
+			}
 		}
-		if s.complete {
-			return nil
+		active := make(chan struct{})
+		s.inFlight = active
+		s.mu.Unlock()
+
+		runErr := s.prepareChannels(ctx, cfg.RunID, catalog)
+		if runErr == nil {
+			runErr = s.prepareSubscribers(ctx, cfg.RunID, catalog)
 		}
-	} else {
-		s.hasRun = true
-		s.runID = cfg.RunID
-		s.fingerprint = fingerprint
+
+		s.mu.Lock()
+		if runErr == nil {
+			s.complete = true
+		}
+		s.inFlight = nil
+		close(active)
+		s.mu.Unlock()
+		return runErr
 	}
-	if err := s.prepareChannels(ctx, cfg.RunID, catalog); err != nil {
-		return err
-	}
-	if err := s.prepareSubscribers(ctx, cfg.RunID, catalog); err != nil {
-		return err
-	}
-	s.complete = true
-	return nil
 }
 
 const groupSetupFingerprintVersion = "wukongim/chat-lifecycle/group-setup-fingerprint/v1"

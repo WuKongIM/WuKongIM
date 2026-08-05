@@ -90,6 +90,58 @@ func TestWorkerClientReturnsStructuredAPIErrorAndHonorsContextCancellation(t *te
 	}
 }
 
+func TestWorkerClientSendsAndStrictlyDecodesCoordinatorGrant(t *testing.T) {
+	t.Parallel()
+	fence := WorkerFence{RunID: "grant-run", AssignmentID: "grant-assignment", Generation: 4}
+	grant := WorkerGrantRequest{
+		WorkerFence: fence, Sequence: 9, RatePerSecond: 120, MaxBurst: 240,
+		Fresh:    WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost || request.URL.Path != "/v1/chat-lifecycle/grant" {
+			t.Fatalf("request = %s %s", request.Method, request.URL.Path)
+		}
+		var observed WorkerGrantRequest
+		decoder := json.NewDecoder(request.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&observed); err != nil || observed != grant {
+			t.Fatalf("grant request = %+v, %v; want %+v", observed, err, grant)
+		}
+		_ = json.NewEncoder(response).Encode(WorkerGrantResponse{
+			WorkerFence: fence, WorkerID: 1, WorkerCount: 3, Sequence: 9, Released: 40,
+		})
+	}))
+	defer server.Close()
+	client, err := NewWorkerClient(WorkerClientConfig{
+		BaseURL: server.URL, ControlToken: "control-secret", HTTPClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerClient: %v", err)
+	}
+	response, err := client.Grant(context.Background(), grant)
+	if err != nil {
+		t.Fatalf("Grant: %v", err)
+	}
+	if response.Sequence != grant.Sequence || response.Released != 40 {
+		t.Fatalf("grant response = %+v", response)
+	}
+
+	unknownServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
+		_, _ = response.Write([]byte(`{"run_id":"grant-run","assignment_id":"grant-assignment","generation":4,"worker_id":1,"worker_count":3,"sequence":9,"released":40,"raw_uid":"forbidden"}`))
+	}))
+	defer unknownServer.Close()
+	unknownClient, err := NewWorkerClient(WorkerClientConfig{
+		BaseURL: unknownServer.URL, ControlToken: "control-secret", HTTPClient: unknownServer.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerClient unknown: %v", err)
+	}
+	if _, err := unknownClient.Grant(context.Background(), grant); !errors.Is(err, ErrWorkerResponse) {
+		t.Fatalf("unknown grant response error = %v, want ErrWorkerResponse", err)
+	}
+}
+
 func TestWorkerClientRejectsOversizedAndUnboundedSnapshotResponses(t *testing.T) {
 	t.Parallel()
 

@@ -43,6 +43,7 @@ func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 		{http.MethodGet, "/v1/chat-lifecycle/snapshot", ""},
 		{http.MethodPost, "/v1/chat-lifecycle/checkpoint", `{}`},
 		{http.MethodPost, "/v1/chat-lifecycle/rate", `{}`},
+		{http.MethodPost, "/v1/chat-lifecycle/grant", `{}`},
 		{http.MethodPost, "/v1/chat-lifecycle/stop", `{}`},
 	}
 	for _, test := range tests {
@@ -63,6 +64,123 @@ func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
+	t.Parallel()
+
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return newFakeWorkerGeneration(), nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new worker server: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/info", nil)
+	request.Header.Set("Authorization", "Bearer control-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
+	}
+	var info WorkerInfo
+	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
+		t.Fatalf("decode info: %v", err)
+	}
+	if info.ProtocolVersion != 2 {
+		t.Fatalf("protocol version = %d, want 2", info.ProtocolVersion)
+	}
+}
+
+func TestWorkerServerAppliesCoordinatorGrantOnceAndFencesSequence(t *testing.T) {
+	t.Parallel()
+
+	generation := newFakeWorkerGeneration()
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("new worker server: %v", err)
+	}
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "grant-sequence", Generation: 1},
+		WorkerID:    1, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", assignment)
+	fence := assignment.WorkerFence
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence})
+
+	grant := WorkerGrantRequest{
+		WorkerFence:   fence,
+		Sequence:      1,
+		RatePerSecond: 120,
+		MaxBurst:      240,
+		Fresh:         WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released:      WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Credit:        WorkerGrantCounts{},
+	}
+	first := assertWorkerGrantSuccess(t, server, grant)
+	duplicate := assertWorkerGrantSuccess(t, server, grant)
+	if first != duplicate {
+		t.Fatalf("duplicate grant response = %+v, want stable %+v", duplicate, first)
+	}
+	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
+		t.Fatalf("applied grants = %v, want one worker-local release", got)
+	}
+
+	gap := grant
+	gap.Sequence = 3
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", gap, http.StatusConflict, WorkerErrorGrantGap)
+	conflict := grant
+	conflict.Released.Worker1--
+	conflict.Credit.Worker1++
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", conflict, http.StatusConflict, WorkerErrorGrantConflict)
+	second := grant
+	second.Sequence = 2
+	assertWorkerGrantSuccess(t, server, second)
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant, http.StatusConflict, WorkerErrorGrantStale)
+	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40, 40}) {
+		t.Fatalf("grant applications = %v, want sequences 1 and 2 once each", got)
+	}
+}
+
+func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T) {
+	t.Parallel()
+
+	generation := newFakeWorkerGeneration()
+	generation.grantErr = errors.New("injected accepted grant failure")
+	server, fence := startWorkerServerForCoordinatorGeneration(t, generation, "grant-failure")
+	grant := WorkerGrantRequest{
+		WorkerFence: fence, Sequence: 1, RatePerSecond: 120, MaxBurst: 240,
+		Fresh:    WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+	}
+	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
+		t.Fatalf("failed grant applications = %v, want one accepted attempt", got)
+	}
+}
+
+func assertWorkerGrantSuccess(t *testing.T, server http.Handler, grant WorkerGrantRequest) WorkerGrantResponse {
+	t.Helper()
+	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+	if response.Code != http.StatusOK {
+		t.Fatalf("grant status = %d, want %d; body = %q", response.Code, http.StatusOK, response.Body.String())
+	}
+	var result WorkerGrantResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode grant response: %v", err)
+	}
+	return result
 }
 
 func TestWorkerServerUsesStableErrorsForUnknownRoutesAndMethods(t *testing.T) {
@@ -485,7 +603,7 @@ func TestWorkerEngineTrafficLatchDoesNotPollSessionQueues(t *testing.T) {
 			t.Fatalf("step: %v", err)
 		}
 	}
-	if !generation.trafficStarted {
+	if !generation.trafficReady.Load() {
 		t.Fatal("traffic latch did not observe the synchronized local online target")
 	}
 
@@ -650,6 +768,80 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 	identity8 := run(8, false)
 	if identity7 == identity8 {
 		t.Fatalf("assigned generation did not scope client_msg_no: %q", identity7)
+	}
+}
+
+func TestWorkerEngineCoordinatorModeEmitsPrimaryOnlyFromExternalGrant(t *testing.T) {
+	config := LocalConfig()
+	config.RunID = "worker-external-grant"
+	config.Workload.OnlineUsers = 12
+	config.Workload.SendRatePerSecond = 12
+	config.Workload.MaxGlobalBurst = 24
+	config.Workload.Sessions = []DurationShare{{Percent: 100, Min: 3 * time.Hour, Max: 3 * time.Hour}}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("external grant config: %v", err)
+	}
+	startedAt := time.Unix(1_700_000_000, 0)
+	clock := &sessionFakeClock{now: startedAt}
+	sessions := &engineFakeFactory{}
+	ticker := newManualWorkerGenerationTicker()
+	factory := engineWorkerGenerationFactory{
+		clock:             clock,
+		newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) { return sessions, nil },
+		newSyncer: func(WorkerAssignment) (ConversationSyncer, error) {
+			return &workerBootstrapSyncer{blockAfter: 4}, nil
+		},
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+	}
+	worker, err := factory.New(WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "external-grant", Generation: 11},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	})
+	if err != nil {
+		t.Fatalf("New external-grant generation: %v", err)
+	}
+	if err := worker.Start(context.Background()); err != nil {
+		t.Fatalf("Start external-grant generation: %v", err)
+	}
+	defer worker.Stop()
+	ticker.awaitReady(t)
+
+	clock.Set(startedAt.Add(46 * time.Minute))
+	ticker.tickAndWait(t)
+	worker.(*engineWorkerGeneration).engine.loginOps.Wait()
+	for tick := 0; tick < 3 && !worker.TrafficReady(); tick++ {
+		clock.Set(clock.Now().Add(time.Second))
+		ticker.tickAndWait(t)
+	}
+	if !worker.TrafficReady() {
+		t.Fatal("worker did not publish traffic readiness after synchronized bootstrap")
+	}
+	before, err := worker.Checkpoint(context.Background())
+	if err != nil {
+		t.Fatalf("pre-grant checkpoint: %v", err)
+	}
+	if before.Generated.Primary != 0 {
+		t.Fatalf("coordinator mode autonomous primary = %d, want 0", before.Generated.Primary)
+	}
+
+	clock.Set(clock.Now().Add(time.Second))
+	ticker.tickAndWait(t)
+	autonomous, err := worker.Checkpoint(context.Background())
+	if err != nil {
+		t.Fatalf("autonomous checkpoint: %v", err)
+	}
+	if autonomous.Generated.Primary != 0 {
+		t.Fatalf("coordinator mode local allocator released %d primary messages", autonomous.Generated.Primary)
+	}
+	if err := worker.ApplyGrant(context.Background(), 4); err != nil {
+		t.Fatalf("ApplyGrant: %v", err)
+	}
+	after, err := worker.Checkpoint(context.Background())
+	if err != nil {
+		t.Fatalf("post-grant checkpoint: %v", err)
+	}
+	if after.Generated.Primary != 4 {
+		t.Fatalf("external primary release = %d, want exactly 4", after.Generated.Primary)
 	}
 }
 
@@ -1425,11 +1617,33 @@ func startWorkerServerForGeneration(t *testing.T, generation WorkerGeneration, a
 	return server, fence
 }
 
+func startWorkerServerForCoordinatorGeneration(t *testing.T, generation WorkerGeneration, assignmentID string) (*WorkerServer, WorkerFence) {
+	t.Helper()
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer: %v", err)
+	}
+	config := LocalConfig()
+	fence := WorkerFence{RunID: config.RunID, AssignmentID: assignmentID, Generation: 7}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+		WorkerFence: fence, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	})
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence})
+	return server, fence
+}
+
 type fakeWorkerGeneration struct {
 	startErr     error
 	starts       int
 	rate         uint64
 	burst        uint64
+	grants       []uint64
+	grantErr     error
 	checkpoints  int
 	drains       int
 	stops        int
@@ -1456,6 +1670,13 @@ func (g *fakeWorkerGeneration) UpdateRate(_ context.Context, ratePerSecond, maxB
 	g.rate, g.burst = ratePerSecond, maxBurst
 	return nil
 }
+
+func (g *fakeWorkerGeneration) ApplyGrant(_ context.Context, released uint64) error {
+	g.grants = append(g.grants, released)
+	return g.grantErr
+}
+
+func (g *fakeWorkerGeneration) TrafficReady() bool { return true }
 
 func (g *fakeWorkerGeneration) Checkpoint(context.Context) (WorkerSnapshot, error) {
 	g.checkpoints++

@@ -104,6 +104,12 @@ func (c *WorkerClient) UpdateRate(ctx context.Context, rate WorkerRateRequest) (
 	return response, err
 }
 
+func (c *WorkerClient) Grant(ctx context.Context, grant WorkerGrantRequest) (WorkerGrantResponse, error) {
+	var response WorkerGrantResponse
+	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/grant", grant, &response)
+	return response, err
+}
+
 func (c *WorkerClient) Stop(ctx context.Context, stop WorkerStopRequest) (WorkerSnapshot, error) {
 	var response WorkerSnapshot
 	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/stop", stop, &response)
@@ -163,6 +169,9 @@ func validTypedWorkerResponse(response any) bool {
 		return validWorkerPhase(value.Phase)
 	case *WorkerHealth:
 		return validWorkerPhase(value.Phase)
+	case *WorkerGrantResponse:
+		return validWorkerFence(value.WorkerFence) && value.WorkerCount == coordinatorWorkerCount &&
+			value.WorkerID < value.WorkerCount && value.Sequence > 0
 	default:
 		return true
 	}
@@ -181,7 +190,8 @@ func validWorkerErrorCode(code WorkerErrorCode) bool {
 	switch code {
 	case WorkerErrorUnauthorized, WorkerErrorNotFound, WorkerErrorMethodNotAllowed, WorkerErrorInvalidJSON,
 		WorkerErrorRequestTooLarge, WorkerErrorInvalidRequest, WorkerErrorInvalidAssignment,
-		WorkerErrorAssignmentConflict, WorkerErrorFenceMismatch, WorkerErrorInvalidState, WorkerErrorRuntimeFailure:
+		WorkerErrorAssignmentConflict, WorkerErrorFenceMismatch, WorkerErrorInvalidState, WorkerErrorRuntimeFailure,
+		WorkerErrorGrantGap, WorkerErrorGrantStale, WorkerErrorGrantConflict:
 		return true
 	default:
 		return false

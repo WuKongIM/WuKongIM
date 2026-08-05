@@ -40,7 +40,7 @@ func BenchmarkEngineWorkerGenerationBootstrapTick10000(b *testing.B) {
 	b.ReportMetric(sessionCount, "sessions/tick")
 	b.ResetTimer()
 	for iteration := 0; iteration < b.N; iteration++ {
-		generation.trafficStarted = false
+		generation.trafficReady.Store(false)
 		if err := generation.step(context.Background(), now); err != nil {
 			b.Fatalf("step: %v", err)
 		}

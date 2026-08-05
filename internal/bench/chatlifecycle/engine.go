@@ -885,6 +885,97 @@ func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, erro
 	return snapshot, err
 }
 
+// ApplyGrant commits one worker-local release selected by the coordinator's
+// single global allocator. Caller cancellation wins before owner admission;
+// after admission the engine generation owns completion so delivery retry
+// cannot regenerate a partially accepted grant.
+func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, error) {
+	if e == nil {
+		return TrafficTickSnapshot{}, errEngineConfig
+	}
+	generationCtx, ok := e.beginTickOp()
+	if !ok {
+		return TrafficTickSnapshot{}, errEngineNotRunning
+	}
+	defer e.tickOps.Done()
+	admissionCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+	if err := e.awaitOwnerTimeAdmission(admissionCtx, now); err != nil {
+		return TrafficTickSnapshot{}, err
+	}
+	if err := admissionCtx.Err(); err != nil {
+		return TrafficTickSnapshot{}, err
+	}
+	snapshot, err := e.applyGrant(generationCtx, now, released)
+	if err == nil {
+		_, err = e.advanceWithContext(generationCtx, now)
+	}
+	if generationCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return snapshot, errEngineNotRunning
+	}
+	return snapshot, err
+}
+
+func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return TrafficTickSnapshot{}, err
+	}
+	response := make(chan struct {
+		snapshot TrafficTickSnapshot
+		err      error
+	}, 1)
+	if err := e.enqueue(engineCommand{run: func() {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: ctxErr}
+			return
+		}
+		if timeErr := e.validateOwnerTime(now); timeErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: timeErr}
+			return
+		}
+		e.now = now
+		snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
+			var routeErr error
+			if intent.Kind == TrafficPerson {
+				intent, routeErr = e.routePersonGrant(intent, now)
+			} else {
+				intent, routeErr = e.routeGroupGrant(intent)
+			}
+			if routeErr != nil {
+				return routeErr
+			}
+			return e.addSendWork(intent, 0, now)
+		})
+		if grantErr == nil {
+			if canary, due, canaryErr := e.generator.NextCanary(now); canaryErr != nil {
+				grantErr = canaryErr
+			} else if due {
+				if canary, canaryErr = e.routeGroupGrant(canary); canaryErr == nil {
+					grantErr = e.addSendWork(canary, 0, now)
+				} else {
+					grantErr = canaryErr
+				}
+			}
+		}
+		response <- struct {
+			snapshot TrafficTickSnapshot
+			err      error
+		}{snapshot: snapshot, err: grantErr}
+	}}); err != nil {
+		return TrafficTickSnapshot{}, err
+	}
+	result := <-response
+	return result.snapshot, result.err
+}
+
 func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return TrafficTickSnapshot{}, err

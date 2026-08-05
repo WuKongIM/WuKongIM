@@ -354,7 +354,7 @@ func (c workerPreflightClient) Check(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if info.ProtocolVersion != 1 || info.MaxRequestBytes <= 0 || info.MaxRequestBytes > workerMaxRequestBytes || info.MaxResponseBytes <= 0 || info.MaxResponseBytes > workerMaxResponseBytes {
+	if info.ProtocolVersion != workerProtocolVersion || info.MaxRequestBytes <= 0 || info.MaxRequestBytes > workerMaxRequestBytes || info.MaxResponseBytes <= 0 || info.MaxResponseBytes > workerMaxResponseBytes {
 		return ErrWorkerResponse
 	}
 	return nil

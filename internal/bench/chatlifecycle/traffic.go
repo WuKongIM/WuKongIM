@@ -236,8 +236,22 @@ func (g *TrafficGenerator) Tick(demand []uint64, emit func(TrafficIntent) error)
 	if err != nil {
 		return TrafficTickSnapshot{}, err
 	}
-	var snapshot TrafficTickSnapshot
-	for count := uint64(0); count < grant.Released[g.workerID]; count++ {
+	return g.ApplyGrant(grant.Released[g.workerID], emit)
+}
+
+// ApplyGrant streams only this worker's coordinator-apportioned release. It
+// deliberately does not advance the generator's local RateAllocator.
+func (g *TrafficGenerator) ApplyGrant(released uint64, emit func(TrafficIntent) error) (snapshot TrafficTickSnapshot, resultErr error) {
+	if g == nil || emit == nil {
+		return TrafficTickSnapshot{}, errTrafficEmitter
+	}
+	defer func() {
+		g.snapshot.PrimaryReleased += snapshot.Released
+		g.snapshot.Person += snapshot.Person
+		g.snapshot.Group += snapshot.Group
+		g.snapshot.PayloadBytes += snapshot.PayloadBytes
+	}()
+	for count := uint64(0); count < released; count++ {
 		intent, err := g.primaryIntent()
 		if err != nil {
 			return snapshot, err
@@ -258,10 +272,6 @@ func (g *TrafficGenerator) Tick(demand []uint64, emit func(TrafficIntent) error)
 		snapshot.PayloadCounts[payloadIndex]++
 		snapshot.PayloadBytes += uint64(intent.PayloadBytes)
 	}
-	g.snapshot.PrimaryReleased += snapshot.Released
-	g.snapshot.Person += snapshot.Person
-	g.snapshot.Group += snapshot.Group
-	g.snapshot.PayloadBytes += snapshot.PayloadBytes
 	return snapshot, nil
 }
 

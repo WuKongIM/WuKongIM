@@ -144,6 +144,67 @@ func TestTrafficGeneratorsPartitionFormalGlobalGrantByWorker(t *testing.T) {
 	}
 }
 
+func TestTrafficGeneratorsApplyOneCoordinatorGrantWithoutLocalAllocators(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "traffic-external-grant"
+	assignments, err := BuildCoordinatorAssignments(cfg, 8)
+	if err != nil {
+		t.Fatalf("BuildCoordinatorAssignments() error = %v", err)
+	}
+	plan, err := NewCoordinatorGrantPlan(assignments)
+	if err != nil {
+		t.Fatalf("NewCoordinatorGrantPlan() error = %v", err)
+	}
+	grant, err := plan.Tick([coordinatorWorkerCount]uint64{^uint64(0), ^uint64(0), ^uint64(0)})
+	if err != nil {
+		t.Fatalf("Tick() error = %v", err)
+	}
+
+	var total uint64
+	for workerID := uint64(0); workerID < uint64(cfg.Workload.Workers); workerID++ {
+		generator := newTrafficTestGenerator(t, cfg, time.Unix(1_700_000_000, 0), workerID)
+		emitted := uint64(0)
+		snapshot, err := generator.ApplyGrant(grant.Released[workerID], func(TrafficIntent) error {
+			emitted++
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("worker %d ApplyGrant() error = %v", workerID, err)
+		}
+		if emitted != grant.Released[workerID] || snapshot.Released != grant.Released[workerID] {
+			t.Fatalf("worker %d emitted/snapshot = %d/%d, want %d", workerID, emitted, snapshot.Released, grant.Released[workerID])
+		}
+		total += emitted
+	}
+	if total != uint64(cfg.Workload.SendRatePerSecond) {
+		t.Fatalf("external grant total = %d, want exact global rate %d", total, cfg.Workload.SendRatePerSecond)
+	}
+}
+
+func TestTrafficGeneratorRetainsAcceptedPrefixWhenExternalGrantFails(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "traffic-external-grant-failure"
+	generator := newTrafficTestGenerator(t, cfg, time.Unix(1_700_000_000, 0), 0)
+	emitted := 0
+	wantErr := errors.New("injected emitter failure")
+	snapshot, err := generator.ApplyGrant(3, func(TrafficIntent) error {
+		emitted++
+		if emitted == 2 {
+			return wantErr
+		}
+		return nil
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ApplyGrant() error = %v, want injected failure", err)
+	}
+	if snapshot.Released != 1 {
+		t.Fatalf("returned accepted prefix = %d, want 1", snapshot.Released)
+	}
+	if got := generator.Snapshot().PrimaryReleased; got != 1 {
+		t.Fatalf("retained accepted prefix = %d, want 1 so failed grant is never replayed", got)
+	}
+}
+
 func TestTrafficGeneratorsEmitEveryFormalGroupGrantOnlyOnCatalogOwner(t *testing.T) {
 	cfg := FormalConfig()
 	start := time.Unix(1_700_000_000, 0)

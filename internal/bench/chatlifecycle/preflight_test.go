@@ -2,6 +2,7 @@ package chatlifecycle
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,41 @@ func TestPreflightValidFormalAndLocalGateTraffic(t *testing.T) {
 		}
 		if fixture.safeStops != 0 {
 			t.Fatalf("profile %s safe stops = %d, want 0", cfg.Profile, fixture.safeStops)
+		}
+	}
+}
+
+func TestWorkerPreflightRejectsProtocolV1BeforeCoordinatorMutation(t *testing.T) {
+	serverForVersion := func(version uint64) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/healthz":
+				_ = json.NewEncoder(response).Encode(WorkerHealth{OK: true, Phase: WorkerPhaseUnassigned})
+			case "/v1/info":
+				_ = json.NewEncoder(response).Encode(WorkerInfo{
+					ProtocolVersion: version, MaxRequestBytes: workerMaxRequestBytes, MaxResponseBytes: workerMaxResponseBytes,
+				})
+			default:
+				response.WriteHeader(http.StatusNotFound)
+			}
+		}))
+	}
+	for _, testCase := range []struct {
+		version uint64
+		wantErr bool
+	}{{version: 1, wantErr: true}, {version: workerProtocolVersion, wantErr: false}} {
+		server := serverForVersion(testCase.version)
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: server.URL, ControlToken: "control-secret", HTTPClient: server.Client(),
+		})
+		if err != nil {
+			server.Close()
+			t.Fatalf("NewWorkerClient(version=%d): %v", testCase.version, err)
+		}
+		err = (workerPreflightClient{client: client}).Check(context.Background())
+		server.Close()
+		if (err != nil) != testCase.wantErr {
+			t.Fatalf("protocol version %d error = %v, wantErr=%v", testCase.version, err, testCase.wantErr)
 		}
 	}
 }

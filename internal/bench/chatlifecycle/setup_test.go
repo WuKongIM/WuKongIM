@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 )
@@ -160,6 +161,101 @@ func TestGroupSetupRunsConcurrentExactCallsAsOneTargetMutationStream(t *testing.
 	}
 	if got, want := target.calls.Load(), baseline.calls.Load(); got != want {
 		t.Fatalf("concurrent target calls = %d, want one mutation stream with %d calls", got, want)
+	}
+}
+
+func TestGroupSetupWaiterCanCancelWhileTargetMutationIsInFlight(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "setup-cancel-waiter"
+	target := &blockingGroupSetupTarget{entered: make(chan struct{}), release: make(chan struct{})}
+	setup, err := NewGroupSetup(GroupSetupOptions{
+		Target: target, MaxChannelsPerBatch: 7, MaxSubscribersPerBatch: 31,
+	})
+	if err != nil {
+		t.Fatalf("NewGroupSetup() error = %v", err)
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- setup.Run(context.Background(), cfg) }()
+	<-target.entered
+
+	waiterContext, cancelWaiter := context.WithCancel(context.Background())
+	waiter := make(chan error, 1)
+	go func() { waiter <- setup.Run(waiterContext, cfg) }()
+	cancelWaiter()
+	select {
+	case err := <-waiter:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled waiter error = %v, want context canceled", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(target.release)
+		<-first
+		t.Fatal("canceled waiter remained blocked behind target I/O")
+	}
+	close(target.release)
+	if err := <-first; err != nil {
+		t.Fatalf("first Run() error = %v", err)
+	}
+}
+
+func TestGroupSetupRejectsConflictsWhileExactMutationIsInFlight(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "setup-inflight-conflict"
+	target := &blockingGroupSetupTarget{entered: make(chan struct{}), release: make(chan struct{})}
+	setup, err := NewGroupSetup(GroupSetupOptions{
+		Target: target, MaxChannelsPerBatch: 7, MaxSubscribersPerBatch: 31,
+	})
+	if err != nil {
+		t.Fatalf("NewGroupSetup() error = %v", err)
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- setup.Run(context.Background(), cfg) }()
+	<-target.entered
+
+	shape := cfg
+	shape.Seed++
+	shapeResult := make(chan error, 1)
+	go func() { shapeResult <- setup.Run(context.Background(), shape) }()
+	var shapeErr error
+	select {
+	case shapeErr = <-shapeResult:
+	case <-time.After(250 * time.Millisecond):
+		close(target.release)
+		<-first
+		t.Fatal("in-flight shape mismatch blocked behind target I/O")
+	}
+	if !errors.Is(shapeErr, ErrGroupSetupShapeMismatch) {
+		close(target.release)
+		<-first
+		t.Fatalf("in-flight shape mismatch error = %v, want %v", shapeErr, ErrGroupSetupShapeMismatch)
+	}
+	other := cfg
+	other.RunID = "setup-inflight-other"
+	otherResult := make(chan error, 1)
+	go func() { otherResult <- setup.Run(context.Background(), other) }()
+	var otherErr error
+	select {
+	case otherErr = <-otherResult:
+	case <-time.After(250 * time.Millisecond):
+		close(target.release)
+		<-first
+		t.Fatal("in-flight run conflict blocked behind target I/O")
+	}
+	if !errors.Is(otherErr, ErrGroupSetupRunConflict) {
+		close(target.release)
+		<-first
+		t.Fatalf("in-flight run conflict error = %v, want %v", otherErr, ErrGroupSetupRunConflict)
+	}
+	if got := target.calls.Load(); got != 1 {
+		close(target.release)
+		<-first
+		t.Fatalf("target calls after in-flight conflicts = %d, want 1", got)
+	}
+	close(target.release)
+	if err := <-first; err != nil {
+		t.Fatalf("first Run() error = %v", err)
 	}
 }
 

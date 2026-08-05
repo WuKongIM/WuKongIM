@@ -3,8 +3,9 @@ package chatlifecycle
 import "time"
 
 const (
-	workerMaxRequestBytes  int64 = 1 << 20
-	workerMaxResponseBytes int64 = 4 << 20
+	workerProtocolVersion  uint64 = 2
+	workerMaxRequestBytes  int64  = 1 << 20
+	workerMaxResponseBytes int64  = 4 << 20
 )
 
 // WorkerPhase is the closed lifecycle vocabulary exposed by the worker API.
@@ -33,6 +34,9 @@ const (
 	WorkerErrorFenceMismatch      WorkerErrorCode = "fence_mismatch"
 	WorkerErrorInvalidState       WorkerErrorCode = "invalid_state"
 	WorkerErrorRuntimeFailure     WorkerErrorCode = "runtime_failure"
+	WorkerErrorGrantGap           WorkerErrorCode = "grant_gap"
+	WorkerErrorGrantStale         WorkerErrorCode = "grant_stale"
+	WorkerErrorGrantConflict      WorkerErrorCode = "grant_conflict"
 )
 
 // WorkerAPIError is returned by both the server protocol and typed client.
@@ -62,7 +66,10 @@ type WorkerAssignment struct {
 	WorkerFence
 	WorkerID    uint64 `json:"worker_id"`
 	WorkerCount uint64 `json:"worker_count"`
-	Config      Config `json:"config"`
+	// CoordinatorGrants disables worker-local primary-rate release. Login,
+	// sync, session lifecycle, and canary construction remain worker-owned.
+	CoordinatorGrants bool   `json:"coordinator_grants"`
+	Config            Config `json:"config"`
 }
 
 // WorkerStartRequest starts the exact installed assignment.
@@ -80,6 +87,48 @@ type WorkerRateRequest struct {
 	WorkerFence
 	RatePerSecond uint64 `json:"rate_per_second"`
 	MaxBurst      uint64 `json:"max_burst"`
+}
+
+// WorkerGrantCounts is an exact fixed-three-worker vector. Named fields avoid
+// accepting short JSON arrays as zero-filled fixed Go arrays.
+type WorkerGrantCounts struct {
+	Worker0 uint64 `json:"worker_0"`
+	Worker1 uint64 `json:"worker_1"`
+	Worker2 uint64 `json:"worker_2"`
+}
+
+func (c WorkerGrantCounts) worker(workerID uint64) (uint64, bool) {
+	switch workerID {
+	case 0:
+		return c.Worker0, true
+	case 1:
+		return c.Worker1, true
+	case 2:
+		return c.Worker2, true
+	default:
+		return 0, false
+	}
+}
+
+// WorkerGrantRequest carries the complete coordinator-owned global evidence
+// plus one strictly monotonic sequence for an exact assignment fence.
+type WorkerGrantRequest struct {
+	WorkerFence
+	Sequence      uint64            `json:"sequence"`
+	RatePerSecond uint64            `json:"rate_per_second"`
+	MaxBurst      uint64            `json:"max_burst"`
+	Fresh         WorkerGrantCounts `json:"fresh"`
+	Released      WorkerGrantCounts `json:"released"`
+	Credit        WorkerGrantCounts `json:"credit"`
+}
+
+// WorkerGrantResponse is stable across a matching delivery retry.
+type WorkerGrantResponse struct {
+	WorkerFence
+	WorkerID    uint64 `json:"worker_id"`
+	WorkerCount uint64 `json:"worker_count"`
+	Sequence    uint64 `json:"sequence"`
+	Released    uint64 `json:"released"`
 }
 
 // WorkerStopRequest explicitly drains and stops the exact assignment.
@@ -109,6 +158,7 @@ type WorkerStatus struct {
 	WorkerID     uint64      `json:"worker_id"`
 	WorkerCount  uint64      `json:"worker_count"`
 	Unexpected   bool        `json:"unexpected"`
+	TrafficReady bool        `json:"traffic_ready"`
 }
 
 // WorkerHistogramSnapshot uses fixed buckets so response size cannot grow with runtime.

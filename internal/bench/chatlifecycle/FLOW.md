@@ -19,14 +19,17 @@ config
 ```
 
 `wkbench worker --mode chat-lifecycle` selects a dedicated control server; the
-default worker mode still uses the generic worker server. All nine lifecycle
+default worker mode still uses the generic worker server. All ten lifecycle
 endpoints, including health and info, require one Bearer token checked with a
 constant-time comparison. Every mutation carries a nonempty run ID,
 assignment ID, and positive generation. An assignment validates the complete
 `Config` plus worker ownership before moving through
 `unassigned -> assigned -> running -> stopping -> final`; active duplicate
 assignments, stale fences, and illegal phase transitions use a closed error
-vocabulary. Polling or a request disconnect never acts as a lease. Explicit
+vocabulary. Protocol version 2 adds coordinator-owned grant delivery, bounded
+readiness in status, and the assignment capability that disables worker-local
+primary-rate release; preflight rejects version 1 before setup or assignment
+mutation. Polling or a request disconnect never acts as a lease. Explicit
 stop starts one server-owned bounded drain detached from the request, joins the
 existing Engine, caches one identity-free final snapshot, and returns that
 same snapshot for matching retries. An unexpected active-generation exit
@@ -52,8 +55,14 @@ attributed to the current generation. Request cancellation therefore ends
 owner waits without retaining goroutines, while health and status remain
 independent of a slow generation call. Late old-generation snapshot,
 checkpoint, and rate results are discarded rather than overlaid with a newer
-fence. Engine snapshot, consistent worker-runtime
-snapshot, rate update, and bounded drain advancement expose cancelable forms;
+fence. The grant handler additionally serializes one in-flight sequence per
+generation. An exact duplicate joins or returns the stable cached result;
+stale, gap, changed-payload, state, and fence mismatches fail closed. Once an
+external grant crosses engine admission it is accepted even when later work
+returns classified or fatal failure, so delivery retry cannot advance the
+generator a second time or hide a partially emitted prefix. Engine snapshot,
+consistent worker-runtime snapshot, rate update, and bounded drain advancement
+expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating
 the allocator. Public Advance crosses a cancellation-aware owner admission
@@ -91,9 +100,13 @@ The assignment generation is the exact checked `Engine` generation rather
 than an HTTP-only snapshot overlay. Zero, overflow, reuse, and rollback are
 rejected, while the ordinary in-process `Start` API retains its next-generation
 behavior. A fresh worker generation initially advances login scheduling with a
-nil traffic demand. It releases the rate allocator only after the local online
-target has been observed in the same `EngineStepSnapshot.Online` result; online
-ownership exists only after CONNECT and full sync succeed. The target and
+nil traffic demand. A non-coordinator assignment retains the original local
+allocator behavior after the local online target is observed. A coordinator-
+grant assignment never releases that local allocator: its autonomous one-second
+step advances login, sync, expiry, retries, and session work, publishes one
+sticky atomic readiness bit after the synchronized online target, and accepts
+primary work only through the sequenced grant endpoint. Online ownership exists
+only after CONNECT and full sync succeed. The target and
 all-worker grant vector are immutable assignment-derived generation fields, so
 the tick hot path neither builds a full worker snapshot nor calls any session
 `QueueSnapshot`. Coordinator Snapshot and Checkpoint retain that complete queue
@@ -203,17 +216,17 @@ stop scheduled activity and cool naturally. The model never emits polling or
 keepalive work for a Channel runtime.
 
 The primary SEND rate is one global integer budget, never one bucket per
-worker. Cumulative weighted boundaries produce per-tick grants whose sum is
-exactly the configured global rate; a rotating phase removes long-run worker
-rounding drift. Each worker retains only its own two most recent grant
-generations, so all retained credit sums to the single global two-second burst
-without giving every worker a global-sized bucket. Capacity-rate changes are
-staged for the next tick and discard old-rate credit rather than creating
-retroactive token debt.
-Each worker-owned generator advances an equivalent global allocator but emits
-only its own released share. Its local ordinal is mapped through `GlobalIndex`,
-so aggregating the three workers reconstructs one non-duplicated global cycle
-with exactly 2,000 SENDs/s and the reviewed traffic and payload shares.
+worker. The coordinator's cumulative weighted boundaries produce per-tick
+grants whose sum is exactly the configured global rate; a rotating phase
+removes long-run worker rounding drift. The complete fresh, released, and
+credit vectors are delivered with one sequence to every worker. Each worker
+applies only its indexed released share and never advances a second allocator,
+so all retained credit sums to the single global two-second burst without
+giving every worker a global-sized bucket. Capacity-rate changes are staged for
+the next tick and discard old-rate credit rather than creating retroactive
+token debt. Each worker maps its local ordinal through `GlobalIndex`, so
+aggregating the three workers reconstructs one non-duplicated global cycle with
+exactly 2,000 SENDs/s and the reviewed traffic and payload shares.
 
 Primary traffic kind, payload size, and person direction use independent
 run-rotated ordinal cycles. Formal cycles are exactly 90/10 person/group,
@@ -607,7 +620,11 @@ channel/subscriber mutations.
 
 Setup idempotency is deliberately scoped to that one coordinator lifecycle. It
 retains only one active `run_id`, one versioned catalog fingerprint, and a
-complete bit. The fingerprint streams every group descriptor and covers the
+complete bit plus one in-flight channel. Target I/O never holds the state mutex:
+an exact concurrent retry waits on that channel with caller cancellation, while
+a different run or fingerprint fails before waiting or target mutation. Failure
+closes the flight so one exact retry can replay, and success makes every exact
+retry a no-op. The fingerprint streams every group descriptor and covers the
 profile, seed, worker/owner partition, fixed catalog counts, per-group category
 and member cardinality, group ID, and explicit identity/catalog/member/owner
 derivation versions. An exact completed retry performs no target writes; a
@@ -622,13 +639,17 @@ The coordinator then builds exactly three assignments with one shared
 interleaved lanes `worker_id + local_index*3`; quotient/remainder counts cover
 the configured global online prefix without overlap or gaps. A single
 coordinator `RateAllocator` owns the `1/1/1` rate-weight vector and the one
-global two-second credit bound. After all workers start, it produces the first
-fixed three-worker grant vector and sends the same global rate and burst through
-each exact-fence worker rate endpoint. Each P3.5 worker continues to advance the
-equivalent allocator and emits only its deterministic local share; the
-coordinator does not create three global token buckets.
+global two-second credit bound. No allocator tick is consumed until all three
+version-2 statuses report traffic-ready; this bootstrap barrier is bounded by
+the configured warmup duration. The coordinator then produces one complete
+fixed three-worker grant vector per logical second and sends that same vector,
+sequence, rate, burst, and credit evidence to all three exact-fence grant
+endpoints concurrently. One transport failure may retry the identical sequence;
+an unconfirmed vector stops the run. Each worker emits only its vector share and
+never advances an equivalent local allocator, so bootstrap phase differences or
+delivery retry cannot multiply the global budget.
 
-Continuous observation and worker status polling begin only after that rate
+Continuous observation and worker status polling begin only after that grant
 barrier. The coordinator records that instant with its injected clock and owns
 one normal observation cutoff at `thresholds.timeline.final`: 30 minutes for
 local and 72 hours for formal. The healthy observer deliberately has no success
@@ -639,8 +660,17 @@ final checkpoint followed by bounded worker stop and final aggregation. A
 product or harness result racing with that cancellation remains a failure. An
 outer caller cancellation instead returns coordinator `stopped` without a
 checkpoint. The future 24-hour checkpoint/report flow is not part of this
-startup coordinator. Assignment, start, rate, status, checkpoint, aggregation,
+startup coordinator. Assignment, start, grant, status, checkpoint, aggregation,
 or runtime failures remain `harness_invalid`.
+
+Every status round launches exactly three requests with one shared at-most-five-
+second deadline and validates results in worker-index order. Every grant round
+uses the same bounded concurrent shape. A blocked control request therefore
+cannot starve the final cutoff indefinitely. Failure cleanup and successful
+final stop likewise launch the fixed worker set concurrently under one shared
+total cleanup deadline, while still attempting every applicable worker.
+Observer product failure keeps precedence when it races a grant or status
+harness failure.
 
 Before dispatching each assignment, the coordinator marks that worker as
 attempted. If the response is lost after the worker installs the assignment,
@@ -648,7 +678,7 @@ cleanup therefore still sends an independently bounded exact-fence stop to that
 worker and every earlier attempt, using a background context even when the
 caller is canceled. Stop conflicts and cleanup errors never overwrite the
 original harness cause. Only validated assignment responses permit the later
-start and rate barriers. Failed preflight performs no setup or assignment, and
+start and grant barriers. Failed preflight performs no setup or assignment, and
 failed setup performs no assignment. The same coordinator object refuses a
 second run or generation reuse.
 
