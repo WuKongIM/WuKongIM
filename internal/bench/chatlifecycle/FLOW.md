@@ -888,6 +888,45 @@ rejects missing/duplicate workers, overflow, stale sequence or uptime, and any
 monotonic counter/histogram/evidence regression before advancing its fixed
 three-worker baseline.
 
+The standalone verdict reducer has only the closed outcomes `pass`,
+`product_failure`, `harness_invalid`, `infrastructure_failure`, and
+`operator_stop`. Within one atomic evidence batch its deterministic precedence
+is product, infrastructure, harness, then operator. The first terminal outcome
+and fixed cause never change; later cleanup failures increment a saturating
+count and retain only the last 16 closed cleanup codes. Pass can be frozen only
+at or after the configured final instant. Duplicate or regressing observation
+time, invalid schema, counter regression, arithmetic overflow, or exhausted
+unexpired ring capacity freezes a harness-invalid verdict.
+
+Correctness uses cumulative counters and exact 128-bit rational comparisons.
+Loss, duplicate persistence, corruption, sequence regression, terminal SEND,
+or activation rejection is immediate product failure. The whole-run first-
+attempt failure rate is strictly below `1/10,000`, so equality fails; the
+rolling one-minute rate is at most `1/1,000`, so equality passes. Queue
+saturation and observer gaps are harness invalid. The one-minute reducer is a
+fixed 16-entry ring sized for the reviewed five-second cadence.
+
+Latency input is cumulative threshold-bound evidence, not a caller-supplied
+percentile: every hot, cold, and sync counter set repeats the exact configured
+p99 and p99.9 duration limits and nested cumulative counts above those limits
+and above ten seconds. Schema mismatch or regression is harness invalid.
+Pre-warmup and the first late sample establish only a delta baseline. Later
+deltas enter fixed 64-entry five-minute rings; exact one-percent and one-per-
+thousand quantile edges pass. A continuously breached rolling result fails only
+after a full five minutes, while a shorter breach is a fixed warning. Operations
+over ten seconds increment a saturating count and retain only 16 anomaly rows;
+they do not independently terminate the run.
+
+Resource reduction keeps three independent node states and never averages a
+leaking node away. Only exact-hour forced-GC samples with finite, nonnegative,
+integral uint64 heap and goroutine gauges enter the derived fixed-capacity
+six-hour and 24-hour rings. Growth strictly above five percent fails; equality
+passes. Queue-only observations may arrive more frequently. Warmup establishes
+each node's queue and inflight baseline, and an explicit burst-end observation
+must return both gauges to that baseline; a burst without a baseline is harness
+invalid, and an active burst at finalization is product failure. All one-minute,
+five-minute, six-hour, and 24-hour histories remain fixed-size across 72 hours.
+
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result
 to the platform `int` range before comparing `max_global_burst`.
