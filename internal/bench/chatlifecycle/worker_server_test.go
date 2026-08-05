@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -219,6 +220,88 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||
 		snapshot.Sync.SyncStarted != 8 || snapshot.Sync.SyncCompleted != 5 || snapshot.Sync.SyncFailed != 2 || snapshot.Sync.SyncCanceled != 1 || snapshot.Sync.Failures != 2 {
 		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
+	}
+}
+
+func TestWorkerEngineSequenceCapacityCoversPersonAndFixedGroupChannels(t *testing.T) {
+	formal := FormalConfig()
+	for workerID, want := range []int{36_674, 36_663, 36_663} {
+		limits, err := workerEngineLimitsFor(WorkerAssignment{
+			WorkerFence: WorkerFence{RunID: formal.RunID, AssignmentID: "sequence-formal", Generation: 1},
+			WorkerID:    uint64(workerID), WorkerCount: uint64(formal.Workload.Workers), Config: formal,
+		})
+		if err != nil {
+			t.Fatalf("formal worker %d limits: %v", workerID, err)
+		}
+		if limits.sequence != want {
+			t.Fatalf("formal worker %d sequence capacity = %d, want %d", workerID, limits.sequence, want)
+		}
+	}
+
+	local := LocalConfig()
+	for workerID := range local.Workload.Workers {
+		limits, err := workerEngineLimitsFor(WorkerAssignment{
+			WorkerFence: WorkerFence{RunID: local.RunID, AssignmentID: "sequence-local", Generation: 1},
+			WorkerID:    uint64(workerID), WorkerCount: uint64(local.Workload.Workers), Config: local,
+		})
+		if err != nil {
+			t.Fatalf("local worker %d limits: %v", workerID, err)
+		}
+		if limits.sequence != 4_096 {
+			t.Fatalf("local worker %d sequence capacity = %d, want minimum 4096", workerID, limits.sequence)
+		}
+	}
+
+	overflow := local
+	overflow.Workload.OnlineUsers = int(^uint(0) >> 1)
+	overflow.Workload.Workers = 1
+	limits, err := workerEngineLimitsFor(WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: overflow.RunID, AssignmentID: "sequence-overflow", Generation: 1},
+		WorkerID:    0, WorkerCount: 1, Config: overflow,
+	})
+	if err != nil {
+		t.Fatalf("overflow limits: %v", err)
+	}
+	if limits.sequence != maxVerifierCapacity {
+		t.Fatalf("overflow sequence capacity = %d, want cap %d", limits.sequence, maxVerifierCapacity)
+	}
+
+	limits, err = workerEngineLimitsFor(WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: formal.RunID, AssignmentID: "sequence-verifier", Generation: 1},
+		WorkerID:    0, WorkerCount: uint64(formal.Workload.Workers), Config: formal,
+	})
+	if err != nil {
+		t.Fatalf("formal verifier limits: %v", err)
+	}
+	model := newTestTrafficModel(t, formal)
+	evidence, err := NewEvidenceRecorder(2, 2)
+	if err != nil {
+		t.Fatalf("NewEvidenceRecorder: %v", err)
+	}
+	verifier, err := NewVerifier(model, VerifierConfig{
+		PendingCapacity: 1, SequenceCapacity: limits.sequence, CorrelationCapacity: 1, CorrelationDeadline: time.Second,
+	}, evidence)
+	if err != nil {
+		t.Fatalf("NewVerifier: %v", err)
+	}
+	logical := mustLogicalSend(t, model, 0, 30_000, TrafficGroup, "sequence-sender", "sequence-group")
+	recv := mustRecvPacket(t, model, logical, 1, 1)
+	for index := 0; index < limits.sequence; index++ {
+		recv.MessageID = int64(index + 1)
+		recipient := "sequence-member-" + strconv.Itoa(index)
+		if err := verifier.HandleRecv(context.Background(), recipient, recv, discardRecvAcker{}); err != nil {
+			t.Fatalf("HandleRecv within capacity at %d/%d: %v", index, limits.sequence, err)
+		}
+	}
+	if limits.sequence <= 16_670 {
+		t.Fatalf("sequence capacity = %d, did not cover the old worker-0 ceiling", limits.sequence)
+	}
+	recv.MessageID++
+	overflowErr := verifier.HandleRecv(context.Background(), "sequence-overflow", recv, discardRecvAcker{})
+	assertVerificationCode(t, overflowErr, FailureCodeSequenceCapacity)
+	snapshot := verifier.Snapshot()
+	if snapshot.SequenceCurrent != limits.sequence || snapshot.Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("sequence overflow snapshot = %+v, want current=%d harness_invalid", snapshot, limits.sequence)
 	}
 }
 

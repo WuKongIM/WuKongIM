@@ -9,9 +9,12 @@ import (
 )
 
 const (
-	groupIDPrefix        = "wkg-"
-	maxGroupCatalogCount = 2_000
-	maxGroupMembers      = 100_000
+	// MaxFixedGroupMembershipsPerUser is guaranteed by the catalog's modulo
+	// layout: one identity index reverses to at most one fixed group.
+	MaxFixedGroupMembershipsPerUser = 1
+	groupIDPrefix                   = "wkg-"
+	maxGroupCatalogCount            = 2_000
+	maxGroupMembers                 = 100_000
 )
 
 var (

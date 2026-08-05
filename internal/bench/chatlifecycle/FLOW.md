@@ -238,6 +238,16 @@ Logout must cancel and join that drain before calling `ReleaseRecipient`, which
 deletes the session's bounded monotonic state instead of accumulating historical
 channels.
 
+Receive-sequence memory is budgeted in logical rows rather than preallocated
+bytes because Go map bucket overhead is runtime-dependent. Each online identity
+can retain at most ten person-relationship channels plus one fixed-group
+membership, so worker capacity is the checked local-online count times eleven.
+The formal worker ceilings are exactly 36,674, 36,663, and 36,663 rows (110,000
+cluster-wide); the local profile retains the 4,096-row floor, and checked
+overflow saturates at the common 10,000,000-entry verifier ceiling. Maps grow
+only for observed recipient/channel pairs and logout releases all rows for that
+recipient.
+
 `SessionPool` owns only traffic-ready online sessions. Its factory receives a
 deterministic per-UID CONNECT token, creates a fresh client for every login, and
 then delegates CONNECT-before-version-zero-sync semantics to `RunLoginSync`.

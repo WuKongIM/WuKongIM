@@ -784,7 +784,8 @@ func workerEngineLimitsFor(assignment WorkerAssignment) (workerEngineLimits, err
 	}
 	pending := boundedWorkerCapacity(cappedWorkerSum(cappedWorkerProduct(uint64(localRate), deadlineSeconds), uint64(localBurst), 1024), 4096)
 	work := boundedWorkerCapacity(cappedWorkerSum(cappedWorkerProduct(uint64(online), uint64(MaxForwardRelationships)), cappedWorkerProduct(2, uint64(localBurst))), 4096)
-	sequence := boundedWorkerCapacity(cappedWorkerProduct(uint64(online), uint64(MaxForwardRelationships)), 4096)
+	sequenceChannelsPerOnline := cappedWorkerSum(uint64(MaxUserRelationships), uint64(MaxFixedGroupMembershipsPerUser))
+	sequence := boundedWorkerCapacity(cappedWorkerProduct(uint64(online), sequenceChannelsPerOnline), 4096)
 	correlation := boundedWorkerCapacity(cappedWorkerProduct(uint64(config.Workload.RuntimeSampling.Size), 2), 1024)
 	if correlation > pending {
 		correlation = pending
