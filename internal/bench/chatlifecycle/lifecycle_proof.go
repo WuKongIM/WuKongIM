@@ -778,13 +778,15 @@ func normalizeLifecycleProbeBatch(results []model.ChannelRuntimeProbeResult, can
 	return ordered, true
 }
 
+// MetaCreateHashSlotCounts is one fixed 256-hash-slot expected-create vector.
+type MetaCreateHashSlotCounts [formalHashSlots]uint64
+
 // MetaCreateAccounting reconciles checked deterministic unique creation counts
 // against exactly three authoritative, slot-partitioned Prometheus scrapes.
 type MetaCreateAccounting struct {
-	mu                     sync.Mutex
-	initialized            bool
-	snapshot               MetaCreateAccountingSnapshot
-	lastAlready, lastError uint64
+	mu          sync.Mutex
+	initialized bool
+	snapshot    MetaCreateAccountingSnapshot
 }
 
 // MetaCreateAccountingSnapshot is low-cardinality checkpoint evidence.
@@ -801,18 +803,33 @@ type MetaCreateAccountingSnapshot struct {
 	ReheatCreated uint64 `json:"reheat_created"`
 	// Checkpoints counts accepted accounting checkpoints.
 	Checkpoints uint64 `json:"checkpoints"`
+	// ExpectedBySlot is the fixed logical-Slot deterministic expectation.
+	ExpectedBySlot [formalLogicalSlotGroups]uint64 `json:"expected_by_slot"`
+	// CreatedBySlot is the fixed logical-Slot authoritative create vector.
+	CreatedBySlot [formalLogicalSlotGroups]uint64 `json:"created_by_slot"`
+	// AlreadyExistingBySlot is the fixed logical-Slot loser vector.
+	AlreadyExistingBySlot [formalLogicalSlotGroups]uint64 `json:"already_existing_by_slot"`
+	// ErrorsBySlot is the fixed logical-Slot create-error vector.
+	ErrorsBySlot [formalLogicalSlotGroups]uint64 `json:"errors_by_slot"`
 }
 
 func NewMetaCreateAccounting() *MetaCreateAccounting { return &MetaCreateAccounting{} }
 
-// Checkpoint rejects non-integral, regressing, overflowing, or recreating evidence.
-func (a *MetaCreateAccounting) Checkpoint(personEdges, preparedGroups uint64, metrics [3]target.MetricsSnapshot, reheat bool) error {
+// Checkpoint folds bounded physical-hash-slot expectations through the current
+// immutable logical-Slot assignment and rejects redistribution or recreation.
+func (a *MetaCreateAccounting) Checkpoint(
+	personEdges, preparedGroups MetaCreateHashSlotCounts,
+	assignment LifecycleSlotAssignment,
+	metrics [3]target.MetricsSnapshot,
+	reheat bool,
+) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	expected, ok := checkedUint64Add(personEdges, preparedGroups)
+	expectedBySlot, expected, ok := foldMetaCreateExpectation(personEdges, preparedGroups, assignment)
 	if !ok {
 		return ErrLifecycleHarnessInvalid
 	}
+	var createdBySlot, alreadyBySlot, errorsBySlot [formalLogicalSlotGroups]uint64
 	var created, already, errorsCount uint64
 	for _, node := range metrics {
 		nodeCreated, ok := exactMetricResultCounter(node, "created")
@@ -827,42 +844,108 @@ func (a *MetaCreateAccounting) Checkpoint(personEdges, preparedGroups uint64, me
 		if !ok {
 			return ErrLifecycleHarnessInvalid
 		}
-		if created, ok = checkedUint64Add(created, nodeCreated); !ok {
+		var nodeCreatedBySlot, nodeAlreadyBySlot, nodeErrorsBySlot uint64
+		for slot := range formalLogicalSlotGroups {
+			counters := node.MetaCreatedBySlot[slot]
+			if nodeCreatedBySlot, ok = checkedUint64Add(nodeCreatedBySlot, counters.Created); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+			if nodeAlreadyBySlot, ok = checkedUint64Add(nodeAlreadyBySlot, counters.AlreadyExisting); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+			if nodeErrorsBySlot, ok = checkedUint64Add(nodeErrorsBySlot, counters.Errors); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+			if createdBySlot[slot], ok = checkedUint64Add(createdBySlot[slot], counters.Created); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+			if alreadyBySlot[slot], ok = checkedUint64Add(alreadyBySlot[slot], counters.AlreadyExisting); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+			if errorsBySlot[slot], ok = checkedUint64Add(errorsBySlot[slot], counters.Errors); !ok {
+				return ErrLifecycleHarnessInvalid
+			}
+		}
+		if nodeCreatedBySlot != nodeCreated || nodeAlreadyBySlot != nodeAlready || nodeErrorsBySlot != nodeErrors {
 			return ErrLifecycleHarnessInvalid
 		}
-		if already, ok = checkedUint64Add(already, nodeAlready); !ok {
+	}
+	for slot := range formalLogicalSlotGroups {
+		if created, ok = checkedUint64Add(created, createdBySlot[slot]); !ok {
 			return ErrLifecycleHarnessInvalid
 		}
-		if errorsCount, ok = checkedUint64Add(errorsCount, nodeErrors); !ok {
+		if already, ok = checkedUint64Add(already, alreadyBySlot[slot]); !ok {
+			return ErrLifecycleHarnessInvalid
+		}
+		if errorsCount, ok = checkedUint64Add(errorsCount, errorsBySlot[slot]); !ok {
 			return ErrLifecycleHarnessInvalid
 		}
 	}
 	if a.initialized {
-		if expected < a.snapshot.ExpectedUnique || created < a.snapshot.Created || already < a.lastAlready || errorsCount < a.lastError {
-			return ErrLifecycleHarnessInvalid
+		for slot := range formalLogicalSlotGroups {
+			if expectedBySlot[slot] < a.snapshot.ExpectedBySlot[slot] || createdBySlot[slot] < a.snapshot.CreatedBySlot[slot] ||
+				alreadyBySlot[slot] < a.snapshot.AlreadyExistingBySlot[slot] || errorsBySlot[slot] < a.snapshot.ErrorsBySlot[slot] {
+				return ErrLifecycleHarnessInvalid
+			}
 		}
 		if reheat {
-			expectedDelta := expected - a.snapshot.ExpectedUnique
-			createdDelta := created - a.snapshot.Created
-			if createdDelta > expectedDelta {
-				a.snapshot.ReheatCreated = saturatingAdd(a.snapshot.ReheatCreated, createdDelta-expectedDelta)
-				return ErrLifecycleProductFailure
+			mismatch := false
+			for slot := range formalLogicalSlotGroups {
+				expectedDelta := expectedBySlot[slot] - a.snapshot.ExpectedBySlot[slot]
+				createdDelta := createdBySlot[slot] - a.snapshot.CreatedBySlot[slot]
+				if createdDelta > expectedDelta {
+					a.snapshot.ReheatCreated = saturatingAdd(a.snapshot.ReheatCreated, createdDelta-expectedDelta)
+				}
+				if createdDelta != expectedDelta {
+					mismatch = true
+				}
 			}
-			if createdDelta != expectedDelta {
+			if mismatch {
 				return ErrLifecycleProductFailure
 			}
 		}
 	} else if reheat {
 		return ErrLifecycleHarnessInvalid
 	}
-	if errorsCount != 0 || created != expected {
-		return ErrLifecycleProductFailure
+	for slot := range formalLogicalSlotGroups {
+		if errorsBySlot[slot] != 0 || createdBySlot[slot] != expectedBySlot[slot] {
+			return ErrLifecycleProductFailure
+		}
 	}
 	a.initialized = true
 	a.snapshot.ExpectedUnique, a.snapshot.Created, a.snapshot.AlreadyExisting, a.snapshot.Errors = expected, created, already, errorsCount
+	a.snapshot.ExpectedBySlot, a.snapshot.CreatedBySlot = expectedBySlot, createdBySlot
+	a.snapshot.AlreadyExistingBySlot, a.snapshot.ErrorsBySlot = alreadyBySlot, errorsBySlot
 	a.snapshot.Checkpoints = saturatingIncrement(a.snapshot.Checkpoints)
-	a.lastAlready, a.lastError = already, errorsCount
 	return nil
+}
+
+func foldMetaCreateExpectation(
+	personEdges, preparedGroups MetaCreateHashSlotCounts,
+	assignment LifecycleSlotAssignment,
+) ([formalLogicalSlotGroups]uint64, uint64, bool) {
+	var expected [formalLogicalSlotGroups]uint64
+	if assignment.HashSlotCount() != formalHashSlots {
+		return expected, 0, false
+	}
+	var total uint64
+	for hashSlot := range formalHashSlots {
+		count, ok := checkedUint64Add(personEdges[hashSlot], preparedGroups[hashSlot])
+		if !ok {
+			return [formalLogicalSlotGroups]uint64{}, 0, false
+		}
+		slotID, found := assignment.Lookup(uint16(hashSlot))
+		if !found || slotID == 0 || slotID > formalLogicalSlotGroups {
+			return [formalLogicalSlotGroups]uint64{}, 0, false
+		}
+		if expected[slotID-1], ok = checkedUint64Add(expected[slotID-1], count); !ok {
+			return [formalLogicalSlotGroups]uint64{}, 0, false
+		}
+		if total, ok = checkedUint64Add(total, count); !ok {
+			return [formalLogicalSlotGroups]uint64{}, 0, false
+		}
+	}
+	return expected, total, true
 }
 
 func (a *MetaCreateAccounting) Snapshot() MetaCreateAccountingSnapshot {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -38,6 +39,8 @@ const (
 	maxObservationMetricLines                = 100_000
 	maxObservationMetricLineBytes            = 64 << 10
 	maxObservationMetricSeries               = 32_768
+	// MetaCreateLogicalSlots is the fixed reviewed logical Slot cardinality.
+	MetaCreateLogicalSlots = 12
 )
 
 // DebugConfig is the bounded effective configuration required by formal preflight.
@@ -90,6 +93,13 @@ const (
 		metricRuntimeInflight | metricChannelWorkerQueue | metricActivationRejected | metricMetaCreated
 )
 
+// MetaCreateSlotCounters is one logical Slot's closed durable-create result vector.
+type MetaCreateSlotCounters struct {
+	Created         uint64
+	AlreadyExisting uint64
+	Errors          uint64
+}
+
 // MetricsSnapshot contains only the low-cardinality families needed by lifecycle observation.
 type MetricsSnapshot struct {
 	GoGoroutines               float64
@@ -99,8 +109,12 @@ type MetricsSnapshot struct {
 	RuntimeInflight            float64
 	ChannelWorkerQueueDepth    float64
 	ActivationRejectedTotal    float64
-	MetaCreatedTotal           map[string]float64
-	present                    uint16
+	MetaCreatedBySlot          [MetaCreateLogicalSlots]MetaCreateSlotCounters
+	// MetaCreatedTotal retains the existing closed three-result aggregate for
+	// compatibility. MetaCreatedBySlot is the authoritative durable evidence.
+	MetaCreatedTotal   map[string]float64
+	metaCreatedPresent [MetaCreateLogicalSlots]uint8
+	present            uint16
 }
 
 // ValidateRequired rejects a scrape that omitted a required product or runtime family.
@@ -861,12 +875,15 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
 			return MetricsSnapshot{}, errors.New("observation metrics contains invalid value")
 		}
-		if err := snapshot.addMetric(kind, labels, value); err != nil {
+		if err := snapshot.addMetric(kind, labels, value, valueText); err != nil {
 			return MetricsSnapshot{}, err
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return MetricsSnapshot{}, errors.New("observation metrics line limit exceeded")
+	}
+	if snapshot.present&metricMetaCreated != 0 && len(snapshot.MetaCreatedTotal) != 3 {
+		return MetricsSnapshot{}, errors.New("observation metrics contains incomplete metadata-create results")
 	}
 	return snapshot, nil
 }
@@ -937,7 +954,7 @@ func observationMetricKind(name string) uint16 {
 	}
 }
 
-func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value float64) error {
+func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value float64, valueText string) error {
 	s.present |= kind
 	var destination *float64
 	switch kind {
@@ -956,20 +973,48 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 	case metricActivationRejected:
 		destination = &s.ActivationRejectedTotal
 	case metricMetaCreated:
+		if len(labels) != 2 {
+			return errors.New("observation metrics contains invalid metadata-create labels")
+		}
+		slotText, hasSlot := labels["slot_id"]
 		result := labels["result"]
+		if !hasSlot || result == "" {
+			return errors.New("observation metrics contains invalid metadata-create labels")
+		}
+		slotID, err := strconv.ParseUint(slotText, 10, 8)
+		if err != nil || slotID == 0 || slotID > MetaCreateLogicalSlots || slotText != strconv.FormatUint(slotID, 10) {
+			return errors.New("observation metrics contains invalid metadata-create Slot")
+		}
+		counter, ok := exactObservationMetricCounter(valueText)
+		if !ok {
+			return errors.New("observation metrics contains invalid metadata-create counter")
+		}
+		index := slotID - 1
+		var bit uint8
+		var slotDestination *uint64
 		switch result {
-		case "created", "already_existing", "error":
+		case "created":
+			bit, slotDestination = 0b001, &s.MetaCreatedBySlot[index].Created
+		case "already_existing":
+			bit, slotDestination = 0b010, &s.MetaCreatedBySlot[index].AlreadyExisting
+		case "error":
+			bit, slotDestination = 0b100, &s.MetaCreatedBySlot[index].Errors
 		default:
 			return errors.New("observation metrics contains invalid metadata-create result")
 		}
+		if s.metaCreatedPresent[index]&bit != 0 {
+			return errors.New("observation metrics contains duplicate metadata-create Slot result")
+		}
+		s.metaCreatedPresent[index] |= bit
+		*slotDestination = counter
 		if s.MetaCreatedTotal == nil {
 			s.MetaCreatedTotal = make(map[string]float64, 3)
 		}
 		current := s.MetaCreatedTotal[result]
-		if current > math.MaxFloat64-value {
+		if current > float64(uint64(1)<<53)-float64(counter) {
 			return errors.New("observation metrics aggregate overflow")
 		}
-		s.MetaCreatedTotal[result] = current + value
+		s.MetaCreatedTotal[result] = current + float64(counter)
 		return nil
 	default:
 		return errors.New("observation metrics contains unsupported family")
@@ -979,6 +1024,19 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 	}
 	*destination += value
 	return nil
+}
+
+func exactObservationMetricCounter(valueText string) (uint64, bool) {
+	parsed, _, err := big.ParseFloat(valueText, 10, 256, big.ToNearestEven)
+	if err != nil || parsed.Sign() < 0 {
+		return 0, false
+	}
+	integer, accuracy := parsed.Int(nil)
+	if accuracy != big.Exact || integer.Sign() < 0 || integer.BitLen() > 54 {
+		return 0, false
+	}
+	value := integer.Uint64()
+	return value, value <= uint64(1)<<53
 }
 
 func parseObservationMetricToken(token string) (string, map[string]string, error) {

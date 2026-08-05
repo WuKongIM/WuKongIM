@@ -1033,6 +1033,7 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 	require.Equal(t, float64(2), metrics.RuntimeInflight)
 	require.Equal(t, float64(4), metrics.ChannelWorkerQueueDepth)
 	require.Equal(t, float64(5), metrics.ActivationRejectedTotal)
+	require.Equal(t, MetaCreateSlotCounters{Created: 6, AlreadyExisting: 7, Errors: 8}, metrics.MetaCreatedBySlot[0])
 	require.Equal(t, map[string]float64{"created": 6, "already_existing": 7, "error": 8}, metrics.MetaCreatedTotal)
 	require.NoError(t, metrics.ValidateRequired())
 	require.NoError(t, client.ForceGC(context.Background()))
@@ -1040,6 +1041,51 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 	require.Equal(t, 1, seen["/debug/cluster"])
 	require.Equal(t, 1, seen["/metrics"])
 	require.Equal(t, 1, seen["/debug/pprof/heap?gc=1"])
+}
+
+func TestObservationMetricsRejectsInvalidMetadataCreateSlotSeries(t *testing.T) {
+	complete := strings.Join([]string{
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 2`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="error"} 0`,
+	}, "\n") + "\n"
+	tests := []struct {
+		name   string
+		scrape string
+	}{
+		{name: "missing slot", scrape: `wukongim_channelv2_meta_created_total{result="created"} 1`},
+		{name: "extra label", scrape: `wukongim_channelv2_meta_created_total{slot_id="1",result="created",node="1"} 1`},
+		{name: "slot zero", scrape: `wukongim_channelv2_meta_created_total{slot_id="0",result="created"} 1`},
+		{name: "slot above twelve", scrape: `wukongim_channelv2_meta_created_total{slot_id="13",result="created"} 1`},
+		{name: "non canonical slot", scrape: `wukongim_channelv2_meta_created_total{slot_id="01",result="created"} 1`},
+		{name: "unknown result", scrape: `wukongim_channelv2_meta_created_total{slot_id="1",result="retried"} 1`},
+		{name: "fractional counter", scrape: `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1.5`},
+		{name: "counter beyond exact integer", scrape: `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 9007199254740993`},
+		{name: "duplicate slot result", scrape: complete + `wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1`},
+		{name: "missing global result", scrape: strings.Join([]string{
+			`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 1`,
+			`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 2`,
+		}, "\n")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := parseObservationMetrics([]byte(test.scrape + "\n"))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestObservationMetricsTreatsAbsentPerSlotResultsAsZero(t *testing.T) {
+	scrape := strings.Join([]string{
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="error"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="2",result="created"} 7`,
+	}, "\n") + "\n"
+	snapshot, err := parseObservationMetrics([]byte(scrape))
+	require.NoError(t, err)
+	require.Equal(t, MetaCreateSlotCounters{Created: 7}, snapshot.MetaCreatedBySlot[1])
+	require.Equal(t, map[string]float64{"created": 7, "already_existing": 0, "error": 0}, snapshot.MetaCreatedTotal)
 }
 
 func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {

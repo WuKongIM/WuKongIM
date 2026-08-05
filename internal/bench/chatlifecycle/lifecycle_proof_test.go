@@ -770,10 +770,10 @@ func TestLifecycleProofPollMergesBatchesAndAdvancesAtomically(t *testing.T) {
 
 func TestMetaCreateAccountingInitialExpectedAndReheatZeroDelta(t *testing.T) {
 	accounting := NewMetaCreateAccounting()
-	if err := accounting.Checkpoint(1_000_000, 2_000, lifecycleMetaMetrics(1_002_000, 3, 0), false); err != nil {
+	if err := lifecycleMetaCheckpoint(accounting, 1_000_000, 2_000, lifecycleMetaMetrics(1_002_000, 3, 0), false); err != nil {
 		t.Fatalf("initial: %v", err)
 	}
-	if err := accounting.Checkpoint(1_000_000, 2_000, lifecycleMetaMetrics(1_002_000, 9, 0), true); err != nil {
+	if err := lifecycleMetaCheckpoint(accounting, 1_000_000, 2_000, lifecycleMetaMetrics(1_002_000, 9, 0), true); err != nil {
 		t.Fatalf("reheat: %v", err)
 	}
 	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 1_002_000 || snapshot.Created != 1_002_000 || snapshot.ReheatCreated != 0 {
@@ -781,12 +781,51 @@ func TestMetaCreateAccountingInitialExpectedAndReheatZeroDelta(t *testing.T) {
 	}
 }
 
-func TestMetaCreateAccountingReheatAllowsOnlyExpectedConcurrentGrowth(t *testing.T) {
+func TestMetaCreateAccountingRejectsWrongLogicalSlotDistributionWithMatchingTotal(t *testing.T) {
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	var personEdges, preparedGroups MetaCreateHashSlotCounts
+	personEdges[0] = 5
+	preparedGroups[22] = 1
+	var created [formalLogicalSlotGroups]uint64
+	created[1] = 6
+	metrics := lifecycleMetaMetricsBySlot(created, [formalLogicalSlotGroups]uint64{}, [formalLogicalSlotGroups]uint64{})
+	if err := NewMetaCreateAccounting().Checkpoint(personEdges, preparedGroups, assignment, metrics, false); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("wrong-slot accounting error = %v, want product failure", err)
+	}
+}
+
+func TestMetaCreateAccountingRejectsAndCountsReheatSlotRedistribution(t *testing.T) {
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	var initialPerson, nextPerson, preparedGroups MetaCreateHashSlotCounts
+	initialPerson[0], nextPerson[0], preparedGroups[22] = 5, 6, 1
+	var initialCreated, redistributedCreated [formalLogicalSlotGroups]uint64
+	initialCreated[0], initialCreated[1] = 5, 1
+	redistributedCreated[0], redistributedCreated[1] = 5, 2
 	accounting := NewMetaCreateAccounting()
-	if err := accounting.Checkpoint(10, 2, lifecycleMetaMetrics(12, 3, 0), false); err != nil {
+	if err := accounting.Checkpoint(
+		initialPerson, preparedGroups, assignment,
+		lifecycleMetaMetricsBySlot(initialCreated, [formalLogicalSlotGroups]uint64{}, [formalLogicalSlotGroups]uint64{}), false,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := accounting.Checkpoint(13, 2, lifecycleMetaMetrics(15, 9, 0), true); err != nil {
+	err := accounting.Checkpoint(
+		nextPerson, preparedGroups, assignment,
+		lifecycleMetaMetricsBySlot(redistributedCreated, [formalLogicalSlotGroups]uint64{}, [formalLogicalSlotGroups]uint64{}), true,
+	)
+	if !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("redistributed reheat error = %v, want product failure", err)
+	}
+	if snapshot := accounting.Snapshot(); snapshot.ReheatCreated != 1 {
+		t.Fatalf("redistributed reheat snapshot = %+v, want one excess create", snapshot)
+	}
+}
+
+func TestMetaCreateAccountingReheatAllowsOnlyExpectedConcurrentGrowth(t *testing.T) {
+	accounting := NewMetaCreateAccounting()
+	if err := lifecycleMetaCheckpoint(accounting, 10, 2, lifecycleMetaMetrics(12, 3, 0), false); err != nil {
+		t.Fatal(err)
+	}
+	if err := lifecycleMetaCheckpoint(accounting, 13, 2, lifecycleMetaMetrics(15, 9, 0), true); err != nil {
 		t.Fatalf("expected concurrent growth: %v", err)
 	}
 	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 15 || snapshot.Created != 15 || snapshot.AlreadyExisting != 9 || snapshot.ReheatCreated != 0 {
@@ -794,8 +833,8 @@ func TestMetaCreateAccountingReheatAllowsOnlyExpectedConcurrentGrowth(t *testing
 	}
 
 	excess := NewMetaCreateAccounting()
-	_ = excess.Checkpoint(10, 2, lifecycleMetaMetrics(12, 0, 0), false)
-	if err := excess.Checkpoint(13, 2, lifecycleMetaMetrics(16, 0, 0), true); !errors.Is(err, ErrLifecycleProductFailure) {
+	_ = lifecycleMetaCheckpoint(excess, 10, 2, lifecycleMetaMetrics(12, 0, 0), false)
+	if err := lifecycleMetaCheckpoint(excess, 13, 2, lifecycleMetaMetrics(16, 0, 0), true); !errors.Is(err, ErrLifecycleProductFailure) {
 		t.Fatalf("excess error = %v, want product failure", err)
 	}
 	if snapshot := excess.Snapshot(); snapshot.ReheatCreated != 1 {
@@ -811,27 +850,31 @@ func TestMetaCreateAccountingRejectsCreatedOnReheatErrorsRegressionAndOverflow(t
 		want error
 	}{
 		{"created on reheat", func(a *MetaCreateAccounting) error {
-			_ = a.Checkpoint(10, 2, base, false)
-			return a.Checkpoint(10, 2, lifecycleMetaMetrics(13, 0, 0), true)
+			_ = lifecycleMetaCheckpoint(a, 10, 2, base, false)
+			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(13, 0, 0), true)
 		}, ErrLifecycleProductFailure},
 		{"error result", func(a *MetaCreateAccounting) error {
-			return a.Checkpoint(10, 2, lifecycleMetaMetrics(12, 0, 1), false)
+			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(12, 0, 1), false)
 		}, ErrLifecycleProductFailure},
-		{"undercreated", func(a *MetaCreateAccounting) error { return a.Checkpoint(10, 2, lifecycleMetaMetrics(11, 0, 0), false) }, ErrLifecycleProductFailure},
+		{"undercreated", func(a *MetaCreateAccounting) error {
+			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(11, 0, 0), false)
+		}, ErrLifecycleProductFailure},
 		{"counter regression", func(a *MetaCreateAccounting) error {
-			_ = a.Checkpoint(10, 2, base, false)
-			return a.Checkpoint(9, 2, lifecycleMetaMetrics(11, 0, 0), false)
+			_ = lifecycleMetaCheckpoint(a, 10, 2, base, false)
+			return lifecycleMetaCheckpoint(a, 9, 2, lifecycleMetaMetrics(11, 0, 0), false)
 		}, ErrLifecycleHarnessInvalid},
-		{"expected overflow", func(a *MetaCreateAccounting) error { return a.Checkpoint(^uint64(0), 1, base, false) }, ErrLifecycleHarnessInvalid},
+		{"expected overflow", func(a *MetaCreateAccounting) error {
+			return lifecycleMetaCheckpoint(a, ^uint64(0), 1, base, false)
+		}, ErrLifecycleHarnessInvalid},
 		{"fractional", func(a *MetaCreateAccounting) error {
 			metrics := lifecycleMetaMetrics(12, 0, 0)
 			metrics[0].MetaCreatedTotal["created"] = 12.5
-			return a.Checkpoint(10, 2, metrics, false)
+			return lifecycleMetaCheckpoint(a, 10, 2, metrics, false)
 		}, ErrLifecycleHarnessInvalid},
 		{"missing result series", func(a *MetaCreateAccounting) error {
 			metrics := lifecycleMetaMetrics(12, 0, 0)
 			delete(metrics[1].MetaCreatedTotal, "already_existing")
-			return a.Checkpoint(10, 2, metrics, false)
+			return lifecycleMetaCheckpoint(a, 10, 2, metrics, false)
 		}, ErrLifecycleHarnessInvalid},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -843,11 +886,46 @@ func TestMetaCreateAccountingRejectsCreatedOnReheatErrorsRegressionAndOverflow(t
 }
 
 func lifecycleMetaMetrics(created, already, errorCount float64) [3]target.MetricsSnapshot {
-	return [3]target.MetricsSnapshot{
-		{MetaCreatedTotal: map[string]float64{"created": created, "already_existing": already, "error": errorCount}},
-		{MetaCreatedTotal: map[string]float64{"created": 0, "already_existing": 0, "error": 0}},
-		{MetaCreatedTotal: map[string]float64{"created": 0, "already_existing": 0, "error": 0}},
+	var createdBySlot, alreadyBySlot, errorsBySlot [formalLogicalSlotGroups]uint64
+	createdBySlot[0], _ = exactMetricCounter(created)
+	alreadyBySlot[0], _ = exactMetricCounter(already)
+	errorsBySlot[0], _ = exactMetricCounter(errorCount)
+	metrics := lifecycleMetaMetricsBySlot(createdBySlot, alreadyBySlot, errorsBySlot)
+	metrics[0].MetaCreatedTotal = map[string]float64{"created": created, "already_existing": already, "error": errorCount}
+	return metrics
+}
+
+func lifecycleMetaMetricsBySlot(
+	created, already, errorsCount [formalLogicalSlotGroups]uint64,
+) [3]target.MetricsSnapshot {
+	metrics := [3]target.MetricsSnapshot{}
+	for node := range metrics {
+		metrics[node].MetaCreatedTotal = map[string]float64{"created": 0, "already_existing": 0, "error": 0}
 	}
+	for slot := range formalLogicalSlotGroups {
+		metrics[0].MetaCreatedBySlot[slot] = target.MetaCreateSlotCounters{
+			Created: created[slot], AlreadyExisting: already[slot], Errors: errorsCount[slot],
+		}
+		metrics[0].MetaCreatedTotal["created"] += float64(created[slot])
+		metrics[0].MetaCreatedTotal["already_existing"] += float64(already[slot])
+		metrics[0].MetaCreatedTotal["error"] += float64(errorsCount[slot])
+	}
+	return metrics
+}
+
+func lifecycleMetaCheckpoint(
+	accounting *MetaCreateAccounting,
+	personEdges, preparedGroups uint64,
+	metrics [3]target.MetricsSnapshot,
+	reheat bool,
+) error {
+	var personByHash, groupsByHash MetaCreateHashSlotCounts
+	personByHash[0], groupsByHash[0] = personEdges, preparedGroups
+	assignment, err := newInitialLifecycleSlotAssignment()
+	if err != nil {
+		return err
+	}
+	return accounting.Checkpoint(personByHash, groupsByHash, assignment, metrics, reheat)
 }
 
 type fakeLifecycleSender struct{ err error }

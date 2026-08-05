@@ -163,14 +163,19 @@ Engine/WKProto SEND path performs the real reheat, and reheat completion latency
 uses that due instant as its baseline; control code never manufactures a
 sequence. The post-reheat probe supplies the sequence-continuity proof.
 
-Metadata-create accounting accepts exactly three service-node scrapes, sums
-their already slot-aggregated closed `created`, `already_existing`, and `error`
-series with checked integer arithmetic, and compares `created` with deterministic
-person edges plus prepared groups. Counters may not regress, error must remain
-zero, and `already_existing` may increase. Because ordinary traffic continues
-creating person channels during a reheat window, its cumulative `created` delta
-must equal the concurrent deterministic expected-unique delta; only excess is
-classified as reheat creation and must remain zero. The metric and all aggregate
+Metadata-create parsing accepts only the exact `slot_id` and closed `result`
+labels, logical Slot IDs 1 through 12, exact integer counters, and at most one
+sample for each Slot/result tuple. The Slot 1 zero baselines preserve all three
+global result totals; absent outcome tuples on other Slots mean zero. Accounting
+accepts exactly three service-node scrapes and uses checked integer arithmetic
+to reconcile their fixed 12-Slot vectors. It folds separate bounded 256-hash-slot
+person-edge and prepared-group expectations through the current immutable
+assignment, then requires both the total and every logical Slot's `created`
+counter to match. Per-Slot counters may not regress, `error` must remain zero,
+and `already_existing` may increase. Because ordinary traffic continues creating
+person channels during a reheat window, every Slot's cumulative `created` delta
+must equal that Slot's concurrent expected-unique delta; excess, deficit, or
+redistribution is product failure. The metric and all fixed-array aggregate
 snapshots remain low-cardinality and carry no channel label.
 
 Worker snapshots contain only scalar aggregates,
