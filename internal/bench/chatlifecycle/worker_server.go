@@ -27,11 +27,11 @@ const workerMaxDrainTimeout = 30 * time.Second
 // runtime has performed its own bounded teardown or after explicit Stop joins.
 type WorkerGeneration interface {
 	Start(context.Context) error
-	UpdateRate(ratePerSecond, maxBurst uint64) error
-	Checkpoint() (WorkerSnapshot, error)
+	UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error
+	Checkpoint(context.Context) (WorkerSnapshot, error)
 	Drain(context.Context) error
 	Stop()
-	Snapshot() WorkerSnapshot
+	Snapshot(context.Context) (WorkerSnapshot, error)
 	Done() <-chan error
 }
 
@@ -248,9 +248,39 @@ func (s *WorkerServer) handleStatus(response http.ResponseWriter, _ *http.Reques
 	writeWorkerJSON(response, http.StatusOK, status)
 }
 
-func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, _ *http.Request) {
+func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *http.Request) {
 	s.mu.Lock()
-	snapshot := s.snapshotLocked()
+	phase := s.phase
+	assignment := s.assignment
+	generation := s.generation
+	if phase == WorkerPhaseFinal {
+		final := s.final
+		s.mu.Unlock()
+		writeWorkerJSON(response, http.StatusOK, final)
+		return
+	}
+	if generation == nil {
+		s.mu.Unlock()
+		writeWorkerJSON(response, http.StatusOK, WorkerSnapshot{Phase: phase})
+		return
+	}
+	s.mu.Unlock()
+
+	snapshot, err := generation.Snapshot(request.Context())
+	if err != nil {
+		if request.Context().Err() != nil {
+			return
+		}
+		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
+		return
+	}
+	s.mu.Lock()
+	if s.generation != generation || s.phase != phase || !sameWorkerFence(s.assignment.WorkerFence, assignment.WorkerFence) {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	snapshot = s.overlaySnapshotLocked(snapshot)
 	s.mu.Unlock()
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
@@ -270,16 +300,33 @@ func (s *WorkerServer) handleCheckpoint(response http.ResponseWriter, request *h
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.runningFenceLocked(response, checkpoint.WorkerFence) {
+		s.mu.Unlock()
 		return
 	}
-	snapshot, err := s.generation.Checkpoint()
+	generation := s.generation
+	s.mu.Unlock()
+
+	snapshot, err := generation.Checkpoint(request.Context())
 	if err != nil {
+		if request.Context().Err() != nil {
+			return
+		}
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
+	s.mu.Lock()
+	if s.generation != generation {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	if !s.runningFenceLocked(response, checkpoint.WorkerFence) {
+		s.mu.Unlock()
+		return
+	}
 	snapshot = s.overlaySnapshotLocked(snapshot)
+	s.mu.Unlock()
 	if !validWorkerSnapshot(snapshot) {
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
 		return
@@ -298,15 +345,33 @@ func (s *WorkerServer) handleRate(response http.ResponseWriter, request *http.Re
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if !s.runningFenceLocked(response, rate.WorkerFence) {
+		s.mu.Unlock()
 		return
 	}
-	if err := s.generation.UpdateRate(rate.RatePerSecond, rate.MaxBurst); err != nil {
+	generation := s.generation
+	s.mu.Unlock()
+
+	if err := generation.UpdateRate(request.Context(), rate.RatePerSecond, rate.MaxBurst); err != nil {
+		if request.Context().Err() != nil {
+			return
+		}
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	writeWorkerJSON(response, http.StatusOK, s.statusLocked())
+	s.mu.Lock()
+	if s.generation != generation {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	if !s.runningFenceLocked(response, rate.WorkerFence) {
+		s.mu.Unlock()
+		return
+	}
+	status := s.statusLocked()
+	s.mu.Unlock()
+	writeWorkerJSON(response, http.StatusOK, status)
 }
 
 func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Request) {
@@ -336,7 +401,7 @@ func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Re
 		writeWorkerJSON(response, http.StatusOK, final)
 		return
 	}
-	if s.phase != WorkerPhaseRunning && s.phase != WorkerPhaseStopping {
+	if s.phase != WorkerPhaseAssigned && s.phase != WorkerPhaseRunning && s.phase != WorkerPhaseStopping {
 		s.mu.Unlock()
 		writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
 		return
@@ -345,8 +410,9 @@ func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Re
 	if task == nil {
 		task = &workerStopTask{done: make(chan struct{})}
 		s.stop = task
+		drain := s.phase == WorkerPhaseRunning
 		s.phase = WorkerPhaseStopping
-		go s.runStop(s.generation, task)
+		go s.runStop(s.generation, task, drain)
 	}
 	s.mu.Unlock()
 
@@ -361,20 +427,26 @@ func (s *WorkerServer) handleStop(response http.ResponseWriter, request *http.Re
 	}
 }
 
-func (s *WorkerServer) runStop(generation WorkerGeneration, task *workerStopTask) {
+func (s *WorkerServer) runStop(generation WorkerGeneration, task *workerStopTask, drain bool) {
+	var operationErr error
 	ctx, cancel := context.WithTimeout(context.Background(), s.drainTimeout)
-	err := generation.Drain(ctx)
-	cancel()
+	if drain {
+		operationErr = generation.Drain(ctx)
+	}
 	generation.Stop()
+	cancel()
+	snapshotCtx, snapshotCancel := context.WithTimeout(context.Background(), s.drainTimeout)
+	final, snapshotErr := generation.Snapshot(snapshotCtx)
+	snapshotCancel()
+	operationErr = errors.Join(operationErr, snapshotErr)
 
 	s.mu.Lock()
-	final := generation.Snapshot()
 	s.phase = WorkerPhaseFinal
 	final = s.overlaySnapshotLocked(final)
-	if err != nil {
+	if operationErr != nil {
 		final.Harness.Classification = SyncClassificationHarnessInvalid
 		final.Harness.Failures++
-		final.Harness.DrainTimedOut = errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
+		final.Harness.DrainTimedOut = errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
 	}
 	if !validWorkerSnapshot(final) {
 		final = WorkerSnapshot{
@@ -400,16 +472,28 @@ func (s *WorkerServer) watchGeneration(generation WorkerGeneration) {
 		// A closed generation channel is still a terminal runtime event.
 	}
 	s.mu.Lock()
+	if s.generation != generation || s.phase != WorkerPhaseRunning {
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+
+	snapshotCtx, snapshotCancel := context.WithTimeout(context.Background(), s.drainTimeout)
+	final, snapshotErr := generation.Snapshot(snapshotCtx)
+	snapshotCancel()
+	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.generation != generation || s.phase != WorkerPhaseRunning {
 		return
 	}
 	s.unexpected = true
 	s.phase = WorkerPhaseFinal
-	final := generation.Snapshot()
 	final = s.overlaySnapshotLocked(final)
 	final.Harness.Classification = SyncClassificationHarnessInvalid
 	final.Harness.Failures++
+	if snapshotErr != nil {
+		final.Harness.Failures++
+	}
 	final.Harness.UnexpectedExit = true
 	s.final = final
 	select {
@@ -446,16 +530,6 @@ func (s *WorkerServer) statusLocked() WorkerStatus {
 		WorkerCount: s.assignment.WorkerCount,
 		Unexpected:  s.unexpected,
 	}
-}
-
-func (s *WorkerServer) snapshotLocked() WorkerSnapshot {
-	if s.phase == WorkerPhaseFinal {
-		return s.final
-	}
-	if s.generation == nil {
-		return WorkerSnapshot{Phase: s.phase}
-	}
-	return s.overlaySnapshotLocked(s.generation.Snapshot())
 }
 
 func (s *WorkerServer) overlaySnapshotLocked(snapshot WorkerSnapshot) WorkerSnapshot {
@@ -872,7 +946,7 @@ func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struc
 }
 
 func (g *engineWorkerGeneration) step(ctx context.Context, now time.Time) error {
-	runtime, err := g.engine.WorkerRuntimeSnapshot()
+	runtime, err := g.engine.WorkerRuntimeSnapshotContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -917,12 +991,12 @@ func workerStepErrorIsEvidence(err error) bool {
 	return false
 }
 
-func (g *engineWorkerGeneration) UpdateRate(ratePerSecond, maxBurst uint64) error {
-	return g.engine.ScheduleRate(ratePerSecond, maxBurst)
+func (g *engineWorkerGeneration) UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error {
+	return g.engine.ScheduleRateContext(ctx, ratePerSecond, maxBurst)
 }
 
-func (g *engineWorkerGeneration) Checkpoint() (WorkerSnapshot, error) {
-	return g.workerSnapshot()
+func (g *engineWorkerGeneration) Checkpoint(ctx context.Context) (WorkerSnapshot, error) {
+	return g.workerSnapshot(ctx)
 }
 
 func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
@@ -934,7 +1008,7 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 		if drain.PendingUnfinished == 0 && drain.CorrelationOutstanding == 0 {
 			return nil
 		}
-		if _, err := g.engine.Advance(g.clock.Now()); err != nil {
+		if _, err := g.engine.AdvanceContext(ctx, g.clock.Now()); err != nil {
 			return err
 		}
 		select {
@@ -963,16 +1037,12 @@ func (g *engineWorkerGeneration) stopTicks() {
 	}
 }
 
-func (g *engineWorkerGeneration) Snapshot() WorkerSnapshot {
-	snapshot, err := g.workerSnapshot()
-	if err != nil {
-		return WorkerSnapshot{Harness: WorkerHarnessSnapshot{Classification: SyncClassificationHarnessInvalid, Failures: 1}}
-	}
-	return snapshot
+func (g *engineWorkerGeneration) Snapshot(ctx context.Context) (WorkerSnapshot, error) {
+	return g.workerSnapshot(ctx)
 }
 
-func (g *engineWorkerGeneration) workerSnapshot() (WorkerSnapshot, error) {
-	runtime, err := g.engine.WorkerRuntimeSnapshot()
+func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnapshot, error) {
+	runtime, err := g.engine.WorkerRuntimeSnapshotContext(ctx)
 	if err != nil {
 		return WorkerSnapshot{}, err
 	}

@@ -1096,13 +1096,30 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 	return e.advanceWithContext(generationCtx, now)
 }
 
+// AdvanceContext is the cancelable form used by bounded worker drain.
+func (e *Engine) AdvanceContext(ctx context.Context, now time.Time) (int, error) {
+	generationCtx, ok := e.beginSessionOp()
+	if !ok {
+		return 0, errEngineNotRunning
+	}
+	defer e.sessionOps.Done()
+	advanceCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	e.sessions.Expire(now)
+	return e.advanceWithContext(advanceCtx, now)
+}
+
 func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
 	response := make(chan advanceResult, 1)
 	if err := e.enqueue(engineCommand{run: func() { response <- e.advance(ctx, now) }}); err != nil {
 		return 0, err
 	}
-	result := <-response
-	return result.processed, result.err
+	select {
+	case result := <-response:
+		return result.processed, result.err
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
 }
 
 // Step is the narrow worker-run boundary: it advances bounded session
@@ -1311,6 +1328,20 @@ func (e *Engine) ObserveSendack(_ string, ack *frame.SendackPacket, verification
 
 // Snapshot works both while running and after the joined stop baseline.
 func (e *Engine) Snapshot() (EngineSnapshot, error) {
+	return e.SnapshotContext(context.Background())
+}
+
+// SnapshotContext is the cancelable worker-control projection.
+func (e *Engine) SnapshotContext(ctx context.Context) (EngineSnapshot, error) {
+	if e == nil {
+		return EngineSnapshot{}, errEngineConfig
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return EngineSnapshot{}, err
+	}
 	e.lifecycleMu.Lock()
 	running := e.running
 	cached := e.cached
@@ -1319,28 +1350,68 @@ func (e *Engine) Snapshot() (EngineSnapshot, error) {
 		return cached, nil
 	}
 	response := make(chan EngineSnapshot, 1)
-	if err := e.enqueueBlocking(engineCommand{run: func() {
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
 		response <- e.buildSnapshot(true)
 	}}); err != nil {
 		return EngineSnapshot{}, err
 	}
-	return <-response, nil
+	select {
+	case snapshot := <-response:
+		return snapshot, nil
+	case <-ctx.Done():
+		return EngineSnapshot{}, ctx.Err()
+	}
 }
 
 // ScheduleRate serializes a control-plane rate update with the generator's
 // sole engine owner. The change takes effect on the next traffic tick.
 func (e *Engine) ScheduleRate(rate, burst uint64) error {
+	return e.ScheduleRateContext(context.Background(), rate, burst)
+}
+
+// ScheduleRateContext is the cancelable worker-control rate update.
+func (e *Engine) ScheduleRateContext(ctx context.Context, rate, burst uint64) error {
 	if e == nil {
 		return errEngineConfig
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.lifecycleMu.Lock()
+	generation := e.generation
+	generationCtx := e.generationCtx
+	e.lifecycleMu.Unlock()
 	response := make(chan error, 1)
-	if err := e.enqueueBlocking(engineCommand{run: func() {
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
+		if err := ctx.Err(); err != nil {
+			response <- err
+			return
+		}
+		if generationCtx == nil || generationCtx.Err() != nil {
+			response <- errEngineNotRunning
+			return
+		}
+		e.lifecycleMu.Lock()
+		validGeneration := e.running && e.generation == generation && e.generationCtx == generationCtx
+		e.lifecycleMu.Unlock()
+		if !validGeneration {
+			response <- errEngineNotRunning
+			return
+		}
 		response <- e.generator.allocator.ScheduleRate(rate, burst)
 	}}); err != nil {
 		return err
 	}
-	return <-response
+	select {
+	case err := <-response:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // EngineWorkerRuntimeSnapshot is one command-serialized engine and generator
@@ -1353,8 +1424,19 @@ type EngineWorkerRuntimeSnapshot struct {
 // WorkerRuntimeSnapshot serializes engine and generator evidence in one owner
 // command so a concurrent Step cannot advance between the two projections.
 func (e *Engine) WorkerRuntimeSnapshot() (EngineWorkerRuntimeSnapshot, error) {
+	return e.WorkerRuntimeSnapshotContext(context.Background())
+}
+
+// WorkerRuntimeSnapshotContext is the cancelable consistent worker checkpoint.
+func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorkerRuntimeSnapshot, error) {
 	if e == nil {
 		return EngineWorkerRuntimeSnapshot{}, errEngineConfig
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return EngineWorkerRuntimeSnapshot{}, err
 	}
 	e.lifecycleMu.Lock()
 	running := e.running
@@ -1364,13 +1446,18 @@ func (e *Engine) WorkerRuntimeSnapshot() (EngineWorkerRuntimeSnapshot, error) {
 		return EngineWorkerRuntimeSnapshot{Engine: cached, Generated: e.generator.Snapshot()}, nil
 	}
 	response := make(chan EngineWorkerRuntimeSnapshot, 1)
-	if err := e.enqueueBlocking(engineCommand{run: func() {
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
 		response <- EngineWorkerRuntimeSnapshot{Engine: e.buildSnapshot(true), Generated: e.generator.Snapshot()}
 	}}); err != nil {
 		return EngineWorkerRuntimeSnapshot{}, err
 	}
-	return <-response, nil
+	select {
+	case snapshot := <-response:
+		return snapshot, nil
+	case <-ctx.Done():
+		return EngineWorkerRuntimeSnapshot{}, ctx.Err()
+	}
 }
 
 func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done chan<- struct{}) {
@@ -1427,13 +1514,29 @@ func (e *Engine) enqueue(command engineCommand) error {
 }
 
 func (e *Engine) enqueueBlocking(command engineCommand) error {
+	return e.enqueueBlockingContext(context.Background(), command)
+}
+
+func (e *Engine) enqueueBlockingContext(ctx context.Context, command engineCommand) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	e.lifecycleMu.Lock()
-	defer e.lifecycleMu.Unlock()
 	if !e.running || e.stopping {
+		e.lifecycleMu.Unlock()
 		return errEngineNotRunning
 	}
-	e.commands <- command
-	return nil
+	commands := e.commands
+	generationCtx := e.generationCtx
+	e.lifecycleMu.Unlock()
+	select {
+	case commands <- command:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-generationCtx.Done():
+		return errEngineNotRunning
+	}
 }
 
 func (e *Engine) sessionSendack(_ string, ack *frame.SendackPacket, verificationErr error) {

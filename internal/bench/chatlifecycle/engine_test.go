@@ -1769,6 +1769,159 @@ func TestEngineConcurrentSnapshotsAndStopsJoinWithoutStrandedCaller(t *testing.T
 	}
 }
 
+func TestEngineContextControlsCancelBehindOwnerWithoutLateRateMutation(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(context.Context, *Engine) error
+	}{
+		{
+			name: "snapshot",
+			call: func(ctx context.Context, engine *Engine) error {
+				_, err := engine.SnapshotContext(ctx)
+				return err
+			},
+		},
+		{
+			name: "worker runtime snapshot",
+			call: func(ctx context.Context, engine *Engine) error {
+				_, err := engine.WorkerRuntimeSnapshotContext(ctx)
+				return err
+			},
+		},
+		{
+			name: "advance",
+			call: func(ctx context.Context, engine *Engine) error {
+				_, err := engine.AdvanceContext(ctx, time.Unix(1_700_000_001, 0))
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			entered, release := blockEngineOwner(t, fixture.engine)
+			<-entered
+			ctx, cancel := context.WithCancel(context.Background())
+			result := make(chan error, 1)
+			go func() { result <- test.call(ctx, fixture.engine) }()
+			waitForEngineQueuedCommand(t, fixture.engine)
+			cancel()
+			var callErr error
+			returnedBeforeRelease := false
+			select {
+			case callErr = <-result:
+				returnedBeforeRelease = true
+			case <-time.After(100 * time.Millisecond):
+			}
+			close(release)
+			if !returnedBeforeRelease {
+				callErr = <-result
+			}
+			if err := fixture.engine.Stop(); err != nil {
+				t.Fatalf("Stop: %v", err)
+			}
+			if !returnedBeforeRelease || !errors.Is(callErr, context.Canceled) {
+				t.Fatalf("cancelable %s returned_before_release=%v error=%v", test.name, returnedBeforeRelease, callErr)
+			}
+		})
+	}
+
+	t.Run("scheduled rate", func(t *testing.T) {
+		fixture := newEngineTestFixture(t, engineTestLimits{})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		originalRate := fixture.engine.generator.allocator.rate
+		originalBurst := fixture.engine.generator.allocator.burst
+		entered, release := blockEngineOwner(t, fixture.engine)
+		<-entered
+		ctx, cancel := context.WithCancel(context.Background())
+		result := make(chan error, 1)
+		go func() { result <- fixture.engine.ScheduleRateContext(ctx, originalRate+1, 2*(originalRate+1)) }()
+		waitForEngineQueuedCommand(t, fixture.engine)
+		cancel()
+		callErr := <-result
+		close(release)
+		if _, err := fixture.engine.Snapshot(); err != nil {
+			t.Fatalf("owner barrier Snapshot: %v", err)
+		}
+		allocator := fixture.engine.generator.allocator
+		if err := fixture.engine.Stop(); err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+		if !errors.Is(callErr, context.Canceled) {
+			t.Fatalf("ScheduleRateContext error = %v, want context cancellation", callErr)
+		}
+		if allocator.rate != originalRate || allocator.burst != originalBurst || allocator.hasPending {
+			t.Fatalf("canceled late rate mutated allocator: rate=%d burst=%d pending=%v", allocator.rate, allocator.burst, allocator.hasPending)
+		}
+	})
+
+	t.Run("scheduled rate generation fence", func(t *testing.T) {
+		fixture := newEngineTestFixture(t, engineTestLimits{})
+		if err := fixture.engine.Start(context.Background()); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		originalRate := fixture.engine.generator.allocator.rate
+		originalBurst := fixture.engine.generator.allocator.burst
+		generationCtx := fixture.engine.generationCtx
+		entered, release := blockEngineOwner(t, fixture.engine)
+		<-entered
+		rateResult := make(chan error, 1)
+		go func() {
+			rateResult <- fixture.engine.ScheduleRateContext(context.Background(), originalRate+1, 2*(originalRate+1))
+		}()
+		waitForEngineQueuedCommand(t, fixture.engine)
+		stopResult := make(chan error, 1)
+		go func() { stopResult <- fixture.engine.Stop() }()
+		select {
+		case <-generationCtx.Done():
+		case <-time.After(time.Second):
+			close(release)
+			<-stopResult
+			t.Fatal("Stop did not fence queued control generation")
+		}
+		close(release)
+		if err := <-rateResult; !errors.Is(err, errEngineNotRunning) {
+			t.Fatalf("stale generation ScheduleRateContext error = %v, want %v", err, errEngineNotRunning)
+		}
+		if err := <-stopResult; err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+		allocator := fixture.engine.generator.allocator
+		if allocator.rate != originalRate || allocator.burst != originalBurst || allocator.hasPending {
+			t.Fatalf("stale generation rate mutated allocator: rate=%d burst=%d pending=%v", allocator.rate, allocator.burst, allocator.hasPending)
+		}
+	})
+}
+
+func blockEngineOwner(t *testing.T, engine *Engine) (<-chan struct{}, chan<- struct{}) {
+	t.Helper()
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	if err := engine.enqueueBlocking(engineCommand{run: func() {
+		close(entered)
+		<-release
+	}}); err != nil {
+		t.Fatalf("enqueue owner blocker: %v", err)
+	}
+	return entered, release
+}
+
+func waitForEngineQueuedCommand(t *testing.T, engine *Engine) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for len(engine.commands) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("context control did not enqueue behind blocked owner")
+		}
+		runtime.Gosched()
+	}
+}
+
 func TestEngineStartGenerationUsesExactExternalFenceAndRejectsInvalidValues(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 

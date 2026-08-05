@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -174,11 +175,14 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	if !ok || engineGeneration.engine == nil || engineGeneration.verifier == nil {
 		t.Fatalf("generation does not own existing engine/verifier: %#v", generation)
 	}
-	snapshot := generation.Snapshot()
+	snapshot, err := generation.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("pre-start Snapshot: %v", err)
+	}
 	if snapshot.WorkerID != 1 || snapshot.WorkerCount != 3 || snapshot.Sessions.Target != 33 {
 		t.Fatalf("pre-start engine snapshot = %+v", snapshot)
 	}
-	if err := generation.UpdateRate(100, 200); !errors.Is(err, errEngineNotRunning) {
+	if err := generation.UpdateRate(context.Background(), 100, 200); !errors.Is(err, errEngineNotRunning) {
 		t.Fatalf("pre-start rate error = %v, want %v", err, errEngineNotRunning)
 	}
 	engineGeneration.engine.lifecycleMu.Lock()
@@ -193,7 +197,10 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.verifier.recvMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.recvackLatency, 50*time.Millisecond)
 	engineGeneration.verifier.recvMu.Unlock()
-	snapshot = generation.Snapshot()
+	snapshot, err = generation.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("latency Snapshot: %v", err)
+	}
 	if snapshot.Sync.ConnectLatency.Buckets[5] != 1 || snapshot.Sync.Latency.Buckets[6] != 1 ||
 		snapshot.SendackLatency.Buckets[11] != 1 || snapshot.RecvackLatency.Buckets[6] != 1 {
 		t.Fatalf("worker latency projection = sync=%+v sendack=%+v recvack=%+v", snapshot.Sync, snapshot.SendackLatency, snapshot.RecvackLatency)
@@ -249,7 +256,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		defer worker.Stop()
 		ticker.awaitReady(t)
 
-		initial, err := worker.Checkpoint()
+		initial, err := worker.Checkpoint(context.Background())
 		if err != nil {
 			t.Fatalf("initial checkpoint generation %d: %v", generation, err)
 		}
@@ -260,7 +267,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		clock.Set(startedAt.Add(46 * time.Minute))
 		ticker.tickAndWait(t)
 		engineGeneration.engine.loginOps.Wait()
-		bootstrap, err := worker.Checkpoint()
+		bootstrap, err := worker.Checkpoint(context.Background())
 		if err != nil {
 			t.Fatalf("bootstrap checkpoint generation %d: %v", generation, err)
 		}
@@ -283,7 +290,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		// Both schedules start allocator credit only after the local target.
 		clock.Set(startedAt.Add(46*time.Minute + time.Second))
 		ticker.tickAndWait(t)
-		traffic, err := worker.Checkpoint()
+		traffic, err := worker.Checkpoint(context.Background())
 		if err != nil {
 			t.Fatalf("observed bootstrap checkpoint generation %d: %v", generation, err)
 		}
@@ -293,7 +300,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		if traffic.Generated.Primary == 0 {
 			clock.Set(startedAt.Add(46*time.Minute + 31*time.Second))
 			ticker.tickAndWait(t)
-			traffic, err = worker.Checkpoint()
+			traffic, err = worker.Checkpoint(context.Background())
 			if err != nil {
 				t.Fatalf("traffic checkpoint generation %d: %v", generation, err)
 			}
@@ -313,7 +320,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		if exerciseChurn {
 			clock.Set(startedAt.Add(4 * time.Hour))
 			ticker.tickAndWait(t)
-			churn, checkpointErr := worker.Checkpoint()
+			churn, checkpointErr := worker.Checkpoint(context.Background())
 			if checkpointErr != nil {
 				t.Fatalf("churn checkpoint: %v", checkpointErr)
 			}
@@ -379,7 +386,10 @@ func TestWorkerEngineGenerationRejectsOverflowAndReportsOnlyFatalRuntimeTerminat
 		generation.Stop()
 		t.Fatal("fatal runtime termination did not signal Done")
 	}
-	snapshot := generation.Snapshot()
+	snapshot, snapshotErr := generation.Snapshot(context.Background())
+	if snapshotErr != nil {
+		t.Fatalf("fatal Snapshot: %v", snapshotErr)
+	}
 	if snapshot.Generation != 9 {
 		t.Fatalf("fatal generation snapshot = %+v", snapshot)
 	}
@@ -698,7 +708,282 @@ func TestWorkerServerEnforcesAssignmentGenerationAndLifecycle(t *testing.T) {
 	}
 }
 
+func TestWorkerServerStopCleansAssignedGenerationAndAllowsHigherFence(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		startFail bool
+	}{
+		{name: "not started"},
+		{name: "start failed", startFail: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var generations []*fakeWorkerGeneration
+			server, err := NewWorkerServer(WorkerServerConfig{
+				ControlToken: "control-secret",
+				Factory: WorkerGenerationFactoryFunc(func(assignment WorkerAssignment) (WorkerGeneration, error) {
+					generation := newFakeWorkerGeneration()
+					generation.snapshot.Generation = assignment.Generation
+					if len(generations) == 0 && test.startFail {
+						generation.startErr = errors.New("redacted start failure")
+					}
+					generations = append(generations, generation)
+					return generation, nil
+				}),
+			})
+			if err != nil {
+				t.Fatalf("NewWorkerServer: %v", err)
+			}
+			config := LocalConfig()
+			fence7 := WorkerFence{RunID: config.RunID, AssignmentID: "assigned-stop", Generation: 7}
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+				WorkerFence: fence7, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+			})
+			if test.startFail {
+				assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence7},
+					http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			}
+
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence7})
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence7})
+			if generations[0].drains != 0 || generations[0].stops != 1 {
+				t.Fatalf("assigned cleanup drain/stop = %d/%d, want 0/1", generations[0].drains, generations[0].stops)
+			}
+
+			fence8 := WorkerFence{RunID: config.RunID, AssignmentID: "assigned-stop-next", Generation: 8}
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+				WorkerFence: fence8, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+			})
+			assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence7},
+				http.StatusConflict, WorkerErrorFenceMismatch)
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence8})
+			if len(generations) != 2 || generations[1].drains != 0 || generations[1].stops != 1 {
+				t.Fatalf("higher generation cleanup = %#v", generations)
+			}
+		})
+	}
+}
+
+func TestWorkerServerCanceledBlockingControlsDoNotHoldLifecycleLock(t *testing.T) {
+	for _, operation := range []string{"snapshot", "checkpoint", "rate"} {
+		t.Run(operation, func(t *testing.T) {
+			generation := newBlockingControlGeneration(operation)
+			server, fence := startWorkerServerForGeneration(t, generation, "blocking-"+operation)
+
+			requestContext, cancelRequest := context.WithCancel(context.Background())
+			var method, path string
+			var body any
+			if operation == "snapshot" {
+				method, path = http.MethodGet, "/v1/chat-lifecycle/snapshot"
+			} else if operation == "checkpoint" {
+				method, path = http.MethodPost, "/v1/chat-lifecycle/checkpoint"
+				body = WorkerCheckpointRequest{WorkerFence: fence}
+			} else {
+				method, path = http.MethodPost, "/v1/chat-lifecycle/rate"
+				body = WorkerRateRequest{WorkerFence: fence, RatePerSecond: 120, MaxBurst: 240}
+			}
+			controlDone := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				controlDone <- workerRequestWithContext(t, server, requestContext, method, path, body)
+			}()
+			select {
+			case <-generation.controlStarted:
+			case <-time.After(time.Second):
+				t.Fatal("blocking control did not start")
+			}
+
+			statusDone := make(chan int, 1)
+			healthDone := make(chan int, 1)
+			go func() { statusDone <- workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil).Code }()
+			go func() { healthDone <- workerRequest(t, server, http.MethodGet, "/healthz", nil).Code }()
+			statusQuick := receivesWorkerStatus(statusDone)
+			healthQuick := receivesWorkerStatus(healthDone)
+
+			cancelRequest()
+			stopDone := make(chan *httptest.ResponseRecorder, 1)
+			go func() {
+				stopDone <- workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence})
+			}()
+			stopStarted := false
+			select {
+			case <-generation.drainStarted:
+				stopStarted = true
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			close(generation.controlRelease)
+			<-controlDone
+			stopResponse := <-stopDone
+			if !statusQuick || !healthQuick {
+				t.Fatalf("status/health blocked behind %s: quick=%v/%v", operation, statusQuick, healthQuick)
+			}
+			if !stopStarted {
+				t.Fatalf("explicit stop could not start after canceled %s", operation)
+			}
+			if stopResponse.Code != http.StatusOK {
+				t.Fatalf("stop response = %d/%q", stopResponse.Code, stopResponse.Body.String())
+			}
+		})
+	}
+}
+
+func TestWorkerServerDiscardsOldSnapshotResultAfterHigherGenerationAssignment(t *testing.T) {
+	oldGeneration := newBlockingControlGeneration("snapshot")
+	newGeneration := newFakeWorkerGeneration()
+	created := 0
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(assignment WorkerAssignment) (WorkerGeneration, error) {
+			created++
+			if created == 1 {
+				oldGeneration.snapshot.Generation = assignment.Generation
+				oldGeneration.snapshot.Messages.Sent = 71
+				return oldGeneration, nil
+			}
+			newGeneration.snapshot.Generation = assignment.Generation
+			newGeneration.snapshot.Messages.Sent = 82
+			return newGeneration, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer: %v", err)
+	}
+	config := LocalConfig()
+	fence7 := WorkerFence{RunID: config.RunID, AssignmentID: "old-snapshot", Generation: 7}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+		WorkerFence: fence7, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+	})
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence7})
+
+	oldResponse := make(chan *httptest.ResponseRecorder, 1)
+	go func() { oldResponse <- workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/snapshot", nil) }()
+	<-oldGeneration.controlStarted
+
+	// Stop takes its own unblocked final snapshot after Stop, then generation 8
+	// is assigned before the old request is allowed to return.
+	stopResponse := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		stopResponse <- workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence7})
+	}()
+	select {
+	case response := <-stopResponse:
+		if response.Code != http.StatusOK {
+			t.Fatalf("stop response = %d/%q", response.Code, response.Body.String())
+		}
+	case <-time.After(100 * time.Millisecond):
+		close(oldGeneration.controlRelease)
+		<-stopResponse
+		<-oldResponse
+		t.Fatal("stop blocked behind old snapshot")
+	}
+	fence8 := WorkerFence{RunID: config.RunID, AssignmentID: "new-snapshot", Generation: 8}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+		WorkerFence: fence8, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+	})
+	close(oldGeneration.controlRelease)
+	response := <-oldResponse
+	if response.Code == http.StatusOK {
+		var snapshot WorkerSnapshot
+		if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+			t.Fatalf("decode stale snapshot: %v", err)
+		}
+		if snapshot.Generation == 8 && snapshot.Messages.Sent == 71 {
+			t.Fatalf("old snapshot was overlaid onto new fence: %+v", snapshot)
+		}
+	}
+}
+
+type blockingControlGeneration struct {
+	*fakeWorkerGeneration
+	operation      string
+	controlStarted chan struct{}
+	controlRelease chan struct{}
+	blockOnce      atomic.Bool
+	startedOnce    sync.Once
+}
+
+func newBlockingControlGeneration(operation string) *blockingControlGeneration {
+	generation := &blockingControlGeneration{
+		fakeWorkerGeneration: newFakeWorkerGeneration(),
+		operation:            operation,
+		controlStarted:       make(chan struct{}),
+		controlRelease:       make(chan struct{}),
+	}
+	generation.drainStarted = make(chan struct{})
+	generation.blockOnce.Store(true)
+	return generation
+}
+
+func (g *blockingControlGeneration) Checkpoint(ctx context.Context) (WorkerSnapshot, error) {
+	if g.operation == "checkpoint" {
+		if err := g.blockControl(ctx); err != nil {
+			return WorkerSnapshot{}, err
+		}
+	}
+	return g.fakeWorkerGeneration.Checkpoint(ctx)
+}
+
+func (g *blockingControlGeneration) UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error {
+	if g.operation == "rate" {
+		if err := g.blockControl(ctx); err != nil {
+			return err
+		}
+	}
+	return g.fakeWorkerGeneration.UpdateRate(ctx, ratePerSecond, maxBurst)
+}
+
+func (g *blockingControlGeneration) Snapshot(ctx context.Context) (WorkerSnapshot, error) {
+	if g.operation == "snapshot" {
+		if err := g.blockControl(ctx); err != nil {
+			return WorkerSnapshot{}, err
+		}
+	}
+	return g.fakeWorkerGeneration.Snapshot(ctx)
+}
+
+func (g *blockingControlGeneration) blockControl(ctx context.Context) error {
+	if !g.blockOnce.CompareAndSwap(true, false) {
+		return nil
+	}
+	g.startedOnce.Do(func() { close(g.controlStarted) })
+	select {
+	case <-g.controlRelease:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func receivesWorkerStatus(result <-chan int) bool {
+	select {
+	case status := <-result:
+		return status == http.StatusOK
+	case <-time.After(100 * time.Millisecond):
+		return false
+	}
+}
+
+func startWorkerServerForGeneration(t *testing.T, generation WorkerGeneration, assignmentID string) (*WorkerServer, WorkerFence) {
+	t.Helper()
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer: %v", err)
+	}
+	config := LocalConfig()
+	fence := WorkerFence{RunID: config.RunID, AssignmentID: assignmentID, Generation: 7}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+		WorkerFence: fence, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+	})
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence})
+	return server, fence
+}
+
 type fakeWorkerGeneration struct {
+	startErr     error
 	starts       int
 	rate         uint64
 	burst        uint64
@@ -720,15 +1005,15 @@ func newFakeWorkerGeneration() *fakeWorkerGeneration {
 
 func (g *fakeWorkerGeneration) Start(context.Context) error {
 	g.starts++
-	return nil
+	return g.startErr
 }
 
-func (g *fakeWorkerGeneration) UpdateRate(ratePerSecond, maxBurst uint64) error {
+func (g *fakeWorkerGeneration) UpdateRate(_ context.Context, ratePerSecond, maxBurst uint64) error {
 	g.rate, g.burst = ratePerSecond, maxBurst
 	return nil
 }
 
-func (g *fakeWorkerGeneration) Checkpoint() (WorkerSnapshot, error) {
+func (g *fakeWorkerGeneration) Checkpoint(context.Context) (WorkerSnapshot, error) {
 	g.checkpoints++
 	return g.snapshot, nil
 }
@@ -756,7 +1041,9 @@ func (g *fakeWorkerGeneration) Stop() {
 	g.terminate(nil)
 }
 
-func (g *fakeWorkerGeneration) Snapshot() WorkerSnapshot { return g.snapshot }
+func (g *fakeWorkerGeneration) Snapshot(context.Context) (WorkerSnapshot, error) {
+	return g.snapshot, nil
+}
 
 func (g *fakeWorkerGeneration) Done() <-chan error { return g.done }
 
@@ -791,6 +1078,10 @@ func assertWorkerError(t *testing.T, server http.Handler, method, path string, b
 }
 
 func workerRequest(t *testing.T, server http.Handler, method, path string, body any) *httptest.ResponseRecorder {
+	return workerRequestWithContext(t, server, context.Background(), method, path, body)
+}
+
+func workerRequestWithContext(t *testing.T, server http.Handler, ctx context.Context, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var encoded strings.Builder
 	if body != nil {
@@ -798,7 +1089,7 @@ func workerRequest(t *testing.T, server http.Handler, method, path string, body 
 			t.Fatalf("encode request: %v", err)
 		}
 	}
-	req := httptest.NewRequest(method, path, strings.NewReader(encoded.String()))
+	req := httptest.NewRequest(method, path, strings.NewReader(encoded.String())).WithContext(ctx)
 	req.Header.Set("Authorization", "Bearer control-secret")
 	response := httptest.NewRecorder()
 	server.ServeHTTP(response, req)

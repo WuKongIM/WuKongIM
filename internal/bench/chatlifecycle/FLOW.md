@@ -33,6 +33,21 @@ same snapshot for matching retries. An unexpected active-generation exit
 publishes a process signal so the dedicated worker server shuts down and exits
 nonzero.
 
+A matching stop is also valid while assigned, including after `Start` fails.
+That path skips drain because no Engine generation is running, performs one
+idempotent generation cleanup, caches `final`, and permits only a strictly
+higher later assignment. Snapshot, checkpoint, and rate handlers capture the
+generation pointer, phase, and fence under the server lock, call the
+context-aware generation outside the lock, and publish a result only if the
+captured state still matches. Request cancellation therefore ends owner waits
+without retaining goroutines, while health and status remain independent of a
+slow generation call. A late old-generation snapshot is discarded rather than
+overlaid with a newer fence. Engine snapshot, consistent worker-runtime
+snapshot, rate update, and bounded drain advancement expose cancelable forms;
+their existing background wrappers retain their prior semantics. A queued
+rate command rechecks both caller context and Engine generation before mutating
+the allocator, and every late response uses a one-slot owner-safe channel.
+
 Request bodies, client responses, and server responses have fixed byte caps
 and strict JSON schemas. Worker snapshots contain only scalar aggregates,
 fixed arrays, and the verifier's at-most-four evidence classes with at most 64
