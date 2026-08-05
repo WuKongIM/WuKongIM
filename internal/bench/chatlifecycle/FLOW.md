@@ -692,13 +692,12 @@ request, reject a valid-looking result returned after that deadline, and
 validate results in worker-index order. Every grant round uses the same bounded
 concurrent shape with the stricter one-second cap. A blocked control request
 therefore cannot starve the final cutoff indefinitely. Each control round
-retains whether an error or invalid response completed while the parent context
-was still live. That prior stage evidence remains `harness_invalid` even when a
-later outer cancellation releases other workers. Outer operator cancellation
-during assignment, Start, or final checkpoint becomes `stopped` only when the
-round has no earlier stage-failure evidence; a canceled final checkpoint is
-never aggregated as completed. A child deadline or ordinary validation failure
-remains a stage failure.
+retains each response's error and validity evidence. An ordinary non-context
+error or a nil-error invalid response remains `harness_invalid` regardless of
+when an outer cancellation is observed. Only response errors causally matching
+the canceled parent can make assignment, Start, or final checkpoint `stopped`;
+a canceled final checkpoint is never aggregated as completed. The round's own
+deadline always remains a stage failure, even if the parent is canceled later.
 Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.

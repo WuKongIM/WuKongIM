@@ -1012,8 +1012,8 @@ func TestCoordinatorAssignmentCleanupUsesIndependentContextAfterCallerCancel(t *
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	result := coordinator.Run(ctx, cfg)
-	if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
-		t.Fatalf("Run() result = %+v, want stopped/stopped", result)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeAssignment {
+		t.Fatalf("Run() result = %+v, want harness_invalid/assignment", result)
 	}
 	if want := []string{
 		"preflight", "setup", "assign-0", "assign-1", "assign-2", "stop-0", "stop-1", "stop-2",
@@ -1321,6 +1321,71 @@ func TestCoordinatorOuterCancellationDuringControlRoundIsStopped(t *testing.T) {
 	}
 }
 
+func TestResolveCoordinatorRoundDispositionClassifiesEvidenceCausally(t *testing.T) {
+	causalCancellation := [coordinatorWorkerCount]coordinatorRoundEvidence{
+		{err: context.Canceled}, {err: context.Canceled}, {err: context.Canceled},
+	}
+	tests := []struct {
+		name        string
+		evidence    [coordinatorWorkerCount]coordinatorRoundEvidence
+		ownDeadline bool
+		want        coordinatorRoundDisposition
+	}{
+		{
+			name: "parent canceled with ordinary error is stage failure",
+			evidence: [coordinatorWorkerCount]coordinatorRoundEvidence{
+				{err: errors.New("ordinary RPC failure")}, {err: context.Canceled}, {err: context.Canceled},
+			},
+			want: coordinatorRoundStageFailed,
+		},
+		{
+			name: "parent canceled with nil invalid response is stage failure",
+			evidence: [coordinatorWorkerCount]coordinatorRoundEvidence{
+				{}, {err: context.Canceled}, {err: context.Canceled},
+			},
+			want: coordinatorRoundStageFailed,
+		},
+		{
+			name: "parent canceled does not absorb worker deadline error",
+			evidence: [coordinatorWorkerCount]coordinatorRoundEvidence{
+				{err: context.DeadlineExceeded}, {err: context.Canceled}, {err: context.Canceled},
+			},
+			want: coordinatorRoundStageFailed,
+		},
+		{
+			name:     "parent canceled with causal cancellation errors is parent cancellation",
+			evidence: causalCancellation,
+			want:     coordinatorRoundParentCanceled,
+		},
+		{
+			name:        "round deadline remains stage failure after parent cancellation",
+			evidence:    causalCancellation,
+			ownDeadline: true,
+			want:        coordinatorRoundStageFailed,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			parent, cancelParent := context.WithCancel(context.Background())
+			defer cancelParent()
+			var roundContext context.Context
+			var cancelRound context.CancelFunc
+			if test.ownDeadline {
+				roundContext, cancelRound = context.WithTimeoutCause(parent, time.Nanosecond, errCoordinatorRoundDeadline)
+				<-roundContext.Done()
+			} else {
+				roundContext, cancelRound = context.WithCancel(parent)
+			}
+			defer cancelRound()
+			cancelParent()
+
+			if got := resolveCoordinatorRoundDisposition(parent, roundContext, test.evidence); got != test.want {
+				t.Fatalf("resolveCoordinatorRoundDisposition() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestCoordinatorStageFailureBeforeOuterCancellationKeepsStageFailure(t *testing.T) {
 	for _, stage := range []CoordinatorCode{
 		CoordinatorCodeAssignment,
@@ -1391,6 +1456,82 @@ func TestCoordinatorStageFailureBeforeOuterCancellationKeepsStageFailure(t *test
 				t.Fatalf("Run() did not preserve failure before cancellation during %s", stage)
 			}
 		})
+	}
+}
+
+func TestCoordinatorStageEvidenceSurvivesCancelBeforeResultSampling(t *testing.T) {
+	for _, invalidResponse := range []bool{false, true} {
+		evidenceName := "ordinary_error"
+		if invalidResponse {
+			evidenceName = "invalid_response"
+		}
+		for _, stage := range []CoordinatorCode{
+			CoordinatorCodeAssignment,
+			CoordinatorCodeStart,
+			CoordinatorCodeCheckpoint,
+		} {
+			t.Run(evidenceName+"_"+string(stage), func(t *testing.T) {
+				cfg := LocalConfig()
+				cfg.RunID = "coordinator-cancel-before-sample-" + evidenceName + "-" + string(stage)
+				cfg.Observation.Cadence = 500 * time.Millisecond
+				cfg.Thresholds.Timeline = TimelineThresholds{
+					Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				cancelOnce := &sync.Once{}
+				log := []string{}
+				workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+				for workerID := range workers {
+					workers[workerID] = &cancelBeforeStageEvidenceWorker{
+						recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &log},
+						stage:                      stage, invalidResponse: invalidResponse, cancel: cancel, cancelOnce: cancelOnce,
+					}
+				}
+				observerStarted := make(chan struct{})
+				options := CoordinatorOptions{
+					Generation: 38,
+					Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+						return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+					}),
+					Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+					Workers: workers,
+					Observer: coordinatorObserverFunc(func(observerCtx context.Context, _ Config) ObserverResult {
+						close(observerStarted)
+						<-observerCtx.Done()
+						return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+					}),
+					RoundTimeout: time.Second,
+				}
+				var clock *manualCoordinatorClock
+				if stage == CoordinatorCodeCheckpoint {
+					clock = newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+					options.Clock = clock
+				}
+				coordinator, err := NewCoordinator(options)
+				if err != nil {
+					t.Fatalf("NewCoordinator() error = %v", err)
+				}
+				resultChannel := make(chan CoordinatorResult, 1)
+				go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+				if stage == CoordinatorCodeCheckpoint {
+					<-observerStarted
+					for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+						<-clock.created
+					}
+					clock.advance(cfg.Thresholds.Timeline.Final)
+				}
+
+				select {
+				case result := <-resultChannel:
+					if result.Outcome != CoordinatorHarnessInvalid || result.Code != stage {
+						t.Fatalf("Run() %s racing cancellation during %s = %+v, want harness_invalid/%s", evidenceName, stage, result, stage)
+					}
+				case <-time.After(time.Second):
+					t.Fatalf("Run() did not retain %s during %s", evidenceName, stage)
+				}
+			})
+		}
 	}
 }
 
@@ -1890,6 +2031,64 @@ type failureThenCancellationCoordinatorWorker struct {
 	*recordingCoordinatorWorker
 	stage CoordinatorCode
 	gate  *coordinatorFailureCancellationGate
+}
+
+type cancelBeforeStageEvidenceWorker struct {
+	*recordingCoordinatorWorker
+	stage           CoordinatorCode
+	invalidResponse bool
+	cancel          context.CancelFunc
+	cancelOnce      *sync.Once
+}
+
+func (w *cancelBeforeStageEvidenceWorker) resultAfterCancellation(ctx context.Context) error {
+	if w.id != 0 {
+		<-ctx.Done()
+		return nil
+	}
+	w.cancelOnce.Do(w.cancel)
+	if w.invalidResponse {
+		return nil
+	}
+	return errors.New("injected ordinary stage error")
+}
+
+func (w *cancelBeforeStageEvidenceWorker) Assign(ctx context.Context, assignment WorkerAssignment) (WorkerStatus, error) {
+	if w.stage != CoordinatorCodeAssignment {
+		return w.recordingCoordinatorWorker.Assign(ctx, assignment)
+	}
+	appendCoordinatorTestLog(w.log, "assign-"+strconv.FormatUint(w.id, 10))
+	w.attempted, w.assignment = assignment, assignment
+	err := w.resultAfterCancellation(ctx)
+	if w.id == 0 {
+		return WorkerStatus{}, err
+	}
+	return w.status(WorkerPhaseAssigned), err
+}
+
+func (w *cancelBeforeStageEvidenceWorker) Start(ctx context.Context, request WorkerStartRequest) (WorkerStatus, error) {
+	if w.stage != CoordinatorCodeStart {
+		return w.recordingCoordinatorWorker.Start(ctx, request)
+	}
+	appendCoordinatorTestLog(w.log, "start-"+strconv.FormatUint(w.id, 10))
+	err := w.resultAfterCancellation(ctx)
+	if w.id == 0 {
+		return WorkerStatus{}, err
+	}
+	return w.status(WorkerPhaseRunning), err
+}
+
+func (w *cancelBeforeStageEvidenceWorker) Checkpoint(ctx context.Context, request WorkerCheckpointRequest) (WorkerSnapshot, error) {
+	if w.stage != CoordinatorCodeCheckpoint {
+		return w.recordingCoordinatorWorker.Checkpoint(ctx, request)
+	}
+	appendCoordinatorTestLog(w.log, "checkpoint-"+strconv.FormatUint(w.id, 10))
+	err := w.resultAfterCancellation(ctx)
+	if w.id == 0 {
+		return WorkerSnapshot{}, err
+	}
+	w.sequence++
+	return w.snapshot(WorkerPhaseRunning), err
 }
 
 func (w *failureThenCancellationCoordinatorWorker) stageResult(ctx context.Context) error {
