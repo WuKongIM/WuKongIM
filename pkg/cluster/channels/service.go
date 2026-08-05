@@ -31,6 +31,12 @@ type channelRuntime interface {
 	channeltransport.Server
 }
 
+// conversationRuntimeProbe reads current Leader HW without forcing one
+// durable checkpoint write per quorum-committed append.
+type conversationRuntimeProbe interface {
+	RuntimeProbe(context.Context, ch.RuntimeSelector) (ch.RuntimeProbeResult, error)
+}
+
 // AppendStageObserver receives low-cardinality client append stage latencies.
 type AppendStageObserver interface {
 	ObserveChannelAppendStage(stage string, result string, d time.Duration)
@@ -438,7 +444,15 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
 		return conversationHeadFromResponse(resp), nil
 	}
-	return s.readLocalConversationHead(ctx, id, uid, meta.RetentionThroughSeq, meta.MinISR)
+	result := s.readLocalConversationHeads(ctx, uid, []ConversationHeadRequest{{
+		ChannelID:            id,
+		RetentionThroughSeq:  meta.RetentionThroughSeq,
+		ExpectedLeader:       meta.Leader,
+		ExpectedChannelEpoch: meta.Epoch,
+		ExpectedLeaderEpoch:  meta.LeaderEpoch,
+		ExpectedMinISR:       meta.MinISR,
+	}})[0]
+	return result.Head, result.Err
 }
 
 // ReadConversationHeads resolves the current route for every channel, groups
@@ -463,6 +477,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 		index   int
 		request ConversationHeadRequest
 	}
+	localItems := make([]remoteItem, 0, len(ids))
 	remoteByLeader := make(map[ch.NodeID][]remoteItem)
 	for index, id := range ids {
 		if err := ctx.Err(); err != nil {
@@ -483,8 +498,14 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			continue
 		}
 		if meta.Leader == s.localNode {
-			localReads++
-			results[index].Head, results[index].Err = s.readLocalConversationHead(ctx, id, uid, meta.RetentionThroughSeq, meta.MinISR)
+			localItems = append(localItems, remoteItem{index: index, request: ConversationHeadRequest{
+				ChannelID:            id,
+				RetentionThroughSeq:  meta.RetentionThroughSeq,
+				ExpectedLeader:       meta.Leader,
+				ExpectedChannelEpoch: meta.Epoch,
+				ExpectedLeaderEpoch:  meta.LeaderEpoch,
+				ExpectedMinISR:       meta.MinISR,
+			}})
 			continue
 		}
 		remoteByLeader[meta.Leader] = append(remoteByLeader[meta.Leader], remoteItem{index: index, request: ConversationHeadRequest{
@@ -495,6 +516,17 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			ExpectedLeaderEpoch:  meta.LeaderEpoch,
 			ExpectedMinISR:       meta.MinISR,
 		}})
+	}
+	if len(localItems) > 0 {
+		requests := make([]ConversationHeadRequest, len(localItems))
+		for index, item := range localItems {
+			requests[index] = item.request
+		}
+		localResults := s.readLocalConversationHeads(ctx, uid, requests)
+		localReads += len(localItems)
+		for index, item := range localItems {
+			results[item.index] = localResults[index]
+		}
 	}
 	for leader, items := range remoteByLeader {
 		if s.forward == nil {
@@ -547,20 +579,46 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 		return ConversationHeadsResponse{}, ch.ErrInvalidConfig
 	}
 	response := ConversationHeadsResponse{Items: make([]ConversationHeadResult, len(req.Items))}
+	localItems := make([]ConversationHeadRequest, 0, len(req.Items))
+	localIndexes := make([]int, 0, len(req.Items))
 	for index, item := range req.Items {
-		lastVisible, err := s.handleForwardLastVisible(ctx, LastVisibleRequest{
-			ChannelID:            item.ChannelID,
-			VisibleAfterSeq:      item.RetentionThroughSeq,
-			ExpectedLeader:       item.ExpectedLeader,
-			ExpectedChannelEpoch: item.ExpectedChannelEpoch,
-			ExpectedLeaderEpoch:  item.ExpectedLeaderEpoch,
-			HeadUID:              req.UID,
-			ExpectedMinISR:       item.ExpectedMinISR,
-		})
-		response.Items[index].Err = err
-		if err == nil {
-			response.Items[index].Head = conversationHeadFromResponse(lastVisible)
+		meta, ok, err := s.resolveReadMeta(ctx, item.ChannelID)
+		if err != nil && !canFallbackConversationHeadOnMissingMeta(s.localNode, item, err) {
+			response.Items[index].Err = err
+			continue
 		}
+		if err != nil {
+			localItems = append(localItems, item)
+			localIndexes = append(localIndexes, index)
+			continue
+		}
+		if !ok || meta.Leader == 0 {
+			response.Items[index].Err = ch.ErrNotReady
+			continue
+		}
+		if meta.Status == ch.StatusDeleting || meta.Status == ch.StatusDeleted {
+			response.Items[index].Err = ch.ErrChannelNotFound
+			continue
+		}
+		if meta.Leader != s.localNode || (item.ExpectedLeader != 0 && item.ExpectedLeader != s.localNode) {
+			response.Items[index].Err = ch.ErrNotLeader
+			continue
+		}
+		if (item.ExpectedChannelEpoch != 0 && meta.Epoch < item.ExpectedChannelEpoch) ||
+			(item.ExpectedLeaderEpoch != 0 && meta.LeaderEpoch < item.ExpectedLeaderEpoch) {
+			response.Items[index].Err = ch.ErrStaleMeta
+			continue
+		}
+		item.RetentionThroughSeq = maxUint64Value(item.RetentionThroughSeq, meta.RetentionThroughSeq)
+		item.ExpectedChannelEpoch = meta.Epoch
+		item.ExpectedLeaderEpoch = meta.LeaderEpoch
+		item.ExpectedMinISR = meta.MinISR
+		localItems = append(localItems, item)
+		localIndexes = append(localIndexes, index)
+	}
+	localResults := s.readLocalConversationHeads(ctx, req.UID, localItems)
+	for index, result := range localResults {
+		response.Items[localIndexes[index]] = result
 	}
 	return response, nil
 }
@@ -736,8 +794,15 @@ func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleR
 	}
 	if err != nil && canFallbackLastVisibleOnMissingMeta(s.localNode, req, err) {
 		if req.HeadUID != "" {
-			head, readErr := s.readLocalConversationHead(ctx, req.ChannelID, req.HeadUID, req.VisibleAfterSeq, req.ExpectedMinISR)
-			return lastVisibleResponseFromHead(head), readErr
+			result := s.readLocalConversationHeads(ctx, req.HeadUID, []ConversationHeadRequest{{
+				ChannelID:            req.ChannelID,
+				RetentionThroughSeq:  req.VisibleAfterSeq,
+				ExpectedLeader:       req.ExpectedLeader,
+				ExpectedChannelEpoch: req.ExpectedChannelEpoch,
+				ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
+				ExpectedMinISR:       req.ExpectedMinISR,
+			}})[0]
+			return lastVisibleResponseFromHead(result.Head), result.Err
 		}
 		msg, ok, readErr := s.readLocalLastVisible(ctx, req.ChannelID, req.VisibleAfterSeq)
 		return LastVisibleResponse{Message: msg, Found: ok}, readErr
@@ -756,14 +821,98 @@ func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleR
 	}
 	visibleAfterSeq := maxUint64Value(req.VisibleAfterSeq, meta.RetentionThroughSeq)
 	if req.HeadUID != "" {
-		head, err := s.readLocalConversationHead(ctx, req.ChannelID, req.HeadUID, visibleAfterSeq, meta.MinISR)
-		return lastVisibleResponseFromHead(head), err
+		result := s.readLocalConversationHeads(ctx, req.HeadUID, []ConversationHeadRequest{{
+			ChannelID:            req.ChannelID,
+			RetentionThroughSeq:  visibleAfterSeq,
+			ExpectedLeader:       meta.Leader,
+			ExpectedChannelEpoch: meta.Epoch,
+			ExpectedLeaderEpoch:  meta.LeaderEpoch,
+			ExpectedMinISR:       meta.MinISR,
+		}})[0]
+		return lastVisibleResponseFromHead(result.Head), result.Err
 	}
 	msg, ok, err := s.readLocalLastVisible(ctx, req.ChannelID, visibleAfterSeq)
 	return LastVisibleResponse{Message: msg, Found: ok}, err
 }
 
-func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int) (ConversationHead, error) {
+func canFallbackConversationHeadOnMissingMeta(local ch.NodeID, req ConversationHeadRequest, err error) bool {
+	return (channelErrorMatches(err, ch.ErrChannelNotFound) || errors.Is(err, metadb.ErrNotFound)) &&
+		req.ExpectedLeader == local && req.ExpectedChannelEpoch != 0 && req.ExpectedLeaderEpoch != 0
+}
+
+func (s *Service) readLocalConversationHeads(ctx context.Context, uid string, requests []ConversationHeadRequest) []ConversationHeadResult {
+	results := make([]ConversationHeadResult, len(requests))
+	if len(requests) == 0 {
+		return results
+	}
+	liveHW, itemErrors, err := s.liveConversationHW(ctx, requests)
+	if err != nil {
+		for index := range results {
+			results[index].Err = err
+		}
+		return results
+	}
+	for index, request := range requests {
+		if itemErr := itemErrors[request.ChannelID]; itemErr != nil {
+			results[index].Err = itemErr
+			continue
+		}
+		committed, hasLiveHW := liveHW[request.ChannelID]
+		results[index].Head, results[index].Err = s.readLocalConversationHead(
+			ctx, request.ChannelID, uid, request.RetentionThroughSeq, request.ExpectedMinISR, committed, hasLiveHW,
+		)
+	}
+	return results
+}
+
+func (s *Service) liveConversationHW(ctx context.Context, requests []ConversationHeadRequest) (map[ch.ChannelID]uint64, map[ch.ChannelID]error, error) {
+	probeRuntime, ok := s.runtime.(conversationRuntimeProbe)
+	if !ok {
+		return nil, nil, nil
+	}
+	ids := make([]ch.ChannelID, 0, len(requests))
+	expected := make(map[ch.ChannelID]ConversationHeadRequest, len(requests))
+	for _, request := range requests {
+		if request.ExpectedMinISR <= 1 {
+			continue
+		}
+		if _, exists := expected[request.ChannelID]; exists {
+			continue
+		}
+		expected[request.ChannelID] = request
+		ids = append(ids, request.ChannelID)
+	}
+	if len(ids) == 0 {
+		return nil, nil, nil
+	}
+	probe, err := probeRuntime.RuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: ids})
+	if err != nil {
+		return nil, nil, err
+	}
+	liveHW := make(map[ch.ChannelID]uint64, len(probe.Channels))
+	itemErrors := make(map[ch.ChannelID]error)
+	for _, channel := range probe.Channels {
+		request, exists := expected[channel.ChannelID]
+		if !exists {
+			continue
+		}
+		switch {
+		case channel.Role != ch.RoleLeader:
+			itemErrors[channel.ChannelID] = ch.ErrNotLeader
+		case channel.Status != ch.StatusActive:
+			itemErrors[channel.ChannelID] = ch.ErrNotReady
+		case request.ExpectedChannelEpoch != 0 && channel.ChannelEpoch != request.ExpectedChannelEpoch:
+			itemErrors[channel.ChannelID] = ch.ErrStaleMeta
+		case request.ExpectedLeaderEpoch != 0 && channel.LeaderEpoch != request.ExpectedLeaderEpoch:
+			itemErrors[channel.ChannelID] = ch.ErrStaleMeta
+		default:
+			liveHW[channel.ChannelID] = channel.HW
+		}
+	}
+	return liveHW, itemErrors, nil
+}
+
+func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool) (ConversationHead, error) {
 	if s == nil || s.store == nil || uid == "" {
 		return ConversationHead{}, ch.ErrNotReady
 	}
@@ -779,6 +928,8 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 	committed := state.HW
 	if minISR <= 1 {
 		committed = state.LEO
+	} else if hasLiveCommitted {
+		committed = maxUint64Value(committed, liveCommitted)
 	}
 	retention, err := store.LoadRetentionState(ctx)
 	if err != nil {

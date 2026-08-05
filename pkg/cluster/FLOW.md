@@ -692,8 +692,12 @@ after canonical channel routing has selected the local append authority.
 facade. It groups channels by exact Leader and returns aligned committed tails,
 retention floors, newest display messages, and the current UID's latest
 committed ordinary sender-index sequence. The Leader validates route epochs and
-terminal channel state. Channel-not-found maps to delete; temporary route,
-leadership, or readiness errors stay item-scoped for unresolved retry.
+terminal channel state. For locally loaded quorum channels, one bounded reactor
+probe per Leader batch supplies the live HW because durable HW checkpoints are
+intentionally coalesced; unloaded channels fall back to durable checkpoint HW,
+while `MinISR=1` leaders retain their durable LEO rule. Channel-not-found maps
+to delete; temporary route, leadership, or readiness errors stay item-scoped
+for unresolved retry.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
 The default Slot runtime also owns a narrow Slot proxy for authoritative channel

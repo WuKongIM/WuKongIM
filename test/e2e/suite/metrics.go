@@ -23,6 +23,12 @@ type MetricSample struct {
 	Value float64
 }
 
+// MetricHistogramSnapshot contains the cumulative count and sum of one histogram.
+type MetricHistogramSnapshot struct {
+	Count float64
+	Sum   float64
+}
+
 // RequireMetricAtLeastEventually waits for one public /metrics sample to reach at least want.
 func RequireMetricAtLeastEventually(t *testing.T, node StartedNode, name string, labels map[string]string, want float64) {
 	t.Helper()
@@ -103,6 +109,14 @@ func SumMetricSamples(samples []MetricSample, name string, labels map[string]str
 		}
 	}
 	return total
+}
+
+// HistogramSnapshot extracts one histogram's cumulative count and sum.
+func HistogramSnapshot(samples []MetricSample, name string, labels map[string]string) MetricHistogramSnapshot {
+	return MetricHistogramSnapshot{
+		Count: SumMetricSamples(samples, name+"_count", labels),
+		Sum:   SumMetricSamples(samples, name+"_sum", labels),
+	}
 }
 
 func parseMetricSample(line string) (string, map[string]string, float64, bool) {

@@ -19,3 +19,14 @@ func TestSumMetricSamplesMatchesLabelSubset(t *testing.T) {
 	require.Equal(t, float64(3), SumMetricSamples(samples, "rows_total", map[string]string{"directory": "ordinary"}))
 	require.Zero(t, SumMetricSamples(samples, "rows_total", map[string]string{"directory": "missing"}))
 }
+
+func TestHistogramSnapshotReturnsCountAndSum(t *testing.T) {
+	samples := []MetricSample{
+		{Name: "batch_calls_count", Labels: map[string]string{"result": "ok", "node_name": "n1"}, Value: 3},
+		{Name: "batch_calls_sum", Labels: map[string]string{"result": "ok", "node_name": "n1"}, Value: 6},
+		{Name: "batch_calls_count", Labels: map[string]string{"result": "error", "node_name": "n1"}, Value: 1},
+		{Name: "batch_calls_sum", Labels: map[string]string{"result": "error", "node_name": "n1"}, Value: 2},
+	}
+
+	require.Equal(t, MetricHistogramSnapshot{Count: 3, Sum: 6}, HistogramSnapshot(samples, "batch_calls", map[string]string{"result": "ok"}))
+}

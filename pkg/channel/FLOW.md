@@ -173,6 +173,9 @@ addition to loaded leader/follower/missing counts, `RuntimeProbe` returns a
 bounded per-loaded-channel proof record: channel epoch, leader epoch, role,
 status, LEO, HW, checkpoint HW, current write fence, in-flight append boolean,
 and pending append count. It never copies pending append entries or payloads.
+Cluster conversation hydration uses one probe for the locally assigned part of
+each Leader batch so a hot quorum channel exposes current HW without converting
+the intentionally coalesced durable checkpoint into a per-message write.
 `DrainChannel` is a migration-only service boundary. It polls the owning reactor
 until the requested local leader is still fenced by the expected fence version,
 has no accepted in-flight or pending append work, and local HW covers local LEO;

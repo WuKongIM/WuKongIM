@@ -384,6 +384,27 @@ func TestPostConversationListPageSendsOpaqueCursorAndCoverage(t *testing.T) {
 	require.True(t, page.Done)
 }
 
+func TestPostConversationRetrySendsUnresolvedKeysAndDecodesPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/conversation/retry", r.URL.Path)
+		var req ConversationRetryRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, ConversationRetryRequest{
+			UID: "u1", Channels: []ConversationListKey{{ChannelID: "g1", ChannelType: 2}},
+		}, req)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"g1","channel_type":2}],"deletes":[],"unresolved":[],"done":true}`)
+	}))
+	defer server.Close()
+
+	page, err := PostConversationRetry(context.Background(), strings.TrimPrefix(server.URL, "http://"), ConversationRetryRequest{
+		UID: "u1", Channels: []ConversationListKey{{ChannelID: "g1", ChannelType: 2}},
+	})
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Len(t, page.Conversations, 1)
+	require.Equal(t, "g1", page.Conversations[0].ChannelID)
+}
+
 func TestFindConversationKeyMatchesIDAndType(t *testing.T) {
 	keys := []ConversationListKey{{ChannelID: "same", ChannelType: 1}, {ChannelID: "same", ChannelType: 2}}
 

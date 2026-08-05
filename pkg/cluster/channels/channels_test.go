@@ -2829,6 +2829,47 @@ func TestServiceReadConversationHeadUsesCommittedLeaderState(t *testing.T) {
 	require.Equal(t, []byte("tail"), head.Message.Payload)
 }
 
+func TestServiceReadConversationHeadsUsesOneLiveRuntimeProbeBeforeLeaderCheckpoint(t *testing.T) {
+	first := ch.ChannelID{ID: "conversation-head-live-first", Type: 2}
+	second := ch.ChannelID{ID: "conversation-head-live-second", Type: 2}
+	factory := channelstore.NewMemoryFactory()
+	for index, id := range []ch.ChannelID{first, second} {
+		store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+		require.NoError(t, err)
+		_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{
+			{ID: uint64(index*10 + 1), FromUID: "u1", Payload: []byte("first")},
+			{ID: uint64(index*10 + 2), FromUID: "u2", Payload: []byte("tail")},
+		}})
+		require.NoError(t, err)
+		require.NoError(t, store.Close())
+	}
+	source := NewStaticMetaSource([]ch.Meta{
+		{ID: first, Epoch: 3, LeaderEpoch: 5, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive},
+		{ID: second, Epoch: 7, LeaderEpoch: 9, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2, 3}, MinISR: 2, Status: ch.StatusActive},
+	})
+	runtime := &conversationHeadProbeRuntime{
+		fakeRuntime: &fakeRuntime{},
+		probe: ch.RuntimeProbeResult{Channels: []ch.RuntimeProbeChannel{
+			{ChannelID: first, ChannelEpoch: 3, LeaderEpoch: 5, Role: ch.RoleLeader, Status: ch.StatusActive, LEO: 2, HW: 2},
+			{ChannelID: second, ChannelEpoch: 7, LeaderEpoch: 9, Role: ch.RoleLeader, Status: ch.StatusActive, LEO: 2, HW: 2},
+		}},
+	}
+	svc, err := NewService(Config{Runtime: runtime, LocalNode: 1, MetaSource: source, Store: factory})
+	require.NoError(t, err)
+
+	heads, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{first, second}, "u1")
+	require.NoError(t, err)
+	require.Len(t, heads, 2)
+	require.Equal(t, 1, runtime.probeCalls)
+	for _, result := range heads {
+		require.NoError(t, result.Err)
+		require.Equal(t, uint64(2), result.Head.LastCommittedSeq)
+		require.True(t, result.Head.Found)
+		require.Equal(t, uint64(2), result.Head.Message.MessageSeq)
+		require.Equal(t, []byte("tail"), result.Head.Message.Payload)
+	}
+}
+
 func TestServiceReadConversationHeadsGroupsRemoteReadsByLeaderAndKeepsAlignment(t *testing.T) {
 	remoteA := ch.ChannelID{ID: "conversation-head-remote-a", Type: 2}
 	local := ch.ChannelID{ID: "conversation-head-local", Type: 2}
@@ -3198,6 +3239,18 @@ type fakeRuntime struct {
 	appendBatchCalls   int
 	lookupCalls        int
 	appendRequireApply bool
+}
+
+type conversationHeadProbeRuntime struct {
+	*fakeRuntime
+	probe      ch.RuntimeProbeResult
+	probeErr   error
+	probeCalls int
+}
+
+func (r *conversationHeadProbeRuntime) RuntimeProbe(_ context.Context, _ ch.RuntimeSelector) (ch.RuntimeProbeResult, error) {
+	r.probeCalls++
+	return r.probe, r.probeErr
 }
 
 func (f *fakeRuntime) ApplyMeta(meta ch.Meta) error {
