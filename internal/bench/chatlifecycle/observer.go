@@ -10,6 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 )
 
+const observerMaxRoundTimeout = 5 * time.Second
+
 // ObserverOutcome is the closed terminal class for continuous target observation.
 type ObserverOutcome string
 
@@ -63,7 +65,7 @@ type ObserverOptions struct {
 	HTTPClient *http.Client
 	Clock      ObserverClock
 	// RoundContext bounds all service-node requests in one observation round.
-	// Production uses context.WithTimeout with the configured cadence.
+	// Production caps it at five seconds independently of a longer cadence.
 	RoundContext func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// HotSlotGroups identifies the bounded logical Slot groups whose leader progress
 	// is health-critical. Empty means every configured logical Slot group is hot.
@@ -104,7 +106,7 @@ type observerWindows struct {
 	leaderImbalancedSince *time.Time
 }
 
-// Run performs an immediate poll and then polls at the configured five-second cadence.
+// Run performs an immediate poll and then polls at the configured cadence.
 func (o *Observer) Run(ctx context.Context, cfg Config) ObserverResult {
 	if o == nil || cfg.Validate() != nil || strings.TrimSpace(o.options.BenchToken) == "" ||
 		!validHotSlotDeclaration(o.options.HotSlotGroups, cfg.Workload.Topology.LogicalSlotGroups) {
@@ -142,7 +144,7 @@ func (o *Observer) poll(
 	targets []clusterHealthTarget,
 	windows *observerWindows,
 ) (ObserverResult, bool) {
-	roundCtx, cancel := o.options.RoundContext(ctx, cfg.Observation.Cadence)
+	roundCtx, cancel := o.options.RoundContext(ctx, min(cfg.Observation.Cadence, observerMaxRoundTimeout))
 	if roundCtx == nil || cancel == nil {
 		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
 	}

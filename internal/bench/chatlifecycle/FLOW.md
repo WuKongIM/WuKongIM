@@ -685,12 +685,13 @@ Formal minimum size is 1,000,000,000,000 bytes. Free space below 5 percent
 returns an infrastructure failure and emits one narrow coordinated-stop signal;
 the observer does not own assignment control.
 
-After preflight, the target observer immediately polls and then repeats every
-five seconds using bounded state. Each round starts exactly one goroutine per
-service node, shares one context bounded by that cadence across the node's
-ordered health/readiness/cluster calls, joins the fixed result slice in node
-order, and only then reads the clock for continuous-window accounting. Parent
-cancellation releases the shared round and ticker. The observer requires
+After preflight, the target observer immediately polls and then repeats at the
+configured cadence, which is five seconds in the reviewed defaults, using
+bounded state. Each round starts exactly one goroutine per service node, shares
+one context bounded by the smaller of that cadence and five seconds across the
+node's ordered health/readiness/cluster calls, joins the fixed result slice in
+node order, and only then reads the clock for continuous-window accounting.
+Parent cancellation releases the shared round and ticker. The observer requires
 complete stable reports for all 12 logical Slot groups, one leader, three
 desired replicas, three live voters, and leader-only progress. Hot Slot groups
 are an optional bounded, unique declaration; an empty declaration means all 12

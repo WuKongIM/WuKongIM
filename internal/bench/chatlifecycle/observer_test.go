@@ -104,6 +104,43 @@ func TestObserverRoundStartsAllNodesWithOneCadenceContext(t *testing.T) {
 	}
 }
 
+func TestObserverRoundTimeoutIsCappedWithoutChangingCadence(t *testing.T) {
+	tests := []struct {
+		name    string
+		cadence time.Duration
+	}{
+		{name: "default cadence", cadence: 5 * time.Second},
+		{name: "long cadence", cadence: 10 * time.Second},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.Observation.Cadence = test.cadence
+			fixture := newObserverFixture(cfg)
+			roundTimeout := make(chan time.Duration, 1)
+			fixture.observer.options.RoundContext = func(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+				roundTimeout <- timeout
+				return context.WithCancel(parent)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			resultChannel := make(chan ObserverResult, 1)
+			go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+			if timeout := <-roundTimeout; timeout != 5*time.Second {
+				cancel()
+				t.Fatalf("round timeout = %v, want 5s", timeout)
+			}
+			if fixture.clock.period != test.cadence {
+				cancel()
+				t.Fatalf("ticker cadence = %v, want %v", fixture.clock.period, test.cadence)
+			}
+			cancel()
+			if result := <-resultChannel; result.Outcome != ObserverStopped {
+				t.Fatalf("result = %+v, want stopped", result)
+			}
+		})
+	}
+}
+
 func TestObserverUpdatesFailureWindowsAtRoundCompletion(t *testing.T) {
 	cfg := LocalConfig()
 	started := make(chan int, len(cfg.Observation.ServiceNodes))
