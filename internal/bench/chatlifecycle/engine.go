@@ -537,7 +537,9 @@ type Engine struct {
 	attemptTimeout            time.Duration
 	activityEligibilityWindow time.Duration
 
-	lifecycleMu      sync.Mutex
+	lifecycleMu sync.Mutex
+	// stepMu serializes every session-expiry and owner-advance transaction so
+	// concurrent fake-clock inputs cannot overtake or rewind one another.
 	stepMu           sync.Mutex
 	running          bool
 	accepting        bool
@@ -1108,7 +1110,9 @@ func (e *Engine) Advance(now time.Time) (int, error) {
 		return 0, errEngineNotRunning
 	}
 	defer e.sessionOps.Done()
-	return e.advanceWithSessionExpiry(generationCtx, now)
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+	return e.advanceWithSessionExpiry(generationCtx, generationCtx, now)
 }
 
 // AdvanceContext is the cancelable form used by bounded worker drain.
@@ -1120,30 +1124,61 @@ func (e *Engine) AdvanceContext(ctx context.Context, now time.Time) (int, error)
 	defer e.sessionOps.Done()
 	advanceCtx, cancel := mergeGenerationContext(generationCtx, ctx)
 	defer cancel()
-	return e.advanceWithSessionExpiry(advanceCtx, now)
+	e.stepMu.Lock()
+	defer e.stepMu.Unlock()
+	return e.advanceWithSessionExpiry(advanceCtx, generationCtx, now)
 }
 
 func (e *Engine) advanceWithContext(ctx context.Context, now time.Time) (int, error) {
-	return e.enqueueAdvance(ctx, now, false)
+	return e.enqueueAdvance(ctx, now)
 }
 
-func (e *Engine) advanceWithSessionExpiry(ctx context.Context, now time.Time) (int, error) {
-	return e.enqueueAdvance(ctx, now, true)
+func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Context, now time.Time) (int, error) {
+	if err := e.awaitAdvanceAdmission(admissionCtx); err != nil {
+		return 0, err
+	}
+	if err := admissionCtx.Err(); err != nil {
+		return 0, err
+	}
+	// Expiry joins the session drain. Keep that wait outside the owner loop so
+	// the owner can consume the drain's bounded, non-dropping SENDACK result.
+	// Caller cancellation linearizes at the check above; once committed, only
+	// generation shutdown may interrupt the remaining owner work.
+	e.sessions.Expire(now)
+	processed, err := e.advanceWithContext(generationCtx, now)
+	if generationCtx.Err() != nil &&
+		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return processed, errEngineNotRunning
+	}
+	return processed, err
 }
 
-func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time, expireSessions bool) (int, error) {
+// awaitAdvanceAdmission preserves the owner-order cancellation fence before
+// session expiry performs any externally visible mutation.
+func (e *Engine) awaitAdvanceAdmission(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	response := make(chan error, 1)
+	if err := e.enqueue(engineCommand{run: func() {
+		response <- ctx.Err()
+	}}); err != nil {
+		return err
+	}
+	select {
+	case err := <-response:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (e *Engine) enqueueAdvance(ctx context.Context, now time.Time) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	response := make(chan advanceResult, 1)
 	if err := e.enqueue(engineCommand{run: func() {
-		if err := ctx.Err(); err != nil {
-			response <- advanceResult{err: err}
-			return
-		}
-		if expireSessions {
-			e.sessions.Expire(now)
-		}
 		if err := ctx.Err(); err != nil {
 			response <- advanceResult{err: err}
 			return

@@ -1981,6 +1981,266 @@ func TestEngineCanceledQueuedAdvanceLeavesRuntimeStateUnchanged(t *testing.T) {
 	}
 }
 
+func TestEngineAdvanceExpiresSessionUnderFullCompletionBackpressure(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, CommandCapacity: 4, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	publishStarted := make(chan struct{})
+	publishReturned := make(chan struct{})
+	originalSendack := fixture.pool.onSendack
+	fixture.pool.onSendack = func(uid string, ack *frame.SendackPacket, verificationErr error) {
+		close(publishStarted)
+		originalSendack(uid, ack, verificationErr)
+		close(publishReturned)
+	}
+	client := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "expiry-backpressure"},
+	}
+	client.onClose = func() {
+		for len(fixture.engine.completions) < cap(fixture.engine.completions) {
+			fixture.engine.completions <- engineCompletion{}
+		}
+		close(client.releaseAck)
+		<-publishStarted
+	}
+	fixture.pool.factory = fixedSessionClientFactory{client: client}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	uid := fixture.identity.UID(0)
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	advanceCtx, cancelAdvance := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancelAdvance()
+	advanceDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(advanceCtx, session.Deadline.Add(time.Second))
+		advanceDone <- advanceErr
+	}()
+
+	releasePressure := func() {
+		select {
+		case <-publishReturned:
+			return
+		default:
+		}
+		<-fixture.engine.completions
+		<-publishReturned
+		_, _ = fixture.engine.Snapshot()
+	}
+	select {
+	case err := <-advanceDone:
+		if err != nil {
+			releasePressure()
+			t.Fatalf("AdvanceContext: %v", err)
+		}
+	case <-advanceCtx.Done():
+		releasePressure()
+		<-advanceDone
+		t.Fatal("AdvanceContext deadlocked session expiry against the full completion queue")
+	}
+	select {
+	case <-publishReturned:
+	default:
+		t.Fatal("AdvanceContext returned before the session drain published its SENDACK")
+	}
+	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
+		t.Fatalf("expired session ownership = %+v, want empty", counts)
+	}
+}
+
+func TestEngineAdvanceCallerCancellationAfterExpiryCommitCompletes(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, CommandCapacity: 4, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	advanceCtx, cancelAdvance := context.WithCancel(context.Background())
+	defer cancelAdvance()
+	client := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "committed-cancellation"},
+	}
+	client.onClose = func() {
+		cancelAdvance()
+		close(client.releaseAck)
+	}
+	fixture.pool.factory = fixedSessionClientFactory{client: client}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	uid := fixture.identity.UID(0)
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	if _, err := fixture.engine.AdvanceContext(advanceCtx, session.Deadline.Add(time.Second)); err != nil {
+		t.Fatalf("committed AdvanceContext returned caller cancellation after mutation: %v", err)
+	}
+	if !errors.Is(advanceCtx.Err(), context.Canceled) {
+		t.Fatalf("caller context error = %v, want cancellation during expiry", advanceCtx.Err())
+	}
+	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
+		t.Fatalf("committed expired session ownership = %+v, want empty", counts)
+	}
+}
+
+func TestEngineConcurrentAdvancesSerializeExpiryAndOwnerTime(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, SessionDuration: time.Hour, CommandCapacity: 4,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	firstCloseStarted := make(chan struct{})
+	releaseFirstClose := make(chan struct{})
+	firstClient := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "ordered-first"},
+	}
+	firstClient.onClose = func() {
+		close(firstCloseStarted)
+		<-releaseFirstClose
+		close(firstClient.releaseAck)
+	}
+	secondClient := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 2, ClientMsgNo: "ordered-second"},
+	}
+	secondClient.onClose = func() { close(secondClient.releaseAck) }
+	fixture.pool.factory = &queuedSessionClientFactory{clients: []SessionClient{firstClient, secondClient}}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	first, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	})
+	if err != nil {
+		t.Fatalf("first Login: %v", err)
+	}
+	fixture.clock.Set(fixture.clock.Now().Add(time.Minute))
+	second, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(1), UserIndex: 1, LoginOrdinal: 1,
+	})
+	if err != nil {
+		t.Fatalf("second Login: %v", err)
+	}
+	if !second.Deadline.After(first.Deadline) {
+		t.Fatalf("session deadlines = first %v second %v, want strict order", first.Deadline, second.Deadline)
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), first.Deadline)
+		firstDone <- advanceErr
+	}()
+	<-firstCloseStarted
+	secondStarted := make(chan struct{})
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondStarted)
+		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), second.Deadline)
+		secondDone <- advanceErr
+	}()
+	<-secondStarted
+	serialized := true
+	if fixture.engine.stepMu.TryLock() {
+		serialized = false
+		fixture.engine.stepMu.Unlock()
+	}
+	close(releaseFirstClose)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first AdvanceContext: %v", err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Fatalf("second AdvanceContext: %v", err)
+	}
+	if !serialized {
+		t.Fatal("session expiry released the Advance serialization boundary before owner time committed")
+	}
+	ownerNow := make(chan time.Time, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
+		t.Fatalf("read owner time: %v", err)
+	}
+	if now := <-ownerNow; !now.Equal(second.Deadline) {
+		t.Fatalf("concurrent Advance owner time = %v, want latest admitted %v", now, second.Deadline)
+	}
+	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
+		t.Fatalf("concurrent expired session ownership = %+v, want empty", counts)
+	}
+}
+
+func TestEngineStopCompletesDuringExpiryCompletionBackpressure(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, CommandCapacity: 4, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	publishStarted := make(chan struct{})
+	publishReturned := make(chan struct{})
+	originalSendack := fixture.pool.onSendack
+	fixture.pool.onSendack = func(uid string, ack *frame.SendackPacket, verificationErr error) {
+		close(publishStarted)
+		originalSendack(uid, ack, verificationErr)
+		close(publishReturned)
+	}
+	client := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "stop-expiry-backpressure"},
+	}
+	client.onClose = func() {
+		for len(fixture.engine.completions) < cap(fixture.engine.completions) {
+			fixture.engine.completions <- engineCompletion{}
+		}
+		close(client.releaseAck)
+		<-publishStarted
+	}
+	fixture.pool.factory = fixedSessionClientFactory{client: client}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	uid := fixture.identity.UID(0)
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 0, LoginOrdinal: 0})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	advanceDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), session.Deadline.Add(time.Second))
+		advanceDone <- advanceErr
+	}()
+	select {
+	case <-publishStarted:
+	case <-time.After(250 * time.Millisecond):
+		_ = fixture.engine.Stop()
+		t.Fatal("session drain did not reach completion publication")
+	}
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+	select {
+	case stopErr := <-stopDone:
+		if stopErr != nil {
+			t.Fatalf("Stop: %v", stopErr)
+		}
+	case <-time.After(250 * time.Millisecond):
+		select {
+		case <-publishReturned:
+		default:
+			<-fixture.engine.completions
+			<-publishReturned
+		}
+		<-stopDone
+		t.Fatal("Stop deadlocked session expiry against the full completion queue")
+	}
+	if advanceErr := <-advanceDone; advanceErr != nil &&
+		!errors.Is(advanceErr, context.Canceled) && !errors.Is(advanceErr, errEngineNotRunning) {
+		t.Fatalf("AdvanceContext error = %v, want nil or bounded stop cancellation", advanceErr)
+	}
+}
+
 type canceledAdvanceState struct {
 	sessions               []SessionSnapshot
 	sessionCounts          SessionCounts
@@ -4191,6 +4451,63 @@ type engineSyncer struct{}
 
 func (engineSyncer) ConversationSync(context.Context, target.ConversationSyncRequest) ([]target.ConversationSyncConversation, error) {
 	return nil, nil
+}
+
+type fixedSessionClientFactory struct{ client SessionClient }
+
+func (f fixedSessionClientFactory) NewSession(context.Context, string, string) (SessionClient, error) {
+	return f.client, nil
+}
+
+type queuedSessionClientFactory struct {
+	mu      sync.Mutex
+	clients []SessionClient
+}
+
+func (f *queuedSessionClientFactory) NewSession(context.Context, string, string) (SessionClient, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.clients) == 0 {
+		return nil, errors.New("test session client queue exhausted")
+	}
+	client := f.clients[0]
+	f.clients = f.clients[1:]
+	return client, nil
+}
+
+type expiryCompletionClient struct {
+	releaseAck chan struct{}
+	ack        *frame.SendackPacket
+	onClose    func()
+	closeOnce  sync.Once
+	delivered  bool
+}
+
+func (*expiryCompletionClient) Connect(context.Context, string, string) error { return nil }
+
+func (c *expiryCompletionClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
+	if !c.delivered {
+		<-c.releaseAck
+		c.delivered = true
+		return c.ack, nil
+	}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (*expiryCompletionClient) Send(context.Context, *frame.SendPacket) error { return nil }
+func (*expiryCompletionClient) AckRecv(context.Context, *frame.RecvackPacket) error {
+	return nil
+}
+func (c *expiryCompletionClient) Close() error {
+	c.closeOnce.Do(c.onClose)
+	return nil
+}
+func (*expiryCompletionClient) QueueSnapshot(context.Context) (SessionQueueSnapshot, error) {
+	return SessionQueueSnapshot{}, nil
+}
+func (*expiryCompletionClient) ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool) {
+	return wkproto.ReadErrorInfo{}, false
 }
 
 type engineFakeFactory struct {

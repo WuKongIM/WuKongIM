@@ -56,12 +56,17 @@ fence. Engine snapshot, consistent worker-runtime
 snapshot, rate update, and bounded drain advancement expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating
-the allocator. Public Advance moves session expiry into the same owner command
-as clock, correlation, completion, retry, and lifecycle advancement; that
-command checks the merged caller-plus-generation context before expiry and
-again before engine state mutation. An Advance canceled while queued therefore
-leaves session ownership, deadlines, clocks, heaps, counters, correlations, and
-evidence unchanged, and every late response uses a one-slot owner-safe channel.
+the allocator. Public Advance crosses a cancellation-aware owner admission
+fence, then joins session expiry outside the owner so that owner can continue
+consuming the bounded, non-dropping SENDACK completion queue. The serial Step
+lock covers that admission, expiry, and the subsequent owner clock,
+correlation, completion, retry, and lifecycle advancement, preventing
+concurrent advances from overtaking or rewinding owner time. Caller
+cancellation wins only before the post-admission commit check; after commit the
+transaction is controlled by generation lifetime. An Advance canceled while
+queued therefore leaves session ownership, deadlines, clocks, heaps, counters,
+correlations, and evidence unchanged, and every late response uses a one-slot
+owner-safe channel.
 Engine stop fences control admission, cancels the generation, joins admitted
 step/login/session callers, and then crosses an owner-command barrier before it
 closes sessions; a canceled caller therefore cannot leave SEND using a client
@@ -299,7 +304,8 @@ bounded closing tombstone for that unlocked cleanup interval. It is not
 routable, but it rejects replacement login and remains owned until the old
 drain has joined and recipient verifier state has been released. `Engine.Step` derives replacement demand from
 the resulting online-target deficit, so no blocking exit callback is part of
-the atomic boundary. Unknown unexpected read exits remain bounded
+the atomic boundary. Public Advance shares the serial Step lock across owner
+admission, joined expiry, and final owner advancement. Unknown unexpected read exits remain bounded
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
 group-member routing indexes contain current online sessions only, use
 swap-delete on logout, and allocate no per-lookup history.
@@ -356,8 +362,9 @@ SEND, attempt-timeout, and lifecycle deadlines, the indexed retry heap holds at
 most one approved retry per logical message, and the inflight map is explicitly
 capacity-bounded. A separate bounded completion queue lets ordered session
 drains report SENDACKs under backpressure without competing with control
-commands; long clock advances consume completions between scheduled work, and
-shutdown joins drains before its final completion barrier. After each fixed
+commands; joined session expiry never waits inside the owner, long clock
+advances consume completions between scheduled work, and shutdown joins drains
+before its final completion barrier. After each fixed
 32-SEND work quantum with outstanding attempts, the engine yields one Go
 scheduler turn and drains completions again. This bounded event-fairness point
 does not use wall-clock sleeps or extra queue capacity and works with one
