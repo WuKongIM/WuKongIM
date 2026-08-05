@@ -5,9 +5,10 @@ model, narrow lifecycle-specific startup orchestration, bounded message
 verification, and redacted evidence retention for the formal or local
 chat-lifecycle workload. `profile` selects formal versus local scale, while
 `mode` separately selects soak versus capacity coordination. It contains one
-bounded lifecycle engine loop but no concrete sockets or HTTP clients, secrets,
-target mutation, Docker, or host inspection; transport is supplied through
-narrow interfaces.
+bounded lifecycle engine loop; the production worker composition adapts the
+existing target HTTP and WKProto clients through the same narrow interfaces
+used by tests. It does not recreate transport pumps, persist secrets, mutate
+targets outside public APIs, use Docker, or inspect hosts.
 
 ```text
 config
@@ -16,6 +17,28 @@ config
   -> bounded snapshots
   -> coordinator verdict
 ```
+
+`wkbench worker --mode chat-lifecycle` selects a dedicated control server; the
+default worker mode still uses the generic worker server. All nine lifecycle
+endpoints, including health and info, require one Bearer token checked with a
+constant-time comparison. Every mutation carries a nonempty run ID,
+assignment ID, and positive generation. An assignment validates the complete
+`Config` plus worker ownership before moving through
+`unassigned -> assigned -> running -> stopping -> final`; active duplicate
+assignments, stale fences, and illegal phase transitions use a closed error
+vocabulary. Polling or a request disconnect never acts as a lease. Explicit
+stop starts one server-owned bounded drain detached from the request, joins the
+existing Engine, caches one identity-free final snapshot, and returns that
+same snapshot for matching retries. An unexpected active-generation exit
+publishes a process signal so the dedicated worker server shuts down and exits
+nonzero.
+
+Request bodies, client responses, and server responses have fixed byte caps
+and strict JSON schemas. Worker snapshots contain only scalar aggregates,
+fixed arrays, and the verifier's at-most-four evidence classes with at most 64
+first and 64 last redacted examples per class. No worker response enumerates a
+UID or channel. Checkpoint reads engine and generator counters through one
+engine-owner command; it neither pauses nor restarts workload generation.
 
 The eventual plan and runtime must keep history-independent memory: generated
 identity and relationship decisions derive from the stable run seed instead of
@@ -31,6 +54,18 @@ or conversation state can seed a later login. CONNECT and HTTP sync latencies
 are measured independently, and traffic is admitted only after the HTTP result
 passes validation. A canceled or failed CONNECT never starts sync; a canceled,
 failed, or invalid sync never becomes traffic-ready.
+
+Latency snapshots use one fixed 16-bucket layout with explicit bounds at zero,
+1/2/5/10/20/50/100/200/500 milliseconds, and 1/2/5/10/30/60 seconds. Negative
+fake-clock movement is ignored, zero duration enters the zero bucket, and
+values beyond 60 seconds enter the final overflow bucket. Counts, nanosecond
+sums, and bucket counts saturate rather than wrap; maximum latency is retained.
+`SessionPool` accumulates successful CONNECT and full-sync stages separately.
+The ordered drain supplies its `SessionClock` instant to `Verifier`, which
+measures registered-at through the first successful SENDACK and the complete
+RECVACK transport call. Legacy verifier methods remain verification-only and
+never read wall time; deterministic tests and the production pool use the
+explicit-clock methods.
 
 Conversation sync accepts at most 499 unique conversation identities. A result
 with 500 or more rows is `harness_invalid` because the harness cannot prove that

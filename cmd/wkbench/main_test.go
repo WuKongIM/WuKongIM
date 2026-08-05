@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,6 +104,87 @@ func TestWorkerCommandInsecureControlIgnoresEnvToken(t *testing.T) {
 	if cfg.server.ControlToken != "" {
 		t.Fatalf("expected insecure control to clear effective token, got %q", cfg.server.ControlToken)
 	}
+}
+
+func TestWorkerCommandChatLifecycleModeRequiresAuthenticatedDedicatedRuntime(t *testing.T) {
+	t.Setenv("WK_BENCH_WORKER_TOKEN", "")
+	var stderr bytes.Buffer
+
+	_, code := parseWorkerConfig([]string{"--mode", "chat-lifecycle", "--listen", "127.0.0.1:0"}, &stderr)
+	if code != exitConfig || !strings.Contains(stderr.String(), "--control-token is required") {
+		t.Fatalf("missing-token code/stderr = %d/%q", code, stderr.String())
+	}
+
+	stderr.Reset()
+	_, code = parseWorkerConfig([]string{"--mode", "chat-lifecycle", "--control-token", "secret", "--insecure-control"}, &stderr)
+	if code != exitConfig || !strings.Contains(stderr.String(), "does not allow --insecure-control") {
+		t.Fatalf("insecure code/stderr = %d/%q", code, stderr.String())
+	}
+
+	stderr.Reset()
+	cfg, code := parseWorkerConfig([]string{"--mode", "chat-lifecycle", "--listen", "127.0.0.1:19091", "--control-token", "secret"}, &stderr)
+	if code != 0 || cfg.mode != workerModeChatLifecycle || cfg.listen != "127.0.0.1:19091" || cfg.server.ControlToken != "secret" {
+		t.Fatalf("chat lifecycle config/code/stderr = %+v/%d/%q", cfg, code, stderr.String())
+	}
+}
+
+func TestWorkerCommandDefaultModePreservesGenericWorkerBehavior(t *testing.T) {
+	var stderr bytes.Buffer
+	cfg, code := parseWorkerConfig([]string{"--control-token", "secret", "--work-dir", "/tmp/wkbench-worker"}, &stderr)
+	if code != 0 {
+		t.Fatalf("parse code = %d; stderr = %q", code, stderr.String())
+	}
+	if cfg.mode != workerModeDefault || cfg.listen != "127.0.0.1:19090" || cfg.server.WorkDir != "/tmp/wkbench-worker" || cfg.server.ControlToken != "secret" {
+		t.Fatalf("default worker config = %+v", cfg)
+	}
+}
+
+func TestWorkerCommandRejectsUnknownChatLifecycleFlagBeforeServing(t *testing.T) {
+	var stderr bytes.Buffer
+	_, code := parseWorkerConfig([]string{"--mode", "chat-lifecycle", "--control-token", "secret", "--chat-lease-timeout", "1s"}, &stderr)
+	if code != exitConfig {
+		t.Fatalf("unknown flag code/stderr = %d/%q", code, stderr.String())
+	}
+}
+
+func TestChatLifecycleWorkerUnexpectedGenerationExitStopsServerAndReturnsError(t *testing.T) {
+	t.Parallel()
+
+	runtime := &fakeChatLifecycleWorkerRuntime{
+		serveStarted: make(chan struct{}),
+		shutdown:     make(chan struct{}),
+	}
+	unexpected := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- waitChatLifecycleWorker(runtime, unexpected) }()
+
+	<-runtime.serveStarted
+	close(unexpected)
+	if err := <-result; !errors.Is(err, errChatLifecycleWorkerUnexpected) {
+		t.Fatalf("wait error = %v", err)
+	}
+	select {
+	case <-runtime.shutdown:
+	default:
+		t.Fatal("dedicated HTTP runtime was not shut down")
+	}
+}
+
+type fakeChatLifecycleWorkerRuntime struct {
+	serveStarted chan struct{}
+	shutdown     chan struct{}
+	shutdownOnce sync.Once
+}
+
+func (r *fakeChatLifecycleWorkerRuntime) Serve() error {
+	close(r.serveStarted)
+	<-r.shutdown
+	return http.ErrServerClosed
+}
+
+func (r *fakeChatLifecycleWorkerRuntime) Shutdown(context.Context) error {
+	r.shutdownOnce.Do(func() { close(r.shutdown) })
+	return nil
 }
 
 func TestRunCapacityRequiresSubcommand(t *testing.T) {

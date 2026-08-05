@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
+	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/bench/config"
 	"github.com/WuKongIM/WuKongIM/internal/bench/coordinator"
 	"github.com/WuKongIM/WuKongIM/internal/bench/devsim"
@@ -825,15 +827,69 @@ func validateBenchConfigPaths(paths benchConfigPaths, scenarioRequired bool) err
 
 type workerCLIConfig struct {
 	listen string
+	mode   string
 	server worker.Config
 }
 
 func runWorkerConfig(cfg workerCLIConfig, stderr io.Writer) int {
+	if cfg.mode == workerModeChatLifecycle {
+		workerServer, err := chatlifecycle.NewWorkerServer(chatlifecycle.WorkerServerConfig{
+			ControlToken: cfg.server.ControlToken,
+			Factory:      chatlifecycle.NewEngineWorkerGenerationFactory(),
+		})
+		if err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker configuration failed")
+			return exitConfig
+		}
+		httpServer := &http.Server{
+			Addr:              cfg.listen,
+			Handler:           workerServer,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       15 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       30 * time.Second,
+		}
+		if err := waitChatLifecycleWorker(&chatLifecycleHTTPRuntime{server: httpServer}, workerServer.UnexpectedExit()); err != nil {
+			fmt.Fprintln(stderr, "chat lifecycle worker terminated unexpectedly")
+			return exitWorker
+		}
+		return 0
+	}
 	if err := http.ListenAndServe(cfg.listen, worker.NewServer(cfg.server)); err != nil {
 		fmt.Fprintf(stderr, "worker server failed: %v\n", err)
 		return exitConfig
 	}
 	return 0
+}
+
+var errChatLifecycleWorkerUnexpected = errors.New("chat lifecycle worker generation terminated unexpectedly")
+
+type chatLifecycleWorkerRuntime interface {
+	Serve() error
+	Shutdown(context.Context) error
+}
+
+type chatLifecycleHTTPRuntime struct {
+	server *http.Server
+}
+
+func (r *chatLifecycleHTTPRuntime) Serve() error { return r.server.ListenAndServe() }
+
+func (r *chatLifecycleHTTPRuntime) Shutdown(ctx context.Context) error { return r.server.Shutdown(ctx) }
+
+func waitChatLifecycleWorker(runtime chatLifecycleWorkerRuntime, unexpected <-chan struct{}) error {
+	serveDone := make(chan error, 1)
+	go func() { serveDone <- runtime.Serve() }()
+	select {
+	case err := <-serveDone:
+		return err
+	case <-unexpected:
+		shutdownContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = runtime.Shutdown(shutdownContext)
+		cancel()
+		<-serveDone
+		return errChatLifecycleWorkerUnexpected
+	}
 }
 
 func parseWorkerConfig(args []string, stderr io.Writer) (workerCLIConfig, int) {
@@ -852,6 +908,12 @@ func parseWorkerConfig(args []string, stderr io.Writer) (workerCLIConfig, int) {
 }
 
 func finalizeWorkerConfig(cfg *workerCLIConfig) error {
+	if cfg.mode != workerModeDefault && cfg.mode != workerModeChatLifecycle {
+		return fmt.Errorf("--mode must be %q or %q", workerModeDefault, workerModeChatLifecycle)
+	}
+	if cfg.mode == workerModeChatLifecycle && cfg.server.InsecureControl {
+		return fmt.Errorf("--mode=%s does not allow --insecure-control", workerModeChatLifecycle)
+	}
 	if cfg.server.InsecureControl {
 		cfg.server.ControlToken = ""
 		return nil

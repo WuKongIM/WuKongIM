@@ -155,6 +155,8 @@ type VerifierSnapshot struct {
 	DeadlineCurrent           int
 	ReleasedAttemptCurrent    int
 	ReleasedAttemptPeak       int
+	SendackLatency            WorkerHistogramSnapshot
+	RecvackLatency            WorkerHistogramSnapshot
 }
 
 type verifierSendCounters struct {
@@ -373,8 +375,10 @@ type Verifier struct {
 	releasedDeadlines releasedAttemptDeadlineHeap
 	releasedPeak      int
 
-	sendCounters verifierSendCounters
-	recvCounters verifierReceiveCounters
+	sendCounters   verifierSendCounters
+	recvCounters   verifierReceiveCounters
+	sendackLatency WorkerHistogramSnapshot
+	recvackLatency WorkerHistogramSnapshot
 }
 
 // NewVerifier constructs empty state without preallocating from untrusted bounds.
@@ -392,6 +396,8 @@ func NewVerifier(model TrafficModel, config VerifierConfig, evidence *EvidenceRe
 		sequences:        make(map[string]*recipientSequenceState),
 		correlations:     make(map[string]*sampledCorrelation),
 		releasedAttempts: make(map[releasedAttemptKey]*releasedAttempt),
+		sendackLatency:   newWorkerHistogramSnapshot(),
+		recvackLatency:   newWorkerHistogramSnapshot(),
 	}
 	heap.Init(&v.deadlines)
 	heap.Init(&v.releasedDeadlines)
@@ -474,6 +480,17 @@ func (v *Verifier) ObserveAttempt(logical LogicalSend, attempt RetryAttempt, cli
 // HandleSendack completes a pending logical send only for an exact successful
 // SENDACK carrying positive server identity fields.
 func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
+	return v.handleSendackAt(ack, time.Time{})
+}
+
+// HandleSendackAt additionally records registered-at to successful SENDACK
+// latency from an explicit clock instant. A zero instant preserves the legacy
+// verification-only seam without reading wall time.
+func (v *Verifier) HandleSendackAt(ack *frame.SendackPacket, completedAt time.Time) error {
+	return v.handleSendackAt(ack, completedAt)
+}
+
+func (v *Verifier) handleSendackAt(ack *frame.SendackPacket, completedAt time.Time) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	if ack == nil || ack.ClientMsgNo == "" {
@@ -548,6 +565,9 @@ func (v *Verifier) HandleSendack(ack *frame.SendackPacket) error {
 	pending.messageSeq = ack.MessageSeq
 	v.pendingUnfinished--
 	v.sendCounters.acknowledged++
+	if !completedAt.IsZero() {
+		recordWorkerLatency(&v.sendackLatency, completedAt.Sub(pending.registeredAt))
+	}
 	return correlationErr
 }
 
@@ -582,6 +602,16 @@ func (v *Verifier) observeSendackCorrelationLocked(ack *frame.SendackPacket) err
 // recipient must be made by one session drain in wire order. Logout must cancel
 // and join that drain before calling ReleaseRecipient.
 func (v *Verifier) HandleRecv(ctx context.Context, recipient string, recv *frame.RecvPacket, acker RecvAcker) error {
+	return v.handleRecvAt(ctx, recipient, recv, acker, nil)
+}
+
+// HandleRecvAt additionally records each attempted RECVACK transport call
+// duration using the supplied deterministic clock.
+func (v *Verifier) HandleRecvAt(ctx context.Context, recipient string, recv *frame.RecvPacket, acker RecvAcker, now func() time.Time) error {
+	return v.handleRecvAt(ctx, recipient, recv, acker, now)
+}
+
+func (v *Verifier) handleRecvAt(ctx context.Context, recipient string, recv *frame.RecvPacket, acker RecvAcker, now func() time.Time) error {
 	v.recvMu.Lock()
 	if recv == nil || recv.MessageID <= 0 || recv.MessageSeq == 0 {
 		v.recvCounters.receiveFailures++
@@ -627,16 +657,31 @@ func (v *Verifier) HandleRecv(ctx context.Context, recipient string, recv *frame
 		})
 		return errors.Join(validationErr, ackErr)
 	}
-	if err := acker.AckRecv(ctx, ack); err != nil {
+	var ackStarted time.Time
+	if now != nil {
+		ackStarted = now()
+	}
+	ackErr := acker.AckRecv(ctx, ack)
+	var ackLatency time.Duration
+	if now != nil {
+		ackLatency = now().Sub(ackStarted)
+	}
+	if ackErr != nil {
 		v.recvMu.Lock()
+		if now != nil {
+			recordWorkerLatency(&v.recvackLatency, ackLatency)
+		}
 		v.recvCounters.receiveAckFailures++
-		ackErr := v.recordRecvAckFailureLocked(err, recv)
+		classifiedAckErr := v.recordRecvAckFailureLocked(ackErr, recv)
 		v.recvMu.Unlock()
-		return errors.Join(validationErr, ackErr)
+		return errors.Join(validationErr, classifiedAckErr)
 	}
 	v.recvMu.Lock()
 	v.confirmRecvSequenceLocked(sequenceToken)
 	v.recvCounters.receiveAcknowledged++
+	if now != nil {
+		recordWorkerLatency(&v.recvackLatency, ackLatency)
+	}
 	v.recvMu.Unlock()
 	return validationErr
 }
@@ -967,6 +1012,7 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.DeadlineCurrent = len(v.deadlines)
 	snapshot.ReleasedAttemptCurrent = len(v.releasedAttempts)
 	snapshot.ReleasedAttemptPeak = v.releasedPeak
+	snapshot.SendackLatency = v.sendackLatency
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -982,6 +1028,7 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	snapshot.ConflictingDeliveries = recv.conflictingDeliveries
 	snapshot.SequenceCurrent = v.sequenceCount
 	snapshot.SequencePeak = v.sequencePeak
+	snapshot.RecvackLatency = v.recvackLatency
 	v.recvMu.Unlock()
 
 	snapshot.Classification = v.evidence.Snapshot().Classification
@@ -1012,6 +1059,7 @@ func (v *Verifier) resetRuntime() {
 	heap.Init(&v.releasedDeadlines)
 	v.releasedPeak = 0
 	v.sendCounters = verifierSendCounters{}
+	v.sendackLatency = newWorkerHistogramSnapshot()
 	v.sendMu.Unlock()
 
 	v.recvMu.Lock()
@@ -1019,6 +1067,7 @@ func (v *Verifier) resetRuntime() {
 	v.sequenceCount = 0
 	v.sequencePeak = 0
 	v.recvCounters = verifierReceiveCounters{}
+	v.recvackLatency = newWorkerHistogramSnapshot()
 	v.recvMu.Unlock()
 }
 

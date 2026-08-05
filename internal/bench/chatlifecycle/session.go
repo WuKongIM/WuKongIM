@@ -143,15 +143,17 @@ type SessionSnapshot struct {
 
 // SessionPoolSnapshot contains only bounded aggregate ownership and queue data.
 type SessionPoolSnapshot struct {
-	Online             int
-	Starting           int
-	Closing            int
-	TrafficReady       int
-	QueueDepth         int
-	QueueCapacity      int
-	TransportInflight  int
-	ReadErrors         uint64
-	VerificationErrors uint64
+	Online                  int
+	Starting                int
+	Closing                 int
+	TrafficReady            int
+	QueueDepth              int
+	QueueCapacity           int
+	TransportInflight       int
+	ReadErrors              uint64
+	VerificationErrors      uint64
+	GatewayConnectLatency   WorkerHistogramSnapshot
+	ConversationSyncLatency WorkerHistogramSnapshot
 }
 
 // SessionCounts is the O(1) ownership projection used by the scheduler.
@@ -194,6 +196,8 @@ type SessionPool struct {
 	closing            map[string]*onlineSession
 	readErrors         uint64
 	verificationErrors uint64
+	gatewayLatency     WorkerHistogramSnapshot
+	syncLatency        WorkerHistogramSnapshot
 }
 
 // NewSessionPool validates all lifecycle seams before any client is created.
@@ -213,6 +217,8 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		onlineGroupMembers: make([][]*onlineSession, config.Catalog.Count()),
 		starting:           make(map[string]struct{}),
 		closing:            make(map[string]*onlineSession),
+		gatewayLatency:     newWorkerHistogramSnapshot(),
+		syncLatency:        newWorkerHistogramSnapshot(),
 	}, nil
 }
 
@@ -305,6 +311,8 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	}
 	p.mu.Lock()
 	delete(p.starting, login.UID)
+	recordWorkerLatency(&p.gatewayLatency, snapshot.GatewayConnectLatency)
+	recordWorkerLatency(&p.syncLatency, snapshot.ConversationSyncLatency)
 	p.online[login.UID] = session
 	p.onlineByIndex[login.UserIndex] = session
 	if session.groupIndex >= 0 {
@@ -489,6 +497,7 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 	p.mu.RLock()
 	snapshot := SessionPoolSnapshot{
 		Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
+		GatewayConnectLatency: p.gatewayLatency, ConversationSyncLatency: p.syncLatency,
 	}
 	clients := make([]SessionClient, 0, len(p.online))
 	for _, session := range p.online {
@@ -537,6 +546,8 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.readErrors = 0
 	p.verificationErrors = 0
+	p.gatewayLatency = newWorkerHistogramSnapshot()
+	p.syncLatency = newWorkerHistogramSnapshot()
 	p.onlineByIndex = make(map[uint64]*onlineSession)
 	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
 	return nil
@@ -569,7 +580,7 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 		}
 		switch packet := packet.(type) {
 		case *frame.SendackPacket:
-			verificationErr := p.verifier.HandleSendack(packet)
+			verificationErr := p.verifier.HandleSendackAt(packet, p.clock.Now())
 			if verificationErr != nil {
 				p.mu.Lock()
 				p.verificationErrors++
@@ -579,7 +590,7 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 				p.onSendack(session.snapshot.UID, packet, verificationErr)
 			}
 		case *frame.RecvPacket:
-			if err := p.verifier.HandleRecv(ctx, session.snapshot.UID, packet, session.client); err != nil {
+			if err := p.verifier.HandleRecvAt(ctx, session.snapshot.UID, packet, session.client, p.clock.Now); err != nil {
 				p.mu.Lock()
 				p.verificationErrors++
 				p.mu.Unlock()

@@ -69,6 +69,45 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	}
 }
 
+func TestVerifierRecordsExplicitClockSendackAndRecvackLatency(t *testing.T) {
+	t.Parallel()
+	model, verifier := newTestVerifier(t, 16, 16, 16, 10*time.Second)
+	logical := mustLogicalSend(t, model, 0, 91, TrafficPerson, "sender", "recipient")
+	started := time.Unix(8_000, 0)
+	if err := verifier.RegisterSend(logical, started); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	ack := &frame.SendackPacket{
+		ClientMsgNo: logical.ClientMsgNo, MessageID: 81, MessageSeq: 82, ReasonCode: frame.ReasonSuccess,
+	}
+	if err := verifier.HandleSendackAt(ack, started.Add(2*time.Second)); err != nil {
+		t.Fatalf("HandleSendackAt: %v", err)
+	}
+	if histogram := verifier.Snapshot().SendackLatency; histogram.Count != 1 || histogram.SumNanos != uint64(2*time.Second) || histogram.MaxNanos != uint64(2*time.Second) || histogram.Buckets[11] != 1 {
+		t.Fatalf("sendack latency = %+v", histogram)
+	}
+
+	recv := mustRecvPacket(t, model, logical, 81, 82)
+	clock := &sessionFakeClock{now: started.Add(3 * time.Second)}
+	acker := advancingRecvAcker{clock: clock, by: 50 * time.Millisecond}
+	if err := verifier.HandleRecvAt(context.Background(), logical.Target, recv, acker, clock.Now); err != nil {
+		t.Fatalf("HandleRecvAt: %v", err)
+	}
+	if histogram := verifier.Snapshot().RecvackLatency; histogram.Count != 1 || histogram.SumNanos != uint64(50*time.Millisecond) || histogram.MaxNanos != uint64(50*time.Millisecond) || histogram.Buckets[6] != 1 {
+		t.Fatalf("recvack latency = %+v", histogram)
+	}
+}
+
+type advancingRecvAcker struct {
+	clock *sessionFakeClock
+	by    time.Duration
+}
+
+func (a advancingRecvAcker) AckRecv(context.Context, *frame.RecvackPacket) error {
+	a.clock.Set(a.clock.Now().Add(a.by))
+	return nil
+}
+
 func TestVerifierReleasedLogicalSendConsumesRegisteredSiblingAttempts(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
 	logical := mustLogicalSend(t, model, 0, 44, TrafficGroup, "sender", "group")

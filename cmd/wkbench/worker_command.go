@@ -1,11 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+)
+
+const (
+	workerModeDefault       = "default"
+	workerModeChatLifecycle = "chat-lifecycle"
 )
 
 func newWorkerCommand(stderr io.Writer) *cobra.Command {
@@ -25,10 +31,11 @@ func newWorkerCommand(stderr io.Writer) *cobra.Command {
 }
 
 func defaultWorkerCLIConfig() workerCLIConfig {
-	return workerCLIConfig{listen: "127.0.0.1:19090"}
+	return workerCLIConfig{listen: "127.0.0.1:19090", mode: workerModeDefault}
 }
 
 func bindWorkerFlags(flags *pflag.FlagSet, cfg *workerCLIConfig) {
+	flags.StringVar(&cfg.mode, "mode", cfg.mode, fmt.Sprintf("worker runtime mode (%s or %s)", workerModeDefault, workerModeChatLifecycle))
 	flags.StringVar(&cfg.listen, "listen", cfg.listen, "worker control listen address")
 	flags.StringVar(&cfg.server.WorkDir, "work-dir", "", "directory for worker control state")
 	flags.StringVar(&cfg.server.ControlToken, "control-token", os.Getenv("WK_BENCH_WORKER_TOKEN"), "bearer token for worker control API")

@@ -70,6 +70,8 @@ type EngineSnapshot struct {
 	Online                  int
 	LoginStarting           int
 	TrafficReady            int
+	GatewayConnectLatency   WorkerHistogramSnapshot
+	ConversationSyncLatency WorkerHistogramSnapshot
 	QueueCurrent            int
 	FutureCurrent           int
 	ActivityCurrent         int
@@ -1303,6 +1305,51 @@ func (e *Engine) Snapshot() (EngineSnapshot, error) {
 	return <-response, nil
 }
 
+// ScheduleRate serializes a control-plane rate update with the generator's
+// sole engine owner. The change takes effect on the next traffic tick.
+func (e *Engine) ScheduleRate(rate, burst uint64) error {
+	if e == nil {
+		return errEngineConfig
+	}
+	response := make(chan error, 1)
+	if err := e.enqueueBlocking(engineCommand{run: func() {
+		response <- e.generator.allocator.ScheduleRate(rate, burst)
+	}}); err != nil {
+		return err
+	}
+	return <-response
+}
+
+// EngineWorkerRuntimeSnapshot is one command-serialized engine and generator
+// projection used by consistent worker checkpoints.
+type EngineWorkerRuntimeSnapshot struct {
+	Engine    EngineSnapshot
+	Generated TrafficGeneratorSnapshot
+}
+
+// WorkerRuntimeSnapshot serializes engine and generator evidence in one owner
+// command so a concurrent Step cannot advance between the two projections.
+func (e *Engine) WorkerRuntimeSnapshot() (EngineWorkerRuntimeSnapshot, error) {
+	if e == nil {
+		return EngineWorkerRuntimeSnapshot{}, errEngineConfig
+	}
+	e.lifecycleMu.Lock()
+	running := e.running
+	cached := e.cached
+	e.lifecycleMu.Unlock()
+	if !running {
+		return EngineWorkerRuntimeSnapshot{Engine: cached, Generated: e.generator.Snapshot()}, nil
+	}
+	response := make(chan EngineWorkerRuntimeSnapshot, 1)
+	if err := e.enqueueBlocking(engineCommand{run: func() {
+		e.drainCompletions()
+		response <- EngineWorkerRuntimeSnapshot{Engine: e.buildSnapshot(true), Generated: e.generator.Snapshot()}
+	}}); err != nil {
+		return EngineWorkerRuntimeSnapshot{}, err
+	}
+	return <-response, nil
+}
+
 func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done chan<- struct{}) {
 	defer func() {
 		e.cleanupInflight()
@@ -2223,6 +2270,7 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		Running: running, Generation: e.generation, WorkerID: e.workerID, WorkerCount: e.workers,
 		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
 		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
+		GatewayConnectLatency: sessions.GatewayConnectLatency, ConversationSyncLatency: sessions.ConversationSyncLatency,
 		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered: e.activityUnderDelivered,
 		ActivityFutureCanceled: e.activityFutureCanceled,
@@ -2261,7 +2309,8 @@ func (e *Engine) emptySnapshot(running bool) EngineSnapshot {
 		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
 		QueueCapacity: e.workCapacity, RetryQueueCapacity: e.retryCapacity,
 		InflightCapacity: e.inflightCapacity, CompletionQueueCapacity: e.commandCapacity,
-		RelationshipLookback: MaxForwardRelationships,
-		Classification:       e.evidence.Snapshot().Classification,
+		RelationshipLookback:  MaxForwardRelationships,
+		Classification:        e.evidence.Snapshot().Classification,
+		GatewayConnectLatency: newWorkerHistogramSnapshot(), ConversationSyncLatency: newWorkerHistogramSnapshot(),
 	}
 }

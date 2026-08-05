@@ -77,6 +77,30 @@ func TestSessionPoolLoginSyncExpiryAndFreshRelogin(t *testing.T) {
 	}
 }
 
+func TestSessionPoolRecordsBoundedConnectAndConversationSyncLatency(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	fixture.factory.onConnect = func() { fixture.clock.Set(fixture.clock.Now().Add(20 * time.Millisecond)) }
+	fixture.syncer.onSync = func() { fixture.clock.Set(fixture.clock.Now().Add(50 * time.Millisecond)) }
+
+	uid := fixture.identity.UID(19)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 19, LoginOrdinal: 1}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.GatewayConnectLatency.Count != 1 || snapshot.GatewayConnectLatency.SumNanos != uint64(20*time.Millisecond) ||
+		snapshot.GatewayConnectLatency.MaxNanos != uint64(20*time.Millisecond) || snapshot.GatewayConnectLatency.Buckets[5] != 1 {
+		t.Fatalf("connect latency = %+v", snapshot.GatewayConnectLatency)
+	}
+	if snapshot.ConversationSyncLatency.Count != 1 || snapshot.ConversationSyncLatency.SumNanos != uint64(50*time.Millisecond) ||
+		snapshot.ConversationSyncLatency.MaxNanos != uint64(50*time.Millisecond) || snapshot.ConversationSyncLatency.Buckets[6] != 1 {
+		t.Fatalf("sync latency = %+v", snapshot.ConversationSyncLatency)
+	}
+	if err := fixture.pool.Logout(uid); err != nil {
+		t.Fatalf("Logout: %v", err)
+	}
+}
+
 func TestSessionWKProtoAdapterBindsExistingClientWithoutDialing(t *testing.T) {
 	t.Parallel()
 	if _, err := NewWKProtoSessionAdapter(nil); !errors.Is(err, errSessionConfig) {
@@ -612,10 +636,11 @@ func (l *sessionEventLog) reset() {
 }
 
 type sessionFakeFactory struct {
-	mu       sync.Mutex
-	events   *sessionEventLog
-	tokensV  []string
-	clientsV []*sessionFakeClient
+	mu        sync.Mutex
+	events    *sessionEventLog
+	tokensV   []string
+	clientsV  []*sessionFakeClient
+	onConnect func()
 }
 
 func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token string) (SessionClient, error) {
@@ -623,7 +648,7 @@ func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token strin
 	client := &sessionFakeClient{
 		events: f.events, frames: make(chan frame.Frame, 8), acked: make(chan uint64, 8),
 		readErrors: make(chan error, 8), readEntered: make(chan struct{}, 8), readReturned: make(chan struct{}, 8),
-		stop: make(chan struct{}), readExited: make(chan struct{}),
+		stop: make(chan struct{}), readExited: make(chan struct{}), onConnect: f.onConnect,
 	}
 	f.mu.Lock()
 	f.tokensV = append(f.tokensV, token)
@@ -648,10 +673,14 @@ type sessionFakeSyncer struct {
 	mu        sync.Mutex
 	events    *sessionEventLog
 	requestsV []target.ConversationSyncRequest
+	onSync    func()
 }
 
 func (s *sessionFakeSyncer) ConversationSync(_ context.Context, request target.ConversationSyncRequest) ([]target.ConversationSyncConversation, error) {
 	s.events.add("sync")
+	if s.onSync != nil {
+		s.onSync()
+	}
 	s.mu.Lock()
 	s.requestsV = append(s.requestsV, request)
 	s.mu.Unlock()
@@ -680,10 +709,14 @@ type sessionFakeClient struct {
 	queueSnapshotRelease <-chan struct{}
 	closeOnce            sync.Once
 	isClosed             bool
+	onConnect            func()
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
 	c.events.add("connect")
+	if c.onConnect != nil {
+		c.onConnect()
+	}
 	return nil
 }
 
