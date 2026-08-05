@@ -746,7 +746,19 @@ func TestLifecycleProofReportsClosedProductFailureReasons(t *testing.T) {
 			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 10, 10))
 		}},
 		{name: "sequence reset", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
-			reheat(proof)
+			initial := lifecycleRows(candidate, "active", 10, 10)
+			for node := range initial {
+				initial[node].Channels[0].CheckpointHW = 8
+			}
+			if err := proof.Observe(now, initial); err != nil {
+				t.Fatal(err)
+			}
+			if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+				t.Fatal(err)
+			}
+			if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+				t.Fatal(err)
+			}
 			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 9, 9))
 		}},
 		{name: "reheat invalid watermark", reason: LifecycleFailureWatermarkRegression, run: func(proof *LifecycleProof) error {
@@ -977,6 +989,79 @@ func TestLifecycleProofRejectsCheckpointAndPostReheatWatermarkRegression(t *test
 			t.Fatalf("error = %v, want product failure", err)
 		}
 	})
+}
+
+func TestLifecycleProofRejectsPartialCoolingCheckpointRegressionAtomically(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("initial load: %v", err)
+	}
+	partial := lifecycleRowsWithRoles(candidate, [3]string{"missing", "follower", "missing"}, 20, 20)
+	if err := proof.Observe(candidate.QuietNotBefore, partial); err != nil {
+		t.Fatalf("partial cooling checkpoint advance: %v", err)
+	}
+	for node := range partial {
+		if partial[node].Channels[0].Role != "missing" {
+			partial[node].Channels[0].CheckpointHW = 15
+		}
+	}
+	err = proof.Observe(candidate.QuietNotBefore.Add(time.Second), partial)
+	if !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("checkpoint regression error = %v, want product failure", err)
+	}
+	var reasoned interface {
+		Reason() LifecycleProductFailureReason
+	}
+	if !errors.As(err, &reasoned) || reasoned.Reason() != LifecycleFailureWatermarkRegression {
+		t.Fatalf("checkpoint regression reason = %v, want %s", err, LifecycleFailureWatermarkRegression)
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.Loaded != 1 || snapshot.ColdEligible != 0 || snapshot.ProductFailures != 1 ||
+		snapshot.ProductFailureReasons.WatermarkRegression != 1 || snapshot.ProductFailureReasons.Total() != snapshot.ProductFailures {
+		t.Fatalf("atomic checkpoint regression snapshot = %+v", snapshot)
+	}
+}
+
+func TestLifecycleProofFirstReloadCheckpointRegressionIsWatermarkFailure(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatalf("initial load: %v", err)
+	}
+	if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+		t.Fatalf("cold proof: %v", err)
+	}
+	if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+		t.Fatalf("reheat approval: %v", err)
+	}
+	reloaded := lifecycleRows(candidate, "active", 11, 11)
+	for node := range reloaded {
+		reloaded[node].Channels[0].CheckpointHW = 9
+	}
+	err = proof.Observe(candidate.ReheatAt.Add(time.Second), reloaded)
+	if !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("first reload checkpoint regression error = %v, want product failure", err)
+	}
+	var reasoned interface {
+		Reason() LifecycleProductFailureReason
+	}
+	if !errors.As(err, &reasoned) || reasoned.Reason() != LifecycleFailureWatermarkRegression {
+		t.Fatalf("first reload checkpoint reason = %v, want %s", err, LifecycleFailureWatermarkRegression)
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.Completed != 0 || snapshot.ProductFailures != 1 || snapshot.ProductFailureReasons.WatermarkRegression != 1 ||
+		snapshot.ProductFailureReasons.Total() != snapshot.ProductFailures {
+		t.Fatalf("first reload checkpoint snapshot = %+v", snapshot)
+	}
 }
 
 func TestLifecycleProofRejectsNilContexts(t *testing.T) {

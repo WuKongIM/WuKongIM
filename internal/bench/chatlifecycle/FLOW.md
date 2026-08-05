@@ -151,7 +151,7 @@ deliberately exposes no eviction operation, and probe latency or transport
 failure is recorded separately from product transition evidence.
 
 The proof requires all three runtimes active with exactly one leader and
-monotonic LEO/HW, then all three naturally missing, then all three active after
+monotonic LEO/HW/CheckpointHW, then all three naturally missing, then all three active after
 reheat with sequence strictly above the initial sequence. Closing/error state,
 partial reload, a stuck loaded or partially cooled runtime at the quiet
 deadline, role disagreement, watermark regression, or sequence reset is
@@ -165,6 +165,10 @@ Product failures use the fixed identity-free reasons `initial_load`,
 fixed reason counters always total its product-failure counter; an atomic batch
 rollback counts only the triggering failure once, and neither errors nor JSON
 evidence retain candidate IDs.
+Every non-missing partial-cooling row advances all three retained watermarks, so
+a later CheckpointHW regression cannot hide between staggered replica exits.
+CheckpointHW regression and invalid HW/Checkpoint ordering always classify as
+`watermark_regression`; only LEO/HW reset during reload is `sequence_proof`.
 Only the same candidate's all-node absence makes it cold-latency eligible. Approval
 travels over a second strict fenced worker control call whose response does not
 echo the channel ID; the server delegates to `engineWorkerGeneration`, which

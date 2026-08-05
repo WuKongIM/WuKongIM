@@ -83,32 +83,11 @@ type LifecycleProductFailureCounters struct {
 
 // Count returns one closed reason counter, or zero for an unknown value.
 func (c LifecycleProductFailureCounters) Count(reason LifecycleProductFailureReason) uint64 {
-	switch reason {
-	case LifecycleFailureInitialLoad:
-		return c.InitialLoad
-	case LifecycleFailureRuntimeState:
-		return c.RuntimeState
-	case LifecycleFailureRoleDisagreement:
-		return c.RoleDisagreement
-	case LifecycleFailureWatermarkRegression:
-		return c.WatermarkRegression
-	case LifecycleFailureContinuedLoading:
-		return c.ContinuedLoading
-	case LifecycleFailurePrematureAbsence:
-		return c.PrematureAbsence
-	case LifecycleFailureReheatTimeout:
-		return c.ReheatTimeout
-	case LifecycleFailurePartialReheat:
-		return c.PartialReheat
-	case LifecycleFailureSequenceProof:
-		return c.SequenceProof
-	case LifecycleFailureUnexpectedReload:
-		return c.UnexpectedReload
-	case LifecycleFailureControlTransition:
-		return c.ControlTransition
-	default:
+	counter := (&c).counter(reason)
+	if counter == nil {
 		return 0
 	}
+	return *counter
 }
 
 // Total returns the saturating sum of every closed reason counter.
@@ -126,29 +105,39 @@ func (c LifecycleProductFailureCounters) Total() uint64 {
 }
 
 func (c *LifecycleProductFailureCounters) increment(reason LifecycleProductFailureReason) {
+	counter := c.counter(reason)
+	if counter != nil {
+		*counter = saturatingIncrement(*counter)
+	}
+}
+
+// counter is the single closed reason-to-field mapping used by reads and writes.
+func (c *LifecycleProductFailureCounters) counter(reason LifecycleProductFailureReason) *uint64 {
 	switch reason {
 	case LifecycleFailureInitialLoad:
-		c.InitialLoad = saturatingIncrement(c.InitialLoad)
+		return &c.InitialLoad
 	case LifecycleFailureRuntimeState:
-		c.RuntimeState = saturatingIncrement(c.RuntimeState)
+		return &c.RuntimeState
 	case LifecycleFailureRoleDisagreement:
-		c.RoleDisagreement = saturatingIncrement(c.RoleDisagreement)
+		return &c.RoleDisagreement
 	case LifecycleFailureWatermarkRegression:
-		c.WatermarkRegression = saturatingIncrement(c.WatermarkRegression)
+		return &c.WatermarkRegression
 	case LifecycleFailureContinuedLoading:
-		c.ContinuedLoading = saturatingIncrement(c.ContinuedLoading)
+		return &c.ContinuedLoading
 	case LifecycleFailurePrematureAbsence:
-		c.PrematureAbsence = saturatingIncrement(c.PrematureAbsence)
+		return &c.PrematureAbsence
 	case LifecycleFailureReheatTimeout:
-		c.ReheatTimeout = saturatingIncrement(c.ReheatTimeout)
+		return &c.ReheatTimeout
 	case LifecycleFailurePartialReheat:
-		c.PartialReheat = saturatingIncrement(c.PartialReheat)
+		return &c.PartialReheat
 	case LifecycleFailureSequenceProof:
-		c.SequenceProof = saturatingIncrement(c.SequenceProof)
+		return &c.SequenceProof
 	case LifecycleFailureUnexpectedReload:
-		c.UnexpectedReload = saturatingIncrement(c.UnexpectedReload)
+		return &c.UnexpectedReload
 	case LifecycleFailureControlTransition:
-		c.ControlTransition = saturatingIncrement(c.ControlTransition)
+		return &c.ControlTransition
+	default:
+		return nil
 	}
 }
 
@@ -511,10 +500,10 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if row.Role != "leader" && row.Role != "follower" {
 			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
-		if row.HW > row.LEO || row.CheckpointHW > row.HW {
+		if row.HW > row.LEO || row.CheckpointHW > row.HW || row.CheckpointHW < state.lastCheckpoint[index] {
 			return p.productFailureLocked(LifecycleFailureWatermarkRegression)
 		}
-		if row.LEO < state.lastLEO[index] || row.HW < state.lastHW[index] || row.CheckpointHW < state.lastCheckpoint[index] {
+		if row.LEO < state.lastLEO[index] || row.HW < state.lastHW[index] {
 			if state.phase == lifecycleAwaitReloaded {
 				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
@@ -538,7 +527,7 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			if row.LEO < state.candidate.InitialSequence || row.HW < state.candidate.InitialSequence {
 				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
-			state.lastLEO[index], state.lastHW[index] = row.LEO, row.HW
+			state.lastLEO[index], state.lastHW[index], state.lastCheckpoint[index] = row.LEO, row.HW, row.CheckpointHW
 		}
 		state.phase = lifecycleAwaitAbsent
 		p.snapshot.Loaded = saturatingIncrement(p.snapshot.Loaded)
@@ -570,7 +559,7 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			if missing {
 				continue
 			}
-			state.lastLEO[index], state.lastHW[index] = row.LEO, row.HW
+			state.lastLEO[index], state.lastHW[index], state.lastCheckpoint[index] = row.LEO, row.HW, row.CheckpointHW
 		}
 	case lifecycleAwaitReheat:
 		if !now.Before(state.candidate.ReheatAt) {
