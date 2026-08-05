@@ -93,6 +93,16 @@ func TestLifecycleHashAndInitialAssignmentMatchServerContract(t *testing.T) {
 	}
 }
 
+func TestInitialLifecycleSlotAssignmentIsAvailableToProductionComposition(t *testing.T) {
+	assignment, err := NewInitialLifecycleSlotAssignment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assignment.HashSlotCount() != formalHashSlots {
+		t.Fatalf("hash slot count = %d, want %d", assignment.HashSlotCount(), formalHashSlots)
+	}
+}
+
 func TestLifecycleSlotAssignmentStrictlyValidatesLiveMapping(t *testing.T) {
 	valid := make([]uint32, formalHashSlots)
 	for hash := range valid {

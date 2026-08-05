@@ -239,6 +239,12 @@ func newInitialLifecycleSlotAssignment() (LifecycleSlotAssignment, error) {
 	return NewLifecycleSlotAssignment(mapping)
 }
 
+// NewInitialLifecycleSlotAssignment returns the reviewed contiguous 256-to-12
+// mapping used by the no-migration production profile and worker generations.
+func NewInitialLifecycleSlotAssignment() (LifecycleSlotAssignment, error) {
+	return newInitialLifecycleSlotAssignment()
+}
+
 // HashSlotCount returns 256 only for a successfully constructed assignment.
 func (a LifecycleSlotAssignment) HashSlotCount() uint16 {
 	if !a.valid {

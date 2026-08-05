@@ -21,6 +21,7 @@ func newCapacityCommand(stderr io.Writer) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(
+		newCapacityChatLifecycleCommand(stderr),
 		newCapacitySendCommand(stderr),
 		newCapacityHotChannelCommand(stderr),
 		newCapacityActivateChannelsCommand(stderr),

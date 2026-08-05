@@ -140,6 +140,13 @@ type CoordinatorCapacityEvidence interface {
 	ObserveCapacity(context.Context, CapacityEvidenceRequest) (CapacityObservation, error)
 }
 
+// CoordinatorCapacityEvidenceBeginner optionally captures the exact start of
+// each measured or recovery window. Coordinator runs it asynchronously while
+// the one-second grant loop continues.
+type CoordinatorCapacityEvidenceBeginner interface {
+	BeginCapacity(context.Context, CapacityEvidenceRequest) error
+}
+
 // CoordinatorCapacityDatasetProbe reads the current dataset identity directly
 // from every declared service node. It is called synchronously during Run after
 // preflight and before setup or worker mutation.
@@ -520,6 +527,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	haveGrantTick := false
 	var capacityRateReady uint64
 	var capacityRateReadyAt time.Time
+	var beginCapacityWindow func(CapacitySnapshot) bool
 	deliverScheduledGrant := func(tickAt time.Time) coordinatorRoundDisposition {
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
@@ -553,6 +561,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				return coordinatorRoundStageFailed
 			}
 			result.Capacity = capacityStaircase.Snapshot()
+			if beginCapacityWindow != nil && !beginCapacityWindow(result.Capacity) {
+				return coordinatorRoundStageFailed
+			}
 		}
 		lastGrantTickAt, haveGrantTick = tickAt, true
 		result.Grant = grant
@@ -629,6 +640,10 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		return observed
 	}
 	if capacityStaircase != nil {
+		type capacityBeginResult struct {
+			request     CapacityEvidenceRequest
+			disposition coordinatorRoundDisposition
+		}
 		type capacityEvidenceResult struct {
 			request     CapacityEvidenceRequest
 			observation CapacityObservation
@@ -640,7 +655,41 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 		var evidenceResults <-chan capacityEvidenceResult
 		var rateResults <-chan capacityRateResult
+		var beginResults <-chan capacityBeginResult
+		beginCapacityWindow = func(snapshot CapacitySnapshot) bool {
+			if snapshot.Phase != CapacityPhaseMeasure && snapshot.Phase != CapacityPhaseRecovery {
+				return true
+			}
+			beginner, ok := c.capacityEvidence.(CoordinatorCapacityEvidenceBeginner)
+			if !ok {
+				return true
+			}
+			if beginResults != nil {
+				return false
+			}
+			request := CapacityEvidenceRequest{
+				Phase: snapshot.Phase, RatePerSecond: snapshot.CurrentRate,
+				Start: snapshot.PhaseStart, End: snapshot.PhaseEnd,
+			}
+			results := make(chan capacityBeginResult, 1)
+			beginResults = results
+			go func() {
+				err := beginner.BeginCapacity(observationContext, request)
+				disposition := coordinatorRoundStageFailed
+				if err == nil {
+					disposition = coordinatorRoundSucceeded
+				} else if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+					disposition = coordinatorRoundParentCanceled
+				}
+				results <- capacityBeginResult{request: request, disposition: disposition}
+			}()
+			return true
+		}
 		joinCapacityAsync = func() {
+			if beginResults != nil {
+				<-beginResults
+				beginResults = nil
+			}
 			if evidenceResults != nil {
 				<-evidenceResults
 				evidenceResults = nil
@@ -708,7 +757,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			now := c.clock.Now()
 			snapshot := capacityStaircase.Snapshot()
 			result.Capacity = snapshot
-			if evidenceResults == nil && snapshot.Phase != CapacityPhaseRatePending &&
+			if evidenceResults == nil && beginResults == nil && snapshot.Phase != CapacityPhaseRatePending &&
 				!snapshot.Terminal && !now.Before(snapshot.PhaseEnd) {
 				select {
 				case tickAt := <-grantTicker.C():
@@ -730,6 +779,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					if _, advanceErr := capacityStaircase.Advance(snapshot.PhaseEnd, CapacityObservation{}); advanceErr != nil {
 						result.Capacity = capacityStaircase.Snapshot()
 						return completeCapacityFailure(result.Capacity)
+					}
+					result.Capacity = capacityStaircase.Snapshot()
+					if !beginCapacityWindow(result.Capacity) {
+						failureCode = CoordinatorCodeCapacity
+						goto observationFailure
 					}
 					continue
 				}
@@ -770,6 +824,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				}
 				if transition.ScheduleRate {
 					startCapacityRateRound(transition.RatePerSecond)
+				}
+			case begin := <-beginResults:
+				beginResults = nil
+				if begin.disposition == coordinatorRoundParentCanceled {
+					result.Capacity = capacityStaircase.Snapshot()
+					cancelObservation()
+					joinCapacityAsync()
+					return completeParentCancellation()
+				}
+				if begin.disposition != coordinatorRoundSucceeded {
+					failureCode, failureDisposition = CoordinatorCodeCapacity, begin.disposition
+					goto observationFailure
 				}
 			case rateResult := <-rateResults:
 				rateResults = nil

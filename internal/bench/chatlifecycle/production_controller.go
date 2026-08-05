@@ -152,6 +152,12 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	}
 
 	observation := c.observation.Snapshot()
+	if observation.Sequence == 0 {
+		if cut.Kind == CoordinatorCutPeriodic {
+			return "", nil
+		}
+		return "", errProductionController
+	}
 	if observation.Sequence > c.lastObservationID && !observation.At.After(cut.At) {
 		if observation.At.IsZero() || !observation.At.After(c.lastEvaluatorAt) || len(observation.Resources) != coordinatorWorkerCount {
 			return "", errProductionController
@@ -198,10 +204,6 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	if cut.Kind == CoordinatorCutQualification || cut.Kind == CoordinatorCutTerminal {
 		if err := c.refreshDatasetLocked(ctx); err != nil {
 			return "", err
-		}
-		reheat := c.accounting.Snapshot().Checkpoints > 0
-		if err := c.meta.Checkpoint(ctx, cut.Snapshots, c.assignment, reheat); err != nil {
-			return "", errProductionController
 		}
 	}
 

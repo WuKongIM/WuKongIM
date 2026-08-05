@@ -42,6 +42,9 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	if decision != CoordinatorStopped {
 		t.Fatalf("terminal decision = %q, want %q", decision, CoordinatorStopped)
 	}
+	if meta.calls != 0 {
+		t.Fatalf("live terminal cut performed racy meta reconciliation: calls=%d", meta.calls)
+	}
 	final := productionControllerWorkerSnapshots(cfg, fence, 2, time.Minute+time.Second, WorkerPhaseFinal)
 	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
 		Start: CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}, At: start.Add(time.Minute + time.Second),
@@ -62,8 +65,38 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 		!report.Verdict.Terminal || !report.Final || report.DatasetDigest != dataset.digest {
 		t.Fatalf("final report = %+v", report)
 	}
-	if meta.calls != 2 || dataset.calls != 3 {
-		t.Fatalf("meta/dataset calls = %d/%d, want 2/3", meta.calls, dataset.calls)
+	if meta.calls != 1 || dataset.calls != 3 {
+		t.Fatalf("meta/dataset calls = %d/%d, want 1/3", meta.calls, dataset.calls)
+	}
+}
+
+func TestProductionEvidenceControllerSkipsPeriodicCutUntilFirstObservation(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-await-observation"
+	start := time.Unix(1_960_050_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-await", Generation: 8}
+	observation := &productionControllerObservation{}
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{}, MetaAccounting: NewMetaCreateAccounting(),
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-await-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutPeriodic, At: start.Add(cfg.Observation.Cadence),
+		Snapshots: productionControllerWorkerSnapshots(cfg, fence, 1, cfg.Observation.Cadence, WorkerPhaseRunning),
+	})
+	if err != nil || decision != "" {
+		t.Fatalf("periodic cut before first observation = %q/%v, want skipped", decision, err)
 	}
 }
 

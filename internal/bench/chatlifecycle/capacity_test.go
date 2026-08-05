@@ -767,6 +767,16 @@ func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T)
 		result.Capacity.LastPassingRate != 2_000 || result.Capacity.FirstFailingRate != 2_200 || !result.Capacity.RecoveryPassed {
 		t.Fatalf("capacity rate result = %+v", result)
 	}
+	if begins := evidence.beginSnapshot(); len(begins) != 4 {
+		t.Fatalf("capacity baseline windows = %+v, want four measured/recovery windows", begins)
+	} else {
+		for index, begin := range begins {
+			observed := evidence.observedRequest(index)
+			if begin != observed {
+				t.Fatalf("capacity window %d begin = %+v, observed = %+v", index, begin, observed)
+			}
+		}
+	}
 	for workerID, worker := range typedWorkers {
 		seen := map[uint64]bool{}
 		for _, request := range worker.grantRequests {
@@ -906,6 +916,8 @@ type scriptedCapacityEvidence struct {
 	calls        int
 	requests     chan CapacityEvidenceRequest
 	observations []CapacityObservation
+	begins       []CapacityEvidenceRequest
+	observed     []CapacityEvidenceRequest
 }
 
 type cancelJoiningCapacityEvidence struct {
@@ -930,6 +942,7 @@ func (e *scriptedCapacityEvidence) ObserveCapacity(_ context.Context, request Ca
 	e.requests <- request
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.observed = append(e.observed, request)
 	e.calls++
 	if e.calls <= len(e.observations) {
 		return e.observations[e.calls-1], nil
@@ -939,6 +952,25 @@ func (e *scriptedCapacityEvidence) ObserveCapacity(_ context.Context, request Ca
 		observation.ErrorRateAccepted = false
 	}
 	return observation, nil
+}
+
+func (e *scriptedCapacityEvidence) BeginCapacity(_ context.Context, request CapacityEvidenceRequest) error {
+	e.mu.Lock()
+	e.begins = append(e.begins, request)
+	e.mu.Unlock()
+	return nil
+}
+
+func (e *scriptedCapacityEvidence) beginSnapshot() []CapacityEvidenceRequest {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]CapacityEvidenceRequest(nil), e.begins...)
+}
+
+func (e *scriptedCapacityEvidence) observedRequest(index int) CapacityEvidenceRequest {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.observed[index]
 }
 
 func (w *capacityRateWorker) Assign(context.Context, WorkerAssignment) (WorkerStatus, error) {

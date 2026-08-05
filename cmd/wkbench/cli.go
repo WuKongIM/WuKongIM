@@ -34,6 +34,7 @@ func newRootCommand(stderr io.Writer) *cobra.Command {
 	cmd.SetErr(stderr)
 	cmd.AddCommand(
 		newRunCommand(stderr),
+		newSoakCommand(stderr),
 		newWorkerCommand(stderr),
 		newValidateCommand(stderr),
 		newDoctorCommand(stderr),
