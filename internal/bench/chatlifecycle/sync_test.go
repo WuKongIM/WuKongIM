@@ -187,8 +187,12 @@ func TestLoginSyncConnectFailureNeverCallsSync(t *testing.T) {
 
 	got, err := RunLoginSync(context.Background(), "derived-user", connector, syncer, now)
 
-	require.ErrorIs(t, err, wantErr)
+	require.NotErrorIs(t, err, wantErr)
 	require.EqualError(t, err, "login sync gateway connect failed")
+	require.Equal(t, LoginSyncFailure{
+		Stage: LoginSyncStageConnect, Reason: LoginSyncReasonTransport, Classification: SyncClassificationHarnessInvalid,
+	}, mustLoginSyncFailure(t, err))
+	require.Nil(t, errors.Unwrap(err))
 	require.False(t, got.TrafficReady)
 	require.Equal(t, 15*time.Millisecond, got.GatewayConnectLatency)
 	require.Zero(t, got.ConversationSyncLatency)
@@ -199,9 +203,8 @@ func TestLoginSyncFailureOrInvalidResponseIsNeverTrafficReady(t *testing.T) {
 		name    string
 		rows    []target.ConversationSyncConversation
 		syncErr error
-		wantErr error
 	}{
-		{name: "http failure", syncErr: context.DeadlineExceeded, wantErr: context.DeadlineExceeded},
+		{name: "http failure", syncErr: context.DeadlineExceeded},
 		{name: "invalid response", rows: make([]target.ConversationSyncConversation, 500)},
 	}
 
@@ -219,8 +222,12 @@ func TestLoginSyncFailureOrInvalidResponseIsNeverTrafficReady(t *testing.T) {
 			got, err := RunLoginSync(context.Background(), "derived-user", connector, syncer, now)
 
 			require.Error(t, err)
-			if test.wantErr != nil {
-				require.ErrorIs(t, err, test.wantErr)
+			if test.syncErr != nil {
+				require.NotErrorIs(t, err, test.syncErr)
+				require.Equal(t, LoginSyncFailure{
+					Stage: LoginSyncStageSync, Reason: LoginSyncReasonTransport, Classification: SyncClassificationHarnessInvalid,
+				}, mustLoginSyncFailure(t, err))
+				require.Nil(t, errors.Unwrap(err))
 			}
 			require.False(t, got.TrafficReady)
 			require.Equal(t, time.Millisecond, got.GatewayConnectLatency)
@@ -243,7 +250,10 @@ func TestLoginSyncPropagatesCanceledContextWithoutStartingWork(t *testing.T) {
 
 	got, err := RunLoginSync(ctx, "derived-user", connector, syncer, time.Now)
 
-	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, LoginSyncFailure{
+		Stage: LoginSyncStageConnect, Reason: LoginSyncReasonCanceled, Classification: SyncClassificationHarnessInvalid,
+	}, mustLoginSyncFailure(t, err))
+	require.Nil(t, errors.Unwrap(err))
 	require.EqualError(t, err, "login sync canceled")
 	require.False(t, got.TrafficReady)
 }
@@ -262,7 +272,10 @@ func TestLoginSyncCancellationAfterConnectPreventsSync(t *testing.T) {
 
 	got, err := RunLoginSync(ctx, "derived-user", connector, syncer, now)
 
-	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, LoginSyncFailure{
+		Stage: LoginSyncStageConnect, Reason: LoginSyncReasonCanceled, Classification: SyncClassificationHarnessInvalid,
+	}, mustLoginSyncFailure(t, err))
+	require.Nil(t, errors.Unwrap(err))
 	require.EqualError(t, err, "login sync canceled")
 	require.False(t, got.TrafficReady)
 	require.Equal(t, time.Millisecond, got.GatewayConnectLatency)
@@ -283,7 +296,10 @@ func TestLoginSyncCancellationAfterHTTPResponsePreventsTraffic(t *testing.T) {
 
 	got, err := RunLoginSync(ctx, "derived-user", connector, syncer, now)
 
-	require.ErrorIs(t, err, context.Canceled)
+	require.Equal(t, LoginSyncFailure{
+		Stage: LoginSyncStageSync, Reason: LoginSyncReasonCanceled, Classification: SyncClassificationHarnessInvalid,
+	}, mustLoginSyncFailure(t, err))
+	require.Nil(t, errors.Unwrap(err))
 	require.EqualError(t, err, "login sync canceled")
 	require.False(t, got.TrafficReady)
 	require.Equal(t, 3*time.Millisecond, got.ConversationSyncLatency)
@@ -299,6 +315,13 @@ type conversationSyncerFunc func(context.Context, target.ConversationSyncRequest
 
 func (f conversationSyncerFunc) ConversationSync(ctx context.Context, req target.ConversationSyncRequest) ([]target.ConversationSyncConversation, error) {
 	return f(ctx, req)
+}
+
+func mustLoginSyncFailure(t *testing.T, err error) LoginSyncFailure {
+	t.Helper()
+	failure, ok := LoginSyncFailureOf(err)
+	require.True(t, ok, "error does not expose closed login sync diagnostics: %v", err)
+	return failure
 }
 
 func sequenceClock(t *testing.T, times ...time.Time) func() time.Time {

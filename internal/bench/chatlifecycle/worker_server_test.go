@@ -642,6 +642,10 @@ func TestWorkerServerStopContinuesAfterRequestDisconnectAndCachesFinalSnapshot(t
 	<-handlerDone
 	close(generation.drainRelease)
 	<-generation.stopped
+	// Stop entering the generation is not the publication boundary for the
+	// server's final snapshot. A retry on the same fence joins the existing
+	// stop task and therefore deterministically observes that boundary.
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence})
 
 	response := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/snapshot", nil)
 	if response.Code != http.StatusOK {
@@ -654,7 +658,6 @@ func TestWorkerServerStopContinuesAfterRequestDisconnectAndCachesFinalSnapshot(t
 	if snapshot.Phase != WorkerPhaseFinal || snapshot.Messages.Sent != 41 {
 		t.Fatalf("final snapshot = %+v", snapshot)
 	}
-	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence})
 	if generation.drains != 1 || generation.stops != 1 {
 		t.Fatalf("drain/stop calls = %d/%d, want 1/1", generation.drains, generation.stops)
 	}

@@ -136,10 +136,19 @@ func TestSessionPoolRecordsRealConnectAndSyncOutcomesWithStableEvidence(t *testi
 		},
 		{
 			name: "factory canceled",
-			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+			configure: func(fixture *sessionTestFixture, cancel context.CancelFunc) {
+				cancel()
 				fixture.factory.newSessionErr = context.Canceled
 			},
 			wantFactoryCanceled: 1, wantStage: LoginSyncStageFactory, wantReason: LoginSyncReasonCanceled,
+		},
+		{
+			name: "factory internal timeout",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.factory.newSessionErr = context.DeadlineExceeded
+			},
+			wantFactoryFailed: 1, wantStage: LoginSyncStageFactory, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageSessionFactory, wantEvidenceCode: FailureCodeSessionFactoryFailed, wantEvidenceClass: FailureClassHarness,
 		},
 		{
 			name: "connect transport failure",
@@ -151,9 +160,28 @@ func TestSessionPoolRecordsRealConnectAndSyncOutcomesWithStableEvidence(t *testi
 			wantConnectHistogram: true,
 		},
 		{
+			name: "connect internal timeout",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.factory.connectErr = context.DeadlineExceeded
+			},
+			wantConnectStarted: 1, wantConnectFailed: 1, wantStage: LoginSyncStageConnect, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageConnect, wantEvidenceCode: FailureCodeSessionConnectFailed, wantEvidenceClass: FailureClassHarness,
+			wantConnectHistogram: true,
+		},
+		{
 			name: "sync transport failure",
 			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
 				fixture.syncer.syncErr = errors.New("secret sync raw uid")
+			},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
+			wantStage: LoginSyncStageSync, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageSync, wantEvidenceCode: FailureCodeSessionSyncFailed, wantEvidenceClass: FailureClassHarness,
+			wantConnectHistogram: true, wantSyncHistogram: true,
+		},
+		{
+			name: "sync internal timeout",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.syncer.syncErr = context.DeadlineExceeded
 			},
 			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
 			wantStage: LoginSyncStageSync, wantReason: LoginSyncReasonTransport,
@@ -238,6 +266,9 @@ func TestSessionPoolRecordsRealConnectAndSyncOutcomesWithStableEvidence(t *testi
 				if strings.Contains(loginErr.Error(), "secret") || strings.Contains(loginErr.Error(), uid) {
 					t.Fatalf("login error leaked raw cause or UID: %q", loginErr)
 				}
+				if errors.Unwrap(loginErr) != nil {
+					t.Fatalf("login error publicly exposed a raw cause: %T", errors.Unwrap(loginErr))
+				}
 			}
 
 			snapshot := fixture.pool.Snapshot()
@@ -312,7 +343,8 @@ func TestSessionWKProtoAdapterBindsExistingClientWithoutDialing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWKProtoSessionAdapter: %v", err)
 	}
-	if snapshot := adapter.QueueSnapshot(); snapshot.Depth != 0 || snapshot.Capacity != 8 || snapshot.Inflight != 0 {
+	snapshot, snapshotErr := adapter.QueueSnapshot(context.Background())
+	if snapshotErr != nil || snapshot.Depth != 0 || snapshot.Capacity != 8 || snapshot.Inflight != 0 {
 		t.Fatalf("disconnected queue snapshot = %+v", snapshot)
 	}
 }
@@ -773,7 +805,9 @@ func (c *parallelSessionClient) Close() error {
 	c.closeOnce.Do(func() { close(c.stop) })
 	return nil
 }
-func (c *parallelSessionClient) QueueSnapshot() SessionQueueSnapshot { return SessionQueueSnapshot{} }
+func (c *parallelSessionClient) QueueSnapshot(context.Context) (SessionQueueSnapshot, error) {
+	return SessionQueueSnapshot{}, nil
+}
 func (c *parallelSessionClient) ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool) {
 	return wkproto.ReadErrorInfo{}, false
 }
@@ -982,14 +1016,22 @@ func (c *sessionFakeClient) Close() error {
 	return nil
 }
 
-func (c *sessionFakeClient) QueueSnapshot() SessionQueueSnapshot {
+func (c *sessionFakeClient) QueueSnapshot(ctx context.Context) (SessionQueueSnapshot, error) {
 	if c.queueSnapshotEntered != nil {
-		c.queueSnapshotEntered <- struct{}{}
+		select {
+		case c.queueSnapshotEntered <- struct{}{}:
+		case <-ctx.Done():
+			return SessionQueueSnapshot{}, ctx.Err()
+		}
 	}
 	if c.queueSnapshotRelease != nil {
-		<-c.queueSnapshotRelease
+		select {
+		case <-c.queueSnapshotRelease:
+		case <-ctx.Done():
+			return SessionQueueSnapshot{}, ctx.Err()
+		}
 	}
-	return SessionQueueSnapshot{}
+	return SessionQueueSnapshot{}, nil
 }
 
 func (c *sessionFakeClient) closed() bool {

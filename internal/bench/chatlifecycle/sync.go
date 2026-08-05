@@ -195,7 +195,7 @@ type LoginSyncResult struct {
 func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector, syncer ConversationSyncer, now func() time.Time) (LoginSyncResult, error) {
 	var result LoginSyncResult
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled, err)
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled)
 	}
 
 	result.ConnectStarted = true
@@ -204,14 +204,14 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 	result.GatewayConnectLatency = now().Sub(connectStarted)
 	if connectErr != nil {
 		reason := LoginSyncReasonTransport
-		if loginSyncCanceled(ctx, connectErr) {
+		if ctx.Err() != nil {
 			reason = LoginSyncReasonCanceled
 		}
-		return result, newLoginSyncOperationError(LoginSyncStageConnect, reason, connectErr)
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, reason)
 	}
 	result.ConnectCompleted = true
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled, err)
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled)
 	}
 
 	result.SyncStarted = true
@@ -220,13 +220,13 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 	result.ConversationSyncLatency = now().Sub(syncStarted)
 	if syncErr != nil {
 		reason := LoginSyncReasonTransport
-		if loginSyncCanceled(ctx, syncErr) {
+		if ctx.Err() != nil {
 			reason = LoginSyncReasonCanceled
 		}
-		return result, newLoginSyncOperationError(LoginSyncStageSync, reason, syncErr)
+		return result, newLoginSyncOperationError(LoginSyncStageSync, reason)
 	}
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError(LoginSyncStageSync, LoginSyncReasonCanceled, err)
+		return result, newLoginSyncOperationError(LoginSyncStageSync, LoginSyncReasonCanceled)
 	}
 	if err := ValidateConversationSync(conversations); err != nil {
 		return result, err
@@ -241,14 +241,10 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 type loginSyncOperationError struct {
 	stage  LoginSyncStage
 	reason string
-	cause  error
 }
 
-func newLoginSyncOperationError(stage LoginSyncStage, reason string, cause error) error {
-	if cause == nil {
-		cause = errors.New("login sync operation failed")
-	}
-	return &loginSyncOperationError{stage: stage, reason: reason, cause: cause}
+func newLoginSyncOperationError(stage LoginSyncStage, reason string) error {
+	return &loginSyncOperationError{stage: stage, reason: reason}
 }
 
 func (e *loginSyncOperationError) Error() string {
@@ -289,15 +285,4 @@ func (e *loginSyncOperationError) Classification() SyncClassification {
 		return ""
 	}
 	return SyncClassificationHarnessInvalid
-}
-
-func (e *loginSyncOperationError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.cause
-}
-
-func loginSyncCanceled(ctx context.Context, err error) bool {
-	return ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

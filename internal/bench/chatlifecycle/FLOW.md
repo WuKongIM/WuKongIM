@@ -47,6 +47,12 @@ snapshot, rate update, and bounded drain advancement expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating
 the allocator, and every late response uses a one-slot owner-safe channel.
+Engine stop fences control admission, cancels the generation, joins admitted
+step/login/session callers, and then crosses an owner-command barrier before it
+closes sessions; a canceled caller therefore cannot leave SEND using a client
+that teardown has already closed. Session queue gauges receive the merged
+caller-plus-generation context, so canceled polling cannot pin that owner
+barrier ahead of socket cleanup.
 
 Request bodies, client responses, and server responses have fixed byte caps
 and strict JSON schemas. Worker snapshots contain only scalar aggregates,
@@ -100,8 +106,11 @@ errors expose only a closed factory/connect/sync stage, a closed reason, and
 classification. Factory, CONNECT, and sync transport failures record bounded
 harness evidence with stable stage/code pairs. Sync validation preserves its
 existing product-versus-harness ownership, while cancellation records counters
-but no expected-stop evidence. No evidence or public error contains the raw
-transport cause or UID.
+but no expected-stop evidence. Only cancellation of the supplied generation or
+caller context is expected cancellation; a client-owned timeout returned while
+that context remains live is a transport failure. No evidence or public error
+contains the raw transport cause or UID.
+
 The ordered drain supplies its `SessionClock` instant to `Verifier`, which
 measures registered-at through the first successful SENDACK and the complete
 RECVACK transport call. Legacy verifier methods remain verification-only and

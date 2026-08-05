@@ -768,6 +768,12 @@ func (e *Engine) Stop() error {
 	e.stepOps.Wait()
 	e.loginOps.Wait()
 	e.sessionOps.Wait()
+	// Context-aware calls may return before their already-admitted owner
+	// command observes generation cancellation. Join that command boundary
+	// before closing sessions so no SEND can still be using a client.
+	ownerJoined := make(chan struct{}, 1)
+	e.commands <- engineCommand{run: func() { ownerJoined <- struct{}{} }}
+	<-ownerJoined
 	closeErr := e.sessions.CloseAll()
 	barrier := make(chan struct{}, 1)
 	e.commands <- engineCommand{run: func() {
@@ -1357,22 +1363,32 @@ func (e *Engine) SnapshotContext(ctx context.Context) (EngineSnapshot, error) {
 	e.lifecycleMu.Lock()
 	running := e.running
 	cached := e.cached
+	generationCtx := e.generationCtx
 	e.lifecycleMu.Unlock()
 	if !running {
 		return cached, nil
 	}
-	response := make(chan EngineSnapshot, 1)
+	snapshotCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	type snapshotResult struct {
+		snapshot EngineSnapshot
+		err      error
+	}
+	response := make(chan snapshotResult, 1)
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
-		response <- e.buildSnapshot(true)
+		snapshot, snapshotErr := e.buildSnapshotContext(snapshotCtx, true)
+		response <- snapshotResult{snapshot: snapshot, err: snapshotErr}
 	}}); err != nil {
 		return EngineSnapshot{}, err
 	}
 	select {
-	case snapshot := <-response:
-		return snapshot, nil
+	case result := <-response:
+		return result.snapshot, result.err
 	case <-ctx.Done():
 		return EngineSnapshot{}, ctx.Err()
+	case <-generationCtx.Done():
+		return EngineSnapshot{}, errEngineNotRunning
 	}
 }
 
@@ -1423,6 +1439,8 @@ func (e *Engine) ScheduleRateContext(ctx context.Context, rate, burst uint64) er
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-generationCtx.Done():
+		return errEngineNotRunning
 	}
 }
 
@@ -1453,22 +1471,35 @@ func (e *Engine) WorkerRuntimeSnapshotContext(ctx context.Context) (EngineWorker
 	e.lifecycleMu.Lock()
 	running := e.running
 	cached := e.cached
+	generationCtx := e.generationCtx
 	e.lifecycleMu.Unlock()
 	if !running {
 		return EngineWorkerRuntimeSnapshot{Engine: cached, Generated: e.generator.Snapshot()}, nil
 	}
-	response := make(chan EngineWorkerRuntimeSnapshot, 1)
+	snapshotCtx, cancel := mergeGenerationContext(generationCtx, ctx)
+	defer cancel()
+	type runtimeSnapshotResult struct {
+		snapshot EngineWorkerRuntimeSnapshot
+		err      error
+	}
+	response := make(chan runtimeSnapshotResult, 1)
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
-		response <- EngineWorkerRuntimeSnapshot{Engine: e.buildSnapshot(true), Generated: e.generator.Snapshot()}
+		snapshot, snapshotErr := e.buildSnapshotContext(snapshotCtx, true)
+		response <- runtimeSnapshotResult{
+			snapshot: EngineWorkerRuntimeSnapshot{Engine: snapshot, Generated: e.generator.Snapshot()},
+			err:      snapshotErr,
+		}
 	}}); err != nil {
 		return EngineWorkerRuntimeSnapshot{}, err
 	}
 	select {
-	case snapshot := <-response:
-		return snapshot, nil
+	case result := <-response:
+		return result.snapshot, result.err
 	case <-ctx.Done():
 		return EngineWorkerRuntimeSnapshot{}, ctx.Err()
+	case <-generationCtx.Done():
+		return EngineWorkerRuntimeSnapshot{}, errEngineNotRunning
 	}
 }
 
@@ -2399,7 +2430,15 @@ func (e *Engine) recordRuntimeFailureSync(code RuntimeFailureCode, value uint64)
 }
 
 func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
-	sessions := e.sessions.Snapshot()
+	snapshot, _ := e.buildSnapshotContext(context.Background(), running)
+	return snapshot
+}
+
+func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (EngineSnapshot, error) {
+	sessions, err := e.sessions.SnapshotContext(ctx)
+	if err != nil {
+		return EngineSnapshot{}, err
+	}
 	retries := RetrySchedulerSnapshot{}
 	if e.retries != nil {
 		retries = e.retries.Snapshot()
@@ -2443,7 +2482,7 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 	if e.retries != nil && len(e.retries.entries) > 0 {
 		snapshot.NextRetryAt = e.retries.entries[0].Due
 	}
-	return snapshot
+	return snapshot, nil
 }
 
 func (e *Engine) emptySnapshot(running bool) EngineSnapshot {

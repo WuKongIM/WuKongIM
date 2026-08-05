@@ -33,7 +33,8 @@ type SessionClient interface {
 	Send(context.Context, *frame.SendPacket) error
 	AckRecv(context.Context, *frame.RecvackPacket) error
 	Close() error
-	QueueSnapshot() SessionQueueSnapshot
+	// QueueSnapshot must stop waiting when its context is canceled.
+	QueueSnapshot(context.Context) (SessionQueueSnapshot, error)
 	ReadErrorInfo(error) (wkproto.ReadErrorInfo, bool)
 }
 
@@ -75,13 +76,22 @@ func (a *WKProtoSessionAdapter) AckRecv(ctx context.Context, ack *frame.RecvackP
 
 func (a *WKProtoSessionAdapter) Close() error { return a.client.Close() }
 
-func (a *WKProtoSessionAdapter) QueueSnapshot() SessionQueueSnapshot {
+func (a *WKProtoSessionAdapter) QueueSnapshot(ctx context.Context) (SessionQueueSnapshot, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return SessionQueueSnapshot{}, err
+	}
 	snapshot := a.client.QueueSnapshot()
+	if err := ctx.Err(); err != nil {
+		return SessionQueueSnapshot{}, err
+	}
 	return SessionQueueSnapshot{
 		Depth:    snapshot.InnerRecvDepth + snapshot.AdapterDepth,
 		Capacity: snapshot.InnerRecvCapacity + snapshot.AdapterCapacity,
 		Inflight: snapshot.PublicationCurrent,
-	}
+	}, nil
 }
 
 func (a *WKProtoSessionAdapter) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {
@@ -302,10 +312,10 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	client, err := p.factory.NewSession(ctx, login.UID, p.tokenForUID(login.UID))
 	if err != nil {
 		reason := LoginSyncReasonTransport
-		if loginSyncCanceled(ctx, err) {
+		if ctx.Err() != nil {
 			reason = LoginSyncReasonCanceled
 		}
-		operationErr := newLoginSyncOperationError(LoginSyncStageFactory, reason, err)
+		operationErr := newLoginSyncOperationError(LoginSyncStageFactory, reason)
 		p.recordFactoryOutcome(operationErr)
 		return SessionSnapshot{}, operationErr
 	}
@@ -598,8 +608,20 @@ func (p *SessionPool) CloseAll() error {
 
 // Snapshot aggregates queue gauges without exposing online identities.
 func (p *SessionPool) Snapshot() SessionPoolSnapshot {
+	snapshot, _ := p.SnapshotContext(context.Background())
+	return snapshot
+}
+
+// SnapshotContext is the cancelable aggregate used by Engine control calls.
+func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot, error) {
 	if p == nil {
-		return SessionPoolSnapshot{}
+		return SessionPoolSnapshot{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return SessionPoolSnapshot{}, err
 	}
 	p.mu.RLock()
 	snapshot := SessionPoolSnapshot{
@@ -618,12 +640,15 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 	}
 	p.mu.RUnlock()
 	for _, client := range clients {
-		queue := client.QueueSnapshot()
+		queue, err := client.QueueSnapshot(ctx)
+		if err != nil {
+			return SessionPoolSnapshot{}, err
+		}
 		snapshot.QueueDepth += queue.Depth
 		snapshot.QueueCapacity += queue.Capacity
 		snapshot.TransportInflight += queue.Inflight
 	}
-	return snapshot
+	return snapshot, nil
 }
 
 // setEngineObservers is wired once before sessions start. Keeping it private

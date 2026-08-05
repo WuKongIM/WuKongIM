@@ -1898,6 +1898,118 @@ func TestEngineContextControlsCancelBehindOwnerWithoutLateRateMutation(t *testin
 	})
 }
 
+func TestEngineContextControlsReturnWhenGenerationStopsBehindBlockedOwner(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(*Engine) error
+	}{
+		{
+			name: "snapshot",
+			call: func(engine *Engine) error {
+				_, err := engine.SnapshotContext(context.Background())
+				return err
+			},
+		},
+		{
+			name: "worker runtime snapshot",
+			call: func(engine *Engine) error {
+				_, err := engine.WorkerRuntimeSnapshotContext(context.Background())
+				return err
+			},
+		},
+		{
+			name: "scheduled rate",
+			call: func(engine *Engine) error {
+				rate := engine.generator.allocator.rate + 1
+				return engine.ScheduleRateContext(context.Background(), rate, 2*rate)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newEngineTestFixture(t, engineTestLimits{})
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			generationCtx := fixture.engine.generationCtx
+			entered, release := blockEngineOwner(t, fixture.engine)
+			<-entered
+			callResult := make(chan error, 1)
+			go func() { callResult <- test.call(fixture.engine) }()
+			waitForEngineQueuedCommand(t, fixture.engine)
+			stopResult := make(chan error, 1)
+			go func() { stopResult <- fixture.engine.Stop() }()
+			select {
+			case <-generationCtx.Done():
+			case <-time.After(time.Second):
+				close(release)
+				<-stopResult
+				t.Fatal("Stop did not cancel the active generation")
+			}
+			select {
+			case err := <-callResult:
+				if !errors.Is(err, errEngineNotRunning) {
+					close(release)
+					<-stopResult
+					t.Fatalf("control error = %v, want %v", err, errEngineNotRunning)
+				}
+			case <-time.After(100 * time.Millisecond):
+				close(release)
+				<-stopResult
+				t.Fatal("control remained blocked after generation cancellation")
+			}
+			close(release)
+			if err := <-stopResult; err != nil {
+				t.Fatalf("Stop: %v", err)
+			}
+		})
+	}
+}
+
+func TestEngineQueueFullContextControlReturnsWhenStopFencesGeneration(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{CommandCapacity: 1})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	generationCtx := fixture.engine.generationCtx
+	entered, release := blockEngineOwner(t, fixture.engine)
+	<-entered
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() {}}); err != nil {
+		close(release)
+		t.Fatalf("fill command queue: %v", err)
+	}
+	callResult := make(chan error, 1)
+	go func() {
+		_, err := fixture.engine.SnapshotContext(context.Background())
+		callResult <- err
+	}()
+	stopResult := make(chan error, 1)
+	go func() { stopResult <- fixture.engine.Stop() }()
+	select {
+	case <-generationCtx.Done():
+	case <-time.After(time.Second):
+		close(release)
+		<-stopResult
+		t.Fatal("Stop did not fence the full command queue")
+	}
+	select {
+	case err := <-callResult:
+		if !errors.Is(err, errEngineNotRunning) {
+			close(release)
+			<-stopResult
+			t.Fatalf("full-queue control error = %v, want %v", err, errEngineNotRunning)
+		}
+	case <-time.After(100 * time.Millisecond):
+		close(release)
+		<-stopResult
+		t.Fatal("full-queue control remained blocked after generation cancellation")
+	}
+	close(release)
+	if err := <-stopResult; err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+}
+
 func blockEngineOwner(t *testing.T, engine *Engine) (<-chan struct{}, chan<- struct{}) {
 	t.Helper()
 	entered := make(chan struct{})
@@ -2149,8 +2261,8 @@ func TestEngineStopCancelsBlockedConnectBeforeWaitingForLogin(t *testing.T) {
 		close(connectRelease)
 		t.Fatalf("CONNECT context cause = %v, want canceled generation", context.Cause(connectCtx))
 	}
-	if err := <-loginDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("Login error = %v, want context canceled", err)
+	if err := <-loginDone; mustLoginSyncFailure(t, err).Reason != LoginSyncReasonCanceled {
+		t.Fatalf("Login error = %v, want closed cancellation", err)
 	}
 	if err := <-stopDone; err != nil {
 		t.Fatalf("Stop: %v", err)
@@ -2179,8 +2291,8 @@ func TestEngineStopCancelsBlockedSessionFactoryBeforeWaitingForLogin(t *testing.
 	if !errors.Is(context.Cause(factoryCtx), context.Canceled) {
 		t.Fatalf("factory context cause = %v, want canceled generation", context.Cause(factoryCtx))
 	}
-	if err := <-loginDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("Login error = %v, want context canceled", err)
+	if err := <-loginDone; mustLoginSyncFailure(t, err).Reason != LoginSyncReasonCanceled {
+		t.Fatalf("Login error = %v, want closed cancellation", err)
 	}
 	if err := <-stopDone; err != nil {
 		t.Fatalf("Stop: %v", err)
@@ -2295,6 +2407,46 @@ func TestEngineSchedulerSkipsDoNotCountAsRealSyncFailures(t *testing.T) {
 	}
 	if engine.LoginSkipped == 0 || engine.SyncFailed != 0 {
 		t.Fatalf("scheduler/sync counters were conflated: %+v", engine)
+	}
+}
+
+func TestEngineSchedulerReservationConflictCountsOnlyAsSkippedLogin(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 2, NewUsersPerDay: 250_000, WorkCapacity: 128, MaxWorkPerAdvance: 64,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	reservedUID := fixture.identity.UID(0)
+	if err := fixture.pool.reserveLogin(reservedUID); err != nil {
+		t.Fatalf("reserve expected scheduler UID: %v", err)
+	}
+	defer func() {
+		fixture.pool.mu.Lock()
+		delete(fixture.pool.starting, reservedUID)
+		fixture.pool.mu.Unlock()
+	}()
+
+	now := fixture.clock.Now().Add(100 * time.Second)
+	fixture.clock.Set(now)
+	step, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("Step: %v", err)
+	}
+	if step.LoginsSkipped != 1 || step.AdmittedNew != 0 || step.LoginsCompleted != 0 {
+		t.Fatalf("reservation conflict step = %+v", step)
+	}
+	pool := fixture.pool.Snapshot()
+	if pool.FactoryFailed != 0 || pool.ConnectStarted != 0 || pool.SyncStarted != 0 || pool.SyncFailed != 0 {
+		t.Fatalf("reservation conflict polluted real startup outcomes: %+v", pool)
+	}
+	engine, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if engine.LoginSkipped != 1 || engine.SyncFailed != 0 {
+		t.Fatalf("reservation conflict aggregate = %+v", engine)
 	}
 }
 
@@ -2746,6 +2898,55 @@ func TestEngineStopCancelsBlockedStepSendBeforeClosingSessions(t *testing.T) {
 	}
 	if evidence := fixture.evidence.Snapshot(); evidence.Classification != "" || len(evidence.Classes) != 0 {
 		t.Fatalf("generation cancellation recorded evidence: %+v", evidence)
+	}
+}
+
+func TestEngineStopCancelsBlockedQueueSnapshotBeforeClosingSessions(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{OnlineUsers: 1})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	uid := fixture.identity.UID(0)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: uid, UserIndex: 0, LoginOrdinal: 0,
+	}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	client := fixture.factory.clients()[0]
+	client.queueSnapshotEntered = make(chan struct{}, 1)
+	client.queueSnapshotRelease = make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(client.queueSnapshotRelease)
+		}
+		_ = fixture.engine.Stop()
+	}()
+
+	snapshotCtx, cancelSnapshot := context.WithCancel(context.Background())
+	snapshotResult := make(chan error, 1)
+	go func() {
+		_, err := fixture.engine.SnapshotContext(snapshotCtx)
+		snapshotResult <- err
+	}()
+	<-client.queueSnapshotEntered
+	cancelSnapshot()
+	if err := <-snapshotResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled Snapshot error = %v, want %v", err, context.Canceled)
+	}
+
+	stopResult := make(chan error, 1)
+	go func() { stopResult <- fixture.engine.Stop() }()
+	select {
+	case err := <-stopResult:
+		if err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		close(client.queueSnapshotRelease)
+		released = true
+		<-stopResult
+		t.Fatal("Stop remained blocked behind a canceled QueueSnapshot")
 	}
 }
 
@@ -3917,18 +4118,20 @@ func (f *engineFakeFactory) recordRoute(route engineSentRoute) {
 func (f *engineFakeFactory) sentCount() int { return len(f.sentPackets()) }
 
 type engineFakeClient struct {
-	mu           sync.Mutex
-	uid          string
-	factory      *engineFakeFactory
-	frames       chan frame.Frame
-	readErrors   chan error
-	readReturned chan struct{}
-	stop         chan struct{}
-	readExited   chan struct{}
-	readContexts chan<- context.Context
-	readOnce     sync.Once
-	closeOnce    sync.Once
-	sent         []*frame.SendPacket
+	mu                   sync.Mutex
+	uid                  string
+	factory              *engineFakeFactory
+	frames               chan frame.Frame
+	readErrors           chan error
+	readReturned         chan struct{}
+	stop                 chan struct{}
+	readExited           chan struct{}
+	readContexts         chan<- context.Context
+	queueSnapshotEntered chan struct{}
+	queueSnapshotRelease chan struct{}
+	readOnce             sync.Once
+	closeOnce            sync.Once
+	sent                 []*frame.SendPacket
 }
 
 func (c *engineFakeClient) Connect(ctx context.Context, _, _ string) error {
@@ -4021,7 +4224,23 @@ func (c *engineFakeClient) Close() error {
 	})
 	return nil
 }
-func (c *engineFakeClient) QueueSnapshot() SessionQueueSnapshot { return SessionQueueSnapshot{} }
+func (c *engineFakeClient) QueueSnapshot(ctx context.Context) (SessionQueueSnapshot, error) {
+	if c.queueSnapshotEntered != nil {
+		select {
+		case c.queueSnapshotEntered <- struct{}{}:
+		case <-ctx.Done():
+			return SessionQueueSnapshot{}, ctx.Err()
+		}
+	}
+	if c.queueSnapshotRelease != nil {
+		select {
+		case <-c.queueSnapshotRelease:
+		case <-ctx.Done():
+			return SessionQueueSnapshot{}, ctx.Err()
+		}
+	}
+	return SessionQueueSnapshot{}, nil
+}
 func (c *engineFakeClient) ReadErrorInfo(err error) (wkproto.ReadErrorInfo, bool) {
 	var readErr *engineFakeReadError
 	if !errors.As(err, &readErr) {
