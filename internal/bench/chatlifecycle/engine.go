@@ -142,6 +142,14 @@ type EngineStepSnapshot struct {
 	Advanced           int
 }
 
+// EngineGrantResult identifies whether a coordinator grant crossed the engine
+// admission fence. Admitted grants must never be regenerated, even when their
+// subsequent bounded work returns an error.
+type EngineGrantResult struct {
+	Snapshot TrafficTickSnapshot
+	Admitted bool
+}
+
 type sessionScheduler struct {
 	workload                      WorkloadConfig
 	workerID                      uint64
@@ -889,13 +897,13 @@ func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, erro
 // single global allocator. Caller cancellation wins before owner admission;
 // after admission the engine generation owns completion so delivery retry
 // cannot regenerate a partially accepted grant.
-func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, error) {
+func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64) (EngineGrantResult, error) {
 	if e == nil {
-		return TrafficTickSnapshot{}, errEngineConfig
+		return EngineGrantResult{}, errEngineConfig
 	}
 	generationCtx, ok := e.beginTickOp()
 	if !ok {
-		return TrafficTickSnapshot{}, errEngineNotRunning
+		return EngineGrantResult{}, errEngineNotRunning
 	}
 	defer e.tickOps.Done()
 	admissionCtx, cancel := mergeGenerationContext(generationCtx, ctx)
@@ -903,19 +911,21 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	e.stepMu.Lock()
 	defer e.stepMu.Unlock()
 	if err := e.awaitOwnerTimeAdmission(admissionCtx, now); err != nil {
-		return TrafficTickSnapshot{}, err
+		return EngineGrantResult{}, err
 	}
 	if err := admissionCtx.Err(); err != nil {
-		return TrafficTickSnapshot{}, err
+		return EngineGrantResult{}, err
 	}
+	result := EngineGrantResult{Admitted: true}
 	snapshot, err := e.applyGrant(generationCtx, now, released)
+	result.Snapshot = snapshot
 	if err == nil {
 		_, err = e.advanceWithContext(generationCtx, now)
 	}
 	if generationCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
-		return snapshot, errEngineNotRunning
+		return result, errEngineNotRunning
 	}
-	return snapshot, err
+	return result, err
 }
 
 func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, error) {

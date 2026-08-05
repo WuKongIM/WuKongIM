@@ -68,7 +68,11 @@ generation. An exact duplicate joins or returns the stable cached result;
 stale, gap, changed-payload, state, and fence mismatches fail closed. Once an
 external grant crosses engine admission it is accepted even when later work
 returns classified or fatal failure, so delivery retry cannot advance the
-generator a second time or hide a partially emitted prefix. Engine snapshot,
+generator a second time or hide a partially emitted prefix. Cancellation
+before engine admission clears the in-flight request without advancing or
+caching its sequence, so the exact sequence can be transported again. Every
+post-admission success or error remains a stable cached replay boundary.
+Engine snapshot,
 consistent worker-runtime snapshot, rate update, and bounded drain advancement
 expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
@@ -687,7 +691,10 @@ requests with one shared at-most-five-second deadline, join every attempted
 request, reject a valid-looking result returned after that deadline, and
 validate results in worker-index order. Every grant round uses the same bounded
 concurrent shape with the stricter one-second cap. A blocked control request
-therefore cannot starve the final cutoff indefinitely. Failure cleanup and successful
+therefore cannot starve the final cutoff indefinitely. Outer operator
+cancellation during assignment, Start, or final checkpoint takes precedence as
+`stopped`; a canceled final checkpoint is never aggregated as completed.
+Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.
 Observer product failure keeps precedence when it races a grant or status

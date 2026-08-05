@@ -198,15 +198,35 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	attempted := [coordinatorWorkerCount]bool{true, true, true}
 	assigned := [coordinatorWorkerCount]bool{}
 	if _, valid := c.assignRound(ctx, assignments); !valid {
+		canceled := ctx.Err() != nil
 		c.stopAfterFailure(fence, attempted)
+		if canceled {
+			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+			return result
+		}
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
+		return result
+	}
+	if ctx.Err() != nil {
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 		return result
 	}
 	assigned = [coordinatorWorkerCount]bool{true, true, true}
 	startStatuses, valid := c.startRound(ctx, assignments, fence)
 	if !valid {
+		canceled := ctx.Err() != nil
 		c.stopAfterFailure(fence, attempted)
+		if canceled {
+			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+			return result
+		}
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeStart
+		return result
+	}
+	if ctx.Err() != nil {
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 		return result
 	}
 
@@ -462,8 +482,18 @@ observationComplete:
 	}
 	checkpoint, valid := c.checkpointRound(ctx, assignments, fence)
 	if !valid {
+		canceled := ctx.Err() != nil
 		c.stopAfterFailure(fence, attempted)
+		if canceled {
+			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+			return result
+		}
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+		return result
+	}
+	if ctx.Err() != nil {
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 		return result
 	}
 	if _, err := aggregator.Aggregate(checkpoint); err != nil {

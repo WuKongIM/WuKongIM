@@ -30,13 +30,19 @@ const workerMaxDrainTimeout = 30 * time.Second
 type WorkerGeneration interface {
 	Start(context.Context) error
 	UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error
-	ApplyGrant(context.Context, uint64) error
+	ApplyGrant(context.Context, uint64) (WorkerGrantApplication, error)
 	TrafficReady() bool
 	Checkpoint(context.Context) (WorkerSnapshot, error)
 	Drain(context.Context) error
 	Stop()
 	Snapshot(context.Context) (WorkerSnapshot, error)
 	Done() <-chan error
+}
+
+// WorkerGrantApplication reports whether grant work crossed generation
+// admission. Only admitted results are stable sequence replay boundaries.
+type WorkerGrantApplication struct {
+	Admitted bool
 }
 
 // WorkerGenerationFactory validates and constructs one assignment generation.
@@ -499,7 +505,7 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 		s.mu.Unlock()
 
 		released, _ := grant.Released.worker(workerID)
-		grantErr := generation.ApplyGrant(request.Context(), released)
+		application, grantErr := generation.ApplyGrant(request.Context(), released)
 		s.mu.Lock()
 		if !s.controlStateMatchesLocked(control) {
 			if s.grantInFlight == task {
@@ -513,6 +519,16 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 		result := WorkerGrantResponse{
 			WorkerFence: grant.WorkerFence, WorkerID: s.assignment.WorkerID,
 			WorkerCount: s.assignment.WorkerCount, Sequence: grant.Sequence, Released: released,
+		}
+		if !application.Admitted {
+			s.grantInFlight = nil
+			close(task.done)
+			s.mu.Unlock()
+			if request.Context().Err() != nil {
+				return
+			}
+			writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			return
 		}
 		s.lastGrantRequest = grant
 		s.lastGrantResult = result
@@ -1249,12 +1265,12 @@ func (g *engineWorkerGeneration) UpdateRate(ctx context.Context, ratePerSecond, 
 	return g.engine.ScheduleRateContext(ctx, ratePerSecond, maxBurst)
 }
 
-func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64) error {
+func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {
 	if !g.externalGrants || !g.trafficReady.Load() {
-		return errWorkerServerConfig
+		return WorkerGrantApplication{}, errWorkerServerConfig
 	}
-	_, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
-	return err
+	result, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
+	return WorkerGrantApplication{Admitted: result.Admitted}, err
 }
 
 func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }

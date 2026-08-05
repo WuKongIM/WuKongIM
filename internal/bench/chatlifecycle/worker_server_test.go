@@ -266,6 +266,41 @@ func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T)
 	}
 }
 
+func TestWorkerServerCanceledGrantBeforeAdmissionAllowsSameSequenceRetry(t *testing.T) {
+	t.Parallel()
+
+	generation := &cancelBeforeGrantAdmissionGeneration{
+		fakeWorkerGeneration: newFakeWorkerGeneration(),
+		firstEntered:         make(chan struct{}),
+	}
+	server, fence := startWorkerServerForCoordinatorGeneration(t, generation, "grant-pre-admission-cancel")
+	grant := WorkerGrantRequest{
+		WorkerFence: fence, Sequence: 1, RatePerSecond: 120, MaxBurst: 240,
+		Fresh:    WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+	}
+
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		_ = workerRequestWithContext(
+			t, server, requestContext, http.MethodPost, "/v1/chat-lifecycle/grant", grant,
+		)
+	}()
+	<-generation.firstEntered
+	cancelRequest()
+	<-firstDone
+
+	result := assertWorkerGrantSuccess(t, server, grant)
+	if result.Sequence != grant.Sequence || result.Released != grant.Released.Worker0 {
+		t.Fatalf("retried grant response = %+v, want accepted sequence 1", result)
+	}
+	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
+		t.Fatalf("admitted grants = %v, want only successful retry", got)
+	}
+}
+
 func assertWorkerGrantSuccess(t *testing.T, server http.Handler, grant WorkerGrantRequest) WorkerGrantResponse {
 	t.Helper()
 	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
@@ -929,7 +964,7 @@ func TestWorkerEngineCoordinatorModeEmitsPrimaryOnlyFromExternalGrant(t *testing
 	if autonomous.Generated.Primary != 0 {
 		t.Fatalf("coordinator mode local allocator released %d primary messages", autonomous.Generated.Primary)
 	}
-	if err := worker.ApplyGrant(context.Background(), 4); err != nil {
+	if application, err := worker.ApplyGrant(context.Background(), 4); err != nil || !application.Admitted {
 		t.Fatalf("ApplyGrant: %v", err)
 	}
 	after, err := worker.Checkpoint(context.Background())
@@ -1753,6 +1788,23 @@ type fakeWorkerGeneration struct {
 	doneOnce     sync.Once
 }
 
+type cancelBeforeGrantAdmissionGeneration struct {
+	*fakeWorkerGeneration
+	firstEntered chan struct{}
+	calls        int
+}
+
+func (g *cancelBeforeGrantAdmissionGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {
+	g.calls++
+	if g.calls == 1 {
+		close(g.firstEntered)
+		<-ctx.Done()
+		return WorkerGrantApplication{}, ctx.Err()
+	}
+	g.grants = append(g.grants, released)
+	return WorkerGrantApplication{Admitted: true}, nil
+}
+
 type blockingStartWorkerGeneration struct {
 	*fakeWorkerGeneration
 	startEntered chan struct{}
@@ -1780,9 +1832,9 @@ func (g *fakeWorkerGeneration) UpdateRate(_ context.Context, ratePerSecond, maxB
 	return nil
 }
 
-func (g *fakeWorkerGeneration) ApplyGrant(_ context.Context, released uint64) error {
+func (g *fakeWorkerGeneration) ApplyGrant(_ context.Context, released uint64) (WorkerGrantApplication, error) {
 	g.grants = append(g.grants, released)
-	return g.grantErr
+	return WorkerGrantApplication{Admitted: true}, g.grantErr
 }
 
 func (g *fakeWorkerGeneration) TrafficReady() bool { return true }
