@@ -120,7 +120,9 @@ re-enters or passes admission, and still fails explicitly at its due time. Lease
 copies and scans at most 1,200 entries and sorts only after leaving the owner
 loop. It includes the highest successful initial SENDACK sequence and last
 activity time retained on each timer; completed and expired timers disappear
-through the existing cleanup.
+from live timer and candidate state through the existing cleanup. The sole
+completed-state exception is the bounded approval replay tombstone described
+below; it retains no raw channel identity or timer work.
 Each transient row carries a canonical person-channel ID, recomputed physical
 hash slot in the 256-slot space, its owning Slot Raft Group, quiet lower/upper
 bounds, deterministic reheat time, a generation-local timer token, and a
@@ -179,8 +181,15 @@ echo the channel ID; the server delegates to `engineWorkerGeneration`, which
 calls `ApproveColdRevisitContext`. Owner admission requires the exact canonical
 ID, timer token, and activity version, so a stale lease cannot approve a
 same-channel replacement timer or a timer with newer activity; exact replay is
-idempotent. Activity after approval clears admission and records a dedicated
-bounded harness failure, and the invalidated timer also fails explicitly rather
+idempotent. Before setting the timer's cold-confirmed bit, the owner records a
+generation-bound replay tombstone keyed by the generation-global timer token
+and containing only the activity version plus a SHA-256 digest of the canonical
+channel ID. A reverse digest-to-token index rejects same-channel ABA replacement
+without a scan. Both maps are capped at the 1,200-candidate cohort size and are
+reset by Start and Stop; capacity exhaustion is harness-invalid and leaves the
+live timer unconfirmed and indexed. This bounded digest tombstone is the only
+completed approval state. Activity after approval removes its exact tombstone,
+clears admission, and records a dedicated bounded harness failure, and the invalidated timer also fails explicitly rather
 than silently dropping at its due time. The approval only unlocks the existing
 deterministic revisit timer. The proof intentionally allows early approval only
 after the all-node cold observation and strictly before the deterministic
@@ -709,7 +718,7 @@ assignment is installed by preflight. A structurally healthy initial leader
 distribution is admitted; only the continuous observer owns the ten-minute
 leader-imbalance failure window. The product metrics registry materializes
 true zero series for the closed `max_channels` activation-rejection label and
-the three metadata-create results on stable physical Slot 1, so a clean cluster
+the three metadata-create results on stable logical Slot Raft Group 1, so a clean cluster
 still exposes every strictly required preflight family without inventing an
 event or treating a missing family as zero.
 

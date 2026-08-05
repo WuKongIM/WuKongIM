@@ -1247,6 +1247,8 @@ func failureCodeName(code FailureCode) string {
 		return "lifecycle_fence_exhausted"
 	case FailureCodeLifecycleLeaseInvalidated:
 		return "lifecycle_lease_invalidated"
+	case FailureCodeLifecycleReplaySaturated:
+		return "lifecycle_replay_saturated"
 	default:
 		return "unknown"
 	}

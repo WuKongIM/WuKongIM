@@ -81,6 +81,7 @@ const (
 	FailureCodeSessionSyncValidation
 	FailureCodeLifecycleFenceExhausted
 	FailureCodeLifecycleLeaseInvalidated
+	FailureCodeLifecycleReplaySaturated
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -274,7 +275,8 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 		case FailureCodeEngineQueueSaturated, FailureCodeEngineCPUSaturated,
 			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated,
 			FailureCodeOfferedLoadUnderDelivery, FailureCodeSessionSchedulerCPUSaturated,
-			FailureCodeLifecycleFenceExhausted, FailureCodeLifecycleLeaseInvalidated:
+			FailureCodeLifecycleFenceExhausted, FailureCodeLifecycleLeaseInvalidated,
+			FailureCodeLifecycleReplaySaturated:
 			return event.Stage == EvidenceStageCapacity
 		case FailureCodeSessionReadFailed:
 			return event.Stage == EvidenceStageReceive

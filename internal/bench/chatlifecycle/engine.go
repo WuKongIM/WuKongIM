@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"container/heap"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"math"
 	"math/bits"
@@ -448,6 +449,13 @@ type engineLifecycleCandidateEntry struct {
 	activityVersion uint64
 }
 
+// engineLifecycleApprovalReplay is one generation-bound idempotency tombstone.
+// It retains only a canonical identity digest, never the raw channel identity.
+type engineLifecycleApprovalReplay struct {
+	channelDigest   [sha256.Size]byte
+	activityVersion uint64
+}
+
 type engineLifecycleCandidateBucket struct {
 	items [lifecyclePerSlot]engineLifecycleCandidateEntry
 	count uint8
@@ -656,6 +664,11 @@ type Engine struct {
 	nextLifecycleTimerToken uint64
 	activeLifecycleTimers   int
 	lifecycleByChannel      map[string]*engineWork
+	// lifecycleApprovalReplays retains at most one completed approval per proof
+	// candidate. The reverse digest index rejects same-channel ABA replacements
+	// without scanning retained state or storing channel identities.
+	lifecycleApprovalReplays         map[uint64]engineLifecycleApprovalReplay
+	lifecycleApprovalReplayByChannel map[[sha256.Size]byte]uint64
 	// lifecycleCandidateSlots is the immutable no-migration mapping used to
 	// build the fixed twelve-by-one-hundred live lease index.
 	lifecycleCandidateSlots LifecycleSlotAssignment
@@ -802,6 +815,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.retries = retries
 	e.inflight = make(map[string]*engineInflight)
 	e.lifecycleByChannel = make(map[string]*engineWork)
+	e.lifecycleApprovalReplays = make(map[uint64]engineLifecycleApprovalReplay, lifecycleCohortSize)
+	e.lifecycleApprovalReplayByChannel = make(map[[sha256.Size]byte]uint64, lifecycleCohortSize)
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
 	e.pendingChannels = nil
@@ -892,6 +907,8 @@ func (e *Engine) Stop() error {
 	e.lifecycleMu.Lock()
 	e.running = false
 	e.stopping = false
+	e.lifecycleApprovalReplays = nil
+	e.lifecycleApprovalReplayByChannel = nil
 	e.cached.Running = false
 	e.cached.ActiveLoops = int(e.activeLoops.Load())
 	e.lifecycleMu.Unlock()
@@ -1309,6 +1326,11 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 			response <- approvalResult{err: errEngineNotRunning}
 			return
 		}
+		channelDigest := sha256.Sum256([]byte(personChannelID))
+		if replay, exists := e.lifecycleApprovalReplays[timerToken]; exists {
+			response <- approvalResult{approved: replay.activityVersion == activityVersion && replay.channelDigest == channelDigest}
+			return
+		}
 		work := e.lifecycleByChannel[personChannelID]
 		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
 			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion ||
@@ -1322,6 +1344,10 @@ func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID 
 		}
 		if !e.clock.Now().Before(work.due) {
 			response <- approvalResult{}
+			return
+		}
+		if err := e.retainLifecycleApprovalReplay(work); err != nil {
+			response <- approvalResult{err: err}
 			return
 		}
 		work.coldConfirmed = true
@@ -2297,10 +2323,68 @@ func (e *Engine) installLifecycleTimer(work *engineWork) {
 	if work == nil || work.edge.PersonChannelID == "" {
 		return
 	}
+	e.removeLifecycleApprovalReplayForChannel(work.edge.PersonChannelID, work.lifecycleTimerToken)
 	if existing := e.lifecycleByChannel[work.edge.PersonChannelID]; existing != nil && existing != work {
 		e.removeLifecycleCandidate(existing)
 	}
 	e.lifecycleByChannel[work.edge.PersonChannelID] = work
+}
+
+// retainLifecycleApprovalReplay linearizes approval idempotency before the
+// live timer becomes cold-confirmed. Capacity exhaustion is harness-invalid,
+// so an approval is never returned without a replay record.
+func (e *Engine) retainLifecycleApprovalReplay(work *engineWork) error {
+	if work == nil || work.edge.PersonChannelID == "" || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
+		e.lifecycleApprovalReplays == nil || e.lifecycleApprovalReplayByChannel == nil {
+		return errEngineConfig
+	}
+	digest := sha256.Sum256([]byte(work.edge.PersonChannelID))
+	if replay, exists := e.lifecycleApprovalReplays[work.lifecycleTimerToken]; exists {
+		if replay.channelDigest == digest && replay.activityVersion == work.activityVersion {
+			return nil
+		}
+		return e.recordRuntimeFailure(RuntimeFailureLifecycleReplaySaturated, uint64(len(e.lifecycleApprovalReplays)))
+	}
+	previousToken, replacesChannel := e.lifecycleApprovalReplayByChannel[digest]
+	if !replacesChannel && len(e.lifecycleApprovalReplays) >= lifecycleCohortSize {
+		return e.recordRuntimeFailure(RuntimeFailureLifecycleReplaySaturated, lifecycleCohortSize)
+	}
+	if replacesChannel {
+		delete(e.lifecycleApprovalReplays, previousToken)
+	}
+	e.lifecycleApprovalReplays[work.lifecycleTimerToken] = engineLifecycleApprovalReplay{
+		channelDigest: digest, activityVersion: work.activityVersion,
+	}
+	e.lifecycleApprovalReplayByChannel[digest] = work.lifecycleTimerToken
+	return nil
+}
+
+func (e *Engine) removeLifecycleApprovalReplay(work *engineWork) {
+	if work == nil || work.edge.PersonChannelID == "" {
+		return
+	}
+	digest := sha256.Sum256([]byte(work.edge.PersonChannelID))
+	replay, exists := e.lifecycleApprovalReplays[work.lifecycleTimerToken]
+	if !exists || replay.channelDigest != digest || replay.activityVersion != work.activityVersion {
+		return
+	}
+	delete(e.lifecycleApprovalReplays, work.lifecycleTimerToken)
+	if token, indexed := e.lifecycleApprovalReplayByChannel[digest]; indexed && token == work.lifecycleTimerToken {
+		delete(e.lifecycleApprovalReplayByChannel, digest)
+	}
+}
+
+func (e *Engine) removeLifecycleApprovalReplayForChannel(personChannelID string, exceptToken uint64) {
+	if personChannelID == "" {
+		return
+	}
+	digest := sha256.Sum256([]byte(personChannelID))
+	token, exists := e.lifecycleApprovalReplayByChannel[digest]
+	if !exists || token == exceptToken {
+		return
+	}
+	delete(e.lifecycleApprovalReplays, token)
+	delete(e.lifecycleApprovalReplayByChannel, digest)
 }
 
 // offerLifecycleCandidate keeps every production-eligible live timer in the
@@ -2658,6 +2742,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			wasConfirmed := lifecycle.coldConfirmed
 			lifecycle.coldConfirmed = false
 			if wasConfirmed {
+				e.removeLifecycleApprovalReplay(lifecycle)
 				lifecycle.lifecycleLeaseInvalidated = true
 				lifecycleErr = e.recordRuntimeFailure(RuntimeFailureLifecycleLeaseInvalidated, lifecycle.activityVersion)
 			}
@@ -3144,6 +3229,8 @@ func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) err
 		failureCode = FailureCodeLifecycleFenceExhausted
 	case RuntimeFailureLifecycleLeaseInvalidated:
 		failureCode = FailureCodeLifecycleLeaseInvalidated
+	case RuntimeFailureLifecycleReplaySaturated:
+		failureCode = FailureCodeLifecycleReplaySaturated
 	}
 	_ = e.evidence.Record(EvidenceEvent{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: failureCode, Value: value})
 	return &RuntimeError{code: code}

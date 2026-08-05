@@ -61,6 +61,7 @@ const (
 	RuntimeFailureClockMovedBackwards       RuntimeFailureCode = "engine_clock_moved_backwards"
 	RuntimeFailureLifecycleFenceExhausted   RuntimeFailureCode = "lifecycle_fence_exhausted"
 	RuntimeFailureLifecycleLeaseInvalidated RuntimeFailureCode = "lifecycle_lease_invalidated"
+	RuntimeFailureLifecycleReplaySaturated  RuntimeFailureCode = "lifecycle_replay_saturated"
 )
 
 // RuntimeError is redacted worker-runtime evidence with harness ownership.
