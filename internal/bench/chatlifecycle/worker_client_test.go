@@ -1,12 +1,16 @@
 package chatlifecycle
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestWorkerClientSendsAuthenticatedTypedRequestsAndRejectsUnknownResponses(t *testing.T) {
@@ -87,6 +91,144 @@ func TestWorkerClientReturnsStructuredAPIErrorAndHonorsContextCancellation(t *te
 	cancel()
 	if _, err := client.Status(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("status error = %v, want context canceled", err)
+	}
+}
+
+func TestWorkerClientClassifiesTransportCancellationCausally(t *testing.T) {
+	t.Run("ordinary request error survives synchronous late cancel", func(t *testing.T) {
+		ordinaryErr := errors.New("injected ordinary transport error")
+		ctx, cancel := context.WithCancel(context.Background())
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: workerRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				cancel()
+				return nil, ordinaryErr
+			})},
+		})
+		if err != nil {
+			t.Fatalf("NewWorkerClient() error = %v", err)
+		}
+		if _, err := client.Status(ctx); !errors.Is(err, ordinaryErr) || errors.Is(err, context.Canceled) {
+			t.Fatalf("Status() error = %v, want ordinary transport error", err)
+		}
+	})
+
+	t.Run("causal request cancellation returns context canceled", func(t *testing.T) {
+		entered := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: workerRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				close(entered)
+				<-request.Context().Done()
+				return nil, request.Context().Err()
+			})},
+		})
+		if err != nil {
+			t.Fatalf("NewWorkerClient() error = %v", err)
+		}
+		result := make(chan error, 1)
+		go func() {
+			_, requestErr := client.Status(ctx)
+			result <- requestErr
+		}()
+		<-entered
+		cancel()
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("Status() error = %v, want context canceled", err)
+		}
+	})
+
+	t.Run("causal body cancellation after headers returns context canceled", func(t *testing.T) {
+		bodyEntered := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: workerRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       &cancelingWorkerResponseBody{ctx: request.Context(), entered: bodyEntered},
+				}, nil
+			})},
+		})
+		if err != nil {
+			t.Fatalf("NewWorkerClient() error = %v", err)
+		}
+		result := make(chan error, 1)
+		go func() {
+			_, requestErr := client.Status(ctx)
+			result <- requestErr
+		}()
+		<-bodyEntered
+		cancel()
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("Status() body error = %v, want context canceled", err)
+		}
+	})
+
+	t.Run("ordinary body error keeps stable response classification", func(t *testing.T) {
+		ordinaryErr := errors.New("injected ordinary body error")
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: workerRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK, Header: make(http.Header),
+					Body: &errorWorkerResponseBody{err: ordinaryErr},
+				}, nil
+			})},
+		})
+		if err != nil {
+			t.Fatalf("NewWorkerClient() error = %v", err)
+		}
+		if _, err := client.Status(context.Background()); !errors.Is(err, ErrWorkerResponse) || errors.Is(err, ordinaryErr) {
+			t.Fatalf("Status() body error = %v, want stable ErrWorkerResponse", err)
+		}
+	})
+}
+
+func TestWorkerClientOrdinaryTransportErrorRemainsCoordinatorStageEvidenceAfterCancel(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "worker-client-coordinator-transport-cause"
+	assignments, err := BuildCoordinatorAssignments(cfg, 41)
+	if err != nil {
+		t.Fatalf("BuildCoordinatorAssignments() error = %v", err)
+	}
+	ordinaryErr := errors.New("injected ordinary status transport error")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workerID := workerID
+		transport := workerRoundTripFunc(func(*http.Request) (*http.Response, error) {
+			if workerID == 0 {
+				cancel()
+				return nil, ordinaryErr
+			}
+			encoded, marshalErr := json.Marshal(WorkerStatus{
+				RunID: assignments[workerID].RunID, AssignmentID: assignments[workerID].AssignmentID,
+				Generation: assignments[workerID].Generation, WorkerID: uint64(workerID),
+				WorkerCount: coordinatorWorkerCount, Phase: WorkerPhaseRunning, TrafficReady: true,
+			})
+			if marshalErr != nil {
+				return nil, marshalErr
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(encoded)),
+			}, nil
+		})
+		client, clientErr := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: transport},
+		})
+		if clientErr != nil {
+			t.Fatalf("NewWorkerClient(worker=%d) error = %v", workerID, clientErr)
+		}
+		workers[workerID] = client
+	}
+	coordinator := &Coordinator{workers: workers, roundTimeout: time.Second}
+	if _, disposition := coordinator.statusRound(ctx, assignments); disposition != coordinatorRoundStageFailed {
+		t.Fatalf("statusRound() disposition = %v, want stage failure", disposition)
 	}
 }
 
@@ -173,3 +315,28 @@ func TestWorkerClientRejectsOversizedAndUnboundedSnapshotResponses(t *testing.T)
 		t.Fatalf("unbounded snapshot error = %v, want ErrWorkerResponse", err)
 	}
 }
+
+type workerRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f workerRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
+}
+
+type cancelingWorkerResponseBody struct {
+	ctx     context.Context
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (b *cancelingWorkerResponseBody) Read([]byte) (int, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (*cancelingWorkerResponseBody) Close() error { return nil }
+
+type errorWorkerResponseBody struct{ err error }
+
+func (b *errorWorkerResponseBody) Read([]byte) (int, error) { return 0, b.err }
+func (*errorWorkerResponseBody) Close() error               { return nil }

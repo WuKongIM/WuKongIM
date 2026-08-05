@@ -135,8 +135,8 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 	}
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
+		if ctxErr := causalWorkerContextError(ctx, err); ctxErr != nil {
+			return ctxErr
 		}
 		return err
 	}
@@ -144,7 +144,13 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 
 	limited := io.LimitReader(response.Body, c.maxResponse+1)
 	encoded, err := io.ReadAll(limited)
-	if err != nil || int64(len(encoded)) > c.maxResponse {
+	if err != nil {
+		if ctxErr := causalWorkerContextError(ctx, err); ctxErr != nil {
+			return ctxErr
+		}
+		return ErrWorkerResponse
+	}
+	if int64(len(encoded)) > c.maxResponse {
 		return ErrWorkerResponse
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
@@ -157,6 +163,14 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 	}
 	if responseBody == nil || !decodeStrictWorkerResponse(encoded, responseBody) || !validTypedWorkerResponse(responseBody) {
 		return ErrWorkerResponse
+	}
+	return nil
+}
+
+func causalWorkerContextError(ctx context.Context, err error) error {
+	ctxErr := ctx.Err()
+	if ctxErr != nil && errors.Is(err, ctxErr) {
+		return ctxErr
 	}
 	return nil
 }

@@ -392,9 +392,6 @@ func TestCoordinatorTrafficReadinessIsBoundedByWarmupDeadline(t *testing.T) {
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
 	<-clock.created
 	clock.advance(cfg.Thresholds.Timeline.Warmup)
-	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-		<-statusCalls
-	}
 	select {
 	case result := <-resultChannel:
 		if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeRuntime {
@@ -402,6 +399,99 @@ func TestCoordinatorTrafficReadinessIsBoundedByWarmupDeadline(t *testing.T) {
 		}
 	case <-time.After(250 * time.Millisecond):
 		t.Fatal("traffic readiness remained unbounded beyond warmup deadline")
+	}
+	select {
+	case workerID := <-statusCalls:
+		t.Fatalf("worker %d received a readiness status request at the strict warmup deadline", workerID)
+	default:
+	}
+}
+
+func TestCoordinatorReadinessRoundMustFinishStrictlyBeforeWarmupDeadline(t *testing.T) {
+	const (
+		warmup            = 3 * time.Second
+		firstTick         = time.Second
+		expectedRemaining = warmup - firstTick
+	)
+	tests := []struct {
+		name          string
+		finishAdvance time.Duration
+		wantOutcome   CoordinatorOutcome
+		wantCode      CoordinatorCode
+	}{
+		{name: "ready before deadline succeeds", wantOutcome: CoordinatorProductFailure, wantCode: CoordinatorCodeObserver},
+		{name: "ready at deadline is rejected", finishAdvance: expectedRemaining, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeRuntime},
+		{name: "ready after deadline is rejected", finishAdvance: expectedRemaining + time.Second, wantOutcome: CoordinatorHarnessInvalid, wantCode: CoordinatorCodeRuntime},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.RunID = "coordinator-ready-boundary-" + strings.ReplaceAll(test.name, " ", "-")
+			cfg.Thresholds.Timeline.Warmup = warmup
+			clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+			statusEntered := make(chan readinessStatusContext, coordinatorWorkerCount)
+			statusRelease := make(chan struct{})
+			grantCalls := make(chan uint64, coordinatorWorkerCount)
+			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+			for workerID := range workers {
+				workers[workerID] = &gatedReadinessCoordinatorWorker{
+					recordingCoordinatorWorker: &recordingCoordinatorWorker{
+						id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+					},
+					entered: statusEntered, release: statusRelease,
+				}
+			}
+			coordinator, err := NewCoordinator(CoordinatorOptions{
+				Generation: 42,
+				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+				}),
+				Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+				Workers: workers,
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					for received := 0; received < coordinatorWorkerCount; received++ {
+						select {
+						case <-grantCalls:
+						case <-ctx.Done():
+							return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+						}
+					}
+					return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+				}),
+				Clock: clock,
+			})
+			if err != nil {
+				t.Fatalf("NewCoordinator() error = %v", err)
+			}
+			resultChannel := make(chan CoordinatorResult, 1)
+			go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+			if period := <-clock.created; period != time.Second {
+				t.Fatalf("readiness ticker period = %s, want 1s", period)
+			}
+			clock.advance(firstTick)
+			contexts := make([]readinessStatusContext, 0, coordinatorWorkerCount)
+			for len(contexts) < coordinatorWorkerCount {
+				contexts = append(contexts, <-statusEntered)
+			}
+			if test.finishAdvance > 0 {
+				clock.advance(test.finishAdvance)
+			}
+			close(statusRelease)
+
+			select {
+			case result := <-resultChannel:
+				if result.Outcome != test.wantOutcome || result.Code != test.wantCode {
+					t.Fatalf("Run() = %+v, want %s/%s", result, test.wantOutcome, test.wantCode)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Run() did not finish after readiness status release")
+			}
+			for _, observed := range contexts {
+				if !observed.hasDeadline || observed.remaining <= 0 || observed.remaining > expectedRemaining {
+					t.Fatalf("worker %d status deadline remaining = %s/%v, want (0,%s]", observed.workerID, observed.remaining, observed.hasDeadline, expectedRemaining)
+				}
+			}
+		})
 	}
 }
 
@@ -478,12 +568,14 @@ func TestCoordinatorReadinessTimeoutPreservesObserverProductRace(t *testing.T) {
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
 	<-clock.created
 	clock.advance(time.Second)
-	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-		<-statusCalls
-	}
 	result := <-resultChannel
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
 		t.Fatalf("Run() readiness timeout race = %+v, want product_failure/observer", result)
+	}
+	select {
+	case workerID := <-statusCalls:
+		t.Fatalf("worker %d received a readiness status request at the strict warmup deadline", workerID)
+	default:
 	}
 }
 
@@ -2106,6 +2198,12 @@ type coordinatorStatusContext struct {
 	hasDeadline bool
 }
 
+type readinessStatusContext struct {
+	workerID    uint64
+	remaining   time.Duration
+	hasDeadline bool
+}
+
 type coordinatorGrantContext struct {
 	workerID    uint64
 	request     WorkerGrantRequest
@@ -2568,6 +2666,27 @@ type staggeredReadyCoordinatorWorker struct {
 	readyAfter  int
 	statusCount int
 	statusCalls chan<- uint64
+}
+
+type gatedReadinessCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	entered chan<- readinessStatusContext
+	release <-chan struct{}
+}
+
+func (w *gatedReadinessCoordinatorWorker) Start(ctx context.Context, request WorkerStartRequest) (WorkerStatus, error) {
+	status, err := w.recordingCoordinatorWorker.Start(ctx, request)
+	status.TrafficReady = false
+	return status, err
+}
+
+func (w *gatedReadinessCoordinatorWorker) Status(ctx context.Context) (WorkerStatus, error) {
+	deadline, ok := ctx.Deadline()
+	w.entered <- readinessStatusContext{workerID: w.id, remaining: time.Until(deadline), hasDeadline: ok}
+	<-w.release
+	status := w.status(WorkerPhaseRunning)
+	status.TrafficReady = true
+	return status, nil
 }
 
 func (w *staggeredReadyCoordinatorWorker) Start(ctx context.Context, request WorkerStartRequest) (WorkerStatus, error) {

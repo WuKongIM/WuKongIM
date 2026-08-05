@@ -107,6 +107,11 @@ fixed arrays, and the verifier's at-most-four evidence classes with at most 64
 first and 64 last redacted examples per class. No worker response enumerates a
 UID or channel. Checkpoint reads engine and generator counters through one
 engine-owner command; it neither pauses nor restarts workload generation.
+The worker client normalizes a request or response-body error to the supplied
+context error only when the transport error causally wraps that exact context
+error. A non-context request error remains the original transport error even if
+the caller is canceled just afterward; an ordinary response-body read error
+retains the stable `ErrWorkerResponse` classification.
 
 The assignment generation is the exact checked `Engine` generation rather
 than an HTTP-only snapshot overlay. Zero, overflow, reuse, and rollback are
@@ -653,10 +658,14 @@ the configured global online prefix without overlap or gaps. A single
 coordinator `RateAllocator` owns the `1/1/1` rate-weight vector and the one
 global two-second credit bound. No allocator tick is consumed until all three
 version-2 statuses report traffic-ready; this bootstrap barrier is bounded by
-the configured warmup duration. Continuous observation starts immediately
-after the successful Start round and remains active throughout that readiness
-barrier, so a product or harness result can terminate bootstrap. The coordinator
-then produces one complete
+the configured warmup duration. A readiness poll starts only while the injected
+clock is strictly before the warmup deadline, and its shared context is capped
+by the smaller of the normal status timeout and the remaining warmup. All three
+ready responses are accepted only if the poll also finishes strictly before
+that deadline; equality is timeout, not success. Continuous observation starts
+immediately after the successful Start round and remains active throughout that
+readiness barrier, so a product or harness result can terminate bootstrap. The
+coordinator then produces one complete
 fixed three-worker grant vector per logical second and sends that same vector,
 sequence, rate, burst, and credit evidence to all three exact-fence grant
 endpoints concurrently. One transport failure may retry the identical sequence;

@@ -802,7 +802,11 @@ func (c *Coordinator) waitForTrafficReady(
 				return false, ObserverResult{}, false, coordinatorRoundParentCanceled
 			}
 		case <-ticker.C():
-			observed, roundDisposition := c.statusRound(ctx, assignments)
+			now := c.clock.Now()
+			if !now.Before(deadline) {
+				return false, ObserverResult{}, false, coordinatorRoundStageFailed
+			}
+			observed, roundDisposition := c.statusRoundWithin(ctx, assignments, deadline.Sub(now))
 			if roundDisposition != coordinatorRoundSucceeded {
 				select {
 				case result = <-observation:
@@ -811,11 +815,11 @@ func (c *Coordinator) waitForTrafficReady(
 					return false, ObserverResult{}, false, roundDisposition
 				}
 			}
-			if allCoordinatorTrafficReady(observed) {
-				return true, ObserverResult{}, false, coordinatorRoundSucceeded
-			}
 			if !c.clock.Now().Before(deadline) {
 				return false, ObserverResult{}, false, coordinatorRoundStageFailed
+			}
+			if allCoordinatorTrafficReady(observed) {
+				return true, ObserverResult{}, false, coordinatorRoundSucceeded
 			}
 		}
 	}
@@ -882,7 +886,18 @@ func (c *Coordinator) statusRound(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
 ) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
-	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
+	return c.statusRoundWithin(parent, assignments, c.roundTimeout)
+}
+
+func (c *Coordinator) statusRoundWithin(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	maximum time.Duration,
+) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
+	if maximum <= 0 {
+		return [coordinatorWorkerCount]WorkerStatus{}, coordinatorRoundStageFailed
+	}
+	roundContext, cancel := context.WithTimeoutCause(parent, min(c.roundTimeout, maximum), errCoordinatorRoundDeadline)
 	defer cancel()
 	type statusResult struct {
 		status WorkerStatus
