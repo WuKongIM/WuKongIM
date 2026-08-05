@@ -1321,6 +1321,79 @@ func TestCoordinatorOuterCancellationDuringControlRoundIsStopped(t *testing.T) {
 	}
 }
 
+func TestCoordinatorStageFailureBeforeOuterCancellationKeepsStageFailure(t *testing.T) {
+	for _, stage := range []CoordinatorCode{
+		CoordinatorCodeAssignment,
+		CoordinatorCodeStart,
+		CoordinatorCodeCheckpoint,
+	} {
+		t.Run(string(stage), func(t *testing.T) {
+			cfg := LocalConfig()
+			cfg.RunID = "coordinator-failure-before-cancel-" + string(stage)
+			cfg.Observation.Cadence = 500 * time.Millisecond
+			cfg.Thresholds.Timeline = TimelineThresholds{
+				Warmup: 100 * time.Millisecond, Checkpoint: time.Second, Final: 1500 * time.Millisecond,
+			}
+			gate := newCoordinatorFailureCancellationGate()
+			log := []string{}
+			workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+			for workerID := range workers {
+				workers[workerID] = &failureThenCancellationCoordinatorWorker{
+					recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &log},
+					stage:                      stage,
+					gate:                       gate,
+				}
+			}
+			observerStarted := make(chan struct{})
+			options := CoordinatorOptions{
+				Generation: 37,
+				Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+					return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+				}),
+				Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+				Workers: workers,
+				Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+					close(observerStarted)
+					<-ctx.Done()
+					return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+				}),
+				RoundTimeout: time.Second,
+			}
+			var clock *manualCoordinatorClock
+			if stage == CoordinatorCodeCheckpoint {
+				clock = newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+				options.Clock = clock
+			}
+			coordinator, err := NewCoordinator(options)
+			if err != nil {
+				t.Fatalf("NewCoordinator() error = %v", err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			resultChannel := make(chan CoordinatorResult, 1)
+			go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+			if stage == CoordinatorCodeCheckpoint {
+				<-observerStarted
+				for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+					<-clock.created
+				}
+				clock.advance(cfg.Thresholds.Timeline.Final)
+			}
+			<-gate.failureReturned
+			<-gate.otherWorkersBlocked
+			cancel()
+
+			select {
+			case result := <-resultChannel:
+				if result.Outcome != CoordinatorHarnessInvalid || result.Code != stage {
+					t.Fatalf("Run() failure then cancellation during %s = %+v, want harness_invalid/%s", stage, result, stage)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("Run() did not preserve failure before cancellation during %s", stage)
+			}
+		})
+	}
+}
+
 func TestBlockingGrantProbeDetectsSequentialDispatch(t *testing.T) {
 	probe := &grantRoundProbe{}
 	workers := make([]*blockingGrantCoordinatorWorker, coordinatorWorkerCount)
@@ -1787,6 +1860,80 @@ type coordinatorCancellationGate struct {
 	mu         sync.Mutex
 	entered    int
 	allEntered chan struct{}
+}
+
+type coordinatorFailureCancellationGate struct {
+	mu                  sync.Mutex
+	blocked             int
+	failureReturned     chan struct{}
+	otherWorkersBlocked chan struct{}
+}
+
+func newCoordinatorFailureCancellationGate() *coordinatorFailureCancellationGate {
+	return &coordinatorFailureCancellationGate{
+		failureReturned:     make(chan struct{}),
+		otherWorkersBlocked: make(chan struct{}),
+	}
+}
+
+func (g *coordinatorFailureCancellationGate) blockUntilCancellation(ctx context.Context) {
+	g.mu.Lock()
+	g.blocked++
+	if g.blocked == coordinatorWorkerCount-1 {
+		close(g.otherWorkersBlocked)
+	}
+	g.mu.Unlock()
+	<-ctx.Done()
+}
+
+type failureThenCancellationCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	stage CoordinatorCode
+	gate  *coordinatorFailureCancellationGate
+}
+
+func (w *failureThenCancellationCoordinatorWorker) stageResult(ctx context.Context) error {
+	if w.id == 0 {
+		defer close(w.gate.failureReturned)
+		return errors.New("injected stage failure before cancellation")
+	}
+	w.gate.blockUntilCancellation(ctx)
+	return nil
+}
+
+func (w *failureThenCancellationCoordinatorWorker) Assign(ctx context.Context, assignment WorkerAssignment) (WorkerStatus, error) {
+	if w.stage != CoordinatorCodeAssignment {
+		return w.recordingCoordinatorWorker.Assign(ctx, assignment)
+	}
+	appendCoordinatorTestLog(w.log, "assign-"+strconv.FormatUint(w.id, 10))
+	w.attempted, w.assignment = assignment, assignment
+	if err := w.stageResult(ctx); err != nil {
+		return WorkerStatus{}, err
+	}
+	return w.status(WorkerPhaseAssigned), nil
+}
+
+func (w *failureThenCancellationCoordinatorWorker) Start(ctx context.Context, request WorkerStartRequest) (WorkerStatus, error) {
+	if w.stage != CoordinatorCodeStart {
+		return w.recordingCoordinatorWorker.Start(ctx, request)
+	}
+	appendCoordinatorTestLog(w.log, "start-"+strconv.FormatUint(w.id, 10))
+	if err := w.stageResult(ctx); err != nil {
+		return WorkerStatus{}, err
+	}
+	return w.status(WorkerPhaseRunning), nil
+}
+
+func (w *failureThenCancellationCoordinatorWorker) Checkpoint(ctx context.Context, request WorkerCheckpointRequest) (WorkerSnapshot, error) {
+	if w.stage != CoordinatorCodeCheckpoint {
+		return w.recordingCoordinatorWorker.Checkpoint(ctx, request)
+	}
+	appendCoordinatorTestLog(w.log, "checkpoint-"+strconv.FormatUint(w.id, 10))
+	if err := w.stageResult(ctx); err != nil {
+		return WorkerSnapshot{}, err
+	}
+	w.sequence++
+	return w.snapshot(WorkerPhaseRunning), nil
 }
 
 func newCoordinatorCancellationGate() *coordinatorCancellationGate {

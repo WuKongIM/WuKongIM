@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -2359,6 +2360,106 @@ func TestEngineTickRejectsOwnerTimeRollbackWithoutGeneratorMutation(t *testing.T
 	}
 	if afterGenerator := fixture.engine.generator.Snapshot(); !reflect.DeepEqual(afterGenerator, beforeGenerator) {
 		t.Fatalf("rollback Tick mutated generator:\nbefore = %#v\nafter  = %#v", beforeGenerator, afterGenerator)
+	}
+}
+
+func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 100, NewUsersPerDay: 250_000, WorkCapacity: 8_192, MaxWorkPerAdvance: 8_192,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	now := fixture.clock.Now().Add(30 * time.Second)
+	fixture.clock.Set(now)
+	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("bootstrap Step: %v", err)
+	}
+	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
+	if bootstrap.Online != 100 {
+		t.Fatalf("bootstrap online = %d, want 100", bootstrap.Online)
+	}
+
+	beforeOwner := captureCanceledAdvanceState(t, fixture)
+	sort.Slice(beforeOwner.sessions, func(left, right int) bool {
+		return beforeOwner.sessions[left].UID < beforeOwner.sessions[right].UID
+	})
+	beforeGenerator := fixture.engine.generator.Snapshot()
+	entered, release := blockEngineOwner(t, fixture.engine)
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	<-entered
+	ctx, cancel := context.WithCancel(context.Background())
+	type grantCallResult struct {
+		result EngineGrantResult
+		err    error
+	}
+	callDone := make(chan grantCallResult, 1)
+	go func() {
+		result, callErr := fixture.engine.ApplyGrant(ctx, now, 10)
+		callDone <- grantCallResult{result: result, err: callErr}
+	}()
+	waitForEngineQueuedCommand(t, fixture.engine)
+	cancel()
+	canceled := <-callDone
+	if canceled.result.Admitted || !errors.Is(canceled.err, context.Canceled) {
+		close(release)
+		released = true
+		t.Fatalf("pre-admission canceled grant = %+v, %v; want not admitted/context canceled", canceled.result, canceled.err)
+	}
+	close(release)
+	released = true
+	afterOwner := captureCanceledAdvanceState(t, fixture)
+	sort.Slice(afterOwner.sessions, func(left, right int) bool {
+		return afterOwner.sessions[left].UID < afterOwner.sessions[right].UID
+	})
+	if !reflect.DeepEqual(afterOwner, beforeOwner) {
+		t.Fatalf("pre-admission canceled grant mutated owner state:\nbefore = %#v\nafter  = %#v", beforeOwner, afterOwner)
+	}
+	if afterGenerator := fixture.engine.generator.Snapshot(); !reflect.DeepEqual(afterGenerator, beforeGenerator) {
+		t.Fatalf("pre-admission canceled grant mutated generator:\nbefore = %#v\nafter  = %#v", beforeGenerator, afterGenerator)
+	}
+
+	sentBefore := fixture.factory.sentCount()
+	retried, err := fixture.engine.ApplyGrant(context.Background(), now, 10)
+	if err != nil || !retried.Admitted || retried.Snapshot.Released != 10 {
+		t.Fatalf("retried grant = %+v, %v; want admitted release 10", retried, err)
+	}
+	if got := fixture.engine.generator.Snapshot().PrimaryReleased - beforeGenerator.PrimaryReleased; got != 10 {
+		t.Fatalf("retried grant generated primary delta %d, want exactly 10", got)
+	}
+	if got := fixture.factory.sentCount() - sentBefore; got != 10 {
+		t.Fatalf("retried grant sent %d messages, want exactly 10", got)
+	}
+}
+
+func TestEngineApplyGrantErrorAfterAdmissionReportsAdmitted(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	result, err := fixture.engine.ApplyGrant(context.Background(), fixture.clock.Now(), 1)
+	if !result.Admitted {
+		t.Fatalf("post-admission grant result = %+v, want admitted error", result)
+	}
+	var runtimeErr *RuntimeError
+	if !errors.As(err, &runtimeErr) || runtimeErr.Code() != RuntimeFailureUnderDelivery {
+		t.Fatalf("post-admission grant error = %v, want under-delivery RuntimeError", err)
+	}
+	snapshot, snapshotErr := fixture.engine.Snapshot()
+	if snapshotErr != nil {
+		t.Fatalf("Snapshot: %v", snapshotErr)
+	}
+	if snapshot.HarnessInvalid != 1 {
+		t.Fatalf("post-admission error owner mutation = %+v, want one harness failure", snapshot)
 	}
 }
 

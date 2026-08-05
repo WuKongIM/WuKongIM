@@ -691,9 +691,14 @@ requests with one shared at-most-five-second deadline, join every attempted
 request, reject a valid-looking result returned after that deadline, and
 validate results in worker-index order. Every grant round uses the same bounded
 concurrent shape with the stricter one-second cap. A blocked control request
-therefore cannot starve the final cutoff indefinitely. Outer operator
-cancellation during assignment, Start, or final checkpoint takes precedence as
-`stopped`; a canceled final checkpoint is never aggregated as completed.
+therefore cannot starve the final cutoff indefinitely. Each control round
+retains whether an error or invalid response completed while the parent context
+was still live. That prior stage evidence remains `harness_invalid` even when a
+later outer cancellation releases other workers. Outer operator cancellation
+during assignment, Start, or final checkpoint becomes `stopped` only when the
+round has no earlier stage-failure evidence; a canceled final checkpoint is
+never aggregated as completed. A child deadline or ordinary validation failure
+remains a stage failure.
 Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.

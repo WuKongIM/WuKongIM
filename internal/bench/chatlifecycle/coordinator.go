@@ -20,6 +20,8 @@ const (
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
 
+var errCoordinatorRoundDeadline = errors.New("chat lifecycle coordinator: control round deadline")
+
 var (
 	ErrCoordinatorSnapshotCount      = errors.New("chat lifecycle coordinator: snapshot count must equal three")
 	ErrCoordinatorSnapshotFence      = errors.New("chat lifecycle coordinator: snapshot fence mismatch")
@@ -57,6 +59,14 @@ const (
 	CoordinatorCodeFinalize        CoordinatorCode = "finalize"
 	CoordinatorCodeGenerationReuse CoordinatorCode = "generation_reuse"
 	CoordinatorCodeStopped         CoordinatorCode = "stopped"
+)
+
+type coordinatorRoundDisposition uint8
+
+const (
+	coordinatorRoundSucceeded coordinatorRoundDisposition = iota
+	coordinatorRoundStageFailed
+	coordinatorRoundParentCanceled
 )
 
 // CoordinatorResult contains only bounded orchestration state.
@@ -197,10 +207,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	result := CoordinatorResult{Fence: fence}
 	attempted := [coordinatorWorkerCount]bool{true, true, true}
 	assigned := [coordinatorWorkerCount]bool{}
-	if _, valid := c.assignRound(ctx, assignments); !valid {
-		canceled := ctx.Err() != nil
+	if _, disposition := c.assignRound(ctx, assignments); disposition != coordinatorRoundSucceeded {
 		c.stopAfterFailure(fence, attempted)
-		if canceled {
+		if disposition == coordinatorRoundParentCanceled {
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
@@ -213,11 +222,10 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		return result
 	}
 	assigned = [coordinatorWorkerCount]bool{true, true, true}
-	startStatuses, valid := c.startRound(ctx, assignments, fence)
-	if !valid {
-		canceled := ctx.Err() != nil
+	startStatuses, disposition := c.startRound(ctx, assignments, fence)
+	if disposition != coordinatorRoundSucceeded {
 		c.stopAfterFailure(fence, attempted)
-		if canceled {
+		if disposition == coordinatorRoundParentCanceled {
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
@@ -480,11 +488,10 @@ observationComplete:
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
 		return result
 	}
-	checkpoint, valid := c.checkpointRound(ctx, assignments, fence)
-	if !valid {
-		canceled := ctx.Err() != nil
+	checkpoint, disposition := c.checkpointRound(ctx, assignments, fence)
+	if disposition != coordinatorRoundSucceeded {
 		c.stopAfterFailure(fence, attempted)
-		if canceled {
+		if disposition == coordinatorRoundParentCanceled {
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
@@ -544,15 +551,16 @@ func allCoordinatorTrafficReady(statuses [coordinatorWorkerCount]WorkerStatus) b
 	return true
 }
 
-func (c *Coordinator) assignRound(parent context.Context, assignments []CoordinatorAssignment) ([coordinatorWorkerCount]WorkerStatus, bool) {
+func (c *Coordinator) assignRound(parent context.Context, assignments []CoordinatorAssignment) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
 	if len(assignments) != coordinatorWorkerCount {
-		return [coordinatorWorkerCount]WorkerStatus{}, false
+		return [coordinatorWorkerCount]WorkerStatus{}, coordinatorRoundStageFailed
 	}
-	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type assignmentResult struct {
-		status WorkerStatus
-		err    error
+		status                     WorkerStatus
+		valid                      bool
+		failedBeforeParentCanceled bool
 	}
 	results := [coordinatorWorkerCount]assignmentResult{}
 	var wait sync.WaitGroup
@@ -560,38 +568,47 @@ func (c *Coordinator) assignRound(parent context.Context, assignments []Coordina
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		go func() {
 			defer wait.Done()
-			results[workerID].status, results[workerID].err = c.workers[workerID].Assign(
+			result := &results[workerID]
+			status, err := c.workers[workerID].Assign(
 				roundContext, assignments[workerID].WorkerAssignment,
 			)
+			parentWasLive := parent.Err() == nil
+			result.status = status
+			result.valid = err == nil && validCoordinatorStatus(
+				status, assignments[workerID].WorkerAssignment, WorkerPhaseAssigned,
+			)
+			result.failedBeforeParentCanceled = !result.valid && parentWasLive
 		}()
 	}
 	wait.Wait()
-	if roundContext.Err() != nil {
-		return [coordinatorWorkerCount]WorkerStatus{}, false
-	}
 	var statuses [coordinatorWorkerCount]WorkerStatus
+	allValid, failedBeforeParentCanceled := true, false
 	for workerID, result := range results {
-		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseAssigned) {
-			return [coordinatorWorkerCount]WorkerStatus{}, false
-		}
+		allValid = allValid && result.valid
+		failedBeforeParentCanceled = failedBeforeParentCanceled || result.failedBeforeParentCanceled
 		statuses[workerID] = result.status
 	}
-	return statuses, true
+	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, allValid, failedBeforeParentCanceled)
+	if disposition != coordinatorRoundSucceeded {
+		return [coordinatorWorkerCount]WorkerStatus{}, disposition
+	}
+	return statuses, disposition
 }
 
 func (c *Coordinator) startRound(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
 	fence WorkerFence,
-) ([coordinatorWorkerCount]WorkerStatus, bool) {
+) ([coordinatorWorkerCount]WorkerStatus, coordinatorRoundDisposition) {
 	if len(assignments) != coordinatorWorkerCount {
-		return [coordinatorWorkerCount]WorkerStatus{}, false
+		return [coordinatorWorkerCount]WorkerStatus{}, coordinatorRoundStageFailed
 	}
-	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type startResult struct {
-		status WorkerStatus
-		err    error
+		status                     WorkerStatus
+		valid                      bool
+		failedBeforeParentCanceled bool
 	}
 	results := [coordinatorWorkerCount]startResult{}
 	var wait sync.WaitGroup
@@ -599,38 +616,47 @@ func (c *Coordinator) startRound(
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		go func() {
 			defer wait.Done()
-			results[workerID].status, results[workerID].err = c.workers[workerID].Start(
+			result := &results[workerID]
+			status, err := c.workers[workerID].Start(
 				roundContext, WorkerStartRequest{WorkerFence: fence},
 			)
+			parentWasLive := parent.Err() == nil
+			result.status = status
+			result.valid = err == nil && validCoordinatorStatus(
+				status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning,
+			)
+			result.failedBeforeParentCanceled = !result.valid && parentWasLive
 		}()
 	}
 	wait.Wait()
-	if roundContext.Err() != nil {
-		return [coordinatorWorkerCount]WorkerStatus{}, false
-	}
 	var statuses [coordinatorWorkerCount]WorkerStatus
+	allValid, failedBeforeParentCanceled := true, false
 	for workerID, result := range results {
-		if result.err != nil || !validCoordinatorStatus(result.status, assignments[workerID].WorkerAssignment, WorkerPhaseRunning) {
-			return [coordinatorWorkerCount]WorkerStatus{}, false
-		}
+		allValid = allValid && result.valid
+		failedBeforeParentCanceled = failedBeforeParentCanceled || result.failedBeforeParentCanceled
 		statuses[workerID] = result.status
 	}
-	return statuses, true
+	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, allValid, failedBeforeParentCanceled)
+	if disposition != coordinatorRoundSucceeded {
+		return [coordinatorWorkerCount]WorkerStatus{}, disposition
+	}
+	return statuses, disposition
 }
 
 func (c *Coordinator) checkpointRound(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
 	fence WorkerFence,
-) ([]WorkerSnapshot, bool) {
+) ([]WorkerSnapshot, coordinatorRoundDisposition) {
 	if len(assignments) != coordinatorWorkerCount {
-		return nil, false
+		return nil, coordinatorRoundStageFailed
 	}
-	roundContext, cancel := context.WithTimeout(parent, c.roundTimeout)
+	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type checkpointResult struct {
-		snapshot WorkerSnapshot
-		err      error
+		snapshot                   WorkerSnapshot
+		valid                      bool
+		failedBeforeParentCanceled bool
 	}
 	results := [coordinatorWorkerCount]checkpointResult{}
 	var wait sync.WaitGroup
@@ -638,26 +664,53 @@ func (c *Coordinator) checkpointRound(
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		go func() {
 			defer wait.Done()
-			results[workerID].snapshot, results[workerID].err = c.workers[workerID].Checkpoint(
+			result := &results[workerID]
+			snapshot, err := c.workers[workerID].Checkpoint(
 				roundContext, WorkerCheckpointRequest{WorkerFence: fence},
 			)
+			parentWasLive := parent.Err() == nil
+			result.snapshot = snapshot
+			result.valid = err == nil && snapshot.WorkerID == uint64(workerID) &&
+				sameWorkerFence(WorkerFence{
+					RunID: snapshot.RunID, AssignmentID: snapshot.AssignmentID, Generation: snapshot.Generation,
+				}, assignments[workerID].WorkerFence)
+			result.failedBeforeParentCanceled = !result.valid && parentWasLive
 		}()
 	}
 	wait.Wait()
-	if roundContext.Err() != nil {
-		return nil, false
-	}
 	snapshots := make([]WorkerSnapshot, coordinatorWorkerCount)
+	allValid, failedBeforeParentCanceled := true, false
 	for workerID, result := range results {
-		if result.err != nil || result.snapshot.WorkerID != uint64(workerID) ||
-			!sameWorkerFence(WorkerFence{
-				RunID: result.snapshot.RunID, AssignmentID: result.snapshot.AssignmentID, Generation: result.snapshot.Generation,
-			}, assignments[workerID].WorkerFence) {
-			return nil, false
-		}
+		allValid = allValid && result.valid
+		failedBeforeParentCanceled = failedBeforeParentCanceled || result.failedBeforeParentCanceled
 		snapshots[workerID] = result.snapshot
 	}
-	return snapshots, true
+	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, allValid, failedBeforeParentCanceled)
+	if disposition != coordinatorRoundSucceeded {
+		return nil, disposition
+	}
+	return snapshots, disposition
+}
+
+func resolveCoordinatorRoundDisposition(
+	parent context.Context,
+	roundContext context.Context,
+	allValid bool,
+	failedBeforeParentCanceled bool,
+) coordinatorRoundDisposition {
+	if failedBeforeParentCanceled {
+		return coordinatorRoundStageFailed
+	}
+	if errors.Is(context.Cause(roundContext), errCoordinatorRoundDeadline) {
+		return coordinatorRoundStageFailed
+	}
+	if parent.Err() != nil {
+		return coordinatorRoundParentCanceled
+	}
+	if roundContext.Err() != nil || !allValid {
+		return coordinatorRoundStageFailed
+	}
+	return coordinatorRoundSucceeded
 }
 
 func (c *Coordinator) waitForTrafficReady(
