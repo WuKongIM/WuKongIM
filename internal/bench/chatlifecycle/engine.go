@@ -1227,30 +1227,80 @@ func (e *Engine) ApproveColdRevisit(personChannelID string, timerToken, activity
 // ApproveColdRevisitContext admits the existing scheduled real SEND only
 // when the timer token and post-activity version exactly match its lease.
 func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID string, timerToken, activityVersion uint64) (bool, error) {
-	if ctx == nil || personChannelID == "" || timerToken == 0 || activityVersion == 0 {
+	if e == nil || ctx == nil || personChannelID == "" || timerToken == 0 || activityVersion == 0 {
 		return false, errEngineConfig
 	}
-	response := make(chan bool, 1)
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	e.lifecycleMu.Lock()
+	generation := e.generation
+	generationCtx := e.generationCtx
+	e.lifecycleMu.Unlock()
+	if generationCtx == nil {
+		return false, errEngineNotRunning
+	}
+	type approvalResult struct {
+		approved bool
+		err      error
+	}
+	response := make(chan approvalResult, 1)
+	var causalState atomic.Uint32
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
+		if ctx.Err() != nil || generationCtx.Err() != nil || !causalState.CompareAndSwap(0, 1) {
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			response <- approvalResult{err: err}
+			return
+		}
+		if generationCtx.Err() != nil {
+			response <- approvalResult{err: errEngineNotRunning}
+			return
+		}
+		e.lifecycleMu.Lock()
+		validGeneration := e.running && e.generation == generation && e.generationCtx == generationCtx
+		e.lifecycleMu.Unlock()
+		if !validGeneration {
+			response <- approvalResult{err: errEngineNotRunning}
+			return
+		}
 		work := e.lifecycleByChannel[personChannelID]
 		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
 			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion ||
 			work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted {
-			response <- false
+			response <- approvalResult{}
+			return
+		}
+		if work.coldConfirmed {
+			response <- approvalResult{approved: true}
+			return
+		}
+		if !e.clock.Now().Before(work.due) {
+			response <- approvalResult{}
 			return
 		}
 		work.coldConfirmed = true
-		work.lifecycleLeaseInvalidated = false
 		e.removeLifecycleCandidate(work)
-		response <- true
+		response <- approvalResult{approved: true}
 	}}); err != nil {
 		return false, err
 	}
 	select {
-	case approved := <-response:
-		return approved, nil
+	case result := <-response:
+		return result.approved, result.err
 	case <-ctx.Done():
-		return false, ctx.Err()
+		if causalState.CompareAndSwap(0, 2) {
+			return false, ctx.Err()
+		}
+		result := <-response
+		return result.approved, result.err
+	case <-generationCtx.Done():
+		if causalState.CompareAndSwap(0, 2) {
+			return false, errEngineNotRunning
+		}
+		result := <-response
+		return result.approved, result.err
 	}
 }
 

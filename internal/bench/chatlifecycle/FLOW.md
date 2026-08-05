@@ -180,7 +180,11 @@ bounded harness failure, and the invalidated timer also fails explicitly rather
 than silently dropping at its due time. The approval only unlocks the existing
 deterministic revisit timer. The proof intentionally allows early approval only
 after the all-node cold observation and strictly before the deterministic
-`ReheatAt` instant; approval at or after that instant, or another absent
+`ReheatAt` instant. The serialized owner reads its clock at admission, so a
+request queued before the boundary is rejected if it executes at or after due;
+that rejection neither confirms nor removes the indexed timer. A first
+pre-boundary approval remains idempotently true for its exact token/version
+replay even after due, without performing admission again. Approval at or after that instant, or another absent
 observation at that instant without approval, is harness-invalid. At its due time the ordinary
 Engine/WKProto SEND path performs the real reheat, and reheat completion latency
 uses that due instant as its baseline; control code never manufactures a
