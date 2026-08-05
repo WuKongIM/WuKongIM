@@ -51,6 +51,9 @@ New(Config)
      `wukongim_channelv2_meta_created_total`, labeled only by physical `slot_id`
      and the closed `created|already_existing|error` result;
      unexpected result inputs collapse to `error` instead of creating a series;
+     clean startup materializes all three results at physical Slot 1 as true
+     zeroes so strict preflight can distinguish an observed zero from a missing
+     family without recording a metadata-create event;
      the combined Channel observer forwards this hook once to each capable child
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus canonical Online Delivery local and remote owner-push attempts on the

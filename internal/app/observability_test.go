@@ -640,9 +640,16 @@ func TestComposedChannelObserverReheatExistingMetaDoesNotCountCreate(t *testing.
 	if err != nil {
 		t.Fatalf("Gather() error = %v", err)
 	}
-	for _, family := range families {
-		if family.GetName() == "wukongim_channelv2_meta_created_total" || family.GetName() == "wukongim_channel_meta_created_total" {
-			t.Fatalf("metric family %q found, want zero create observations on reheat", family.GetName())
+	for _, name := range []string{"wukongim_channelv2_meta_created_total", "wukongim_channel_meta_created_total"} {
+		family := requireAppMetricFamily(t, families, name)
+		if got := len(family.GetMetric()); got != 3 {
+			t.Fatalf("metric family %q series = %d, want three closed zero baselines", name, got)
+		}
+		for _, result := range []string{"created", "already_existing", "error"} {
+			metric := findAppMetricByLabels(t, family, map[string]string{"slot_id": "1", "result": result})
+			if got := metric.GetCounter().GetValue(); got != 0 {
+				t.Fatalf("metric family %q result %q = %v, want zero create observations on reheat", name, result, got)
+			}
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
@@ -61,6 +62,9 @@ type ObserverOptions struct {
 	BenchToken string
 	HTTPClient *http.Client
 	Clock      ObserverClock
+	// RoundContext bounds all service-node requests in one observation round.
+	// Production uses context.WithTimeout with the configured cadence.
+	RoundContext func(context.Context, time.Duration) (context.Context, context.CancelFunc)
 	// HotSlotGroups identifies the bounded logical Slot groups whose leader progress
 	// is health-critical. Empty means every configured logical Slot group is hot.
 	HotSlotGroups []uint32
@@ -79,6 +83,9 @@ func NewObserver(options ObserverOptions) *Observer {
 	}
 	if options.Clock == nil {
 		options.Clock = realObserverClock{}
+	}
+	if options.RoundContext == nil {
+		options.RoundContext = context.WithTimeout
 	}
 	if options.TargetFactory == nil {
 		options.TargetFactory = func(_ int, endpoint EndpointDeclaration, token string) ClusterHealthTarget {
@@ -114,7 +121,7 @@ func (o *Observer) Run(ctx context.Context, cfg Config) ObserverResult {
 	ticker := o.options.Clock.NewTicker(cfg.Observation.Cadence)
 	defer ticker.Stop()
 	windows := observerWindows{}
-	if result, terminal := o.poll(ctx, cfg, targets, &windows, o.options.Clock.Now()); terminal {
+	if result, terminal := o.poll(ctx, cfg, targets, &windows); terminal {
 		return result
 	}
 	for {
@@ -122,7 +129,7 @@ func (o *Observer) Run(ctx context.Context, cfg Config) ObserverResult {
 		case <-ctx.Done():
 			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		case <-ticker.C():
-			if result, terminal := o.poll(ctx, cfg, targets, &windows, o.options.Clock.Now()); terminal {
+			if result, terminal := o.poll(ctx, cfg, targets, &windows); terminal {
 				return result
 			}
 		}
@@ -134,23 +141,58 @@ func (o *Observer) poll(
 	cfg Config,
 	targets []clusterHealthTarget,
 	windows *observerWindows,
-	now time.Time,
 ) (ObserverResult, bool) {
+	roundCtx, cancel := o.options.RoundContext(ctx, cfg.Observation.Cadence)
+	if roundCtx == nil || cancel == nil {
+		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
+	}
+	type nodeResult struct {
+		serviceHealthy bool
+		snapshot       target.DebugCluster
+		hasSnapshot    bool
+	}
+	const serviceNodeCount = 3
+	if len(targets) != serviceNodeCount {
+		cancel()
+		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
+	}
+	results := make([]nodeResult, serviceNodeCount)
+	var joined sync.WaitGroup
+	joined.Add(serviceNodeCount)
+	for index := 0; index < serviceNodeCount; index++ {
+		go func() {
+			defer joined.Done()
+			observed := targets[index]
+			result := nodeResult{serviceHealthy: true}
+			if observed.Healthz(roundCtx) != nil {
+				result.serviceHealthy = false
+			}
+			if observed.Readyz(roundCtx) != nil {
+				result.serviceHealthy = false
+			}
+			snapshot, err := observed.DebugCluster(roundCtx)
+			if err != nil {
+				result.serviceHealthy = false
+			} else {
+				result.snapshot = snapshot
+				result.hasSnapshot = true
+			}
+			results[index] = result
+		}()
+	}
+	joined.Wait()
+	cancel()
+	now := o.options.Clock.Now()
+
 	serviceHealthy := true
 	snapshots := make([]target.DebugCluster, 0, len(targets))
-	for _, observed := range targets {
-		if observed.Healthz(ctx) != nil {
+	for _, result := range results {
+		if !result.serviceHealthy {
 			serviceHealthy = false
 		}
-		if observed.Readyz(ctx) != nil {
-			serviceHealthy = false
+		if result.hasSnapshot {
+			snapshots = append(snapshots, result.snapshot)
 		}
-		snapshot, err := observed.DebugCluster(ctx)
-		if err != nil {
-			serviceHealthy = false
-			continue
-		}
-		snapshots = append(snapshots, snapshot)
 	}
 	if updateContinuousWindow(&windows.serviceUnhealthySince, !serviceHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
 		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}, true

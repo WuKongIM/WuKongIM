@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -8,6 +10,21 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 )
+
+func TestFreshRegistryScrapeExposesLifecycleZeroCounters(t *testing.T) {
+	reg := New(8, "node-8")
+	recorder := httptest.NewRecorder()
+	reg.Handler().ServeHTTP(recorder, httptest.NewRequest("GET", "/metrics", nil))
+	require.Equal(t, 200, recorder.Code)
+
+	scrape := recorder.Body.String()
+	require.Contains(t, scrape, `wukongim_channelv2_activation_rejected_total{node_id="8",node_name="node-8",reason="max_channels"} 0`)
+	require.Equal(t, 1, strings.Count(scrape, "wukongim_channelv2_activation_rejected_total{"))
+	for _, result := range []string{"created", "already_existing", "error"} {
+		require.Contains(t, scrape, `wukongim_channelv2_meta_created_total{result="`+result+`",slot_id="1"} 0`)
+	}
+	require.Equal(t, 3, strings.Count(scrape, "wukongim_channelv2_meta_created_total{"))
+}
 
 func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {
 	reg := New(1, "node-1")
@@ -923,8 +940,12 @@ func TestChannelRuntimeMetaCreateMetricUsesOnlyBoundedLabels(t *testing.T) {
 	families, err := reg.Gather()
 	require.NoError(t, err)
 	created := requireMetricFamily(t, families, "wukongim_channelv2_meta_created_total")
-	require.Len(t, created.GetMetric(), 3)
+	require.Len(t, created.GetMetric(), 6)
 	for _, result := range []string{"created", "already_existing", "error"} {
+		baseline := findMetricByLabels(t, created, map[string]string{"slot_id": "1", "result": result})
+		require.Len(t, baseline.GetLabel(), 2, "zero baseline must not expose node, channel, UID, or run labels")
+		require.Equal(t, float64(0), baseline.GetCounter().GetValue())
+
 		metric := findMetricByLabels(t, created, map[string]string{"slot_id": "37", "result": result})
 		require.Len(t, metric.GetLabel(), 2, "meta create metric must not expose node, channel, UID, or run labels")
 		want := float64(1)
@@ -935,7 +956,7 @@ func TestChannelRuntimeMetaCreateMetricUsesOnlyBoundedLabels(t *testing.T) {
 	}
 
 	promoted := requireMetricFamily(t, families, "wukongim_channel_meta_created_total")
-	require.Len(t, promoted.GetMetric(), 3)
+	require.Len(t, promoted.GetMetric(), 6)
 }
 
 func TestSlotAndTransportMetricsTrackProposalsLeaderChangesAndRPCs(t *testing.T) {

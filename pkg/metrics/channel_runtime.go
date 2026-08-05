@@ -12,6 +12,7 @@ var channelRuntimeWaiterBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 256,
 var channelRuntimeAppendBatchByteBuckets = []float64{64, 256, 1024, 4096, 16384, 65536, 262144, 524288, 1048576, 4194304}
 var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}
 var channelRuntimeISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
+var channelRuntimeMetaCreateResults = []string{"created", "already_existing", "error"}
 
 // ChannelRuntimeMetrics keeps legacy collectors and exposes promoted names through Registry gather aliases.
 type ChannelRuntimeMetrics struct {
@@ -237,6 +238,14 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 			Help:        "Total Channel runtime follower RPC pull tasks by result.",
 			ConstLabels: labels,
 		}, []string{"result"}),
+	}
+
+	// CounterVec collectors do not emit a family until at least one bounded
+	// label tuple exists. Materialize true zeroes for clean-cluster observation
+	// without recording an event. Slot 1 is the stable first physical Slot.
+	_ = m.activationRejectedTotal.WithLabelValues("max_channels")
+	for _, result := range channelRuntimeMetaCreateResults {
+		_ = m.metaCreatedTotal.WithLabelValues("1", result)
 	}
 
 	registry.MustRegister(

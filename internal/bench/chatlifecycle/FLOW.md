@@ -568,7 +568,11 @@ three nodes. Worker health/info and TCP
 gateway connectivity are checked through narrow replaceable boundaries; no
 assignment is installed by preflight. A structurally healthy initial leader
 distribution is admitted; only the continuous observer owns the ten-minute
-leader-imbalance failure window.
+leader-imbalance failure window. The product metrics registry materializes
+true zero series for the closed `max_channels` activation-rejection label and
+the three metadata-create results on stable physical Slot 1, so a clean cluster
+still exposes every strictly required preflight family without inventing an
+event or treating a missing family as zero.
 
 Each host-metrics declaration carries an exact node_exporter `mountpoint` and
 `device`. The bounded parser accepts exactly one size and one available-byte
@@ -579,14 +583,18 @@ returns an infrastructure failure and emits one narrow coordinated-stop signal;
 the observer does not own assignment control.
 
 After preflight, the target observer immediately polls and then repeats every
-five seconds using bounded state. It requires complete stable reports for all
-12 logical Slot groups, one leader, three desired replicas, three live voters,
-and leader-only progress. Hot Slot groups are an optional bounded, unique
-declaration; an empty declaration means all 12 workload groups. Any healthy
-sample resets the corresponding 30-second service or hot-replication failure
-window. Leader balance compares each node with the exact rational `slots/nodes`
-share rather than assuming 4/4/4; a deviation above 20 percent must remain
-continuous for ten minutes before product failure.
+five seconds using bounded state. Each round starts exactly one goroutine per
+service node, shares one context bounded by that cadence across the node's
+ordered health/readiness/cluster calls, joins the fixed result slice in node
+order, and only then reads the clock for continuous-window accounting. Parent
+cancellation releases the shared round and ticker. The observer requires
+complete stable reports for all 12 logical Slot groups, one leader, three
+desired replicas, three live voters, and leader-only progress. Hot Slot groups
+are an optional bounded, unique declaration; an empty declaration means all 12
+workload groups. Any healthy sample resets the corresponding 30-second service
+or hot-replication failure window. Leader balance compares each node with the
+exact rational `slots/nodes` share rather than assuming 4/4/4; a deviation above
+20 percent must remain continuous for ten minutes before product failure.
 
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result

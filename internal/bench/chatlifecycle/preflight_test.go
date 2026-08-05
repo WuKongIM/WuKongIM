@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	productmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 )
 
 func TestPreflightValidFormalAndLocalGateTraffic(t *testing.T) {
@@ -20,6 +24,47 @@ func TestPreflightValidFormalAndLocalGateTraffic(t *testing.T) {
 		if fixture.safeStops != 0 {
 			t.Fatalf("profile %s safe stops = %d, want 0", cfg.Profile, fixture.safeStops)
 		}
+	}
+}
+
+func TestPreflightPassesFreshZeroEventProductMetrics(t *testing.T) {
+	registry := productmetrics.New(1, "node-1")
+	registry.RuntimePressure.SetQueueDepth("channel", "meta", "worker", "none", 0)
+	registry.RuntimePressure.SetPoolInflight("channel", "meta", 0)
+	registry.ChannelRuntime.SetWorkerQueueDepth("meta", 0)
+	productHandler := registry.Handler()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder := httptest.NewRecorder()
+		plainRequest := r.Clone(r.Context())
+		plainRequest.Header = r.Header.Clone()
+		plainRequest.Header.Del("Accept-Encoding")
+		productHandler.ServeHTTP(recorder, plainRequest)
+		scrape := recorder.Body.String()
+		_, _ = w.Write([]byte(scrape))
+		// The Go process collector does not expose RSS on every development OS.
+		// Production Linux does; keep this target-client test portable without
+		// teaching the parser to accept a missing required family.
+		if !strings.Contains(scrape, "\nprocess_resident_memory_bytes ") {
+			_, _ = fmt.Fprintln(w, "process_resident_memory_bytes 0")
+		}
+	}))
+	defer server.Close()
+	metricsClient := target.NewClient(target.Config{APIAddrs: []string{server.URL}})
+	snapshot, err := metricsClient.Metrics(context.Background())
+	if err != nil {
+		t.Fatalf("Metrics() error = %v", err)
+	}
+	if err := snapshot.ValidateRequired(); err != nil {
+		t.Fatalf("fresh Metrics() snapshot = %+v: %v", snapshot, err)
+	}
+
+	fixture := newPreflightFixture(LocalConfig())
+	for _, observed := range fixture.targets {
+		observed.metricsClient = metricsClient
+	}
+	result := fixture.preflight.Check(context.Background(), fixture.cfg)
+	if !result.Passed() || !result.TrafficAllowed() {
+		t.Fatalf("result = %+v, want fresh zero-event product metrics to pass", result)
 	}
 }
 
@@ -237,6 +282,7 @@ type fakePreflightTarget struct {
 	clusterErr      error
 	capabilities    model.BenchCapabilities
 	capabilitiesErr error
+	metricsClient   *target.Client
 	observeErr      error
 }
 
@@ -248,8 +294,17 @@ func (f *fakePreflightTarget) DebugConfig(context.Context) (target.DebugConfig, 
 func (f *fakePreflightTarget) DebugCluster(context.Context) (target.DebugCluster, error) {
 	return f.cluster, f.clusterErr
 }
-func (f *fakePreflightTarget) CheckMetrics(context.Context) error { return f.observeErr }
-func (f *fakePreflightTarget) ForceGC(context.Context) error      { return f.observeErr }
+func (f *fakePreflightTarget) CheckMetrics(ctx context.Context) error {
+	if f.observeErr != nil || f.metricsClient == nil {
+		return f.observeErr
+	}
+	snapshot, err := f.metricsClient.Metrics(ctx)
+	if err != nil {
+		return err
+	}
+	return snapshot.ValidateRequired()
+}
+func (f *fakePreflightTarget) ForceGC(context.Context) error { return f.observeErr }
 func (f *fakePreflightTarget) Capabilities(context.Context) (model.BenchCapabilities, error) {
 	return f.capabilities, f.capabilitiesErr
 }
