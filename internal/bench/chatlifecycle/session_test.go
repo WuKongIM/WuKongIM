@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -99,6 +100,203 @@ func TestSessionPoolRecordsBoundedConnectAndConversationSyncLatency(t *testing.T
 	if err := fixture.pool.Logout(uid); err != nil {
 		t.Fatalf("Logout: %v", err)
 	}
+}
+
+func TestSessionPoolRecordsRealConnectAndSyncOutcomesWithStableEvidence(t *testing.T) {
+	tests := []struct {
+		name                 string
+		configure            func(*sessionTestFixture, context.CancelFunc)
+		wantFactoryFailed    uint64
+		wantFactoryCanceled  uint64
+		wantConnectStarted   uint64
+		wantConnectCompleted uint64
+		wantConnectFailed    uint64
+		wantConnectCanceled  uint64
+		wantSyncStarted      uint64
+		wantSyncCompleted    uint64
+		wantSyncFailed       uint64
+		wantSyncCanceled     uint64
+		wantStage            LoginSyncStage
+		wantReason           string
+		wantClassification   SyncClassification
+		wantEvidenceStage    EvidenceStage
+		wantEvidenceCode     FailureCode
+		wantEvidenceClass    FailureClass
+		wantConnectHistogram bool
+		wantSyncHistogram    bool
+		wantSuccess          bool
+	}{
+		{
+			name: "factory failure",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.factory.newSessionErr = errors.New("secret factory raw uid")
+			},
+			wantFactoryFailed: 1, wantStage: LoginSyncStageFactory, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageSessionFactory, wantEvidenceCode: FailureCodeSessionFactoryFailed, wantEvidenceClass: FailureClassHarness,
+		},
+		{
+			name: "factory canceled",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.factory.newSessionErr = context.Canceled
+			},
+			wantFactoryCanceled: 1, wantStage: LoginSyncStageFactory, wantReason: LoginSyncReasonCanceled,
+		},
+		{
+			name: "connect transport failure",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.factory.connectErr = errors.New("secret connect raw uid")
+			},
+			wantConnectStarted: 1, wantConnectFailed: 1, wantStage: LoginSyncStageConnect, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageConnect, wantEvidenceCode: FailureCodeSessionConnectFailed, wantEvidenceClass: FailureClassHarness,
+			wantConnectHistogram: true,
+		},
+		{
+			name: "sync transport failure",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.syncer.syncErr = errors.New("secret sync raw uid")
+			},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
+			wantStage: LoginSyncStageSync, wantReason: LoginSyncReasonTransport,
+			wantEvidenceStage: EvidenceStageSync, wantEvidenceCode: FailureCodeSessionSyncFailed, wantEvidenceClass: FailureClassHarness,
+			wantConnectHistogram: true, wantSyncHistogram: true,
+		},
+		{
+			name: "sync validation failure",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.syncer.rows = make([]target.ConversationSyncConversation, conversationSyncLimit)
+			},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
+			wantStage: LoginSyncStageSync, wantReason: "conversation_limit_reached",
+			wantEvidenceStage: EvidenceStageSync, wantEvidenceCode: FailureCodeSessionSyncValidation, wantEvidenceClass: FailureClassHarness,
+			wantConnectHistogram: true, wantSyncHistogram: true,
+		},
+		{
+			name: "sync product validation failure",
+			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
+				fixture.syncer.rows = []target.ConversationSyncConversation{{}}
+			},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
+			wantStage: LoginSyncStageSync, wantReason: "conversation_identity_invalid", wantClassification: SyncClassificationProductFailure,
+			wantEvidenceStage: EvidenceStageSync, wantEvidenceCode: FailureCodeSessionSyncValidation, wantEvidenceClass: FailureClassReceive,
+			wantConnectHistogram: true, wantSyncHistogram: true,
+		},
+		{
+			name: "connect canceled",
+			configure: func(fixture *sessionTestFixture, cancel context.CancelFunc) {
+				fixture.factory.onConnect = func() {
+					fixture.clock.Set(fixture.clock.Now().Add(20 * time.Millisecond))
+					cancel()
+				}
+				fixture.factory.connectErr = context.Canceled
+			},
+			wantConnectStarted: 1, wantConnectCanceled: 1, wantStage: LoginSyncStageConnect, wantReason: LoginSyncReasonCanceled,
+			wantConnectHistogram: true,
+		},
+		{
+			name: "sync canceled",
+			configure: func(fixture *sessionTestFixture, cancel context.CancelFunc) {
+				fixture.syncer.onSync = func() {
+					fixture.clock.Set(fixture.clock.Now().Add(50 * time.Millisecond))
+					cancel()
+				}
+			},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncCanceled: 1,
+			wantStage: LoginSyncStageSync, wantReason: LoginSyncReasonCanceled,
+			wantConnectHistogram: true, wantSyncHistogram: true,
+		},
+		{
+			name:               "success",
+			configure:          func(*sessionTestFixture, context.CancelFunc) {},
+			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncCompleted: 1,
+			wantConnectHistogram: true, wantSyncHistogram: true, wantSuccess: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newSessionTestFixture(t)
+			fixture.factory.onConnect = func() { fixture.clock.Set(fixture.clock.Now().Add(20 * time.Millisecond)) }
+			fixture.syncer.onSync = func() { fixture.clock.Set(fixture.clock.Now().Add(50 * time.Millisecond)) }
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			test.configure(&fixture, cancel)
+
+			uid := fixture.identity.UID(19)
+			_, loginErr := fixture.pool.Login(ctx, SessionLogin{UID: uid, UserIndex: 19, LoginOrdinal: 1})
+			if test.wantSuccess != (loginErr == nil) {
+				t.Fatalf("Login error = %v, success want %v", loginErr, test.wantSuccess)
+			}
+			if loginErr != nil {
+				failure, ok := LoginSyncFailureOf(loginErr)
+				wantClassification := test.wantClassification
+				if wantClassification == "" {
+					wantClassification = SyncClassificationHarnessInvalid
+				}
+				if !ok || failure.Stage != test.wantStage || failure.Reason != test.wantReason || failure.Classification != wantClassification {
+					t.Fatalf("closed login failure = %+v/%v, want stage=%q reason=%q", failure, ok, test.wantStage, test.wantReason)
+				}
+				if strings.Contains(loginErr.Error(), "secret") || strings.Contains(loginErr.Error(), uid) {
+					t.Fatalf("login error leaked raw cause or UID: %q", loginErr)
+				}
+			}
+
+			snapshot := fixture.pool.Snapshot()
+			if snapshot.FactoryFailed != test.wantFactoryFailed || snapshot.FactoryCanceled != test.wantFactoryCanceled ||
+				snapshot.ConnectStarted != test.wantConnectStarted || snapshot.ConnectCompleted != test.wantConnectCompleted ||
+				snapshot.ConnectFailed != test.wantConnectFailed || snapshot.ConnectCanceled != test.wantConnectCanceled ||
+				snapshot.SyncStarted != test.wantSyncStarted || snapshot.SyncCompleted != test.wantSyncCompleted ||
+				snapshot.SyncFailed != test.wantSyncFailed || snapshot.SyncCanceled != test.wantSyncCanceled {
+				t.Fatalf("outcome counters = %+v", snapshot)
+			}
+			if (snapshot.GatewayConnectLatency.Count == 1) != test.wantConnectHistogram ||
+				(snapshot.ConversationSyncLatency.Count == 1) != test.wantSyncHistogram {
+				t.Fatalf("outcome histograms = connect=%+v sync=%+v", snapshot.GatewayConnectLatency, snapshot.ConversationSyncLatency)
+			}
+			if test.wantConnectHistogram && snapshot.GatewayConnectLatency.Buckets[5] != 1 {
+				t.Fatalf("connect failure/success latency = %+v", snapshot.GatewayConnectLatency)
+			}
+			if test.wantSyncHistogram && snapshot.ConversationSyncLatency.Buckets[6] != 1 {
+				t.Fatalf("sync failure/success latency = %+v", snapshot.ConversationSyncLatency)
+			}
+			evidence := fixture.verifier.evidence.Snapshot()
+			if test.wantEvidenceCode == 0 {
+				if len(evidence.Classes) != 0 {
+					t.Fatalf("cancellation/success manufactured evidence: %+v", evidence)
+				}
+			} else if !evidenceContains(evidence, test.wantEvidenceClass, test.wantEvidenceStage, test.wantEvidenceCode) {
+				t.Fatalf("stable outcome evidence = %+v", evidence)
+			}
+			if test.name == "connect transport failure" && len(fixture.syncer.requests()) != 0 {
+				t.Fatalf("connect failure started sync: %+v", fixture.syncer.requests())
+			}
+			if test.wantSuccess {
+				if _, duplicateErr := fixture.pool.Login(ctx, SessionLogin{UID: uid, UserIndex: 19, LoginOrdinal: 2}); !errors.Is(duplicateErr, errSessionOnline) {
+					t.Fatalf("duplicate reservation error = %v, want %v", duplicateErr, errSessionOnline)
+				}
+				afterConflict := fixture.pool.Snapshot()
+				if afterConflict.SyncFailed != 0 || afterConflict.SyncStarted != 1 || afterConflict.ConnectStarted != 1 {
+					t.Fatalf("reservation conflict polluted real outcomes: %+v", afterConflict)
+				}
+				if err := fixture.pool.Logout(uid); err != nil {
+					t.Fatalf("Logout: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func evidenceContains(snapshot EvidenceSnapshot, class FailureClass, stage EvidenceStage, code FailureCode) bool {
+	for _, classSnapshot := range snapshot.Classes {
+		if classSnapshot.Class != class {
+			continue
+		}
+		for _, example := range append(append([]EvidenceExample(nil), classSnapshot.First...), classSnapshot.Last...) {
+			if example.Stage == stage && example.Code == code {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestSessionWKProtoAdapterBindsExistingClientWithoutDialing(t *testing.T) {
@@ -636,19 +834,24 @@ func (l *sessionEventLog) reset() {
 }
 
 type sessionFakeFactory struct {
-	mu        sync.Mutex
-	events    *sessionEventLog
-	tokensV   []string
-	clientsV  []*sessionFakeClient
-	onConnect func()
+	mu            sync.Mutex
+	events        *sessionEventLog
+	tokensV       []string
+	clientsV      []*sessionFakeClient
+	onConnect     func()
+	connectErr    error
+	newSessionErr error
 }
 
 func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token string) (SessionClient, error) {
 	f.events.add("factory")
+	if f.newSessionErr != nil {
+		return nil, f.newSessionErr
+	}
 	client := &sessionFakeClient{
 		events: f.events, frames: make(chan frame.Frame, 8), acked: make(chan uint64, 8),
 		readErrors: make(chan error, 8), readEntered: make(chan struct{}, 8), readReturned: make(chan struct{}, 8),
-		stop: make(chan struct{}), readExited: make(chan struct{}), onConnect: f.onConnect,
+		stop: make(chan struct{}), readExited: make(chan struct{}), onConnect: f.onConnect, connectErr: f.connectErr,
 	}
 	f.mu.Lock()
 	f.tokensV = append(f.tokensV, token)
@@ -674,6 +877,8 @@ type sessionFakeSyncer struct {
 	events    *sessionEventLog
 	requestsV []target.ConversationSyncRequest
 	onSync    func()
+	rows      []target.ConversationSyncConversation
+	syncErr   error
 }
 
 func (s *sessionFakeSyncer) ConversationSync(_ context.Context, request target.ConversationSyncRequest) ([]target.ConversationSyncConversation, error) {
@@ -684,7 +889,7 @@ func (s *sessionFakeSyncer) ConversationSync(_ context.Context, request target.C
 	s.mu.Lock()
 	s.requestsV = append(s.requestsV, request)
 	s.mu.Unlock()
-	return nil, nil
+	return s.rows, s.syncErr
 }
 
 func (s *sessionFakeSyncer) requests() []target.ConversationSyncRequest {
@@ -710,6 +915,7 @@ type sessionFakeClient struct {
 	closeOnce            sync.Once
 	isClosed             bool
 	onConnect            func()
+	connectErr           error
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -717,7 +923,7 @@ func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
 	if c.onConnect != nil {
 		c.onConnect()
 	}
-	return nil
+	return c.connectErr
 }
 
 func (c *sessionFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {

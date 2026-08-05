@@ -2265,6 +2265,39 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 	}
 }
 
+func TestEngineSchedulerSkipsDoNotCountAsRealSyncFailures(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 100, NewUsersPerDay: 250_000, WorkCapacity: 8_192, MaxWorkPerAdvance: 256,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	fixture.engine.scheduler.bootstrapping = false
+
+	now := fixture.clock.Now().Add(100 * time.Second)
+	fixture.clock.Set(now)
+	step, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("Step: %v", err)
+	}
+	step = fixture.settleScheduledLogins(t, now, step)
+	if step.LoginsSkipped == 0 {
+		t.Fatalf("scheduler did not exercise unavailable returning candidates: %+v", step)
+	}
+	pool := fixture.pool.Snapshot()
+	if pool.SyncFailed != 0 || pool.ConnectFailed != 0 || pool.FactoryFailed != 0 {
+		t.Fatalf("scheduler skip polluted real startup outcomes: step=%+v pool=%+v", step, pool)
+	}
+	engine, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if engine.LoginSkipped == 0 || engine.SyncFailed != 0 {
+		t.Fatalf("scheduler/sync counters were conflated: %+v", engine)
+	}
+}
+
 func TestSessionSchedulerAgedReturningMixFeedsEveryFixedGroupCategory(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{Formal: true})
 	scheduler := fixture.engine.scheduler

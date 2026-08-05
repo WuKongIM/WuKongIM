@@ -141,7 +141,8 @@ type SessionSnapshot struct {
 	SynchronizedConversations int
 }
 
-// SessionPoolSnapshot contains only bounded aggregate ownership and queue data.
+// SessionPoolSnapshot contains only bounded aggregate ownership, real startup
+// outcomes, fixed latency histograms, and queue data.
 type SessionPoolSnapshot struct {
 	Online                  int
 	Starting                int
@@ -152,6 +153,16 @@ type SessionPoolSnapshot struct {
 	TransportInflight       int
 	ReadErrors              uint64
 	VerificationErrors      uint64
+	FactoryFailed           uint64
+	FactoryCanceled         uint64
+	ConnectStarted          uint64
+	ConnectCompleted        uint64
+	ConnectFailed           uint64
+	ConnectCanceled         uint64
+	SyncStarted             uint64
+	SyncCompleted           uint64
+	SyncFailed              uint64
+	SyncCanceled            uint64
 	GatewayConnectLatency   WorkerHistogramSnapshot
 	ConversationSyncLatency WorkerHistogramSnapshot
 }
@@ -196,6 +207,16 @@ type SessionPool struct {
 	closing            map[string]*onlineSession
 	readErrors         uint64
 	verificationErrors uint64
+	factoryFailed      uint64
+	factoryCanceled    uint64
+	connectStarted     uint64
+	connectCompleted   uint64
+	connectFailed      uint64
+	connectCanceled    uint64
+	syncStarted        uint64
+	syncCompleted      uint64
+	syncFailed         uint64
+	syncCanceled       uint64
 	gatewayLatency     WorkerHistogramSnapshot
 	syncLatency        WorkerHistogramSnapshot
 }
@@ -280,10 +301,17 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	}
 	client, err := p.factory.NewSession(ctx, login.UID, p.tokenForUID(login.UID))
 	if err != nil {
-		return SessionSnapshot{}, err
+		reason := LoginSyncReasonTransport
+		if loginSyncCanceled(ctx, err) {
+			reason = LoginSyncReasonCanceled
+		}
+		operationErr := newLoginSyncOperationError(LoginSyncStageFactory, reason, err)
+		p.recordFactoryOutcome(operationErr)
+		return SessionSnapshot{}, operationErr
 	}
 	connector := sessionLoginConnector{client: client, deviceID: p.deviceID}
 	result, err := RunLoginSync(ctx, login.UID, connector, p.syncer, p.clock.Now)
+	p.recordLoginSyncOutcome(result, err)
 	if err != nil {
 		_ = client.Close()
 		return SessionSnapshot{}, err
@@ -311,8 +339,6 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	}
 	p.mu.Lock()
 	delete(p.starting, login.UID)
-	recordWorkerLatency(&p.gatewayLatency, snapshot.GatewayConnectLatency)
-	recordWorkerLatency(&p.syncLatency, snapshot.ConversationSyncLatency)
 	p.online[login.UID] = session
 	p.onlineByIndex[login.UserIndex] = session
 	if session.groupIndex >= 0 {
@@ -323,6 +349,87 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	p.mu.Unlock()
 	go p.drain(drainCtx, session)
 	return snapshot, nil
+}
+
+func (p *SessionPool) recordFactoryOutcome(err error) {
+	failure, _ := LoginSyncFailureOf(err)
+	p.mu.Lock()
+	if failure.Reason == LoginSyncReasonCanceled {
+		incrementSessionOutcome(&p.factoryCanceled)
+	} else {
+		incrementSessionOutcome(&p.factoryFailed)
+	}
+	p.mu.Unlock()
+	p.recordLoginSyncEvidence(err)
+}
+
+func (p *SessionPool) recordLoginSyncOutcome(result LoginSyncResult, err error) {
+	failure, failed := LoginSyncFailureOf(err)
+	p.mu.Lock()
+	if result.ConnectStarted {
+		incrementSessionOutcome(&p.connectStarted)
+		recordWorkerLatency(&p.gatewayLatency, result.GatewayConnectLatency)
+	}
+	if result.ConnectCompleted {
+		incrementSessionOutcome(&p.connectCompleted)
+	} else if result.ConnectStarted {
+		if failed && failure.Reason == LoginSyncReasonCanceled {
+			incrementSessionOutcome(&p.connectCanceled)
+		} else {
+			incrementSessionOutcome(&p.connectFailed)
+		}
+	}
+	if result.SyncStarted {
+		incrementSessionOutcome(&p.syncStarted)
+		recordWorkerLatency(&p.syncLatency, result.ConversationSyncLatency)
+	}
+	if result.SyncCompleted {
+		incrementSessionOutcome(&p.syncCompleted)
+	} else if result.SyncStarted {
+		if failed && failure.Reason == LoginSyncReasonCanceled {
+			incrementSessionOutcome(&p.syncCanceled)
+		} else {
+			incrementSessionOutcome(&p.syncFailed)
+		}
+	}
+	p.mu.Unlock()
+	if err != nil {
+		p.recordLoginSyncEvidence(err)
+	}
+}
+
+func (p *SessionPool) recordLoginSyncEvidence(err error) {
+	failure, ok := LoginSyncFailureOf(err)
+	if !ok || failure.Reason == LoginSyncReasonCanceled {
+		return
+	}
+	event := EvidenceEvent{Class: FailureClassHarness}
+	switch failure.Stage {
+	case LoginSyncStageFactory:
+		event.Stage, event.Code = EvidenceStageSessionFactory, FailureCodeSessionFactoryFailed
+	case LoginSyncStageConnect:
+		event.Stage, event.Code = EvidenceStageConnect, FailureCodeSessionConnectFailed
+	case LoginSyncStageSync:
+		event.Stage = EvidenceStageSync
+		var validation *ConversationSyncValidationError
+		if errors.As(err, &validation) {
+			event.Code = FailureCodeSessionSyncValidation
+			if failure.Classification == SyncClassificationProductFailure {
+				event.Class = FailureClassReceive
+			}
+		} else {
+			event.Code = FailureCodeSessionSyncFailed
+		}
+	default:
+		return
+	}
+	_ = p.verifier.evidence.Record(event)
+}
+
+func incrementSessionOutcome(counter *uint64) {
+	if *counter != ^uint64(0) {
+		(*counter)++
+	}
 }
 
 // IsOnline reports current owned connection state without retaining history.
@@ -497,6 +604,9 @@ func (p *SessionPool) Snapshot() SessionPoolSnapshot {
 	p.mu.RLock()
 	snapshot := SessionPoolSnapshot{
 		Online: len(p.online), Starting: len(p.starting), Closing: len(p.closing), ReadErrors: p.readErrors, VerificationErrors: p.verificationErrors,
+		FactoryFailed: p.factoryFailed, FactoryCanceled: p.factoryCanceled,
+		ConnectStarted: p.connectStarted, ConnectCompleted: p.connectCompleted, ConnectFailed: p.connectFailed, ConnectCanceled: p.connectCanceled,
+		SyncStarted: p.syncStarted, SyncCompleted: p.syncCompleted, SyncFailed: p.syncFailed, SyncCanceled: p.syncCanceled,
 		GatewayConnectLatency: p.gatewayLatency, ConversationSyncLatency: p.syncLatency,
 	}
 	clients := make([]SessionClient, 0, len(p.online))
@@ -546,6 +656,16 @@ func (p *SessionPool) resetRuntime() error {
 	}
 	p.readErrors = 0
 	p.verificationErrors = 0
+	p.factoryFailed = 0
+	p.factoryCanceled = 0
+	p.connectStarted = 0
+	p.connectCompleted = 0
+	p.connectFailed = 0
+	p.connectCanceled = 0
+	p.syncStarted = 0
+	p.syncCompleted = 0
+	p.syncFailed = 0
+	p.syncCanceled = 0
 	p.gatewayLatency = newWorkerHistogramSnapshot()
 	p.syncLatency = newWorkerHistogramSnapshot()
 	p.onlineByIndex = make(map[uint64]*onlineSession)

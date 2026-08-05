@@ -23,6 +23,68 @@ const (
 	SyncClassificationProductFailure SyncClassification = "product_failure"
 )
 
+// LoginSyncStage is the closed startup stage reported without endpoint data.
+type LoginSyncStage string
+
+const (
+	LoginSyncStageFactory LoginSyncStage = "factory"
+	LoginSyncStageConnect LoginSyncStage = "connect"
+	LoginSyncStageSync    LoginSyncStage = "sync"
+)
+
+const (
+	LoginSyncReasonTransport = "transport_failed"
+	LoginSyncReasonCanceled  = "canceled"
+)
+
+// LoginSyncFailure contains only closed, low-cardinality startup diagnostics.
+type LoginSyncFailure struct {
+	Stage          LoginSyncStage
+	Reason         string
+	Classification SyncClassification
+}
+
+// LoginSyncFailureOf extracts closed startup diagnostics without exposing the
+// wrapped transport cause.
+func LoginSyncFailureOf(err error) (LoginSyncFailure, bool) {
+	var failure interface {
+		Stage() LoginSyncStage
+		ReasonCode() string
+		Classification() SyncClassification
+	}
+	if !errors.As(err, &failure) {
+		return LoginSyncFailure{}, false
+	}
+	result := LoginSyncFailure{
+		Stage: failure.Stage(), Reason: failure.ReasonCode(), Classification: failure.Classification(),
+	}
+	if !validLoginSyncFailure(result) {
+		return LoginSyncFailure{}, false
+	}
+	return result, true
+}
+
+func validLoginSyncFailure(failure LoginSyncFailure) bool {
+	if failure.Classification != SyncClassificationHarnessInvalid && failure.Classification != SyncClassificationProductFailure {
+		return false
+	}
+	if failure.Reason == LoginSyncReasonTransport || failure.Reason == LoginSyncReasonCanceled {
+		return failure.Classification == SyncClassificationHarnessInvalid &&
+			(failure.Stage == LoginSyncStageFactory || failure.Stage == LoginSyncStageConnect || failure.Stage == LoginSyncStageSync)
+	}
+	if failure.Stage != LoginSyncStageSync {
+		return false
+	}
+	switch failure.Reason {
+	case "conversation_limit_reached":
+		return failure.Classification == SyncClassificationHarnessInvalid
+	case "conversation_identity_invalid", "duplicate_conversation", "recent_identity_mismatch", "recent_sequence_invalid":
+		return failure.Classification == SyncClassificationProductFailure
+	default:
+		return false
+	}
+}
+
 // ConversationSyncValidationError is a stable, low-cardinality sync failure.
 type ConversationSyncValidationError struct {
 	classification SyncClassification
@@ -51,6 +113,9 @@ func (e *ConversationSyncValidationError) ReasonCode() string {
 	}
 	return e.reasonCode
 }
+
+// Stage identifies validation as part of the full conversation sync.
+func (*ConversationSyncValidationError) Stage() LoginSyncStage { return LoginSyncStageSync }
 
 // NewConversationSyncRequest constructs a fresh stateless full-sync request for every login.
 func NewConversationSyncRequest(uid string) target.ConversationSyncRequest {
@@ -120,33 +185,48 @@ type LoginSyncResult struct {
 	ConversationSyncLatency time.Duration
 	TrafficReady            bool
 	Conversations           []target.ConversationSyncConversation
+	ConnectStarted          bool
+	ConnectCompleted        bool
+	SyncStarted             bool
+	SyncCompleted           bool
 }
 
 // RunLoginSync performs CONNECT before a fresh full sync and admits traffic only after validation.
 func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector, syncer ConversationSyncer, now func() time.Time) (LoginSyncResult, error) {
 	var result LoginSyncResult
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError("login sync canceled", err)
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled, err)
 	}
 
+	result.ConnectStarted = true
 	connectStarted := now()
 	connectErr := connector.Connect(ctx, uid)
 	result.GatewayConnectLatency = now().Sub(connectStarted)
 	if connectErr != nil {
-		return result, newLoginSyncOperationError("login sync gateway connect failed", connectErr)
+		reason := LoginSyncReasonTransport
+		if loginSyncCanceled(ctx, connectErr) {
+			reason = LoginSyncReasonCanceled
+		}
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, reason, connectErr)
 	}
+	result.ConnectCompleted = true
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError("login sync canceled", err)
+		return result, newLoginSyncOperationError(LoginSyncStageConnect, LoginSyncReasonCanceled, err)
 	}
 
+	result.SyncStarted = true
 	syncStarted := now()
 	conversations, syncErr := syncer.ConversationSync(ctx, NewConversationSyncRequest(uid))
 	result.ConversationSyncLatency = now().Sub(syncStarted)
 	if syncErr != nil {
-		return result, newLoginSyncOperationError("login sync conversation request failed", syncErr)
+		reason := LoginSyncReasonTransport
+		if loginSyncCanceled(ctx, syncErr) {
+			reason = LoginSyncReasonCanceled
+		}
+		return result, newLoginSyncOperationError(LoginSyncStageSync, reason, syncErr)
 	}
 	if err := ctx.Err(); err != nil {
-		return result, newLoginSyncOperationError("login sync canceled", err)
+		return result, newLoginSyncOperationError(LoginSyncStageSync, LoginSyncReasonCanceled, err)
 	}
 	if err := ValidateConversationSync(conversations); err != nil {
 		return result, err
@@ -154,26 +234,61 @@ func RunLoginSync(ctx context.Context, uid string, connector LoginSyncConnector,
 
 	result.Conversations = conversations
 	result.TrafficReady = true
+	result.SyncCompleted = true
 	return result, nil
 }
 
 type loginSyncOperationError struct {
-	message string
-	cause   error
+	stage  LoginSyncStage
+	reason string
+	cause  error
 }
 
-func newLoginSyncOperationError(message string, cause error) error {
+func newLoginSyncOperationError(stage LoginSyncStage, reason string, cause error) error {
 	if cause == nil {
-		cause = errors.New(message)
+		cause = errors.New("login sync operation failed")
 	}
-	return &loginSyncOperationError{message: message, cause: cause}
+	return &loginSyncOperationError{stage: stage, reason: reason, cause: cause}
 }
 
 func (e *loginSyncOperationError) Error() string {
 	if e == nil {
 		return "login sync failed"
 	}
-	return e.message
+	if e.reason == LoginSyncReasonCanceled {
+		return "login sync canceled"
+	}
+	switch e.stage {
+	case LoginSyncStageFactory:
+		return "login sync session factory failed"
+	case LoginSyncStageConnect:
+		return "login sync gateway connect failed"
+	case LoginSyncStageSync:
+		return "login sync conversation request failed"
+	default:
+		return "login sync failed"
+	}
+}
+
+func (e *loginSyncOperationError) Stage() LoginSyncStage {
+	if e == nil {
+		return ""
+	}
+	return e.stage
+}
+
+func (e *loginSyncOperationError) ReasonCode() string {
+	if e == nil {
+		return ""
+	}
+	return e.reason
+}
+
+func (e *loginSyncOperationError) Classification() SyncClassification {
+	if e == nil {
+		return ""
+	}
+	return SyncClassificationHarnessInvalid
 }
 
 func (e *loginSyncOperationError) Unwrap() error {
@@ -181,4 +296,8 @@ func (e *loginSyncOperationError) Unwrap() error {
 		return nil
 	}
 	return e.cause
+}
+
+func loginSyncCanceled(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

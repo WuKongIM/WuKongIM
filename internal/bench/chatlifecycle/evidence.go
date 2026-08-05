@@ -34,6 +34,9 @@ const (
 	EvidenceStageRecvack
 	EvidenceStageCorrelation
 	EvidenceStageCapacity
+	EvidenceStageSessionFactory
+	EvidenceStageConnect
+	EvidenceStageSync
 )
 
 // FailureCode is a closed reason vocabulary. Error strings and raw protocol
@@ -72,6 +75,10 @@ const (
 	FailureCodeSessionRemoteTerminal
 	FailureCodeOfferedLoadUnderDelivery
 	FailureCodeSessionSchedulerCPUSaturated
+	FailureCodeSessionFactoryFailed
+	FailureCodeSessionConnectFailed
+	FailureCodeSessionSyncFailed
+	FailureCodeSessionSyncValidation
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -239,7 +246,7 @@ func classificationForFailureClass(class FailureClass) SyncClassification {
 }
 
 func validEvidenceEvent(event EvidenceEvent) bool {
-	if event.Stage < EvidenceStageSend || event.Stage > EvidenceStageCapacity {
+	if event.Stage < EvidenceStageSend || event.Stage > EvidenceStageSync {
 		return false
 	}
 	switch event.Class {
@@ -249,7 +256,8 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 	case FailureClassReceive:
 		return ((event.Stage == EvidenceStageReceive || event.Stage == EvidenceStageRecvack) &&
 			event.Code >= FailureCodeReceiveProtocol && event.Code <= FailureCodeRecvack) ||
-			(event.Stage == EvidenceStageReceive && event.Code == FailureCodeSessionRemoteTerminal)
+			(event.Stage == EvidenceStageReceive && event.Code == FailureCodeSessionRemoteTerminal) ||
+			(event.Stage == EvidenceStageSync && event.Code == FailureCodeSessionSyncValidation)
 	case FailureClassCorrelation:
 		return event.Stage == EvidenceStageCorrelation &&
 			event.Code >= FailureCodeCorrelationExpired && event.Code <= FailureCodeCorrelationSequenceConflict
@@ -269,6 +277,12 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 			return event.Stage == EvidenceStageReceive
 		case FailureCodeSessionLoginSaturated:
 			return event.Stage == EvidenceStageCapacity
+		case FailureCodeSessionFactoryFailed:
+			return event.Stage == EvidenceStageSessionFactory
+		case FailureCodeSessionConnectFailed:
+			return event.Stage == EvidenceStageConnect
+		case FailureCodeSessionSyncFailed, FailureCodeSessionSyncValidation:
+			return event.Stage == EvidenceStageSync
 		default:
 			return false
 		}

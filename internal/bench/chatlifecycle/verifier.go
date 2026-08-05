@@ -1235,6 +1235,14 @@ func failureCodeName(code FailureCode) string {
 		return "offered_load_under_delivery"
 	case FailureCodeSessionSchedulerCPUSaturated:
 		return "session_scheduler_cpu_saturated"
+	case FailureCodeSessionFactoryFailed:
+		return "session_factory_failed"
+	case FailureCodeSessionConnectFailed:
+		return "session_connect_failed"
+	case FailureCodeSessionSyncFailed:
+		return "session_sync_failed"
+	case FailureCodeSessionSyncValidation:
+		return "session_sync_validation"
 	default:
 		return "unknown"
 	}

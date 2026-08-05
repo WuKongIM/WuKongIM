@@ -70,6 +70,16 @@ type EngineSnapshot struct {
 	Online                  int
 	LoginStarting           int
 	TrafficReady            int
+	FactoryFailed           uint64
+	FactoryCanceled         uint64
+	ConnectStarted          uint64
+	ConnectCompleted        uint64
+	ConnectFailed           uint64
+	ConnectCanceled         uint64
+	SyncStarted             uint64
+	SyncCompleted           uint64
+	SyncFailed              uint64
+	SyncCanceled            uint64
 	GatewayConnectLatency   WorkerHistogramSnapshot
 	ConversationSyncLatency WorkerHistogramSnapshot
 	QueueCurrent            int
@@ -1210,7 +1220,9 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		if reserveErr := e.sessions.reserveLogin(login.UID); reserveErr != nil {
 			result.LoginsSkipped++
 			e.schedulerMetrics.skipped.Add(1)
-			resultErr = errors.Join(resultErr, reserveErr)
+			if !errors.Is(reserveErr, errSessionOnline) {
+				resultErr = errors.Join(resultErr, reserveErr)
+			}
 			scheduled++
 			continue
 		}
@@ -2396,6 +2408,11 @@ func (e *Engine) buildSnapshot(running bool) EngineSnapshot {
 		Running: running, Generation: e.generation, WorkerID: e.workerID, WorkerCount: e.workers,
 		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
 		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
+		FactoryFailed: sessions.FactoryFailed, FactoryCanceled: sessions.FactoryCanceled,
+		ConnectStarted: sessions.ConnectStarted, ConnectCompleted: sessions.ConnectCompleted,
+		ConnectFailed: sessions.ConnectFailed, ConnectCanceled: sessions.ConnectCanceled,
+		SyncStarted: sessions.SyncStarted, SyncCompleted: sessions.SyncCompleted,
+		SyncFailed: sessions.SyncFailed, SyncCanceled: sessions.SyncCanceled,
 		GatewayConnectLatency: sessions.GatewayConnectLatency, ConversationSyncLatency: sessions.ConversationSyncLatency,
 		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered: e.activityUnderDelivered,

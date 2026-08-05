@@ -190,6 +190,16 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	recordWorkerLatency(&engineGeneration.engine.cached.GatewayConnectLatency, 20*time.Millisecond)
 	engineGeneration.engine.cached.ConversationSyncLatency = newWorkerHistogramSnapshot()
 	recordWorkerLatency(&engineGeneration.engine.cached.ConversationSyncLatency, 50*time.Millisecond)
+	engineGeneration.engine.cached.FactoryFailed = 1
+	engineGeneration.engine.cached.FactoryCanceled = 2
+	engineGeneration.engine.cached.ConnectStarted = 11
+	engineGeneration.engine.cached.ConnectCompleted = 8
+	engineGeneration.engine.cached.ConnectFailed = 2
+	engineGeneration.engine.cached.ConnectCanceled = 1
+	engineGeneration.engine.cached.SyncStarted = 8
+	engineGeneration.engine.cached.SyncCompleted = 5
+	engineGeneration.engine.cached.SyncFailed = 2
+	engineGeneration.engine.cached.SyncCanceled = 1
 	engineGeneration.engine.lifecycleMu.Unlock()
 	engineGeneration.verifier.sendMu.Lock()
 	recordWorkerLatency(&engineGeneration.verifier.sendackLatency, 2*time.Second)
@@ -204,6 +214,11 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	if snapshot.Sync.ConnectLatency.Buckets[5] != 1 || snapshot.Sync.Latency.Buckets[6] != 1 ||
 		snapshot.SendackLatency.Buckets[11] != 1 || snapshot.RecvackLatency.Buckets[6] != 1 {
 		t.Fatalf("worker latency projection = sync=%+v sendack=%+v recvack=%+v", snapshot.Sync, snapshot.SendackLatency, snapshot.RecvackLatency)
+	}
+	if snapshot.Sync.FactoryFailed != 1 || snapshot.Sync.FactoryCanceled != 2 ||
+		snapshot.Sync.ConnectStarted != 11 || snapshot.Sync.ConnectCompleted != 8 || snapshot.Sync.ConnectFailed != 2 || snapshot.Sync.ConnectCanceled != 1 ||
+		snapshot.Sync.SyncStarted != 8 || snapshot.Sync.SyncCompleted != 5 || snapshot.Sync.SyncFailed != 2 || snapshot.Sync.SyncCanceled != 1 || snapshot.Sync.Failures != 2 {
+		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
 	}
 }
 

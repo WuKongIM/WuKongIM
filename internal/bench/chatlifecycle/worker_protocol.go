@@ -209,13 +209,26 @@ type WorkerMessageSnapshot struct {
 	Terminal            uint64 `json:"terminal"`
 }
 
-// WorkerSyncSnapshot exposes aggregate real conversation-sync progress and latency.
+// WorkerSyncSnapshot exposes cumulative real factory, CONNECT, and full-sync
+// outcomes plus fixed latency histograms without scheduler-derived failures.
 type WorkerSyncSnapshot struct {
-	CompletedNew       uint64                  `json:"completed_new"`
-	CompletedReturning uint64                  `json:"completed_returning"`
-	Failures           uint64                  `json:"failures"`
-	ConnectLatency     WorkerHistogramSnapshot `json:"connect_latency"`
-	Latency            WorkerHistogramSnapshot `json:"latency"`
+	CompletedNew       uint64 `json:"completed_new"`
+	CompletedReturning uint64 `json:"completed_returning"`
+	FactoryFailed      uint64 `json:"factory_failed"`
+	FactoryCanceled    uint64 `json:"factory_canceled"`
+	ConnectStarted     uint64 `json:"connect_started"`
+	ConnectCompleted   uint64 `json:"connect_completed"`
+	ConnectFailed      uint64 `json:"connect_failed"`
+	ConnectCanceled    uint64 `json:"connect_canceled"`
+	SyncStarted        uint64 `json:"sync_started"`
+	SyncCompleted      uint64 `json:"sync_completed"`
+	SyncFailed         uint64 `json:"sync_failed"`
+	SyncCanceled       uint64 `json:"sync_canceled"`
+	// Failures is the compatibility aggregate for actual failed sync stages. It
+	// excludes scheduler skips, factory/connect failures, and cancellations.
+	Failures       uint64                  `json:"failures"`
+	ConnectLatency WorkerHistogramSnapshot `json:"connect_latency"`
+	Latency        WorkerHistogramSnapshot `json:"latency"`
 }
 
 // WorkerCorrelationSnapshot exposes only bounded-state gauges and aggregate errors.

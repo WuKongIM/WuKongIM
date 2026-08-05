@@ -88,7 +88,20 @@ Latency snapshots use one fixed 16-bucket layout with explicit bounds at zero,
 fake-clock movement is ignored, zero duration enters the zero bucket, and
 values beyond 60 seconds enter the final overflow bucket. Counts, nanosecond
 sums, and bucket counts saturate rather than wrap; maximum latency is retained.
-`SessionPool` accumulates successful CONNECT and full-sync stages separately.
+`SessionPool` accumulates real factory, CONNECT, and full-sync outcomes for the
+whole generation. CONNECT and sync each expose started, completed, failed, and
+canceled counters; factory failure and cancellation remain separate. Every
+started CONNECT or sync contributes to the same fixed latency histogram whether
+it succeeds, fails transport, fails validation, or is canceled. Worker
+`sync.failures` means actual failed sync stages only and never aliases scheduler
+`LoginSkipped`; unavailable candidates and reservation conflicts remain
+scheduler skips without manufacturing startup failures. Startup operation
+errors expose only a closed factory/connect/sync stage, a closed reason, and
+classification. Factory, CONNECT, and sync transport failures record bounded
+harness evidence with stable stage/code pairs. Sync validation preserves its
+existing product-versus-harness ownership, while cancellation records counters
+but no expected-stop evidence. No evidence or public error contains the raw
+transport cause or UID.
 The ordered drain supplies its `SessionClock` instant to `Verifier`, which
 measures registered-at through the first successful SENDACK and the complete
 RECVACK transport call. Legacy verifier methods remain verification-only and

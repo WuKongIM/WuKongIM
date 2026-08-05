@@ -1068,7 +1068,12 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
 		},
 		Sync: WorkerSyncSnapshot{
-			CompletedNew: engine.LoginCompletedNew, CompletedReturning: engine.LoginCompletedReturning, Failures: engine.LoginSkipped,
+			CompletedNew: engine.LoginCompletedNew, CompletedReturning: engine.LoginCompletedReturning,
+			FactoryFailed: engine.FactoryFailed, FactoryCanceled: engine.FactoryCanceled,
+			ConnectStarted: engine.ConnectStarted, ConnectCompleted: engine.ConnectCompleted,
+			ConnectFailed: engine.ConnectFailed, ConnectCanceled: engine.ConnectCanceled,
+			SyncStarted: engine.SyncStarted, SyncCompleted: engine.SyncCompleted,
+			SyncFailed: engine.SyncFailed, SyncCanceled: engine.SyncCanceled, Failures: engine.SyncFailed,
 			ConnectLatency: engine.GatewayConnectLatency, Latency: engine.ConversationSyncLatency,
 		},
 		SendackLatency: verification.SendackLatency,
