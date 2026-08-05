@@ -122,6 +122,9 @@ func (c *WorkerClient) LeaseLifecycleCandidates(ctx context.Context, lease Worke
 
 // ApproveLifecycleReheat admits the existing scheduled real SEND.
 func (c *WorkerClient) ApproveLifecycleReheat(ctx context.Context, reheat WorkerLifecycleReheatRequest) (WorkerLifecycleReheatResponse, error) {
+	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) || reheat.TimerToken == 0 || reheat.ActivityVersion == 0 {
+		return WorkerLifecycleReheatResponse{}, ErrWorkerClientConfig
+	}
 	var response WorkerLifecycleReheatResponse
 	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", reheat, &response)
 	if err == nil && !sameWorkerFence(response.WorkerFence, reheat.WorkerFence) {

@@ -86,7 +86,9 @@ func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testi
 	if len(lease.Candidates) != 1 || lease.Candidates[0] != candidate || generation.requested != 1 {
 		t.Fatalf("lease = %+v, requested=%d", lease, generation.requested)
 	}
-	approveResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID})
+	approveResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{
+		WorkerFence: fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
+	})
 	if approveResponse.Code != http.StatusOK {
 		t.Fatalf("approve status/body = %d/%s", approveResponse.Code, approveResponse.Body.String())
 	}
@@ -94,7 +96,7 @@ func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testi
 	if err := json.Unmarshal(approveResponse.Body.Bytes(), &approved); err != nil {
 		t.Fatal(err)
 	}
-	if !approved.Approved || generation.approved != candidate.ChannelID {
+	if !approved.Approved || generation.approved != candidate.ChannelID || generation.approvedToken != candidate.TimerToken || generation.approvedVersion != candidate.ActivityVersion {
 		t.Fatalf("approved=%+v identity match=%v", approved, generation.approved == candidate.ChannelID)
 	}
 
@@ -102,8 +104,8 @@ func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testi
 	if status.Code != http.StatusOK {
 		t.Fatalf("snapshot status/body = %d/%s", status.Code, status.Body.String())
 	}
-	if strings.Contains(status.Body.String(), candidate.ChannelID) {
-		t.Fatal("raw lifecycle identity leaked into snapshot")
+	if strings.Contains(status.Body.String(), candidate.ChannelID) || strings.Contains(status.Body.String(), "timer_token") || strings.Contains(status.Body.String(), "activity_version") {
+		t.Fatal("transient lifecycle lease data leaked into snapshot")
 	}
 }
 
@@ -174,8 +176,9 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	server, fence := startWorkerServerForGeneration(t, generation, "lifecycle-reheat-errors")
 	wrong := fence
 	wrong.Generation++
-	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: wrong, ChannelID: candidate.ChannelID}, http.StatusConflict, WorkerErrorFenceMismatch)
-	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID}, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: wrong, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion}, http.StatusConflict, WorkerErrorFenceMismatch)
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion}, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, ActivityVersion: candidate.ActivityVersion}, http.StatusBadRequest, WorkerErrorInvalidRequest)
 
 	generation.approveResult = nil
 	generation.approveCompleted = false
@@ -184,7 +187,7 @@ func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *
 	requestCtx, cancel := context.WithCancel(context.Background())
 	done := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
-		done <- workerRequestWithContext(t, server, requestCtx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID})
+		done <- workerRequestWithContext(t, server, requestCtx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion})
 	}()
 	<-generation.approveEntered
 	cancel()
@@ -1921,16 +1924,17 @@ type fakeLifecycleLeaseGeneration struct {
 	candidates                     []LifecycleCandidate
 	requested                      int
 	approved                       string
+	approvedToken, approvedVersion uint64
 	approveResult                  *bool
 	approveEntered, approveRelease chan struct{}
 	approveCompleted               bool
 }
 
-func (g *fakeLifecycleLeaseGeneration) ApproveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
-	return g.approveLifecycleReheat(ctx, identity)
+func (g *fakeLifecycleLeaseGeneration) ApproveLifecycleReheat(ctx context.Context, identity string, timerToken, activityVersion uint64) (bool, error) {
+	return g.approveLifecycleReheat(ctx, identity, timerToken, activityVersion)
 }
 
-func (g *fakeLifecycleLeaseGeneration) approveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
+func (g *fakeLifecycleLeaseGeneration) approveLifecycleReheat(ctx context.Context, identity string, timerToken, activityVersion uint64) (bool, error) {
 	if g.approveEntered != nil {
 		close(g.approveEntered)
 		select {
@@ -1940,6 +1944,8 @@ func (g *fakeLifecycleLeaseGeneration) approveLifecycleReheat(ctx context.Contex
 		}
 	}
 	g.approved = identity
+	g.approvedToken = timerToken
+	g.approvedVersion = activityVersion
 	g.approveCompleted = true
 	if g.approveResult != nil {
 		return *g.approveResult, nil

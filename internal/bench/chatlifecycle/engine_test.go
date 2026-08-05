@@ -745,7 +745,7 @@ func TestEngineRevisitRequiresExplicitColdRuntimeEvidence(t *testing.T) {
 				t.Fatalf("cold pending before = %+v", before)
 			}
 			if confirm {
-				approved, err := fixture.engine.ApproveColdRevisit(edge.PersonChannelID)
+				approved, err := approveCurrentColdRevisit(t, fixture.engine, edge.PersonChannelID)
 				if err != nil || !approved {
 					t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
 				}
@@ -803,7 +803,7 @@ func TestEngineApprovedRevisitUsesEitherOnlineEndpointAndRetainsFullyOfflineTime
 			if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
 				t.Fatalf("ActivateRelationship = %v, %v", activated, err)
 			}
-			if approved, err := fixture.engine.ApproveColdRevisit(edge.PersonChannelID); err != nil || !approved {
+			if approved, err := approveCurrentColdRevisit(t, fixture.engine, edge.PersonChannelID); err != nil || !approved {
 				t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
 			}
 			before, err := fixture.engine.Snapshot()
@@ -888,7 +888,7 @@ func TestEngineApprovedFullyOfflineRevisitExpiresOnceAtEligibilityBoundary(t *te
 	if activated, err := fixture.engine.ActivateRelationship(edge, relationshipOrdinal); err != nil || !activated {
 		t.Fatalf("ActivateRelationship = %v, %v", activated, err)
 	}
-	if approved, err := fixture.engine.ApproveColdRevisit(edge.PersonChannelID); err != nil || !approved {
+	if approved, err := approveCurrentColdRevisit(t, fixture.engine, edge.PersonChannelID); err != nil || !approved {
 		t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
 	}
 	if err := fixture.engine.Logout(edge.OwnerUID); err != nil {
@@ -1033,7 +1033,7 @@ func TestEngineReturningCandidateColdRevisitUsesOldEdgeAndRevisitIdentityDomain(
 		t.Fatalf("scheduleReturningCandidate: %v", err)
 	}
 	conversation := candidate.Conversations[0]
-	approved, err := fixture.engine.ApproveColdRevisit(conversation.PersonChannelID)
+	approved, err := approveCurrentColdRevisit(t, fixture.engine, conversation.PersonChannelID)
 	if err != nil || !approved {
 		t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
 	}
@@ -1118,7 +1118,7 @@ func TestEngineReturningColdRevisitUsesOnlineReturningSenderWhenOldPeerIsOffline
 				t.Fatalf("scheduleReturningCandidate: %v", err)
 			}
 			conversation := candidate.Conversations[0]
-			if approved, err := fixture.engine.ApproveColdRevisit(conversation.PersonChannelID); err != nil || !approved {
+			if approved, err := approveCurrentColdRevisit(t, fixture.engine, conversation.PersonChannelID); err != nil || !approved {
 				t.Fatalf("ApproveColdRevisit = %v, %v", approved, err)
 			}
 			delay, err := fixture.schedule.durationInRange(
@@ -4659,6 +4659,29 @@ func TestEngineCompletionPressureCannotDeadlockBatchAdvance(t *testing.T) {
 	if snapshot.InflightCurrent != 0 || snapshot.FutureCurrent != 0 || fixture.verifier.Snapshot().Acknowledged != 100 {
 		t.Fatalf("completion pressure snapshot = engine %+v verifier %+v", snapshot, fixture.verifier.Snapshot())
 	}
+}
+
+func approveCurrentColdRevisit(t *testing.T, engine *Engine, identity string) (bool, error) {
+	t.Helper()
+	type lifecycleFence struct{ token, version uint64 }
+	result := make(chan lifecycleFence, 1)
+	if err := engine.enqueueBlocking(engineCommand{run: func() {
+		work := engine.lifecycleByChannel[identity]
+		if work == nil {
+			result <- lifecycleFence{}
+			return
+		}
+		// These scheduler-focused tests do not run the initial SENDACK path;
+		// install its first activity version before exercising exact admission.
+		if work.activityVersion == 0 {
+			work.activityVersion = 1
+		}
+		result <- lifecycleFence{token: work.lifecycleTimerToken, version: work.activityVersion}
+	}}); err != nil {
+		return false, err
+	}
+	fence := <-result
+	return engine.ApproveColdRevisit(identity, fence.token, fence.version)
 }
 
 func assertRuntimeFailure(t *testing.T, err error, code RuntimeFailureCode) {

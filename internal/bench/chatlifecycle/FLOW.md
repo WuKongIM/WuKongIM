@@ -109,8 +109,12 @@ successful initial SENDACK sequence and last activity time retained on that
 timer; completed and expired timers disappear through the existing cleanup.
 Each transient row carries a canonical person-channel ID, recomputed physical
 hash slot in the 256-slot space, its owning Slot Raft Group, quiet lower/upper
-bounds, and deterministic reheat time. Worker protocol validation never trusts
-the declared hash slot. The current worker generation uses a strictly validated
+bounds, deterministic reheat time, a generation-local timer token, and a
+post-activity version. The token is unique and stable across timer deferral;
+every successful SENDACK advances the version and invalidates any older
+quiet-window lease. Both values are transient and never enter snapshots or
+reports. Worker protocol validation never trusts the declared hash slot. The
+current worker generation uses a strictly validated
 continuous 256-to-12 assignment for the reviewed no-migration execution
 profile. The immutable assignment constructor and cohort selector also accept
 and recheck a complete live 256-entry mapping, without assuming equal
@@ -137,16 +141,24 @@ failure is recorded separately from product transition evidence.
 The proof requires all three runtimes active with exactly one leader and
 monotonic LEO/HW, then all three naturally missing, then all three active after
 reheat with sequence strictly above the initial sequence. Closing/error state,
-partial absence or reload, a stuck loaded runtime at the quiet deadline, role
-disagreement, watermark regression, or sequence reset is product failure. Only
-the same candidate's all-node absence makes it cold-latency eligible. Approval
+partial reload, a stuck loaded or partially cooled runtime at the quiet
+deadline, role disagreement, watermark regression, or sequence reset is
+product failure. Before that deadline, replicas may naturally disappear at
+different polls; partial cooling is not yet cold eligible, and a missing
+replica becoming active again without reheat is a product transition failure.
+Only the same candidate's all-node absence makes it cold-latency eligible. Approval
 travels over a second strict fenced worker control call whose response does not
 echo the channel ID; the server delegates to `engineWorkerGeneration`, which
-calls `ApproveColdRevisitContext`. That only unlocks the existing deterministic
-revisit timer. The proof intentionally allows early approval only after the
-all-node cold observation and through the deterministic `ReheatAt` instant;
-approval after that instant, or another absent observation at that instant
-without approval, is harness-invalid. At its due time the ordinary
+calls `ApproveColdRevisitContext`. Owner admission requires the exact canonical
+ID, timer token, and activity version, so a stale lease cannot approve a
+same-channel replacement timer or a timer with newer activity; exact replay is
+idempotent. Activity after approval clears admission and records a dedicated
+bounded harness failure, and the invalidated timer also fails explicitly rather
+than silently dropping at its due time. The approval only unlocks the existing
+deterministic revisit timer. The proof intentionally allows early approval only
+after the all-node cold observation and strictly before the deterministic
+`ReheatAt` instant; approval at or after that instant, or another absent
+observation at that instant without approval, is harness-invalid. At its due time the ordinary
 Engine/WKProto SEND path performs the real reheat, and reheat completion latency
 uses that due instant as its baseline; control code never manufactures a
 sequence. The post-reheat probe supplies the sequence-continuity proof.

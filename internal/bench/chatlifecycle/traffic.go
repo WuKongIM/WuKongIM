@@ -51,14 +51,16 @@ var (
 type RuntimeFailureCode string
 
 const (
-	RuntimeFailureRetryQueueSaturated   RuntimeFailureCode = "retry_queue_saturated"
-	RuntimeFailureEngineQueueSaturated  RuntimeFailureCode = "engine_queue_saturated"
-	RuntimeFailureEngineCPUSaturated    RuntimeFailureCode = "engine_cpu_saturated"
-	RuntimeFailureInflightSaturated     RuntimeFailureCode = "engine_inflight_saturated"
-	RuntimeFailureLoginSaturated        RuntimeFailureCode = "session_login_saturated"
-	RuntimeFailureUnderDelivery         RuntimeFailureCode = "offered_load_under_delivery"
-	RuntimeFailureSchedulerCPUSaturated RuntimeFailureCode = "session_scheduler_cpu_saturated"
-	RuntimeFailureClockMovedBackwards   RuntimeFailureCode = "engine_clock_moved_backwards"
+	RuntimeFailureRetryQueueSaturated       RuntimeFailureCode = "retry_queue_saturated"
+	RuntimeFailureEngineQueueSaturated      RuntimeFailureCode = "engine_queue_saturated"
+	RuntimeFailureEngineCPUSaturated        RuntimeFailureCode = "engine_cpu_saturated"
+	RuntimeFailureInflightSaturated         RuntimeFailureCode = "engine_inflight_saturated"
+	RuntimeFailureLoginSaturated            RuntimeFailureCode = "session_login_saturated"
+	RuntimeFailureUnderDelivery             RuntimeFailureCode = "offered_load_under_delivery"
+	RuntimeFailureSchedulerCPUSaturated     RuntimeFailureCode = "session_scheduler_cpu_saturated"
+	RuntimeFailureClockMovedBackwards       RuntimeFailureCode = "engine_clock_moved_backwards"
+	RuntimeFailureLifecycleFenceExhausted   RuntimeFailureCode = "lifecycle_fence_exhausted"
+	RuntimeFailureLifecycleLeaseInvalidated RuntimeFailureCode = "lifecycle_lease_invalidated"
 )
 
 // RuntimeError is redacted worker-runtime evidence with harness ownership.

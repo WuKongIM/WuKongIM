@@ -60,6 +60,12 @@ type LifecycleCandidate struct {
 	HashSlot uint16 `json:"hash_slot"`
 	// SlotID is the current 1-based logical Slot assignment for HashSlot.
 	SlotID uint32 `json:"slot_id"`
+	// TimerToken binds control admission to one generation-local revisit timer.
+	// It is transient correlation data and must never enter snapshots or reports.
+	TimerToken uint64 `json:"timer_token"`
+	// ActivityVersion changes after every successful SENDACK on that timer.
+	// It is transient and invalidates an older quiet-window lease.
+	ActivityVersion uint64 `json:"activity_version"`
 	// InitialSequence is the acknowledged sequence before natural cooling.
 	InitialSequence uint64 `json:"initial_sequence"`
 	// QuietNotBefore is the earliest valid all-node absence observation.
@@ -189,7 +195,7 @@ func SelectLifecycleCohort(candidates []LifecycleCandidate, now time.Time, assig
 
 func validLifecycleCandidate(candidate LifecycleCandidate, now time.Time, assignment LifecycleSlotAssignment, hashSlots, logicalSlots int) bool {
 	slotID, assigned := assignment.Lookup(candidate.HashSlot)
-	if candidate.ChannelType != 1 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || int(candidate.SlotID) > logicalSlots ||
+	if candidate.ChannelType != 1 || candidate.TimerToken == 0 || candidate.ActivityVersion == 0 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || int(candidate.SlotID) > logicalSlots ||
 		int(candidate.HashSlot) >= hashSlots || lifecycleHashSlotForKey(candidate.ChannelID, uint16(hashSlots)) != candidate.HashSlot ||
 		!assigned || slotID != candidate.SlotID || !candidate.QuietNotBefore.After(now) ||
 		!candidate.QuietDeadline.After(candidate.QuietNotBefore) || !candidate.ReheatAt.After(candidate.QuietDeadline) {
@@ -217,7 +223,7 @@ func validWorkerLifecycleCandidateLease(candidates []LifecycleCandidate, request
 }
 
 func validWorkerLifecycleCandidate(candidate LifecycleCandidate) bool {
-	if candidate.ChannelType != 1 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || candidate.SlotID > formalLogicalSlotGroups ||
+	if candidate.ChannelType != 1 || candidate.TimerToken == 0 || candidate.ActivityVersion == 0 || candidate.InitialSequence == 0 || candidate.SlotID == 0 || candidate.SlotID > formalLogicalSlotGroups ||
 		candidate.HashSlot >= formalHashSlots || lifecycleHashSlotForKey(candidate.ChannelID, formalHashSlots) != candidate.HashSlot ||
 		candidate.QuietNotBefore.IsZero() || !candidate.QuietDeadline.After(candidate.QuietNotBefore) || !candidate.ReheatAt.After(candidate.QuietDeadline) {
 		return false
@@ -252,6 +258,7 @@ type lifecycleCandidateState struct {
 	lastLEO        [3]uint64
 	lastHW         [3]uint64
 	lastCheckpoint [3]uint64
+	missingSeen    [3]bool
 }
 
 // LifecycleProof owns one bounded cohort only for the duration of an explicit
@@ -365,13 +372,12 @@ func (p *LifecycleProof) Observe(now time.Time, results []model.ChannelRuntimePr
 
 func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleCandidateState, rows [3]model.ChannelRuntimeProbeChannel) error {
 	allMissing := true
-	loaded := true
+	loadedCount := 0
 	leaders := 0
 	for index, row := range rows {
 		missing := row.Role == "missing" && row.Status == "missing" && row.LEO == 0 && row.HW == 0 && row.CheckpointHW == 0
 		allMissing = allMissing && missing
 		if missing {
-			loaded = false
 			continue
 		}
 		if row.Status != "active" || (row.Role != "leader" && row.Role != "follower") || row.HW > row.LEO || row.CheckpointHW > row.HW ||
@@ -381,13 +387,12 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if row.Role == "leader" {
 			leaders++
 		}
+		loadedCount++
 	}
-	if !allMissing && (!loaded || leaders != 1) {
-		return p.productFailureLocked()
-	}
+	allLoaded := loadedCount == len(rows)
 	switch state.phase {
 	case lifecycleAwaitLoaded:
-		if !loaded {
+		if !allLoaded || leaders != 1 {
 			return p.productFailureLocked()
 		}
 		for index, row := range rows {
@@ -408,10 +413,18 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			p.snapshot.ColdEligible = saturatingIncrement(p.snapshot.ColdEligible)
 			return nil
 		}
-		if !now.Before(state.candidate.QuietDeadline) {
+		if !now.Before(state.candidate.QuietDeadline) || leaders > 1 || (allLoaded && leaders != 1) {
 			return p.productFailureLocked()
 		}
 		for index, row := range rows {
+			missing := row.Role == "missing"
+			if !missing && state.missingSeen[index] {
+				return p.productFailureLocked()
+			}
+			state.missingSeen[index] = state.missingSeen[index] || missing
+			if missing {
+				continue
+			}
 			state.lastLEO[index], state.lastHW[index] = row.LEO, row.HW
 		}
 	case lifecycleAwaitReheat:
@@ -428,7 +441,7 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if allMissing {
 			return nil
 		}
-		if !loaded || now.Before(state.reheatStarted) {
+		if !allLoaded || leaders != 1 || now.Before(state.reheatStarted) {
 			return p.productFailureLocked()
 		}
 		for _, row := range rows {
@@ -440,11 +453,11 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		p.snapshot.Completed = saturatingIncrement(p.snapshot.Completed)
 		recordWorkerLatency(&p.snapshot.ReheatLatency, now.Sub(state.reheatStarted))
 	case lifecycleComplete:
-		if !loaded {
+		if !allLoaded || leaders != 1 {
 			return p.productFailureLocked()
 		}
 	}
-	if loaded {
+	if allLoaded {
 		for index, row := range rows {
 			state.lastLEO[index], state.lastHW[index], state.lastCheckpoint[index] = row.LEO, row.HW, row.CheckpointHW
 		}
@@ -478,10 +491,12 @@ func NewWorkerLifecycleReheatSender(client lifecycleReheatControl, fence WorkerF
 }
 
 func (s *WorkerLifecycleReheatSender) ApproveLifecycleReheat(ctx context.Context, candidate LifecycleCandidate) error {
-	if ctx == nil || s == nil || s.client == nil || !validLifecyclePersonChannelID(candidate.ChannelID) {
+	if ctx == nil || s == nil || s.client == nil || !validWorkerLifecycleCandidate(candidate) {
 		return ErrLifecycleHarnessInvalid
 	}
-	response, err := s.client.ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{WorkerFence: s.fence, ChannelID: candidate.ChannelID})
+	response, err := s.client.ApproveLifecycleReheat(ctx, WorkerLifecycleReheatRequest{
+		WorkerFence: s.fence, ChannelID: candidate.ChannelID, TimerToken: candidate.TimerToken, ActivityVersion: candidate.ActivityVersion,
+	})
 	if err != nil {
 		return err
 	}
@@ -491,7 +506,7 @@ func (s *WorkerLifecycleReheatSender) ApproveLifecycleReheat(ctx context.Context
 	return nil
 }
 
-// Reheat approves the existing timer after cold proof and no later than its
+// Reheat approves the existing timer after cold proof and strictly before its
 // deterministic due instant. Completion latency remains based on that due time.
 func (p *LifecycleProof) Reheat(ctx context.Context, observedAt time.Time, identity string, sender LifecycleReheatSender) error {
 	if ctx == nil || observedAt.IsZero() {
@@ -510,7 +525,7 @@ func (p *LifecycleProof) Reheat(ctx context.Context, observedAt time.Time, ident
 		p.mu.Unlock()
 		return p.productFailure()
 	}
-	if observedAt.Before(state.coldObservedAt) || observedAt.After(state.candidate.ReheatAt) {
+	if observedAt.Before(state.coldObservedAt) || !observedAt.Before(state.candidate.ReheatAt) {
 		p.mu.Unlock()
 		return p.harnessFailure()
 	}

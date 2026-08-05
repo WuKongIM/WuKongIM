@@ -1243,6 +1243,10 @@ func failureCodeName(code FailureCode) string {
 		return "session_sync_failed"
 	case FailureCodeSessionSyncValidation:
 		return "session_sync_validation"
+	case FailureCodeLifecycleFenceExhausted:
+		return "lifecycle_fence_exhausted"
+	case FailureCodeLifecycleLeaseInvalidated:
+		return "lifecycle_lease_invalidated"
 	default:
 		return "unknown"
 	}

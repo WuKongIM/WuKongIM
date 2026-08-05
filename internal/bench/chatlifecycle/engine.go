@@ -418,6 +418,13 @@ type engineWork struct {
 	schedule            ChannelSchedule
 	relationshipOrdinal uint64
 	coldConfirmed       bool
+	// lifecycleLeaseInvalidated preserves the harness failure after activity
+	// arrives on a timer whose exact cold lease was already approved.
+	lifecycleLeaseInvalidated bool
+	// lifecycleTimerToken distinguishes replacement timers for the same channel;
+	// activityVersion distinguishes quiet windows within one live timer.
+	lifecycleTimerToken uint64
+	activityVersion     uint64
 	requiredSender      string
 	offered             bool
 	// initialSequence and lastActivityAt are retained only on one live revisit
@@ -581,28 +588,31 @@ type Engine struct {
 	commandSaturation atomic.Uint64
 
 	// The fields below are owned exclusively by the active command loop.
-	work                   engineWorkHeap
-	activity               engineWorkHeap
-	retries                *RetryScheduler
-	inflight               map[string]*engineInflight
-	workPeak               int
-	queuedSends            int
-	inflightPeak           int
-	nextOrder              uint64
-	nextClientSeq          uint64
-	activeLifecycleTimers  int
-	lifecycleByChannel     map[string]*engineWork
-	activeChannels         []engineActiveChannel
-	activePosition         map[string]int
-	pendingChannels        []enginePendingChannel
-	pendingPosition        map[string]int
-	activeCursor           uint64
-	retryAttempts          uint64
-	finalFailures          uint64
-	harnessInvalid         uint64
-	activityUnderDelivered uint64
-	activityFutureCanceled uint64
-	now                    time.Time
+	work          engineWorkHeap
+	activity      engineWorkHeap
+	retries       *RetryScheduler
+	inflight      map[string]*engineInflight
+	workPeak      int
+	queuedSends   int
+	inflightPeak  int
+	nextOrder     uint64
+	nextClientSeq uint64
+	// nextLifecycleTimerToken is generation-local, command-loop-owned, and never
+	// wraps because a repeated token could admit an ABA replacement timer.
+	nextLifecycleTimerToken uint64
+	activeLifecycleTimers   int
+	lifecycleByChannel      map[string]*engineWork
+	activeChannels          []engineActiveChannel
+	activePosition          map[string]int
+	pendingChannels         []enginePendingChannel
+	pendingPosition         map[string]int
+	activeCursor            uint64
+	retryAttempts           uint64
+	finalFailures           uint64
+	harnessInvalid          uint64
+	activityUnderDelivered  uint64
+	activityFutureCanceled  uint64
+	now                     time.Time
 }
 
 // NewEngine wires the existing deterministic models and bounded verifier.
@@ -734,6 +744,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.inflightPeak = 0
 	e.nextOrder = 0
 	e.nextClientSeq = 0
+	e.nextLifecycleTimerToken = 0
 	e.activeLifecycleTimers = 0
 	e.retryAttempts = 0
 	e.finalFailures = 0
@@ -1181,24 +1192,26 @@ func (e *Engine) observeNewUser(userIndex, globalNewOrdinal uint64) (considered,
 
 // ApproveColdRevisit attaches prior all-node cold evidence to one still-active
 // revisit timer. It never creates a timer or retains historical channel state.
-func (e *Engine) ApproveColdRevisit(personChannelID string) (bool, error) {
-	return e.ApproveColdRevisitContext(context.Background(), personChannelID)
+func (e *Engine) ApproveColdRevisit(personChannelID string, timerToken, activityVersion uint64) (bool, error) {
+	return e.ApproveColdRevisitContext(context.Background(), personChannelID, timerToken, activityVersion)
 }
 
 // ApproveColdRevisitContext admits the existing scheduled real SEND only
-// after the coordinator proves this exact runtime absent on every node.
-func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID string) (bool, error) {
-	if ctx == nil || personChannelID == "" {
+// when the timer token and post-activity version exactly match its lease.
+func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID string, timerToken, activityVersion uint64) (bool, error) {
+	if ctx == nil || personChannelID == "" || timerToken == 0 || activityVersion == 0 {
 		return false, errEngineConfig
 	}
 	response := make(chan bool, 1)
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		work := e.lifecycleByChannel[personChannelID]
-		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence {
+		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
+			work.lifecycleTimerToken != timerToken || work.activityVersion != activityVersion {
 			response <- false
 			return
 		}
 		work.coldConfirmed = true
+		work.lifecycleLeaseInvalidated = false
 		response <- true
 	}}); err != nil {
 		return false, err
@@ -1222,7 +1235,7 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 		candidates := make([]LifecycleCandidate, 0, min(requested, len(e.lifecycleByChannel)))
 		for identity, work := range e.lifecycleByChannel {
 			if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
-				work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded {
+				work.lifecycleTimerToken == 0 || work.activityVersion == 0 || work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded {
 				continue
 			}
 			quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
@@ -1236,7 +1249,8 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 				continue
 			}
 			candidates = append(candidates, LifecycleCandidate{ChannelID: identity, ChannelType: 1, HashSlot: hash, SlotID: slotID,
-				InitialSequence: work.initialSequence, QuietNotBefore: quietNotBefore, QuietDeadline: quietDeadline, ReheatAt: work.due, ObservedLoaded: true})
+				TimerToken: work.lifecycleTimerToken, ActivityVersion: work.activityVersion, InitialSequence: work.initialSequence,
+				QuietNotBefore: quietNotBefore, QuietDeadline: quietDeadline, ReheatAt: work.due, ObservedLoaded: true})
 		}
 		sort.Slice(candidates, func(i, j int) bool {
 			if !candidates[i].ReheatAt.Equal(candidates[j].ReheatAt) {
@@ -1300,6 +1314,11 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 				response <- err
 				return
 			}
+			timerToken, err := e.allocateLifecycleTimerToken()
+			if err != nil {
+				response <- err
+				return
+			}
 			work := &engineWork{
 				due: now.Add(delay), kind: engineWorkLifecycle, edge: edge,
 				schedule: ChannelSchedule{
@@ -1308,6 +1327,7 @@ func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginO
 				},
 				relationshipOrdinal: loginOrdinal*2 + uint64(index),
 				requiredSender:      candidate.UserUID,
+				lifecycleTimerToken: timerToken,
 			}
 			deadline, err := e.newEligibilityDeadline(work.due)
 			if err != nil {
@@ -2059,6 +2079,10 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			e.completeLifecycleTimer(work, now)
 			return nil
 		}
+		if work.lifecycleLeaseInvalidated {
+			e.completeLifecycleTimer(work, now)
+			return &RuntimeError{code: RuntimeFailureLifecycleLeaseInvalidated}
+		}
 		if work.schedule.RequiresColdRuntimeEvidence && !work.coldConfirmed {
 			e.completeLifecycleTimer(work, now)
 			return nil
@@ -2269,17 +2293,29 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+		var lifecycleErr error
 		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil {
-			if ack.MessageSeq > lifecycle.initialSequence {
-				lifecycle.initialSequence = ack.MessageSeq
+			wasConfirmed := lifecycle.coldConfirmed
+			lifecycle.coldConfirmed = false
+			if wasConfirmed {
+				lifecycle.lifecycleLeaseInvalidated = true
+				lifecycleErr = e.recordRuntimeFailure(RuntimeFailureLifecycleLeaseInvalidated, lifecycle.activityVersion)
 			}
-			lifecycle.lastActivityAt = e.clock.Now()
-			lifecycle.observedLoaded = true
+			if lifecycle.activityVersion == math.MaxUint64 {
+				lifecycleErr = errors.Join(lifecycleErr, e.recordRuntimeFailure(RuntimeFailureLifecycleFenceExhausted, lifecycle.activityVersion))
+			} else {
+				lifecycle.activityVersion++
+				if ack.MessageSeq > lifecycle.initialSequence {
+					lifecycle.initialSequence = ack.MessageSeq
+				}
+				lifecycle.lastActivityAt = e.clock.Now()
+				lifecycle.observedLoaded = true
+			}
 		}
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(ack.ClientMsgNo)
 		delete(e.inflight, ack.ClientMsgNo)
-		return errors.Join(verificationErr, e.verifier.ReleaseSend(logical))
+		return errors.Join(verificationErr, lifecycleErr, e.verifier.ReleaseSend(logical))
 	}
 	if ack.ClientSeq != inflight.currentClientSeq {
 		return verificationErr
@@ -2349,10 +2385,16 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		return false, e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 	}
 	var lifecycleDue time.Time
+	var lifecycleTimerToken uint64
 	var active engineActiveChannel
 	switch schedule.Class {
 	case LifecycleRevisit:
 		lifecycleDue = e.now.Add(schedule.RevisitAfter)
+		var tokenErr error
+		lifecycleTimerToken, tokenErr = e.allocateLifecycleTimerToken()
+		if tokenErr != nil {
+			return false, tokenErr
+		}
 	case LifecycleRotating, LifecycleLong:
 		lifecycleDue = e.now.Add(schedule.ActiveFor)
 		direction, directionErr := e.traffic.DirectionFor(relationshipOrdinal)
@@ -2367,7 +2409,7 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 	if !lifecycleDue.IsZero() {
 		work := &engineWork{
 			due: lifecycleDue, kind: engineWorkLifecycle, edge: edge, schedule: schedule,
-			relationshipOrdinal: relationshipOrdinal,
+			relationshipOrdinal: relationshipOrdinal, lifecycleTimerToken: lifecycleTimerToken,
 		}
 		if schedule.Class == LifecycleRevisit {
 			deadline, deadlineErr := e.newEligibilityDeadline(lifecycleDue)
@@ -2392,6 +2434,16 @@ func (e *Engine) activateRelationship(edge RelationshipEdge, relationshipOrdinal
 		}
 	}
 	return true, nil
+}
+
+// allocateLifecycleTimerToken returns the next nonzero generation-local timer
+// identity. Exhaustion is a bounded harness failure rather than token reuse.
+func (e *Engine) allocateLifecycleTimerToken() (uint64, error) {
+	if e.nextLifecycleTimerToken == math.MaxUint64 {
+		return 0, e.recordRuntimeFailure(RuntimeFailureLifecycleFenceExhausted, e.nextLifecycleTimerToken)
+	}
+	e.nextLifecycleTimerToken++
+	return e.nextLifecycleTimerToken, nil
 }
 
 func (e *Engine) scheduleRelationshipMessages(edge RelationshipEdge, relationshipOrdinal, logicalOffset uint64, count int, start time.Time, window time.Duration) error {
@@ -2725,6 +2777,10 @@ func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) err
 		failureCode = FailureCodeOfferedLoadUnderDelivery
 	case RuntimeFailureSchedulerCPUSaturated:
 		failureCode = FailureCodeSessionSchedulerCPUSaturated
+	case RuntimeFailureLifecycleFenceExhausted:
+		failureCode = FailureCodeLifecycleFenceExhausted
+	case RuntimeFailureLifecycleLeaseInvalidated:
+		failureCode = FailureCodeLifecycleLeaseInvalidated
 	}
 	_ = e.evidence.Record(EvidenceEvent{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: failureCode, Value: value})
 	return &RuntimeError{code: code}

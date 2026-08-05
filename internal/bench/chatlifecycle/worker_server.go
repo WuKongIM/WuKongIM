@@ -66,7 +66,7 @@ type WorkerLifecycleCandidateLeaser interface {
 // WorkerLifecycleReheatApprover exposes only existing scheduled SEND admission.
 // Its deliberately narrow shape cannot manufacture cold state through eviction.
 type WorkerLifecycleReheatApprover interface {
-	ApproveLifecycleReheat(context.Context, string) (bool, error)
+	ApproveLifecycleReheat(context.Context, string, uint64, uint64) (bool, error)
 }
 
 // WorkerServerConfig fixes authentication and drain bounds for one dedicated worker server.
@@ -241,7 +241,7 @@ func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, reque
 	if !decodeWorkerJSON(response, request, &reheat) {
 		return
 	}
-	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) {
+	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) || reheat.TimerToken == 0 || reheat.ActivityVersion == 0 {
 		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
 		return
 	}
@@ -259,7 +259,7 @@ func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, reque
 		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
-	approved, err := approver.ApproveLifecycleReheat(request.Context(), reheat.ChannelID)
+	approved, err := approver.ApproveLifecycleReheat(request.Context(), reheat.ChannelID, reheat.TimerToken, reheat.ActivityVersion)
 	s.mu.Lock()
 	if !s.controlStateMatchesLocked(control) {
 		s.mu.Unlock()
@@ -1388,8 +1388,8 @@ func (g *engineWorkerGeneration) LeaseLifecycleCandidates(ctx context.Context, r
 	return g.engine.LeaseLifecycleCandidates(ctx, requested, g.lifecycleSlots)
 }
 
-func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
-	return g.engine.ApproveColdRevisitContext(ctx, identity)
+func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, identity string, timerToken, activityVersion uint64) (bool, error) {
+	return g.engine.ApproveColdRevisitContext(ctx, identity, timerToken, activityVersion)
 }
 
 func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }

@@ -147,11 +147,14 @@ type WorkerLifecycleCandidateLeaseResponse struct {
 	Candidates  []LifecycleCandidate `json:"candidates"`
 }
 
-// WorkerLifecycleReheatRequest admits the existing deterministic revisit SEND
-// after all-node absence proof; it never invokes runtime eviction.
+// WorkerLifecycleReheatRequest admits the exact existing deterministic revisit
+// SEND after all-node absence proof; token and version reject timer and activity
+// ABA races. It never invokes runtime eviction.
 type WorkerLifecycleReheatRequest struct {
 	WorkerFence
-	ChannelID string `json:"channel_id"`
+	ChannelID       string `json:"channel_id"`
+	TimerToken      uint64 `json:"timer_token"`
+	ActivityVersion uint64 `json:"activity_version"`
 }
 
 // WorkerLifecycleReheatResponse confirms admission, not SEND completion.
