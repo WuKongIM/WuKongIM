@@ -79,6 +79,12 @@ type workerStopTask struct {
 	done chan struct{}
 }
 
+type workerControlState struct {
+	generation WorkerGeneration
+	phase      WorkerPhase
+	fence      WorkerFence
+}
+
 // NewWorkerServer creates a dedicated authenticated worker API.
 func NewWorkerServer(config WorkerServerConfig) (*WorkerServer, error) {
 	if config.ControlToken == "" || config.Factory == nil {
@@ -250,34 +256,35 @@ func (s *WorkerServer) handleStatus(response http.ResponseWriter, _ *http.Reques
 
 func (s *WorkerServer) handleSnapshot(response http.ResponseWriter, request *http.Request) {
 	s.mu.Lock()
-	phase := s.phase
-	assignment := s.assignment
 	generation := s.generation
-	if phase == WorkerPhaseFinal {
+	if s.phase == WorkerPhaseFinal {
 		final := s.final
 		s.mu.Unlock()
 		writeWorkerJSON(response, http.StatusOK, final)
 		return
 	}
 	if generation == nil {
+		phase := s.phase
 		s.mu.Unlock()
 		writeWorkerJSON(response, http.StatusOK, WorkerSnapshot{Phase: phase})
 		return
 	}
+	control := workerControlState{generation: generation, phase: s.phase, fence: s.assignment.WorkerFence}
 	s.mu.Unlock()
 
 	snapshot, err := generation.Snapshot(request.Context())
+	s.mu.Lock()
+	if !s.controlStateMatchesLocked(control) {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
 	if err != nil {
+		s.mu.Unlock()
 		if request.Context().Err() != nil {
 			return
 		}
 		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
-		return
-	}
-	s.mu.Lock()
-	if s.generation != generation || s.phase != phase || !sameWorkerFence(s.assignment.WorkerFence, assignment.WorkerFence) {
-		s.mu.Unlock()
-		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
 		return
 	}
 	snapshot = s.overlaySnapshotLocked(snapshot)
@@ -305,24 +312,22 @@ func (s *WorkerServer) handleCheckpoint(response http.ResponseWriter, request *h
 		return
 	}
 	generation := s.generation
+	control := workerControlState{generation: generation, phase: s.phase, fence: checkpoint.WorkerFence}
 	s.mu.Unlock()
 
 	snapshot, err := generation.Checkpoint(request.Context())
-	if err != nil {
-		if request.Context().Err() != nil {
-			return
-		}
-		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
-		return
-	}
 	s.mu.Lock()
-	if s.generation != generation {
+	if !s.controlStateMatchesLocked(control) {
 		s.mu.Unlock()
 		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
 		return
 	}
-	if !s.runningFenceLocked(response, checkpoint.WorkerFence) {
+	if err != nil {
 		s.mu.Unlock()
+		if request.Context().Err() != nil {
+			return
+		}
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
 	snapshot = s.overlaySnapshotLocked(snapshot)
@@ -350,23 +355,22 @@ func (s *WorkerServer) handleRate(response http.ResponseWriter, request *http.Re
 		return
 	}
 	generation := s.generation
+	control := workerControlState{generation: generation, phase: s.phase, fence: rate.WorkerFence}
 	s.mu.Unlock()
 
-	if err := generation.UpdateRate(request.Context(), rate.RatePerSecond, rate.MaxBurst); err != nil {
-		if request.Context().Err() != nil {
-			return
-		}
-		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
-		return
-	}
+	err := generation.UpdateRate(request.Context(), rate.RatePerSecond, rate.MaxBurst)
 	s.mu.Lock()
-	if s.generation != generation {
+	if !s.controlStateMatchesLocked(control) {
 		s.mu.Unlock()
 		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
 		return
 	}
-	if !s.runningFenceLocked(response, rate.WorkerFence) {
+	if err != nil {
 		s.mu.Unlock()
+		if request.Context().Err() != nil {
+			return
+		}
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 		return
 	}
 	status := s.statusLocked()
@@ -520,6 +524,11 @@ func (s *WorkerServer) runningFenceLocked(response http.ResponseWriter, fence Wo
 		return false
 	}
 	return true
+}
+
+func (s *WorkerServer) controlStateMatchesLocked(control workerControlState) bool {
+	return s.generation == control.generation && s.phase == control.phase &&
+		sameWorkerFence(s.assignment.WorkerFence, control.fence)
 }
 
 func (s *WorkerServer) statusLocked() WorkerStatus {

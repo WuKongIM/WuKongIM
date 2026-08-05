@@ -38,11 +38,14 @@ That path skips drain because no Engine generation is running, performs one
 idempotent generation cleanup, caches `final`, and permits only a strictly
 higher later assignment. Snapshot, checkpoint, and rate handlers capture the
 generation pointer, phase, and fence under the server lock, call the
-context-aware generation outside the lock, and publish a result only if the
-captured state still matches. Request cancellation therefore ends owner waits
-without retaining goroutines, while health and status remain independent of a
-slow generation call. A late old-generation snapshot is discarded rather than
-overlaid with a newer fence. Engine snapshot, consistent worker-runtime
+context-aware generation outside the lock, and recheck all three before
+handling either a successful or failed result. A late error from a stopped,
+reassigned generation is therefore a fence mismatch, never a runtime failure
+attributed to the current generation. Request cancellation therefore ends
+owner waits without retaining goroutines, while health and status remain
+independent of a slow generation call. Late old-generation snapshot,
+checkpoint, and rate results are discarded rather than overlaid with a newer
+fence. Engine snapshot, consistent worker-runtime
 snapshot, rate update, and bounded drain advancement expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating

@@ -993,6 +993,72 @@ func TestWorkerServerDiscardsOldSnapshotResultAfterHigherGenerationAssignment(t 
 	}
 }
 
+func TestWorkerServerRejectsLateControlErrorsAfterHigherGenerationAssignment(t *testing.T) {
+	for _, operation := range []string{"snapshot", "checkpoint", "rate"} {
+		t.Run(operation, func(t *testing.T) {
+			oldGeneration := newBlockingControlGeneration(operation)
+			oldGeneration.controlErr = errors.New("old-generation-secret-" + operation)
+			newGeneration := newFakeWorkerGeneration()
+			created := 0
+			server, err := NewWorkerServer(WorkerServerConfig{
+				ControlToken: "control-secret",
+				Factory: WorkerGenerationFactoryFunc(func(assignment WorkerAssignment) (WorkerGeneration, error) {
+					created++
+					if created == 1 {
+						oldGeneration.snapshot.Generation = assignment.Generation
+						return oldGeneration, nil
+					}
+					newGeneration.snapshot.Generation = assignment.Generation
+					return newGeneration, nil
+				}),
+			})
+			if err != nil {
+				t.Fatalf("NewWorkerServer: %v", err)
+			}
+			config := LocalConfig()
+			fence7 := WorkerFence{RunID: config.RunID, AssignmentID: "late-error-" + operation, Generation: 7}
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+				WorkerFence: fence7, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+			})
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence7})
+
+			method, path, body := http.MethodGet, "/v1/chat-lifecycle/snapshot", any(nil)
+			switch operation {
+			case "checkpoint":
+				method, path = http.MethodPost, "/v1/chat-lifecycle/checkpoint"
+				body = WorkerCheckpointRequest{WorkerFence: fence7}
+			case "rate":
+				method, path = http.MethodPost, "/v1/chat-lifecycle/rate"
+				body = WorkerRateRequest{WorkerFence: fence7, RatePerSecond: 120, MaxBurst: 240}
+			}
+			oldResponse := make(chan *httptest.ResponseRecorder, 1)
+			go func() { oldResponse <- workerRequest(t, server, method, path, body) }()
+			<-oldGeneration.controlStarted
+
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence7})
+			fence8 := WorkerFence{RunID: config.RunID, AssignmentID: "late-error-next-" + operation, Generation: 8}
+			assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+				WorkerFence: fence8, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+			})
+			close(oldGeneration.controlRelease)
+			response := <-oldResponse
+			if response.Code != http.StatusConflict {
+				t.Fatalf("late %s error status = %d, want %d; body=%q", operation, response.Code, http.StatusConflict, response.Body.String())
+			}
+			var apiError WorkerAPIError
+			if err := json.Unmarshal(response.Body.Bytes(), &apiError); err != nil {
+				t.Fatalf("decode late %s error: %v", operation, err)
+			}
+			if apiError.Code != WorkerErrorFenceMismatch {
+				t.Fatalf("late %s error code = %q, want %q", operation, apiError.Code, WorkerErrorFenceMismatch)
+			}
+			if strings.Contains(response.Body.String(), "old-generation-secret") || apiError.Code == WorkerErrorRuntimeFailure {
+				t.Fatalf("late %s leaked stale runtime error: %q", operation, response.Body.String())
+			}
+		})
+	}
+}
+
 type blockingControlGeneration struct {
 	*fakeWorkerGeneration
 	operation      string
@@ -1000,6 +1066,7 @@ type blockingControlGeneration struct {
 	controlRelease chan struct{}
 	blockOnce      atomic.Bool
 	startedOnce    sync.Once
+	controlErr     error
 }
 
 func newBlockingControlGeneration(operation string) *blockingControlGeneration {
@@ -1016,8 +1083,12 @@ func newBlockingControlGeneration(operation string) *blockingControlGeneration {
 
 func (g *blockingControlGeneration) Checkpoint(ctx context.Context) (WorkerSnapshot, error) {
 	if g.operation == "checkpoint" {
-		if err := g.blockControl(ctx); err != nil {
+		blocked, err := g.blockControl(ctx)
+		if err != nil {
 			return WorkerSnapshot{}, err
+		}
+		if blocked && g.controlErr != nil {
+			return WorkerSnapshot{}, g.controlErr
 		}
 	}
 	return g.fakeWorkerGeneration.Checkpoint(ctx)
@@ -1025,8 +1096,12 @@ func (g *blockingControlGeneration) Checkpoint(ctx context.Context) (WorkerSnaps
 
 func (g *blockingControlGeneration) UpdateRate(ctx context.Context, ratePerSecond, maxBurst uint64) error {
 	if g.operation == "rate" {
-		if err := g.blockControl(ctx); err != nil {
+		blocked, err := g.blockControl(ctx)
+		if err != nil {
 			return err
+		}
+		if blocked && g.controlErr != nil {
+			return g.controlErr
 		}
 	}
 	return g.fakeWorkerGeneration.UpdateRate(ctx, ratePerSecond, maxBurst)
@@ -1034,23 +1109,27 @@ func (g *blockingControlGeneration) UpdateRate(ctx context.Context, ratePerSecon
 
 func (g *blockingControlGeneration) Snapshot(ctx context.Context) (WorkerSnapshot, error) {
 	if g.operation == "snapshot" {
-		if err := g.blockControl(ctx); err != nil {
+		blocked, err := g.blockControl(ctx)
+		if err != nil {
 			return WorkerSnapshot{}, err
+		}
+		if blocked && g.controlErr != nil {
+			return WorkerSnapshot{}, g.controlErr
 		}
 	}
 	return g.fakeWorkerGeneration.Snapshot(ctx)
 }
 
-func (g *blockingControlGeneration) blockControl(ctx context.Context) error {
+func (g *blockingControlGeneration) blockControl(ctx context.Context) (bool, error) {
 	if !g.blockOnce.CompareAndSwap(true, false) {
-		return nil
+		return false, nil
 	}
 	g.startedOnce.Do(func() { close(g.controlStarted) })
 	select {
 	case <-g.controlRelease:
-		return nil
+		return true, nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return true, ctx.Err()
 	}
 }
 
