@@ -171,17 +171,17 @@ func TestVerdictBatchPrecedenceIsDeterministicAndFirstTerminalFreezes(t *testing
 	}
 }
 
-func TestVerdictFinalizeProducesTerminalPass(t *testing.T) {
+func TestVerdictFinalizeRejectsEmptyEvidence(t *testing.T) {
 	start := time.Unix(50_000, 0)
 	evaluator, err := NewVerdictEvaluator(start, LocalConfig().Thresholds)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := evaluator.Finalize(start.Add(72 * time.Hour)); err != nil {
-		t.Fatal(err)
+	if err := evaluator.Finalize(start.Add(72 * time.Hour)); !errors.Is(err, ErrVerdictObservation) {
+		t.Fatalf("empty finalize error = %v, want %v", err, ErrVerdictObservation)
 	}
-	if got := evaluator.Snapshot(); !got.Terminal || got.Outcome != VerdictPass || got.Cause != VerdictCauseCompleted {
-		t.Fatalf("final pass = %+v", got)
+	if got := evaluator.Snapshot(); !got.Terminal || got.Outcome != VerdictHarnessInvalid || got.Cause != VerdictCauseInvalidObservation {
+		t.Fatalf("empty final verdict = %+v", got)
 	}
 }
 
@@ -216,6 +216,74 @@ func TestVerdictCannotFinalizeBeforeConfiguredRunEnd(t *testing.T) {
 	}
 	if got := evaluator.Snapshot(); got.Outcome != VerdictHarnessInvalid || got.Cause != VerdictCauseInvalidObservation {
 		t.Fatalf("early finalize verdict = %+v", got)
+	}
+}
+
+func TestVerdictFinalizeRejectsEachMissingEvidenceClass(t *testing.T) {
+	start := time.Unix(56_000, 0)
+	thresholds := FormalConfig().Thresholds
+	for _, omitted := range []string{"correctness", "hot", "cold", "sync", "resources", "complete-resource-window", "fresh-resource-window"} {
+		t.Run(omitted, func(t *testing.T) {
+			evaluator, err := NewVerdictEvaluator(start, thresholds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			populateVerdictForEvidenceAudit(t, evaluator, start, thresholds, omitted)
+			if err := evaluator.Finalize(start.Add(thresholds.Timeline.Final)); !errors.Is(err, ErrVerdictObservation) {
+				t.Fatalf("Finalize error = %v, want %v", err, ErrVerdictObservation)
+			}
+			if got := evaluator.Snapshot(); got.Outcome != VerdictHarnessInvalid || got.Cause != VerdictCauseInvalidObservation {
+				t.Fatalf("missing %s verdict = %+v", omitted, got)
+			}
+		})
+	}
+}
+
+func populateVerdictForEvidenceAudit(
+	t *testing.T,
+	evaluator *VerdictEvaluator,
+	start time.Time,
+	thresholds ThresholdsConfig,
+	omitted string,
+) {
+	t.Helper()
+	correctness := CorrectnessCounters{}
+	latency := LatencyCountersForThresholds(thresholds.Latency)
+	for hour := 0; hour <= int(thresholds.Timeline.Final/time.Hour); hour++ {
+		at := start.Add(time.Duration(hour) * time.Hour)
+		observation := VerdictObservation{At: at}
+		if omitted != "correctness" {
+			correctness.FirstAttempts += 1_000
+			observation.Correctness = &correctness
+		}
+		if omitted != "hot" {
+			latency.Hot.Count += 100
+		}
+		if omitted != "cold" {
+			latency.Cold.Count += 10
+		}
+		if omitted != "sync" {
+			latency.Sync.Count++
+		}
+		observation.Latency = &latency
+		switch omitted {
+		case "resources":
+		case "complete-resource-window":
+			if hour == 0 {
+				observation.Resources = queueOnlyResourceSamples()
+			} else if hour >= 66 {
+				observation.Resources = resourceSamples([3]float64{100, 100, 100}, [3]float64{100, 100, 100})
+			}
+		case "fresh-resource-window":
+			if hour <= 26 {
+				observation.Resources = resourceSamples([3]float64{100, 100, 100}, [3]float64{100, 100, 100})
+			}
+		default:
+			observation.Resources = resourceSamples([3]float64{100, 100, 100}, [3]float64{100, 100, 100})
+		}
+		if err := evaluator.Observe(observation); err != nil {
+			t.Fatalf("Observe hour %d: %v", hour, err)
+		}
 	}
 }
 
@@ -706,6 +774,14 @@ func resourceSamples(heaps, goroutines [3]float64) []NodeResourceSample {
 		{NodeID: 1, ForcedGC: true, HeapBytes: heaps[0], Goroutines: goroutines[0], QueueDepth: 10, Inflight: 5},
 		{NodeID: 2, ForcedGC: true, HeapBytes: heaps[1], Goroutines: goroutines[1], QueueDepth: 10, Inflight: 5},
 		{NodeID: 3, ForcedGC: true, HeapBytes: heaps[2], Goroutines: goroutines[2], QueueDepth: 10, Inflight: 5},
+	}
+}
+
+func queueOnlyResourceSamples() []NodeResourceSample {
+	return []NodeResourceSample{
+		{NodeID: 1, QueueDepth: 10, Inflight: 5},
+		{NodeID: 2, QueueDepth: 10, Inflight: 5},
+		{NodeID: 3, QueueDepth: 10, Inflight: 5},
 	}
 }
 

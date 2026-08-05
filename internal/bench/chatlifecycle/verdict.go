@@ -236,6 +236,7 @@ type VerdictEvaluator struct {
 	latencyAnomalyHead  int
 	latencyAnomalySize  int
 	latencyAnomalyCount uint64
+	latencyEvidence     [3]bool
 	resources           [3]verdictResourceNode
 	heapWindowCapacity  int
 	goroWindowCapacity  int
@@ -373,6 +374,9 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 				}
 				for index, operation := range operations {
 					state := &v.latency[index]
+					if operation.counters.Count > 0 {
+						v.latencyEvidence[index] = true
+					}
 					if err := state.p99.Add(observation.At, operation.counters.AboveP99, operation.counters.Count); err != nil {
 						selectSignal(VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseCounterRegression})
 						continue
@@ -772,8 +776,37 @@ func (v *VerdictEvaluator) Finalize(at time.Time) error {
 			return nil
 		}
 	}
+	if !v.completeEvidenceAt(at) {
+		v.setTerminal(VerdictHarnessInvalid, VerdictCauseInvalidObservation)
+		return ErrVerdictObservation
+	}
 	v.setTerminal(VerdictPass, VerdictCauseCompleted)
 	return nil
+}
+
+func (v *VerdictEvaluator) completeEvidenceAt(at time.Time) bool {
+	if !v.correctnessSeen || v.previousCorrectness.FirstAttempts == 0 {
+		return false
+	}
+	for _, seen := range v.latencyEvidence {
+		if !seen {
+			return false
+		}
+	}
+	for index := range v.resources {
+		state := &v.resources[index]
+		if !state.used || !state.baselineSeen || state.heap == nil || state.goroutines == nil ||
+			state.heap.last.IsZero() || state.goroutines.last.IsZero() ||
+			at.Sub(state.heap.last) > time.Hour || at.Sub(state.goroutines.last) > time.Hour {
+			return false
+		}
+		heapReady, _, heapErr := state.heap.GrowthExceeds(uint64(v.thresholds.Resource.ForcedGCLiveHeapGrowthPercent))
+		goroutineReady, _, goroutineErr := state.goroutines.GrowthExceeds(uint64(v.thresholds.Resource.GoroutineGrowthPercent))
+		if heapErr != nil || goroutineErr != nil || !heapReady || !goroutineReady {
+			return false
+		}
+	}
+	return true
 }
 
 // RecordCleanupError retains only the bounded last cleanup codes and never

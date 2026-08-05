@@ -894,7 +894,10 @@ The standalone verdict reducer has only the closed outcomes `pass`,
 is product, infrastructure, harness, then operator. The first terminal outcome
 and fixed cause never change; later cleanup failures increment a saturating
 count and retain only the last 16 closed cleanup codes. Pass can be frozen only
-at or after the configured final instant. Duplicate or regressing observation
+at or after the configured final instant and only with nonzero correctness
+traffic, post-warmup evidence for all three latency classes, all three queue
+baselines, and fresh complete six-hour heap plus 24-hour goroutine windows for
+every node. Missing terminal evidence is harness invalid, never pass. Duplicate or regressing observation
 time, invalid schema, counter regression, arithmetic overflow, or exhausted
 unexpired ring capacity freezes a harness-invalid verdict.
 
