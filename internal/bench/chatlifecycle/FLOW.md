@@ -930,6 +930,32 @@ must return both gauges to that baseline; a burst without a baseline is harness
 invalid, and an active burst at finalization is product failure. All one-minute,
 five-minute, six-hour, and 24-hour histories remain fixed-size across 72 hours.
 
+The standalone checkpoint recorder binds one validated configuration, start
+instant, and exact worker fence. It accepts only complete three-worker snapshot
+cuts and has no Start, Stop, assignment, grant, or traffic-control capability.
+The qualification cut therefore cannot restart or reassign workers. A formal
+72-hour pass requires an earlier qualification from the same recorder and
+generation; snapshot sequence and uptime must continue monotonically, and
+every worker uptime must cover the measured run window. Terminal evidence may
+produce a final report immediately, while a terminal qualification forbids any
+later continuation.
+
+Persisted reports use the versioned JSON/Markdown schema, the canonical
+effective-configuration SHA-256 digest, exact threshold values and threshold
+version, design profile, topology proof, hashed run/assignment fence, stable
+worker indexes/generations, explicit warmup/qualification/final instants, and
+bounded aggregate message, sync, lifecycle, metadata-create, latency,
+per-node resource, cluster, verdict, and capacity evidence. Optional samples
+contain only a closed class, stable index, and SHA-256 hash. Raw credentials,
+UIDs, Channel IDs, payload markers, arbitrary error text, and open string
+vocabularies are rejected. Warning codes are projected without recalculating
+or changing the supplied verdict. Each report file is written mode 0600 through
+a synced sibling temporary followed by rename and directory sync; failed
+validation occurs before the existing destination can be replaced. Formal
+capture prepares against a cloned aggregation baseline and commits recorder
+sequence state only after both JSON and Markdown writes succeed, so an output
+failure may retry the identical worker snapshot cut.
+
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result
 to the platform `int` range before comparing `max_global_burst`.
