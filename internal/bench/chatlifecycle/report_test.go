@@ -151,6 +151,30 @@ func TestReportRejectsFreeTextAndMalformedHashesWithoutReplacingDestination(t *t
 	}
 }
 
+func TestReportRejectsEarlyPassAndUnboundedVerdictTails(t *testing.T) {
+	earlyPass := reportFixture(t)
+	earlyPass.Kind = CheckpointFinal
+	earlyPass.Final = true
+	earlyPass.Continue = false
+	earlyPass.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	for index := range earlyPass.Workers {
+		earlyPass.Workers[index].Phase = WorkerPhaseFinal
+	}
+	if _, err := MarshalReport(earlyPass, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+		t.Fatalf("early pass report error = %v, want %v", err, ErrReportInvalid)
+	}
+
+	unbounded := reportFixture(t)
+	unbounded.Verdict.CleanupErrorCount = maxVerdictCleanupErrors + 1
+	unbounded.Verdict.CleanupErrors = make([]VerdictCleanupErrorCode, maxVerdictCleanupErrors+1)
+	for index := range unbounded.Verdict.CleanupErrors {
+		unbounded.Verdict.CleanupErrors[index] = VerdictCleanupWorkerStop
+	}
+	if _, err := MarshalReport(unbounded, ReportFormatMarkdown); !errors.Is(err, ErrReportInvalid) {
+		t.Fatalf("unbounded verdict tail error = %v, want %v", err, ErrReportInvalid)
+	}
+}
+
 func TestReportConfigDigestIsDeterministicAndBindsThresholds(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "digest-run"

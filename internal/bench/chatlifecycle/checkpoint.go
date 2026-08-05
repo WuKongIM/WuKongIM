@@ -128,6 +128,9 @@ func (r *CheckpointRecorder) prepareLocked(
 	finalAt := r.start.Add(r.cfg.Thresholds.Timeline.Final)
 	kind := CheckpointQualification
 	terminal := evidence.Verdict.Terminal
+	if terminal && evidence.Verdict.Outcome == VerdictPass && at.Before(finalAt) {
+		return Report{}, nil, false, false, ErrCheckpointSequence
+	}
 	switch {
 	case terminal && at.Before(checkpointAt):
 		kind = CheckpointFinal

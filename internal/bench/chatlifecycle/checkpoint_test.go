@@ -163,6 +163,13 @@ func TestCheckpointFinalPassRequiresQualificationAndContinuousWorkerUptime(t *te
 	if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
 		t.Fatal(err)
 	}
+	earlyPassSnapshots := coordinatorSnapshotFixture(fence, 2, 25*time.Hour, 2)
+	for index := range earlyPassSnapshots {
+		earlyPassSnapshots[index].Phase = WorkerPhaseFinal
+	}
+	if _, err := captureCheckpoint(t, recorder, start.Add(25*time.Hour), earlyPassSnapshots, passing); !errors.Is(err, ErrCheckpointSequence) {
+		t.Fatalf("early final pass error = %v, want %v", err, ErrCheckpointSequence)
+	}
 	restarted := coordinatorSnapshotFixture(fence, 2, time.Hour, 2)
 	for index := range restarted {
 		restarted[index].Phase = WorkerPhaseFinal

@@ -377,7 +377,9 @@ func validReportVerdict(report Report) bool {
 	if report.Final == report.Continue {
 		return false
 	}
-	if report.Verdict.CleanupErrorCount < uint64(len(report.Verdict.CleanupErrors)) ||
+	if len(report.Verdict.CleanupErrors) > maxVerdictCleanupErrors ||
+		len(report.Verdict.LatencyAnomalies) > maxVerdictLatencyAnomalies ||
+		report.Verdict.CleanupErrorCount < uint64(len(report.Verdict.CleanupErrors)) ||
 		report.Verdict.LatencyAnomalyCount < uint64(len(report.Verdict.LatencyAnomalies)) ||
 		!validReportRetention(report.Verdict.Retention) {
 		return false
@@ -399,7 +401,8 @@ func validReportVerdict(report Report) bool {
 	if !report.Final || report.Continue || !validVerdictOutcome(report.Verdict.Outcome) || !validVerdictCause(report.Verdict.Cause) {
 		return false
 	}
-	if (report.Verdict.Outcome == VerdictPass) != (report.Verdict.Cause == VerdictCauseCompleted) {
+	if (report.Verdict.Outcome == VerdictPass) != (report.Verdict.Cause == VerdictCauseCompleted) ||
+		(report.Verdict.Outcome == VerdictPass && (report.Kind != CheckpointFinal || report.Window.End.Before(report.Window.FinalAt))) {
 		return false
 	}
 	return true
