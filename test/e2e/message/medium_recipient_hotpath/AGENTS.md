@@ -27,10 +27,9 @@ sets `WK_E2E_MEDIUM_RECIPIENT_CI_SCALE=1` together with the strictly reviewed
 Cloud Medium capacity while hosting three nodes, all clients, and the sampler.
 The CI-scaled gate retains the exact workload shape, latency limits, queue and
 plugin conservation, allocation/GC ceilings, and process continuity.
-Public pressure metrics are sampled every 500ms for the 500/s CI gate and every
-250ms otherwise, keeping roughly the same cross-node sample count without
-letting the three in-process Prometheus encoders dominate allocation on a
-shared two-core runner.
+Public pressure metrics are sampled once per second. That remains bounded while
+avoiding observer-induced tail latency and allocation from three concurrent
+full-registry Prometheus scrapes.
 Allocation acceptance separates a 360,000-byte/message budget from a bounded
 40MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
 that allowance and hide a product-path allocation regression.
@@ -44,6 +43,8 @@ that allowance and hide a product-path allocation regression.
 - Preserve the reviewed 96-worker, 8-item Channel replication RPC envelope.
 - Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact;
   diagnostic group-channel cardinality may change only channel reuse.
+- Require the measured high-QPS SEND window to add zero ordinary membership
+  mutation rows; setup mutations remain outside the counter delta.
 - Keep setup outside the measured SEND window.
 - Before setup and again immediately before cold prime, require all three nodes
   to agree on every actual Raft leader for the 10 non-empty logical Slots for a

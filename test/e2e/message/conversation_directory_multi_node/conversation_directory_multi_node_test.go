@@ -5,8 +5,12 @@ package conversation_directory_multi_node
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +20,13 @@ import (
 )
 
 const hydrationRemoteBatchMetric = "wukongim_conversation_hydration_remote_batch_calls"
+
+const (
+	directoryPerformanceEnv         = "WK_E2E_CONVERSATION_DIRECTORY_PERF"
+	directoryPerformanceChannels    = 200
+	directoryPerformanceConcurrency = 32
+	directoryPerformanceRounds      = 10
+)
 
 type directoryChannel struct {
 	ID          string
@@ -33,6 +44,44 @@ type channelRuntimeMetaItem struct {
 	ChannelType int64  `json:"channel_type"`
 	Leader      uint64 `json:"leader"`
 	Status      string `json:"status"`
+}
+
+type directoryPerformanceEvidence struct {
+	Schema                 string  `json:"schema"`
+	Channels               int     `json:"channels"`
+	PageSize               int     `json:"page_size"`
+	Concurrency            int     `json:"concurrency"`
+	Rounds                 int     `json:"rounds"`
+	Requests               int     `json:"requests"`
+	ElapsedMS              float64 `json:"elapsed_ms"`
+	RequestsPerSecond      float64 `json:"requests_per_second"`
+	P50MS                  float64 `json:"p50_ms"`
+	P95MS                  float64 `json:"p95_ms"`
+	P99MS                  float64 `json:"p99_ms"`
+	MaxMS                  float64 `json:"max_ms"`
+	MembershipMutationRows float64 `json:"membership_mutation_rows"`
+	HydrationBatches       float64 `json:"hydration_batches"`
+	HydrationItems         float64 `json:"hydration_items"`
+	RemoteBatchCalls       float64 `json:"remote_batch_calls"`
+	LocalReads             float64 `json:"local_reads"`
+	MailboxAdmissionFull   float64 `json:"mailbox_admission_full"`
+	CPUObserved            bool    `json:"cpu_observed"`
+	CPUSeconds             float64 `json:"cpu_seconds"`
+	AllocatedBytes         float64 `json:"allocated_bytes"`
+	AggregateHeapBytes     float64 `json:"aggregate_heap_bytes"`
+}
+
+type directoryPerformanceSnapshot struct {
+	membershipMutationRows float64
+	hydrationBatches       suite.MetricHistogramSnapshot
+	hydrationItems         suite.MetricHistogramSnapshot
+	remoteBatchCalls       suite.MetricHistogramSnapshot
+	localReads             suite.MetricHistogramSnapshot
+	mailboxAdmissionFull   float64
+	cpuObserved            bool
+	cpuSeconds             float64
+	allocatedBytes         float64
+	aggregateHeapBytes     float64
 }
 
 func TestThreeNodeConversationDirectoryBatchesHydrationByChannelLeader(t *testing.T) {
@@ -155,6 +204,222 @@ func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *te
 	require.True(t, ok)
 	require.NotNil(t, recovered.LastMessage)
 	require.Equal(t, affected[0].ClientMsgNo, recovered.LastMessage.ClientMsgNo)
+}
+
+func TestThreeNodeConversationDirectoryPerformanceAcceptance(t *testing.T) {
+	if os.Getenv(directoryPerformanceEnv) != "1" {
+		t.Skip("set WK_E2E_CONVERSATION_DIRECTORY_PERF=1 to run the bounded conversation-directory performance gate")
+	}
+	cluster := startStableThreeNodeCluster(t)
+	origin := cluster.MustNode(1)
+	users := []string{"directory-perf-user-0", "directory-perf-user-1", "directory-perf-user-2", "directory-perf-user-3"}
+	prepareDirectoryPerformanceChannels(t, cluster, origin, users)
+	requireDirectoryPageEventually(t, cluster, origin, users[0], directoryPerformanceChannels, func(page suite.ConversationListPage) error {
+		return validateDirectoryPerformancePage(page, directoryPerformanceChannels, directoryPerformanceChannels)
+	})
+
+	for _, pageSize := range []int{25, 100, directoryPerformanceChannels} {
+		evidence := runDirectoryPerformancePhase(t, cluster, origin, users, pageSize)
+		encoded, err := json.Marshal(evidence)
+		require.NoError(t, err)
+		t.Logf("WK-CONVERSATION-DIRECTORY-PERF %s", encoded)
+	}
+}
+
+func prepareDirectoryPerformanceChannels(t *testing.T, cluster *suite.StartedCluster, origin *suite.StartedNode, users []string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	const workers = 8
+	senderUID := "directory-perf-sender"
+	subscribers := append([]string{senderUID}, users...)
+	prefix := fmt.Sprintf("directory-perf-%d", time.Now().UnixNano())
+	jobs := make(chan int)
+	errs := make(chan error, directoryPerformanceChannels)
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range jobs {
+				channelID := fmt.Sprintf("%s-%03d", prefix, index)
+				if err := suite.PostChannel(ctx, origin.APIAddr(), map[string]any{
+					"channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+					"reset": 1, "subscribers": subscribers,
+				}); err != nil {
+					errs <- fmt.Errorf("create channel %s: %w", channelID, err)
+					continue
+				}
+				clientMsgNo := fmt.Sprintf("directory-perf-message-%03d", index)
+				response, err := suite.PostMessageSendEventually(ctx, origin.APIAddr(), map[string]any{
+					"from_uid": senderUID, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+					"client_msg_no": clientMsgNo,
+					"payload":       base64.StdEncoding.EncodeToString([]byte(clientMsgNo)),
+				})
+				if err != nil {
+					errs <- fmt.Errorf("send channel %s: %w", channelID, err)
+					continue
+				}
+				if response.Reason != uint8(frame.ReasonSuccess) || response.MessageSeq == 0 {
+					errs <- fmt.Errorf("send channel %s response = %+v", channelID, response)
+				}
+			}
+		}()
+	}
+	for index := 0; index < directoryPerformanceChannels; index++ {
+		jobs <- index
+	}
+	close(jobs)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err, cluster.DumpDiagnostics())
+	}
+}
+
+func runDirectoryPerformancePhase(t *testing.T, cluster *suite.StartedCluster, origin *suite.StartedNode, users []string, pageSize int) directoryPerformanceEvidence {
+	t.Helper()
+	before := captureDirectoryPerformanceSnapshot(t, cluster)
+	requestCount := directoryPerformanceConcurrency * directoryPerformanceRounds
+	latencies := make(chan time.Duration, requestCount)
+	errs := make(chan error, requestCount)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for worker := 0; worker < directoryPerformanceConcurrency; worker++ {
+		uid := users[worker%len(users)]
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			for round := 0; round < directoryPerformanceRounds; round++ {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				requestStart := time.Now()
+				page, err := suite.PostConversationListPage(ctx, origin.APIAddr(), suite.ConversationListRequest{UID: uid, Limit: pageSize})
+				latency := time.Since(requestStart)
+				cancel()
+				if err == nil {
+					err = validateDirectoryPerformancePage(page, pageSize, directoryPerformanceChannels)
+				}
+				if err != nil {
+					errs <- fmt.Errorf("uid=%s round=%d: %w", uid, round, err)
+					continue
+				}
+				latencies <- latency
+			}
+		}()
+	}
+	measuredStart := time.Now()
+	close(start)
+	wg.Wait()
+	elapsed := time.Since(measuredStart)
+	close(errs)
+	close(latencies)
+	for err := range errs {
+		require.NoError(t, err, cluster.DumpDiagnostics())
+	}
+	measuredLatencies := make([]time.Duration, 0, requestCount)
+	for latency := range latencies {
+		measuredLatencies = append(measuredLatencies, latency)
+	}
+	require.Len(t, measuredLatencies, requestCount)
+	after := captureDirectoryPerformanceSnapshot(t, cluster)
+
+	evidence := directoryPerformanceEvidence{
+		Schema:                 "wukongim/conversation-directory-performance/v1",
+		Channels:               directoryPerformanceChannels,
+		PageSize:               pageSize,
+		Concurrency:            directoryPerformanceConcurrency,
+		Rounds:                 directoryPerformanceRounds,
+		Requests:               requestCount,
+		ElapsedMS:              float64(elapsed) / float64(time.Millisecond),
+		RequestsPerSecond:      float64(requestCount) / elapsed.Seconds(),
+		P50MS:                  directoryDurationMS(directoryPercentile(measuredLatencies, 0.50)),
+		P95MS:                  directoryDurationMS(directoryPercentile(measuredLatencies, 0.95)),
+		P99MS:                  directoryDurationMS(directoryPercentile(measuredLatencies, 0.99)),
+		MaxMS:                  directoryDurationMS(directoryPercentile(measuredLatencies, 1)),
+		MembershipMutationRows: after.membershipMutationRows - before.membershipMutationRows,
+		HydrationBatches:       after.hydrationBatches.Count - before.hydrationBatches.Count,
+		HydrationItems:         after.hydrationItems.Sum - before.hydrationItems.Sum,
+		RemoteBatchCalls:       after.remoteBatchCalls.Sum - before.remoteBatchCalls.Sum,
+		LocalReads:             after.localReads.Sum - before.localReads.Sum,
+		MailboxAdmissionFull:   after.mailboxAdmissionFull - before.mailboxAdmissionFull,
+		CPUObserved:            before.cpuObserved && after.cpuObserved,
+		CPUSeconds:             after.cpuSeconds - before.cpuSeconds,
+		AllocatedBytes:         after.allocatedBytes - before.allocatedBytes,
+		AggregateHeapBytes:     after.aggregateHeapBytes,
+	}
+	require.Zero(t, evidence.MembershipMutationRows, "conversation sync must not write memberships")
+	require.Equal(t, float64(requestCount), evidence.HydrationBatches)
+	require.Equal(t, float64(requestCount*pageSize), evidence.HydrationItems)
+	require.Equal(t, float64(requestCount*pageSize), evidence.LocalReads)
+	require.Positive(t, evidence.RemoteBatchCalls)
+	require.LessOrEqual(t, evidence.RemoteBatchCalls, float64(requestCount*2), "three-node sync may issue at most two remote Leader calls per page")
+	require.Zero(t, evidence.MailboxAdmissionFull, "conversation sync saturated a Channel reactor mailbox")
+	return evidence
+}
+
+func captureDirectoryPerformanceSnapshot(t *testing.T, cluster *suite.StartedCluster) directoryPerformanceSnapshot {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	snapshot := directoryPerformanceSnapshot{cpuObserved: true}
+	for _, node := range cluster.Nodes {
+		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+		require.NoError(t, err, node.DumpDiagnostics())
+		snapshot.membershipMutationRows += suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", map[string]string{"directory": "ordinary"})
+		snapshot.hydrationBatches = addDirectoryHistogram(snapshot.hydrationBatches, suite.HistogramSnapshot(samples, "wukongim_conversation_hydration_batch_duration_seconds", map[string]string{"result": "ok"}))
+		snapshot.hydrationItems = addDirectoryHistogram(snapshot.hydrationItems, suite.HistogramSnapshot(samples, "wukongim_conversation_hydration_batch_items", map[string]string{"result": "ok"}))
+		snapshot.remoteBatchCalls = addDirectoryHistogram(snapshot.remoteBatchCalls, suite.HistogramSnapshot(samples, hydrationRemoteBatchMetric, map[string]string{"result": "ok"}))
+		snapshot.localReads = addDirectoryHistogram(snapshot.localReads, suite.HistogramSnapshot(samples, "wukongim_conversation_hydration_local_reads", map[string]string{"result": "ok"}))
+		snapshot.mailboxAdmissionFull += suite.SumMetricSamples(samples, "wukongim_runtime_pool_admission_total", map[string]string{
+			"component": "channel", "queue": "mailbox", "result": "full",
+		})
+		nodeCPUObserved := false
+		for _, sample := range samples {
+			if sample.Name == "process_cpu_seconds_total" {
+				nodeCPUObserved = true
+				snapshot.cpuSeconds += sample.Value
+			}
+		}
+		snapshot.cpuObserved = snapshot.cpuObserved && nodeCPUObserved
+		snapshot.allocatedBytes += suite.SumMetricSamples(samples, "go_memstats_alloc_bytes_total", nil)
+		snapshot.aggregateHeapBytes += suite.SumMetricSamples(samples, "go_memstats_heap_alloc_bytes", nil)
+	}
+	return snapshot
+}
+
+func validateDirectoryPerformancePage(page suite.ConversationListPage, pageSize, total int) error {
+	if len(page.Conversations) != pageSize || len(page.Unresolved) != 0 || len(page.Deletes) != 0 {
+		return fmt.Errorf("page shape conversations=%d unresolved=%d deletes=%d, want %d/0/0", len(page.Conversations), len(page.Unresolved), len(page.Deletes), pageSize)
+	}
+	if page.Done != (pageSize == total) {
+		return fmt.Errorf("done = %v, want %v for page size %d", page.Done, pageSize == total, pageSize)
+	}
+	for _, item := range page.Conversations {
+		if item.LastMessage == nil {
+			return fmt.Errorf("channel %s has no hydrated last message", item.ChannelID)
+		}
+	}
+	return nil
+}
+
+func addDirectoryHistogram(left, right suite.MetricHistogramSnapshot) suite.MetricHistogramSnapshot {
+	return suite.MetricHistogramSnapshot{Count: left.Count + right.Count, Sum: left.Sum + right.Sum}
+}
+
+func directoryPercentile(values []time.Duration, quantile float64) time.Duration {
+	ordered := append([]time.Duration(nil), values...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	if len(ordered) == 0 {
+		return 0
+	}
+	index := int(float64(len(ordered)-1) * quantile)
+	return ordered[index]
+}
+
+func directoryDurationMS(value time.Duration) float64 {
+	return float64(value) / float64(time.Millisecond)
 }
 
 func requireDirectoryPageEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, uid string, limit int, check func(suite.ConversationListPage) error) suite.ConversationListPage {

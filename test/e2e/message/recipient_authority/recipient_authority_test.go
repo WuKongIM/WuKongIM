@@ -116,6 +116,7 @@ func TestWukongIMHundredKGroupMembershipDirectoryBuildsConversations(t *testing.
 		"channel_type": frame.ChannelTypeGroup,
 		"subscribers":  subscribers,
 	}))
+	membershipRowsBefore := requireMembershipMutationRows(t, ctx, *node, "ordinary")
 	sendResp, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-100k-sender",
 		"channel_id":    channelID,
@@ -125,6 +126,8 @@ func TestWukongIMHundredKGroupMembershipDirectoryBuildsConversations(t *testing.
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint8(frame.ReasonSuccess), sendResp.Reason)
+	require.Equal(t, membershipRowsBefore, requireMembershipMutationRows(t, ctx, *node, "ordinary"),
+		"100k-member SEND changed actual membership proposal rows")
 
 	for _, uid := range []string{hundredKConversationSubscriberUID(0), hundredKConversationSubscriberUID(50000), hundredKConversationSubscriberUID(99999)} {
 		suite.RequireConversationEventuallyWithin(t, *node, uid, channelID, 5*time.Minute, func(item suite.ConversationListItem) error {

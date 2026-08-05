@@ -9,6 +9,12 @@ semantics in a real static three-node cluster.
 GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory_multi_node -count=1 -timeout 3m -p=1
 ```
 
+The bounded 25/100/200-candidate synchronization performance gate is opt-in:
+
+```bash
+WK_E2E_CONVERSATION_DIRECTORY_PERF=1 GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory_multi_node -run TestThreeNodeConversationDirectoryPerformanceAcceptance -count=1 -timeout 6m -p=1 -v
+```
+
 ## Rules
 
 - Keep assertions black-box through public channel-management,
@@ -20,3 +26,7 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory_multi_nod
   internal stores or import `internal` packages.
 - Prove batching with low-cardinality public metrics and prove partial failure
   through `unresolved` results without timing-based latency assertions.
+- Keep the performance gate at the public maximum of 200 candidates per page.
+  It must assert exact hydration operations, zero membership mutations, bounded
+  remote calls, and zero Channel mailbox-full admissions; wall time is evidence,
+  not a host-independent acceptance threshold.

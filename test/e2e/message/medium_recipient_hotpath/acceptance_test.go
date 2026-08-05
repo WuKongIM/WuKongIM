@@ -114,6 +114,7 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		{name: "Channel RPC PullHint batch missing", edit: func(e *hotPathEvidence) { e.ChannelRPCHintBatches = 0 }, want: "Channel RPC PullHint batch evidence"},
 		{name: "Channel RPC queue", edit: func(e *hotPathEvidence) { e.MaxChannelRPCQueueRatio = 1 }, want: "Channel RPC queue"},
 		{name: "Channel RPC worker", edit: func(e *hotPathEvidence) { e.MaxChannelRPCWorkerRatio = 1 }, want: "Channel RPC worker"},
+		{name: "membership mutation", edit: func(e *hotPathEvidence) { e.MembershipMutationRows = 1 }, want: "membership mutation rows"},
 		{name: "plugin accepted", edit: func(e *hotPathEvidence) { e.PluginReceiveAccepted-- }, want: "plugin receive accepted"},
 		{name: "plugin full", edit: func(e *hotPathEvidence) { e.PluginReceiveFull = 1 }, want: "enqueue non-accepted"},
 		{name: "plugin invoke", edit: func(e *hotPathEvidence) { e.PluginReceiveInvokeOK-- }, want: "plugin receive invoke"},
@@ -186,6 +187,20 @@ func TestHotPathAcceptanceError(t *testing.T) {
 		}
 	})
 
+}
+
+func TestPrimePersonMessagesUseMeasuredSenders(t *testing.T) {
+	personUIDs := make([]string, mediumSenderConnections*2)
+	for index := range personUIDs {
+		personUIDs[index] = "person"
+	}
+	messages := buildPrimeMessages(nil, personUIDs)
+	for index, message := range messages {
+		want := mediumSenderUID(index % mediumSenderConnections)
+		if got := primeSenderUID(message); got != want {
+			t.Fatalf("prime sender at person message %d = %q, want measured sender %q", index, got, want)
+		}
+	}
 }
 
 func TestPressureSamplerObservesCompleteClusterAggregateHeap(t *testing.T) {

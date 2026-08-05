@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	mediumEvidenceSchema                       = "wukongim/local-medium-rc-hifi-evidence/v4"
+	mediumEvidenceSchema                       = "wukongim/local-medium-rc-hifi-evidence/v5"
 	mediumPhysicalHashSlots                    = 256
 	mediumLogicalSlots                         = 10
 	mediumReplicaCount                         = 3
@@ -85,6 +85,7 @@ type hotPathMessage struct {
 	channelType  uint8
 	groupProfile int
 	groupOrdinal int
+	primeSender  int
 }
 
 type hotPathRecipient struct {
@@ -147,6 +148,7 @@ type hotPathEvidence struct {
 	ChannelRPCPullBatchItems float64  `json:"channel_rpc_pull_batch_items"`
 	ChannelRPCHintBatches    float64  `json:"channel_rpc_hint_batches"`
 	ChannelRPCHintBatchItems float64  `json:"channel_rpc_hint_batch_items"`
+	MembershipMutationRows   float64  `json:"membership_mutation_rows"`
 	MaxChannelRPCQueueRatio  float64  `json:"max_channel_rpc_queue_ratio"`
 	MaxChannelRPCWorkerRatio float64  `json:"max_channel_rpc_worker_ratio"`
 	MaxAdvancePoolUtil       float64  `json:"max_advance_pool_utilization"`
@@ -415,6 +417,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		ChannelRPCPullBatchItems: counterDelta.channelRPCPullBatchItems,
 		ChannelRPCHintBatches:    counterDelta.channelRPCHintBatches,
 		ChannelRPCHintBatchItems: counterDelta.channelRPCHintBatchItems,
+		MembershipMutationRows:   counterDelta.membershipMutationRows,
 		MaxChannelRPCQueueRatio:  pressure.maxChannelRPCQueueRatio,
 		MaxChannelRPCWorkerRatio: pressure.maxChannelRPCWorkerRatio,
 		MaxAdvancePoolUtil:       pressure.maxAdvancePoolUtil,
@@ -601,6 +604,8 @@ func hotPathAcceptanceErrorWithLimits(
 		return fmt.Errorf("acceptance Channel RPC queue ratio = %.6f, want below 1", evidence.MaxChannelRPCQueueRatio)
 	case evidence.MaxChannelRPCWorkerRatio >= 1:
 		return fmt.Errorf("acceptance Channel RPC worker ratio = %.6f, want below 1", evidence.MaxChannelRPCWorkerRatio)
+	case evidence.MembershipMutationRows != 0:
+		return fmt.Errorf("acceptance membership mutation rows = %.0f, want 0 during measured SEND", evidence.MembershipMutationRows)
 	case evidence.PluginReceiveAccepted != float64(pluginReceiveBatchCount()*expectedRounds):
 		return fmt.Errorf(
 			"acceptance plugin receive accepted = %.0f, want %d",
@@ -857,10 +862,7 @@ enqueue:
 }
 
 func primeSenderUID(message hotPathMessage) string {
-	if message.groupProfile >= 0 {
-		return mediumSenderUID(message.groupOrdinal % mediumGroupSenders)
-	}
-	return mediumSenderUID(int(message.clientSeq) % mediumSenderConnections)
+	return mediumSenderUID(message.primeSender)
 }
 
 func proveWarmupSend(t *testing.T, cluster *suite.StartedCluster, sender *suite.WKProtoClient) {
@@ -1263,11 +1265,12 @@ func buildMessages(groupChannels [][]string, personUIDs []string) []hotPathMessa
 func buildPrimeMessages(groupChannels [][]string, personUIDs []string) []hotPathMessage {
 	buckets := make([][]hotPathMessage, 1+len(groupChannels))
 	buckets[0] = make([]hotPathMessage, 0, len(personUIDs))
-	for _, uid := range personUIDs {
+	for personIndex, uid := range personUIDs {
 		buckets[0] = append(buckets[0], hotPathMessage{
 			channelID:    uid,
 			channelType:  frame.ChannelTypePerson,
 			groupProfile: -1,
+			primeSender:  personIndex % mediumSenderConnections,
 		})
 	}
 	for profileIndex, channels := range groupChannels {
@@ -1278,6 +1281,7 @@ func buildPrimeMessages(groupChannels [][]string, personUIDs []string) []hotPath
 				channelType:  frame.ChannelTypeGroup,
 				groupProfile: profileIndex,
 				groupOrdinal: channelIndex,
+				primeSender:  channelIndex % mediumGroupSenders,
 			})
 		}
 		buckets[profileIndex+1] = bucket
@@ -1727,6 +1731,7 @@ type hotPathCounters struct {
 	channelRPCPullBatchItems float64
 	channelRPCHintBatches    float64
 	channelRPCHintBatchItems float64
+	membershipMutationRows   float64
 	pluginReceiveAccepted    float64
 	pluginReceiveFull        float64
 	pluginReceiveClosed      float64
@@ -1744,6 +1749,7 @@ func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 		channelRPCPullBatchItems: c.channelRPCPullBatchItems - start.channelRPCPullBatchItems,
 		channelRPCHintBatches:    c.channelRPCHintBatches - start.channelRPCHintBatches,
 		channelRPCHintBatchItems: c.channelRPCHintBatchItems - start.channelRPCHintBatchItems,
+		membershipMutationRows:   c.membershipMutationRows - start.membershipMutationRows,
 		pluginReceiveAccepted:    c.pluginReceiveAccepted - start.pluginReceiveAccepted,
 		pluginReceiveFull:        c.pluginReceiveFull - start.pluginReceiveFull,
 		pluginReceiveClosed:      c.pluginReceiveClosed - start.pluginReceiveClosed,
@@ -1794,6 +1800,10 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 					counters.channelRPCPullBatchItems += sample.Value
 				case "rpc_pull_hint":
 					counters.channelRPCHintBatchItems += sample.Value
+				}
+			case "wukongim_conversation_membership_mutation_rows_total":
+				if sample.Labels["directory"] == "ordinary" {
+					counters.membershipMutationRows += sample.Value
 				}
 			case "wukongim_plugin_hook_enqueue_total":
 				if sample.Labels["method"] != "receive" {
