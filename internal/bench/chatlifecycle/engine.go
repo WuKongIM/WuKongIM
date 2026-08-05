@@ -646,17 +646,40 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 	e.lifecycleMu.Lock()
 	defer e.lifecycleMu.Unlock()
+	return e.startGenerationLocked(ctx, e.generation+1)
+}
+
+// StartGeneration starts the exact externally assigned generation. The fence
+// must move forward so stale assignments can never reuse logical identities.
+func (e *Engine) StartGeneration(ctx context.Context, generation uint64) error {
+	if e == nil {
+		return errEngineConfig
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if generation == 0 || generation > maxLogicalGeneration || generation <= e.generation {
+		return errEngineConfig
+	}
+	return e.startGenerationLocked(ctx, generation)
+}
+
+func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint64) error {
 	if e.running {
 		return errEngineRunning
+	}
+	if nextGeneration == 0 || nextGeneration > maxLogicalGeneration {
+		return errEngineConfig
 	}
 	e.evidence.reset()
 	e.verifier.resetRuntime()
 	if err := e.sessions.resetRuntime(); err != nil {
 		return err
-	}
-	nextGeneration := e.generation + 1
-	if nextGeneration == 0 || nextGeneration > maxLogicalGeneration {
-		return errEngineConfig
 	}
 	if err := e.generator.reset(e.clock.Now(), nextGeneration); err != nil {
 		return err

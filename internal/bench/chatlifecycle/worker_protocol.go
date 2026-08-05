@@ -49,7 +49,8 @@ func (e *WorkerAPIError) Error() string {
 	return "chat lifecycle worker API: " + string(e.Code)
 }
 
-// WorkerFence identifies one assignment generation. Every mutation is fenced.
+// WorkerFence identifies one assignment generation. Generation is also the
+// exact Engine and logical-identity generation; every mutation is fenced.
 type WorkerFence struct {
 	RunID        string `json:"run_id"`
 	AssignmentID string `json:"assignment_id"`

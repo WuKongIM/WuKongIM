@@ -546,7 +546,12 @@ func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 	_, _ = response.Write(append(encoded, '\n'))
 }
 
-type engineWorkerGenerationFactory struct{}
+type engineWorkerGenerationFactory struct {
+	clock             SessionClock
+	newSessionFactory func(WorkerAssignment) (SessionClientFactory, error)
+	newSyncer         func(WorkerAssignment) (ConversationSyncer, error)
+	newTicker         func(time.Duration) workerGenerationTicker
+}
 
 // NewEngineWorkerGenerationFactory composes the existing deterministic models,
 // real conversation-sync client, WKProto adapter, verifier, and Engine. It does
@@ -555,8 +560,8 @@ func NewEngineWorkerGenerationFactory() WorkerGenerationFactory {
 	return engineWorkerGenerationFactory{}
 }
 
-func (engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
-	if !validWorkerAssignment(assignment) {
+func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGeneration, error) {
+	if !validWorkerAssignment(assignment) || assignment.Generation > maxLogicalGeneration {
 		return nil, errWorkerServerConfig
 	}
 	config := assignment.Config
@@ -601,17 +606,39 @@ func (engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGen
 	if err != nil {
 		return nil, err
 	}
-	clock := wallSessionClock{}
-	gatewayAddress := config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(config.Observation.GatewayTCPAddrs)]
+	clock := f.clock
+	if clock == nil {
+		clock = wallSessionClock{}
+	}
+	newSessionFactory := f.newSessionFactory
+	if newSessionFactory == nil {
+		newSessionFactory = func(assignment WorkerAssignment) (SessionClientFactory, error) {
+			gatewayAddress := assignment.Config.Observation.GatewayTCPAddrs[int(assignment.WorkerID)%len(assignment.Config.Observation.GatewayTCPAddrs)]
+			return engineWorkerSessionFactory{
+				address: gatewayAddress, ackTimeout: assignment.Config.Thresholds.Latency.SingleAnomaly,
+			}, nil
+		}
+	}
+	sessionFactory, err := newSessionFactory(assignment)
+	if err != nil || sessionFactory == nil {
+		return nil, errWorkerServerConfig
+	}
+	newSyncer := f.newSyncer
+	if newSyncer == nil {
+		newSyncer = func(assignment WorkerAssignment) (ConversationSyncer, error) {
+			return target.NewClient(target.Config{APIAddrs: assignment.Config.Observation.APIAddrs}), nil
+		}
+	}
+	syncer, err := newSyncer(assignment)
+	if err != nil || syncer == nil {
+		return nil, errWorkerServerConfig
+	}
 	sessions, err := NewSessionPool(SessionPoolConfig{
-		Identity: identity,
-		Schedule: schedule,
-		Catalog:  catalog,
-		Factory: engineWorkerSessionFactory{
-			address:    gatewayAddress,
-			ackTimeout: config.Thresholds.Latency.SingleAnomaly,
-		},
-		Syncer:           target.NewClient(target.Config{APIAddrs: config.Observation.APIAddrs}),
+		Identity:         identity,
+		Schedule:         schedule,
+		Catalog:          catalog,
+		Factory:          sessionFactory,
+		Syncer:           syncer,
 		Verifier:         verifier,
 		Clock:            clock,
 		DeviceID:         "wkbench-chat-lifecycle-worker-" + strconv.FormatUint(assignment.WorkerID, 10),
@@ -644,10 +671,16 @@ func (engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerGen
 	if err != nil {
 		return nil, err
 	}
+	newTicker := f.newTicker
+	if newTicker == nil {
+		newTicker = newWallWorkerGenerationTicker
+	}
 	return &engineWorkerGeneration{
 		engine: engine, verifier: verifier, evidence: evidence,
 		workerCount: assignment.WorkerCount,
+		generation:  assignment.Generation,
 		clock:       clock,
+		newTicker:   newTicker,
 		done:        make(chan error, 1),
 	}, nil
 }
@@ -738,6 +771,28 @@ type wallSessionClock struct{}
 
 func (wallSessionClock) Now() time.Time { return time.Now() }
 
+type workerGenerationTicker interface {
+	Wait(context.Context) bool
+	Stop()
+}
+
+type wallWorkerGenerationTicker struct{ ticker *time.Ticker }
+
+func newWallWorkerGenerationTicker(interval time.Duration) workerGenerationTicker {
+	return &wallWorkerGenerationTicker{ticker: time.NewTicker(interval)}
+}
+
+func (t *wallWorkerGenerationTicker) Wait(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.ticker.C:
+		return true
+	}
+}
+
+func (t *wallWorkerGenerationTicker) Stop() { t.ticker.Stop() }
+
 type engineWorkerSessionFactory struct {
 	address    string
 	ackTimeout time.Duration
@@ -760,14 +815,19 @@ type engineWorkerGeneration struct {
 	verifier    *Verifier
 	evidence    *EvidenceRecorder
 	workerCount uint64
+	generation  uint64
 	clock       SessionClock
+	newTicker   func(time.Duration) workerGenerationTicker
 
-	mu         sync.Mutex
-	started    bool
-	tickCancel context.CancelFunc
-	tickDone   chan struct{}
-	done       chan error
-	doneOnce   sync.Once
+	mu      sync.Mutex
+	started bool
+	// trafficStarted is owned by runTicks and remains sticky across churn once
+	// the local generation has completed its initial synchronized online set.
+	trafficStarted bool
+	tickCancel     context.CancelFunc
+	tickDone       chan struct{}
+	done           chan error
+	doneOnce       sync.Once
 }
 
 func (g *engineWorkerGeneration) Start(_ context.Context) error {
@@ -776,7 +836,7 @@ func (g *engineWorkerGeneration) Start(_ context.Context) error {
 	if g.started {
 		return errEngineRunning
 	}
-	if err := g.engine.Start(context.Background()); err != nil {
+	if err := g.engine.StartGeneration(context.Background(), g.generation); err != nil {
 		return err
 	}
 	tickContext, cancel := context.WithCancel(context.Background())
@@ -789,39 +849,72 @@ func (g *engineWorkerGeneration) Start(_ context.Context) error {
 
 func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	if err := g.step(ctx, g.clock.Now()); err != nil {
-		if ctx.Err() == nil {
-			_ = g.engine.Stop()
-			g.finish(err)
-		}
+	ticker := g.newTicker(time.Second)
+	if ticker == nil {
+		_ = g.engine.Stop()
+		g.finish(errWorkerServerConfig)
 		return
 	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := g.step(ctx, g.clock.Now()); err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				_ = g.engine.Stop()
-				g.finish(err)
+	defer ticker.Stop()
+	for ticker.Wait(ctx) {
+		if err := g.step(ctx, g.clock.Now()); err != nil {
+			if ctx.Err() != nil {
 				return
 			}
+			if workerStepErrorIsEvidence(err) {
+				continue
+			}
+			_ = g.engine.Stop()
+			g.finish(err)
+			return
 		}
 	}
 }
 
 func (g *engineWorkerGeneration) step(ctx context.Context, now time.Time) error {
-	demand := make([]uint64, g.workerCount)
-	for index := range demand {
-		demand[index] = ^uint64(0)
+	runtime, err := g.engine.WorkerRuntimeSnapshot()
+	if err != nil {
+		return err
 	}
-	_, err := g.engine.Step(ctx, now, demand)
+	if !g.trafficStarted && runtime.Engine.Online >= runtime.Engine.OnlineTarget &&
+		runtime.Engine.LoginCompletedNew+runtime.Engine.LoginCompletedReturning >= uint64(runtime.Engine.OnlineTarget) {
+		g.trafficStarted = true
+	}
+	var demand []uint64
+	if g.trafficStarted {
+		demand = make([]uint64, g.workerCount)
+		for index := range demand {
+			demand[index] = ^uint64(0)
+		}
+	}
+	_, err = g.engine.Step(ctx, now, demand)
 	return err
+}
+
+func workerStepErrorIsEvidence(err error) bool {
+	if err == nil {
+		return true
+	}
+	if classified, ok := err.(interface{ Classification() SyncClassification }); ok {
+		classification := classified.Classification()
+		return classification == SyncClassificationHarnessInvalid || classification == SyncClassificationProductFailure
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		children := joined.Unwrap()
+		if len(children) == 0 {
+			return false
+		}
+		for _, child := range children {
+			if !workerStepErrorIsEvidence(child) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return workerStepErrorIsEvidence(wrapped.Unwrap())
+	}
+	return false
 }
 
 func (g *engineWorkerGeneration) UpdateRate(ratePerSecond, maxBurst uint64) error {

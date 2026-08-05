@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 )
 
 func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
@@ -196,6 +198,275 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		snapshot.SendackLatency.Buckets[11] != 1 || snapshot.RecvackLatency.Buckets[6] != 1 {
 		t.Fatalf("worker latency projection = sync=%+v sendack=%+v recvack=%+v", snapshot.Sync, snapshot.SendackLatency, snapshot.RecvackLatency)
 	}
+}
+
+func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(t *testing.T) {
+	config := LocalConfig()
+	config.RunID = "worker-bootstrap"
+	config.Workload.OnlineUsers = 12
+	config.Workload.NewUsersPerDay = 250_000
+	config.Workload.SendRatePerSecond = 10
+	config.Workload.MaxGlobalBurst = 20
+	config.Workload.Sessions = []DurationShare{{Percent: 100, Min: 3 * time.Hour, Max: 3 * time.Hour}}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("bootstrap config: %v", err)
+	}
+
+	startedAt := time.Unix(1_700_000_000, 0)
+	run := func(generation uint64, exerciseChurn bool) string {
+		t.Helper()
+		clock := &sessionFakeClock{now: startedAt}
+		sessions := &engineFakeFactory{}
+		syncer := &workerBootstrapSyncer{blockAfter: 4}
+		ticker := newManualWorkerGenerationTicker()
+		factory := engineWorkerGenerationFactory{
+			clock: clock,
+			newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) {
+				return sessions, nil
+			},
+			newSyncer: func(WorkerAssignment) (ConversationSyncer, error) {
+				return syncer, nil
+			},
+			newTicker: func(interval time.Duration) workerGenerationTicker {
+				if interval != time.Second {
+					t.Fatalf("ticker interval = %v, want 1s", interval)
+				}
+				return ticker
+			},
+		}
+		assignment := WorkerAssignment{
+			WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "bootstrap", Generation: generation},
+			WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+		}
+		worker, err := factory.New(assignment)
+		if err != nil {
+			t.Fatalf("New generation %d: %v", generation, err)
+		}
+		engineGeneration := worker.(*engineWorkerGeneration)
+		if err := worker.Start(context.Background()); err != nil {
+			t.Fatalf("Start generation %d: %v", generation, err)
+		}
+		defer worker.Stop()
+		ticker.awaitReady(t)
+
+		initial, err := worker.Checkpoint()
+		if err != nil {
+			t.Fatalf("initial checkpoint generation %d: %v", generation, err)
+		}
+		if initial.Generation != generation || initial.Sessions.Online != 0 || initial.Generated.Primary != 0 {
+			t.Fatalf("initial generation %d snapshot = %+v", generation, initial)
+		}
+
+		clock.Set(startedAt.Add(46 * time.Minute))
+		ticker.tickAndWait(t)
+		engineGeneration.engine.loginOps.Wait()
+		bootstrap, err := worker.Checkpoint()
+		if err != nil {
+			t.Fatalf("bootstrap checkpoint generation %d: %v", generation, err)
+		}
+		if bootstrap.Sessions.Online != bootstrap.Sessions.Target || bootstrap.Generated.Primary != 0 ||
+			bootstrap.Harness.OfferedUnderdelivery != 0 || bootstrap.Harness.Failures != 0 || len(bootstrap.Evidence.Classes) != 0 {
+			t.Fatalf("bootstrap leaked traffic/evidence generation %d: %+v", generation, bootstrap)
+		}
+		requests := syncer.requests()
+		if len(requests) != bootstrap.Sessions.Target {
+			t.Fatalf("generation %d sync requests = %d, want %d", generation, len(requests), bootstrap.Sessions.Target)
+		}
+		for _, request := range requests {
+			if request != NewConversationSyncRequest(request.UID) {
+				t.Fatalf("generation %d did not issue a version-zero full sync: %+v", generation, request)
+			}
+		}
+
+		// The next tick may either observe asynchronous login completions or
+		// release traffic when the first step already observed all completions.
+		// Both schedules start allocator credit only after the local target.
+		clock.Set(startedAt.Add(46*time.Minute + time.Second))
+		ticker.tickAndWait(t)
+		traffic, err := worker.Checkpoint()
+		if err != nil {
+			t.Fatalf("observed bootstrap checkpoint generation %d: %v", generation, err)
+		}
+		if traffic.Sessions.CompletedNew+traffic.Sessions.CompletedReturning < uint64(traffic.Sessions.Target) {
+			t.Fatalf("generation %d bootstrap observation = %+v", generation, traffic)
+		}
+		if traffic.Generated.Primary == 0 {
+			clock.Set(startedAt.Add(46*time.Minute + 31*time.Second))
+			ticker.tickAndWait(t)
+			traffic, err = worker.Checkpoint()
+			if err != nil {
+				t.Fatalf("traffic checkpoint generation %d: %v", generation, err)
+			}
+		}
+		localBurst, targetErr := workerOnlineTarget(config.Workload.MaxGlobalBurst, 0, uint64(config.Workload.Workers))
+		if targetErr != nil {
+			t.Fatalf("generation %d local burst: %v", generation, targetErr)
+		}
+		if traffic.Generated.Primary == 0 || traffic.Generated.Primary > uint64(localBurst) {
+			t.Fatalf("generation %d primary = %d, want 1..%d", generation, traffic.Generated.Primary, localBurst)
+		}
+		packets := sessions.sentPackets()
+		if len(packets) == 0 {
+			t.Fatalf("generation %d released primary traffic without a WKProto SEND", generation)
+		}
+
+		if exerciseChurn {
+			clock.Set(startedAt.Add(4 * time.Hour))
+			ticker.tickAndWait(t)
+			churn, checkpointErr := worker.Checkpoint()
+			if checkpointErr != nil {
+				t.Fatalf("churn checkpoint: %v", checkpointErr)
+			}
+			if !workerEvidenceHasCode(churn.Evidence, FailureCodeOfferedLoadUnderDelivery) {
+				t.Fatalf("traffic stopped again after churn instead of recording classified evidence: %+v", churn)
+			}
+		}
+		select {
+		case doneErr := <-worker.Done():
+			t.Fatalf("generation %d terminated on classified workload evidence: %v", generation, doneErr)
+		default:
+		}
+		return packets[0].ClientMsgNo
+	}
+
+	identity7 := run(7, true)
+	identity8 := run(8, false)
+	if identity7 == identity8 {
+		t.Fatalf("assigned generation did not scope client_msg_no: %q", identity7)
+	}
+}
+
+func TestWorkerEngineGenerationRejectsOverflowAndReportsOnlyFatalRuntimeTermination(t *testing.T) {
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "fatal", Generation: maxLogicalGeneration + 1},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), Config: config,
+	}
+	if generation, err := NewEngineWorkerGenerationFactory().New(assignment); !errors.Is(err, errWorkerServerConfig) || generation != nil {
+		t.Fatalf("overflow generation = %#v, %v; want nil, %v", generation, err, errWorkerServerConfig)
+	}
+
+	startedAt := time.Unix(1_700_000_000, 0)
+	clock := &sessionFakeClock{now: startedAt}
+	ticker := newManualWorkerGenerationTicker()
+	factory := engineWorkerGenerationFactory{
+		clock: clock,
+		newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) {
+			return &engineFakeFactory{}, nil
+		},
+		newSyncer: func(WorkerAssignment) (ConversationSyncer, error) {
+			return engineSyncer{}, nil
+		},
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+	}
+	assignment.Generation = 9
+	generation, err := factory.New(assignment)
+	if err != nil {
+		t.Fatalf("New fatal generation: %v", err)
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start fatal generation: %v", err)
+	}
+	ticker.awaitReady(t)
+	clock.Set(startedAt.Add(-time.Second))
+	ticker.tick(t)
+	select {
+	case doneErr := <-generation.Done():
+		if !errors.Is(doneErr, errSchedulerClock) {
+			t.Fatalf("fatal Done error = %v, want %v", doneErr, errSchedulerClock)
+		}
+	case <-time.After(time.Second):
+		generation.Stop()
+		t.Fatal("fatal runtime termination did not signal Done")
+	}
+	snapshot := generation.Snapshot()
+	if snapshot.Generation != 9 {
+		t.Fatalf("fatal generation snapshot = %+v", snapshot)
+	}
+}
+
+type workerBootstrapSyncer struct {
+	mu         sync.Mutex
+	requestsV  []target.ConversationSyncRequest
+	blockAfter int
+}
+
+func (s *workerBootstrapSyncer) ConversationSync(ctx context.Context, request target.ConversationSyncRequest) ([]target.ConversationSyncConversation, error) {
+	s.mu.Lock()
+	s.requestsV = append(s.requestsV, request)
+	count := len(s.requestsV)
+	s.mu.Unlock()
+	if count > s.blockAfter {
+		<-ctx.Done()
+		return nil, context.Cause(ctx)
+	}
+	return nil, nil
+}
+
+func (s *workerBootstrapSyncer) requests() []target.ConversationSyncRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]target.ConversationSyncRequest(nil), s.requestsV...)
+}
+
+type manualWorkerGenerationTicker struct {
+	ready chan struct{}
+	ticks chan struct{}
+}
+
+func newManualWorkerGenerationTicker() *manualWorkerGenerationTicker {
+	return &manualWorkerGenerationTicker{ready: make(chan struct{}, 1), ticks: make(chan struct{})}
+}
+
+func (t *manualWorkerGenerationTicker) Wait(ctx context.Context) bool {
+	select {
+	case t.ready <- struct{}{}:
+	case <-ctx.Done():
+		return false
+	}
+	select {
+	case <-t.ticks:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (*manualWorkerGenerationTicker) Stop() {}
+
+func (t *manualWorkerGenerationTicker) awaitReady(testingT *testing.T) {
+	testingT.Helper()
+	select {
+	case <-t.ready:
+	case <-time.After(time.Second):
+		testingT.Fatal("worker ticker did not reach its deterministic wait boundary")
+	}
+}
+
+func (t *manualWorkerGenerationTicker) tickAndWait(testingT *testing.T) {
+	testingT.Helper()
+	t.tick(testingT)
+	t.awaitReady(testingT)
+}
+
+func (t *manualWorkerGenerationTicker) tick(testingT *testing.T) {
+	testingT.Helper()
+	select {
+	case t.ticks <- struct{}{}:
+	case <-time.After(time.Second):
+		testingT.Fatal("worker ticker did not accept a deterministic tick")
+	}
+}
+
+func workerEvidenceHasCode(snapshot EvidenceSnapshot, code FailureCode) bool {
+	for _, class := range snapshot.Classes {
+		for _, example := range append(append([]EvidenceExample(nil), class.First...), class.Last...) {
+			if example.Code == code {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func startFakeWorkerServer(t *testing.T, generation *fakeWorkerGeneration, assignmentID string) (*WorkerServer, WorkerFence) {

@@ -1769,6 +1769,63 @@ func TestEngineConcurrentSnapshotsAndStopsJoinWithoutStrandedCaller(t *testing.T
 	}
 }
 
+func TestEngineStartGenerationUsesExactExternalFenceAndRejectsInvalidValues(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+
+	if err := fixture.engine.StartGeneration(context.Background(), 7); err != nil {
+		t.Fatalf("StartGeneration(7): %v", err)
+	}
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("generation seven Snapshot: %v", err)
+	}
+	if snapshot.Generation != 7 {
+		t.Fatalf("generation = %d, want 7", snapshot.Generation)
+	}
+	if err := fixture.engine.Stop(); err != nil {
+		t.Fatalf("Stop generation seven: %v", err)
+	}
+
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("ordinary Start after generation seven: %v", err)
+	}
+	snapshot, err = fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("generation eight Snapshot: %v", err)
+	}
+	if snapshot.Generation != 8 {
+		t.Fatalf("ordinary Start generation = %d, want 8", snapshot.Generation)
+	}
+	if err := fixture.engine.Stop(); err != nil {
+		t.Fatalf("Stop generation eight: %v", err)
+	}
+
+	for name, generation := range map[string]uint64{
+		"zero":     0,
+		"rollback": 7,
+		"reuse":    8,
+		"overflow": maxLogicalGeneration + 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := fixture.engine.StartGeneration(context.Background(), generation); !errors.Is(err, errEngineConfig) {
+				t.Fatalf("StartGeneration(%d) error = %v, want %v", generation, err, errEngineConfig)
+			}
+		})
+	}
+
+	if err := fixture.engine.StartGeneration(context.Background(), 10); err != nil {
+		t.Fatalf("StartGeneration(10): %v", err)
+	}
+	defer fixture.engine.Stop()
+	snapshot, err = fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("generation ten Snapshot: %v", err)
+	}
+	if snapshot.Generation != 10 {
+		t.Fatalf("generation = %d, want 10", snapshot.Generation)
+	}
+}
+
 func TestEngineStopFencesAndJoinsWholeBlockedStepBeforeRestart(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{OnlineUsers: 1, NewUsersPerDay: 250_000})
 	if err := fixture.engine.Start(context.Background()); err != nil {

@@ -40,6 +40,19 @@ first and 64 last redacted examples per class. No worker response enumerates a
 UID or channel. Checkpoint reads engine and generator counters through one
 engine-owner command; it neither pauses nor restarts workload generation.
 
+The assignment generation is the exact checked `Engine` generation rather
+than an HTTP-only snapshot overlay. Zero, overflow, reuse, and rollback are
+rejected, while the ordinary in-process `Start` API retains its next-generation
+behavior. A fresh worker generation initially advances login scheduling with a
+nil traffic demand. It releases the rate allocator only after the local online
+target and the corresponding completed CONNECT/full-sync bootstrap have been
+observed; that traffic-start latch remains set across later churn. Consequently
+a long bootstrap can retain at most the configured two-second burst and cannot
+accumulate elapsed-time debt. Classified product or harness evidence is
+recorded without terminating the worker command loop; an unclassified fatal
+runtime error stops the joined engine and is the only tick failure published
+through `Done` as an unexpected exit.
+
 The eventual plan and runtime must keep history-independent memory: generated
 identity and relationship decisions derive from the stable run seed instead of
 retaining unbounded activity history. Target mutation uses public benchmark APIs
