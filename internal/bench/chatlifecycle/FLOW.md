@@ -8,7 +8,8 @@ chat-lifecycle workload. `profile` selects formal versus local scale, while
 bounded lifecycle engine loop; the production worker composition adapts the
 existing target HTTP and WKProto clients through the same narrow interfaces
 used by tests. It does not recreate transport pumps, persist secrets, mutate
-targets outside public APIs, use Docker, or inspect host internals.
+targets outside public APIs, invoke container orchestration, or inspect host
+internals.
 
 ```text
 config
@@ -245,7 +246,9 @@ sequence. The post-reheat probe supplies the sequence-continuity proof.
 Metadata-create parsing accepts only the exact `slot_id` and closed `result`
 labels, logical Slot IDs 1 through 12, exact integer counters, and at most one
 sample for each Slot/result tuple. The Slot 1 zero baselines preserve all three
-global result totals; absent outcome tuples on other Slots mean zero. Accounting
+global result totals; production startup additionally materializes every result
+for all 12 logical Slot groups, while the parser retains absent-as-zero
+compatibility. Accounting
 accepts exactly three service-node scrapes and uses checked integer arithmetic
 to reconcile their fixed 12-Slot vectors. It folds separate bounded 256-hash-slot
 person-edge and prepared-group expectations through the current immutable
@@ -757,9 +760,9 @@ assignment is installed by preflight. A structurally healthy initial leader
 distribution is admitted; only the continuous observer owns the ten-minute
 leader-imbalance failure window. The product metrics registry materializes
 true zero series for the closed `max_channels` activation-rejection label and
-the three metadata-create results on stable logical Slot Raft Group 1, so a clean cluster
-still exposes every strictly required preflight family without inventing an
-event or treating a missing family as zero.
+all three metadata-create results on every configured logical Slot Raft Group,
+so a clean 12-group cluster exposes the complete strictly required vector
+without inventing an event or treating a missing family as zero.
 
 Each host-metrics declaration carries an exact node_exporter `mountpoint` and
 `device`. The bounded parser accepts exactly one size and one available-byte
@@ -849,9 +852,11 @@ coordinator cancels and joins the observer child; only the resulting healthy
 final checkpoint followed by bounded worker stop and final aggregation. A
 product or harness result racing with that cancellation remains a failure. An
 outer caller cancellation instead returns coordinator `stopped` without a
-checkpoint. The future 24-hour checkpoint/report flow is not part of this
-startup coordinator. Assignment, start, grant, status, checkpoint, aggregation,
-or runtime failures remain `harness_invalid`.
+checkpoint. At the formal 24-hour threshold, the production hook captures one
+non-terminal qualification report from the same live generation while grants,
+workers, service nodes, and observation continue toward 72 hours. Assignment,
+start, grant, status, checkpoint, aggregation, or runtime failures remain
+`harness_invalid`.
 
 Assignment, Start, status, and checkpoint rounds each launch exactly three
 requests with one shared at-most-five-second deadline, join every attempted
@@ -876,7 +881,13 @@ Failure cleanup and successful
 final stop likewise launch the fixed worker set concurrently under one shared
 total cleanup deadline, while still attempting every applicable worker.
 Observer product or harness failure keeps precedence when it races a grant or
-status harness failure.
+status harness failure. After a terminal decision, the coordinator first
+captures the moving pre-stop cut, then stops all workers and obtains their
+stable final snapshots. Only then may the production hook join lifecycle work,
+refresh the live dataset identity, reconcile exact per-Slot metadata-create
+counts, and atomically write the final report. Capacity terminal failures use
+this same joined observation/stop/finalize path when production hooks are
+installed; an early reducer failure cannot skip terminal evidence capture.
 
 Before dispatching the concurrent assignment round, the coordinator marks all
 three workers attempted. If a response is lost after any worker installs the

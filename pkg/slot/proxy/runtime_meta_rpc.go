@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const runtimeMetaRPCServiceID uint8 = 3
+const runtimeMetaRPCServiceID uint8 = clusternet.RPCSlotChannelRuntimeMeta
 
 const (
 	runtimeMetaRPCGet      = "get"

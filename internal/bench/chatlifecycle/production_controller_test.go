@@ -70,6 +70,51 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}
 }
 
+func TestProductionEvidenceControllerPersistsFrozenLifecycleProductFailure(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-lifecycle-product"
+	start := time.Unix(1_960_025_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-product", Generation: 7}
+	lifecycle := &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{
+		ProductFailures: 1, ReheatLatency: newWorkerHistogramSnapshot(),
+	}, done: make(chan struct{})}
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: lifecycle, Meta: &productionControllerMeta{}, MetaAccounting: NewMetaCreateAccounting(),
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-product-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
+	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: prepare,
+	})
+	if err != nil || decision != CoordinatorProductFailure {
+		t.Fatalf("lifecycle product terminal = %q/%v", decision, err)
+	}
+	final := productionControllerWorkerSnapshots(cfg, fence, 2, time.Minute+time.Second, WorkerPhaseFinal)
+	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
+		Start: startCut, At: start.Add(time.Minute + time.Second), Decision: decision,
+		Prepare: prepare, FinalSnapshots: final,
+	}); err != nil {
+		t.Fatalf("Finalize() rejected frozen product evidence: %v", err)
+	}
+	report, err := ReadReport(filepath.Join(controller.OutputDir(), "final.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseLifecycleProduct {
+		t.Fatalf("final product verdict = %+v", report.Verdict)
+	}
+}
+
 func TestProductionEvidenceControllerSkipsPeriodicCutUntilFirstObservation(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "production-controller-await-observation"

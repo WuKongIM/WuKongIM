@@ -585,6 +585,147 @@ func TestCoordinatorRunExecutesCapacityModeThroughRecovery(t *testing.T) {
 	}
 }
 
+func TestCoordinatorCapacityProductFailureFinalizesHookEvidence(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+		}
+	}
+	productFailure := passingCapacityObservation()
+	productFailure.CorrectnessFailure = true
+	evidence := &scriptedCapacityEvidence{
+		requests: make(chan CapacityEvidenceRequest, 1), observations: []CapacityObservation{productFailure},
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 3,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, CapacityAdmission: &admission, CapacityEvidence: evidence,
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	<-hooks.started
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	for second := 1; second <= int((30*time.Minute)/time.Second); second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			<-grantCalls
+		}
+		if second == int((10*time.Minute)/time.Second) || second == int((30*time.Minute)/time.Second) {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver ||
+		result.Capacity.Outcome != CapacityProductFailure {
+		t.Fatalf("capacity product result = %+v", result)
+	}
+	var final CoordinatorFinalCut
+	select {
+	case final = <-hooks.finalized:
+	case <-time.After(time.Second):
+		t.Fatal("capacity product failure skipped hook finalization")
+	}
+	if final.Decision != CoordinatorProductFailure || final.Capacity.Outcome != CapacityProductFailure ||
+		len(final.FinalSnapshots) != coordinatorWorkerCount {
+		t.Fatalf("capacity product final cut = %+v", final)
+	}
+}
+
+func TestCoordinatorCapacityBeginFailureFinalizesHarnessInvalidHookEvidence(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+		}
+	}
+	evidence := &scriptedCapacityEvidence{
+		requests: make(chan CapacityEvidenceRequest, 1), beginErr: errors.New("baseline unavailable"),
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 4,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, CapacityAdmission: &admission, CapacityEvidence: evidence,
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	<-hooks.started
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	for second := 1; second <= int((10*time.Minute)/time.Second); second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			<-grantCalls
+		}
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorHarnessInvalid || !result.Capacity.Terminal ||
+		result.Capacity.Outcome != CapacityHarnessInvalid || result.Capacity.Cause != CapacityCauseObservation {
+		t.Fatalf("capacity begin failure result = %+v", result)
+	}
+	var final CoordinatorFinalCut
+	select {
+	case final = <-hooks.finalized:
+	case <-time.After(time.Second):
+		t.Fatal("capacity begin failure skipped hook finalization")
+	}
+	if final.Decision != CoordinatorHarnessInvalid || final.Capacity.Outcome != CapacityHarnessInvalid ||
+		len(final.FinalSnapshots) != coordinatorWorkerCount {
+		t.Fatalf("capacity begin failure final cut = %+v", final)
+	}
+}
+
 func TestCoordinatorCapacityEvidenceParentCancellationIsStoppedAndJoined(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
 	clock := newManualCoordinatorClock(start)
@@ -916,6 +1057,7 @@ type scriptedCapacityEvidence struct {
 	calls        int
 	requests     chan CapacityEvidenceRequest
 	observations []CapacityObservation
+	beginErr     error
 	begins       []CapacityEvidenceRequest
 	observed     []CapacityEvidenceRequest
 }
@@ -958,7 +1100,7 @@ func (e *scriptedCapacityEvidence) BeginCapacity(_ context.Context, request Capa
 	e.mu.Lock()
 	e.begins = append(e.begins, request)
 	e.mu.Unlock()
-	return nil
+	return e.beginErr
 }
 
 func (e *scriptedCapacityEvidence) beginSnapshot() []CapacityEvidenceRequest {

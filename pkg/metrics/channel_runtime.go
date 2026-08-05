@@ -14,6 +14,8 @@ var channelRuntimeDurationBuckets = []float64{0.0005, 0.001, 0.005, 0.01, 0.025,
 var channelRuntimeISRAnomalyReasons = []string{"isr_insufficient", "no_leader", "replica_gap"}
 var channelRuntimeMetaCreateResults = []string{"created", "already_existing", "error"}
 
+const maxMaterializedLogicalSlotGroups uint32 = 256
+
 // ChannelRuntimeMetrics keeps legacy collectors and exposes promoted names through Registry gather aliases.
 type ChannelRuntimeMetrics struct {
 	reactorMailboxDepth      *prometheus.GaugeVec
@@ -242,11 +244,10 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 
 	// CounterVec collectors do not emit a family until at least one bounded
 	// label tuple exists. Materialize true zeroes for clean-cluster observation
-	// without recording an event. Slot Raft Group 1 is the stable first logical group.
+	// without recording an event. NewWithLogicalSlots extends this first group
+	// to the complete configured topology.
 	_ = m.activationRejectedTotal.WithLabelValues("max_channels")
-	for _, result := range channelRuntimeMetaCreateResults {
-		_ = m.metaCreatedTotal.WithLabelValues("1", result)
-	}
+	m.materializeMetaCreateSlots(1)
 
 	registry.MustRegister(
 		m.reactorMailboxDepth,
@@ -286,6 +287,23 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 	)
 
 	return m
+}
+
+func (m *ChannelRuntimeMetrics) materializeMetaCreateSlots(count uint32) {
+	if m == nil {
+		return
+	}
+	if count == 0 {
+		count = 1
+	}
+	if count > maxMaterializedLogicalSlotGroups {
+		count = maxMaterializedLogicalSlotGroups
+	}
+	for slotID := uint32(1); slotID <= count; slotID++ {
+		for _, result := range channelRuntimeMetaCreateResults {
+			_ = m.metaCreatedTotal.WithLabelValues(strconv.FormatUint(uint64(slotID), 10), result)
+		}
+	}
 }
 
 func (m *ChannelRuntimeMetrics) SetReactorMailboxDepth(reactorID int, priority string, depth int) {

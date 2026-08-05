@@ -36,6 +36,7 @@ func newRootCommand(stderr io.Writer) *cobra.Command {
 		newRunCommand(stderr),
 		newSoakCommand(stderr),
 		newWorkerCommand(stderr),
+		newHostMetricsCommand(stderr),
 		newValidateCommand(stderr),
 		newDoctorCommand(stderr),
 		newDevSimCommand(stderr),

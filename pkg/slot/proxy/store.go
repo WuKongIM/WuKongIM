@@ -34,11 +34,12 @@ func New(cluster Cluster, db *metadb.DB) *Store {
 	return store
 }
 
-// NewChannelMetadataStore creates the channel/member subset and registers only
-// its non-conflicting authoritative RPC services.
+// NewChannelMetadataStore creates the channel/member/runtime subset and registers
+// only its non-conflicting authoritative RPC services.
 func NewChannelMetadataStore(cluster Cluster, db *metadb.DB) *Store {
 	store := &Store{cluster: cluster, db: db}
 	registerSelectedStoreRPCHandlers(cluster, []storeRPCRegistration{
+		{serviceID: runtimeMetaRPCServiceID, handler: store.handleRuntimeMetaRPC},
 		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
 		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
 	})

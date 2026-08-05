@@ -345,7 +345,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 
 | Service ID 常量 | 值 | 用途 | 文件 |
 |---|---:|---|---|
-| `runtimeMetaRPCServiceID` | 3 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
+| `runtimeMetaRPCServiceID` | 81 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
 | `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 79 | 订阅者列表、精确包含与非空查询 | proxy/subscriber_rpc.go |
 | `userConversationStateRPCServiceID` | 11 | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
@@ -398,7 +398,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **Leader 变更自动失败 pending**: `slot.go:refreshStatus` 检测到从 Leader 降级时，立即 fail 所有 submitted/pending 的 proposal/config Future 返回 ErrNotLeader。
 - **Batch Apply 与 ConfChange 穿插**: `slot.go:applyCommittedEntries` 遇到 ConfChange 必须先 flush 累积的 Normal Entry 批次。不能把 ConfChange 塞进批次里。
 - **Slot log compaction 恢复边界**: 启动时只把持久化 snapshot index 作为 RawNode applied point，然后 replay snapshot 之后仍存在的 entries；不能用更靠后的 persisted applied index 跳过 replay。
-- **RPC Handler 注册**: `proxy.New` 在构造时通过统一注册端口安装 8 个 handler，漏任一个该类远端查询会全部失败。
+- **RPC Handler 注册**: `proxy.New` 在构造时通过统一注册端口安装 8 个 handler；生产默认 `NewChannelMetadataStore` 只安装使用集中分配、不冲突 Service ID 的 runtime-meta、subscriber、channel 三个 handler。runtime-meta 不能复用 Channel ACK 的 ID 3，否则冷 follower 会把权威元数据读取发给 ACK decoder，导致 `invalid frame` 并阻塞 Channel HW。
 - **写入 Key 路由**: `HashSlotForKey(key)` 先算逻辑 hash slot，再通过 `SlotForKey(key)` 查表定位物理 Slot；**同一实体必须使用同一 Key**（User 用 uid，Channel 用 channelID，Device 用 uid 而非 deviceFlag）。用错 Key 会写到不同 hash slot / Slot，读不到。
 - **值 CRC 校验失败**: Pebble 存储值带 CRC32，校验失败返回 `ErrCorruptValue`。表明磁盘损坏或编解码器版本不兼容。
 - **备份快照边界**: `CaptureHashSlotSnapshot` 只在本地 Slot leader 上证明 commit index 等于 durable applied index 后建立固定 Pebble 视图，并返回 SlotID、hashSlot、term、commit/applied index 与证据 UTC watermark；备份层必须在读取期间复核这些 fence，不能把未提交日志、apply lag 或迁移中的临时路由状态当成业务恢复数据。

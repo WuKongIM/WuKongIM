@@ -256,8 +256,14 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 		return errProductionController
 	}
 	lifecycle := c.lifecycle.Snapshot()
-	if len(productionLifecycleSignals(lifecycle)) > 0 || len(c.lifecycleSignalsLocked()) > 0 {
-		return errProductionController
+	current := VerdictSignal{Outcome: c.frozen.Outcome, Cause: c.frozen.Cause}
+	for _, signal := range append(productionLifecycleSignals(lifecycle), c.lifecycleSignalsLocked()...) {
+		if verdictSignalPrecedes(signal, current) {
+			current = signal
+		}
+	}
+	if current.Outcome != c.frozen.Outcome || current.Cause != c.frozen.Cause {
+		c.frozen.Outcome, c.frozen.Cause, c.frozen.Terminal = current.Outcome, current.Cause, true
 	}
 	finalEvidence := c.checkpointEvidenceLocked(lifecycle, c.frozen, cut.Capacity)
 	if _, err := c.recorder.CaptureAndWrite(cut.At, cut.FinalSnapshots, finalEvidence, c.paths("final")); err != nil {

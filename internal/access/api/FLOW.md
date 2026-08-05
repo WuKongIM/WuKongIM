@@ -235,7 +235,9 @@ writer from the composition root. Without that writer, capabilities do not
 advertise channel mutation support and mutation requests fail closed with
 `501`. With a writer, they inject real channel metadata and add or remove
 subscriber rows through the composition root. Subscriber reset requests remain
-unsupported.
+unsupported. The promoted target advertises both `person` and `group` Channel
+types because chat-lifecycle traffic creates canonical person relationships as
+well as the prepared fixed group catalog.
 
 `/bench/v1/presence/snapshot` is a read-only diagnostic route. It reports
 owner-local route counts and authority-side virtual route counts for wkbench

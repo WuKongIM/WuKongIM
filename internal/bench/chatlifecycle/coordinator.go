@@ -86,12 +86,14 @@ type coordinatorTerminationReason struct {
 
 // CoordinatorResult contains only bounded orchestration state.
 type CoordinatorResult struct {
-	Outcome  CoordinatorOutcome
-	Code     CoordinatorCode
-	Fence    WorkerFence
-	Grant    CoordinatorGrant
-	Snapshot CoordinatorSnapshot
-	Capacity CapacitySnapshot
+	Outcome CoordinatorOutcome
+	Code    CoordinatorCode
+	// Preflight retains the bounded admission reason without raw errors or credentials.
+	Preflight PreflightResult
+	Fence     WorkerFence
+	Grant     CoordinatorGrant
+	Snapshot  CoordinatorSnapshot
+	Capacity  CapacitySnapshot
 }
 
 // CoordinatorPreflight is the existing traffic admission boundary.
@@ -320,7 +322,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		if preflight.Outcome == PreflightInfrastructureFailure {
 			outcome = CoordinatorInfrastructureFailure
 		}
-		return CoordinatorResult{Outcome: outcome, Code: CoordinatorCodePreflight}
+		return CoordinatorResult{Outcome: outcome, Code: CoordinatorCodePreflight, Preflight: preflight}
 	}
 	var capacityAdmission capacityAdmissionToken
 	if cfg.Mode == ModeCapacity {
@@ -778,6 +780,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				if snapshot.Phase == CapacityPhaseStabilize {
 					if _, advanceErr := capacityStaircase.Advance(snapshot.PhaseEnd, CapacityObservation{}); advanceErr != nil {
 						result.Capacity = capacityStaircase.Snapshot()
+						if c.hooks != nil {
+							observation = joinObservation()
+							cutoffOwned = true
+							goto observationComplete
+						}
 						return completeCapacityFailure(result.Capacity)
 					}
 					result.Capacity = capacityStaircase.Snapshot()
@@ -820,6 +827,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 						cutoffOwned = true
 						goto observationComplete
 					}
+					if c.hooks != nil {
+						observation = joinObservation()
+						cutoffOwned = true
+						goto observationComplete
+					}
 					return completeCapacityFailure(result.Capacity)
 				}
 				if transition.ScheduleRate {
@@ -834,8 +846,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					return completeParentCancellation()
 				}
 				if begin.disposition != coordinatorRoundSucceeded {
-					failureCode, failureDisposition = CoordinatorCodeCapacity, begin.disposition
-					goto observationFailure
+					_, _ = capacityStaircase.Advance(c.clock.Now(), CapacityObservation{HarnessInvalid: true})
+					result.Capacity = capacityStaircase.Snapshot()
+					observation = joinObservation()
+					cutoffOwned = true
+					goto observationComplete
 				}
 			case rateResult := <-rateResults:
 				rateResults = nil
@@ -848,6 +863,11 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				if rateResult.disposition != coordinatorRoundSucceeded {
 					_, _ = capacityStaircase.FailRateChange(c.clock.Now())
 					result.Capacity = capacityStaircase.Snapshot()
+					if c.hooks != nil {
+						observation = joinObservation()
+						cutoffOwned = true
+						goto observationComplete
+					}
 					return completeCapacityFailure(result.Capacity)
 				}
 				capacityRateReady, capacityRateReadyAt = rateResult.rate, c.clock.Now()

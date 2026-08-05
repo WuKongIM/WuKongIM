@@ -11,6 +11,10 @@ go run ./cmd/wkbench <command> [flags]
 | Command | Purpose |
 | --- | --- |
 | `worker` | Starts one worker control process. Workers hold WKProto clients and execute assigned workload shards. |
+| `worker --mode chat-lifecycle` | Starts one authenticated, generation-fenced chat-lifecycle worker. |
+| `host-metrics` | Exposes exact native filesystem size/free metrics for a local lifecycle service node. |
+| `soak chat-lifecycle` | Runs the continuous 24-hour qualification and 72-hour final chat-lifecycle flow. |
+| `capacity chat-lifecycle` | Searches capacity against the same live dataset after a passing 72-hour final report. |
 | `validate` | Loads target, workers, and scenario YAML and validates static config plus deterministic planning. |
 | `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
@@ -22,7 +26,11 @@ go run ./cmd/wkbench <command> [flags]
 | `metrics classify` | Compares before/after Prometheus snapshots and prints gateway, Controller Raft, Channel runtime, and storage attribution hints. |
 | `report` | Reserved for future standalone report rendering. It is not implemented yet. |
 
-Exit codes are stable: `0` success, `1` config validation failure, `2` preflight failure, `3` hard limit failure, `4` worker failure, `5` target unavailable, and `6` internal failure.
+Exit codes are stable: `0` success, `1` config validation failure, `2`
+preflight failure, `3` hard limit failure, `4` worker failure, `5` target
+unavailable, and `6` internal failure. Chat-lifecycle additionally uses `7`
+for product failure, `8` for invalid harness evidence, `9` for infrastructure
+failure, and `130` for a coordinated operator stop.
 
 ## Target Requirements
 
@@ -103,6 +111,56 @@ go run ./cmd/wkbench run \
 The connect phase waits for this base timeout plus `total_users/connect_rate`.
 
 For a compiled binary, replace `go run ./cmd/wkbench` with the binary path.
+
+## Chat Lifecycle Soak
+
+The reviewed profile is
+`configs/wkbench/chat-lifecycle/formal.yaml`: three service nodes, three
+workers, one coordinator, 12 logical Slot Raft Groups over 256 physical hash
+slots, replicas `3/3`, 10,000 online users, and one global 2,000 SEND/s budget.
+Every login performs a fresh product `/conversation/sync` with `version=0`, an
+empty last-message map, and no retained cursor. The independent proof samples
+1,200 real person channels every ten minutes and waits for natural
+hot-to-cold-to-reheat transitions without a control-plane eviction.
+
+Credentials are supplied only through `WK_BENCH_API_TOKEN` and
+`WK_BENCH_WORKER_TOKEN`, or through the owner-only token-file variables listed
+in `configs/wkbench/chat-lifecycle/README.md`. They never enter YAML, worker
+assignments, snapshots, or reports.
+
+Run formal soak only after replacing every `.invalid` endpoint and preparing
+at least 1,000,000,000,000 bytes on each service data filesystem:
+
+```bash
+wkbench soak chat-lifecycle \
+  --config configs/wkbench/chat-lifecycle/formal.yaml \
+  --output-dir /secure/reports/chat-lifecycle
+```
+
+The 24-hour qualification is non-terminal and traffic continues in the same
+generation. At 72 hours the coordinator stops all workers before freezing the
+final metadata-create equality and report. Free space below 5 percent causes a
+coordinated infrastructure stop. There is no resume: a process crash, config
+change, Slot migration, disk expansion, or failed worker requires a new run ID
+and fresh data directories.
+
+For a bounded local native-process shakeout:
+
+```bash
+export WK_BENCH_API_TOKEN='local-bench-secret'
+export WK_BENCH_WORKER_TOKEN='local-worker-secret'
+scripts/run-wukongim-three-node-chat-lifecycle-shakeout.sh \
+  --run-dir "$PWD/tmp/chat-lifecycle-shakeout" \
+  --stop-after 120
+```
+
+The helper owns a fresh run directory, three services, three workers, three
+filesystem metric endpoints, the coordinator, PID files, logs, and graceful
+cleanup. It intentionally enforces the same 5-percent free-space gate; a host
+that cannot satisfy it is a valid `disk_free` preflight result, not a passing
+soak. See
+`docs/superpowers/runbooks/2026-08-04-chat-lifecycle-soak.md` for formal host,
+security, monitoring, evidence, and capacity procedures.
 
 ## Capacity Send
 

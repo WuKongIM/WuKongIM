@@ -690,7 +690,7 @@ func (s *Server) handleBenchCapabilities(c *gin.Context) {
 			ChannelRuntimeEvict:            s.benchRuntime != nil,
 			ChannelRuntimeFaults:           false,
 			ChannelRuntimeActivate:         false,
-			ChannelTypes:                   []string{"group"},
+			ChannelTypes:                   []string{"person", "group"},
 		},
 		Limits: capabilitiesLimits{
 			MaxBatchSize:    s.benchMaxBatchSize,

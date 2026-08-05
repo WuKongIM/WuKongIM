@@ -40,10 +40,45 @@ func TestRootCommandHelpListsSubcommands(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected help exit code 0, got %d stderr %q", code, stderr.String())
 	}
-	for _, want := range []string{"Usage:", "run", "worker", "validate", "doctor", "dev-sim", "capacity", "metrics"} {
+	for _, want := range []string{"Usage:", "run", "worker", "host-metrics", "validate", "doctor", "dev-sim", "capacity", "metrics"} {
 		if !strings.Contains(stderr.String(), want) {
 			t.Fatalf("expected root help to contain %q, got %q", want, stderr.String())
 		}
+	}
+}
+
+func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
+	var stderr bytes.Buffer
+	code := runWithStderr([]string{"host-metrics", "--listen", "127.0.0.1:0"}, &stderr)
+	if code != exitConfig || !strings.Contains(stderr.String(), "--path") {
+		t.Fatalf("missing path code/stderr = %d/%q", code, stderr.String())
+	}
+
+	handler, err := newHostMetricsHandler(hostMetricsConfig{
+		path: t.TempDir(), mountpoint: "/var/lib/wukongim-1", device: "/dev/local-data-1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("metrics status/body = %d/%q", response.Code, response.Body.String())
+	}
+	for _, want := range []string{
+		`node_filesystem_size_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
+		`node_filesystem_avail_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
+	} {
+		if !strings.Contains(response.Body.String(), want) {
+			t.Fatalf("metrics body missing %q: %q", want, response.Body.String())
+		}
+	}
+
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("health status = %d", response.Code)
 	}
 }
 

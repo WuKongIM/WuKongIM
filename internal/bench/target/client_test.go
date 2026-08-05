@@ -1099,6 +1099,35 @@ func TestObservationMetricsTreatsAbsentPerSlotResultsAsZero(t *testing.T) {
 	require.Equal(t, map[string]float64{"created": 7, "already_existing": 0, "error": 0}, snapshot.MetaCreatedTotal)
 }
 
+func TestObservationMetricsUsesNodeRSSWhenProcessCollectorIsUnavailable(t *testing.T) {
+	common := []string{
+		"go_goroutines 42",
+		"go_memstats_heap_alloc_bytes 1024",
+		`wukongim_runtime_pool_queue_depth{pool="append"} 0`,
+		`wukongim_runtime_pool_inflight{pool="append"} 0`,
+		`wukongim_channelv2_worker_queue_depth{worker="meta"} 0`,
+		`wukongim_channelv2_activation_rejected_total{reason="max_channels"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 0`,
+		`wukongim_channelv2_meta_created_total{slot_id="1",result="error"} 0`,
+	}
+	for _, test := range []struct {
+		name string
+		rss  []string
+		want float64
+	}{
+		{name: "node fallback", rss: []string{`wukongim_node_memory_rss_bytes{node_id="1",node_name="node-1"} 4096`}, want: 4096},
+		{name: "process preferred", rss: []string{"process_resident_memory_bytes 2048", `wukongim_node_memory_rss_bytes{node_id="1",node_name="node-1"} 4096`}, want: 2048},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot, err := parseObservationMetrics([]byte(strings.Join(append(common, test.rss...), "\n") + "\n"))
+			require.NoError(t, err)
+			require.NoError(t, snapshot.ValidateRequired())
+			require.Equal(t, test.want, snapshot.ProcessResidentMemoryBytes)
+		})
+	}
+}
+
 func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {
 	const token = "observer-redaction-secret"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

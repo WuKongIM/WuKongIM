@@ -107,6 +107,8 @@ const (
 	RPCSlotSubscriberMetadata
 	// RPCSlotChannelMetadata serves Slot-leader channel metadata point reads.
 	RPCSlotChannelMetadata
+	// RPCSlotChannelRuntimeMeta serves Slot-leader channel runtime metadata reads.
+	RPCSlotChannelRuntimeMeta
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -207,6 +209,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot subscriber metadata"
 	case RPCSlotChannelMetadata:
 		return "slot channel metadata"
+	case RPCSlotChannelRuntimeMeta:
+		return "slot channel runtime meta"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

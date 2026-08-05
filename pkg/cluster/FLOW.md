@@ -734,10 +734,13 @@ the caller.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
 The default Slot runtime also owns a narrow Slot proxy for authoritative channel
-and subscriber metadata. It registers the centrally allocated
-`RPCSlotSubscriberMetadata` and `RPCSlotChannelMetadata` handlers, exposes
-Slot-leader point/page reads and exact counted subscriber mutations to internal
-adapters, and carries create-only/flag-patch FSM results back to the proposer.
+runtime, business, and subscriber metadata. It registers the centrally
+allocated `RPCSlotChannelRuntimeMeta`, `RPCSlotSubscriberMetadata`, and
+`RPCSlotChannelMetadata` handlers, exposes Slot-leader point/page reads and
+exact counted subscriber mutations to internal adapters, and carries
+create-only/flag-patch FSM results back to the proposer. An unloaded Channel
+follower resolves runtime metadata through that dedicated runtime-meta service;
+it must never reuse a Channel replication service ID.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.

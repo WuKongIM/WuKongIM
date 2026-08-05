@@ -52,9 +52,11 @@ New(Config)
      Group `slot_id` (`route.SlotID`) and the closed
      `created|already_existing|error` result;
      unexpected result inputs collapse to `error` instead of creating a series;
-     clean startup materializes all three results at logical Slot Raft Group 1 as true
-     zeroes so strict preflight can distinguish an observed zero from a missing
-     family without recording a metadata-create event;
+     clean startup materializes all three results for every configured initial
+     logical Slot Raft Group as true zeroes, bounded by the repository's 256
+     physical-hash-slot ceiling, so strict preflight can distinguish an
+     observed zero from a missing family without recording a metadata-create
+     event;
      the combined Channel observer forwards this hook once to each capable child
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus canonical Online Delivery local and remote owner-push attempts on the

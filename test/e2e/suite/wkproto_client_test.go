@@ -5,12 +5,21 @@ package suite
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/wkprotoenc"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNewWKProtoClientWithTimeoutRejectsNonPositiveDuration(t *testing.T) {
+	_, err := NewWKProtoClientWithTimeout(0)
+	require.Error(t, err)
+	client, err := NewWKProtoClientWithTimeout(20 * time.Second)
+	require.NoError(t, err)
+	require.Equal(t, 20*time.Second, client.operationTimeout)
+}
 
 func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 	ln := newWKProtoTestServer(t, func(conn net.Conn) {

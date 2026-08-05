@@ -171,6 +171,11 @@
           "expr": "sum(rate(wukongim_channelv2_meta_cache_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
           "legendFormat": "meta cache {{result}}",
           "refId": "I"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_meta_created_total[$__rate_interval])) by (slot_id, result)",
+          "legendFormat": "meta created slot={{slot_id}} {{result}}",
+          "refId": "J"
         }
       ],
       "title": "Channel Runtime Replication Counters",

@@ -17,6 +17,8 @@ const defaultWKProtoTimeout = 5 * time.Second
 
 // WKProtoClient is a black-box test client for the public WKProto transport.
 type WKProtoClient struct {
+	// operationTimeout bounds handshake, SENDACK, RECV, and control operations.
+	operationTimeout time.Duration
 	// mu protects the active pkg/client session and bridge channels.
 	mu sync.Mutex
 	// inner owns the WKProto TCP session, crypto state, writer, and reader.
@@ -31,7 +33,15 @@ type WKProtoClient struct {
 
 // NewWKProtoClient creates a client with fresh WKProto session keys.
 func NewWKProtoClient() (*WKProtoClient, error) {
-	return &WKProtoClient{}, nil
+	return NewWKProtoClientWithTimeout(defaultWKProtoTimeout)
+}
+
+// NewWKProtoClientWithTimeout creates a client with one explicit bounded operation timeout.
+func NewWKProtoClientWithTimeout(timeout time.Duration) (*WKProtoClient, error) {
+	if timeout <= 0 {
+		return nil, fmt.Errorf("wkproto client: operation timeout must be positive")
+	}
+	return &WKProtoClient{operationTimeout: timeout}, nil
 }
 
 // Connect opens the TCP connection and completes the WKProto handshake.
@@ -52,8 +62,8 @@ func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID 
 
 	inner, err := wkclient.New(wkclient.Config{
 		Addr:                   addr,
-		OperationTimeout:       defaultWKProtoTimeout,
-		AckTimeout:             defaultWKProtoTimeout,
+		OperationTimeout:       c.operationTimeout,
+		AckTimeout:             c.operationTimeout,
 		InboundFrameBufferSize: 1024,
 	})
 	if err != nil {
@@ -101,11 +111,11 @@ func (c *WKProtoClient) SendFrame(f frame.Frame) error {
 		go publishSendAck(future, ackCh, closeCh)
 		return nil
 	case *frame.PingPacket:
-		ctx, cancel := context.WithTimeout(context.Background(), defaultWKProtoTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), c.operationTimeout)
 		defer cancel()
 		return inner.Ping(ctx)
 	case *frame.RecvackPacket:
-		ctx, cancel := context.WithTimeout(context.Background(), defaultWKProtoTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), c.operationTimeout)
 		defer cancel()
 		return inner.RecvAck(ctx, pkt.MessageID, pkt.MessageSeq)
 	default:
@@ -119,7 +129,7 @@ func (c *WKProtoClient) ReadFrame() (frame.Frame, error) {
 	if err != nil {
 		return nil, err
 	}
-	timer := time.NewTimer(defaultWKProtoTimeout)
+	timer := time.NewTimer(c.operationTimeout)
 	defer timer.Stop()
 
 	select {
@@ -152,7 +162,7 @@ func (c *WKProtoClient) ReadSendAck() (*frame.SendackPacket, error) {
 	if err != nil {
 		return nil, err
 	}
-	timer := time.NewTimer(defaultWKProtoTimeout)
+	timer := time.NewTimer(c.operationTimeout)
 	defer timer.Stop()
 
 	select {
@@ -177,7 +187,7 @@ func (c *WKProtoClient) ReadRecv() (*frame.RecvPacket, error) {
 	if err != nil {
 		return nil, err
 	}
-	timer := time.NewTimer(defaultWKProtoTimeout)
+	timer := time.NewTimer(c.operationTimeout)
 	defer timer.Stop()
 
 	select {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -1150,6 +1151,31 @@ func TestConfigureObservabilityWiresSlotReplicaMovePhaseObserver(t *testing.T) {
 	}
 	if clusterCfg.Slots.PreferredLeaderObserver == nil {
 		t.Fatal("Slot preferred leader observer was not wired")
+	}
+}
+
+func TestConfigureObservabilityMaterializesConfiguredLogicalSlotMetrics(t *testing.T) {
+	app := &App{cfg: Config{Observability: ObservabilityConfig{MetricsEnabled: true}}}
+	clusterCfg := cluster.Config{NodeID: 1}
+	clusterCfg.Slots.InitialSlotCount = 12
+
+	app.configureObservability(&clusterCfg)
+
+	families, err := app.metrics.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := requireAppMetricFamily(t, families, "wukongim_channelv2_meta_created_total")
+	if len(created.GetMetric()) != 36 {
+		t.Fatalf("metadata-create series = %d, want 36", len(created.GetMetric()))
+	}
+	for slotID := 1; slotID <= 12; slotID++ {
+		for _, result := range []string{"created", "already_existing", "error"} {
+			metric := findAppMetricByLabels(t, created, map[string]string{"slot_id": strconv.Itoa(slotID), "result": result})
+			if metric.GetCounter().GetValue() != 0 {
+				t.Fatalf("slot %d result %s was not a true zero", slotID, result)
+			}
+		}
 	}
 }
 

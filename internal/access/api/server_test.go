@@ -221,6 +221,9 @@ func TestBenchMutationRoutesWriteConfiguredBenchData(t *testing.T) {
 	if !caps.Supports.ChannelSubscribersBatch || !caps.Supports.ChannelSubscriberRemovalsBatch {
 		t.Fatalf("capabilities supports = %+v, want subscriber add and removal batches", caps.Supports)
 	}
+	if got := caps.Supports.ChannelTypes; len(got) != 2 || got[0] != "person" || got[1] != "group" {
+		t.Fatalf("channel types = %v, want person and group", got)
+	}
 
 	var channelResp mutationResponse
 	resp, err = http.Post(httpSrv.URL+"/bench/v1/channels", "application/json", bytes.NewBufferString(`{

@@ -71,6 +71,15 @@ func New(nodeID uint64, nodeName string) *Registry {
 	}
 }
 
+// NewWithLogicalSlots materializes metadata-create zero counters for every
+// configured logical Slot Raft Group. Callers must pass validated topology;
+// the 256-group bound matches the repository's physical hash-slot fence.
+func NewWithLogicalSlots(nodeID uint64, nodeName string, logicalSlotCount uint32) *Registry {
+	registry := New(nodeID, nodeName)
+	registry.ChannelRuntime.materializeMetaCreateSlots(logicalSlotCount)
+	return registry
+}
+
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	if r == nil || r.registry == nil {
 		return nil, nil

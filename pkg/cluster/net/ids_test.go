@@ -68,6 +68,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"operations_mcp":            RPCOpsMCP,
 		"slot_subscriber_metadata":  RPCSlotSubscriberMetadata,
 		"slot_channel_metadata":     RPCSlotChannelMetadata,
+		"slot_channel_runtime_meta": RPCSlotChannelRuntimeMeta,
 	}
 }
 

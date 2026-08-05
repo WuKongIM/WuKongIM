@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -78,5 +79,42 @@ func TestClusterSingleNodeScanChannelRuntimeMetaSlotPagePaginatesMetadata(t *tes
 	}
 	if len(page) != 1 || page[0].ChannelID != "g2" || page[0].Status != uint8(channelruntime.StatusCreating) || !done {
 		t.Fatalf("page2 = %#v done=%t, want g2 and done", page, done)
+	}
+}
+
+func TestClusterFollowerReadsChannelRuntimeMetaFromSlotLeader(t *testing.T) {
+	nodes := newDefaultThreeNodeCluster(t)
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
+	waitClusterReady(t, nodes...)
+
+	const channelID = "remote-runtime-meta"
+	route := waitRouteKeyLeaderConverged(t, nodes, channelID)
+	queryNode := firstNonLeaderNode(t, nodes, route.Leader)
+	meta := metadb.ChannelRuntimeMeta{
+		ChannelID:    channelID,
+		ChannelType:  1,
+		ChannelEpoch: 3,
+		LeaderEpoch:  2,
+		Replicas:     []uint64{1, 2, 3},
+		ISR:          []uint64{1, 2, 3},
+		Leader:       route.Leader,
+		MinISR:       2,
+		Status:       uint8(channelruntime.StatusActive),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := (defaultChannelRuntimeMetaStore{node: nodes[0]}).UpsertChannelRuntimeMeta(ctx, meta); err != nil {
+		t.Fatalf("UpsertChannelRuntimeMeta() error = %v", err)
+	}
+
+	got, err := (defaultChannelRuntimeMetaStore{node: queryNode}).GetChannelRuntimeMeta(ctx, channelID, 1)
+	if err != nil {
+		t.Fatalf("GetChannelRuntimeMeta(follower=%d) error = %v", queryNode.NodeID(), err)
+	}
+	want := metadb.NormalizeChannelRuntimeMeta(meta)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetChannelRuntimeMeta(follower=%d) = %#v, want %#v", queryNode.NodeID(), got, want)
 	}
 }

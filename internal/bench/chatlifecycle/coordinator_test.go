@@ -756,6 +756,12 @@ func (h *recordingCoordinatorRunHooks) Observe(_ context.Context, cut Coordinato
 		if cut.StopRequested {
 			return CoordinatorStopped, nil
 		}
+		if cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityProductFailure {
+			return CoordinatorProductFailure, nil
+		}
+		if cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityHarnessInvalid {
+			return CoordinatorHarnessInvalid, nil
+		}
 		return CoordinatorCompleted, nil
 	}
 	return "", nil
@@ -1228,6 +1234,9 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			result := coordinator.Run(context.Background(), cfg)
 			if result.Outcome != testCase.wantOutcome || result.Code != testCase.wantCode {
 				t.Fatalf("Run() result = %+v, want %s/%s", result, testCase.wantOutcome, testCase.wantCode)
+			}
+			if testCase.wantCode == CoordinatorCodePreflight && result.Preflight != testCase.preflight {
+				t.Fatalf("Run() preflight = %+v, want %+v", result.Preflight, testCase.preflight)
 			}
 			if !reflect.DeepEqual(canonicalCoordinatorLog(&log), testCase.wantLog) {
 				t.Fatalf("call log = %v, want %v", log, testCase.wantLog)

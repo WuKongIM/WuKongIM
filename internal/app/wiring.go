@@ -151,7 +151,9 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		top = a.ensureTopCollector(clusterCfg.NodeID, true)
 	}
 	if a.cfg.Observability.MetricsEnabled {
-		a.metrics = obsmetrics.New(clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID))
+		a.metrics = obsmetrics.NewWithLogicalSlots(
+			clusterCfg.NodeID, fmt.Sprintf("node-%d", clusterCfg.NodeID), clusterCfg.Slots.InitialSlotCount,
+		)
 		if a.controllerTaskAudit != nil {
 			a.controllerTaskAudit.metrics = a.metrics
 		}

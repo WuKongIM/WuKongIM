@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +25,21 @@ func TestFreshRegistryScrapeExposesLifecycleZeroCounters(t *testing.T) {
 		require.Contains(t, scrape, `wukongim_channelv2_meta_created_total{result="`+result+`",slot_id="1"} 0`)
 	}
 	require.Equal(t, 3, strings.Count(scrape, "wukongim_channelv2_meta_created_total{"))
+}
+
+func TestConfiguredRegistryScrapeExposesEveryLogicalSlotZeroCounter(t *testing.T) {
+	reg := NewWithLogicalSlots(8, "node-8", 12)
+	recorder := httptest.NewRecorder()
+	reg.Handler().ServeHTTP(recorder, httptest.NewRequest("GET", "/metrics", nil))
+	require.Equal(t, 200, recorder.Code)
+
+	scrape := recorder.Body.String()
+	for slotID := 1; slotID <= 12; slotID++ {
+		for _, result := range []string{"created", "already_existing", "error"} {
+			require.Contains(t, scrape, `wukongim_channelv2_meta_created_total{result="`+result+`",slot_id="`+strconv.Itoa(slotID)+`"} 0`)
+		}
+	}
+	require.Equal(t, 36, strings.Count(scrape, "wukongim_channelv2_meta_created_total{"))
 }
 
 func TestGatewayMetricsTrackConnectionAndTraffic(t *testing.T) {

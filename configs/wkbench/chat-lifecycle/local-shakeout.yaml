@@ -1,0 +1,103 @@
+run_id: local-chat-lifecycle-shakeout
+seed: 1
+profile: local
+mode: soak
+workload:
+  workers: 3
+  online_users: 100
+  new_users_per_day: 1000
+  send_rate_per_second: 100
+  traffic: {person_percent: 90, group_percent: 10}
+  hot_set: {person_channels: 80, group_channels: 20}
+  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+  runtime_sampling: {every: 1m, size: 12}
+  sync: {version: 0, limit: 500, message_count: 20}
+  burst_credit: 2s
+  max_global_burst: 200
+  max_channels_per_node: 500
+  login: {new_percent: 80, returning_percent: 20}
+  sessions:
+    - {percent: 25, min: 5m, max: 15m}
+    - {percent: 50, min: 15m, max: 45m}
+    - {percent: 20, min: 45m, max: 2h}
+    - {percent: 5, min: 2h, max: 6h}
+  lifecycle:
+    one_shot: {percent: 60, active_duration: {min: 0s, max: 0s}}
+    revisit: {percent: 25, active_duration: {min: 0s, max: 0s}}
+    rotating: {percent: 10, active_duration: {min: 20m, max: 40m}}
+    long: {percent: 5, active_duration: {min: 2h, max: 4h}}
+  payloads:
+    - {percent: 70, bytes: 256}
+    - {percent: 25, bytes: 1024}
+    - {percent: 4, bytes: 4096}
+    - {percent: 1, bytes: 16384}
+  person_direction: {alternating_percent: 70, one_way_percent: 30}
+  relationship:
+    initial_messages: {min: 2, max: 8}
+    initial_message_window: {min: 5s, max: 30s}
+    returning_messages: {min: 2, max: 5}
+    returning_last_24h_percent: 80
+    returning_older_percent: 20
+  retry: {max_count: 3, delays: [100ms, 500ms, 2s]}
+  groups:
+    small: 16
+    medium: 3
+    large: 0
+    very_large: 1
+    very_large_members: 1000
+    fixed_membership: true
+    very_large_send_every: 1m
+observation:
+  service_nodes:
+    - {name: local-service-1, address: "http://127.0.0.1:15001"}
+    - {name: local-service-2, address: "http://127.0.0.1:15002"}
+    - {name: local-service-3, address: "http://127.0.0.1:15003"}
+  workers:
+    - {name: local-worker-1, address: "http://127.0.0.1:19091"}
+    - {name: local-worker-2, address: "http://127.0.0.1:19092"}
+    - {name: local-worker-3, address: "http://127.0.0.1:19093"}
+  host_metrics:
+    - {name: local-host-metrics-1, address: "http://127.0.0.1:19101", mountpoint: /var/lib/wukongim-1, device: /dev/local-data-1}
+    - {name: local-host-metrics-2, address: "http://127.0.0.1:19102", mountpoint: /var/lib/wukongim-2, device: /dev/local-data-2}
+    - {name: local-host-metrics-3, address: "http://127.0.0.1:19103", mountpoint: /var/lib/wukongim-3, device: /dev/local-data-3}
+  api_addrs: ["http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"]
+  gateway_tcp_addrs: ["127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"]
+  cadence: 5s
+thresholds:
+  minimum_data_filesystem_bytes: 10000000000
+  disk_safe_stop_free_percent: 5
+  correctness:
+    terminal_sends: 0
+    activation_rejections: 0
+    losses: 0
+    duplicates: 0
+    corruptions: 0
+    sequence_regressions: 0
+    overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}
+    any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}
+  latency:
+    hot_sendack: {p99: 200ms, p999: 1s}
+    cold: {p99: 2s, p999: 5s}
+    sync: {p99: 1s, p999: 3s}
+    single_anomaly: 10s
+    sustained_breach_window: 5m
+  resource:
+    forced_gc_live_heap_growth_percent: 5
+    forced_gc_live_heap_window: 6h
+    goroutine_growth_percent: 5
+    goroutine_growth_window: 24h
+  cluster:
+    health_poll_every: 5s
+    unhealthy_fail_after: 30s
+    max_hot_replica_lag_entries: 0
+    leader_imbalance_percent: 20
+    leader_imbalance_for: 10m
+  timeline: {warmup: 10m, checkpoint: 20m, final: 30m}
+capacity:
+  aged_checkpoint: {reference: "", completed: false, passed: false, duration: 0s}
+  start_rate_per_second: 2000
+  recovery_rate_per_second: 2000
+  step_percent: 25
+  refine_percent: 10
+  step: {stabilize: 10m, measure: 20m}
+  recovery_duration: 30m

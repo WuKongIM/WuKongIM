@@ -98,6 +98,7 @@ const (
 	metricChannelWorkerQueue
 	metricActivationRejected
 	metricMetaCreated
+	metricNodeRSS
 	metricRequired = metricGoGoroutines | metricGoHeapAlloc | metricProcessRSS | metricRuntimeQueue |
 		metricRuntimeInflight | metricChannelWorkerQueue | metricActivationRejected | metricMetaCreated
 )
@@ -128,7 +129,8 @@ type MetricsSnapshot struct {
 
 // ValidateRequired rejects a scrape that omitted a required product or runtime family.
 func (s MetricsSnapshot) ValidateRequired() error {
-	if s.present != metricRequired {
+	requiredWithoutRSS := metricRequired &^ metricProcessRSS
+	if s.present&requiredWithoutRSS != requiredWithoutRSS || s.present&(metricProcessRSS|metricNodeRSS) == 0 {
 		return errors.New("observation metrics missing required families")
 	}
 	return nil
@@ -957,6 +959,8 @@ func observationMetricKind(name string) uint16 {
 		return metricGoHeapAlloc
 	case "process_resident_memory_bytes":
 		return metricProcessRSS
+	case "wukongim_node_memory_rss_bytes":
+		return metricNodeRSS
 	case "wukongim_runtime_pool_queue_depth":
 		return metricRuntimeQueue
 	case "wukongim_runtime_pool_inflight":
@@ -981,6 +985,14 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 	case metricGoHeapAlloc:
 		destination = &s.GoHeapAllocBytes
 	case metricProcessRSS:
+		if s.present&metricNodeRSS != 0 {
+			s.ProcessResidentMemoryBytes = 0
+		}
+		destination = &s.ProcessResidentMemoryBytes
+	case metricNodeRSS:
+		if s.present&metricProcessRSS != 0 {
+			return nil
+		}
 		destination = &s.ProcessResidentMemoryBytes
 	case metricRuntimeQueue:
 		destination = &s.RuntimeQueueDepth
