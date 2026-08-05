@@ -957,9 +957,12 @@ sequence state only after both JSON and Markdown writes succeed, so an output
 failure may retry the identical worker snapshot cut.
 
 Capacity admission accepts only a validated final passing formal Soak report of
-at least 72 hours plus an exact external dataset-reference digest that still
-matches the live, aged, non-clean target. The capacity invocation starts after
-that report's end and cannot substitute a clean dataset. The reducer retains no
+at least 72 hours whose persisted dataset-reference digest still matches a
+later exact three-node live-target probe. That probe must be after the report,
+prove uninterrupted aged/non-clean state, and complete no later than capacity
+start. Admission is cloned and validated before preflight, setup, worker
+assignment, or target mutation. The capacity invocation starts after that
+report's end and cannot substitute a clean dataset. The reducer retains no
 unbounded history: it owns one current phase, checked pass/fail bounds, fixed
 counters, and only the latest 32 of at most 192 measured steps.
 
@@ -972,17 +975,22 @@ the first failing rate. Capacity-gate failure records the boundary instead of
 ending immediately, while a correctness failure remains an immediate product
 failure. Once the boundary is found, the reducer schedules exactly 2,000
 SEND/s for one uninterrupted 30-minute recovery. Recovery passes only when
-error rate, latency, queues/inflight, cluster lag, and resource pressure all
-return to their accepted ranges; failure to recover is a product failure.
+error rate, latency, queues/inflight, cluster lag, resource pressure,
+readiness/health, and lifecycle activity all return to their accepted ranges;
+failure to recover is a product failure.
 
 A live capacity-rate change is one concurrent, exact-fence, three-worker
-control round under one shared deadline. The coordinator stages the matching
-global GrantPlan rate only after all three running, traffic-ready statuses are
-valid. A partial or invalid round is harness-invalid and leaves the old plan
-unchanged. The allocator applies a successful staged rate at the next grant
-tick and discards every credit generation retained at the old rate. No rate
-transition restarts workers or service nodes, changes the assignment
-generation, or cleans the target dataset.
+control round under one shared deadline, launched asynchronously while the
+single grant owner continues delivering the old one-second cadence. A partial
+or invalid round is harness-invalid and leaves the owner plan unchanged. Once
+all three running, traffic-ready statuses are valid, only the grant owner may
+stage the new rate, and only for a Tick strictly after the control result. The
+allocator applies it on that Tick, discards every credit generation retained at
+the old rate, and starts the next stabilization or recovery clock only after
+the complete new-rate grant is successfully delivered. Capacity evidence is
+also collected asynchronously at the exact completed window while grants
+continue. No rate transition restarts workers or service nodes, changes the
+assignment generation, or cleans the target dataset.
 
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result

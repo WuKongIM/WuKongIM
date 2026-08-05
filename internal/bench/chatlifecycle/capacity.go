@@ -24,26 +24,45 @@ var (
 	ErrCapacityTerminal = errors.New("chat lifecycle capacity: already terminal")
 )
 
-// CapacityAdmission binds the frozen Soak report to the currently live service dataset.
+// CapacityDatasetState is the closed result of the live target dataset probe.
+type CapacityDatasetState string
+
+const (
+	CapacityDatasetUnavailable CapacityDatasetState = "unavailable"
+	CapacityDatasetLiveAged    CapacityDatasetState = "live_aged"
+	CapacityDatasetClean       CapacityDatasetState = "clean"
+)
+
+// CapacityLiveDatasetEvidence is the narrow, all-node live-target probe result
+// compared with the dataset digest persisted in the 72-hour checkpoint.
+type CapacityLiveDatasetEvidence struct {
+	// ReferenceDigest is the target-issued opaque dataset identity.
+	ReferenceDigest string
+	// ObservedAt is the all-node live probe completion time.
+	ObservedAt       time.Time
+	ServiceNodeCount uint64
+	// Uninterrupted proves the declared service generation did not restart after the checkpoint.
+	Uninterrupted bool
+	State         CapacityDatasetState
+}
+
+// CapacityAdmission binds the frozen Soak report to one live target probe.
 type CapacityAdmission struct {
-	Reference             string
-	Checkpoint            Report
-	CheckpointDatasetHash string
-	LiveDatasetHash       string
-	Live                  bool
-	Aged                  bool
-	Clean                 bool
+	Reference   string
+	Checkpoint  Report
+	LiveDataset CapacityLiveDatasetEvidence
 }
 
 // CapacityPhase is the closed staircase lifecycle.
 type CapacityPhase string
 
 const (
-	CapacityPhaseStabilize CapacityPhase = "stabilize"
-	CapacityPhaseMeasure   CapacityPhase = "measure"
-	CapacityPhaseRecovery  CapacityPhase = "recovery"
-	CapacityPhaseComplete  CapacityPhase = "complete"
-	CapacityPhaseTerminal  CapacityPhase = "terminal"
+	CapacityPhaseStabilize   CapacityPhase = "stabilize"
+	CapacityPhaseMeasure     CapacityPhase = "measure"
+	CapacityPhaseRatePending CapacityPhase = "rate_pending"
+	CapacityPhaseRecovery    CapacityPhase = "recovery"
+	CapacityPhaseComplete    CapacityPhase = "complete"
+	CapacityPhaseTerminal    CapacityPhase = "terminal"
 )
 
 // CapacityOutcome is the closed capacity-stage result.
@@ -65,6 +84,7 @@ const (
 	CapacityCauseCorrectness CapacityCause = "correctness"
 	CapacityCauseRecovery    CapacityCause = "recovery"
 	CapacityCauseObservation CapacityCause = "invalid_observation"
+	CapacityCauseRateChange  CapacityCause = "rate_change"
 	CapacityCauseNoBoundary  CapacityCause = "no_bounded_breakpoint"
 )
 
@@ -77,6 +97,8 @@ const (
 	CapacityGateQueueInflight
 	CapacityGateClusterLag
 	CapacityGateResource
+	CapacityGateReadiness
+	CapacityGateLifecycle
 )
 
 // CapacityObservation is one bounded phase-boundary evidence projection.
@@ -89,6 +111,8 @@ type CapacityObservation struct {
 	QueueInflightAccepted bool
 	ClusterLagAccepted    bool
 	ResourceAccepted      bool
+	ReadinessAccepted     bool
+	LifecycleAccepted     bool
 }
 
 // CapacityStepResult is one bounded measured rate result.
@@ -118,6 +142,7 @@ type CapacitySnapshot struct {
 	Cause            CapacityCause
 	Terminal         bool
 	CurrentRate      uint64
+	PendingRate      uint64
 	PhaseStart       time.Time
 	PhaseEnd         time.Time
 	LastPassingRate  uint64
@@ -152,18 +177,20 @@ const (
 type CapacityStaircase struct {
 	mu sync.Mutex
 
-	cfg        CapacityConfig
-	start      time.Time
-	last       time.Time
-	phase      CapacityPhase
-	outcome    CapacityOutcome
-	cause      CapacityCause
-	terminal   bool
-	mode       capacitySearchMode
-	current    uint64
-	phaseStart time.Time
-	phaseEnd   time.Time
-	stepStart  time.Time
+	cfg          CapacityConfig
+	start        time.Time
+	last         time.Time
+	phase        CapacityPhase
+	outcome      CapacityOutcome
+	cause        CapacityCause
+	terminal     bool
+	mode         capacitySearchMode
+	current      uint64
+	pendingRate  uint64
+	pendingPhase CapacityPhase
+	phaseStart   time.Time
+	phaseEnd     time.Time
+	stepStart    time.Time
 
 	lastPassing  uint64
 	firstFailing uint64
@@ -183,8 +210,11 @@ func NewCapacityStaircase(cfg Config, admission CapacityAdmission, start time.Ti
 		return nil, ErrCapacityConfig
 	}
 	checkpoint := admission.Checkpoint
-	if !admission.Live || !admission.Aged || admission.Clean || admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
-		!validReportHash(admission.CheckpointDatasetHash) || admission.CheckpointDatasetHash != admission.LiveDatasetHash ||
+	live := admission.LiveDataset
+	if admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
+		!validReportHash(checkpoint.DatasetDigest) || checkpoint.DatasetDigest != live.ReferenceDigest ||
+		live.State != CapacityDatasetLiveAged || !live.Uninterrupted || live.ServiceNodeCount != coordinatorWorkerCount ||
+		live.ObservedAt.IsZero() || !live.ObservedAt.After(checkpoint.Window.End) || start.Before(live.ObservedAt) ||
 		validateReport(checkpoint) != nil || checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||
 		!checkpoint.Verdict.Terminal || checkpoint.Verdict.Outcome != VerdictPass || checkpoint.Verdict.Cause != VerdictCauseCompleted ||
@@ -224,7 +254,14 @@ func (s *CapacityStaircase) Advance(at time.Time, observation CapacityObservatio
 		s.freeze(CapacityHarnessInvalid, CapacityCauseObservation, CapacityPhaseTerminal)
 		return s.transition(false), ErrCapacityObservation
 	}
+	if s.phase == CapacityPhaseRatePending {
+		return s.transition(false), ErrCapacityObservation
+	}
 	if at.Before(s.phaseEnd) {
+		return s.transition(false), ErrCapacityObservation
+	}
+	if at.After(s.phaseEnd) {
+		s.freeze(CapacityHarnessInvalid, CapacityCauseObservation, CapacityPhaseTerminal)
 		return s.transition(false), ErrCapacityObservation
 	}
 	s.last = at
@@ -259,6 +296,56 @@ func (s *CapacityStaircase) Advance(at time.Time, observation CapacityObservatio
 	}
 }
 
+// CommitRate starts stabilization or recovery only after the grant owner has
+// applied the requested global rate on a successfully delivered grant Tick.
+func (s *CapacityStaircase) CommitRate(at time.Time, rate uint64) (CapacityTransition, error) {
+	if s == nil {
+		return CapacityTransition{}, ErrCapacityConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.terminal {
+		return s.transition(false), ErrCapacityTerminal
+	}
+	if s.phase != CapacityPhaseRatePending || rate == 0 || rate != s.pendingRate ||
+		at.IsZero() || at.Before(s.last) || !at.After(s.phaseStart) {
+		return s.transition(false), ErrCapacityObservation
+	}
+	s.last, s.current, s.phase = at, rate, s.pendingPhase
+	s.phaseStart = at
+	s.pendingRate, s.pendingPhase = 0, ""
+	s.stepStart = at
+	switch s.phase {
+	case CapacityPhaseStabilize:
+		s.phaseEnd = at.Add(s.cfg.Step.Stabilize)
+	case CapacityPhaseRecovery:
+		s.phaseEnd = at.Add(s.cfg.RecoveryDuration)
+	default:
+		s.freeze(CapacityHarnessInvalid, CapacityCauseObservation, CapacityPhaseTerminal)
+		return s.transition(false), ErrCapacityObservation
+	}
+	return s.transition(false), nil
+}
+
+// FailRateChange freezes a pending control round as harness-invalid without
+// starting or shortening the requested stabilization/recovery window.
+func (s *CapacityStaircase) FailRateChange(at time.Time) (CapacityTransition, error) {
+	if s == nil {
+		return CapacityTransition{}, ErrCapacityConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.terminal {
+		return s.transition(false), ErrCapacityTerminal
+	}
+	if s.phase != CapacityPhaseRatePending || at.IsZero() || at.Before(s.last) || at.Before(s.phaseStart) {
+		return s.transition(false), ErrCapacityObservation
+	}
+	s.last = at
+	s.freeze(CapacityHarnessInvalid, CapacityCauseRateChange, CapacityPhaseTerminal)
+	return s.transition(false), ErrCapacityObservation
+}
+
 // Snapshot returns a deep copy of the fixed recent-step ring.
 func (s *CapacityStaircase) Snapshot() CapacitySnapshot {
 	if s == nil {
@@ -272,7 +359,7 @@ func (s *CapacityStaircase) Snapshot() CapacitySnapshot {
 	}
 	return CapacitySnapshot{
 		Phase: s.phase, Outcome: s.outcome, Cause: s.cause, Terminal: s.terminal,
-		CurrentRate: s.current, PhaseStart: s.phaseStart, PhaseEnd: s.phaseEnd,
+		CurrentRate: s.current, PendingRate: s.pendingRate, PhaseStart: s.phaseStart, PhaseEnd: s.phaseEnd,
 		LastPassingRate: s.lastPassing, FirstFailingRate: s.firstFailing,
 		StepCount: s.stepCount, CoarseSteps: s.coarseSteps, RefineSteps: s.refineSteps,
 		RecoveryPassed: s.recoveryPass, RecentSteps: recent,
@@ -307,7 +394,7 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 			s.freeze(CapacityHarnessInvalid, CapacityCauseNoBoundary, CapacityPhaseTerminal)
 			return s.transition(false), ErrCapacityObservation
 		}
-		return s.beginStabilization(at, next), nil
+		return s.beginRateChange(at, next, CapacityPhaseStabilize), nil
 	}
 	if s.mode == capacitySearchCoarse {
 		s.mode = capacitySearchRefine
@@ -316,32 +403,35 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 	if !ok {
 		return s.beginRecovery(at), nil
 	}
-	return s.beginStabilization(at, next), nil
+	return s.beginRateChange(at, next, CapacityPhaseStabilize), nil
 }
 
-func (s *CapacityStaircase) beginStabilization(at time.Time, rate uint64) CapacityTransition {
-	changed := s.current != rate
-	s.current = rate
-	s.phase = CapacityPhaseStabilize
+func (s *CapacityStaircase) beginRateChange(at time.Time, rate uint64, target CapacityPhase) CapacityTransition {
+	s.phase = CapacityPhaseRatePending
 	s.phaseStart = at
-	s.phaseEnd = at.Add(s.cfg.Step.Stabilize)
-	s.stepStart = at
-	return s.transition(changed)
+	s.phaseEnd = time.Time{}
+	s.pendingRate, s.pendingPhase = rate, target
+	return s.transition(true)
 }
 
 func (s *CapacityStaircase) beginRecovery(at time.Time) CapacityTransition {
 	rate := uint64(s.cfg.RecoveryRatePerSecond)
-	changed := s.current != rate
-	s.current = rate
+	if s.current != rate {
+		return s.beginRateChange(at, rate, CapacityPhaseRecovery)
+	}
 	s.phase = CapacityPhaseRecovery
 	s.phaseStart = at
 	s.phaseEnd = at.Add(s.cfg.RecoveryDuration)
-	return s.transition(changed)
+	return s.transition(false)
 }
 
 func (s *CapacityStaircase) transition(schedule bool) CapacityTransition {
+	rate := s.current
+	if s.phase == CapacityPhaseRatePending {
+		rate = s.pendingRate
+	}
 	return CapacityTransition{
-		Phase: s.phase, Outcome: s.outcome, ScheduleRate: schedule, RatePerSecond: s.current,
+		Phase: s.phase, Outcome: s.outcome, ScheduleRate: schedule, RatePerSecond: rate,
 		FirstFailing: s.firstFailing, LastPassing: s.lastPassing,
 	}
 }
@@ -381,6 +471,12 @@ func capacityObservationFailures(observation CapacityObservation) CapacityGateFa
 	}
 	if !observation.ResourceAccepted {
 		failures |= CapacityGateResource
+	}
+	if !observation.ReadinessAccepted {
+		failures |= CapacityGateReadiness
+	}
+	if !observation.LifecycleAccepted {
+		failures |= CapacityGateLifecycle
 	}
 	return failures
 }

@@ -3031,8 +3031,8 @@ func coordinatorConcurrentLogPrefix(operation string) string {
 func (w *recordingCoordinatorWorker) UpdateRate(_ context.Context, request WorkerRateRequest) (WorkerStatus, error) {
 	appendCoordinatorTestLog(w.log, "rate-"+strconv.FormatUint(w.id, 10))
 	if !sameWorkerFence(request.WorkerFence, w.assignment.WorkerFence) ||
-		request.RatePerSecond != uint64(w.assignment.Config.Workload.SendRatePerSecond) ||
-		request.MaxBurst != uint64(w.assignment.Config.Workload.MaxGlobalBurst) {
+		request.RatePerSecond == 0 || request.RatePerSecond > math.MaxUint64/2 ||
+		request.MaxBurst != 2*request.RatePerSecond {
 		w.fenceMismatch = true
 	}
 	if w.rateErr != nil {

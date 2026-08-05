@@ -20,10 +20,6 @@ const (
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
 
-// ErrCoordinatorRateUpdate means the fixed three-worker rate round did not
-// complete successfully, so the coordinator grant plan remains unchanged.
-var ErrCoordinatorRateUpdate = errors.New("chat lifecycle coordinator: rate update failed")
-
 var errCoordinatorRoundDeadline = errors.New("chat lifecycle coordinator: control round deadline")
 
 var (
@@ -60,6 +56,7 @@ const (
 	CoordinatorCodeRuntime         CoordinatorCode = "runtime"
 	CoordinatorCodeObserver        CoordinatorCode = "observer"
 	CoordinatorCodeCheckpoint      CoordinatorCode = "checkpoint"
+	CoordinatorCodeCapacity        CoordinatorCode = "capacity"
 	CoordinatorCodeFinalize        CoordinatorCode = "finalize"
 	CoordinatorCodeGenerationReuse CoordinatorCode = "generation_reuse"
 	CoordinatorCodeStopped         CoordinatorCode = "stopped"
@@ -94,6 +91,7 @@ type CoordinatorResult struct {
 	Fence    WorkerFence
 	Grant    CoordinatorGrant
 	Snapshot CoordinatorSnapshot
+	Capacity CapacitySnapshot
 }
 
 // CoordinatorPreflight is the existing traffic admission boundary.
@@ -128,6 +126,20 @@ type CoordinatorObserver interface {
 	Run(context.Context, Config) ObserverResult
 }
 
+// CapacityEvidenceRequest identifies one exact measured or recovery window.
+type CapacityEvidenceRequest struct {
+	Phase         CapacityPhase
+	RatePerSecond uint64
+	Start         time.Time
+	End           time.Time
+}
+
+// CoordinatorCapacityEvidence returns one bounded aggregate at a completed
+// capacity window. Implementations must honor cancellation and retain no raw identities.
+type CoordinatorCapacityEvidence interface {
+	ObserveCapacity(context.Context, CapacityEvidenceRequest) (CapacityObservation, error)
+}
+
 // CoordinatorClock owns readiness, grant, status, and final-cutoff time.
 type CoordinatorClock interface {
 	Now() time.Time
@@ -136,26 +148,30 @@ type CoordinatorClock interface {
 
 // CoordinatorOptions fixes the only generation this coordinator may run.
 type CoordinatorOptions struct {
-	Generation     uint64
-	Preflight      CoordinatorPreflight
-	Setup          CoordinatorGroupSetup
-	Workers        []CoordinatorWorker
-	Observer       CoordinatorObserver
-	Clock          CoordinatorClock
-	CleanupTimeout time.Duration
-	RoundTimeout   time.Duration
+	Generation        uint64
+	Preflight         CoordinatorPreflight
+	Setup             CoordinatorGroupSetup
+	Workers           []CoordinatorWorker
+	Observer          CoordinatorObserver
+	Clock             CoordinatorClock
+	CleanupTimeout    time.Duration
+	RoundTimeout      time.Duration
+	CapacityAdmission *CapacityAdmission
+	CapacityEvidence  CoordinatorCapacityEvidence
 }
 
 // Coordinator owns one non-resumable assignment generation.
 type Coordinator struct {
-	generation     uint64
-	preflight      CoordinatorPreflight
-	setup          CoordinatorGroupSetup
-	workers        []CoordinatorWorker
-	observer       CoordinatorObserver
-	clock          CoordinatorClock
-	cleanupTimeout time.Duration
-	roundTimeout   time.Duration
+	generation        uint64
+	preflight         CoordinatorPreflight
+	setup             CoordinatorGroupSetup
+	workers           []CoordinatorWorker
+	observer          CoordinatorObserver
+	clock             CoordinatorClock
+	cleanupTimeout    time.Duration
+	roundTimeout      time.Duration
+	capacityAdmission *CapacityAdmission
+	capacityEvidence  CoordinatorCapacityEvidence
 
 	mu   sync.Mutex
 	used bool
@@ -188,10 +204,20 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 	if options.RoundTimeout < 0 || options.RoundTimeout > coordinatorDefaultRoundTime {
 		return nil, ErrCoordinatorConfig
 	}
+	var capacityAdmission *CapacityAdmission
+	if options.CapacityAdmission != nil {
+		cloned := *options.CapacityAdmission
+		checkpointBody, err := json.Marshal(options.CapacityAdmission.Checkpoint)
+		if err != nil || json.Unmarshal(checkpointBody, &cloned.Checkpoint) != nil {
+			return nil, ErrCoordinatorConfig
+		}
+		capacityAdmission = &cloned
+	}
 	return &Coordinator{
 		generation: options.Generation, preflight: options.Preflight, setup: options.Setup,
 		workers: workers, observer: options.Observer, clock: options.Clock,
 		cleanupTimeout: options.CleanupTimeout, roundTimeout: options.RoundTimeout,
+		capacityAdmission: capacityAdmission, capacityEvidence: options.CapacityEvidence,
 	}, nil
 }
 
@@ -208,6 +234,14 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 	c.used = true
 	c.mu.Unlock()
+	if cfg.Mode == ModeCapacity && (c.capacityAdmission == nil || c.capacityEvidence == nil) {
+		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
+	}
+	if cfg.Mode == ModeCapacity {
+		if _, err := NewCapacityStaircase(cfg, *c.capacityAdmission, c.clock.Now()); err != nil {
+			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
+		}
+	}
 
 	preflight := c.preflight.Check(ctx, cfg)
 	if !preflight.TrafficAllowed() {
@@ -348,6 +382,18 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 
 	grantBarrierAt := c.clock.Now()
+	var capacityStaircase *CapacityStaircase
+	if cfg.Mode == ModeCapacity {
+		capacityStaircase, err = NewCapacityStaircase(cfg, *c.capacityAdmission, grantBarrierAt)
+		if err != nil {
+			reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeCapacity, coordinatorRoundStageFailed)
+			joinFailureObservation()
+			result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
+			c.stopAfterFailure(fence, attempted)
+			return result
+		}
+		result.Capacity = capacityStaircase.Snapshot()
+	}
 	observationDeadline := grantBarrierAt.Add(cfg.Thresholds.Timeline.Final)
 	statusTicker := c.clock.NewTicker(cfg.Observation.Cadence)
 	if statusTicker == nil {
@@ -370,10 +416,20 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	defer grantTicker.Stop()
 	lastGrantTickAt := grantTickerStartedAt
 	haveGrantTick := false
+	var capacityRateReady uint64
+	var capacityRateReadyAt time.Time
 	deliverScheduledGrant := func(tickAt time.Time) coordinatorRoundDisposition {
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
 			return coordinatorRoundStageFailed
+		}
+		if capacityRateReady > 0 && tickAt.After(capacityRateReadyAt) {
+			if err := grantPlan.ScheduleRate(capacityRateReady); err != nil {
+				_, _ = capacityStaircase.FailRateChange(tickAt)
+				result.Capacity = capacityStaircase.Snapshot()
+				return coordinatorRoundStageFailed
+			}
+			capacityRateReady, capacityRateReadyAt = 0, time.Time{}
 		}
 		grant, grantErr := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 		if grantErr != nil {
@@ -382,7 +438,19 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		if disposition := c.deliverGrant(
 			observationContext, assignments, grantPlan.request(fence, grant),
 		); disposition != coordinatorRoundSucceeded {
+			if capacityStaircase != nil && grant.RateChanged {
+				_, _ = capacityStaircase.FailRateChange(tickAt)
+				result.Capacity = capacityStaircase.Snapshot()
+			}
 			return disposition
+		}
+		if capacityStaircase != nil && grant.RateChanged {
+			if _, commitErr := capacityStaircase.CommitRate(tickAt, grant.RatePerSecond); commitErr != nil {
+				_, _ = capacityStaircase.FailRateChange(tickAt)
+				result.Capacity = capacityStaircase.Snapshot()
+				return coordinatorRoundStageFailed
+			}
+			result.Capacity = capacityStaircase.Snapshot()
 		}
 		lastGrantTickAt, haveGrantTick = tickAt, true
 		result.Grant = grant
@@ -395,6 +463,182 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	failureCode := CoordinatorCode("")
 	failureDisposition := coordinatorRoundStageFailed
 	var failureReason coordinatorTerminationReason
+	if capacityStaircase != nil {
+		type capacityEvidenceResult struct {
+			request     CapacityEvidenceRequest
+			observation CapacityObservation
+			err         error
+		}
+		type capacityRateResult struct {
+			rate        uint64
+			disposition coordinatorRoundDisposition
+		}
+		var evidenceResults <-chan capacityEvidenceResult
+		var rateResults <-chan capacityRateResult
+		completeCapacityFailure := func(snapshot CapacitySnapshot) CoordinatorResult {
+			result.Capacity = snapshot
+			observation = joinObservation()
+			result.Code = CoordinatorCodeCapacity
+			switch snapshot.Outcome {
+			case CapacityProductFailure:
+				result.Outcome = CoordinatorProductFailure
+			default:
+				result.Outcome = CoordinatorHarnessInvalid
+			}
+			if observation.Outcome == ObserverProductFailure {
+				result.Outcome, result.Code = CoordinatorProductFailure, CoordinatorCodeObserver
+			} else if observation.Outcome == ObserverHarnessInvalid && result.Outcome != CoordinatorProductFailure {
+				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeObserver
+			}
+			c.stopAfterFailure(fence, attempted)
+			return result
+		}
+		startCapacityEvidence := func(snapshot CapacitySnapshot) {
+			request := CapacityEvidenceRequest{
+				Phase: snapshot.Phase, RatePerSecond: snapshot.CurrentRate,
+				Start: snapshot.PhaseStart, End: snapshot.PhaseEnd,
+			}
+			results := make(chan capacityEvidenceResult, 1)
+			evidenceResults = results
+			go func() {
+				evidenceContext, cancel := context.WithTimeoutCause(
+					observationContext, c.roundTimeout, errCoordinatorRoundDeadline,
+				)
+				defer cancel()
+				observed, observeErr := c.capacityEvidence.ObserveCapacity(evidenceContext, request)
+				results <- capacityEvidenceResult{request: request, observation: observed, err: observeErr}
+			}()
+		}
+		startCapacityRateRound := func(rate uint64) {
+			results := make(chan capacityRateResult, 1)
+			rateResults = results
+			go func() {
+				results <- capacityRateResult{
+					rate: rate, disposition: c.updateCapacityWorkers(observationContext, fence, rate),
+				}
+			}()
+		}
+
+		for {
+			now := c.clock.Now()
+			snapshot := capacityStaircase.Snapshot()
+			result.Capacity = snapshot
+			if evidenceResults == nil && snapshot.Phase != CapacityPhaseRatePending &&
+				!snapshot.Terminal && !now.Before(snapshot.PhaseEnd) {
+				select {
+				case tickAt := <-grantTicker.C():
+					if tickAt.IsZero() || tickAt.After(now) || tickAt.After(snapshot.PhaseEnd) {
+						failureCode = CoordinatorCodeGrant
+						goto observationFailure
+					}
+					if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
+						failureCode, failureDisposition = CoordinatorCodeGrant, disposition
+						goto observationFailure
+					}
+				default:
+				}
+				if grantCoverageMissing(snapshot.PhaseEnd) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
+				}
+				if snapshot.Phase == CapacityPhaseStabilize {
+					if _, advanceErr := capacityStaircase.Advance(snapshot.PhaseEnd, CapacityObservation{}); advanceErr != nil {
+						result.Capacity = capacityStaircase.Snapshot()
+						return completeCapacityFailure(result.Capacity)
+					}
+					continue
+				}
+				startCapacityEvidence(snapshot)
+				continue
+			}
+			if grantCoverageMissing(now) {
+				failureCode = CoordinatorCodeGrant
+				goto observationFailure
+			}
+
+			select {
+			case observation = <-observationChannel:
+				observationJoined = true
+				goto observationComplete
+			case evidence := <-evidenceResults:
+				evidenceResults = nil
+				if evidence.err != nil {
+					evidence.observation.HarnessInvalid = true
+				}
+				transition, advanceErr := capacityStaircase.Advance(evidence.request.End, evidence.observation)
+				result.Capacity = capacityStaircase.Snapshot()
+				if advanceErr != nil || result.Capacity.Terminal {
+					if result.Capacity.Outcome == CapacityPassed {
+						observation = joinObservation()
+						cutoffOwned = true
+						goto observationComplete
+					}
+					return completeCapacityFailure(result.Capacity)
+				}
+				if transition.ScheduleRate {
+					startCapacityRateRound(transition.RatePerSecond)
+				}
+			case rateResult := <-rateResults:
+				rateResults = nil
+				if rateResult.disposition == coordinatorRoundParentCanceled {
+					result.Capacity = capacityStaircase.Snapshot()
+					return completeParentCancellation()
+				}
+				if rateResult.disposition != coordinatorRoundSucceeded {
+					_, _ = capacityStaircase.FailRateChange(c.clock.Now())
+					result.Capacity = capacityStaircase.Snapshot()
+					return completeCapacityFailure(result.Capacity)
+				}
+				capacityRateReady, capacityRateReadyAt = rateResult.rate, c.clock.Now()
+			case <-statusTicker.C():
+				now = c.clock.Now()
+				select {
+				case tickAt := <-grantTicker.C():
+					if tickAt.IsZero() || tickAt.After(now) {
+						failureCode = CoordinatorCodeGrant
+						goto observationFailure
+					}
+					if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
+						failureCode, failureDisposition = CoordinatorCodeGrant, disposition
+						goto observationFailure
+					}
+				default:
+				}
+				if ctx.Err() != nil {
+					result.Capacity = capacityStaircase.Snapshot()
+					return completeParentCancellation()
+				}
+				if grantCoverageMissing(now) {
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
+				}
+				statuses, disposition := c.statusRound(observationContext, assignments)
+				if disposition != coordinatorRoundSucceeded || !allCoordinatorTrafficReady(statuses) {
+					failureCode, failureDisposition = CoordinatorCodeRuntime, disposition
+					if disposition == coordinatorRoundSucceeded {
+						failureDisposition = coordinatorRoundStageFailed
+					}
+					goto observationFailure
+				}
+			case tickAt := <-grantTicker.C():
+				if ctx.Err() != nil {
+					result.Capacity = capacityStaircase.Snapshot()
+					return completeParentCancellation()
+				}
+				if disposition := deliverScheduledGrant(tickAt); disposition != coordinatorRoundSucceeded {
+					if capacityStaircase.Snapshot().Phase == CapacityPhaseRatePending {
+						_, _ = capacityStaircase.FailRateChange(tickAt)
+						result.Capacity = capacityStaircase.Snapshot()
+					}
+					failureCode, failureDisposition = CoordinatorCodeGrant, disposition
+					goto observationFailure
+				}
+			case <-ctx.Done():
+				result.Capacity = capacityStaircase.Snapshot()
+				return completeParentCancellation()
+			}
+		}
+	}
 	for {
 		now := c.clock.Now()
 		if !now.Before(observationDeadline) {
@@ -1000,20 +1244,25 @@ type CoordinatorPartition struct {
 // CoordinatorGrant is one fixed three-worker projection from the single
 // coordinator-owned Phase 2 global token bucket.
 type CoordinatorGrant struct {
-	Sequence uint64
-	Fresh    [coordinatorWorkerCount]uint64
-	Released [coordinatorWorkerCount]uint64
-	Credit   [coordinatorWorkerCount]uint64
+	Sequence      uint64
+	RatePerSecond uint64
+	MaxBurst      uint64
+	RateChanged   bool
+	Fresh         [coordinatorWorkerCount]uint64
+	Released      [coordinatorWorkerCount]uint64
+	Credit        [coordinatorWorkerCount]uint64
 }
 
 // CoordinatorGrantPlan owns one global allocator and sequences complete grant
 // vectors for all workers. Each worker applies only its indexed vector share.
 type CoordinatorGrantPlan struct {
-	fence     WorkerFence
-	rate      uint64
-	burst     uint64
-	allocator *RateAllocator
-	sequence  uint64
+	fence      WorkerFence
+	rate       uint64
+	burst      uint64
+	allocator  *RateAllocator
+	sequence   uint64
+	pending    scheduledRate
+	hasPending bool
 }
 
 // NewCoordinatorGrantPlan validates that exactly three assignments describe
@@ -1050,34 +1299,35 @@ func NewCoordinatorGrantPlan(assignments []CoordinatorAssignment) (*CoordinatorG
 // ScheduleRate stages one exact global capacity rate for the next Tick. Any
 // retained credit from the old rate is discarded when that Tick applies it.
 func (p *CoordinatorGrantPlan) ScheduleRate(rate uint64) error {
-	if p == nil || p.allocator == nil || rate == 0 || rate > math.MaxUint64/2 {
+	if p == nil || p.allocator == nil || p.hasPending || rate == 0 || rate > math.MaxUint64/2 {
 		return ErrCoordinatorConfig
 	}
 	burst := 2 * rate
 	if err := p.allocator.ScheduleRate(rate, burst); err != nil {
 		return ErrCoordinatorConfig
 	}
-	p.rate, p.burst = rate, burst
+	p.pending, p.hasPending = scheduledRate{rate: rate, burst: burst}, true
 	return nil
 }
 
-// ScheduleCapacityRate updates all three fenced live workers concurrently and
-// stages the matching coordinator grant rate only after every worker accepts.
-func (c *Coordinator) ScheduleCapacityRate(
+// updateCapacityWorkers performs only the concurrent worker control round. It
+// never mutates the owner-only grant plan; the grant loop commits a successful
+// round on its own next Tick.
+func (c *Coordinator) updateCapacityWorkers(
 	parent context.Context,
-	plan *CoordinatorGrantPlan,
+	fence WorkerFence,
 	rate uint64,
-) error {
-	if c == nil || parent == nil || plan == nil || plan.allocator == nil ||
+) coordinatorRoundDisposition {
+	if c == nil || parent == nil || !validWorkerFence(fence) ||
 		len(c.workers) != coordinatorWorkerCount || c.roundTimeout <= 0 ||
 		rate == 0 || rate > math.MaxUint64/2 {
-		return ErrCoordinatorConfig
+		return coordinatorRoundStageFailed
 	}
 	workers := [coordinatorWorkerCount]CoordinatorRateWorker{}
 	for workerID, worker := range c.workers {
 		rateWorker, ok := worker.(CoordinatorRateWorker)
 		if !ok || rateWorker == nil {
-			return ErrCoordinatorConfig
+			return coordinatorRoundStageFailed
 		}
 		workers[workerID] = rateWorker
 	}
@@ -1085,7 +1335,7 @@ func (c *Coordinator) ScheduleCapacityRate(
 	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	request := WorkerRateRequest{
-		WorkerFence: plan.fence, RatePerSecond: rate, MaxBurst: 2 * rate,
+		WorkerFence: fence, RatePerSecond: rate, MaxBurst: 2 * rate,
 	}
 	type rateResult struct {
 		status WorkerStatus
@@ -1103,7 +1353,7 @@ func (c *Coordinator) ScheduleCapacityRate(
 			result.valid = result.err == nil &&
 				sameWorkerFence(WorkerFence{
 					RunID: status.RunID, AssignmentID: status.AssignmentID, Generation: status.Generation,
-				}, plan.fence) &&
+				}, fence) &&
 				status.WorkerID == uint64(workerID) && status.WorkerCount == coordinatorWorkerCount &&
 				status.Phase == WorkerPhaseRunning && status.TrafficReady && !status.Unexpected
 		}()
@@ -1113,17 +1363,7 @@ func (c *Coordinator) ScheduleCapacityRate(
 	for workerID, result := range results {
 		evidence[workerID] = result.coordinatorRoundEvidence
 	}
-	switch resolveCoordinatorRoundDisposition(parent, roundContext, evidence) {
-	case coordinatorRoundSucceeded:
-		if err := plan.ScheduleRate(rate); err != nil {
-			return ErrCoordinatorRateUpdate
-		}
-		return nil
-	case coordinatorRoundParentCanceled:
-		return parent.Err()
-	default:
-		return ErrCoordinatorRateUpdate
-	}
+	return resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
 }
 
 // Tick releases one vector and verifies the fixed-size global sums before it
@@ -1132,16 +1372,22 @@ func (p *CoordinatorGrantPlan) Tick(demand [coordinatorWorkerCount]uint64) (Coor
 	if p == nil || p.allocator == nil {
 		return CoordinatorGrant{}, ErrCoordinatorConfig
 	}
+	if p.sequence == math.MaxUint64 {
+		return CoordinatorGrant{}, ErrCoordinatorConfig
+	}
 	tick, err := p.allocator.Tick(demand[:])
 	if err != nil || len(tick.Fresh) != coordinatorWorkerCount || len(tick.Released) != coordinatorWorkerCount || len(tick.Credit) != coordinatorWorkerCount {
 		return CoordinatorGrant{}, ErrCoordinatorConfig
 	}
 	var grant CoordinatorGrant
-	if p.sequence == math.MaxUint64 {
-		return CoordinatorGrant{}, ErrCoordinatorConfig
-	}
 	p.sequence++
 	grant.Sequence = p.sequence
+	if p.hasPending {
+		p.rate, p.burst = p.pending.rate, p.pending.burst
+		p.pending, p.hasPending = scheduledRate{}, false
+		grant.RateChanged = true
+	}
+	grant.RatePerSecond, grant.MaxBurst = p.rate, p.burst
 	copy(grant.Fresh[:], tick.Fresh)
 	copy(grant.Released[:], tick.Released)
 	copy(grant.Credit[:], tick.Credit)
@@ -1161,7 +1407,7 @@ func (p *CoordinatorGrantPlan) Tick(demand [coordinatorWorkerCount]uint64) (Coor
 
 func (p *CoordinatorGrantPlan) request(fence WorkerFence, grant CoordinatorGrant) WorkerGrantRequest {
 	return WorkerGrantRequest{
-		WorkerFence: fence, Sequence: grant.Sequence, RatePerSecond: p.rate, MaxBurst: p.burst,
+		WorkerFence: fence, Sequence: grant.Sequence, RatePerSecond: grant.RatePerSecond, MaxBurst: grant.MaxBurst,
 		Fresh: WorkerGrantCounts{
 			Worker0: grant.Fresh[0], Worker1: grant.Fresh[1], Worker2: grant.Fresh[2],
 		},

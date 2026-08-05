@@ -32,6 +32,8 @@ const (
 
 // CheckpointEvidence contains only bounded aggregate evidence supplied by observers.
 type CheckpointEvidence struct {
+	// DatasetDigest is the live target probe's immutable dataset reference persisted into every cut.
+	DatasetDigest     string
 	TopologyValidated bool
 	Lifecycle         LifecycleProofSnapshot
 	MetaCreate        MetaCreateAccountingSnapshot
@@ -57,6 +59,7 @@ type CheckpointRecorder struct {
 	fence                 WorkerFence
 	start                 time.Time
 	configDigest          string
+	datasetDigest         string
 	aggregator            *CoordinatorSnapshotAggregator
 	qualificationCaptured bool
 	closed                bool
@@ -96,7 +99,7 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	report, nextAggregator, qualificationCaptured, closed, err := r.prepareLocked(at, snapshots, evidence)
+	report, nextAggregator, datasetDigest, qualificationCaptured, closed, err := r.prepareLocked(at, snapshots, evidence)
 	if err != nil {
 		return Report{}, err
 	}
@@ -107,6 +110,7 @@ func (r *CheckpointRecorder) CaptureAndWrite(
 		return Report{}, fmt.Errorf("%w: Markdown: %v", ErrCheckpointOutput, err)
 	}
 	r.aggregator = nextAggregator
+	r.datasetDigest = datasetDigest
 	r.qualificationCaptured = qualificationCaptured
 	r.closed = closed
 	return report, nil
@@ -116,12 +120,15 @@ func (r *CheckpointRecorder) prepareLocked(
 	at time.Time,
 	snapshots []WorkerSnapshot,
 	evidence CheckpointEvidence,
-) (Report, *CoordinatorSnapshotAggregator, bool, bool, error) {
+) (Report, *CoordinatorSnapshotAggregator, string, bool, bool, error) {
 	if r.closed || at.IsZero() || at.Before(r.start) || !validCheckpointEvidence(evidence) {
 		if !validCheckpointEvidence(evidence) {
-			return Report{}, nil, false, false, ErrCheckpointEvidence
+			return Report{}, nil, "", false, false, ErrCheckpointEvidence
 		}
-		return Report{}, nil, false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, ErrCheckpointSequence
+	}
+	if r.datasetDigest != "" && evidence.DatasetDigest != r.datasetDigest {
+		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 
 	checkpointAt := r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint)
@@ -129,18 +136,18 @@ func (r *CheckpointRecorder) prepareLocked(
 	kind := CheckpointQualification
 	terminal := evidence.Verdict.Terminal
 	if terminal && evidence.Verdict.Outcome == VerdictPass && at.Before(finalAt) {
-		return Report{}, nil, false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, ErrCheckpointSequence
 	}
 	switch {
 	case terminal && at.Before(checkpointAt):
 		kind = CheckpointFinal
 	case !r.qualificationCaptured:
 		if at.Before(checkpointAt) {
-			return Report{}, nil, false, false, ErrCheckpointSequence
+			return Report{}, nil, "", false, false, ErrCheckpointSequence
 		}
 		if !at.Before(finalAt) {
 			if !terminal || evidence.Verdict.Outcome == VerdictPass {
-				return Report{}, nil, false, false, ErrCheckpointSequence
+				return Report{}, nil, "", false, false, ErrCheckpointSequence
 			}
 			kind = CheckpointFinal
 		} else {
@@ -149,25 +156,25 @@ func (r *CheckpointRecorder) prepareLocked(
 	case terminal:
 		kind = CheckpointFinal
 	case at.Before(finalAt):
-		return Report{}, nil, false, false, ErrCheckpointSequence
+		return Report{}, nil, "", false, false, ErrCheckpointSequence
 	default:
 		kind = CheckpointFinal
 	}
 	if kind == CheckpointFinal && !terminal {
-		return Report{}, nil, false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 	if !validCheckpointSnapshotsForCut(snapshots, at.Sub(r.start), kind, evidence.Verdict) {
-		return Report{}, nil, false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 
 	nextAggregator := cloneCheckpointAggregator(r.aggregator)
 	aggregated, err := nextAggregator.Aggregate(snapshots)
 	if err != nil {
-		return Report{}, nil, false, false, err
+		return Report{}, nil, "", false, false, err
 	}
 	report := r.buildReport(kind, at, aggregated, evidence)
 	if err := validateReport(report); err != nil {
-		return Report{}, nil, false, false, ErrCheckpointEvidence
+		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 	qualificationCaptured := r.qualificationCaptured
 	closed := r.closed
@@ -176,7 +183,7 @@ func (r *CheckpointRecorder) prepareLocked(
 	} else {
 		closed = true
 	}
-	return report, nextAggregator, qualificationCaptured, closed, nil
+	return report, nextAggregator, evidence.DatasetDigest, qualificationCaptured, closed, nil
 }
 
 func cloneCheckpointAggregator(source *CoordinatorSnapshotAggregator) *CoordinatorSnapshotAggregator {
@@ -199,7 +206,8 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 	final := verdict.Terminal || kind == CheckpointFinal
 	return Report{
 		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
-		ConfigDigest: r.configDigest, Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Kind: kind,
+		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
+		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Kind: kind,
 		Final: final, Continue: !final,
 		Fence: ReportFence{RunHash: hashReportValue(r.fence.RunID), AssignmentHash: hashReportValue(r.fence.AssignmentID), Generation: r.fence.Generation},
 		Window: ReportTimeWindow{
@@ -252,6 +260,9 @@ func projectReportRetention(retention VerdictWindowRetention) ReportWindowRetent
 }
 
 func validCheckpointEvidence(evidence CheckpointEvidence) bool {
+	if !validReportHash(evidence.DatasetDigest) {
+		return false
+	}
 	if !evidence.TopologyValidated || len(evidence.Warnings) > maxReportWarnings || len(evidence.Samples) > maxReportSamples ||
 		!validCoordinatorHistogram(evidence.Lifecycle.ReheatLatency) || len(evidence.Verdict.CleanupErrors) > maxVerdictCleanupErrors ||
 		len(evidence.Verdict.LatencyAnomalies) > maxVerdictLatencyAnomalies {

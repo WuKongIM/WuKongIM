@@ -18,12 +18,14 @@ func TestCapacityAdmissionRequiresPassingAgedReportAndSameLiveDataset(t *testing
 		name   string
 		mutate func(*CapacityAdmission)
 	}{
-		{"not live", func(a *CapacityAdmission) { a.Live = false }},
-		{"not aged", func(a *CapacityAdmission) { a.Aged = false }},
-		{"clean substitute", func(a *CapacityAdmission) { a.Clean = true }},
+		{"not live", func(a *CapacityAdmission) { a.LiveDataset.State = CapacityDatasetUnavailable }},
+		{"clean substitute", func(a *CapacityAdmission) { a.LiveDataset.State = CapacityDatasetClean }},
+		{"restarted target", func(a *CapacityAdmission) { a.LiveDataset.Uninterrupted = false }},
+		{"wrong node count", func(a *CapacityAdmission) { a.LiveDataset.ServiceNodeCount = 2 }},
 		{"reference mismatch", func(a *CapacityAdmission) { a.Reference = "other" }},
-		{"malformed checkpoint digest", func(a *CapacityAdmission) { a.CheckpointDatasetHash = "dataset" }},
-		{"dataset mismatch", func(a *CapacityAdmission) { a.LiveDatasetHash = hashReportValue("other-dataset") }},
+		{"malformed checkpoint digest", func(a *CapacityAdmission) { a.Checkpoint.DatasetDigest = "dataset" }},
+		{"dataset mismatch", func(a *CapacityAdmission) { a.LiveDataset.ReferenceDigest = hashReportValue("other-dataset") }},
+		{"probe before checkpoint", func(a *CapacityAdmission) { a.LiveDataset.ObservedAt = a.Checkpoint.Window.End }},
 		{"not final", func(a *CapacityAdmission) { a.Checkpoint.Kind = CheckpointQualification }},
 		{"not pass", func(a *CapacityAdmission) {
 			a.Checkpoint.Verdict.Outcome = VerdictProductFailure
@@ -60,14 +62,16 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 
 	capacityFinishStabilization(t, staircase)
 	transition := capacityFinishMeasurement(t, staircase, passingCapacityObservation())
-	if !transition.ScheduleRate || transition.RatePerSecond != 2_500 {
+	if !transition.ScheduleRate || transition.RatePerSecond != 2_500 || transition.Phase != CapacityPhaseRatePending {
 		t.Fatalf("first coarse transition = %+v", transition)
 	}
+	capacityCommitRate(t, staircase, transition, 5*time.Second)
 	capacityFinishStabilization(t, staircase)
 	transition = capacityFinishMeasurement(t, staircase, passingCapacityObservation())
 	if !transition.ScheduleRate || transition.RatePerSecond != 3_125 {
 		t.Fatalf("second coarse transition = %+v", transition)
 	}
+	capacityCommitRate(t, staircase, transition, 3*time.Second)
 
 	capacityFinishStabilization(t, staircase)
 	failed := passingCapacityObservation()
@@ -79,19 +83,22 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 	if snapshot := staircase.Snapshot(); snapshot.LastPassingRate != 2_500 || snapshot.FirstFailingRate != 3_125 || snapshot.RefineSteps != 0 {
 		t.Fatalf("coarse boundary = %+v", snapshot)
 	}
+	capacityCommitRate(t, staircase, transition, 2*time.Second)
 
 	capacityFinishStabilization(t, staircase)
 	transition = capacityFinishMeasurement(t, staircase, passingCapacityObservation())
 	if !transition.ScheduleRate || transition.RatePerSecond != 3_025 {
 		t.Fatalf("second refine transition = %+v", transition)
 	}
+	capacityCommitRate(t, staircase, transition, time.Second)
 	capacityFinishStabilization(t, staircase)
 	failed = passingCapacityObservation()
 	failed.QueueInflightAccepted = false
 	transition = capacityFinishMeasurement(t, staircase, failed)
-	if !transition.ScheduleRate || transition.RatePerSecond != 2_000 || transition.Phase != CapacityPhaseRecovery {
+	if !transition.ScheduleRate || transition.RatePerSecond != 2_000 || transition.Phase != CapacityPhaseRatePending {
 		t.Fatalf("recovery transition = %+v", transition)
 	}
+	capacityCommitRate(t, staircase, transition, 4*time.Second)
 
 	snapshot := staircase.Snapshot()
 	if snapshot.LastPassingRate != 2_750 || snapshot.FirstFailingRate != 3_025 || snapshot.StepCount != 5 ||
@@ -112,6 +119,50 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 	report := snapshot.ReportEvidence()
 	if !report.Attempted || !report.Completed || report.MaximumPassingRate != 2_750 || report.FirstFailingRate != 3_025 || !report.RecoveryPassed {
 		t.Fatalf("report evidence = %+v", report)
+	}
+}
+
+func TestCapacityRateWindowStartsOnlyAfterOwnerCommit(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacityFinishStabilization(t, staircase)
+	transition := capacityFinishMeasurement(t, staircase, passingCapacityObservation())
+	pending := staircase.Snapshot()
+	if pending.Phase != CapacityPhaseRatePending || !pending.PhaseEnd.IsZero() {
+		t.Fatalf("pending snapshot = %+v", pending)
+	}
+	commitAt := pending.PhaseStart.Add(7 * time.Second)
+	transition, err = staircase.CommitRate(commitAt, transition.RatePerSecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transition.Phase != CapacityPhaseStabilize {
+		t.Fatalf("committed transition = %+v", transition)
+	}
+	if snapshot := staircase.Snapshot(); !snapshot.PhaseStart.Equal(commitAt) || !snapshot.PhaseEnd.Equal(commitAt.Add(10*time.Minute)) {
+		t.Fatalf("committed window = %+v", snapshot)
+	}
+}
+
+func TestCapacityRateFailureFreezesHarnessWithoutStartingWindow(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacityFinishStabilization(t, staircase)
+	transition := capacityFinishMeasurement(t, staircase, passingCapacityObservation())
+	if !transition.ScheduleRate {
+		t.Fatalf("pending transition = %+v", transition)
+	}
+	if _, err := staircase.FailRateChange(staircase.Snapshot().PhaseStart.Add(time.Second)); !errors.Is(err, ErrCapacityObservation) {
+		t.Fatalf("rate failure error = %v", err)
+	}
+	if snapshot := staircase.Snapshot(); !snapshot.Terminal || snapshot.Outcome != CapacityHarnessInvalid || !snapshot.PhaseEnd.IsZero() {
+		t.Fatalf("rate failure snapshot = %+v", snapshot)
 	}
 }
 
@@ -164,6 +215,34 @@ func TestCapacityRecoveryRequiresEveryBaselineGate(t *testing.T) {
 	}
 }
 
+func TestCapacityRecoveryRequiresReadinessAndLifecycleActivity(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*CapacityObservation)
+	}{
+		{"readiness", func(o *CapacityObservation) { o.ReadinessAccepted = false }},
+		{"lifecycle", func(o *CapacityObservation) { o.LifecycleAccepted = false }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, admission, start := capacityTestAdmission(t)
+			staircase, err := NewCapacityStaircase(cfg, admission, start)
+			if err != nil {
+				t.Fatal(err)
+			}
+			capacityFinishStabilization(t, staircase)
+			failed := passingCapacityObservation()
+			failed.ErrorRateAccepted = false
+			_ = capacityFinishMeasurement(t, staircase, failed)
+			recovery := passingCapacityObservation()
+			test.mutate(&recovery)
+			transition, err := staircase.Advance(staircase.Snapshot().PhaseEnd, recovery)
+			if err != nil || transition.Outcome != CapacityProductFailure {
+				t.Fatalf("recovery transition = %+v, %v", transition, err)
+			}
+		})
+	}
+}
+
 func TestCapacityIncompleteMeasurementIsHarnessInvalidWithoutUnboundedHistory(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
 	staircase, err := NewCapacityStaircase(cfg, admission, start)
@@ -179,6 +258,20 @@ func TestCapacityIncompleteMeasurementIsHarnessInvalidWithoutUnboundedHistory(t 
 	}
 }
 
+func TestCapacityMissedPhaseBoundaryIsHarnessInvalid(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	staircase, err := NewCapacityStaircase(cfg, admission, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := staircase.Advance(start.Add(10*time.Minute+time.Nanosecond), CapacityObservation{}); !errors.Is(err, ErrCapacityObservation) {
+		t.Fatalf("missed boundary error = %v", err)
+	}
+	if snapshot := staircase.Snapshot(); !snapshot.Terminal || snapshot.Outcome != CapacityHarnessInvalid {
+		t.Fatalf("missed boundary snapshot = %+v", snapshot)
+	}
+}
+
 func TestCapacityRateMathRejectsOverflowAndNeverLoopsForever(t *testing.T) {
 	if _, ok := nextCapacityRate(math.MaxUint64/2, 25); ok {
 		t.Fatal("overflowing two-tick rate was accepted")
@@ -190,7 +283,10 @@ func TestCapacityRateMathRejectsOverflowAndNeverLoopsForever(t *testing.T) {
 	}
 	for !staircase.Snapshot().Terminal {
 		capacityFinishStabilization(t, staircase)
-		_, _ = staircase.Advance(staircase.Snapshot().PhaseEnd, passingCapacityObservation())
+		transition, _ := staircase.Advance(staircase.Snapshot().PhaseEnd, passingCapacityObservation())
+		if transition.ScheduleRate {
+			capacityCommitRate(t, staircase, transition, time.Second)
+		}
 	}
 	snapshot := staircase.Snapshot()
 	if snapshot.Outcome != CapacityHarnessInvalid || snapshot.Cause != CapacityCauseNoBoundary || snapshot.StepCount > maxCapacitySteps || len(snapshot.RecentSteps) > maxCapacityRecentSteps {
@@ -219,11 +315,14 @@ func TestCoordinatorGrantPlanSchedulesCapacityRateOnNextTick(t *testing.T) {
 	if err := plan.ScheduleRate(2_500); err != nil {
 		t.Fatal(err)
 	}
+	if request := plan.request(assignments[0].WorkerFence, initial); request.RatePerSecond != 2_000 || request.MaxBurst != 4_000 {
+		t.Fatalf("pre-commit request = %+v", request)
+	}
 	grant, err := plan.Tick([coordinatorWorkerCount]uint64{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total, ok := checkedCoordinatorGrantSum(grant.Fresh); !ok || total != 2_500 {
+	if total, ok := checkedCoordinatorGrantSum(grant.Fresh); !ok || total != 2_500 || !grant.RateChanged || grant.RatePerSecond != 2_500 {
 		t.Fatalf("capacity grant = %+v", grant)
 	}
 	if total, ok := checkedCoordinatorGrantSum(grant.Credit); !ok || total != 2_500 {
@@ -256,8 +355,8 @@ func TestCoordinatorSchedulesAllWorkerRatesBeforeGrantPlan(t *testing.T) {
 		workers[workerID] = rateWorkers[workerID]
 	}
 	coordinator := &Coordinator{workers: workers, roundTimeout: time.Second}
-	if err := coordinator.ScheduleCapacityRate(context.Background(), plan, 2_500); err != nil {
-		t.Fatal(err)
+	if disposition := coordinator.updateCapacityWorkers(context.Background(), plan.fence, 2_500); disposition != coordinatorRoundSucceeded {
+		t.Fatalf("rate disposition = %v", disposition)
 	}
 	for workerID, worker := range rateWorkers {
 		requests := worker.requestsSnapshot()
@@ -269,19 +368,15 @@ func TestCoordinatorSchedulesAllWorkerRatesBeforeGrantPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total, _ := checkedCoordinatorGrantSum(grant.Fresh); total != 2_500 {
-		t.Fatalf("scheduled total = %d", total)
+	if total, _ := checkedCoordinatorGrantSum(grant.Fresh); total != 2_000 {
+		t.Fatalf("worker round mutated owner plan total = %d", total)
 	}
 
-	failedPlan, err := NewCoordinatorGrantPlan(assignments)
-	if err != nil {
-		t.Fatal(err)
-	}
 	rateWorkers[1].err = errors.New("rate failed")
-	if err := coordinator.ScheduleCapacityRate(context.Background(), failedPlan, 3_000); !errors.Is(err, ErrCoordinatorRateUpdate) {
-		t.Fatalf("partial rate error = %v", err)
+	if disposition := coordinator.updateCapacityWorkers(context.Background(), plan.fence, 3_000); disposition != coordinatorRoundStageFailed {
+		t.Fatalf("partial rate disposition = %v", disposition)
 	}
-	grant, err = failedPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	grant, err = plan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,7 +408,11 @@ func TestCoordinatorSchedulesCapacityRatesConcurrently(t *testing.T) {
 	coordinator := &Coordinator{workers: workers, roundTimeout: time.Second}
 	done := make(chan error, 1)
 	go func() {
-		done <- coordinator.ScheduleCapacityRate(context.Background(), plan, 2_500)
+		if disposition := coordinator.updateCapacityWorkers(context.Background(), plan.fence, 2_500); disposition != coordinatorRoundSucceeded {
+			done <- errors.New("rate round failed")
+			return
+		}
+		done <- nil
 	}()
 	seen := make(map[uint64]bool, coordinatorWorkerCount)
 	for len(seen) < coordinatorWorkerCount {
@@ -325,9 +424,24 @@ func TestCoordinatorSchedulesCapacityRatesConcurrently(t *testing.T) {
 			t.Fatal("rate requests did not enter all three workers concurrently")
 		}
 	}
+	for tick := 0; tick < 3; tick++ {
+		grant, err := plan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total, _ := checkedCoordinatorGrantSum(grant.Fresh); total != 2_000 || grant.RateChanged {
+			t.Fatalf("grant changed while worker rate round was pending: %+v", grant)
+		}
+	}
 	close(release)
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+	if err := plan.ScheduleRate(2_500); err != nil {
+		t.Fatal(err)
+	}
+	if grant, err := plan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64}); err != nil || !grant.RateChanged || grant.RatePerSecond != 2_500 {
+		t.Fatalf("owner commit grant = %+v, %v", grant, err)
 	}
 }
 
@@ -354,10 +468,10 @@ func TestCoordinatorCapacityRateRoundUsesOneDeadlineAndPreservesPlan(t *testing.
 	const roundTimeout = 25 * time.Millisecond
 	coordinator := &Coordinator{workers: workers, roundTimeout: roundTimeout}
 	started := time.Now()
-	err = coordinator.ScheduleCapacityRate(context.Background(), plan, 2_500)
+	disposition := coordinator.updateCapacityWorkers(context.Background(), plan.fence, 2_500)
 	elapsed := time.Since(started)
-	if !errors.Is(err, ErrCoordinatorRateUpdate) {
-		t.Fatalf("deadline error = %v", err)
+	if disposition != coordinatorRoundStageFailed {
+		t.Fatalf("deadline disposition = %v", disposition)
 	}
 	if elapsed < roundTimeout/2 || elapsed >= 150*time.Millisecond {
 		t.Fatalf("rate round elapsed = %s, want one shared %s deadline", elapsed, roundTimeout)
@@ -375,8 +489,198 @@ func TestCoordinatorCapacityRateRoundUsesOneDeadlineAndPreservesPlan(t *testing.
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := coordinator.ScheduleCapacityRate(canceled, plan, 2_500); !errors.Is(err, context.Canceled) {
-		t.Fatalf("parent cancellation error = %v", err)
+	if disposition := coordinator.updateCapacityWorkers(canceled, plan.fence, 2_500); disposition != coordinatorRoundParentCanceled {
+		t.Fatalf("parent cancellation disposition = %v", disposition)
+	}
+}
+
+func TestCoordinatorRunExecutesCapacityModeThroughRecovery(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &log, grantCalled: grantCalls,
+		}
+	}
+	evidence := &scriptedCapacityEvidence{requests: make(chan CapacityEvidenceRequest, 2)}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 1,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, CapacityAdmission: &admission, CapacityEvidence: evidence,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	for second := 0; second < int((time.Hour)/time.Second); second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			select {
+			case <-grantCalls:
+			case result := <-resultChannel:
+				t.Fatalf("capacity Run ended at second %d: %+v", second+1, result)
+			case <-time.After(time.Second):
+				t.Fatalf("grant %d stalled at second %d", workerID, second+1)
+			}
+		}
+		if second+1 == int((10*time.Minute)/time.Second) || second+1 == int((30*time.Minute)/time.Second) {
+			// The manual clock can otherwise advance a second before the owner
+			// consumes the just-delivered phase-boundary tick.
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted ||
+		result.Capacity.Outcome != CapacityPassed || !result.Capacity.RecoveryPassed {
+		t.Fatalf("capacity Run result = %+v", result)
+	}
+	first, second := <-evidence.requests, <-evidence.requests
+	if first.Phase != CapacityPhaseMeasure || first.RatePerSecond != 2_000 || first.End.Sub(first.Start) != 20*time.Minute ||
+		second.Phase != CapacityPhaseRecovery || second.RatePerSecond != 2_000 || second.End.Sub(second.Start) != 30*time.Minute {
+		t.Fatalf("capacity evidence windows = %+v, %+v", first, second)
+	}
+}
+
+func TestCoordinatorRejectsCapacityAdmissionBeforeTargetMutation(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	admission.LiveDataset.State = CapacityDatasetClean
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 1,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			appendCoordinatorTestLog(&log, "preflight")
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup: coordinatorSetupFunc(func(context.Context, Config) error {
+			appendCoordinatorTestLog(&log, "setup")
+			return nil
+		}),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			appendCoordinatorTestLog(&log, "observe")
+			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}
+		}),
+		Clock: fixedCoordinatorClock{now: start}, CapacityAdmission: &admission,
+		CapacityEvidence: &scriptedCapacityEvidence{requests: make(chan CapacityEvidenceRequest, 1)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := coordinator.Run(context.Background(), cfg)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeCapacity {
+		t.Fatalf("invalid admission result = %+v", result)
+	}
+	if got := coordinatorTestLogSnapshot(&log); len(got) != 0 {
+		t.Fatalf("invalid admission mutated target/workers: %v", got)
+	}
+}
+
+func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	log := []string{}
+	typedWorkers := make([]*recordingCoordinatorWorker, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		typedWorkers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &log, grantCalled: grantCalls,
+		}
+		workers[workerID] = typedWorkers[workerID]
+	}
+	pass := passingCapacityObservation()
+	coarseFail := passingCapacityObservation()
+	coarseFail.LatencyAccepted = false
+	refineFail := passingCapacityObservation()
+	refineFail.QueueInflightAccepted = false
+	evidence := &scriptedCapacityEvidence{
+		requests:     make(chan CapacityEvidenceRequest, 4),
+		observations: []CapacityObservation{pass, coarseFail, refineFail, pass},
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 2,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, CapacityAdmission: &admission, CapacityEvidence: evidence,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	ownerBoundaries := map[int]bool{
+		600: true, 1800: true, 1801: true, 2401: true, 3601: true,
+		3602: true, 4202: true, 5402: true, 5403: true,
+	}
+	for second := 1; second <= 7_203; second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			select {
+			case <-grantCalls:
+			case result := <-resultChannel:
+				t.Fatalf("capacity rate Run ended at second %d: %+v", second, result)
+			case <-time.After(time.Second):
+				t.Fatalf("capacity rate grant %d stalled at second %d", workerID, second)
+			}
+		}
+		if ownerBoundaries[second] {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	result := <-resultChannel
+	if result.Outcome != CoordinatorCompleted || result.Capacity.Outcome != CapacityPassed ||
+		result.Capacity.LastPassingRate != 2_000 || result.Capacity.FirstFailingRate != 2_200 || !result.Capacity.RecoveryPassed {
+		t.Fatalf("capacity rate result = %+v", result)
+	}
+	for workerID, worker := range typedWorkers {
+		seen := map[uint64]bool{}
+		for _, request := range worker.grantRequests {
+			seen[request.RatePerSecond] = true
+		}
+		if !seen[2_000] || !seen[2_500] || !seen[2_200] {
+			t.Fatalf("worker %d grant rates = %+v", workerID, seen)
+		}
 	}
 }
 
@@ -411,7 +715,10 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 	dataset := hashReportValue("service-dataset-generation-1")
 	admission := CapacityAdmission{
 		Reference: cfg.Capacity.AgedCheckpoint.Reference, Checkpoint: checkpoint,
-		CheckpointDatasetHash: dataset, LiveDatasetHash: dataset, Live: true, Aged: true,
+		LiveDataset: CapacityLiveDatasetEvidence{
+			ReferenceDigest: dataset, ObservedAt: checkpoint.Window.End.Add(30 * time.Second),
+			ServiceNodeCount: 3, Uninterrupted: true, State: CapacityDatasetLiveAged,
+		},
 	}
 	return cfg, admission, checkpoint.Window.End.Add(time.Minute)
 }
@@ -441,6 +748,19 @@ func passingCapacityObservation() CapacityObservation {
 	return CapacityObservation{
 		Complete: true, ErrorRateAccepted: true, LatencyAccepted: true,
 		QueueInflightAccepted: true, ClusterLagAccepted: true, ResourceAccepted: true,
+		ReadinessAccepted: true, LifecycleAccepted: true,
+	}
+}
+
+func capacityCommitRate(t *testing.T, staircase *CapacityStaircase, transition CapacityTransition, delay time.Duration) {
+	t.Helper()
+	pending := staircase.Snapshot()
+	committed, err := staircase.CommitRate(pending.PhaseStart.Add(delay), transition.RatePerSecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committed.ScheduleRate || committed.RatePerSecond != transition.RatePerSecond {
+		t.Fatalf("committed rate transition = %+v", committed)
 	}
 }
 
@@ -470,6 +790,28 @@ type capacityRateWorker struct {
 	release  <-chan struct{}
 	mu       sync.Mutex
 	requests []WorkerRateRequest
+}
+
+type scriptedCapacityEvidence struct {
+	mu           sync.Mutex
+	calls        int
+	requests     chan CapacityEvidenceRequest
+	observations []CapacityObservation
+}
+
+func (e *scriptedCapacityEvidence) ObserveCapacity(_ context.Context, request CapacityEvidenceRequest) (CapacityObservation, error) {
+	e.requests <- request
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.calls++
+	if e.calls <= len(e.observations) {
+		return e.observations[e.calls-1], nil
+	}
+	observation := passingCapacityObservation()
+	if e.calls == 1 {
+		observation.ErrorRateAccepted = false
+	}
+	return observation, nil
 }
 
 func (w *capacityRateWorker) Assign(context.Context, WorkerAssignment) (WorkerStatus, error) {

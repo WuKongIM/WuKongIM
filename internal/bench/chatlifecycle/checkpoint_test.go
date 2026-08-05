@@ -66,6 +66,30 @@ func TestCheckpointRecorderKeepsFormalQualificationAndFinalOnOneFence(t *testing
 	}
 }
 
+func TestCheckpointRecorderKeepsDatasetDigestAcrossContinuousCuts(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.RunID = "checkpoint-dataset-continuity"
+	start := time.Unix(1_800_050_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "checkpoint-dataset-assignment", Generation: 1}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureCheckpoint(t, recorder, start.Add(24*time.Hour), coordinatorSnapshotFixture(fence, 1, 24*time.Hour, 1), checkpointEvidenceFixture(false)); err != nil {
+		t.Fatal(err)
+	}
+	final := checkpointEvidenceFixture(false)
+	final.DatasetDigest = hashReportValue("different-live-dataset")
+	final.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	snapshots := coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseFinal
+	}
+	if _, err := captureCheckpoint(t, recorder, start.Add(72*time.Hour), snapshots, final); !errors.Is(err, ErrCheckpointEvidence) {
+		t.Fatalf("changed dataset digest error = %v", err)
+	}
+}
+
 func TestCheckpointRecorderRejectsEarlyDuplicateAndGenerationChanges(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "checkpoint-sequence"
@@ -274,6 +298,7 @@ func checkpointEvidenceFixture(final bool) CheckpointEvidence {
 		}
 	}
 	return CheckpointEvidence{
+		DatasetDigest:     hashReportValue("service-dataset-generation-1"),
 		TopologyValidated: true,
 		Lifecycle: LifecycleProofSnapshot{
 			Candidates: 1_200, Loaded: 1_200, ColdEligible: 1_200, Reheated: 1_200, Completed: 1_200,

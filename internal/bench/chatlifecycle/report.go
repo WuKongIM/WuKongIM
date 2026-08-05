@@ -193,10 +193,12 @@ type ReportVerdictEvidence struct {
 
 // Report is the complete identity-free persisted checkpoint contract.
 type Report struct {
-	SchemaVersion          string                          `json:"schema_version"`
-	ThresholdVersion       string                          `json:"threshold_version"`
-	DesignProfile          string                          `json:"design_profile"`
-	ConfigDigest           string                          `json:"config_digest"`
+	SchemaVersion    string `json:"schema_version"`
+	ThresholdVersion string `json:"threshold_version"`
+	DesignProfile    string `json:"design_profile"`
+	ConfigDigest     string `json:"config_digest"`
+	// DatasetDigest is the immutable target-issued identity used by later aged-data admission.
+	DatasetDigest          string                          `json:"dataset_digest"`
 	Thresholds             ThresholdsConfig                `json:"thresholds"`
 	Profile                Profile                         `json:"profile"`
 	Mode                   Mode                            `json:"mode"`
@@ -304,7 +306,7 @@ func WriteReportAtomic(path string, report Report, format ReportFormat) error {
 
 func validateReport(report Report) error {
 	if report.SchemaVersion != ReportSchemaVersion || report.ThresholdVersion != ReportThresholdVersion ||
-		report.DesignProfile != ReportDesignProfile || !validReportHash(report.ConfigDigest) ||
+		report.DesignProfile != ReportDesignProfile || !validReportHash(report.ConfigDigest) || !validReportHash(report.DatasetDigest) ||
 		validateThresholds(report.Thresholds) != nil ||
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||
 		(report.Mode != ModeSoak && report.Mode != ModeCapacity) ||
