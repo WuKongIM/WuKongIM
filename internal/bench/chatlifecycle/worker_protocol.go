@@ -102,11 +102,13 @@ type WorkerInfo struct {
 
 // WorkerStatus is a bounded lifecycle projection suitable for polling.
 type WorkerStatus struct {
-	Phase       WorkerPhase `json:"phase"`
-	Generation  uint64      `json:"generation"`
-	WorkerID    uint64      `json:"worker_id"`
-	WorkerCount uint64      `json:"worker_count"`
-	Unexpected  bool        `json:"unexpected"`
+	RunID        string      `json:"run_id,omitempty"`
+	AssignmentID string      `json:"assignment_id,omitempty"`
+	Phase        WorkerPhase `json:"phase"`
+	Generation   uint64      `json:"generation"`
+	WorkerID     uint64      `json:"worker_id"`
+	WorkerCount  uint64      `json:"worker_count"`
+	Unexpected   bool        `json:"unexpected"`
 }
 
 // WorkerHistogramSnapshot uses fixed buckets so response size cannot grow with runtime.
@@ -270,19 +272,22 @@ type WorkerHarnessSnapshot struct {
 
 // WorkerSnapshot is the complete bounded, identity-free worker evidence response.
 type WorkerSnapshot struct {
-	Phase          WorkerPhase               `json:"phase"`
-	Uptime         time.Duration             `json:"uptime"`
-	Generation     uint64                    `json:"generation"`
-	WorkerID       uint64                    `json:"worker_id"`
-	WorkerCount    uint64                    `json:"worker_count"`
-	Sessions       WorkerSessionSnapshot     `json:"sessions"`
-	Generated      WorkerGeneratedSnapshot   `json:"generated"`
-	Messages       WorkerMessageSnapshot     `json:"messages"`
-	Sync           WorkerSyncSnapshot        `json:"sync"`
-	SendackLatency WorkerHistogramSnapshot   `json:"sendack_latency"`
-	RecvackLatency WorkerHistogramSnapshot   `json:"recvack_latency"`
-	Correlation    WorkerCorrelationSnapshot `json:"correlation"`
-	Queues         WorkerQueueSnapshot       `json:"queues"`
-	Harness        WorkerHarnessSnapshot     `json:"harness"`
-	Evidence       EvidenceSnapshot          `json:"evidence"`
+	RunID            string                    `json:"run_id,omitempty"`
+	AssignmentID     string                    `json:"assignment_id,omitempty"`
+	Phase            WorkerPhase               `json:"phase"`
+	Uptime           time.Duration             `json:"uptime"`
+	SnapshotSequence uint64                    `json:"snapshot_sequence"`
+	Generation       uint64                    `json:"generation"`
+	WorkerID         uint64                    `json:"worker_id"`
+	WorkerCount      uint64                    `json:"worker_count"`
+	Sessions         WorkerSessionSnapshot     `json:"sessions"`
+	Generated        WorkerGeneratedSnapshot   `json:"generated"`
+	Messages         WorkerMessageSnapshot     `json:"messages"`
+	Sync             WorkerSyncSnapshot        `json:"sync"`
+	SendackLatency   WorkerHistogramSnapshot   `json:"sendack_latency"`
+	RecvackLatency   WorkerHistogramSnapshot   `json:"recvack_latency"`
+	Correlation      WorkerCorrelationSnapshot `json:"correlation"`
+	Queues           WorkerQueueSnapshot       `json:"queues"`
+	Harness          WorkerHarnessSnapshot     `json:"harness"`
+	Evidence         EvidenceSnapshot          `json:"evidence"`
 }

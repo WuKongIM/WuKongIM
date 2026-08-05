@@ -596,6 +596,56 @@ or hot-replication failure window. Leader balance compares each node with the
 exact rational `slots/nodes` share rather than assuming 4/4/4; a deviation above
 20 percent must remain continuous for ten minutes before product failure.
 
+One coordinator process owns exactly one non-resumable assignment generation.
+After preflight passes, `GroupSetup` streams the fixed group catalog through the
+existing `/bench/v1/channels` and `/bench/v1/channels/subscribers` APIs. Channel
+rows use bounded consecutive-index batches; subscriber rows reconstruct one UID
+at a time and retain only one bounded member batch, including for the 100,000-
+member group. Setup never emits a person channel. Deterministic versioned batch
+IDs make a partial target failure safe to replay against the product's set-like
+channel/subscriber mutations.
+
+Setup idempotency is deliberately scoped to that one coordinator lifecycle. It
+retains only one active `run_id`, one versioned catalog fingerprint, and a
+complete bit. The fingerprint streams every group descriptor and covers the
+profile, seed, worker/owner partition, fixed catalog counts, per-group category
+and member cardinality, group ID, and explicit identity/catalog/member/owner
+derivation versions. An exact completed retry performs no target writes; a
+partial exact retry deterministically replays from the first batch; another run
+or another shape fails before any target write. The existing target mutation
+responses expose accepted counts but no authoritative per-group shape digest,
+so this is not process-external idempotency. Coordinator or worker failure
+forbids resuming the same run; a later process must use a new `run_id`.
+
+The coordinator then builds exactly three assignments with one shared
+`run_id + assignment_id + generation` fence. User indexes are the existing
+interleaved lanes `worker_id + local_index*3`; quotient/remainder counts cover
+the configured global online prefix without overlap or gaps. A single
+coordinator `RateAllocator` owns the `1/1/1` rate-weight vector and the one
+global two-second credit bound. After all workers start, it produces the first
+fixed three-worker grant vector and sends the same global rate and burst through
+each exact-fence worker rate endpoint. Each P3.5 worker continues to advance the
+equivalent allocator and emits only its deterministic local share; the
+coordinator does not create three global token buckets.
+
+Continuous observation and worker status polling begin only after that rate
+barrier. An assignment, start, rate, status, checkpoint, or runtime failure is
+`harness_invalid`; the coordinator cancels and joins observation and attempts an
+independently bounded exact-fence stop on every already-assigned worker. A
+service observer `product_failure` remains the first terminal classification
+even when cleanup also fails. Failed preflight performs no setup or assignment,
+and failed setup performs no assignment. The same coordinator object refuses a
+second run or generation reuse.
+
+Worker status and snapshot responses carry the exact non-secret control fence.
+Every dynamic snapshot additionally receives a worker-server-owned monotonic
+`snapshot_sequence`; the cached final response keeps one stable sequence across
+matching stop retries. Aggregation accepts exactly workers 0, 1, and 2 from one
+fence, requires the fixed 16-bucket latency schema, uses checked sums, and
+rejects missing/duplicate workers, overflow, stale sequence or uptime, and any
+monotonic counter/histogram/evidence regression before advancing its fixed
+three-worker baseline.
+
 Burst validation multiplies the nanosecond credit window by the per-second
 send rate exactly, rejects non-integral message credit, and bounds the result
 to the platform `int` range before comparing `max_global_burst`.

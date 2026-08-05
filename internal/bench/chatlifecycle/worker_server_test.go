@@ -843,6 +843,59 @@ func TestWorkerSnapshotSchemaIsIdentityFreeAndServerRejectsUnboundedEvidence(t *
 	}
 }
 
+func TestWorkerServerSnapshotsCarryExactFenceAndStableFinalSequence(t *testing.T) {
+	generation := newFakeWorkerGeneration()
+	now := time.Unix(1_700_000_000, 0)
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer() error = %v", err)
+	}
+	cfg := LocalConfig()
+	cfg.RunID = "worker-snapshot-fence"
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "worker-snapshot-assignment", Generation: 11}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{
+		WorkerFence: fence, WorkerID: 1, WorkerCount: coordinatorWorkerCount, Config: cfg,
+	})
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: fence})
+
+	now = now.Add(time.Second)
+	first := decodeWorkerSnapshotResponse(t, workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/snapshot", nil))
+	if first.RunID != fence.RunID || first.AssignmentID != fence.AssignmentID || first.Generation != fence.Generation ||
+		first.WorkerID != 1 || first.SnapshotSequence != 1 {
+		t.Fatalf("first snapshot fence/sequence = %+v", first)
+	}
+	now = now.Add(time.Second)
+	second := decodeWorkerSnapshotResponse(t, workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/checkpoint", WorkerCheckpointRequest{WorkerFence: fence}))
+	if second.SnapshotSequence != 2 || second.Uptime <= first.Uptime {
+		t.Fatalf("second snapshot sequence/uptime = %d/%s, first = %d/%s", second.SnapshotSequence, second.Uptime, first.SnapshotSequence, first.Uptime)
+	}
+
+	now = now.Add(time.Second)
+	final := decodeWorkerSnapshotResponse(t, workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence}))
+	retry := decodeWorkerSnapshotResponse(t, workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence}))
+	if final.Phase != WorkerPhaseFinal || final.SnapshotSequence != 3 || retry.SnapshotSequence != final.SnapshotSequence {
+		t.Fatalf("final/retry phase and sequence = %s/%d and %s/%d", final.Phase, final.SnapshotSequence, retry.Phase, retry.SnapshotSequence)
+	}
+}
+
+func decodeWorkerSnapshotResponse(t *testing.T, response *httptest.ResponseRecorder) WorkerSnapshot {
+	t.Helper()
+	if response.Code != http.StatusOK {
+		t.Fatalf("snapshot status = %d, want %d; body = %q", response.Code, http.StatusOK, response.Body.String())
+	}
+	var snapshot WorkerSnapshot
+	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("decode snapshot: %v", err)
+	}
+	return snapshot
+}
+
 func TestWorkerLatencyHistogramUsesFixedBucketsAndSaturates(t *testing.T) {
 	t.Parallel()
 

@@ -63,14 +63,15 @@ type WorkerServer struct {
 	now          func() time.Time
 	mux          *http.ServeMux
 
-	mu         sync.Mutex
-	phase      WorkerPhase
-	assignment WorkerAssignment
-	generation WorkerGeneration
-	startedAt  time.Time
-	final      WorkerSnapshot
-	unexpected bool
-	stop       *workerStopTask
+	mu               sync.Mutex
+	phase            WorkerPhase
+	assignment       WorkerAssignment
+	generation       WorkerGeneration
+	startedAt        time.Time
+	final            WorkerSnapshot
+	snapshotSequence uint64
+	unexpected       bool
+	stop             *workerStopTask
 
 	unexpectedExit chan struct{}
 }
@@ -208,6 +209,7 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	s.phase = WorkerPhaseAssigned
 	s.startedAt = time.Time{}
 	s.final = WorkerSnapshot{}
+	s.snapshotSequence = 0
 	s.unexpected = false
 	s.stop = nil
 	writeWorkerJSON(response, http.StatusOK, s.statusLocked())
@@ -524,16 +526,24 @@ func (s *WorkerServer) controlStateMatchesLocked(control workerControlState) boo
 
 func (s *WorkerServer) statusLocked() WorkerStatus {
 	return WorkerStatus{
-		Phase:       s.phase,
-		Generation:  s.assignment.Generation,
-		WorkerID:    s.assignment.WorkerID,
-		WorkerCount: s.assignment.WorkerCount,
-		Unexpected:  s.unexpected,
+		RunID:        s.assignment.RunID,
+		AssignmentID: s.assignment.AssignmentID,
+		Phase:        s.phase,
+		Generation:   s.assignment.Generation,
+		WorkerID:     s.assignment.WorkerID,
+		WorkerCount:  s.assignment.WorkerCount,
+		Unexpected:   s.unexpected,
 	}
 }
 
 func (s *WorkerServer) overlaySnapshotLocked(snapshot WorkerSnapshot) WorkerSnapshot {
+	snapshot.RunID = s.assignment.RunID
+	snapshot.AssignmentID = s.assignment.AssignmentID
 	snapshot.Phase = s.phase
+	if s.snapshotSequence < ^uint64(0) {
+		s.snapshotSequence++
+	}
+	snapshot.SnapshotSequence = s.snapshotSequence
 	snapshot.Generation = s.assignment.Generation
 	snapshot.WorkerID = s.assignment.WorkerID
 	snapshot.WorkerCount = s.assignment.WorkerCount
@@ -554,13 +564,16 @@ func (s *WorkerServer) closedFinalSnapshotLocked(snapshot WorkerSnapshot) Worker
 	addWorkerHarnessFailure(&snapshot)
 	harness := snapshot.Harness
 	return WorkerSnapshot{
-		Phase:       WorkerPhaseFinal,
-		Generation:  s.assignment.Generation,
-		WorkerID:    s.assignment.WorkerID,
-		WorkerCount: s.assignment.WorkerCount,
-		Uptime:      snapshot.Uptime,
-		Harness:     harness,
-		Evidence:    EvidenceSnapshot{Classification: harness.Classification},
+		RunID:            s.assignment.RunID,
+		AssignmentID:     s.assignment.AssignmentID,
+		Phase:            WorkerPhaseFinal,
+		Generation:       s.assignment.Generation,
+		WorkerID:         s.assignment.WorkerID,
+		WorkerCount:      s.assignment.WorkerCount,
+		Uptime:           snapshot.Uptime,
+		SnapshotSequence: snapshot.SnapshotSequence,
+		Harness:          harness,
+		Evidence:         EvidenceSnapshot{Classification: harness.Classification},
 	}
 }
 
