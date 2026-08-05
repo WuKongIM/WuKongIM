@@ -223,7 +223,7 @@ func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 2 {
+	if info.ProtocolVersion != 3 {
 		t.Fatalf("protocol version = %d, want 2", info.ProtocolVersion)
 	}
 }

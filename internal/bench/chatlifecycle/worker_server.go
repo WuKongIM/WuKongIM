@@ -961,6 +961,13 @@ func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
 	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts {
 		return false
 	}
+	thresholds := snapshot.Sync.Thresholds
+	if thresholds != (LatencyThresholdCounters{}) &&
+		(thresholds.P99Limit <= 0 || thresholds.P999Limit < thresholds.P99Limit ||
+			thresholds.AboveP99 > thresholds.Count || thresholds.AboveP999 > thresholds.AboveP99 ||
+			thresholds.Above10Seconds > thresholds.AboveP999) {
+		return false
+	}
 	if len(snapshot.Evidence.Classes) > int(FailureClassHarness) {
 		return false
 	}
@@ -1109,6 +1116,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		Clock:            clock,
 		DeviceID:         "wkbench-chat-lifecycle-worker-" + strconv.FormatUint(assignment.WorkerID, 10),
 		StartingCapacity: limits.starting,
+		SyncLatency:      config.Thresholds.Latency.Sync, SingleAnomaly: config.Thresholds.Latency.SingleAnomaly,
 	})
 	if err != nil {
 		return nil, err
@@ -1514,6 +1522,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			Primary: generated.PrimaryReleased, Person: generated.Person, Group: generated.Group,
 			Canary: generated.Canaries, PayloadBytes: generated.PayloadBytes,
 		},
+		MetaCreate: WorkerMetaCreateSnapshot{PersonByHashSlot: engine.MetaCreatePersonByHashSlot},
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
 			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: verification.FirstAttemptFailures,
@@ -1531,6 +1540,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			SyncStarted: engine.SyncStarted, SyncCompleted: engine.SyncCompleted,
 			SyncFailed: engine.SyncFailed, SyncCanceled: engine.SyncCanceled, Failures: engine.SyncFailed,
 			ConnectLatency: engine.GatewayConnectLatency, Latency: engine.ConversationSyncLatency,
+			Thresholds: engine.ConversationSyncThresholds,
 		},
 		SendackLatency: verification.SendackLatency,
 		RecvackLatency: verification.RecvackLatency,

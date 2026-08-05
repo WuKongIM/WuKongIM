@@ -610,6 +610,177 @@ func configureFastCoordinatorCutoff(cfg *Config) {
 	}
 }
 
+func TestCoordinatorRunHooksCaptureContinuousQualificationAndFinalCuts(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-run-hooks"
+	configureFastCoordinatorCutoff(&cfg)
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	observerStarted := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 91,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	start := <-hooks.started
+	if start.Fence.RunID != cfg.RunID || start.Fence.Generation != 91 || start.StartedAt.IsZero() {
+		t.Fatalf("hook start = %+v", start)
+	}
+
+	clock.advance(cfg.Observation.Cadence)
+	_ = waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutPeriodic)
+	clock.advance(cfg.Observation.Cadence)
+	qualification := waitCoordinatorHookCut(t, hooks.cuts, CoordinatorCutQualification)
+	if qualification.At.Before(start.StartedAt.Add(cfg.Thresholds.Timeline.Checkpoint)) || len(qualification.Snapshots) != coordinatorWorkerCount {
+		t.Fatalf("qualification cut = %+v", qualification)
+	}
+	for _, snapshot := range qualification.Snapshots {
+		if snapshot.Phase != WorkerPhaseRunning || snapshot.Generation != start.Fence.Generation ||
+			snapshot.RunID != start.Fence.RunID || snapshot.AssignmentID != start.Fence.AssignmentID {
+			t.Fatalf("qualification snapshot = %+v, start = %+v", snapshot, start)
+		}
+	}
+	for _, operation := range coordinatorTestLogSnapshot(&log) {
+		if strings.HasPrefix(operation, "stop-") {
+			t.Fatalf("qualification stopped a worker: %v", log)
+		}
+	}
+	select {
+	case result := <-resultChannel:
+		t.Fatalf("qualification ended continuous run: %+v", result)
+	default:
+	}
+
+	clock.advance(cfg.Thresholds.Timeline.Final - cfg.Thresholds.Timeline.Checkpoint)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorCompleted {
+		t.Fatalf("hooked coordinator result = %+v", result)
+	}
+	final := <-hooks.finalized
+	if final.Start.Fence != start.Fence || len(final.FinalSnapshots) != coordinatorWorkerCount || final.Decision != CoordinatorCompleted {
+		t.Fatalf("final hook cut = %+v", final)
+	}
+}
+
+func TestCoordinatorStopRequestProducesTerminalCutAndBoundedFinalization(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-hook-stop"
+	configureFastCoordinatorCutoff(&cfg)
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_000, 0))
+	observerStarted := make(chan struct{})
+	stopRequests := make(chan struct{})
+	hooks := newRecordingCoordinatorRunHooks()
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 92,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	<-hooks.started
+	close(stopRequests)
+	result := <-resultChannel
+	if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped || result.Snapshot.Phase != WorkerPhaseFinal {
+		t.Fatalf("stop-request result = %+v", result)
+	}
+	final := <-hooks.finalized
+	if final.Decision != CoordinatorStopped || len(final.Prepare) != coordinatorWorkerCount || len(final.FinalSnapshots) != coordinatorWorkerCount {
+		t.Fatalf("stop-request final cut = %+v", final)
+	}
+}
+
+type recordingCoordinatorRunHooks struct {
+	started   chan CoordinatorRunStart
+	cuts      chan CoordinatorEvidenceCut
+	finalized chan CoordinatorFinalCut
+}
+
+func newRecordingCoordinatorRunHooks() *recordingCoordinatorRunHooks {
+	return &recordingCoordinatorRunHooks{
+		started: make(chan CoordinatorRunStart, 1), cuts: make(chan CoordinatorEvidenceCut, 16),
+		finalized: make(chan CoordinatorFinalCut, 1),
+	}
+}
+
+func (h *recordingCoordinatorRunHooks) Begin(_ context.Context, start CoordinatorRunStart) error {
+	h.started <- start
+	return nil
+}
+
+func (h *recordingCoordinatorRunHooks) Observe(_ context.Context, cut CoordinatorEvidenceCut) (CoordinatorOutcome, error) {
+	h.cuts <- cut
+	if cut.Kind == CoordinatorCutTerminal {
+		if cut.StopRequested {
+			return CoordinatorStopped, nil
+		}
+		return CoordinatorCompleted, nil
+	}
+	return "", nil
+}
+
+func (h *recordingCoordinatorRunHooks) Finalize(_ context.Context, cut CoordinatorFinalCut) error {
+	h.finalized <- cut
+	return nil
+}
+
+func waitCoordinatorHookCut(t *testing.T, cuts <-chan CoordinatorEvidenceCut, kind CoordinatorCutKind) CoordinatorEvidenceCut {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for {
+		select {
+		case cut := <-cuts:
+			if cut.Kind == kind {
+				return cut
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for coordinator cut %s", kind)
+		}
+	}
+}
+
 func TestCoordinatorStartUsesStrictOrderAndFinalizesExactWorkers(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-start-order"
@@ -2831,11 +3002,6 @@ func (c *manualCoordinatorClock) advance(duration time.Duration) {
 	c.mu.Lock()
 	c.now = c.now.Add(duration)
 	now := c.now
-	type dueTick struct {
-		ticker *fakeObserverTicker
-		at     time.Time
-	}
-	due := make([]dueTick, 0, len(c.tickers))
 	for _, state := range c.tickers {
 		select {
 		case <-state.ticker.stopped:
@@ -2845,17 +3011,14 @@ func (c *manualCoordinatorClock) advance(duration time.Duration) {
 		if now.Before(state.next) {
 			continue
 		}
-		due = append(due, dueTick{ticker: state.ticker, at: state.next})
+		select {
+		case state.ticker.ticks <- state.next:
+		default:
+		}
 		periods := now.Sub(state.next)/state.period + 1
 		state.next = state.next.Add(periods * state.period)
 	}
 	c.mu.Unlock()
-	for _, tick := range due {
-		select {
-		case tick.ticker.ticks <- tick.at:
-		default:
-		}
-	}
 }
 
 func (c *manualCoordinatorClock) setNowAndQueue(now time.Time, ticks map[time.Duration]time.Time) {

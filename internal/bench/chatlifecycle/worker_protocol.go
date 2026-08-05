@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 2
+	workerProtocolVersion  uint64 = 3
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -282,6 +282,12 @@ type WorkerGeneratedSnapshot struct {
 	PayloadBytes uint64 `json:"payload_bytes"`
 }
 
+// WorkerMetaCreateSnapshot is the fixed identity-free successful unique first
+// SEND expectation used to reconcile authoritative metadata-create metrics.
+type WorkerMetaCreateSnapshot struct {
+	PersonByHashSlot MetaCreateHashSlotCounts `json:"person_by_hash_slot"`
+}
+
 // WorkerMessageSnapshot exposes end-to-end aggregate correctness counters.
 type WorkerMessageSnapshot struct {
 	Sent                 uint64 `json:"sent"`
@@ -318,9 +324,10 @@ type WorkerSyncSnapshot struct {
 	SyncCanceled       uint64 `json:"sync_canceled"`
 	// Failures is the compatibility aggregate for actual failed sync stages. It
 	// excludes scheduler skips, factory/connect failures, and cancellations.
-	Failures       uint64                  `json:"failures"`
-	ConnectLatency WorkerHistogramSnapshot `json:"connect_latency"`
-	Latency        WorkerHistogramSnapshot `json:"latency"`
+	Failures       uint64                   `json:"failures"`
+	ConnectLatency WorkerHistogramSnapshot  `json:"connect_latency"`
+	Latency        WorkerHistogramSnapshot  `json:"latency"`
+	Thresholds     LatencyThresholdCounters `json:"thresholds"`
 }
 
 // WorkerCorrelationSnapshot exposes only bounded-state gauges and aggregate errors.
@@ -372,6 +379,7 @@ type WorkerSnapshot struct {
 	WorkerCount      uint64                    `json:"worker_count"`
 	Sessions         WorkerSessionSnapshot     `json:"sessions"`
 	Generated        WorkerGeneratedSnapshot   `json:"generated"`
+	MetaCreate       WorkerMetaCreateSnapshot  `json:"meta_create"`
 	Messages         WorkerMessageSnapshot     `json:"messages"`
 	Sync             WorkerSyncSnapshot        `json:"sync"`
 	SendackLatency   WorkerHistogramSnapshot   `json:"sendack_latency"`

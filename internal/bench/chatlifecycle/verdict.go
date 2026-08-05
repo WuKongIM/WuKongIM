@@ -58,6 +58,10 @@ const (
 	VerdictCauseHeapGrowth              VerdictCause = "heap_growth"
 	VerdictCauseGoroutineGrowth         VerdictCause = "goroutine_growth"
 	VerdictCauseQueueRecovery           VerdictCause = "queue_recovery"
+	VerdictCauseWorkerProduct           VerdictCause = "worker_product_failure"
+	VerdictCauseWorkerHarness           VerdictCause = "worker_harness_invalid"
+	VerdictCauseLifecycleProduct        VerdictCause = "lifecycle_product_failure"
+	VerdictCauseLifecycleHarness        VerdictCause = "lifecycle_harness_invalid"
 )
 
 // ResourceBurstState makes overload recovery evaluation explicit.
@@ -109,6 +113,22 @@ type LatencyCounters struct {
 	Hot  LatencyThresholdCounters
 	Cold LatencyThresholdCounters
 	Sync LatencyThresholdCounters
+}
+
+func recordLatencyThresholdCounters(counters *LatencyThresholdCounters, latency time.Duration) {
+	if counters == nil || latency < 0 || counters.P99Limit <= 0 || counters.P999Limit < counters.P99Limit {
+		return
+	}
+	counters.Count = saturatingIncrement(counters.Count)
+	if latency > counters.P99Limit {
+		counters.AboveP99 = saturatingIncrement(counters.AboveP99)
+	}
+	if latency > counters.P999Limit {
+		counters.AboveP999 = saturatingIncrement(counters.AboveP999)
+	}
+	if latency > 10*time.Second {
+		counters.Above10Seconds = saturatingIncrement(counters.Above10Seconds)
+	}
 }
 
 // LatencyCountersForThresholds fixes the exact duration schema that every
@@ -482,11 +502,14 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 func validVerdictSignal(signal VerdictSignal) bool {
 	switch signal.Outcome {
 	case VerdictProductFailure:
-		return signal.Cause == VerdictCauseServerCrash
+		return signal.Cause == VerdictCauseServerCrash || signal.Cause == VerdictCauseWorkerProduct ||
+			signal.Cause == VerdictCauseLifecycleProduct
 	case VerdictInfrastructureFailure:
 		return signal.Cause == VerdictCauseDiskExhausted
 	case VerdictHarnessInvalid:
-		return signal.Cause == VerdictCauseObserverGap || signal.Cause == VerdictCauseQueueSaturation || signal.Cause == VerdictCauseCounterRegression
+		return signal.Cause == VerdictCauseObserverGap || signal.Cause == VerdictCauseQueueSaturation ||
+			signal.Cause == VerdictCauseCounterRegression || signal.Cause == VerdictCauseWorkerHarness ||
+			signal.Cause == VerdictCauseLifecycleHarness
 	case VerdictOperatorStop:
 		return signal.Cause == VerdictCauseOperatorRequested
 	default:
@@ -529,6 +552,8 @@ func verdictCauseRank(cause VerdictCause) int {
 		VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery, VerdictCauseServerCrash,
 		VerdictCauseDiskExhausted, VerdictCauseCounterRegression, VerdictCauseQueueSaturation,
 		VerdictCauseObserverGap, VerdictCauseInvalidObservation, VerdictCauseOperatorRequested,
+		VerdictCauseWorkerProduct, VerdictCauseWorkerHarness,
+		VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness,
 	}
 	for index, candidate := range causes {
 		if candidate == cause {

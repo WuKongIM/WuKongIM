@@ -97,8 +97,29 @@ func TestSessionPoolRecordsBoundedConnectAndConversationSyncLatency(t *testing.T
 		snapshot.ConversationSyncLatency.MaxNanos != uint64(50*time.Millisecond) || snapshot.ConversationSyncLatency.Buckets[6] != 1 {
 		t.Fatalf("sync latency = %+v", snapshot.ConversationSyncLatency)
 	}
+	if snapshot.ConversationSyncThresholds.Count != 1 || snapshot.ConversationSyncThresholds.AboveP99 != 0 ||
+		snapshot.ConversationSyncThresholds.AboveP999 != 0 || snapshot.ConversationSyncThresholds.P999Limit != 3*time.Second {
+		t.Fatalf("exact sync thresholds = %+v", snapshot.ConversationSyncThresholds)
+	}
 	if err := fixture.pool.Logout(uid); err != nil {
 		t.Fatalf("Logout: %v", err)
+	}
+}
+
+func TestSessionPoolCountsExactSyncLatencyAcrossThreeSecondBoundary(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	fixture.syncer.onSync = func() { fixture.clock.Set(fixture.clock.Now().Add(4 * time.Second)) }
+	uid := fixture.identity.UID(20)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 20, LoginOrdinal: 1}); err != nil {
+		t.Fatal(err)
+	}
+	thresholds := fixture.pool.Snapshot().ConversationSyncThresholds
+	if thresholds.Count != 1 || thresholds.AboveP99 != 1 || thresholds.AboveP999 != 1 || thresholds.Above10Seconds != 0 {
+		t.Fatalf("exact sync thresholds = %+v", thresholds)
+	}
+	if err := fixture.pool.Logout(uid); err != nil {
+		t.Fatal(err)
 	}
 }
 

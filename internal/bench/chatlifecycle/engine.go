@@ -69,67 +69,71 @@ type EngineConfig struct {
 
 // EngineSnapshot is constant-size worker runtime evidence.
 type EngineSnapshot struct {
-	Running                 bool
-	Generation              uint64
-	WorkerID                uint64
-	WorkerCount             uint64
-	OnlineTarget            int
-	ActiveLoops             int
-	ActiveSteps             int
-	Online                  int
-	LoginStarting           int
-	TrafficReady            int
-	FactoryFailed           uint64
-	FactoryCanceled         uint64
-	ConnectStarted          uint64
-	ConnectCompleted        uint64
-	ConnectFailed           uint64
-	ConnectCanceled         uint64
-	SyncStarted             uint64
-	SyncCompleted           uint64
-	SyncFailed              uint64
-	SyncCanceled            uint64
-	GatewayConnectLatency   WorkerHistogramSnapshot
-	ConversationSyncLatency WorkerHistogramSnapshot
-	QueueCurrent            int
-	FutureCurrent           int
-	ActivityCurrent         int
-	ActivityUnderDelivered  uint64
-	ActivityFutureCanceled  uint64
-	QueuePeak               int
-	QueueCapacity           int
-	RetryQueueDepth         int
-	RetryQueuePeak          int
-	RetryQueueCapacity      int
-	InflightCurrent         int
-	InflightPeak            int
-	InflightCapacity        int
-	TransportQueueDepth     int
-	TransportQueueCapacity  int
-	TransportInflight       int
-	RelationshipLookback    int
-	ActiveLifecycleTimers   int
-	ActiveHotChannels       int
-	PendingHotChannels      int
-	ColdEvidencePending     int
-	LoginPlannedNew         uint64
-	LoginPlannedReturning   uint64
-	LoginAdmittedNew        uint64
-	LoginAdmittedReturning  uint64
-	LoginCompletedNew       uint64
-	LoginCompletedReturning uint64
-	LoginSkipped            uint64
-	LoginReplacements       uint64
-	SessionsExpired         uint64
-	RetryAttempts           uint64
-	FinalFailures           uint64
-	HarnessInvalid          uint64
-	CommandSaturation       uint64
-	CompletionQueueDepth    int
-	CompletionQueueCapacity int
-	Classification          SyncClassification
-	NextFutureAt            time.Time
-	NextRetryAt             time.Time
+	Running                    bool
+	Generation                 uint64
+	WorkerID                   uint64
+	WorkerCount                uint64
+	OnlineTarget               int
+	ActiveLoops                int
+	ActiveSteps                int
+	Online                     int
+	LoginStarting              int
+	TrafficReady               int
+	FactoryFailed              uint64
+	FactoryCanceled            uint64
+	ConnectStarted             uint64
+	ConnectCompleted           uint64
+	ConnectFailed              uint64
+	ConnectCanceled            uint64
+	SyncStarted                uint64
+	SyncCompleted              uint64
+	SyncFailed                 uint64
+	SyncCanceled               uint64
+	GatewayConnectLatency      WorkerHistogramSnapshot
+	ConversationSyncLatency    WorkerHistogramSnapshot
+	ConversationSyncThresholds LatencyThresholdCounters
+	// MetaCreatePersonByHashSlot counts successful unique first person SENDs
+	// without retaining channel identities or history-sized state.
+	MetaCreatePersonByHashSlot MetaCreateHashSlotCounts
+	QueueCurrent               int
+	FutureCurrent              int
+	ActivityCurrent            int
+	ActivityUnderDelivered     uint64
+	ActivityFutureCanceled     uint64
+	QueuePeak                  int
+	QueueCapacity              int
+	RetryQueueDepth            int
+	RetryQueuePeak             int
+	RetryQueueCapacity         int
+	InflightCurrent            int
+	InflightPeak               int
+	InflightCapacity           int
+	TransportQueueDepth        int
+	TransportQueueCapacity     int
+	TransportInflight          int
+	RelationshipLookback       int
+	ActiveLifecycleTimers      int
+	ActiveHotChannels          int
+	PendingHotChannels         int
+	ColdEvidencePending        int
+	LoginPlannedNew            uint64
+	LoginPlannedReturning      uint64
+	LoginAdmittedNew           uint64
+	LoginAdmittedReturning     uint64
+	LoginCompletedNew          uint64
+	LoginCompletedReturning    uint64
+	LoginSkipped               uint64
+	LoginReplacements          uint64
+	SessionsExpired            uint64
+	RetryAttempts              uint64
+	FinalFailures              uint64
+	HarnessInvalid             uint64
+	CommandSaturation          uint64
+	CompletionQueueDepth       int
+	CompletionQueueCapacity    int
+	Classification             SyncClassification
+	NextFutureAt               time.Time
+	NextRetryAt                time.Time
 }
 
 // EngineStepSnapshot is one bounded orchestration result. Login counters
@@ -699,6 +703,7 @@ type Engine struct {
 	harnessInvalid                 uint64
 	activityUnderDelivered         uint64
 	activityFutureCanceled         uint64
+	metaCreatePersonByHashSlot     MetaCreateHashSlotCounts
 	now                            time.Time
 }
 
@@ -850,6 +855,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.harnessInvalid = 0
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
+	e.metaCreatePersonByHashSlot = MetaCreateHashSlotCounts{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
 	e.scheduler.reset(e.now)
@@ -2827,6 +2833,16 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
 		var lifecycleErr error
+		if inflight.intent.MetaCreateCandidate {
+			hashSlot := lifecycleHashSlotForKey(inflight.intent.ChannelID, formalHashSlots)
+			if inflight.intent.Kind != TrafficPerson || inflight.intent.ChannelID == "" ||
+				e.metaCreatePersonByHashSlot[hashSlot] == math.MaxUint64 {
+				e.harnessInvalid++
+				lifecycleErr = errEngineConfig
+			} else {
+				e.metaCreatePersonByHashSlot[hashSlot]++
+			}
+		}
 		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil {
 			wasConfirmed := lifecycle.coldConfirmed
 			lifecycle.coldConfirmed = false
@@ -3021,6 +3037,7 @@ func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relatio
 		intent := TrafficIntent{
 			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
 			Direction: direction, ChannelID: edge.PersonChannelID, Domain: domain,
+			MetaCreateCandidate: logicalOffset == 0 && messageIndex == 0,
 		}
 		if err := e.addActivity(&engineWork{due: start.Add(offset), kind: engineWorkSend, intent: intent}); err != nil {
 			return err
@@ -3357,7 +3374,9 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		SyncStarted: sessions.SyncStarted, SyncCompleted: sessions.SyncCompleted,
 		SyncFailed: sessions.SyncFailed, SyncCanceled: sessions.SyncCanceled,
 		GatewayConnectLatency: sessions.GatewayConnectLatency, ConversationSyncLatency: sessions.ConversationSyncLatency,
-		QueueCurrent: e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
+		ConversationSyncThresholds: sessions.ConversationSyncThresholds,
+		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
+		QueueCurrent:               e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
 		ActivityUnderDelivered: e.activityUnderDelivered,
 		ActivityFutureCanceled: e.activityFutureCanceled,
 		QueuePeak:              e.workPeak, QueueCapacity: e.workCapacity,

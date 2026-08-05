@@ -1302,6 +1302,58 @@ func TestEngineDelayedCompletionUsesExactlyThreeStableRetries(t *testing.T) {
 	}
 }
 
+func TestEngineSuccessfulFirstPersonSendCountsOneExactMetaCreateHashSlot(t *testing.T) {
+	t.Parallel()
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	uid := fixture.identity.UID(4)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 4, LoginOrdinal: 3}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "person-meta-create", 42, TrafficPerson)
+	intent.MetaCreateCandidate = true
+	if err := fixture.engine.SubmitGranted(intent, fixture.clock.Now()); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	packet := fixture.factory.sentPackets()[0]
+	ack := &frame.SendackPacket{
+		ClientSeq: packet.ClientSeq, ClientMsgNo: intent.Logical.ClientMsgNo,
+		MessageID: 901, MessageSeq: 77, ReasonCode: frame.ReasonSuccess,
+	}
+	verificationErr := fixture.verifier.HandleSendack(ack)
+	if verificationErr != nil {
+		t.Fatalf("HandleSendack: %v", verificationErr)
+	}
+	if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil {
+		t.Fatalf("ObserveSendack: %v", err)
+	}
+	if err := fixture.engine.ObserveSendack(uid, ack, verificationErr); err != nil {
+		t.Fatalf("duplicate ObserveSendack: %v", err)
+	}
+
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	hashSlot := lifecycleHashSlotForKey(intent.ChannelID, formalHashSlots)
+	for index, count := range snapshot.MetaCreatePersonByHashSlot {
+		want := uint64(0)
+		if index == int(hashSlot) {
+			want = 1
+		}
+		if count != want {
+			t.Fatalf("meta create hash slot %d = %d, want %d", index, count, want)
+		}
+	}
+}
+
 func TestEngineNonRetriableSendackFailsWithoutRetry(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{})

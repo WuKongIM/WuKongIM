@@ -117,6 +117,9 @@ type TrafficIntent struct {
 	PayloadBytes  int
 	Canary        bool
 	Domain        LogicalDomain
+	// MetaCreateCandidate marks the one deterministic initial SEND whose
+	// successful SENDACK closes this person channel's expected unique create.
+	MetaCreateCandidate bool
 }
 
 // TrafficTickSnapshot is one streaming aggregate; it never retains intents.

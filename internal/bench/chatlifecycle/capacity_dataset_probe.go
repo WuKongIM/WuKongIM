@@ -77,7 +77,33 @@ type capacityDatasetDigestNode struct {
 
 // ProbeCapacityDataset implements CoordinatorCapacityDatasetProbe.
 func (p *CapacityDatasetProbe) ProbeCapacityDataset(ctx context.Context, cfg Config) (CapacityLiveDatasetEvidence, error) {
-	if p == nil || ctx == nil || cfg.Validate() != nil || cfg.Mode != ModeCapacity ||
+	if cfg.Mode != ModeCapacity {
+		return CapacityLiveDatasetEvidence{}, errCapacityDatasetProbe
+	}
+	return p.probeDataset(ctx, cfg)
+}
+
+// ProbeDatasetDigest reads the same three-node process identity for a Soak or
+// Capacity run without treating process age as admission evidence.
+func (p *CapacityDatasetProbe) ProbeDatasetDigest(ctx context.Context, cfg Config) (string, error) {
+	evidence, err := p.probeDataset(ctx, cfg)
+	if err != nil {
+		return "", err
+	}
+	digest := evidence.Nodes[0].DatasetDigest
+	if !validReportHash(digest) {
+		return "", errCapacityDatasetProbe
+	}
+	for _, node := range evidence.Nodes[1:] {
+		if node.DatasetDigest != digest {
+			return "", errCapacityDatasetProbe
+		}
+	}
+	return digest, nil
+}
+
+func (p *CapacityDatasetProbe) probeDataset(ctx context.Context, cfg Config) (CapacityLiveDatasetEvidence, error) {
+	if p == nil || ctx == nil || cfg.Validate() != nil ||
 		strings.TrimSpace(p.options.BenchToken) == "" || len(cfg.Observation.ServiceNodes) != coordinatorWorkerCount {
 		return CapacityLiveDatasetEvidence{}, errCapacityDatasetProbe
 	}

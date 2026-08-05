@@ -206,6 +206,35 @@ func TestCheckpointFinalPassRequiresQualificationAndContinuousWorkerUptime(t *te
 	}
 }
 
+func TestCheckpointCapacityPassCanCloseBeforeSoakTimelineFinal(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.RunID = "checkpoint-capacity-final"
+	cfg.Mode = ModeCapacity
+	cfg.Capacity.AgedCheckpoint = AgedCheckpoint{
+		Reference: "reports/formal-72h", Completed: true, Passed: true, Duration: 72 * time.Hour,
+	}
+	start := time.Unix(1_800_350_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "capacity-assignment", Generation: 3}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := checkpointEvidenceFixture(true)
+	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	snapshots := coordinatorSnapshotFixture(fence, 1, 2*time.Hour, 10)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseFinal
+	}
+	report, err := captureCheckpoint(t, recorder, start.Add(2*time.Hour), snapshots, evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Mode != ModeCapacity || report.Kind != CheckpointFinal || !report.Final || report.Continue ||
+		report.Window.Elapsed != 2*time.Hour || report.Window.End.Equal(report.Window.FinalAt) {
+		t.Fatalf("capacity final report = %+v", report)
+	}
+}
+
 func TestCheckpointTerminalAfterQualificationFinalizesImmediately(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "checkpoint-immediate-terminal"

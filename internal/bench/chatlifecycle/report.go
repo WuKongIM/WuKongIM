@@ -404,7 +404,8 @@ func validReportVerdict(report Report) bool {
 		return false
 	}
 	if (report.Verdict.Outcome == VerdictPass) != (report.Verdict.Cause == VerdictCauseCompleted) ||
-		(report.Verdict.Outcome == VerdictPass && (report.Kind != CheckpointFinal || report.Window.End.Before(report.Window.FinalAt))) {
+		(report.Verdict.Outcome == VerdictPass && (report.Kind != CheckpointFinal ||
+			(report.Mode == ModeSoak && report.Window.End.Before(report.Window.FinalAt)))) {
 		return false
 	}
 	return true
@@ -458,6 +459,8 @@ func validVerdictCause(cause VerdictCause) bool {
 		VerdictCauseQueueSaturation, VerdictCauseObserverGap, VerdictCauseServerCrash, VerdictCauseDiskExhausted,
 		VerdictCauseOperatorRequested, VerdictCauseHotLatency, VerdictCauseColdLatency, VerdictCauseSyncLatency,
 		VerdictCauseInvalidObservation, VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery:
+		return true
+	case VerdictCauseWorkerProduct, VerdictCauseWorkerHarness, VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness:
 		return true
 	default:
 		return false

@@ -18,6 +18,15 @@ config
   -> coordinator verdict
 ```
 
+`LoadConfig` accepts exactly one strict YAML document, rejects unknown fields,
+and validates the complete configuration before any network request.
+`ReadReport` applies the same fail-closed rule to one bounded JSON checkpoint,
+including its schema, fence, time-window, evidence, and verdict invariants.
+Neither persisted input contains credentials. The `wkbench` command adapters
+load these contracts and resolve credentials separately before composing the
+production clients; scheduling, lifecycle, capacity, and verdict decisions
+remain in this package.
+
 `wkbench worker --mode chat-lifecycle` selects a dedicated control server; the
 default worker mode still uses the generic worker server. All lifecycle
 endpoints, including health and info, require one Bearer token checked with a

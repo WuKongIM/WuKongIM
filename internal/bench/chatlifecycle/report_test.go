@@ -175,6 +175,27 @@ func TestReportRejectsEarlyPassAndUnboundedVerdictTails(t *testing.T) {
 	}
 }
 
+func TestReportAcceptsCompletedCapacityPassBeforeSoakTimelineFinal(t *testing.T) {
+	report := reportFixture(t)
+	report.Mode = ModeCapacity
+	report.Kind = CheckpointFinal
+	report.Final = true
+	report.Continue = false
+	report.Window.End = report.Window.Start.Add(2 * time.Hour)
+	report.Window.Elapsed = 2 * time.Hour
+	report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	report.Capacity = ReportCapacityEvidence{
+		Attempted: true, Completed: true, MaximumPassingRate: 2_000,
+		FirstFailingRate: 2_500, RecoveryPassed: true,
+	}
+	for index := range report.Workers {
+		report.Workers[index].Phase = WorkerPhaseFinal
+	}
+	if _, err := MarshalReport(report, ReportFormatJSON); err != nil {
+		t.Fatalf("capacity pass report: %v", err)
+	}
+}
+
 func TestReportConfigDigestIsDeterministicAndBindsThresholds(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "digest-run"

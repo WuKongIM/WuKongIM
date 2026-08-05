@@ -184,6 +184,23 @@ func TestCapacityDatasetProbeDoesNotExposeTargetErrors(t *testing.T) {
 	}
 }
 
+func TestCapacityDatasetProbeReadsSoakDigestWithoutAgeAdmission(t *testing.T) {
+	generatedAt := time.Date(2030, time.March, 17, 17, 46, 40, 0, time.UTC)
+	targets := []fakeCapacityDatasetTarget{
+		{config: target.DebugConfig{NodeID: 1, NodeDataDir: "/srv/wukongim/node-1"}, summary: target.DebugGoroutineSummary{GeneratedAt: generatedAt, ProcessStartedAt: generatedAt.Add(-time.Hour), BootID: "process-1"}},
+		{config: target.DebugConfig{NodeID: 2, NodeDataDir: "/srv/wukongim/node-2"}, summary: target.DebugGoroutineSummary{GeneratedAt: generatedAt, ProcessStartedAt: generatedAt.Add(-time.Hour), BootID: "process-2"}},
+		{config: target.DebugConfig{NodeID: 3, NodeDataDir: "/srv/wukongim/node-3"}, summary: target.DebugGoroutineSummary{GeneratedAt: generatedAt, ProcessStartedAt: generatedAt.Add(-time.Hour), BootID: "process-3"}},
+	}
+	probe := newCapacityDatasetFakeProbe(targets, generatedAt.Add(time.Second))
+	digest, err := probe.ProbeDatasetDigest(context.Background(), FormalConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !validReportHash(digest) {
+		t.Fatalf("dataset digest = %q", digest)
+	}
+}
+
 type fakeCapacityDatasetTarget struct {
 	config     target.DebugConfig
 	summary    target.DebugGoroutineSummary

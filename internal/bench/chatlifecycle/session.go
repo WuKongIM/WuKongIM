@@ -117,6 +117,10 @@ type SessionPoolConfig struct {
 	Verifier *Verifier
 	Clock    SessionClock
 	DeviceID string
+	// SyncLatency fixes exact threshold counters, including the 3s formal p99.9
+	// boundary that cannot be reconstructed from the fixed 2s/5s histogram buckets.
+	SyncLatency   LatencyLimit
+	SingleAnomaly time.Duration
 	// StartingCapacity bounds concurrent CONNECT plus full-sync operations.
 	StartingCapacity int
 
@@ -154,27 +158,28 @@ type SessionSnapshot struct {
 // SessionPoolSnapshot contains only bounded aggregate ownership, real startup
 // outcomes, fixed latency histograms, and queue data.
 type SessionPoolSnapshot struct {
-	Online                  int
-	Starting                int
-	Closing                 int
-	TrafficReady            int
-	QueueDepth              int
-	QueueCapacity           int
-	TransportInflight       int
-	ReadErrors              uint64
-	VerificationErrors      uint64
-	FactoryFailed           uint64
-	FactoryCanceled         uint64
-	ConnectStarted          uint64
-	ConnectCompleted        uint64
-	ConnectFailed           uint64
-	ConnectCanceled         uint64
-	SyncStarted             uint64
-	SyncCompleted           uint64
-	SyncFailed              uint64
-	SyncCanceled            uint64
-	GatewayConnectLatency   WorkerHistogramSnapshot
-	ConversationSyncLatency WorkerHistogramSnapshot
+	Online                     int
+	Starting                   int
+	Closing                    int
+	TrafficReady               int
+	QueueDepth                 int
+	QueueCapacity              int
+	TransportInflight          int
+	ReadErrors                 uint64
+	VerificationErrors         uint64
+	FactoryFailed              uint64
+	FactoryCanceled            uint64
+	ConnectStarted             uint64
+	ConnectCompleted           uint64
+	ConnectFailed              uint64
+	ConnectCanceled            uint64
+	SyncStarted                uint64
+	SyncCompleted              uint64
+	SyncFailed                 uint64
+	SyncCanceled               uint64
+	GatewayConnectLatency      WorkerHistogramSnapshot
+	ConversationSyncLatency    WorkerHistogramSnapshot
+	ConversationSyncThresholds LatencyThresholdCounters
 }
 
 // SessionCounts is the O(1) ownership projection used by the scheduler.
@@ -229,13 +234,19 @@ type SessionPool struct {
 	syncCanceled       uint64
 	gatewayLatency     WorkerHistogramSnapshot
 	syncLatency        WorkerHistogramSnapshot
+	syncThresholds     LatencyThresholdCounters
 }
 
 // NewSessionPool validates all lifecycle seams before any client is created.
 func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
+	if config.SyncLatency == (LatencyLimit{}) && config.SingleAnomaly == 0 {
+		config.SyncLatency = LatencyLimit{P99: time.Second, P999: 3 * time.Second}
+		config.SingleAnomaly = 10 * time.Second
+	}
 	if config.Identity == nil || config.Schedule.identity != config.Identity || config.Catalog.identity != config.Identity || config.Factory == nil ||
 		config.Syncer == nil || config.Verifier == nil || config.Clock == nil || config.DeviceID == "" ||
-		config.StartingCapacity <= 0 || config.StartingCapacity > maxVerifierCapacity {
+		config.StartingCapacity <= 0 || config.StartingCapacity > maxVerifierCapacity ||
+		config.SyncLatency.P99 <= 0 || config.SyncLatency.P999 < config.SyncLatency.P99 || config.SingleAnomaly < config.SyncLatency.P999 {
 		return nil, errSessionConfig
 	}
 	return &SessionPool{
@@ -250,6 +261,9 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		closing:            make(map[string]*onlineSession),
 		gatewayLatency:     newWorkerHistogramSnapshot(),
 		syncLatency:        newWorkerHistogramSnapshot(),
+		syncThresholds: LatencyThresholdCounters{
+			P99Limit: config.SyncLatency.P99, P999Limit: config.SyncLatency.P999,
+		},
 	}, nil
 }
 
@@ -392,6 +406,7 @@ func (p *SessionPool) recordLoginSyncOutcome(result LoginSyncResult, err error) 
 	if result.SyncStarted {
 		incrementSessionOutcome(&p.syncStarted)
 		recordWorkerLatency(&p.syncLatency, result.ConversationSyncLatency)
+		recordLatencyThresholdCounters(&p.syncThresholds, result.ConversationSyncLatency)
 	}
 	if result.SyncCompleted {
 		incrementSessionOutcome(&p.syncCompleted)
@@ -630,6 +645,7 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		ConnectStarted: p.connectStarted, ConnectCompleted: p.connectCompleted, ConnectFailed: p.connectFailed, ConnectCanceled: p.connectCanceled,
 		SyncStarted: p.syncStarted, SyncCompleted: p.syncCompleted, SyncFailed: p.syncFailed, SyncCanceled: p.syncCanceled,
 		GatewayConnectLatency: p.gatewayLatency, ConversationSyncLatency: p.syncLatency,
+		ConversationSyncThresholds: p.syncThresholds,
 	}
 	clients := make([]SessionClient, 0, len(p.online))
 	for _, session := range p.online {
