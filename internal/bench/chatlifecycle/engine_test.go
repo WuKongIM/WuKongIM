@@ -2362,6 +2362,131 @@ func TestEngineTickRejectsOwnerTimeRollbackWithoutGeneratorMutation(t *testing.T
 	}
 }
 
+func TestEngineStopJoinsTickWaitingOnPriorGenerationTimeBoundary(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.StartGeneration(context.Background(), 41); err != nil {
+		t.Fatalf("StartGeneration(41): %v", err)
+	}
+	generationCtx := fixture.engine.generationCtx
+	fixture.engine.stepMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			fixture.engine.stepMu.Unlock()
+		}
+		_ = fixture.engine.Stop()
+	}()
+	tickAt := fixture.clock.Now().Add(time.Minute)
+	tickStarted := make(chan struct{})
+	tickDone := make(chan error, 1)
+	go func() {
+		close(tickStarted)
+		_, tickErr := fixture.engine.Tick(tickAt, fixture.demand(0))
+		tickDone <- tickErr
+	}()
+	<-tickStarted
+	runtime.Gosched()
+
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+	<-generationCtx.Done()
+	stopReturnedBeforeRelease := false
+	select {
+	case stopErr := <-stopDone:
+		if stopErr != nil {
+			t.Fatalf("Stop generation 41: %v", stopErr)
+		}
+		stopReturnedBeforeRelease = true
+	case <-time.After(50 * time.Millisecond):
+	}
+	if stopReturnedBeforeRelease {
+		if err := fixture.engine.StartGeneration(context.Background(), 42); err != nil {
+			t.Fatalf("StartGeneration(42) after early Stop: %v", err)
+		}
+	}
+	fixture.engine.stepMu.Unlock()
+	locked = false
+	tickErr := <-tickDone
+	if !stopReturnedBeforeRelease {
+		if stopErr := <-stopDone; stopErr != nil {
+			t.Fatalf("Stop generation 41 after Tick join: %v", stopErr)
+		}
+		if err := fixture.engine.StartGeneration(context.Background(), 42); err != nil {
+			t.Fatalf("StartGeneration(42): %v", err)
+		}
+	}
+	if stopReturnedBeforeRelease {
+		t.Error("Stop returned before joining the old-generation Tick waiting on stepMu")
+	}
+	if !errors.Is(tickErr, errEngineNotRunning) {
+		t.Errorf("old-generation Tick error = %v, want %v", tickErr, errEngineNotRunning)
+	}
+	ownerNow := make(chan time.Time, 1)
+	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
+		t.Fatalf("read generation 42 owner time: %v", err)
+	}
+	if now := <-ownerNow; !now.Equal(fixture.clock.Now()) {
+		t.Errorf("old Tick changed generation 42 owner time to %v, want reset %v", now, fixture.clock.Now())
+	}
+}
+
+func TestEngineStopCancelsAdmittedTickBeforeQueuedOwnerMutation(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{CommandCapacity: 4, WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	if err := fixture.engine.StartGeneration(context.Background(), 51); err != nil {
+		t.Fatalf("StartGeneration(51): %v", err)
+	}
+	generationCtx := fixture.engine.generationCtx
+	beforeGenerator := fixture.engine.generator.Snapshot()
+	entered, release := blockEngineOwner(t, fixture.engine)
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+		_ = fixture.engine.Stop()
+	}()
+	<-entered
+	tickDone := make(chan error, 1)
+	go func() {
+		_, tickErr := fixture.engine.Tick(fixture.clock.Now().Add(time.Minute), fixture.demand(0))
+		tickDone <- tickErr
+	}()
+	waitForEngineQueuedCommand(t, fixture.engine)
+	stopDone := make(chan error, 1)
+	go func() { stopDone <- fixture.engine.Stop() }()
+	<-generationCtx.Done()
+	select {
+	case tickErr := <-tickDone:
+		if !errors.Is(tickErr, errEngineNotRunning) {
+			close(release)
+			released = true
+			<-stopDone
+			t.Fatalf("canceled admitted Tick error = %v, want %v", tickErr, errEngineNotRunning)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(release)
+		released = true
+		<-tickDone
+		<-stopDone
+		t.Fatal("admitted Tick did not return on generation cancellation")
+	}
+	close(release)
+	released = true
+	if stopErr := <-stopDone; stopErr != nil {
+		t.Fatalf("Stop generation 51: %v", stopErr)
+	}
+	if afterGenerator := fixture.engine.generator.Snapshot(); !reflect.DeepEqual(afterGenerator, beforeGenerator) {
+		t.Fatalf("canceled admitted Tick mutated generator:\nbefore = %#v\nafter  = %#v", beforeGenerator, afterGenerator)
+	}
+	snapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("stopped Snapshot: %v", err)
+	}
+	if !snapshot.NextFutureAt.IsZero() || snapshot.QueueCurrent != 0 {
+		t.Fatalf("canceled admitted Tick mutated stopped owner state: %+v", snapshot)
+	}
+}
+
 func assertClockRollbackFailure(t *testing.T, err error) {
 	t.Helper()
 	var runtimeErr *RuntimeError

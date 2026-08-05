@@ -61,21 +61,24 @@ fence, then joins session expiry outside the owner so that owner can continue
 consuming the bounded, non-dropping SENDACK completion queue. The serial Step
 lock covers that admission, expiry, and the subsequent owner clock,
 correlation, completion, retry, and lifecycle advancement, preventing
-concurrent advances from overtaking. Public Tick shares the same serial time
-boundary. The owner admission atomically rejects a requested time earlier than
-its committed time with a classified harness failure before any session,
-scheduler, generator, or owner-state mutation; equal time is valid. Caller
+concurrent advances from overtaking. Public Tick acquires a generation-bound
+lease before waiting on the same serial time boundary; Step's private Tick
+inherits the enclosing Step lease and does not lock or lease again. The owner
+admission atomically rejects a requested time earlier than its committed time
+with a classified harness failure before any session, scheduler, generator, or
+owner-state mutation; equal time is valid. Caller
 cancellation wins only before the post-admission commit check; after commit the
 transaction is controlled by generation lifetime. An Advance canceled while
 queued therefore leaves session ownership, deadlines, clocks, heaps, counters,
 correlations, and evidence unchanged, and every late response uses a one-slot
 owner-safe channel.
 Engine stop fences control admission, cancels the generation, joins admitted
-step/login/session callers, and then crosses an owner-command barrier before it
-closes sessions; a canceled caller therefore cannot leave SEND using a client
-that teardown has already closed. Session queue gauges receive the merged
-caller-plus-generation context, so canceled polling cannot pin that owner
-barrier ahead of socket cleanup.
+step/login/session/Tick callers, and then crosses an owner-command barrier
+before it closes sessions; an old Tick waiting on the serial time boundary or
+owner queue therefore cannot enter a later generation, and a canceled caller
+cannot leave SEND using a client that teardown has already closed. Session
+queue gauges receive the merged caller-plus-generation context, so canceled
+polling cannot pin that owner barrier ahead of socket cleanup.
 
 Request bodies, client responses, and server responses have fixed byte caps
 and strict JSON schemas. Worker snapshots contain only scalar aggregates,
@@ -355,11 +358,13 @@ or unexpected terminal exits. `Engine.Step` is the narrow
 bounded orchestration boundary; aggregate snapshots expose planned, admitted,
 completed, skipped, expired, and replacement counts without exposing scheduler
 state. A generation lease covers the whole Step, including time waiting for
-the serial Step lock. Stop first fences admission and cancels the generation,
-so a Step blocked in session SEND admission returns before Stop joins every Step
-and login startup and then closes sessions and cleans engine state. Generation
-cancellation aborts that incomplete local attempt without product evidence;
-Start cannot reset state while old-generation work is still live.
+the serial Step lock; public Tick has a separate lease covering that same wait.
+Stop first fences admission and cancels the generation, so a Step blocked in
+session SEND admission or a Tick blocked on the serial boundary returns before
+Stop joins every Step, Tick, and login startup and then closes sessions and
+cleans engine state. Generation cancellation aborts that incomplete local
+attempt without product evidence; Start cannot reset state while old-generation
+work is still live.
 
 `Engine` owns one bounded command loop for the active generation. One activity
 min-heap holds relationship SEND eligibility, a runtime min-heap holds granted

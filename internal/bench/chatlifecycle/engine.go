@@ -555,6 +555,9 @@ type Engine struct {
 	cached           EngineSnapshot
 	sessionOps       sync.WaitGroup
 	stepOps          sync.WaitGroup
+	// tickOps leases public Tick calls to their admission generation, including
+	// time spent waiting for the shared time-transaction boundary.
+	tickOps          sync.WaitGroup
 	loginOps         sync.WaitGroup
 	scheduler        sessionScheduler
 	schedulerMetrics sessionSchedulerMetrics
@@ -743,7 +746,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	return nil
 }
 
-// Stop fences admission, joins every session drain, then joins the sole engine loop.
+// Stop fences admission, joins generation-bound Step, session, login, and
+// public Tick operations, then joins every session drain and the owner loop.
 func (e *Engine) Stop() error {
 	if e == nil {
 		return nil
@@ -770,6 +774,9 @@ func (e *Engine) Stop() error {
 	e.stepOps.Wait()
 	e.loginOps.Wait()
 	e.sessionOps.Wait()
+	// Tick waits last because Tick, Step, and Advance share stepMu. Generation
+	// cancellation lets a waiting Tick leave after the earlier holder finishes.
+	e.tickOps.Wait()
 	// Context-aware calls may return before their already-admitted owner
 	// command observes generation cancellation. Join that command boundary
 	// before closing sessions so no SEND can still be using a client.
@@ -836,6 +843,16 @@ func (e *Engine) beginStep() (context.Context, bool) {
 	return e.generationCtx, true
 }
 
+func (e *Engine) beginTickOp() (context.Context, bool) {
+	e.lifecycleMu.Lock()
+	defer e.lifecycleMu.Unlock()
+	if !e.running || !e.accepting {
+		return nil, false
+	}
+	e.tickOps.Add(1)
+	return e.generationCtx, true
+}
+
 // SubmitGranted retains one transient SEND whose caller already owns a primary
 // grant (or the explicitly separate canary grant). Lifecycle activity itself
 // never calls this method; Tick substitutes it inside person primary grants.
@@ -850,17 +867,40 @@ func (e *Engine) SubmitGranted(intent TrafficIntent, due time.Time) error {
 // Tick streams one global TrafficGenerator grant into the bounded future heap
 // and admits at most one independently due canary.
 func (e *Engine) Tick(now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
+	generationCtx, ok := e.beginTickOp()
+	if !ok {
+		return TrafficTickSnapshot{}, errEngineNotRunning
+	}
+	defer e.tickOps.Done()
 	e.stepMu.Lock()
 	defer e.stepMu.Unlock()
-	return e.tick(now, demand)
+	if generationCtx.Err() != nil {
+		return TrafficTickSnapshot{}, errEngineNotRunning
+	}
+	snapshot, err := e.tick(generationCtx, now, demand)
+	if generationCtx.Err() != nil &&
+		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return snapshot, errEngineNotRunning
+	}
+	return snapshot, err
 }
 
-func (e *Engine) tick(now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
+func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return TrafficTickSnapshot{}, err
+	}
 	response := make(chan struct {
 		snapshot TrafficTickSnapshot
 		err      error
 	}, 1)
 	if err := e.enqueue(engineCommand{run: func() {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: ctxErr}
+			return
+		}
 		if timeErr := e.validateOwnerTime(now); timeErr != nil {
 			response <- struct {
 				snapshot TrafficTickSnapshot
@@ -899,8 +939,12 @@ func (e *Engine) tick(now time.Time, demand []uint64) (TrafficTickSnapshot, erro
 	}}); err != nil {
 		return TrafficTickSnapshot{}, err
 	}
-	result := <-response
-	return result.snapshot, result.err
+	select {
+	case result := <-response:
+		return result.snapshot, result.err
+	case <-ctx.Done():
+		return TrafficTickSnapshot{}, ctx.Err()
+	}
 }
 
 // ActivateRelationship schedules the existing Phase 2 initial burst and one
@@ -1350,7 +1394,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		return result, e.recordRuntimeFailureSync(RuntimeFailureSchedulerCPUSaturated, uint64(e.maxWork))
 	}
 	if demand != nil {
-		traffic, tickErr := e.tick(now, demand)
+		traffic, tickErr := e.tick(stepCtx, now, demand)
 		result.Traffic = traffic
 		if tickErr != nil {
 			resultErr = errors.Join(resultErr, tickErr)
