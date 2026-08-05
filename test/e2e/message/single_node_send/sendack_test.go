@@ -46,9 +46,6 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		if item.ChannelID != "e2e-recipient" || item.ChannelType != int64(frame.ChannelTypePerson) {
 			return fmt.Errorf("conversation key = %s/%d, want peer person channel", item.ChannelID, item.ChannelType)
 		}
-		if item.SparseActive {
-			return fmt.Errorf("sparse_active = true, want dense person conversation")
-		}
 		if item.LastMessage == nil {
 			return fmt.Errorf("last_message is nil")
 		}
@@ -60,7 +57,7 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		}
 		return nil
 	})
-	require.Equal(t, 0, senderPage.More)
+	require.True(t, senderPage.Done)
 
 	receiverPage := requireSingleConversationEventually(t, *node, "e2e-recipient", "e2e-sender", func(item suite.ConversationListItem) error {
 		if item.ChannelID != "e2e-sender" || item.ChannelType != int64(frame.ChannelTypePerson) {
@@ -71,7 +68,7 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		}
 		return nil
 	})
-	require.Equal(t, 0, receiverPage.More)
+	require.True(t, receiverPage.Done)
 }
 
 func requireSingleConversationEventually(t *testing.T, node suite.StartedNode, uid, channelID string, check func(suite.ConversationListItem) error) suite.ConversationListPage {

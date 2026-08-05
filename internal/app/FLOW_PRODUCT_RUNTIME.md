@@ -67,10 +67,8 @@ action fans out above the RPC layer by targeting every Controller voter in the
 current control snapshot.
 
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
-`wukongim` executable config enables `WK_DELIVERY_ENABLE` by default. With
-delivery disabled, committed message effects still run inside the channel
-authority writer so recent conversation state is updated, but no online
-delivery is submitted. With delivery enabled, gateway RECVACK and session close
+`wukongim` executable config enables `WK_DELIVERY_ENABLE` by default. With delivery disabled, committed messages still append and update their
+channel-local sender-sequence index, but no online delivery is submitted. With delivery enabled, gateway RECVACK and session close
 feedback flows through the temporary delivery usecase facade, while
 channelappend post-commit effects enqueue bounded multi-target recipient
 delivery plans into the canonical Online Delivery runtime. Each plan retains
@@ -117,25 +115,16 @@ script summarizes these in `channelappend_metrics_summary.tsv` and
 `ants_pool_usage_summary.tsv`. Per-channel append ordering remains capped
 by the single-writer invariant even when different channels run through
 different shards or workers.
-The foreground SEND path waits only for channel-authority durable append;
-subscriber scan, recipient authority grouping, delivery enqueue, and the
-independent conversation active projection all run after SENDACK from the
-authority writer's best-effort post-commit pipeline. The Online Delivery runtime later
-drains accepted plans, resolves all exact-target groups through the batched
-presence seam, coalesces successful routes by owner across each whole plan,
-splits each owner group by `Delivery.PushBatchSize`, and pushes those bounded
-commands in first-seen order. The owner-push adapter records every actual local
-or remote attempt in the delivery push count, route-count, and duration metrics.
-Post-commit persistence
-and restart replay are not part of
-channelappend. Post-commit enqueue failures are logged with the failing phase and
-route/dispatch context, counted through effect metrics, and dropped after the
-routed helper's bounded retry window; they do not change channel durability or
-the already-successful SENDACK decision. Conversation active-batch admission
-performs only a short bounded fresh-route retry in the routed client. Delivery
-is enqueued first; active projection failures surface independently as the
-`conversation_active` post-commit phase and do not stop online delivery or later
-large-channel pages.
+The foreground SEND path waits only for channel-authority durable append.
+Ordinary message storage writes the message row and sender-sequence index in the
+same storage batch. Subscriber scan, recipient authority grouping, and delivery
+enqueue run after SENDACK in the authority writer's bounded post-commit
+pipeline. No conversation-active or recipient-membership work exists in that
+pipeline. The Online Delivery runtime later drains accepted plans, resolves
+exact-target groups through the batched presence seam, coalesces routes by
+owner, and pushes bounded commands. Failures do not change Channel durability
+or the already successful SENDACK.
+
 Runtime owner-push failures are counted with normalized delivery error classes.
 Retryable results are narrowed to their exact routes and retried within a small
 fixed attempt cap; terminal or exhausted results remain plan-local. The
@@ -164,24 +153,11 @@ Raft Group authority target including leader term and config epoch, then packs
 the groups into a bounded delivery plan. The worker preserves those fences
 while the presence usecase groups target lookups by actual leader and returns
 partial per-target results.
-It next admits an independent kind-aware `conversationactive.ActiveBatch`
-through the shared `ConversationAuthorityClient`; its first attempt consumes
-the already-grouped aligned snapshot, while exceptional sender or recipient
-route items use the legacy active-admission compatibility path. Channelappend
-chooses normal versus CMD kind from the committed envelope, and active admission
-still runs when online delivery is disabled. When delivery is enabled, the app
-wires the bounded canonical Online Delivery runtime that drains those plans
-outside the authority writer. `/bench/v1/channels`,
-`/bench/v1/channels/subscribers`, and `/bench/v1/channels/subscribers/remove`
-write real channel metadata or add/remove subscriber rows through Slot proposals.
-The benchmark data writer uses bounded concurrency for independent
-channel/subscriber mutations while preserving subscriber mutation order within
-the same channel. Scoped UID delivery bypasses subscriber scan and
-flows through recipient authority grouping, presence resolution, and the local
-or RPC owner pusher after the Online Delivery runtime accepts the plan.
-The app maps the worker's serialized execution-pressure observation into
-Prometheus worker capacity and in-flight gauges. These metrics do not include
-UID, channel, slot, or per-target labels.
+When delivery is enabled, the app wires the bounded Online Delivery runtime
+that drains plans outside the authority writer. Benchmark channel/subscriber
+routes write real metadata through Slot proposals with bounded concurrency and
+preserve mutation order within each channel. Subscriber mutations synchronously
+maintain UID-owned ordinary membership rows, but message SEND never does.
 
 Channelappend creates exact-target recipient plans from the cluster UID
 authority table. The Online Delivery runtime resolves each complete plan,
@@ -223,125 +199,34 @@ wires `MessageEventStore` so `/message/event` appends and `/channel/messagesync`
 event summaries share the same Slot/meta reducer as other cluster-owned message
 metadata. `/message/eventsync` remains outside the app surface in this phase.
 
-If the runtime also exposes unified conversation projection writes and committed
-Channel runtime reads, `New` wires `internal/usecase/cmdsync` through
-`CMDSyncStore`. `/message/sync` scans only `ConversationKindCMD` rows from the
-UID-owned projection, reads the corresponding command/source SyncOnce channel
-logs, and returns legacy message arrays through the API adapter.
-`/message/syncack` advances CMD-kind read cursors in the same kind-aware
-conversation table, so CMD sync does not introduce a second metadata branch or
-pending-state updater. Ordinary conversation hydration stays on
-`ConversationKindNormal` rows and skips `SyncOnce`/command-channel log entries
-instead of relying on suffix filtering in conversation storage or list logic.
+If the runtime exposes CMD memberships and committed CMD Channel reads, New
+wires internal/usecase/cmdsync through CMDSyncStore. Explicit bind/unbind
+mutates user_cmd_channel_membership, /message/sync reads only those bound CMD
+logs, and /message/syncack monotonically advances ack_seq. CMD SEND never
+creates bindings, and CMD state never shares ordinary membership fields or
+ordinary Channel sequence space.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-Legacy channel management requests flow from internal HTTP through
-`internal/usecase/channel` and the `internal/infra/cluster`
-`ChannelMetadataStore` adapter to `pkg/cluster.Node` Slot metadata facades.
-Mutations are proposed through Slot ownership; reads use the current routed Slot
-metadata store. Ordinary subscriber mutations also project `(uid, channel)` rows
-through the UID-owned membership facade for compatible metadata reads; the
-conversation list itself pages UID-owned active conversation rows instead. When
-the channelappend group is available, the app-level subscriber mutation observer
-forwards the final large-group flag and subscriber mutation version to
-`channelappend.Group.ApplySubscriberMutation` so non-large channel subscriber
-snapshots cached in `channelState` stay aligned with API mutations.
+Legacy channel management requests flow through internal/usecase/channel and
+the infra/cluster ChannelMetadataStore to Slot metadata. Add captures one
+committed Channel tail, writes channel-owned subscribers, then writes UID-owned
+memberships initialized from that shared boundary. Remove deletes subscribers
+first and tombstones memberships second. Failures are returned for idempotent
+caller retry. A reset preserves retained members' personal state through the
+source-version reducer. Person channels establish both participant memberships
+before the first persistent append and then set directory_ready.
 
-Conversation list reads flow from entry adapters through
-`internal/usecase/conversation`. When the cluster exposes the conversation
-authority surface, the list Store is the routed
-`internal/infra/cluster.ConversationAuthorityClient`, which resolves the UID
-hash-slot authority and reads the target-owned active view from the local or
-remote authority cache. The Messages port remains the `ConversationStore`
-adapter so last-message hydration reads committed Channel runtime tails with
-`Config.Conversation.MaxLastMessageConcurrency` as a bounded tail-read limit;
-the same adapter remains the StateStore, StateMutationStore, and DeleteStore so
-legacy conversation read/delete mutations still write through UID-owned Slot
-metadata instead of the authority list client.
-If a test or limited harness exposes conversation reads but not the authority
-surface, the usecase uses `ConversationStore` for both Store and Messages as a
-DB-only compatibility path. Conversation rows do not store the last message.
-When metrics are enabled, the app maps API conversation-list observations to
-Prometheus metrics for latency, returned items, sparse items, last-message
-loads, last-message errors, active-index stale skips, and whether another active
-page exists using only low-cardinality labels. It also maps conversation active
-cache observations to Prometheus gauges for cached rows, dirty rows, fair
-dirty-queue rows, bounded dirty-age buckets, oldest dirty age, fixed normal/CMD
-row and dirty-row counts, accepted/rejected admission cache-lock latency, and
-flush result/row/stage-duration metrics.
-
-Conversation list with authority enabled:
-
-```text
-/conversation/list
-  -> access/api parses the UID page request
-  -> internal/usecase/conversation asks Store for the UID active view
-  -> ConversationAuthorityClient resolves the UID hash-slot authority
-  -> local authority:
-       validate the exact RouteTarget
-       delegate cache and UID-owned DB active-view merge to runtime/conversationactive.Manager
-  -> remote authority:
-       call access/node Conversation Authority List RPC for the target-owned view
-  -> usecase hydrates only the returned page with channel-owned last-visible messages
-  -> access/api shapes the legacy-compatible response
-```
-
-Conversation active-batch admission with authority enabled:
-
-```text
-channelappend active producer
-  -> emits conversationactive.ActiveBatch with explicit normal or CMD kind
-  -> ConversationAuthorityClient.AdmitActiveBatch
-       -> cluster resolves SenderUID and recipient UIDs from one route snapshot
-       -> groups rows by exact UID authority and packs same-leader groups together
-  -> local authority bulk entry:
-       validate all exact RouteTargets and reserve each unique valid exact
-       target under one short authority lock
-       lazily activate only stale groups that still match the current local route
-       finish lazy activation with one unified revalidation-and-reservation pass
-       keep stale/not-leader results aligned while valid siblings continue;
-       fragments for the same exact target share one in-flight reservation
-       release the authority lock before delegating all valid groups to one
-       runtime/conversationactive.Manager.AdmitRoutedActiveBatches cache transaction
-       release exact-target reservations after the cache mutation returns
-  -> remote authority:
-       access/node Conversation Authority bulk ActiveBatch RPC
-       remote local authority applies the same per-target validation and one
-       routed cache transaction, returning one aligned status per exact group
-```
-
-The app authority does not regroup or reinterpret active batches and does not
-normalize zero conversation kinds. It trusts the cluster-routed client to send
-`SenderUID` only to the sender-owned authority target; non-sender recipient
-targets arrive with an empty sender field. The hard local fence remains
-`(HashSlot, SlotID, LeaderNodeID, LeaderTerm, ConfigEpoch)`; `RouteRevision` and
-`AuthorityEpoch` remain observation-order and diagnostic fields. One stale
-group cannot reject valid siblings, while cache pressure or a conflicting
-cache-address hash slot rejects the complete set of otherwise-valid sibling
-groups before any cache mutation. Legacy single-batch and ActivePatch entries
-use the same exact-target reservation fence, including rolling-upgrade fallback
-traffic that does not use the bulk RPC.
-
-Conversation delete with authority enabled:
-
-```text
-DeleteConversation
-  -> ConversationAuthorityClient groups deletes by UID and resolves a fresh exact target
-  -> local or access/node RPC authority HideConversationsForTarget
-  -> durable HideConversationsBatch advances deleted_to_seq and clears active_at
-  -> runtime/conversationactive.Manager reconciles cached MessageSeq against the barrier
-  -> authority revalidates the exact target before returning success
-```
-
-Rows at or below the delete barrier are removed from cache. A concurrently
-observed newer message stays visible and becomes dirty against the cleared
-durable baseline. A successful store call applies those confirmed barriers to
-cache. A multi-proposal store error can have an unknown committed prefix, so it
-only invalidates every requested durable baseline and forces present rows dirty;
-it never removes an unconfirmed tail. Later durable hydration fences the
-committed prefix, while the routed client retries the monotonic barrier when the
-error is retryable.
+Conversation list reads flow through internal/usecase/conversation. The
+ConversationStore pages one UID's user_channel_membership activation index,
+then submits one aligned hydration batch. The Channel cluster service resolves
+exact routes and groups remote items by Leader; local reads return the committed
+tail, retention floor, display message, and current user's latest committed
+ordinary sender sequence. The usecase constructs transient rows and returns
+deletes, unresolved keys, an opaque continuation cursor, and done/coverage
+metadata. Badge, hide, and activation commands mutate only ordinary membership.
+Metrics expose bounded scanned/returned/delete/unresolved and
+hydration-local/remote costs without identity labels.
 
 Legacy user management requests flow from internal HTTP through
 `internal/usecase/user` and the `internal/infra/cluster`
@@ -362,53 +247,21 @@ that node's authority writer group. Channel message sync uses the
 messages through the cluster Node facade and keeps legacy person-channel
 response IDs in the HTTP adapter.
 
-Conversation active rows remain working-set hints: delayed or dropped
-post-commit work does not change message durability or SENDACK success. The
-runtime/conversationactive.Manager coalesces active rows, serves list reads by
-merging cached rows with UID-owned DB active rows, and flushes durable active
-touch patches through the conversation active flush worker or handoff drain.
-Cache pressure only sends a nonblocking wakeup to that worker; admission never
-performs durable I/O. The app conversation authority keeps route target fencing,
-lifecycle handoff, observer mapping, and usecase/RPC type adaptation.
-Authority activation and final drain keep the exact clean-slot purge atomic
-with target publish/fencing under the authority mutex. The purge mutates only
-cache state in that critical section; aggregate cache observers run after the
-target state is published and the authority mutex is released, so observer
-callbacks may safely re-enter authority reads.
-Foreground cache admissions reserve the full hard target identity under that
-same mutex before calling the runtime Manager and release it after the cache
-mutation returns. The authority mutex is not held across Manager calls, so
-synchronous runtime observers can re-enter authority reads. Route-lifecycle
-handoff is initiated outside those admission observer callbacks.
-Aggregate admission cache snapshots are coalesced to a 100ms interval in the
-production authority wiring; pressure transitions and flush completion still
-publish immediate snapshots, while mutation counters remain unsampled.
-
 SEND with channel authority routing enabled:
 
 ```text
 gateway/API send
   -> message.App delegates to channelappend.Router
-  -> Router resolves channel append authority
-  -> local channel authority:
-       channelappend.Group admits the batch to the channel writer
-  -> remote channel authority:
-       access/node Channel Append RPC forwards the batch
-       remote node admits it to its local channel writer
-  -> authority writer prepares commands, allocates IDs, and calls cluster ChannelAppender
-     only after reserving one slot from the group-wide post-commit handoff bound
-  -> Channel runtime persists messages and returns append result
-  -> SENDACK returns to sender
-  -> authority writer post-commit effect:
-       scope person recipients or page subscribers
-       group recipients by UID authority target, including Slot leader term and config epoch, for delivery
-       enqueue recipient delivery batch when delivery is enabled
-       ConversationAuthorityClient.AdmitActiveBatch as an independent projection
-       when the nonblocking effect pool is full, retain the committed envelope
-       and enter the fair retry FIFO instead of dropping already-durable work
-       after one terminal recipient/conversation attempt, release the handoff
-       reservation and prune the in-memory committed envelope
+  -> local authority writer or forwarded Channel Append RPC
+  -> ordinary Channel message row plus sender-sequence index commit atomically
+     (CMD/SyncOnce uses the separate command Channel log)
+  -> SENDACK
+  -> bounded post-commit online-delivery planning and other independent effects
+  -> zero conversation rows and zero recipient membership writes
 ```
+
+Conversation directory synchronization is a read-side flow. It is not a
+post-commit effect and has no cache flush or authority handoff lifecycle.
 
 The bench presence snapshot controller aggregates `online.Registry.Snapshot`
 and `runtime/presence.Directory.Snapshot`. It is read-only and exists so

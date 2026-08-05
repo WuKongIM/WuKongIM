@@ -49,26 +49,22 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 		t.Fatalf("AddSubscribers(): %v", err)
 	}
 	if err := seedStore.Meta().HashSlot(userSlot).UpsertUserChannelMembership(ctx, metadb.UserChannelMembership{
-		UID:         "u1",
-		ChannelID:   "g1",
-		ChannelType: 2,
-		JoinSeq:     1,
-		UpdatedAt:   1000,
+		UID:           "u1",
+		ChannelID:     "g1",
+		ChannelType:   2,
+		JoinSeq:       1,
+		ReadSeq:       1,
+		ActivatedAt:   2000,
+		SourceVersion: 7,
+		UpdatedAt:     2001,
 	}); err != nil {
 		t.Fatalf("UpsertUserChannelMembership(): %v", err)
 	}
-	if err := seedStore.Meta().HashSlot(userSlot).UpsertConversationState(ctx, metadb.ConversationState{
-		UID:          "u1",
-		Kind:         metadb.ConversationKindNormal,
-		ChannelID:    "g1",
-		ChannelType:  2,
-		ReadSeq:      1,
-		DeletedToSeq: 0,
-		ActiveAt:     2000,
-		UpdatedAt:    2001,
-		SparseActive: true,
+	if err := seedStore.Meta().HashSlot(userSlot).UpsertUserCMDChannelMembership(ctx, metadb.UserCMDChannelMembership{
+		UID: "u1", CommandChannelID: "g1____cmd", ChannelType: 2,
+		StartSeq: 3, AckSeq: 4, UpdatedAt: 2002,
 	}); err != nil {
-		t.Fatalf("UpsertConversationState(): %v", err)
+		t.Fatalf("UpsertUserCMDChannelMembership(): %v", err)
 	}
 	if err := seedStore.Meta().HashSlot(channelSlot).UpsertChannelLatest(ctx, metadb.ChannelLatest{
 		ChannelID:      "g1",
@@ -152,6 +148,14 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	}
 	if channel.SubscriberCount != 1 || channel.Large != 1 {
 		t.Fatalf("channel = %+v, want subscriber count and large flag", channel)
+	}
+	membership, ok, err := target.Meta().HashSlot(userSlot).GetUserChannelMembership(ctx, "u1", "g1", 2)
+	if err != nil || !ok || membership.ReadSeq != 1 || membership.ActivatedAt != 2000 || membership.SourceVersion != 7 {
+		t.Fatalf("membership = %+v ok=%v err=%v", membership, ok, err)
+	}
+	cmdMembership, ok, err := target.Meta().HashSlot(userSlot).GetUserCMDChannelMembership(ctx, "u1", "g1____cmd", 2)
+	if err != nil || !ok || cmdMembership.StartSeq != 3 || cmdMembership.AckSeq != 4 {
+		t.Fatalf("CMD membership = %+v ok=%v err=%v", cmdMembership, ok, err)
 	}
 	latest, ok, err := target.Meta().HashSlot(channelSlot).GetChannelLatest(ctx, "g1", 2)
 	if err != nil || !ok {

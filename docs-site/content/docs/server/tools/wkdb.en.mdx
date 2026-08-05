@@ -63,7 +63,7 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 \
   export --output ./wkdb-dump
 ```
 
-`export` opens the source read-only and writes only the output directory. WKDB Import Bundle v1 contains a manifest plus JSONL files for supported user, device, Channel, subscriber, conversation, latest-sequence, and message data, with file row counts and SHA-256 digests.
+`export` opens the source read-only and writes only the output directory. WKDB Import Bundle v1 contains a manifest plus JSONL files for supported user, device, Channel, subscriber, ordinary membership, CMD membership, latest-sequence, and message data, with file row counts and SHA-256 digests.
 
 It does not aggregate other nodes, create an online-consistent snapshot, export increments, include Controller/Raft/runtime state, or produce a Manager backup archive. Before adding `--overwrite`, resolve and verify the existing output path.
 

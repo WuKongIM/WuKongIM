@@ -28,8 +28,8 @@ const (
 	FileKindMetaSubscribers FileKind = "meta.subscribers"
 	// FileKindMetaUserChannelMemberships stores user-to-channel membership rows.
 	FileKindMetaUserChannelMemberships FileKind = "meta.user_channel_memberships"
-	// FileKindMetaConversations stores conversation projection rows.
-	FileKindMetaConversations FileKind = "meta.conversations"
+	// FileKindMetaUserCMDChannelMemberships stores user-to-command-channel bindings.
+	FileKindMetaUserCMDChannelMemberships FileKind = "meta.user_cmd_channel_memberships"
 	// FileKindMetaChannelLatest stores latest channel message projection rows.
 	FileKindMetaChannelLatest FileKind = "meta.channel_latest"
 	// FileKindMessageChannels stores message channel index rows.
@@ -196,32 +196,42 @@ type UserChannelMembershipRecord struct {
 	ChannelType int64 `json:"channel_type"`
 	// JoinSeq is the exact message sequence visible when the user joined.
 	JoinSeq Uint64 `json:"join_seq"`
+	// ReadSeq is the monotonic badge baseline.
+	ReadSeq Uint64 `json:"read_seq"`
+	// DeletedToSeq is the monotonic visibility floor.
+	DeletedToSeq Uint64 `json:"deleted_to_seq"`
+	// ActivatedAt is the explicit directory ordering timestamp.
+	ActivatedAt int64 `json:"activated_at"`
+	// Tombstone reports that the membership has been removed.
+	Tombstone bool `json:"tombstone"`
+	// TombstoneAt records when the membership was removed.
+	TombstoneAt int64 `json:"tombstone_at"`
+	// SourceVersion fences stale subscriber-derived mutations.
+	SourceVersion Uint64 `json:"source_version"`
 	// UpdatedAtMS is the last update time in milliseconds.
 	UpdatedAtMS int64 `json:"updated_at_ms"`
 }
 
-// ConversationRecord represents one imported user conversation projection row.
-type ConversationRecord struct {
-	// HashSlot is the hash slot that owns this conversation row.
+// UserCMDChannelMembershipRecord represents one imported command-channel binding.
+type UserCMDChannelMembershipRecord struct {
+	// HashSlot is the UID-owned hash slot.
 	HashSlot uint16 `json:"hash_slot"`
-	// UID is the stable user identifier.
+	// UID identifies the binding owner.
 	UID string `json:"uid"`
-	// Kind is the conversation kind and must be normal or cmd.
-	Kind string `json:"kind"`
-	// ChannelID is the stable channel identifier.
-	ChannelID string `json:"channel_id"`
-	// ChannelType is the numeric channel type.
+	// CommandChannelID identifies the bound command channel.
+	CommandChannelID string `json:"command_channel_id"`
+	// ChannelType identifies the channel namespace.
 	ChannelType int64 `json:"channel_type"`
-	// ReadSeq is the exact latest read message sequence.
-	ReadSeq Uint64 `json:"read_seq"`
-	// DeletedToSeq is the exact highest message sequence deleted for this conversation.
-	DeletedToSeq Uint64 `json:"deleted_to_seq"`
-	// ActiveAt is the conversation active timestamp.
-	ActiveAt int64 `json:"active_at"`
-	// UpdatedAt is the conversation update timestamp.
-	UpdatedAt int64 `json:"updated_at"`
-	// SparseActive marks rows imported from sparse active conversation state.
-	SparseActive bool `json:"sparse_active"`
+	// StartSeq is the first visible command sequence.
+	StartSeq Uint64 `json:"start_seq"`
+	// AckSeq is the monotonic command acknowledgement cursor.
+	AckSeq Uint64 `json:"ack_seq"`
+	// Tombstone reports that the binding has been removed.
+	Tombstone bool `json:"tombstone"`
+	// TombstoneAt records when the binding was removed.
+	TombstoneAt int64 `json:"tombstone_at"`
+	// UpdatedAtMS records the latest binding mutation.
+	UpdatedAtMS int64 `json:"updated_at_ms"`
 }
 
 // ChannelLatestRecord represents one imported latest-message projection row for a channel.

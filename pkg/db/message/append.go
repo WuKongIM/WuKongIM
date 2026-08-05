@@ -147,6 +147,13 @@ func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cach
 			return err
 		}
 	}
+	// SyncOnce records belong to CMD discovery and must not affect ordinary
+	// conversation badge arithmetic.
+	if row.FromUID != "" && row.FramerFlags&4 == 0 {
+		if err := l.stageSenderSeqIndexRow(batch, row, cache); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -188,6 +195,14 @@ func (l *channelEntry) stageIdempotencyIndexRow(batch *engine.Batch, row message
 	return batch.SetDeferred(cache.idempotencyIndexKeyLen(row.FromUID, row.ClientMsgNo), idempotencyIndexValueLen, func(key, value []byte) error {
 		cache.writeIdempotencyIndexKey(key, row.FromUID, row.ClientMsgNo)
 		return writeIdempotencyIndexValue(value, row)
+	})
+}
+
+func (l *channelEntry) stageSenderSeqIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+	return batch.SetDeferred(cache.senderSeqIndexKeyLen(row.FromUID), messageIDIndexValueLen, func(key, value []byte) error {
+		cache.writeSenderSeqIndexKey(key, row.FromUID, row.MessageSeq)
+		writeMessageIDIndexValue(value, row.MessageID)
+		return nil
 	})
 }
 

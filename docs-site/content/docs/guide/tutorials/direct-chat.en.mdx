@@ -3,7 +3,7 @@ title: Direct Chat
 description: Implement durable messages, online delivery, offline sync, unread state, and multi-device recovery between two users.
 ---
 
-This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state in a UID-owned conversation projection.
+This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state in UID-owned membership.
 
 ## Before you start
 
@@ -87,7 +87,7 @@ curl -sS http://127.0.0.1:5001/conversation/list \
   -d '{"uid":"bob","limit":20}'
 ```
 
-Bob's item uses `channel_id=alice`. `unread` is Bob's UID-owned projection, not a global delivery count. After the user confirms the current conversation is read, call through the trusted boundary:
+Bob's item uses `channel_id=alice`. `unread` is computed from Bob's membership and Channel state, not a global delivery count. After the user confirms the current conversation is read, call through the trusted boundary:
 
 ```bash
 curl -sS http://127.0.0.1:5001/conversations/clearUnread \
@@ -95,7 +95,7 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
   -d '{"uid":"bob","channel_id":"alice","channel_type":1}'
 ```
 
-`clearUnread` reads the newest server-visible message and advances Bob's read position through that sequence; the optional request `message_seq` is only a compatibility fallback when the server finds no latest message. This endpoint does not record an exact client-side last-read sequence, so concurrently arriving messages can also become read. Conversation projection failure does not roll back a message that already reached quorum commit.
+`clearUnread` reads the newest committed ordinary sequence and monotonically advances Bob's membership `read_seq`. It is a badge command, not an exact client-side read receipt, so concurrently arriving messages can also become cleared.
 
 ## 5. Test multi-device recovery
 
@@ -103,6 +103,6 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
 2. Define the product's primary/secondary-device conflict policy; one UID does not imply one connection.
 3. Disconnect one device, then publish another durable message.
 4. Reconnect and recover the missing sequence through SDK sync or `/channel/messagesync`.
-5. Verify that online delivery, offline recovery, and unread projection are not treated as one completion signal.
+5. Verify that online delivery, offline recovery, and membership-backed unread calculation are not treated as one completion signal.
 
 Before launch, also test friendship removal, denylist policy, token revocation, disconnect retries, duplicate sends, direct-Channel distribution, and duplicate webhook consumption. Continue with [Groups & Large Groups](/en/guide/tutorials/large-groups) or [Messaging](/en/guide/integration/messaging).

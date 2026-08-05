@@ -93,7 +93,7 @@ func (s *Shard) GetChannelLatest(ctx context.Context, channelID string, channelT
 	if err := s.check(ctx); err != nil {
 		return ChannelLatest{}, false, err
 	}
-	if err := validateConversationKey(ConversationKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
+	if err := validateChannelKey(ChannelKey{ChannelID: channelID, ChannelType: channelType}); err != nil {
 		return ChannelLatest{}, false, err
 	}
 	return channelLatestTable.Get(ctx, s, channelLatestPrimaryKey(channelID, channelType))
@@ -180,7 +180,7 @@ func channelLatestRowKey(hashSlot HashSlot, channelID string, channelType int64)
 }
 
 func validateChannelLatest(latest ChannelLatest) error {
-	return validateConversationKey(ConversationKey{ChannelID: latest.ChannelID, ChannelType: latest.ChannelType})
+	return validateChannelKey(ChannelKey{ChannelID: latest.ChannelID, ChannelType: latest.ChannelType})
 }
 
 func encodeChannelLatestValue(latest ChannelLatest) []byte {

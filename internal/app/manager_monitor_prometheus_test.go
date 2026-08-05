@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -738,244 +737,91 @@ func TestManagerMonitorPrometheusProviderIncludesConversationCardsAndSnapshots(t
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window:   15 * time.Minute,
-		Step:     20 * time.Second,
+		Window: 15 * time.Minute, Step: 20 * time.Second,
 		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
-
 	if err != nil {
 		t.Fatalf("RealtimeMonitor() error = %v", err)
 	}
-	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
-		t.Fatalf("Status = %q, want ready; source=%#v", resp.Status, resp.Sources.Prometheus)
-	}
 	expectedCards := []struct {
-		key  string
-		unit string
-		tone string
+		key, unit, tone string
 	}{
-		{key: "conversationSyncRate", unit: "req/s", tone: accessmanager.RealtimeMonitorToneNormal},
-		{key: "conversationSyncLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationSyncErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
-		{key: "conversationReturnedItems", unit: "items", tone: accessmanager.RealtimeMonitorToneNormal},
-		{key: "conversationRecentLoadLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveDirtyRows", unit: "rows", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveNormalRows", unit: "rows", tone: accessmanager.RealtimeMonitorToneNormal},
-		{key: "conversationActiveCMDRows", unit: "rows", tone: accessmanager.RealtimeMonitorToneNormal},
-		{key: "conversationActiveNormalDirtyRows", unit: "rows", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveCMDDirtyRows", unit: "rows", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveOldestDirtyAge", unit: "s", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveFlushLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationActiveFlushErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
-		{key: "conversationAuthorityPressureRate", unit: "events/s", tone: accessmanager.RealtimeMonitorToneWarning},
+		{"conversationDirectoryRate", "req/s", accessmanager.RealtimeMonitorToneNormal},
+		{"conversationDirectoryLatencyP99", "ms", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationDirectoryErrorRate", "%", accessmanager.RealtimeMonitorToneCritical},
+		{"conversationScannedCandidates", "items", accessmanager.RealtimeMonitorToneNormal},
+		{"conversationReturnedItems", "items", accessmanager.RealtimeMonitorToneNormal},
+		{"conversationDeletes", "items", accessmanager.RealtimeMonitorToneNormal},
+		{"conversationUnresolved", "items", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationHydrationLatencyP99", "ms", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationHydrationRemoteBatches", "batches", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationHydrationLocalReads", "reads", accessmanager.RealtimeMonitorToneWarning},
 	}
 	for offset, expected := range expectedCards {
-		got := resp.Cards[offset]
-		if got.Key != expected.key {
-			t.Fatalf("conversation card at offset %d = %q, want %q", offset, got.Key, expected.key)
+		if got := resp.Cards[offset].Key; got != expected.key {
+			t.Fatalf("conversation card at offset %d=%q, want %q", offset, got, expected.key)
 		}
 		card := requireMonitorCardForTest(t, resp.Cards, expected.key)
-		if card.Stage != "conversationSync" {
-			t.Fatalf("%s stage = %q, want conversationSync", card.Key, card.Stage)
-		}
-		if card.Unit != expected.unit || card.Tone != expected.tone || !card.Available || card.Value != 7 {
-			t.Fatalf("%s card = %#v, want unit=%q tone=%q value=7 available", card.Key, card, expected.unit, expected.tone)
+		if card.Stage != accessmanager.RealtimeMonitorStageConversationSync ||
+			card.Unit != expected.unit || card.Tone != expected.tone || !card.Available || card.Value != 7 {
+			t.Fatalf("%s card=%#v", expected.key, card)
 		}
 	}
 	expectedSnapshots := []struct {
-		key       string
-		metricKey string
-		unit      string
-		tone      string
+		key, metricKey, unit, tone string
 	}{
-		{key: "conversationSyncP99", metricKey: "conversationSyncLatencyP99", unit: "ms", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationSyncErrors", metricKey: "conversationSyncErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
-		{key: "conversationDirtyAge", metricKey: "conversationActiveOldestDirtyAge", unit: "s", tone: accessmanager.RealtimeMonitorToneWarning},
-		{key: "conversationFlushErrors", metricKey: "conversationActiveFlushErrorRate", unit: "%", tone: accessmanager.RealtimeMonitorToneCritical},
+		{"conversationDirectoryP99", "conversationDirectoryLatencyP99", "ms", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationDirectoryErrors", "conversationDirectoryErrorRate", "%", accessmanager.RealtimeMonitorToneCritical},
+		{"conversationUnresolved", "conversationUnresolved", "items", accessmanager.RealtimeMonitorToneWarning},
+		{"conversationHydrationP99", "conversationHydrationLatencyP99", "ms", accessmanager.RealtimeMonitorToneWarning},
 	}
 	for offset, expected := range expectedSnapshots {
-		got := resp.Snapshot[offset]
-		if got.Key != expected.key {
-			t.Fatalf("conversation snapshot at offset %d = %q, want %q", offset, got.Key, expected.key)
+		if got := resp.Snapshot[offset].Key; got != expected.key {
+			t.Fatalf("snapshot at offset %d=%q, want %q", offset, got, expected.key)
 		}
 		snapshot := requireMonitorSnapshotForTest(t, resp, expected.key)
 		if snapshot.MetricKey != expected.metricKey || snapshot.Unit != expected.unit || snapshot.Tone != expected.tone || snapshot.Value != 7 {
-			t.Fatalf("%s snapshot = %#v, want metric=%q unit=%q tone=%q value=7", snapshot.Key, snapshot, expected.metricKey, expected.unit, expected.tone)
+			t.Fatalf("%s snapshot=%#v", expected.key, snapshot)
 		}
 	}
 }
 
-func TestManagerMonitorPrometheusProviderConversationNoDataAndNoDirtyHandling(t *testing.T) {
-	var mu sync.Mutex
-	var queries []string
+func TestManagerMonitorPrometheusProviderConversationHydrationNoData(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		promQL := r.URL.Query().Get("query")
-		mu.Lock()
-		queries = append(queries, promQL)
-		mu.Unlock()
-		switch {
-		case strings.Contains(promQL, "wukongim_conversation_sync_recent_load_duration_seconds_bucket"):
+		if strings.Contains(r.URL.Query().Get("query"), "wukongim_conversation_hydration_batch_duration_seconds_bucket") {
 			writePrometheusNoDataForTest(w)
-		case strings.Contains(promQL, "wukongim_conversation_active_flush_total") && strings.Contains(promQL, "result!~"):
-			writePrometheusRangeForTest(w, "0")
-		default:
-			writePrometheusRangeForTest(w, "3")
-		}
-	}))
-	defer server.Close()
-	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
-		Enabled: true,
-		BaseURL: server.URL,
-		Client:  server.Client(),
-		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
-	})
-
-	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window:   15 * time.Minute,
-		Step:     20 * time.Second,
-		Category: accessmanager.RealtimeMonitorCategoryConversation,
-	})
-
-	if err != nil {
-		t.Fatalf("RealtimeMonitor() error = %v", err)
-	}
-	if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
-		t.Fatalf("Status = %q, want partial", resp.Status)
-	}
-	recentLoad := requireMonitorCardForTest(t, resp.Cards, "conversationRecentLoadLatencyP99")
-	if recentLoad.Available {
-		t.Fatalf("recent-load card = %#v, want unavailable when Prometheus returns no series", recentLoad)
-	}
-	if recentLoad.Error == "" {
-		t.Fatalf("recent-load card error is empty, want human readable no-data message")
-	}
-	requireCardUnavailableReasonForTest(t, recentLoad, "no_conversation_recent_load_samples")
-
-	flushErrors := requireMonitorCardForTest(t, resp.Cards, "conversationActiveFlushErrorRate")
-	if !flushErrors.Available || flushErrors.Value != 0 {
-		t.Fatalf("flush error card = %#v, want available zero value", flushErrors)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	var flushErrorQuery string
-	for _, query := range queries {
-		if strings.Contains(query, "wukongim_conversation_active_flush_total") && strings.Contains(query, "result!~") {
-			flushErrorQuery = query
-			break
-		}
-	}
-	if flushErrorQuery == "" {
-		t.Fatalf("flush error query was not issued; queries=%#v", queries)
-	}
-	if !strings.Contains(flushErrorQuery, `result!~"ok|no_dirty"`) {
-		t.Fatalf("flush error query = %q, want no_dirty excluded from failures", flushErrorQuery)
-	}
-	if !strings.Contains(flushErrorQuery, "or vector(0)") {
-		t.Fatalf("flush error query = %q, want zero fallback for no-dirty windows", flushErrorQuery)
-	}
-}
-
-func TestManagerMonitorPrometheusProviderConversationHealthyZeroRatesStayAvailable(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		promQL := r.URL.Query().Get("query")
-		switch {
-		case strings.Contains(promQL, "wukongim_conversation_sync_total") && strings.Contains(promQL, `result!="ok"`):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_sync_total{job="wukongim"}[`) {
-				writePrometheusRangeForTest(w, "0")
-				return
-			}
-			writePrometheusNoDataForTest(w)
-		case strings.Contains(promQL, "wukongim_conversation_authority_cache_pressure_total") ||
-			(strings.Contains(promQL, "wukongim_conversation_authority_admit_total") && strings.Contains(promQL, `result=~`)):
-			if strings.Contains(promQL, "or on()") && strings.Contains(promQL, `wukongim_conversation_authority_admit_total{job="wukongim"}[`) {
-				writePrometheusRangeForTest(w, "0")
-				return
-			}
-			writePrometheusNoDataForTest(w)
-		default:
-			writePrometheusRangeForTest(w, "3")
-		}
-	}))
-	defer server.Close()
-	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
-		Enabled: true,
-		BaseURL: server.URL,
-		Client:  server.Client(),
-		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
-	})
-
-	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window:   15 * time.Minute,
-		Step:     20 * time.Second,
-		Category: accessmanager.RealtimeMonitorCategoryConversation,
-	})
-
-	if err != nil {
-		t.Fatalf("RealtimeMonitor() error = %v", err)
-	}
-	if resp.Status != accessmanager.RealtimeMonitorStatusReady {
-		t.Fatalf("Status = %q, want ready; source=%#v", resp.Status, resp.Sources.Prometheus)
-	}
-	syncErrors := requireMonitorCardForTest(t, resp.Cards, "conversationSyncErrorRate")
-	if !syncErrors.Available || syncErrors.Value != 0 {
-		t.Fatalf("sync error card = %#v, want available zero value", syncErrors)
-	}
-	authorityPressure := requireMonitorCardForTest(t, resp.Cards, "conversationAuthorityPressureRate")
-	if !authorityPressure.Available || authorityPressure.Value != 0 {
-		t.Fatalf("authority pressure card = %#v, want available zero value", authorityPressure)
-	}
-}
-
-func TestManagerMonitorPrometheusConversationZeroFallbackQueriesAreGrouped(t *testing.T) {
-	syncErrors := requireMonitorDefinitionForTest(t, "conversationSyncErrorRate").query("1m")
-	if !strings.Contains(syncErrors, `) * 0)) / clamp_min(sum(rate(wukongim_conversation_sync_total[1m])), 1)) * 100`) {
-		t.Fatalf("sync error query = %q, want zero fallback grouped before division", syncErrors)
-	}
-
-	authorityPressure := requireMonitorDefinitionForTest(t, "conversationAuthorityPressureRate").query("1m")
-	if !strings.Contains(authorityPressure, `)) + ((sum(rate(wukongim_conversation_authority_admit_total{result=~"cache_pressure|route_not_ready|stale_route|not_leader|timeout"}[1m]))`) {
-		t.Fatalf("authority pressure query = %q, want cache and admit pressure fallbacks grouped before addition", authorityPressure)
-	}
-}
-
-func TestManagerMonitorPrometheusProviderConversationQueryErrorUsesGenericUnavailableReason(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		promQL := r.URL.Query().Get("query")
-		if strings.Contains(promQL, "wukongim_conversation_sync_recent_load_duration_seconds_bucket") {
-			http.Error(w, "recent load prometheus failed", http.StatusInternalServerError)
 			return
 		}
 		writePrometheusRangeForTest(w, "3")
 	}))
 	defer server.Close()
 	provider := newManagerPrometheusMonitorProvider(managerPrometheusMonitorOptions{
-		Enabled: true,
-		BaseURL: server.URL,
-		Client:  server.Client(),
-		Now:     func() time.Time { return time.Unix(1781767240, 0).UTC() },
+		Enabled: true, BaseURL: server.URL, Client: server.Client(),
+		Now: func() time.Time { return time.Unix(1781767240, 0).UTC() },
 	})
 
 	resp, err := provider.RealtimeMonitor(context.Background(), accessmanager.RealtimeMonitorQuery{
-		Window:   15 * time.Minute,
-		Step:     20 * time.Second,
+		Window: 15 * time.Minute, Step: 20 * time.Second,
 		Category: accessmanager.RealtimeMonitorCategoryConversation,
 	})
-
 	if err != nil {
-		t.Fatalf("RealtimeMonitor() error = %v", err)
+		t.Fatalf("RealtimeMonitor() error=%v", err)
 	}
 	if resp.Status != accessmanager.RealtimeMonitorStatusPartial {
-		t.Fatalf("Status = %q, want partial", resp.Status)
+		t.Fatalf("status=%q, want partial", resp.Status)
 	}
-	recentLoad := requireMonitorCardForTest(t, resp.Cards, "conversationRecentLoadLatencyP99")
-	if recentLoad.Available {
-		t.Fatalf("recent-load card = %#v, want unavailable when query fails", recentLoad)
+	card := requireMonitorCardForTest(t, resp.Cards, "conversationHydrationLatencyP99")
+	if card.Available {
+		t.Fatalf("hydration card=%#v, want unavailable", card)
 	}
-	if !strings.Contains(recentLoad.Error, "prometheus query_range returned 500") {
-		t.Fatalf("recent-load error = %q, want HTTP 500 query error", recentLoad.Error)
+	requireCardUnavailableReasonForTest(t, card, "no_conversation_hydration_samples")
+}
+
+func TestManagerMonitorPrometheusConversationDirectoryErrorFallbackIsGrouped(t *testing.T) {
+	query := requireMonitorDefinitionForTest(t, "conversationDirectoryErrorRate").query("1m")
+	if !strings.Contains(query, `) * 0)) / clamp_min(sum(rate(wukongim_conversation_directory_list_total[1m])), 1)) * 100`) {
+		t.Fatalf("directory error query=%q, want zero fallback grouped before division", query)
 	}
-	requireCardUnavailableReasonForTest(t, recentLoad, "prometheus_query_error")
 }
 
 func sparseZeroMonitorQueryForTest(query string) bool {

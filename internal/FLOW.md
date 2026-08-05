@@ -10,7 +10,7 @@ work must stay on the promoted access/usecase/runtime/infra/app boundaries.
 
 The promoted runtime proves the client `SEND -> SENDACK` write path through
 `pkg/cluster` and `pkg/channel`. It also exposes legacy-compatible channel,
-user, message, conversation, and CMD sync HTTP surfaces backed by cluster Slot
+user, message, membership-backed conversation, and CMD sync HTTP surfaces backed by cluster Slot
 metadata and Channel runtime logs.
 
 Single-node deployment is still a single-node cluster. Do not add send,
@@ -24,19 +24,18 @@ storage, or routing branches that bypass cluster semantics.
 | `access/api` | Health, readiness, bench/v1 target HTTP surface, legacy `/route` address lookup, and legacy-compatible channel/user/message/conversation/CMD sync HTTP adapters. |
 | `access/gateway` | Gateway event/frame adapter: presence activation/deactivation mapping, `SendPacket` mapping, sendack writing, and entry error mapping. |
 | `access/manager` | Manager HTTP adapter for diagnostics, management views, and authenticated backup/restore operations. |
-| `access/node` | Node RPC adapter for presence, conversation authority, delivery, channel append, scheduled backup, and staged restore calls between internal nodes. |
+| `access/node` | Node RPC adapter for presence, delivery, channel append, scheduled backup, and staged restore calls between internal nodes. |
 | `log` | Zap/lumberjack-backed application logger for the internal composition root. |
 | `observability/diagnostics` | Bounded node-local diagnostics events, trace indexing, runtime tracking rules, and sendtrace context helpers. |
 | `usecase/channel` | Entry-agnostic channel metadata, subscriber, temporary subscriber, allowlist, and denylist orchestration. |
-| `usecase/cmdsync` | Entry-agnostic durable CMD offline sync and syncack over CMD-kind conversation projection rows. |
-| `usecase/conversation` | Entry-agnostic ordinary recent conversation list, sync, unread, and delete orchestration over normal-kind conversation projection rows. |
+| `usecase/cmdsync` | Entry-agnostic CMD binding, durable offline sync, and syncack over separate UID-owned CMD memberships and CMD logs. |
+| `usecase/conversation` | Entry-agnostic transient conversation construction and badge/hide/activation orchestration over ordinary UID-owned memberships. |
 | `usecase/delivery` | Temporary entry-agnostic gateway RECVACK/session-close feedback facade plus explicit rejection of old committed-event submissions. |
 | `usecase/management` | Entry-agnostic management read orchestration for manager adapters. |
 | `usecase/message` | Entry-agnostic SEND facade and compatible channel message sync. |
 | `usecase/presence` | Entry-agnostic connection presence activation, deactivation, lookup, and authority coordination. |
 | `usecase/user` | Entry-agnostic user token, device quit, online status, and system UID compatibility orchestration. |
 | `usecase/backup` | Single-plan scheduled full-backup admission, archive management, and resumable maintenance restore orchestration. |
-| `runtime/conversationactive` | Kind-aware UID-owned active conversation cache and flush runtime. |
 | `runtime/delivery` | Canonical node-local recipient-plan execution, owner push, bounded exact-route retry, and RECVACK state. |
 | `runtime/online` | Owner-local active gateway session registry used for local delivery and dirty touch batching. |
 | `runtime/presence` | In-memory UID route authority directory for hash slots locally led by this node. |
@@ -46,7 +45,7 @@ storage, or routing branches that bypass cluster semantics.
 | `infra/backup` | File/OSS/COS/S3-compatible repository adapters, cluster export coordination, archive finalization, and crash-safe node-local staged restore. |
 | `contracts/backup` | Bounded Controller/RPC DTOs for one scheduled full-backup subsystem. |
 | `contracts/channelmembers` | Stable legacy-compatible member-list channel-id namespace helpers. |
-| `contracts/messageevents` | Lightweight committed-message event DTOs for later delivery/conversation migration. |
+| `contracts/messageevents` | Lightweight committed-message event DTOs for delivery and event projection. |
 
 ## Dependency Direction
 
@@ -78,39 +77,39 @@ pkg/gateway SendPacket
 Only the channel authority node creates and owns real channel append state. A
 non-authority node forwards the batch to the authority node through Channel
 Append RPC and does not create proxy channel state or enter a local writer for
-that channel. Conversation projection, recipient authority grouping, owner
-push, and delivery fanout run after the successful append in the authority
-writer's best-effort post-commit pipeline. Conversation admission emits
-`conversationactive.ActiveBatch` with an explicit `metadb.ConversationKind`:
-ordinary SENDs project `ConversationKindNormal`, while `SyncOnce` or command
-channel commits project `ConversationKindCMD`.
+that channel. An ordinary durable append writes the Channel log and its
+sender-sequence index atomically, then schedules online delivery and other
+independent post-commit effects. SEND never writes recipient memberships or a
+conversation projection. CMD and `SyncOnce` sends use separate CMD Channel
+logs and likewise do not mutate UID directory state.
 
-## Conversation Projection Flow
+## Membership-Backed Conversation Flow
 
 ```text
-ordinary conversation list/sync
+ordinary conversation list
   -> internal/access/api conversation routes
   -> internal/usecase/conversation
   -> internal/infra/cluster ConversationStore
-  -> ListConversationActiveView(ConversationKindNormal, uid)
-  -> read latest non-CMD Channel runtime messages for visible rows
+  -> page one UID's user_channel_membership activation index
+  -> group live candidates by exact Channel Leader
+  -> batch-read committed head, retention floor, last display message,
+     and current-user sender sequence
+  -> construct transient conversations; return deletes and unresolved keys
 
-CMD offline sync/syncack
+CMD bind/sync/syncack
   -> internal/access/api /message/sync or /message/syncack
   -> internal/usecase/cmdsync
   -> internal/infra/cluster CMDSyncStore
-  -> ListConversationActivePage(ConversationKindCMD, uid)
-  -> read only SyncOnce or command-channel Channel runtime messages
-  -> syncack writes ConversationKindCMD read cursors
+  -> page user_cmd_channel_membership for the UID
+  -> read only the separately sequenced CMD Channel logs
+  -> syncack advances membership ack_seq
 ```
 
-`pkg/db/meta` owns one canonical conversation projection table keyed by
-`(uid, kind, channel_id, channel_type)`. Both ordinary and CMD rows are routed
-by the UID hash slot, including single-node cluster deployments. Ordinary
-conversation storage and listing do not infer semantics from the `____cmd`
-suffix; the suffix remains a legacy command-channel naming detail, while
-ordinary/CMD separation is carried by explicit `ConversationKind` and the
-durable Channel runtime `SyncOnce` marker.
+`pkg/db/meta` owns separate `user_channel_membership` and
+`user_cmd_channel_membership` tables, both routed by UID hash slot. There is no
+durable conversation table or conversation-active runtime. Ordinary
+`activated_at` changes only on explicit navigation or hide; message SEND,
+delivery, and pull leave both membership tables unchanged.
 
 ## Phase-1 Presence Flow
 

@@ -14,6 +14,7 @@ const (
 	messageIndexIDClientMsgNo        uint16 = 3
 	messageIndexIDFromUIDClientMsgNo uint16 = 4
 	messageIndexIDGlobalMessageID    uint16 = 5
+	messageIndexIDFromUIDMessageSeq  uint16 = 6
 
 	messageSystemIDCheckpoint          uint16 = 1
 	messageSystemIDHistory             uint16 = 2
@@ -114,5 +115,6 @@ var MessageTable = schema.Table{
 		{ID: messageIndexIDClientMsgNo, Name: "idx_client_msg_no", Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDMessageSeq}},
 		{ID: messageIndexIDFromUIDClientMsgNo, Name: "uidx_from_uid_client_msg_no", Unique: true, Columns: []uint16{messageColumnIDFromUID, messageColumnIDClientMsgNo}},
 		{ID: messageIndexIDGlobalMessageID, Name: "uidx_global_message_id", Unique: true, Columns: []uint16{messageColumnIDMessageID}},
+		{ID: messageIndexIDFromUIDMessageSeq, Name: "idx_from_uid_message_seq", Columns: []uint16{messageColumnIDFromUID, messageColumnIDMessageSeq}},
 	},
 }

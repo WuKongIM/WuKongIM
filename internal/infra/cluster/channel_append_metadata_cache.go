@@ -13,6 +13,8 @@ type ChannelAppendMetadata struct {
 	Large bool
 	// SubscriberMutationVersion identifies the subscriber-list version used for recipient cache invalidation.
 	SubscriberMutationVersion uint64
+	// DirectoryReady reports that canonical person-channel membership setup is complete.
+	DirectoryReady bool
 }
 
 // ChannelAppendMetadataCache caches recipient fanout metadata outside the foreground metadata DB path.
@@ -104,5 +106,6 @@ func (c *ChannelAppendMetadataCache) storeChannel(channel metadb.Channel) {
 	c.Store(channelappend.ChannelID{ID: channel.ChannelID, Type: uint8(channel.ChannelType)}, ChannelAppendMetadata{
 		Large:                     channel.Large != 0,
 		SubscriberMutationVersion: channel.SubscriberMutationVersion,
+		DirectoryReady:            channel.DirectoryReady != 0,
 	})
 }

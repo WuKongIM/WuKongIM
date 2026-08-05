@@ -31,8 +31,12 @@ Current flow:
    `ChannelLog.GetLastVisibleMessage` uses reverse iteration over the channel
    row keyspace to fetch the newest message above a visibility boundary without
    scanning the full channel or recovering LEO.
-6. `GetByMessageID`, `ListByClientMsgNo`, and `LookupIdempotency` use typed
+6. `GetByMessageID`, `ListByClientMsgNo`, `LookupIdempotency`, and
+   `GetLastSenderMessageSeq` use typed
    secondary indexes and verify indexed rows before returning. The shared
+   sender/sequence index is ordered by `(channel, from_uid, message_seq)` and
+   lets callers find the latest message sent by one user through an explicit
+   committed high-water mark without consulting the mutable tail. The shared
    message engine also maintains a global `message_id` index so node-local
    newest-message pages are bounded by page size instead of channel count;
    truncation and retention remove that index entry atomically with the row.

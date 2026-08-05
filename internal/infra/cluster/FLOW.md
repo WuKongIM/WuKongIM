@@ -8,9 +8,10 @@
 legacy-compatible channel metadata usecase calls to cluster Slot metadata
 facades, adapts legacy-compatible user metadata calls and manager user scans to
 UID Slot metadata facades, adapts read-only manager business channel and
-channel runtime metadata scans to cluster Slot metadata reads, adapts conversation reads and read/delete
-mutations to UID-owned conversation rows plus channel-owned committed message
-logs, adapts read-only manager message pages to committed Channel runtime reads,
+channel runtime metadata scans to cluster Slot metadata reads, adapts ordinary
+conversation construction to UID-owned membership pages plus Channel-Leader
+head batches, adapts CMD sync to its separate UID-owned membership table and
+command logs, adapts read-only manager message pages to committed Channel runtime reads,
 adapts manager message retention requests to fenced Slot metadata advances, and
 routes manager connection reads over cluster node RPC, routes manager
 distributed log reads to node-local cluster log storage or peer RPC, routes
@@ -216,24 +217,25 @@ layers or later phases.
 ## CMD Sync Flow
 
 ```text
+cmdsync.Bind
+  -> read the committed command-channel tail
+  -> UpsertUserCMDChannelMemberships(start_seq=tail+1)
+
 cmdsync.Sync
-  -> ListConversationActivePage(ConversationKindCMD, uid)
-  -> ReadChannelCommitted(command channel/source SyncOnce channel, forward from read cursor)
-       -> page forward until enough SyncOnce/command-channel messages are found
-  -> cmdsync.SyncedMessage
+  -> ListUserCMDChannelMembershipPage(uid)
+  -> read each live command Channel from max(start_seq, ack_seq+1)
+  -> return only command-log messages
 
 cmdsync.SyncAck
-  -> UpsertConversationStatesBatch(kind forced to ConversationKindCMD)
+  -> AdvanceUserCMDChannelMembershipAcks(aligned rows)
 ```
 
-`CMDSyncStore` is the single internal adapter for durable command-message
-sync. It reads CMD rows from the unified UID-owned conversation projection and
-advances read progress by writing CMD-kind `ConversationState` rows back through
-cluster Slot metadata. It does not create a second CMD-specific metadata
-table or a pending overlay. Channel log reads use Channel runtime committed forward
-reads, filter out ordinary source-channel messages, and return cloned payloads
-to keep access/usecase layers from aliasing storage-owned memory.
+`CMDSyncStore` maps the usecase's separate CMD membership and message ports to
+cluster facades. Bind/unbind are explicit directory mutations; SEND never binds
+recipients. Payloads are cloned at the adapter boundary, and terminally
+disbanded source channels are rejected before message pull.
 
+## Management Message Flow
 ## Management Message Flow
 
 ```text
@@ -595,178 +597,37 @@ mutation observer after subscriber changes commit.
 
 ## Conversation Flow
 
-`ConversationStore` adapts `internal/usecase/conversation` active-row,
-durable state, read mutation, delete mutation, last-message, and recent-message
-ports to cluster facades. Conversation rows are UID-owned metadata records,
-while last-message display data and sync recents are read from channel-owned
-message logs. When configured, list last-message reads run with a bounded
-worker count; missing tails are skipped per row while routing/readiness errors
-fail the request.
+`ConversationStore` adapts the transient conversation usecase to two narrow
+cluster surfaces: UID-owned ordinary membership metadata and aligned
+Channel-owned head hydration.
 
 ```text
-conversation list usecase
-  -> ListConversationActiveView(normal kind, uid, active cursor)
-       -> wraps ListConversationActivePage(normal kind, uid, active cursor)
-       -> UID-owned normal-kind conversation rows routed by UID hash slot
-  -> GetLastVisibleMessages(current page keys)
-       -> ReadChannelLastVisible(channel, visible_after_seq)
-       -> if the tail is SyncOnce/CMD, reverse-scan committed rows for the latest ordinary message
-       -> channel-owned route resolves the Channel runtime leader
-       -> missing channel or no visible message returns no last message for that row
+conversation.List
+  -> ListUserChannelMembershipPage(uid, activation cursor, candidate limit)
+  -> HydrateConversationHeads(uid, live memberships)
+       -> cluster resolves every exact Channel route
+       -> local leaders perform bounded local committed/head/index reads
+       -> remote requests are grouped into one batch per Leader
+       -> aligned item results preserve retryable and terminal failures
+  -> usecase constructs conversations, deletes, and unresolved keys
 
-conversation sync usecase
-  -> ListConversationActiveView(normal kind, uid, zero cursor)
-       -> bounded active working-set scan
-  -> GetConversationState(normal kind, uid, channel)
-       -> durable UID-owned row for client-known overlay candidates
-  -> GetLastVisibleMessages(candidate keys)
-       -> newest channel-owned message for sync selection
-  -> GetRecentMessages(final returned keys)
-       -> ReadChannelCommitted(reverse, latest, paged)
-       -> filter SyncOnce/CMD rows from ordinary legacy recents
-       -> channel-owned committed rows used for legacy recents
-
-conversation read-state mutation usecase
-  -> UpsertConversationStates(uid-owned normal-kind read row)
-       -> UpsertConversationStatesBatch
-       -> UID-owned Slot metadata propose
-
-conversation delete usecase
-  -> HideConversations(uid-owned normal-kind delete barrier)
-       -> ConversationAuthorityClient resolves the UID's exact RouteTarget
-       -> local or RPC authority HideConversationsForTarget
-       -> authority-owned HideConversationsBatch propose clears durable active_at
-       -> authority reconciles the exact active-cache row before returning
+badge/hide/activate
+  -> point-read one live membership
+  -> hydrate its current committed head when needed
+  -> AdvanceReadSeq, HideMembership, or ActivateMembership on the UID Slot
 ```
 
-The adapter clones row slices and message payloads across the boundary. It does
-not own ordering, cursor, sync filtering, unread, read-cursor, delete-barrier,
-or sparse-active rules; those stay in the conversation usecase so access
-adapters can share the same list, sync, and mutation semantics.
-It does own the storage-facing split between ordinary conversation hydration
-and CMD sync hydration: normal conversation last-message/recent reads skip
-`SyncOnce`/command-channel rows, while `CMDSyncStore` returns only those rows.
-`metadb.ErrNotFound` and `channel.ErrChannelNotFound` during a single
-last-message read mean that row has no display message, not that the whole list
-failed. Routing, readiness, and other read errors still fail the request.
+Tombstones never trigger Channel reads. The adapter maps terminal Channel state
+to delete and transient route/leadership failures to retryable outcomes. It
+clones returned payloads and never owns directory ordering, badge arithmetic,
+visibility floors, or retry policy.
 
-`ConversationAuthorityClient` routes UID-owned active cache calls to the
-current authority leader and leaves cache/list business rules inside the local
-authority implementation. Legacy patch admission resolves each `ActivePatch`
-UID with `RouteKey(uid)`, maps the route's Slot leader term and Slot config
-epoch into `RouteTarget`, groups patches by exact `RouteTarget`, and sends each
-group to the local authority when the target leader is this node or through
-access/node Conversation Authority RPC when the leader is remote. The local
-authority epoch remains diagnostic metadata and is not the distributed
-identity. Legacy patch admission is best-effort and does not retry
-route-not-ready, stale-route, or not-leader errors; callers are expected to log
-and drop failed active admission.
-Active-batch admission resolves the affected UID set as `SenderUID` plus each
-unique recipient UID through one lightweight `RouteAuthoritiesPartial`
-snapshot per attempt when supported, with `RouteKeysPartial` retained as the
-compatibility fallback,
-coalesces duplicate recipient entries with `IsSender` OR semantics, and sends
-one target-scoped batch per group. Aligned key-specific route failures do not
-discard successfully routed siblings. Only the sender-owned target receives
-`SenderUID`; other target batches carry an empty `SenderUID` and only their
-recipient subset, so a receiver authority cannot cache the sender row by
-mistake. Each target-scoped batch preserves the source
-`metadb.ConversationKind`; invalid or zero kinds are left for downstream
-validation instead of being normalized. If the sender is not in the recipient
-set, the sender target still receives a sender-only batch. Exact target groups
-are packed by `LeaderNodeID` for transport, but the leader envelope never
-replaces each group's physical hash-slot, logical Slot Raft Group, leader-term,
-and config-epoch fence. Active-batch admission retries route-not-ready,
-stale-route, not-leader, and background Slot proposal backpressure within a
-small bounded fresh-route window. Only aligned failed groups or failed UID
-route items are resolved again; successful siblings are never issued twice.
-Continued failure is returned to the caller so the post-commit path remains
-bounded. Retry delay grows exponentially from 5ms to a 100ms cap, and the
-50-attempt admission window remains inside the recipient plan's outer context.
-The routed active-batch surface is the normal channelappend fast path. Its first
-attempt consumes caller-supplied exact target groups without another route
-snapshot. If stale-route, not-leader, route-not-ready, proposal backpressure, or
-a retryable transport failure affects a group, only that group's sender and
-recipient rows are resolved again inside the same bounded handoff window.
-Successfully admitted sibling groups are never replayed. A terminal sibling
-failure is retained as the overall result but does not suppress bounded retries
-for independent retryable siblings. If backoff, fresh routing, or the final
-retry attempt also fails, the adapter joins that error with the retained
-terminal failure so callers can classify both causes with `errors.Is`. The
-legacy `AdmitActiveBatch` surface uses the same bounded handoff window for
-callers that do not already own an aligned route snapshot.
-The normal one-batch path coalesces UIDs and recipient roles once, counts each
-exact target group before allocation, and fills disjoint capacity-limited
-slices from one shared recipient backing store. This avoids per-target growth
-and intermediate retry copies for high-fanout admissions. A failed target is
-cloned before retry so retaining one failed subset cannot retain the whole
-happy-path backing allocation.
-Delete-barrier writes group rows by UID and use the same fresh-target retry
-loop as authority reads. The actual Slot write runs on the resolved authority
-leader, which reconciles its cache and revalidates the exact target before it
-returns. A stale target therefore causes an idempotent retry against the new
-leader instead of leaving a clean cache baseline detached from durable state.
-The remote RPC client chunks large patch groups at the codec collection limit.
-Active-batch groups for the same remote leader are packed into one or more
-`WKVC2` envelopes of at most 4,096 aggregate active rows and receive `WKVc2`
-group-aligned statuses. A target group larger than one envelope is split while
-preserving the sender only in its first fragment. The local path uses the same
-bounded packing and optional bulk authority contract. A retryable transport
-failure re-routes only the groups from the failed envelope; completed sibling
-leaders and envelopes are not replayed. Context cancellation/deadline, codec,
-and business errors are not classified as transport retries. List resolves the
-requested UID once per retry attempt and reads the active view from that
-authority target; the active-view response is not satisfied by a local DB-only
-fallback when the UID authority is remote. Drain uses the caller-supplied exact
-target for authority handoff.
+Ordinary batch message pull uses `ChannelMessageReader.SyncMessagesBatch`.
+The usecase validates all memberships before this adapter call; the adapter
+passes one aligned batch to the cluster Node, which groups reads by exact
+Channel Leader. It never performs subscriber revalidation.
 
-```text
-ConversationAuthorityClient
-  -> AdmitPatches([]ActivePatch)
-       -> RouteKey(patch.UID) for each patch
-       -> group by RouteTarget
-       -> local conversation authority for local groups
-       -> access/node Conversation Authority Admit RPC for remote groups
-  -> AdmitActiveBatch(ActiveBatch)
-       -> one RouteAuthoritiesPartial snapshot for all pending unique UIDs
-          (RouteKeysPartial compatibility fallback)
-       -> coalesce duplicate recipient entries with IsSender OR
-       -> group by exact RouteTarget
-       -> set SenderUID only on the sender target's batch
-       -> pack exact groups by LeaderNodeID without weakening target fences
-       -> bounded local bulk authority calls of at most 4,096 active rows
-       -> bounded access/node WKVC2 bulk RPC envelopes per remote leader
-       -> preserve group-aligned statuses and re-route only failed groups
-  -> AdmitRoutedActiveBatches([]ConversationActiveTargetBatch)
-       -> admit caller-supplied exact targets without an initial route lookup
-       -> preserve every physical hash-slot and logical Slot fence
-       -> fresh-route only failed groups during a bounded handoff window
-       -> never replay successful siblings
-  -> ListConversationActiveView(kind, uid)
-       -> RouteKey(uid)
-       -> local conversation authority active view for kind when local
-       -> access/node Conversation Authority List RPC carrying kind when remote
-  -> HideConversations([]ConversationDelete)
-     -> group by UID and reject any group above the bounded 4096-row RPC contract before leader selection
-       -> group rows by UID
-       -> resolve a fresh exact RouteTarget for each UID group
-       -> local authority hide when local
-       -> access/node Conversation Authority Hide RPC when remote
-  -> DrainAuthority(target)
-       -> local drain when target leader is this node
-       -> access/node Conversation Authority Drain RPC when remote
-```
-
-List route-not-ready, stale-route, and not-leader results are retried with a
-short bounded backoff so authority movement can settle without changing
-conversation list semantics. Legacy patch admission returns those errors
-directly, while active-batch admission makes an election-sized bounded
-fresh-route retry window. A route snapshot outer failure retries the pending
-set, while an aligned UID failure retries only that UID subset after
-already-routed siblings have completed. Raw
-cluster route errors returned by remote RPC calls are mapped to the same
-conversation route sentinels before retry decisions.
-
+## Channel Append Authority Flow
 ## Channel Append Authority Flow
 
 `ChannelAppendClient` adapts the channelappend router authority ports to

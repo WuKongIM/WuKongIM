@@ -142,7 +142,7 @@ func TestClusterGetChannelLatestBatchRoutesEachChannel(t *testing.T) {
 		t.Fatalf("UpsertChannelLatestBatch() error = %v", err)
 	}
 
-	got, err := node.GetChannelLatestBatch(ctx, []metadb.ConversationKey{
+	got, err := node.GetChannelLatestBatch(ctx, []metadb.ChannelKey{
 		{ChannelID: channelA, ChannelType: 2},
 		{ChannelID: "missing-latest", ChannelType: 2},
 		{ChannelID: channelB, ChannelType: 2},
@@ -153,8 +153,8 @@ func TestClusterGetChannelLatestBatchRoutesEachChannel(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("GetChannelLatestBatch() returned %d rows, want 2: %#v", len(got), got)
 	}
-	keyA := metadb.ConversationKey{ChannelID: channelA, ChannelType: 2}
-	keyB := metadb.ConversationKey{ChannelID: channelB, ChannelType: 2}
+	keyA := metadb.ChannelKey{ChannelID: channelA, ChannelType: 2}
+	keyB := metadb.ChannelKey{ChannelID: channelB, ChannelType: 2}
 	if got[keyA].LastMessageSeq != 11 || string(got[keyA].Payload) != "a" {
 		t.Fatalf("channelA latest = %#v, want seq 11 payload a", got[keyA])
 	}

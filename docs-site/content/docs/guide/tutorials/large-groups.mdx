@@ -54,7 +54,7 @@ curl -sS http://127.0.0.1:5001/message/send \
   }'
 ```
 
-`reason=1` 表示这个 Channel 的消息已达到 quorum commit。它不表示所有成员都在线、所有在线 Session 都写入成功，或者每位用户的会话投影已经刷新。
+`reason=1` 表示这个 Channel 的消息已达到 quorum commit。它不表示所有成员都在线、所有在线 Session 都写入成功，或者每位用户都已完成 membership 目录同步。
 
 Bob 可以同步群日志：
 

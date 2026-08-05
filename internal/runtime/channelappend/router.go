@@ -530,14 +530,18 @@ func preRouteChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {
 	if cmd.NoPersist {
 		return preRouteNoPersistChannel(cmd)
 	}
+	channelID := cmd.ChannelID
 	if cmd.NormalizePersonChannel && cmd.ChannelType == channelTypePerson {
-		channelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		normalizedChannelID, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
 		if err != nil {
 			return ChannelID{}, SendBatchItemResult{Err: err}, true
 		}
-		return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
+		channelID = normalizedChannelID
 	}
-	return ChannelID{ID: cmd.ChannelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
+	if cmd.SyncOnce {
+		channelID = runtimechannelid.ToCommandChannel(channelID)
+	}
+	return ChannelID{ID: channelID, Type: cmd.ChannelType}, SendBatchItemResult{}, false
 }
 
 func preRouteNoPersistChannel(cmd SendCommand) (ChannelID, SendBatchItemResult, bool) {

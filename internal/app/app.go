@@ -126,11 +126,7 @@ type App struct {
 	// deliveryWorker owns the canonical delivery runtime lifecycle.
 	deliveryWorker WorkerRuntime
 	// seedJoinLoop retries pre-membership JoinNode RPCs and gates entry startup until admission is observed.
-	seedJoinLoop                seedJoinRuntime
-	conversationRouteLifecycle  WorkerRuntime
-	conversationActiveWorker    WorkerRuntime
-	conversationAuthority       *conversationAuthority
-	conversationAuthorityClient *clusterinfra.ConversationAuthorityClient
+	seedJoinLoop seedJoinRuntime
 	// deliverySubscribers scans durable non-person channel subscribers when provided.
 	deliverySubscribers     channelappend.SubscriberSource
 	deliveryMeta            *deliveryMetaStore
@@ -177,25 +173,23 @@ type App struct {
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 
-	lifecycleMu               sync.Mutex
-	started                   bool
-	stopped                   bool
-	clusterStarted            bool
-	seedJoinStarted           bool
-	presenceStarted           bool
-	conversationRouteStarted  bool
-	conversationActiveStarted bool
-	channelAppendStarted      bool
-	deliveryStarted           bool
-	pluginRuntimeStarted      bool
-	pluginHookStarted         bool
-	webhookStarted            bool
-	backupRuntimeStarted      bool
-	apiStarted                bool
-	managerStarted            bool
-	prometheusStarted         bool
-	gatewayStarted            bool
-	deliveryErrors            atomic.Uint64
+	lifecycleMu          sync.Mutex
+	started              bool
+	stopped              bool
+	clusterStarted       bool
+	seedJoinStarted      bool
+	presenceStarted      bool
+	channelAppendStarted bool
+	deliveryStarted      bool
+	pluginRuntimeStarted bool
+	pluginHookStarted    bool
+	webhookStarted       bool
+	backupRuntimeStarted bool
+	apiStarted           bool
+	managerStarted       bool
+	prometheusStarted    bool
+	gatewayStarted       bool
+	deliveryErrors       atomic.Uint64
 }
 
 // New creates an internal App.
@@ -243,7 +237,6 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireDeliveryMetadata()
 	app.wireChannels()
 	conversationReadStore := app.newConversationReadStore()
-	app.wireConversationAuthority()
 	app.wireConversations(conversationReadStore)
 	app.wirePresence()
 	if err := app.wireBackup(clusterCfg); err != nil {
@@ -401,20 +394,6 @@ func (a *App) conversationListObserver() accessapi.ConversationListObserver {
 	return conversationListMetricsObserver{metrics: a.metrics}
 }
 
-func (a *App) conversationSyncObserver() accessapi.ConversationSyncObserver {
-	if a == nil || a.metrics == nil {
-		return nil
-	}
-	return conversationSyncMetricsObserver{metrics: a.metrics}
-}
-
-func (a *App) conversationAuthorityObserver() conversationAuthorityObserver {
-	if a == nil || a.metrics == nil {
-		return nil
-	}
-	return conversationAuthorityMetricsObserver{metrics: a.metrics}
-}
-
 func (a *App) gatewayObserver() gateway.Observer {
 	if a == nil {
 		return nil
@@ -507,26 +486,6 @@ func (a *App) currentPresenceAuthorities() []cluster.RouteAuthority {
 		})
 	}
 	return authorities
-}
-
-func (a *App) currentConversationAuthorityRouteTarget(hashSlot uint16) (conversationusecase.RouteTarget, bool) {
-	routes, ok := a.cluster.(clusterWriteReadyRuntime)
-	if !ok {
-		return conversationusecase.RouteTarget{}, false
-	}
-	route, err := routes.RouteHashSlot(hashSlot)
-	if err != nil {
-		return conversationusecase.RouteTarget{}, false
-	}
-	return conversationusecase.RouteTarget{
-		HashSlot:       route.HashSlot,
-		SlotID:         route.SlotID,
-		LeaderNodeID:   route.Leader,
-		LeaderTerm:     route.LeaderTerm,
-		ConfigEpoch:    route.ConfigEpoch,
-		RouteRevision:  route.Revision,
-		AuthorityEpoch: route.AuthorityEpoch,
-	}, true
 }
 
 func defaultClusterConfig(cfg Config) cluster.Config {

@@ -44,7 +44,7 @@ The configured submitter is normally the app-level channel append router, which
 resolves channel append authority and admits work into the authority node's
 channel append reactor. Validation, request-scoped command-channel derivation,
 message ID allocation, append retries, committed cursors, subscriber scan,
-conversation projection, NoPersist realtime dispatch, PersistAfter hooks, and
+NoPersist realtime dispatch, PersistAfter hooks, and
 online delivery are all owned by `internal/runtime/channelappend`.
 
 Permission checks preserve legacy reason semantics while staying
@@ -60,6 +60,9 @@ subscriber-set non-emptiness, and missing channel rows.
 SyncChannelMessages(query)
   -> validate login_uid, channel_id, and channel_type with legacy error strings
   -> canonicalize person-channel IDs using login_uid
+  -> require a live UID-owned membership
+  -> clamp visibility to join_seq and deleted_to_seq
+  -> reject terminally disbanded channels
   -> cap limit to the legacy maximum
   -> call ChannelMessageReader.SyncMessages with a normalized ChannelID
   -> treat missing channel runtime/storage as an empty page
@@ -68,6 +71,13 @@ SyncChannelMessages(query)
      full metadata, batch-read MessageEventStore states for stream messages by
      (channel_id, channel_type, client_msg_no) and attach compact event_meta
 ```
+
+`SyncChannelMessagesBatch` accepts at most 200 items. It prepares and validates
+every membership before issuing any Channel read, then calls the optional batch
+reader once. The cluster implementation groups those reads by exact Channel
+Leader and returns item-aligned pages/errors; one unavailable Channel need not
+discard successful siblings. Neither single nor batch pull performs a
+subscriber lookup or changes membership state.
 
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that

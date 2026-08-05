@@ -53,6 +53,8 @@ type Config struct {
 	Transport TransportConfig
 	// MessageEvent contains message event projection observation hooks.
 	MessageEvent MessageEventConfig
+	// MembershipObserver receives successful UID-directory mutation proposal rows.
+	MembershipObserver MembershipMutationObserver
 	// Timeouts contains lifecycle timeout budgets.
 	Timeouts TimeoutConfig
 	// Goroutines is the optional goroutine registry for lifecycle tracking across all cluster subsystems.
@@ -70,6 +72,22 @@ type Config struct {
 // reusable cluster package.
 type RestoreMaintenanceObserver interface {
 	RestoreMaintenanceChanged(bool)
+}
+
+// MembershipMutationObservation describes successfully proposed UID-directory rows.
+type MembershipMutationObservation struct {
+	// Directory is ordinary or cmd.
+	Directory string
+	// Operation is the bounded mutation kind within the directory.
+	Operation string
+	// Rows is the number of rows carried by the successful proposal.
+	Rows int
+}
+
+// MembershipMutationObserver receives actual cluster membership mutation proposals.
+type MembershipMutationObserver interface {
+	// ObserveMembershipMutation records one successful bounded proposal.
+	ObserveMembershipMutation(MembershipMutationObservation)
 }
 
 // ControlConfig contains Controller adapter configuration.

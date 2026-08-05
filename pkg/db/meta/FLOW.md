@@ -1,115 +1,79 @@
 # pkg/db/meta Flow
 
-`pkg/db/meta` owns hash-slot-scoped metadata storage on top of shared
-`pkg/db/internal` primitives.
+`pkg/db/meta` owns hash-slot-scoped metadata storage on shared
+`pkg/db/internal` primitives. Storage code here must not import Pebble
+directly.
 
-Current flow:
+## Core flow
 
-1. `MetaDB` wraps the metadata engine and returns stable `Shard` handles per
-   hash slot.
-2. Key helpers encode rows, indexes, and system state under the meta domain and
-   hash-slot partition.
-3. Ordinary metadata tables register a `TableSpec` in their `table_<name>.go`
-   file; the registry drives `Tables()`, row spans for snapshots, and common
-   primary/index runtime behavior.
-4. Schema descriptors define the durable metadata table catalog.
-5. Multi-hash-slot helpers lock shards in sorted order to avoid deadlocks.
-6. User, device, subscriber, channel runtime metadata, and plugin binding tables
-   use the table runtime for primary rows, key-aware values when needed, scans,
-   indexes, and ordinary batch staging.
-7. Channel ordinary CRUD and channel-ID reads use the table runtime, while
-   channel batch/cache orchestration remains custom so post-commit cache
-   publishing is unchanged.
-8. Channel reads populate an opportunistic in-memory cache, and channel
-   mutations invalidate the affected cache entry after commit. Channel rows
-   store status flags, the large-group marker, subscriber mutation version, and
-   the ordinary subscriber count.
-9. Subscriber mutations sort and de-duplicate UIDs, keep channel-owned
-   subscriber rows through the table runtime, update the channel subscriber
-   count and mutation version in the same commit, and invalidate the channel
-   cache. Counted batch mutations populate exact requested and changed counts
-   only while the same atomic commit evaluates set membership.
-10. User channel membership rows are UID-owned reverse membership records keyed
-    by `(uid, channel_id, channel_type)`, providing stable per-user channel
-    paging without touching rows on ordinary group message commits.
-11. Channel latest rows are channel-owned newest-message projections keyed by
-    `(channel_id, channel_type)`. Upserts only advance when the incoming
-    `last_message_seq` is newer, making committed-message retries and
-    out-of-order projection delivery idempotent.
-12. Message event projections are hash-slot scoped meta rows replicated by Slot
-   Raft and snapshotted with other meta rows. State rows are keyed by
-   `(channel_id, channel_type, client_msg_no, event_key)`, cursor rows are keyed
-   by `(channel_id, channel_type, client_msg_no)`, and applied-event rows are
-   keyed by `(channel_id, channel_type, client_msg_no, event_id)` so retries of
-   older events cannot advance the cursor or reapply reducer payloads. Storage
-   keeps reduced projection state and lean event idempotency records without raw
-   replay rows. `stream.open` starts the default open lane,
-   `stream.delta`/`stream.snapshot` update compact payload state, and terminal
-   event types leave an idempotent terminal projection.
-13. Channel runtime metadata stores routing, leadership, retention, and write
-   fence state with a runtime-backed primary row and key-aware rowcodec value;
-   typed methods keep monotonic upserts, guards, and retention semantics, while
-   page scans use runtime primary-key order and cursor bounds.
-14. Conversation state uses one kind-aware table for ordinary and CMD logical
-   views. Rows are keyed by `(uid, kind, channel_id, channel_type)`, active scans
-   use `(uid, kind, active_at desc, channel_id, channel_type)`, and `kind` stays
-   out of the encoded row value. Storage never infers ordinary versus CMD
-   semantics from channel-name suffixes; callers must pass the requested
-   `ConversationKind`. Typed methods keep merge, hide, clear, and read-advance
-   semantics isolated per kind. `SparseActive` marks rows whose `ActiveAt` is a
-   low-frequency ordering anchor, and active patches can carry monotonic
-   read/delete floors so activity advancement, sparse-active changes,
-   delete-barrier checks, and floor merges happen in one shard-locked mutation.
-15. Channel migration tasks use the table runtime for primary rows and terminal
-   indexes while keeping the active-task index custom because its legacy value
-   stores the active `task_id`; slot-scoped active-task reads page through that
-   active index instead of scanning the primary table. Guarded
-   task/runtime-meta mutations keep read-your-writes overlays before committing
-   both records atomically and advance `RouteGeneration` whenever the projected
-   runtime route changes; task owner claims are fenced so only the same
-   owner, an unowned task, or a task whose previous owner lease has expired at
-   the claim request's `now_ms` can take ownership.
-16. Hash-slot migration state uses the table runtime with a legacy primary key
-   that omits the family suffix; applied-delta dedup rows and outbox rows stay
-   as custom records under the same hash-slot partition, and typed values repeat
-   the hash slot only for self-description.
-17. `Batch` stages typed operations, locks all touched hash slots in sorted
-   order, uses table overlays for ordinary runtime tables, validates guards
-   against read-your-writes overlays for runtime metadata and channel migration
-   tasks, commits once, then publishes or invalidates channel cache entries.
-   Conditional channel create returns not-applied for an existing row, and the
-   business-flag patch returns not-applied for a missing row while preserving
-   every stored field except `Ban`, `Disband`, and `SendBan`.
-18. Hash-slot snapshots export row, index, and system spans for selected hash
-    slots into a checksummed payload; imports validate the payload, lock slots
-    in sorted order, replace existing spans, write entries in one sync commit,
-    and clear the channel cache.
-    Backup callers can open the same portable format from a pinned Pebble read
-    view; counting and encoding scan the stable view without accumulating the
-    full payload or blocking later metadata writes. The stream header exposes
-    the exact entry count, and header inspection returns a replacement reader
-    so publication can authenticate the count without consuming or rescanning
-    the payload.
-19. Preserving snapshot imports keep local hash-slot migration rows when they
-    already exist, while still importing incoming migration rows that are not
-    present locally.
-20. `DeleteHashSlotData` removes all row, index, and system spans for one hash
-    slot and clears the channel cache.
-21. Read-only inspect APIs expose stable diagnostic rows for known metadata
-    tables, supporting explicit hash-slot scans and bounded local scans across
-    hash slots without mutating storage.
-22. Slot FSM, proxy, cluster, runtime, access, and usecase callers use this
-    package through the compatibility `DB`, `ShardStore`, and `WriteBatch`
-    surface while the typed `MetaDB`/`Shard` APIs remain the new storage core.
-    Legacy `UserConversation*` compatibility methods map to
-    `ConversationKindNormal`, and legacy `CMDConversation*` compatibility
-    methods map to `ConversationKindCMD`; neither path registers or writes a
-    second conversation table.
+1. `MetaDB` exposes stable `Shard` handles per physical hash slot.
+2. Table specifications define rows and indexes; the registry drives
+   `Tables()`, inspect scans, snapshots, and shared primary/index behavior.
+3. Multi-hash-slot batches lock shards in sorted order, stage typed operations,
+   commit once, and publish cache invalidations only after commit.
+4. Channel-owned rows include Channel policy, subscribers, latest-message
+   metadata, runtime routing metadata, and migration state.
+5. UID-owned rows include users, devices, ordinary channel memberships, CMD
+   channel memberships, plugin bindings, and message-event state.
+6. Read-only inspect APIs expose stable bounded scans without mutating storage.
+7. Hash-slot snapshot, backup, restore, and deletion operate on registered row,
+   index, and system spans and clear affected caches after mutation.
 
-Restore-only target installation writes portable metadata snapshot rows into a
-fresh isolated database, applies strictly ordered Slot FSM commands, and can
-export the resulting hash-slot view in canonical key order. Production restore
-uses that export digest as the replica and final-verification fence; it never
-mutates a pre-existing nonempty generation.
+## Membership-backed conversation directory
 
-Storage code in this package must not import Pebble directly.
+There is no registered conversation table. Table IDs 6 and 7 remain reserved
+for the removed development-era ordinary and CMD conversation tables and must
+not be reused.
+
+`user_channel_membership` is UID-owned and keyed by:
+
+```text
+(uid, channel_id, channel_type)
+```
+
+It stores `join_seq`, monotonic badge `read_seq`, monotonic
+`deleted_to_seq`, explicit `activated_at`, tombstone metadata,
+`source_version`, and `updated_at`. Its directory index is:
+
+```text
+(uid, activated_at desc, channel_id, channel_type)
+```
+
+Point writes remove an obsolete activation-index key and install the new one in
+the same batch. Directory pages scan one UID hash slot and return the complete
+index cursor plus `done`; the limit bounds scanned rows. Ordinary message SEND
+does not touch this table.
+
+The membership reducer uses channel subscriber mutation `source_version` as a
+stale cross-Slot write fence. Later live upserts preserve personal state,
+rejoin after a later tombstone resets visibility from one captured Channel
+tail, and same-version live state wins reset conflicts. Explicit read, hide,
+and activation mutations reject tombstones and preserve `source_version`.
+
+`user_cmd_channel_membership` is a separate UID-owned table keyed by:
+
+```text
+(uid, command_channel_id, channel_type)
+```
+
+It stores `start_seq`, monotonic `ack_seq`, tombstone metadata, and
+`updated_at`. Bind/unbind and sync acknowledgement mutate this table; command
+message SEND does not. CMD rows have no ordinary activation, read, or delete
+fields.
+
+## Other important tables
+
+- Subscriber mutations sort and deduplicate UIDs and update the Channel's
+  subscriber count and mutation version atomically with subscriber rows.
+- Channel runtime metadata keeps routing, leadership, retention,
+  `directory_ready`, terminal state, and write fences monotonic.
+- Channel latest rows are channel-owned projections whose sequence only
+  advances; they are not a per-user conversation directory.
+- Message-event state, cursor, and applied-event tables preserve idempotent
+  event reduction without raw replay rows.
+- Migration tasks keep guarded runtime-meta updates and read-your-writes
+  overlays inside the same deterministic batch.
+
+Restore installs portable metadata into an isolated target, replays strictly
+ordered Slot FSM commands, and uses canonical snapshot digests as replication
+and final-verification fences.

@@ -24,9 +24,7 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 		int(identityRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
-		int(userConversationStateRPCServiceID),
 		int(channelMigrationRPCServiceID),
-		int(cmdConversationStateRPCServiceID),
 		int(pluginBindingRPCServiceID),
 	}
 	sort.Ints(want)

@@ -54,7 +54,7 @@ curl -sS http://127.0.0.1:5001/message/send \
   }'
 ```
 
-`reason=1` means this Channel message reached quorum commit. It does not mean every member was online, every online Session write succeeded, or every user's conversation projection is already current.
+`reason=1` means this Channel message reached quorum commit. It does not mean every member was online, every online Session write succeeded, or every client has completed its membership-directory synchronization.
 
 Bob can sync the group log:
 

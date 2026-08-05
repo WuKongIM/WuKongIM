@@ -21,6 +21,12 @@ type ChannelMessageReader interface {
 	SyncMessages(context.Context, ChannelMessageQuery) (ChannelMessagePage, error)
 }
 
+// ChannelMessageBatchReader performs one aligned cluster-routed batch.
+type ChannelMessageBatchReader interface {
+	// SyncMessagesBatch returns one item-scoped result for every query.
+	SyncMessagesBatch(context.Context, []ChannelMessageQuery) ([]ChannelMessageReadResult, error)
+}
+
 // MessageEventStore owns durable message event projection reads and writes.
 type MessageEventStore interface {
 	// AppendMessageEvent persists one message event projection update.

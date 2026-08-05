@@ -24,7 +24,7 @@ Gateway ──► message use case ──► Channel Append Authority
                                   │
                       SENDACK ─────┴─────► post-commit effects
                                            │
-                         conversation / online delivery / webhook / plugin
+                         online delivery / webhook / plugin
 
 Controller Raft ──► cluster-state.json ──► routing snapshot
                                                │
@@ -41,7 +41,7 @@ The diagram contains two distinct paths: Controller and Slot provide control and
 | Boundary | Authoritative state | Main responsibility | Does not own |
 | --- | --- | --- | --- |
 | Controller | committed Controller Raft log and applied boundary | nodes, Slot assignment, tasks, cluster-wide plans | high-frequency sessions or Channel payloads |
-| Slot | metadata state machine under the current Slot Raft Leader | users, channels, subscribers, conversation projections, ChannelRuntimeMeta | Channel message logs |
+| Slot | metadata state machine under the current Slot Raft Leader | users, channels, subscribers, ordinary/CMD memberships, ChannelRuntimeMeta | Channel message logs |
 | Channel | Channel Leader, ISR, and committed high watermark | per-channel order, durability, replication, committed visibility | global membership plans or concrete TCP sessions |
 | Gateway and online runtime | connection owner node and the UID Presence Authority | client sessions, online endpoints, cross-node delivery | durable presence or message-commit decisions |
 | Transport | bounded connections, queues, and service entry points | node Raft, RPC, replication, and notification transport | business authorization or unlimited retries |

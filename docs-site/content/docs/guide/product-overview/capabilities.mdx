@@ -24,7 +24,7 @@ WuKongIM 提供的是一套以 Channel 为核心的实时通信基础设施。�
 
 ## 消息语义
 
-WuKongIM 的 durable SEND 在 Channel 权威节点上追加，并等待 quorum 持久提交后确认。在线投递、会话投影、Webhook 和提交后插件随后运行，它们失败时不会回滚已经提交的 Channel 日志。
+WuKongIM 的 durable SEND 在 Channel 权威节点上追加，并等待 quorum 持久提交后确认。在线投递、Webhook 和提交后插件随后运行，它们失败时不会回滚已经提交的 Channel 日志；会话视图稍后由 membership 与 Channel 状态构建。
 
 ```text
 client -> Gateway -> message usecase -> Channel authority

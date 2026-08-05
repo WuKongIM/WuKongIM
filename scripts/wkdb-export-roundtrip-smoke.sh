@@ -150,12 +150,15 @@ echo "roundtrip import ok"
 
 user_json="$(capture_wkdb --data-dir "$roundtrip_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user where uid='smoke-u1'")"
 channel_json="$(capture_wkdb --data-dir "$roundtrip_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.channel where channel_id='smoke-g1'")"
-conversation_json="$(capture_wkdb --data-dir "$roundtrip_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.conversation where uid='smoke-u1'")"
+membership_json="$(capture_wkdb --data-dir "$roundtrip_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user_channel_membership where uid='smoke-u1'")"
+cmd_membership_json="$(capture_wkdb --data-dir "$roundtrip_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user_cmd_channel_membership where uid='smoke-u1'")"
 message_json="$(capture_wkdb --data-dir "$roundtrip_dir" --format json query "select * from message.message where channel_key='smoke-g1:2' limit 10")"
 
 assert_contains "$user_json" "smoke-token"
 assert_contains "$channel_json" '"subscriber_count": 1'
-assert_contains "$conversation_json" '"read_seq": 1'
+assert_contains "$membership_json" '"read_seq": 1'
+assert_contains "$membership_json" '"activated_at": 1710000000001'
+assert_contains "$cmd_membership_json" '"ack_seq": 1'
 assert_contains "$message_json" '"message_seq": 1'
 assert_contains "$message_json" '"message_id": 1001'
 assert_contains "$message_json" '"server_timestamp_ms": 1710000000003'
@@ -174,7 +177,8 @@ echo "query ok"
   echo "- roundtrip_import: $roundtrip_output"
   echo "- user_query: ok"
   echo "- channel_query: ok"
-  echo "- conversation_query: ok"
+  echo "- membership_query: ok"
+  echo "- cmd_membership_query: ok"
   echo "- message_query: ok"
 } > "$summary_file"
 

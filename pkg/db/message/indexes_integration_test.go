@@ -76,6 +76,44 @@ func TestMessageIndexListsClientMsgNoNewestFirst(t *testing.T) {
 	}
 }
 
+func TestMessageIndexFindsLatestSenderSequenceThroughCommittedBoundary(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), []Record{
+		{ID: 31, ClientMsgNo: "u1-1", FromUID: "u1", Payload: []byte("one")},
+		{ID: 32, ClientMsgNo: "u2-1", FromUID: "u2", Payload: []byte("two")},
+		{ID: 33, ClientMsgNo: "u1-2", FromUID: "u1", Payload: []byte("three")},
+	}, AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	seq, ok, err := log.GetLastSenderMessageSeq(context.Background(), "u1", 2)
+	if err != nil {
+		t.Fatalf("GetLastSenderMessageSeq(): %v", err)
+	}
+	if !ok || seq != 1 {
+		t.Fatalf("GetLastSenderMessageSeq() = (%d, %v), want (1, true)", seq, ok)
+	}
+
+	seq, ok, err = log.GetLastSenderMessageSeq(context.Background(), "u1", 3)
+	if err != nil {
+		t.Fatalf("GetLastSenderMessageSeq(latest): %v", err)
+	}
+	if !ok || seq != 3 {
+		t.Fatalf("GetLastSenderMessageSeq(latest) = (%d, %v), want (3, true)", seq, ok)
+	}
+
+	_, ok, err = log.GetLastSenderMessageSeq(context.Background(), "missing", 3)
+	if err != nil {
+		t.Fatalf("GetLastSenderMessageSeq(missing): %v", err)
+	}
+	if ok {
+		t.Fatal("GetLastSenderMessageSeq(missing) ok = true, want false")
+	}
+}
+
 func TestAppendStrictRejectsDuplicateMessageID(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

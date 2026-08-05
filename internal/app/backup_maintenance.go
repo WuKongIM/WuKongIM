@@ -88,9 +88,7 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 	// maintenance fence merely because an earlier pass saw closed workers.
 	a.restoreSideEffectsSuspended = true
 	var resultErr error
-	conversationQuiesced := true
 	if err := a.pauseRestoreAdmissions(ctx); err != nil {
-		conversationQuiesced = false
 		resultErr = errors.Join(resultErr, err)
 	}
 	if a.channelAppends != nil {
@@ -115,15 +113,6 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 		if err := a.pluginHook.Stop(ctx); err != nil {
 			resultErr = errors.Join(resultErr, err)
 		}
-	}
-	if a.conversationActiveWorker != nil {
-		if err := a.conversationActiveWorker.Stop(ctx); err != nil {
-			conversationQuiesced = false
-			resultErr = errors.Join(resultErr, err)
-		}
-	}
-	if a.conversationAuthority != nil && conversationQuiesced {
-		a.conversationAuthority.resetAfterRestore()
 	}
 	a.resetRestoreSensitiveCaches()
 	if runtime, ok := a.cluster.(interface{ PauseLocalRestoreRuntime() }); ok {
@@ -151,11 +140,6 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 			resultErr = errors.Join(resultErr, err)
 		}
 	}
-	if a.conversationActiveWorker != nil {
-		if err := a.conversationActiveWorker.Start(ctx); err != nil {
-			resultErr = errors.Join(resultErr, err)
-		}
-	}
 	if a.pluginHook != nil {
 		if err := a.pluginHook.Start(ctx); err != nil {
 			resultErr = errors.Join(resultErr, err)
@@ -176,9 +160,6 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	}
 	if a.channelAppends != nil {
 		a.channelAppends.ResumeAfterRestore()
-	}
-	if a.conversationAuthority != nil {
-		a.conversationAuthority.resumeAfterRestore()
 	}
 	if runtime, ok := a.cluster.(interface{ ResumeLocalRestoreRuntime() }); ok {
 		runtime.ResumeLocalRestoreRuntime()
@@ -205,15 +186,12 @@ func (a *App) resetRestoreSensitiveCaches() {
 	}
 }
 
-func (a *App) pauseRestoreAdmissions(ctx context.Context) error {
+func (a *App) pauseRestoreAdmissions(_ context.Context) error {
 	if a == nil {
 		return nil
 	}
 	if a.channelAppends != nil {
 		a.channelAppends.PauseForRestore()
-	}
-	if a.conversationAuthority != nil {
-		return a.conversationAuthority.pauseForRestore(ctx)
 	}
 	return nil
 }

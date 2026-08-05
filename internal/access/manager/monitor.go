@@ -42,7 +42,7 @@ const (
 	RealtimeMonitorCategoryInternal = "internal"
 	// RealtimeMonitorCategoryMessage groups message append, commit, delivery, retry, and path error cards.
 	RealtimeMonitorCategoryMessage = "message"
-	// RealtimeMonitorCategoryConversation groups conversation sync and active-cache cards.
+	// RealtimeMonitorCategoryConversation groups directory and hydration cards.
 	RealtimeMonitorCategoryConversation = "conversation"
 	// RealtimeMonitorCategoryChannel groups channel runtime and append cards.
 	RealtimeMonitorCategoryChannel = "channel"
@@ -68,7 +68,7 @@ const (
 	RealtimeMonitorStageSendEntry = "sendEntry"
 	// RealtimeMonitorStageAppendCommit identifies append and commit cards.
 	RealtimeMonitorStageAppendCommit = "appendCommit"
-	// RealtimeMonitorStageConversationSync identifies conversation sync and active-cache cards.
+	// RealtimeMonitorStageConversationSync identifies directory and hydration cards.
 	RealtimeMonitorStageConversationSync = "conversationSync"
 	// RealtimeMonitorStageOnlineDelivery identifies online delivery cards.
 	RealtimeMonitorStageOnlineDelivery = "onlineDelivery"

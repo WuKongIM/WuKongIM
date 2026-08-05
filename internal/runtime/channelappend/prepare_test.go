@@ -145,6 +145,29 @@ func TestPrepareNormalizesPersonChannel(t *testing.T) {
 	}
 }
 
+func TestPreparePersistentSyncOnceAppendsToCommandChannel(t *testing.T) {
+	commandChannelID := runtimechannelid.ToCommandChannel("room")
+	group := newPreparedGroupWithOptions(t, Options{
+		LocalNodeID:         1,
+		AuthorityShardCount: 4,
+		MessageID:           newSequenceIDsForPrepare(200),
+	})
+
+	got := group.submitAndDrainPrepareToTarget(t, AuthorityTarget{
+		ChannelID:    ChannelID{ID: commandChannelID, Type: 2},
+		ChannelKey:   channelKey(ChannelID{ID: commandChannelID, Type: 2}),
+		LeaderNodeID: 1,
+	}, sendItemForPrepare(SendCommand{
+		FromUID: "u1", ChannelID: "room", ChannelType: 2, Payload: []byte("cmd"), SyncOnce: true,
+	}))
+
+	requireAppendSuccess(t, got.Results, 0, 200, 1)
+	request := group.singleAppendRequest(t)
+	if request.ChannelID.ID != commandChannelID || !request.Messages[0].SyncOnce {
+		t.Fatalf("append request = %+v", request)
+	}
+}
+
 func TestPrepareRequestScopedTargetMismatchReturnsStaleRouteWithoutState(t *testing.T) {
 	group := newPreparedGroupWithOptions(t, Options{
 		LocalNodeID:         1,

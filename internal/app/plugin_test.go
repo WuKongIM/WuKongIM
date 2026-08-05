@@ -165,7 +165,7 @@ func TestNewWiresPluginUsecaseAsMessageSender(t *testing.T) {
 func TestNewWiresPluginUsecaseAsChannelMessageReader(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		conversationMessages: map[metadb.ConversationKey][]channelruntime.Message{
+		conversationMessages: map[metadb.ChannelKey][]channelruntime.Message{
 			{ChannelID: "g1", ChannelType: 2}: {{
 				MessageID:   321,
 				MessageSeq:  7,
@@ -257,10 +257,10 @@ func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
 func TestNewWiresPluginUsecaseAsConversationReader(t *testing.T) {
 	cluster := &fakeManagerCluster{
 		nodeID: 1,
-		conversationPages: map[string][]metadb.ConversationState{
+		membershipPages: map[string][]metadb.UserChannelMembership{
 			"u1": {
-				{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "g1", ChannelType: 2, ActiveAt: 2},
-				{UID: "u1", Kind: metadb.ConversationKindNormal, ChannelID: "p1", ChannelType: 1, ActiveAt: 1},
+				{UID: "u1", ChannelID: "g1", ChannelType: 2, ActivatedAt: 2},
+				{UID: "u1", ChannelID: "p1", ChannelType: 1, ActivatedAt: 1},
 			},
 		},
 	}

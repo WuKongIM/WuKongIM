@@ -12,5 +12,5 @@ Online Delivery seam.
 - Clone methods exist for adapters and tests that retain or serialize values;
   the Online Delivery admission hot path does not clone plans.
 
-Subscriber discovery, authority grouping, conversation projection, ACK tokens,
+Subscriber discovery, authority grouping, ACK tokens,
 worker queues, and retry state are not part of this contract package.

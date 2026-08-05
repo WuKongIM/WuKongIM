@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 )
 
 func TestChannelMessageReaderMapsPullUpRequestAndTrimsHasMore(t *testing.T) {
@@ -79,11 +80,45 @@ func TestChannelMessageReaderMapsPullDownAndReturnsAscending(t *testing.T) {
 	}
 }
 
+func TestChannelMessageReaderBatchUsesOneAlignedClusterRead(t *testing.T) {
+	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{
+		{Read: channelstore.ReadCommittedResult{Messages: []channelruntime.Message{{MessageSeq: 2}, {MessageSeq: 3}}}},
+		{Err: channelruntime.ErrNotReady},
+	}}
+	reader := NewChannelMessageReader(node)
+
+	results, err := reader.SyncMessagesBatch(context.Background(), []message.ChannelMessageQuery{
+		{ChannelID: message.ChannelID{ID: "g1", Type: 2}, StartSeq: 1, Limit: 1, PullMode: message.PullModeUp},
+		{ChannelID: message.ChannelID{ID: "g2", Type: 2}, StartSeq: 4, Limit: 2, PullMode: message.PullModeUp},
+	})
+	if err != nil {
+		t.Fatalf("SyncMessagesBatch() error=%v", err)
+	}
+	if node.batchCalls != 1 || len(node.batchReads) != 2 {
+		t.Fatalf("batch calls=%d reads=%+v", node.batchCalls, node.batchReads)
+	}
+	if !results[0].Page.HasMore || len(results[0].Page.Messages) != 1 {
+		t.Fatalf("first result=%+v, want trimmed page", results[0])
+	}
+	if results[1].Err == nil {
+		t.Fatalf("second result=%+v, want item error", results[1])
+	}
+}
+
 type recordingReadNode struct {
-	lastID  channelruntime.ChannelID
-	lastReq channelstore.ReadCommittedRequest
-	result  channelstore.ReadCommittedResult
-	err     error
+	lastID       channelruntime.ChannelID
+	lastReq      channelstore.ReadCommittedRequest
+	result       channelstore.ReadCommittedResult
+	err          error
+	batchCalls   int
+	batchReads   []clusterchannels.CommittedRead
+	batchResults []clusterchannels.CommittedReadResult
+}
+
+func (n *recordingReadNode) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	n.batchCalls++
+	n.batchReads = append([]clusterchannels.CommittedRead(nil), reads...)
+	return n.batchResults, n.err
 }
 
 func (n *recordingReadNode) ReadChannelCommitted(_ context.Context, id channelruntime.ChannelID, req channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {

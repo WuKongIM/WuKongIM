@@ -18,6 +18,8 @@ type appendKeyCache struct {
 	clientMsgNoIndexPrefix []byte
 	// idempotencyIndexPrefix is the sender/client-message index prefix before sender key parts.
 	idempotencyIndexPrefix []byte
+	// senderSeqIndexPrefix is the sender/sequence index prefix before sender key parts.
+	senderSeqIndexPrefix []byte
 	// catalogKey is the immutable catalog key for this channel.
 	catalogKey []byte
 	// catalogValue is the immutable catalog value for this channel identity.
@@ -30,6 +32,7 @@ func newAppendKeyCache(key ChannelKey, id ChannelID) appendKeyCache {
 		messageIDIndexPrefix:   encodeMessageIndexPrefix(key, messageIndexIDMessageID),
 		clientMsgNoIndexPrefix: encodeMessageIndexPrefix(key, messageIndexIDClientMsgNo),
 		idempotencyIndexPrefix: encodeMessageIndexPrefix(key, messageIndexIDFromUIDClientMsgNo),
+		senderSeqIndexPrefix:   encodeMessageIndexPrefix(key, messageIndexIDFromUIDMessageSeq),
 		catalogKey:             encodeCatalogKey(key),
 		catalogValue:           encodeCatalogValue(id),
 	}
@@ -130,6 +133,17 @@ func (c appendKeyCache) writeIdempotencyIndexKey(dst []byte, fromUID string, cli
 	offset := len(c.idempotencyIndexPrefix)
 	offset = writeAppendKeyString(dst, offset, fromUID)
 	writeAppendKeyString(dst, offset, clientMsgNo)
+}
+
+func (c appendKeyCache) senderSeqIndexKeyLen(fromUID string) int {
+	validateAppendKeyStringLen(fromUID)
+	return len(c.senderSeqIndexPrefix) + 2 + len(fromUID) + 8
+}
+
+func (c appendKeyCache) writeSenderSeqIndexKey(dst []byte, fromUID string, seq uint64) {
+	copy(dst, c.senderSeqIndexPrefix)
+	offset := writeAppendKeyString(dst, len(c.senderSeqIndexPrefix), fromUID)
+	binary.BigEndian.PutUint64(dst[offset:], seq)
 }
 
 func writeAppendKeyString(dst []byte, offset int, value string) int {

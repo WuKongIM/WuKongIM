@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -44,8 +46,21 @@ type restoreChannelSubscriberNode interface {
 
 // ChannelMembershipNode exposes UID-owned reverse membership projection operations.
 type ChannelMembershipNode interface {
-	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, int64) error
-	DeleteUserChannelMemberships(context.Context, string, int64, []string, int64) error
+	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, uint64, int64) error
+	TombstoneUserChannelMemberships(context.Context, string, int64, []string, uint64, int64) error
+}
+
+type committedChannelTailNode interface {
+	CommittedChannelTail(context.Context, string, int64) (uint64, error)
+}
+
+// PersonDirectoryNode exposes cluster mutations needed to establish canonical
+// person-channel discovery before the first persistent ordinary append.
+type PersonDirectoryNode interface {
+	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
+	CommittedChannelTail(context.Context, string, int64) (uint64, error)
+	UpsertUserChannelMemberships(context.Context, string, int64, []string, uint64, uint64, int64) error
+	EnsureChannelDirectoryReady(context.Context, string, int64) error
 }
 
 // ChannelMetadataStore adapts cluster Slot metadata to the entry-agnostic channel usecase.
@@ -77,6 +92,12 @@ func (s *ChannelMetadataStore) GetChannel(ctx context.Context, channelID string,
 func (s *ChannelMetadataStore) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
 	channel, err := s.GetChannel(ctx, channelID, channelType)
 	return channel, mapChannelPermissionReadError(err)
+}
+
+// GetChannelForMessagePull reads terminal channel state without the send
+// permission cache so disband takes effect on the authoritative path.
+func (s *ChannelMetadataStore) GetChannelForMessagePull(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return s.GetChannel(ctx, channelID, channelType)
 }
 
 // UpsertChannel persists channel metadata through Slot ownership.
@@ -238,19 +259,76 @@ func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channe
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.
-func (s *ChannelMetadataStore) UpsertChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
+func (s *ChannelMetadataStore) UpsertChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, committedTail, sourceVersion uint64, updatedAt int64) error {
 	if s == nil || s.membershipNode == nil {
 		return metadb.ErrNotFound
 	}
-	return s.membershipNode.UpsertUserChannelMemberships(ctx, channelID, channelType, append([]string(nil), uids...), joinSeq, updatedAt)
+	return s.membershipNode.UpsertUserChannelMemberships(ctx, channelID, channelType, append([]string(nil), uids...), committedTail, sourceVersion, updatedAt)
 }
 
-// DeleteChannelMemberships removes UID-owned memberships for normal channel subscribers.
-func (s *ChannelMetadataStore) DeleteChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error {
+// TombstoneChannelMemberships records UID-owned removals for normal subscribers.
+func (s *ChannelMetadataStore) TombstoneChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, sourceVersion uint64, updatedAt int64) error {
 	if s == nil || s.membershipNode == nil {
 		return metadb.ErrNotFound
 	}
-	return s.membershipNode.DeleteUserChannelMemberships(ctx, channelID, channelType, append([]string(nil), uids...), updatedAt)
+	return s.membershipNode.TombstoneUserChannelMemberships(ctx, channelID, channelType, append([]string(nil), uids...), sourceVersion, updatedAt)
+}
+
+// CommittedChannelTail captures the channel boundary used to initialize a
+// logical membership add.
+func (s *ChannelMetadataStore) CommittedChannelTail(ctx context.Context, channelID string, channelType int64) (uint64, error) {
+	if s == nil || s.node == nil {
+		return 0, metadb.ErrNotFound
+	}
+	node, ok := s.node.(committedChannelTailNode)
+	if !ok {
+		return 0, metadb.ErrInvalidArgument
+	}
+	return node.CommittedChannelTail(ctx, channelID, channelType)
+}
+
+// EnsurePersonChannelDirectory establishes both UID-owned memberships before
+// the first persistent ordinary person-channel append. The durable readiness
+// bit is monotonic; the node-local cache only skips redundant checks.
+func (s *ChannelMetadataStore) EnsurePersonChannelDirectory(ctx context.Context, channelID string, channelType int64) error {
+	if s == nil || s.node == nil || channelType != 1 {
+		return metadb.ErrInvalidArgument
+	}
+	id := channelappend.ChannelID{ID: channelID, Type: uint8(channelType)}
+	if metadata, ok := s.appendMetadataCache.Lookup(id); ok && metadata.DirectoryReady {
+		return nil
+	}
+	node, ok := s.node.(PersonDirectoryNode)
+	if !ok {
+		return metadb.ErrInvalidArgument
+	}
+	channel, err := node.GetChannelMetadataAuthoritative(ctx, channelID, channelType)
+	if err == nil && channel.DirectoryReady != 0 {
+		s.appendMetadataCache.storeChannel(channel)
+		return nil
+	}
+	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+		return mapChannelPermissionReadError(err)
+	}
+	left, right, err := runtimechannelid.DecodePersonChannel(channelID)
+	if err != nil {
+		return err
+	}
+	tail, err := node.CommittedChannelTail(ctx, channelID, channelType)
+	if err != nil {
+		return err
+	}
+	if err := node.UpsertUserChannelMemberships(ctx, channelID, channelType, []string{left, right}, tail, 1, time.Now().UnixNano()); err != nil {
+		return err
+	}
+	if err := node.EnsureChannelDirectoryReady(ctx, channelID, channelType); err != nil {
+		return err
+	}
+	channel.ChannelID = channelID
+	channel.ChannelType = channelType
+	channel.DirectoryReady = 1
+	s.appendMetadataCache.storeChannel(channel)
+	return nil
 }
 
 func firstSubscriberMutationVersion(values []uint64) uint64 {

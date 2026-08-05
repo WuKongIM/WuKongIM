@@ -3,7 +3,7 @@ title: 单聊
 description: 实现两个用户之间的持久消息、在线投递、离线同步、未读状态与多设备恢复。
 ---
 
-本教程以 `alice` 和 `bob` 为例。最终结果是：两端通过自己的业务身份连接，Alice 向 Bob 的个人 Channel 发送一条持久消息，Bob 可以在线接收，也能在断线后从日志恢复，并在自己的会话投影中处理未读状态。
+本教程以 `alice` 和 `bob` 为例。最终结果是：两端通过自己的业务身份连接，Alice 向 Bob 的个人 Channel 发送一条持久消息，Bob 可以在线接收，也能在断线后从日志恢复，并通过 UID-owned membership 处理未读状态。
 
 ## 开始前
 
@@ -87,7 +87,7 @@ curl -sS http://127.0.0.1:5001/conversation/list \
   -d '{"uid":"bob","limit":20}'
 ```
 
-Bob 的会话项使用 `channel_id=alice`。`unread` 是 Bob 的 UID-owned 投影视角，不是全局投递计数。用户确认当前会话已读后，由受信边界调用：
+Bob 的会话项使用 `channel_id=alice`。`unread` 由 Bob 的 membership 与 Channel 状态计算，不是全局投递计数。用户确认当前会话已读后，由受信边界调用：
 
 ```bash
 curl -sS http://127.0.0.1:5001/conversations/clearUnread \
@@ -95,7 +95,7 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
   -d '{"uid":"bob","channel_id":"alice","channel_type":1}'
 ```
 
-`clearUnread` 会读取服务端最新可见消息，并把 Bob 的已读位置推进到该 sequence；请求里的可选 `message_seq` 仅在服务端找不到最新消息时作为兼容回退。它不是精确记录客户端最后阅读 sequence 的接口，因此并发新消息可能一起被标记为已读。会话投影更新失败不会回滚已经 quorum commit 的消息。
+`clearUnread` 会读取最新已提交普通 sequence，并单调推进 Bob membership 的 `read_seq`。它是红点命令，不是精确的客户端已读回执，因此并发新消息也可能一起被清除红点。
 
 ## 5. 验证多设备与恢复
 
@@ -103,6 +103,6 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
 2. 明确产品的主/从设备冲突策略，不把“同 UID”理解为“只有一条连接”。
 3. 断开其中一个设备，再发送一条新的持久消息。
 4. 重连后通过 SDK 同步或 `/channel/messagesync` 恢复缺失 sequence。
-5. 验证在线投递、离线恢复和会话未读不会被当成同一个完成信号。
+5. 验证在线投递、离线恢复和 membership-backed 未读计算不会被当成同一个完成信号。
 
 上线前还要测试好友解除、黑名单、Token 撤销、断线重试、重复发送、热点单聊分布和 Webhook 重复消费。继续阅读[群聊与超大群](/zh/guide/tutorials/large-groups)或[消息收发](/zh/guide/integration/messaging)。

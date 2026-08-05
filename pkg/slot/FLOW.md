@@ -2,7 +2,7 @@
 
 ## 1. 职责定位
 
-基于 Multi-Raft 的分布式元数据存储层。集群元数据按 Slot 分片到多个独立 Raft Group 中管理，每个 Slot 负责一部分键空间（用户、频道、订阅者、会话状态等）。
+基于 Multi-Raft 的分布式元数据存储层。集群元数据按 Slot 分片到多个独立 Raft Group 中管理，每个 Slot 负责一部分键空间（用户、频道、订阅者、普通/CMD membership 等）。
 **不负责**: 消息日志存储（由 channel 负责）、Slot 的副本分配决策（由 controller 负责）、跨节点 durable send 寻址 / 重路由（由 `internal/runtime/channelplane` 负责）。
 
 ## 2. 子包分工
@@ -23,16 +23,10 @@ Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
 Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
 Store.UpsertDevice / GetDevice
-Store.GetUserConversationState / UpsertUserConversationStates / ListUserConversationActive / ScanUserConversationStatePage
-Store.TouchUserConversationActiveAt / ClearUserConversationActiveAt / HideUserConversations
-Store.RegisterUserConversationActiveOverlay(overlay)  // 注册 UID-owner active_at 热提示覆盖层
-Store.SubmitUserConversationActiveHints / RemoveUserConversationActiveHints
 Store.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGuard / GetActiveChannelMigrationTask / ListRunnableChannelMigrationTasksForLocalLeaderSlots / ListActiveChannelMigrationTasksForNode
 Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteFence / ResetChannelWriteFenceToPreCutover
 Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
 Store.GarbageCollectTerminalChannelMigrationTasks
-Store.GetCMDConversationState / ListCMDConversationActive
-Store.UpsertCMDConversationStates / AdvanceCMDConversationReadSeq
 Store.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ListPluginBindingsByPluginNo / ExistPluginBindingByUID
 Cluster Node.AppendMessageEvent / GetMessageEventStatesBatch
 
@@ -42,7 +36,9 @@ WriteBatch.CreateChannelMigrationTask / CreateChannelMigrationTaskWithRuntimeGua
 ShardStore.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ScanPluginBindingsByPluginNo / ExistPluginBindingByUID
 WriteBatch.BindPluginUser / UnbindPluginUser
 ShardStore.GetUserChannelMembership / ListUserChannelMembershipPage
-WriteBatch.UpsertUserChannelMembership / DeleteUserChannelMembership
+WriteBatch.UpsertUserChannelMembership / AdvanceUserChannelMembershipReadSeq / HideUserChannelMembership / ActivateUserChannelMembership
+ShardStore.GetUserCMDChannelMembership / ListUserCMDChannelMembershipPage
+WriteBatch.UpsertUserCMDChannelMembership / AdvanceUserCMDChannelMembershipAckSeq / TombstoneUserCMDChannelMembership
 ShardStore.GetChannelLatest / UpsertChannelLatest
 WriteBatch.UpsertChannelLatest
 ShardStore.AppendMessageEvent / ListMessageEventStates
@@ -70,7 +66,8 @@ Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / C
 | `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
 | `ChannelRuntimeMeta` | pkg/db/meta | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
 | `ChannelMigrationTask` | pkg/db/meta | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
-| `ConversationState` | pkg/db/meta | UID-owned kind-aware 会话投影；`ConversationKindNormal` 服务普通会话，`ConversationKindCMD` 服务 CMD 离线同步 |
+| `UserChannelMembership` | pkg/db/meta | UID-owned 普通会话目录、加入/隐藏边界、badge floor 与显式 activation |
+| `UserCMDChannelMembership` | pkg/db/meta | 独立 CMD 绑定、起始序号、ack 与 tombstone 状态 |
 | `Raft Logger` | multiraft/logging.go | `wklog` 结构化日志，模块 `slot.raft`，附带 `raftScope=slot` / `nodeID` / `slotID` / `raftEvent`；heartbeat/read-index/probe 类噪声按 Debug 输出 |
 
 ## 5. 核心流程
@@ -106,9 +103,9 @@ Pebble:
   写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
 ```
 
-`Store.TouchUserConversationActiveAt` 是 active hint 的 best-effort 落盘路径。它仍按 UID hash slot
-拆分命令以保持迁移围栏语义；因此上游 cache 的后台 flush batch 需要保持较小，避免一次 best-effort
-flush 触发大量 hash-slot proposal 并抢占前台发送链路。
+普通消息 SEND 不提交 membership 命令。只有订阅成员变更以及显式
+clear/set unread、hide、activate 操作才通过 UID hash slot 提交普通 membership
+命令；CMD bind/unbind/syncack 使用独立 CMD membership 命令。
 
 `channel_latest` 支持按物理 Slot 聚合的批量命令。命令 envelope 只携带一个用于路由的
 hash slot，但 batch entry 内部会保存每行真实 hash slot；`fsm.ApplyBatch` 会校验每个
@@ -284,15 +281,19 @@ Meta  (0x12): [0x12][hashSlot:2][...]                             元信息
 | 3 | ChannelRuntimeMeta | (channel_id, channel_type) | - |
 | 4 | Device | (uid, device_flag) | - |
 | 5 | Subscriber | (channel_id, channel_type, uid) | - |
-| 6 | Conversation | (uid, kind, channel_id, channel_type) | idx_conversation_active |
-| 7 | ReservedCMDConversation | - | development-era split CMD table ID, not registered |
+| 6 | ReservedConversation | - | 已删除的开发期 conversation 表 ID，不注册、不复用 |
+| 7 | ReservedCMDConversation | - | 已删除的开发期 CMD conversation 表 ID，不注册、不复用 |
 | 8 | PluginUserBinding | (uid, plugin_no) | idx_plugin_no_uid |
 | 9 | ChannelMigrationTask | (channel_id, channel_type, task_id) | idx_channel_migration_active, idx_channel_migration_terminal |
 | 10 | HashSlotMigration | (hash_slot) | - |
-| 11 | UserChannelMembership | (uid, channel_id, channel_type) | - |
+| 11 | UserChannelMembership | (uid, channel_id, channel_type) | idx_user_membership_activated |
 | 12 | ChannelLatest | (channel_id, channel_type) | - |
+| 13 | MessageEventState | (channel_id, channel_type, client_msg_no, event_key) | - |
+| 14 | MessageEventCursor | (channel_id, channel_type, client_msg_no) | - |
+| 15 | MessageEventApplied | (channel_id, channel_type, client_msg_no, event_id) | - |
+| 16 | UserCMDChannelMembership | (uid, command_channel_id, channel_type) | - |
 
-## 7. FSM 命令类型（42 种，其中 2 个为保留用途）
+## 7. FSM 命令类型
 
 TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 未知 Tag 自动跳过（前向兼容）。详见 `fsm/command.go`。
@@ -302,11 +303,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 4: UpsertChannelRuntimeMeta                     5: DeleteChannelRuntimeMeta
 6: CreateUser         7: UpsertDevice
 8: AddSubscribers     9: RemoveSubscribers
-10: UpsertConversationStates
-11: TouchConversationActiveAt                   12: ClearConversationActiveAt
-13: ReservedConversationProjectionUpsert        14: ReservedConversationProjectionDelete
 15: AdvanceChannelRetentionThroughSeq
-16: HideConversations
 20: ApplyDelta                         21: EnterFence
 22: AckMigrationOutbox                 23: CleanupMigrationOutbox
 30: CreateChannelMigrationTask         31: ClaimChannelMigrationTask
@@ -321,6 +318,11 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 46: UpsertChannelLatest               47: UpsertChannelLatestBatch
 48: AppendMessageEvent                49: AppendMessageEventsBatch
 50: CreateChannel                     51: PatchChannelBusinessFlags
+52: AdvanceUserChannelMembershipReadSeq
+53: HideUserChannelMembership         54: ActivateUserChannelMembership
+55: UpsertUserCMDChannelMemberships   56: AdvanceUserCMDChannelMembershipAcks
+57: TombstoneUserCMDChannelMemberships
+58: EnsureChannelDirectoryReady
 ```
 
 ## 8. RPC Service IDs（proxy 层）
@@ -330,10 +332,8 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `runtimeMetaRPCServiceID` | 3 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
 | `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
 | `subscriberRPCServiceID` | 79 | 订阅者列表、精确包含与非空查询 | proxy/subscriber_rpc.go |
-| `userConversationStateRPCServiceID` | 11 | 会话状态查询、active_at 热提示提交/删除 | proxy/user_conversation_state_rpc.go |
 | `channelRPCServiceID` | 80 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
-| `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发，避免与 conversation facts service ID 13 冲突 | proxy/channel_migration_rpc.go |
-| `cmdConversationStateRPCServiceID` | 49 | CMD 会话状态查询、upsert 与 read cursor 推进 | proxy/cmd_conversation_state_rpc.go |
+| `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发 | proxy/channel_migration_rpc.go |
 | `pluginBindingRPCServiceID` | 53 | 插件绑定查询、UID-owned 远端提案与 plugin_no 扫描 | proxy/plugin_binding_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
@@ -341,7 +341,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 ## 9. 避坑清单
 
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
-- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 当前用于 conversation projector，必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
+- **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。
 - **CreateUser 幂等**: `Store.CreateUser` 先权威 RPC 查询避免重复，但 Raft Apply 层的 `CreateUser` 仍需是幂等的（并发场景下已存在时跳过，不能 fail Slot）。见 `pkg/db/meta` compatibility `WriteBatch.CreateUser`。
@@ -363,12 +363,10 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 - **ChannelRuntimeMeta 分页边界**: `meta.ShardStore.ListChannelRuntimeMetaPage` 只扫描当前 hash slot 的主键范围，按 `(channel_id, channel_type)` 升序读取并用 `limit+1` 判定是否还有下一页；更高层如果需要物理 Slot / 全局分页，必须基于这个分片原语做增量合并，不能先全量拉取再截页。
 - **ChannelRuntimeMeta 权威分页**: `Store.ScanChannelRuntimeMetaSlotPage` 通过 `runtime_meta scan_page` 在物理 Slot leader 上把多个 hash slot 做增量 k-way merge；任一节点对同一 Slot 发起分页都会路由到同一个权威来源，不允许回退本地全量扫描。
 - **Channel 元数据权威分页**: `Store.ScanChannelsSlotPage` 通过 `channel scan_channels_page` 在物理 Slot leader 上扫描 channel 主记录；后台业务频道清单必须基于该权威分页聚合，不能绕过 Slot leader 或全量本地扫描。
-- **ListUserConversationActive 热覆盖层**: `Store.ListUserConversationActive` 在 UID 所属 Slot leader 合并持久化 active index 与 `UserConversationActiveOverlay` 中的 UID-local 热提示；覆盖层只作为工作集提示，合并时会 point-read 未出现在 active index 的会话状态，用 `DeletedToSeq` 过滤 stale hint，且对覆盖层请求完整的 UID-local 有界热集合，避免已删除 hint 前缀遮挡后续有效 hint。
-- **HideUserConversations 删除语义**: 删除会话必须走独立命令 16；只有新 `DeletedToSeq` 前进时才持久化屏障并在同一批写中清空 `ActiveAt`/删除 active index，避免旧 delete 重试覆盖后续新消息激活；随后通过 `RemoveUserConversationActiveHints` 删除 UID-owner hot hint 并安装 stale hint barrier。
-- **命令 16 升级约束**: 混合版本 Slot 副本不能安全接收 `HideUserConversations`；发布时需要 stop-the-world 升级或后续 capability gate。
 - **命令 50/51 升级约束**: 混合版本 Slot 副本不能安全接收 Manager Channel 条件 create/patch；发布时需要 stop-the-world 升级或 capability gate。
-- **统一会话投影**: 旧 `UserConversation*` / `CMDConversation*` proxy 名称只是源码兼容入口，FSM command 会映射为统一 conversation command。存储层只读写 Table ID 6，并通过 `(uid, kind, channel_id, channel_type)` 区分 `ConversationKindNormal` 与 `ConversationKindCMD`；Table ID 7 是开发期 split CMD 表保留 ID，不能注册或复用。
-- **CMD read cursor 单调推进**: `AdvanceCMDConversationReadSeq` 只在新 `ReadSeq` 更大时推进，旧 syncack 重试不能回退 cursor。
+- **Membership 路由与分页**: 普通和 CMD membership 都按 UID hash slot 路由。普通目录 cursor 必须包含 `(activated_at, channel_id, channel_type)` 完整索引位置；limit 限制扫描候选数。
+- **Membership 单调语义**: `read_seq`、`deleted_to_seq`、CMD `ack_seq` 只能前进；显式 activate 更新普通 activation index，hide 同批清零 activation。`source_version` 拒绝陈旧的订阅者派生写。
+- **Conversation 表已删除**: Table ID 6/7 仅保留防复用；Slot FSM、proxy 和 cluster 不得重新引入 conversation 投影命令、RPC 或 active hint overlay。
 - **PluginUserBinding UID 路由**: 插件绑定表使用 `(uid, plugin_no)` 主键和 `idx_plugin_no_uid(plugin_no, uid)` 二级索引；写入、解绑、按 UID 查询必须以 UID 作为 hash slot 路由 key，按 plugin_no 扫描是诊断/管理查询，需要按 Slot 权威分页聚合。
 - **PluginUserBinding plugin_no 分页**: plugin_no 维度扫描的公开 cursor 以 `(plugin_no, uid, slot_id, hash_slot)` 做总序断点，避免不同 hash slot 中出现相同 `(plugin_no, uid)` 时翻页跳项；远端扫描请求必须校验 `hash_slot` 属于目标物理 Slot。
 - **PluginUserBinding 只表达集群绑定**: 表内只保存 UID 到 plugin_no 的权威关联，不保存节点本地插件配置、启停状态或进程状态；这些状态属于 `pkg/plugin/pluginhost` 的 node-local desired/observed state。

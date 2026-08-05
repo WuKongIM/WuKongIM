@@ -154,9 +154,9 @@ write_jsonl "meta/channels.jsonl" \
 write_jsonl "meta/subscribers.jsonl" \
   '{"hash_slot":52,"channel_id":"smoke-g1","channel_type":2,"uid":"smoke-u1"}'
 write_jsonl "meta/user_channel_memberships.jsonl" \
-  '{"hash_slot":231,"uid":"smoke-u1","channel_id":"smoke-g1","channel_type":2,"join_seq":1,"updated_at_ms":1710000000000}'
-write_jsonl "meta/conversations.jsonl" \
-  '{"hash_slot":231,"uid":"smoke-u1","kind":"normal","channel_id":"smoke-g1","channel_type":2,"read_seq":1,"deleted_to_seq":0,"active_at":1710000000001,"updated_at":1710000000002,"sparse_active":true}'
+  '{"hash_slot":231,"uid":"smoke-u1","channel_id":"smoke-g1","channel_type":2,"join_seq":1,"read_seq":1,"deleted_to_seq":0,"activated_at":1710000000001,"tombstone":false,"tombstone_at":0,"source_version":7,"updated_at_ms":1710000000002}'
+write_jsonl "meta/user_cmd_channel_memberships.jsonl" \
+  '{"hash_slot":231,"uid":"smoke-u1","command_channel_id":"smoke-g1____cmd","channel_type":2,"start_seq":1,"ack_seq":1,"tombstone":false,"tombstone_at":0,"updated_at_ms":1710000000002}'
 write_jsonl "meta/channel_latest.jsonl" \
   '{"hash_slot":52,"channel_id":"smoke-g1","channel_type":2,"last_message_id":1001,"last_message_seq":1,"last_at":1710000000003,"from_uid":"smoke-u1","client_msg_no":"smoke-c1","last_payload_b64":"aGk=","updated_at":1710000000004}'
 write_jsonl "message/channels.jsonl" \
@@ -174,7 +174,7 @@ manifest="$bundle_dir/manifest.json"
     meta/channels.jsonl \
     meta/subscribers.jsonl \
     meta/user_channel_memberships.jsonl \
-    meta/conversations.jsonl \
+    meta/user_cmd_channel_memberships.jsonl \
     meta/channel_latest.jsonl \
     message/channels.jsonl \
     message/messages-000001.jsonl
@@ -185,7 +185,7 @@ manifest="$bundle_dir/manifest.json"
       meta/channels.jsonl) kind="meta.channels" ;;
       meta/subscribers.jsonl) kind="meta.subscribers" ;;
       meta/user_channel_memberships.jsonl) kind="meta.user_channel_memberships" ;;
-      meta/conversations.jsonl) kind="meta.conversations" ;;
+      meta/user_cmd_channel_memberships.jsonl) kind="meta.user_cmd_channel_memberships" ;;
       meta/channel_latest.jsonl) kind="meta.channel_latest" ;;
       message/channels.jsonl) kind="message.channels" ;;
       message/messages-000001.jsonl) kind="message.messages" ;;
@@ -220,12 +220,15 @@ echo "import ok"
 
 user_json="$(capture_wkdb --data-dir "$target_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user where uid='smoke-u1'")"
 channel_json="$(capture_wkdb --data-dir "$target_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.channel where channel_id='smoke-g1'")"
-conversation_json="$(capture_wkdb --data-dir "$target_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.conversation where uid='smoke-u1'")"
+membership_json="$(capture_wkdb --data-dir "$target_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user_channel_membership where uid='smoke-u1'")"
+cmd_membership_json="$(capture_wkdb --data-dir "$target_dir" --hash-slot-count "$hash_slot_count" --format json query "select * from meta.user_cmd_channel_membership where uid='smoke-u1'")"
 message_json="$(capture_wkdb --data-dir "$target_dir" --format json query "select * from message.message where channel_key='smoke-g1:2' limit 10")"
 
 assert_contains "$user_json" "smoke-token"
 assert_contains "$channel_json" '"subscriber_count": 1'
-assert_contains "$conversation_json" '"read_seq": 1'
+assert_contains "$membership_json" '"read_seq": 1'
+assert_contains "$membership_json" '"activated_at": 1710000000001'
+assert_contains "$cmd_membership_json" '"ack_seq": 1'
 assert_contains "$message_json" '"message_seq": 1'
 assert_contains "$message_json" '"message_id": 1001'
 assert_contains "$message_json" '"payload": "aGk="'
@@ -240,7 +243,8 @@ echo "query ok"
   echo "- import: $import_output"
   echo "- user_query: ok"
   echo "- channel_query: ok"
-  echo "- conversation_query: ok"
+  echo "- membership_query: ok"
+  echo "- cmd_membership_query: ok"
   echo "- message_query: ok"
 } > "$summary_file"
 

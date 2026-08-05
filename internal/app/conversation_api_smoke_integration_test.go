@@ -19,7 +19,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
-func TestConversationListAPIReadsAuthorityCacheAfterRecipientDispatch(t *testing.T) {
+func TestConversationListAPIBuildsReceiverConversationFromMembership(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.API.ListenAddr = "127.0.0.1:0"
 	app, err := New(cfg)
@@ -79,8 +79,8 @@ func TestConversationListAPIReadsAuthorityCacheAfterRecipientDispatch(t *testing
 		got.LastMessage.MessageSeq != sendResp.MessageSeq {
 		t.Fatalf("conversation = %#v send=%#v, want authority-cache row with latest sent message", got, sendResp)
 	}
-	if page.More != 0 {
-		t.Fatalf("list metadata more = %d, want complete page", page.More)
+	if !page.Done {
+		t.Fatalf("list metadata done = false, want complete page")
 	}
 }
 
@@ -143,7 +143,7 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 				Payload      []byte `json:"payload"`
 			} `json:"last_message"`
 		} `json:"conversations"`
-		More int `json:"more"`
+		Done bool `json:"done"`
 	}
 	var listBody []byte
 	waitUntil(t, 3*time.Second, func() bool {
@@ -163,14 +163,14 @@ func TestConversationListAPIReadsActiveRowAndLastVisibleMessage(t *testing.T) {
 	if got.LastMessage == nil {
 		t.Fatalf("conversation = %#v, want last_message", got)
 	}
-	if got.ChannelID != "receiver" || got.ChannelType != int64(frame.ChannelTypePerson) || got.ActiveAt <= 0 ||
+	if got.ChannelID != "receiver" || got.ChannelType != int64(frame.ChannelTypePerson) || got.ActiveAt != 0 ||
 		got.Unread != 0 || got.LastMessage.MessageID != uint64(sendResp.MessageID) ||
 		got.LastMessage.MessageSeq != sendResp.MessageSeq || got.LastMessage.FromUID != "sender" ||
 		got.LastMessage.ClientMsgNo != "client-conv-api-1" || string(got.LastMessage.Payload) != "hello" {
 		t.Fatalf("conversation = %#v send=%#v, want latest sent message read by sender", got, sendResp)
 	}
-	if listResp.More != 0 {
-		t.Fatalf("list metadata more = %d, want complete page", listResp.More)
+	if !listResp.Done {
+		t.Fatal("list metadata done = false, want complete page")
 	}
 
 	receiverPage := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", `{"uid":"receiver","limit":10}`, http.StatusOK))
@@ -224,23 +224,14 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-page-old","channel_type":2,"client_msg_no":"client-page-old","payload":"b2xk"}`, http.StatusOK)
 	postAppJSON(t, handler, "/message/send", `{"from_uid":"sender","channel_id":"room-conversation-page-new","channel_type":2,"client_msg_no":"client-page-new","payload":"bmV3"}`, http.StatusOK)
 
-	upsertAppConversationStates(t, node, []metadb.ConversationState{
+	upsertAppMemberships(t, node, []metadb.UserChannelMembership{
 		{
-			UID:          "u-page",
-			Kind:         metadb.ConversationKindNormal,
-			ChannelID:    firstChannel.ID,
-			ChannelType:  int64(firstChannel.Type),
-			ActiveAt:     firstActiveAt,
-			UpdatedAt:    firstActiveAt + 1,
-			SparseActive: true,
+			UID: "u-page", ChannelID: firstChannel.ID, ChannelType: int64(firstChannel.Type),
+			JoinSeq: 1, ActivatedAt: firstActiveAt, UpdatedAt: firstActiveAt + 1, SourceVersion: 1,
 		},
 		{
-			UID:         "u-page",
-			Kind:        metadb.ConversationKindNormal,
-			ChannelID:   secondChannel.ID,
-			ChannelType: int64(secondChannel.Type),
-			ActiveAt:    secondActiveAt,
-			UpdatedAt:   secondActiveAt + 1,
+			UID: "u-page", ChannelID: secondChannel.ID, ChannelType: int64(secondChannel.Type),
+			JoinSeq: 1, ActivatedAt: secondActiveAt, UpdatedAt: secondActiveAt + 1, SourceVersion: 1,
 		},
 	})
 
@@ -249,11 +240,8 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 		firstPage.Conversations[0].LastMessage == nil || firstPage.Conversations[0].LastMessage.ClientMsgNo != "client-page-new" {
 		t.Fatalf("first page = %#v, want newest channel", firstPage.Conversations)
 	}
-	if firstPage.More != 1 || firstPage.NextCursor == nil {
-		t.Fatalf("first page metadata = more:%d cursor:%#v, want next cursor", firstPage.More, firstPage.NextCursor)
-	}
-	if firstPage.NextCursor.ActiveAt != secondActiveAt || firstPage.NextCursor.ChannelID != secondChannel.ID {
-		t.Fatalf("first page cursor = %#v, want newest active row cursor", firstPage.NextCursor)
+	if firstPage.Done || firstPage.NextCursor == "" {
+		t.Fatalf("first page metadata = done:%v cursor:%q, want next cursor", firstPage.Done, firstPage.NextCursor)
 	}
 
 	nextReq, err := json.Marshal(map[string]any{
@@ -266,29 +254,21 @@ func TestConversationListAPIPaginatesWithNextCursor(t *testing.T) {
 	}
 	secondPage := decodeConversationListSmokeResponse(t, postAppJSON(t, handler, "/conversation/list", string(nextReq), http.StatusOK))
 	if len(secondPage.Conversations) != 1 || secondPage.Conversations[0].ChannelID != firstChannel.ID ||
-		secondPage.Conversations[0].LastMessage == nil || secondPage.Conversations[0].LastMessage.ClientMsgNo != "client-page-old" ||
-		!secondPage.Conversations[0].SparseActive {
+		secondPage.Conversations[0].LastMessage == nil || secondPage.Conversations[0].LastMessage.ClientMsgNo != "client-page-old" {
 		t.Fatalf("second page = %#v, want older channel", secondPage.Conversations)
 	}
-	if secondPage.More != 0 || secondPage.NextCursor != nil {
-		t.Fatalf("second page metadata = more:%d cursor:%#v, want complete final page", secondPage.More, secondPage.NextCursor)
+	if !secondPage.Done {
+		t.Fatalf("second page metadata = done:%v cursor:%q, want complete final page", secondPage.Done, secondPage.NextCursor)
 	}
-}
-
-type conversationListSmokeCursor struct {
-	ActiveAt    int64  `json:"active_at"`
-	ChannelID   string `json:"channel_id"`
-	ChannelType int64  `json:"channel_type"`
 }
 
 type conversationListSmokeResponse struct {
 	Conversations []struct {
-		ChannelID    string `json:"channel_id"`
-		ChannelType  int64  `json:"channel_type"`
-		ActiveAt     int64  `json:"active_at"`
-		Unread       uint64 `json:"unread"`
-		SparseActive bool   `json:"sparse_active"`
-		LastMessage  *struct {
+		ChannelID   string `json:"channel_id"`
+		ChannelType int64  `json:"channel_type"`
+		ActiveAt    int64  `json:"active_at"`
+		Unread      uint64 `json:"unread"`
+		LastMessage *struct {
 			MessageID    uint64 `json:"message_id"`
 			MessageIDStr string `json:"message_idstr"`
 			MessageSeq   uint64 `json:"message_seq"`
@@ -297,8 +277,8 @@ type conversationListSmokeResponse struct {
 			Payload      []byte `json:"payload"`
 		} `json:"last_message"`
 	} `json:"conversations"`
-	NextCursor *conversationListSmokeCursor `json:"next_cursor"`
-	More       int                          `json:"more"`
+	NextCursor string `json:"next_cursor"`
+	Done       bool   `json:"done"`
 }
 
 func decodeConversationListSmokeResponse(t *testing.T, body []byte) conversationListSmokeResponse {
@@ -310,15 +290,26 @@ func decodeConversationListSmokeResponse(t *testing.T, body []byte) conversation
 	return resp
 }
 
-func upsertAppConversationStates(t *testing.T, node *cluster.Node, states []metadb.ConversationState) {
+func upsertAppMemberships(t *testing.T, node *cluster.Node, states []metadb.UserChannelMembership) {
 	t.Helper()
 	for _, state := range states {
 		waitSingleNodeClusterRouteLeader(t, node, state.UID, node.NodeID())
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	if err := node.UpsertConversationStatesBatch(ctx, states); err != nil {
-		t.Fatalf("UpsertConversationStatesBatch() error = %v", err)
+	for _, state := range states {
+		committedTail := uint64(0)
+		if state.JoinSeq > 0 {
+			committedTail = state.JoinSeq - 1
+		}
+		if err := node.UpsertUserChannelMemberships(ctx, state.ChannelID, state.ChannelType, []string{state.UID}, committedTail, state.SourceVersion, state.UpdatedAt); err != nil {
+			t.Fatalf("UpsertUserChannelMemberships() error = %v", err)
+		}
+		if state.ActivatedAt > 0 {
+			if err := node.ActivateUserChannelMembership(ctx, state.UID, state.ChannelID, state.ChannelType, state.ActivatedAt, state.UpdatedAt); err != nil {
+				t.Fatalf("ActivateUserChannelMembership() error = %v", err)
+			}
+		}
 	}
 }
 

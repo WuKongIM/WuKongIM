@@ -85,7 +85,7 @@ These limits protect memory and tail latency. Increasing a queue only increases 
 
 The channel log stores one committed message rather than one persistent copy per member. Post-commit work pages through large-group subscribers, resolves online authority per page, and creates bounded delivery plans without loading the complete member set into memory.
 
-Consequently, "the large-group message committed" and "every online member received it" are different events. Delivery or conversation-projection failures do not roll back the committed log.
+Consequently, "the large-group message committed" and "every online member received it" are different events. Delivery failures do not roll back the committed log, and later conversation-directory hydration is a separate read-side operation.
 
 ## Migration and failover
 

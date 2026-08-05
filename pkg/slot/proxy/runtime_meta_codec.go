@@ -42,7 +42,7 @@ func encodeRuntimeMetaRPCRequestBinary(req runtimeMetaRPCRequest) ([]byte, error
 	dst = runtimeMetaAppendUvarint(dst, req.SlotID)
 	dst = runtimeMetaAppendString(dst, req.ChannelID)
 	dst = runtimeMetaAppendVarint(dst, req.ChannelType)
-	dst = runtimeMetaAppendConversationKeys(dst, req.Keys)
+	dst = runtimeMetaAppendChannelKeys(dst, req.Keys)
 	dst = runtimeMetaAppendCursorPtr(dst, req.After)
 	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
 	return dst, nil
@@ -75,7 +75,7 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	if req.ChannelType, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
-	if req.Keys, offset, err = runtimeMetaReadConversationKeys(body, offset); err != nil {
+	if req.Keys, offset, err = runtimeMetaReadChannelKeys(body, offset); err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
 	if req.After, offset, err = runtimeMetaReadCursorPtr(body, offset); err != nil {
@@ -258,7 +258,7 @@ func runtimeMetaOpFromID(op byte) (string, error) {
 	}
 }
 
-func runtimeMetaAppendConversationKeys(dst []byte, keys []metadb.ConversationKey) []byte {
+func runtimeMetaAppendChannelKeys(dst []byte, keys []metadb.ChannelKey) []byte {
 	dst = runtimeMetaAppendUvarint(dst, uint64(len(keys)))
 	for _, key := range keys {
 		dst = runtimeMetaAppendString(dst, key.ChannelID)
@@ -267,7 +267,7 @@ func runtimeMetaAppendConversationKeys(dst []byte, keys []metadb.ConversationKey
 	return dst
 }
 
-func runtimeMetaReadConversationKeys(body []byte, offset int) ([]metadb.ConversationKey, int, error) {
+func runtimeMetaReadChannelKeys(body []byte, offset int) ([]metadb.ChannelKey, int, error) {
 	count, next, err := runtimeMetaReadUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -277,7 +277,7 @@ func runtimeMetaReadConversationKeys(body []byte, offset int) ([]metadb.Conversa
 	if err != nil {
 		return nil, offset, err
 	}
-	keys := make([]metadb.ConversationKey, keysLen)
+	keys := make([]metadb.ChannelKey, keysLen)
 	for i := range keys {
 		if keys[i].ChannelID, offset, err = runtimeMetaReadString(body, offset); err != nil {
 			return nil, offset, err

@@ -46,10 +46,8 @@ func (e realtimeEffect) runItem(runtimeCtx context.Context, item preparedSend, p
 	}
 	ctx, cancel := prepareItemContext(runtimeCtx, item.Context)
 	defer cancel()
-	realtimePorts := ports
-	realtimePorts.activeAdmitter = nil
 	event := committedEnvelopeForRealtime(item)
-	if _, err := dispatchRecipientsForTarget(ctx, onlinedelivery.ModeTransient, e.target, event, subscriberCache{}, realtimePorts); err != nil {
+	if _, err := dispatchRecipientsForTarget(ctx, onlinedelivery.ModeTransient, e.target, event, subscriberCache{}, ports); err != nil {
 		return realtimeItemCompletion{item: item, result: SendBatchItemResult{Err: err}}
 	}
 	return realtimeItemCompletion{item: item, result: SendBatchItemResult{Result: SendResult{

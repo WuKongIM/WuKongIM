@@ -29,6 +29,9 @@ type Channel struct {
 	SubscriberMutationVersion uint64
 	// SubscriberCount stores the durable number of ordinary subscriber rows.
 	SubscriberCount uint64
+	// DirectoryReady reports that both canonical person-channel memberships
+	// exist and the first persistent ordinary append may proceed.
+	DirectoryReady int64
 }
 
 // ChannelBusinessFlags contains the Manager-editable channel flags.
@@ -231,6 +234,12 @@ func (s *Shard) writeChannel(ctx context.Context, channel Channel, mode tableWri
 		}
 		if err == nil {
 			channel.SubscriberCount = existing.SubscriberCount
+			if existing.Disband != 0 {
+				channel.Disband = 1
+			}
+			if existing.DirectoryReady != 0 {
+				channel.DirectoryReady = 1
+			}
 		}
 	}
 
@@ -257,7 +266,7 @@ func encodeChannelValue(channel Channel) []byte {
 	value = appendValueUint64(value, channel.SubscriberMutationVersion)
 	value = appendValueUint64(value, channel.SubscriberCount)
 	value = appendValueInt64(value, channel.Large)
-	return value
+	return appendValueInt64(value, channel.DirectoryReady)
 }
 
 func decodeChannelValue(channelID string, channelType int64, value []byte) (Channel, error) {
@@ -289,6 +298,10 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 	if err != nil {
 		return Channel{}, err
 	}
+	directoryReady, rest, err := readValueInt64(rest)
+	if err != nil {
+		return Channel{}, err
+	}
 	if len(rest) != 0 {
 		return Channel{}, dberrors.ErrCorruptValue
 	}
@@ -302,5 +315,6 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 		Large:                     large,
 		SubscriberMutationVersion: version,
 		SubscriberCount:           subscriberCount,
+		DirectoryReady:            directoryReady,
 	}, nil
 }

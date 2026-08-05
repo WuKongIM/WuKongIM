@@ -17,7 +17,6 @@ import (
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
@@ -61,10 +60,6 @@ func (a *App) applyConfigDefaults() error {
 	}
 	a.cfg.ChannelAppend = defaultChannelAppendConfig(a.cfg.ChannelAppend)
 	if err := validateChannelAppendConfig(a.cfg.ChannelAppend); err != nil {
-		return err
-	}
-	a.cfg.Conversation = defaultConversationConfig(a.cfg.Conversation)
-	if err := validateConversationConfig(a.cfg.Conversation); err != nil {
 		return err
 	}
 	a.cfg.Delivery = defaultDeliveryConfig(a.cfg.Delivery)
@@ -172,6 +167,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 		})
 		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &transportMetricsObserver{metrics: a.metrics})
 		clusterCfg.MessageEvent.Observer = combineMessageEventObservers(clusterCfg.MessageEvent.Observer, messageEventMetricsObserver{metrics: a.metrics})
+		clusterCfg.MembershipObserver = combineMembershipMutationObservers(clusterCfg.MembershipObserver, membershipMutationMetricsObserver{metrics: a.metrics})
 	}
 	if a.goroutines == nil {
 		a.goroutines = goruntimeregistry.Default()
@@ -288,6 +284,7 @@ func (a *App) wireChannels() {
 			}
 			if _, ok := node.(clusterinfra.ChannelMembershipNode); ok {
 				channelOptions.MembershipIndex = store
+				channelOptions.CommittedTail = store
 			}
 			a.channels = channelusecase.New(channelOptions)
 		}
@@ -296,85 +293,20 @@ func (a *App) wireChannels() {
 
 func (a *App) newConversationReadStore() *clusterinfra.ConversationStore {
 	if node, ok := a.cluster.(clusterinfra.ConversationNode); ok {
-		return clusterinfra.NewConversationStore(node, clusterinfra.ConversationStoreOptions{
-			MaxLastMessageConcurrency: a.cfg.Conversation.MaxLastMessageConcurrency,
-		})
+		return clusterinfra.NewConversationStore(node)
 	}
 	return nil
 }
 
-func (a *App) wireConversationAuthority() {
-	if a.conversationAuthorityClient == nil {
-		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ConversationAuthorityNode)
-		authorityStore, hasAuthorityStore := a.cluster.(conversationAuthorityStore)
-		if hasAuthorityNode && hasAuthorityStore {
-			pressureSignals := make(chan conversationactive.PressureSignal, 1)
-			conversationObserver := a.conversationAuthorityObserver()
-			var activeObserver conversationactive.Observer
-			if observer, ok := conversationObserver.(conversationactive.Observer); ok {
-				activeObserver = observer
-			}
-			authority := newConversationAuthority(conversationAuthorityOptions{
-				LocalNodeID:          authorityNode.NodeID(),
-				Store:                authorityStore,
-				MaxRowsPerUID:        a.cfg.Conversation.AuthorityCacheMaxRowsPerUID,
-				MaxRows:              a.cfg.Conversation.AuthorityCacheMaxRows,
-				ListDBWindowMax:      a.cfg.Conversation.AuthorityListDBWindowMax,
-				AdmissionBatchRows:   a.cfg.Conversation.AuthorityAdmitBatchRows,
-				AdmissionConcurrency: a.cfg.Conversation.AuthorityAdmitConcurrency,
-				ActiveCooldown:       a.cfg.Conversation.AuthorityActiveCooldown,
-				FlushBatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
-				PressureNotify:       pressureSignals,
-				CurrentRouteTarget:   a.currentConversationAuthorityRouteTarget,
-				Observer:             conversationObserver,
-			})
-			client := clusterinfra.NewConversationAuthorityClient(authorityNode, authority)
-			a.conversationAuthority = authority
-			a.conversationAuthorityClient = client
-			if a.conversationActiveWorker == nil {
-				a.conversationActiveWorker = newConversationActiveFlushWorker(conversationActiveFlushWorkerOptions{
-					Authority:       authority,
-					FlushInterval:   a.cfg.Conversation.AuthorityFlushInterval,
-					FlushTimeout:    a.cfg.Conversation.AuthorityFlushTimeout,
-					BatchRows:       a.cfg.Conversation.AuthorityFlushBatchRows,
-					PressureSignals: pressureSignals,
-					Observer:        activeObserver,
-					Logger:          a.logger.Named("conversation_active_flush"),
-				})
-			}
-			if a.conversationRouteLifecycle == nil {
-				routeLifecycle := newConversationAuthorityRouteLifecycle(conversationAuthorityRouteLifecycleOptions{
-					LocalAuthority: authority,
-					LocalNodeID:    authorityNode.NodeID(),
-					Initial:        a.currentPresenceAuthorities,
-					Watch:          authorityNode.WatchRouteAuthorities,
-					HandoffTimeout: a.cfg.Conversation.AuthorityHandoffTimeout,
-				})
-				routeLifecycle.applyRouteAuthorities(context.Background(), a.currentPresenceAuthorities())
-				a.conversationRouteLifecycle = routeLifecycle
-			}
-			adapter := accessnode.New(accessnode.Options{ConversationAuthority: authority, Logger: a.logger.Named("node")})
-			authorityNode.RegisterRPC(accessnode.ConversationAuthorityRPCServiceID, nodeRPCHandlerFunc(adapter.HandleConversationAuthorityRPC))
-		}
-	}
-}
-
 func (a *App) wireConversations(conversationReadStore *clusterinfra.ConversationStore) {
 	if a.conversations == nil {
-		if conversationReadStore != nil {
-			var store conversationusecase.Store = conversationReadStore
-			var deleteStore conversationusecase.DeleteStore = conversationReadStore
-			if a.conversationAuthorityClient != nil {
-				store = a.conversationAuthorityClient
-				deleteStore = a.conversationAuthorityClient
+		if conversationReadStore != nil && conversationReadStore.SupportsMembershipDirectory() {
+			options := conversationusecase.Options{
+				Directory:           conversationReadStore,
+				Hydrator:            conversationReadStore,
+				MembershipMutations: conversationReadStore,
 			}
-			a.conversations = conversationusecase.New(conversationusecase.Options{
-				Store:              store,
-				StateStore:         conversationReadStore,
-				StateMutationStore: conversationReadStore,
-				DeleteStore:        deleteStore,
-				Messages:           conversationReadStore,
-			})
+			a.conversations = conversationusecase.New(options)
 		}
 	}
 }
@@ -724,9 +656,6 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			if resolver := clusterinfra.NewRecipientAuthorityResolver(a.cluster, recipientObserver); resolver != nil {
 				opts.RecipientAuthorityResolver = resolver
 			}
-			if a.conversationAuthorityClient != nil {
-				opts.ConversationActiveAdmitter = a.conversationAuthorityClient
-			}
 			opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(a.pluginPersistAfter, a.webhookNotify)
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
@@ -785,10 +714,18 @@ func (a *App) wireMessages() {
 			messageOpts.SendHook = a.plugins
 		}
 		if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
-			messageOpts.PermissionStore = clusterinfra.NewChannelMetadataStore(channelNode, nil)
+			channelStore := clusterinfra.NewChannelMetadataStore(channelNode, a.ensureChannelAppendMetadataCache())
+			messageOpts.PermissionStore = channelStore
+			messageOpts.ChannelState = channelStore
+			if _, ok := a.cluster.(clusterinfra.PersonDirectoryNode); ok {
+				messageOpts.PersonDirectory = channelStore
+			}
 		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
 			messageOpts.Reader = clusterinfra.NewChannelMessageReader(readNode)
+		}
+		if membershipNode, ok := a.cluster.(clusterinfra.MessageMembershipNode); ok {
+			messageOpts.Memberships = clusterinfra.NewMessageMembershipStore(membershipNode)
 		}
 		if eventNode, ok := a.cluster.(clusterinfra.MessageEventNode); ok {
 			messageOpts.EventStore = clusterinfra.NewMessageEventStore(eventNode)
@@ -852,7 +789,6 @@ func (a *App) wireAPI() {
 			CMDSync:                  a.cmdSync,
 			Conversations:            a.conversations,
 			ConversationListObserver: a.conversationListObserver(),
-			ConversationSyncObserver: a.conversationSyncObserver(),
 			LegacyRouteExternal:      legacyRouteExternal,
 			LegacyRouteIntranet:      legacyRouteIntranet,
 			LegacyRouteNodes:         legacyRouteNodes,

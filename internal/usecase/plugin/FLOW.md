@@ -111,7 +111,7 @@ channelappend recipient delivery after presence resolution
 
 Receive hooks are post-commit side effects. Their failures are logged and
 reported through hook metrics but do not change SENDACK, durable append,
-conversation projection, or ordinary online delivery outcomes. The usecase does
+membership state, or ordinary online delivery outcomes. The usecase does
 not scan subscribers; channelappend provides already-expanded offline UID
 batches. Scalar `ReceiveOffline` and worker fallback remain compatibility paths
 and reuse the same candidate selection and batch-to-recipient projection rules.
@@ -195,9 +195,9 @@ plugin /conversation/channels host RPC
   -> map reader-defined channel order to pluginproto.ConversationChannelResp
 ```
 
-`/conversation/channels` is an authoritative UID conversation-channel read. It
-uses the legacy fixed limit of 1000 and intentionally does not join last visible
-messages or reuse the user-facing conversation list defaults.
+`/conversation/channels` reads one activation-ordered UID membership page. It
+uses the fixed limit of 1000, skips tombstones, and intentionally does not
+hydrate Channel heads or reuse user-facing conversation response defaults.
 
 ## Host RPC HTTP Forward Flow
 
@@ -238,4 +238,4 @@ channelappend durable commit success
 
 PersistAfter is a post-commit side effect. Its failures are returned to the
 worker for logging/metrics and do not change SENDACK, durable append, NoPersist
-realtime dispatch, delivery, or conversation projection results.
+realtime dispatch, delivery, or membership results.

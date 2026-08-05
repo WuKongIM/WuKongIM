@@ -172,7 +172,7 @@ type Options struct {
 	// SystemUsers lists and mutates persisted system UID rows.
 	SystemUsers SystemUserOperator
 	// Conversations syncs UID-owned recent conversations for manager pages.
-	Conversations ConversationSyncer
+	Conversations ConversationLister
 	// Messages reads committed channel messages for manager pages.
 	Messages MessageReader
 	// LatestMessages reads cluster-wide newest messages for manager pages.
@@ -287,8 +287,8 @@ type userManagementDeps struct {
 
 // messageManagementDeps groups conversation, message, and retention ports.
 type messageManagementDeps struct {
-	// conversations reads recent conversation projections.
-	conversations ConversationSyncer
+	// conversations constructs recent conversation views from memberships.
+	conversations ConversationLister
 	// messages reads committed channel messages.
 	messages MessageReader
 	// latestMessages reads cluster-wide newest messages.

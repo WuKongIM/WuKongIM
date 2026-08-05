@@ -191,22 +191,6 @@ description: 完整列出公开 TOML 字段、WK_* 环境变量、值类型和�
 | `presence.touch_max_routes_per_flush` | `WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH` | `int` | — |
 | `presence.route_ttl` | `WK_PRESENCE_ROUTE_TTL` | `duration` | — |
 
-## 会话
-
-| TOML | Environment | Kind | Constraint |
-| --- | --- | --- | --- |
-| `conversation.max_last_message_concurrency` | `WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY` | `int` | — |
-| `conversation.authority_cache_max_rows_per_uid` | `WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID` | `int` | — |
-| `conversation.authority_cache_max_rows` | `WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS` | `int` | — |
-| `conversation.authority_list_db_window_max` | `WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX` | `int` | — |
-| `conversation.authority_handoff_timeout` | `WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT` | `duration` | — |
-| `conversation.authority_active_cooldown` | `WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN` | `duration` | — |
-| `conversation.authority_flush_interval` | `WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL` | `duration` | — |
-| `conversation.authority_flush_timeout` | `WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT` | `duration` | — |
-| `conversation.authority_flush_batch_rows` | `WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS` | `int` | — |
-| `conversation.authority_admit_batch_rows` | `WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS` | `int` | — |
-| `conversation.authority_admit_concurrency` | `WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY` | `int` | — |
-
 ## 频道追加
 
 | TOML | Environment | Kind | Constraint |

@@ -63,7 +63,7 @@ wkdb --data-dir ./node-1 --hash-slot-count 256 \
   export --output ./wkdb-dump
 ```
 
-`export` 以只读方式打开源存储，只写输出目录。WKDB Import Bundle v1 包含清单和 JSONL 文件，可覆盖受支持的用户、设备、频道、订阅关系、会话、频道最新序号和消息数据，并为文件记录行数与 SHA-256。
+`export` 以只读方式打开源存储，只写输出目录。WKDB Import Bundle v1 包含清单和 JSONL 文件，可覆盖受支持的用户、设备、频道、订阅关系、普通 membership、CMD membership、频道最新序号和消息数据，并为文件记录行数与 SHA-256。
 
 它不会聚合其他节点、创建在线一致性快照、导出增量、包含 Controller/Raft/运行时状态，也不是 Manager 备份归档。需要覆盖已有输出目录时，先核对路径再显式添加 `--overwrite`。
 

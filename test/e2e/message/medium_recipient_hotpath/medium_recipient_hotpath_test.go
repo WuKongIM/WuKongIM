@@ -908,7 +908,6 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluste
 		"WK_DEBUG_API_ENABLE":                                        "true",
 		"WK_DELIVERY_ENABLE":                                         "true",
 		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":                   "320",
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS":                   "750000",
 		"WK_PLUGIN_ENABLE":                                           "true",
 		"WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE":                        "500",
 		"WK_CHANNEL_APPEND_EFFECT_POOL_SIZE":                         "2000",
@@ -1987,7 +1986,8 @@ func isHotPathDiagnosticMetric(name string) bool {
 		"wukongim_delivery_recipient_worker_inflight",
 		"wukongim_delivery_recipient_worker_capacity",
 		"wukongim_delivery_recipient_worker_process_total",
-		"wukongim_conversation_authority_",
+		"wukongim_conversation_directory_",
+		"wukongim_conversation_hydration_",
 	} {
 		if strings.HasPrefix(name, prefix) {
 			return true

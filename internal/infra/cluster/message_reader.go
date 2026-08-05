@@ -6,11 +6,36 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 // ChannelMessageReadNode is the cluster committed message read surface used by internal.
 type ChannelMessageReadNode interface {
 	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+}
+
+type channelMessageBatchReadNode interface {
+	ReadChannelCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error)
+}
+
+// MessageMembershipNode exposes UID-owned pull authorization state.
+type MessageMembershipNode interface {
+	GetUserChannelMembership(context.Context, string, string, int64) (metadb.UserChannelMembership, bool, error)
+}
+
+// MessageMembershipStore adapts cluster membership reads to message sync.
+type MessageMembershipStore struct{ node MessageMembershipNode }
+
+func NewMessageMembershipStore(node MessageMembershipNode) *MessageMembershipStore {
+	return &MessageMembershipStore{node: node}
+}
+
+func (s *MessageMembershipStore) GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error) {
+	if s == nil || s.node == nil {
+		return metadb.UserChannelMembership{}, false, message.ErrSyncMembershipRequired
+	}
+	return s.node.GetUserChannelMembership(ctx, uid, channelID, channelType)
 }
 
 // ChannelMessageReader adapts cluster committed reads to the message usecase sync port.
@@ -36,6 +61,51 @@ func (r *ChannelMessageReader) SyncMessages(ctx context.Context, query message.C
 	if err != nil {
 		return message.ChannelMessagePage{}, mapAppendError(err)
 	}
+	return channelMessagePageFromRead(query, limit, read), nil
+}
+
+// SyncMessagesBatch performs one Channel-Leader-grouped cluster read and
+// preserves one item-scoped result for every query.
+func (r *ChannelMessageReader) SyncMessagesBatch(ctx context.Context, queries []message.ChannelMessageQuery) ([]message.ChannelMessageReadResult, error) {
+	if r == nil || r.node == nil {
+		return nil, message.ErrMessageReaderRequired
+	}
+	batchNode, ok := r.node.(channelMessageBatchReadNode)
+	if !ok {
+		return nil, message.ErrSyncBatchReaderRequired
+	}
+	reads := make([]clusterchannels.CommittedRead, len(queries))
+	limits := make([]int, len(queries))
+	for index, query := range queries {
+		limit := query.Limit
+		if limit <= 0 {
+			limit = 1
+		}
+		limits[index] = limit
+		reads[index] = clusterchannels.CommittedRead{
+			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
+			Request:   readCommittedRequest(query, limit),
+		}
+	}
+	readResults, err := batchNode.ReadChannelCommittedBatch(ctx, reads)
+	if err != nil {
+		return nil, mapAppendError(err)
+	}
+	if len(readResults) != len(queries) {
+		return nil, message.ErrSyncBatchResultMismatch
+	}
+	results := make([]message.ChannelMessageReadResult, len(queries))
+	for index, readResult := range readResults {
+		if readResult.Err != nil {
+			results[index].Err = mapAppendError(readResult.Err)
+			continue
+		}
+		results[index].Page = channelMessagePageFromRead(queries[index], limits[index], readResult.Read)
+	}
+	return results, nil
+}
+
+func channelMessagePageFromRead(query message.ChannelMessageQuery, limit int, read channelstore.ReadCommittedResult) message.ChannelMessagePage {
 	messages := syncedMessagesFromChannel(read.Messages)
 	messages = filterSyncedMessages(query, messages)
 	reverse := query.PullMode == message.PullModeDown || (query.StartSeq == 0 && query.EndSeq == 0)
@@ -46,13 +116,14 @@ func (r *ChannelMessageReader) SyncMessages(ctx context.Context, query message.C
 	if reverse {
 		reverseSyncedMessages(messages)
 	}
-	return message.ChannelMessagePage{Messages: messages, HasMore: hasMore}, nil
+	return message.ChannelMessagePage{Messages: messages, HasMore: hasMore}
 }
 
 func readCommittedRequest(query message.ChannelMessageQuery, limit int) channelstore.ReadCommittedRequest {
 	req := channelstore.ReadCommittedRequest{
 		FromSeq:  query.StartSeq,
 		MaxSeq:   queryMaxSeq(query),
+		MinSeq:   query.MinSeq,
 		Limit:    limit + 1,
 		MaxBytes: maxInt(),
 	}
@@ -82,6 +153,9 @@ func queryMaxSeq(query message.ChannelMessageQuery) uint64 {
 func syncedMessagesFromChannel(in []channelruntime.Message) []message.SyncedMessage {
 	out := make([]message.SyncedMessage, 0, len(in))
 	for _, msg := range in {
+		if msg.SyncOnce {
+			continue
+		}
 		out = append(out, message.SyncedMessage{
 			MessageID:   msg.MessageID,
 			MessageSeq:  msg.MessageSeq,

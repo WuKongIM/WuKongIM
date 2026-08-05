@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPluginConversationReaderMapsActiveRows(t *testing.T) {
-	node := &recordingPluginConversationNode{rows: []metadb.ConversationState{
+func TestPluginConversationReaderMapsMembershipRows(t *testing.T) {
+	node := &recordingPluginConversationNode{rows: []metadb.UserChannelMembership{
 		{ChannelID: "g1", ChannelType: 2},
+		{ChannelID: "removed", ChannelType: 2, Tombstone: true},
 		{ChannelID: "p1", ChannelType: 1},
 	}}
 	reader := NewPluginConversationReader(node)
@@ -21,7 +22,6 @@ func TestPluginConversationReaderMapsActiveRows(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 1, node.calls)
-	require.Equal(t, metadb.ConversationKindNormal, node.kind)
 	require.Equal(t, "u1", node.uid)
 	require.Equal(t, 1000, node.limit)
 	require.Len(t, channels, 2)
@@ -41,7 +41,7 @@ func TestPluginConversationReaderPropagatesNodeError(t *testing.T) {
 }
 
 func TestPluginConversationReaderRejectsInvalidChannelType(t *testing.T) {
-	reader := NewPluginConversationReader(&recordingPluginConversationNode{rows: []metadb.ConversationState{
+	reader := NewPluginConversationReader(&recordingPluginConversationNode{rows: []metadb.UserChannelMembership{
 		{ChannelID: "bad", ChannelType: 256},
 	}})
 
@@ -61,20 +61,18 @@ func TestPluginConversationReaderRequiresNode(t *testing.T) {
 
 type recordingPluginConversationNode struct {
 	calls int
-	kind  metadb.ConversationKind
 	uid   string
 	limit int
-	rows  []metadb.ConversationState
+	rows  []metadb.UserChannelMembership
 	err   error
 }
 
-func (n *recordingPluginConversationNode) ListConversationActivePage(_ context.Context, kind metadb.ConversationKind, uid string, _ metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
+func (n *recordingPluginConversationNode) ListUserChannelMembershipPage(_ context.Context, uid string, _ metadb.UserChannelMembershipCursor, limit int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error) {
 	n.calls++
-	n.kind = kind
 	n.uid = uid
 	n.limit = limit
 	if n.err != nil {
-		return nil, metadb.ConversationActiveCursor{}, false, n.err
+		return nil, metadb.UserChannelMembershipCursor{}, false, n.err
 	}
-	return append([]metadb.ConversationState(nil), n.rows...), metadb.ConversationActiveCursor{}, true, nil
+	return append([]metadb.UserChannelMembership(nil), n.rows...), metadb.UserChannelMembershipCursor{}, true, nil
 }

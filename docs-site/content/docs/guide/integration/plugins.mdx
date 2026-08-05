@@ -36,7 +36,7 @@ Manager 更新配置时会保留被 `SecretHidden` 占位的已有 secret，返�
 | Hook | 时机 | 失败语义 |
 | --- | --- | --- |
 | Send | 权限成功后、Channel append admission 前 | 同步；默认 fail-closed，可显式配置 fail-open；可修改 Payload 或拒绝 |
-| Receive | durable commit 后，针对离线 UID batch | 独立接收者失败不改变 SENDACK、在线投递或会话投影 |
+| Receive | durable commit 后，针对离线 UID batch | 独立接收者失败不改变 SENDACK、在线投递或 membership 状态 |
 | PersistAfter | durable commit 后 | 失败只进入 worker 日志/指标，不回滚消息 |
 
 候选插件按 priority 降序、plugin number 升序稳定选择。Send 响应只能替换 Payload，不能篡改发送者、Channel、Session 或路由字段。插件来源的发送仍进入消息用例、权限检查、递归 guard 和 Channel authority。

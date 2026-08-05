@@ -24,7 +24,7 @@ Gateway ──► 消息用例 ──► Channel Append Authority
                               │
                   SENDACK ─────┴─────► 提交后副作用
                                        │
-                         会话投影 / 在线投递 / Webhook / 插件
+                         在线投递 / Webhook / 插件
 
 Controller Raft ──► cluster-state.json ──► 路由快照
                                                │
@@ -41,7 +41,7 @@ Controller Raft ──► cluster-state.json ──► 路由快照
 | 边界 | 权威状态 | 主要职责 | 不负责 |
 | --- | --- | --- | --- |
 | Controller | Controller Raft 已提交日志及应用边界 | 节点、Slot 分配、任务、集群级计划 | 高频会话、Channel 消息正文 |
-| Slot | 当前 Slot Raft Leader 下的元数据状态机 | 用户、频道、订阅、会话投影、ChannelRuntimeMeta | Channel 消息日志 |
+| Slot | 当前 Slot Raft Leader 下的元数据状态机 | 用户、频道、订阅、普通/CMD membership、ChannelRuntimeMeta | Channel 消息日志 |
 | Channel | Channel Leader、ISR 和提交高水位 | 频道内顺序、持久化、复制与已提交可见性 | 全局成员计划、真实 TCP Session |
 | Gateway 与在线运行时 | 连接 owner 节点和 UID 对应的 Presence Authority | 客户端会话、在线端点、跨节点投递 | 持久化在线状态或决定消息提交 |
 | Transport | 有界连接、队列和服务入口 | 节点间 Raft、RPC、复制和通知传输 | 业务授权或自动重试所有失败 |

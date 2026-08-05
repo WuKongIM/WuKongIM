@@ -11,9 +11,9 @@ labeling durable versus transient work before handing the bounded plan to
 It is entered only after routing has resolved that the local node is the current
 channel append authority. The package validates SEND commands, allocates
 message IDs, admits durable append work, completes item-aligned futures, and
-runs best-effort post-commit recipient/conversation effects. It also handles
+runs best-effort post-commit recipient delivery and configured side effects. It also handles
 legacy command-style `NoPersist` sends as transient realtime delivery without
-writing the channel log or conversation active state.
+writing a Channel log or membership state.
 
 ## Router Flow
 
@@ -238,16 +238,11 @@ successful append results complete `SENDACK` futures immediately with
 enqueue `CommittedEnvelope` values in the same `channelState` as the handoff
 point for best-effort post-commit recipient work. Post-commit side effects are
 not checkpointed and not replayed after authority restart.
-The append payload carries the `SyncOnce` command marker through the durable
-channel appender port so CMD sync readers and ordinary conversation readers can
-separate command messages from normal channel messages without guessing from
-channel names or client message numbers.
-
-Realtime `NoPersist` effects reuse the same recipient authority grouping and
-delivery enqueue machinery as post-commit work, but they explicitly skip
-`conversationactive.ActiveBatch` admission. Request-scoped realtime sends keep
-using `MessageScopedUIDs`, so they bypass subscriber scans just like durable
-request-scoped commits.
+Persistent CMD and `SyncOnce` sends are normalized to the separate command
+Channel before append, so command records never consume ordinary sequence space.
+Realtime `NoPersist` effects reuse recipient authority grouping and delivery
+enqueue machinery but write no Channel or directory state. Request-scoped sends
+keep using `MessageScopedUIDs` and bypass subscriber scans.
 
 Post-commit work is scheduled from the writer state after durable append
 succeeds and is independent from `SENDACK` completion. A committed envelope
@@ -262,12 +257,9 @@ delivery enqueue failure is logged through `PostCommitFailureObserver`, counted
 through effect metrics, and then the envelope reaches its terminal attempt
 without retry so one bad recipient side effect cannot block later messages on
 the same channel.
-Conversation-active projection failures are recorded independently and do not
-turn a successful delivery enqueue into a failed item completion. Failure
-observations carry a precise post-commit phase plus
-sampled recipient, target, and dispatch context so route-resolution failures
-can be distinguished from conversation active admission and delivery enqueue
-failures in logs. Each channel keeps only one committed envelope in flight at a
+Failure observations carry a precise post-commit phase plus sampled recipient,
+target, and dispatch context so route-resolution and delivery-enqueue failures
+remain distinguishable in logs. Each channel keeps only one committed envelope in flight at a
 time, and concurrency inside that envelope is limited to recipient authority
 targets. The global pre-append reservation is the post-commit backlog bound, so
 every newly acknowledged durable envelope already owns capacity for its FIFO
@@ -302,7 +294,7 @@ envelope is cloned into the configured side-effect sinks from the same
 authority-local post-commit point. The enqueuer may represent plugin hooks,
 webhook delivery, or both. It receives only committed envelopes after durable
 append succeeds, remains best-effort, and does not affect SENDACK, append
-success, recipient delivery, or conversation active projection. Transient
+success, recipient delivery, or membership state. Transient
 NoPersist realtime sends skip PersistAfter because they do not create durable
 committed envelopes.
 
@@ -319,7 +311,7 @@ plus the ordered UID slice; an asynchronous adapter takes ownership once for the
 whole batch instead of cloning the payload for every UID. Callers should chunk
 large batches at the observer boundary if needed.
 The observer is a best-effort side-effect boundary and must not influence
-SENDACK, append success, conversation active admission, or owner push delivery.
+SENDACK, append success, membership state, or owner push delivery.
 
 Scoped `MessageScopedUIDs` dispatch directly without scanning subscribers.
 Person channels derive exactly the two canonical participants from the
@@ -340,35 +332,12 @@ page's recipients are admitted or dispatched, avoiding partial side effects for
 the invalid page before the envelope is dropped.
 
 After each recipient set is formed, channelappend resolves one item-aligned
-authority snapshot for the sender plus every unique trimmed recipient. Delivery
-rows retain integer indexes into that snapshot, while the conversation-active
-first attempt reuses the same exact-target groups; neither path rebuilds a
-`map[string]Target` or performs a second route lookup. Group identity includes
-the complete physical hash-slot fence, so the 256 hash slots remain distinct
-even when they map onto only 10 logical Slot Raft Groups. Channelappend then
-enqueues bounded recipient delivery plans and admits one independent
-`conversationactive.ActiveBatch` projection.
-The normal bounded page uses an allocation-free inline UID index to coalesce the
-sender and duplicate recipients while preserving duplicate delivery rows. It
-borrows an already-normalized recipient slice and copies only when empty or
-whitespace-normalized UIDs require compaction. Exact-target grouping uses a
-fixed 256-entry physical-hash-slot index with exact-target comparison; custom
-slot counts or transition collisions fall back to a bounded exact scan rather
-than weakening leader-term, config-epoch, or route-revision fences.
-The batch carries an explicit `metadb.ConversationKind`: normal for ordinary
-channel commits, CMD for one-shot sync commits or command-channel ids. It also
-carries `SenderUID` from the committed event, channel identity, message
-sequence, activity timestamp, and the expanded recipient UIDs. Receiver entries
-leave `IsSender` unset; the active worker advances the sender read sequence
-from `SenderUID` semantics. Active admission still runs when online
-delivery enqueueing is disabled or no effective delivery enqueuer is
-configured. If active admission fails, the post-commit failure phase is
-`conversation_active`, while accepted delivery, later large-channel pages, and
-a successfully loaded non-large subscriber snapshot continue independently. A
-sender-only aligned route failure does not suppress valid recipient delivery;
-active projection falls back to the legacy admission surface so it can obtain a
-fresh compatible route. A recipient item failure keeps delivery all-or-nothing
-for that set and uses the same active compatibility fallback.
+authority snapshot for every unique recipient and builds only the bounded online
+delivery plan. Group identity retains the physical hash-slot and logical Slot
+leader fences. No sender or recipient membership mutation, conversation
+projection, or second directory route lookup occurs on SEND. Cluster membership
+proposal rows are counted at the actual mutation boundary, so a pure SEND
+workload must leave that counter unchanged.
 
 Recipient delivery is an enqueue contract. When delivery enqueueing is
 configured, recipients are grouped by the full fenced recipient authority

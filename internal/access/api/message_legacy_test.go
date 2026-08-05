@@ -151,6 +151,29 @@ func TestChannelMessageSyncMapsCompatibleRequestToUsecase(t *testing.T) {
 	}
 }
 
+func TestChannelMessageSyncBatchMapsAlignedResults(t *testing.T) {
+	messages := &recordingMessageUsecase{batchResult: messageusecase.SyncChannelMessagesBatchResult{Items: []messageusecase.SyncChannelMessagesBatchItem{
+		{ChannelID: "g1", ChannelType: 2, Result: messageusecase.SyncChannelMessagesResult{More: true, Messages: []messageusecase.SyncedMessage{{MessageID: 7, MessageSeq: 4, ChannelID: "g1", ChannelType: 2, Payload: []byte("a")}}}},
+		{ChannelID: "g2", ChannelType: 2, Err: errors.New("temporarily unavailable")},
+	}}}
+	srv := New(Options{Messages: messages})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/channel/messagesyncbatch", bytes.NewBufferString(`{"login_uid":"u1","items":[{"channel_id":"g1","channel_type":2,"start_message_seq":3,"limit":10,"pull_mode":1},{"channel_id":"g2","channel_type":2,"start_message_seq":8,"limit":10,"pull_mode":1}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !jsonEqual(rec.Body.String(), `{"items":[{"channel_id":"g1","channel_type":2,"start_message_seq":3,"end_message_seq":0,"more":1,"messages":[{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":7,"message_idstr":"7","client_msg_no":"","message_seq":4,"from_uid":"","channel_id":"g1","channel_type":2,"expire":0,"timestamp":0,"payload":"YQ=="}]},{"channel_id":"g2","channel_type":2,"start_message_seq":8,"end_message_seq":0,"more":0,"messages":[],"error":"temporarily unavailable"}]}`) {
+		t.Fatalf("body=%s, want aligned batch response", rec.Body.String())
+	}
+	if len(messages.batchQueries) != 1 || len(messages.batchQueries[0].Items) != 2 || messages.batchQueries[0].LoginUID != "u1" {
+		t.Fatalf("batch queries=%+v", messages.batchQueries)
+	}
+}
+
 func TestMessageEventAppendMapsCompatibleRequestToUsecase(t *testing.T) {
 	messages := &recordingMessageUsecase{
 		appendResult: messageusecase.MessageEventAppendResult{
@@ -299,6 +322,9 @@ type recordingMessageUsecase struct {
 	syncQueries  []messageusecase.SyncChannelMessagesQuery
 	syncResult   messageusecase.SyncChannelMessagesResult
 	syncErr      error
+	batchQueries []messageusecase.SyncChannelMessagesBatchQuery
+	batchResult  messageusecase.SyncChannelMessagesBatchResult
+	batchErr     error
 }
 
 func (r *recordingMessageUsecase) Send(_ context.Context, cmd messageusecase.SendCommand) (messageusecase.SendResult, error) {
@@ -314,4 +340,9 @@ func (r *recordingMessageUsecase) AppendMessageEvent(_ context.Context, event me
 func (r *recordingMessageUsecase) SyncChannelMessages(_ context.Context, query messageusecase.SyncChannelMessagesQuery) (messageusecase.SyncChannelMessagesResult, error) {
 	r.syncQueries = append(r.syncQueries, query)
 	return r.syncResult, r.syncErr
+}
+
+func (r *recordingMessageUsecase) SyncChannelMessagesBatch(_ context.Context, query messageusecase.SyncChannelMessagesBatchQuery) (messageusecase.SyncChannelMessagesBatchResult, error) {
+	r.batchQueries = append(r.batchQueries, query)
+	return r.batchResult, r.batchErr
 }

@@ -168,52 +168,40 @@ func TestCloudAnalysisSkillDocumentsRecipientPipelineStageEvidence(t *testing.T)
 	}
 }
 
-func TestCloudAnalysisSkillDocumentsConversationActiveConservation(t *testing.T) {
+func TestCloudAnalysisSkillDocumentsMembershipConversationEvidence(t *testing.T) {
 	root := repoRoot(t)
 	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "SKILL.md"))
 	contract := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-cloud-analysis", "references", "tool-contract.md"))
 	for _, queryID := range []string{
-		"conversation_active_cache_rows",
-		"conversation_active_dirty_rows",
-		"conversation_active_dirty_queue_rows",
-		"conversation_active_dirty_age_buckets",
-		"conversation_active_oldest_dirty_age",
-		"conversation_active_dirty_mutation_rate",
-		"conversation_active_cache_lock_p99",
-		"conversation_active_flush_rows_cumulative",
-		"conversation_active_flush_stage_p99",
-		"conversation_active_flush_attempt_rate",
-		"conversation_active_pressure_events",
-		"conversation_active_pressure_state",
-		"conversation_active_pressure_wakeup_p99",
-		"storage_commit_queue_depth",
-		"storage_commit_request_p99",
-		"storage_commit_batch_stage_p99",
-		"slot_proposal_rate",
-		"slot_proposal_apply_p99",
-		"slot_apply_gap",
-		"slot_background_proposal_admission_rate",
-		"slot_runtime_queue_pressure",
+		"conversation_directory_list_rate",
+		"conversation_directory_list_p99",
+		"conversation_directory_scanned_candidates_p95",
+		"conversation_directory_returned_items_p95",
+		"conversation_directory_deletes_p95",
+		"conversation_directory_unresolved_p95",
+		"conversation_hydration_batch_rate",
+		"conversation_hydration_batch_p99",
+		"conversation_hydration_items_p95",
+		"conversation_hydration_remote_batch_calls_p95",
+		"conversation_hydration_local_reads_p95",
 	} {
 		if !strings.Contains(skill, "`"+queryID+"`") {
-			t.Fatalf("SKILL.md must route conversation-active analysis through %q", queryID)
+			t.Fatalf("SKILL.md must route membership conversation analysis through %q", queryID)
 		}
 		if !strings.Contains(contract, "`"+queryID+"`") {
 			t.Fatalf("tool-contract.md must list metric query ID %q", queryID)
 		}
 	}
 	for _, required := range []string{
-		"selected = persisted + skipped",
-		"selected = cleared + requeued + superseded",
-		"durable row count is unknown",
-		"exact measured-window",
+		"page limit bounds scanned",
+		"empty page is not",
+		"participating Channel Leader nodes",
+		"Local reads should remain bounded",
 		"two consecutive",
-		"`clear_lock_wait`",
-		"`clear_apply`",
-		"`cache_pressure`",
+		"unknown rather than zero",
 	} {
 		if !strings.Contains(skill, required) {
-			t.Fatalf("SKILL.md must document conversation-active evidence rule %q", required)
+			t.Fatalf("SKILL.md must document membership conversation evidence rule %q", required)
 		}
 	}
 }

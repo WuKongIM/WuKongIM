@@ -30,7 +30,7 @@ Scan interval, channels per batch, and per-run message and byte limits bound bac
 | Gateway | async workers, queue capacity, session batches | Connection memory, queue delay, send throughput |
 | Channel append | shards, pools, batches, dispatch concurrency | CPU contention, commit latency, allocations, disk batches |
 | Delivery | page and push batches, event queue, recipient workers | Large-group fanout, pending acknowledgements, backpressure |
-| Conversation/Presence | caches, flush/admit batches, touch batches | Row bounds, DB round trips, dirty-state backlog |
+| Membership directory/Presence | paged sync and hydration batches, touch batches | Candidate bounds, DB reads, remote batch calls |
 | Webhook | queue, workers, batches, timeout, retry | Downstream failure amplification, memory, drop boundaries |
 
 Queue capacity is not capacity planning. A larger queue absorbs a larger transient burst, but also consumes more memory, increases worst-case wait, and may hide sustained overload. Worker and batch limits must be observed with it.

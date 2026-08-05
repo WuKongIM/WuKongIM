@@ -7,14 +7,14 @@
 - `multiraft/`: 管理本节点多个 Slot Raft group，提供 open/bootstrap/close、step、propose、config change、leader transfer、compaction 和 status 等底层能力。
 - `fsm/`: 解码并确定性 apply 元数据命令，校验 Slot/HashSlot 归属，用 `pkg/db/meta` 批量提交，负责 snapshot/restore。
 - `proxy/`: 给上层提供分布式元数据 Store facade，按 key 路由到 Slot leader，提交写入命令，处理需要权威语义的 Slot RPC 读取。
-- 元数据范围：User、Device、Channel、Subscriber、UserConversationState、CMDConversationState、ChannelRuntimeMeta、ChannelMigrationTask、PluginUserBinding 等集群共享状态。
+- 元数据范围：User、Device、Channel、Subscriber、UserChannelMembership、UserCMDChannelMembership、ChannelRuntimeMeta、ChannelMigrationTask、PluginUserBinding 等集群共享状态。
 
 ## 不做
 
 - 不决定 Slot 副本分配、扩缩容、rebalance、recover、hash-slot table 规划或节点生命周期；这些属于 controller/cluster。
 - 不存储消息日志，不处理消息 append/fetch/replication、SendAck、投递、离线同步；这些属于 channel/message/delivery 相关包。
 - 不做 HTTP、Gateway、管理 API、节点入口协议适配；入口放 `internal/access/*`。
-- 不承载业务编排、权限规则、登录 token、发送规则、会话投影策略；业务放 `internal/usecase/*`。
+- 不承载业务编排、权限规则、登录 token、发送规则或会话构建策略；业务放 `internal/usecase/*`。
 - 不保存节点本地运行时状态，例如在线连接、mailbox、限流、插件进程状态；这些放 `internal/runtime/*`。
 - 不做通用 RPC 聚合层；`proxy/` 只放直接查询或提交 Slot 元数据、且需要 Slot leader 权威语义的 RPC。
 

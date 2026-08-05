@@ -175,9 +175,7 @@ func channelAppendPostCommitFailureFields(event channelappend.PostCommitFailureO
 }
 
 func isExpectedPostCommitRouteFailure(err error) bool {
-	return errors.Is(err, conversationusecase.ErrStaleRoute) ||
-		errors.Is(err, conversationusecase.ErrNotLeader) ||
-		errors.Is(err, conversationusecase.ErrRouteNotReady) ||
+	return errors.Is(err, conversationusecase.ErrRouteNotReady) ||
 		errors.Is(err, channelappend.ErrStaleRoute) ||
 		errors.Is(err, channelappend.ErrNotLeader) ||
 		errors.Is(err, channelappend.ErrRouteNotReady)

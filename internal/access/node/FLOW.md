@@ -88,81 +88,6 @@ contract to the version-one wire DTOs without changing the exact
 or codec. `RPCDeliveryFanout` remains a reserved numeric service ID and must not
 be reused.
 
-## Conversation Authority RPC
-
-```text
-remote conversation authority client
-  -> encode W K V C 1 single-target request
-     or W K V C 2 multi-target active-batch request
-  -> cluster RPCConversationAuthority
-  -> Adapter.HandleConversationAuthorityRPC
-  -> ConversationAuthority port
-     or optional ConversationBatchAuthority port
-  -> encode W K V c 1 single-target response
-     or W K V c 2 group-aligned response
-```
-
-Supported conversation authority calls:
-
-- `AdmitPatches(RouteTarget, []ActivePatch)`
-- `AdmitActiveBatch(RouteTarget, conversationactive.ActiveBatch)`
-- `HideConversationsForTarget(RouteTarget, []metadb.ConversationDelete)`
-  preserves canceled/deadline status across the node RPC boundary, matching local authority calls.
-- `ListConversationActiveViewForTarget(RouteTarget, kind, uid, activeCursor, limit)`
-- `DrainAuthority(RouteTarget)`
-
-The RPC boundary is deliberately narrow:
-
-- Admit carries already-materialized UID active patches to the current
-  authority target for compatibility and handoff paths. Callers own patch
-  construction; this package only transports the exact patch collection it
-  receives.
-- Active-batch admit carries the channelappend output directly to one routed UID
-  authority target. Sender/recipient route grouping is performed by
-  `internal/infra/cluster`; this package only transports the exact batch
-  subset it receives.
-- Bulk active-batch admit carries multiple exact targets for one destination
-  leader in one `WKVC2` envelope. Every group retains its own hash slot, Slot,
-  leader term, config epoch, route revision, and authority epoch fence. The
-  `WKVc2` response contains one stable status per input group in the same
-  order, so one stale target does not discard successful sibling groups. The
-  adapter uses `ConversationBatchAuthority` when implemented and otherwise
-  preserves compatibility by calling `AdmitActiveBatch` once per group.
-- Bulk request group count and aggregate active-row count are both limited to
-  4,096. The client rejects a zero or mismatched destination leader before
-  transport, and both codecs reject malformed, truncated, oversized, unknown-
-  status, or trailing data. Existing `WKVC1`/`WKVc1` bytes and the single-group
-  API remain unchanged.
-- During a rolling upgrade, only the exact old-peer `WKVC2` invalid-codec
-  remote error enables fallback to the original `WKVC1` calls. Other transport
-  or protocol errors do not fan out. Unsupported capability is cached per
-  client and destination node for a bounded TTL to avoid repeated hot-path
-  probes. A transport cancellation is normalized to `context.Canceled`; a
-  retryable connection timeout remains distinct for the routed client to
-  classify without weakening the caller deadline.
-- Hide carries one exact, ordered `ConversationDelete` collection to the fenced
-  UID authority target. The client does not split the mutation collection:
-  collections above 4,096 entries fail before transport, and malformed or
-  oversized wire collections fail closed during decode. The adapter waits for
-  the authority result and maps it through the existing route status contract.
-  The `WKVC1` hide extension follows the existing common request prefix and
-  appends `DeleteCount`, then each delete in the stable field order `UID`,
-  `Kind`, `ChannelID`, `ChannelType`, `DeletedToSeq`, and `UpdatedAt`. Existing
-  operation byte layouts are unchanged.
-- List reads the target-owned active view for one `metadb.ConversationKind`
-  from the authority node. The local authority implementation decides how to
-  merge unflushed cache rows with DB rows; this package only transports the
-  request and response.
-- Drain asks an authority node to flush and retire one exact `RouteTarget`
-  during handoff. Handoff ordering and cache state transitions stay in the app
-  authority runtime.
-- The client chunks Admit patch collections at the codec collection limit before
-  calling cluster RPC. Raw transport errors are returned to the infra/cluster
-  route adapter; this package does not decide whether they should retry.
-- The client also chunks active-batch recipient collections at the same codec
-  collection limit. It preserves the batch sender field exactly as supplied by
-  the routed caller.
-
 ## Channel Append RPC
 
 ```text
@@ -536,37 +461,10 @@ Delivery push RPC uses fixed magic headers:
 - Request: `W K V D 1`
 - Response: `W K V d 1`
 
-Conversation authority RPC uses fixed magic headers:
-
-- Single-group request: `W K V C 1`
-- Single-group response: `W K V c 1`
-- Bulk-group request: `W K V C 2` (`WKVC2`)
-- Bulk-group response: `W K V c 2` (`WKVc2`)
-
-`WKVC2` carries an ordered collection of exact `RouteTarget` plus
-`ActiveBatch` groups, bounded by 4,096 aggregate rows. `WKVc2` carries one
-status for every input group in the same order. `WKVC1`/`WKVc1` retain their
-original single-group layout for rolling-upgrade fallback.
-
-Conversation authority request targets carry `HashSlot`, `SlotID`,
-`LeaderNodeID`, Slot `LeaderTerm`, Slot `ConfigEpoch`, route revision, and the
-diagnostic authority epoch in that order. The shared request fields then carry
-`UID`, `metadb.ConversationKind`, active cursor, limit, legacy patch collection,
-and drain result placeholders. Invalid or zero conversation kinds are rejected
-by the decoder instead of being normalized.
-
 Manager Controller Raft RPC uses fixed magic headers:
 
 - Request: `W K V R 1`
 - Response: `W K V r 1`
-
-Conversation active-batch requests append the batch payload only for the
-`admit_conversation_active_batch` op, after the shared request fields and legacy
-patch collection. The stable batch field order is `Kind`, `SenderUID`,
-`ChannelID`, `ChannelType`, `MessageSeq`, `ActiveAtMS`, then recipient entries
-in `UID`, `IsSender` order. Active-view response rows use
-`metadb.ConversationState` and encode row `Kind`; cursors use
-`metadb.ConversationActiveCursor`.
 
 Channel Append RPC uses fixed magic headers:
 
@@ -641,10 +539,6 @@ Stable response statuses are:
 - `unavailable`
 - `rejected`
 
-Conversation authority responses may additionally use:
-
-- `cache_pressure`
-
 Channel Append RPC statuses and item error codes preserve:
 
 - `not_channel_authority`
@@ -659,22 +553,15 @@ Delivery push responses currently use:
 
 ## Boundaries
 
-- This package may import `internal/usecase/presence` DTO aliases, runtime
-  presence sentinel errors, `internal/usecase/conversation` DTOs and
-  sentinel errors, `internal/contracts/channelappend` DTOs and sentinel errors,
-  runtime delivery DTOs, `internal/runtime/conversationactive.ActiveBatch`
-  as the active worker RPC DTO, internal diagnostics DTOs, and the cluster
-  RPC service IDs.
+- This package may import narrow presence, delivery, channel-append, backup,
+  diagnostics, and management DTOs plus cluster RPC service IDs.
 - This package must not decide presence route conflict behavior.
-- This package must not implement conversation active-row construction, cache
-  merge, active-row flush, or handoff business logic.
 - This package must not decide channel authority routing, create proxy channel
   state, perform non-authority appends, or run channel-write post-commit
   effects.
 - This package must not mutate local gateway sessions or authority runtime
   state except through the `PresenceAuthority`, `PresenceOwner`, and
-  `DeliveryOwnerPush` / `ConversationAuthority` /
-  standalone channel-write `ChannelAppend`, manager connection reader, and
+  `DeliveryOwnerPush`, standalone channel-write `ChannelAppend`, manager connection reader, and
   manager log reader, manager plugin reader, manager DB inspect reader,
   manager diagnostics reader/operator, and manager application log reader
   adapter interfaces.

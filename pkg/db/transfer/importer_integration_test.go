@@ -55,10 +55,10 @@ func TestImportBundleWritesCurrentStores(t *testing.T) {
 		`{"hash_slot":`+itoa(int(channelSlot))+`,"channel_id":"g1","channel_type":2,"uid":"u1"}`,
 	)
 	writeJSONLFile(t, root, "meta/memberships.jsonl",
-		`{"hash_slot":`+itoa(int(userSlot))+`,"uid":"u1","channel_id":"g1","channel_type":2,"join_seq":1,"updated_at_ms":1000}`,
+		`{"hash_slot":`+itoa(int(userSlot))+`,"uid":"u1","channel_id":"g1","channel_type":2,"join_seq":1,"read_seq":1,"deleted_to_seq":0,"activated_at":2000,"tombstone":false,"tombstone_at":0,"source_version":7,"updated_at_ms":2001}`,
 	)
-	writeJSONLFile(t, root, "meta/conversations.jsonl",
-		`{"hash_slot":`+itoa(int(userSlot))+`,"uid":"u1","kind":"normal","channel_id":"g1","channel_type":2,"read_seq":1,"deleted_to_seq":0,"active_at":2000,"updated_at":2001,"sparse_active":true}`,
+	writeJSONLFile(t, root, "meta/cmd_memberships.jsonl",
+		`{"hash_slot":`+itoa(int(userSlot))+`,"uid":"u1","command_channel_id":"g1____cmd","channel_type":2,"start_seq":3,"ack_seq":4,"tombstone":false,"tombstone_at":0,"updated_at_ms":2002}`,
 	)
 	writeJSONLFile(t, root, "meta/channel_latest.jsonl",
 		`{"hash_slot":`+itoa(int(channelSlot))+`,"channel_id":"g1","channel_type":2,"last_message_id":1001,"last_message_seq":1,"last_at":3000,"from_uid":"u1","client_msg_no":"c1","last_payload_b64":"aGk=","updated_at":3001}`,
@@ -75,7 +75,7 @@ func TestImportBundleWritesCurrentStores(t *testing.T) {
 		{Path: "meta/channels.jsonl", Kind: FileKindMetaChannels},
 		{Path: "meta/subscribers.jsonl", Kind: FileKindMetaSubscribers},
 		{Path: "meta/memberships.jsonl", Kind: FileKindMetaUserChannelMemberships},
-		{Path: "meta/conversations.jsonl", Kind: FileKindMetaConversations},
+		{Path: "meta/cmd_memberships.jsonl", Kind: FileKindMetaUserCMDChannelMemberships},
 		{Path: "meta/channel_latest.jsonl", Kind: FileKindMetaChannelLatest},
 		{Path: "message/messages-000001.jsonl", Kind: FileKindMessageMessages},
 		{Path: "message/channels.jsonl", Kind: FileKindMessageChannels},
@@ -111,12 +111,16 @@ func TestImportBundleWritesCurrentStores(t *testing.T) {
 	if channel.SubscriberCount != 1 {
 		t.Fatalf("channel.SubscriberCount = %d, want 1", channel.SubscriberCount)
 	}
-	conversation, ok, err := store.Meta().HashSlot(userSlot).GetConversationState(ctx, metadb.ConversationKindNormal, "u1", "g1", 2)
+	membership, ok, err := store.Meta().HashSlot(userSlot).GetUserChannelMembership(ctx, "u1", "g1", 2)
 	if err != nil || !ok {
-		t.Fatalf("GetConversationState() ok=%v err=%v, want ok", ok, err)
+		t.Fatalf("GetUserChannelMembership() ok=%v err=%v, want ok", ok, err)
 	}
-	if conversation.ReadSeq != 1 || !conversation.SparseActive {
-		t.Fatalf("conversation = %+v, want read seq 1 and sparse active", conversation)
+	if membership.ReadSeq != 1 || membership.ActivatedAt != 2000 || membership.SourceVersion != 7 {
+		t.Fatalf("membership = %+v, want imported personal state", membership)
+	}
+	cmdMembership, ok, err := store.Meta().HashSlot(userSlot).GetUserCMDChannelMembership(ctx, "u1", "g1____cmd", 2)
+	if err != nil || !ok || cmdMembership.StartSeq != 3 || cmdMembership.AckSeq != 4 {
+		t.Fatalf("CMD membership = %+v ok=%v err=%v", cmdMembership, ok, err)
 	}
 	latest, ok, err := store.Meta().HashSlot(channelSlot).GetChannelLatest(ctx, "g1", 2)
 	if err != nil || !ok {

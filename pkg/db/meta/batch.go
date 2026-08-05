@@ -127,6 +127,9 @@ func (b *Batch) UpsertChannel(hashSlot HashSlot, channel Channel) error {
 		}
 		if err == nil && exists {
 			next.SubscriberCount = existing.SubscriberCount
+			if existing.DirectoryReady != 0 {
+				next.DirectoryReady = 1
+			}
 		}
 		shard := &Shard{db: state.db, hashSlot: hashSlot}
 		if err := shard.stageChannel(batch, primaryKey, next); err != nil {

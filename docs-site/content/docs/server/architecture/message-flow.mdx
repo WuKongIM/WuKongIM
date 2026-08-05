@@ -32,7 +32,6 @@ description: 跟踪持久化消息从 Gateway 进入、权限检查、权威追�
       ├────────► 8. SENDACK success
       │
       └────────► 9. post-commit effects
-                    conversation projection
                     subscriber paging + presence lookup
                     owner-node online delivery
                     PersistAfter plugin / webhook
@@ -78,12 +77,14 @@ Cluster Channel service 读取并应用最新 `ChannelRuntimeMeta`。本节点�
 
 新 commit 在 authority writer 中形成 immutable `CommittedEnvelope`。这些工作在 SENDACK 之外独立调度：
 
-1. 普通消息生成 normal conversation active projection；命令同步消息使用独立 kind。
-2. 单聊推导参与者；普通频道加载版本化订阅快照；大群按 cursor 分页。
-3. 发送者与接收者 UID 在同一个路由快照下解析为 exact presence targets。
-4. 有界 `RecipientDeliveryPlan` 按 authority target 分组进入在线投递 runtime。
-5. 在线路由再按 owner node 合并；本地写 Session，远端通过 owner-push RPC。
-6. 可选 PersistAfter plugin 和 Webhook 从同一已提交边界获得尽力而为事件。
+1. 单聊推导参与者；普通频道加载版本化订阅快照；大群按 cursor 分页。
+2. 接收者 UID 在同一个路由快照下解析为 exact presence targets。
+3. 有界 `RecipientDeliveryPlan` 按 authority target 分组进入在线投递 runtime。
+4. 在线路由再按 owner node 合并；本地写 Session，远端通过 owner-push RPC。
+5. 可选 PersistAfter plugin 和 Webhook 从同一已提交边界获得尽力而为事件。
+
+SEND 不执行接收者 membership 或 conversation 写入。客户端之后分页同步自己的
+UID-owned membership 目录；服务端按 Channel Leader 分组读取 head 并临时构建会话。
 
 一个接收者组失败不会改变已成功的 SENDACK，也不应阻塞不相关 target。失败会以阶段化日志和指标暴露。
 
@@ -97,7 +98,7 @@ owner 节点在写 `RECV` 前重新验证 UID、Boot ID、Session ID 和 owner f
 
 普通非命令频道的 `NoPersist`（没有 `SyncOnce`，频道 ID 也不是命令频道）只完成无副作用的预路由校验，然后直接返回终态成功；它不会解析 authority、写入 Channel，也不会触发实时投递。这个兼容分支不能当作在线消息发送能力。
 
-命令式 `NoPersist`（带 `SyncOnce` 或已经使用命令频道 ID）才会映射命令频道、解析 authority，并按 writer 顺序进入在线 recipient routing。它跳过 Channel durable log、conversation projection 和 PersistAfter，只有在线投递计划成功入队后才返回成功；没有在线投递能力时会失败，而不是伪造成功。
+命令式 `NoPersist`（带 `SyncOnce` 或已经使用命令频道 ID）才会映射命令频道、解析 authority，并按 writer 顺序进入在线 recipient routing。它跳过 Channel durable log、membership state 和 PersistAfter，只有在线投递计划成功入队后才返回成功；没有在线投递能力时会失败，而不是伪造成功。
 
 两种 `NoPersist` 都没有持久化 sequence 与离线恢复保证，不能用作必须可靠重放的业务事件。
 

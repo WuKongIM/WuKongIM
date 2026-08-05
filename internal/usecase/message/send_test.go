@@ -71,6 +71,34 @@ func TestSendWithoutSubmitterReturnsRouteNotReady(t *testing.T) {
 	}
 }
 
+func TestSendEnsuresPersistentPersonDirectoryBeforeSubmit(t *testing.T) {
+	ensureErr := errors.New("directory unavailable")
+	ensurer := &recordingPersonDirectoryEnsurer{err: ensureErr}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 1, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+
+	cmd := SendCommand{FromUID: "u1", ChannelID: "u2", ChannelType: channelTypePerson, NormalizePersonChannel: true, Payload: []byte("hi")}
+	if _, err := app.Send(context.Background(), cmd); !errors.Is(err, ensureErr) {
+		t.Fatalf("Send() error = %v, want %v", err, ensureErr)
+	}
+	canonical, err := runtimechannelid.NormalizePersonChannel("u1", "u2")
+	if err != nil {
+		t.Fatalf("NormalizePersonChannel(): %v", err)
+	}
+	if !reflect.DeepEqual(ensurer.channelIDs, []string{canonical}) || submitter.sendCommand.FromUID != "" {
+		t.Fatalf("ensurer=%+v submitter=%+v", ensurer.channelIDs, submitter.sendCommand)
+	}
+
+	ensurer.err = nil
+	cmd.SyncOnce = true
+	if _, err := app.Send(context.Background(), cmd); err != nil {
+		t.Fatalf("Send(sync once): %v", err)
+	}
+	if len(ensurer.channelIDs) != 1 {
+		t.Fatalf("ensurer calls = %+v, want persistent ordinary only", ensurer.channelIDs)
+	}
+}
+
 func TestSendAppliesLegacyPermissionChecksBeforeSubmitter(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -523,6 +551,16 @@ type recordingSubmitter struct {
 	sendErr      error
 	batchItems   [][]SendBatchItem
 	batchResults []SendBatchItemResult
+}
+
+type recordingPersonDirectoryEnsurer struct {
+	channelIDs []string
+	err        error
+}
+
+func (e *recordingPersonDirectoryEnsurer) EnsurePersonChannelDirectory(_ context.Context, channelID string, _ int64) error {
+	e.channelIDs = append(e.channelIDs, channelID)
+	return e.err
 }
 
 func (s *recordingSubmitter) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {

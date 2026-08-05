@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -858,6 +859,24 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.Chann
 	return store.ReadCommitted(ctx, req)
 }
 
+// ReadChannelCommittedBatch delegates aligned committed-message reads to the
+// Channel service, which groups remote calls by exact Channel Leader.
+func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	reader, ok := n.channels.(interface {
+		ReadCommittedBatch(context.Context, []channels.CommittedRead) ([]channels.CommittedReadResult, error)
+	})
+	if !ok {
+		return nil, ErrNotStarted
+	}
+	return reader.ReadCommittedBatch(ctx, reads)
+}
+
 // ReadLocalLatestMessages reads one newest-first page from this node's persisted message replicas.
 func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) ([]channelruntime.Message, bool, uint64, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -1051,6 +1070,78 @@ func (n *Node) ReadChannelLastVisible(ctx context.Context, id channelruntime.Cha
 		return channelruntime.Message{}, false, ErrNotStarted
 	}
 	return n.channels.ReadChannelLastVisible(ctx, id, visibleAfterSeq)
+}
+
+// ReadChannelConversationHead reads the exact conversation construction tuple
+// from the authoritative Channel leader.
+func (n *Node) ReadChannelConversationHead(ctx context.Context, id channelruntime.ChannelID, uid string) (channels.ConversationHead, error) {
+	if err := ctxErr(ctx); err != nil {
+		return channels.ConversationHead{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return channels.ConversationHead{}, err
+	}
+	metadata, metadataErr := n.GetChannelMetadata(ctx, id.ID, int64(id.Type))
+	if metadataErr == nil && metadata.Disband != 0 {
+		return channels.ConversationHead{}, channelruntime.ErrChannelNotFound
+	}
+	if metadataErr != nil && !errors.Is(metadataErr, metadb.ErrNotFound) {
+		return channels.ConversationHead{}, metadataErr
+	}
+	reader, ok := n.channels.(interface {
+		ReadConversationHead(context.Context, channelruntime.ChannelID, string) (channels.ConversationHead, error)
+	})
+	if !ok {
+		return channels.ConversationHead{}, ErrNotStarted
+	}
+	return reader.ReadConversationHead(ctx, id, uid)
+}
+
+// ReadChannelConversationHeads validates business channel lifecycle state and
+// delegates one aligned batch to the Channel service, which groups remote
+// reads by exact leader.
+func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string) ([]channels.ConversationHeadResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	reader, ok := n.channels.(interface {
+		ReadConversationHeads(context.Context, []channelruntime.ChannelID, string) ([]channels.ConversationHeadResult, error)
+	})
+	if !ok {
+		return nil, ErrNotStarted
+	}
+	results := make([]channels.ConversationHeadResult, len(ids))
+	eligibleIDs := make([]channelruntime.ChannelID, 0, len(ids))
+	eligibleIndexes := make([]int, 0, len(ids))
+	for index, id := range ids {
+		metadata, err := n.GetChannelMetadata(ctx, id.ID, int64(id.Type))
+		switch {
+		case err == nil && metadata.Disband != 0:
+			results[index].Err = channelruntime.ErrChannelNotFound
+		case err == nil || errors.Is(err, metadb.ErrNotFound):
+			eligibleIDs = append(eligibleIDs, id)
+			eligibleIndexes = append(eligibleIndexes, index)
+		default:
+			results[index].Err = err
+		}
+	}
+	if len(eligibleIDs) == 0 {
+		return results, nil
+	}
+	batch, err := reader.ReadConversationHeads(ctx, eligibleIDs, uid)
+	if err != nil {
+		return nil, err
+	}
+	if len(batch) != len(eligibleIDs) {
+		return nil, channelruntime.ErrInvalidConfig
+	}
+	for index, result := range batch {
+		results[eligibleIndexes[index]] = result
+	}
+	return results, nil
 }
 
 func minAvailableSeq(retentionThroughSeq uint64) uint64 {

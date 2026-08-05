@@ -77,7 +77,7 @@ var verifyMetaSpecs = []verifyMetaSpec{
 	{name: "meta.channels", table: "channel"},
 	{name: "meta.subscribers", table: "subscriber"},
 	{name: "meta.user_channel_memberships", table: "user_channel_membership"},
-	{name: "meta.conversations", table: "conversation"},
+	{name: "meta.user_cmd_channel_memberships", table: "user_cmd_channel_membership"},
 	{name: "meta.channel_latest", table: "channel_latest"},
 }
 

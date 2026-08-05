@@ -220,7 +220,7 @@ function businessRealtimeMonitorResponse(): RealtimeMonitorResponse {
         ],
       },
       {
-        key: "conversationSyncRate",
+        key: "conversationDirectoryRate",
         category: "conversation" as const,
         source: "prometheus" as const,
         stage: "conversationSync",
@@ -1400,7 +1400,7 @@ test("renders former business realtime monitor cards in cluster monitor page", a
   expect(within(cards[0]).getByText("1,250 msg")).toBeInTheDocument()
   expect(within(cards[1]).getByText("Delivery Latency P99")).toBeInTheDocument()
   expect(within(cards[1]).getByText("Online Delivery")).toBeInTheDocument()
-  expect(within(cards[2]).getByText("Conversation Sync Rate")).toBeInTheDocument()
+  expect(within(cards[2]).getByText("Conversation Directory Rate")).toBeInTheDocument()
   expect(within(cards[2]).getByText("Conversation Sync")).toBeInTheDocument()
 })
 

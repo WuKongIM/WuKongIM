@@ -55,14 +55,12 @@ func TestPluginBindingRPCServiceIDDoesNotCollideWithSharedRPCServices(t *testing
 func TestPluginBindingProxyRPCServiceIDsAreUnique(t *testing.T) {
 	ids := map[uint8]string{}
 	for name, id := range map[string]uint8{
-		"runtime_meta":            runtimeMetaRPCServiceID,
-		"identity":                identityRPCServiceID,
-		"subscriber":              subscriberRPCServiceID,
-		"channel":                 channelRPCServiceID,
-		"user_conversation_state": userConversationStateRPCServiceID,
-		"channel_migration":       channelMigrationRPCServiceID,
-		"cmd_conversation_state":  cmdConversationStateRPCServiceID,
-		"plugin_binding":          pluginBindingRPCServiceID,
+		"runtime_meta":      runtimeMetaRPCServiceID,
+		"identity":          identityRPCServiceID,
+		"subscriber":        subscriberRPCServiceID,
+		"channel":           channelRPCServiceID,
+		"channel_migration": channelMigrationRPCServiceID,
+		"plugin_binding":    pluginBindingRPCServiceID,
 	} {
 		if existing, ok := ids[id]; ok {
 			t.Fatalf("proxy rpc service id %d is used by both %s and %s", id, existing, name)

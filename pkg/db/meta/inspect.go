@@ -93,6 +93,8 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, subscriberTable, inspectSubscriberRow)
 	case "user_channel_membership":
 		return inspectScanTable(ctx, db, req, slots, userChannelMembershipTable, inspectUserChannelMembershipRow)
+	case "user_cmd_channel_membership":
+		return inspectScanTable(ctx, db, req, slots, userCMDChannelMembershipTable, inspectUserCMDChannelMembershipRow)
 	case "channel_latest":
 		return inspectScanTable(ctx, db, req, slots, channelLatestTable, inspectChannelLatestRow)
 	case "message_event_state":
@@ -101,8 +103,6 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, messageEventCursorTable, inspectMessageEventCursorRow)
 	case "message_event_applied":
 		return inspectScanTable(ctx, db, req, slots, messageEventAppliedTable, inspectMessageEventAppliedRow)
-	case "conversation":
-		return inspectScanTable(ctx, db, req, slots, conversationTable, inspectConversationRow)
 	case "plugin_binding":
 		return inspectScanTable(ctx, db, req, slots, pluginBindingTable, inspectPluginBindingRow)
 	case "channel_migration":
@@ -502,11 +502,30 @@ func inspectSubscriberRow(subscriber Subscriber) InspectRow {
 
 func inspectUserChannelMembershipRow(membership UserChannelMembership) InspectRow {
 	return InspectRow{
-		"uid":          membership.UID,
-		"channel_id":   membership.ChannelID,
-		"channel_type": membership.ChannelType,
-		"join_seq":     membership.JoinSeq,
-		"updated_at":   membership.UpdatedAt,
+		"uid":            membership.UID,
+		"channel_id":     membership.ChannelID,
+		"channel_type":   membership.ChannelType,
+		"join_seq":       membership.JoinSeq,
+		"read_seq":       membership.ReadSeq,
+		"deleted_to_seq": membership.DeletedToSeq,
+		"activated_at":   membership.ActivatedAt,
+		"tombstone":      membership.Tombstone,
+		"tombstone_at":   membership.TombstoneAt,
+		"source_version": membership.SourceVersion,
+		"updated_at":     membership.UpdatedAt,
+	}
+}
+
+func inspectUserCMDChannelMembershipRow(membership UserCMDChannelMembership) InspectRow {
+	return InspectRow{
+		"uid":                membership.UID,
+		"command_channel_id": membership.CommandChannelID,
+		"channel_type":       membership.ChannelType,
+		"start_seq":          membership.StartSeq,
+		"ack_seq":            membership.AckSeq,
+		"tombstone":          membership.Tombstone,
+		"tombstone_at":       membership.TombstoneAt,
+		"updated_at":         membership.UpdatedAt,
 	}
 }
 
@@ -563,20 +582,6 @@ func inspectMessageEventAppliedRow(applied MessageEventApplied) InspectRow {
 		"msg_event_seq": applied.MsgEventSeq,
 		"status":        applied.Status,
 		"updated_at":    applied.UpdatedAt,
-	}
-}
-
-func inspectConversationRow(state ConversationState) InspectRow {
-	return InspectRow{
-		"uid":            state.UID,
-		"kind":           uint8(state.Kind),
-		"channel_id":     state.ChannelID,
-		"channel_type":   state.ChannelType,
-		"read_seq":       state.ReadSeq,
-		"deleted_to_seq": state.DeletedToSeq,
-		"active_at":      state.ActiveAt,
-		"updated_at":     state.UpdatedAt,
-		"sparse_active":  state.SparseActive,
 	}
 }
 

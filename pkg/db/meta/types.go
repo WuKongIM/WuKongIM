@@ -131,15 +131,11 @@ type MessageEventMessageKey struct {
 	ClientMsgNo string
 }
 
-// ConversationKind identifies one logical UID-owned conversation projection view.
-type ConversationKind uint8
-
-const (
-	// ConversationKindNormal stores ordinary chat conversation cursors.
-	ConversationKindNormal ConversationKind = 1
-	// ConversationKindCMD stores command-channel sync cursors.
-	ConversationKindCMD ConversationKind = 2
-)
+// ChannelKey identifies one channel in metadata APIs.
+type ChannelKey struct {
+	ChannelID   string
+	ChannelType int64
+}
 
 const (
 	// TableIDUser stores user token and device defaults.
@@ -152,7 +148,7 @@ const (
 	TableIDDevice uint32 = 4
 	// TableIDSubscriber stores channel subscribers.
 	TableIDSubscriber uint32 = 5
-	// TableIDConversation stores user conversation state.
+	// TableIDConversation is reserved by the removed development-era conversation table.
 	TableIDConversation uint32 = 6
 	// TableIDCMDConversation is reserved by the development-era split CMD table and must not be reused.
 	TableIDCMDConversation uint32 = 7
@@ -172,6 +168,8 @@ const (
 	TableIDMessageEventCursor uint32 = 14
 	// TableIDMessageEventApplied stores applied event idempotency records.
 	TableIDMessageEventApplied uint32 = 15
+	// TableIDUserCMDChannelMembership stores UID-owned command-channel discovery state.
+	TableIDUserCMDChannelMembership uint32 = 16
 )
 
 const (
@@ -188,8 +186,12 @@ const (
 	subscriberPrimaryFamilyID uint16 = 0
 	subscriberPrimaryIndexID  uint16 = 1
 
-	userChannelMembershipPrimaryFamilyID uint16 = 0
-	userChannelMembershipPrimaryIndexID  uint16 = 1
+	userChannelMembershipPrimaryFamilyID   uint16 = 0
+	userChannelMembershipPrimaryIndexID    uint16 = 1
+	userChannelMembershipActivationIndexID uint16 = 2
+
+	userCMDChannelMembershipPrimaryFamilyID uint16 = 0
+	userCMDChannelMembershipPrimaryIndexID  uint16 = 1
 
 	channelLatestPrimaryFamilyID uint16 = 0
 	channelLatestPrimaryIndexID  uint16 = 1

@@ -30,6 +30,9 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if reason != ReasonSuccess {
 		return SendResult{Reason: reason}, nil
 	}
+	if err := a.ensurePersonDirectory(ctx, cmd); err != nil {
+		return SendResult{Reason: ReasonSystemError}, err
+	}
 	if a == nil || a.submitter == nil {
 		return SendResult{}, ErrRouteNotReady
 	}
@@ -53,6 +56,10 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		}
 		if reason != ReasonSuccess {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}}
+			continue
+		}
+		if err := a.ensurePersonDirectory(ctx, cmd); err != nil {
+			results[i] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: err}
 			continue
 		}
 		cmd, reason, err = a.beforeSendHook(ctx, cmd)
@@ -85,6 +92,13 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		results[indexes[i]] = result
 	}
 	return results
+}
+
+func (a *App) ensurePersonDirectory(ctx context.Context, cmd SendCommand) error {
+	if a == nil || a.personDirectory == nil || cmd.ChannelType != channelTypePerson || cmd.NoPersist || cmd.SyncOnce || cmd.RequestScoped {
+		return nil
+	}
+	return a.personDirectory.EnsurePersonChannelDirectory(ctx, cmd.ChannelID, int64(cmd.ChannelType))
 }
 
 func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {

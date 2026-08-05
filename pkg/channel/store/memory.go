@@ -248,6 +248,29 @@ func (s *MemoryChannelStore) LookupMessageByID(ctx context.Context, messageID ui
 	return ch.Message{}, false, nil
 }
 
+// GetLastSenderMessageSeq returns the latest sender sequence through an
+// explicit committed boundary.
+func (s *MemoryChannelStore) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
+	if fromUID == "" || throughSeq == 0 {
+		return 0, false, ch.ErrInvalidConfig
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := len(s.records) - 1; i >= 0; i-- {
+		record := s.records[i]
+		if record.Index > throughSeq {
+			continue
+		}
+		if record.FromUID == fromUID && !record.SyncOnce {
+			return record.Index, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
 // ReadLog returns raw records for replication.
 func (s *MemoryChannelStore) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := ctx.Err(); err != nil {

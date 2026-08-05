@@ -17,14 +17,14 @@ WuKongIM is Channel-oriented realtime communication infrastructure. It combines 
 | Messaging | Person, group, and custom Channels; ordered append, durable replication, idempotency, offline sync, and message-event projections | Ordering is per Channel; commit and online delivery are separate |
 | Channel policy | Subscribers, denylist, allowlist, ban, disband, stranger policy, and system users | The business service still owns product relationships and content governance |
 | User state | UID, device metadata, multi-device Sessions, distributed presence, and online routing | Concrete Sessions exist only on the connection-owner node |
-| Conversations | Recent conversations, read position, unread state, and delete-visibility boundaries | A conversation is a UID-owned projection, not the message log |
+| Conversations | Membership-backed recent views, badge floor, and delete visibility | A conversation is built at sync time, not persisted as a row |
 | Cluster | Controller, 256 physical hash slots, logical Slot Raft Groups, Channel replicas, and failover | Every deployment is a cluster; a single-node cluster uses the same paths |
 | Extensions | HTTP webhooks, node-local `.wkp` plugins, Send/Receive/PersistAfter hooks, and host RPC | Webhooks and post-commit hooks are not durable message queues |
 | Operations | Manager, readiness, Prometheus, diagnostics, `wkcli`, `wkdb`, and `wkbench` | Mutations must respect authoritative state and safety fences |
 
 ## Messaging semantics
 
-A durable SEND appends at the Channel authority and waits for quorum durable commit before acknowledgement. Online delivery, conversation projection, webhooks, and post-commit plugins run later; their failure cannot roll back an already committed Channel log.
+A durable SEND appends at the Channel authority and waits for quorum durable commit before acknowledgement. Online delivery, webhooks, and post-commit plugins run later; their failure cannot roll back an already committed Channel log. Conversation views are constructed later from membership and Channel state.
 
 ```text
 client -> Gateway -> message usecase -> Channel authority

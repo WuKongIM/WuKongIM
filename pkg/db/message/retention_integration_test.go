@@ -46,6 +46,9 @@ func TestRetentionTrimDeletesIndexesAndPreservesLEO(t *testing.T) {
 	if _, ok, err := log.LookupIdempotency(context.Background(), IdempotencyKey{FromUID: "u2", ClientMsgNo: "c-2"}); err != nil || ok {
 		t.Fatalf("LookupIdempotency(c-2) = ok %v err %v, want missing", ok, err)
 	}
+	if _, ok, err := log.GetLastSenderMessageSeq(context.Background(), "u2", 3); err != nil || ok {
+		t.Fatalf("GetLastSenderMessageSeq(u2) = ok %v err %v, want missing", ok, err)
+	}
 	state, ok, err := log.LoadRetentionState(context.Background())
 	if err != nil {
 		t.Fatalf("LoadRetentionState(): %v", err)

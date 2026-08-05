@@ -13,7 +13,6 @@ var (
 	benchmarkRuntimeMetaSink      runtimeMetaRPCResponse
 	benchmarkIdentitySink         identityRPCResponse
 	benchmarkSubscriberSink       subscriberRPCResponse
-	benchmarkUserConversationSink userConversationStateRPCResponse
 )
 
 func TestRuntimeMetaRPCBinaryBenchmarkCodecRoundTrip(t *testing.T) {
@@ -202,63 +201,6 @@ func BenchmarkSubscriberRPCResponseCodec(b *testing.B) {
 	})
 }
 
-func BenchmarkUserConversationStateRPCResponseCodec(b *testing.B) {
-	resp := benchmarkUserConversationStateRPCResponse()
-	jsonBody, err := json.Marshal(resp)
-	if err != nil {
-		b.Fatalf("marshal user conversation json failed: %v", err)
-	}
-	binaryBody, err := encodeUserConversationStateRPCResponse(resp)
-	if err != nil {
-		b.Fatalf("marshal user conversation binary failed: %v", err)
-	}
-
-	b.Run("json_marshal", func(b *testing.B) {
-		b.ReportAllocs()
-		b.ReportMetric(float64(len(jsonBody)), "payload_bytes/op")
-		for i := 0; i < b.N; i++ {
-			body, err := json.Marshal(resp)
-			if err != nil {
-				b.Fatalf("marshal user conversation json failed: %v", err)
-			}
-			benchmarkRuntimeMetaBytesSink = body
-		}
-	})
-	b.Run("binary_marshal", func(b *testing.B) {
-		b.ReportAllocs()
-		b.ReportMetric(float64(len(binaryBody)), "payload_bytes/op")
-		for i := 0; i < b.N; i++ {
-			body, err := encodeUserConversationStateRPCResponse(resp)
-			if err != nil {
-				b.Fatalf("marshal user conversation binary failed: %v", err)
-			}
-			benchmarkRuntimeMetaBytesSink = body
-		}
-	})
-	b.Run("json_unmarshal", func(b *testing.B) {
-		b.ReportAllocs()
-		b.SetBytes(int64(len(jsonBody)))
-		for i := 0; i < b.N; i++ {
-			var out userConversationStateRPCResponse
-			if err := json.Unmarshal(jsonBody, &out); err != nil {
-				b.Fatalf("unmarshal user conversation json failed: %v", err)
-			}
-			benchmarkUserConversationSink = out
-		}
-	})
-	b.Run("binary_unmarshal", func(b *testing.B) {
-		b.ReportAllocs()
-		b.SetBytes(int64(len(binaryBody)))
-		for i := 0; i < b.N; i++ {
-			out, err := decodeUserConversationStateRPCResponse(binaryBody)
-			if err != nil {
-				b.Fatalf("unmarshal user conversation binary failed: %v", err)
-			}
-			benchmarkUserConversationSink = out
-		}
-	})
-}
-
 func benchmarkRuntimeMetaRPCResponse() runtimeMetaRPCResponse {
 	metas := make([]metadb.ChannelRuntimeMeta, 16)
 	for i := range metas {
@@ -305,27 +247,5 @@ func benchmarkSubscriberRPCResponse() subscriberRPCResponse {
 		UIDs:       uids,
 		NextCursor: uids[len(uids)-1],
 		Done:       false,
-	}
-}
-
-func benchmarkUserConversationStateRPCResponse() userConversationStateRPCResponse {
-	states := make([]metadb.UserConversationState, 32)
-	for i := range states {
-		states[i] = metadb.UserConversationState{
-			UID:          "uid-001",
-			ChannelID:    fmt.Sprintf("channel-%03d", i),
-			ChannelType:  2,
-			ReadSeq:      100 + uint64(i),
-			DeletedToSeq: uint64(i),
-			ActiveAt:     1777777700000 + int64(i),
-			UpdatedAt:    1777777800000 + int64(i),
-		}
-	}
-	return userConversationStateRPCResponse{
-		Status: rpcStatusOK,
-		State:  &states[0],
-		States: states,
-		Cursor: metadb.ConversationCursor{ChannelID: states[len(states)-1].ChannelID, ChannelType: 2},
-		Done:   true,
 	}
 }

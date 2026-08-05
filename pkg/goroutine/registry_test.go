@@ -71,8 +71,8 @@ func TestRegistryBootIdentitySeparatesCounterAndPeakResets(t *testing.T) {
 func TestRegistryWaitReturnsBoundedTaskEvidence(t *testing.T) {
 	r := New()
 	blocker := make(chan struct{})
-	r.Go(TaskAppConversationDrain, func() { <-blocker })
-	waitForTaskActive(t, r, TaskAppConversationDrain, 1)
+	r.Go(TaskAppDeliveryMetadata, func() { <-blocker })
+	waitForTaskActive(t, r, TaskAppDeliveryMetadata, 1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
@@ -84,7 +84,7 @@ func TestRegistryWaitReturnsBoundedTaskEvidence(t *testing.T) {
 	if waitErr.Module != ModuleApp || len(waitErr.Tasks) != 1 {
 		t.Fatalf("wait evidence = %+v, want app task", waitErr)
 	}
-	if waitErr.Tasks[0].Task != TaskAppConversationDrain || waitErr.Tasks[0].Active != 1 {
+	if waitErr.Tasks[0].Task != TaskAppDeliveryMetadata || waitErr.Tasks[0].Active != 1 {
 		t.Fatalf("task evidence = %+v, want lifecycle active=1", waitErr.Tasks[0])
 	}
 	if waitErr.Tasks[0].RunningFor <= 0 {

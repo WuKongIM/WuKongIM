@@ -185,6 +185,9 @@ func prepareCanonicalSend(ctx context.Context, cmd SendCommand, ports preparePor
 		return result, true
 	}
 	cmd = nextCmd
+	if cmd.SyncOnce {
+		cmd.ChannelID = runtimechannelid.ToCommandChannel(cmd.ChannelID)
+	}
 	if existing, ok, err := lookupIdempotentSend(ctx, cmd, ports); err != nil {
 		return prepareSendResult{err: err}, true
 	} else if ok {

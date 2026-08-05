@@ -1008,6 +1008,16 @@ func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message,
 	return channelMessageFromRow(row), true, nil
 }
 
+// GetLastSenderMessageSeq returns the latest indexed sender sequence through
+// the caller's committed high-water boundary.
+func (s *ChannelStore) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
+	if s == nil || s.log == nil {
+		return 0, false, channel.ErrInvalidArgument
+	}
+	seq, ok, err := s.log.GetLastSenderMessageSeq(ctx, fromUID, throughSeq)
+	return seq, ok, toChannelError(err)
+}
+
 // ListMessagesBySeq scans persisted messages by sequence while preserving caller cancellation.
 func (s *ChannelStore) ListMessagesBySeq(ctx context.Context, fromSeq uint64, limit int, maxBytes int, reverse bool) ([]channel.Message, error) {
 	if err := s.beginUse(); err != nil {

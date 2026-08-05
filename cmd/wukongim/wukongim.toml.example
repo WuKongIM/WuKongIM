@@ -139,21 +139,6 @@ touch_batch_size = 512
 touch_max_routes_per_flush = 65536
 route_ttl = "90s"
 
-[conversation]
-max_last_message_concurrency = 32
-authority_cache_max_rows_per_uid = 4096
-authority_cache_max_rows = 100000
-authority_list_db_window_max = 1000
-authority_handoff_timeout = "3s"
-authority_flush_interval = "1s"
-authority_flush_timeout = "5s"
-# Maximum dirty active rows persisted by one periodic, pressure-woken, or authority-handoff flush attempt.
-authority_flush_batch_rows = 512
-authority_admit_batch_rows = 512
-authority_admit_concurrency = 16
-
-
-
 [delivery]
 enable = true
 fanout_page_size = 512

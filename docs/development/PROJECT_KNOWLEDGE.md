@@ -81,17 +81,16 @@
 - `cluster/channels` caches append ChannelRuntimeMeta with epoch and leader fences; Slot metadata remains authoritative and stale append errors invalidate the cache once before retry.
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
-- `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
+- `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, membership state, or owner delivery.
 - Channelappend post-commit handoff and per-channel backlog must stay bounded.
   When post-commit ports are configured, append-bound items reserve global
   handoff capacity before durable append; unavailable capacity returns
   `ErrChannelBusy` before the message is appended. After a successful durable
   append, SENDACK completes independently, and isolated post-commit workers
   retain scheduler-saturated envelopes in bounded writer state rather than
-  losing an already-committed handoff. Terminal conversation/delivery failures
+  losing an already-committed handoff. Terminal delivery/plugin/webhook failures
   remain best-effort and do not roll back the Channel commit.
 - Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
-- Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
 
 ## Gateway Runtime
@@ -103,25 +102,25 @@
 - Node-local Channel reactor routing must avalanche stable hashes before a power-of-two modulus; raw FNV-64a low bits collapse sequential canonical person-channel IDs onto a subset of reactors. Reactor partitions are not cluster hash slots or persisted ownership.
 - Channel runtime data replicas are selected by Channel placement, not by Slot metadata peers; Slot route peers describe metadata ownership only.
 
-### Conversation working set
-- Recent conversation sync is allowed to be working-set based; it does not need `version` to discover every historical conversation update.
+### Membership-backed conversation directory
+- A conversation is a transient server-built response, not a durable row. There is no conversation table, message-time conversation projection, active cache, dirty queue, authority RPC, or flush worker.
+- `user_channel_membership` is the ordinary UID-owned directory and stores `join_seq`, monotonic badge `read_seq`, monotonic `deleted_to_seq`, explicit `activated_at`, tombstone state, and subscriber-derived `source_version`.
+- `user_cmd_channel_membership` is a separate UID-owned CMD directory with `start_seq`, monotonic `ack_seq`, and tombstone state. Ordinary and CMD messages use separate Channel logs and sequence spaces.
+- Ordinary/CMD SEND performs zero recipient membership writes. Ordinary message storage writes the sender-sequence index atomically with the message row; the index lets conversation hydration calculate the current user's latest committed SEND without a membership mutation. `wukongim_conversation_membership_mutation_rows_total` counts actual successful ordinary/CMD directory proposal rows and must remain unchanged during a pure SEND workload.
+- Member add captures one committed tail for the logical operation, writes subscribers first, then UID memberships. Remove deletes subscribers first, then writes membership tombstones. Failures are returned for idempotent caller retry; there is no background repair workflow in the first version.
+- `activated_at` is synchronization priority, changed only by explicit navigation or hide. The client owns pinning and final ordering. Directory pages scan candidates in `(activated_at desc, channel_id, channel_type)` order; the candidate limit may underfill conversations, and only `done=true` completes a pass.
+- Directory hydration groups live candidates by exact Channel Leader and returns successful conversations, deletes, and unresolved keys independently. Clients persist coverage after a complete pass and retry unresolved keys separately.
+- A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
+- `read_seq` is a monotonic badge floor changed only by clear/set-unread. Badge calculation also uses the current user's latest committed ordinary sender sequence; it is not a message-read receipt or client message cursor.
+- Hiding advances `deleted_to_seq` and clears `activated_at` without removing membership. A newer message may make the conversation visible again. True remove/rejoin resets visibility from the newly captured tail.
+- Persistent person SEND establishes both participant memberships before the first append and then monotonically sets Channel `directory_ready`; later SENDs do not repeat UID membership checks.
 - Active local channel runtimes must be capacity-managed per node with `WK_CLUSTER_MAX_CHANNELS` and optional idle eviction; 100k simultaneously active channels can amplify replica goroutines and heap even before message volume is high.
 - Channel replica pooled execution must preserve per-channel single-writer ordering and all generation/epoch/fence checks; it is an execution-cache optimization, not a cluster semantic change.
 - Channel replica execution defaults to `pooled`; `dedicated` remains an explicit rollback mode for legacy per-replica workers.
 - Leader-side lane tracking for cold channel wake-up requires follower-advertised lane membership with a local generation; leader ready flags alone must not suppress `ReconcileProbe`.
 - Follower `ApplyFetch` must be idempotent for duplicate already-applied record prefixes so long-poll replay can still emit cursor ACKs and avoid replication stalls.
-- `ActiveAt` is a best-effort hint: updates may be batched, throttled, dropped, and merged from the kind-aware conversation active cache during `ListConversationActiveView`.
-- Legacy `UserConversation*` and `CMDConversation*` APIs in `pkg/db/meta` are source compatibility shims only; they must map to the unified kind-aware conversation table.
-- Conversation active flush attempts must carry a bounded context because Slot proposal futures rely on caller deadlines for stale or uncommitted proposals.
-- Conversation active admission is memory-only: it may evict clean rows or return cache pressure, but it must never perform durable I/O or wait for the serialized flush lane.
-- Bounded conversation-active admission must locate clean eviction victims through an exact clean index and coalesce duplicate addresses before taking the cache lock; never scan the full dirty cache under that lock.
-- Conversation active pressure uses one coalesced async worker wakeup, bounded flush attempts, and 80%/70% high/dirty-low watermarks; clean rows below the dirty watermark are the reusable eviction reserve.
-- Conversation active projection failure is observed independently and must not block recipient delivery, later large-channel pages, or subscriber snapshot caching.
 - Recipient delivery plans preserve complete UID-authority fences and batch presence RPC by actual leader; only stale/not-ready groups may batch-resolve fresh targets and retry once, without replaying successful siblings.
 - Cloud Medium recipient pages are bounded at 512 rows: authority normalization uses an inline UID index and exact 256-physical-hash-slot grouping while preserving all 10 logical Slot and leader/config fences; do not replace it with per-message UID/target maps.
-- Deleting a conversation clears current active visibility through `DeletedToSeq`; a later message with a larger sequence must be allowed to reactivate it.
-- Delete without an explicit message sequence must first resolve the latest Channel Log sequence; if no sequence is available, do not install a zero delete barrier.
-- Duplicate/stale delete barriers must not clear an `ActiveAt` written by a newer message.
 - Legacy channel allowlist, denylist, and temporary-subscriber APIs are backed by namespaced slot subscriber lists until dedicated metadata tables exist.
 - Manager business-channel detail and subscriber/allowlist/denylist reads are Slot-Leader authoritative and fail closed when no leader is confirmed; exact UID lookup is a point read, never a full member scan.
 - Manager channel create and flag patch are distinct conditional Slot-FSM commands: create is create-only, while patch changes only `Ban`, `Disband`, and `SendBan`. First allowlist/denylist add creates its derived list only after validating the parent channel and uses the same create-only primitive.
@@ -132,12 +131,12 @@
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.
 - `NoPersist` sends still pass validation and send permissions, then skip durable append/committed events and return success with zero message ID/seq.
-- In internal, channel-scoped `SyncOnce` sends keep the source channel log, persist the `SyncOnce` marker in Channel runtime records, project `ConversationKindCMD`, and are skipped by ordinary conversation hydration.
+- In internal, persistent `SyncOnce`/CMD sends use the separate command Channel log and never consume ordinary sequence space or mutate either membership directory.
 - `/message/send` request-scoped `subscribers` 要求 `sync_once=1` 且 `channel_id` 为空；`channel_type` 被忽略，内部派生 temp `____cmd` channel。
 - Durable request-scoped subscriber sends write the derived temp cmd channel and carry exact `MessageScopedUIDs`; NoPersist request-scoped sends use a transient message ID and realtime delivery.
 - Message-scoped delivery tags are ephemeral: they must not replace reusable channel-level delivery tag refs, and their exact subscriber snapshot is not recoverable from durable log replay alone.
 - Remote delivery-submit for message-scoped sends must fail closed when the owner node cannot prove scoped-submit support; do not fall back to conversation-only delivery.
-- CMD offline sync persists read progress in CMD-kind conversation rows (`uid -> readSeq` per command/source channel) rather than per-message subscriber snapshots; request-scoped recipients and delivery tag UID pages are the authoritative intent sources.
+- CMD offline discovery requires an explicit binding (or another pre-existing derivable binding set); arbitrary request-scoped recipients are online-only unless bound. Syncack monotonically advances CMD membership `ack_seq`.
 
 ### Long-poll leader lease refresh
 - A channel leader metadata refresh that only renews `LeaseUntil` must preserve existing leader-side lane sessions and follower cursors.
@@ -333,7 +332,7 @@
   product service owns the membership source of truth and reconciles
   subscribers through bounded requests. Current product HTTP routes remain a
   trusted service-side boundary. Durable SEND success proves Channel quorum
-  commit, not complete fanout, RECVACK, conversation projection, or a business
+  commit, not complete fanout, RECVACK, directory synchronization, or a business
   result. `ClearUnread` advances through the newest server-visible Channel
   message; its optional request sequence is only a fallback, not exact
   client-side read progress. A 100,000-member workflow uses checkpointed
@@ -406,8 +405,6 @@
 - Omitted Channel store/RPC worker settings stay zero in the loader so the owning Channel runtime derives them; deployment profiles that require a fixed shape must set them explicitly.
 - Local Cloud Medium RC evidence must disable parent `go.work`, resolve the exact `go.mod` toolchain, and use portable temporary/hash commands so macOS and Linux exercise the same committed harness.
 - Cloud Simulation Bootstrap Gate accepts a non-zero actual Slot Raft leader that belongs to the current voter set when quorum and peer sync are healthy; `PreferredLeader` mismatch is placement evidence, not a health failure.
-- Conversation-active flush evidence must distinguish selected, acknowledged-persisted, cooldown-skipped, actually cleared, version-conflicted retry rows, and superseded stale snapshots; a successful store call does not prove that version-fenced dirty markers were cleared, while a failed cross-Slot store call leaves durable progress unknown.
-- Conversation-active cooldown must classify the current dirty version's ReadSeq advance, not a historical cached ReadSeq; after a persisted snapshot conflicts with a newer cache version, only a ReadSeq beyond that snapshot remains sender-dirty. Bounded flush selection must cover each live dirty address before repeating, and dirty-age indexes must be bounded by live dirty rows rather than cumulative updates.
 - Standard Cloud Simulation verdicts require a 48h/168h reviewed small, medium, or large profile plus empirical 30m storage calibration; shorter durations are diagnostic evidence only.
 - Any node OOM increment or WuKongIM process start-time change during a Cloud Simulation run invalidates performance and storage calibration; use an intentional phase-boundary profiling rerun for root-cause isolation, then a separate passive calibration after remediation.
 - Phase-ending process loss may occur after the last coarse scrape; query at 5-second steps through 90 seconds after the phase end, and compare heap `inuse_space` with `alloc_space` so transient allocation spikes are not mistaken for retained memory.

@@ -171,26 +171,22 @@ func seedVerifyNodeStore(t *testing.T, hashSlotCount uint16, seedOpts verifySeed
 		t.Fatalf("AddSubscribers(): %v", err)
 	}
 	if err := store.Meta().HashSlot(userSlot).UpsertUserChannelMembership(ctx, metadb.UserChannelMembership{
-		UID:         "u1",
-		ChannelID:   "g1",
-		ChannelType: 2,
-		JoinSeq:     1,
-		UpdatedAt:   1000,
+		UID:           "u1",
+		ChannelID:     "g1",
+		ChannelType:   2,
+		JoinSeq:       1,
+		ReadSeq:       1,
+		ActivatedAt:   2000,
+		SourceVersion: 7,
+		UpdatedAt:     2001,
 	}); err != nil {
 		t.Fatalf("UpsertUserChannelMembership(): %v", err)
 	}
-	if err := store.Meta().HashSlot(userSlot).UpsertConversationState(ctx, metadb.ConversationState{
-		UID:          "u1",
-		Kind:         metadb.ConversationKindNormal,
-		ChannelID:    "g1",
-		ChannelType:  2,
-		ReadSeq:      1,
-		DeletedToSeq: 0,
-		ActiveAt:     2000,
-		UpdatedAt:    2001,
-		SparseActive: true,
+	if err := store.Meta().HashSlot(userSlot).UpsertUserCMDChannelMembership(ctx, metadb.UserCMDChannelMembership{
+		UID: "u1", CommandChannelID: "g1____cmd", ChannelType: 2,
+		StartSeq: 3, AckSeq: 4, UpdatedAt: 2002,
 	}); err != nil {
-		t.Fatalf("UpsertConversationState(): %v", err)
+		t.Fatalf("UpsertUserCMDChannelMembership(): %v", err)
 	}
 	if err := store.Meta().HashSlot(channelSlot).UpsertChannelLatest(ctx, metadb.ChannelLatest{
 		ChannelID:      "g1",

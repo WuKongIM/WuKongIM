@@ -27,16 +27,16 @@ type plan struct {
 }
 
 var partitionKeys = map[string]string{
-	"meta.user":                 "uid",
-	"meta.device":               "uid",
-	"meta.channel":              "channel_id",
-	"meta.channel_runtime_meta": "channel_id",
-	"meta.subscriber":           "channel_id",
-	"meta.conversation":         "uid",
-	"meta.cmd_conversation":     "uid",
-	"meta.plugin_binding":       "uid",
-	"meta.channel_migration":    "channel_id",
-	"message.message":           "channel_key",
+	"meta.user":                        "uid",
+	"meta.device":                      "uid",
+	"meta.channel":                     "channel_id",
+	"meta.channel_runtime_meta":        "channel_id",
+	"meta.subscriber":                  "channel_id",
+	"meta.user_channel_membership":     "uid",
+	"meta.user_cmd_channel_membership": "uid",
+	"meta.plugin_binding":              "uid",
+	"meta.channel_migration":           "channel_id",
+	"message.message":                  "channel_key",
 }
 
 func planQuery(opts Options, q Query) (plan, error) {

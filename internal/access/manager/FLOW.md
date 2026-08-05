@@ -339,8 +339,9 @@ of rendering empty charts. This route does not read from the top collector or
 any in-process dashboard ring buffer. PromQL is scoped to the app-managed
 `wukongim` Prometheus job so unrelated Prometheus jobs cannot be mixed into the
 realtime cards. Conversation cards include a `conversationSync` stage
-covering the `/conversation/sync` client experience, active-cache dirty age,
-active flush health, and conversation authority pressure. Gateway cards cover
+covering membership-directory request rate, latency, errors, scanned and
+returned candidates, deletes, unresolved rows, and Channel-Leader hydration
+latency and read amplification. Gateway cards cover
 client ingress, active connections, async SEND queue usage, connection churn,
 close-reason distribution, auth success/latency, SENDACK error rate, gateway
 traffic, frame handling latency, async SEND batch shape, async auth pressure,
@@ -521,7 +522,8 @@ global task index.
 `/manager/conversations` preserves the legacy recent conversation manager
 response shape for the web recent-conversation list view, including `uid`,
 `limit`, `msg_count`, and `only_unread` query parameters. It reuses the
-internal conversation sync usecase and remains a read-only display route.
+membership-backed conversation construction usecase and remains a read-only
+display route.
 Embedded `recent_messages[].message_id` values are decimal strings so browser
 clients preserve the complete unsigned 64-bit identifier.
 

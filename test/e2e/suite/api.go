@@ -39,18 +39,29 @@ type MessageSendResponse struct {
 
 // ConversationListPage is the public /conversation/list response page.
 type ConversationListPage struct {
-	Conversations []ConversationListItem `json:"conversations"`
-	More          int                    `json:"more"`
+	Conversations           []ConversationListItem `json:"conversations"`
+	Deletes                 []ConversationListKey  `json:"deletes"`
+	Unresolved              []ConversationListKey  `json:"unresolved"`
+	NextCursor              string                 `json:"next_cursor"`
+	Done                    bool                   `json:"done"`
+	Coverage                int64                  `json:"coverage"`
+	TombstonesRetainedSince int64                  `json:"tombstones_retained_since"`
+	ResetRequired           bool                   `json:"reset_required"`
+}
+
+// ConversationListKey identifies one deleted or retryable channel.
+type ConversationListKey struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelType int64  `json:"channel_type"`
 }
 
 // ConversationListItem is one recent-conversation row returned by /conversation/list.
 type ConversationListItem struct {
-	ChannelID    string                   `json:"channel_id"`
-	ChannelType  int64                    `json:"channel_type"`
-	ActiveAt     int64                    `json:"active_at"`
-	SparseActive bool                     `json:"sparse_active"`
-	Unread       uint64                   `json:"unread"`
-	LastMessage  *ConversationLastMessage `json:"last_message"`
+	ChannelID   string                   `json:"channel_id"`
+	ChannelType int64                    `json:"channel_type"`
+	ActiveAt    int64                    `json:"active_at"`
+	Unread      uint64                   `json:"unread"`
+	LastMessage *ConversationLastMessage `json:"last_message"`
 }
 
 // ConversationLastMessage is the hydrated tail message on a conversation row.

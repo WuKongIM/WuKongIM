@@ -343,7 +343,7 @@ type CommittedEnvelope struct {
 	Payload []byte
 	// RedDot carries the client red-dot flag for delivery side effects.
 	RedDot bool
-	// SyncOnce marks a one-shot sync command for post-commit conversation projection.
+	// SyncOnce marks a one-shot command that is persisted in the separate CMD Channel log.
 	SyncOnce bool
 	// MessageScopedUIDs are request-scoped one-shot delivery targets.
 	MessageScopedUIDs []string

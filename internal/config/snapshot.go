@@ -93,13 +93,6 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		recipientWorkers = app.DefaultDeliveryRecipientWorkerConcurrency
 		recipientDerived = configuredAsZero(values, "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY")
 	}
-	cacheRows := cfg.Conversation.AuthorityCacheMaxRows
-	cacheRowsDerived := false
-	if cacheRows == 0 {
-		cacheRows = app.DefaultConversationAuthorityCacheMaxRows
-		cacheRowsDerived = configuredAsZero(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS")
-	}
-
 	return map[string]effectiveSnapshotValue{
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                effectiveInteger(values, "WK_CLUSTER_INITIAL_SLOT_COUNT", initialSlotCount, initialDerived),
 		"WK_CLUSTER_HASH_SLOT_COUNT":                   effectiveInteger(values, "WK_CLUSTER_HASH_SLOT_COUNT", hashSlotCount, hashDerived),
@@ -115,7 +108,6 @@ func effectiveCriticalSnapshotValues(values sourceValues, cfg app.Config) map[st
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        effectiveInteger(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", gatewayRuntime.AsyncSendWorkers, cfg.Gateway.Runtime.AsyncSendWorkers != gatewayRuntime.AsyncSendWorkers),
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": effectiveInteger(values, "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY", gatewayRuntime.AsyncSendQueueCapacity, cfg.Gateway.Runtime.AsyncSendQueueCapacity != gatewayRuntime.AsyncSendQueueCapacity),
 		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":     effectiveInteger(values, "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY", recipientWorkers, recipientDerived),
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS":     effectiveInteger(values, "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", cacheRows, cacheRowsDerived),
 	}
 }
 
@@ -182,7 +174,6 @@ func orderedSnapshotGroups(groups map[string][]managementusecase.NodeConfigItem)
 		"diagnostics",
 		"top",
 		"presence",
-		"conversation",
 		"channel_migration",
 	}
 	seen := map[string]bool{}
@@ -258,7 +249,6 @@ func groupTitle(id string) string {
 		"diagnostics":       "Diagnostics",
 		"top":               "Top",
 		"presence":          "Presence",
-		"conversation":      "Conversation",
 		"channel_migration": "Channel Migration",
 	}
 	if title, ok := titles[id]; ok {

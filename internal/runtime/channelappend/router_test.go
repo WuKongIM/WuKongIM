@@ -418,6 +418,27 @@ func TestRouterRoutesRequestScopedSendByCanonicalChannel(t *testing.T) {
 	}
 }
 
+func TestRouterRoutesPersistentSyncOnceByCommandChannel(t *testing.T) {
+	canonical := ChannelID{ID: runtimechannelid.ToCommandChannel("room"), Type: 2}
+	target := routerTarget(canonical.ID, canonical.Type, 7)
+	resolver := &routerResolverForTest{targetsByChannel: map[ChannelID]AuthorityTarget{canonical: target}}
+	local := &routerLocalSubmitterForTest{results: []SendBatchItemResult{{Result: SendResult{MessageID: 22, Reason: ReasonSuccess}}}}
+	router := NewRouter(RouterOptions{LocalNodeID: 7, Resolver: resolver, Local: local})
+
+	item := routerItem("u1", "room", 2)
+	item.Command.SyncOnce = true
+	results := router.SendBatch([]SendBatchItem{item})
+	if len(results) != 1 || results[0].Err != nil || results[0].Result.MessageID != 22 {
+		t.Fatalf("results = %#v", results)
+	}
+	if resolver.lastID != canonical || local.target.ChannelID != canonical {
+		t.Fatalf("resolved=%+v local=%+v, want command channel %+v", resolver.lastID, local.target.ChannelID, canonical)
+	}
+	if local.items[0].Command.ChannelID != "room" {
+		t.Fatalf("submitted command channel = %q, want original source id", local.items[0].Command.ChannelID)
+	}
+}
+
 func TestRouterRoutesNormalizePersonSendByCanonicalChannel(t *testing.T) {
 	canonicalID, err := runtimechannelid.NormalizePersonChannel("u1", "u2")
 	if err != nil {

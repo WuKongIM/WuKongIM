@@ -113,22 +113,6 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.backupRuntimeStarted = true
 	}
-	if a.conversationRouteLifecycle != nil {
-		if err := a.conversationRouteLifecycle.Start(ctx); err != nil {
-			a.logLifecycleError("conversation_route_lifecycle", "start", err)
-			stopErr := a.rollbackStarted(ctx)
-			return errors.Join(err, stopErr)
-		}
-		a.conversationRouteStarted = true
-	}
-	if a.conversationActiveWorker != nil {
-		if err := a.conversationActiveWorker.Start(ctx); err != nil {
-			a.logLifecycleError("conversation_active_worker", "start", err)
-			stopErr := a.rollbackStarted(ctx)
-			return errors.Join(err, stopErr)
-		}
-		a.conversationActiveStarted = true
-	}
 	if a.presenceWorker != nil {
 		if err := a.presenceWorker.Start(ctx); err != nil {
 			a.logLifecycleError("presence_worker", "start", err)
@@ -484,22 +468,6 @@ func (a *App) Stop(ctx context.Context) error {
 			a.pluginRuntimeStarted = false
 		}
 	}
-	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
-		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_active_worker", "stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationActiveStarted = false
-		}
-	}
-	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
-		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_route_lifecycle", "stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationRouteStarted = false
-		}
-	}
 	if a.presenceStarted && a.presenceWorker != nil {
 		if stopErr := a.presenceWorker.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("presence_worker", "stop", stopErr)
@@ -532,7 +500,7 @@ func (a *App) Stop(ctx context.Context) error {
 		a.logLifecycleWarn("ops_mcp_audit", "stop", stopErr)
 		err = errors.Join(err, stopErr)
 	}
-	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.backupRuntimeStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.conversationActiveStarted && !a.conversationRouteStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
+	if !a.gatewayStarted && !a.prometheusStarted && !a.managerStarted && !a.apiStarted && !a.topStarted && !a.backupRuntimeStarted && !a.channelAppendStarted && !a.deliveryStarted && !a.webhookStarted && !a.pluginHookStarted && !a.pluginRuntimeStarted && !a.presenceStarted && !a.seedJoinStarted && !a.clusterStarted {
 		a.started = false
 		err = errors.Join(err, a.waitManagedGoroutines(ctx))
 	}
@@ -557,7 +525,6 @@ func (a *App) waitManagedGoroutines(ctx context.Context) error {
 		goruntimeregistry.ModulePresence,
 		goruntimeregistry.ModuleChannelAppend,
 		goruntimeregistry.ModuleDelivery,
-		goruntimeregistry.ModuleConversation,
 		goruntimeregistry.ModuleWebhook,
 		goruntimeregistry.ModulePlugin,
 		goruntimeregistry.ModuleBackup,
@@ -674,22 +641,6 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			err = errors.Join(err, stopErr)
 		} else {
 			a.pluginRuntimeStarted = false
-		}
-	}
-	if a.conversationActiveStarted && a.conversationActiveWorker != nil {
-		if stopErr := a.conversationActiveWorker.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_active_worker", "rollback_stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationActiveStarted = false
-		}
-	}
-	if a.conversationRouteStarted && a.conversationRouteLifecycle != nil {
-		if stopErr := a.conversationRouteLifecycle.Stop(ctx); stopErr != nil {
-			a.logLifecycleWarn("conversation_route_lifecycle", "rollback_stop", stopErr)
-			err = errors.Join(err, stopErr)
-		} else {
-			a.conversationRouteStarted = false
 		}
 	}
 	if a.presenceStarted && a.presenceWorker != nil {

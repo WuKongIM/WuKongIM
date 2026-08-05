@@ -31,7 +31,7 @@ hooks, channel append ordering, or crash replay.
 
 Webhook admission is bounded and best-effort. Queue-full, closed, canceled, and
 retry-exhausted events are observed and dropped. Webhook delivery never changes
-SENDACK success, durable append success, conversation-active admission, or owner
+SENDACK success, durable append success, membership state, or owner
 delivery.
 
 Large offline fanout must use recipient batches. Do not enqueue one webhook item

@@ -91,6 +91,45 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 	return page, nil
 }
 
+// GetLastSenderMessageSeq returns the latest sequence sent by fromUID at or
+// before throughSeq. Callers pass the committed channel high-water mark so an
+// uncommitted mutable tail cannot suppress badge counts.
+func (l *ChannelLog) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
+	if err := l.beginUse(); err != nil {
+		return 0, false, err
+	}
+	defer l.endUse()
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
+	if fromUID == "" || throughSeq == 0 {
+		return 0, false, dberrors.ErrInvalidArgument
+	}
+
+	prefix := encodeMessageSenderSeqIndexPrefix(l.key, fromUID)
+	span := keycodec.NewPrefixSpan(prefix)
+	end := span.End
+	if throughSeq != ^uint64(0) {
+		end = encodeMessageSenderSeqIndexKey(l.key, fromUID, throughSeq+1)
+	}
+	iter, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: end}, engine.IterOptions{})
+	if err != nil {
+		return 0, false, err
+	}
+	defer iter.Close()
+	if !iter.Last() {
+		if err := iter.Error(); err != nil {
+			return 0, false, err
+		}
+		return 0, false, nil
+	}
+	seq, ok := decodeMessageSenderSeqIndexSeq(l.key, fromUID, iter.Key())
+	if !ok {
+		return 0, false, fmt.Errorf("%w: corrupt sender sequence index", dberrors.ErrCorruptValue)
+	}
+	return seq, true, nil
+}
+
 func (l *ChannelLog) lookupMessageIDSeq(ctx context.Context, messageID uint64) (uint64, bool, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, false, err

@@ -344,17 +344,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 		"WK_PRESENCE_TOUCH_FLUSH_INTERVAL=2s",
 		"WK_PRESENCE_TOUCH_BATCH_SIZE=1024",
 		"WK_PRESENCE_ROUTE_TTL=2m",
-		"WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=48",
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=8192",
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=200000",
-		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1500",
-		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=4s",
-		"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=90m",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1500ms",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=2500ms",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=384",
-		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=256",
-		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=8",
 		"WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=600",
 		"WK_DELIVERY_ENABLE=true",
 		"WK_CHANNEL_APPEND_SHARD_COUNT=10",
@@ -496,21 +485,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Presence.RouteTTL != 2*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 2m", cfg.Presence.RouteTTL)
 	}
-	if cfg.Conversation.MaxLastMessageConcurrency != 48 {
-		t.Fatalf("Conversation.MaxLastMessageConcurrency = %d, want 48", cfg.Conversation.MaxLastMessageConcurrency)
-	}
-	assertConversationAuthorityConfig(t, cfg.Conversation, app.ConversationConfig{
-		AuthorityCacheMaxRowsPerUID: 8192,
-		AuthorityCacheMaxRows:       200000,
-		AuthorityListDBWindowMax:    1500,
-		AuthorityHandoffTimeout:     4 * time.Second,
-		AuthorityActiveCooldown:     90 * time.Minute,
-		AuthorityFlushInterval:      1500 * time.Millisecond,
-		AuthorityFlushTimeout:       2500 * time.Millisecond,
-		AuthorityFlushBatchRows:     384,
-		AuthorityAdmitBatchRows:     256,
-		AuthorityAdmitConcurrency:   8,
-	})
 	if cfg.Channel.LargeGroupSubscriberThreshold != 600 {
 		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 600", cfg.Channel.LargeGroupSubscriberThreshold)
 	}
@@ -654,53 +628,6 @@ func TestLoadConfigExplicitConfigFile(t *testing.T) {
 	if cfg.Gateway.Session.AsyncSendBatchMaxBytes != 262144 {
 		t.Fatalf("AsyncSendBatchMaxBytes = %d, want 262144", cfg.Gateway.Session.AsyncSendBatchMaxBytes)
 	}
-}
-
-func TestLoadConfigConversationAuthorityEnvOverridesFile(t *testing.T) {
-	unsetLoadConfigEnv(t)
-	dir := t.TempDir()
-	path := filepath.Join(dir, "wukongim.toml")
-	lines := append(requiredConfigLines(dir),
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=4096",
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=100000",
-		"WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=1000",
-		"WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=3s",
-		"WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=2h",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=1s",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=5s",
-		"WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=512",
-		"WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=512",
-		"WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=16",
-	)
-	writeConf(t, path, lines...)
-	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID", "2048")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS", "50000")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX", "750")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT", "2s")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN", "45m")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL", "750ms")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT", "1250ms")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS", "96")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS", "128")
-	t.Setenv("WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY", "4")
-
-	cfg, err := loadConfig([]string{"-config", path})
-	if err != nil {
-		t.Fatalf("loadConfig() error = %v", err)
-	}
-
-	assertConversationAuthorityConfig(t, cfg.Conversation, app.ConversationConfig{
-		AuthorityCacheMaxRowsPerUID: 2048,
-		AuthorityCacheMaxRows:       50000,
-		AuthorityListDBWindowMax:    750,
-		AuthorityHandoffTimeout:     2 * time.Second,
-		AuthorityActiveCooldown:     45 * time.Minute,
-		AuthorityFlushInterval:      750 * time.Millisecond,
-		AuthorityFlushTimeout:       1250 * time.Millisecond,
-		AuthorityFlushBatchRows:     96,
-		AuthorityAdmitBatchRows:     128,
-		AuthorityAdmitConcurrency:   4,
-	})
 }
 
 func TestChannelMessageRetentionConfigEnvOverrides(t *testing.T) {
@@ -1147,7 +1074,6 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_PRESENCE_TOUCH_FLUSH_INTERVAL", "1500ms")
 	t.Setenv("WK_PRESENCE_TOUCH_BATCH_SIZE", "128")
 	t.Setenv("WK_PRESENCE_ROUTE_TTL", "3m")
-	t.Setenv("WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY", "16")
 	t.Setenv("WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD", "700")
 	t.Setenv("WK_DELIVERY_ENABLE", "true")
 	t.Setenv("WK_CHANNEL_APPEND_SHARD_COUNT", "7")
@@ -1267,9 +1193,6 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Presence.RouteTTL != 3*time.Minute {
 		t.Fatalf("Presence.RouteTTL = %s, want 3m", cfg.Presence.RouteTTL)
-	}
-	if cfg.Conversation.MaxLastMessageConcurrency != 16 {
-		t.Fatalf("Conversation env override = %#v", cfg.Conversation)
 	}
 	if cfg.Channel.LargeGroupSubscriberThreshold != 700 {
 		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 700", cfg.Channel.LargeGroupSubscriberThreshold)
@@ -1489,9 +1412,6 @@ func TestLoadConfigExampleFile(t *testing.T) {
 	if cfg.Observability.DebugAPIEnabled {
 		t.Fatalf("Observability.DebugAPIEnabled = true, want false")
 	}
-	if cfg.Conversation.AuthorityFlushBatchRows != 512 {
-		t.Fatalf("Conversation.AuthorityFlushBatchRows = %d, want 512", cfg.Conversation.AuthorityFlushBatchRows)
-	}
 	assertExampleDiagnostics(t, cfg.Observability.Diagnostics)
 }
 
@@ -1511,9 +1431,6 @@ func TestLoadConfigRootExampleFile(t *testing.T) {
 	}
 	if cfg.Bench.APIEnabled {
 		t.Fatalf("Bench.APIEnabled = true, want false")
-	}
-	if cfg.Conversation.AuthorityFlushBatchRows != 512 {
-		t.Fatalf("Conversation.AuthorityFlushBatchRows = %d, want 512", cfg.Conversation.AuthorityFlushBatchRows)
 	}
 	assertExampleDiagnostics(t, cfg.Observability.Diagnostics)
 }
@@ -1582,9 +1499,6 @@ func TestLoadConfigMultiNodeExampleFiles(t *testing.T) {
 			}
 			if len(cfg.Gateway.Listeners) != 2 {
 				t.Fatalf("Gateway.Listeners len = %d, want 2", len(cfg.Gateway.Listeners))
-			}
-			if cfg.Conversation.AuthorityFlushBatchRows != 512 {
-				t.Fatalf("Conversation.AuthorityFlushBatchRows = %d, want 512", cfg.Conversation.AuthorityFlushBatchRows)
 			}
 			if cfg.Observability.DebugAPIEnabled {
 				t.Fatalf("Observability.DebugAPIEnabled = true, want false")
@@ -1685,28 +1599,6 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "presence touch max routes below default batch", line: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH=511", wantKey: "WK_PRESENCE_TOUCH_MAX_ROUTES_PER_FLUSH"},
 		{name: "presence route ttl", line: "WK_PRESENCE_ROUTE_TTL=soon", wantKey: "WK_PRESENCE_ROUTE_TTL"},
 		{name: "presence route ttl negative", line: "WK_PRESENCE_ROUTE_TTL=-1s", wantKey: "WK_PRESENCE_ROUTE_TTL"},
-		{name: "conversation max last message concurrency", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=many", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
-		{name: "conversation max last message concurrency negative", line: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY=-1", wantKey: "WK_CONVERSATION_MAX_LAST_MESSAGE_CONCURRENCY"},
-		{name: "conversation authority cache max rows per uid", line: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=many", wantKey: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID"},
-		{name: "conversation authority cache max rows per uid zero", line: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID=0", wantKey: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS_PER_UID"},
-		{name: "conversation authority cache max rows", line: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"},
-		{name: "conversation authority cache max rows zero", line: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"},
-		{name: "conversation authority list db window max", line: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=many", wantKey: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"},
-		{name: "conversation authority list db window max zero", line: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX=0", wantKey: "WK_CONVERSATION_AUTHORITY_LIST_DB_WINDOW_MAX"},
-		{name: "conversation authority handoff timeout", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
-		{name: "conversation authority handoff timeout zero", line: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_HANDOFF_TIMEOUT"},
-		{name: "conversation authority active cooldown", line: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=soon", wantKey: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"},
-		{name: "conversation authority active cooldown zero", line: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN=0s", wantKey: "WK_CONVERSATION_AUTHORITY_ACTIVE_COOLDOWN"},
-		{name: "conversation authority flush interval", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
-		{name: "conversation authority flush interval zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL"},
-		{name: "conversation authority flush timeout", line: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=soon", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"},
-		{name: "conversation authority flush timeout zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT=0s", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_TIMEOUT"},
-		{name: "conversation authority flush batch rows", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
-		{name: "conversation authority flush batch rows zero", line: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_FLUSH_BATCH_ROWS"},
-		{name: "conversation authority admit batch rows", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
-		{name: "conversation authority admit batch rows zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_BATCH_ROWS"},
-		{name: "conversation authority admit concurrency", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=many", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
-		{name: "conversation authority admit concurrency zero", line: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY=0", wantKey: "WK_CONVERSATION_AUTHORITY_ADMIT_CONCURRENCY"},
 		{name: "channel large group subscriber threshold", line: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=many", wantKey: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"},
 		{name: "channel large group subscriber threshold negative", line: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD=-1", wantKey: "WK_CHANNEL_LARGE_GROUP_SUBSCRIBER_THRESHOLD"},
 		{name: "delivery enable", line: "WK_DELIVERY_ENABLE=maybe", wantKey: "WK_DELIVERY_ENABLE"},
@@ -1941,22 +1833,6 @@ func assertExampleDiagnostics(t *testing.T, diagnostics app.DiagnosticsConfig) {
 	}
 	if len(diagnostics.DebugMatches) != 0 {
 		t.Fatalf("Diagnostics.DebugMatches len = %d, want 0", len(diagnostics.DebugMatches))
-	}
-}
-
-func assertConversationAuthorityConfig(t *testing.T, got, want app.ConversationConfig) {
-	t.Helper()
-	if got.AuthorityCacheMaxRowsPerUID != want.AuthorityCacheMaxRowsPerUID ||
-		got.AuthorityCacheMaxRows != want.AuthorityCacheMaxRows ||
-		got.AuthorityListDBWindowMax != want.AuthorityListDBWindowMax ||
-		got.AuthorityHandoffTimeout != want.AuthorityHandoffTimeout ||
-		got.AuthorityActiveCooldown != want.AuthorityActiveCooldown ||
-		got.AuthorityFlushInterval != want.AuthorityFlushInterval ||
-		got.AuthorityFlushTimeout != want.AuthorityFlushTimeout ||
-		got.AuthorityFlushBatchRows != want.AuthorityFlushBatchRows ||
-		got.AuthorityAdmitBatchRows != want.AuthorityAdmitBatchRows ||
-		got.AuthorityAdmitConcurrency != want.AuthorityAdmitConcurrency {
-		t.Fatalf("conversation authority config = %#v, want %#v", got, want)
 	}
 }
 

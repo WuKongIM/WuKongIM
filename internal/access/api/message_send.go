@@ -48,7 +48,10 @@ func (s *Server) registerMessageRoutes() {
 	s.engine.POST("/message/event", s.handleMessageEventAppend)
 	s.engine.POST("/message/sync", s.handleMessageSync)
 	s.engine.POST("/message/syncack", s.handleMessageSyncAck)
+	s.engine.POST("/message/cmd/bind", s.handleMessageCMDBind)
+	s.engine.POST("/message/cmd/unbind", s.handleMessageCMDUnbind)
 	s.engine.POST("/channel/messagesync", s.handleChannelMessageSync)
+	s.engine.POST("/channel/messagesyncbatch", s.handleChannelMessageSyncBatch)
 }
 
 func (s *Server) handleSendMessage(c *gin.Context) {

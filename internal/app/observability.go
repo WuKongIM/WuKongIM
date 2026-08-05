@@ -14,7 +14,6 @@ import (
 	gatewayadapter "github.com/WuKongIM/WuKongIM/internal/access/gateway"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -28,7 +27,6 @@ import (
 	clustertasks "github.com/WuKongIM/WuKongIM/pkg/cluster/tasks"
 	controller "github.com/WuKongIM/WuKongIM/pkg/controller"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -129,14 +127,6 @@ type conversationListMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
 
-type conversationSyncMetricsObserver struct {
-	metrics *obsmetrics.Registry
-}
-
-type conversationAuthorityMetricsObserver struct {
-	metrics *obsmetrics.Registry
-}
-
 type presenceMetricsObserver struct {
 	metrics *obsmetrics.Registry
 }
@@ -150,6 +140,7 @@ type multiSlotReplicaMoveObserver []cluster.SlotReplicaMoveObserver
 type multiPreferredLeaderObserver []cluster.PreferredLeaderObserver
 type multiCommitCoordinatorObserver []messagedb.CommitCoordinatorObserver
 type multiMessageEventObserver []cluster.MessageEventObserver
+type multiMembershipMutationObserver []cluster.MembershipMutationObserver
 type multiGatewayObserver []accessgateway.Observer
 type multiSendackObserver []gatewayadapter.SendackObserver
 
@@ -445,102 +436,7 @@ func (o conversationListMetricsObserver) ObserveConversationList(event accessapi
 	if o.metrics == nil || o.metrics.Conversation == nil {
 		return
 	}
-	o.metrics.Conversation.ObserveList(event.Result, event.More, event.Duration, event.ReturnedItems, event.SparseItems, event.LastMessageLoads, event.LastMessageErrors, event.ActiveIndexStaleSkips)
-}
-
-func (o conversationSyncMetricsObserver) ObserveConversationSync(event accessapi.ConversationSyncObservation) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveSync(event.Result, event.OnlyUnread, event.WithRecents, event.Duration, event.ReturnedItems, event.OverlayItems, event.RecentLoadDuration)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityAdmit(event conversationAuthorityAdmitEvent) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveAuthorityAdmit(event.Result)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityCachePressure(event conversationAuthorityCachePressureEvent) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveAuthorityCachePressure(event.Phase, event.Result)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityList(event conversationAuthorityListEvent) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveAuthorityList(event.Result)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationAuthorityHandoff(event conversationAuthorityHandoffEvent) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveAuthorityHandoff(event.Result)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationActiveCache(event conversationactive.CacheObservation) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.SetActiveCache(obsmetrics.ConversationActiveCacheSample{
-		Revision:         event.Revision,
-		Rows:             event.Rows,
-		DirtyRows:        event.DirtyRows,
-		DirtyQueueRows:   event.DirtyQueueRows,
-		DirtyAgeBuckets:  event.DirtyAgeBuckets,
-		OldestDirtyAge:   event.OldestDirtyAge,
-		PressureDraining: event.PressureDraining,
-		NormalRows:       event.RowsByKind[metadb.ConversationKindNormal],
-		NormalDirtyRows:  event.DirtyRowsByKind[metadb.ConversationKindNormal],
-		CMDRows:          event.RowsByKind[metadb.ConversationKindCMD],
-		CMDDirtyRows:     event.DirtyRowsByKind[metadb.ConversationKindCMD],
-	})
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationActiveMutation(event conversationactive.MutationObservation) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveActiveMutation(event.BecameDirty, event.DirtyUpdated, event.CooldownSuppressed, event.Unchanged)
-	o.metrics.Conversation.ObserveActiveMutationLock(event.Result, event.LockWaitDuration, event.LockHoldDuration, event.CacheObservationDuration)
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationActiveFlush(event conversationactive.FlushObservation) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveActiveFlush(obsmetrics.ConversationActiveFlushSample{
-		Result:                event.Result,
-		FailureStage:          event.FailureStage,
-		Selected:              event.Selected,
-		Persisted:             event.Persisted,
-		Skipped:               event.Skipped,
-		DeleteFenced:          event.DeleteFenced,
-		Cleared:               event.Cleared,
-		VersionConflicts:      event.VersionConflicts,
-		Superseded:            event.Superseded,
-		Requeued:              event.Requeued,
-		LaneWaitDuration:      event.LaneWaitDuration,
-		SelectDuration:        event.SelectDuration,
-		FilterDuration:        event.FilterDuration,
-		PersistDuration:       event.PersistDuration,
-		ClearDuration:         event.ClearDuration,
-		ClearLockWaitDuration: event.ClearLockWaitDuration,
-		ClearApplyDuration:    event.ClearApplyDuration,
-		Duration:              event.Duration,
-	})
-}
-
-func (o conversationAuthorityMetricsObserver) ObserveConversationActivePressure(event conversationactive.PressureObservation) {
-	if o.metrics == nil || o.metrics.Conversation == nil {
-		return
-	}
-	o.metrics.Conversation.ObserveActivePressure(event.Event, event.WakeupWaitDuration)
+	o.metrics.Conversation.ObserveDirectoryList(event.Result, event.Done, event.Duration, event.ScannedCandidates, event.ReturnedItems, event.Deletes, event.Unresolved)
 }
 
 func (o presenceMetricsObserver) ObservePresenceExpiry(result authoritypresence.ExpireResult, duration time.Duration) {
@@ -573,17 +469,6 @@ func (o presenceMetricsObserver) ObservePresenceTouchFlush(event presenceTouchFl
 		event.TargetGroups,
 		event.BudgetReached,
 	)
-}
-
-func conversationKindMetricLabel(kind metadb.ConversationKind) string {
-	switch kind {
-	case metadb.ConversationKindNormal:
-		return "normal"
-	case metadb.ConversationKindCMD:
-		return "cmd"
-	default:
-		return "other"
-	}
 }
 
 func (o channelMetricsObserver) SetReactorMailboxDepth(reactorID int, priority string, depth int) {
@@ -841,6 +726,13 @@ func (o channelMetricsObserver) ObserveChannelAppendStage(stage string, result s
 		return
 	}
 	o.metrics.ChannelRuntime.ObserveAppendStage(stage, result, d)
+}
+
+func (o channelMetricsObserver) ObserveConversationHydrationBatch(result string, items, remoteCalls, localReads int, duration time.Duration) {
+	if o.metrics == nil || o.metrics.Conversation == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveHydrationBatch(result, duration, items, remoteCalls, localReads)
 }
 
 func (o channelMetricsObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
@@ -1538,6 +1430,17 @@ func (o messageEventMetricsObserver) SetMessageEventStreamCache(event cluster.Me
 	})
 }
 
+type membershipMutationMetricsObserver struct {
+	metrics *obsmetrics.Registry
+}
+
+func (o membershipMutationMetricsObserver) ObserveMembershipMutation(event cluster.MembershipMutationObservation) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Conversation.ObserveMembershipMutation(event.Directory, event.Operation, event.Rows)
+}
+
 func (o deliveryMetricsObserver) ObserveRecipientAuthorityResolve(event clusterinfra.RecipientAuthorityResolveObservation) {
 	if o.metrics == nil {
 		return
@@ -1640,6 +1543,16 @@ func combineMessageEventObservers(first, second cluster.MessageEventObserver) cl
 		return first
 	}
 	return multiMessageEventObserver{first, second}
+}
+
+func combineMembershipMutationObservers(first, second cluster.MembershipMutationObserver) cluster.MembershipMutationObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return multiMembershipMutationObserver{first, second}
 }
 
 func deliveryNodeLabel(nodeID uint64) string {
@@ -2063,6 +1976,16 @@ func (o multiChannelObserver) ObserveChannelAppendStage(stage string, result str
 	}
 }
 
+func (o multiChannelObserver) ObserveConversationHydrationBatch(result string, items, remoteCalls, localReads int, duration time.Duration) {
+	for _, observer := range o {
+		hydrationObserver, ok := observer.(clusterchannels.ConversationHydrationObserver)
+		if !ok {
+			continue
+		}
+		hydrationObserver.ObserveConversationHydrationBatch(result, items, remoteCalls, localReads, duration)
+	}
+}
+
 func (o multiChannelObserver) ObserveAppendWaitStage(stage string, mode ch.CommitMode, result string, d time.Duration) {
 	for _, observer := range o {
 		appendWaitObserver, ok := observer.(reactor.AppendWaitStageObserver)
@@ -2309,6 +2232,14 @@ func (o multiMessageEventObserver) SetMessageEventStreamCache(event cluster.Mess
 	}
 }
 
+func (o multiMembershipMutationObserver) ObserveMembershipMutation(event cluster.MembershipMutationObservation) {
+	for _, observer := range o {
+		if observer != nil {
+			observer.ObserveMembershipMutation(event)
+		}
+	}
+}
+
 func channelCommitModeLabel(mode ch.CommitMode) string {
 	switch mode {
 	case ch.CommitModeLocal:
@@ -2466,9 +2397,6 @@ var _ accessgateway.AsyncAuthObserver = gatewayMetricsObserver{}
 var _ accessgateway.AsyncSendAdmissionObserver = gatewayMetricsObserver{}
 var _ accessgateway.TransportPressureObserver = gatewayMetricsObserver{}
 var _ gatewayadapter.SendackObserver = gatewayMetricsObserver{}
-var _ accessapi.ConversationSyncObserver = conversationSyncMetricsObserver{}
-var _ conversationAuthorityObserver = conversationAuthorityMetricsObserver{}
-var _ conversationactive.Observer = conversationAuthorityMetricsObserver{}
 var _ reactor.Observer = channelMetricsObserver{}
 var _ reactor.MailboxPressureObserver = channelMetricsObserver{}
 var _ reactor.AppendQueuePressureObserver = channelMetricsObserver{}
@@ -2535,3 +2463,5 @@ var _ messagedb.CommitCoordinatorQueueObserver = multiCommitCoordinatorObserver{
 var _ messagedb.CommitCoordinatorRequestObserver = multiCommitCoordinatorObserver{}
 var _ clusterinfra.RecipientAuthorityResolveObserver = deliveryMetricsObserver{}
 var _ clusterinfra.PresenceEndpointLookupObserver = presenceMetricsObserver{}
+var _ cluster.MembershipMutationObserver = membershipMutationMetricsObserver{}
+var _ cluster.MembershipMutationObserver = multiMembershipMutationObserver{}

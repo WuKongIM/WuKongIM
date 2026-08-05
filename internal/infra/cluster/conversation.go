@@ -3,407 +3,176 @@ package cluster
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync"
 
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
-	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	pkgcluster "github.com/WuKongIM/WuKongIM/pkg/cluster"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
+	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
-	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
-const (
-	conversationReadMinPageLimit = 64
-	conversationReadMaxPageLimit = 256
-)
+// MembershipConversationNode exposes the UID directory and Channel-leader
+// head-read surfaces used to construct transient conversations.
+type MembershipConversationNode interface {
+	ListUserChannelMembershipPage(context.Context, string, metadb.UserChannelMembershipCursor, int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
+	ReadChannelConversationHeads(context.Context, []channelruntime.ChannelID, string) ([]clusterchannels.ConversationHeadResult, error)
+}
 
-// ConversationNode exposes cluster reads needed by conversation lists.
+// MembershipMutationNode exposes UID-owned personal membership state.
+type MembershipMutationNode interface {
+	GetUserChannelMembership(context.Context, string, string, int64) (metadb.UserChannelMembership, bool, error)
+	AdvanceUserChannelMembershipReadSeq(context.Context, string, string, int64, uint64, int64) error
+	HideUserChannelMembership(context.Context, string, string, int64, uint64, int64) error
+	ActivateUserChannelMembership(context.Context, string, string, int64, int64, int64) error
+}
+
+// ConversationNode is the complete cluster facade needed by the
+// membership-backed conversation use case.
 type ConversationNode interface {
-	ListConversationActivePage(context.Context, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error)
-	GetConversationState(context.Context, metadb.ConversationKind, string, string, int64) (metadb.ConversationState, bool, error)
-	ReadChannelLastVisible(context.Context, channelruntime.ChannelID, uint64) (channelruntime.Message, bool, error)
-	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	MembershipConversationNode
+	MembershipMutationNode
 }
 
-// ConversationStateMutationNode exposes cluster read-state writes needed by conversation mutations.
-type ConversationStateMutationNode interface {
-	UpsertConversationStatesBatch(context.Context, []metadb.ConversationState) error
-}
-
-// ConversationDeleteNode exposes cluster delete-barrier writes needed by conversation mutations.
-type ConversationDeleteNode interface {
-	HideConversationsBatch(context.Context, []metadb.ConversationDelete) error
-}
-
-// ConversationStore adapts cluster reads to the conversation usecase ports.
+// ConversationStore adapts cluster operations to conversation use-case ports.
 type ConversationStore struct {
-	node                      ConversationNode
-	maxLastMessageConcurrency int
+	node ConversationNode
 }
 
-var _ conversationusecase.Store = (*ConversationStore)(nil)
-var _ conversationusecase.StateStore = (*ConversationStore)(nil)
-var _ conversationusecase.StateMutationStore = (*ConversationStore)(nil)
-var _ conversationusecase.DeleteStore = (*ConversationStore)(nil)
-var _ conversationusecase.MessageStore = (*ConversationStore)(nil)
-var _ conversationusecase.RecentMessageStore = (*ConversationStore)(nil)
+var _ conversationusecase.DirectoryStore = (*ConversationStore)(nil)
+var _ conversationusecase.HeadHydrator = (*ConversationStore)(nil)
+var _ conversationusecase.MembershipMutationStore = (*ConversationStore)(nil)
 
-// ConversationStoreOptions configures cluster-backed conversation reads.
-type ConversationStoreOptions struct {
-	// MaxLastMessageConcurrency bounds concurrent channel tail reads for one list page.
-	MaxLastMessageConcurrency int
+// NewConversationStore creates a cluster-backed membership directory.
+func NewConversationStore(node ConversationNode) *ConversationStore {
+	return &ConversationStore{node: node}
 }
 
-// NewConversationStore creates a cluster-backed conversation store.
-func NewConversationStore(node ConversationNode, options ...ConversationStoreOptions) *ConversationStore {
-	opts := ConversationStoreOptions{}
-	if len(options) > 0 {
-		opts = options[0]
-	}
-	return &ConversationStore{node: node, maxLastMessageConcurrency: opts.MaxLastMessageConcurrency}
+// SupportsMembershipDirectory reports whether the complete facade is present.
+func (s *ConversationStore) SupportsMembershipDirectory() bool {
+	return s != nil && s.node != nil
 }
 
-// ListConversationActivePage reads UID-owned active conversation rows.
-func (s *ConversationStore) ListConversationActivePage(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) ([]metadb.ConversationState, metadb.ConversationActiveCursor, bool, error) {
+// ListUserChannelMembershipPage reads one stable UID directory page.
+func (s *ConversationStore) ListUserChannelMembershipPage(ctx context.Context, uid string, after metadb.UserChannelMembershipCursor, limit int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error) {
 	if s == nil || s.node == nil {
-		return nil, metadb.ConversationActiveCursor{}, true, metadb.ErrNotFound
+		return nil, metadb.UserChannelMembershipCursor{}, false, metadb.ErrNotFound
 	}
-	rows, cursor, done, err := s.node.ListConversationActivePage(ctx, kind, uid, after, limit)
+	rows, cursor, done, err := s.node.ListUserChannelMembershipPage(ctx, uid, after, limit)
 	if err != nil {
-		return nil, metadb.ConversationActiveCursor{}, false, err
+		return nil, metadb.UserChannelMembershipCursor{}, false, err
 	}
-	return append([]metadb.ConversationState(nil), rows...), cursor, done, nil
+	return append([]metadb.UserChannelMembership(nil), rows...), cursor, done, nil
 }
 
-// ListConversationActiveView wraps the current cluster active-page facade for the usecase contract.
-func (s *ConversationStore) ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (conversationusecase.ActiveViewPage, error) {
-	rows, cursor, done, err := s.ListConversationActivePage(ctx, kind, uid, after, limit)
-	if err != nil {
-		return conversationusecase.ActiveViewPage{}, err
-	}
-	return conversationusecase.ActiveViewPage{Rows: rows, Cursor: cursor, Done: done}, nil
-}
-
-// GetConversationState reads one durable UID-owned conversation row.
-func (s *ConversationStore) GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error) {
-	if s == nil || s.node == nil {
-		return metadb.ConversationState{}, false, metadb.ErrNotFound
-	}
-	return s.node.GetConversationState(ctx, kind, uid, channelID, channelType)
-}
-
-// UpsertConversationStates writes durable UID-owned conversation read state.
-func (s *ConversationStore) UpsertConversationStates(ctx context.Context, states []metadb.ConversationState) error {
-	if len(states) == 0 {
-		return nil
-	}
-	node, ok := s.stateMutationNode()
-	if !ok {
-		return metadb.ErrNotFound
-	}
-	return node.UpsertConversationStatesBatch(ctx, cloneConversationStates(states))
-}
-
-// HideConversations writes durable UID-owned conversation delete barriers.
-func (s *ConversationStore) HideConversations(ctx context.Context, reqs []metadb.ConversationDelete) error {
-	if len(reqs) == 0 {
-		return nil
-	}
-	node, ok := s.deleteNode()
-	if !ok {
-		return metadb.ErrNotFound
-	}
-	return node.HideConversationsBatch(ctx, cloneConversationDeletes(reqs))
-}
-
-func (s *ConversationStore) stateMutationNode() (ConversationStateMutationNode, bool) {
-	if s == nil || s.node == nil {
-		return nil, false
-	}
-	node, ok := s.node.(ConversationStateMutationNode)
-	return node, ok
-}
-
-func (s *ConversationStore) deleteNode() (ConversationDeleteNode, bool) {
-	if s == nil || s.node == nil {
-		return nil, false
-	}
-	node, ok := s.node.(ConversationDeleteNode)
-	return node, ok
-}
-
-// GetLastVisibleMessages reads each returned row's newest visible channel message.
-func (s *ConversationStore) GetLastVisibleMessages(ctx context.Context, requests []conversationusecase.LastVisibleMessageRequest) (map[metadb.ConversationKey]conversationusecase.LastMessage, error) {
-	out := make(map[metadb.ConversationKey]conversationusecase.LastMessage, len(requests))
-	if len(requests) == 0 {
-		return out, nil
+// HydrateConversationHeads performs one cluster-facade batch. The cluster
+// facade groups channel reads by exact Channel Leader and preserves alignment.
+func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership) ([]conversationusecase.HydrationResult, error) {
+	results := make([]conversationusecase.HydrationResult, len(memberships))
+	if len(memberships) == 0 {
+		return results, nil
 	}
 	if s == nil || s.node == nil {
 		return nil, metadb.ErrNotFound
 	}
-	if s.maxLastMessageConcurrency > 1 && len(requests) > 1 {
-		return s.getLastVisibleMessagesConcurrent(ctx, requests)
-	}
-	for _, req := range requests {
-		key, msg, ok, err := s.readLastVisibleMessage(ctx, req)
-		if err != nil {
-			return nil, err
+	ids := make([]channelruntime.ChannelID, len(memberships))
+	for index, row := range memberships {
+		results[index].Key = conversationusecase.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
+		if row.ChannelID == "" || row.ChannelType <= 0 || row.ChannelType > 255 {
+			return nil, conversationusecase.ErrInvalidRequest
 		}
-		if !ok {
-			continue
-		}
-		out[key] = msg
+		ids[index] = channelruntime.ChannelID{ID: row.ChannelID, Type: uint8(row.ChannelType)}
 	}
-	return out, nil
-}
-
-func (s *ConversationStore) getLastVisibleMessagesConcurrent(ctx context.Context, requests []conversationusecase.LastVisibleMessageRequest) (map[metadb.ConversationKey]conversationusecase.LastMessage, error) {
-	workers := s.maxLastMessageConcurrency
-	if workers > len(requests) {
-		workers = len(requests)
-	}
-	workCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	jobs := make(chan conversationusecase.LastVisibleMessageRequest)
-	out := make(map[metadb.ConversationKey]conversationusecase.LastMessage, len(requests))
-	var outMu sync.Mutex
-	var firstErr error
-	var firstErrOnce sync.Once
-	setErr := func(err error) {
-		if err == nil {
-			return
-		}
-		firstErrOnce.Do(func() {
-			firstErr = err
-			cancel()
-		})
-	}
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskConversationBatchRead, func() {
-			defer wg.Done()
-			for req := range jobs {
-				key, msg, ok, err := s.readLastVisibleMessage(workCtx, req)
-				if err != nil {
-					setErr(err)
-					continue
-				}
-				if ok {
-					outMu.Lock()
-					out[key] = msg
-					outMu.Unlock()
-				}
-			}
-		})
-	}
-send:
-	for _, req := range requests {
-		select {
-		case <-workCtx.Done():
-			break send
-		case jobs <- req:
-		}
-	}
-	close(jobs)
-	wg.Wait()
-	if firstErr != nil {
-		return nil, firstErr
-	}
-	if err := ctx.Err(); err != nil {
+	heads, err := s.node.ReadChannelConversationHeads(ctx, ids, uid)
+	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	if len(heads) != len(memberships) {
+		return nil, channelruntime.ErrInvalidConfig
+	}
+	for index, item := range heads {
+		if item.Err != nil {
+			switch {
+			case errors.Is(item.Err, channelruntime.ErrChannelNotFound):
+				results[index].Outcome = conversationusecase.HydrationDelete
+			case retryableConversationHeadError(item.Err):
+				results[index].Outcome = conversationusecase.HydrationRetryable
+			default:
+				return nil, item.Err
+			}
+			continue
+		}
+		head := item.Head
+		results[index].LastCommittedSeq = head.LastCommittedSeq
+		results[index].RetentionThroughSeq = head.RetentionThroughSeq
+		results[index].CurrentUserLastSendSeq = head.CurrentUserLastSendSeq
+		if head.Found {
+			message := lastMessageFromChannel(head.Message)
+			results[index].LastMessage = &message
+			results[index].Outcome = conversationusecase.HydrationOK
+		} else {
+			results[index].Outcome = conversationusecase.HydrationNoVisibleMessage
+		}
+	}
+	return results, nil
 }
 
-func (s *ConversationStore) readLastVisibleMessage(ctx context.Context, req conversationusecase.LastVisibleMessageRequest) (metadb.ConversationKey, conversationusecase.LastMessage, bool, error) {
-	if req.ChannelID == "" || req.ChannelType <= 0 || req.ChannelType > 255 {
-		return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, fmt.Errorf("internal/infra/cluster: invalid conversation message request")
-	}
-	key := metadb.ConversationKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
-	msg, ok, err := s.node.ReadChannelLastVisible(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, req.VisibleAfterSeq)
-	if err != nil {
-		if isMissingLastMessage(err) {
-			return key, conversationusecase.LastMessage{}, false, nil
-		}
-		return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, err
-	}
-	if !ok {
-		return key, conversationusecase.LastMessage{}, false, nil
-	}
-	if msg.MessageSeq <= req.VisibleAfterSeq {
-		return key, conversationusecase.LastMessage{}, false, nil
-	}
-	if !isOrdinaryConversationMessage(msg) {
-		msg, ok, err = s.readLastOrdinaryVisibleMessage(ctx, req, msg.MessageSeq-1)
-		if err != nil {
-			return metadb.ConversationKey{}, conversationusecase.LastMessage{}, false, err
-		}
-		if !ok {
-			return key, conversationusecase.LastMessage{}, false, nil
-		}
-	}
-	return key, lastMessageFromChannel(msg), true, nil
-}
-
-func (s *ConversationStore) readLastOrdinaryVisibleMessage(ctx context.Context, req conversationusecase.LastVisibleMessageRequest, fromSeq uint64) (channelruntime.Message, bool, error) {
-	if fromSeq == 0 || fromSeq <= req.VisibleAfterSeq {
-		return channelruntime.Message{}, false, nil
-	}
-	nextSeq := fromSeq
-	for nextSeq > req.VisibleAfterSeq {
-		if err := ctx.Err(); err != nil {
-			return channelruntime.Message{}, false, err
-		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: req.ChannelID, Type: uint8(req.ChannelType)}, channelstore.ReadCommittedRequest{
-			FromSeq:  nextSeq,
-			MaxSeq:   maxUint64(),
-			Limit:    conversationReadPageSize(1),
-			MaxBytes: maxInt(),
-			Reverse:  true,
-		})
-		if err != nil {
-			if isMissingLastMessage(err) {
-				return channelruntime.Message{}, false, nil
-			}
-			return channelruntime.Message{}, false, err
-		}
-		if len(read.Messages) == 0 {
-			return channelruntime.Message{}, false, nil
-		}
-		for _, msg := range read.Messages {
-			if msg.MessageSeq <= req.VisibleAfterSeq {
-				return channelruntime.Message{}, false, nil
-			}
-			if isOrdinaryConversationMessage(msg) {
-				return msg, true, nil
-			}
-		}
-		if read.NextSeq == 0 || read.NextSeq >= nextSeq {
-			return channelruntime.Message{}, false, nil
-		}
-		nextSeq = read.NextSeq
-	}
-	return channelruntime.Message{}, false, nil
-}
-
-// GetRecentMessages reads newest committed channel messages for legacy-compatible conversation sync.
-func (s *ConversationStore) GetRecentMessages(ctx context.Context, keys []conversationusecase.ConversationKey, limit int) (map[conversationusecase.ConversationKey][]conversationusecase.SyncMessage, error) {
-	out := make(map[conversationusecase.ConversationKey][]conversationusecase.SyncMessage, len(keys))
-	if len(keys) == 0 || limit <= 0 {
-		return out, nil
-	}
+// GetUserChannelMembership reads one ordinary membership row.
+func (s *ConversationStore) GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error) {
 	if s == nil || s.node == nil {
-		return nil, metadb.ErrNotFound
+		return metadb.UserChannelMembership{}, false, metadb.ErrNotFound
 	}
-	for _, key := range keys {
-		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
-			return nil, fmt.Errorf("internal/infra/cluster: invalid conversation recent request")
-		}
-		messages, err := s.readRecentOrdinaryMessages(ctx, key, limit)
-		if err != nil {
-			return nil, err
-		}
-		out[key] = syncMessagesFromChannel(messages)
-	}
-	return out, nil
+	return s.node.GetUserChannelMembership(ctx, uid, channelID, channelType)
 }
 
-func (s *ConversationStore) readRecentOrdinaryMessages(ctx context.Context, key conversationusecase.ConversationKey, limit int) ([]channelruntime.Message, error) {
-	out := make([]channelruntime.Message, 0, limit)
-	nextSeq := maxUint64()
-	for len(out) < limit {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)}, channelstore.ReadCommittedRequest{
-			FromSeq:  nextSeq,
-			MaxSeq:   maxUint64(),
-			Limit:    conversationReadPageSize(limit),
-			MaxBytes: maxInt(),
-			Reverse:  true,
-		})
-		if err != nil {
-			if isMissingLastMessage(err) {
-				return nil, nil
-			}
-			return nil, err
-		}
-		if len(read.Messages) == 0 {
-			break
-		}
-		for _, msg := range read.Messages {
-			if !isOrdinaryConversationMessage(msg) {
-				continue
-			}
-			out = append(out, msg)
-			if len(out) >= limit {
-				break
-			}
-		}
-		if read.NextSeq == 0 || read.NextSeq >= nextSeq {
-			break
-		}
-		nextSeq = read.NextSeq
+func (s *ConversationStore) AdvanceUserChannelMembershipReadSeq(ctx context.Context, uid, channelID string, channelType int64, readSeq uint64, updatedAt int64) error {
+	if s == nil || s.node == nil {
+		return metadb.ErrNotFound
 	}
-	return out, nil
+	return s.node.AdvanceUserChannelMembershipReadSeq(ctx, uid, channelID, channelType, readSeq, updatedAt)
+}
+
+func (s *ConversationStore) HideUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64, deletedToSeq uint64, updatedAt int64) error {
+	if s == nil || s.node == nil {
+		return metadb.ErrNotFound
+	}
+	return s.node.HideUserChannelMembership(ctx, uid, channelID, channelType, deletedToSeq, updatedAt)
+}
+
+func (s *ConversationStore) ActivateUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64, activatedAt, updatedAt int64) error {
+	if s == nil || s.node == nil {
+		return metadb.ErrNotFound
+	}
+	return s.node.ActivateUserChannelMembership(ctx, uid, channelID, channelType, activatedAt, updatedAt)
+}
+
+func retryableConversationHeadError(err error) bool {
+	return errors.Is(err, channelruntime.ErrNotReady) ||
+		errors.Is(err, channelruntime.ErrNotLeader) ||
+		errors.Is(err, channelruntime.ErrStaleMeta) ||
+		errors.Is(err, channelruntime.ErrBackpressured) ||
+		errors.Is(err, pkgcluster.ErrRouteNotReady) ||
+		errors.Is(err, pkgcluster.ErrNoSlotLeader) ||
+		errors.Is(err, pkgcluster.ErrNotLeader) ||
+		errors.Is(err, pkgcluster.ErrNotStarted) ||
+		errors.Is(err, pkgcluster.ErrStopping) ||
+		errors.Is(err, pkgcluster.ErrBackpressured) ||
+		errors.Is(err, clusternet.ErrNodeNotFound) ||
+		errors.Is(err, clusternet.ErrServiceNotFound) ||
+		errors.Is(err, transport.ErrStopped) ||
+		errors.Is(err, transport.ErrTimeout) ||
+		errors.Is(err, transport.ErrNodeNotFound) ||
+		errors.Is(err, transport.ErrQueueFull) ||
+		errors.Is(err, transport.ErrDialFailed) ||
+		errors.Is(err, transport.ErrBusy) ||
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 func lastMessageFromChannel(msg channelruntime.Message) conversationusecase.LastMessage {
 	return conversationusecase.LastMessage{
-		MessageID:         msg.MessageID,
-		MessageSeq:        msg.MessageSeq,
-		FromUID:           msg.FromUID,
-		ClientMsgNo:       msg.ClientMsgNo,
-		ServerTimestampMS: msg.ServerTimestampMS,
-		Payload:           append([]byte(nil), msg.Payload...),
+		MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, FromUID: msg.FromUID,
+		ClientMsgNo: msg.ClientMsgNo, ServerTimestampMS: msg.ServerTimestampMS,
+		Payload: append([]byte(nil), msg.Payload...),
 	}
-}
-
-func syncMessagesFromChannel(messages []channelruntime.Message) []conversationusecase.SyncMessage {
-	out := make([]conversationusecase.SyncMessage, 0, len(messages))
-	for _, msg := range messages {
-		if !isOrdinaryConversationMessage(msg) {
-			continue
-		}
-		out = append(out, conversationusecase.SyncMessage{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			FromUID:           msg.FromUID,
-			ChannelID:         msg.ChannelID,
-			ChannelType:       msg.ChannelType,
-			ClientMsgNo:       msg.ClientMsgNo,
-			ServerTimestampMS: msg.ServerTimestampMS,
-			Payload:           append([]byte(nil), msg.Payload...),
-		})
-	}
-	return out
-}
-
-func isOrdinaryConversationMessage(msg channelruntime.Message) bool {
-	return !msg.SyncOnce && !runtimechannelid.IsCommandChannel(msg.ChannelID)
-}
-
-func conversationReadPageSize(limit int) int {
-	if limit < conversationReadMinPageLimit {
-		return conversationReadMinPageLimit
-	}
-	if limit > conversationReadMaxPageLimit {
-		return conversationReadMaxPageLimit
-	}
-	return limit
-}
-
-func cloneConversationStates(states []metadb.ConversationState) []metadb.ConversationState {
-	return append([]metadb.ConversationState(nil), states...)
-}
-
-func cloneConversationDeletes(reqs []metadb.ConversationDelete) []metadb.ConversationDelete {
-	return append([]metadb.ConversationDelete(nil), reqs...)
-}
-
-func isMissingLastMessage(err error) bool {
-	return errors.Is(err, metadb.ErrNotFound) || appendErrorMatches(err, channelruntime.ErrChannelNotFound)
 }

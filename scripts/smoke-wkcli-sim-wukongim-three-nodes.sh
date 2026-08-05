@@ -20,9 +20,7 @@ GATEWAY_SEND_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT:-14s}"
 SIM_CONNECT_RATE="${WK_WKCLI_SIM_THREE_SMOKE_CONNECT_RATE:-20}"
 SIM_CONCURRENCY="${WK_WKCLI_SIM_THREE_SMOKE_CONCURRENCY:-64}"
 SIM_ACK_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT:-15s}"
-MAX_FLUSH_ERROR_SELECTED_ROWS="${WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS:-0}"
-MAX_HANDOFF_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL:-0}"
-MAX_HANDOFF_TIMEOUT_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL:-0}"
+MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL:-0}"
 MAX_GOROUTINES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES:-2000}"
 MAX_HEAP_ALLOC_BYTES="${WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES:-4294967296}"
 AUTO_JOIN_NODE="${WK_WKCLI_SIM_THREE_SMOKE_AUTO_JOIN_NODE:-false}"
@@ -534,9 +532,7 @@ print_plan() {
   printf 'sim_output=%s\n' "$(sim_output)"
   printf 'snapshot_output_dir=%s\n' "$(snapshot_dir)"
   printf 'metrics_output_dir=%s\n' "$(metrics_dir)"
-  printf 'max_flush_error_selected_rows=%s\n' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
-  printf 'max_handoff_error_total=%s\n' "$MAX_HANDOFF_ERROR_TOTAL"
-  printf 'max_handoff_timeout_total=%s\n' "$MAX_HANDOFF_TIMEOUT_TOTAL"
+  printf 'max_conversation_directory_error_total=%s\n' "$MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL"
   printf 'max_goroutines=%s\n' "$MAX_GOROUTINES"
   printf 'max_heap_alloc_bytes=%s\n' "$MAX_HEAP_ALLOC_BYTES"
   printf 'auto_join_node=%s\n' "$AUTO_JOIN_NODE"
@@ -978,9 +974,7 @@ require_uint '--auto-join-after' "$AUTO_JOIN_AFTER"
 require_positive_uint '--auto-join-node-id' "$AUTO_JOIN_NODE_ID"
 require_uint '--fault-after' "$FAULT_AFTER"
 require_uint '--fault-max-send-errors' "$FAULT_MAX_SEND_ERRORS"
-require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_FLUSH_ERROR_SELECTED_ROWS' "$MAX_FLUSH_ERROR_SELECTED_ROWS"
-require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_ERROR_TOTAL' "$MAX_HANDOFF_ERROR_TOTAL"
-require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HANDOFF_TIMEOUT_TOTAL' "$MAX_HANDOFF_TIMEOUT_TOTAL"
+require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL' "$MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_GOROUTINES' "$MAX_GOROUTINES"
 require_uint 'WK_WKCLI_SIM_THREE_SMOKE_MAX_HEAP_ALLOC_BYTES' "$MAX_HEAP_ALLOC_BYTES"
 [[ -z "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT" ]] || require_positive_uint '--fault-channel-migration-scan-limit' "$FAULT_CHANNEL_MIGRATION_SCAN_LIMIT"
@@ -1816,19 +1810,13 @@ verify_metrics_health() {
     local after
     before="$(metric_file before "$node")"
     after="$(metric_file after "$node")"
-    local selected_error
-    local handoff_error
-    local handoff_timeout
+    local conversation_directory_error
     local goroutines
     local heap_alloc
-    selected_error="$(metric_delta "$before" "$after" 'wukongim_conversation_active_flush_rows_sum' 'kind="selected"' 'result="error"')"
-    handoff_error="$(metric_delta "$before" "$after" 'wukongim_conversation_authority_handoff_total' 'result="error"')"
-    handoff_timeout="$(metric_delta "$before" "$after" 'wukongim_conversation_authority_handoff_total' 'result="timeout"')"
+    conversation_directory_error="$(metric_delta "$before" "$after" 'wukongim_conversation_directory_list_total' 'result="error"')"
     goroutines="$(metric_sum "$after" 'go_goroutines')"
     heap_alloc="$(metric_sum "$after" 'go_memstats_heap_alloc_bytes')"
-    verify_metric_limit "node${node} conversation_active selected_error_rows" "$selected_error" "$MAX_FLUSH_ERROR_SELECTED_ROWS"
-    verify_metric_limit "node${node} conversation_authority handoff_error" "$handoff_error" "$MAX_HANDOFF_ERROR_TOTAL"
-    verify_metric_limit "node${node} conversation_authority handoff_timeout" "$handoff_timeout" "$MAX_HANDOFF_TIMEOUT_TOTAL"
+    verify_metric_limit "node${node} conversation_directory errors" "$conversation_directory_error" "$MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL"
     verify_metric_limit "node${node} go_goroutines" "$goroutines" "$MAX_GOROUTINES"
     verify_metric_limit "node${node} heap_alloc_bytes" "$heap_alloc" "$MAX_HEAP_ALLOC_BYTES"
     idx=$((idx + 1))
@@ -1863,9 +1851,7 @@ write_summary() {
     printf '%s\n' '- sim_output: sim.jsonl'
     printf '%s\n' '- snapshots: bench-snapshots/'
     printf '%s\n' '- metrics: metrics/'
-    printf '%s\n' "- max_flush_error_selected_rows: ${MAX_FLUSH_ERROR_SELECTED_ROWS}"
-    printf '%s\n' "- max_handoff_error_total: ${MAX_HANDOFF_ERROR_TOTAL}"
-    printf '%s\n' "- max_handoff_timeout_total: ${MAX_HANDOFF_TIMEOUT_TOTAL}"
+    printf '%s\n' "- max_conversation_directory_error_total: ${MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL}"
     printf '%s\n' "- max_goroutines: ${MAX_GOROUTINES}"
     printf '%s\n' "- max_heap_alloc_bytes: ${MAX_HEAP_ALLOC_BYTES}"
     printf '%s\n' "- auto_join_node: ${AUTO_JOIN_NODE}"

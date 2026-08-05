@@ -98,11 +98,19 @@ export class Convert {
         const conversation = new Conversation()
         conversation.channel = new Channel(conversationMap['channel_id'], conversationMap['channel_type'])
         conversation.unread = conversationMap['unread'] || 0;
-        conversation.timestamp = conversationMap['timestamp'] || 0;
-        let recents = conversationMap["recents"];
-        if (recents && recents.length > 0) {
-            const messageModel = this.toMessage(recents[0]);
+        const lastMessage = conversationMap["last_message"];
+        if (lastMessage) {
+            const timestamp = Math.floor((lastMessage["server_timestamp_ms"] || 0) / 1000)
+            const messageModel = this.toMessage({
+                ...lastMessage,
+                channel_id: conversationMap['channel_id'],
+                channel_type: conversationMap['channel_type'],
+                timestamp,
+            });
             conversation.lastMessage = messageModel
+            conversation.timestamp = timestamp
+        } else {
+            conversation.timestamp = Math.floor((conversationMap['active_at'] || 0) / 1_000_000_000)
         }
         conversation.extra = {}
 

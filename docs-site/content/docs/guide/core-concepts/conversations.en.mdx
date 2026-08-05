@@ -1,66 +1,84 @@
 ---
 title: Conversations
-description: Understand UID-owned recent-conversation projections, ordering, unread counts, delete boundaries, and their relationship to message logs.
+description: Understand the membership-backed directory, server-built badges, pagination, visibility floors, and CMD isolation.
 ---
 
-A Conversation is a recent-interaction view for one UID. It helps clients display the conversation list, latest message, read position, and unread count, but it is not the Channel message log and does not own message commit order.
+A Conversation is a transient server-built view for one UID. WuKongIM does not
+persist a conversation row and does not update every recipient when a message
+is sent. The Channel log owns messages and sequence order; UID-owned membership
+owns discovery and personal visibility state.
 
-## Projection and log
+## Durable state
 
-```text
-Channel-owned committed messages
-          |
-          +-> newest visible message reads
-          |
-          +-> post-commit recipient activity
-                    |
-                    v
-          UID-owned ConversationState
-```
-
-Channel owns message payload and sequence. ConversationState stores one user's view under UID, kind, Channel ID, and Channel type. Ordinary and CMD-sync conversations share one kind-aware metadata table but remain different kinds.
-
-## Important fields
+Ordinary channels use `user_channel_membership`:
 
 | Field | Meaning |
 | --- | --- |
-| `active_at` | Recent-activity ordering anchor; list order is not recomputed from latest-message time |
-| `read_seq` | User read position, affecting only that user's unread view |
-| `deleted_to_seq` | Delete-visibility floor; messages at or below it do not reappear |
-| `message_seq` | Message fence observed by the projection, preventing stale activity from crossing a delete barrier |
-| `sparse_active` | Marks a sparse active projection without changing active-index position semantics |
+| `join_seq` | First sequence visible in the current membership period |
+| `read_seq` | Monotonic badge floor changed only by clear/set-unread |
+| `deleted_to_seq` | Monotonic hide floor |
+| `activated_at` | Explicit navigation priority for directory sync |
+| tombstone fields | Removal evidence |
+| `source_version` | Fence against stale subscriber-derived writes |
 
-Conceptually, unread is:
+`activated_at` is not last-message time. SEND, receive, online delivery, and
+message pull do not update it. The client owns pinning and final UI order.
+
+CMD discovery uses a separate `user_cmd_channel_membership` table with
+`start_seq`, `ack_seq`, and tombstone state. CMD/SyncOnce messages use a
+separate command Channel log, so they never consume ordinary sequence space or
+change ordinary badges.
+
+## Directory synchronization
 
 ```text
-unread = max(last_visible_message_seq - max(read_seq, deleted_to_seq), 0)
+page memberships by (activated_at desc, channel_id, channel_type)
+  -> emit tombstones as deletes
+  -> group live channels by exact Channel Leader
+  -> batch-read committed head, retention floor, last display message,
+     and this UID's latest committed ordinary SEND
+  -> return conversations + deletes + unresolved + cursor + done
 ```
 
-In the compatibility sync path, a user's own sent message does not become unread for that same user.
+The page limit bounds membership candidates scanned, not conversations
+returned. A page can therefore contain no conversations while the pass is still
+incomplete; only `done=true` completes a pass. The cursor is opaque and the
+scan is eventually consistent. Clients deduplicate by Channel key, synchronize
+active pages first, complete inactive pages in the background, and retry
+`unresolved` keys separately.
 
-## List and sync are different
+## Badge and visibility
 
-### Conversation list
+For a live membership:
 
-List pages the UID-owned active index by `(active_at desc, channel_id, channel_type)` and batch-reads the newest visible ordinary message from each Channel. A projection without a visible message may still be returned with `LastMessage=nil` and unread 0.
+```text
+visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)
+effective_read   = max(visibility_floor, read_seq, current_user_last_send_seq)
+unread           = max(0, last_committed_seq - effective_read)
+```
 
-### Compatibility sync
+The sender sequence comes from a Channel-local index written atomically with
+the ordinary message. It avoids a membership write on SEND while preventing
+the user's own sent message from creating a badge.
 
-Sync merges a bounded active working set with client-known Channel overlays, reads latest messages, filters delete floors and excluded types, and then orders the final window by latest-message time. A client overlay is not a request to scan the full conversation directory.
+An inactive empty membership is omitted. An explicitly activated empty Channel
+may appear without a last message. Hiding advances `deleted_to_seq` and clears
+activation without leaving the Channel; a later message above the floor can
+make it visible again. Remove writes a tombstone, and a true rejoin establishes
+a new join boundary.
 
-## Read and delete
+## Message pull
 
-- Clear unread advances `read_seq` to the newest visible message or compatible request position.
-- Set unread derives `read_seq` from the newest message; it does not copy messages.
-- Delete conversation writes a monotonic `deleted_to_seq` barrier and clears active state; it does not delete the Channel log.
-- New activity above the barrier can reactivate the Conversation. Old projections and retries cannot cross that barrier.
+Ordinary message pull requires a live membership and does not recheck the
+subscriber table. The server clamps the requested cursor to the join, hide, and
+retention boundaries. Batch pull validates every membership before issuing one
+Leader-grouped Channel read batch. Directory cursors and per-Channel message
+cursors are independent.
 
-## Cache and persistence
-
-The UID Authority coalesces high-frequency activity in a bounded active cache and flushes to Slot periodically, under pressure, or during hash-slot handoff. Admission does not wait for durable flush. Cache pressure rejects explicitly rather than growing without bound or silently dropping dirty state. Version and delete fences prevent a concurrent flush from rolling newer state backward.
-
-<Callout type="info" title="Commit boundary">
-  A Conversation update is a post-commit user view. Projection failure cannot roll back an already committed Channel message. Applications should treat “the message exists” and “the conversation view is updated” as separate observations.
+<Callout type="info" title="SEND cost">
+  Ordinary SEND appends the Channel message and sender index, then performs
+  online delivery. It writes no recipient membership or conversation rows, so
+  durable write cost does not grow with group membership.
 </Callout>
 
 Continue with [Messages](/en/guide/core-concepts/messages), [Users & Devices](/en/guide/core-concepts/users-and-devices), and [Messaging Integration](/en/guide/integration/messaging).

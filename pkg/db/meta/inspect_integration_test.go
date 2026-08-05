@@ -22,7 +22,6 @@ func TestInspectTablesIncludesRegisteredSchemas(t *testing.T) {
 		"channel",
 		"channel_runtime_meta",
 		"subscriber",
-		"conversation",
 		"plugin_binding",
 		"channel_migration",
 		"hashslot_migration",
@@ -345,40 +344,6 @@ func TestInspectScanRejectsCursorOutsidePrimaryPrefixFilter(t *testing.T) {
 	}
 }
 
-func TestInspectScanConversationNumericFilterMatchesUnsignedRowField(t *testing.T) {
-	store := openTestMetaStore(t)
-	defer store.close(t)
-	ctx := context.Background()
-	if err := conversationTable.Upsert(ctx, store.db.HashSlot(12), ConversationState{
-		UID:         "u-conv",
-		Kind:        ConversationKindNormal,
-		ChannelID:   "conv",
-		ChannelType: 2,
-		ReadSeq:     3,
-		ActiveAt:    10,
-		UpdatedAt:   11,
-	}); err != nil {
-		t.Fatalf("conversationTable.Upsert(): %v", err)
-	}
-
-	got, err := InspectScan(ctx, store.db, InspectScanRequest{
-		Table:       "conversation",
-		HashSlot:    12,
-		HashSlotSet: true,
-		Filters:     map[string]any{"read_seq": int64(3)},
-		Limit:       10,
-	})
-	if err != nil {
-		t.Fatalf("InspectScan(): %v", err)
-	}
-	if len(got.Rows) != 1 {
-		t.Fatalf("rows len = %d, want 1: %+v", len(got.Rows), got.Rows)
-	}
-	if got.Rows[0]["read_seq"] != uint64(3) {
-		t.Fatalf("row = %+v, want read_seq 3", got.Rows[0])
-	}
-}
-
 func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -398,20 +363,6 @@ func TestInspectScanRemainingTablesSmoke(t *testing.T) {
 				t.Helper()
 				if row["channel_id"] != "sub" || row["channel_type"] != int64(2) || row["uid"] != "u-sub" {
 					t.Fatalf("subscriber row = %+v", row)
-				}
-			},
-		},
-		{
-			name:  "conversation",
-			table: "conversation",
-			slot:  12,
-			seed: func(ctx context.Context, shard *Shard) error {
-				return conversationTable.Upsert(ctx, shard, ConversationState{UID: "u-conv", Kind: ConversationKindNormal, ChannelID: "conv", ChannelType: 2, ReadSeq: 3, DeletedToSeq: 1, ActiveAt: 10, UpdatedAt: 11, SparseActive: true})
-			},
-			assert: func(t *testing.T, row InspectRow) {
-				t.Helper()
-				if row["uid"] != "u-conv" || row["kind"] != uint8(ConversationKindNormal) || row["read_seq"] != uint64(3) || row["updated_at"] != int64(11) || row["sparse_active"] != true {
-					t.Fatalf("conversation row = %+v", row)
 				}
 			},
 		},

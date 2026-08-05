@@ -122,18 +122,15 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 			return nil, err
 		}
 		return record, nil
-	case FileKindMetaConversations:
-		var record ConversationRecord
+	case FileKindMetaUserCMDChannelMemberships:
+		var record UserCMDChannelMembershipRecord
 		if err := decodeStrict(line, &record); err != nil {
 			return nil, err
 		}
 		if err := requireString("uid", record.UID); err != nil {
 			return nil, err
 		}
-		if record.Kind != "normal" && record.Kind != "cmd" {
-			return nil, fmt.Errorf("kind must be normal or cmd")
-		}
-		if err := requireString("channel_id", record.ChannelID); err != nil {
+		if err := requireString("command_channel_id", record.CommandChannelID); err != nil {
 			return nil, err
 		}
 		return record, nil

@@ -677,6 +677,17 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	return IdempotencyHit{Message: fromDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
+func (a *messageDBChannelStoreAdapter) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return 0, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
+	seq, ok, err := a.store.GetLastSenderMessageSeq(ctx, fromUID, throughSeq)
+	return seq, ok, a.mapError(err)
+}
+
 func (a *messageDBChannelStoreAdapter) ReadLog(ctx context.Context, req ReadLogRequest) (ReadLogResult, error) {
 	if err := a.ensureOpen(); err != nil {
 		return ReadLogResult{}, err

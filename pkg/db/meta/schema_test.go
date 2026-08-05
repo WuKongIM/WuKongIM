@@ -27,10 +27,6 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	messageEventStatePrimaryRegistered := false
 	messageEventCursorPrimaryRegistered := false
 	messageEventAppliedPrimaryRegistered := false
-	conversationPrimaryRegistered := false
-	conversationKindColumnRegistered := false
-	conversationActiveIndexRegistered := false
-	conversationSparseActiveColumnRegistered := false
 	for _, table := range tables {
 		if err := schema.ValidateTable(table); err != nil {
 			t.Fatalf("ValidateTable(%s): %v", table.Name, err)
@@ -110,26 +106,6 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			len(table.Primary.Columns) == 4 {
 			messageEventAppliedPrimaryRegistered = true
 		}
-		if table.ID == TableIDConversation {
-			if table.Primary.ID == conversationPrimaryIndexID &&
-				table.Primary.Name == "pk_conversation" &&
-				len(table.Primary.Columns) == 4 {
-				conversationPrimaryRegistered = true
-			}
-			for _, column := range table.Columns {
-				if column.ID == conversationColumnKind && column.Name == "kind" && column.Type == schema.TypeUint64 {
-					conversationKindColumnRegistered = true
-				}
-				if column.ID == conversationColumnSparseActive && column.Name == "sparse_active" && column.Type == schema.TypeBool {
-					conversationSparseActiveColumnRegistered = true
-				}
-			}
-			for _, index := range table.Indexes {
-				if index.ID == conversationActiveIndexID && index.Name == "idx_conversation_active" && len(index.Columns) == 5 {
-					conversationActiveIndexRegistered = true
-				}
-			}
-		}
 	}
 	if !channelIDIndexRegistered {
 		t.Fatalf("channel table missing idx_channel_id index %d", channelIDIndexID)
@@ -167,25 +143,12 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 	if !messageEventAppliedPrimaryRegistered {
 		t.Fatalf("message event applied table missing typed primary index %d", messageEventAppliedPrimaryIndexID)
 	}
-	if !conversationPrimaryRegistered {
-		t.Fatalf("conversation table missing kind-aware typed primary index")
-	}
-	if !conversationKindColumnRegistered {
-		t.Fatalf("conversation table missing kind column")
-	}
-	if !conversationActiveIndexRegistered {
-		t.Fatalf("conversation table missing idx_conversation_active index %d", conversationActiveIndexID)
-	}
-	if !conversationSparseActiveColumnRegistered {
-		t.Fatalf("conversation table missing sparse_active column")
-	}
 	for _, tableID := range []uint32{
 		TableIDUser,
 		TableIDDevice,
 		TableIDChannel,
 		TableIDSubscriber,
 		TableIDChannelRuntimeMeta,
-		TableIDConversation,
 		TableIDPluginBinding,
 		TableIDChannelMigration,
 		TableIDHashSlotMigration,
@@ -199,7 +162,9 @@ func TestMetaSchemaValidateAllTables(t *testing.T) {
 			t.Fatalf("table id %d missing from Tables()", tableID)
 		}
 	}
-	if _, ok := seen[TableIDCMDConversation]; ok {
-		t.Fatalf("reserved cmd conversation table id %d must not be registered", TableIDCMDConversation)
+	for _, tableID := range []uint32{TableIDConversation, TableIDCMDConversation} {
+		if _, ok := seen[tableID]; ok {
+			t.Fatalf("reserved conversation table id %d must not be registered", tableID)
+		}
 	}
 }

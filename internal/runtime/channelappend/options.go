@@ -6,7 +6,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 )
 
 const (
@@ -291,29 +290,6 @@ type PersistAfterEnqueuer interface {
 	EnqueuePersistAfter(context.Context, CommittedEnvelope)
 }
 
-// ConversationActiveAdmitter admits committed recipient activity into the conversation active worker.
-type ConversationActiveAdmitter interface {
-	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
-	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
-}
-
-// ConversationActiveTargetBatch binds one active projection batch to the
-// complete exact UID authority fence resolved by channelappend.
-type ConversationActiveTargetBatch struct {
-	// Target is the complete physical hash-slot authority fence.
-	Target RecipientAuthorityTarget
-	// Batch contains only sender and recipient rows owned by Target.
-	Batch conversationactive.ActiveBatch
-}
-
-// RoutedConversationActiveAdmitter accepts active groups whose first-attempt
-// authority targets were already resolved by channelappend.
-type RoutedConversationActiveAdmitter interface {
-	// AdmitRoutedActiveBatches preserves aligned exact targets and may fresh-route
-	// only failed groups under its bounded retry policy.
-	AdmitRoutedActiveBatches(context.Context, []ConversationActiveTargetBatch) error
-}
-
 // Options configures the local channel append group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
@@ -358,8 +334,6 @@ type Options struct {
 	OnlineDeliveryEnqueuer OnlineDeliveryEnqueuer
 	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
 	PersistAfterEnqueuer PersistAfterEnqueuer
-	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
-	ConversationActiveAdmitter ConversationActiveAdmitter
 	// SubscriberScanPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
 	SubscriberScanPageSize int
 	// RecipientBatchSize bounds total recipients in one delivery plan. Values <= 0 use a bounded default.
@@ -458,7 +432,6 @@ func appendPortsFromOptions(opts Options) appendPorts {
 func commitPortsFromOptions(opts Options) commitPorts {
 	return commitPorts{
 		subscribers:                opts.Subscribers,
-		activeAdmitter:             opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:           opts.OnlineDeliveryEnqueuer,
 		persistAfter:               opts.PersistAfterEnqueuer,
