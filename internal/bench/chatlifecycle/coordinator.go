@@ -20,6 +20,10 @@ const (
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
 
+// ErrCoordinatorRateUpdate means the fixed three-worker rate round did not
+// complete successfully, so the coordinator grant plan remains unchanged.
+var ErrCoordinatorRateUpdate = errors.New("chat lifecycle coordinator: rate update failed")
+
 var errCoordinatorRoundDeadline = errors.New("chat lifecycle coordinator: control round deadline")
 
 var (
@@ -110,6 +114,13 @@ type CoordinatorWorker interface {
 	Grant(context.Context, WorkerGrantRequest) (WorkerGrantResponse, error)
 	Checkpoint(context.Context, WorkerCheckpointRequest) (WorkerSnapshot, error)
 	Stop(context.Context, WorkerStopRequest) (WorkerSnapshot, error)
+}
+
+// CoordinatorRateWorker is the optional live capacity-control surface. It is
+// deliberately narrower than CoordinatorWorker so startup fakes and adapters
+// do not acquire a capacity-only method.
+type CoordinatorRateWorker interface {
+	UpdateRate(context.Context, WorkerRateRequest) (WorkerStatus, error)
 }
 
 // CoordinatorObserver is the existing continuous service observer boundary.
@@ -998,6 +1009,7 @@ type CoordinatorGrant struct {
 // CoordinatorGrantPlan owns one global allocator and sequences complete grant
 // vectors for all workers. Each worker applies only its indexed vector share.
 type CoordinatorGrantPlan struct {
+	fence     WorkerFence
 	rate      uint64
 	burst     uint64
 	allocator *RateAllocator
@@ -1031,8 +1043,87 @@ func NewCoordinatorGrantPlan(assignments []CoordinatorAssignment) (*CoordinatorG
 		return nil, ErrCoordinatorConfig
 	}
 	return &CoordinatorGrantPlan{
-		rate: uint64(rate), burst: uint64(burst), allocator: allocator,
+		fence: first.WorkerFence, rate: uint64(rate), burst: uint64(burst), allocator: allocator,
 	}, nil
+}
+
+// ScheduleRate stages one exact global capacity rate for the next Tick. Any
+// retained credit from the old rate is discarded when that Tick applies it.
+func (p *CoordinatorGrantPlan) ScheduleRate(rate uint64) error {
+	if p == nil || p.allocator == nil || rate == 0 || rate > math.MaxUint64/2 {
+		return ErrCoordinatorConfig
+	}
+	burst := 2 * rate
+	if err := p.allocator.ScheduleRate(rate, burst); err != nil {
+		return ErrCoordinatorConfig
+	}
+	p.rate, p.burst = rate, burst
+	return nil
+}
+
+// ScheduleCapacityRate updates all three fenced live workers concurrently and
+// stages the matching coordinator grant rate only after every worker accepts.
+func (c *Coordinator) ScheduleCapacityRate(
+	parent context.Context,
+	plan *CoordinatorGrantPlan,
+	rate uint64,
+) error {
+	if c == nil || parent == nil || plan == nil || plan.allocator == nil ||
+		len(c.workers) != coordinatorWorkerCount || c.roundTimeout <= 0 ||
+		rate == 0 || rate > math.MaxUint64/2 {
+		return ErrCoordinatorConfig
+	}
+	workers := [coordinatorWorkerCount]CoordinatorRateWorker{}
+	for workerID, worker := range c.workers {
+		rateWorker, ok := worker.(CoordinatorRateWorker)
+		if !ok || rateWorker == nil {
+			return ErrCoordinatorConfig
+		}
+		workers[workerID] = rateWorker
+	}
+
+	roundContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
+	defer cancel()
+	request := WorkerRateRequest{
+		WorkerFence: plan.fence, RatePerSecond: rate, MaxBurst: 2 * rate,
+	}
+	type rateResult struct {
+		status WorkerStatus
+		coordinatorRoundEvidence
+	}
+	results := [coordinatorWorkerCount]rateResult{}
+	var wait sync.WaitGroup
+	wait.Add(coordinatorWorkerCount)
+	for workerID, worker := range workers {
+		go func() {
+			defer wait.Done()
+			result := &results[workerID]
+			result.status, result.err = worker.UpdateRate(roundContext, request)
+			status := result.status
+			result.valid = result.err == nil &&
+				sameWorkerFence(WorkerFence{
+					RunID: status.RunID, AssignmentID: status.AssignmentID, Generation: status.Generation,
+				}, plan.fence) &&
+				status.WorkerID == uint64(workerID) && status.WorkerCount == coordinatorWorkerCount &&
+				status.Phase == WorkerPhaseRunning && status.TrafficReady && !status.Unexpected
+		}()
+	}
+	wait.Wait()
+	var evidence [coordinatorWorkerCount]coordinatorRoundEvidence
+	for workerID, result := range results {
+		evidence[workerID] = result.coordinatorRoundEvidence
+	}
+	switch resolveCoordinatorRoundDisposition(parent, roundContext, evidence) {
+	case coordinatorRoundSucceeded:
+		if err := plan.ScheduleRate(rate); err != nil {
+			return ErrCoordinatorRateUpdate
+		}
+		return nil
+	case coordinatorRoundParentCanceled:
+		return parent.Err()
+	default:
+		return ErrCoordinatorRateUpdate
+	}
 }
 
 // Tick releases one vector and verifies the fixed-size global sums before it

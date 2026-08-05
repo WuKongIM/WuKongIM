@@ -412,10 +412,15 @@ func validReportCapacity(capacity ReportCapacityEvidence) bool {
 	if !capacity.Attempted {
 		return !capacity.Completed && capacity.MaximumPassingRate == 0 && capacity.FirstFailingRate == 0 && !capacity.RecoveryPassed
 	}
-	if capacity.Completed {
-		return capacity.MaximumPassingRate > 0
+	if capacity.FirstFailingRate > 0 && capacity.FirstFailingRate <= capacity.MaximumPassingRate {
+		return false
 	}
-	return capacity.MaximumPassingRate == 0 && capacity.FirstFailingRate == 0 && !capacity.RecoveryPassed
+	if !capacity.Completed {
+		return !capacity.RecoveryPassed
+	}
+	// A completed staircase always includes an overload boundary before its
+	// fixed-rate recovery, even when the start rate itself was the first failure.
+	return capacity.FirstFailingRate > 0
 }
 
 func validReportLatencyAnomaly(anomaly ReportLatencyAnomaly) bool {

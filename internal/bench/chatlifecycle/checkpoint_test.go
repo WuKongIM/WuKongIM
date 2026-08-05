@@ -268,7 +268,10 @@ func captureCheckpoint(
 func checkpointEvidenceFixture(final bool) CheckpointEvidence {
 	capacity := ReportCapacityEvidence{}
 	if final {
-		capacity = ReportCapacityEvidence{Attempted: true, Completed: true, MaximumPassingRate: 2_000, RecoveryPassed: true}
+		capacity = ReportCapacityEvidence{
+			Attempted: true, Completed: true, MaximumPassingRate: 2_000,
+			FirstFailingRate: 2_500, RecoveryPassed: true,
+		}
 	}
 	return CheckpointEvidence{
 		TopologyValidated: true,
