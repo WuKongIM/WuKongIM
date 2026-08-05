@@ -150,11 +150,11 @@ flowchart TB
     end
 ```
 
-- **Controller** owns canonical membership, node health, the hash-slot table, physical Slot placement, and operator tasks.
-- **Slot** shards users, channels, membership, conversations, plugin bindings, and Channel runtime metadata through 256 logical hash slots by default.
+- **Controller** owns canonical membership, node health, the physical hash-slot table, logical Slot placement, and operator tasks.
+- **Slot** Raft Groups shard users, channels, membership, conversations, plugin bindings, and Channel runtime metadata. Stable routing first uses 256 physical hash slots by default, then maps those fences onto the logical Slot Groups.
 - **Channel** owns ordered message logs, replicas, commit progress, retention boundaries, and runtime lifecycle.
 
-A one-node deployment is a **single-node cluster**, not a standalone bypass. See the [distributed architecture guide](./docs/wiki/architecture/README.md) for the deeper model.
+A one-node deployment is a **single-node cluster**, not a standalone bypass. See the [server architecture guide](https://docs.githubim.com/en/server/architecture) for the deeper model.
 
 ### Message lifecycle
 

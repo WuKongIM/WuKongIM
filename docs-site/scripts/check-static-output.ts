@@ -20,7 +20,6 @@ for (const locale of locales) {
 }
 
 const plannedRoutes = locales.flatMap((locale) => [
-  `/${locale}/guide/integration/plugins`,
   `/${locale}/server/deployment/kubernetes`,
 ]);
 for (const route of plannedRoutes) {
@@ -30,9 +29,13 @@ for (const route of plannedRoutes) {
   }
 }
 
-const published = await text('zh/server/deployment/multi-node/index.html');
-if (published.includes('<meta name="robots" content="noindex')) {
-  throw new Error('published pages must be indexable');
+for (const locale of locales) {
+  for (const entry of getIndexedNavigationEntries(locale)) {
+    const published = await text(`${entry.url.slice(1)}/index.html`);
+    if (published.includes('<meta name="robots" content="noindex')) {
+      throw new Error(`published page must be indexable: ${entry.url}`);
+    }
+  }
 }
 
 const sitemap = await text('sitemap.xml');

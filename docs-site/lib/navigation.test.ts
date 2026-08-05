@@ -87,6 +87,30 @@ describe('documentation navigation contract', () => {
     expect(architecture?.children.every((page) => page.status === 'published')).toBe(true);
   });
 
+  test('publishes the complete guide foundation path', () => {
+    const guide = domains.find((domain) => domain.key === 'guide');
+    const productOverview = guide?.groups.find((group) => group.slug === 'product-overview');
+    const coreConcepts = guide?.groups.find((group) => group.slug === 'core-concepts');
+    const integration = guide?.groups.find((group) => group.slug === 'integration');
+
+    expect(
+      productOverview?.children
+        .filter((page) => ['capabilities', 'use-cases'].includes(page.slug))
+        .map((page) => [page.slug, page.status]),
+    ).toEqual([
+      ['capabilities', 'published'],
+      ['use-cases', 'published'],
+    ]);
+    expect(coreConcepts?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['cluster-and-nodes', 'published'],
+      ['messages', 'published'],
+      ['channels', 'published'],
+      ['users-and-devices', 'published'],
+      ['conversations', 'published'],
+    ]);
+    expect(integration?.children.find((page) => page.slug === 'plugins')?.status).toBe('published');
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -108,6 +132,8 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide`,
         `/${locale}/guide/product-overview`,
         `/${locale}/guide/product-overview/what-is-wukongim`,
+        `/${locale}/guide/product-overview/capabilities`,
+        `/${locale}/guide/product-overview/use-cases`,
         `/${locale}/guide/quick-start`,
         `/${locale}/guide/quick-start/prerequisites`,
         `/${locale}/guide/quick-start/single-node-cluster`,
@@ -115,11 +141,17 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/quick-start/chat-demo`,
         `/${locale}/guide/quick-start/next-steps`,
         `/${locale}/guide/core-concepts`,
+        `/${locale}/guide/core-concepts/cluster-and-nodes`,
+        `/${locale}/guide/core-concepts/messages`,
+        `/${locale}/guide/core-concepts/channels`,
+        `/${locale}/guide/core-concepts/users-and-devices`,
+        `/${locale}/guide/core-concepts/conversations`,
         `/${locale}/guide/integration`,
         `/${locale}/guide/integration/architecture`,
         `/${locale}/guide/integration/authentication`,
         `/${locale}/guide/integration/messaging`,
         `/${locale}/guide/integration/webhooks`,
+        `/${locale}/guide/integration/plugins`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
         `/${locale}/server/deployment/choosing`,
@@ -222,8 +254,22 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/product-overview/capabilities.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/capabilities.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/use-cases.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/use-cases.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/messages.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/messages.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/channels.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/channels.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/conversations.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/conversations.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);

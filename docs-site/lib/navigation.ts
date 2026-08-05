@@ -214,14 +214,14 @@ export const domains: DocumentationDomain[] = [
             '介绍频道式消息模型、集群语义，以及它与网关和消息队列的区别。',
             'Introduces the channel model, cluster semantics, and how WuKongIM differs from gateways and queues.',
           ),
-          plannedPage(
+          publishedPage(
             'capabilities',
             '核心能力',
             'Core Capabilities',
             '概览高并发消息、超大群、持久化、多设备、故障转移和扩容能力。',
             'Surveys high-throughput messaging, large groups, persistence, multi-device, failover, and scaling.',
           ),
-          plannedPage(
+          publishedPage(
             'use-cases',
             '适用场景',
             'Use Cases',
@@ -281,35 +281,35 @@ export const domains: DocumentationDomain[] = [
         '建立应用开发所需的统一业务术语。',
         'Establishes the shared product vocabulary needed by application developers.',
         [
-          plannedPage(
+          publishedPage(
             'cluster-and-nodes',
             '集群与节点',
             'Clusters & Nodes',
             '解释所有部署都是集群，以及节点、Slot、副本和 Leader 的关系。',
             'Explains cluster-only deployment semantics and the relationship among nodes, slots, replicas, and leaders.',
           ),
-          plannedPage(
+          publishedPage(
             'messages',
             '消息',
             'Messages',
             '解释消息标识、序号、顺序、持久化、去重和离线生命周期。',
             'Explains identifiers, sequence, ordering, persistence, deduplication, and offline lifecycle.',
           ),
-          plannedPage(
+          publishedPage(
             'channels',
             '频道',
             'Channels',
             '解释频道作为消息路由和存储核心单位的职责。',
             'Explains channels as the core unit for message routing and storage.',
           ),
-          plannedPage(
+          publishedPage(
             'users-and-devices',
             '用户与设备',
             'Users & Devices',
             '区分用户、设备、连接、登录状态和多端在线。',
             'Distinguishes users, devices, connections, login state, and multi-device presence.',
           ),
-          plannedPage(
+          publishedPage(
             'conversations',
             '会话',
             'Conversations',
@@ -353,7 +353,7 @@ export const domains: DocumentationDomain[] = [
             '介绍事件回调、签名、重试、幂等和失败处理。',
             'Introduces event callbacks, signatures, retries, idempotency, and failure handling.',
           ),
-          plannedPage(
+          publishedPage(
             'plugins',
             '插件扩展',
             'Plugin Extensions',

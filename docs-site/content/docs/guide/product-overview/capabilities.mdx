@@ -1,0 +1,49 @@
+---
+title: 核心能力
+description: 了解 WuKongIM v3 当前提供的接入、消息、集群、状态与运维能力。
+---
+
+WuKongIM 提供的是一套以 Channel 为核心的实时通信基础设施。它把客户端连接、频道内有序消息、分布式元数据、在线路由和运维能力组合在同一个集群模型中。
+
+<Callout type="warn" title="能力不等于容量承诺">
+  v3 当前仍处于 Beta。硬件、存储、副本数、频道分布、在线 Fan-out 和延迟目标都会改变有效容量；这里说明语义边界，不发布脱离负载模型的最大 QPS。
+</Callout>
+
+## 能力地图
+
+| 领域 | 当前能力 | 关键边界 |
+| --- | --- | --- |
+| 客户端接入 | TCP WKProto、WebSocket 上的 WKProto/JSON-RPC、连接生命周期与有界异步分发 | Gateway 只负责协议和 Session，不决定业务权限或 Channel 权威 |
+| 消息 | 个人、群组和自定义 Channel，有序追加、持久化复制、幂等、离线同步、消息事件投影 | 顺序以单个 Channel 为边界；提交与在线投递分离 |
+| 频道策略 | 订阅者、黑名单、白名单、封禁、解散、陌生人策略与系统用户 | 业务服务仍负责产品关系和内容治理 |
+| 用户状态 | UID、设备元数据、多设备 Session、分布式 Presence、在线路由 | 真实 Session 只存在于连接 owner 节点 |
+| 会话 | 最近会话、已读位置、未读状态、删除可见性边界 | 会话是 UID 所有的投影，不是消息日志本身 |
+| 集群 | Controller、256 个物理哈希槽、逻辑 Slot Raft Group、Channel 副本与故障转移 | 所有部署都是集群，单节点集群也不绕过这些路径 |
+| 扩展 | HTTP Webhook、节点内 `.wkp` 插件、Send/Receive/PersistAfter Hook 与 Host RPC | Webhook 和提交后 Hook 都不是可靠消息队列 |
+| 运维 | Manager、就绪检查、Prometheus、诊断、`wkcli`、`wkdb`、`wkbench` | 变更操作必须遵守权威状态和安全栅栏 |
+
+## 消息语义
+
+WuKongIM 的 durable SEND 在 Channel 权威节点上追加，并等待 quorum 持久提交后确认。在线投递、会话投影、Webhook 和提交后插件随后运行，它们失败时不会回滚已经提交的 Channel 日志。
+
+```text
+client -> Gateway -> message usecase -> Channel authority
+                                      -> durable commit -> SENDACK
+                                                        -> post-commit effects
+```
+
+应用应保存稳定的 `client_msg_no` 并按结果处理重试。服务端消息 ID、Channel 内 `message_seq` 和客户端消息编号是不同概念。
+
+## 面向规模的设计
+
+- 频道内有序，而不是所有频道共享一个全局顺序。
+- 十万成员群组按页读取成员并生成有界投递计划，不把完整成员集装入一次热路径请求。
+- Gateway、Channel、投递和插件使用有界队列与背压；扩容队列只会增加最坏等待，不替代容量规划。
+- 高频道基数通过按需激活和空闲淘汰控制运行时内存；持久消息不依赖运行时常驻。
+- 性能结论必须同时记录吞吐、P99、错误、队列、CPU、内存、磁盘和网络。
+
+## 需要业务系统提供什么
+
+WuKongIM 不替代账号登录、产品权限、好友或群业务规则、内容审核、移动系统推送、业务数据库和分析平台。典型集成由业务服务签发身份凭据、维护业务关系、调用受保护的服务端接口，并以幂等方式消费异步事件。
+
+继续阅读[适用场景](/zh/guide/product-overview/use-cases)选择架构模式，或进入[核心概念](/zh/guide/core-concepts)统一术语。

@@ -1,0 +1,71 @@
+---
+title: Plugin Extensions
+description: Understand the scope, lifecycle, hooks, bindings, and safety boundaries of v3 Beta node-local plugins.
+---
+
+WuKongIM v3 Beta can extend message paths and host RPC through local `.wkp` processes. Plugins fit controlled extensions that need to run near a WuKongIM node, but they do not replace a business service, durable queue, or cluster-wide deployment orchestrator.
+
+<Callout type="warn" title="Node-local capability">
+  Plugin processes, configuration, and desired/observed lifecycle state belong to each node. Enabling a plugin on one node does not prove that every node has installed, configured, or started the same version.
+</Callout>
+
+## When to use a plugin
+
+| Need | Recommended boundary |
+| --- | --- |
+| Synchronously inspect or mutate a payload before SENDACK | Send hook; keep the chain short and accept its latency/availability impact |
+| Observe committed messages for selected offline recipients | Receive hook; post-commit, UID-bound, and best-effort |
+| Observe every durable commit | PersistAfter; post-commit and best-effort |
+| Deliver ordinary asynchronous events to a business system | Prefer a webhook or business-owned queue boundary |
+| Complex orchestration, external transaction, or long-running job | Use an independent business service, not a synchronous Send hook |
+
+## Lifecycle
+
+```text
+local plugin directory
+  -> plugin process starts and calls /plugin/start
+  -> server validates observed manifest
+  -> merge node-local desired enable/config state
+  -> running + enabled + advertised method = hook candidate
+```
+
+When Manager updates configuration, an existing secret represented by `SecretHidden` is preserved, and returned details redact secrets. A running plugin that advertises `ConfigUpdate` receives a synchronous configuration update call. Uninstall first writes disabled desired state, then stops and removes the local process.
+
+## Three hook classes
+
+| Hook | Timing | Failure semantics |
+| --- | --- | --- |
+| Send | After permission succeeds, before Channel append admission | Synchronous; fail-closed by default with explicit fail-open option; may mutate payload or reject |
+| Receive | After durable commit for an offline UID batch | Independent recipient failure does not change SENDACK, online delivery, or conversation projection |
+| PersistAfter | After durable commit | Failure reaches worker logs/metrics only and never rolls back the message |
+
+Candidate plugins are ordered by priority descending and plugin number ascending. A Send response may replace only the payload, not sender, Channel, Session, or routing fields. A plugin-origin send still enters the message usecase, permission checks, recursion guard, and Channel authority.
+
+## UID bindings
+
+A UID-to-plugin-number binding is Slot-authoritative metadata routed by the UID physical hash-slot key. It expresses only the cluster relationship; it stores no node's plugin process, configuration, or running state. During Receive, the binding is intersected with running/enabled/method candidates on the current node, and the highest-priority plugin is selected.
+
+Therefore, “a binding exists” does not mean “every node can execute it.” Before rollout, verify compatible plugins on every node that may execute work for the target UIDs.
+
+## Host RPC
+
+Current compatibility capabilities include:
+
+- send through the ordinary message usecase;
+- read committed messages from an explicit Channel;
+- read cluster nodes and physical hash-slot snapshots and resolve a Channel owner;
+- read a UID's conversation Channels;
+- forward a bounded HTTP request to a plugin route locally or on one specified node.
+
+Host RPC still enforces body, header, query, timeout, and target validation. `toNodeId=-1` fanout is explicitly deferred and does not perform a silent partial broadcast.
+
+## Safety and capacity checklist
+
+1. Install only reviewed plugin artifacts and pin version and digest.
+2. Verify installation, desired config, observed methods, and running state per node.
+3. Use short external-call timeouts; never run a long task in a synchronous Send hook.
+4. Monitor low-cardinality invocation metrics such as `method="send"`, worker queues, failures, and timeouts.
+5. Preserve recursion guards for hook re-entry and plugin-origin sends; do not create an infinite message loop.
+6. Treat Receive/PersistAfter as fallible effects. When processing must be reliable, enqueue into a business-owned durable queue.
+
+Continue with [Integration Architecture](/en/guide/integration/architecture), [Messaging](/en/guide/integration/messaging), and [Webhooks](/en/guide/integration/webhooks).

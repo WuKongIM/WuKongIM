@@ -1,0 +1,57 @@
+---
+title: 频道
+description: 理解 Channel 身份、类型、成员策略、消息日志、运行时副本与大群边界。
+---
+
+Channel 是消息路由、顺序和持久化的核心单位，由 `channel_id` 与 `channel_type` 共同标识。同一个 ID 在不同类型下不是同一个 Channel。
+
+## 业务 Channel
+
+| 形态 | 典型用途 | 需要注意 |
+| --- | --- | --- |
+| 个人 Channel | 两个用户之间的消息 | 服务端会把双方视角归一化为稳定的 canonical ID |
+| 群组 Channel | 群聊、社区或房间 | 订阅关系和业务群状态需要由业务系统维护并同步 |
+| 自定义 Channel | 通知、IoT、直播和业务主题 | 类型和值域需要在业务与客户端之间形成稳定契约 |
+| 临时成员列表 | 一次请求指定有限接收者 | 属于请求范围，不应替代持久群成员模型 |
+
+命令频道是内部兼容与同步语义使用的派生身份。应用不应通过拼接内部后缀猜测它，而应使用受支持的 Send/Sync 能力。
+
+## 两类 Channel 状态
+
+### Slot 元数据
+
+Slot 保存 Channel 业务元数据、订阅者、黑白名单、封禁/解散/发送禁用标记，以及 `ChannelRuntimeMeta`。这些数据通过 Channel ID 的物理哈希槽路由到当前逻辑 Slot Raft Leader。
+
+### Channel 消息日志
+
+Channel runtime 保存按 sequence 排列的消息日志。权威元数据规定 Leader、Replicas、ISR、Channel Epoch、Leader Epoch、保留边界和 write fence；运行时副本应用这些 fence，完成追加、复制和 HW 推进。
+
+```text
+Slot metadata: policy / members / runtime intent / migration fence
+                              |
+                              v
+Channel runtime: ordered append -> replica progress -> committed HW
+```
+
+Slot Leader 和 Channel Leader 可以位于不同节点，不能用其中一个推断另一个。
+
+## 发送权限
+
+消息用例会按 Channel 类型和元数据检查发送方禁用、频道封禁或解散、订阅关系、黑名单、白名单、陌生人策略、系统用户，以及 Agent/访客等兼容关系。业务服务仍需定义谁应该成为成员、何时移除、内容是否允许发送。
+
+## 十万成员群组
+
+普通成员变更会去重、分块并带单调 mutation version 写入。单条底层成员命令有 UID 数量和编码字节上限；上层操作必须按块处理。提交后 Fan-out 分页读取成员、按 Presence Authority 分组并生成有界投递计划，不会为每位成员写一份持久消息。
+
+因此要分别观察：
+
+- Channel append 和 quorum commit 延迟；
+- 成员分页与 authority 解析；
+- 在线投递队列、owner push 和 Session 写入；
+- 热点 Channel 的 CPU、网络和尾延迟。
+
+## 生命周期与迁移
+
+Channel runtime 按需激活，空闲时可以 checkpoint 并卸载；消息仍保存在持久存储。Leader transfer 或 replica replace 会通过 Slot 中的权威任务、epoch 和 write fence 排空旧 Leader，再提交新布局。节点本地超时不能自行解除权威 fence。
+
+继续阅读[消息](/zh/guide/core-concepts/messages)、[群组配置](/zh/server/configuration/cluster)和[Channel 消息层](/zh/server/architecture/channels)。

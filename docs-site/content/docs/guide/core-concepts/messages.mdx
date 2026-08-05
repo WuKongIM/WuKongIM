@@ -1,0 +1,61 @@
+---
+title: 消息
+description: 理解消息标识、频道内顺序、持久化提交、投递确认、幂等与 NoPersist。
+---
+
+消息是发布到某个 Channel 的记录。对应用最重要的边界是：客户端请求、Channel 持久提交、在线投递和接收确认是四个不同阶段。
+
+## 三种常见标识
+
+| 标识 | 谁提供 | 用途 |
+| --- | --- | --- |
+| `client_msg_no` | 发送方 | 标识一次逻辑发送并支持幂等重试；重试必须保持不变 |
+| message ID | 服务端 | 全局服务端消息身份，用于结果与诊断 |
+| `message_seq` | Channel 日志 | 该 Channel 内的有序位置；不同 Channel 不能直接比较 |
+
+相同幂等作用域内复用 `client_msg_no` 但改变 Payload 是冲突，而不是创建一条新消息的可靠方式。
+
+## 持久消息路径
+
+```text
+SEND
+  -> Gateway admission and protocol mapping
+  -> permission and optional synchronous Send hooks
+  -> exact Channel authority
+  -> ordered durable append and replica progress
+  -> committed high watermark
+  -> SENDACK
+  -> conversation / delivery / webhook / post-commit plugins
+```
+
+durable SEND 的 SENDACK 成功表示 Channel append 已达到 quorum commit，不表示每个在线设备都已收到，也不表示 Webhook、插件或业务动作完成。
+
+## 顺序边界
+
+- `message_seq` 定义单个 Channel 内的顺序。
+- 不同 Channel 之间没有全局消息顺序。
+- Channel Leader 只接受满足 leader、epoch、ISR 和 write-fence 条件的写入。
+- 接收者重新连接时按已提交日志和同步游标恢复，而不是依赖之前的在线投递仍在内存中。
+
+## NoPersist 不是一种统一的实时消息
+
+普通非命令 Channel 的 `NoPersist`（未设置 `SyncOnce`，也不是命令频道 ID）在安全的预路由校验后直接返回兼容成功；它不会解析 authority、追加日志或执行实时投递。
+
+命令式 `NoPersist` 才会进入命令频道 authority 和在线投递计划。它没有持久 sequence、离线恢复或重连重放保证，没有在线投递能力时会失败。
+
+## 投递与确认
+
+在线投递先通过 UID Presence Authority 找到 owner route，再由 owner 节点验证具体 Session 并写出 `RECV`。需要确认时，`RECVACK` 只清理匹配的 owner-local pending 状态；它不会改变 Channel 的提交顺序。
+
+| 结果 | 可以得出的结论 |
+| --- | --- |
+| SENDACK 成功 | durable 消息已达到提交边界，或对应瞬态分支已完成其 admission 语义 |
+| 客户端收到 RECV | 某个具体 Session 已获得投递 |
+| 客户端发送 RECVACK | 该 owner-local 接收状态已确认 |
+| Webhook/插件成功 | 对应异步消费者处理成功，不改变消息 commit |
+
+## 流式消息事件
+
+消息事件以 `(channel_id, channel_type, client_msg_no)` 为锚点，支持流式 open/delta/snapshot 与终态投影。活动增量可以先保存在 Slot Leader 的有界缓存中；终态才形成 durable projection。领导权变化导致缓存证据缺失时，finish 会保持 fail-closed，调用方需要重放完整增量或终态快照。
+
+继续阅读[Channel](/zh/guide/core-concepts/channels)、[消息收发集成](/zh/guide/integration/messaging)和[消息发送链路](/zh/server/architecture/message-flow)。

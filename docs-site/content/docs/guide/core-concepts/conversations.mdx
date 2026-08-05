@@ -1,0 +1,66 @@
+---
+title: 会话
+description: 理解 UID 所有的最近会话投影、排序、未读数、删除边界和消息日志关系。
+---
+
+Conversation 是面向某个 UID 的最近交互视图。它帮助客户端展示会话列表、最近消息、已读位置和未读数，但它不是 Channel 消息日志，也不拥有消息提交顺序。
+
+## 投影与日志
+
+```text
+Channel-owned committed messages
+          |
+          +-> newest visible message reads
+          |
+          +-> post-commit recipient activity
+                    |
+                    v
+          UID-owned ConversationState
+```
+
+Channel 持有消息正文和 sequence；ConversationState 按 UID、kind、Channel ID 和类型持有用户视角的状态。普通会话与 CMD 同步会话使用同一张 kind-aware 元数据表，但属于不同 kind。
+
+## 关键字段
+
+| 字段 | 含义 |
+| --- | --- |
+| `active_at` | 最近活动排序锚点；会话列表按它排序，而不是用最近消息时间重新排序 |
+| `read_seq` | 用户已读位置，只能决定该用户视角的未读状态 |
+| `deleted_to_seq` | 删除可见性 floor；小于等于该位置的消息不会重新显示 |
+| `message_seq` | 投影观察到的消息 fence，用于防止旧活动越过删除屏障 |
+| `sparse_active` | 表示只保留稀疏活跃投影，不改变它在 active index 中的位置语义 |
+
+概念上的未读计算是：
+
+```text
+unread = max(last_visible_message_seq - max(read_seq, deleted_to_seq), 0)
+```
+
+发送者自己发送的消息在兼容同步路径中不会被当作自己的未读消息。
+
+## 列表与同步不同
+
+### 会话列表
+
+列表从 UID-owned active index 按 `(active_at desc, channel_id, channel_type)` 分页，再批量读取各 Channel 的最新可见普通消息。没有可见消息的投影仍可以返回，`LastMessage=nil` 且未读为 0。
+
+### 兼容同步
+
+同步会合并有界 active 工作集与客户端携带的已知 Channel overlay，读取最新消息、过滤删除 floor 和排除类型，再按最新消息时间整理最终窗口。客户端 overlay 不是让服务端扫描完整会话目录的请求。
+
+## 已读与删除
+
+- 清未读把 `read_seq` 推进到最新可见消息或兼容请求位置。
+- 设置未读数通过最新消息反推 `read_seq`，不会复制消息。
+- 删除会话写入单调 `deleted_to_seq` 屏障并清除 active 状态，不删除 Channel 日志。
+- 删除后更高 sequence 的新活动可以重新激活会话；旧投影和旧重试不能越过屏障。
+
+## 缓存与持久化
+
+UID Authority 使用有界 active cache 合并高频活动，并通过周期、压力唤醒或 hash-slot handoff 批量写入 Slot。Admission 不等待持久 flush；缓存压力会明确拒绝，而不是无界增长或静默丢弃脏状态。版本和删除 fence 防止并发 flush 把新状态回滚。
+
+<Callout type="info" title="提交边界">
+  Conversation 更新是消息提交后的用户视图。投影失败不能回滚已经提交的 Channel 消息；应用需要把“消息存在”和“会话视图已更新”作为不同观测。
+</Callout>
+
+继续阅读[消息](/zh/guide/core-concepts/messages)、[用户与设备](/zh/guide/core-concepts/users-and-devices)和[消息收发集成](/zh/guide/integration/messaging)。

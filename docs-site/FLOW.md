@@ -82,6 +82,16 @@ content/docs/**/*.mdx
   exact-target-fenced authority while concrete sessions remain owner-local.
   Older wiki architecture content is not a publication source unless it is
   recalibrated against the promoted packages.
+- Phase 9 completes the guide foundation with product capabilities, use cases,
+  clusters and nodes, messages, Channels, users and devices, conversations,
+  and plugin extensions. Capability claims MUST remain workload-qualified;
+  physical hash-slot fences remain distinct from logical Slot Raft Groups;
+  durable commit remains distinct from delivery, acknowledgement, and user
+  projections; and concrete Sessions remain owner-local. Plain non-command
+  `NoPersist` is a compatibility terminal-success branch without realtime
+  delivery, while only command-style `NoPersist` enters transient delivery.
+  Plugins remain node-local: Send is synchronous and fail-closed by default,
+  while Receive and PersistAfter are bounded post-commit effects.
 
 ## Static delivery
 
