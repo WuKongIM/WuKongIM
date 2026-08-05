@@ -104,13 +104,17 @@ polling cannot pin that owner barrier ahead of socket cleanup.
 Request bodies, client responses, and server responses have fixed byte caps
 and strict JSON schemas. A running, exactly fenced worker may lease at most
 1,200 current revisit candidates. The Engine reconstructs those rows only from
-a fixed owner-loop index of 12 logical-Slot buckets with at most 100 entries per
-bucket; it never scans the potentially much larger live timer map. A first
-successful SENDACK offers the exact current timer token/version to its bucket.
-When full, the bucket deterministically retains the 100 earliest due timers by
-due time, canonical channel ID, and token, so a later better candidate can
-replace the bounded worst entry. Approval, completion, expiry, replacement, and
-later activity remove or refresh the exact pointer/token/version entry. A timer
+a fixed owner-loop primary index of 12 logical-Slot buckets with at most 100
+entries per bucket; it never scans the potentially much larger live timer map
+or standby state while leasing. A first successful SENDACK offers the exact
+current timer token/version to its bucket. Each Slot also owns a min-heap of
+overflow standbys, while the aggregate primary-plus-standby count is bounded by
+Engine `WorkCapacity`; every production-eligible live timer is in exactly one
+tier. The primary bucket deterministically retains the 100 earliest due timers
+by due time, canonical channel ID, and token. Removing a primary immediately
+promotes the best valid same-Slot standby, while invalidated, exhausted, or ABA
+stale work cannot re-enter. Approval, completion, expiry, replacement, and
+later activity remove or rebalance the exact pointer/token/version entry. A timer
 invalidated after approval or exhausted at the activity-version boundary never
 re-enters or passes admission, and still fails explicitly at its due time. Lease
 copies and scans at most 1,200 entries and sorts only after leaving the owner

@@ -426,10 +426,13 @@ type engineWork struct {
 	lifecycleFenceExhausted bool
 	// lifecycleTimerToken distinguishes replacement timers for the same channel;
 	// activityVersion distinguishes quiet windows within one live timer.
-	lifecycleTimerToken        uint64
-	activityVersion            uint64
+	lifecycleTimerToken uint64
+	activityVersion     uint64
+	// lifecycleCandidateTier/Slot/Position identify exactly one owner-managed
+	// primary array cell or standby heap cell; none means the timer is unindexed.
+	lifecycleCandidateTier     engineLifecycleCandidateTier
 	lifecycleCandidateSlot     uint8
-	lifecycleCandidatePosition uint8
+	lifecycleCandidatePosition int
 	requiredSender             string
 	offered                    bool
 	// initialSequence and lastActivityAt are retained only on one live revisit
@@ -448,6 +451,41 @@ type engineLifecycleCandidateEntry struct {
 type engineLifecycleCandidateBucket struct {
 	items [lifecyclePerSlot]engineLifecycleCandidateEntry
 	count uint8
+}
+
+type engineLifecycleCandidateTier uint8
+
+const (
+	engineLifecycleCandidateNone engineLifecycleCandidateTier = iota
+	engineLifecycleCandidatePrimary
+	engineLifecycleCandidateStandby
+)
+
+// engineLifecycleCandidateStandbyHeap keeps one Slot's best replacement at
+// the root while every indexed work records its owner-only heap position.
+type engineLifecycleCandidateStandbyHeap []*engineWork
+
+func (h engineLifecycleCandidateStandbyHeap) Len() int { return len(h) }
+func (h engineLifecycleCandidateStandbyHeap) Less(i, j int) bool {
+	return lifecycleCandidateWorkLess(h[i], h[j])
+}
+func (h engineLifecycleCandidateStandbyHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].lifecycleCandidatePosition = i
+	h[j].lifecycleCandidatePosition = j
+}
+func (h *engineLifecycleCandidateStandbyHeap) Push(value any) {
+	work := value.(*engineWork)
+	work.lifecycleCandidatePosition = len(*h)
+	*h = append(*h, work)
+}
+func (h *engineLifecycleCandidateStandbyHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	work := old[last]
+	old[last] = nil
+	*h = old[:last]
+	return work
 }
 
 type engineWorkHeap []*engineWork
@@ -620,8 +658,12 @@ type Engine struct {
 	lifecycleByChannel      map[string]*engineWork
 	// lifecycleCandidateSlots is the immutable no-migration mapping used to
 	// build the fixed twelve-by-one-hundred live lease index.
-	lifecycleCandidateSlots        LifecycleSlotAssignment
-	lifecycleCandidates            [formalLogicalSlotGroups]engineLifecycleCandidateBucket
+	lifecycleCandidateSlots LifecycleSlotAssignment
+	lifecycleCandidates     [formalLogicalSlotGroups]engineLifecycleCandidateBucket
+	// lifecycleCandidateStandbys retain every eligible overflow timer while
+	// lifecycleCandidateIndexed bounds both tiers by workCapacity.
+	lifecycleCandidateStandbys     [formalLogicalSlotGroups]engineLifecycleCandidateStandbyHeap
+	lifecycleCandidateIndexed      int
 	lifecycleCandidateLeaseScanned int
 	activeChannels                 []engineActiveChannel
 	activePosition                 map[string]int
@@ -773,6 +815,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.nextLifecycleTimerToken = 0
 	e.activeLifecycleTimers = 0
 	e.lifecycleCandidates = [formalLogicalSlotGroups]engineLifecycleCandidateBucket{}
+	e.lifecycleCandidateStandbys = [formalLogicalSlotGroups]engineLifecycleCandidateStandbyHeap{}
+	e.lifecycleCandidateIndexed = 0
 	e.lifecycleCandidateLeaseScanned = 0
 	e.retryAttempts = 0
 	e.finalFailures = 0
@@ -1323,7 +1367,8 @@ func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, as
 				e.lifecycleCandidateLeaseScanned++
 				entry := bucket.items[position]
 				work := entry.work
-				if work == nil || work.lifecycleCandidateSlot != uint8(slot+1) || work.lifecycleCandidatePosition != uint8(position+1) ||
+				if work == nil || work.lifecycleCandidateTier != engineLifecycleCandidatePrimary ||
+					work.lifecycleCandidateSlot != uint8(slot+1) || work.lifecycleCandidatePosition != position ||
 					work.lifecycleTimerToken != entry.timerToken || work.activityVersion != entry.activityVersion ||
 					e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
 					!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted ||
@@ -1930,6 +1975,8 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		e.activeLifecycleTimers = 0
 		e.lifecycleByChannel = nil
 		e.lifecycleCandidates = [formalLogicalSlotGroups]engineLifecycleCandidateBucket{}
+		e.lifecycleCandidateStandbys = [formalLogicalSlotGroups]engineLifecycleCandidateStandbyHeap{}
+		e.lifecycleCandidateIndexed = 0
 		e.lifecycleCandidateLeaseScanned = 0
 		e.activeChannels = nil
 		e.activePosition = nil
@@ -2244,6 +2291,8 @@ func (e *Engine) expireLifecycleWork(work *engineWork, now time.Time) error {
 	return e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1)
 }
 
+// installLifecycleTimer replaces only the current channel generation and
+// removes any old generation from both candidate tiers before publication.
 func (e *Engine) installLifecycleTimer(work *engineWork) {
 	if work == nil || work.edge.PersonChannelID == "" {
 		return
@@ -2254,40 +2303,26 @@ func (e *Engine) installLifecycleTimer(work *engineWork) {
 	e.lifecycleByChannel[work.edge.PersonChannelID] = work
 }
 
+// offerLifecycleCandidate keeps every production-eligible live timer in the
+// WorkCapacity-bounded primary-or-standby index. It never scans channel state.
 func (e *Engine) offerLifecycleCandidate(work *engineWork) {
-	if work == nil || e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
-		!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
-		work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded || !validLifecyclePersonChannelID(work.edge.PersonChannelID) {
-		return
-	}
-	if work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted {
+	slot, eligible := e.lifecycleCandidateSlotFor(work)
+	if !eligible {
 		e.removeLifecycleCandidate(work)
 		return
 	}
-	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
-	quietDeadline := work.due.Add(-time.Nanosecond)
-	if !quietDeadline.After(quietNotBefore) {
+	if work.lifecycleCandidateTier != engineLifecycleCandidateNone {
 		e.removeLifecycleCandidate(work)
-		return
-	}
-	if work.lifecycleCandidateSlot != 0 {
-		slot := int(work.lifecycleCandidateSlot) - 1
-		position := int(work.lifecycleCandidatePosition) - 1
-		if slot >= 0 && slot < formalLogicalSlotGroups && position >= 0 && position < int(e.lifecycleCandidates[slot].count) {
-			entry := &e.lifecycleCandidates[slot].items[position]
-			if entry.work == work {
-				entry.timerToken, entry.activityVersion = work.lifecycleTimerToken, work.activityVersion
-				return
-			}
+		if work.lifecycleCandidateTier != engineLifecycleCandidateNone {
+			return
 		}
-		e.removeLifecycleCandidate(work)
 	}
-	hashSlot := lifecycleHashSlotForKey(work.edge.PersonChannelID, formalHashSlots)
-	slotID, ok := e.lifecycleCandidateSlots.Lookup(hashSlot)
-	if !ok || slotID == 0 || slotID > formalLogicalSlotGroups {
+	// Production timers enter only after addWork, whose futureCount cannot
+	// exceed WorkCapacity. This guard also bounds malformed direct test input.
+	if e.lifecycleCandidateIndexed >= e.workCapacity {
 		return
 	}
-	bucket := &e.lifecycleCandidates[slotID-1]
+	bucket := &e.lifecycleCandidates[slot]
 	if int(bucket.count) == lifecyclePerSlot {
 		worst := 0
 		for position := 1; position < int(bucket.count); position++ {
@@ -2295,44 +2330,163 @@ func (e *Engine) offerLifecycleCandidate(work *engineWork) {
 				worst = position
 			}
 		}
-		if !lifecycleCandidateWorkLess(work, bucket.items[worst].work) {
+		if lifecycleCandidateWorkLess(work, bucket.items[worst].work) {
+			demoted := bucket.items[worst].work
+			if e.detachLifecyclePrimary(demoted) {
+				e.addLifecycleStandby(slot, demoted)
+				e.addLifecyclePrimary(slot, work)
+				return
+			}
+			e.addLifecycleStandby(slot, work)
 			return
 		}
-		e.removeLifecycleCandidate(bucket.items[worst].work)
-		bucket = &e.lifecycleCandidates[slotID-1]
-	}
-	position := int(bucket.count)
-	bucket.items[position] = engineLifecycleCandidateEntry{work: work, timerToken: work.lifecycleTimerToken, activityVersion: work.activityVersion}
-	bucket.count++
-	work.lifecycleCandidateSlot = uint8(slotID)
-	work.lifecycleCandidatePosition = uint8(position + 1)
-}
-
-func (e *Engine) removeLifecycleCandidate(work *engineWork) {
-	if work == nil || work.lifecycleCandidateSlot == 0 || work.lifecycleCandidatePosition == 0 {
+		e.addLifecycleStandby(slot, work)
 		return
 	}
-	slot := int(work.lifecycleCandidateSlot) - 1
-	position := int(work.lifecycleCandidatePosition) - 1
-	work.lifecycleCandidateSlot, work.lifecycleCandidatePosition = 0, 0
-	if slot < 0 || slot >= formalLogicalSlotGroups {
+	e.addLifecyclePrimary(slot, work)
+}
+
+// lifecycleCandidateSlotFor validates one current live timer and returns its
+// immutable logical Slot bucket without mutating either candidate tier.
+func (e *Engine) lifecycleCandidateSlotFor(work *engineWork) (int, bool) {
+	if work == nil || e.lifecycleByChannel[work.edge.PersonChannelID] != work || work.schedule.Class != LifecycleRevisit ||
+		!work.schedule.RequiresColdRuntimeEvidence || work.lifecycleTimerToken == 0 || work.activityVersion == 0 ||
+		work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded ||
+		work.lifecycleLeaseInvalidated || work.lifecycleFenceExhausted || !validLifecyclePersonChannelID(work.edge.PersonChannelID) {
+		return 0, false
+	}
+	quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
+	quietDeadline := work.due.Add(-time.Nanosecond)
+	if !quietDeadline.After(quietNotBefore) {
+		return 0, false
+	}
+	hashSlot := lifecycleHashSlotForKey(work.edge.PersonChannelID, formalHashSlots)
+	slotID, ok := e.lifecycleCandidateSlots.Lookup(hashSlot)
+	if !ok || slotID == 0 || slotID > formalLogicalSlotGroups {
+		return 0, false
+	}
+	return int(slotID) - 1, true
+}
+
+// addLifecyclePrimary appends into one known-vacant fixed primary bucket and
+// records the exact entry fences used by bounded lease reconstruction.
+func (e *Engine) addLifecyclePrimary(slot int, work *engineWork) {
+	if work == nil || slot < 0 || slot >= formalLogicalSlotGroups {
 		return
 	}
 	bucket := &e.lifecycleCandidates[slot]
-	if position < 0 || position >= int(bucket.count) || bucket.items[position].work != work {
+	position := int(bucket.count)
+	bucket.items[position] = engineLifecycleCandidateEntry{work: work, timerToken: work.lifecycleTimerToken, activityVersion: work.activityVersion}
+	bucket.count++
+	work.lifecycleCandidateTier = engineLifecycleCandidatePrimary
+	work.lifecycleCandidateSlot = uint8(slot + 1)
+	work.lifecycleCandidatePosition = position
+	e.lifecycleCandidateIndexed++
+}
+
+// addLifecycleStandby inserts one current timer into its Slot-local min-heap;
+// the aggregate primary-plus-standby count remains WorkCapacity-bounded.
+func (e *Engine) addLifecycleStandby(slot int, work *engineWork) {
+	if work == nil || slot < 0 || slot >= formalLogicalSlotGroups {
 		return
+	}
+	work.lifecycleCandidateTier = engineLifecycleCandidateStandby
+	work.lifecycleCandidateSlot = uint8(slot + 1)
+	heap.Push(&e.lifecycleCandidateStandbys[slot], work)
+	e.lifecycleCandidateIndexed++
+}
+
+// removeLifecycleCandidate removes one exact work from either tier and fills a
+// primary vacancy only from the same Slot's best current standby.
+func (e *Engine) removeLifecycleCandidate(work *engineWork) {
+	if work == nil {
+		return
+	}
+	switch work.lifecycleCandidateTier {
+	case engineLifecycleCandidatePrimary:
+		slot := int(work.lifecycleCandidateSlot) - 1
+		if e.detachLifecyclePrimary(work) {
+			e.promoteLifecycleStandby(slot)
+		}
+	case engineLifecycleCandidateStandby:
+		e.detachLifecycleStandby(work)
+	}
+}
+
+// detachLifecyclePrimary swap-removes one exact primary pointer without
+// promotion so callers can atomically choose demotion or refill behavior.
+func (e *Engine) detachLifecyclePrimary(work *engineWork) bool {
+	if work == nil || work.lifecycleCandidateTier != engineLifecycleCandidatePrimary {
+		return false
+	}
+	slot := int(work.lifecycleCandidateSlot) - 1
+	position := work.lifecycleCandidatePosition
+	if slot < 0 || slot >= formalLogicalSlotGroups {
+		return false
+	}
+	bucket := &e.lifecycleCandidates[slot]
+	if position < 0 || position >= int(bucket.count) || bucket.items[position].work != work {
+		return false
 	}
 	last := int(bucket.count) - 1
 	if position != last {
 		bucket.items[position] = bucket.items[last]
 		moved := bucket.items[position].work
-		moved.lifecycleCandidateSlot = uint8(slot + 1)
-		moved.lifecycleCandidatePosition = uint8(position + 1)
+		moved.lifecycleCandidatePosition = position
 	}
 	bucket.items[last] = engineLifecycleCandidateEntry{}
 	bucket.count--
+	work.lifecycleCandidateTier = engineLifecycleCandidateNone
+	work.lifecycleCandidateSlot = 0
+	work.lifecycleCandidatePosition = 0
+	e.lifecycleCandidateIndexed--
+	return true
 }
 
+// detachLifecycleStandby removes one exact heap pointer in O(log WorkCapacity)
+// and leaves mismatched location metadata untouched to fail closed.
+func (e *Engine) detachLifecycleStandby(work *engineWork) bool {
+	if work == nil || work.lifecycleCandidateTier != engineLifecycleCandidateStandby {
+		return false
+	}
+	slot := int(work.lifecycleCandidateSlot) - 1
+	position := work.lifecycleCandidatePosition
+	if slot < 0 || slot >= formalLogicalSlotGroups || position < 0 || position >= len(e.lifecycleCandidateStandbys[slot]) ||
+		e.lifecycleCandidateStandbys[slot][position] != work {
+		return false
+	}
+	heap.Remove(&e.lifecycleCandidateStandbys[slot], position)
+	work.lifecycleCandidateTier = engineLifecycleCandidateNone
+	work.lifecycleCandidateSlot = 0
+	work.lifecycleCandidatePosition = 0
+	e.lifecycleCandidateIndexed--
+	return true
+}
+
+// promoteLifecycleStandby moves only the best valid same-Slot standby into a
+// primary vacancy; invalidated, exhausted, and ABA-stale work is discarded.
+func (e *Engine) promoteLifecycleStandby(slot int) {
+	if slot < 0 || slot >= formalLogicalSlotGroups || int(e.lifecycleCandidates[slot].count) >= lifecyclePerSlot {
+		return
+	}
+	standbys := &e.lifecycleCandidateStandbys[slot]
+	for standbys.Len() > 0 {
+		work := heap.Pop(standbys).(*engineWork)
+		work.lifecycleCandidateTier = engineLifecycleCandidateNone
+		work.lifecycleCandidateSlot = 0
+		work.lifecycleCandidatePosition = 0
+		e.lifecycleCandidateIndexed--
+		currentSlot, eligible := e.lifecycleCandidateSlotFor(work)
+		if !eligible || currentSlot != slot {
+			continue
+		}
+		e.addLifecyclePrimary(slot, work)
+		return
+	}
+}
+
+// lifecycleCandidateWorkLess is the stable primary/standby priority key:
+// earliest due, then canonical channel ID, then generation-local timer token.
 func lifecycleCandidateWorkLess(left, right *engineWork) bool {
 	if left == nil {
 		return right != nil
