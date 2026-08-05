@@ -197,7 +197,7 @@ func (p *Preflight) Check(ctx context.Context, cfg Config) PreflightResult {
 		return invalid(PreflightCodeCluster)
 	}
 	hotHealthy, validHotSet := hotSlotProgressHealthy(cluster, nil)
-	if !validHotSet || !hotHealthy || leaderImbalanced(cluster.leaderCounts, len(cluster.slots), cfg.Thresholds.Cluster.LeaderImbalancePercent) {
+	if !validHotSet || !hotHealthy {
 		return invalid(PreflightCodeCluster)
 	}
 
@@ -261,7 +261,7 @@ func matchesPreflightConfig(observed target.DebugConfig, cfg Config) bool {
 		observed.HashSlotCount == uint16(cfg.Workload.Topology.HashSlots) &&
 		observed.SlotReplicaCount == cfg.Workload.Topology.SlotReplicas &&
 		observed.ChannelReplicaCount == cfg.Workload.Topology.ChannelReplicas &&
-		observed.MaxChannels >= cfg.Workload.MaxChannelsPerNode
+		observed.MaxChannels == cfg.Workload.MaxChannelsPerNode
 }
 
 func supportsLifecyclePreflight(capabilities model.BenchCapabilities) bool {

@@ -156,6 +156,10 @@ type controllerRaftOperator interface {
 	CompactControllerRaftLog(context.Context) (control.ControllerRaftCompactionResult, error)
 }
 
+type slotRaftDiagnosticReader interface {
+	FreshStatus(context.Context, multiraft.SlotID) (multiraft.Status, error)
+}
+
 // LocalControllerLogEntries returns one page from this node's local Controller Raft log.
 func (n *Node) LocalControllerLogEntries(ctx context.Context, opts LogEntriesOptions) (ControllerLogEntries, error) {
 	if err := ctxErr(ctx); err != nil {
@@ -224,10 +228,14 @@ func (n *Node) LocalSlotRaftStatus(ctx context.Context, slotID uint32) (SlotRaft
 	if err := n.ensureForeground(); err != nil {
 		return SlotRaftStatus{}, err
 	}
-	if n.defaultSlotRuntime == nil {
+	reader := n.slotRaftDiagnostics
+	if reader == nil {
+		reader = n.defaultSlotRuntime
+	}
+	if reader == nil {
 		return SlotRaftStatus{}, ErrNotStarted
 	}
-	status, err := n.defaultSlotRuntime.Status(multiraft.SlotID(slotID))
+	status, err := reader.FreshStatus(ctx, multiraft.SlotID(slotID))
 	if err != nil {
 		return SlotRaftStatus{}, mapSlotLogRuntimeError(err)
 	}

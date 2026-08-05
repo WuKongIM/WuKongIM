@@ -421,6 +421,7 @@ func (n *Node) discardDefaultSlots() {
 		_ = n.defaultSlotRuntime.Close()
 		n.defaultSlotRuntime = nil
 	}
+	n.slotRaftDiagnostics = nil
 	n.slotStatusRuntime = nil
 	if n.defaultSlotRaftDB != nil {
 		_ = n.defaultSlotRaftDB.Close()

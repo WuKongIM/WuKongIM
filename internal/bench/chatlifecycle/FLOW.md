@@ -562,10 +562,13 @@ passes. Static validation first proves three distinct service-node, worker,
 host-metrics, API-pool, and separately addressed TCP-gateway declarations, so
 an invalid topology performs no I/O. Authenticated service checks then prove
 health/readiness, effective 12-logical-Slot/256-physical-hash-slot topology,
-3/3 replicas, the Channel bound, forced-GC metrics, required Bench capability,
-and a complete live Slot view from all three nodes. Worker health/info and TCP
+3/3 replicas, the profile's exact Channel bound (50,000 for formal), forced-GC
+metrics, required Bench capability, and a complete live Slot view from all
+three nodes. Worker health/info and TCP
 gateway connectivity are checked through narrow replaceable boundaries; no
-assignment is installed by preflight.
+assignment is installed by preflight. A structurally healthy initial leader
+distribution is admitted; only the continuous observer owns the ten-minute
+leader-imbalance failure window.
 
 Each host-metrics declaration carries an exact node_exporter `mountpoint` and
 `device`. The bounded parser accepts exactly one size and one available-byte

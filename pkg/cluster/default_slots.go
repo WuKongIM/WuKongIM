@@ -112,6 +112,7 @@ func (n *Node) ensureDefaultSlots() error {
 		n.defaultPreferredLeaderReconciler = true
 	}
 	n.defaultSlotRuntime = runtime
+	n.slotRaftDiagnostics = runtime
 	n.defaultSlotRaftDB = raftDB
 	n.defaultSlotMetaDB = metaDB
 	var metaCreateObserver channels.MetaCreateObserver

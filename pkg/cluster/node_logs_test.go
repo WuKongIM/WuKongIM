@@ -249,6 +249,51 @@ func TestSlotRaftStatusFromRuntimeIncludesSortedReplicaProgress(t *testing.T) {
 	}
 }
 
+func TestLocalSlotRaftStatusUsesFreshRuntimeStatus(t *testing.T) {
+	ctx := context.WithValue(context.Background(), freshStatusContextKey{}, "fresh")
+	reader := &fakeFreshSlotStatusReader{status: multiraft.Status{
+		SlotID: 9, NodeID: 1, LeaderID: 1, Role: multiraft.RoleLeader,
+		CurrentVoters: []multiraft.NodeID{1, 2, 3}, CommitIndex: 10, AppliedIndex: 10,
+		Progress: map[multiraft.NodeID]multiraft.PeerProgress{
+			3: {Match: 8, Next: 9, State: "StateProbe"},
+			1: {Match: 10, Next: 11, State: "StateReplicate"},
+			2: {Match: 9, Next: 10, State: "StateReplicate"},
+		},
+	}}
+	node, err := New(Config{NodeID: 1, ListenAddr: "127.0.0.1:0", DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	node.slotRaftDiagnostics = reader
+	node.started.Store(true)
+
+	got, err := node.LocalSlotRaftStatus(ctx, 9)
+	if err != nil {
+		t.Fatalf("LocalSlotRaftStatus() error = %v", err)
+	}
+	if reader.ctx != ctx || reader.slotID != 9 {
+		t.Fatalf("FreshStatus() input ctx/slot = %v/%d, want exact ctx/9", reader.ctx == ctx, reader.slotID)
+	}
+	if len(got.ReplicaProgress) != 3 || got.ReplicaProgress[0].NodeID != 1 || got.ReplicaProgress[1].NodeID != 2 || got.ReplicaProgress[2].NodeID != 3 {
+		t.Fatalf("ReplicaProgress = %#v, want three sorted real rows", got.ReplicaProgress)
+	}
+}
+
+type freshStatusContextKey struct{}
+
+type fakeFreshSlotStatusReader struct {
+	ctx    context.Context
+	slotID multiraft.SlotID
+	status multiraft.Status
+	err    error
+}
+
+func (f *fakeFreshSlotStatusReader) FreshStatus(ctx context.Context, slotID multiraft.SlotID) (multiraft.Status, error) {
+	f.ctx = ctx
+	f.slotID = slotID
+	return f.status, f.err
+}
+
 type controllerLogReaderStub struct {
 	*control.StaticController
 	opts control.ControllerLogEntriesOptions

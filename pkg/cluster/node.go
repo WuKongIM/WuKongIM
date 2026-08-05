@@ -120,6 +120,8 @@ type Node struct {
 	defaultPreferredLeaderReconciler bool
 	// defaultSlotRuntime owns the Node-created Slot Multi-Raft runtime.
 	defaultSlotRuntime *multiraft.Runtime
+	// slotRaftDiagnostics performs context-bounded, owner-loop fresh Slot status reads.
+	slotRaftDiagnostics slotRaftDiagnosticReader
 	// defaultSlotRaftDB owns the Node-created Slot Raft log store.
 	defaultSlotRaftDB *raftlog.DB
 	// defaultSlotMetaDB owns the Node-created Slot metadata store.

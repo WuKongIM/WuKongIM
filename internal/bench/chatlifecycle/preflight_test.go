@@ -32,6 +32,7 @@ func TestPreflightClassifiesInvalidHarnessBeforeTraffic(t *testing.T) {
 		{"wrong slot count", func(f *preflightFixture) { f.targets[0].config.InitialSlotCount = 11 }, PreflightCodeTargetConfig},
 		{"wrong hash slot count", func(f *preflightFixture) { f.targets[0].config.HashSlotCount = 255 }, PreflightCodeTargetConfig},
 		{"replica mismatch", func(f *preflightFixture) { f.targets[0].config.SlotReplicaCount = 2 }, PreflightCodeTargetConfig},
+		{"max channels above exact config", func(f *preflightFixture) { f.targets[0].config.MaxChannels = 50_001 }, PreflightCodeTargetConfig},
 		{"missing bench capability", func(f *preflightFixture) { f.targets[0].capabilities.Supports.ChannelRuntimeProbe = false }, PreflightCodeBenchCapability},
 		{"unreachable worker", func(f *preflightFixture) { f.workers[1].err = errors.New("unreachable") }, PreflightCodeWorkerUnavailable},
 		{"unauthorized debug", func(f *preflightFixture) {
@@ -102,6 +103,26 @@ func TestPreflightChecksEveryDeclaredAPIEndpoint(t *testing.T) {
 	}
 }
 
+func TestPreflightAllowsHealthyInitialLeaderImbalanceForObserverWindow(t *testing.T) {
+	fixture := newPreflightFixture(FormalConfig())
+	for _, observed := range fixture.targets {
+		observed.cluster.Slots[2].LeaderID = 1
+		observed.cluster.Slots[2].ReplicaProgress = nil
+		if observed.cluster.NodeID == 1 {
+			observed.cluster.Slots[2].ReplicaProgress = []target.ReplicaProgress{
+				{NodeID: 1, MatchIndex: 100, State: "StateReplicate"},
+				{NodeID: 2, MatchIndex: 100, State: "StateReplicate"},
+				{NodeID: 3, MatchIndex: 100, State: "StateReplicate"},
+			}
+		}
+	}
+
+	result := fixture.preflight.Check(context.Background(), fixture.cfg)
+	if !result.Passed() || !result.TrafficAllowed() {
+		t.Fatalf("result = %+v, want pass so observer owns the continuous imbalance window", result)
+	}
+}
+
 func TestPreflightRejectsCopiedAPIGatewayTopologyWithoutIO(t *testing.T) {
 	fixture := newPreflightFixture(LocalConfig())
 	for index, api := range fixture.cfg.Observation.APIAddrs {
@@ -136,7 +157,7 @@ func newPreflightFixture(cfg Config) *preflightFixture {
 		fixture.targets[index] = &fakePreflightTarget{
 			config: target.DebugConfig{
 				NodeID: uint64(index + 1), InitialSlotCount: 12, HashSlotCount: 256,
-				SlotReplicaCount: 3, ChannelReplicaCount: 3, MaxChannels: 50_000,
+				SlotReplicaCount: 3, ChannelReplicaCount: 3, MaxChannels: cfg.Workload.MaxChannelsPerNode,
 			},
 			cluster:      healthyPreflightCluster(uint64(index + 1)),
 			capabilities: requiredPreflightCapabilities(),

@@ -52,7 +52,7 @@ WriteBatch.AppendMessageEvent
 Runtime.OpenSlot / BootstrapSlot / CloseSlot
 Runtime.Step(ctx, Envelope)                  // 接收远端 Raft 消息
 Runtime.Propose(ctx, slotID, data) → Future  // 提交提案
-Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / CompactLog / Status
+Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / CompactLog / Status / FreshStatus
 ```
 
 ## 4. 关键类型
@@ -65,7 +65,7 @@ Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / C
 | `ProposalStageObserver` | multiraft/stage_observer.go | 低基数 proposal stage 观测接口；可从上游 ctx 进入 Future 并随 apply/commit 路径传播 |
 | `LeaderChangeObserver` | multiraft/types.go | Slot leader election 观测接口；用于把本地运行时观察到的 leader 变化映射到低基数指标 |
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
-| `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
+| `Status` | multiraft/types.go | Runtime 缓存观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state。`FreshStatus(ctx)` 通过 Slot owner worker 按需读取 full Raft status 和 leader progress |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
 | `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
 | `ChannelRuntimeMeta` | pkg/db/meta | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
@@ -185,7 +185,7 @@ Worker 循环:
        - rawNode.Advance(ready)
        - 若 applied 增量达到 Slot log compaction 阈值，导出 Slot meta snapshot，写入 Raft snapshot，并裁剪旧本地 entries
        - 通过 Future 通知提案者
-    ⑥ refreshStatus → 刷新 Leader / CurrentVoters 观测，检测 Leader 丢失并清理 pending 提案
+    ⑥ refreshStatus → 普通 tick/Ready 用 allocation-light BasicStatus 刷新 Leader/Term/Index；只有 membership/learner dirty 条件才自动 full refresh，检测 Leader 丢失并清理 pending 提案
     ⑦ finishProcessing
 ```
 
@@ -203,6 +203,12 @@ Channel runtime cold activation 观测。`meta_create_slot_fsm_apply` 是 Apply/
 标记 dispatch-safe、取走并清空 observer，再立即同步派发。dispatcher 会先关闭 Future 的 done
 channel 再调用 observer，所以 `Wait(ctx)` 可能先于 observer 完成而返回；调用方取消仍不产生终态
 观测，observer 可安全重入只读 Runtime / Slot API，也不会遗留等待 goroutine 或无界队列。
+
+`Runtime.FreshStatus(ctx, slotID)` 是低频诊断读取，不改变上述热 tick
+策略。调用方把一个有界 control 请求提交给对应 Slot；只有该 Slot 的 owner
+worker 会调用 `RawNode.Status()`，刷新并深拷贝 voters、learners 和 leader
+progress。取消、Slot 关闭与 worker 完成通过单次响应竞争收敛，调用方取消不会
+等待 owner worker，也不会让迟到完成阻塞。
 
 ### 5.4 Slot 生命周期
 

@@ -588,6 +588,45 @@ func (r *Runtime) Status(slotID SlotID) (Status, error) {
 	return st, err
 }
 
+// FreshStatus reads one full Raft status on the owning Slot worker. Ordinary
+// ticks keep using allocation-light BasicStatus refreshes.
+func (r *Runtime) FreshStatus(ctx context.Context, slotID SlotID) (Status, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return Status{}, err
+	}
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		return Status{}, ErrRuntimeClosed
+	}
+	g, ok := r.slots[slotID]
+	r.mu.RUnlock()
+	if !ok {
+		return Status{}, ErrSlotNotFound
+	}
+	request := freshStatusRequest{
+		ctx:  ctx,
+		resp: make(chan freshStatusResponse, 1),
+	}
+	if err := g.enqueueControl(controlAction{kind: controlFreshStatus, freshStatus: &request}); err != nil {
+		return Status{}, err
+	}
+	r.scheduler.enqueue(slotID)
+	select {
+	case response := <-request.resp:
+		return response.status, response.err
+	case <-ctx.Done():
+		if request.finish(freshStatusResponse{err: ctx.Err()}) {
+			return Status{}, ctx.Err()
+		}
+		response := <-request.resp
+		return response.status, response.err
+	}
+}
+
 func (r *Runtime) Slots() []SlotID {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

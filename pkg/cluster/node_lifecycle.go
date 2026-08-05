@@ -131,6 +131,7 @@ func (n *Node) Stop(ctx context.Context) error {
 				errs = append(errs, err)
 			}
 			n.defaultSlotRuntime = nil
+			n.slotRaftDiagnostics = nil
 		}
 		if n.defaultSlotRaftDB != nil {
 			if err := n.defaultSlotRaftDB.Close(); err != nil {

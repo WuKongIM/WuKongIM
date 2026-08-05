@@ -99,6 +99,7 @@ const (
 	controlTransferLeader
 	controlCompactLog
 	controlCaptureHashSlotSnapshot
+	controlFreshStatus
 )
 
 type controlAction struct {
@@ -111,6 +112,7 @@ type controlAction struct {
 	compact        *logCompactionRequest
 	backupSnapshot *hashSlotSnapshotRequest
 	strictTransfer *strictLeaderTransferRequest
+	freshStatus    *freshStatusRequest
 }
 
 // strictLeaderTransferRequest carries one exact, timeout-bounded placement
@@ -219,6 +221,25 @@ func (r *hashSlotSnapshotRequest) finish(response hashSlotSnapshotResponse) bool
 		if response.result.Reader != nil {
 			_ = response.result.Reader.Close()
 		}
+		return false
+	}
+	r.resp <- response
+	return true
+}
+
+type freshStatusRequest struct {
+	ctx  context.Context
+	resp chan freshStatusResponse
+	done atomic.Bool
+}
+
+type freshStatusResponse struct {
+	status Status
+	err    error
+}
+
+func (r *freshStatusRequest) finish(response freshStatusResponse) bool {
+	if r == nil || !r.done.CompareAndSwap(false, true) {
 		return false
 	}
 	r.resp <- response
@@ -596,6 +617,22 @@ func (g *slot) processControls(ctx context.Context) bool {
 				CapturedAtUnixMillis: time.Now().UTC().UnixMilli(),
 				Reader:               reader,
 			}})
+		case controlFreshStatus:
+			request := action.freshStatus
+			if request == nil || request.done.Load() {
+				continue
+			}
+			if err := request.ctx.Err(); err != nil {
+				request.finish(freshStatusResponse{err: err})
+				continue
+			}
+			if err := g.currentErr(); err != nil {
+				request.finish(freshStatusResponse{err: err})
+				continue
+			}
+			g.refreshFullStatus()
+			status, err := g.statusSnapshot()
+			request.finish(freshStatusResponse{status: status, err: err})
 		}
 	}
 	return len(controls) > 0
@@ -1997,6 +2034,9 @@ func (g *slot) failPendingLocked(err error) []futureCompletion {
 		}
 		if g.controls[i].backupSnapshot != nil {
 			g.controls[i].backupSnapshot.finish(hashSlotSnapshotResponse{err: err})
+		}
+		if g.controls[i].freshStatus != nil {
+			g.controls[i].freshStatus.finish(freshStatusResponse{err: err})
 		}
 	}
 	for _, fut := range g.submittedProposals {
