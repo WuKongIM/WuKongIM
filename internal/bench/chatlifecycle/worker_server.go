@@ -95,6 +95,9 @@ type WorkerServer struct {
 	unexpected       bool
 	stop             *workerStopTask
 	grantInFlight    *workerGrantTask
+	// generationExited fences new mutations after Done while one admitted grant
+	// commits its replay result before final snapshot publication.
+	generationExited bool
 	lastGrantRequest WorkerGrantRequest
 	lastGrantResult  WorkerGrantResponse
 	lastGrantFailed  bool
@@ -347,6 +350,7 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	s.unexpected = false
 	s.stop = nil
 	s.grantInFlight = nil
+	s.generationExited = false
 	s.lastGrantRequest = WorkerGrantRequest{}
 	s.lastGrantResult = WorkerGrantResponse{}
 	s.lastGrantFailed = false
@@ -552,8 +556,14 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 
 	for {
 		s.mu.Lock()
-		if !s.runningFenceLocked(response, grant.WorkerFence) {
+		if s.phase == WorkerPhaseUnassigned {
 			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
+			return
+		}
+		if !sameWorkerFence(grant.WorkerFence, s.assignment.WorkerFence) {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
 			return
 		}
 		if !s.assignment.CoordinatorGrants {
@@ -576,11 +586,6 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			}
 			return
 		}
-		if grant.Sequence < s.lastGrantRequest.Sequence {
-			s.mu.Unlock()
-			writeWorkerError(response, http.StatusConflict, WorkerErrorGrantStale)
-			return
-		}
 		if active := s.grantInFlight; active != nil {
 			if grant != active.request {
 				s.mu.Unlock()
@@ -594,6 +599,16 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			case <-active.done:
 				continue
 			}
+		}
+		if s.phase != WorkerPhaseRunning || s.generationExited {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
+			return
+		}
+		if grant.Sequence < s.lastGrantRequest.Sequence {
+			s.mu.Unlock()
+			writeWorkerError(response, http.StatusConflict, WorkerErrorGrantStale)
+			return
 		}
 		if grant.Sequence != s.lastGrantRequest.Sequence+1 {
 			s.mu.Unlock()
@@ -632,6 +647,9 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			}
 			writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
 			return
+		}
+		if runtimeFailureTerminatesGeneration(grantErr) {
+			s.generationExited = true
 		}
 		s.lastGrantRequest = grant
 		s.lastGrantResult = result
@@ -744,7 +762,15 @@ func (s *WorkerServer) watchGeneration(generation WorkerGeneration) {
 		s.mu.Unlock()
 		return
 	}
+	// Fence new controls before waiting for the one grant that may have caused
+	// terminal teardown. That admitted grant owns a stable replay boundary and
+	// must commit its result before the worker publishes the final snapshot.
+	s.generationExited = true
+	grant := s.grantInFlight
 	s.mu.Unlock()
+	if grant != nil {
+		<-grant.done
+	}
 
 	snapshotCtx, snapshotCancel := context.WithTimeout(context.Background(), s.drainTimeout)
 	final, snapshotErr := generation.Snapshot(snapshotCtx)
@@ -783,7 +809,7 @@ func (s *WorkerServer) runningFenceLocked(response http.ResponseWriter, fence Wo
 		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
 		return false
 	}
-	if s.phase != WorkerPhaseRunning {
+	if s.phase != WorkerPhaseRunning || s.generationExited {
 		writeWorkerError(response, http.StatusConflict, WorkerErrorInvalidState)
 		return false
 	}
@@ -797,7 +823,7 @@ func (s *WorkerServer) controlStateMatchesLocked(control workerControlState) boo
 
 func (s *WorkerServer) statusLocked() WorkerStatus {
 	trafficReady := false
-	if s.phase == WorkerPhaseRunning && s.generation != nil {
+	if s.phase == WorkerPhaseRunning && !s.generationExited && s.generation != nil {
 		trafficReady = s.generation.TrafficReady()
 	}
 	return WorkerStatus{

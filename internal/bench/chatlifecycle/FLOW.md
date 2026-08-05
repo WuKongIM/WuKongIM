@@ -72,6 +72,13 @@ generator a second time or hide a partially emitted prefix. Cancellation
 before engine admission clears the in-flight request without advancing or
 caching its sequence, so the exact sequence can be transported again. Every
 post-admission success or error remains a stable cached replay boundary.
+If an admitted external grant causes generation-terminal teardown, the Done
+watcher first fences every new control mutation, waits for that one in-flight
+grant to commit its admitted result, and only then publishes the unexpected
+final snapshot. Concurrent exact duplicates join that commit, and the exact
+cached grant remains replayable after finalization; changed or later grants
+remain rejected. This ordering prevents an unexpected-exit phase transition
+from turning an admitted terminal result into a fence mismatch.
 Engine snapshot,
 consistent worker-runtime snapshot, rate update, and bounded drain advancement
 expose cancelable forms;

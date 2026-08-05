@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -1282,6 +1283,130 @@ func TestWorkerServerExternalGrantTerminatesLifecycleReplaySaturatedGeneration(t
 	}
 }
 
+func TestWorkerServerCommitsTerminalGrantBeforeUnexpectedFinalAndReplaysIt(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		externalGrants: true, generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	barrier := &terminalGrantBarrierGeneration{
+		engineWorkerGeneration: generation,
+		afterApply:             make(chan struct{}),
+		release:                make(chan struct{}),
+	}
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return barrier, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer: %v", err)
+	}
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "terminal-grant-replay", Generation: 1},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	}
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", assignment)
+	assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/start", WorkerStartRequest{WorkerFence: assignment.WorkerFence})
+	defer generation.Stop()
+	ticker.awaitReady(t)
+	generation.trafficReady.Store(true)
+
+	due := fixture.clock.Now().Add(time.Second)
+	installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
+	fixture.clock.Set(due)
+	grant := WorkerGrantRequest{
+		WorkerFence: assignment.WorkerFence, Sequence: 1, RatePerSecond: 3, MaxBurst: 6,
+		Fresh: WorkerGrantCounts{Worker0: 1, Worker1: 1, Worker2: 1},
+	}
+	firstResponse := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		firstResponse <- workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+	}()
+	select {
+	case <-barrier.afterApply:
+	case <-time.After(time.Second):
+		t.Fatal("terminal grant did not publish Done before its handler barrier")
+	}
+
+	deadline := time.After(time.Second)
+	for {
+		server.mu.Lock()
+		exited, phase, active := server.generationExited, server.phase, server.grantInFlight
+		server.mu.Unlock()
+		if exited || phase == WorkerPhaseFinal {
+			if !exited || phase != WorkerPhaseRunning || active == nil {
+				t.Fatalf("watcher crossed in-flight grant commit: exited=%v phase=%q active=%v", exited, phase, active != nil)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("watcher did not fence grants after terminal Done")
+		default:
+			runtime.Gosched()
+		}
+	}
+
+	changed := grant
+	changed.Sequence = 2
+	changedResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", changed)
+	if changedResponse.Code != http.StatusConflict {
+		t.Fatalf("post-terminal changed grant status = %d, want %d", changedResponse.Code, http.StatusConflict)
+	}
+	exactConcurrent := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		exactConcurrent <- workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+	}()
+	select {
+	case response := <-exactConcurrent:
+		t.Fatalf("exact concurrent replay returned before original commit: %d/%q", response.Code, response.Body.String())
+	default:
+	}
+	close(barrier.release)
+
+	for name, responses := range map[string]<-chan *httptest.ResponseRecorder{
+		"original":          firstResponse,
+		"concurrent replay": exactConcurrent,
+	} {
+		select {
+		case response := <-responses:
+			assertWorkerRuntimeFailureResponse(t, name, response)
+		case <-time.After(time.Second):
+			t.Fatalf("%s did not finish", name)
+		}
+	}
+	select {
+	case <-server.UnexpectedExit():
+	case <-time.After(time.Second):
+		t.Fatal("watcher did not publish unexpected final after grant commit")
+	}
+	finalReplay := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+	assertWorkerRuntimeFailureResponse(t, "final replay", finalReplay)
+	if calls := barrier.calls.Load(); calls != 1 {
+		t.Fatalf("terminal grant ApplyGrant calls = %d, want 1", calls)
+	}
+	conflict := grant
+	conflict.Fresh.Worker0 = 0
+	conflict.Fresh.Worker1 = 2
+	conflictResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", conflict)
+	if conflictResponse.Code != http.StatusConflict {
+		t.Fatalf("final conflicting replay status = %d, want %d", conflictResponse.Code, http.StatusConflict)
+	}
+	next := grant
+	next.Sequence = 2
+	nextResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", next)
+	if nextResponse.Code != http.StatusConflict {
+		t.Fatalf("final next grant status = %d, want %d", nextResponse.Code, http.StatusConflict)
+	}
+}
+
 func TestWorkerEngineConcurrentTickAndExternalTerminalCleanupDoesNotDeadlock(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{})
 	ticker := newManualWorkerGenerationTicker()
@@ -1346,6 +1471,36 @@ func TestWorkerEngineConcurrentTickAndExternalTerminalCleanupDoesNotDeadlock(t *
 type recordingEngineWorkerGeneration struct {
 	*engineWorkerGeneration
 	applied chan error
+}
+
+type terminalGrantBarrierGeneration struct {
+	*engineWorkerGeneration
+	afterApply chan struct{}
+	release    chan struct{}
+	calls      atomic.Uint64
+}
+
+func (g *terminalGrantBarrierGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {
+	g.calls.Add(1)
+	application, err := g.engineWorkerGeneration.ApplyGrant(ctx, released)
+	close(g.afterApply)
+	select {
+	case <-ctx.Done():
+		return application, ctx.Err()
+	case <-g.release:
+		return application, err
+	}
+}
+
+func assertWorkerRuntimeFailureResponse(t *testing.T, name string, response *httptest.ResponseRecorder) {
+	t.Helper()
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("%s status = %d, want %d; body=%q", name, response.Code, http.StatusUnprocessableEntity, response.Body.String())
+	}
+	var apiError WorkerAPIError
+	if err := json.Unmarshal(response.Body.Bytes(), &apiError); err != nil || apiError.Code != WorkerErrorRuntimeFailure {
+		t.Fatalf("%s error = %+v, %v", name, apiError, err)
+	}
 }
 
 func (g *recordingEngineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {
