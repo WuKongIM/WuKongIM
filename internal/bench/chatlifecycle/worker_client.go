@@ -110,6 +110,26 @@ func (c *WorkerClient) Grant(ctx context.Context, grant WorkerGrantRequest) (Wor
 	return response, err
 }
 
+// LeaseLifecycleCandidates obtains bounded transient candidate control data.
+func (c *WorkerClient) LeaseLifecycleCandidates(ctx context.Context, lease WorkerLifecycleCandidateLeaseRequest) (WorkerLifecycleCandidateLeaseResponse, error) {
+	var response WorkerLifecycleCandidateLeaseResponse
+	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", lease, &response)
+	if err == nil && (!sameWorkerFence(response.WorkerFence, lease.WorkerFence) || len(response.Candidates) > int(lease.Requested)) {
+		return WorkerLifecycleCandidateLeaseResponse{}, ErrWorkerResponse
+	}
+	return response, err
+}
+
+// ApproveLifecycleReheat admits the existing scheduled real SEND.
+func (c *WorkerClient) ApproveLifecycleReheat(ctx context.Context, reheat WorkerLifecycleReheatRequest) (WorkerLifecycleReheatResponse, error) {
+	var response WorkerLifecycleReheatResponse
+	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", reheat, &response)
+	if err == nil && !sameWorkerFence(response.WorkerFence, reheat.WorkerFence) {
+		return WorkerLifecycleReheatResponse{}, ErrWorkerResponse
+	}
+	return response, err
+}
+
 func (c *WorkerClient) Stop(ctx context.Context, stop WorkerStopRequest) (WorkerSnapshot, error) {
 	var response WorkerSnapshot
 	err := c.do(ctx, http.MethodPost, "/v1/chat-lifecycle/stop", stop, &response)
@@ -186,6 +206,23 @@ func validTypedWorkerResponse(response any) bool {
 	case *WorkerGrantResponse:
 		return validWorkerFence(value.WorkerFence) && value.WorkerCount == coordinatorWorkerCount &&
 			value.WorkerID < value.WorkerCount && value.Sequence > 0
+	case *WorkerLifecycleCandidateLeaseResponse:
+		if !validWorkerFence(value.WorkerFence) || value.WorkerCount != coordinatorWorkerCount || value.WorkerID >= value.WorkerCount || len(value.Candidates) > lifecycleCohortSize {
+			return false
+		}
+		seen := make(map[string]struct{}, len(value.Candidates))
+		for _, candidate := range value.Candidates {
+			if !validWorkerLifecycleCandidate(candidate) {
+				return false
+			}
+			if _, duplicate := seen[candidate.ChannelID]; duplicate {
+				return false
+			}
+			seen[candidate.ChannelID] = struct{}{}
+		}
+		return true
+	case *WorkerLifecycleReheatResponse:
+		return validWorkerFence(value.WorkerFence) && value.WorkerCount == coordinatorWorkerCount && value.WorkerID < value.WorkerCount && value.Approved
 	default:
 		return true
 	}

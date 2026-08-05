@@ -61,6 +61,48 @@ func TestWorkerClientSendsAuthenticatedTypedRequestsAndRejectsUnknownResponses(t
 	}
 }
 
+func TestWorkerClientLifecycleCandidateLeaseRejectsDuplicateOversizeAndFenceMutation(t *testing.T) {
+	fence := WorkerFence{RunID: "run", AssignmentID: "assignment", Generation: 1}
+	candidate := lifecycleTestCandidates(t, time.Unix(1_000, 0))[0]
+	for _, test := range []struct {
+		name     string
+		response WorkerLifecycleCandidateLeaseResponse
+	}{
+		{"duplicate", WorkerLifecycleCandidateLeaseResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate, candidate}}},
+		{"over requested", WorkerLifecycleCandidateLeaseResponse{WorkerFence: fence, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate, candidate}}},
+		{"wrong fence", WorkerLifecycleCandidateLeaseResponse{WorkerFence: WorkerFence{RunID: "other", AssignmentID: "assignment", Generation: 1}, WorkerID: 0, WorkerCount: 3, Candidates: []LifecycleCandidate{candidate}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(test.response) }))
+			defer server.Close()
+			client, err := NewWorkerClient(WorkerClientConfig{BaseURL: server.URL, ControlToken: "token", HTTPClient: server.Client()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			requested := uint16(1)
+			if test.name == "duplicate" {
+				requested = 2
+			}
+			if _, err := client.LeaseLifecycleCandidates(context.Background(), WorkerLifecycleCandidateLeaseRequest{WorkerFence: fence, Requested: requested}); !errors.Is(err, ErrWorkerResponse) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	t.Run("reheat response cannot echo raw identity", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{"run_id": fence.RunID, "assignment_id": fence.AssignmentID, "generation": fence.Generation, "worker_id": 0, "worker_count": 3, "approved": true, "channel_id": candidate.ChannelID})
+		}))
+		defer server.Close()
+		client, err := NewWorkerClient(WorkerClientConfig{BaseURL: server.URL, ControlToken: "token", HTTPClient: server.Client()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.ApproveLifecycleReheat(context.Background(), WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID}); !errors.Is(err, ErrWorkerResponse) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}
+
 func TestWorkerClientReturnsStructuredAPIErrorAndHonorsContextCancellation(t *testing.T) {
 	t.Parallel()
 

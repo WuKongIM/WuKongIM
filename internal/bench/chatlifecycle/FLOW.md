@@ -19,7 +19,7 @@ config
 ```
 
 `wkbench worker --mode chat-lifecycle` selects a dedicated control server; the
-default worker mode still uses the generic worker server. All ten lifecycle
+default worker mode still uses the generic worker server. All lifecycle
 endpoints, including health and info, require one Bearer token checked with a
 constant-time comparison. Every mutation carries a nonempty run ID,
 assignment ID, and positive generation. An assignment validates the complete
@@ -102,10 +102,71 @@ queue gauges receive the merged caller-plus-generation context, so canceled
 polling cannot pin that owner barrier ahead of socket cleanup.
 
 Request bodies, client responses, and server responses have fixed byte caps
-and strict JSON schemas. Worker snapshots contain only scalar aggregates,
+and strict JSON schemas. A running, exactly fenced worker may lease at most
+1,200 current revisit candidates. The Engine reconstructs those rows only from
+its already bounded live `lifecycleByChannel` timer index, including the highest
+successful initial SENDACK sequence and last activity time retained on that
+timer; completed and expired timers disappear through the existing cleanup.
+Each transient row carries a canonical person-channel ID, recomputed physical
+hash slot in the 256-slot space, its owning Slot Raft Group, quiet lower/upper
+bounds, and deterministic reheat time. Worker protocol validation never trusts
+the declared hash slot. The current worker generation uses a strictly validated
+continuous 256-to-12 assignment for the reviewed no-migration execution
+profile. The immutable assignment constructor and cohort selector also accept
+and recheck a complete live 256-entry mapping, without assuming equal
+one-twelfth distribution or modulo ownership. Preflight does not yet transmit
+that live mapping into the worker assignment, so a migration-active lifecycle
+proof requires the future coordinator integration to inject it before the run;
+this module alone does not claim that dynamic migration has been proved.
+
+Every ten minutes, starting ten minutes after the measured-run boundary, the
+independent lifecycle-proof module selects exactly 1,200 rows: 100 for each of
+the 12 Slot Raft Groups. It prefers revisit timers already proven loaded and
+rejects duplicates, malformed identities, a quiet window not exceeding the
+natural five-minute idle interval, or an undersupplied Slot cohort as harness
+invalid. One proof owns at most one cohort. Explicit runtime probes use only
+`ProbeChannelRuntimeAll`, batch at no more than 1,200 identities, require three
+distinct service nodes, and have bounded concurrency and per-request contexts.
+Each batch is normalized by candidate index and sorted node ID, then all
+transient rows are merged in O(nodes × candidates) and applied through one
+atomic proof observation. Any malformed or failed batch prevents the entire
+poll from advancing; no public result retains those raw rows. The interface
+deliberately exposes no eviction operation, and probe latency or transport
+failure is recorded separately from product transition evidence.
+
+The proof requires all three runtimes active with exactly one leader and
+monotonic LEO/HW, then all three naturally missing, then all three active after
+reheat with sequence strictly above the initial sequence. Closing/error state,
+partial absence or reload, a stuck loaded runtime at the quiet deadline, role
+disagreement, watermark regression, or sequence reset is product failure. Only
+the same candidate's all-node absence makes it cold-latency eligible. Approval
+travels over a second strict fenced worker control call whose response does not
+echo the channel ID; the server delegates to `engineWorkerGeneration`, which
+calls `ApproveColdRevisitContext`. That only unlocks the existing deterministic
+revisit timer. The proof intentionally allows early approval only after the
+all-node cold observation and through the deterministic `ReheatAt` instant;
+approval after that instant, or another absent observation at that instant
+without approval, is harness-invalid. At its due time the ordinary
+Engine/WKProto SEND path performs the real reheat, and reheat completion latency
+uses that due instant as its baseline; control code never manufactures a
+sequence. The post-reheat probe supplies the sequence-continuity proof.
+
+Metadata-create accounting accepts exactly three service-node scrapes, sums
+their already slot-aggregated closed `created`, `already_existing`, and `error`
+series with checked integer arithmetic, and compares `created` with deterministic
+person edges plus prepared groups. Counters may not regress, error must remain
+zero, and `already_existing` may increase. Because ordinary traffic continues
+creating person channels during a reheat window, its cumulative `created` delta
+must equal the concurrent deterministic expected-unique delta; only excess is
+classified as reheat creation and must remain zero. The metric and all aggregate
+snapshots remain low-cardinality and carry no channel label.
+
+Worker snapshots contain only scalar aggregates,
 fixed arrays, and the verifier's at-most-four evidence classes with at most 64
-first and 64 last redacted examples per class. No worker response enumerates a
-UID or channel. Checkpoint reads engine and generator counters through one
+first and 64 last redacted examples per class. No snapshot, checkpoint, report,
+or durable evidence enumerates a UID or channel. Raw candidate identities exist
+only in the bounded authenticated lease, probe, and approval request and are
+never echoed by approval or copied into aggregate results. Checkpoint reads engine and generator counters through one
 engine-owner command; it neither pauses nor restarts workload generation.
 The worker client normalizes a request or response-body error to the supplied
 context error only when the transport error causally wraps that exact context

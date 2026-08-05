@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/bits"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -419,6 +420,11 @@ type engineWork struct {
 	coldConfirmed       bool
 	requiredSender      string
 	offered             bool
+	// initialSequence and lastActivityAt are retained only on one live revisit
+	// timer so a lifecycle lease can be reconstructed without channel history.
+	initialSequence uint64
+	lastActivityAt  time.Time
+	observedLoaded  bool
 }
 
 type engineWorkHeap []*engineWork
@@ -1176,8 +1182,17 @@ func (e *Engine) observeNewUser(userIndex, globalNewOrdinal uint64) (considered,
 // ApproveColdRevisit attaches prior all-node cold evidence to one still-active
 // revisit timer. It never creates a timer or retains historical channel state.
 func (e *Engine) ApproveColdRevisit(personChannelID string) (bool, error) {
+	return e.ApproveColdRevisitContext(context.Background(), personChannelID)
+}
+
+// ApproveColdRevisitContext admits the existing scheduled real SEND only
+// after the coordinator proves this exact runtime absent on every node.
+func (e *Engine) ApproveColdRevisitContext(ctx context.Context, personChannelID string) (bool, error) {
+	if ctx == nil || personChannelID == "" {
+		return false, errEngineConfig
+	}
 	response := make(chan bool, 1)
-	if err := e.enqueue(engineCommand{run: func() {
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		work := e.lifecycleByChannel[personChannelID]
 		if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence {
 			response <- false
@@ -1188,7 +1203,60 @@ func (e *Engine) ApproveColdRevisit(personChannelID string) (bool, error) {
 	}}); err != nil {
 		return false, err
 	}
-	return <-response, nil
+	select {
+	case approved := <-response:
+		return approved, nil
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
+// LeaseLifecycleCandidates reconstructs at most requested current revisit
+// timers. Completed timers are absent, so memory remains history-independent.
+func (e *Engine) LeaseLifecycleCandidates(ctx context.Context, requested int, assignment LifecycleSlotAssignment) ([]LifecycleCandidate, error) {
+	if ctx == nil || requested <= 0 || requested > lifecycleCohortSize || assignment.HashSlotCount() != formalHashSlots {
+		return nil, errEngineConfig
+	}
+	response := make(chan []LifecycleCandidate, 1)
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
+		candidates := make([]LifecycleCandidate, 0, min(requested, len(e.lifecycleByChannel)))
+		for identity, work := range e.lifecycleByChannel {
+			if work == nil || work.schedule.Class != LifecycleRevisit || !work.schedule.RequiresColdRuntimeEvidence ||
+				work.initialSequence == 0 || work.lastActivityAt.IsZero() || !work.observedLoaded {
+				continue
+			}
+			quietNotBefore := work.lastActivityAt.Add(lifecycleNaturalQuiet + time.Nanosecond)
+			quietDeadline := work.due.Add(-time.Nanosecond)
+			if !quietDeadline.After(quietNotBefore) {
+				continue
+			}
+			hash := lifecycleHashSlotForKey(identity, formalHashSlots)
+			slotID, ok := assignment.Lookup(hash)
+			if !ok {
+				continue
+			}
+			candidates = append(candidates, LifecycleCandidate{ChannelID: identity, ChannelType: 1, HashSlot: hash, SlotID: slotID,
+				InitialSequence: work.initialSequence, QuietNotBefore: quietNotBefore, QuietDeadline: quietDeadline, ReheatAt: work.due, ObservedLoaded: true})
+		}
+		sort.Slice(candidates, func(i, j int) bool {
+			if !candidates[i].ReheatAt.Equal(candidates[j].ReheatAt) {
+				return candidates[i].ReheatAt.Before(candidates[j].ReheatAt)
+			}
+			return candidates[i].ChannelID < candidates[j].ChannelID
+		})
+		if len(candidates) > requested {
+			candidates = candidates[:requested]
+		}
+		response <- candidates
+	}}); err != nil {
+		return nil, err
+	}
+	select {
+	case candidates := <-response:
+		return candidates, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (e *Engine) scheduleReturningCandidate(candidate ReturningCandidate, loginOrdinal uint64, now time.Time) error {
@@ -2201,6 +2269,13 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
+		if lifecycle := e.lifecycleByChannel[inflight.intent.ChannelID]; lifecycle != nil {
+			if ack.MessageSeq > lifecycle.initialSequence {
+				lifecycle.initialSequence = ack.MessageSeq
+			}
+			lifecycle.lastActivityAt = e.clock.Now()
+			lifecycle.observedLoaded = true
+		}
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(ack.ClientMsgNo)
 		delete(e.inflight, ack.ClientMsgNo)

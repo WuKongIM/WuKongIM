@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -44,6 +45,8 @@ func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 		{http.MethodPost, "/v1/chat-lifecycle/checkpoint", `{}`},
 		{http.MethodPost, "/v1/chat-lifecycle/rate", `{}`},
 		{http.MethodPost, "/v1/chat-lifecycle/grant", `{}`},
+		{http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", `{}`},
+		{http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", `{}`},
 		{http.MethodPost, "/v1/chat-lifecycle/stop", `{}`},
 	}
 	for _, test := range tests {
@@ -63,6 +66,131 @@ func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 				t.Fatalf("body = %q", got)
 			}
 		})
+	}
+}
+
+func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testing.T) {
+	now := time.Unix(2_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: []LifecycleCandidate{candidate}}
+	server, fence := startWorkerServerForGeneration(t, generation, "lifecycle-lease")
+
+	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", WorkerLifecycleCandidateLeaseRequest{WorkerFence: fence, Requested: 1})
+	if response.Code != http.StatusOK {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+	}
+	var lease WorkerLifecycleCandidateLeaseResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &lease); err != nil {
+		t.Fatal(err)
+	}
+	if len(lease.Candidates) != 1 || lease.Candidates[0] != candidate || generation.requested != 1 {
+		t.Fatalf("lease = %+v, requested=%d", lease, generation.requested)
+	}
+	approveResponse := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID})
+	if approveResponse.Code != http.StatusOK {
+		t.Fatalf("approve status/body = %d/%s", approveResponse.Code, approveResponse.Body.String())
+	}
+	var approved WorkerLifecycleReheatResponse
+	if err := json.Unmarshal(approveResponse.Body.Bytes(), &approved); err != nil {
+		t.Fatal(err)
+	}
+	if !approved.Approved || generation.approved != candidate.ChannelID {
+		t.Fatalf("approved=%+v identity match=%v", approved, generation.approved == candidate.ChannelID)
+	}
+
+	status := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/snapshot", nil)
+	if status.Code != http.StatusOK {
+		t.Fatalf("snapshot status/body = %d/%s", status.Code, status.Body.String())
+	}
+	if strings.Contains(status.Body.String(), candidate.ChannelID) {
+		t.Fatal("raw lifecycle identity leaked into snapshot")
+	}
+}
+
+func TestWorkerServerLifecycleCandidateLeaseRejectsOversizeFencePhaseAndInvalidProviderRows(t *testing.T) {
+	now := time.Unix(2_000, 0)
+	valid := lifecycleTestCandidates(t, now)[0]
+	for _, test := range []struct {
+		name    string
+		start   bool
+		request WorkerLifecycleCandidateLeaseRequest
+		rows    []LifecycleCandidate
+		want    WorkerErrorCode
+	}{
+		{"oversize", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1201}, nil, WorkerErrorInvalidRequest},
+		{"wrong fence", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1, WorkerFence: WorkerFence{RunID: "other", AssignmentID: "other", Generation: 9}}, []LifecycleCandidate{valid}, WorkerErrorFenceMismatch},
+		{"not running", false, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{valid}, WorkerErrorInvalidState},
+		{"provider exceeds requested", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
+		{"provider duplicate", true, WorkerLifecycleCandidateLeaseRequest{Requested: 2}, []LifecycleCandidate{valid, valid}, WorkerErrorRuntimeFailure},
+		{"provider invalid raw", true, WorkerLifecycleCandidateLeaseRequest{Requested: 1}, []LifecycleCandidate{{ChannelID: "private-invalid"}}, WorkerErrorRuntimeFailure},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: test.rows}
+			var server *WorkerServer
+			var fence WorkerFence
+			if test.start {
+				server, fence = startWorkerServerForGeneration(t, generation, "lifecycle-lease-"+test.name)
+			} else {
+				var err error
+				server, err = NewWorkerServer(WorkerServerConfig{ControlToken: "control-secret", Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) { return generation, nil })})
+				if err != nil {
+					t.Fatal(err)
+				}
+				config := LocalConfig()
+				fence = WorkerFence{RunID: config.RunID, AssignmentID: "lifecycle-lease-not-running", Generation: 7}
+				assertWorkerSuccess(t, server, http.MethodPost, "/v1/chat-lifecycle/assign", WorkerAssignment{WorkerFence: fence, WorkerID: 0, WorkerCount: uint64(config.Workload.Workers), Config: config})
+			}
+			request := test.request
+			if request.RunID == "" {
+				request.WorkerFence = fence
+			}
+			response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", request)
+			var apiErr WorkerAPIError
+			_ = json.Unmarshal(response.Body.Bytes(), &apiErr)
+			if apiErr.Code != test.want {
+				t.Fatalf("status/body = %d/%s, want %s", response.Code, response.Body.String(), test.want)
+			}
+		})
+	}
+}
+
+func TestWorkerServerLifecycleCandidateLeaseRejectsUnknownJSONFields(t *testing.T) {
+	server, fence := startWorkerServerForGeneration(t, &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration()}, "lifecycle-unknown")
+	body := fmt.Sprintf(`{"run_id":%q,"assignment_id":%q,"generation":%d,"requested":1,"future":true}`, fence.RunID, fence.AssignmentID, fence.Generation)
+	request := httptest.NewRequest(http.MethodPost, "/v1/chat-lifecycle/lifecycle-candidates", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer control-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), string(WorkerErrorInvalidJSON)) {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+	}
+}
+
+func TestWorkerServerLifecycleReheatRejectsFenceMissingAndHonorsCancellation(t *testing.T) {
+	now := time.Unix(2_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	falseValue := false
+	generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: []LifecycleCandidate{candidate}, approveResult: &falseValue}
+	server, fence := startWorkerServerForGeneration(t, generation, "lifecycle-reheat-errors")
+	wrong := fence
+	wrong.Generation++
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: wrong, ChannelID: candidate.ChannelID}, http.StatusConflict, WorkerErrorFenceMismatch)
+	assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID}, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+
+	generation.approveResult = nil
+	generation.approveCompleted = false
+	generation.approveEntered = make(chan struct{})
+	generation.approveRelease = make(chan struct{})
+	requestCtx, cancel := context.WithCancel(context.Background())
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		done <- workerRequestWithContext(t, server, requestCtx, http.MethodPost, "/v1/chat-lifecycle/lifecycle-reheat", WorkerLifecycleReheatRequest{WorkerFence: fence, ChannelID: candidate.ChannelID})
+	}()
+	<-generation.approveEntered
+	cancel()
+	<-done
+	if generation.approveCompleted {
+		t.Fatal("canceled approval crossed admission")
 	}
 }
 
@@ -1786,6 +1914,42 @@ type fakeWorkerGeneration struct {
 	drainErr     error
 	snapshotErr  error
 	doneOnce     sync.Once
+}
+
+type fakeLifecycleLeaseGeneration struct {
+	*fakeWorkerGeneration
+	candidates                     []LifecycleCandidate
+	requested                      int
+	approved                       string
+	approveResult                  *bool
+	approveEntered, approveRelease chan struct{}
+	approveCompleted               bool
+}
+
+func (g *fakeLifecycleLeaseGeneration) ApproveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
+	return g.approveLifecycleReheat(ctx, identity)
+}
+
+func (g *fakeLifecycleLeaseGeneration) approveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
+	if g.approveEntered != nil {
+		close(g.approveEntered)
+		select {
+		case <-g.approveRelease:
+		case <-ctx.Done():
+			return false, ctx.Err()
+		}
+	}
+	g.approved = identity
+	g.approveCompleted = true
+	if g.approveResult != nil {
+		return *g.approveResult, nil
+	}
+	return true, nil
+}
+
+func (g *fakeLifecycleLeaseGeneration) LeaseLifecycleCandidates(_ context.Context, requested int) ([]LifecycleCandidate, error) {
+	g.requested = requested
+	return append([]LifecycleCandidate(nil), g.candidates...), nil
 }
 
 type cancelBeforeGrantAdmissionGeneration struct {

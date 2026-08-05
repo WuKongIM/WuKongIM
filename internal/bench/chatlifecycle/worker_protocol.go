@@ -131,6 +131,37 @@ type WorkerGrantResponse struct {
 	Released    uint64 `json:"released"`
 }
 
+// WorkerLifecycleCandidateLeaseRequest asks one fenced worker for at most the
+// bounded number of transient lifecycle candidates.
+type WorkerLifecycleCandidateLeaseRequest struct {
+	WorkerFence
+	Requested uint16 `json:"requested"`
+}
+
+// WorkerLifecycleCandidateLeaseResponse is transient control data. It must
+// never be copied into worker snapshots, reports, or durable evidence.
+type WorkerLifecycleCandidateLeaseResponse struct {
+	WorkerFence
+	WorkerID    uint64               `json:"worker_id"`
+	WorkerCount uint64               `json:"worker_count"`
+	Candidates  []LifecycleCandidate `json:"candidates"`
+}
+
+// WorkerLifecycleReheatRequest admits the existing deterministic revisit SEND
+// after all-node absence proof; it never invokes runtime eviction.
+type WorkerLifecycleReheatRequest struct {
+	WorkerFence
+	ChannelID string `json:"channel_id"`
+}
+
+// WorkerLifecycleReheatResponse confirms admission, not SEND completion.
+type WorkerLifecycleReheatResponse struct {
+	WorkerFence
+	WorkerID    uint64 `json:"worker_id"`
+	WorkerCount uint64 `json:"worker_count"`
+	Approved    bool   `json:"approved"`
+}
+
 // WorkerStopRequest explicitly drains and stops the exact assignment.
 type WorkerStopRequest struct {
 	WorkerFence

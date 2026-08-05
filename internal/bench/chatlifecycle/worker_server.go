@@ -57,6 +57,18 @@ func (f WorkerGenerationFactoryFunc) New(assignment WorkerAssignment) (WorkerGen
 	return f(assignment)
 }
 
+// WorkerLifecycleCandidateLeaser is an optional generation capability for
+// reconstructing a bounded transient lease without retaining channel history.
+type WorkerLifecycleCandidateLeaser interface {
+	LeaseLifecycleCandidates(context.Context, int) ([]LifecycleCandidate, error)
+}
+
+// WorkerLifecycleReheatApprover exposes only existing scheduled SEND admission.
+// Its deliberately narrow shape cannot manufacture cold state through eviction.
+type WorkerLifecycleReheatApprover interface {
+	ApproveLifecycleReheat(context.Context, string) (bool, error)
+}
+
 // WorkerServerConfig fixes authentication and drain bounds for one dedicated worker server.
 type WorkerServerConfig struct {
 	ControlToken string
@@ -142,6 +154,8 @@ func (s *WorkerServer) routes() {
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/checkpoint", s.handleCheckpoint)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/rate", s.handleRate)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/grant", s.handleGrant)
+	s.mux.HandleFunc("POST /v1/chat-lifecycle/lifecycle-candidates", s.handleLifecycleCandidates)
+	s.mux.HandleFunc("POST /v1/chat-lifecycle/lifecycle-reheat", s.handleLifecycleReheat)
 	s.mux.HandleFunc("POST /v1/chat-lifecycle/stop", s.handleStop)
 }
 
@@ -167,11 +181,100 @@ func workerEndpointMethod(path string) (string, bool) {
 	switch path {
 	case "/healthz", "/v1/info", "/v1/chat-lifecycle/status", "/v1/chat-lifecycle/snapshot":
 		return http.MethodGet, true
-	case "/v1/chat-lifecycle/assign", "/v1/chat-lifecycle/start", "/v1/chat-lifecycle/checkpoint", "/v1/chat-lifecycle/rate", "/v1/chat-lifecycle/grant", "/v1/chat-lifecycle/stop":
+	case "/v1/chat-lifecycle/assign", "/v1/chat-lifecycle/start", "/v1/chat-lifecycle/checkpoint", "/v1/chat-lifecycle/rate", "/v1/chat-lifecycle/grant", "/v1/chat-lifecycle/lifecycle-candidates", "/v1/chat-lifecycle/lifecycle-reheat", "/v1/chat-lifecycle/stop":
 		return http.MethodPost, true
 	default:
 		return "", false
 	}
+}
+
+func (s *WorkerServer) handleLifecycleCandidates(response http.ResponseWriter, request *http.Request) {
+	var lease WorkerLifecycleCandidateLeaseRequest
+	if !decodeWorkerJSON(response, request, &lease) {
+		return
+	}
+	if !validWorkerFence(lease.WorkerFence) || lease.Requested == 0 || int(lease.Requested) > lifecycleCohortSize {
+		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
+		return
+	}
+	s.mu.Lock()
+	if !s.runningFenceLocked(response, lease.WorkerFence) {
+		s.mu.Unlock()
+		return
+	}
+	generation := s.generation
+	leaser, ok := generation.(WorkerLifecycleCandidateLeaser)
+	assignment := s.assignment
+	control := workerControlState{generation: generation, phase: s.phase, fence: lease.WorkerFence}
+	s.mu.Unlock()
+	if !ok {
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	candidates, err := leaser.LeaseLifecycleCandidates(request.Context(), int(lease.Requested))
+	s.mu.Lock()
+	if !s.controlStateMatchesLocked(control) {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	s.mu.Unlock()
+	if err != nil {
+		if request.Context().Err() != nil {
+			return
+		}
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	if !validWorkerLifecycleCandidateLease(candidates, int(lease.Requested), assignment) {
+		writeWorkerError(response, http.StatusInternalServerError, WorkerErrorRuntimeFailure)
+		return
+	}
+	writeWorkerJSON(response, http.StatusOK, WorkerLifecycleCandidateLeaseResponse{
+		WorkerFence: lease.WorkerFence, WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount,
+		Candidates: append([]LifecycleCandidate(nil), candidates...),
+	})
+}
+
+func (s *WorkerServer) handleLifecycleReheat(response http.ResponseWriter, request *http.Request) {
+	var reheat WorkerLifecycleReheatRequest
+	if !decodeWorkerJSON(response, request, &reheat) {
+		return
+	}
+	if !validWorkerFence(reheat.WorkerFence) || !validLifecyclePersonChannelID(reheat.ChannelID) {
+		writeWorkerError(response, http.StatusBadRequest, WorkerErrorInvalidRequest)
+		return
+	}
+	s.mu.Lock()
+	if !s.runningFenceLocked(response, reheat.WorkerFence) {
+		s.mu.Unlock()
+		return
+	}
+	generation := s.generation
+	approver, ok := generation.(WorkerLifecycleReheatApprover)
+	assignment := s.assignment
+	control := workerControlState{generation: generation, phase: s.phase, fence: reheat.WorkerFence}
+	s.mu.Unlock()
+	if !ok {
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	approved, err := approver.ApproveLifecycleReheat(request.Context(), reheat.ChannelID)
+	s.mu.Lock()
+	if !s.controlStateMatchesLocked(control) {
+		s.mu.Unlock()
+		writeWorkerError(response, http.StatusConflict, WorkerErrorFenceMismatch)
+		return
+	}
+	s.mu.Unlock()
+	if err != nil || !approved {
+		if request.Context().Err() != nil {
+			return
+		}
+		writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		return
+	}
+	writeWorkerJSON(response, http.StatusOK, WorkerLifecycleReheatResponse{WorkerFence: reheat.WorkerFence, WorkerID: assignment.WorkerID, WorkerCount: assignment.WorkerCount, Approved: true})
 }
 
 func (s *WorkerServer) authenticated(request *http.Request) bool {
@@ -1013,8 +1116,15 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 	for index := range trafficDemand {
 		trafficDemand[index] = ^uint64(0)
 	}
+	lifecycleSlots, err := newInitialLifecycleSlotAssignment()
+	if err != nil {
+		return nil, err
+	}
 	return &engineWorkerGeneration{
 		engine: engine, verifier: verifier, evidence: evidence,
+		// The reviewed no-migration profile uses this validated continuous table.
+		// A migration-aware coordinator must inject its copied live mapping.
+		lifecycleSlots: lifecycleSlots,
 		onlineTarget:   limits.online,
 		trafficDemand:  trafficDemand,
 		externalGrants: assignment.CoordinatorGrants,
@@ -1153,9 +1263,10 @@ func (f engineWorkerSessionFactory) NewSession(_ context.Context, _, token strin
 }
 
 type engineWorkerGeneration struct {
-	engine   *Engine
-	verifier *Verifier
-	evidence *EvidenceRecorder
+	engine         *Engine
+	verifier       *Verifier
+	evidence       *EvidenceRecorder
+	lifecycleSlots LifecycleSlotAssignment
 	// onlineTarget and trafficDemand are immutable O(1) tick inputs derived
 	// from the assignment; coordinator snapshots are never used by the latch.
 	onlineTarget   int
@@ -1271,6 +1382,14 @@ func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64
 	}
 	result, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
 	return WorkerGrantApplication{Admitted: result.Admitted}, err
+}
+
+func (g *engineWorkerGeneration) LeaseLifecycleCandidates(ctx context.Context, requested int) ([]LifecycleCandidate, error) {
+	return g.engine.LeaseLifecycleCandidates(ctx, requested, g.lifecycleSlots)
+}
+
+func (g *engineWorkerGeneration) ApproveLifecycleReheat(ctx context.Context, identity string) (bool, error) {
+	return g.engine.ApproveColdRevisitContext(ctx, identity)
 }
 
 func (g *engineWorkerGeneration) TrafficReady() bool { return g.trafficReady.Load() }
