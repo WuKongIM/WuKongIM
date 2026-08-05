@@ -11,7 +11,8 @@ This domain covers black-box message and conversation behavior for
 
 | Scenario | Purpose | Run |
 | --- | --- | --- |
-| `single_node_send` | Prove `cmd/wukongim` can complete one single-node cluster WKProto `SEND -> SENDACK` closure and expose sender/receiver rows through `/conversation/list`. | `GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1` |
+| `single_node_send` | Prove WKProto `SEND -> SENDACK`, person membership establishment, and zero repeat membership writes after `directory_ready` in a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1` |
+| `conversation_directory` | Prove candidate-bounded pagination, activation priority, message-time ordering stability, monotonic badge state, and hide/remove/rejoin transitions through public APIs. | `GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory -count=1 -timeout 2m` |
 | `webhook` | Prove a single-node cluster posts `user.onlinestatus`, `msg.notify`, and `msg.offline` webhook callbacks to an external HTTP endpoint after a real WKProto SEND. | `GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=1` |
 | `send_permission` | Prove `cmd/wukongim` enforces migrated legacy send-permission decisions through public channel-management and `/message/send` HTTP APIs. | `GOWORK=off go test -tags=e2e ./test/e2e/message/send_permission -count=1` |
 | `message_event_stream` | Prove `/message/event` buffers stream deltas in the Slot-leader cache, forwards from non-leader nodes, fails closed after Slot-leader cache loss, proposes one finish batch, exposes public metrics, and survives restart through `/channel/messagesync` event summaries. | `GOWORK=off go test -tags=e2e ./test/e2e/message/message_event_stream -count=1 -timeout 2m` |

@@ -120,13 +120,7 @@ func requireCMDMembershipMutationRows(t *testing.T, ctx context.Context, node su
 	t.Helper()
 	samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
 	require.NoError(t, err, node.DumpDiagnostics())
-	total := float64(0)
-	for _, sample := range samples {
-		if sample.Name == "wukongim_conversation_membership_mutation_rows_total" && sample.Labels["directory"] == "cmd" {
-			total += sample.Value
-		}
-	}
-	return total
+	return suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", map[string]string{"directory": "cmd"})
 }
 
 func TestWukongIMCMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {

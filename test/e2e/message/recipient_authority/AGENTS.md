@@ -1,8 +1,8 @@
 # recipient_authority AGENTS
 
-This scenario proves `cmd/wukongim` can route committed group messages through
-recipient UID authority and update subscriber-owned recent conversations in a
-single-node cluster.
+This scenario proves committed group SEND keeps actual ordinary membership
+mutation rows unchanged while subscriber-owned conversation views remain
+hydratable in a single-node cluster.
 
 ## Run
 

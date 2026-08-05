@@ -94,6 +94,17 @@ func FetchMetricSamples(ctx context.Context, apiAddr string) ([]MetricSample, er
 	return samples, nil
 }
 
+// SumMetricSamples returns the sum of one metric family matching the requested label subset.
+func SumMetricSamples(samples []MetricSample, name string, labels map[string]string) float64 {
+	total := float64(0)
+	for _, sample := range samples {
+		if sample.Name == name && metricLabelsMatch(sample.Labels, labels) {
+			total += sample.Value
+		}
+	}
+	return total
+}
+
 func parseMetricSample(line string) (string, map[string]string, float64, bool) {
 	parts := strings.Fields(line)
 	if len(parts) != 2 {
