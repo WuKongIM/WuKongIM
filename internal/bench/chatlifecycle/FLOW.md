@@ -158,6 +158,13 @@ deadline, role disagreement, watermark regression, or sequence reset is
 product failure. Before that deadline, replicas may naturally disappear at
 different polls; partial cooling is not yet cold eligible, and a missing
 replica becoming active again without reheat is a product transition failure.
+Product failures use the fixed identity-free reasons `initial_load`,
+`runtime_state`, `role_disagreement`, `watermark_regression`,
+`continued_loading`, `premature_absence`, `reheat_timeout`, `partial_reheat`,
+`sequence_proof`, `unexpected_reload`, and `control_transition`. The snapshot's
+fixed reason counters always total its product-failure counter; an atomic batch
+rollback counts only the triggering failure once, and neither errors nor JSON
+evidence retain candidate IDs.
 Only the same candidate's all-node absence makes it cold-latency eligible. Approval
 travels over a second strict fenced worker control call whose response does not
 echo the channel ID; the server delegates to `engineWorkerGeneration`, which

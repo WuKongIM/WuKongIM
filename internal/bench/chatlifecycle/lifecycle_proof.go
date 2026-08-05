@@ -49,6 +49,126 @@ var (
 	ErrLifecycleProductFailure = errors.New("chat lifecycle proof: product failure")
 )
 
+// LifecycleProductFailureReason is the closed identity-free product-transition vocabulary.
+type LifecycleProductFailureReason string
+
+const (
+	LifecycleFailureInitialLoad         LifecycleProductFailureReason = "initial_load"
+	LifecycleFailureRuntimeState        LifecycleProductFailureReason = "runtime_state"
+	LifecycleFailureRoleDisagreement    LifecycleProductFailureReason = "role_disagreement"
+	LifecycleFailureWatermarkRegression LifecycleProductFailureReason = "watermark_regression"
+	LifecycleFailureContinuedLoading    LifecycleProductFailureReason = "continued_loading"
+	LifecycleFailurePrematureAbsence    LifecycleProductFailureReason = "premature_absence"
+	LifecycleFailureReheatTimeout       LifecycleProductFailureReason = "reheat_timeout"
+	LifecycleFailurePartialReheat       LifecycleProductFailureReason = "partial_reheat"
+	LifecycleFailureSequenceProof       LifecycleProductFailureReason = "sequence_proof"
+	LifecycleFailureUnexpectedReload    LifecycleProductFailureReason = "unexpected_reload"
+	LifecycleFailureControlTransition   LifecycleProductFailureReason = "control_transition"
+)
+
+// LifecycleProductFailureCounters is the fixed report-safe reason projection.
+type LifecycleProductFailureCounters struct {
+	InitialLoad         uint64 `json:"initial_load"`
+	RuntimeState        uint64 `json:"runtime_state"`
+	RoleDisagreement    uint64 `json:"role_disagreement"`
+	WatermarkRegression uint64 `json:"watermark_regression"`
+	ContinuedLoading    uint64 `json:"continued_loading"`
+	PrematureAbsence    uint64 `json:"premature_absence"`
+	ReheatTimeout       uint64 `json:"reheat_timeout"`
+	PartialReheat       uint64 `json:"partial_reheat"`
+	SequenceProof       uint64 `json:"sequence_proof"`
+	UnexpectedReload    uint64 `json:"unexpected_reload"`
+	ControlTransition   uint64 `json:"control_transition"`
+}
+
+// Count returns one closed reason counter, or zero for an unknown value.
+func (c LifecycleProductFailureCounters) Count(reason LifecycleProductFailureReason) uint64 {
+	switch reason {
+	case LifecycleFailureInitialLoad:
+		return c.InitialLoad
+	case LifecycleFailureRuntimeState:
+		return c.RuntimeState
+	case LifecycleFailureRoleDisagreement:
+		return c.RoleDisagreement
+	case LifecycleFailureWatermarkRegression:
+		return c.WatermarkRegression
+	case LifecycleFailureContinuedLoading:
+		return c.ContinuedLoading
+	case LifecycleFailurePrematureAbsence:
+		return c.PrematureAbsence
+	case LifecycleFailureReheatTimeout:
+		return c.ReheatTimeout
+	case LifecycleFailurePartialReheat:
+		return c.PartialReheat
+	case LifecycleFailureSequenceProof:
+		return c.SequenceProof
+	case LifecycleFailureUnexpectedReload:
+		return c.UnexpectedReload
+	case LifecycleFailureControlTransition:
+		return c.ControlTransition
+	default:
+		return 0
+	}
+}
+
+// Total returns the saturating sum of every closed reason counter.
+func (c LifecycleProductFailureCounters) Total() uint64 {
+	total := uint64(0)
+	for _, reason := range [...]LifecycleProductFailureReason{
+		LifecycleFailureInitialLoad, LifecycleFailureRuntimeState, LifecycleFailureRoleDisagreement,
+		LifecycleFailureWatermarkRegression, LifecycleFailureContinuedLoading, LifecycleFailurePrematureAbsence,
+		LifecycleFailureReheatTimeout, LifecycleFailurePartialReheat, LifecycleFailureSequenceProof,
+		LifecycleFailureUnexpectedReload, LifecycleFailureControlTransition,
+	} {
+		total = saturatingAdd(total, c.Count(reason))
+	}
+	return total
+}
+
+func (c *LifecycleProductFailureCounters) increment(reason LifecycleProductFailureReason) {
+	switch reason {
+	case LifecycleFailureInitialLoad:
+		c.InitialLoad = saturatingIncrement(c.InitialLoad)
+	case LifecycleFailureRuntimeState:
+		c.RuntimeState = saturatingIncrement(c.RuntimeState)
+	case LifecycleFailureRoleDisagreement:
+		c.RoleDisagreement = saturatingIncrement(c.RoleDisagreement)
+	case LifecycleFailureWatermarkRegression:
+		c.WatermarkRegression = saturatingIncrement(c.WatermarkRegression)
+	case LifecycleFailureContinuedLoading:
+		c.ContinuedLoading = saturatingIncrement(c.ContinuedLoading)
+	case LifecycleFailurePrematureAbsence:
+		c.PrematureAbsence = saturatingIncrement(c.PrematureAbsence)
+	case LifecycleFailureReheatTimeout:
+		c.ReheatTimeout = saturatingIncrement(c.ReheatTimeout)
+	case LifecycleFailurePartialReheat:
+		c.PartialReheat = saturatingIncrement(c.PartialReheat)
+	case LifecycleFailureSequenceProof:
+		c.SequenceProof = saturatingIncrement(c.SequenceProof)
+	case LifecycleFailureUnexpectedReload:
+		c.UnexpectedReload = saturatingIncrement(c.UnexpectedReload)
+	case LifecycleFailureControlTransition:
+		c.ControlTransition = saturatingIncrement(c.ControlTransition)
+	}
+}
+
+type lifecycleProductFailureError struct {
+	reason LifecycleProductFailureReason
+}
+
+func (e *lifecycleProductFailureError) Error() string {
+	return ErrLifecycleProductFailure.Error() + ": " + string(e.reason)
+}
+
+func (e *lifecycleProductFailureError) Is(target error) bool {
+	return target == ErrLifecycleProductFailure
+}
+
+// Reason returns the report-safe closed reason without exposing candidate identity.
+func (e *lifecycleProductFailureError) Reason() LifecycleProductFailureReason {
+	return e.reason
+}
+
 // LifecycleCandidate is one bounded, transient proof lease. ChannelID is
 // deliberately absent from every snapshot and aggregate evidence type.
 type LifecycleCandidate struct {
@@ -273,14 +393,15 @@ type LifecycleProof struct {
 
 // LifecycleProofSnapshot is the bounded identity-free lifecycle projection.
 type LifecycleProofSnapshot struct {
-	Candidates      uint64                  `json:"candidates"`
-	Loaded          uint64                  `json:"loaded"`
-	ColdEligible    uint64                  `json:"cold_eligible"`
-	Reheated        uint64                  `json:"reheated"`
-	Completed       uint64                  `json:"completed"`
-	ProductFailures uint64                  `json:"product_failures"`
-	HarnessFailures uint64                  `json:"harness_failures"`
-	ReheatLatency   WorkerHistogramSnapshot `json:"reheat_latency"`
+	Candidates            uint64                          `json:"candidates"`
+	Loaded                uint64                          `json:"loaded"`
+	ColdEligible          uint64                          `json:"cold_eligible"`
+	Reheated              uint64                          `json:"reheated"`
+	Completed             uint64                          `json:"completed"`
+	ProductFailures       uint64                          `json:"product_failures"`
+	ProductFailureReasons LifecycleProductFailureCounters `json:"product_failure_reasons"`
+	HarnessFailures       uint64                          `json:"harness_failures"`
+	ReheatLatency         WorkerHistogramSnapshot         `json:"reheat_latency"`
 }
 
 // NewLifecycleProof installs at most one 1,200-row transient candidate cohort.
@@ -338,6 +459,10 @@ func (p *LifecycleProof) Observe(now time.Time, results []model.ChannelRuntimePr
 		p.snapshot = previousSnapshot
 		if errors.Is(err, ErrLifecycleProductFailure) {
 			p.snapshot.ProductFailures = saturatingIncrement(p.snapshot.ProductFailures)
+			var productFailure *lifecycleProductFailureError
+			if errors.As(err, &productFailure) {
+				p.snapshot.ProductFailureReasons.increment(productFailure.reason)
+			}
 		} else {
 			p.snapshot.HarnessFailures = saturatingIncrement(p.snapshot.HarnessFailures)
 		}
@@ -380,9 +505,20 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		if missing {
 			continue
 		}
-		if row.Status != "active" || (row.Role != "leader" && row.Role != "follower") || row.HW > row.LEO || row.CheckpointHW > row.HW ||
-			row.LEO < state.lastLEO[index] || row.HW < state.lastHW[index] || row.CheckpointHW < state.lastCheckpoint[index] {
-			return p.productFailureLocked()
+		if row.Status != "active" {
+			return p.productFailureLocked(LifecycleFailureRuntimeState)
+		}
+		if row.Role != "leader" && row.Role != "follower" {
+			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
+		}
+		if row.HW > row.LEO || row.CheckpointHW > row.HW {
+			return p.productFailureLocked(LifecycleFailureWatermarkRegression)
+		}
+		if row.LEO < state.lastLEO[index] || row.HW < state.lastHW[index] || row.CheckpointHW < state.lastCheckpoint[index] {
+			if state.phase == lifecycleAwaitReloaded {
+				return p.productFailureLocked(LifecycleFailureSequenceProof)
+			}
+			return p.productFailureLocked(LifecycleFailureWatermarkRegression)
 		}
 		if row.Role == "leader" {
 			leaders++
@@ -392,12 +528,15 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 	allLoaded := loadedCount == len(rows)
 	switch state.phase {
 	case lifecycleAwaitLoaded:
-		if !allLoaded || leaders != 1 {
-			return p.productFailureLocked()
+		if !allLoaded {
+			return p.productFailureLocked(LifecycleFailureInitialLoad)
+		}
+		if leaders != 1 {
+			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
 		for index, row := range rows {
 			if row.LEO < state.candidate.InitialSequence || row.HW < state.candidate.InitialSequence {
-				return p.productFailureLocked()
+				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
 			state.lastLEO[index], state.lastHW[index] = row.LEO, row.HW
 		}
@@ -405,21 +544,27 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		p.snapshot.Loaded = saturatingIncrement(p.snapshot.Loaded)
 	case lifecycleAwaitAbsent:
 		if allMissing {
-			if now.Before(state.candidate.QuietNotBefore) || now.After(state.candidate.QuietDeadline) {
-				return p.productFailureLocked()
+			if now.Before(state.candidate.QuietNotBefore) {
+				return p.productFailureLocked(LifecycleFailurePrematureAbsence)
+			}
+			if now.After(state.candidate.QuietDeadline) {
+				return p.productFailureLocked(LifecycleFailureContinuedLoading)
 			}
 			state.phase = lifecycleAwaitReheat
 			state.coldObservedAt = now
 			p.snapshot.ColdEligible = saturatingIncrement(p.snapshot.ColdEligible)
 			return nil
 		}
-		if !now.Before(state.candidate.QuietDeadline) || leaders > 1 || (allLoaded && leaders != 1) {
-			return p.productFailureLocked()
+		if !now.Before(state.candidate.QuietDeadline) {
+			return p.productFailureLocked(LifecycleFailureContinuedLoading)
+		}
+		if leaders > 1 || (allLoaded && leaders != 1) {
+			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
 		for index, row := range rows {
 			missing := row.Role == "missing"
 			if !missing && state.missingSeen[index] {
-				return p.productFailureLocked()
+				return p.productFailureLocked(LifecycleFailureUnexpectedReload)
 			}
 			state.missingSeen[index] = state.missingSeen[index] || missing
 			if missing {
@@ -432,29 +577,38 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 			return p.harnessFailureLocked()
 		}
 		if !allMissing {
-			return p.productFailureLocked()
+			return p.productFailureLocked(LifecycleFailureUnexpectedReload)
 		}
 	case lifecycleAwaitReloaded:
 		if now.After(state.candidate.ReheatAt.Add(lifecycleReheatDeadline)) {
-			return p.productFailureLocked()
+			return p.productFailureLocked(LifecycleFailureReheatTimeout)
 		}
 		if allMissing {
 			return nil
 		}
-		if !allLoaded || leaders != 1 || now.Before(state.reheatStarted) {
-			return p.productFailureLocked()
+		if !allLoaded {
+			return p.productFailureLocked(LifecycleFailurePartialReheat)
+		}
+		if leaders != 1 {
+			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
+		}
+		if now.Before(state.reheatStarted) {
+			return p.productFailureLocked(LifecycleFailureControlTransition)
 		}
 		for _, row := range rows {
 			if row.LEO <= state.candidate.InitialSequence || row.HW <= state.candidate.InitialSequence {
-				return p.productFailureLocked()
+				return p.productFailureLocked(LifecycleFailureSequenceProof)
 			}
 		}
 		state.phase = lifecycleComplete
 		p.snapshot.Completed = saturatingIncrement(p.snapshot.Completed)
 		recordWorkerLatency(&p.snapshot.ReheatLatency, now.Sub(state.reheatStarted))
 	case lifecycleComplete:
-		if !allLoaded || leaders != 1 {
-			return p.productFailureLocked()
+		if !allLoaded {
+			return p.productFailureLocked(LifecycleFailureUnexpectedReload)
+		}
+		if leaders != 1 {
+			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
 		}
 	}
 	if allLoaded {
@@ -523,7 +677,7 @@ func (p *LifecycleProof) Reheat(ctx context.Context, observedAt time.Time, ident
 	}
 	if state.phase != lifecycleAwaitReheat || sender == nil {
 		p.mu.Unlock()
-		return p.productFailure()
+		return p.productFailure(LifecycleFailureControlTransition)
 	}
 	if observedAt.Before(state.coldObservedAt) || !observedAt.Before(state.candidate.ReheatAt) {
 		p.mu.Unlock()
@@ -542,7 +696,7 @@ func (p *LifecycleProof) Reheat(ctx context.Context, observedAt time.Time, ident
 	defer p.mu.Unlock()
 	state = p.candidates[identity]
 	if state == nil || state.phase != lifecycleAwaitReheat {
-		return p.productFailureLocked()
+		return p.productFailureLocked(LifecycleFailureControlTransition)
 	}
 	state.reheatStarted = state.candidate.ReheatAt
 	state.phase = lifecycleAwaitReloaded
@@ -565,14 +719,15 @@ func (p *LifecycleProof) Snapshot() LifecycleProofSnapshot {
 	return p.snapshot
 }
 
-func (p *LifecycleProof) productFailure() error {
+func (p *LifecycleProof) productFailure(reason LifecycleProductFailureReason) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.productFailureLocked()
+	return p.productFailureLocked(reason)
 }
-func (p *LifecycleProof) productFailureLocked() error {
+func (p *LifecycleProof) productFailureLocked(reason LifecycleProductFailureReason) error {
 	p.snapshot.ProductFailures = saturatingIncrement(p.snapshot.ProductFailures)
-	return ErrLifecycleProductFailure
+	p.snapshot.ProductFailureReasons.increment(reason)
+	return &lifecycleProductFailureError{reason: reason}
 }
 func (p *LifecycleProof) harnessFailure() error {
 	p.mu.Lock()

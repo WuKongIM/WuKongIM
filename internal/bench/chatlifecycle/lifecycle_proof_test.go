@@ -681,6 +681,173 @@ func TestLifecycleProofRejectsProductTransitionFailures(t *testing.T) {
 	}
 }
 
+func TestLifecycleProofReportsClosedProductFailureReasons(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	load := func(proof *LifecycleProof) {
+		t.Helper()
+		if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cool := func(proof *LifecycleProof) {
+		t.Helper()
+		load(proof)
+		if err := proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reheat := func(proof *LifecycleProof) {
+		t.Helper()
+		cool(proof)
+		if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tests := []struct {
+		name   string
+		reason LifecycleProductFailureReason
+		run    func(*LifecycleProof) error
+	}{
+		{name: "incomplete initial load", reason: LifecycleFailureInitialLoad, run: func(proof *LifecycleProof) error {
+			return proof.Observe(now, lifecycleRowsWithRoles(candidate, [3]string{"missing", "leader", "follower"}, 10, 10))
+		}},
+		{name: "runtime state", reason: LifecycleFailureRuntimeState, run: func(proof *LifecycleProof) error {
+			return proof.Observe(now, lifecycleRows(candidate, "closing", 10, 10))
+		}},
+		{name: "runtime error", reason: LifecycleFailureRuntimeState, run: func(proof *LifecycleProof) error {
+			return proof.Observe(now, lifecycleRows(candidate, "error", 10, 10))
+		}},
+		{name: "role disagreement", reason: LifecycleFailureRoleDisagreement, run: func(proof *LifecycleProof) error {
+			return proof.Observe(now, lifecycleRowsWithRoles(candidate, [3]string{"leader", "leader", "follower"}, 10, 10))
+		}},
+		{name: "watermark regression", reason: LifecycleFailureWatermarkRegression, run: func(proof *LifecycleProof) error {
+			load(proof)
+			return proof.Observe(now.Add(time.Second), lifecycleRowsWithOffsets(candidate, [3][2]uint64{{9, 9}, {10, 10}, {10, 10}}))
+		}},
+		{name: "continued loading", reason: LifecycleFailureContinuedLoading, run: func(proof *LifecycleProof) error {
+			load(proof)
+			return proof.Observe(candidate.QuietDeadline, lifecycleRows(candidate, "active", 10, 10))
+		}},
+		{name: "premature absence", reason: LifecycleFailurePrematureAbsence, run: func(proof *LifecycleProof) error {
+			load(proof)
+			return proof.Observe(candidate.QuietNotBefore.Add(-time.Nanosecond), lifecycleRows(candidate, "missing", 0, 0))
+		}},
+		{name: "reheat timeout", reason: LifecycleFailureReheatTimeout, run: func(proof *LifecycleProof) error {
+			reheat(proof)
+			return proof.Observe(candidate.ReheatAt.Add(lifecycleReheatDeadline+time.Nanosecond), lifecycleRows(candidate, "missing", 0, 0))
+		}},
+		{name: "partial reheat", reason: LifecycleFailurePartialReheat, run: func(proof *LifecycleProof) error {
+			reheat(proof)
+			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRowsWithRoles(candidate, [3]string{"leader", "follower", "missing"}, 11, 11))
+		}},
+		{name: "sequence proof", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
+			reheat(proof)
+			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 10, 10))
+		}},
+		{name: "sequence reset", reason: LifecycleFailureSequenceProof, run: func(proof *LifecycleProof) error {
+			reheat(proof)
+			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 9, 9))
+		}},
+		{name: "reheat invalid watermark", reason: LifecycleFailureWatermarkRegression, run: func(proof *LifecycleProof) error {
+			reheat(proof)
+			return proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRowsWithOffsets(candidate, [3][2]uint64{{10, 11}, {11, 11}, {11, 11}}))
+		}},
+		{name: "unexpected reload", reason: LifecycleFailureUnexpectedReload, run: func(proof *LifecycleProof) error {
+			load(proof)
+			if err := proof.Observe(candidate.QuietNotBefore, lifecycleRowsWithRoles(candidate, [3]string{"missing", "follower", "follower"}, 10, 10)); err != nil {
+				t.Fatal(err)
+			}
+			return proof.Observe(candidate.QuietNotBefore.Add(time.Second), lifecycleRows(candidate, "active", 10, 10))
+		}},
+		{name: "control transition", reason: LifecycleFailureControlTransition, run: func(proof *LifecycleProof) error {
+			return proof.Reheat(context.Background(), now, candidate.ChannelID, &fakeLifecycleSender{})
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = test.run(proof)
+			if !errors.Is(err, ErrLifecycleProductFailure) {
+				t.Fatalf("error = %v, want product failure", err)
+			}
+			var reasoned interface {
+				Reason() LifecycleProductFailureReason
+			}
+			if !errors.As(err, &reasoned) || reasoned.Reason() != test.reason {
+				t.Fatalf("error reason = %v, want %s", err, test.reason)
+			}
+			if strings.Contains(err.Error(), candidate.ChannelID) {
+				t.Fatalf("error leaked candidate identity: %v", err)
+			}
+			snapshot := proof.Snapshot()
+			if snapshot.ProductFailures != 1 || snapshot.ProductFailureReasons.Count(test.reason) != 1 || snapshot.ProductFailureReasons.Total() != snapshot.ProductFailures {
+				t.Fatalf("reason snapshot = %+v, want exactly one %s", snapshot, test.reason)
+			}
+			encoded, marshalErr := json.Marshal(snapshot)
+			if marshalErr != nil || bytes.Contains(encoded, []byte(candidate.ChannelID)) {
+				t.Fatalf("product failure JSON leaked candidate identity: %s (error %v)", encoded, marshalErr)
+			}
+		})
+	}
+}
+
+func TestLifecycleProofProductFailureReasonRollsBackBatchAndCountsOnce(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidates := lifecycleTestCandidates(t, now)[:2]
+	proof, err := NewLifecycleProof(candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := lifecycleRows(candidates[0], "active", 10, 10)
+	failed := lifecycleRows(candidates[1], "error", 10, 10)
+	for node := range rows {
+		rows[node].Checked = 2
+		rows[node].Channels = append(rows[node].Channels, failed[node].Channels[0])
+	}
+	if err := proof.Observe(now, rows); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("error = %v, want product failure", err)
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.Loaded != 0 || snapshot.ProductFailures != 1 || snapshot.ProductFailureReasons.Count(LifecycleFailureRuntimeState) != 1 || snapshot.ProductFailureReasons.Total() != 1 {
+		t.Fatalf("atomic reason snapshot = %+v", snapshot)
+	}
+}
+
+func TestLifecycleProofConcurrentRollbackFailuresCountExactlyOnce(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, err := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const failures = 32
+	var wg sync.WaitGroup
+	errorsSeen := make(chan error, failures)
+	for range failures {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errorsSeen <- proof.Observe(now, lifecycleRows(candidate, "error", 10, 10))
+		}()
+	}
+	wg.Wait()
+	close(errorsSeen)
+	for err := range errorsSeen {
+		if !errors.Is(err, ErrLifecycleProductFailure) {
+			t.Fatalf("error = %v, want product failure", err)
+		}
+	}
+	snapshot := proof.Snapshot()
+	if snapshot.ProductFailures != failures || snapshot.ProductFailureReasons.RuntimeState != failures ||
+		snapshot.ProductFailureReasons.Total() != snapshot.ProductFailures {
+		t.Fatalf("concurrent failure snapshot = %+v", snapshot)
+	}
+}
+
 func TestLifecycleProofAllowsBoundedPartialCoolingButNotReappearance(t *testing.T) {
 	now := time.Unix(1_000, 0)
 	candidate := lifecycleTestCandidates(t, now)[0]
