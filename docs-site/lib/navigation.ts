@@ -601,49 +601,49 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'architecture',
         '架构',
         'Architecture',
         '从控制、元数据、消息和网络层理解系统。',
         'Understand the system through control, metadata, messaging, and network layers.',
         [
-          plannedPage(
+          publishedPage(
             'controller',
             'Controller 控制层',
             'Controller Layer',
             '解释集群元数据、节点管理、任务和一致性控制。',
             'Explains cluster metadata, node management, tasks, and consistency control.',
           ),
-          plannedPage(
+          publishedPage(
             'slots',
             'Slot 元数据层',
             'Slot Metadata Layer',
             '解释默认 256 个 Hash Slot、归属、副本和 Leader 路由。',
             'Explains the default 256 hash slots, ownership, replicas, and leader routing.',
           ),
-          plannedPage(
+          publishedPage(
             'channels',
             'Channel 消息层',
             'Channel Messaging Layer',
             '解释频道副本、消息日志、Leader 和故障切换。',
             'Explains channel replicas, message logs, leaders, and failover.',
           ),
-          plannedPage(
+          publishedPage(
             'transport',
             'Transport 网络层',
             'Transport Layer',
             '解释节点连接、RPC、消息传输和背压。',
             'Explains node connections, RPC, message transport, and backpressure.',
           ),
-          plannedPage(
+          publishedPage(
             'message-flow',
             '消息发送链路',
             'Message Send Flow',
             '跟踪消息进入、复制、持久化和投递的完整过程。',
             'Traces message ingress, replication, persistence, and delivery.',
           ),
-          plannedPage(
+          publishedPage(
             'user-routing',
             '用户连接路由',
             'User Connection Routing',

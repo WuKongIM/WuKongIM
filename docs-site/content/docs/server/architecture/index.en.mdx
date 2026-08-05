@@ -1,0 +1,79 @@
+---
+title: Architecture
+description: Understand WuKongIM cluster boundaries through Controller, Slot, Channel, Transport, and online routing.
+---
+
+WuKongIM places low-frequency cluster intent, sharded metadata, ordered message logs, and high-frequency connection state behind different boundaries. Those boundaries matter more than memorizing one function or in-process call graph: failover, scaling, and diagnosis all depend on which component is authoritative for which state.
+
+<Callout type="warn" title="Every deployment is a cluster">
+  A one-node deployment is a single-node cluster and still follows Controller, Slot, Channel, and routing semantics. The default route table keeps 256 stable physical hash-slot fences. They map onto a potentially different number of logical Slot Raft Groups and are not the same concept.
+</Callout>
+
+## Architecture map
+
+```text
+Client TCP / WebSocket
+        │
+        ▼
+Gateway ──► message use case ──► Channel Append Authority
+                                  │
+                                  ▼
+                        Channel Leader + ISR
+                                  │
+                      quorum durable commit
+                                  │
+                      SENDACK ─────┴─────► post-commit effects
+                                           │
+                         conversation / online delivery / webhook / plugin
+
+Controller Raft ──► cluster-state.json ──► routing snapshot
+                                               │
+key ──CRC32──► 256 physical hash slots ──► logical Slot Raft Group
+                                               │
+                                               ▼
+                                 distributed metadata and authority routing
+```
+
+The diagram contains two distinct paths: Controller and Slot provide control and metadata authority, while Channel provides message-log authority. Online delivery runs after commit and is not part of Channel quorum commit.
+
+## Five primary boundaries
+
+| Boundary | Authoritative state | Main responsibility | Does not own |
+| --- | --- | --- | --- |
+| Controller | committed Controller Raft log and applied boundary | nodes, Slot assignment, tasks, cluster-wide plans | high-frequency sessions or Channel payloads |
+| Slot | metadata state machine under the current Slot Raft Leader | users, channels, subscribers, conversation projections, ChannelRuntimeMeta | Channel message logs |
+| Channel | Channel Leader, ISR, and committed high watermark | per-channel order, durability, replication, committed visibility | global membership plans or concrete TCP sessions |
+| Gateway and online runtime | connection owner node and the UID Presence Authority | client sessions, online endpoints, cross-node delivery | durable presence or message-commit decisions |
+| Transport | bounded connections, queues, and service entry points | node Raft, RPC, replication, and notification transport | business authorization or unlimited retries |
+
+## Four layers of authority in one route
+
+A business request can encounter four kinds of authority, and none substitutes for another:
+
+1. **Controller intent** declares desired node and Slot assignments, tasks, and revisions.
+2. **Live Slot authority** uses the observed Raft Leader, term, and configuration epoch to decide who can commit metadata.
+3. **Live Channel authority** uses the Leader, ISR, Channel Epoch, and Leader Epoch in `ChannelRuntimeMeta` to fence message writes.
+4. **Connection ownership** means only the node holding the concrete Session can perform the final client write.
+
+`PreferredLeader` is Controller intent. The observed Raft Leader is the runtime authority. If Manager or diagnostics lack a live term, configuration epoch, or freshness evidence, preserve an unknown result instead of filling the gap from intent.
+
+## Where data lives
+
+| Data | Typical location | Lifecycle |
+| --- | --- | --- |
+| Cluster plans and tasks | Controller Raft plus materialized state file | low-frequency, durable, cluster-wide |
+| Sharded business metadata | Slot Multi-Raft plus `pkg/db/meta` | durable and partitioned by physical hash slot |
+| Channel messages | Channel replicas plus `pkg/db/message` | durable and ordered per channel |
+| Connections and online endpoints | owner node and Presence Authority memory | high-frequency, lease- and Session-bound |
+| Transport queues and runtime caches | node process memory | bounded, rebuildable, protected by backpressure |
+
+## Continue reading
+
+- [Controller Layer](/en/server/architecture/controller): cluster intent, materialized state, and task fences.
+- [Slot Metadata Layer](/en/server/architecture/slots): how 256 physical hash slots map to logical Raft Groups.
+- [Channel Messaging Layer](/en/server/architecture/channels): Channel Leader, ISR, HW, and message order.
+- [Transport Layer](/en/server/architecture/transport): client ingress versus node-to-node transport.
+- [Message Send Flow](/en/server/architecture/message-flow): SEND through SENDACK and asynchronous delivery.
+- [User Connection Routing](/en/server/architecture/user-routing): local Sessions, Presence Authority, and cross-node push.
+
+To apply these boundaries to an incident, continue with [Troubleshooting](/en/server/operations/troubleshooting) and [Diagnostics](/en/server/tools/diagnostics).

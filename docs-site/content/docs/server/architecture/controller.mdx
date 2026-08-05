@@ -1,0 +1,89 @@
+---
+title: Controller 控制层
+description: 理解 Controller Raft、集群状态物化、节点角色、任务和控制意图。
+---
+
+Controller 是低频集群意图的权威：节点成员关系、逻辑 Slot Group 分配、期望副本、控制任务和少量集群级计划都在这里收敛。它不处理每条消息或每次用户心跳。
+
+## Voter 与 Mirror
+
+| 节点角色 | 行为 | 状态来源 |
+| --- | --- | --- |
+| Controller voter | 参与 Controller Raft、提交命令、应用状态机 | 本地 Raft WAL、快照和物化状态 |
+| 非 Controller 数据节点 | 不加入 Controller Raft，镜像 voter 的完整状态文件 | Controller state sync |
+
+只有明确提升为 Controller voter 的节点才参与该 Raft Group。动态加入的普通数据节点不会自动成为 voter；提升需要单独的 learner、成员证明和最终状态命令。
+
+## 提交与物化顺序
+
+```text
+Controller 命令
+      │
+      ▼
+Controller Raft proposal
+      │
+      ▼
+WAL 持久化 ──► Raft 消息发送 ──► committed entries
+                                      │
+                                      ▼
+                              FIFO apply scheduler
+                                      │
+                          批量语义应用 + 一次原子保存
+                                      │
+                     cluster-state.json + 内存快照
+                                      │
+                                      ▼
+                            持久化 AppliedRaftIndex
+```
+
+Controller Raft WAL 是已提交命令和应用边界的权威来源；`cluster-state.json` 是当前业务状态的物化快照。启动时先加载或从 Raft snapshot 恢复物化状态，再重放物化应用索引之后的已提交 WAL 后缀。
+
+## Revision 与 AppliedRaftIndex
+
+- `Revision` 是逻辑集群状态版本，用于计划、任务和 compare-and-set fence。
+- `AppliedRaftIndex` 是已经物化到状态文件的最新 Raft entry 边界。
+- 健康报告或只读 readiness probe 可以推进 Raft 应用元数据，而不一定增加业务 `Revision`。
+
+因此不能把“Raft index 增加”解释为拓扑发生变化，也不能把健康心跳写入当成一个新的资源计划。
+
+## Controller 保存什么
+
+- 节点 ID、地址、角色和生命周期；
+- 逻辑 Slot Raft Group、期望成员、配置 epoch 和 preferred leader；
+- 物理哈希槽到逻辑 Slot Group 的版本化映射；
+- Slot 迁移、Controller voter 提升等有界任务；
+- 经过边界限制的备份计划、Operations MCP 开关等低频集群状态。
+
+它不会保存 Channel 消息正文、真实 TCP Session、每次用户 Ping、无限审计日志或原始诊断制品。高频或无界数据必须留在数据面、节点本地运行时或外部存储。
+
+## 意图不等于实时事实
+
+Controller 中的 `DesiredPeers` 和 `PreferredLeader` 是期望状态。实际 Slot Raft 的 voter、learner、Leader、term、commit 和同步进度由 Slot 运行时观察决定。
+
+<Callout type="warn" title="不要用 PreferredLeader 替代 Leader">
+  计划可能尚未收敛，目标节点也可能不活跃或落后。读路径和运维判断必须使用新鲜的实际 Raft 证据；缺失时保持 unknown。
+</Callout>
+
+## 任务与 fence
+
+Controller 任务把高风险变更拆成可验证阶段。以 Slot replica move 为例，意图依次经历 learner 打开、加入、追赶、提升、旧 voter 移除和最终 assignment commit。每一步都携带 task ID、Slot ID、配置 epoch、attempt 和阶段索引等 fence。
+
+最终提交只有在实时 voter/learner 证明匹配目标成员时才更新 `DesiredPeers` 并增加配置 epoch。节点缩容也必须先由更高层证明 Gateway、Slot、Channel 和任务全部排空，Controller 才能把 `leaving` 节点写成 `removed` tombstone。
+
+## 失败与恢复
+
+- 没有 Controller Leader 时，写入返回可重试的领导权/生命周期错误，而不是直接改本地状态文件。
+- Voter 可以从 snapshot 加上 WAL 后缀恢复；mirror 通过完整状态文件同步追上。
+- Snapshot 和 compaction 只裁剪已被物化状态覆盖的日志边界。
+- Manager 查看某个节点的 Controller 日志或状态时，读到的是该节点本地 Raft 证据，不是一个虚构的全局日志视图。
+
+## 源码入口
+
+| 目标 | 入口 |
+| --- | --- |
+| Controller 公共运行时 | `pkg/controller` |
+| 状态模型与校验 | `pkg/controller/state` |
+| Raft WAL、apply 与 snapshot | `pkg/controller/raft` |
+| 生产集群适配 | `pkg/cluster/control` |
+
+继续阅读 [Slot 元数据层](/zh/server/architecture/slots)，了解 Controller 的映射和期望成员如何变成实际元数据路由。

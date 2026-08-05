@@ -57,4 +57,4 @@ WuKongIM Gateway <-> WuKongIM 集群
 - Webhook 失败不会把已经成功的 SENDACK 改成失败。
 - 客户端断线恢复依赖 SDK 的重连与消息同步，不依赖 Webhook 重放。
 
-下一步阅读[身份认证](/zh/guide/integration/authentication)，先收紧信任边界，再实现消息收发。
+需要理解服务端内部的提交与投递边界时，阅读[服务端架构](/zh/server/architecture)和[消息发送链路](/zh/server/architecture/message-flow)。下一步阅读[身份认证](/zh/guide/integration/authentication)，先收紧信任边界，再实现消息收发。

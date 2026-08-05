@@ -1,0 +1,79 @@
+---
+title: 架构
+description: 从 Controller、Slot、Channel、Transport 和在线路由理解 WuKongIM 的集群边界。
+---
+
+WuKongIM 把低频集群意图、分片元数据、有序消息日志和高频连接状态放在不同边界中。理解这些边界，比记住某个函数或进程内调用顺序更重要：故障切换、扩缩容和排障都依赖“谁对哪类状态有权威”。
+
+<Callout type="warn" title="所有部署都是集群">
+  单节点部署也是单节点集群，仍然经过 Controller、Slot、Channel 和路由语义。默认路由表保持 256 个稳定的物理哈希槽；这些哈希槽会映射到数量可以不同的逻辑 Slot Raft Group，不能把两者当成同一个概念。
+</Callout>
+
+## 架构地图
+
+```text
+客户端 TCP / WebSocket
+        │
+        ▼
+Gateway ──► 消息用例 ──► Channel Append Authority
+                              │
+                              ▼
+                    Channel Leader + ISR
+                              │
+                  quorum durable commit
+                              │
+                  SENDACK ─────┴─────► 提交后副作用
+                                       │
+                         会话投影 / 在线投递 / Webhook / 插件
+
+Controller Raft ──► cluster-state.json ──► 路由快照
+                                               │
+键 ──CRC32──► 256 个物理哈希槽 ──► 逻辑 Slot Raft Group
+                                               │
+                                               ▼
+                                      分布式元数据与权威路由
+```
+
+这张图包含两条不同的链路：Controller 与 Slot 提供控制和元数据权威，Channel 提供消息日志权威。在线投递发生在消息提交之后，不属于 Channel 的 quorum commit。
+
+## 五个主要边界
+
+| 边界 | 权威状态 | 主要职责 | 不负责 |
+| --- | --- | --- | --- |
+| Controller | Controller Raft 已提交日志及应用边界 | 节点、Slot 分配、任务、集群级计划 | 高频会话、Channel 消息正文 |
+| Slot | 当前 Slot Raft Leader 下的元数据状态机 | 用户、频道、订阅、会话投影、ChannelRuntimeMeta | Channel 消息日志 |
+| Channel | Channel Leader、ISR 和提交高水位 | 频道内顺序、持久化、复制与已提交可见性 | 全局成员计划、真实 TCP Session |
+| Gateway 与在线运行时 | 连接 owner 节点和 UID 对应的 Presence Authority | 客户端会话、在线端点、跨节点投递 | 持久化在线状态或决定消息提交 |
+| Transport | 有界连接、队列和服务入口 | 节点间 Raft、RPC、复制和通知传输 | 业务授权或自动重试所有失败 |
+
+## 一次寻址的四层权威
+
+同一个业务请求可能依次遇到四种权威，它们不能互相替代：
+
+1. **Controller 意图**：声明节点与 Slot 的期望分配、任务和修订。
+2. **Slot 实时权威**：由实际 Raft Leader、term 和配置 epoch 决定谁能提交元数据。
+3. **Channel 实时权威**：由 `ChannelRuntimeMeta` 的 Leader、ISR、Channel Epoch 和 Leader Epoch 约束消息写入。
+4. **连接 owner**：只有持有真实 Session 的节点能完成最终客户端写入。
+
+`PreferredLeader` 只是 Controller 意图；实际 Raft Leader 才能服务当前请求。Manager 或诊断输出缺少实际 term、配置 epoch 或状态新鲜度时，应保持未知，而不是用意图补齐事实。
+
+## 数据放在哪里
+
+| 数据 | 典型位置 | 生命周期 |
+| --- | --- | --- |
+| 集群计划与任务 | Controller Raft + 物化状态文件 | 低频、持久、集群级 |
+| 分片业务元数据 | Slot Multi-Raft + `pkg/db/meta` | 持久、按物理哈希槽分片 |
+| 频道消息 | Channel 副本 + `pkg/db/message` | 持久、按频道有序 |
+| 连接与在线端点 | owner 节点和 Presence Authority 内存 | 高频、租约与 Session 生命周期 |
+| 传输队列与运行时缓存 | 节点进程内 | 有界、可重建、受背压保护 |
+
+## 继续阅读
+
+- [Controller 控制层](/zh/server/architecture/controller)：理解集群意图、物化状态和任务 fence。
+- [Slot 元数据层](/zh/server/architecture/slots)：理解 256 个物理哈希槽如何映射到逻辑 Raft Group。
+- [Channel 消息层](/zh/server/architecture/channels)：理解频道 Leader、ISR、HW 和消息顺序。
+- [Transport 网络层](/zh/server/architecture/transport)：理解客户端入口与节点间传输的区别。
+- [消息发送链路](/zh/server/architecture/message-flow)：跟踪 SEND 到 SENDACK 和异步投递。
+- [用户连接路由](/zh/server/architecture/user-routing)：理解本地 Session、Presence Authority 和跨节点推送。
+
+需要把这些边界用于实际故障判断时，继续阅读[故障排查](/zh/server/operations/troubleshooting)和[诊断能力](/zh/server/tools/diagnostics)。

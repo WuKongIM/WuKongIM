@@ -57,7 +57,7 @@ Stop increasing diagnostic cost once a lower layer explains the issue. See [Diag
 
 ### Sends fail, latency rises, or backlog grows
 
-- Observe ingress, SEND/SENDACK, Channel append, replication/durability, and delivery as separate stages.
+- Observe ingress, SEND/SENDACK, Channel append, replication/durability, and delivery as separate stages; [Message Flow](/en/server/architecture/message-flow) shows their complete path and boundaries.
 - Inspect error rate, latency percentiles, bounded-queue depth/rejection/drop, per-node skew, and hot-channel concentration.
 - Use an exact Channel point lookup when its identity is known; do not enumerate the Channel catalog. For 100,000-member groups and high message rates, averages do not represent tail or fanout cost.
 - Capture pprof in a bounded window only after metrics and logs narrow the question to CPU, heap, or goroutines.
@@ -69,7 +69,7 @@ go run ./cmd/wkcli node ls --context production
 go run ./cmd/wkcli node diagnose 4 --context production --json
 ```
 
-Retain health freshness, control revision, `blocked_reasons`, tasks, and Slot evidence. A diagnostic recommendation is not permission to force a leader move or remove a node. Scale-in still waits for authoritative `safe_to_remove=true`. Follow [Scaling](/en/server/operations/scaling) for the full procedure.
+Retain health freshness, control revision, `blocked_reasons`, tasks, and Slot evidence. A diagnostic recommendation is not permission to force a leader move or remove a node. Scale-in still waits for authoritative `safe_to_remove=true`. Interpret observations through the authority boundaries in [Controller](/en/server/architecture/controller) and [Slots](/en/server/architecture/slots), then follow [Scaling](/en/server/operations/scaling) for the full procedure.
 
 ### Disk, storage, or data differs
 

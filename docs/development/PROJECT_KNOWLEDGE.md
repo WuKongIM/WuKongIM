@@ -82,7 +82,14 @@
 - `internal` presence stores owner-local `OwnerRoute` projections for authority/touch; concrete gateway session handles must stay out of authority routes and live only in owner-local session records used for conflict close actions.
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
-- Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
+- Channelappend post-commit handoff and per-channel backlog must stay bounded.
+  When post-commit ports are configured, append-bound items reserve global
+  handoff capacity before durable append; unavailable capacity returns
+  `ErrChannelBusy` before the message is appended. After a successful durable
+  append, SENDACK completes independently, and isolated post-commit workers
+  retain scheduler-saturated envelopes in bounded writer state rather than
+  losing an already-committed handoff. Terminal conversation/delivery failures
+  remain best-effort and do not roll back the Channel commit.
 - Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
 - Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
@@ -303,6 +310,13 @@
   `wkbench` targets controlled benchmark clusters; Operations MCP exposes a
   closed 12-tool observation registry with no write tool, while its bounded
   `pprof_analyze` capture is the only active observation.
+- Phase 8 public server-architecture guidance distinguishes 256 stable physical
+  hash-slot fences from logical Slot Raft Groups, Controller intent from
+  observed Raft leadership, Slot metadata from Channel message logs, and
+  durable Channel commit from post-commit delivery and plugin effects. Client
+  Gateway transport and node transport are separate, while exact UID presence
+  authority is in-memory and target-fenced and concrete sessions remain
+  owner-local.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level

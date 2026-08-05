@@ -73,8 +73,15 @@ content/docs/**/*.mdx
   storage-writing command; and `wkbench` is restricted to controlled benchmark
   clusters. Operations MCP remains a dedicated-credential, non-browser,
   closed-world observation surface with no write tool; its bounded
-  `pprof_analyze` capture is the sole active observation. Architecture remains
-  planned.
+  `pprof_analyze` capture is the sole active observation.
+- Phase 8 publishes the server-architecture path. It MUST distinguish 256
+  stable physical hash-slot fences from logical Slot Raft Groups, Controller
+  intent from observed Raft leadership, Slot metadata from Channel message
+  logs, and durable Channel commit from post-commit effects. Client Gateway
+  transport and node transport remain separate; UID presence is an in-memory,
+  exact-target-fenced authority while concrete sessions remain owner-local.
+  Older wiki architecture content is not a publication source unless it is
+  recalibrated against the promoted packages.
 
 ## Static delivery
 

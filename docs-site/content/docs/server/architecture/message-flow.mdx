@@ -1,0 +1,126 @@
+---
+title: 消息发送链路
+description: 跟踪持久化消息从 Gateway 进入、权限检查、权威追加、quorum commit 到在线投递。
+---
+
+一条持久化 SEND 跨越入口适配、业务权限、频道 authority、Channel quorum 和提交后副作用。最重要的分界是：SENDACK 成功由持久化提交决定，在线投递和 Webhook 不在这个同步事务中。
+
+## 完整链路
+
+```text
+1. client SEND
+      │
+      ▼
+2. Gateway frame adapter
+      │  normalize + map protocol DTO
+      ▼
+3. message use case
+      │  permission / system UID / plugin BeforeSend
+      ▼
+4. channelappend Router
+      │  resolve exact Channel authority
+      ├──────── non-authority node ─────► Channel Append RPC
+      ▼                                      │
+5. authority-local single writer ◄───────────┘
+      │  validate, idempotency, message ID, bounded admission
+      ▼
+6. pkg/cluster Channel service
+      │  apply current meta / forward to Channel Leader
+      ▼
+7. Channel Leader durable append + ISR replication + HW commit
+      │
+      ├────────► 8. SENDACK success
+      │
+      └────────► 9. post-commit effects
+                    conversation projection
+                    subscriber paging + presence lookup
+                    owner-node online delivery
+                    PersistAfter plugin / webhook
+```
+
+## 1. Gateway 入口
+
+客户端 TCP 或 WebSocket Session 发送 WKProto `SEND`。`pkg/gateway` 负责 frame 解码、连接级 admission、同频道微批和有界异步 dispatch；`internal/access/gateway` 把协议字段映射成入口无关的发送命令。
+
+Gateway 不决定 Channel Leader，也不直接写消息数据库。队列已满、连接关闭或 frame 无效时在进入业务用例前显式失败。
+
+## 2. 权限与标准化
+
+`internal/usecase/message` 处理当前业务权限：系统用户、频道状态、订阅关系、黑白名单、陌生人策略和可选插件 `BeforeSend`。单聊或命令频道标识会按请求语义标准化，但用例不导入 Gateway、Cluster 或 Channel 类型。
+
+批量发送保持逐项结果。被拒绝的 item 不进入追加路径，允许的 item 才交给配置好的 submitter。
+
+## 3. Channel Append Authority
+
+`internal/runtime/channelappend.Router` 根据规范化频道解析完整 authority target。只有目标节点创建该频道的产品级 append writer；其他节点通过 Channel Append RPC 转发整批请求，不创建本地代理 writer。
+
+authority writer：
+
+- 再次校验频道与 target 的 hash slot、Leader 和 epoch；
+- 对 sender、client message number 和频道执行幂等处理；
+- 分配消息 ID 和服务端时间；
+- 受每频道 backlog、全局 worker 和 post-commit handoff capacity 限制；
+- 保持同频道 item 的提交与完成顺序。
+
+## 4. Channel quorum commit
+
+Cluster Channel service 读取并应用最新 `ChannelRuntimeMeta`。本节点不是 Channel Leader 时，追加会转发到 Leader；Leader 在 reactor 中检查 `Epoch`、`LeaderEpoch` 和 `WriteFence`，然后执行本地 durable append 与 ISR 复制。
+
+只有 HW 覆盖本次记录，quorum append Future 才成功。每个结果返回已持久化的 message ID 和频道 sequence。
+
+<Callout type="info" title="SENDACK 的含义">
+  默认持久化消息的成功 SENDACK 表示频道权威路径作出了 durable quorum commit 决定。它不表示所有接收者在线、所有客户端已经 RECVACK、Webhook 已处理或业务数据库已经更新。
+</Callout>
+
+如果客户端在 SENDACK 前断线，应使用稳定 `client_msg_no` 和查询/同步能力判断结果；不能仅凭网络超时推断消息未提交。
+
+## 5. 提交后副作用
+
+新 commit 在 authority writer 中形成 immutable `CommittedEnvelope`。这些工作在 SENDACK 之外独立调度：
+
+1. 普通消息生成 normal conversation active projection；命令同步消息使用独立 kind。
+2. 单聊推导参与者；普通频道加载版本化订阅快照；大群按 cursor 分页。
+3. 发送者与接收者 UID 在同一个路由快照下解析为 exact presence targets。
+4. 有界 `RecipientDeliveryPlan` 按 authority target 分组进入在线投递 runtime。
+5. 在线路由再按 owner node 合并；本地写 Session，远端通过 owner-push RPC。
+6. 可选 PersistAfter plugin 和 Webhook 从同一已提交边界获得尽力而为事件。
+
+一个接收者组失败不会改变已成功的 SENDACK，也不应阻塞不相关 target。失败会以阶段化日志和指标暴露。
+
+## 6. 接收与确认
+
+owner 节点在写 `RECV` 前重新验证 UID、Boot ID、Session ID 和 owner fence，并为需要确认的投递绑定有界 ACK 状态。客户端 `RECVACK` 只清理匹配的 owner-local pending identity；Session 关闭会清理该会话的状态。
+
+消息历史的 durable committed 状态与某个客户端是否已经 RECVACK 是不同维度。接收 ACK 不能回写或改变 Channel commit 顺序。
+
+## NoPersist 分支
+
+普通非命令频道的 `NoPersist`（没有 `SyncOnce`，频道 ID 也不是命令频道）只完成无副作用的预路由校验，然后直接返回终态成功；它不会解析 authority、写入 Channel，也不会触发实时投递。这个兼容分支不能当作在线消息发送能力。
+
+命令式 `NoPersist`（带 `SyncOnce` 或已经使用命令频道 ID）才会映射命令频道、解析 authority，并按 writer 顺序进入在线 recipient routing。它跳过 Channel durable log、conversation projection 和 PersistAfter，只有在线投递计划成功入队后才返回成功；没有在线投递能力时会失败，而不是伪造成功。
+
+两种 `NoPersist` 都没有持久化 sequence 与离线恢复保证，不能用作必须可靠重放的业务事件。
+
+## 常见失败定位
+
+| 现象 | 先看边界 |
+| --- | --- |
+| 没有 SENDACK | Gateway queue、权限、authority route、Channel append/HW |
+| SENDACK 成功但对端未收到 | subscriber page、presence target、delivery plan、owner push、Session |
+| 只有部分设备收到 | exact routes、Boot/Session fence、设备冲突与本地写错误 |
+| Webhook 失败但消息存在 | PersistAfter/Webhook queue 与接收端，不回滚 Channel |
+| 重试后出现重复 | `client_msg_no` 稳定性、幂等作用域和超时结果判断 |
+
+使用[故障排查](/zh/server/operations/troubleshooting)的证据阶梯逐层缩小范围，不要从最终“未显示”直接推断 Channel 没有提交。
+
+## 源码入口
+
+| 阶段 | 入口 |
+| --- | --- |
+| 客户端 frame 与接入适配 | `pkg/gateway`, `internal/access/gateway` |
+| 权限与发送用例 | `internal/usecase/message` |
+| 产品 append authority | `internal/runtime/channelappend` |
+| Cluster/Channel 提交 | `pkg/cluster/channels`, `pkg/channel` |
+| 在线投递与 ACK | `internal/runtime/delivery`, `internal/runtime/online` |
+
+继续阅读[用户连接路由](/zh/server/architecture/user-routing)，深入理解提交后投递如何找到真实 Session。

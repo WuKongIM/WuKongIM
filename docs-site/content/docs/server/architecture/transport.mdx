@@ -1,0 +1,104 @@
+---
+title: Transport 网络层
+description: 区分客户端 Gateway 与节点间 Transport，并理解 RPC、优先级、队列和背压。
+---
+
+WuKongIM 有两个容易混淆的网络边界：客户端通过 Gateway 的 TCP/WebSocket 接入，集群节点通过独立的节点 Transport 交换 Controller、Slot、Channel 和内部 RPC 流量。它们使用不同端口、协议、身份和容量限制。
+
+## 两个网络平面
+
+| 平面 | 对端 | 主要协议 | 入口 |
+| --- | --- | --- | --- |
+| 客户端 Gateway | SDK、Chat Demo、终端应用 | WKProto over TCP/WebSocket | `pkg/gateway`, `pkg/gateway/transport/gnet` |
+| 节点间 Transport | WuKongIM 节点 | 有帧 TCP、typed RPC/notify/Raft | `pkg/transport`, `pkg/cluster/net` |
+
+HTTP API 与 Manager 又是独立的服务入口。不要把客户端 Token、Manager JWT、Join Token 和节点发现地址当成同一套认证材料。
+
+## 节点间传输结构
+
+```text
+调用方
+  │
+  ├─ Call(node, service, payload) ──► RPC request / response
+  ├─ Send(node, service, payload) ──► one-way notification
+  └─ Raft / replication adapter ────► ordered service lane
+                 │
+                 ▼
+        peer discovery + connection pool
+                 │
+        bounded per-connection scheduler
+                 │
+                 ▼
+           framed TCP connection
+                 │
+                 ▼
+      remote service queue + bounded executor
+```
+
+每个 frame 带有 kind、priority、service ID、request ID 和 body length。Cluster adapter 把 Controller Raft、Slot Raft、状态同步、Channel 复制、前台 append、在线 owner push 等能力分配到固定 service ID；通用 Transport 不解释业务 payload。
+
+## 监听地址与发布地址
+
+- `listen_addr` 决定本节点绑定的位置，可以使用 `0.0.0.0` 或 `[::]` 接受连接。
+- `advertise_addr` 或静态节点表地址必须是其他节点能够实际访问的稳定端点。
+- 发现层以 node ID 解析远端地址，并为每个 peer 建立有限连接池。
+- Controller mirror、动态加入和早期启动可以使用 seed/static 地址，但 Controller 快照会提供持续的成员视图。
+
+把绑定地址发布为 peer 地址会产生“本机能监听、其他节点无法连接”的故障。配置细节见[网络与客户端接入](/zh/server/configuration/networking)。
+
+## 有界队列是正确性边界
+
+Transport 限制单 frame body、单连接排队条目/字节、batch frame/字节、服务队列、处理并发和写超时。达到边界时返回 backpressure 或关闭失败连接，让等待中的 RPC 明确醒来。
+
+<Callout type="warn" title="没有无限缓冲">
+  扩大网络队列会增加突发吸收能力，也会增加内存和最坏排队时间。持续过载必须降低输入、扩容或修复慢服务，不能通过无界 queue 隐藏。
+</Callout>
+
+## 优先级与顺序
+
+- Raft 与控制消息保持低等待，不参与普通 RPC 的短时 coalescing。
+- 前台 Channel append 服务可以使用更高的有界处理并发，但仍受 payload 和 queue 限制。
+- Raft protocol service 使用有序处理 lane，避免并发 handler 改变 peer 消息顺序。
+- Channel Pull/PullHint 可以按相同目标做小批量合并，但 batch 仍保留逐项结果和频道 fence。
+
+优先级只影响调度，不会让消息跳过权威检查，也不会把超时请求自动视为未执行。
+
+## 失败语义
+
+| 失败 | 调用方应做什么 |
+| --- | --- |
+| discovery 中没有 node | 保持 route-not-ready，重新读取控制视图 |
+| dial/connection 失败 | 在有界预算内重连；保留目标 node 和 service 上下文 |
+| queue/backpressure | 限流或稍后重试，不无限堆积 |
+| RPC context timeout | 结果可能未知；只对有幂等/fence 的操作按契约重试 |
+| service not found/version mismatch | 停止并检查制品兼容性，不切换到任意 service |
+| peer 关闭 | 连接 reader 关闭并唤醒 pending RPC，避免一直等待 |
+
+Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。Transport 自己不会猜测新的权威节点。
+
+## 安全边界
+
+节点 Transport 应只暴露在受控集群网络中，地址必须由可信配置或 Controller 状态提供。当前节点传输是内部 framed TCP，不应直接暴露到互联网；需要跨不可信网络时，应在外层提供经过审核的私网、隧道或等效保护。
+
+浏览器和客户端不得访问节点 Transport。产品 HTTP、Manager、Gateway、Operations MCP 和 Debug 各自需要独立的入口与最小权限控制，详见[安全与权限](/zh/server/configuration/security)。
+
+## 观察什么
+
+- peer 连接数、重连和 dial failure；
+- scheduler queue 条目与字节、batch 大小和等待；
+- typed RPC latency、timeout 和结果；
+- service queue、running/capacity 与 handler duration；
+- Channel replication 与 Raft 的分层错误，而不是只看总网络吞吐。
+
+诊断时把“Transport 已送达远端 service”和“远端状态机已经 commit”分开。前者不能证明后者。
+
+## 源码入口
+
+| 目标 | 入口 |
+| --- | --- |
+| 通用有界节点 Transport | `pkg/transport` |
+| Cluster typed RPC 与发现 | `pkg/cluster/net` |
+| Gateway 客户端 Transport | `pkg/gateway/transport` |
+| Controller/Slot/Channel 适配 | `pkg/cluster/control`, `pkg/cluster`, `pkg/cluster/channels` |
+
+继续阅读[消息发送链路](/zh/server/architecture/message-flow)，查看前台 append 和提交后投递如何跨越这些网络边界。
