@@ -57,7 +57,7 @@ go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
 
 ### 发送失败、延迟升高或出现积压
 
-- 先分开观察请求接入、SEND/SENDACK、Channel 追加、复制持久化和投递阶段。
+- 先分开观察请求接入、SEND/SENDACK、Channel 追加、复制持久化和投递阶段；[消息发送链路](/zh/server/architecture/message-flow)给出了这些边界的完整路径。
 - 查看错误率、分位延迟、有界队列的深度/拒绝/丢弃，以及节点偏斜和单频道热点。
 - 已知精确频道时使用点查；不要枚举频道目录。十万成员群组和高消息率下，平均延迟不能代表尾部或扇出成本。
 - 只有指标与日志已把问题缩小到 CPU、堆或 Goroutine 时，才在有界窗口抓取 pprof。
@@ -69,7 +69,7 @@ go run ./cmd/wkcli node ls --context production
 go run ./cmd/wkcli node diagnose 4 --context production --json
 ```
 
-保存健康新鲜度、控制修订、`blocked_reasons`、任务与 Slot 证据。不要因为诊断给出建议就强制迁移 Leader 或删除节点；缩容仍必须等待权威状态报告 `safe_to_remove=true`。完整流程见[扩容与缩容](/zh/server/operations/scaling)。
+保存健康新鲜度、控制修订、`blocked_reasons`、任务与 Slot 证据。不要因为诊断给出建议就强制迁移 Leader 或删除节点；缩容仍必须等待权威状态报告 `safe_to_remove=true`。先用 [Controller](/zh/server/architecture/controller) 与 [Slot](/zh/server/architecture/slots) 的权威边界解释观测，再按[扩容与缩容](/zh/server/operations/scaling)执行完整流程。
 
 ### 磁盘、存储或数据差异
 

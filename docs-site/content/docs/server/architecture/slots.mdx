@@ -1,0 +1,94 @@
+---
+title: Slot 元数据层
+description: 理解物理哈希槽、逻辑 Slot Raft Group、元数据路由和权威读写。
+---
+
+Slot 层是分布式元数据存储。用户、频道定义、订阅关系、会话投影和 `ChannelRuntimeMeta` 等状态按稳定物理哈希槽分片，再由逻辑 Slot Raft Group 复制和提交。
+
+## 两种 Slot 不要混用
+
+| 名称 | 默认数量 | 作用 |
+| --- | --- | --- |
+| 物理 Hash Slot | 256 | 稳定的键空间 fence；UID、Channel ID 等先哈希到这里 |
+| 逻辑 Slot Raft Group | 由 `initial_slot_count` 决定 | 承载一个或多个物理哈希槽的 Raft 复制与元数据状态机 |
+
+扩容通常迁移逻辑 Slot Group 的副本或 Leader，不改变 256 个物理哈希槽。只有显式启用并执行受控 Hash Slot migration 时，物理哈希槽到逻辑 Group 的映射才会变化。
+
+## 从键到权威 Leader
+
+```text
+key（UID / Channel ID / 业务元数据键）
+  │
+  ├─ CRC32(key) % 256
+  ▼
+physical hash slot
+  │
+  ├─ versioned HashToSlot table
+  ▼
+logical Slot Raft Group
+  │
+  ├─ observed Raft status
+  ▼
+LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision
+```
+
+路由表是不可变快照并原子替换，热路径可以在同一个版本下批量解析多个键。路由失败、映射缺失或没有实际 Leader 时返回 not-ready/unknown，而不是回退到任意节点。
+
+## Slot 保存哪些元数据
+
+- 用户、设备和系统 UID；
+- 频道定义、订阅者、黑白名单与成员关系；
+- 会话状态、未读/已读 cursor 和 active projection；
+- Channel Leader、Replicas、ISR、epoch、写 fence 与 retention 边界；
+- Channel migration task、插件绑定和有界消息事件投影。
+
+消息正文不属于 Slot；它们由 [Channel 消息层](/zh/server/architecture/channels) 的独立频道日志保存。
+
+## 元数据写入
+
+1. 调用方用 key 计算物理哈希槽，并从路由快照取得逻辑 Slot Group。
+2. 本地是当前 Leader 时进入 `Runtime.Propose`；否则通过有界 RPC 转发到解析出的 Leader。
+3. Multi-Raft 持久化并复制日志，在 quorum 后把已提交 entry 交给 Slot FSM。
+4. FSM 验证物理哈希槽确实归属该逻辑 Group，将一批命令写入一个 `pkg/db/meta` WriteBatch。
+5. WriteBatch 一次原子 commit，之后更新 durable applied boundary 并完成 Future。
+
+这条路径在单节点集群中仍然存在；区别只是 quorum 由一个 voter 满足，而不是绕过 Raft 和 FSM。
+
+## 权威读取与本地读取
+
+本地副本可以提供明确允许的节点本地或已应用读取。需要当前权威的用户、频道或运行时元数据时，代理会定位逻辑 Slot Group，遍历其 peers 并跟随 `not_leader` 返回的最新 Leader 提示。
+
+<Callout type="info" title="本地快照不是全局真相">
+  一个节点的 Pebble 数据、Raft 日志或 Slot 状态只说明该节点本地看到的边界。Manager 汇总视图必须保留节点、term、配置 epoch 和新鲜度，不能把单节点读取包装成全局一致快照。
+</Callout>
+
+## Preferred Leader 与实际 Leader
+
+Controller 为每个逻辑 Group 保存 desired peers、配置 epoch 和 preferred leader。Slot Multi-Raft 的实时 status 才提供当前 Leader、term、voters、learners、commit 和 match 进度。
+
+后台 preferred-leader 协调只有在意图仍然新鲜、成员完全匹配、目标最近活跃且追到 commit 时才尝试 transfer。任何 stale intent、joint config、落后或不活跃都保持现状，不会选择另一个候选节点“凑合”。
+
+## 副本迁移与恢复
+
+安全的副本迁移先把目标作为 learner 加入，等待其 catch-up，再提升并移除旧 voter，最后由 Controller 提交新的 assignment 和配置 epoch。Snapshot 允许新 learner 跨越已压缩日志；恢复时先安装 snapshot，再重放 snapshot index 之后的 committed entries。
+
+每个阶段都必须保留实际 Raft 证明。任务失败时保留现有成员和可观察状态，不直接编辑 `cluster-state.json` 或节点本地元数据。
+
+## 容量与背压
+
+- Multi-Raft 用有界 scheduler 和 worker 处理多个 Group；一个热 Group 不应获得无界队列。
+- FSM 批量应用以摊薄存储 commit，但 batch 仍受记录数、字节和等待时间限制。
+- 大 snapshot 在集群 transport 层分块，接收端重组后再交给 Slot runtime。
+- 队列满、Leader 变化或路由 revision 不匹配都应显式失败或重试，不能静默丢弃元数据写入。
+
+## 源码入口
+
+| 目标 | 入口 |
+| --- | --- |
+| 路由表 | `pkg/cluster/routing` |
+| Slot Multi-Raft | `pkg/slot/multiraft` |
+| 元数据状态机与代理 | `pkg/slot/fsm`, `pkg/slot/proxy` |
+| 本地元数据库 | `pkg/db/meta` |
+| Controller 到 Slot 的组合 | `pkg/cluster/slots`, `pkg/cluster/propose` |
+
+下一步阅读 [Channel 消息层](/zh/server/architecture/channels)，理解 Slot 元数据如何约束每个频道的消息副本。

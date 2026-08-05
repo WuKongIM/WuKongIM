@@ -61,4 +61,4 @@ Keep a measured baseline first. Test with production-like online users, message 
 
 Configuration is loaded at node startup; do not assume general hot reload unless a subsystem explicitly documents it. Change cluster configuration one node at a time: remove traffic, stop the node, update configuration, start it, wait for `/readyz`, restore traffic, and only then continue.
 
-Continue with [Networking & Client Access](/en/server/configuration/networking) to separate listen, peer-advertised, and client-advertised addresses.
+Read [Slot Architecture](/en/server/architecture/slots) to see how 256 physical hash slots route into logical Slot Raft Groups, then continue with [Networking & Client Access](/en/server/configuration/networking) to separate listen, peer-advertised, and client-advertised addresses.

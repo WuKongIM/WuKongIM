@@ -61,4 +61,4 @@ channel_replica_n = 1
 
 配置在节点启动时加载，除明确声明的子系统外不要假设支持热更新。集群配置变更应逐节点执行：移出流量、停止节点、更新配置、启动并等待 `/readyz` 返回就绪，再恢复流量并处理下一个节点。
 
-继续阅读[网络与客户端接入](/zh/server/configuration/networking)，区分监听地址、节点广告地址和客户端广告地址。
+阅读 [Slot 架构](/zh/server/architecture/slots)，理解 256 个物理哈希槽如何路由到逻辑 Slot Raft Group；再阅读[网络与客户端接入](/zh/server/configuration/networking)，区分监听地址、节点广告地址和客户端广告地址。

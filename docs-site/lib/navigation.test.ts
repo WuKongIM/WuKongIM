@@ -71,6 +71,22 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
+  test('publishes the complete server architecture path', () => {
+    const server = domains.find((domain) => domain.key === 'server');
+    const architecture = server?.groups.find((group) => group.slug === 'architecture');
+
+    expect(architecture?.status).toBe('published');
+    expect(architecture?.children.map((page) => page.slug)).toEqual([
+      'controller',
+      'slots',
+      'channels',
+      'transport',
+      'message-flow',
+      'user-routing',
+    ]);
+    expect(architecture?.children.every((page) => page.status === 'published')).toBe(true);
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -130,6 +146,13 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/tools/wkdb`,
         `/${locale}/server/tools/wkbench`,
         `/${locale}/server/tools/diagnostics`,
+        `/${locale}/server/architecture`,
+        `/${locale}/server/architecture/controller`,
+        `/${locale}/server/architecture/slots`,
+        `/${locale}/server/architecture/channels`,
+        `/${locale}/server/architecture/transport`,
+        `/${locale}/server/architecture/message-flow`,
+        `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
@@ -225,8 +248,20 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/tools/wkbench.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/tools/diagnostics.mdx')).toBe(true);
     expect(isPublishedContentPath('server/tools/diagnostics.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/architecture/controller.mdx')).toBe(false);
-    expect(isPublishedContentPath('server/architecture/controller.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/architecture/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/controller.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/controller.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/slots.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/slots.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/channels.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/channels.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/transport.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/transport.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/message-flow.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/message-flow.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/user-routing.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/user-routing.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
