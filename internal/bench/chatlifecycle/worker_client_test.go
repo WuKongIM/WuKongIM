@@ -185,6 +185,26 @@ func TestWorkerClientClassifiesTransportCancellationCausally(t *testing.T) {
 			t.Fatalf("Status() body error = %v, want stable ErrWorkerResponse", err)
 		}
 	})
+
+	t.Run("ordinary body error survives synchronous late cancel", func(t *testing.T) {
+		ordinaryErr := errors.New("injected ordinary body error before late cancel")
+		ctx, cancel := context.WithCancel(context.Background())
+		client, err := NewWorkerClient(WorkerClientConfig{
+			BaseURL: "http://worker.test", ControlToken: "control-secret",
+			HTTPClient: &http.Client{Transport: workerRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK, Header: make(http.Header),
+					Body: &cancelThenErrorWorkerResponseBody{cancel: cancel, err: ordinaryErr},
+				}, nil
+			})},
+		})
+		if err != nil {
+			t.Fatalf("NewWorkerClient() error = %v", err)
+		}
+		if _, err := client.Status(ctx); !errors.Is(err, ErrWorkerResponse) || errors.Is(err, context.Canceled) {
+			t.Fatalf("Status() body error = %v, want ErrWorkerResponse without context cancellation", err)
+		}
+	})
 }
 
 func TestWorkerClientOrdinaryTransportErrorRemainsCoordinatorStageEvidenceAfterCancel(t *testing.T) {
@@ -340,3 +360,15 @@ type errorWorkerResponseBody struct{ err error }
 
 func (b *errorWorkerResponseBody) Read([]byte) (int, error) { return 0, b.err }
 func (*errorWorkerResponseBody) Close() error               { return nil }
+
+type cancelThenErrorWorkerResponseBody struct {
+	cancel context.CancelFunc
+	err    error
+}
+
+func (b *cancelThenErrorWorkerResponseBody) Read([]byte) (int, error) {
+	b.cancel()
+	return 0, b.err
+}
+
+func (*cancelThenErrorWorkerResponseBody) Close() error { return nil }
