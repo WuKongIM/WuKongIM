@@ -104,6 +104,114 @@ func TestObserverRoundStartsAllNodesWithOneCadenceContext(t *testing.T) {
 	}
 }
 
+func TestObserverPublishesOneValidatedSameRoundSample(t *testing.T) {
+	cfg := LocalConfig()
+	fixture := newObserverFixture(cfg)
+	samples := make(chan ObserverSample, 1)
+	liveContexts := make(chan bool, 1)
+	fixture.observer.options.SampleSink = ObserverSampleSinkFunc(func(ctx context.Context, sample ObserverSample) error {
+		liveContexts <- ctx != nil && ctx.Err() == nil
+		samples <- sample
+		return nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	resultChannel := make(chan ObserverResult, 1)
+	go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+
+	var sample ObserverSample
+	select {
+	case sample = <-samples:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("observer did not publish the validated round")
+	}
+	if sample.At != time.Unix(1_000, 0) || !sample.ServiceHealthy || !sample.ClusterHealthy ||
+		sample.LeaderImbalanced || sample.LogicalSlotGroups != 12 || sample.LeaderGroups != 12 ||
+		sample.FullReplicaGroups != 12 || sample.HotReplicaLagBreaches != 0 {
+		t.Fatalf("observer sample = %+v", sample)
+	}
+	for index, node := range sample.Nodes {
+		if node.NodeID != uint64(index+1) {
+			t.Fatalf("sample node %d = %+v", index, node)
+		}
+	}
+	if !<-liveContexts {
+		t.Fatal("sample sink did not receive the live round context")
+	}
+	sample.Nodes[0].Slots[0].LeaderID = 99
+	if fixture.targets[0].cluster.Slots[0].LeaderID == 99 {
+		t.Fatal("sample retained mutable target snapshot storage")
+	}
+
+	cancel()
+	if result := <-resultChannel; result.Outcome != ObserverStopped {
+		t.Fatalf("result = %+v, want stopped", result)
+	}
+}
+
+func TestObserverPublishesNoSampleForAnIncompleteClusterRound(t *testing.T) {
+	cfg := LocalConfig()
+	fixture := newObserverFixture(cfg)
+	fixture.targets[2].mutate(func(snapshot *target.DebugCluster) { snapshot.NodeID = 2 })
+	samples := make(chan ObserverSample, 1)
+	fixture.observer.options.SampleSink = ObserverSampleSinkFunc(func(_ context.Context, sample ObserverSample) error {
+		samples <- sample
+		return nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	resultChannel := make(chan ObserverResult, 1)
+	go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+	fixture.waitPoll(t)
+	select {
+	case sample := <-samples:
+		cancel()
+		t.Fatalf("incomplete cluster published sample = %+v", sample)
+	default:
+	}
+	cancel()
+	if result := <-resultChannel; result.Outcome != ObserverStopped {
+		t.Fatalf("result = %+v, want stopped", result)
+	}
+}
+
+func TestObserverJoinsCanceledSampleSinkAndRedactsItsErrors(t *testing.T) {
+	t.Run("parent cancellation", func(t *testing.T) {
+		cfg := LocalConfig()
+		fixture := newObserverFixture(cfg)
+		started := make(chan struct{}, 1)
+		returned := make(chan struct{}, 1)
+		fixture.observer.options.SampleSink = ObserverSampleSinkFunc(func(ctx context.Context, _ ObserverSample) error {
+			started <- struct{}{}
+			<-ctx.Done()
+			returned <- struct{}{}
+			return ctx.Err()
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		resultChannel := make(chan ObserverResult, 1)
+		go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+		<-started
+		cancel()
+		if result := <-resultChannel; result.Outcome != ObserverStopped || result.Code != ObserverCodeStopped {
+			t.Fatalf("result = %+v, want stopped", result)
+		}
+		if len(returned) != 1 {
+			t.Fatal("observer returned before the canceled sample sink joined")
+		}
+	})
+
+	t.Run("ordinary sink error", func(t *testing.T) {
+		cfg := LocalConfig()
+		fixture := newObserverFixture(cfg)
+		fixture.observer.options.SampleSink = ObserverSampleSinkFunc(func(context.Context, ObserverSample) error {
+			return errors.New("sink leaked bench-token")
+		})
+		result := fixture.observer.Run(context.Background(), cfg)
+		if result.Outcome != ObserverHarnessInvalid || result.Code != ObserverCodeEvidence {
+			t.Fatalf("result = %+v, want harness_invalid/evidence", result)
+		}
+	})
+}
+
 func TestObserverRoundTimeoutIsCappedWithoutChangingCadence(t *testing.T) {
 	tests := []struct {
 		name    string

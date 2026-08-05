@@ -2,6 +2,7 @@ package chatlifecycle
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -30,12 +31,39 @@ const (
 	ObserverCodeServiceHealth   ObserverCode = "service_health"
 	ObserverCodeClusterHealth   ObserverCode = "cluster_health"
 	ObserverCodeLeaderImbalance ObserverCode = "leader_imbalance"
+	ObserverCodeEvidence        ObserverCode = "evidence"
 )
 
 // ObserverResult contains no raw endpoint response, identity, or credential value.
 type ObserverResult struct {
 	Outcome ObserverOutcome `json:"outcome"`
 	Code    ObserverCode    `json:"code"`
+}
+
+// ObserverSample is one complete, same-round, three-node cluster projection.
+// Nodes are deep copies and may be retained by a read-only consumer.
+type ObserverSample struct {
+	At                    time.Time
+	Nodes                 [coordinatorWorkerCount]target.DebugCluster
+	ServiceHealthy        bool
+	ClusterHealthy        bool
+	LeaderImbalanced      bool
+	LogicalSlotGroups     uint64
+	LeaderGroups          uint64
+	FullReplicaGroups     uint64
+	HotReplicaLagBreaches uint64
+}
+
+// ObserverSampleSink consumes validated observer rounds without owning polling.
+type ObserverSampleSink interface {
+	Observe(context.Context, ObserverSample) error
+}
+
+// ObserverSampleSinkFunc adapts a function to ObserverSampleSink.
+type ObserverSampleSinkFunc func(context.Context, ObserverSample) error
+
+func (f ObserverSampleSinkFunc) Observe(ctx context.Context, sample ObserverSample) error {
+	return f(ctx, sample)
 }
 
 // ClusterHealthTarget is the node-local service and Slot observation boundary.
@@ -71,6 +99,8 @@ type ObserverOptions struct {
 	// is health-critical. Empty means every configured logical Slot group is hot.
 	HotSlotGroups []uint32
 	TargetFactory func(int, EndpointDeclaration, string) ClusterHealthTarget
+	// SampleSink receives only complete three-node rounds after cluster merging.
+	SampleSink ObserverSampleSink
 }
 
 // Observer polls all declared service nodes and owns only continuous-window state.
@@ -148,6 +178,7 @@ func (o *Observer) poll(
 	if roundCtx == nil || cancel == nil {
 		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
 	}
+	defer cancel()
 	type nodeResult struct {
 		serviceHealthy bool
 		snapshot       target.DebugCluster
@@ -155,7 +186,6 @@ func (o *Observer) poll(
 	}
 	const serviceNodeCount = 3
 	if len(targets) != serviceNodeCount {
-		cancel()
 		return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
 	}
 	results := make([]nodeResult, serviceNodeCount)
@@ -183,7 +213,6 @@ func (o *Observer) poll(
 		}()
 	}
 	joined.Wait()
-	cancel()
 	now := o.options.Clock.Now()
 
 	serviceHealthy := true
@@ -196,28 +225,77 @@ func (o *Observer) poll(
 			snapshots = append(snapshots, result.snapshot)
 		}
 	}
-	if updateContinuousWindow(&windows.serviceUnhealthySince, !serviceHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
-		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}, true
-	}
-
 	cluster, err := mergeClusterObservations(snapshots, cfg)
 	clusterHealthy := err == nil
+	var hotReplicaLagBreaches uint64
 	if clusterHealthy {
 		hotHealthy, valid := hotSlotProgressHealthy(cluster, o.options.HotSlotGroups)
 		if !valid {
 			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}, true
 		}
 		clusterHealthy = hotHealthy
+		hotReplicaLagBreaches = observerHotReplicaLagBreaches(cluster, o.options.HotSlotGroups)
+	}
+	imbalanced := err == nil && leaderImbalanced(cluster.leaderCounts, len(cluster.slots), cfg.Thresholds.Cluster.LeaderImbalancePercent)
+	if err == nil && o.options.SampleSink != nil {
+		var nodes [coordinatorWorkerCount]target.DebugCluster
+		for index := range results {
+			nodes[index] = cloneObserverDebugCluster(results[index].snapshot)
+		}
+		sample := ObserverSample{
+			At: now, Nodes: nodes, ServiceHealthy: serviceHealthy, ClusterHealthy: clusterHealthy,
+			LeaderImbalanced: imbalanced, LogicalSlotGroups: uint64(len(cluster.slots)),
+			LeaderGroups: uint64(len(cluster.slots)), FullReplicaGroups: uint64(len(cluster.slots)),
+			HotReplicaLagBreaches: hotReplicaLagBreaches,
+		}
+		if sinkErr := o.options.SampleSink.Observe(roundCtx, sample); sinkErr != nil {
+			if ctx.Err() != nil && errors.Is(sinkErr, ctx.Err()) {
+				return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}, true
+			}
+			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeEvidence}, true
+		}
+	}
+	if updateContinuousWindow(&windows.serviceUnhealthySince, !serviceHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
+		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}, true
 	}
 	if updateContinuousWindow(&windows.clusterUnhealthySince, !clusterHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
 		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeClusterHealth}, true
 	}
 
-	imbalanced := err == nil && leaderImbalanced(cluster.leaderCounts, len(cluster.slots), cfg.Thresholds.Cluster.LeaderImbalancePercent)
 	if updateContinuousWindow(&windows.leaderImbalancedSince, imbalanced, now, cfg.Thresholds.Cluster.LeaderImbalanceFor) {
 		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeLeaderImbalance}, true
 	}
 	return ObserverResult{}, false
+}
+
+func observerHotReplicaLagBreaches(observation mergedClusterObservation, declared []uint32) uint64 {
+	selected := make(map[uint32]struct{}, len(declared))
+	for _, slotID := range declared {
+		selected[slotID] = struct{}{}
+	}
+	var breaches uint64
+	for _, slot := range observation.slots {
+		if len(selected) > 0 {
+			if _, ok := selected[slot.slotID]; !ok {
+				continue
+			}
+		}
+		if !slot.progressHealthy {
+			breaches++
+		}
+	}
+	return breaches
+}
+
+func cloneObserverDebugCluster(snapshot target.DebugCluster) target.DebugCluster {
+	clone := snapshot
+	clone.Slots = append([]target.ClusterSlot(nil), snapshot.Slots...)
+	for index := range clone.Slots {
+		clone.Slots[index].Replicas = append([]uint64(nil), snapshot.Slots[index].Replicas...)
+		clone.Slots[index].Voters = append([]uint64(nil), snapshot.Slots[index].Voters...)
+		clone.Slots[index].ReplicaProgress = append([]target.ReplicaProgress(nil), snapshot.Slots[index].ReplicaProgress...)
+	}
+	return clone
 }
 
 func validHotSlotDeclaration(slotIDs []uint32, maximum int) bool {
