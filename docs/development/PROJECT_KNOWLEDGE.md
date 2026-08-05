@@ -396,6 +396,19 @@
   client-side read progress. A 100,000-member workflow uses checkpointed
   application batches and post-commit paged fanout rather than one full-member
   request.
+- Phase 11 public scenario tutorials keep mobile push provider integration,
+  AI execution, and device business outcomes application-owned. `msg.offline`
+  is a UID-level candidate emitted only for ordinary durable messages through a
+  bounded best-effort webhook; it is neither per-device state nor a provider
+  receipt. Candidate collection precedes sender-echo suppression, so product
+  push policy filters sender and service identities. Message events anchor to a committed `setting=2` base message;
+  active deltas may be cache-only until terminal projection, and no public
+  fine-grained event sync exists. Recoverable `SyncOnce` commands use a stable
+  source Channel and require recipient CMD binding before SEND; request-scoped
+  recipients do not create discovery membership. `NoPersist + SyncOnce` is
+  online-only. Group telemetry requires an existing Channel and sender
+  membership; neither protocol ACKs nor sync cursors prove that a device
+  executed the business operation.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level

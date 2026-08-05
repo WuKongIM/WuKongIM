@@ -12,6 +12,8 @@ Scenario tutorials begin with a product outcome and connect the product service,
 <Cards>
   <Card title="Direct Chat" description="Connect identity, person-Channel messaging, offline recovery, unread state, and multi-device verification." href="/en/guide/tutorials/direct-chat" />
   <Card title="Groups & Large Groups" description="Connect group membership, group messages, churn, and 100,000-member capacity boundaries." href="/en/guide/tutorials/large-groups" />
+  <Card title="Message Push" description="Build recoverable notifications with offline webhooks, a product outbox, and providers." href="/en/guide/tutorials/push" />
+  <Card title="AI & IoT Communication" description="Combine AI stream projections, telemetry, durable commands, and business receipts." href="/en/guide/tutorials/ai-and-iot" />
 </Cards>
 
 ## Choose a path
@@ -21,6 +23,9 @@ Scenario tutorials begin with a product outcome and connect the product service,
 | Two users exchange messages | [Direct Chat](/en/guide/tutorials/direct-chat) | Use the peer UID; the server derives the canonical person Channel |
 | Ordinary group chat | [Groups & Large Groups](/en/guide/tutorials/large-groups) | The product owns group lifecycle and membership; WuKongIM owns the message log |
 | A 100,000-member community or room | [Groups & Large Groups](/en/guide/tutorials/large-groups#scale-to-100000-members) | Batched reconciliation, paged post-commit fanout, and hotspot capacity testing |
+| Offline mobile notification | [Message Push](/en/guide/tutorials/push) | The webhook produces candidates; the product outbox and provider receipts own reliability |
+| Streaming AI answer | [AI & IoT Communication](/en/guide/tutorials/ai-and-iot#ai-create-a-durable-stream-anchor) | Commit the base first, persist terminal projection, and keep live token streaming product-owned |
+| Device telemetry and control | [AI & IoT Communication](/en/guide/tutorials/ai-and-iot#iot-send-bounded-telemetry) | A command-sync cursor is not proof of business execution |
 
 ## Shared success model
 
@@ -36,4 +41,4 @@ SDK SEND or trusted HTTP send
 
 Treat “message committed,” “one Session received online delivery,” “the user's unread projection changed,” and “the business action completed” as four different outcomes. Strong business consistency belongs in the product service with its database, idempotency keys, and compensation workflow.
 
-Message Push and AI/IoT tutorials remain planned. For now, continue with [Use Cases](/en/guide/product-overview/use-cases) and [Integration Architecture](/en/guide/integration/architecture).
+All four scenario tutorials are now published. Continue with [Use Cases](/en/guide/product-overview/use-cases), [Integration Architecture](/en/guide/integration/architecture), and [Messaging](/en/guide/integration/messaging) to turn these examples into your own product protocol and reliability targets.

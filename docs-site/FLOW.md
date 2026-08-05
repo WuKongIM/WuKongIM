@@ -105,6 +105,22 @@ content/docs/**/*.mdx
   100,000-member request or a context-free capacity promise. `ClearUnread`
   advances to the newest server-visible message and MUST NOT be documented as
   an exact client-supplied read-sequence update.
+- Phase 11 completes the scenario tutorials with Message Push and AI & IoT.
+  Push guidance MUST keep mobile-provider delivery in the product service:
+  `msg.offline` is a UID-level, durable-ordinary-message candidate emitted by
+  a bounded best-effort webhook, not a device-level or provider receipt.
+  Offline candidates are collected before sender-echo suppression, so product
+  policy MUST filter sender and service identities before provider work.
+  Stream guidance MUST anchor events to a successfully committed `setting=2`
+  base message, preserve stable event IDs, distinguish cache-only deltas from
+  terminal durable projection, and state that fine-grained event sync is not
+  public. IoT guidance MUST distinguish durable `SyncOnce` command recovery
+  from command-style transient `NoPersist`; recoverable commands MUST use a
+  stable source Channel with recipient `/message/cmd/bind` completed before
+  SEND because request-scoped recipients do not create discovery membership.
+  Group telemetry examples MUST provision the Channel and sender membership
+  before SEND; protocol ACK and sync cursors do not prove device-side business
+  execution.
 
 ## Static delivery
 

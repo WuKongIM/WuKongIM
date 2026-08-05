@@ -111,7 +111,7 @@ describe('documentation navigation contract', () => {
     expect(integration?.children.find((page) => page.slug === 'plugins')?.status).toBe('published');
   });
 
-  test('publishes the first scenario tutorial tranche', () => {
+  test('publishes the complete scenario tutorial set', () => {
     const guide = domains.find((domain) => domain.key === 'guide');
     const tutorials = guide?.groups.find((group) => group.slug === 'tutorials');
 
@@ -119,8 +119,8 @@ describe('documentation navigation contract', () => {
     expect(tutorials?.children.map((page) => [page.slug, page.status])).toEqual([
       ['direct-chat', 'published'],
       ['large-groups', 'published'],
-      ['push', 'planned'],
-      ['ai-and-iot', 'planned'],
+      ['push', 'published'],
+      ['ai-and-iot', 'published'],
     ]);
   });
 
@@ -168,6 +168,8 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/tutorials`,
         `/${locale}/guide/tutorials/direct-chat`,
         `/${locale}/guide/tutorials/large-groups`,
+        `/${locale}/guide/tutorials/push`,
+        `/${locale}/guide/tutorials/ai-and-iot`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
         `/${locale}/server/deployment/choosing`,
@@ -330,10 +332,10 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/large-groups.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/tutorials/large-groups.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/tutorials/push.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/push.en.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/push.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/push.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.en.mdx')).toBe(true);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
   });
 });
