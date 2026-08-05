@@ -1,0 +1,39 @@
+---
+title: 场景教程
+description: 把身份、Channel、消息、会话与规模约束组合成可落地的业务流程。
+---
+
+场景教程从业务目标出发，把业务服务、客户端 SDK 与 WuKongIM 集群串成端到端路径。它们不是 API 字段全集，而是帮助你确定职责、顺序、成功条件和故障补偿。
+
+<Callout type="warn" title="先建立受信边界">
+  教程中的 HTTP 命令只应由本地开发环境或受信业务服务调用。当前产品 HTTP 路由没有通用业务鉴权中间件，浏览器和移动端不能直接持有这些管理能力。
+</Callout>
+
+<Cards>
+  <Card title="单聊" description="完成身份接入、个人 Channel 消息、离线恢复、会话未读与多设备验证。" href="/zh/guide/tutorials/direct-chat" />
+  <Card title="群聊与超大群" description="完成群成员维护、群消息、成员变更与十万成员容量边界。" href="/zh/guide/tutorials/large-groups" />
+</Cards>
+
+## 如何选择
+
+| 目标 | 从这里开始 | 最重要的边界 |
+| --- | --- | --- |
+| 两个用户互发消息 | [单聊](/zh/guide/tutorials/direct-chat) | 使用对端 UID，canonical person Channel 由服务端生成 |
+| 普通群聊 | [群聊与超大群](/zh/guide/tutorials/large-groups) | 业务系统维护群生命周期和成员，WuKongIM 维护消息日志 |
+| 十万成员社区或房间 | [群聊与超大群](/zh/guide/tutorials/large-groups#扩展到十万成员) | 成员分批协调、提交后分页 Fan-out、热点容量验证 |
+
+## 所有教程共用的成功模型
+
+```text
+业务授权 / 成员状态
+        |
+        v
+SDK SEND 或受信 HTTP send
+        -> Channel quorum commit -> SENDACK / reason=1
+        -> 在线投递 / 会话投影 / Webhook / 插件
+        -> 重连后按持久日志同步
+```
+
+把“消息已提交”“某个 Session 已在线收到”“用户会话未读已更新”和“业务动作已完成”作为四种不同结果。需要强一致业务结果时，由业务服务使用自己的数据库、幂等键和补偿流程完成。
+
+消息推送以及 AI/IoT 教程仍在规划中。当前可以先阅读[适用场景](/zh/guide/product-overview/use-cases)和[集成架构](/zh/guide/integration/architecture)。

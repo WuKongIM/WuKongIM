@@ -326,6 +326,19 @@
   Send hooks are synchronous and fail closed by default, while Receive and
   PersistAfter are post-commit effects; Slot-owned UID bindings do not prove a
   compatible plugin is running on every node.
+- Phase 10 public scenario tutorials treat direct and group chat as product
+  workflows over the same cluster semantics. Direct chat supplies the peer UID
+  with `channel_type=1` and leaves canonical person-Channel derivation to the
+  server. Group chat uses a product-owned group ID with `channel_type=2`; the
+  product service owns the membership source of truth and reconciles
+  subscribers through bounded requests. Current product HTTP routes remain a
+  trusted service-side boundary. Durable SEND success proves Channel quorum
+  commit, not complete fanout, RECVACK, conversation projection, or a business
+  result. `ClearUnread` advances through the newest server-visible Channel
+  message; its optional request sequence is only a fallback, not exact
+  client-side read progress. A 100,000-member workflow uses checkpointed
+  application batches and post-commit paged fanout rather than one full-member
+  request.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level

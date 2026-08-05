@@ -21,7 +21,9 @@ materialization, 256 physical hash-slot routing into logical Slot Raft Groups,
 Channel quorum commit, bounded transport, the end-to-end send flow, and
 target-fenced online routing. Phase 9 completes the guide foundation with
 workload-qualified capabilities and use cases, precise cluster/message/Channel/
-user/conversation concepts, and the current node-local plugin boundary.
+user/conversation concepts, and the current node-local plugin boundary. Phase
+10 publishes the first scenario tutorials: direct chat plus group chat through
+bounded 100,000-member membership and fanout workflows.
 
 ## Develop
 
@@ -63,4 +65,5 @@ scope, `PHASE_5_SPEC.md` defines the server-configuration scope, and
 `PHASE_6_SPEC.md` defines the server-operations scope. `PHASE_7_SPEC.md`
 defines troubleshooting and official-tool boundaries. `PHASE_8_SPEC.md`
 defines the current server-architecture boundaries. `PHASE_9_SPEC.md` defines
-the guide-foundation and plugin boundaries.
+the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
+direct-chat and group-tutorial boundaries.

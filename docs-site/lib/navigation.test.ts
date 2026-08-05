@@ -111,6 +111,19 @@ describe('documentation navigation contract', () => {
     expect(integration?.children.find((page) => page.slug === 'plugins')?.status).toBe('published');
   });
 
+  test('publishes the first scenario tutorial tranche', () => {
+    const guide = domains.find((domain) => domain.key === 'guide');
+    const tutorials = guide?.groups.find((group) => group.slug === 'tutorials');
+
+    expect(tutorials?.status).toBe('published');
+    expect(tutorials?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['direct-chat', 'published'],
+      ['large-groups', 'published'],
+      ['push', 'planned'],
+      ['ai-and-iot', 'planned'],
+    ]);
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -152,6 +165,9 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/integration/messaging`,
         `/${locale}/guide/integration/webhooks`,
         `/${locale}/guide/integration/plugins`,
+        `/${locale}/guide/tutorials`,
+        `/${locale}/guide/tutorials/direct-chat`,
+        `/${locale}/guide/tutorials/large-groups`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
         `/${locale}/server/deployment/choosing`,
@@ -308,8 +324,16 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/architecture/message-flow.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/architecture/user-routing.mdx')).toBe(true);
     expect(isPublishedContentPath('server/architecture/user-routing.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/large-groups.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/large-groups.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/push.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/push.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
   });
 });

@@ -1,0 +1,39 @@
+---
+title: Tutorials
+description: Combine identity, Channels, messages, conversations, and scale boundaries into deployable product flows.
+---
+
+Scenario tutorials begin with a product outcome and connect the product service, client SDK, and WuKongIM cluster into one end-to-end path. They are not exhaustive API references; they establish responsibilities, ordering, success criteria, and compensation boundaries.
+
+<Callout type="warn" title="Establish a trusted boundary first">
+  HTTP commands in these tutorials are for local development or a trusted product service. Current product HTTP routes have no general product-authentication middleware. Browsers and mobile clients must not hold these management capabilities directly.
+</Callout>
+
+<Cards>
+  <Card title="Direct Chat" description="Connect identity, person-Channel messaging, offline recovery, unread state, and multi-device verification." href="/en/guide/tutorials/direct-chat" />
+  <Card title="Groups & Large Groups" description="Connect group membership, group messages, churn, and 100,000-member capacity boundaries." href="/en/guide/tutorials/large-groups" />
+</Cards>
+
+## Choose a path
+
+| Goal | Start here | Most important boundary |
+| --- | --- | --- |
+| Two users exchange messages | [Direct Chat](/en/guide/tutorials/direct-chat) | Use the peer UID; the server derives the canonical person Channel |
+| Ordinary group chat | [Groups & Large Groups](/en/guide/tutorials/large-groups) | The product owns group lifecycle and membership; WuKongIM owns the message log |
+| A 100,000-member community or room | [Groups & Large Groups](/en/guide/tutorials/large-groups#scale-to-100000-members) | Batched reconciliation, paged post-commit fanout, and hotspot capacity testing |
+
+## Shared success model
+
+```text
+product authorization / membership state
+        |
+        v
+SDK SEND or trusted HTTP send
+        -> Channel quorum commit -> SENDACK / reason=1
+        -> online delivery / conversation projection / webhook / plugin
+        -> reconnect sync from the durable log
+```
+
+Treat “message committed,” “one Session received online delivery,” “the user's unread projection changed,” and “the business action completed” as four different outcomes. Strong business consistency belongs in the product service with its database, idempotency keys, and compensation workflow.
+
+Message Push and AI/IoT tutorials remain planned. For now, continue with [Use Cases](/en/guide/product-overview/use-cases) and [Integration Architecture](/en/guide/integration/architecture).

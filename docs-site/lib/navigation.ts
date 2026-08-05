@@ -362,21 +362,21 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'tutorials',
         '场景教程',
         'Tutorials',
         '提供面向典型业务场景的端到端方案。',
         'Provides end-to-end solutions for representative product scenarios.',
         [
-          plannedPage(
+          publishedPage(
             'direct-chat',
             '单聊',
             'Direct Chat',
             '实现用户、单聊频道、消息、未读数和多设备同步。',
             'Implements users, direct channels, messages, unread counts, and multi-device sync.',
           ),
-          plannedPage(
+          publishedPage(
             'large-groups',
             '群聊与超大群',
             'Groups & Large Groups',

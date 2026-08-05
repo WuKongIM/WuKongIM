@@ -1,0 +1,108 @@
+---
+title: Direct Chat
+description: Implement durable messages, online delivery, offline sync, unread state, and multi-device recovery between two users.
+---
+
+This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state in a UID-owned conversation projection.
+
+## Before you start
+
+- Complete [Start a Single-node Cluster](/en/guide/quick-start/single-node-cluster) or prepare a test cluster.
+- Understand the current Beta limits in [Authentication](/en/guide/integration/authentication).
+- Run HTTP examples only locally or inside a protected product-service network.
+
+```text
+Alice product session                         Bob product session
+        |                                             |
+        +-> SDK CONNECT -> Gateway       Gateway <- CONNECT <-+
+        |                                             |
+        +-> SEND peer=bob, type=1                    |
+                    -> canonical person Channel      |
+                    -> quorum commit -> SENDACK       |
+                    -> Bob RECV / offline sync -------+
+```
+
+## 1. Establish product identities
+
+The product service owns account login, friendship, bans, and content policy. Choose stable UIDs for the two test users; do not substitute a nickname, connection ID, or device ID for the UID.
+
+A local compatibility environment can store device-token metadata:
+
+```bash
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"alice","token":"alice-local-only","device_flag":0,"device_level":1}'
+```
+
+<Callout type="error" title="This does not prove production authentication">
+  The default v3 Beta Gateway does not automatically validate every CONNECT against stored tokens. Before production, install an explicit credential validator and prove that invalid, expired, and revoked tokens cannot connect.
+</Callout>
+
+Store separate metadata for Bob, then connect both clients with their own UID, device identity, and token. If no SDK integration exists yet, use the [embedded Chat Demo](/en/guide/quick-start/first-message) to validate two browser sessions first.
+
+## 2. Send a person message
+
+The client uses the **peer UID** as `channel_id` and sets `channel_type=1`. Do not construct or persist the internal canonical person Channel ID; the server normalizes it from sender and receiver UIDs.
+
+A trusted product service can send with the same semantics:
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"bob",
+    "channel_type":1,
+    "client_msg_no":"dm-alice-bob-0001",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGV4dCIsInRleHQiOiJoZWxsbyBCb2IifQ=="
+  }'
+```
+
+Retain a stable, unique `client_msg_no`. If the network outcome is unclear, retry the same logical send with the same number instead of creating a duplicate with a new number. HTTP `reason=1` means the durable send reached Channel quorum commit; it does not mean every Bob device received it.
+
+## 3. Verify online and offline results
+
+An online Bob should receive `RECV` and send `RECVACK` after processing it. Verify the durable log through the compatibility sync route; a person-Channel query still uses the peer UID:
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/messagesync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "login_uid":"bob",
+    "channel_id":"alice",
+    "channel_type":1,
+    "start_message_seq":0,
+    "limit":20,
+    "pull_mode":1
+  }'
+```
+
+The response maps `channel_id` back to `alice`; `message_seq` is ordered only within this person Channel. Merge online delivery and reconnect sync by message ID, `client_msg_no`, and Channel sequence while tolerating duplicate arrival.
+
+## 4. Inspect conversation and unread state
+
+```bash
+curl -sS http://127.0.0.1:5001/conversation/list \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","limit":20}'
+```
+
+Bob's item uses `channel_id=alice`. `unread` is Bob's UID-owned projection, not a global delivery count. After the user confirms the current conversation is read, call through the trusted boundary:
+
+```bash
+curl -sS http://127.0.0.1:5001/conversations/clearUnread \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","channel_id":"alice","channel_type":1}'
+```
+
+`clearUnread` reads the newest server-visible message and advances Bob's read position through that sequence; the optional request `message_seq` is only a compatibility fallback when the server finds no latest message. This endpoint does not record an exact client-side last-read sequence, so concurrently arriving messages can also become read. Conversation projection failure does not roll back a message that already reached quorum commit.
+
+## 5. Test multi-device recovery
+
+1. Connect a second Bob Session with a different `device_id`.
+2. Define the product's primary/secondary-device conflict policy; one UID does not imply one connection.
+3. Disconnect one device, then publish another durable message.
+4. Reconnect and recover the missing sequence through SDK sync or `/channel/messagesync`.
+5. Verify that online delivery, offline recovery, and unread projection are not treated as one completion signal.
+
+Before launch, also test friendship removal, denylist policy, token revocation, disconnect retries, duplicate sends, direct-Channel distribution, and duplicate webhook consumption. Continue with [Groups & Large Groups](/en/guide/tutorials/large-groups) or [Messaging](/en/guide/integration/messaging).
