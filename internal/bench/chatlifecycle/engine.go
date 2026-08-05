@@ -677,6 +677,9 @@ type Engine struct {
 	// index rejects same-channel ABA without storing channel identities.
 	lifecycleApprovalReplays         map[uint64]engineLifecycleApprovalReplay
 	lifecycleApprovalReplayByChannel map[[sha256.Size]byte]uint64
+	// lifecycleApprovalReplayPruneScanned is an owner-only CPU audit counter;
+	// it is intentionally absent from snapshots and durable reports.
+	lifecycleApprovalReplayPruneScanned uint64
 	// lifecycleCandidateSlots is the immutable no-migration mapping used to
 	// build the fixed twelve-by-one-hundred live lease index.
 	lifecycleCandidateSlots LifecycleSlotAssignment
@@ -825,6 +828,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.lifecycleByChannel = make(map[string]*engineWork)
 	e.lifecycleApprovalReplays = make(map[uint64]engineLifecycleApprovalReplay, lifecycleApprovalReplayCapacity)
 	e.lifecycleApprovalReplayByChannel = make(map[[sha256.Size]byte]uint64, lifecycleApprovalReplayCapacity)
+	e.lifecycleApprovalReplayPruneScanned = 0
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
 	e.pendingChannels = nil
@@ -2177,6 +2181,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 	e.drainCompletions()
 	var result advanceResult
 	sentWorkSinceYield := 0
+	generationTerminal := false
 	for result.processed < e.maxWork {
 		workDue := len(e.work) > 0 && !e.work[0].due.After(now)
 		retryDue := e.retries != nil && e.retries.due(now)
@@ -2184,11 +2189,12 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 			break
 		}
 		processedSend := false
+		var workErr error
 		if retryDue && (!workDue || !e.work[0].due.Before(e.retries.entries[0].Due)) {
 			retries := e.retries.PopDue(now, 1)
 			if len(retries) == 1 {
 				processedSend = true
-				result.err = errors.Join(result.err, e.processAttempt(ctx, retries[0].Intent, retries[0].Attempt.Attempt, now))
+				workErr = e.processAttempt(ctx, retries[0].Intent, retries[0].Attempt.Attempt, now)
 			}
 		} else {
 			work := heap.Pop(&e.work).(*engineWork)
@@ -2196,10 +2202,15 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 				e.queuedSends--
 				processedSend = true
 			}
-			result.err = errors.Join(result.err, e.processWork(ctx, work, now))
+			workErr = e.processWork(ctx, work, now)
 		}
+		result.err = errors.Join(result.err, workErr)
 		result.processed++
 		e.drainCompletions()
+		if runtimeFailureTerminatesGeneration(workErr) {
+			generationTerminal = true
+			break
+		}
 		if processedSend {
 			sentWorkSinceYield++
 		}
@@ -2211,7 +2222,7 @@ func (e *Engine) advance(ctx context.Context, now time.Time) advanceResult {
 			sentWorkSinceYield = 0
 		}
 	}
-	if (len(e.work) > 0 && !e.work[0].due.After(now)) || (e.retries != nil && e.retries.due(now)) {
+	if !generationTerminal && ((len(e.work) > 0 && !e.work[0].due.After(now)) || (e.retries != nil && e.retries.due(now))) {
 		result.err = errors.Join(result.err, e.recordRuntimeFailure(RuntimeFailureEngineCPUSaturated, uint64(e.maxWork)))
 	}
 	return result
@@ -2416,11 +2427,42 @@ func (e *Engine) removeLifecycleApprovalReplayToken(token uint64, replay engineL
 // preserves both indexes while reclaiming completed retry windows.
 func (e *Engine) pruneExpiredLifecycleApprovalReplays(now time.Time) {
 	for token, replay := range e.lifecycleApprovalReplays {
+		if e.lifecycleApprovalReplayPruneScanned < math.MaxUint64 {
+			e.lifecycleApprovalReplayPruneScanned++
+		}
 		if now.Before(replay.expiresAt) {
 			continue
 		}
 		e.removeLifecycleApprovalReplayToken(token, replay)
 	}
+}
+
+// runtimeFailureTerminatesGeneration recognizes only failures after which
+// continuing could orphan owner state or violate time ordering.
+func runtimeFailureTerminatesGeneration(err error) bool {
+	if err == nil {
+		return false
+	}
+	if runtimeErr, ok := err.(*RuntimeError); ok {
+		switch runtimeErr.Code() {
+		case RuntimeFailureClockMovedBackwards, RuntimeFailureLifecycleReplaySaturated:
+			return true
+		default:
+			return false
+		}
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, child := range joined.Unwrap() {
+			if runtimeFailureTerminatesGeneration(child) {
+				return true
+			}
+		}
+		return false
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return runtimeFailureTerminatesGeneration(wrapped.Unwrap())
+	}
+	return false
 }
 
 // offerLifecycleCandidate keeps every production-eligible live timer in the

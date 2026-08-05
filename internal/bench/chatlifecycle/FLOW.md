@@ -171,6 +171,12 @@ Product failures use the fixed identity-free reasons `initial_load`,
 fixed reason counters always total its product-failure counter; an atomic batch
 rollback counts only the triggering failure once, and neither errors nor JSON
 evidence retain candidate IDs.
+After one candidate reaches complete, that candidate is absorbing before any
+generic runtime-status, role, or watermark validation: later fixed-cohort polls
+may still carry its row, but missing, active, closing, or error rows cannot
+mutate its retained watermarks, completion counters, or failure evidence. Other
+candidates in the same cohort continue through their independent phases, so a
+staggered peer may still complete normally.
 Every non-missing partial-cooling row advances all three retained watermarks, so
 a later CheckpointHW regression cannot hide between staggered replica exits.
 CheckpointHW regression and invalid HW/Checkpoint ordering always classify as
@@ -194,7 +200,15 @@ replacement without a scan. Both maps are capped at 7,200 entries: one
 over the ten-minute proof cadence, covering six full cohorts that can complete
 together even on one worker. Capacity pressure performs one bounded expired-row
 scan; if the maps remain full, completion is harness-invalid and leaves the live
-timer intact without executing reheat. Start and Stop reset both maps. This
+timer intact without executing reheat. A full non-expired scan is attempted at
+most once by that `Advance`; saturation then stops processing later due work and
+is terminal for the worker generation. Generation shutdown runs `Engine.Stop`
+to clear live indexes and any heap work already popped into owner state.
+Autonomous tick termination stops the engine without joining its own tick loop;
+external grant termination cancels ticks, stops the engine, joins the tick loop,
+and only then publishes terminal completion. The bounded scan count is an
+owner-only CPU audit value and is not exposed by snapshots or reports. Start and
+Stop reset both replay maps. This
 bounded digest tombstone is the only completed approval state. Activity after
 approval clears live admission and records a dedicated bounded harness failure,
 and the invalidated timer also fails explicitly rather than silently dropping

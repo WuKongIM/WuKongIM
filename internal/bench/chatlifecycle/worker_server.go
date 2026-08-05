@@ -1308,8 +1308,7 @@ func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struc
 	defer close(done)
 	ticker := g.newTicker(time.Second)
 	if ticker == nil {
-		_ = g.engine.Stop()
-		g.finish(errWorkerServerConfig)
+		g.terminateFromTick(errWorkerServerConfig)
 		return
 	}
 	defer ticker.Stop()
@@ -1321,8 +1320,7 @@ func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struc
 			if workerStepErrorIsEvidence(err) {
 				continue
 			}
-			_ = g.engine.Stop()
-			g.finish(err)
+			g.terminateFromTick(err)
 			return
 		}
 	}
@@ -1344,10 +1342,10 @@ func workerStepErrorIsEvidence(err error) bool {
 	if err == nil {
 		return true
 	}
-	var runtimeErr *RuntimeError
 	// Clock rollback is classified but deliberately records no evidence because
-	// admission must fail before mutation; terminate the invalid generation.
-	if errors.As(err, &runtimeErr) && runtimeErr.Code() == RuntimeFailureClockMovedBackwards {
+	// admission must fail before mutation. Replay saturation is likewise
+	// terminal because its due work has already left the owner heap.
+	if runtimeFailureTerminatesGeneration(err) {
 		return false
 	}
 	if classified, ok := err.(interface{ Classification() SyncClassification }); ok {
@@ -1381,6 +1379,9 @@ func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64
 		return WorkerGrantApplication{}, errWorkerServerConfig
 	}
 	result, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
+	if runtimeFailureTerminatesGeneration(err) {
+		g.terminateFromExternal(err)
+	}
 	return WorkerGrantApplication{Admitted: result.Admitted}, err
 }
 
@@ -1425,15 +1426,39 @@ func (g *engineWorkerGeneration) Stop() {
 }
 
 func (g *engineWorkerGeneration) stopTicks() {
+	done := g.cancelTicks()
+	if done != nil {
+		<-done
+	}
+}
+
+// cancelTicks fences future ticker work without joining it. External terminal
+// cleanup uses this split phase to avoid a tick/Engine.Stop dependency cycle.
+func (g *engineWorkerGeneration) cancelTicks() <-chan struct{} {
 	g.mu.Lock()
 	cancel, done := g.tickCancel, g.tickDone
 	g.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
+	return done
+}
+
+// terminateFromTick never joins tickDone because it runs on that goroutine.
+func (g *engineWorkerGeneration) terminateFromTick(err error) {
+	_ = g.engine.Stop()
+	g.finish(err)
+}
+
+// terminateFromExternal cancels ticks, stops and joins all Engine operations,
+// then joins the ticker before publishing the one terminal generation result.
+func (g *engineWorkerGeneration) terminateFromExternal(err error) {
+	done := g.cancelTicks()
+	_ = g.engine.Stop()
 	if done != nil {
 		<-done
 	}
+	g.finish(err)
 }
 
 func (g *engineWorkerGeneration) Snapshot(ctx context.Context) (WorkerSnapshot, error) {

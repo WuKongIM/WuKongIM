@@ -485,6 +485,11 @@ func (p *LifecycleProof) Observe(now time.Time, results []model.ChannelRuntimePr
 }
 
 func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleCandidateState, rows [3]model.ChannelRuntimeProbeChannel) error {
+	// Completion is absorbing: later cohort polls retain the fixed request shape
+	// but cannot reinterpret or mutate evidence already proven complete.
+	if state.phase == lifecycleComplete {
+		return nil
+	}
 	allMissing := true
 	loadedCount := 0
 	leaders := 0
@@ -592,13 +597,6 @@ func (p *LifecycleProof) observeCandidateLocked(now time.Time, state *lifecycleC
 		state.phase = lifecycleComplete
 		p.snapshot.Completed = saturatingIncrement(p.snapshot.Completed)
 		recordWorkerLatency(&p.snapshot.ReheatLatency, now.Sub(state.reheatStarted))
-	case lifecycleComplete:
-		if !allLoaded {
-			return p.productFailureLocked(LifecycleFailureUnexpectedReload)
-		}
-		if leaders != 1 {
-			return p.productFailureLocked(LifecycleFailureRoleDisagreement)
-		}
 	}
 	if allLoaded {
 		for index, row := range rows {

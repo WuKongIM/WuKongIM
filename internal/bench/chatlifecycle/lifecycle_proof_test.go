@@ -1797,34 +1797,94 @@ func TestLifecycleProofRejectsStuckPartialReheatAndSequenceReset(t *testing.T) {
 	}
 }
 
-func TestLifecycleProofRejectsCheckpointAndPostReheatWatermarkRegression(t *testing.T) {
+func TestLifecycleProofRejectsCheckpointRegressionBeforeCompletion(t *testing.T) {
 	now := time.Unix(1_000, 0)
 	candidate := lifecycleTestCandidates(t, now)[0]
+	proof, _ := NewLifecycleProof([]LifecycleCandidate{candidate})
+	if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
+		t.Fatal(err)
+	}
+	rows := lifecycleRows(candidate, "active", 11, 11)
+	rows[1].Channels[0].CheckpointHW = 9
+	if err := proof.Observe(now.Add(time.Second), rows); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("error = %v, want product failure", err)
+	}
+}
 
-	t.Run("checkpoint", func(t *testing.T) {
-		proof, _ := NewLifecycleProof([]LifecycleCandidate{candidate})
-		if err := proof.Observe(now, lifecycleRows(candidate, "active", 10, 10)); err != nil {
-			t.Fatal(err)
+func TestLifecycleProofCompletedCandidateIsAbsorbingWhilePeerFinishesLater(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	candidates := lifecycleTestCandidates(t, now)[:2]
+	candidates[1].QuietDeadline = now.Add(19 * time.Minute)
+	candidates[1].ReheatAt = now.Add(20 * time.Minute)
+	proof, err := NewLifecycleProof(candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mergeRows := func(left, right []model.ChannelRuntimeProbeResult) []model.ChannelRuntimeProbeResult {
+		t.Helper()
+		out := make([]model.ChannelRuntimeProbeResult, len(left))
+		for node := range out {
+			channels := append([]model.ChannelRuntimeProbeChannel(nil), left[node].Channels...)
+			channels = append(channels, right[node].Channels...)
+			out[node] = model.ChannelRuntimeProbeResult{NodeID: left[node].NodeID, Checked: len(channels), Channels: channels}
 		}
-		rows := lifecycleRows(candidate, "active", 11, 11)
-		rows[1].Channels[0].CheckpointHW = 9
-		if err := proof.Observe(now.Add(time.Second), rows); !errors.Is(err, ErrLifecycleProductFailure) {
-			t.Fatalf("error = %v, want product failure", err)
+		return out
+	}
+	if err := proof.Observe(now, mergeRows(
+		lifecycleRows(candidates[0], "active", 10, 10), lifecycleRows(candidates[1], "active", 10, 10),
+	)); err != nil {
+		t.Fatalf("initial load: %v", err)
+	}
+	if err := proof.Observe(candidates[0].QuietNotBefore, mergeRows(
+		lifecycleRows(candidates[0], "missing", 0, 0), lifecycleRows(candidates[1], "missing", 0, 0),
+	)); err != nil {
+		t.Fatalf("cool candidates: %v", err)
+	}
+	for _, candidate := range candidates {
+		if err := proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{}); err != nil {
+			t.Fatalf("approve %q: %v", candidate.ChannelID, err)
 		}
-	})
-
-	t.Run("post reheat", func(t *testing.T) {
-		proof, _ := NewLifecycleProof([]LifecycleCandidate{candidate})
-		_ = proof.Observe(now, lifecycleRows(candidate, "active", 10, 10))
-		_ = proof.Observe(candidate.QuietNotBefore, lifecycleRows(candidate, "missing", 0, 0))
-		_ = proof.Reheat(context.Background(), candidate.QuietNotBefore, candidate.ChannelID, &fakeLifecycleSender{})
-		if err := proof.Observe(candidate.ReheatAt, lifecycleRows(candidate, "active", 20, 20)); err != nil {
-			t.Fatal(err)
-		}
-		if err := proof.Observe(candidate.ReheatAt.Add(time.Second), lifecycleRows(candidate, "active", 15, 15)); !errors.Is(err, ErrLifecycleProductFailure) {
-			t.Fatalf("error = %v, want product failure", err)
-		}
-	})
+	}
+	if err := proof.Observe(candidates[0].ReheatAt, mergeRows(
+		lifecycleRows(candidates[0], "active", 11, 11), lifecycleRows(candidates[1], "missing", 0, 0),
+	)); err != nil {
+		t.Fatalf("complete first candidate: %v", err)
+	}
+	proof.mu.Lock()
+	completedState := *proof.candidates[candidates[0].ChannelID]
+	proof.mu.Unlock()
+	if snapshot := proof.Snapshot(); snapshot.Completed != 1 || snapshot.ProductFailures != 0 {
+		t.Fatalf("first completion snapshot = %+v", snapshot)
+	}
+	if err := proof.Observe(candidates[0].ReheatAt.Add(5*time.Minute), mergeRows(
+		lifecycleRows(candidates[0], "missing", 0, 0), lifecycleRows(candidates[1], "missing", 0, 0),
+	)); err != nil {
+		t.Fatalf("completed candidate became non-absorbing: %v", err)
+	}
+	if snapshot := proof.Snapshot(); snapshot.Completed != 1 || snapshot.ProductFailures != 0 {
+		t.Fatalf("absorbed missing probe snapshot = %+v", snapshot)
+	}
+	if err := proof.Observe(candidates[1].ReheatAt, mergeRows(
+		lifecycleRows(candidates[0], "missing", 0, 0), lifecycleRows(candidates[1], "active", 12, 12),
+	)); err != nil {
+		t.Fatalf("complete later candidate: %v", err)
+	}
+	invalidRoleRows := lifecycleRowsWithRoles(candidates[1], [3]string{"invalid", "invalid", "invalid"}, 1, 1)
+	if err := proof.Observe(candidates[1].ReheatAt.Add(time.Second), mergeRows(
+		lifecycleRows(candidates[0], "error", 0, 0), invalidRoleRows,
+	)); err != nil {
+		t.Fatalf("completed candidates did not absorb invalid runtime rows: %v", err)
+	}
+	proof.mu.Lock()
+	finalState := *proof.candidates[candidates[0].ChannelID]
+	proof.mu.Unlock()
+	if finalState.phase != completedState.phase || finalState.lastLEO != completedState.lastLEO ||
+		finalState.lastHW != completedState.lastHW || finalState.lastCheckpoint != completedState.lastCheckpoint {
+		t.Fatalf("completed candidate state changed: before=%+v after=%+v", completedState, finalState)
+	}
+	if snapshot := proof.Snapshot(); snapshot.Completed != 2 || snapshot.ProductFailures != 0 || snapshot.ReheatLatency.Count != 2 {
+		t.Fatalf("final absorbing snapshot = %+v", snapshot)
+	}
 }
 
 func TestLifecycleProofRejectsPartialCoolingCheckpointRegressionAtomically(t *testing.T) {

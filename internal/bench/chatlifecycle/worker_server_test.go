@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
 func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
@@ -1155,6 +1156,246 @@ func TestWorkerEngineGenerationRejectsOverflowAndReportsClockRollbackAsFatalRunt
 	if snapshot.Generation != 9 {
 		t.Fatalf("fatal generation snapshot = %+v", snapshot)
 	}
+}
+
+func TestWorkerEngineAutonomousTickTerminatesOnLifecycleReplaySaturation(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer generation.Stop()
+	ticker.awaitReady(t)
+	due := fixture.clock.Now().Add(time.Second)
+	overflow := installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
+	fixture.clock.Set(due)
+	ticker.tick(t)
+	select {
+	case doneErr := <-generation.Done():
+		assertRuntimeFailure(t, doneErr, RuntimeFailureLifecycleReplaySaturated)
+	case <-ticker.ready:
+		t.Fatal("autonomous generation continued after lifecycle replay saturation")
+	case <-time.After(time.Second):
+		t.Fatal("autonomous lifecycle replay saturation neither terminated nor continued")
+	}
+	if generation.engine.lifecycleByChannel != nil || generation.engine.work != nil || generation.engine.activity != nil {
+		t.Fatalf("terminal generation retained owner state: lifecycle=%d work=%d activity=%d", len(generation.engine.lifecycleByChannel), len(generation.engine.work), len(generation.engine.activity))
+	}
+	if generation.engine.harnessInvalid != 1 || generation.engine.lifecycleApprovalReplayPruneScanned != uint64(lifecycleApprovalReplayCapacity) {
+		t.Fatalf("terminal replay CPU audit = failures %d scanned %d, want 1 and %d", generation.engine.harnessInvalid, generation.engine.lifecycleApprovalReplayPruneScanned, lifecycleApprovalReplayCapacity)
+	}
+	if len(overflow) != 2 {
+		t.Fatalf("overflow work = %d, want 2", len(overflow))
+	}
+}
+
+func TestWorkerServerExternalGrantTerminatesLifecycleReplaySaturatedGeneration(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		externalGrants: true, generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer generation.Stop()
+	ticker.awaitReady(t)
+	generation.trafficReady.Store(true)
+	config := LocalConfig()
+	assignment := WorkerAssignment{
+		WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: "terminal-external-grant", Generation: 1},
+		WorkerID:    0, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+	}
+	server, err := NewWorkerServer(WorkerServerConfig{
+		ControlToken: "control-secret",
+		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
+			return generation, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("NewWorkerServer: %v", err)
+	}
+	recordedGeneration := &recordingEngineWorkerGeneration{engineWorkerGeneration: generation, applied: make(chan error, 1)}
+	server.mu.Lock()
+	server.assignment = assignment
+	server.generation = recordedGeneration
+	server.phase = WorkerPhaseRunning
+	server.startedAt = fixture.clock.Now()
+	server.mu.Unlock()
+	due := fixture.clock.Now().Add(time.Second)
+	overflow := installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
+	prepared := make(chan bool, 1)
+	if err := generation.engine.enqueueBlocking(engineCommand{run: func() {
+		prepared <- len(generation.engine.lifecycleApprovalReplays) == lifecycleApprovalReplayCapacity &&
+			generation.engine.lifecycleByChannel[overflow[0].edge.PersonChannelID] == overflow[0] && overflow[0].coldConfirmed
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if !<-prepared {
+		t.Fatal("external lifecycle replay saturation fixture was not current and full")
+	}
+	fixture.clock.Set(due)
+	grant := WorkerGrantRequest{
+		WorkerFence: assignment.WorkerFence, Sequence: 1, RatePerSecond: 3, MaxBurst: 6,
+		Fresh: WorkerGrantCounts{Worker0: 1, Worker1: 1, Worker2: 1},
+	}
+	response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("terminal grant status = %d, want %d; body=%q", response.Code, http.StatusUnprocessableEntity, response.Body.String())
+	}
+	var apiError WorkerAPIError
+	if err := json.Unmarshal(response.Body.Bytes(), &apiError); err != nil || apiError.Code != WorkerErrorRuntimeFailure {
+		t.Fatalf("terminal grant error = %+v, %v", apiError, err)
+	}
+	grantErr := <-recordedGeneration.applied
+	assertRuntimeFailure(t, grantErr, RuntimeFailureLifecycleReplaySaturated)
+	select {
+	case doneErr := <-generation.Done():
+		assertRuntimeFailure(t, doneErr, RuntimeFailureLifecycleReplaySaturated)
+	default:
+		t.Fatal("external accepted grant returned before terminal generation cleanup")
+	}
+	if generation.engine.lifecycleByChannel != nil || generation.engine.work != nil || generation.engine.activity != nil {
+		t.Fatalf("external terminal retained owner state: lifecycle=%d work=%d activity=%d", len(generation.engine.lifecycleByChannel), len(generation.engine.work), len(generation.engine.activity))
+	}
+	stopDone := make(chan struct{})
+	go func() {
+		generation.Stop()
+		generation.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("terminal generation Stop was not idempotent")
+	}
+}
+
+func TestWorkerEngineConcurrentTickAndExternalTerminalCleanupDoesNotDeadlock(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		externalGrants: true, generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer generation.Stop()
+	ticker.awaitReady(t)
+	due := fixture.clock.Now().Add(time.Second)
+	installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
+	fixture.clock.Set(due)
+	if _, grantErr := generation.engine.ApplyGrant(context.Background(), due, 0); !runtimeFailureTerminatesGeneration(grantErr) {
+		t.Fatalf("external terminal barrier error = %v", grantErr)
+	} else {
+		if _, stepErr := generation.engine.Step(context.Background(), due, nil); !runtimeFailureTerminatesGeneration(stepErr) {
+			t.Fatalf("tick terminal barrier error = %v", stepErr)
+		} else {
+			start := make(chan struct{})
+			cleanupDone := make(chan struct{})
+			var cleanup sync.WaitGroup
+			cleanup.Add(2)
+			go func() {
+				defer cleanup.Done()
+				<-start
+				generation.terminateFromTick(stepErr)
+			}()
+			go func() {
+				defer cleanup.Done()
+				<-start
+				generation.terminateFromExternal(grantErr)
+			}()
+			close(start)
+			go func() {
+				cleanup.Wait()
+				close(cleanupDone)
+			}()
+			select {
+			case <-cleanupDone:
+			case <-time.After(time.Second):
+				t.Fatal("concurrent tick/external terminal cleanup deadlocked")
+			}
+		}
+	}
+	select {
+	case doneErr := <-generation.Done():
+		assertRuntimeFailure(t, doneErr, RuntimeFailureLifecycleReplaySaturated)
+	default:
+		t.Fatal("concurrent terminal cleanup did not publish Done")
+	}
+	if generation.engine.lifecycleByChannel != nil || generation.engine.work != nil || generation.engine.activity != nil {
+		t.Fatalf("concurrent terminal cleanup retained owner state: lifecycle=%d work=%d activity=%d", len(generation.engine.lifecycleByChannel), len(generation.engine.work), len(generation.engine.activity))
+	}
+}
+
+type recordingEngineWorkerGeneration struct {
+	*engineWorkerGeneration
+	applied chan error
+}
+
+func (g *recordingEngineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {
+	application, err := g.engineWorkerGeneration.ApplyGrant(ctx, released)
+	g.applied <- err
+	return application, err
+}
+
+func installLifecycleReplaySaturationWork(t *testing.T, engine *Engine, due time.Time, overflowCount int) []*engineWork {
+	t.Helper()
+	if engine == nil || overflowCount <= 0 {
+		t.Fatal("invalid lifecycle replay saturation fixture")
+	}
+	overflow := make([]*engineWork, overflowCount)
+	installed := make(chan error, 1)
+	if err := engine.enqueueBlocking(engineCommand{run: func() {
+		for index := 0; index < lifecycleApprovalReplayCapacity; index++ {
+			identity := channelid.EncodePersonChannel(fmt.Sprintf("terminal-replay-%04d-a", index), fmt.Sprintf("terminal-replay-%04d-b", index))
+			work := &engineWork{
+				edge:                RelationshipEdge{PersonChannelID: identity},
+				lifecycleTimerToken: uint64(index + 1), activityVersion: 1,
+			}
+			if err := engine.retainCompletedLifecycleApprovalReplay(work, due); err != nil {
+				installed <- err
+				return
+			}
+		}
+		for index := range overflow {
+			identity := channelid.EncodePersonChannel(fmt.Sprintf("terminal-overflow-%04d-a", index), fmt.Sprintf("terminal-overflow-%04d-b", index))
+			work := &engineWork{
+				due: due, eligibilityDeadline: due, kind: engineWorkLifecycle,
+				edge:          RelationshipEdge{PersonChannelID: identity},
+				schedule:      ChannelSchedule{Class: LifecycleRevisit, RequiresColdRuntimeEvidence: true},
+				coldConfirmed: true, lifecycleTimerToken: uint64(lifecycleApprovalReplayCapacity + index + 1), activityVersion: 1,
+			}
+			overflow[index] = work
+			engine.installLifecycleTimer(work)
+			if err := engine.addWork(work); err != nil {
+				installed <- err
+				return
+			}
+		}
+		installed <- nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-installed; err != nil {
+		t.Fatalf("install lifecycle replay saturation: %v", err)
+	}
+	return overflow
 }
 
 type workerBootstrapSyncer struct {
