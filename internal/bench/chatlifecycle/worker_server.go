@@ -448,23 +448,11 @@ func (s *WorkerServer) runStop(generation WorkerGeneration, task *workerStopTask
 	s.phase = WorkerPhaseFinal
 	final = s.overlaySnapshotLocked(final)
 	if operationErr != nil {
-		final.Harness.Classification = SyncClassificationHarnessInvalid
-		final.Harness.Failures++
-		final.Harness.DrainTimedOut = errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
+		addWorkerHarnessFailure(&final)
+		final.Harness.DrainTimedOut = final.Harness.DrainTimedOut ||
+			errors.Is(operationErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded)
 	}
-	if !validWorkerSnapshot(final) {
-		final = WorkerSnapshot{
-			Phase:       WorkerPhaseFinal,
-			Generation:  s.assignment.Generation,
-			WorkerID:    s.assignment.WorkerID,
-			WorkerCount: s.assignment.WorkerCount,
-			Uptime:      final.Uptime,
-			Harness: WorkerHarnessSnapshot{
-				Classification: SyncClassificationHarnessInvalid,
-				Failures:       1,
-			},
-		}
-	}
+	final = s.closedFinalSnapshotLocked(final)
 	s.final = final
 	close(task.done)
 	s.mu.Unlock()
@@ -493,12 +481,12 @@ func (s *WorkerServer) watchGeneration(generation WorkerGeneration) {
 	s.unexpected = true
 	s.phase = WorkerPhaseFinal
 	final = s.overlaySnapshotLocked(final)
-	final.Harness.Classification = SyncClassificationHarnessInvalid
-	final.Harness.Failures++
+	addWorkerHarnessFailure(&final)
 	if snapshotErr != nil {
-		final.Harness.Failures++
+		addWorkerHarnessFailure(&final)
 	}
 	final.Harness.UnexpectedExit = true
+	final = s.closedFinalSnapshotLocked(final)
 	s.final = final
 	select {
 	case <-s.unexpectedExit:
@@ -553,6 +541,57 @@ func (s *WorkerServer) overlaySnapshotLocked(snapshot WorkerSnapshot) WorkerSnap
 		}
 	}
 	return snapshot
+}
+
+func (s *WorkerServer) closedFinalSnapshotLocked(snapshot WorkerSnapshot) WorkerSnapshot {
+	mergeWorkerSnapshotClassification(&snapshot)
+	if validWorkerSnapshot(snapshot) {
+		return snapshot
+	}
+	addWorkerHarnessFailure(&snapshot)
+	harness := snapshot.Harness
+	return WorkerSnapshot{
+		Phase:       WorkerPhaseFinal,
+		Generation:  s.assignment.Generation,
+		WorkerID:    s.assignment.WorkerID,
+		WorkerCount: s.assignment.WorkerCount,
+		Uptime:      snapshot.Uptime,
+		Harness:     harness,
+		Evidence:    EvidenceSnapshot{Classification: harness.Classification},
+	}
+}
+
+func addWorkerHarnessFailure(snapshot *WorkerSnapshot) {
+	if snapshot.Harness.Failures != ^uint64(0) {
+		snapshot.Harness.Failures++
+	}
+	mergeWorkerSnapshotClassification(snapshot, SyncClassificationHarnessInvalid)
+}
+
+func mergeWorkerSnapshotClassification(snapshot *WorkerSnapshot, additions ...SyncClassification) {
+	values := make([]SyncClassification, 0, len(additions)+2)
+	values = append(values, snapshot.Evidence.Classification, snapshot.Harness.Classification)
+	values = append(values, additions...)
+	classification := mergeSyncClassification(values...)
+	snapshot.Evidence.Classification = classification
+	snapshot.Harness.Classification = classification
+}
+
+func mergeSyncClassification(values ...SyncClassification) SyncClassification {
+	result := SyncClassification("")
+	for _, value := range values {
+		switch value {
+		case SyncClassificationProductFailure:
+			return SyncClassificationProductFailure
+		case SyncClassificationHarnessInvalid:
+			result = SyncClassificationHarnessInvalid
+		case "":
+		default:
+			// Unknown values fail closed as invalid harness output.
+			result = SyncClassificationHarnessInvalid
+		}
+	}
+	return result
 }
 
 func validWorkerFence(fence WorkerFence) bool {

@@ -31,7 +31,12 @@ stop starts one server-owned bounded drain detached from the request, joins the
 existing Engine, caches one identity-free final snapshot, and returns that
 same snapshot for matching retries. An unexpected active-generation exit
 publishes a process signal so the dedicated worker server shuts down and exits
-nonzero.
+nonzero. Finalization merges evidence and harness classification through one
+closed precedence rule: `product_failure` outranks `harness_invalid`, which
+outranks empty. Drain timeout, unexpected exit, snapshot failure, and invalid
+snapshot fallback add saturating harness failures and preserve their flags;
+they never downgrade prior product evidence. The final Evidence and Harness
+classification fields always contain the same merged value.
 
 A matching stop is also valid while assigned, including after `Start` fails.
 That path skips drain because no Engine generation is running, performs one

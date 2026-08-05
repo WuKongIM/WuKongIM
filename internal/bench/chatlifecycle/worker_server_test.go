@@ -127,7 +127,8 @@ func TestWorkerServerDrainTimeoutProducesClosedHarnessFinalState(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
 		t.Fatalf("decode stop snapshot: %v", err)
 	}
-	if snapshot.Phase != WorkerPhaseFinal || !snapshot.Harness.DrainTimedOut || snapshot.Harness.Classification != SyncClassificationHarnessInvalid || snapshot.Harness.Failures == 0 {
+	if snapshot.Phase != WorkerPhaseFinal || !snapshot.Harness.DrainTimedOut || snapshot.Harness.Classification != SyncClassificationHarnessInvalid ||
+		snapshot.Evidence.Classification != SyncClassificationHarnessInvalid || snapshot.Harness.Failures == 0 {
 		t.Fatalf("timeout final snapshot = %+v", snapshot)
 	}
 	if generation.drains != 1 || generation.stops != 1 {
@@ -156,8 +157,89 @@ func TestWorkerServerUnexpectedGenerationExitPublishesRedactedFinalSignal(t *tes
 	if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
 		t.Fatalf("decode snapshot: %v", err)
 	}
-	if snapshot.Phase != WorkerPhaseFinal || !snapshot.Harness.UnexpectedExit || snapshot.Harness.Classification != SyncClassificationHarnessInvalid {
+	if snapshot.Phase != WorkerPhaseFinal || !snapshot.Harness.UnexpectedExit || snapshot.Harness.Classification != SyncClassificationHarnessInvalid ||
+		snapshot.Evidence.Classification != SyncClassificationHarnessInvalid || snapshot.Harness.Failures == 0 {
 		t.Fatalf("unexpected final snapshot = %+v", snapshot)
+	}
+}
+
+func TestWorkerServerFinalClassificationPreservesProductPrecedence(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		unexpected bool
+		invalid    bool
+	}{
+		{name: "drain timeout"},
+		{name: "unexpected exit", unexpected: true},
+		{name: "invalid final snapshot", invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			generation := newFakeWorkerGeneration()
+			generation.snapshot.Evidence.Classification = SyncClassificationProductFailure
+			generation.snapshot.Harness.Classification = SyncClassificationHarnessInvalid
+			if test.invalid {
+				generation.snapshot.Evidence.Classes = make([]EvidenceClassSnapshot, int(FailureClassHarness)+1)
+			}
+			server, fence := startFakeWorkerServer(t, generation, "product-"+strings.ReplaceAll(test.name, " ", "-"))
+
+			var snapshot WorkerSnapshot
+			if test.unexpected {
+				generation.terminate(errors.New("redacted unexpected failure"))
+				<-server.UnexpectedExit()
+				response := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/snapshot", nil)
+				if response.Code != http.StatusOK {
+					t.Fatalf("snapshot status = %d; body = %q", response.Code, response.Body.String())
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+					t.Fatalf("decode unexpected snapshot: %v", err)
+				}
+			} else {
+				generation.drainErr = context.DeadlineExceeded
+				response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/stop", WorkerStopRequest{WorkerFence: fence})
+				if response.Code != http.StatusOK {
+					t.Fatalf("stop status = %d; body = %q", response.Code, response.Body.String())
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &snapshot); err != nil {
+					t.Fatalf("decode stop snapshot: %v", err)
+				}
+			}
+
+			if snapshot.Harness.Classification != SyncClassificationProductFailure ||
+				snapshot.Evidence.Classification != SyncClassificationProductFailure {
+				t.Fatalf("product classification was downgraded: %+v", snapshot)
+			}
+			if snapshot.Harness.Failures == 0 {
+				t.Fatalf("harness failure was not counted: %+v", snapshot.Harness)
+			}
+			if test.unexpected != snapshot.Harness.UnexpectedExit {
+				t.Fatalf("unexpected flag = %v, want %v", snapshot.Harness.UnexpectedExit, test.unexpected)
+			}
+			if !test.unexpected && !snapshot.Harness.DrainTimedOut {
+				t.Fatalf("drain timeout flag was lost: %+v", snapshot.Harness)
+			}
+		})
+	}
+}
+
+func TestMergeSyncClassificationUsesClosedPrecedence(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []SyncClassification
+		want   SyncClassification
+	}{
+		{name: "empty"},
+		{name: "harness", values: []SyncClassification{"", SyncClassificationHarnessInvalid}, want: SyncClassificationHarnessInvalid},
+		{name: "product over harness", values: []SyncClassification{SyncClassificationHarnessInvalid, SyncClassificationProductFailure}, want: SyncClassificationProductFailure},
+		{name: "product independent of order", values: []SyncClassification{SyncClassificationProductFailure, SyncClassificationHarnessInvalid}, want: SyncClassificationProductFailure},
+		{name: "unknown fails closed", values: []SyncClassification{"outside-vocabulary"}, want: SyncClassificationHarnessInvalid},
+		{name: "product over unknown", values: []SyncClassification{"outside-vocabulary", SyncClassificationProductFailure}, want: SyncClassificationProductFailure},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := mergeSyncClassification(test.values...); got != test.want {
+				t.Fatalf("mergeSyncClassification(%q) = %q, want %q", test.values, got, test.want)
+			}
+		})
 	}
 }
 
