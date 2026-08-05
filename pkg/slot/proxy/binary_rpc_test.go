@@ -133,7 +133,7 @@ func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	resp := channelRPCResponse{
 		Status:   rpcStatusOK,
 		LeaderID: 2,
-		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 7, SubscriberCount: 11},
+		Channel:  &metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1, SubscriberMutationVersion: 7, SubscriberCount: 11, DirectoryReady: 1},
 	}
 	body := encodeChannelRPCResponseBinary(resp)
 	got, err := decodeChannelRPCResponseBinary(body)
@@ -188,6 +188,27 @@ func TestChannelRPCBinaryCodecDecodesV2ChannelWithoutAllowStranger(t *testing.T)
 	require.Equal(t, int64(0), got.Channel.AllowStranger)
 }
 
+func TestChannelRPCBinaryCodecDecodesV3ChannelWithoutDirectoryReady(t *testing.T) {
+	body := make([]byte, 0, 96)
+	body = append(body, channelRPCResponseMagicV3[:]...)
+	body = runtimeMetaAppendString(body, rpcStatusOK)
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = append(body, 1)
+	body = appendChannelLegacyV3ForTest(body, metadb.Channel{
+		ChannelID: "g1", ChannelType: 1, AllowStranger: 1, Large: 1,
+		SubscriberMutationVersion: 7, SubscriberCount: 11,
+	})
+	body = runtimeMetaAppendUvarint(body, 0)
+	body = runtimeMetaAppendChannelCursor(body, metadb.ChannelCursor{})
+	body = runtimeMetaAppendBool(body, true)
+
+	got, err := decodeChannelRPCResponseBinary(body)
+	require.NoError(t, err)
+	require.NotNil(t, got.Channel)
+	require.Equal(t, int64(0), got.Channel.DirectoryReady)
+	require.Equal(t, uint64(11), got.Channel.SubscriberCount)
+}
+
 func TestChannelRPCBinaryCodecDecodesV2ChannelScanPageWithoutAllowStranger(t *testing.T) {
 	resp := channelRPCResponse{
 		Status: rpcStatusOK,
@@ -237,6 +258,14 @@ func appendChannelLegacyV2ForTest(dst []byte, ch metadb.Channel) []byte {
 	dst = runtimeMetaAppendVarint(dst, ch.Disband)
 	dst = runtimeMetaAppendVarint(dst, ch.SendBan)
 	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberMutationVersion)
+	return dst
+}
+
+func appendChannelLegacyV3ForTest(dst []byte, ch metadb.Channel) []byte {
+	dst = appendChannelLegacyV2ForTest(dst, ch)
+	dst = runtimeMetaAppendVarint(dst, ch.AllowStranger)
+	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberCount)
+	dst = runtimeMetaAppendVarint(dst, ch.Large)
 	return dst
 }
 

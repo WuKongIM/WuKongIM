@@ -33,10 +33,14 @@ runtime. Use the existing UID-owned `user_channel_membership` row as the durable
 ordinary conversation directory and per-user state. Store CMD discovery and
 acknowledgement state in a separate `user_cmd_channel_membership` table.
 
-Message SEND appends only to the appropriate channel log, updates one
-channel-local sender-sequence index in the same message-storage batch, and
-performs online delivery. It never writes ordinary membership, CMD membership,
-or conversation state for recipients.
+Steady-state Message SEND appends only to the appropriate channel log, updates
+one channel-local sender-sequence index in the same message-storage batch, and
+performs online delivery. It does not write ordinary membership, CMD
+membership, or conversation state for recipients. The one setup exception is
+the first persistent person-channel SEND: it establishes both participant
+memberships before append and marks the channel `directory_ready`; later SENDs
+must observe that marker locally or through the authoritative Channel RPC and
+must not repeat those writes.
 
 The client synchronizes membership candidates in pages ordered by
 `activated_at`. The server groups the page's channels by Channel Leader, reads
@@ -94,7 +98,7 @@ tails.
 39. As an operator, I want channel disband to be one terminal channel mutation, so that disbanding a 100,000-member group does not synchronously fan out 100,000 membership tombstones.
 40. As a user, I want disbanded channels rejected by conversation construction and message pull, so that stale membership rows cannot revive a terminal channel.
 41. As an operator, I want disbanded channel identities never reused, so that stale membership rows cannot authorize a different future channel incarnation.
-42. As an operator, I want low-cardinality evidence that SEND performs zero recipient membership writes, so that future regressions can be detected.
+42. As an operator, I want low-cardinality evidence that warmed steady-state SEND performs zero recipient membership writes, so that future regressions can be detected.
 43. As an operator, I want batch RPC counts, unresolved counts, page scan sizes, and local tail-read costs bounded and observable, so that sync-side read amplification can be managed.
 44. As a developer, I want single-node cluster and multi-node cluster deployments to use the same routing and ownership semantics, so that topology does not create separate business paths.
 
@@ -310,7 +314,9 @@ directory_ready: false -> true
 Only after both membership rows exist and `directory_ready` is durable may the
 first persistent message be appended. The flag is monotonic and is not cleared
 by hide, badge changes, block state, or conversation deletion. Later SENDs read
-cached channel metadata and append without rechecking both UID rows.
+cached or authoritative channel metadata and append without rechecking both UID
+rows. The authoritative Channel RPC must carry `directory_ready`; omitting it
+turns a remote read into repeated membership proposals.
 
 Person membership is not removed by the user hiding or deleting a local
 conversation. Person-channel authorization derives from the canonical pair,
@@ -610,7 +616,7 @@ deterministically observe a required invariant:
 6. Message-pull tests cover membership-only eligibility and clamping to join, delete, and retention floors without subscriber lookup.
 7. CMD tests prove log, sequence, directory, acknowledgement, and tombstone isolation from ordinary conversations.
 8. Person-channel tests prove that both membership rows exist before the first persistent message and that later SENDs use `directory_ready` without repeated UID fanout.
-9. App wiring tests prove that message commit has no conversation projector or recipient membership mutation dependency.
+9. App wiring tests prove that post-directory message commit has no conversation projector or recipient membership mutation dependency.
 10. Performance/integration tests send to a 100,000-member group and assert that durable membership/conversation mutations remain zero and SEND work does not scale with member count.
 11. Multi-node sync tests use a page whose channels span several Leaders and assert that remote calls are grouped by node rather than issued per channel.
 12. Failure tests prove that one unavailable channel produces one unresolved item while successful conversations, deletes, cursor progress, and `done` semantics remain valid.

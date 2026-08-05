@@ -63,7 +63,7 @@ Runtime.ChangeConfig / TransferLeadership / TryTransferLeadershipToPreferred / C
 | `ConfigChange` | multiraft/types.go | 成员变更：AddVoter / RemoveVoter / AddLearner / PromoteLearner |
 | `Status` | multiraft/types.go | Runtime 观测：Leader、Peers、CurrentVoters、Term/Index 等；CurrentVoters 来自当前 Raft conf state |
 | `Storage` interface | multiraft/types.go | Raft 日志存储抽象：InitialState / Entries / Save / MarkApplied |
-| `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` |
+| `User` / `Channel` / `Device` | pkg/db/meta | 业务数据模型；`Channel` 现在持久化 `Ban` / `Disband` / `SendBan` / `AllowStranger` / `SubscriberMutationVersion` / `DirectoryReady`；权威 Channel RPC 也必须携带这些字段 |
 | `ChannelRuntimeMeta` | pkg/db/meta | Leader/ISR/Epoch、RouteGeneration、write-fence 与权威保留边界运行时元数据 |
 | `ChannelMigrationTask` | pkg/db/meta | Channel leader transfer / replica replace 的权威任务、owner lease、进度与 terminal retention 索引 |
 | `UserChannelMembership` | pkg/db/meta | UID-owned 普通会话目录、加入/隐藏边界、badge floor 与显式 activation |
@@ -103,9 +103,11 @@ Pebble:
   写入 State 键(0x10)主记录 + Index 键(0x11)二级索引
 ```
 
-普通消息 SEND 不提交 membership 命令。只有订阅成员变更以及显式
-clear/set unread、hide、activate 操作才通过 UID hash slot 提交普通 membership
-命令；CMD bind/unbind/syncack 使用独立 CMD membership 命令。
+稳态普通消息 SEND 不提交 membership 命令。首次持久化私聊 SEND 会先建立双方
+membership 并单调写入 Channel `DirectoryReady`；后续节点必须通过本地或权威
+Channel RPC 读取该标记，不能重复建立目录。除此之外，只有订阅成员变更以及显式
+clear/set unread、hide、activate 操作才通过 UID hash slot 提交普通 membership 命令；
+CMD bind/unbind/syncack 使用独立 CMD membership 命令。
 
 `channel_latest` 支持按物理 Slot 聚合的批量命令。命令 envelope 只携带一个用于路由的
 hash slot，但 batch entry 内部会保存每行真实 hash slot；`fsm.ApplyBatch` 会校验每个
