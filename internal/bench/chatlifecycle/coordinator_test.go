@@ -1034,6 +1034,98 @@ func TestCoordinatorStatusRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	}
 }
 
+func TestBlockingGrantProbeDetectsSequentialDispatch(t *testing.T) {
+	probe := &grantRoundProbe{}
+	workers := make([]*blockingGrantCoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &blockingGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			probe:                      probe,
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	for _, worker := range workers {
+		_, _ = worker.Grant(ctx, WorkerGrantRequest{})
+	}
+	if !probe.returnedBeforeEveryWorkerEntered() {
+		t.Fatal("blocking grant probe did not detect deliberately sequential dispatch")
+	}
+}
+
+func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
+	const roundTimeout = 80 * time.Millisecond
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-grant-round-deadline"
+	probe := &grantRoundProbe{}
+	grantEntered := make(chan coordinatorGrantContext, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &blockingGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			probe:                      probe,
+			entered:                    grantEntered,
+		}
+	}
+	observerEntered := make(chan struct{}, 1)
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 29,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			observerEntered <- struct{}{}
+			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+		}),
+		RoundTimeout: roundTimeout,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+
+	started := time.Now()
+	result := coordinator.Run(context.Background(), cfg)
+	elapsed := time.Since(started)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
+		t.Fatalf("Run() result = %+v, want harness_invalid/grant", result)
+	}
+	if elapsed < roundTimeout/2 || elapsed >= 200*time.Millisecond {
+		t.Fatalf("grant round elapsed = %s, want about one %s shared deadline and less than three sequential deadlines", elapsed, roundTimeout)
+	}
+	if probe.returnedBeforeEveryWorkerEntered() {
+		t.Fatal("a grant call returned before all fixed workers entered")
+	}
+	select {
+	case <-observerEntered:
+		t.Fatal("observer ran after the initial grant round failed")
+	default:
+	}
+
+	contexts := make([]coordinatorGrantContext, coordinatorWorkerCount)
+	seen := [coordinatorWorkerCount]bool{}
+	for attempt := 0; attempt < coordinatorWorkerCount; attempt++ {
+		observed := <-grantEntered
+		if observed.workerID >= coordinatorWorkerCount || seen[observed.workerID] {
+			t.Fatalf("grant worker attempts contain invalid or duplicate worker %d", observed.workerID)
+		}
+		seen[observed.workerID] = true
+		contexts[observed.workerID] = observed
+	}
+	for workerID, observed := range contexts {
+		if !observed.hasDeadline {
+			t.Fatalf("worker %d grant context has no deadline", workerID)
+		}
+		if workerID > 0 && !observed.deadline.Equal(contexts[0].deadline) {
+			t.Fatalf("grant deadlines differ: %v versus %v", observed.deadline, contexts[0].deadline)
+		}
+		if workerID > 0 && observed.request != contexts[0].request {
+			t.Fatalf("worker %d grant request differs: %+v versus %+v", workerID, observed.request, contexts[0].request)
+		}
+	}
+}
+
 func TestCoordinatorCleanupUsesOneConcurrentTotalDeadline(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-concurrent-cleanup"
@@ -1080,6 +1172,58 @@ type coordinatorStatusContext struct {
 	workerID    uint64
 	deadline    time.Time
 	hasDeadline bool
+}
+
+type coordinatorGrantContext struct {
+	workerID    uint64
+	request     WorkerGrantRequest
+	deadline    time.Time
+	hasDeadline bool
+}
+
+type grantRoundProbe struct {
+	mu                       sync.Mutex
+	entered                  int
+	returnedBeforeAllEntered bool
+}
+
+func (p *grantRoundProbe) recordEntry() {
+	p.mu.Lock()
+	p.entered++
+	p.mu.Unlock()
+}
+
+func (p *grantRoundProbe) recordReturn() {
+	p.mu.Lock()
+	if p.entered != coordinatorWorkerCount {
+		p.returnedBeforeAllEntered = true
+	}
+	p.mu.Unlock()
+}
+
+func (p *grantRoundProbe) returnedBeforeEveryWorkerEntered() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.returnedBeforeAllEntered
+}
+
+type blockingGrantCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	probe   *grantRoundProbe
+	entered chan<- coordinatorGrantContext
+}
+
+func (w *blockingGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	deadline, ok := ctx.Deadline()
+	w.probe.recordEntry()
+	if w.entered != nil {
+		w.entered <- coordinatorGrantContext{
+			workerID: w.id, request: request, deadline: deadline, hasDeadline: ok,
+		}
+	}
+	<-ctx.Done()
+	w.probe.recordReturn()
+	return WorkerGrantResponse{}, ctx.Err()
 }
 
 type deadlineCoordinatorWorker struct {
