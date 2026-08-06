@@ -581,7 +581,8 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 		plan.Provider == "" || plan.Region == "" || plan.Repository == "" || plan.Operator == "" ||
 		!plan.ExpiresAt.After(now) || !validCurrency(plan.Budget.Currency) || plan.Budget.LimitMicros <= 0 ||
 		plan.Budget.CommittedMicros < 0 || plan.Budget.CommittedMicros >= plan.Budget.LimitMicros ||
-		len(plan.HostGroups) == 0 || validateProvenance(plan.Provenance) != nil {
+		len(plan.HostGroups) == 0 || plan.Network.ConservativePublicEgressBytes < 0 ||
+		validateProvenance(plan.Provenance) != nil {
 		return Plan{}, "", ErrInvalidPlan
 	}
 	for key, value := range plan.Tags {
@@ -591,6 +592,7 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 		}
 	}
 	roles := make(map[string]struct{}, len(plan.HostGroups))
+	hasPublicIPv4 := false
 	for index := range plan.HostGroups {
 		group := &plan.HostGroups[index]
 		group.Role = strings.TrimSpace(group.Role)
@@ -605,6 +607,7 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 		if _, exists := roles[group.Role]; exists {
 			return Plan{}, "", ErrInvalidPlan
 		}
+		hasPublicIPv4 = hasPublicIPv4 || group.PublicIPv4
 		roles[group.Role] = struct{}{}
 		if err := normalizeDisk(&group.SystemDisk); err != nil {
 			return Plan{}, "", err
@@ -623,6 +626,9 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 			}
 			diskRoles[disk.Role] = struct{}{}
 		}
+	}
+	if plan.Network.ConservativePublicEgressBytes > 0 && !hasPublicIPv4 {
+		return Plan{}, "", ErrInvalidPlan
 	}
 	grantIDs := make(map[string]struct{}, len(plan.Network.InitialAccess))
 	for index := range plan.Network.InitialAccess {

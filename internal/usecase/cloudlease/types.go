@@ -148,6 +148,9 @@ type NetworkPlan struct {
 	SingleZone bool `json:"single_zone"`
 	// InitialAccess contains reviewed ingress grants created with the Lease.
 	InitialAccess []AccessGrant `json:"initial_access,omitempty"`
+	// ConservativePublicEgressBytes is the quoted upper-bound public traffic
+	// consumed during the complete Lease. Zero means no traffic-priced egress.
+	ConservativePublicEgressBytes int64 `json:"conservative_public_egress_bytes,omitempty"`
 }
 
 // Plan is the immutable, provider-neutral request for one temporary Cloud Lease.

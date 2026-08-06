@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/netip"
@@ -11,11 +13,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/alibaba"
 	"github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
 
-const dryRunSchemaV1 = "wukongim.cloud_lease.dry_run/v1"
+const (
+	dryRunSchemaV1 = "wukongim.cloud_lease.dry_run/v1"
+	quoteSchemaV1  = "wukongim.cloud_lease.quote/v1"
+	maxPlanBytes   = 1 << 20
+)
 
 type dryRunResult struct {
 	Schema            string   `json:"schema"`
@@ -29,6 +36,16 @@ type dryRunResult struct {
 	SweepExamined     int      `json:"sweep_examined"`
 }
 
+type quoteResult struct {
+	Schema string           `json:"schema"`
+	Quote  cloudlease.Quote `json:"quote"`
+}
+
+type commandDependencies struct {
+	now           func() time.Time
+	quoteProvider func(cloudlease.Plan) (cloudlease.Provider, error)
+}
+
 func main() {
 	command := newRootCommand(os.Stdout)
 	command.SetErr(os.Stderr)
@@ -39,6 +56,26 @@ func main() {
 }
 
 func newRootCommand(stdout io.Writer) *cobra.Command {
+	dependencies := commandDependencies{now: time.Now}
+	dependencies.quoteProvider = func(plan cloudlease.Plan) (cloudlease.Provider, error) {
+		switch plan.Provider {
+		case alibaba.ProviderName:
+			api, err := alibaba.NewOpenAPIFromOIDCEnvironment(plan.Region)
+			if err != nil {
+				return nil, err
+			}
+			return alibaba.New(api, alibaba.Options{Now: dependencies.now}), nil
+		default:
+			return nil, fmt.Errorf("unsupported quote provider %q", plan.Provider)
+		}
+	}
+	return newRootCommandWithDependencies(stdout, dependencies)
+}
+
+func newRootCommandWithDependencies(stdout io.Writer, dependencies commandDependencies) *cobra.Command {
+	if dependencies.now == nil {
+		dependencies.now = time.Now
+	}
 	root := &cobra.Command{
 		Use:           "wkcloudlease",
 		Short:         "Operate provider-neutral temporary Cloud Leases",
@@ -54,7 +91,79 @@ func newRootCommand(stdout io.Writer) *cobra.Command {
 			return runDryRun(command.Context(), command.OutOrStdout())
 		},
 	})
+	var planPath string
+	quoteCommand := &cobra.Command{
+		Use:   "quote",
+		Short: "Discover a read-only provider Quote for one strict Cloud Lease Plan",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runQuote(command.Context(), command.OutOrStdout(), planPath, dependencies)
+		},
+	}
+	quoteCommand.Flags().StringVar(&planPath, "plan", "", "path to a strict Cloud Lease Plan JSON file, or - for stdin")
+	if err := quoteCommand.MarkFlagRequired("plan"); err != nil {
+		panic(err)
+	}
+	root.AddCommand(quoteCommand)
 	return root
+}
+
+func runQuote(ctx context.Context, stdout io.Writer, planPath string, dependencies commandDependencies) error {
+	plan, err := readPlan(planPath)
+	if err != nil {
+		return err
+	}
+	if dependencies.quoteProvider == nil {
+		return errors.New("quote provider factory is unavailable")
+	}
+	provider, err := dependencies.quoteProvider(plan)
+	if err != nil {
+		return fmt.Errorf("construct quote provider: %w", err)
+	}
+	quote, err := cloudlease.NewController(provider, dependencies.now).Quote(ctx, plan)
+	if err != nil {
+		return fmt.Errorf("quote: %w", err)
+	}
+	return json.NewEncoder(stdout).Encode(quoteResult{Schema: quoteSchemaV1, Quote: quote})
+}
+
+func readPlan(path string) (cloudlease.Plan, error) {
+	var reader io.Reader
+	var file *os.File
+	switch path {
+	case "":
+		return cloudlease.Plan{}, errors.New("plan path is required")
+	case "-":
+		reader = os.Stdin
+	default:
+		opened, err := os.Open(path)
+		if err != nil {
+			return cloudlease.Plan{}, fmt.Errorf("open plan: %w", err)
+		}
+		file = opened
+		defer file.Close()
+		reader = file
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, maxPlanBytes+1))
+	if err != nil {
+		return cloudlease.Plan{}, fmt.Errorf("read plan: %w", err)
+	}
+	if len(data) == 0 || len(data) > maxPlanBytes {
+		return cloudlease.Plan{}, errors.New("plan must be non-empty and at most 1 MiB")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var plan cloudlease.Plan
+	if err := decoder.Decode(&plan); err != nil {
+		return cloudlease.Plan{}, fmt.Errorf("decode plan: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple JSON values")
+		}
+		return cloudlease.Plan{}, fmt.Errorf("decode plan: %w", err)
+	}
+	return plan, nil
 }
 
 func runDryRun(ctx context.Context, stdout io.Writer) error {

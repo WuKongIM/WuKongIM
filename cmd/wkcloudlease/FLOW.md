@@ -14,10 +14,16 @@ operator / automation
      -> emit non-secret structured output
 ```
 
-The initial `dry-run` command constructs only the in-memory fake Provider and
+The `dry-run` command constructs only the in-memory fake Provider and
 executes Quote, Acquire, Inspect, GrantAccess, RevokeAccess, Release, and Sweep
 in sequence. It starts no process or background goroutine, performs no network
 call, and cannot create cloud resources.
+
+The `quote --plan <file>` command strictly decodes a bounded Plan JSON document,
+constructs the selected read-only provider, and emits a versioned Quote result.
+The Alibaba path requires temporary OIDC role credentials and exposes only the
+read operations listed by `alibaba.RequiredQuoteActions`; it cannot acquire or
+change cloud resources.
 
 Future billable commands must keep an explicit authorization boundary outside
 the Provider contract, validate the exact immutable Plan and Quote, and emit a

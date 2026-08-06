@@ -95,6 +95,22 @@ func TestControllerQuoteRejectsInvalidProvenanceBeforeProviderCall(t *testing.T)
 	}
 }
 
+func TestControllerQuoteRejectsPublicEgressWithoutPublicAddress(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	provider := &recordingProvider{}
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	plan := validPlan(now)
+	plan.Network.ConservativePublicEgressBytes = 10 << 30
+
+	_, err := controller.Quote(context.Background(), plan)
+	if !errors.Is(err, cloudlease.ErrInvalidPlan) {
+		t.Fatalf("Quote() error = %v, want ErrInvalidPlan", err)
+	}
+	if provider.quoteCalls != 0 {
+		t.Fatalf("provider Quote calls = %d, want 0", provider.quoteCalls)
+	}
+}
+
 func TestControllerQuoteEnforcesAdmissionSignalsAndRemainingBudget(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	base := cloudlease.Quote{

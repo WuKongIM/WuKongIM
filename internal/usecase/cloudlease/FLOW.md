@@ -19,7 +19,8 @@ trusted CLI / orchestrator
 
 `Quote` never mutates provider state. Admission includes the cost already
 committed by a caller: the new estimate must fit inside the remaining aggregate
-Budget.
+Budget. A Plan may declare a conservative complete-Lease public-egress byte
+ceiling; it is invalid unless at least one host requests a public IPv4 address.
 
 `Acquire` first inspects the exact Lease identity. Its idempotency tuple is
 repository, request, Lease, and Plan digest: a Request may intentionally group

@@ -2,8 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
 
 func TestDryRunExercisesCompleteFakeLifecycleWithoutBackgroundWork(t *testing.T) {
@@ -36,4 +42,110 @@ func TestDryRunExercisesCompleteFakeLifecycleWithoutBackgroundWork(t *testing.T)
 	if result.SweepExamined != 0 {
 		t.Fatalf("dry-run sweep examined = %d, want 0 after zero-inventory proof", result.SweepExamined)
 	}
+}
+
+func TestQuoteCommandReadsStrictPlanAndEmitsProviderEvidence(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := dryRunPlan(now)
+	plan.Network.ConservativePublicEgressBytes = 10 << 30
+	path := filepath.Join(t.TempDir(), "plan.json")
+	data, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatalf("marshal plan: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	provider := &quoteOnlyProvider{now: now}
+	var stdout bytes.Buffer
+	command := newRootCommandWithDependencies(&stdout, commandDependencies{
+		now: func() time.Time { return now },
+		quoteProvider: func(got cloudlease.Plan) (cloudlease.Provider, error) {
+			if got.LeaseID != plan.LeaseID {
+				t.Fatalf("provider factory Plan = %#v, want lease %q", got, plan.LeaseID)
+			}
+			return provider, nil
+		},
+	})
+	command.SetArgs([]string{"quote", "--plan", path})
+
+	if err := command.Execute(); err != nil {
+		t.Fatalf("quote error = %v", err)
+	}
+	var result quoteResult
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("decode quote output: %v\n%s", err, stdout.String())
+	}
+	if result.Schema != quoteSchemaV1 || result.Quote.LeaseID != plan.LeaseID || result.Quote.PlanDigest == "" {
+		t.Fatalf("quote output = %#v", result)
+	}
+	if provider.mutationCalls != 0 {
+		t.Fatalf("provider mutation calls = %d, want 0", provider.mutationCalls)
+	}
+}
+
+func TestQuoteCommandRejectsUnknownPlanFieldsBeforeProviderConstruction(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "plan.json")
+	if err := os.WriteFile(path, []byte(`{"schema":"wukongim.cloud_lease/v1","unknown":true}`), 0o600); err != nil {
+		t.Fatalf("write plan: %v", err)
+	}
+	providerCalls := 0
+	command := newRootCommandWithDependencies(&bytes.Buffer{}, commandDependencies{
+		quoteProvider: func(cloudlease.Plan) (cloudlease.Provider, error) {
+			providerCalls++
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"quote", "--plan", path})
+
+	if err := command.Execute(); err == nil {
+		t.Fatal("quote error = nil, want strict JSON rejection")
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider factory calls = %d, want 0", providerCalls)
+	}
+}
+
+type quoteOnlyProvider struct {
+	now           time.Time
+	mutationCalls int
+}
+
+func (*quoteOnlyProvider) Name() string { return "fake" }
+
+func (p *quoteOnlyProvider) Quote(_ context.Context, request cloudlease.QuoteRequest) (cloudlease.Quote, error) {
+	return cloudlease.Quote{
+		LeaseID: request.Plan.LeaseID, RequestID: request.Plan.RequestID,
+		Provider: request.Plan.Provider, Region: request.Plan.Region, Zone: "fake-zone-a",
+		PlanDigest: request.PlanDigest, Currency: request.Plan.Budget.Currency, EstimatedCostMicros: 5_000_000,
+		CapacityAvailable: true, QuotaAvailable: true, QuotedAt: p.now, ValidUntil: p.now.Add(10 * time.Minute),
+	}, nil
+}
+
+func (p *quoteOnlyProvider) Acquire(context.Context, cloudlease.AcquireRequest) (cloudlease.Receipt, error) {
+	p.mutationCalls++
+	return cloudlease.Receipt{}, nil
+}
+
+func (*quoteOnlyProvider) Inspect(context.Context, cloudlease.Selector) (cloudlease.Receipt, error) {
+	return cloudlease.Receipt{}, cloudlease.ErrLeaseNotFound
+}
+
+func (*quoteOnlyProvider) List(context.Context, cloudlease.InventoryFilter) ([]cloudlease.Receipt, error) {
+	return nil, nil
+}
+
+func (p *quoteOnlyProvider) GrantAccess(context.Context, cloudlease.Selector, cloudlease.AccessGrant) (cloudlease.Receipt, error) {
+	p.mutationCalls++
+	return cloudlease.Receipt{}, nil
+}
+
+func (p *quoteOnlyProvider) RevokeAccess(context.Context, cloudlease.Selector, string) (cloudlease.Receipt, error) {
+	p.mutationCalls++
+	return cloudlease.Receipt{}, nil
+}
+
+func (p *quoteOnlyProvider) Release(context.Context, cloudlease.Selector) (cloudlease.ReleaseResult, error) {
+	p.mutationCalls++
+	return cloudlease.ReleaseResult{}, nil
 }
