@@ -28,6 +28,7 @@ Store.ClaimChannelMigrationTask / AdvanceChannelMigrationTask / SetChannelWriteF
 Store.CommitChannelLeaderTransfer / AddChannelLearner / PromoteLearnerAndRemoveReplica / ClearChannelWriteFence / AbortChannelMigration
 Store.GarbageCollectTerminalChannelMigrationTasks
 Store.BindPluginUser / UnbindPluginUser / ListPluginBindingsByUID / ListPluginBindingsByPluginNo / ExistPluginBindingByUID
+Store.GetUserChannelMembership / ListUserChannelMembershipPage / ListUserCMDChannelMembershipPage
 Cluster Node.AppendMessageEvent / GetMessageEventStatesBatch
 
 // pkg/db/meta — 本地 ShardStore / WriteBatch helper
@@ -331,18 +332,20 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 
 | Service ID 常量 | 值 | 用途 | 文件 |
 |---|---:|---|---|
-| `runtimeMetaRPCServiceID` | 3 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
 | `identityRPCServiceID` | 4 | User / Device 查询 | proxy/identity_rpc.go |
-| `subscriberRPCServiceID` | 79 | 订阅者列表、精确包含与非空查询 | proxy/subscriber_rpc.go |
-| `channelRPCServiceID` | 80 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
 | `channelMigrationRPCServiceID` | 47 | Channel migration active-task 查询与远端 slot-leader 提案转发 | proxy/channel_migration_rpc.go |
 | `pluginBindingRPCServiceID` | 53 | 插件绑定查询、UID-owned 远端提案与 plugin_no 扫描 | proxy/plugin_binding_rpc.go |
+| `RPCSlotSubscriberMetadata` | 79 | 订阅者列表、精确包含与非空查询 | proxy/subscriber_rpc.go |
+| `RPCSlotChannelMetadata` | 80 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
+| `RPCSlotUserMembership` | 83 | UID-owned 普通 membership 点读/分页与 CMD membership 分页 | proxy/membership_rpc.go |
+| `RPCSlotRuntimeMetadata` | 84 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
 
 ## 9. 避坑清单
 
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
+- **Membership RPC 归属校验**: handler 必须在领导权和数据读取前验证 request 的 `SlotID == SlotForKey(uid)`；不能让调用方提供的 SlotID 绕过 UID 所有权边界。
 - **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。

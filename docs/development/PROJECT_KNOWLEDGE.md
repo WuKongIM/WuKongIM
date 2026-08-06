@@ -110,6 +110,7 @@
 - Member add captures one committed tail for the logical operation, writes subscribers first, then UID memberships. Remove deletes subscribers first, then writes membership tombstones. Failures are returned for idempotent caller retry; there is no background repair workflow in the first version.
 - `activated_at` is synchronization priority, changed only by explicit navigation or hide. The client owns pinning and final ordering. Directory pages scan candidates in `(activated_at desc, channel_id, channel_type)` order; the candidate limit may underfill conversations, and only `done=true` completes a pass.
 - Directory hydration groups live candidates by exact Channel Leader and returns successful conversations, deletes, and unresolved keys independently. Clients persist coverage after a complete pass and retry unresolved keys separately.
+- UID membership and CMD-directory reads are Slot-leader authoritative even when the accepting ingress node is not a replica of that UID's logical Slot. Ordinary static nodes learn actual leaders for unassigned Slots from the Slot-status RPC; local DB presence is never treated as cluster ownership.
 - A hot quorum Channel Leader's live reactor HW is authoritative for conversation hydration; durable HW checkpoints are intentionally coalesced. Hydration probes all locally assigned channels once per Leader batch and falls back to durable checkpoint HW only when a runtime is unloaded.
 - A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
 - `read_seq` is a monotonic badge floor changed only by clear/set-unread. Badge calculation also uses the current user's latest committed ordinary sender sequence; it is not a message-read receipt or client message cursor.
@@ -128,6 +129,7 @@
 - Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
+- Terminal disband is enforced in `internal/usecase/message` for ordinary and trusted-bypass senders. CMD IDs resolve back to the source channel, and system UIDs/devices bypass only nonterminal checks. Do not put this business rule or an extra per-message Slot metadata read in `internal/infra` or `internal/runtime/channelappend`.
 - Durable message send route selection lives in `internal/runtime/channelplane`; `message.App` only builds durable batches and applies committed side effects, it no longer owns slot/channel leader refresh or remote redirect.
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.
 - Channel status permissions currently include group `Ban`/`Disband` and sender person-channel `SendBan`.

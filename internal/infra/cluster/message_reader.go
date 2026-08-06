@@ -53,15 +53,28 @@ func (r *ChannelMessageReader) SyncMessages(ctx context.Context, query message.C
 	if r == nil || r.node == nil {
 		return message.ChannelMessagePage{}, message.ErrMessageReaderRequired
 	}
+	batchNode, ok := r.node.(channelMessageBatchReadNode)
+	if !ok {
+		return message.ChannelMessagePage{}, message.ErrSyncBatchReaderRequired
+	}
 	limit := query.Limit
 	if limit <= 0 {
 		limit = 1
 	}
-	read, err := r.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type}, readCommittedRequest(query, limit))
+	results, err := batchNode.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
+		ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
+		Request:   readCommittedRequest(query, limit),
+	}})
 	if err != nil {
 		return message.ChannelMessagePage{}, mapAppendError(err)
 	}
-	return channelMessagePageFromRead(query, limit, read), nil
+	if len(results) != 1 {
+		return message.ChannelMessagePage{}, message.ErrSyncBatchResultMismatch
+	}
+	if results[0].Err != nil {
+		return message.ChannelMessagePage{}, mapAppendError(results[0].Err)
+	}
+	return channelMessagePageFromRead(query, limit, results[0].Read), nil
 }
 
 // SyncMessagesBatch performs one Channel-Leader-grouped cluster read and
@@ -144,7 +157,7 @@ func queryMaxSeq(query message.ChannelMessageQuery) uint64 {
 	if query.PullMode == message.PullModeUp && query.EndSeq > 0 {
 		return query.EndSeq - 1
 	}
-	if query.StartSeq > 0 {
+	if query.PullMode == message.PullModeDown && query.StartSeq > 0 {
 		return query.StartSeq
 	}
 	return maxUint64()

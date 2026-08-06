@@ -111,6 +111,10 @@ const (
 	RPCChannelConversationHeads
 	// RPCChannelCommittedReads serves one same-leader committed-message batch.
 	RPCChannelCommittedReads
+	// RPCSlotUserMembership serves Slot-leader ordinary and CMD membership reads.
+	RPCSlotUserMembership
+	// RPCSlotRuntimeMetadata serves Slot-leader Channel runtime metadata reads.
+	RPCSlotRuntimeMetadata
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -215,6 +219,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot subscriber metadata"
 	case RPCSlotChannelMetadata:
 		return "slot channel metadata"
+	case RPCSlotUserMembership:
+		return "slot user membership"
+	case RPCSlotRuntimeMetadata:
+		return "slot runtime metadata"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

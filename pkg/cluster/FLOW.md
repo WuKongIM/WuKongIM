@@ -172,7 +172,15 @@ treats `Leader=0` as an unknown observation and keeps the last known non-zero
 Slot leader and term in the foreground router until a new non-zero leader is
 observed. This prevents transient Raft status gaps from briefly removing an
 otherwise valid route; stale leaders are still fenced by downstream Slot/Channel
-leadership checks.
+leadership checks. Nodes that are not replicas of a logical Slot also poll that
+Slot's desired peers at a lower frequency and install the highest-term observed
+leader. This applies to ordinary static members as well as activated seed-join
+members, so every ingress node can route UID-owned metadata without hosting a
+local replica. Route installation ignores lower-term observations so a delayed
+peer response cannot regress a newer leader. Remote observation runs in an
+independent managed loop, so snapshot application and the local 10ms readiness
+loop never wait for network I/O. Each remote round has a 250ms overall deadline
+and queries at most eight peers concurrently.
 
 ## Start Flow
 
@@ -195,7 +203,7 @@ Start(ctx)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
   -> start the independent idle preferred-leader reconciliation loop; Start and snapshot apply never wait for it
-  -> start the default Slot leader observation loop when the default Slot runtime is active
+  -> start independent local and remote Slot leader observation loops when the default Slot runtime is active
   -> mark Channel runtime ready and start the tick loop
   -> mark node started
   -> start low-frequency Controller health reporting
@@ -539,10 +547,12 @@ hash-slot shards into one legacy-compatible ordered page.
 UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
 `TombstoneUserChannelMemberships` group requested UIDs by `RouteKey(uid)` hash
 slot and submit one Slot proposal per touched hash slot. Point reads and
-activation-index pages use the same UID ownership. Badge, hide, and activation
+activation-index pages use the same UID ownership and route to the current Slot
+leader when the ingress node is not a replica. Badge, hide, and activation
 commands are monotonic foreground mutations; message SEND never invokes them.
 CMD binding, acknowledgement, and tombstone operations use the separate
-`user_cmd_channel_membership` table and the same UID routing rule.
+`user_cmd_channel_membership` table and the same UID routing rule; CMD directory
+pages are also Slot-leader authoritative from non-replica ingress nodes.
 
 Plugin binding rows are UID-owned for writes and Receive hook lookups.
 `BindPluginUser`, `UnbindPluginUser`, and `ListPluginBindingsByUID` route by
@@ -702,9 +712,13 @@ for unresolved retry.
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
 The default Slot runtime also owns a narrow Slot proxy for authoritative channel
 and subscriber metadata. It registers the centrally allocated
-`RPCSlotSubscriberMetadata` and `RPCSlotChannelMetadata` handlers, exposes
-Slot-leader point/page reads and exact counted subscriber mutations to internal
+`RPCSlotSubscriberMetadata`, `RPCSlotChannelMetadata`,
+`RPCSlotUserMembership`, and `RPCSlotRuntimeMetadata` handlers, exposes
+Slot-leader point/page reads, UID-owned ordinary/CMD membership reads, Channel
+runtime metadata reads, and exact counted subscriber mutations to internal
 adapters, and carries create-only/flag-patch FSM results back to the proposer.
+Membership RPC handlers validate that the supplied Slot ID is exactly the
+current `SlotForKey(uid)` before checking leadership or reading data.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.

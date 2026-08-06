@@ -3416,6 +3416,47 @@ func TestChannelAppendDoesNotWriteConversationOrMembershipState(t *testing.T) {
 	}
 }
 
+func TestNewWiresTerminalDisbandCheckIntoMessageUsecase(t *testing.T) {
+	cluster := &terminalPermissionCluster{fakePresenceCluster: newFakePresenceCluster(3, nil)}
+	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
+	cluster.channels = map[metadb.ChannelKey]metadb.Channel{
+		{ChannelID: "terminal-room", ChannelType: int64(frame.ChannelTypeGroup)}: {
+			ChannelID: "terminal-room", ChannelType: int64(frame.ChannelTypeGroup), Disband: 1,
+		},
+	}
+	app, err := newTestApp(t,
+		Config{
+			Cluster:  clusterpkg.Config{NodeID: 3},
+			Message:  MessageConfig{SystemDeviceID: "trusted-system-device"},
+			Delivery: DeliveryConfig{Enabled: false},
+		},
+		WithCluster(cluster),
+		WithGateway(&fakeGateway{calls: &[]string{}}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	startTestApp(t, app)
+
+	result, err := app.messages.Send(context.Background(), message.SendCommand{
+		FromUID:     "ordinary-sender",
+		ChannelID:   "terminal-room",
+		ChannelType: frame.ChannelTypeGroup,
+		ClientMsgNo: "terminal-cmd-1",
+		SyncOnce:    true,
+		Payload:     []byte("must not append"),
+	})
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	if result.Reason != message.ReasonDisband || result.MessageID != 0 || result.MessageSeq != 0 {
+		t.Fatalf("Send() = %#v, want terminal disband rejection", result)
+	}
+	if cluster.appendSeq != 0 {
+		t.Fatalf("append seq = %d, want no durable append", cluster.appendSeq)
+	}
+}
+
 func TestNewWiresChannelAppendIdempotencyStore(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
@@ -6176,6 +6217,14 @@ func (f *fakeManagerCluster) ReadChannelCommitted(_ context.Context, channelID c
 	return channelstore.ReadCommittedResult{Messages: messages}, nil
 }
 
+func (f *fakeManagerCluster) ReadChannelCommittedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	results := make([]clusterchannels.CommittedReadResult, len(reads))
+	for index, read := range reads {
+		results[index].Read, results[index].Err = f.ReadChannelCommitted(ctx, read.ChannelID, read.Request)
+	}
+	return results, nil
+}
+
 func (f *fakeManagerCluster) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (metadb.ChannelRuntimeMeta, error) {
 	meta, ok := f.channelRuntimeMetas[metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType}]
 	if !ok {
@@ -6329,6 +6378,40 @@ type fakeMembershipKey struct {
 }
 
 var _ clusterinfra.PresenceNode = (*fakePresenceCluster)(nil)
+
+type terminalPermissionCluster struct {
+	*fakePresenceCluster
+}
+
+func (c *terminalPermissionCluster) UpsertChannelMetadata(_ context.Context, channel metadb.Channel) error {
+	c.channels[metadb.ChannelKey{ChannelID: channel.ChannelID, ChannelType: channel.ChannelType}] = channel
+	return nil
+}
+
+func (c *terminalPermissionCluster) DeleteChannelMetadata(_ context.Context, channelID string, channelType int64) error {
+	delete(c.channels, metadb.ChannelKey{ChannelID: channelID, ChannelType: channelType})
+	return nil
+}
+
+func (c *terminalPermissionCluster) AddChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (c *terminalPermissionCluster) RemoveChannelSubscribers(context.Context, string, int64, []string, uint64) error {
+	return nil
+}
+
+func (c *terminalPermissionCluster) ListChannelSubscribersAuthoritative(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error) {
+	return c.ListChannelSubscribersPage(ctx, channelID, channelType, afterUID, limit)
+}
+
+func (c *terminalPermissionCluster) ContainsChannelSubscriberAuthoritative(context.Context, string, int64, string) (bool, error) {
+	return true, nil
+}
+
+func (c *terminalPermissionCluster) HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error) {
+	return false, nil
+}
 
 type fakeConversationFallbackCluster struct {
 	fakeCluster
@@ -6777,6 +6860,10 @@ func (f *fakePresenceCluster) ReadChannelLastVisible(_ context.Context, id chann
 
 func (f *fakePresenceCluster) ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error) {
 	return channelstore.ReadCommittedResult{}, nil
+}
+
+func (f *fakePresenceCluster) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	return make([]clusterchannels.CommittedReadResult, len(reads)), nil
 }
 
 func (f *fakePresenceCluster) AppendMessageEvent(_ context.Context, event metadb.MessageEventAppend) (metadb.MessageEventAppendResult, error) {

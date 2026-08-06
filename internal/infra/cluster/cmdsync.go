@@ -3,10 +3,12 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
@@ -21,7 +23,7 @@ type CMDSyncNode interface {
 	TombstoneUserCMDChannelMemberships(context.Context, []metadb.UserCMDChannelMembership) error
 	CommittedChannelTail(context.Context, string, int64) (uint64, error)
 	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
-	ReadChannelCommitted(context.Context, channelruntime.ChannelID, channelstore.ReadCommittedRequest) (channelstore.ReadCommittedResult, error)
+	ReadChannelCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error)
 }
 
 // UpsertUserCMDChannelMemberships persists explicit durable CMD bindings.
@@ -111,15 +113,25 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		read, err := s.node.ReadChannelCommitted(ctx, channelruntime.ChannelID{ID: key.ChannelID, Type: key.ChannelType}, channelstore.ReadCommittedRequest{
-			FromSeq:  nextSeq,
-			MaxSeq:   maxUint64(),
-			Limit:    cmdSyncReadPageLimit,
-			MaxBytes: maxInt(),
-		})
+		reads, err := s.node.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
+			ChannelID: channelruntime.ChannelID{ID: key.ChannelID, Type: key.ChannelType},
+			Request: channelstore.ReadCommittedRequest{
+				FromSeq:  nextSeq,
+				MaxSeq:   maxUint64(),
+				Limit:    cmdSyncReadPageLimit,
+				MaxBytes: maxInt(),
+			},
+		}})
 		if err != nil {
 			return nil, mapAppendError(err)
 		}
+		if len(reads) != 1 {
+			return nil, fmt.Errorf("cmd sync: routed read result count %d, want 1", len(reads))
+		}
+		if reads[0].Err != nil {
+			return nil, mapAppendError(reads[0].Err)
+		}
+		read := reads[0].Read
 		if len(read.Messages) == 0 {
 			break
 		}

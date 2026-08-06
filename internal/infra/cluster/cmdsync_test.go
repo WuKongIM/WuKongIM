@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -69,6 +70,9 @@ func TestCMDMessageReaderReadsCommittedCommandMessages(t *testing.T) {
 	if node.lastReadReq.FromSeq != 3 || node.lastReadReq.Limit != cmdSyncReadPageLimit || node.lastReadReq.Reverse || node.lastReadReq.MaxBytes != maxInt() {
 		t.Fatalf("read request = %#v, want forward from seq 3 page limit", node.lastReadReq)
 	}
+	if node.batchReadCalls != 1 {
+		t.Fatalf("batch read calls = %d, want routed cluster batch read", node.batchReadCalls)
+	}
 	if len(msgs) != 1 || msgs[0].MessageSeq != 4 || msgs[0].MessageID != 11 || msgs[0].ServerTimestampMS != 99 || !msgs[0].SyncOnce || string(msgs[0].Payload) != "x" {
 		t.Fatalf("msgs = %+v", msgs)
 	}
@@ -114,19 +118,20 @@ func TestCMDMessageReaderRejectsDisbandedSourceChannel(t *testing.T) {
 }
 
 type cmdSyncNodeFake struct {
-	rows         []metadb.UserCMDChannelMembership
-	listUID      string
-	listLimit    int
-	acks         []metadb.UserCMDChannelMembership
-	upserts      []metadb.UserCMDChannelMembership
-	tombstones   []metadb.UserCMDChannelMembership
-	lastReadID   channelruntime.ChannelID
-	lastReadReq  channelstore.ReadCommittedRequest
-	readResult   channelstore.ReadCommittedResult
-	readPages    map[uint64]channelstore.ReadCommittedResult
-	readFromSeqs []uint64
-	channel      metadb.Channel
-	channelErr   error
+	rows           []metadb.UserCMDChannelMembership
+	listUID        string
+	listLimit      int
+	acks           []metadb.UserCMDChannelMembership
+	upserts        []metadb.UserCMDChannelMembership
+	tombstones     []metadb.UserCMDChannelMembership
+	lastReadID     channelruntime.ChannelID
+	lastReadReq    channelstore.ReadCommittedRequest
+	readResult     channelstore.ReadCommittedResult
+	readPages      map[uint64]channelstore.ReadCommittedResult
+	readFromSeqs   []uint64
+	batchReadCalls int
+	channel        metadb.Channel
+	channelErr     error
 }
 
 func (n *cmdSyncNodeFake) UpsertUserCMDChannelMemberships(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
@@ -180,4 +185,14 @@ func (n *cmdSyncNodeFake) ReadChannelCommitted(_ context.Context, id channelrunt
 		return n.readPages[req.FromSeq], nil
 	}
 	return n.readResult, nil
+}
+
+func (n *cmdSyncNodeFake) ReadChannelCommittedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	n.batchReadCalls++
+	results := make([]clusterchannels.CommittedReadResult, len(reads))
+	for index, read := range reads {
+		result, err := n.ReadChannelCommitted(ctx, read.ChannelID, read.Request)
+		results[index] = clusterchannels.CommittedReadResult{Read: result, Err: err}
+	}
+	return results, nil
 }

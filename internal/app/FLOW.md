@@ -273,6 +273,8 @@ New(Config)
        authority writer group
   -> create message.App with channelappend.Router, cluster channel metadata
      permission reads, system UID cache, configured message permission switches,
+     source-channel terminal checks for ordinary, system-UID, and system-device
+     sends (trusted classes bypass only nonterminal permission checks),
      the optional plugin Send hook usecase when plugins are enabled, the
      cluster committed message reader when exposed for channel message sync, and
      the cluster message event projection store when exposed for `/message/event`

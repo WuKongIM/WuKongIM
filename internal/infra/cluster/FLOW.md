@@ -171,15 +171,19 @@ misses so callers cannot turn conflicting key reuse into a false success.
 ## Message Sync Read Flow
 
 ```text
-message.ChannelMessageQuery
-  -> channelstore.ReadCommittedRequest
+message.ChannelMessageQuery / []message.ChannelMessageQuery
+  -> one or aligned []clusterchannels.CommittedRead
      (pull-up reads forward; pull-down/latest reads reverse with limit+1)
-  -> ChannelMessageReadNode.ReadChannelCommitted
+  -> dynamically require channelMessageBatchReadNode.ReadChannelCommittedBatch
+  -> resolve and group exact Channel Leaders
   -> channel/store committed messages
-  -> message.ChannelMessagePage
+  -> one or aligned []message.ChannelMessagePage
 ```
 
-The reader adapter trims `limit+1` results to preserve the legacy `more`
+Both product single-channel and batch pulls use the routed batch surface; the
+single-channel path wraps one request and validates one aligned result.
+`ReadChannelCommitted` remains a node-local manager/diagnostic surface, not a
+product sync path. The reader adapter trims `limit+1` results to preserve the legacy `more`
 contract and returns messages to the usecase in ascending sequence order. It
 preserves the committed message setting bitset so the message usecase can
 enrich only stream messages with event projections; legacy HTTP-only field
@@ -224,6 +228,7 @@ cmdsync.Bind
 cmdsync.Sync
   -> ListUserCMDChannelMembershipPage(uid)
   -> read each live command Channel from max(start_seq, ack_seq+1)
+     through ReadChannelCommittedBatch, grouped/routed by exact Channel Leader
   -> return only command-log messages
 
 cmdsync.SyncAck
@@ -233,9 +238,10 @@ cmdsync.SyncAck
 `CMDSyncStore` maps the usecase's separate CMD membership and message ports to
 cluster facades. Bind/unbind are explicit directory mutations; SEND never binds
 recipients. Payloads are cloned at the adapter boundary, and terminally
-disbanded source channels are rejected before message pull.
+disbanded source channels are rejected before message pull. CMD log reads use
+the same routed committed-read batch surface as ordinary message pull, so an
+ingress node never assumes it owns the Channel message store.
 
-## Management Message Flow
 ## Management Message Flow
 
 ```text
@@ -622,12 +628,12 @@ to delete and transient route/leadership failures to retryable outcomes. It
 clones returned payloads and never owns directory ordering, badge arithmetic,
 visibility floors, or retry policy.
 
-Ordinary batch message pull uses `ChannelMessageReader.SyncMessagesBatch`.
-The usecase validates all memberships before this adapter call; the adapter
+Ordinary single and batch message pull use the routed
+`ChannelMessageReader.SyncMessagesBatch` surface; the single path wraps one
+item. The usecase validates all memberships before this adapter call; the adapter
 passes one aligned batch to the cluster Node, which groups reads by exact
 Channel Leader. It never performs subscriber revalidation.
 
-## Channel Append Authority Flow
 ## Channel Append Authority Flow
 
 `ChannelAppendClient` adapts the channelappend router authority ports to

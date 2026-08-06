@@ -99,6 +99,15 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid include_max_message_seq")
 		return
 	}
+	exact, err := parseOptionalBool(c.Query("exact"))
+	if err != nil {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid exact")
+		return
+	}
+	if exact {
+		handleExactChannelRuntimeMeta(c, s.management)
+		return
+	}
 
 	page, err := s.management.ListChannelRuntimeMeta(c.Request.Context(), managementusecase.ListChannelRuntimeMetaRequest{
 		Limit:                limit,
@@ -122,6 +131,21 @@ func (s *Server) handleChannelRuntimeMeta(c *gin.Context) {
 		HasMore:    page.HasMore,
 		NextCursor: nextCursor,
 	})
+}
+
+func handleExactChannelRuntimeMeta(c *gin.Context, management Management) {
+	channelID := strings.TrimSpace(c.Query("channel_id"))
+	channelType, err := strconv.ParseInt(strings.TrimSpace(c.Query("channel_type")), 10, 64)
+	if channelID == "" || err != nil || channelType <= 0 || channelType > int64(^uint8(0)) {
+		jsonError(c, http.StatusBadRequest, "bad_request", "invalid exact channel")
+		return
+	}
+	item, err := management.GetChannelRuntimeMeta(c.Request.Context(), channelID, channelType)
+	if err != nil {
+		writeChannelRuntimeMetaError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, ChannelRuntimeMetaListResponse{Items: []ChannelRuntimeMetaDTO{channelRuntimeMetaDTO(item)}})
 }
 
 func parseChannelRuntimeMetaLimit(raw string) (int, error) {
@@ -162,6 +186,8 @@ func writeChannelRuntimeMetaError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, metadb.ErrInvalidArgument):
 		jsonError(c, http.StatusBadRequest, "bad_request", "invalid cursor")
+	case errors.Is(err, metadb.ErrNotFound):
+		jsonError(c, http.StatusNotFound, "not_found", "channel runtime metadata not found")
 	case controlSnapshotUnavailable(err), errors.Is(err, cluster.ErrSlotNotFound), errors.Is(err, cluster.ErrNotStarted):
 		jsonError(c, http.StatusServiceUnavailable, "service_unavailable", "channel runtime metadata unavailable")
 	default:

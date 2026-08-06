@@ -1,7 +1,8 @@
 # conversation_directory_multi_node AGENTS
 
 This scenario proves membership-backed conversation hydration keeps cluster
-semantics in a real static three-node cluster.
+semantics in real static multi-node clusters, including requests accepted by an
+ingress node that is not a replica of the UID-owned Slot.
 
 ## Run
 
@@ -18,10 +19,16 @@ WK_E2E_CONVERSATION_DIRECTORY_PERF=1 GOWORK=off go test -tags=e2e ./test/e2e/mes
 ## Rules
 
 - Keep assertions black-box through public channel-management,
-  `/message/send`, `/conversation/list`, `/conversation/retry`, Manager HTTP,
-  and `/metrics` entrypoints.
+  `/message/send`, `/message/sync`, `/channel/messagesync`,
+  `/conversation/list`, `/conversation/retry`, Manager HTTP, and `/metrics`
+  entrypoints.
 - Enable Manager HTTP on all nodes and wait for stable actual Slot leaders
   before selecting channels.
+- Keep the four-node non-replica-ingress case at three Slot replicas and one
+  Channel replica. Its purpose is to isolate UID-owned directory routing from
+  separate multi-replica Channel commit behavior.
+- Deterministically select an ordinary source Channel whose Leader is outside
+  the ingress node, then always execute ordinary pull plus CMD bind/send/sync.
 - Select channels by their publicly reported Channel Leader; do not inspect
   internal stores or import `internal` packages.
 - Prove batching with low-cardinality public metrics and prove partial failure

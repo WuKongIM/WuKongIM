@@ -10,7 +10,9 @@ HTTP helpers for real `cmd/wukongim` tests.
    its process-lifetime port block, so concurrently running E2E packages cannot
    return overlapping listener addresses; individual addresses are still
    probed before use to avoid unrelated host listeners.
-2. Config renderers write node TOML and derive the product environment. The
+2. Config renderers write node TOML and derive the product environment. Static
+   scenarios may choose an explicit positive node count; the three-node helper
+   is the common shorthand. The
    shared E2E baseline explicitly disables the optional plugin runtime; plugin
    scenarios opt in per node through a config override.
 3. The default binary cache builds `cmd/wukongim` with the `e2e` build tag into

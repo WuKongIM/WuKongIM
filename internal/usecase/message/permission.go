@@ -34,14 +34,16 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCom
 		return reapplyCommandChannel(cmd), ReasonSuccess, nil
 	}
 	if a.systemUIDs != nil && a.systemUIDs.IsSystemUID(cmd.FromUID) {
-		return reapplyCommandChannel(cmd), ReasonSuccess, nil
+		reason, err := a.checkTerminalChannelPermission(ctx, cmd)
+		return reapplyCommandChannel(cmd), reason, err
 	}
 
 	if reason, err := a.checkSenderSendPermission(ctx, cmd.FromUID); reason != ReasonSuccess || err != nil {
 		return cmd, reason, err
 	}
 	if a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID {
-		return reapplyCommandChannel(cmd), ReasonSuccess, nil
+		reason, err := a.checkTerminalChannelPermission(ctx, cmd)
+		return reapplyCommandChannel(cmd), reason, err
 	}
 
 	var (
@@ -50,22 +52,45 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCom
 	)
 	switch cmd.ChannelType {
 	case channelTypePerson:
+		if reason, err = a.checkTerminalChannelPermission(ctx, cmd); err != nil || reason != ReasonSuccess {
+			break
+		}
 		reason, err = a.checkPersonSendPermission(ctx, cmd)
 	case channelTypeGroup:
 		reason, err = a.checkGroupSendPermission(ctx, cmd)
 	case channelTypeInfo, channelTypeCustomerService:
-		reason = ReasonSuccess
+		reason, err = a.checkTerminalChannelPermission(ctx, cmd)
 	case channelTypeAgent:
-		reason, err = a.checkAgentSendPermission(cmd)
+		if reason, err = a.checkTerminalChannelPermission(ctx, cmd); err == nil && reason == ReasonSuccess {
+			reason, err = a.checkAgentSendPermission(cmd)
+		}
 	case channelTypeVisitors:
-		reason, err = a.checkVisitorsSendPermission(ctx, cmd)
+		if reason, err = a.checkTerminalChannelPermission(ctx, cmd); err == nil && reason == ReasonSuccess {
+			reason, err = a.checkVisitorsSendPermission(ctx, cmd)
+		}
 	default:
-		reason = ReasonSuccess
+		reason, err = a.checkTerminalChannelPermission(ctx, cmd)
 	}
 	if err != nil || reason != ReasonSuccess {
 		return cmd, reason, err
 	}
 	return reapplyCommandChannel(cmd), ReasonSuccess, nil
+}
+
+// checkTerminalChannelPermission keeps trusted permission bypasses from
+// bypassing the source channel's irreversible disband state.
+func (a *App) checkTerminalChannelPermission(ctx context.Context, cmd SendCommand) (Reason, error) {
+	channel, err := a.permissionAuthority.GetChannelForPermission(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	if errors.Is(err, metadb.ErrNotFound) {
+		return ReasonSuccess, nil
+	}
+	if err != nil {
+		return ReasonSystemError, err
+	}
+	if channel.Disband != 0 {
+		return ReasonDisband, nil
+	}
+	return ReasonSuccess, nil
 }
 
 func (a *App) checkSenderSendPermission(ctx context.Context, fromUID string) (Reason, error) {
@@ -83,7 +108,7 @@ func (a *App) checkSenderSendPermission(ctx context.Context, fromUID string) (Re
 }
 
 func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (Reason, error) {
-	ch, err := a.permissions.GetChannelForPermission(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+	ch, err := a.permissionAuthority.GetChannelForPermission(ctx, cmd.ChannelID, int64(cmd.ChannelType))
 	if errors.Is(err, metadb.ErrNotFound) {
 		return ReasonChannelNotExist, nil
 	}

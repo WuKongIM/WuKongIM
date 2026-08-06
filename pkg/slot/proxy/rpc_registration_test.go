@@ -26,10 +26,33 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 		int(channelRPCServiceID),
 		int(channelMigrationRPCServiceID),
 		int(pluginBindingRPCServiceID),
+		int(membershipRPCServiceID),
 	}
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("registered RPC service IDs = %v, want %v", got, want)
+	}
+}
+
+func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T) {
+	cluster := &promotedRPCRegistrationCluster{}
+
+	NewChannelMetadataStore(cluster, nil)
+
+	got := make([]int, 0, len(cluster.handlers))
+	for serviceID := range cluster.handlers {
+		got = append(got, int(serviceID))
+	}
+	sort.Ints(got)
+	want := []int{
+		int(runtimeMetaRPCServiceID),
+		int(subscriberRPCServiceID),
+		int(channelRPCServiceID),
+		int(membershipRPCServiceID),
+	}
+	sort.Ints(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("registered channel metadata RPC service IDs = %v, want %v", got, want)
 	}
 }
 

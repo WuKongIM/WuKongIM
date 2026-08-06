@@ -28,8 +28,10 @@ func New(cluster Cluster, db *metadb.DB) *Store {
 func NewChannelMetadataStore(cluster Cluster, db *metadb.DB) *Store {
 	store := &Store{cluster: cluster, db: db}
 	registerSelectedStoreRPCHandlers(cluster, []storeRPCRegistration{
+		{serviceID: runtimeMetaRPCServiceID, handler: store.handleRuntimeMetaRPC},
 		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
 		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
+		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 	})
 	return store
 }

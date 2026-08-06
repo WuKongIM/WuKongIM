@@ -3,9 +3,11 @@ package message
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -138,6 +140,31 @@ func TestSendAppliesLegacyPermissionChecksBeforeSubmitter(t *testing.T) {
 			want: ReasonDisband,
 		},
 		{
+			name: "disbanded group rejects system uid bypass",
+			cmd:  SendCommand{FromUID: "sys", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Disband: 1}
+			},
+			opts: func(opts *Options) {
+				opts.SystemUIDs = fakeSystemUIDChecker{"sys": true}
+			},
+			want: ReasonDisband,
+		},
+		{
+			name: "disbanded command channel rejects system device bypass",
+			cmd: SendCommand{
+				FromUID: "u1", DeviceID: "____device", ChannelID: runtimechannelid.ToCommandChannel("g1"),
+				ChannelType: channelTypeGroup, Payload: []byte("hi"),
+			},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Disband: 1}
+			},
+			opts: func(opts *Options) {
+				opts.SystemDeviceID = "____device"
+			},
+			want: ReasonDisband,
+		},
+		{
 			name: "group denylist",
 			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
 			configure: func(store *fakePermissionStore) {
@@ -229,6 +256,65 @@ func TestSendAppliesLegacyPermissionChecksBeforeSubmitter(t *testing.T) {
 	}
 }
 
+func TestSendRejectsTerminalDisbandForEveryChannelType(t *testing.T) {
+	personChannelID, err := runtimechannelid.NormalizePersonChannel("u1", "u2")
+	if err != nil {
+		t.Fatalf("NormalizePersonChannel(): %v", err)
+	}
+	tests := []SendCommand{
+		{FromUID: "u1", ChannelID: "u2", ChannelType: channelTypePerson, NormalizePersonChannel: true, Payload: []byte("hi")},
+		{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
+		{FromUID: "u1", ChannelID: "info1", ChannelType: channelTypeInfo, Payload: []byte("hi")},
+		{FromUID: "u1", ChannelID: "cs1", ChannelType: channelTypeCustomerService, Payload: []byte("hi")},
+		{FromUID: "u1", ChannelID: "u1@agent-a", ChannelType: channelTypeAgent, Payload: []byte("hi")},
+		{FromUID: "visitor1", ChannelID: "visitor1", ChannelType: channelTypeVisitors, Payload: []byte("hi")},
+		{FromUID: "u1", ChannelID: "other1", ChannelType: 99, Payload: []byte("hi")},
+	}
+	for _, cmd := range tests {
+		t.Run(fmt.Sprintf("channel_type_%d", cmd.ChannelType), func(t *testing.T) {
+			sourceID := cmd.ChannelID
+			if cmd.ChannelType == channelTypePerson {
+				sourceID = personChannelID
+			}
+			store := newFakePermissionStore()
+			store.channels[permissionKey(sourceID, int64(cmd.ChannelType))] = metadb.Channel{
+				ChannelID: sourceID, ChannelType: int64(cmd.ChannelType), Disband: 1,
+			}
+			app := New(Options{Submitter: &recordingSubmitter{}, PermissionStore: store})
+			result, err := app.Send(context.Background(), cmd)
+			if err != nil {
+				t.Fatalf("Send() error = %v", err)
+			}
+			if result.Reason != ReasonDisband {
+				t.Fatalf("Send() reason = %v, want %v", result.Reason, ReasonDisband)
+			}
+		})
+	}
+}
+
+func TestSendTerminalCheckBypassesLivePermissionCache(t *testing.T) {
+	store := newFakePermissionStore()
+	key := permissionKey("g1", int64(channelTypeGroup))
+	store.channels[key] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
+	store.members[key] = map[string]bool{"u1": true}
+	submitter := &recordingSubmitter{sendResult: SendResult{MessageID: 1, MessageSeq: 1, Reason: ReasonSuccess}}
+	app := New(Options{Submitter: submitter, PermissionStore: store, PermissionCacheTTL: time.Hour})
+	cmd := SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")}
+
+	first, err := app.Send(context.Background(), cmd)
+	if err != nil || first.Reason != ReasonSuccess {
+		t.Fatalf("first Send() = %#v, %v, want success", first, err)
+	}
+	store.channels[key] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Disband: 1}
+	second, err := app.Send(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("second Send() error = %v", err)
+	}
+	if second.Reason != ReasonDisband {
+		t.Fatalf("second Send() reason = %v, want %v", second.Reason, ReasonDisband)
+	}
+}
+
 func TestSendAllowsLegacyPermissionPassesAndBypasses(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -246,11 +332,11 @@ func TestSendAllowsLegacyPermissionPassesAndBypasses(t *testing.T) {
 			wantID: 10,
 		},
 		{
-			name: "system uid bypasses all permission checks",
+			name: "system uid bypasses nonterminal permission checks",
 			cmd:  SendCommand{FromUID: "sys", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
 			configure: func(store *fakePermissionStore) {
 				store.channels[permissionKey("sys", int64(channelTypePerson))] = metadb.Channel{ChannelID: "sys", ChannelType: int64(channelTypePerson), SendBan: 1}
-				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Disband: 1}
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
 			},
 			opts: func(opts *Options) {
 				opts.SystemUIDs = fakeSystemUIDChecker{"sys": true}
@@ -258,10 +344,10 @@ func TestSendAllowsLegacyPermissionPassesAndBypasses(t *testing.T) {
 			wantID: 11,
 		},
 		{
-			name: "system device bypasses channel checks after sender send ban passes",
+			name: "system device bypasses nonterminal channel checks after sender send ban passes",
 			cmd:  SendCommand{FromUID: "u1", DeviceID: "____device", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
 			configure: func(store *fakePermissionStore) {
-				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Disband: 1}
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup), Ban: 1}
 			},
 			opts: func(opts *Options) {
 				opts.SystemDeviceID = "____device"

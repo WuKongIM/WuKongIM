@@ -295,14 +295,10 @@ func (s defaultChannelRuntimeMetaStore) GetChannelRuntimeMeta(ctx context.Contex
 	if err := ctxErr(ctx); err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
-	if s.node == nil || s.node.defaultSlotMetaDB == nil {
+	if s.node == nil || s.node.defaultSlotProxy == nil {
 		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
 	}
-	route, err := s.node.RouteKey(channelID)
-	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
-	}
-	return s.node.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, channelID, channelType)
+	return s.node.defaultSlotProxy.GetChannelRuntimeMeta(ctx, channelID, channelType)
 }
 
 func (s defaultChannelRuntimeMetaStore) UpsertChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) error {

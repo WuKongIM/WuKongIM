@@ -40,12 +40,14 @@ type Options struct {
 
 // App is a thin message facade over channel append submission and sync reads.
 type App struct {
-	submitter              Submitter
-	reader                 ChannelMessageReader
-	memberships            SyncMembershipStore
-	channelState           SyncChannelStateStore
-	eventStore             MessageEventStore
-	permissions            PermissionStore
+	submitter    Submitter
+	reader       ChannelMessageReader
+	memberships  SyncMembershipStore
+	channelState SyncChannelStateStore
+	eventStore   MessageEventStore
+	permissions  PermissionStore
+	// permissionAuthority bypasses the optional cache for terminal channel checks.
+	permissionAuthority    PermissionStore
 	personDirectory        PersonDirectoryEnsurer
 	sendHook               SendHook
 	systemUIDs             SystemUIDChecker
@@ -67,6 +69,7 @@ func New(opts Options) *App {
 		channelState:           opts.ChannelState,
 		eventStore:             opts.EventStore,
 		permissions:            permissions,
+		permissionAuthority:    opts.PermissionStore,
 		personDirectory:        opts.PersonDirectory,
 		sendHook:               opts.SendHook,
 		systemUIDs:             opts.SystemUIDs,

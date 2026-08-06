@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
+	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -44,6 +46,14 @@ type channelRuntimeMetaItem struct {
 	ChannelType int64  `json:"channel_type"`
 	Leader      uint64 `json:"leader"`
 	Status      string `json:"status"`
+}
+
+type directorySyncedMessage struct {
+	ClientMsgNo string `json:"client_msg_no"`
+}
+
+type directoryMessagePage struct {
+	Messages []directorySyncedMessage `json:"messages"`
 }
 
 type directoryPerformanceEvidence struct {
@@ -139,10 +149,10 @@ func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *te
 	origin := cluster.MustNode(1)
 
 	const (
-		uid           = "directory-retry-user"
 		senderUID     = "directory-retry-sender"
 		stoppedLeader = uint64(2)
 	)
+	uid := uidOwnedBySlotLeaderOtherThan(t, cluster, 1, stoppedLeader)
 	channelsByLeader := createDirectoryChannelsByLeader(t, cluster, uid, senderUID, 1)
 	requireDirectoryPageEventually(t, cluster, origin, uid, 3, func(page suite.ConversationListPage) error {
 		if len(page.Conversations) != 3 || len(page.Unresolved) != 0 || !page.Done {
@@ -204,6 +214,57 @@ func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *te
 	require.True(t, ok)
 	require.NotNil(t, recovered.LastMessage)
 	require.Equal(t, affected[0].ClientMsgNo, recovered.LastMessage.ClientMsgNo)
+}
+
+func TestFourNodeConversationDirectoryRoutesUIDMembershipReadsFromNonReplicaIngress(t *testing.T) {
+	cluster := startStableFourNodeReplicaThreeCluster(t)
+	origin := cluster.MustNode(1)
+
+	uid := uidOwnedOutsideNode(t, cluster, 1)
+	senderUID := "directory-non-replica-sender"
+	channelID, sourceLeader, commandLeader := createDirectoryChannelLedOutsideNode(t, cluster, origin, senderUID, uid, 1)
+	require.NotEqual(t, uint64(1), sourceLeader)
+	require.NotEqual(t, uint64(1), commandLeader)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	ordinaryMsgNo := "non-replica-ordinary"
+	sendDirectoryMessage(t, ctx, cluster, *origin, senderUID, channelID, ordinaryMsgNo)
+
+	page := requireDirectoryPageEventually(t, cluster, origin, uid, 10, func(page suite.ConversationListPage) error {
+		item, ok := suite.FindConversation(page, channelID)
+		if !ok || item.LastMessage == nil || item.LastMessage.ClientMsgNo != ordinaryMsgNo {
+			return fmt.Errorf("directory page = %+v, want %s through non-replica ingress", page, ordinaryMsgNo)
+		}
+		return nil
+	})
+
+	retry := requireConversationRetryEventually(t, cluster, origin, suite.ConversationRetryRequest{
+		UID: uid,
+		Channels: []suite.ConversationListKey{{
+			ChannelID: channelID, ChannelType: int64(frame.ChannelTypeGroup),
+		}},
+	})
+	require.Len(t, retry.Conversations, 1)
+	require.Empty(t, retry.Unresolved)
+	require.Empty(t, retry.Deletes)
+	require.NotEmpty(t, page.NextCursor)
+
+	requireOrdinaryMessagePullEventually(t, cluster, origin, uid, channelID, ordinaryMsgNo)
+
+	_, err := suite.PostJSON(ctx, "http://"+origin.APIAddr()+"/message/cmd/bind", map[string]any{
+		"uid": uid, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+	}, nil)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	cmdMsgNo := "non-replica-cmd"
+	cmdResp, err := suite.PostMessageSendEventually(ctx, origin.APIAddr(), map[string]any{
+		"from_uid": senderUID, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+		"client_msg_no": cmdMsgNo, "sync_once": 1,
+		"payload": base64.StdEncoding.EncodeToString([]byte(cmdMsgNo)),
+	})
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	require.Equal(t, uint8(frame.ReasonSuccess), cmdResp.Reason)
+	require.NotZero(t, cmdResp.MessageSeq, "persistent sync_once send must append to the command log")
+	requireCMDMessageSyncEventually(t, cluster, origin, uid, cmdMsgNo)
 }
 
 func TestThreeNodeConversationDirectoryPerformanceAcceptance(t *testing.T) {
@@ -453,7 +514,7 @@ func requireDirectoryPageEventually(t *testing.T, cluster *suite.StartedCluster,
 
 func requireConversationRetryEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, req suite.ConversationRetryRequest) suite.ConversationListPage {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -461,7 +522,9 @@ func requireConversationRetryEventually(t *testing.T, cluster *suite.StartedClus
 	var lastPage suite.ConversationListPage
 	var lastErr error
 	for {
-		page, err := suite.PostConversationRetry(ctx, node.APIAddr(), req)
+		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
+		page, err := suite.PostConversationRetry(requestCtx, node.APIAddr(), req)
+		requestCancel()
 		if err == nil {
 			lastPage = page
 			if len(page.Conversations) == len(req.Channels) && len(page.Unresolved) == 0 {
@@ -488,6 +551,194 @@ func startStableThreeNodeCluster(t *testing.T) *suite.StartedCluster {
 	_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
 	require.NoError(t, err, cluster.DumpDiagnostics())
 	return cluster
+}
+
+func startStableFourNodeReplicaThreeCluster(t *testing.T) *suite.StartedCluster {
+	t.Helper()
+	config := map[string]string{
+		"WK_CLUSTER_SLOT_REPLICA_N":    "3",
+		"WK_CLUSTER_CHANNEL_REPLICA_N": "1",
+	}
+	cluster := suite.New(t).StartStaticCluster(4,
+		suite.WithManagerHTTP(),
+		suite.WithNodeConfigOverrides(1, config),
+		suite.WithNodeConfigOverrides(2, config),
+		suite.WithNodeConfigOverrides(3, config),
+		suite.WithNodeConfigOverrides(4, config),
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	return cluster
+}
+
+func uidOwnedOutsideNode(t *testing.T, cluster *suite.StartedCluster, ingressNodeID uint64) string {
+	t.Helper()
+	slots := cluster.ManagerClient(t, ingressNodeID).MustSlots(t)
+	for _, slot := range slots {
+		if containsNodeID(slot.Assignment.DesiredPeers, ingressNodeID) || slot.HashSlots == nil {
+			continue
+		}
+		for candidate := 0; candidate < 100_000; candidate++ {
+			uid := fmt.Sprintf("directory-remote-owner-%d", candidate)
+			hashSlot := routing.HashSlotForKey(uid, 16)
+			for _, owned := range slot.HashSlots.Items {
+				if hashSlot == owned {
+					return uid
+				}
+			}
+		}
+	}
+	t.Fatalf("no UID-owned Slot excludes ingress node %d\n%s", ingressNodeID, cluster.DumpDiagnostics())
+	return ""
+}
+
+func uidOwnedBySlotLeaderOtherThan(t *testing.T, cluster *suite.StartedCluster, managerNodeID, excludedLeader uint64) string {
+	t.Helper()
+	slots := cluster.ManagerClient(t, managerNodeID).MustSlots(t)
+	for _, slot := range slots {
+		if slot.Runtime.LeaderID == 0 || slot.Runtime.LeaderID == excludedLeader || slot.HashSlots == nil {
+			continue
+		}
+		for candidate := 0; candidate < 100_000; candidate++ {
+			uid := fmt.Sprintf("directory-healthy-owner-%d", candidate)
+			hashSlot := routing.HashSlotForKey(uid, 16)
+			for _, owned := range slot.HashSlots.Items {
+				if hashSlot == owned {
+					return uid
+				}
+			}
+		}
+	}
+	t.Fatalf("no UID Slot leader differs from excluded node %d\n%s", excludedLeader, cluster.DumpDiagnostics())
+	return ""
+}
+
+func containsNodeID(values []uint64, want uint64) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func requireOrdinaryMessagePullEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, uid, channelID, clientMsgNo string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var last directoryMessagePage
+	var lastErr error
+	for {
+		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
+		var page directoryMessagePage
+		_, err := suite.PostJSON(requestCtx, "http://"+node.APIAddr()+"/channel/messagesync", map[string]any{
+			"login_uid": uid, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+			"start_message_seq": 1, "limit": 10, "pull_mode": 1,
+		}, &page)
+		requestCancel()
+		if err == nil {
+			last = page
+			for _, message := range page.Messages {
+				if message.ClientMsgNo == clientMsgNo {
+					return
+				}
+			}
+			lastErr = fmt.Errorf("message %s missing", clientMsgNo)
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("ordinary pull through non-replica ingress did not converge: last=%+v err=%v\n%s", last, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func requireCMDMessageSyncEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, uid, clientMsgNo string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var last []directorySyncedMessage
+	var lastErr error
+	for {
+		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
+		var messages []directorySyncedMessage
+		_, err := suite.PostJSON(requestCtx, "http://"+node.APIAddr()+"/message/sync", map[string]any{
+			"uid": uid, "message_seq": 0, "limit": 10,
+		}, &messages)
+		requestCancel()
+		if err == nil {
+			last = messages
+			for _, message := range messages {
+				if message.ClientMsgNo == clientMsgNo {
+					return
+				}
+			}
+			lastErr = fmt.Errorf("CMD message %s missing", clientMsgNo)
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("CMD sync through non-replica ingress did not converge: last=%+v err=%v\n%s", last, lastErr, cluster.DumpDiagnostics())
+		case <-ticker.C:
+		}
+	}
+}
+
+func createDirectoryChannelLedOutsideNode(t *testing.T, cluster *suite.StartedCluster, origin *suite.StartedNode, senderUID, uid string, excludedNodeID uint64) (string, uint64, uint64) {
+	t.Helper()
+	prefix := fmt.Sprintf("directory-non-replica-%d", time.Now().UnixNano())
+	for candidate := 0; candidate < 40; candidate++ {
+		channelID := fmt.Sprintf("%s-%02d", prefix, candidate)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		err := suite.PostChannel(ctx, origin.APIAddr(), map[string]any{
+			"channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+			"reset": 1, "subscribers": []string{senderUID},
+		})
+		if err != nil {
+			cancel()
+			require.NoError(t, err, cluster.DumpDiagnostics())
+		}
+		sendDirectoryMessage(t, ctx, cluster, *origin, senderUID, channelID, fmt.Sprintf("ordinary-route-probe-%02d", candidate))
+		cancel()
+		sourceMeta := requireChannelRuntimeMetaEventually(t, cluster, origin, channelID)
+		if sourceMeta.Leader == excludedNodeID {
+			continue
+		}
+		commandChannelID := runtimechannelid.ToCommandChannel(channelID)
+		cmdCtx, cmdCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		cmdResp, err := suite.PostMessageSendEventually(cmdCtx, origin.APIAddr(), map[string]any{
+			"from_uid": senderUID, "channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+			"client_msg_no": fmt.Sprintf("command-route-probe-%02d", candidate), "sync_once": 1,
+			"payload": base64.StdEncoding.EncodeToString([]byte("command-route-probe")),
+		})
+		cmdCancel()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, uint8(frame.ReasonSuccess), cmdResp.Reason, cluster.DumpDiagnostics())
+		commandMeta := requireChannelRuntimeMetaEventually(t, cluster, origin, commandChannelID)
+		if commandMeta.Leader == excludedNodeID {
+			continue
+		}
+
+		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		_, err = suite.PostJSON(ctx, "http://"+origin.APIAddr()+"/channel/subscriber_add", map[string]any{
+			"channel_id": channelID, "channel_type": frame.ChannelTypeGroup, "subscribers": []string{uid},
+		}, nil)
+		cancel()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		return channelID, sourceMeta.Leader, commandMeta.Leader
+	}
+	t.Fatalf("no ordinary/CMD channel pair found outside node %d\n%s", excludedNodeID, cluster.DumpDiagnostics())
+	return "", 0, 0
 }
 
 func createDirectoryChannelsByLeader(t *testing.T, cluster *suite.StartedCluster, uid, senderUID string, perLeader int) map[uint64][]directoryChannel {
@@ -545,7 +796,7 @@ func sendDirectoryMessage(t *testing.T, ctx context.Context, cluster *suite.Star
 
 func requireChannelRuntimeMetaEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, channelID string) channelRuntimeMetaItem {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -553,9 +804,14 @@ func requireChannelRuntimeMetaEventually(t *testing.T, cluster *suite.StartedClu
 	var last channelRuntimeMetaItem
 	var lastErr error
 	for {
-		query := url.Values{"channel_id": []string{channelID}, "limit": []string{"10"}}
+		query := url.Values{
+			"exact": []string{"1"}, "channel_id": []string{channelID},
+			"channel_type": []string{fmt.Sprint(frame.ChannelTypeGroup)},
+		}
 		var page channelRuntimeMetaPage
-		_, err := suite.GetJSON(ctx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
+		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err := suite.GetJSON(requestCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
+		requestCancel()
 		if err == nil {
 			for _, item := range page.Items {
 				if item.ChannelID == channelID && item.ChannelType == int64(frame.ChannelTypeGroup) {

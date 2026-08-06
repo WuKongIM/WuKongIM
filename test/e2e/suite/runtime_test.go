@@ -44,6 +44,20 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 	}
 }
 
+func TestStartStaticClusterUsesRequestedNodeCount(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
+
+	cluster := New(t).StartStaticCluster(4)
+
+	require.Len(t, cluster.Nodes, 4)
+	for _, node := range cluster.Nodes {
+		cfg, err := os.ReadFile(node.Spec.ConfigPath)
+		require.NoError(t, err)
+		require.Contains(t, string(cfg), "initial_slot_count = 4\n")
+		require.Contains(t, string(cfg), "slot_replica_n = 4\n")
+	}
+}
+
 func TestStartThreeNodeClusterCanShareBackupRepository(t *testing.T) {
 	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
 

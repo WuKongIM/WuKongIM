@@ -166,14 +166,10 @@ func (n *Node) GetChannelRuntimeMeta(ctx context.Context, channelID string, chan
 	if err := n.ensureForeground(); err != nil {
 		return metadb.ChannelRuntimeMeta{}, err
 	}
-	if n.defaultSlotMetaDB == nil {
+	if n.defaultSlotProxy == nil {
 		return metadb.ChannelRuntimeMeta{}, ErrNotStarted
 	}
-	route, err := n.RouteKey(channelID)
-	if err != nil {
-		return metadb.ChannelRuntimeMeta{}, err
-	}
-	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetChannelRuntimeMeta(ctx, channelID, channelType)
+	return n.defaultSlotProxy.GetChannelRuntimeMeta(ctx, channelID, channelType)
 }
 
 // AdvanceChannelRetentionThroughSeq persists a fenced channel message compaction boundary through Slot ownership.
@@ -642,14 +638,10 @@ func (n *Node) ListUserChannelMembershipPage(ctx context.Context, uid string, af
 	if err := n.ensureForeground(); err != nil {
 		return nil, metadb.UserChannelMembershipCursor{}, false, err
 	}
-	if n.defaultSlotMetaDB == nil {
+	if n.defaultSlotProxy == nil {
 		return nil, metadb.UserChannelMembershipCursor{}, false, ErrNotStarted
 	}
-	route, err := n.RouteKey(uid)
-	if err != nil {
-		return nil, metadb.UserChannelMembershipCursor{}, false, err
-	}
-	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserChannelMembershipPage(ctx, uid, after, limit)
+	return n.defaultSlotProxy.ListUserChannelMembershipPage(ctx, uid, after, limit)
 }
 
 // GetUserChannelMembership reads one UID-owned ordinary membership.
@@ -660,18 +652,10 @@ func (n *Node) GetUserChannelMembership(ctx context.Context, uid, channelID stri
 	if err := n.ensureForeground(); err != nil {
 		return metadb.UserChannelMembership{}, false, err
 	}
-	if n.defaultSlotMetaDB == nil {
+	if n.defaultSlotProxy == nil {
 		return metadb.UserChannelMembership{}, false, ErrNotStarted
 	}
-	route, err := n.RouteKey(uid)
-	if err != nil {
-		return metadb.UserChannelMembership{}, false, err
-	}
-	row, err := n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).GetUserChannelMembership(ctx, uid, channelID, channelType)
-	if errors.Is(err, metadb.ErrNotFound) {
-		return metadb.UserChannelMembership{}, false, nil
-	}
-	return row, err == nil, err
+	return n.defaultSlotProxy.GetUserChannelMembership(ctx, uid, channelID, channelType)
 }
 
 // AdvanceUserChannelMembershipReadSeq monotonically advances one badge floor.
@@ -801,14 +785,10 @@ func (n *Node) ListUserCMDChannelMembershipPage(ctx context.Context, uid string,
 	if err := n.ensureForeground(); err != nil {
 		return nil, metadb.UserCMDChannelMembershipCursor{}, false, err
 	}
-	if n.defaultSlotMetaDB == nil {
+	if n.defaultSlotProxy == nil {
 		return nil, metadb.UserCMDChannelMembershipCursor{}, false, ErrNotStarted
 	}
-	route, err := n.RouteKey(uid)
-	if err != nil {
-		return nil, metadb.UserCMDChannelMembershipCursor{}, false, err
-	}
-	return n.defaultSlotMetaDB.ForHashSlot(route.HashSlot).ListUserCMDChannelMembershipPage(ctx, uid, after, limit)
+	return n.defaultSlotProxy.ListUserCMDChannelMembershipPage(ctx, uid, after, limit)
 }
 
 type channelLatestSlotBatch struct {

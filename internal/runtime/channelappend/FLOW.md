@@ -203,6 +203,11 @@ larger of `ChannelBacklogHighWatermark` and
 Both worker-pool sizes are capped at the maximum positive int32 capacity used by
 ants/v2, preventing oversized configuration values from wrapping into an
 unbounded or permanently full pool.
+An optional `Authorizer` runs on this final local-authority prepare path before
+idempotency lookup and message-id allocation. It is a reusable node-local
+authority admission seam; product composition keeps terminal channel business
+checks in the message usecase, so this runtime does not read Slot business
+metadata or interpret command-source lifecycle.
 Prepared command-style `NoPersist` items also receive one message id and server
 timestamp, but they do not enter the durable pending queue. The writer schedules
 them as realtime effects and completes their future only after the recipient

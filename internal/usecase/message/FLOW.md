@@ -19,10 +19,11 @@ SendBatch(items)
        normalize command-channel IDs to their source channel for permission checks
        normalize person-channel IDs when requested by the entry adapter
        if PermissionStore is nil, allow
-       if sender is a system UID, allow
+       if sender is a system UID, authoritatively check source-channel Disband then bypass nonterminal checks
        check sender SendBan through the sender's person metadata row
-       if DeviceID matches SystemDeviceID, allow channel-specific checks
-       enforce group metadata, ban/disband, subscriber, denylist, and allowlist checks
+       if DeviceID matches SystemDeviceID, authoritatively check source-channel Disband then bypass remaining nonterminal checks
+       authoritatively reject Disband for every source channel type
+       enforce group metadata, ban, subscriber, denylist, and allowlist checks
        enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
        enforce agent participant and visitors/customer-service membership checks
        reject denied items with item-aligned Reason values
@@ -52,7 +53,10 @@ entry-agnostic: `internal/access/gateway` and `internal/access/api` map the
 usecase `Reason` values back to protocol reason codes at their boundaries.
 `PermissionCacheTTL` optionally wraps the permission metadata port with a
 bounded read-through cache for channel rows, subscriber point lookups,
-subscriber-set non-emptiness, and missing channel rows.
+subscriber-set non-emptiness, and missing channel rows. Terminal source-channel
+checks bypass this cache, and the normal group path reuses that authoritative
+channel read, so a cached live row cannot revive a disbanded channel and group
+SEND does not add a second channel metadata read.
 
 ## SyncChannelMessages Flow
 
