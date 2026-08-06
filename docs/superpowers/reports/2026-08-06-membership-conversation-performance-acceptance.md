@@ -22,6 +22,15 @@ This is a reproducible local acceptance result, not a universal deployment
 capacity claim. Representative multi-host qualification and a longer soak
 remain separate operational gates.
 
+The new sustained gate is implemented, but the current candidate is **NOT
+QUALIFIED** for its 30-minute, 5,000-channel boundary. With natural local and
+remote Slot routing at 4,500 offered QPS, the run completed 862,476 SEND calls
+before a sender disconnected at about 192 seconds into the measured window.
+All three nodes remained running and ready; `message.send` batches first timed
+out, then node 2 reported `gateway: async send dispatch queue is full`. This
+does not revoke the accepted fixed 20,000-message gate, but it closes the prior
+unknown boundary with a reproducible sustained-capacity failure.
+
 ## Defects Found During Acceptance
 
 ### Cross-node person-directory readiness
@@ -148,6 +157,56 @@ unchanged rerun measured 4,500.21 messages/s and passed. The sub-millisecond
 offered-load pacing boundary should therefore be treated as harness jitter;
 latency, mutation, continuity, and drain evidence was healthy in both runs.
 
+### Sustained permission-pressure qualification
+
+The opt-in black-box soak runs three real processes with 256 physical hash
+slots, 10 logical Slots, 25 senders, 25 online receivers, and 5,000 naturally
+hashed group channels. Every channel has one sender/receiver subscriber pair;
+the deterministic fixture proves that both ingress-local and cross-node Slot
+permission routes are exercised. SEND never mutates the membership directory.
+
+The harness is bounded over the full 8.1-million-message target: latency uses a
+fixed 10,001-bucket histogram, completed message state is deleted, and public
+Prometheus samples are aggregated rather than retained. It records transport
+executor queue/busy/rejection pressure, permission Slot RPC calls, errors,
+admission and in-flight state, `message/permission_batch` goroutine activity,
+heap/GC, plugin conservation, process continuity, and membership mutation
+rows. Complete runs emit `wukongim/permission-soak-evidence/v1`; premature
+failures emit `wukongim/permission-soak-failure/v1` before bounded node
+diagnostics.
+
+A 10-second diagnostic control at 4,500 QPS and 100 channels passed:
+
+| Signal | Result |
+| --- | ---: |
+| Messages / ingress | 45,000 / 4,500.09 messages/s |
+| Completion | 4,413.93 messages/s |
+| SENDACK P99 / max | 311 / 451.55 ms |
+| RECV P99 / max | 292 / 440.77 ms |
+| Permission Slot RPC calls / errors | 146,860 / 0 |
+| Permission Slot RPC admission errors | 0 |
+| Max transport queue / busy ratio | 0 / 0.00265 |
+| Permission batches / panics / max active | 38,442 / 0 / 38 |
+| Ordinary membership mutation rows | **0** |
+| Max node / aggregate heap | 141.0 / 369.7 MB |
+| Metric samples / errors | 33 / 0 |
+| Process continuity / drain | true / true |
+
+The full 30-minute target did not complete. The natural-routing run failed on
+SEND `wkrc-permission-soak-000862477`, after 862,476 completed client SEND
+calls. Public readiness and process checks were still healthy on all three
+nodes. Node 1 and node 2 logged `message.send` batch `context deadline
+exceeded`; node 2 then closed a sender session because its bounded async SEND
+dispatch queue was full. An earlier diagnostic that intentionally forced every
+permission read remote also failed and was rejected as an unrealistic fixture;
+restoring natural distribution changed the load shape but not the sustained
+failure class.
+
+The result means the bounded permission parallelism fixes the short-window
+head-of-line delay but does not establish 30-minute capacity at 4,500 QPS over
+5,000 active channels on this local three-process host. No queue size or worker
+limit was raised to make the test pass.
+
 ## Resolved 4,500 QPS Limit
 
 After the readiness fix, the full local 4,500 QPS run completed without a
@@ -178,14 +237,22 @@ capacity, channel cardinality, or conversation behavior, and the unchanged
 - 20,000-message, 4,500 QPS strict medium-recipient acceptance: passed on the
   unchanged rerun; the immediately preceding run missed only the ingress clock
   threshold by 0.02 percent while meeting latency and mutation requirements.
+- Permission-soak configuration, bounded-latency/in-flight tracking, route-mix,
+  acceptance, counter, and public-metric parser contracts: passed.
+- 10-second, 45,000-message, 4,500 QPS permission-soak diagnostic: passed with
+  zero permission RPC errors and zero membership writes.
+- 30-minute, 8.1-million-message target: failed after 862,476 completed SEND
+  calls because the gateway async dispatch queue filled following sustained
+  `message.send` timeouts; all three processes remained ready.
 - `git diff --check`: passed.
 
 ## Next Boundary
 
-Keep the existing exact zero-write, bounded hydration-operation, and 4,500 QPS
-gates unchanged. The next qualification should be a 30-minute multi-sender,
-multi-channel soak that forces diverse permission keys and records Slot RPC
-queue/admission pressure, managed `message/permission_batch` goroutine peaks,
-heap/GC, SENDACK/RECV tails, and membership mutation rows. This checks whether
-the per-batch concurrency bound shifts pressure into authoritative Slot reads
-over time before any additional queue or concurrency tuning is considered.
+Keep the existing exact zero-write, bounded hydration-operation, and short
+4,500 QPS gates unchanged. The 30-minute multi-sender, multi-channel soak now
+exists and must remain red for this candidate. The next performance slice
+should use its failure JSON plus bounded gateway/message stage metrics or a
+targeted profile to determine why `message.send` deadlines accumulate before
+the async dispatch queue fills. Diagnose service time and queue ownership first;
+do not raise queue capacity or permission concurrency without evidence. Rerun
+the unchanged 30-minute, 5,000-channel gate after that bottleneck is fixed.

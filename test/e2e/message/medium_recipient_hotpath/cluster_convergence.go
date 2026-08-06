@@ -26,17 +26,19 @@ type mediumSlotsResponse struct {
 // mediumSlotConvergence captures the stable actual Raft leader inventory and
 // the bounded setup time required to observe it.
 type mediumSlotConvergence struct {
-	Leaders        []uint64
-	Fingerprint    string
-	WaitDuration   time.Duration
-	StableDuration time.Duration
+	Leaders         []uint64
+	HashSlotLeaders []uint64
+	Fingerprint     string
+	WaitDuration    time.Duration
+	StableDuration  time.Duration
 }
 
 // mediumConvergenceSnapshot is one fully validated cross-node Slot
 // observation. Leaders are ordered by logical Slot ID.
 type mediumConvergenceSnapshot struct {
-	Leaders     []uint64
-	Fingerprint string
+	Leaders         []uint64
+	HashSlotLeaders []uint64
+	Fingerprint     string
 }
 
 func waitForMediumSlotConvergence(ctx context.Context, cluster *suite.StartedCluster) (mediumSlotConvergence, error) {
@@ -57,10 +59,11 @@ func waitForMediumSlotConvergence(ctx context.Context, cluster *suite.StartedClu
 		return mediumSlotConvergence{}, err
 	}
 	return mediumSlotConvergence{
-		Leaders:        append([]uint64(nil), snapshot.Leaders...),
-		Fingerprint:    snapshot.Fingerprint,
-		WaitDuration:   time.Since(startedAt),
-		StableDuration: convergence.StableDuration,
+		Leaders:         append([]uint64(nil), snapshot.Leaders...),
+		HashSlotLeaders: append([]uint64(nil), snapshot.HashSlotLeaders...),
+		Fingerprint:     snapshot.Fingerprint,
+		WaitDuration:    time.Since(startedAt),
+		StableDuration:  convergence.StableDuration,
 	}, nil
 }
 
@@ -135,6 +138,7 @@ func validateMediumSlotConvergence(inventories map[uint64]mediumSlotsResponse) (
 	}
 
 	leaders := make([]uint64, len(reference))
+	hashSlotLeaders := make([]uint64, mediumPhysicalHashSlots)
 	var fingerprint strings.Builder
 	for slotIndex, item := range reference {
 		leaderID := item.NodeLog.LeaderID
@@ -151,6 +155,9 @@ func validateMediumSlotConvergence(inventories map[uint64]mediumSlotsResponse) (
 			}
 		}
 		leaders[slotIndex] = leaderID
+		for _, hashSlot := range item.HashSlots.Items {
+			hashSlotLeaders[hashSlot] = leaderID
+		}
 		fmt.Fprintf(
 			&fingerprint,
 			"%d:%d:%d:%d:%d:%v;",
@@ -163,8 +170,9 @@ func validateMediumSlotConvergence(inventories map[uint64]mediumSlotsResponse) (
 		)
 	}
 	return mediumConvergenceSnapshot{
-		Leaders:     leaders,
-		Fingerprint: fingerprint.String(),
+		Leaders:         leaders,
+		HashSlotLeaders: hashSlotLeaders,
+		Fingerprint:     fingerprint.String(),
 	}, nil
 }
 

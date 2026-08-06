@@ -461,6 +461,24 @@ func TestParseMetricSampleMatchesLabels(t *testing.T) {
 	require.False(t, metricLabelsMatch(labels, map[string]string{"result": "error"}))
 }
 
+func TestParseMetricSamplePreservesSpacesInQuotedLabelValues(t *testing.T) {
+	name, labels, value, ok := parseMetricSample(`wukongim_transport_rpc_total{service="slot channel metadata",result="ok"} 7`)
+
+	require.True(t, ok)
+	require.Equal(t, "wukongim_transport_rpc_total", name)
+	require.Equal(t, map[string]string{"service": "slot channel metadata", "result": "ok"}, labels)
+	require.Equal(t, float64(7), value)
+}
+
+func TestParseMetricSamplePreservesValueBeforeOptionalTimestamp(t *testing.T) {
+	name, labels, value, ok := parseMetricSample(`wukongim_transport_rpc_total{service="slot channel metadata",result="ok"} 7 1720000000000`)
+
+	require.True(t, ok)
+	require.Equal(t, "wukongim_transport_rpc_total", name)
+	require.Equal(t, map[string]string{"service": "slot channel metadata", "result": "ok"}, labels)
+	require.Equal(t, float64(7), value)
+}
+
 func TestFetchMetricSamplesReturnsOnePublicSnapshot(t *testing.T) {
 	var requests int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

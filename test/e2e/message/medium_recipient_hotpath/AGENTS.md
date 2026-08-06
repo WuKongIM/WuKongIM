@@ -12,6 +12,17 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
   -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout 5m -p=1 -v
 ```
 
+Run the sustained permission-pressure qualification separately:
+
+```bash
+WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK=1 \
+WK_E2E_MEDIUM_RECIPIENT_SOAK_DURATION=30m \
+WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS=5000 \
+WK_E2E_MEDIUM_RECIPIENT_QPS=4500 \
+GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath \
+  -run TestCloudMediumPermissionSoak -count=1 -timeout 40m -p=1 -v
+```
+
 Set `WK_E2E_MEDIUM_RECIPIENT_QPS` or
 `WK_E2E_MEDIUM_RECIPIENT_ROUNDS` only for bounded diagnostic stress runs.
 `WK_E2E_MEDIUM_RECIPIENT_RPC_BATCH_MAX_ITEMS` is likewise diagnostic-only for
@@ -34,6 +45,19 @@ Allocation acceptance separates a 360,000-byte/message budget from a bounded
 40MB/s allowance over the fixed paced duration. A slow drain cannot enlarge
 that allowance and hide a product-path allocation regression.
 
+The permission soak defaults to the reviewed 30-minute, 4,500-QPS, 5,000-group
+shape and permits only bounded diagnostic overrides: duration 10 seconds to 30
+minutes, QPS 500 to 20,000, and 25 to 5,000 group channels in multiples of 25.
+It uses 25 sender/receiver pairs across all three nodes and naturally hashed
+channels, and it requires both local and remote permission routes. Its latency
+histograms have a fixed 10,001-bucket bound and only incomplete messages occupy
+the in-flight map, so the harness does not retain one object per completed
+message over a long run. Public metrics sample transport RPC executor pressure,
+permission Slot RPC queue/admission/in-flight state, managed permission-batch
+goroutines, heap/GC, plugin conservation, and membership mutation rows. A
+premature failure emits one bounded `WKRC-PERMISSION-SOAK-FAILURE` JSON row;
+a completed run emits `WKRC-PERMISSION-SOAK-EVIDENCE`.
+
 
 ## Rules
 
@@ -52,6 +76,9 @@ that allowance and hide a product-path allocation regression.
   alone is not workload readiness.
 - Emit one machine-readable `WKRC-HIFI-EVIDENCE` line for revision-neutral
   runners.
+- Keep the sustained soak at 5,000 naturally hashed channels for acceptance;
+  short duration or lower-cardinality runs are diagnostics, never substitutes
+  for the 30-minute qualification.
 - Do not treat absolute local throughput as cloud capacity. Compare exact
   revisions on the same host and preserve raw evidence.
 - Keep the scenario opt-in and bounded. It is e2e evidence, not a unit test.
