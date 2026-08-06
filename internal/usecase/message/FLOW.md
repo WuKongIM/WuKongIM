@@ -15,7 +15,7 @@ cluster runtimes.
 
 ```text
 SendBatch(items)
-  -> for each item:
+  -> check independent item permissions with at most 16 workers:
        normalize command-channel IDs to their source channel for permission checks
        normalize person-channel IDs when requested by the entry adapter
        if PermissionStore is nil, allow
@@ -27,6 +27,8 @@ SendBatch(items)
        enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
        enforce agent participant and visitors/customer-service membership checks
        reject denied items with item-aligned Reason values
+  -> for each permission-accepted item in original order:
+       establish the person directory when required
        if SendHook is configured, run it before append admission
        reject hook-denied items with item-aligned Reason values
   -> if Submitter is nil, return ErrRouteNotReady for remaining allowed items
@@ -40,6 +42,12 @@ permission success and before the submitter. It may mutate the command payload
 or reject with a usecase `Reason`; it does not run for permission-rejected
 items. Plugin-origin sends carry `Origin`/`HookDepth` recursion controls, and
 trusted internal paths may set `SkipPluginHooks`.
+
+`PermissionStore` implementations must support concurrent calls. The fixed
+permission worker bound prevents one session-scoped gateway batch from
+serializing independent authoritative Slot reads while preserving the original
+order for person-directory establishment, hooks, append admission, and result
+alignment.
 
 The configured submitter is normally the app-level channel append router, which
 resolves channel append authority and admits work into the authority node's

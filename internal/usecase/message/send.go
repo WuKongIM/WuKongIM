@@ -1,6 +1,12 @@
 package message
 
-import "context"
+import (
+	"context"
+	"sync"
+	"sync/atomic"
+
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+)
 
 const (
 	channelTypePerson          uint8 = 1
@@ -9,6 +15,10 @@ const (
 	channelTypeInfo            uint8 = 6
 	channelTypeVisitors        uint8 = 10
 	channelTypeAgent           uint8 = 11
+
+	// sendBatchPermissionWorkers bounds concurrent authoritative metadata reads
+	// without changing the original item order used by hooks and append admission.
+	sendBatchPermissionWorkers = 16
 )
 
 // Send checks send permissions and delegates one allowed command to the configured channel append submitter.
@@ -42,9 +52,15 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 // SendBatch checks send permissions and delegates allowed commands to the configured channel append submitter.
 func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 	results := make([]SendBatchItemResult, len(items))
-	allowed := make([]SendBatchItem, 0, len(items))
-	indexes := make([]int, 0, len(items))
-	for i, item := range items {
+	prepared := make([]SendBatchItem, len(items))
+	contexts := make([]context.Context, len(items))
+	allowedItems := make([]bool, len(items))
+	permissionWorkers := sendBatchPermissionWorkers
+	if a == nil || a.permissions == nil {
+		permissionWorkers = 1
+	}
+	runSendBatchWorkers(len(items), permissionWorkers, func(i int) {
+		item := items[i]
 		ctx := item.Context
 		if ctx == nil {
 			ctx = context.Background()
@@ -52,17 +68,31 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		cmd, reason, err := a.checkSendPermission(ctx, item.Command)
 		if err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
-			continue
+			return
 		}
 		if reason != ReasonSuccess {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}}
+			return
+		}
+		item.Command = cmd
+		prepared[i] = item
+		contexts[i] = ctx
+		allowedItems[i] = true
+	})
+
+	allowed := make([]SendBatchItem, 0, len(items))
+	indexes := make([]int, 0, len(items))
+	for i, item := range prepared {
+		if !allowedItems[i] {
 			continue
 		}
+		ctx := contexts[i]
+		cmd := item.Command
 		if err := a.ensurePersonDirectory(ctx, cmd); err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: err}
 			continue
 		}
-		cmd, reason, err = a.beforeSendHook(ctx, cmd)
+		cmd, reason, err := a.beforeSendHook(ctx, cmd)
 		if err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
 			continue
@@ -92,6 +122,36 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		results[indexes[i]] = result
 	}
 	return results
+}
+
+func runSendBatchWorkers(workItems int, maxWorkers int, run func(int)) {
+	workers := min(workItems, maxWorkers)
+	if workers <= 1 {
+		for index := 0; index < workItems; index++ {
+			run(index)
+		}
+		return
+	}
+	var next atomic.Uint64
+	worker := func() {
+		for {
+			index := int(next.Add(1) - 1)
+			if index >= workItems {
+				return
+			}
+			run(index)
+		}
+	}
+	var wait sync.WaitGroup
+	wait.Add(workers - 1)
+	for range workers - 1 {
+		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskMessagePermissionBatch, func() {
+			defer wait.Done()
+			worker()
+		})
+	}
+	worker()
+	wait.Wait()
 }
 
 func (a *App) ensurePersonDirectory(ctx context.Context, cmd SendCommand) error {

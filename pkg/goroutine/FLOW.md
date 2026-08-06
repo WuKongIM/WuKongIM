@@ -38,6 +38,8 @@ coordinator identity plus one dynamic Slot-export identity; Hash Slot and
 archive identifiers never become labels.
 Slot archive-trim retry uses one dynamic Slot-module identity; physical Slot
 IDs never become labels.
+Message batch permission helpers use one fixed Message burst task identity;
+UIDs, channels, sessions, and item indexes never become labels.
 
 ## Pool Accounting
 

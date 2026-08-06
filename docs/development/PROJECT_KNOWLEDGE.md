@@ -129,6 +129,7 @@
 - Legacy system UID APIs are backed by the namespaced slot subscriber list `__wk_internal_system_uids__`.
 - Persisted system UID add/remove APIs must refresh node-local caches on peer nodes through node RPC.
 - Message send permission checks live in `internal/usecase/message` before durable append; `pkg/channel` remains business-rule free.
+- A session-scoped gateway SEND batch checks independent permissions with at most 16 concurrent workers, then restores original item order for person-directory establishment, hooks, append admission, and result alignment. This removes authoritative Slot-RPC head-of-line delay without weakening per-session send ordering; `PermissionStore` implementations must be concurrent-call safe.
 - Terminal disband is enforced in `internal/usecase/message` for ordinary and trusted-bypass senders. CMD IDs resolve back to the source channel, and system UIDs/devices bypass only nonterminal checks. Do not put this business rule or an extra per-message Slot metadata read in `internal/infra` or `internal/runtime/channelappend`.
 - Durable message send route selection lives in `internal/runtime/channelplane`; `message.App` only builds durable batches and applies committed side effects, it no longer owns slot/channel leader refresh or remote redirect.
 - `RouteGeneration` is the authoritative route identity for channel runtime metadata and peer RPC fencing; stale route records must be treated as a different append route even if the channel ID is unchanged.

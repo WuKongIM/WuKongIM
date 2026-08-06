@@ -20,6 +20,7 @@ type Options struct {
 	// EventStore owns durable message event projection reads and writes.
 	EventStore MessageEventStore
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
+	// SendBatch may call it concurrently for independent items.
 	PermissionStore PermissionStore
 	// PersonDirectory establishes both UID-owned memberships before the first
 	// persistent ordinary append to a canonical person channel.
@@ -100,7 +101,8 @@ func (a *App) ResetAfterRestore() {
 	}
 }
 
-// PermissionStore provides authoritative membership and channel reads for send authorization.
+// PermissionStore provides authoritative membership and channel reads for send
+// authorization. Implementations must support concurrent calls.
 type PermissionStore interface {
 	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 	ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error)

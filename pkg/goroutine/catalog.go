@@ -17,6 +17,7 @@ const (
 	ModuleChannel       Module = "channel"
 	ModuleDatabase      Module = "database"
 	ModulePresence      Module = "presence"
+	ModuleMessage       Module = "message"
 	ModuleChannelAppend Module = "channelappend"
 	ModuleDelivery      Module = "delivery"
 	ModuleWebhook       Module = "webhook"
@@ -129,6 +130,7 @@ const (
 	TaskDatabaseBackupStream             TaskID = "database/backup_stream"
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
+	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskChannelAppendRouter              TaskID = "channelappend/router"
 	TaskChannelAppendPoolRelease         TaskID = "channelappend/pool_release"
 	TaskChannelAppendAdvanceScheduler    TaskID = "channelappend/advance_scheduler"
@@ -214,6 +216,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendRouter, Module: ModuleChannelAppend, Name: "router", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPoolRelease, Module: ModuleChannelAppend, Name: "pool_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelAppendAdvanceScheduler, Module: ModuleChannelAppend, Name: "advance_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

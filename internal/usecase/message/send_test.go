@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,63 @@ func TestSendBatchDelegatesToSubmitter(t *testing.T) {
 	}
 	if len(submitter.batchItems) != 1 || !reflect.DeepEqual(submitter.batchItems[0], items) {
 		t.Fatalf("delegated items = %#v, want original item batch", submitter.batchItems)
+	}
+}
+
+func TestSendBatchBoundsConcurrentPermissionChecksAndPreservesOrder(t *testing.T) {
+	const itemCount = sendBatchPermissionWorkers * 2
+	store := &blockingBatchPermissionStore{
+		entered: make(chan struct{}, itemCount),
+		release: make(chan struct{}),
+	}
+	batchResults := make([]SendBatchItemResult, itemCount)
+	items := make([]SendBatchItem, itemCount)
+	for i := range items {
+		batchResults[i] = SendBatchItemResult{Result: SendResult{MessageID: uint64(i + 1), Reason: ReasonSuccess}}
+		items[i] = SendBatchItem{Command: SendCommand{
+			FromUID: "system", ChannelID: fmt.Sprintf("channel-%02d", i), ChannelType: channelTypeInfo,
+		}}
+	}
+	submitter := &recordingSubmitter{batchResults: batchResults}
+	app := New(Options{
+		Submitter:       submitter,
+		PermissionStore: store,
+		SystemUIDs:      fakeSystemUIDChecker{"system": true},
+	})
+
+	resultCh := make(chan []SendBatchItemResult, 1)
+	go func() {
+		resultCh <- app.SendBatch(items)
+	}()
+
+	for i := 0; i < sendBatchPermissionWorkers; i++ {
+		select {
+		case <-store.entered:
+		case <-time.After(time.Second):
+			t.Fatalf("permission checks entered = %d, want %d concurrent checks", i, sendBatchPermissionWorkers)
+		}
+	}
+	select {
+	case <-store.entered:
+		t.Fatalf("permission checks exceeded worker bound %d", sendBatchPermissionWorkers)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(store.release)
+
+	var results []SendBatchItemResult
+	select {
+	case results = <-resultCh:
+	case <-time.After(time.Second):
+		t.Fatal("SendBatch did not finish after permission checks were released")
+	}
+	if got := store.peak.Load(); got != sendBatchPermissionWorkers {
+		t.Fatalf("peak permission checks = %d, want %d", got, sendBatchPermissionWorkers)
+	}
+	if !reflect.DeepEqual(results, batchResults) {
+		t.Fatalf("SendBatch() = %#v, want item-aligned results %#v", results, batchResults)
+	}
+	if len(submitter.batchItems) != 1 || !reflect.DeepEqual(submitter.batchItems[0], items) {
+		t.Fatalf("delegated items = %#v, want original order", submitter.batchItems)
 	}
 }
 
@@ -675,7 +733,7 @@ type fakePermissionStore struct {
 	channelErrs     map[string]error
 	members         map[string]map[string]bool
 	hasAny          map[string]bool
-	getChannelCalls int
+	getChannelCalls atomic.Int64
 }
 
 func newFakePermissionStore() *fakePermissionStore {
@@ -692,7 +750,7 @@ func permissionKey(channelID string, channelType int64) string {
 }
 
 func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {
-	s.getChannelCalls++
+	s.getChannelCalls.Add(1)
 	key := permissionKey(channelID, channelType)
 	if err, ok := s.channelErrs[key]; ok {
 		return metadb.Channel{}, err
@@ -702,6 +760,35 @@ func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channel
 		return metadb.Channel{}, metadb.ErrNotFound
 	}
 	return ch, nil
+}
+
+type blockingBatchPermissionStore struct {
+	entered chan struct{}
+	release chan struct{}
+	active  atomic.Int64
+	peak    atomic.Int64
+}
+
+func (s *blockingBatchPermissionStore) GetChannelForPermission(_ context.Context, _ string, _ int64) (metadb.Channel, error) {
+	active := s.active.Add(1)
+	defer s.active.Add(-1)
+	for {
+		peak := s.peak.Load()
+		if active <= peak || s.peak.CompareAndSwap(peak, active) {
+			break
+		}
+	}
+	s.entered <- struct{}{}
+	<-s.release
+	return metadb.Channel{}, metadb.ErrNotFound
+}
+
+func (*blockingBatchPermissionStore) ContainsChannelSubscriber(context.Context, string, int64, string) (bool, error) {
+	return false, errors.New("unexpected subscriber lookup")
+}
+
+func (*blockingBatchPermissionStore) HasChannelSubscribers(context.Context, string, int64) (bool, error) {
+	return false, errors.New("unexpected subscriber-set lookup")
 }
 
 func (s *fakePermissionStore) ContainsChannelSubscriber(_ context.Context, channelID string, channelType int64, uid string) (bool, error) {
