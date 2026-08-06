@@ -359,8 +359,9 @@ operation if the validated diagnosis requires a product fix.
 
 ## 4. Destroy or sweep
 
-`.github/workflows/cloud-sim-cleanup.yml` runs every 15 minutes. A manual
-dispatch with an exact Run Identity performs protected early destruction.
+`.github/workflows/cloud-sim-cleanup.yml` runs every 15 minutes while retained
+provider inventory exists. A manual dispatch with an exact Run Identity
+performs protected early destruction.
 Success means the adapter listed all supported tagged resource types after
 deletion and found zero residual resources; a remaining billable resource
 fails the workflow.
@@ -370,6 +371,15 @@ repository-wide concurrency group. After the broker finishes, the local
 Analysis Session remains protected by its provider-observed rule deadline.
 A sweep preserves unexpired `/32` rules, revokes expired or malformed windows,
 and then evaluates immutable lease expiry.
+
+Provision persists its account/region provider binding, enables cleanup first
+and patrol second, and only then may create billable resources. A complete
+scheduled sweep reports every retained Run. When that list and the failure list
+are both empty, cleanup disables patrol first and itself last. Disabled safety
+workflows do not accept manual dispatches; the next Provision run re-enables
+them automatically before resource creation. To investigate an externally
+created orphan outside Provision, explicitly enable `cloud-sim-cleanup.yml`
+before dispatching cleanup.
 
 Do not treat a deleted instance alone as cleanup success. The reconciliation
 also covers independent disks, the simulator EIP, security rules, security

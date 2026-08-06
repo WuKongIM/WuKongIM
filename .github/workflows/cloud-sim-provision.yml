@@ -231,6 +231,7 @@ jobs:
     environment: cloud-sim-provision
     permissions:
       contents: read
+      actions: write
       id-token: write
     env:
       GOWORK: "off"
@@ -316,6 +317,11 @@ jobs:
           path: provider.json
           retention-days: 90
           if-no-files-found: error
+      - name: Enable cloud safety schedules
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/cloud-sim/set-safety-workflows-state.sh enable
       - name: Prepare run identity and capabilities
         id: prepare
         shell: bash
