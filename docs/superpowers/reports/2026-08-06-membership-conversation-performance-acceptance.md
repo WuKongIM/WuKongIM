@@ -2,21 +2,29 @@
 
 Date: 2026-08-06
 
-Base: `a864512460d92bef63f4fc0c43d2b427e6ae04aa`
+Directory candidate: `a864512460d92bef63f4fc0c43d2b427e6ae04aa`
+
+Final performance candidate: `943ea67957bf532f2d78c0aa8c9d7893fd543361`
 
 ## Decision
 
-**GO for the membership-backed conversation directory and its steady-state
-SEND write-amplification objective.**
+**GO for the membership-backed conversation directory, its steady-state SEND
+write-amplification objective, and the local three-node 4,500 QPS recipient
+hot-path acceptance gate.**
 
 The dedicated three-node directory gate and the 100,000-member group gate pass.
-A 20,000-message, 500 QPS Cloud Medium-shaped local workload also passes with
-zero membership mutation rows during the measured SEND window. The same local
-host does not yet pass the broader 4,500 QPS recipient hot-path latency gate;
-the evidence points to network/delivery scheduling work outside the
-conversation directory, not conversation DB fanout.
+A 20,000-message Cloud Medium-shaped local workload passes at both 500 and
+4,500 offered QPS with zero membership mutation rows during each measured SEND
+window. At 4,500 QPS the final candidate records 401.73 ms SENDACK P99 and
+415.14 ms RECV P99 while fully draining the workload.
 
-## Defect Found During Acceptance
+This is a reproducible local acceptance result, not a universal deployment
+capacity claim. Representative multi-host qualification and a longer soak
+remain separate operational gates.
+
+## Defects Found During Acceptance
+
+### Cross-node person-directory readiness
 
 The first 500 QPS run observed 250 membership mutation rows because the cold
 prime used a different sender for every measured person-channel pair. Fixing
@@ -29,6 +37,31 @@ again. The Channel RPC response codec now carries `DirectoryReady`, with a new
 wire version and legacy v3 decoding. The cold prime now uses the exact sender
 that the measured WKProto path uses. Focused binary-codec and two-node
 authoritative-read integration tests cover both boundaries.
+
+### Batched permission-check head-of-line blocking
+
+After the readiness fix, repeated 4,500 QPS runs still recorded roughly
+1.9-2.1 second SENDACK P99. Gateway queue capacity, Channel RPC admission,
+Channel append, and post-commit queues were not saturated. During-load
+goroutine evidence instead showed session-scoped gateway workers blocked while
+`message.SendBatch` performed independent authoritative permission Slot RPCs
+sequentially.
+
+Three A/B controls rejected simpler tuning explanations:
+
+- increasing the Channel RPC batch maximum from 8 to 64 left P99 at about
+  1.75 seconds;
+- increasing active group-channel cardinality caused earlier gateway admission
+  pressure rather than removing the bottleneck;
+- shrinking gateway batches reduced fixed-cost amortization and filled the
+  async dispatch queue.
+
+The final implementation checks independent batch-item permissions with at
+most 16 managed workers. It then restores original item order before
+person-directory establishment, plugin hooks, append admission, and result
+alignment. Session ordering is therefore preserved, while one slow Slot RPC no
+longer serializes every independent permission read in the same gateway batch.
+The `PermissionStore` contract now explicitly requires concurrent-call safety.
 
 ## Accepted Evidence
 
@@ -87,7 +120,35 @@ created the 100,000-member directory, sent one group message, proved the
 ordinary membership mutation counter was exactly unchanged across SEND, and
 hydrated sampled subscriber conversations through the public API.
 
-## Remaining 4,500 QPS Limit
+### Steady-state SEND at 4,500 QPS
+
+The final strict run used the same three-process, 256-physical-hash-slot,
+10-logical-Slot, three-replica, 20,000-message, 1,572,000-recipient-row, and
+243,600-online-route fixture as the 500 QPS control.
+
+| Signal | Result |
+| --- | ---: |
+| Offered / ingress | 4,500 / 4,500.21 messages/s |
+| Completion | 4,332.86 messages/s |
+| SENDACK P50 / P99 / max | 191.69 / **401.73** / 510.98 ms |
+| RECV P99 / max | **415.14** / 516.49 ms |
+| Ordinary membership mutation rows | **0** |
+| Gateway max queue ratio | 0.00179 |
+| Channel RPC admission-full | 0 |
+| Channel RPC max queue / worker ratio | 0 / 0.03125 |
+| Max node / aggregate heap | 167.0 / 382.1 MB |
+| Allocated bytes / GC cycles | 4.27 GB / 55 |
+| Plugin accepted / invoked | 10,400 / 10,400 |
+| Process continuity / drain | true / true |
+
+The first post-fix run already reduced SENDACK P99 to 437.70 ms and RECV P99
+to 452.38 ms, but its measured ingress was 4,499.09 messages/s. The strict gate
+failed only because this was 0.02 percent below the exact 4,500 threshold. An
+unchanged rerun measured 4,500.21 messages/s and passed. The sub-millisecond
+offered-load pacing boundary should therefore be treated as harness jitter;
+latency, mutation, continuity, and drain evidence was healthy in both runs.
+
+## Resolved 4,500 QPS Limit
 
 After the readiness fix, the full local 4,500 QPS run completed without a
 disconnect and kept ordinary membership mutations at zero. It offered and
@@ -96,14 +157,13 @@ seconds, above the existing one-second acceptance limit, and RECV P99 was 1.73
 seconds. A separate profile-enabled control produced the same conclusion at
 about 3,700 completions/s and 1.58-second SENDACK P99.
 
-This workload also represents roughly 353,000 recipient rows/s on one host
-running all three nodes and all clients. Gateway, Channel RPC, append, and
-post-commit queues were far below saturation. Concurrent two-second CPU
-profiles were dominated by network `writev`, event-loop polling, and Go
-scheduler wait/wakeup work, with no conversation or membership CPU hotspot.
-Therefore this run remains a **NO-GO for claiming absolute 4,500 QPS Cloud
-Medium capacity from this local host**, but it does not block the conversation
-directory decision.
+Those profiles correctly showed no conversation or membership CPU hotspot, but
+the aggregate CPU view hid request-level queueing inside a synchronous gateway
+batch handler. Stage counters and live goroutine stacks exposed the sequential
+permission Slot RPC phase. Bounded permission concurrency reduced gateway
+async-dispatch wait without changing Channel RPC batch size, gateway queue
+capacity, channel cardinality, or conversation behavior, and the unchanged
+4,500 QPS gate then passed with P99 below 500 ms.
 
 ## Verification
 
@@ -113,12 +173,19 @@ directory decision.
 - 20,000-message, 500 QPS strict medium-recipient acceptance: passed.
 - Three-node 25/100/200 directory performance acceptance: passed.
 - 100,000-member group conversation/SEND invariant: passed.
+- `GOWORK=off go test -race ./internal/usecase/message ./pkg/goroutine -count=1`: passed.
+- `GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1`: passed.
+- 20,000-message, 4,500 QPS strict medium-recipient acceptance: passed on the
+  unchanged rerun; the immediately preceding run missed only the ingress clock
+  threshold by 0.02 percent while meeting latency and mutation requirements.
 - `git diff --check`: passed.
 
 ## Next Boundary
 
-Treat the 4,500 QPS recipient path as a separate transport/delivery capacity
-investigation. Reproduce it on representative multi-host resources or isolate
-the network write/scheduler path with a same-host A/B benchmark before changing
-queue sizes or latency thresholds. The conversation directory itself should
-retain the exact zero-write and bounded hydration-operation gates added here.
+Keep the existing exact zero-write, bounded hydration-operation, and 4,500 QPS
+gates unchanged. The next qualification should be a 30-minute multi-sender,
+multi-channel soak that forces diverse permission keys and records Slot RPC
+queue/admission pressure, managed `message/permission_batch` goroutine peaks,
+heap/GC, SENDACK/RECV tails, and membership mutation rows. This checks whether
+the per-batch concurrency bound shifts pressure into authoritative Slot reads
+over time before any additional queue or concurrency tuning is considered.
