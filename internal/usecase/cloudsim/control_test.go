@@ -350,6 +350,9 @@ func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	if len(result.Destroyed) != 1 || result.Destroyed[0] != "expired" {
 		t.Fatalf("destroyed = %v, want [expired]", result.Destroyed)
 	}
+	if want := []string{"stale-window", "active-window", "malformed-window", "window-beyond-lease"}; !slices.Equal(result.Retained, want) {
+		t.Fatalf("retained = %v, want %v", result.Retained, want)
+	}
 	if want := []string{"stale-window", "malformed-window", "window-beyond-lease"}; !slices.Equal(provider.closeDeploymentCalls, want) {
 		t.Fatalf("closed deployment ingress = %v, want %v", provider.closeDeploymentCalls, want)
 	}
@@ -358,6 +361,23 @@ func TestControlPlaneSweepDestroysExpiredRuns(t *testing.T) {
 	}
 	if want := []string{"stale-window"}; !slices.Equal(provider.closeObservationCalls, want) {
 		t.Fatalf("closed observation ingress = %v, want %v", provider.closeObservationCalls, want)
+	}
+}
+
+func TestControlPlaneSweepReportsEmptyProviderInventory(t *testing.T) {
+	control := NewControlPlane(&providerStub{}, func() time.Time {
+		return time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	})
+
+	result, err := control.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("Sweep() error = %v", err)
+	}
+	if result.Destroyed == nil || result.Retained == nil || result.Failed == nil {
+		t.Fatalf("Sweep() must encode empty arrays, got %#v", result)
+	}
+	if len(result.Destroyed) != 0 || len(result.Retained) != 0 || len(result.Failed) != 0 {
+		t.Fatalf("Sweep() = %#v, want zero inventory", result)
 	}
 }
 

@@ -182,9 +182,13 @@ See [`docs/agents/issue-agent.md`](../../docs/agents/issue-agent.md).
 ## Cloud Simulation
 
 Cloud creation and permission changes remain explicit Agent Tools. Cleanup and
-live-run patrol remain the only scheduled safety automations. Provider
-credentials, analysis credentials, and cleanup authority stay in their
-documented separate Environments.
+live-run patrol are the only scheduled safety automations while provider
+inventory exists. Provision re-enables both after persisting its provider
+binding and before creating billable resources. A complete scheduled cleanup
+with no retained Run and no reconciliation failure disables patrol first and
+cleanup last, so an idle repository consumes no recurring Runner capacity.
+Provider credentials, analysis credentials, and cleanup authority stay in
+their documented separate Environments.
 
 See
 [`docs/superpowers/runbooks/cloud-simulation.md`](../../docs/superpowers/runbooks/cloud-simulation.md).

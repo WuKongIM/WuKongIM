@@ -73,7 +73,12 @@ unexpired window for the same run. Provider inventory reconstructs ingress
 expiry from run-owned security rules. `Sweep` preserves future active windows,
 closes expired or malformed deployment and analysis windows, and then
 reconciles all expired unreleased runs; partial cleanup failures remain
-explicit.
+explicit. Its result also reports every retained Run whose provider inventory
+was not proven empty. The cleanup safety automation disables its own schedule
+and the observer schedule only when a complete repository sweep has no retained
+Run and no failure. Provision persists the provider binding and re-enables both
+schedules before it may create billable resources; the shared cleanup/provision
+concurrency group prevents an idle sweep from racing that handoff.
 
 Public Cloud View ingress is a separate Run-Lease-bounded capability. It admits
 exactly `0.0.0.0/0` on TCP/19443 only while the run is `ready`, `running`, or
@@ -81,8 +86,9 @@ exactly `0.0.0.0/0` on TCP/19443 only while the run is `ready`, `running`, or
 expired or malformed public window, while `Destroy` closes it before deleting
 run-owned resources. This capability does not change Analysis MCP semantics.
 
-`cloud-sim-monitor.yml` is an observer-only workflow. It runs every 30 minutes
-or for an explicitly dispatched Run Identity. Scheduled discovery resolves one
+`cloud-sim-monitor.yml` is an observer-only workflow. While cloud inventory is
+live, it runs every 30 minutes or for an explicitly dispatched Run Identity.
+Scheduled discovery resolves one
 retained provider config per account/region binding, takes one read-only
 authority-validated Inventory Snapshot per binding, and selects only `running`
 runs owned by this repository. Provider-config, binding, and running-candidate

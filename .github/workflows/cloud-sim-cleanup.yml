@@ -32,7 +32,7 @@ jobs:
     environment: cloud-sim-cleanup
     permissions:
       contents: read
-      actions: read
+      actions: write
       id-token: write
     env:
       GOWORK: "off"
@@ -128,6 +128,8 @@ jobs:
       - name: Destroy exact run or sweep all expired leases
         id: reconcile
         shell: bash
+        env:
+          CONFIG_COUNT: ${{ steps.configs.outputs.config_count }}
         run: |
           set -euo pipefail
           if [[ -n "$RUN_ID" ]]; then
@@ -145,18 +147,28 @@ jobs:
               if ! ./wkcloudsim --provider alibaba --provider-config "$provider_config" sweep >"sweep-results/${index}.json"; then
                 sweep_status=1
               fi
-              jq -e '.destroyed != null and .failed != null' "sweep-results/${index}.json" >/dev/null
+              jq -e '.destroyed != null and .retained != null and .failed != null' "sweep-results/${index}.json" >/dev/null
             done < <(find provider-configs -type f -name '*.json' | sort)
             if [[ "$index" == 0 ]]; then
-              printf '%s\n' '{"destroyed":[],"failed":[]}' >cleanup-result.json
+              printf '%s\n' '{"destroyed":[],"retained":[],"failed":[]}' >cleanup-result.json
             else
-              jq -s '{destroyed:(map(.destroyed // []) | add),failed:(map(.failed // []) | add)}' \
+              jq -s '{destroyed:(map(.destroyed // []) | add),retained:(map(.retained // []) | add),failed:(map(.failed // []) | add)}' \
                 sweep-results/*.json >cleanup-result.json
             fi
             jq -e '(.failed | length) == 0' cleanup-result.json >/dev/null
             test "$sweep_status" == 0
             echo "mode=sweep" >>"$GITHUB_OUTPUT"
+            if (( CONFIG_COUNT > 0 )) &&
+               jq -e '(.retained | length) == 0 and (.failed | length) == 0' cleanup-result.json >/dev/null; then
+              echo "inventory_empty=true" >>"$GITHUB_OUTPUT"
+            else
+              echo "inventory_empty=false" >>"$GITHUB_OUTPUT"
+            fi
           fi
+      - name: Disable idle cloud safety schedules
+        if: inputs.run_id == '' && steps.reconcile.outputs.inventory_empty == 'true'
+        shell: bash
+        run: ./scripts/cloud-sim/set-safety-workflows-state.sh disable
       - name: Write cleanup reconciliation summary
         if: always()
         shell: bash
@@ -174,6 +186,7 @@ jobs:
                 echo "- Residual resources: \`$(jq -r '.resources | length' cleanup-result.json)\`"
               else
                 echo "- Destroyed expired runs: \`$(jq -r '.destroyed | length' cleanup-result.json)\`"
+                echo "- Retained live runs: \`$(jq -r '.retained | length' cleanup-result.json)\`"
                 echo "- Failed reconciliations: \`$(jq -r '.failed | length' cleanup-result.json)\`"
               fi
             fi

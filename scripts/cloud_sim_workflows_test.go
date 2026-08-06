@@ -274,7 +274,7 @@ func TestCloudSimulationWorkflowsPersistAndReuseDiscoveredProviderConfig(t *test
 
 	cleanup := read("cloud-sim-cleanup.yml")
 	for _, fragment := range []string{
-		"actions: read",
+		"actions: write",
 		"resolve-exact-provider-config.sh",
 		"select-provider-config-artifacts.sh",
 		"provider-configs",
