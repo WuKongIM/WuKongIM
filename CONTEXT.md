@@ -156,6 +156,30 @@ _Avoid_: Source credential, host credential, analysis token
 The immutable cloud-side expiry and cleanup obligation attached to a Simulation Run when it is created.
 _Avoid_: Workflow timeout, simulator timer
 
+**Cloud Lease**:
+A temporary provider-neutral infrastructure allocation with an immutable expiry and cleanup obligation. A Simulation Run may consume one Cloud Lease, while a larger operator flow may consume multiple sequential Cloud Leases.
+_Avoid_: Simulation Run, server purchase, permanent environment
+
+**Lease Plan**:
+The versioned, workload-neutral declaration of the compute, storage, network, expiry, budget, and tags required from a Cloud Lease.
+_Avoid_: Scenario Profile, Deployment Plan, workflow inputs
+
+**Lease Receipt**:
+The non-secret inventory and lifecycle proof returned for one exact Cloud Lease.
+_Avoid_: Credentials, deployment result, workflow artifact
+
+**Deployment Plan**:
+The versioned product-specific intent for activating services, configuration, observability, public entrypoints, and readiness on a Cloud Lease.
+_Avoid_: Lease Plan, ad hoc deployment arguments
+
+**Deployment Receipt**:
+The non-secret proof that one exact Deployment Bundle and Deployment Plan were activated and checked on one exact Cloud Lease.
+_Avoid_: Lease Receipt, deployment logs
+
+**Chat Lifecycle Run**:
+The complete operator-requested chain of a rehearsal Simulation Run, a fresh formal Simulation Run, aged-data capacity testing, evidence, and cleanup.
+_Avoid_: Simulation Run, workflow run
+
 **Cloud Control Plane**:
 The repository-owned lifecycle authority that reconciles Simulation Runs through Cloud Provider Adapters and provider inventory.
 _Avoid_: Workflow script, Terraform state

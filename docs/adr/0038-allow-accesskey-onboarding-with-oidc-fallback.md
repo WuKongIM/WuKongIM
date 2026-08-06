@@ -36,3 +36,7 @@ dedicated least-privilege RAM user is preferred; an Alibaba root-account
 AccessKey is explicitly discouraged. OIDC remains the preferred long-term
 hardening path because it replaces the stored credential with short-lived,
 workflow-conditioned STS credentials.
+
+ADR 0043 narrows the new automated chat-lifecycle Cloud Lease flow to one-time
+AccessKey-assisted OIDC bootstrap followed by ordinary OIDC-only operation;
+existing Cloud Simulation behavior remains unchanged.
