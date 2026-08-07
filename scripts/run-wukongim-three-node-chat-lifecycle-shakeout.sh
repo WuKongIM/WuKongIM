@@ -110,7 +110,6 @@ PID_DIR="$RUN_DIR/pids"
 WORKER_DIR="$RUN_DIR/workers"
 REPORT_DIR="$RUN_DIR/report"
 LIFECYCLE_CONFIG="$RUN_DIR/chat-lifecycle.yaml"
-RUN_ID="local-chat-lifecycle-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 print_plan() {
   printf 'run_dir=%s\n' "$RUN_DIR"
@@ -155,7 +154,6 @@ log 'building service and benchmark binaries'
 (cd "$ROOT_DIR" && GOWORK=off go build -o "$WKBENCH_BIN" ./cmd/wkbench)
 
 sed \
-  -e "s/local-chat-lifecycle-shakeout/$RUN_ID/g" \
   -e "s/15001/$(api_port 1)/g" -e "s/15002/$(api_port 2)/g" -e "s/15003/$(api_port 3)/g" \
   -e "s/15011/$(api_port 1)/g" -e "s/15012/$(api_port 2)/g" -e "s/15013/$(api_port 3)/g" \
   -e "s/15101/$(gateway_port 1)/g" -e "s/15102/$(gateway_port 2)/g" -e "s/15103/$(gateway_port 3)/g" \
@@ -235,7 +233,7 @@ start_service() {
     WK_CLUSTER_HASH_SLOT_COUNT=256 \
     WK_CLUSTER_SLOT_REPLICA_N=3 \
     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
-    WK_CLUSTER_MAX_CHANNELS=500 \
+    WK_CLUSTER_MAX_CHANNELS=5000 \
     WK_API_LISTEN_ADDR="127.0.0.1:$(api_port "$node")" \
     WK_EXTERNAL_TCPADDR="127.0.0.1:$(gateway_port "$node")" \
     WK_MANAGER_LISTEN_ADDR="127.0.0.1:$(manager_port "$node")" \

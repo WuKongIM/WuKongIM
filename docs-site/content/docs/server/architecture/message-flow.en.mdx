@@ -1,0 +1,126 @@
+---
+title: Message Send Flow
+description: Trace durable SEND through Gateway, permission checks, authority append, quorum commit, and online delivery.
+---
+
+A durable SEND crosses entry adaptation, business permissions, Channel authority, Channel quorum, and post-commit effects. The critical boundary is that durable commit decides SENDACK success; online delivery and webhooks are not part of that synchronous transaction.
+
+## Complete flow
+
+```text
+1. client SEND
+      │
+      ▼
+2. Gateway frame adapter
+      │  normalize + map protocol DTO
+      ▼
+3. message use case
+      │  permission / system UID / plugin BeforeSend
+      ▼
+4. channelappend Router
+      │  resolve exact Channel authority
+      ├──────── non-authority node ─────► Channel Append RPC
+      ▼                                      │
+5. authority-local single writer ◄───────────┘
+      │  validate, idempotency, message ID, bounded admission
+      ▼
+6. pkg/cluster Channel service
+      │  apply current meta / forward to Channel Leader
+      ▼
+7. Channel Leader durable append + ISR replication + HW commit
+      │
+      ├────────► 8. SENDACK success
+      │
+      └────────► 9. post-commit effects
+                    conversation projection
+                    subscriber paging + presence lookup
+                    owner-node online delivery
+                    PersistAfter plugin / webhook
+```
+
+## 1. Gateway ingress
+
+A client TCP or WebSocket Session sends a WKProto `SEND`. `pkg/gateway` handles frame decoding, connection-level admission, same-channel micro-batching, and bounded asynchronous dispatch. `internal/access/gateway` maps protocol fields into an entry-independent send command.
+
+Gateway does not choose the Channel Leader or write the message database. A full queue, closed connection, or invalid frame fails explicitly before business-usecase admission.
+
+## 2. Permissions and normalization
+
+`internal/usecase/message` enforces current business permissions: system users, channel state, subscriptions, allowlists, denylists, stranger policy, and optional plugin `BeforeSend`. Direct or command-channel identities are normalized for the request, but the usecase imports no Gateway, Cluster, or Channel implementation type.
+
+Batch send preserves item-aligned results. Rejected items never enter append; only allowed items reach the configured submitter.
+
+## 3. Channel Append Authority
+
+`internal/runtime/channelappend.Router` resolves a complete authority target for the canonical channel. Only that node creates the product-level append writer. Other nodes forward the whole batch over Channel Append RPC without creating a local proxy writer.
+
+The authority writer:
+
+- revalidates the channel against target hash slot, Leader, and epochs;
+- applies idempotency by sender, client message number, and channel;
+- assigns message ID and server timestamp;
+- stays under per-channel backlog, global worker, and post-commit handoff capacity;
+- preserves same-channel item commit and completion order.
+
+## 4. Channel quorum commit
+
+The Cluster Channel service resolves and applies current `ChannelRuntimeMeta`. If the local node is not Channel Leader, it forwards append to the Leader. The Leader reactor checks `Epoch`, `LeaderEpoch`, and `WriteFence`, then performs local durable append and ISR replication.
+
+The quorum append Future succeeds only when HW covers the records. Each result returns the durable message ID and channel sequence.
+
+<Callout type="info" title="What SENDACK means">
+  A successful SENDACK for a default durable message means the authoritative channel path made a durable quorum-commit decision. It does not mean every recipient is online, every client has RECVACKed, a webhook completed, or a business database updated.
+</Callout>
+
+If the client disconnects before SENDACK, use a stable `client_msg_no` and query or sync evidence to determine the result. A network timeout alone does not prove the message was not committed.
+
+## 5. Post-commit effects
+
+A new commit becomes an immutable `CommittedEnvelope` in the authority writer. The following work is scheduled independently of SENDACK:
+
+1. Ordinary messages create a normal conversation-active projection; command-sync messages use a separate kind.
+2. Direct channels derive participants, ordinary channels load a versioned subscriber snapshot, and large groups page by cursor.
+3. Sender and recipient UIDs resolve under one route snapshot into exact presence targets.
+4. A bounded `RecipientDeliveryPlan` groups by authority target and enters the online-delivery runtime.
+5. Online routes coalesce by owner node; local owners write Sessions and remote owners receive owner-push RPC.
+6. Optional PersistAfter plugins and webhooks receive best-effort events from the same committed boundary.
+
+Failure in one recipient group does not change a successful SENDACK or block unrelated targets. Stage-specific logs and metrics expose the failure.
+
+## 6. Receive and acknowledgement
+
+Before writing `RECV`, the owner node revalidates UID, Boot ID, Session ID, and owner fences and binds bounded ACK state when acknowledgement is required. Client `RECVACK` removes only the matching owner-local pending identity; Session close removes state for that Session.
+
+Durable committed history and whether one client has RECVACKed are separate dimensions. Receive acknowledgement cannot rewrite or change Channel commit order.
+
+## NoPersist branch
+
+A plain non-command-channel `NoPersist` send (without `SyncOnce` and without an existing command-channel ID) performs only side-effect-safe pre-route validation and then returns terminal success. It does not resolve authority, append to a Channel, or dispatch realtime delivery. This compatibility branch is not an online-message delivery capability.
+
+A command-style `NoPersist` send (with `SyncOnce` or an existing command-channel ID) maps to the command channel, resolves authority, and enters online recipient routing in writer order. It skips the Channel durable log, conversation projection, and PersistAfter, and reports success only after the online delivery plan is accepted. If no online-delivery capability exists, it fails rather than fabricating success.
+
+Neither `NoPersist` branch has a durable sequence or offline-recovery guarantee, so neither is suitable for business events that require reliable replay.
+
+## Common failure boundaries
+
+| Symptom | Inspect first |
+| --- | --- |
+| No SENDACK | Gateway queue, permission, authority route, Channel append and HW |
+| SENDACK succeeds but peer sees nothing | subscriber page, presence target, delivery plan, owner push, Session |
+| Only some devices receive | exact routes, Boot/Session fences, device conflicts, local write error |
+| Webhook fails but message exists | PersistAfter/webhook queue and receiver, not Channel rollback |
+| Retry creates a duplicate | stable `client_msg_no`, idempotency scope, timeout-outcome handling |
+
+Use the evidence ladder in [Troubleshooting](/en/server/operations/troubleshooting) to narrow the boundary. Do not infer failed Channel commit directly from a final UI that did not display a message.
+
+## Source entry points
+
+| Stage | Entry point |
+| --- | --- |
+| Client frame and ingress adapter | `pkg/gateway`, `internal/access/gateway` |
+| Permission and send usecase | `internal/usecase/message` |
+| Product append authority | `internal/runtime/channelappend` |
+| Cluster and Channel commit | `pkg/cluster/channels`, `pkg/channel` |
+| Online delivery and ACK | `internal/runtime/delivery`, `internal/runtime/online` |
+
+Continue with [User Connection Routing](/en/server/architecture/user-routing) to see how post-commit delivery finds a concrete Session.

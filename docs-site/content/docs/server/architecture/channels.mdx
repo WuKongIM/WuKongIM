@@ -1,0 +1,106 @@
+---
+title: Channel 消息层
+description: 理解频道元数据、Leader、ISR、消息日志、提交高水位和故障 fence。
+---
+
+Channel 是消息路由、排序和持久化的核心单位。每个活跃频道有独立的运行时状态和有序日志，但多个频道会被哈希到有限数量的 reactor 与 worker 上执行，不会为每个频道创建一组永久 goroutine。
+
+## Slot 元数据与 Channel 日志
+
+`ChannelRuntimeMeta` 由频道 ID 对应的物理哈希槽管理，描述数据面应当如何运行；实际消息记录由 Channel 副本保存在 `pkg/db/message`。
+
+| 元数据字段 | 约束 |
+| --- | --- |
+| `Leader` | 当前允许接受频道写入的节点 |
+| `Replicas` | 应保存频道日志数据的节点集合 |
+| `ISR` | 参与提交高水位计算的同步副本集合 |
+| `MinISR` | 推进 quorum commit 所需的最小 ISR 数 |
+| `Epoch` | fence 成员变化 |
+| `LeaderEpoch` | fence 同一成员 epoch 内的 Leader 变化 |
+| `WriteFence` | 迁移或故障切换期间阻止新写入 |
+| `RetentionThroughSeq` | 权威逻辑保留边界 |
+
+Slot Leader 与 Channel Leader 可以位于不同节点。前者提交频道元数据，后者提交频道消息日志。
+
+## 频道写入与复制
+
+```text
+AppendBatch (同一个 Channel，保持请求顺序)
+       │
+       ▼
+解析并应用最新 ChannelRuntimeMeta
+       │
+       ├─ 本节点不是 Channel Leader ──► 转发到 Leader
+       │
+       ▼
+Leader reactor admission + epoch/write-fence 检查
+       │
+       ▼
+本地 durable append ──► followers Pull / Apply / ACK
+       │                          │
+       └──────────── ISR progress ┘
+                        │
+                        ▼
+                 HW 达到追加序号
+                        │
+                        ▼
+                Append Future 成功
+```
+
+公开的持久化发送路径使用 quorum commit：只有 Channel Leader 的提交高水位（HW）覆盖本次记录，追加才成功。单节点集群的 `MinISR=1` 仍走同一状态机和 durable append。
+
+## 顺序与批量
+
+- 同一频道的命令按提交顺序进入 authority writer；完成事件即使乱序返回，也会按 append sequence 排空。
+- Gateway 和 channelappend 可以收集相邻的同频道请求，最终由 `AppendBatch` 一次提交连续序号。
+- Leader 本地存储和 follower apply 使用有界 worker 与批量，降低 fsync 和调度开销。
+- 批量不会放松 epoch、Leader epoch、幂等键或写 fence；任何 stale result 都不能推进当前 generation。
+
+跨频道执行可以并行，但同一频道的可见顺序由其日志序号决定。不同频道之间没有一个全局消息顺序。
+
+## ISR 与提交高水位
+
+Leader 跟踪每个 ISR 副本的复制进度，按 `MinISR` 计算可提交序号。只有达到 HW 的记录才是 committed；读取历史消息和本地 latest-message 查询也必须受已加载或持久化 HW 约束。
+
+`Replicas - ISR` 中的 learner 可以接收复制并追赶，但不参与 HW quorum，也不能直接成为 Leader。把 learner 提升到 ISR 前必须在当前 Leader 与 epoch 下证明其进度。
+
+## 激活与淘汰
+
+Channel runtime 按需激活。节点先解析权威元数据、打开对应消息存储并应用完整 meta，再允许 append 或 replication。空闲频道可以减慢 follower pull，并在满足角色、进度和生命周期条件时淘汰本地运行时；持久消息不会因运行时卸载而丢失。
+
+节点重新收到写入、PullHint 或权威元数据变化时会重新解析并激活。PullHint 只是唤醒/刷新提示，不能替代权威 meta。
+
+## 背压
+
+| 压力点 | 行为 |
+| --- | --- |
+| 每频道 mailbox 或 append queue 满 | 拒绝新 admission，返回显式 busy/backpressure |
+| durable append worker 满 | 保持有界等待或重试，不在 reactor 中阻塞存储 IO |
+| post-commit handoff 满 | 在 durable append 前保留容量；无法保留时先返回 `ErrChannelBusy`，不会提交后再丢 handoff |
+| follower 或远端 RPC 失败 | 只影响对应副本/目标，按有界策略恢复 |
+
+这些限制保护尾延迟和内存。扩大 queue 只会延长最坏等待，不能替代容量规划。
+
+## 大群与提交后 Fanout
+
+频道日志只保存一份提交消息，不为十万成员复制十万份持久记录。提交后流程分页读取大群订阅者，每页解析在线 authority 并生成有界投递计划；不会把完整成员列表一次加载到内存。
+
+因此“大群消息已经 commit”和“所有在线成员已经收到”是两个不同事件。投递或会话投影失败不会回滚已提交日志。
+
+## 迁移与故障切换
+
+Leader transfer 或 replica replace 先通过 Slot 元数据设置 durable write fence，排空旧 Leader，再用带 task/epoch/proof 的命令原子切换 Leader 或 ISR。清除 fence 也必须通过更高版本的权威元数据完成，节点本地 TTL 不会自动重新开放写入。
+
+如果实际副本、ISR、epoch 或 Leader 证据冲突，Channel append 保持 fail-closed。运维流程见[扩容与缩容](/zh/server/operations/scaling)。
+
+## 源码入口
+
+| 目标 | 入口 |
+| --- | --- |
+| 公共 Channel 合约 | `pkg/channel` |
+| 多 reactor 状态机 | `pkg/channel/reactor`, `pkg/channel/machine` |
+| 消息存储适配 | `pkg/channel/store`, `pkg/db/message` |
+| 元数据解析与跨节点转发 | `pkg/cluster/channels` |
+| 产品写入 authority | `internal/runtime/channelappend` |
+
+继续阅读 [消息发送链路](/zh/server/architecture/message-flow)，把 Channel commit 放回完整客户端流程。

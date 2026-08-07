@@ -1,0 +1,118 @@
+---
+title: wkbench
+description: Run black-box validation, real workloads, capacity searches, and regression gates against a controlled cluster.
+---
+
+`wkbench` is WuKongIM's black-box benchmark driver. It talks to a running cluster through public HTTP, Benchmark HTTP, and WKProto gateway endpoints without importing server internals or bypassing cluster semantics. A one-node target is still a single-node cluster.
+
+<Callout type="error" title="Do not use production as a load target">
+  wkbench creates real users, Channels, connections, and messages and may drive a target into backpressure or unavailability. Use only an isolated, rebuildable, authorized benchmark cluster, with hard limits for rate, concurrency, duration, disk, and stopping.
+</Callout>
+
+## Command scope
+
+| Command | Purpose |
+| --- | --- |
+| `validate` | Statically validate target, workers, and scenario YAML plus deterministic planning, without network checks |
+| `doctor` | Check target health, Benchmark API, worker control APIs, and gateway reachability |
+| `worker` | Start a worker control process that holds WKProto clients and executes workload shards |
+| `run` | Execute validate, preflight, assign, prepare, connect, warmup, run, cooldown, and report |
+| `dev-sim` | Keep users online and sustain low-rate person/group traffic for development |
+| `capacity send` | Search maximum stable ingress send QPS against an existing cluster |
+| `capacity hot-channel` | Search hot-write capacity for one fixed group Channel |
+| `capacity activate-channels` | Activate and hold a fixed number of real Channel runtimes |
+| `capacity message-event` | Apply fixed-shape `/message/event` pressure and write a report |
+| `metrics classify` | Compare before/after Prometheus snapshots and emit low-cardinality attribution hints |
+| `report` | Reserved standalone report command; not implemented yet |
+
+## Target prerequisites
+
+A complete workflow usually requires:
+
+- `/healthz` and `/readyz`;
+- `/bench/v1/capabilities`, `/bench/v1/capacity-target`, and `/bench/v1/snapshot`;
+- Benchmark user, Channel, and subscriber preparation endpoints;
+- a WKProto gateway advertised at an address reachable from the runner.
+
+Explicitly enable the Benchmark API in a controlled environment:
+
+```toml
+[bench]
+api_enable = true
+```
+
+`/bench/v1/*` is not a public product API and must not be exposed to a public network. `capacity message-event` is the exception: it uses product `/channel`, `/message/send`, `/message/event`, and `/metrics` endpoints and does not need the Benchmark API. It still writes generated Channels and messages, so it also requires a controlled target.
+
+## Minimum validation flow
+
+Start an independent worker:
+
+```bash
+WK_BENCH_WORKER_TOKEN=worker-secret \
+  go run ./cmd/wkbench worker \
+  --listen 127.0.0.1:19090 \
+  --work-dir ./tmp/wkbench-worker-a
+```
+
+Validate static inputs, run network preflight, and only then generate load:
+
+```bash
+go run ./cmd/wkbench validate \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+
+go run ./cmd/wkbench doctor \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+
+go run ./cmd/wkbench run \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+```
+
+`validate` proves only that static inputs and planning are valid. `doctor` proves only that network and capabilities passed preflight at that time. Neither is a capacity result.
+
+## Design a representative workload
+
+- Model realistic online-user count, Channel cardinality and types, group size, payload size, acknowledgements, and reconnect behavior.
+- Separate connection ramp, warmup, measurement, and cooldown; warmup counters must not enter the measured window.
+- Test high Channel cardinality, one hot Channel, message events, and connection pressure separately rather than reducing every bottleneck to one QPS number.
+- For 100,000-member groups, high message rates, many Channels, and many online users, account explicitly for CPU, memory, allocations, contention, bounded queues, backpressure, and fanout.
+- Fix the random seed or generation rule and retain scenario YAML, tool/server revisions, hardware, topology, and configuration.
+
+## Capacity search
+
+```bash
+wkbench capacity send \
+  --api http://127.0.0.1:5001 \
+  --profile mixed \
+  --start-qps 100 \
+  --max-qps 5000 \
+  --stable-p99 200ms \
+  --duration 30s \
+  --group-members 10
+```
+
+`capacity send` discovers gateways, starts a temporary local worker, and searches for a stable ingress rate under the supplied gates. It does not start or stop the cluster, build images, or remove data. Use separate `capacity` subcommands for a hot Channel, Channel-runtime cardinality, and message events.
+
+“Maximum stable” applies only to this revision, hardware, topology, scenario, and gate. Plan below the first failure point with headroom. Actual QPS below offered QPS, tail latency, error rate, queues, disk, and recovery time are all results; never retain only the highest number.
+
+## Results and stop conditions
+
+A report should retain at least:
+
+- Git revision, binary digests, configuration, and cluster topology.
+- Target/worker/scenario files and the complete command.
+- Timing and status for prepare, connect, warmup, run, and cooldown.
+- Offered/actual QPS, throughput, p50/p95/p99, typed operation errors, and timeouts.
+- Per-node CPU, memory, goroutines, FDs, network, disk IO, queues, and replica/leader skew.
+- Before/after `/readyz`, backlog recovery time, generated-data location, and cleanup result.
+
+Stop on any hard gate, readiness, disk-headroom, error-rate, tail-latency, or worker-state failure. Do not raise limits merely to obtain a larger number. See [Diagnostics](/en/server/tools/diagnostics) for evidence selection.
+
+## Cleanup
+
+Stop workers and simulators, revoke temporary credentials, disable the Benchmark API, archive reports, remove generated data, and verify the cluster returns to its idle baseline. If worker stop or target recovery cannot be confirmed, treat the run as an unfinished incident, not a successful benchmark.

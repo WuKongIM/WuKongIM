@@ -15,7 +15,7 @@ workload:
   sync: {version: 0, limit: 500, message_count: 20}
   burst_credit: 2s
   max_global_burst: 200
-  max_channels_per_node: 500
+  max_channels_per_node: 5000
   login: {new_percent: 80, returning_percent: 20}
   sessions:
     - {percent: 25, min: 5m, max: 15m}

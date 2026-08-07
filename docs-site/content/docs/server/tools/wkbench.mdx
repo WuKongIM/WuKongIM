@@ -1,0 +1,118 @@
+---
+title: wkbench
+description: 在受控集群上执行黑盒验证、真实负载、容量搜索和回归门槛。
+---
+
+`wkbench` 是 WuKongIM 的黑盒基准驱动器。它通过公开 HTTP、Benchmark HTTP 和 WKProto 网关与运行中的集群交互，不导入服务端内部包，也不绕过集群语义。单节点目标仍然是单节点集群。
+
+<Callout type="error" title="不要把生产集群当作压测目标">
+  wkbench 会创建真实用户、频道、连接和消息，并可能把目标推入背压或不可用状态。只能使用隔离、可重建、已授权的压测集群，并为速率、并发、持续时间、磁盘和停止条件设置硬上限。
+</Callout>
+
+## 命令范围
+
+| 命令 | 用途 |
+| --- | --- |
+| `validate` | 静态验证 target、workers、scenario YAML 和确定性计划，不做网络检查 |
+| `doctor` | 检查目标健康、Benchmark API、worker 控制 API 和网关可达性 |
+| `worker` | 启动持有 WKProto 客户端并执行分片负载的 worker 控制进程 |
+| `run` | 执行 validate、preflight、分配、prepare、connect、warmup、run、cooldown 和 report |
+| `dev-sim` | 维持用户在线并持续产生低速个人/群消息的开发模拟器 |
+| `capacity send` | 搜索已有集群的最大稳定接入发送 QPS |
+| `capacity hot-channel` | 对一个固定群频道搜索热点写入容量 |
+| `capacity activate-channels` | 激活并保持固定数量的真实 Channel runtime |
+| `capacity message-event` | 对 `/message/event` 执行固定形状压力并生成报告 |
+| `metrics classify` | 比较前后 Prometheus 快照并给出低基数归因提示 |
+| `report` | 预留的独立报告命令，当前尚未实现 |
+
+## 目标前提
+
+完整工作流通常需要目标开放：
+
+- `/healthz` 与 `/readyz`；
+- `/bench/v1/capabilities`、`/bench/v1/capacity-target` 和 `/bench/v1/snapshot`；
+- Benchmark 用户、频道和订阅者准备接口；
+- 从运行机可访问的 WKProto 网关发布地址。
+
+在受控环境显式启用 Benchmark API：
+
+```toml
+[bench]
+api_enable = true
+```
+
+`/bench/v1/*` 不是公开产品 API，不得暴露到公共网络。`capacity message-event` 是例外：它使用产品 `/channel`、`/message/send`、`/message/event` 和 `/metrics`，不需要 Benchmark API，但仍会写入生成的频道和消息，因此也必须使用受控目标。
+
+## 最小验证流程
+
+启动独立 worker：
+
+```bash
+WK_BENCH_WORKER_TOKEN=worker-secret \
+  go run ./cmd/wkbench worker \
+  --listen 127.0.0.1:19090 \
+  --work-dir ./tmp/wkbench-worker-a
+```
+
+先静态验证，再做网络预检，最后才执行负载：
+
+```bash
+go run ./cmd/wkbench validate \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+
+go run ./cmd/wkbench doctor \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+
+go run ./cmd/wkbench run \
+  --target ./target.yaml \
+  --workers ./workers.yaml \
+  --scenario ./scenario.yaml
+```
+
+`validate` 成功只说明静态文件和计划有效；`doctor` 成功只说明当时的网络与能力预检通过。两者都不是容量结论。
+
+## 设计代表性负载
+
+- 使用接近真实的在线用户数、频道基数、频道类型、群成员数、消息大小、收发确认与重连行为；
+- 将连接爬升、预热、测量和冷却分开，预热计数不能混入测量窗口；
+- 分开测试高频道基数、单热点频道、消息事件和连接压力，不要用一个 QPS 数字概括所有瓶颈；
+- 为 100,000 成员群组、高消息率、许多频道和大量在线用户显式评估 CPU、内存、分配、锁竞争、有界队列、背压和扇出；
+- 固定随机种子或生成规则，并保留场景 YAML、工具/服务版本、硬件、拓扑和配置。
+
+## 容量搜索
+
+```bash
+wkbench capacity send \
+  --api http://127.0.0.1:5001 \
+  --profile mixed \
+  --start-qps 100 \
+  --max-qps 5000 \
+  --stable-p99 200ms \
+  --duration 30s \
+  --group-members 10
+```
+
+`capacity send` 发现网关、启动临时本地 worker，并在给定门槛内搜索稳定接入速率；它不会启动/停止集群、构建镜像或清理数据。热点频道、Channel runtime 基数和消息事件需要各自的 `capacity` 子命令。
+
+“最大稳定”只对本次版本、硬件、拓扑、场景和门槛成立。实际规划必须低于首次失败点并保留资源余量；低于提供 QPS 的实际 QPS、尾延迟、错误率、队列、磁盘和恢复时间都属于结果，不能只保留最高数字。
+
+## 结果与停止条件
+
+报告至少应保留：
+
+- Git 修订、二进制摘要、配置与集群拓扑；
+- 目标/worker/scenario 文件和完整命令；
+- prepare、connect、warmup、run、cooldown 各阶段时间与状态；
+- offered/actual QPS、吞吐、p50/p95/p99、操作错误分类与超时；
+- 每节点 CPU、内存、Goroutine、FD、网络、磁盘 IO、队列和副本/Leader 偏斜；
+- 运行前后 `/readyz`、积压恢复时间、生成数据位置和清理结果。
+
+任一硬门槛、目标就绪、磁盘余量、错误率、尾延迟或 worker 状态失败时停止，不要为了得到更高数字提高上限。诊断过程见[诊断能力](/zh/server/tools/diagnostics)。
+
+## 结束清理
+
+停止 worker 和模拟器，撤销临时凭据，关闭 Benchmark API，归档报告后清理生成数据，并验证集群回到空闲基线。无法确认 worker 已停止或目标恢复时，把测试视为未完成事件，而不是成功的基准结果。

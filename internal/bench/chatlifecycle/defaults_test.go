@@ -43,7 +43,7 @@ func TestLocalConfigValid(t *testing.T) {
 	if cfg.Workload.Sync != (SyncConfig{Version: 0, Limit: 500, MessageCount: 20}) {
 		t.Fatalf("sync = %+v", cfg.Workload.Sync)
 	}
-	if cfg.Workload.BurstCredit != 2*time.Second || cfg.Workload.MaxGlobalBurst != 200 || cfg.Workload.MaxChannelsPerNode != 500 {
+	if cfg.Workload.BurstCredit != 2*time.Second || cfg.Workload.MaxGlobalBurst != 200 || cfg.Workload.MaxChannelsPerNode != 5_000 {
 		t.Fatalf("burst/channel limits = %+v", cfg.Workload)
 	}
 	if cfg.Workload.Groups != (GroupCatalogConfig{Small: 16, Medium: 3, VeryLarge: 1, VeryLargeMembers: 1_000, FixedMembership: true, VeryLargeSendEvery: time.Minute}) {

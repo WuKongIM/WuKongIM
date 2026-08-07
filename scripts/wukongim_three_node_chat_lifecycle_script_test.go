@@ -17,7 +17,8 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"#!/usr/bin/env bash", "set -euo pipefail", "umask 077", "--run-dir", "--dry-run", "--stop-after",
 		"go build", "./cmd/wukongim", "./cmd/wkbench", "WK_CLUSTER_INITIAL_SLOT_COUNT=12",
 		"WK_CLUSTER_HASH_SLOT_COUNT=256", "WK_CLUSTER_SLOT_REPLICA_N=3",
-		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "worker --mode chat-lifecycle", "host-metrics",
+		"WK_CLUSTER_CHANNEL_REPLICA_N=3", "WK_CLUSTER_MAX_CHANNELS=5000",
+		"worker --mode chat-lifecycle", "host-metrics",
 		"WK_PLUGIN_SOCKET_PATH",
 		"soak chat-lifecycle", "request_coordinator_stop", "handle_signal", "GRACEFUL_STOP_DEADLINE",
 		"kill -TERM", "kill -KILL", "pids", "final.json",
@@ -28,6 +29,9 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(script), "docker") {
 		t.Fatal("shakeout script must not reference container tooling")
+	}
+	if strings.Contains(script, "date -u") || strings.Contains(script, "RUN_ID=") {
+		t.Fatal("shakeout script must retain the fixed local run ID for reproducible workload decisions")
 	}
 	if output, err := exec.Command("bash", "-n", scriptPath).CombinedOutput(); err != nil {
 		t.Fatalf("bash syntax failed: %v\n%s", err, output)

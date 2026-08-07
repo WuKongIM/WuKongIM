@@ -1,0 +1,110 @@
+---
+title: Groups & Large Groups
+description: Implement a group Channel, membership reconciliation, group messages, churn, and 100,000-member workload boundaries.
+---
+
+This tutorial creates an ordinary group first, then scales the same model to 100,000 members. The product system always owns group profiles, roles, invitation approval, moderation, content governance, and the membership database. WuKongIM stores authoritative Channel metadata, membership projections, and the ordered message log.
+
+## 1. Create a group Channel
+
+Choose a stable, non-recycled product group ID such as `team-42`. Create the Channel from a trusted service network and verify it with a small initial member set:
+
+```bash
+curl -sS http://127.0.0.1:5001/channel \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"team-42",
+    "channel_type":2,
+    "reset":1,
+    "subscribers":["alice","bob","carol"]
+  }'
+```
+
+The compatible success response is `{"status":200}`. `channel_type=2` identifies a group Channel. This subscriber list does not replace the product membership database; it is the cluster-authoritative projection used for messaging permission, synchronization, and delivery.
+
+<Callout type="warn" title="Membership routes are a trusted control plane">
+  Current product HTTP routes have no general product authentication. End users should call your product API first; the product service validates roles and approval policy before mutating WuKongIM membership.
+</Callout>
+
+## 2. Reconcile membership changes
+
+Add members:
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/subscriber_add \
+  -H 'Content-Type: application/json' \
+  -d '{"channel_id":"team-42","channel_type":2,"subscribers":["dave","erin"]}'
+```
+
+Use `/channel/subscriber_remove` with the same request shape to remove members. Ordinary membership mutations are de-duplicated, written under a monotonic mutation version, and projected into UID-owned membership metadata. The product service should still retain its desired membership version, audit log, and compensation jobs.
+
+## 3. Send and verify a group message
+
+The sender must satisfy current group permission and membership policy. A client SDK uses `channel_id=team-42` and `channel_type=2`; a trusted server-side example is:
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"team-42",
+    "channel_type":2,
+    "client_msg_no":"team-42-0001",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGV4dCIsInRleHQiOiJoZWxsbyB0ZWFtIn0="
+  }'
+```
+
+`reason=1` means this Channel message reached quorum commit. It does not mean every member was online, every online Session write succeeded, or every user's conversation projection is already current.
+
+Bob can sync the group log:
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/messagesync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "login_uid":"bob",
+    "channel_id":"team-42",
+    "channel_type":2,
+    "start_message_seq":0,
+    "limit":20,
+    "pull_mode":1
+  }'
+```
+
+`message_seq` defines one order inside the group. Member online delivery, RECVACK, unread state, and reconnect recovery remain separate observations.
+
+## 4. Verify the leave boundary
+
+The product service commits its membership decision, calls the trusted subscriber-removal route, and records a retryable task. Removal affects later permission and delivery plans, but it does not delete the existing Channel log or automatically define product database, client-cache, and historical-conversation policy.
+
+Decide which historical sequence a former member may view, whether local records are removed, and where a returning member resumes. Those product rules cannot be inferred solely from “the subscriber row is gone.”
+
+## Scale to 100,000 members
+
+Do not place 100,000 UIDs into one `/channel` or `subscriber_add` JSON request. Use a product-owned coordinator:
+
+```text
+business membership snapshot/version
+  -> read next bounded UID batch
+  -> POST subscriber_add or subscriber_remove
+  -> persist checkpoint and result
+  -> retry/reconcile until desired == observed
+```
+
+- Use bounded application batches of hundreds to roughly one thousand UIDs, then tune from request bytes, latency, and error rate. Do not treat an internal chunk default as a permanent public API maximum.
+- Each request is still chunked and de-duplicated internally, but multiple HTTP requests are not one global transaction. Preserve successful progress and repair the desired/observed difference after failure.
+- `channel.large_group_subscriber_threshold` defaults to `500`; after an ordinary membership mutation, a count **greater than** the threshold refreshes the large-group marker. After changing the threshold, use controlled membership reconciliation and verification for existing Channels.
+- Large-group post-commit fanout pages members, groups them by Presence Authority, and creates bounded delivery plans. It does not write 100,000 copies into 100,000 Channel logs.
+- SENDACK guarantees Channel quorum commit and does not wait for complete fanout. If the product needs “everyone processed it,” build a separate business acknowledgement and aggregation flow.
+
+## Capacity validation
+
+Before launch, measure separately:
+
+1. hot-Channel append, quorum commit, and P99;
+2. member paging, Presence Authority resolution, and post-commit handoff queues;
+3. owner push, Session writes, disconnect ratio, and reconnect sync;
+4. membership mutation throughput, partial-failure repair, and mutation-version progress;
+5. CPU, memory, disk, network, queue depth, rejection, and end-to-end tail latency.
+
+Do not infer 100,000-member capacity from average QPS alone. Continue with [Channel Concepts](/en/guide/core-concepts/channels), [Cluster Configuration](/en/server/configuration/cluster), and [Benchmark Tooling](/en/server/tools/wkbench).

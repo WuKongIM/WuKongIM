@@ -22,9 +22,9 @@ description: 建立理解 WuKongIM 接入、消息路径和集群行为所需的
 | --- | --- |
 | 集群（Cluster） | 所有 WuKongIM 部署的统一运行模型；一个节点时称为单节点集群 |
 | 节点（Node） | 运行接入、运行时、存储和节点间通信能力的进程实例 |
-| Controller | 维护集群成员、节点健康、Hash Slot 表、物理 Slot 分配和运维任务的控制面 |
-| Hash Slot | 把用户和频道键稳定路由到逻辑 Slot 的固定分区；默认数量是 256 |
-| Slot | 持有用户、频道、成员、会话等元数据的分布式 Raft 分组 |
+| Controller | 维护集群成员、节点健康、物理哈希槽表、逻辑 Slot 放置和运维任务的控制面 |
+| 物理哈希槽（Hash Slot） | 用户和频道键稳定映射到的权威 fence；默认固定数量是 256 |
+| 逻辑 Slot | 持有一个或多个物理哈希槽及其用户、频道、成员、会话等元数据的 Raft Group |
 | Channel | 维护一个频道的有序消息日志、Leader/Replica 和提交进度 |
 
 ## 一条消息经过什么
@@ -47,4 +47,14 @@ description: 建立理解 WuKongIM 接入、消息路径和集群行为所需的
 - 单节点集群与多节点集群使用同一套路径，接入代码不应为单节点集群增加旁路。
 - 面向十万成员群、大量在线用户和高消息速率时，要同时考虑 Fan-out、队列边界、背压、内存和存储延迟。
 
-下一步可以运行[快速开始](/zh/guide/quick-start)，或查看[基础配置](/zh/server/configuration)。
+## 深入每个概念
+
+<Cards>
+  <Card title="集群与节点" description="区分 Controller、物理哈希槽、逻辑 Slot 与 Channel。" href="/zh/guide/core-concepts/cluster-and-nodes" />
+  <Card title="消息" description="理解标识、频道内顺序、提交、投递和确认。" href="/zh/guide/core-concepts/messages" />
+  <Card title="频道" description="理解 Channel 身份、成员策略、日志与副本。" href="/zh/guide/core-concepts/channels" />
+  <Card title="用户与设备" description="区分 UID、Device、Session 与 Presence route。" href="/zh/guide/core-concepts/users-and-devices" />
+  <Card title="会话" description="理解最近会话投影、未读和删除可见性。" href="/zh/guide/core-concepts/conversations" />
+</Cards>
+
+下一步可以运行[快速开始](/zh/guide/quick-start)，或查看[服务端架构](/zh/server/architecture)。

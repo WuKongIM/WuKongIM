@@ -2,9 +2,16 @@ package chatlifecycle
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
+)
+
+const (
+	productionMetaSettleAttempts = 5
+	productionMetaSettleDelay    = 25 * time.Millisecond
 )
 
 // ProductionMetaMetricsSource returns one authoritative service-node metrics
@@ -31,6 +38,7 @@ type ProductionMetaController struct {
 	metrics     [coordinatorWorkerCount]ProductionMetaMetricsSource
 	accounting  *MetaCreateAccounting
 	groups      MetaCreateHashSlotCounts
+	settleWait  func(context.Context) error
 
 	initialized  bool
 	assignmentID string
@@ -57,6 +65,7 @@ func NewProductionMetaController(options ProductionMetaControllerOptions) (*Prod
 	return &ProductionMetaController{
 		runID: options.Config.RunID, workerCount: uint64(options.Config.Workload.Workers),
 		metrics: options.Metrics, accounting: options.Accounting, groups: groups,
+		settleWait: waitProductionMetaSettle,
 	}, nil
 }
 
@@ -97,7 +106,7 @@ func (c *ProductionMetaController) Checkpoint(
 			}
 		}
 	}
-	metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
+	metrics, err := c.collectSettledMetrics(ctx, person, assignment)
 	if err != nil {
 		return err
 	}
@@ -110,6 +119,50 @@ func (c *ProductionMetaController) Checkpoint(
 	c.sequences = sequences
 	c.person = ordered
 	return nil
+}
+
+// collectSettledMetrics gives authoritative counters one short bounded window
+// to become visible after a final worker SENDACK. It never commits a preview,
+// and a stable deficit is still handed to accounting as product evidence.
+func (c *ProductionMetaController) collectSettledMetrics(
+	ctx context.Context,
+	person MetaCreateHashSlotCounts,
+	assignment LifecycleSlotAssignment,
+) ([coordinatorWorkerCount]target.MetricsSnapshot, error) {
+	for attempt := 0; attempt < productionMetaSettleAttempts; attempt++ {
+		metrics, err := collectProductionMetaMetrics(ctx, c.metrics)
+		if err != nil {
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
+		}
+		preview := NewMetaCreateAccounting()
+		previewErr := preview.Checkpoint(person, c.groups, assignment, metrics, false)
+		switch {
+		case previewErr == nil:
+			return metrics, nil
+		case !errors.Is(previewErr, ErrLifecycleProductFailure):
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, previewErr
+		case attempt == productionMetaSettleAttempts-1:
+			return metrics, nil
+		}
+		if c.settleWait == nil {
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
+		}
+		if err := c.settleWait(ctx); err != nil {
+			return [coordinatorWorkerCount]target.MetricsSnapshot{}, err
+		}
+	}
+	return [coordinatorWorkerCount]target.MetricsSnapshot{}, ErrLifecycleHarnessInvalid
+}
+
+func waitProductionMetaSettle(ctx context.Context) error {
+	timer := time.NewTimer(productionMetaSettleDelay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func productionMetaExpectation(cfg Config, workers []WorkerSnapshot) (MetaCreateHashSlotCounts, MetaCreateHashSlotCounts, error) {

@@ -22,9 +22,9 @@ A user can have multiple devices, and each device can create many connections ov
 | --- | --- |
 | Cluster | The unified runtime model for every WuKongIM deployment; one node is a single-node cluster |
 | Node | A process instance that runs access, runtime, storage, and node-transport capabilities |
-| Controller | The control plane for membership, node health, hash-slot tables, physical Slot placement, and operator tasks |
-| Hash slot | A fixed partition that routes user and channel keys to logical Slots; the default count is 256 |
-| Slot | A distributed Raft group holding user, channel, membership, conversation, and related metadata |
+| Controller | The control plane for membership, node health, the physical hash-slot table, logical Slot placement, and operator tasks |
+| Physical hash slot | The stable authority fence to which user and Channel keys map; the fixed default count is 256 |
+| Logical Slot | A Raft Group hosting one or more physical hash slots and their user, Channel, membership, conversation, and related metadata |
 | Channel | The runtime that owns an ordered message log, leaders and replicas, and commit progress for one channel |
 
 ## A message path
@@ -47,4 +47,14 @@ A user can have multiple devices, and each device can create many connections ov
 - Single-node clusters and multi-node clusters use the same path; integrations must not add a single-node-cluster bypass.
 - Designs for 100,000-member groups, many online users, and high message rates must consider fan-out, queue bounds, backpressure, memory, and storage latency together.
 
-Next, run the [quick start](/en/guide/quick-start) or review [basic configuration](/en/server/configuration).
+## Explore each concept
+
+<Cards>
+  <Card title="Clusters & Nodes" description="Distinguish Controller, physical hash slots, logical Slots, and Channels." href="/en/guide/core-concepts/cluster-and-nodes" />
+  <Card title="Messages" description="Understand identity, per-Channel order, commit, delivery, and acknowledgement." href="/en/guide/core-concepts/messages" />
+  <Card title="Channels" description="Understand Channel identity, membership policy, logs, and replicas." href="/en/guide/core-concepts/channels" />
+  <Card title="Users & Devices" description="Distinguish UID, Device, Session, and Presence routes." href="/en/guide/core-concepts/users-and-devices" />
+  <Card title="Conversations" description="Understand recent-conversation projections, unread state, and delete visibility." href="/en/guide/core-concepts/conversations" />
+</Cards>
+
+Next, run the [Quick Start](/en/guide/quick-start) or review [Server Architecture](/en/server/architecture).

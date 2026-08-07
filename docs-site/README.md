@@ -14,7 +14,16 @@ storage and workload controls, security boundaries, observability, and an
 exhaustive bilingual TOML-to-environment reference. Phase 6 publishes the
 server-operations path: Manager safety, health and monitoring, explicit node
 onboarding and fail-closed scale-in, verified backup and restore, and
-compatibility-gated upgrades and migrations.
+compatibility-gated upgrades and migrations. Phase 7 publishes symptom-led
+troubleshooting plus the official wkcli, wkdb, wkbench, and bounded-diagnostics
+guides. Phase 8 publishes the server-architecture path: Controller intent and
+materialization, 256 physical hash-slot routing into logical Slot Raft Groups,
+Channel quorum commit, bounded transport, the end-to-end send flow, and
+target-fenced online routing. Phase 9 completes the guide foundation with
+workload-qualified capabilities and use cases, precise cluster/message/Channel/
+user/conversation concepts, and the current node-local plugin boundary. Phase
+10 publishes the first scenario tutorials: direct chat plus group chat through
+bounded 100,000-member membership and fanout workflows.
 
 ## Develop
 
@@ -53,4 +62,8 @@ See `FLOW.md` for the publishing flow, `PHASE_1_SPEC.md` for the shell scope,
 `PHASE_2_SPEC.md` for the onboarding scope, and `PHASE_3_SPEC.md` for the
 business-integration scope. `PHASE_4_SPEC.md` defines the server-deployment
 scope, `PHASE_5_SPEC.md` defines the server-configuration scope, and
-`PHASE_6_SPEC.md` defines the server-operations scope.
+`PHASE_6_SPEC.md` defines the server-operations scope. `PHASE_7_SPEC.md`
+defines troubleshooting and official-tool boundaries. `PHASE_8_SPEC.md`
+defines the current server-architecture boundaries. `PHASE_9_SPEC.md` defines
+the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
+direct-chat and group-tutorial boundaries.

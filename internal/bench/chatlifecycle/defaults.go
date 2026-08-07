@@ -5,16 +5,19 @@ import (
 )
 
 const (
-	formalWorkers            = 3
-	formalLogicalSlotGroups  = 12
-	formalHashSlots          = 256
-	formalReplicas           = 3
-	formalRuntimeSampleSize  = 1_200
-	formalSyncLimit          = 500
-	formalSyncMessageCount   = 20
-	formalFilesystemBytes    = int64(500_000_000_000)
-	formalGroupCatalogTotal  = 2_000
-	formalVeryLargeMembers   = 100_000
+	formalWorkers           = 3
+	formalLogicalSlotGroups = 12
+	formalHashSlots         = 256
+	formalReplicas          = 3
+	formalRuntimeSampleSize = 1_200
+	formalSyncLimit         = 500
+	formalSyncMessageCount  = 20
+	formalFilesystemBytes   = int64(500_000_000_000)
+	formalGroupCatalogTotal = 2_000
+	formalVeryLargeMembers  = 100_000
+	// localMaxChannelsPerNode covers the five-minute loaded relationship window
+	// at 250,000 new users/day plus the fixed local hot set on every replica.
+	localMaxChannelsPerNode  = 5_000
 	capacityStepDuration     = 30 * time.Minute
 	formalCheckpointDuration = 72 * time.Hour
 	rehearsalDuration        = 2 * time.Hour
@@ -41,7 +44,7 @@ func LocalConfig() Config {
 	cfg.Workload.RuntimeSampling = RuntimeSamplingConfig{Every: time.Minute, Size: 12}
 	cfg.Workload.BurstCredit = 2 * time.Second
 	cfg.Workload.MaxGlobalBurst = 200
-	cfg.Workload.MaxChannelsPerNode = 500
+	cfg.Workload.MaxChannelsPerNode = localMaxChannelsPerNode
 	cfg.Workload.Groups = GroupCatalogConfig{
 		Small: 16, Medium: 3, VeryLarge: 1, VeryLargeMembers: 1_000,
 		FixedMembership: true, VeryLargeSendEvery: time.Minute,

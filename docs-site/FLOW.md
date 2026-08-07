@@ -65,7 +65,46 @@ content/docs/**/*.mdx
   repository testing, restore is limited to the current cluster identity, and
   all 256 slots are verified before switch. Mixed-version rolling upgrades
   MUST require an exact release compatibility statement; no generic v2-to-v3
-  in-place storage migration is promised. Troubleshooting remains planned.
+  in-place storage migration is promised.
+- Phase 7 publishes symptom-led troubleshooting and the official-tool path.
+  Investigation starts with the least expensive trustworthy evidence and keeps
+  unknown or contradictory state fail-closed. `wkcli` operations retain Manager
+  safety gates; `wkdb` remains node-local and offline, with `import` as its only
+  storage-writing command; and `wkbench` is restricted to controlled benchmark
+  clusters. Operations MCP remains a dedicated-credential, non-browser,
+  closed-world observation surface with no write tool; its bounded
+  `pprof_analyze` capture is the sole active observation.
+- Phase 8 publishes the server-architecture path. It MUST distinguish 256
+  stable physical hash-slot fences from logical Slot Raft Groups, Controller
+  intent from observed Raft leadership, Slot metadata from Channel message
+  logs, and durable Channel commit from post-commit effects. Client Gateway
+  transport and node transport remain separate; UID presence is an in-memory,
+  exact-target-fenced authority while concrete sessions remain owner-local.
+  Older wiki architecture content is not a publication source unless it is
+  recalibrated against the promoted packages.
+- Phase 9 completes the guide foundation with product capabilities, use cases,
+  clusters and nodes, messages, Channels, users and devices, conversations,
+  and plugin extensions. Capability claims MUST remain workload-qualified;
+  physical hash-slot fences remain distinct from logical Slot Raft Groups;
+  durable commit remains distinct from delivery, acknowledgement, and user
+  projections; and concrete Sessions remain owner-local. Plain non-command
+  `NoPersist` is a compatibility terminal-success branch without realtime
+  delivery, while only command-style `NoPersist` enters transient delivery.
+  Plugins remain node-local: Send is synchronous and fail-closed by default,
+  while Receive and PersistAfter are bounded post-commit effects.
+- Phase 10 publishes the first scenario tutorials: direct chat and groups
+  through 100,000-member workloads. Direct chat uses the peer UID and
+  `channel_type=1`; the server owns canonical person-Channel derivation. Group
+  chat uses product-owned group IDs and `channel_type=2`; the product service
+  remains authoritative for group lifecycle and reconciles subscriber
+  metadata through bounded requests. Durable SEND success means Channel
+  quorum commit, not complete fanout, RECVACK, conversation projection, or a
+  business result. Current product HTTP routes remain a trusted service-side
+  boundary without general product authentication. Large-group guidance MUST
+  use bounded application batches and post-commit paged fanout, never one
+  100,000-member request or a context-free capacity promise. `ClearUnread`
+  advances to the newest server-visible message and MUST NOT be documented as
+  an exact client-supplied read-sequence update.
 
 ## Static delivery
 

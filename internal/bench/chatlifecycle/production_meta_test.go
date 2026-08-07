@@ -90,6 +90,111 @@ func TestProductionMetaControllerCheckpointsThreeNodeMetricsAcrossTwelveLogicalS
 	}
 }
 
+func TestProductionMetaControllerRescrapesTransientCreateDeficit(t *testing.T) {
+	cfg := LocalConfig()
+	workers := productionMetaWorkerSnapshots(cfg)
+	assignment := productionMetaInitialAssignment(t)
+	person, groups, err := productionMetaExpectation(cfg, workers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, expectedTotal, ok := foldMetaCreateExpectation(person, groups, assignment)
+	if !ok {
+		t.Fatal("fold expected metadata creates")
+	}
+	fresh := productionMetaMetricsForExpected(expected)
+	stale := fresh
+	staleSlot := -1
+	for slot, count := range expected {
+		if count > 0 {
+			staleSlot = slot
+			break
+		}
+	}
+	if staleSlot < 0 {
+		t.Fatal("local group catalog produced no metadata expectation")
+	}
+	staleNode := staleSlot % coordinatorWorkerCount
+	stale[staleNode].MetaCreatedTotal = cloneFloatMap(stale[staleNode].MetaCreatedTotal)
+	stale[staleNode].MetaCreatedBySlot[staleSlot].Created--
+	stale[staleNode].MetaCreatedTotal["created"]--
+
+	var sources [coordinatorWorkerCount]ProductionMetaMetricsSource
+	for node := range sources {
+		sources[node] = &sequencedProductionMetaMetricsSource{snapshots: []target.MetricsSnapshot{stale[node], fresh[node]}}
+	}
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: sources, Accounting: accounting})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waits := 0
+	controller.settleWait = func(context.Context) error {
+		waits++
+		return nil
+	}
+	if err := controller.Checkpoint(context.Background(), workers, assignment, false); err != nil {
+		t.Fatalf("Checkpoint: %v", err)
+	}
+	if waits != 1 {
+		t.Fatalf("settle waits = %d, want 1", waits)
+	}
+	for node, source := range sources {
+		if calls := source.(*sequencedProductionMetaMetricsSource).calls; calls != 2 {
+			t.Fatalf("metrics source %d calls = %d, want 2", node, calls)
+		}
+	}
+	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != expectedTotal || snapshot.Created != expectedTotal || snapshot.Checkpoints != 1 {
+		t.Fatalf("settled accounting = %+v", snapshot)
+	}
+}
+
+func TestProductionMetaControllerRetainsStableCreateDeficit(t *testing.T) {
+	cfg := LocalConfig()
+	workers := productionMetaWorkerSnapshots(cfg)
+	assignment := productionMetaInitialAssignment(t)
+	person, groups, err := productionMetaExpectation(cfg, workers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, _, ok := foldMetaCreateExpectation(person, groups, assignment)
+	if !ok {
+		t.Fatal("fold expected metadata creates")
+	}
+	deficit := productionMetaMetricsForExpected(expected)
+	deficitSlot := -1
+	for slot, count := range expected {
+		if count > 0 {
+			deficitSlot = slot
+			break
+		}
+	}
+	if deficitSlot < 0 {
+		t.Fatal("local group catalog produced no metadata expectation")
+	}
+	deficitNode := deficitSlot % coordinatorWorkerCount
+	deficit[deficitNode].MetaCreatedBySlot[deficitSlot].Created--
+	deficit[deficitNode].MetaCreatedTotal["created"]--
+	sources := productionMetaSources(deficit)
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionMetaController(ProductionMetaControllerOptions{Config: cfg, Metrics: sources, Accounting: accounting})
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller.settleWait = func(context.Context) error { return nil }
+	if err := controller.Checkpoint(context.Background(), workers, assignment, false); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("stable deficit error = %v, want product failure", err)
+	}
+	for node, source := range sources {
+		if calls := source.(*recordingProductionMetaMetricsSource).calls; calls != productionMetaSettleAttempts {
+			t.Fatalf("metrics source %d calls = %d, want %d", node, calls, productionMetaSettleAttempts)
+		}
+	}
+	if snapshot := accounting.Snapshot(); snapshot.Checkpoints != 1 || snapshot.CreatedBySlot[deficitSlot] >= snapshot.ExpectedBySlot[deficitSlot] {
+		t.Fatalf("stable deficit accounting = %+v", snapshot)
+	}
+}
+
 func TestProductionMetaControllerRejectsWorkerRegressionAndOverflowBeforeMetrics(t *testing.T) {
 	cfg := LocalConfig()
 	assignment := productionMetaInitialAssignment(t)
@@ -209,6 +314,20 @@ type recordingProductionMetaMetricsSource struct {
 	mu       sync.Mutex
 	snapshot target.MetricsSnapshot
 	calls    int
+}
+
+type sequencedProductionMetaMetricsSource struct {
+	mu        sync.Mutex
+	snapshots []target.MetricsSnapshot
+	calls     int
+}
+
+func (s *sequencedProductionMetaMetricsSource) Metrics(context.Context) (target.MetricsSnapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	position := min(s.calls, len(s.snapshots)-1)
+	s.calls++
+	return s.snapshots[position], nil
 }
 
 func (s *recordingProductionMetaMetricsSource) Metrics(context.Context) (target.MetricsSnapshot, error) {

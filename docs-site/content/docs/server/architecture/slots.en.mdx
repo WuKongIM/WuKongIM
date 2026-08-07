@@ -1,0 +1,94 @@
+---
+title: Slot Metadata Layer
+description: Understand physical hash slots, logical Slot Raft Groups, metadata routing, and authoritative reads and writes.
+---
+
+The Slot layer is the distributed metadata store. Users, channel definitions, subscriptions, conversation projections, and `ChannelRuntimeMeta` are partitioned by stable physical hash slot and replicated through logical Slot Raft Groups.
+
+## Do not mix the two Slot concepts
+
+| Name | Default count | Purpose |
+| --- | --- | --- |
+| Physical hash slot | 256 | stable key-space fence; UIDs and Channel IDs hash here first |
+| Logical Slot Raft Group | selected by `initial_slot_count` | Raft replication and metadata state machine for one or more physical hash slots |
+
+Scaling normally moves replicas or Leaders of logical Slot Groups without changing the 256 physical hash slots. The mapping changes only through an explicitly enabled and controlled hash-slot migration.
+
+## From a key to the authoritative Leader
+
+```text
+key (UID / Channel ID / metadata key)
+  │
+  ├─ CRC32(key) % 256
+  ▼
+physical hash slot
+  │
+  ├─ versioned HashToSlot table
+  ▼
+logical Slot Raft Group
+  │
+  ├─ observed Raft status
+  ▼
+LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision
+```
+
+The route table is an immutable snapshot replaced atomically, so hot paths can resolve many keys under one version. Missing routes, mappings, or observed Leaders return not-ready or unknown instead of falling back to an arbitrary node.
+
+## Metadata stored by Slot
+
+- users, devices, and system UIDs;
+- channel definitions, subscribers, allowlists, denylists, and membership;
+- conversation state, unread/read cursors, and active projections;
+- Channel Leader, Replicas, ISR, epochs, write fences, and retention boundary;
+- Channel migration tasks, plugin bindings, and bounded message-event projections.
+
+Message payloads do not belong to Slot. The [Channel Messaging Layer](/en/server/architecture/channels) stores them in separate per-channel logs.
+
+## Metadata writes
+
+1. The caller hashes the key to a physical hash slot and resolves its logical Slot Group from one route snapshot.
+2. A local current Leader enters `Runtime.Propose`; otherwise a bounded RPC forwards to the resolved Leader.
+3. Multi-Raft persists and replicates the entry, then gives committed entries to the Slot FSM after quorum.
+4. The FSM verifies that each physical hash slot belongs to the logical Group and applies a batch into one `pkg/db/meta` WriteBatch.
+5. The WriteBatch commits atomically, then the durable applied boundary advances and the Future completes.
+
+A single-node cluster keeps this path. Its quorum is one voter; it does not bypass Raft or the FSM.
+
+## Authoritative and local reads
+
+A local replica can serve explicitly node-local or applied-state reads. Reads requiring current authority resolve the logical Slot Group, try its peers, and follow a `not_leader` response toward the newest Leader hint.
+
+<Callout type="info" title="A local snapshot is not global truth">
+  One node's Pebble data, Raft log, or Slot status describes that node's local boundary. Manager aggregation must retain node, term, configuration epoch, and freshness instead of presenting one node's read as a globally consistent snapshot.
+</Callout>
+
+## Preferred Leader and actual Leader
+
+Controller stores desired peers, configuration epoch, and preferred leader for each logical Group. Live Slot Multi-Raft status supplies the current Leader, term, voters, learners, commit, and match progress.
+
+Background preferred-leader convergence attempts a transfer only when intent is still current, membership matches exactly, the target is recently active, and it has caught up through commit. Stale intent, joint configuration, lag, or inactivity preserves the current state; the reconciler does not pick a different convenient candidate.
+
+## Replica movement and recovery
+
+A safe replica move adds the target as a learner, waits for catch-up, promotes it, removes the old voter, and finally lets Controller commit the new assignment and configuration epoch. Snapshots let a new learner cross compacted history; recovery installs the snapshot first and replays committed entries after its index.
+
+Every stage retains live Raft proof. A failed task preserves current membership and observable state instead of editing `cluster-state.json` or local metadata directly.
+
+## Capacity and backpressure
+
+- Multi-Raft uses a bounded scheduler and workers across Groups; a hot Group does not receive an unbounded queue.
+- FSM batching amortizes storage commits while preserving record, byte, and wait limits.
+- Large snapshots are chunked in cluster transport and reassembled before entering the Slot runtime.
+- Queue saturation, Leader changes, and route-revision mismatch return explicit errors or bounded retries instead of silently losing metadata writes.
+
+## Source entry points
+
+| Goal | Entry point |
+| --- | --- |
+| Route table | `pkg/cluster/routing` |
+| Slot Multi-Raft | `pkg/slot/multiraft` |
+| Metadata FSM and proxy | `pkg/slot/fsm`, `pkg/slot/proxy` |
+| Local metadata database | `pkg/db/meta` |
+| Controller-to-Slot composition | `pkg/cluster/slots`, `pkg/cluster/propose` |
+
+Continue with the [Channel Messaging Layer](/en/server/architecture/channels) to see how Slot metadata fences each channel's message replicas.

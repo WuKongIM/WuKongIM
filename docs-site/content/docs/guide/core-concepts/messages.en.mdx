@@ -1,0 +1,61 @@
+---
+title: Messages
+description: Understand message identity, per-Channel ordering, durable commit, delivery acknowledgement, idempotency, and NoPersist.
+---
+
+A message is a record published to one Channel. The most important application boundary is that client request, Channel durable commit, online delivery, and receive acknowledgement are four different stages.
+
+## Three common identifiers
+
+| Identifier | Supplied by | Purpose |
+| --- | --- | --- |
+| `client_msg_no` | Sender | Identifies one logical send and supports idempotent retry; keep it stable across retries |
+| Message ID | Server | Global server message identity for outcomes and diagnostics |
+| `message_seq` | Channel log | Ordered position inside that Channel; values from different Channels are not comparable |
+
+Reusing `client_msg_no` with a different payload inside the same idempotency scope is a conflict, not a reliable way to create another message.
+
+## Durable message path
+
+```text
+SEND
+  -> Gateway admission and protocol mapping
+  -> permission and optional synchronous Send hooks
+  -> exact Channel authority
+  -> ordered durable append and replica progress
+  -> committed high watermark
+  -> SENDACK
+  -> conversation / delivery / webhook / post-commit plugins
+```
+
+A successful SENDACK for a durable send means the Channel append reached quorum commit. It does not mean every online device received the message or that a webhook, plugin, or business action completed.
+
+## Ordering boundary
+
+- `message_seq` defines order inside one Channel.
+- There is no global message order across different Channels.
+- The Channel Leader accepts writes only when leader, epoch, ISR, and write-fence conditions hold.
+- A reconnecting recipient recovers from the committed log and sync cursor rather than relying on an earlier in-memory online delivery.
+
+## NoPersist is not one uniform realtime message
+
+A plain non-command-Channel `NoPersist` send—without `SyncOnce` and without a command-channel ID—returns compatibility success after safe pre-route checks. It does not resolve authority, append a log, or dispatch realtime delivery.
+
+Only command-style `NoPersist` enters command-channel authority and online delivery-plan admission. It has no durable sequence, offline recovery, or reconnect replay, and fails when no online-delivery capability is available.
+
+## Delivery and acknowledgement
+
+Online delivery resolves the UID Presence Authority to an owner route. The owner node then validates the concrete Session and writes `RECV`. When acknowledgement is required, `RECVACK` removes only the matching owner-local pending state; it does not change Channel commit order.
+
+| Result | What it proves |
+| --- | --- |
+| SENDACK succeeds | A durable message reached its commit boundary, or a transient branch completed its defined admission semantics |
+| Client receives RECV | One concrete Session received a delivery |
+| Client sends RECVACK | That owner-local receive state was acknowledged |
+| Webhook/plugin succeeds | The asynchronous consumer succeeded; message commit is unchanged |
+
+## Streaming message events
+
+Message events are anchored by `(channel_id, channel_type, client_msg_no)` and support stream open/delta/snapshot plus terminal projections. Active deltas may remain in a bounded Slot-Leader cache; a terminal event creates the durable projection. If leadership changes and cached evidence is missing, finish fails closed and the caller must replay the complete deltas or final snapshot.
+
+Continue with [Channels](/en/guide/core-concepts/channels), [Messaging Integration](/en/guide/integration/messaging), and [Message Flow](/en/server/architecture/message-flow).

@@ -214,14 +214,14 @@ export const domains: DocumentationDomain[] = [
             '介绍频道式消息模型、集群语义，以及它与网关和消息队列的区别。',
             'Introduces the channel model, cluster semantics, and how WuKongIM differs from gateways and queues.',
           ),
-          plannedPage(
+          publishedPage(
             'capabilities',
             '核心能力',
             'Core Capabilities',
             '概览高并发消息、超大群、持久化、多设备、故障转移和扩容能力。',
             'Surveys high-throughput messaging, large groups, persistence, multi-device, failover, and scaling.',
           ),
-          plannedPage(
+          publishedPage(
             'use-cases',
             '适用场景',
             'Use Cases',
@@ -281,35 +281,35 @@ export const domains: DocumentationDomain[] = [
         '建立应用开发所需的统一业务术语。',
         'Establishes the shared product vocabulary needed by application developers.',
         [
-          plannedPage(
+          publishedPage(
             'cluster-and-nodes',
             '集群与节点',
             'Clusters & Nodes',
             '解释所有部署都是集群，以及节点、Slot、副本和 Leader 的关系。',
             'Explains cluster-only deployment semantics and the relationship among nodes, slots, replicas, and leaders.',
           ),
-          plannedPage(
+          publishedPage(
             'messages',
             '消息',
             'Messages',
             '解释消息标识、序号、顺序、持久化、去重和离线生命周期。',
             'Explains identifiers, sequence, ordering, persistence, deduplication, and offline lifecycle.',
           ),
-          plannedPage(
+          publishedPage(
             'channels',
             '频道',
             'Channels',
             '解释频道作为消息路由和存储核心单位的职责。',
             'Explains channels as the core unit for message routing and storage.',
           ),
-          plannedPage(
+          publishedPage(
             'users-and-devices',
             '用户与设备',
             'Users & Devices',
             '区分用户、设备、连接、登录状态和多端在线。',
             'Distinguishes users, devices, connections, login state, and multi-device presence.',
           ),
-          plannedPage(
+          publishedPage(
             'conversations',
             '会话',
             'Conversations',
@@ -353,7 +353,7 @@ export const domains: DocumentationDomain[] = [
             '介绍事件回调、签名、重试、幂等和失败处理。',
             'Introduces event callbacks, signatures, retries, idempotency, and failure handling.',
           ),
-          plannedPage(
+          publishedPage(
             'plugins',
             '插件扩展',
             'Plugin Extensions',
@@ -362,21 +362,21 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'tutorials',
         '场景教程',
         'Tutorials',
         '提供面向典型业务场景的端到端方案。',
         'Provides end-to-end solutions for representative product scenarios.',
         [
-          plannedPage(
+          publishedPage(
             'direct-chat',
             '单聊',
             'Direct Chat',
             '实现用户、单聊频道、消息、未读数和多设备同步。',
             'Implements users, direct channels, messages, unread counts, and multi-device sync.',
           ),
-          plannedPage(
+          publishedPage(
             'large-groups',
             '群聊与超大群',
             'Groups & Large Groups',
@@ -555,7 +555,7 @@ export const domains: DocumentationDomain[] = [
             '说明兼容性、滚动升级、回滚和 v2 到 v3 迁移。',
             'Covers compatibility, rolling upgrades, rollback, and v2-to-v3 migration.',
           ),
-          plannedPage(
+          publishedPage(
             'troubleshooting',
             '故障排查',
             'Troubleshooting',
@@ -564,86 +564,86 @@ export const domains: DocumentationDomain[] = [
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'tools',
         '工具',
         'Tools',
         '使用官方工具观察、验证和评估集群。',
         'Use official tools to inspect, verify, and evaluate clusters.',
         [
-          plannedPage(
+          publishedPage(
             'wkcli',
             'wkcli',
             'wkcli',
             '查看集群状态并执行受控运维操作。',
             'Inspects cluster state and performs controlled operations.',
           ),
-          plannedPage(
+          publishedPage(
             'wkdb',
             'wkdb',
             'wkdb',
             '执行本地只读存储诊断和离线导入导出。',
             'Performs node-local read-only storage diagnostics and offline import/export.',
           ),
-          plannedPage(
+          publishedPage(
             'wkbench',
             'wkbench',
             'wkbench',
             '执行黑盒压力测试、容量评估和回归验证。',
             'Runs black-box load tests, capacity evaluations, and regression checks.',
           ),
-          plannedPage(
+          publishedPage(
             'diagnostics',
             '诊断能力',
             'Diagnostics',
-            '汇总日志、指标、pprof 和只读 Operations MCP。',
-            'Collects logs, metrics, pprof, and the read-only Operations MCP.',
+            '选择日志、指标、Top、pprof 和只读 Operations MCP。',
+            'Selects among logs, metrics, Top, pprof, and the read-only Operations MCP.',
           ),
         ],
       ),
-      plannedGroup(
+      publishedGroup(
         'architecture',
         '架构',
         'Architecture',
         '从控制、元数据、消息和网络层理解系统。',
         'Understand the system through control, metadata, messaging, and network layers.',
         [
-          plannedPage(
+          publishedPage(
             'controller',
             'Controller 控制层',
             'Controller Layer',
             '解释集群元数据、节点管理、任务和一致性控制。',
             'Explains cluster metadata, node management, tasks, and consistency control.',
           ),
-          plannedPage(
+          publishedPage(
             'slots',
             'Slot 元数据层',
             'Slot Metadata Layer',
             '解释默认 256 个 Hash Slot、归属、副本和 Leader 路由。',
             'Explains the default 256 hash slots, ownership, replicas, and leader routing.',
           ),
-          plannedPage(
+          publishedPage(
             'channels',
             'Channel 消息层',
             'Channel Messaging Layer',
             '解释频道副本、消息日志、Leader 和故障切换。',
             'Explains channel replicas, message logs, leaders, and failover.',
           ),
-          plannedPage(
+          publishedPage(
             'transport',
             'Transport 网络层',
             'Transport Layer',
             '解释节点连接、RPC、消息传输和背压。',
             'Explains node connections, RPC, message transport, and backpressure.',
           ),
-          plannedPage(
+          publishedPage(
             'message-flow',
             '消息发送链路',
             'Message Send Flow',
             '跟踪消息进入、复制、持久化和投递的完整过程。',
             'Traces message ingress, replication, persistence, and delivery.',
           ),
-          plannedPage(
+          publishedPage(
             'user-routing',
             '用户连接路由',
             'User Connection Routing',

@@ -258,7 +258,10 @@ accepts exactly three service-node scrapes and uses checked integer arithmetic
 to reconcile their fixed 12-Slot vectors. It folds separate bounded 256-hash-slot
 person-edge and prepared-group expectations through the current immutable
 assignment, then requires every logical Slot's `created` counter to cover its
-marked expectation. Per-Slot counters may not regress, `error` must remain zero,
+marked expectation. A provisional product mismatch is rescraped at most five
+times across a 100-millisecond context-bounded settle window before the
+accounting snapshot is committed; malformed metrics fail immediately and a
+stable deficit remains product failure. Per-Slot counters may not regress, `error` must remain zero,
 and `already_existing` may increase. A deficit in any Slot is product failure
 even when another Slot has excess creates. Every structurally valid checkpoint,
 including product-failing evidence, is retained for the final report. The first
@@ -762,11 +765,15 @@ ownership enforces that local limit. A single worker retains the full 8,000.
 keeps the formal topology and real sync request (`version=0`, `limit=500`,
 `message_count=20`) while using 100 online users, 250,000 new users/day, 100
 SENDs/s, an 80-person/20-group hot set, a fixed 16/3/0/1 group catalog with
-1,000 members in the very-large group, a 500-channel node bound, 12 runtime
+1,000 members in the very-large group, a 5,000-channel node bound that covers
+the five-minute loaded relationship window at the retained formal arrival
+rate on every replica, 12 runtime
 samples, two seconds/200 SENDs of burst credit, and 10/20/30-minute timeline
 checkpoints. Its three service, worker, service-host-metrics, HTTP API, and TCP
 gateway roles plus one separate load-host-metrics role use replaceable, unique
-loopback declarations by default.
+loopback declarations by default. The native shakeout retains this fixed local
+run ID so repeated integration runs exercise the same deterministic decisions;
+fresh run directories and reserved port ranges provide process/data isolation.
 
 Formal and local execution are traffic-denied until one black-box preflight
 passes. Static validation first proves three distinct service-node, worker,

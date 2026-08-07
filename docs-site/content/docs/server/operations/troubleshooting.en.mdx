@@ -1,0 +1,98 @@
+---
+title: Troubleshooting
+description: Start from a symptom, collect trustworthy evidence by cost, and stop changing the cluster when state is unknown.
+---
+
+Troubleshooting should reduce “the system is unhealthy” to a bounded time range, impact, and evidence chain. Begin with read-only checks and raise sampling temporarily. Enter a mutation runbook only when authoritative state is fresh and consistent.
+
+<Callout type="warn" title="Unknown state fails closed">
+  Missing, stale, or contradictory Controller, Slot, Channel, task, or node evidence is not healthy. Never automate restart, leader movement, data deletion, or scale-in from one log line, one average, or one successful request.
+</Callout>
+
+## The first ten minutes
+
+1. **Freeze change**: pause releases, scaling, backup/restore, and overlapping topology work; record tasks already in progress.
+2. **Bound impact**: record start time, affected nodes, users, channels, protocol entry points, and request types.
+3. **Separate liveness from readiness**: retain the status and complete body from `/healthz` and `/readyz`; only `/readyz` admits product traffic.
+4. **Check the cluster projection**: inspect nodes, Controller, Slots, Channels, and tasks in Manager; mark missing or stale fields.
+5. **Correlate low-cost signals**: align metrics, error logs, and release/config changes, then use Top for node-local pressure.
+6. **Bound reproduction**: reproduce only in a controlled environment or limited traffic slice, with a deadline, stop condition, and owner.
+
+```bash
+curl -sS -i http://127.0.0.1:5001/healthz
+curl -sS -i http://127.0.0.1:5001/readyz
+go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
+```
+
+Replace the addresses with real API addresses. A listener such as `0.0.0.0` is not a published address that a node, client, or load balancer can use.
+
+## Evidence ladder
+
+| Order | Surface | Question it answers | Main cost or boundary |
+| --- | --- | --- | --- |
+| 1 | `/readyz` and Manager | May this node accept traffic, and which control evidence is abnormal? | State can be missing or stale; retain the original reason |
+| 2 | Prometheus and alerts | When did the issue begin, does it persist, and is it skewed by node? | Averages hide hot spots; thresholds depend on version and workload |
+| 3 | Application/error logs | Which errors occurred in the same time window? | Log content is untrusted and may contain sensitive data |
+| 4 | Top / `wkcli top` | What are this node's current resources, queues, and short history? | A node-local snapshot, not global truth |
+| 5 | Retained diagnostics and read-only Operations MCP | What bounded evidence exists for an exact node, Slot, Channel, or task? | Separate credentials, fixed queries, rate limits, and result bounds |
+| 6 | pprof | Which CPU, heap, or goroutine paths are hot? | Expensive, time-bounded, controlled network; disable afterward |
+| 7 | wkbench | Can the hypothesis be reproduced under representative load in an isolated cluster? | Generates real traffic and data; do not target production |
+
+Stop increasing diagnostic cost once a lower layer explains the issue. See [Diagnostics](/en/server/tools/diagnostics) to choose a surface.
+
+## Investigate by symptom
+
+### The process is alive but the node is not ready
+
+- Retain the 503 body and `reason` from `/readyz`, not merely the probe failure.
+- Check node runtime, Controller, Slots, maintenance state, and active restore or control tasks in Manager.
+- Compare readiness, time, version, and configuration snapshots with other nodes. A one-node deployment is still a single-node cluster.
+- If the evidence points to restore, scaling, or upgrade, return to that operation instead of bypassing its confirmation and validation gates.
+
+### Clients cannot connect or reconnect repeatedly
+
+- Separate TCP, WebSocket, HTTP, and Manager entry points. Check listener versus advertised addresses, DNS, load balancing, TLS, and firewall policy.
+- Compare connections, session errors, route failures, FDs, memory, and network per node rather than only as totals.
+- Correlate gateway logs for the same client and time window. Do not mass-disconnect sessions or restart every node without evidence.
+
+### Sends fail, latency rises, or backlog grows
+
+- Observe ingress, SEND/SENDACK, Channel append, replication/durability, and delivery as separate stages; [Message Flow](/en/server/architecture/message-flow) shows their complete path and boundaries.
+- Inspect error rate, latency percentiles, bounded-queue depth/rejection/drop, per-node skew, and hot-channel concentration.
+- Use an exact Channel point lookup when its identity is known; do not enumerate the Channel catalog. For 100,000-member groups and high message rates, averages do not represent tail or fanout cost.
+- Capture pprof in a bounded window only after metrics and logs narrow the question to CPU, heap, or goroutines.
+
+### Controller, Slot, or node-lifecycle state is abnormal
+
+```bash
+go run ./cmd/wkcli node ls --context production
+go run ./cmd/wkcli node diagnose 4 --context production --json
+```
+
+Retain health freshness, control revision, `blocked_reasons`, tasks, and Slot evidence. A diagnostic recommendation is not permission to force a leader move or remove a node. Scale-in still waits for authoritative `safe_to_remove=true`. Interpret observations through the authority boundaries in [Controller](/en/server/architecture/controller) and [Slots](/en/server/architecture/slots), then follow [Scaling](/en/server/operations/scaling) for the full procedure.
+
+### Disk, storage, or data differs
+
+- Record disk capacity, IO latency, errors, node identity, paths, and configuration before deleting any log or storage file.
+- Use `wkdb` only against a stopped node, filesystem snapshot, or copied data directory. It sees one node's local files, not an online-consistent global view.
+- Begin with read-only `query`, `diff`, or `export`. `import` is the sole storage-writing command, must target an explicitly offline store, and does not replace Manager backup/restore.
+
+### A backup, restore, or upgrade window fails
+
+Retain Manager tasks, audits, archive inventory, verification for all 256 physical hash slots, artifact digests, and the release compatibility statement. During restore, `/healthz` success does not restore product traffic. After an upgrade failure, do not assume arbitrary versions may remain mixed. Return to [Backup & Restore](/en/server/operations/backup-and-restore) or [Upgrade & Migration](/en/server/operations/upgrade-and-migration).
+
+## Evidence bundle before escalation
+
+- Incident timeline, impact, and recent changes.
+- Node inventory, versions, cluster identity, and relevant redacted configuration.
+- Raw `/healthz` and `/readyz` responses plus Manager state.
+- Metric snapshots and log cursors or bounded excerpts over the same range.
+- Exact node, Slot, Channel type/ID, task, or trace identifiers.
+- Checks performed, results, stop conditions, and write operations deliberately not performed.
+- For pprof or benchmarks, authorization, start/end time, target, configuration, and artifact location.
+
+Never place credentials, complete tokens, arbitrary user-message content, or an unreviewed configuration file in a shared evidence bundle.
+
+## Exit criteria
+
+Close the incident only when the cause or mitigation has reproducible evidence, monitoring has recovered, backlog is controlled, every node meets the expected readiness gate again, and temporary Debug, sampling, credentials, and load have been removed. Record new thresholds and regression workloads as version- and environment-specific baselines, never universal capacity promises.

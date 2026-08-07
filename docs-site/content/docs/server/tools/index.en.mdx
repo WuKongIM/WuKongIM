@@ -1,0 +1,49 @@
+---
+title: Tools
+description: Choose the correct repository tool for observation, offline storage inspection, workload validation, and bounded diagnostics.
+---
+
+WuKongIM separates tools by target and risk: `wkcli` uses live cluster APIs, `wkdb` reads one node's offline data, `wkbench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
+
+<Callout type="warn" title="Confirm the target boundary first">
+  Every deployment is a cluster, including a single-node cluster, and the physical hash-slot count remains 256. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
+</Callout>
+
+## Choose a tool
+
+| Objective | Use | Read or write | Not for |
+| --- | --- | --- | --- |
+| Inspect live nodes, Top, or dynamic-node state | [wkcli](/en/server/tools/wkcli) | Most inspection is read-only; node-lifecycle subcommands call controlled Manager write APIs | Direct Controller/Slot editing or process management |
+| Query, export, or compare node-local storage | [wkdb](/en/server/tools/wkdb) | Offline and read-mostly; only `import` writes the target store | Online cluster queries, global snapshots, or automatic migration |
+| Validate protocol traffic, a capacity hypothesis, or a regression gate | [wkbench](/en/server/tools/wkbench) | Generates real connections, channels, users, and messages | Unbounded production load or universal capacity numbers |
+| Correlate logs, metrics, Top, diagnostics, and pprof | [Diagnostics](/en/server/tools/diagnostics) | Read-only by default; pprof is a bounded active observation | Automatic repair, arbitrary commands, or arbitrary queries |
+
+## Common workflow
+
+1. **Confirm identity**: record repository version, binary digest, cluster ID, node ID, and target addresses.
+2. **Choose the minimum surface**: begin read-only, low-cost, and short-lived; do not start with profiling or load generation.
+3. **Isolate permission**: use least-privilege credentials and controlled networks. Manager, Benchmark, Debug, and Operations MCP have separate trust boundaries.
+4. **Set budgets**: bound target, concurrency, duration, returned rows, and artifact directory; write down a stop condition.
+5. **Retain context**: keep the command, time range, exit code, and redacted output, not only the final summary.
+6. **Remove temporary capability**: disable Debug, Benchmark, temporary credentials, simulators, and extra sampling, then confirm resources return to baseline.
+
+## Build from source
+
+Build the required binary from a reviewed repository revision:
+
+```bash
+go build -o ./bin/wkcli ./cmd/wkcli
+go build -o ./bin/wkdb ./cmd/wkdb
+go build -o ./bin/wkbench ./cmd/wkbench
+```
+
+Record a traceable version for both tool and target server. Do not use a development-branch tool against production or assume offline formats, Manager APIs, or benchmark protocols are compatible across unknown versions.
+
+## Handling failure
+
+- Stop when authentication, connectivity, state freshness, or target identity cannot be proven; do not keep trying with broader credentials.
+- When read-only outputs disagree, retain both and check their time, node, version, and source.
+- After a write command fails, read authoritative task state before retrying; the previous request may already have taken effect.
+- Stop a load, profile, or scan when its budget is reached even if it has not produced the expected conclusion.
+
+Use [Troubleshooting](/en/server/operations/troubleshooting) to choose the first check from a symptom.

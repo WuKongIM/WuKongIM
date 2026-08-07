@@ -1,4 +1,9 @@
-import { domains, getIndexedNavigationEntries, locales } from '../lib/navigation';
+import {
+  domains,
+  getAllNavigationEntries,
+  getIndexedNavigationEntries,
+  locales,
+} from '../lib/navigation';
 
 const out = new URL('../out/', import.meta.url);
 
@@ -19,10 +24,11 @@ for (const locale of locales) {
   }
 }
 
-const plannedRoutes = locales.flatMap((locale) => [
-  `/${locale}/guide/integration/plugins`,
-  `/${locale}/server/deployment/kubernetes`,
-]);
+const plannedRoutes = locales.flatMap((locale) =>
+  getAllNavigationEntries(locale)
+    .filter((entry) => entry.status === 'planned')
+    .map((entry) => entry.url),
+);
 for (const route of plannedRoutes) {
   const planned = await text(`${route.slice(1)}/index.html`);
   if (!planned.includes('<meta name="robots" content="noindex, follow"/>')) {
@@ -30,9 +36,13 @@ for (const route of plannedRoutes) {
   }
 }
 
-const published = await text('zh/server/deployment/multi-node/index.html');
-if (published.includes('<meta name="robots" content="noindex')) {
-  throw new Error('published pages must be indexable');
+for (const locale of locales) {
+  for (const entry of getIndexedNavigationEntries(locale)) {
+    const published = await text(`${entry.url.slice(1)}/index.html`);
+    if (published.includes('<meta name="robots" content="noindex')) {
+      throw new Error(`published page must be indexable: ${entry.url}`);
+    }
+  }
 }
 
 const sitemap = await text('sitemap.xml');
@@ -53,7 +63,8 @@ for (const route of plannedRoutes) {
   }
 }
 
-const llms = `${await text('llms.txt')}\n${await text('llms-full.txt')}`;
+const llmsIndex = await text('llms.txt');
+const llms = `${llmsIndex}\n${await text('llms-full.txt')}`;
 for (const locale of locales) {
   for (const entry of getIndexedNavigationEntries(locale)) {
     if (!llms.includes(entry.url)) {
@@ -63,8 +74,8 @@ for (const locale of locales) {
   }
 }
 for (const route of plannedRoutes) {
-  if (llms.includes(route)) {
-    throw new Error(`planned page must not appear in LLM outputs: ${route}`);
+  if (llmsIndex.includes(route)) {
+    throw new Error(`planned page must not appear in llms.txt: ${route}`);
   }
   if (await exists(`llms.mdx${route}/content.md`)) {
     throw new Error(`planned page has per-page Markdown output: ${route}`);

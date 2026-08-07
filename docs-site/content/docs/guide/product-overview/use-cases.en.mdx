@@ -1,0 +1,52 @@
+---
+title: Use Cases
+description: Decide how chat, notifications, customer service, live interaction, IoT, and AI communication fit WuKongIM.
+---
+
+WuKongIM fits products that need many long-lived connections, per-Channel ordering, durable messages, offline synchronization, or multi-device state. It provides the communication foundation; the application still owns identity, relationships, and business workflows.
+
+## Scenarios and responsibilities
+
+| Scenario | Recommended WuKongIM capabilities | The application still owns |
+| --- | --- | --- |
+| Direct and group chat | Person/group Channels, durable messages, multi-device Sessions, conversations, and offline sync | Friendship/group relationships, content moderation, accounts, and product authorization |
+| Large groups and communities | Large-group markers, paged membership, bounded fanout, and hot-Channel observation | Membership lifecycle, tiered push policy, capacity tests, and hotspot management |
+| Notifications and system messages | System UIDs, durable Channel messages, online delivery, and offline recovery | Preferences, templates, rate limits, and mobile push such as APNs or FCM |
+| Customer service | Agent/visitor relationships, Channel messaging, webhooks, or plugins | Queues, assignment, tickets, quality controls, and sensitive-data governance |
+| Live interaction | Custom Channels, high connection density, and workload-tested online fanout | Room lifecycle, gifts/abuse policy, degradation, and hotspot partitioning |
+| IoT and signaling | Stable UID/device identity, bidirectional Channels, and command-style realtime messages | Device registry, command authorization, state shadow, timeout, and compensation |
+| AI communication | Durable base messages, message-event projections, and plugin- or service-generated replies | Model calls, flow control, safety, cost, and durable final-result storage |
+
+## Two common integration shapes
+
+### Client messaging product
+
+```text
+client SDK <-> WuKongIM Gateway
+     |               |
+     +-> business API+-> Channel commit / sync / delivery
+             |
+             +-> accounts, relationships, policy, mobile push
+```
+
+The SDK keeps the connection and restores offline messages. The business API manages accounts, relationships, and policy. Product HTTP APIs should not be exposed directly to untrusted clients.
+
+### Server events and device communication
+
+A trusted service or plugin sends an event to a Channel, and clients or devices consume the committed message. Business actions need their own idempotency key, timeout, authorization, and result state; SENDACK does not mean the business action completed.
+
+## Prefer durable messages by default
+
+Use durable messages when reconnect recovery, audit, or reliable replay matters. Plain non-command `NoPersist` only returns compatibility success and does not dispatch realtime delivery. Command-style `NoPersist` can enter realtime delivery, but still has no sequence or offline recovery. Neither branch is appropriate for business events that must arrive reliably.
+
+## Validate before launch
+
+1. Build a workload model from real Channel counts, online users, payload sizes, replica counts, and group sizes.
+2. Test ordinary Channels, hot Channels, large-group fanout, reconnect sync, and mobile-network disruption separately.
+3. Verify rejection and degradation behavior for Gateway, Channel, delivery, webhook, and plugin queues.
+4. Record P99, error rate, backlog, CPU, memory, disk, and network rather than only average QPS.
+5. State which outcomes SENDACK guarantees and which still require a business acknowledgement or compensation.
+
+If a product only needs low-frequency background jobs, a global transactional queue, or offline batch processing—and not connections, Channel ordering, or synchronization—a dedicated task queue or database may be a better fit.
+
+Continue with [Core Capabilities](/en/guide/product-overview/capabilities) or [Integration Architecture](/en/guide/integration/architecture).

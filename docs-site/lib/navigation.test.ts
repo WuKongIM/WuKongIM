@@ -71,6 +71,59 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
+  test('publishes the complete server architecture path', () => {
+    const server = domains.find((domain) => domain.key === 'server');
+    const architecture = server?.groups.find((group) => group.slug === 'architecture');
+
+    expect(architecture?.status).toBe('published');
+    expect(architecture?.children.map((page) => page.slug)).toEqual([
+      'controller',
+      'slots',
+      'channels',
+      'transport',
+      'message-flow',
+      'user-routing',
+    ]);
+    expect(architecture?.children.every((page) => page.status === 'published')).toBe(true);
+  });
+
+  test('publishes the complete guide foundation path', () => {
+    const guide = domains.find((domain) => domain.key === 'guide');
+    const productOverview = guide?.groups.find((group) => group.slug === 'product-overview');
+    const coreConcepts = guide?.groups.find((group) => group.slug === 'core-concepts');
+    const integration = guide?.groups.find((group) => group.slug === 'integration');
+
+    expect(
+      productOverview?.children
+        .filter((page) => ['capabilities', 'use-cases'].includes(page.slug))
+        .map((page) => [page.slug, page.status]),
+    ).toEqual([
+      ['capabilities', 'published'],
+      ['use-cases', 'published'],
+    ]);
+    expect(coreConcepts?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['cluster-and-nodes', 'published'],
+      ['messages', 'published'],
+      ['channels', 'published'],
+      ['users-and-devices', 'published'],
+      ['conversations', 'published'],
+    ]);
+    expect(integration?.children.find((page) => page.slug === 'plugins')?.status).toBe('published');
+  });
+
+  test('publishes the first scenario tutorial tranche', () => {
+    const guide = domains.find((domain) => domain.key === 'guide');
+    const tutorials = guide?.groups.find((group) => group.slug === 'tutorials');
+
+    expect(tutorials?.status).toBe('published');
+    expect(tutorials?.children.map((page) => [page.slug, page.status])).toEqual([
+      ['direct-chat', 'published'],
+      ['large-groups', 'published'],
+      ['push', 'planned'],
+      ['ai-and-iot', 'planned'],
+    ]);
+  });
+
   test('gives every bilingual menu item a unique canonical route', () => {
     for (const locale of locales) {
       const entries = getAllNavigationEntries(locale);
@@ -92,6 +145,8 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide`,
         `/${locale}/guide/product-overview`,
         `/${locale}/guide/product-overview/what-is-wukongim`,
+        `/${locale}/guide/product-overview/capabilities`,
+        `/${locale}/guide/product-overview/use-cases`,
         `/${locale}/guide/quick-start`,
         `/${locale}/guide/quick-start/prerequisites`,
         `/${locale}/guide/quick-start/single-node-cluster`,
@@ -99,11 +154,20 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/quick-start/chat-demo`,
         `/${locale}/guide/quick-start/next-steps`,
         `/${locale}/guide/core-concepts`,
+        `/${locale}/guide/core-concepts/cluster-and-nodes`,
+        `/${locale}/guide/core-concepts/messages`,
+        `/${locale}/guide/core-concepts/channels`,
+        `/${locale}/guide/core-concepts/users-and-devices`,
+        `/${locale}/guide/core-concepts/conversations`,
         `/${locale}/guide/integration`,
         `/${locale}/guide/integration/architecture`,
         `/${locale}/guide/integration/authentication`,
         `/${locale}/guide/integration/messaging`,
         `/${locale}/guide/integration/webhooks`,
+        `/${locale}/guide/integration/plugins`,
+        `/${locale}/guide/tutorials`,
+        `/${locale}/guide/tutorials/direct-chat`,
+        `/${locale}/guide/tutorials/large-groups`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
         `/${locale}/server/deployment/choosing`,
@@ -124,6 +188,19 @@ describe('documentation navigation contract', () => {
         `/${locale}/server/operations/scaling`,
         `/${locale}/server/operations/backup-and-restore`,
         `/${locale}/server/operations/upgrade-and-migration`,
+        `/${locale}/server/operations/troubleshooting`,
+        `/${locale}/server/tools`,
+        `/${locale}/server/tools/wkcli`,
+        `/${locale}/server/tools/wkdb`,
+        `/${locale}/server/tools/wkbench`,
+        `/${locale}/server/tools/diagnostics`,
+        `/${locale}/server/architecture`,
+        `/${locale}/server/architecture/controller`,
+        `/${locale}/server/architecture/slots`,
+        `/${locale}/server/architecture/channels`,
+        `/${locale}/server/architecture/transport`,
+        `/${locale}/server/architecture/message-flow`,
+        `/${locale}/server/architecture/user-routing`,
         `/${locale}/sdk`,
         `/${locale}/api`,
       ]);
@@ -193,8 +270,22 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('guide/index.en.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.mdx')).toBe(true);
     expect(isPublishedContentPath('guide/quick-start/index.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/product-overview/capabilities.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/capabilities.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/use-cases.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/product-overview/use-cases.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/cluster-and-nodes.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/messages.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/messages.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/channels.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/channels.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/users-and-devices.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/conversations.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/core-concepts/conversations.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/plugins.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/integration/plugins.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/docker.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/deployment/kubernetes.mdx')).toBe(false);
@@ -207,10 +298,42 @@ describe('documentation navigation contract', () => {
     expect(isPublishedContentPath('server/operations/manager.en.mdx')).toBe(true);
     expect(isPublishedContentPath('server/operations/backup-and-restore.mdx')).toBe(true);
     expect(isPublishedContentPath('server/operations/backup-and-restore.en.mdx')).toBe(true);
-    expect(isPublishedContentPath('server/operations/troubleshooting.mdx')).toBe(false);
-    expect(isPublishedContentPath('server/operations/troubleshooting.en.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(false);
-    expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('server/operations/troubleshooting.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/operations/troubleshooting.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkcli.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkcli.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkdb.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkdb.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkbench.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/wkbench.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/diagnostics.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/tools/diagnostics.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/controller.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/controller.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/slots.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/slots.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/channels.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/channels.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/transport.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/transport.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/message-flow.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/message-flow.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/user-routing.mdx')).toBe(true);
+    expect(isPublishedContentPath('server/architecture/user-routing.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/index.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/index.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/direct-chat.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/large-groups.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/large-groups.en.mdx')).toBe(true);
+    expect(isPublishedContentPath('guide/tutorials/push.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/push.en.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.mdx')).toBe(false);
+    expect(isPublishedContentPath('guide/tutorials/ai-and-iot.en.mdx')).toBe(false);
     expect(isPublishedContentPath('unknown/index.mdx')).toBe(false);
   });
 });

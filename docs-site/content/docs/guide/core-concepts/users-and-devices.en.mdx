@@ -1,0 +1,55 @@
+---
+title: Users & Devices
+description: Distinguish UID, device metadata, connection Sessions, multi-device presence, and distributed Presence.
+---
+
+The business system identifies a user with a stable UID. WuKongIM stores device metadata under that UID and manages connections, but does not replace the product account system. One user can own multiple devices, and each device can create multiple connections over time.
+
+## Identity layers
+
+| Concept | Lifetime | Location |
+| --- | --- | --- |
+| UID | Business-account lifetime | Slot-authoritative user metadata and the business system |
+| Device | A client identity under the UID, with device flag, device ID, level, and token metadata | The UID-owned Slot metadata |
+| Connection / Session | One TCP or WebSocket connection | Memory on the connection-owner node |
+| OwnerRoute | Online endpoint projection resolvable across nodes | Memory at the UID physical hash slot's Presence Authority |
+
+Do not use a Session ID, connection ID, or device ID as the UID. A route projection also contains no concrete TCP Session handle.
+
+## Connection activation
+
+```text
+client CONNECT
+  -> Gateway protocol authentication and negotiation
+  -> pending owner-local Session
+  -> exact-target Presence registration
+  -> conflict actions and active re-check
+  -> active Session and successful CONNACK
+```
+
+If the connection closes before a successful CONNACK is written, Gateway rolls back an accepted Presence activation so no ghost online route remains.
+
+<Callout type="warn" title="Current v3 Beta security boundary">
+  User and device rows can store tokens, but the default app composition must not be interpreted as automatically validating stored tokens for every CONNECT. Product HTTP APIs also have no built-in business-auth middleware. Production integrations need a trusted network or authenticated proxy and an explicit connection-credential validator.
+</Callout>
+
+## Multi-device conflicts
+
+Presence Authority fences each route with UID, device identity, owner node, Boot ID, Session ID, and owner sequence. A conflicting new connection first stays pending. The old route is replaced only after its owner node completes required close actions and the new route commits.
+
+Token update or device quit changes UID-owned device metadata and schedules matching owner-local Session close. It cannot close remote-node connections through one global process-local Session table.
+
+## Online state and delivery
+
+Online queries prefer active routes from the current Presence Authority. Delivery resolves virtual OwnerRoutes and coalesces by owner node. A local owner writes its local Session; a remote owner receives an owner-push RPC and revalidates the concrete Session fence.
+
+Routes use TTL and touch, but expiry is not explicit unregister. Explicit unregister leaves an owner-sequence tombstone that prevents a delayed heartbeat from reviving an old connection.
+
+## Design guidance
+
+- Keep UID stable across business services and clients, and never let an untrusted client choose arbitrary identities.
+- Device Flag identifies a platform class; Device ID identifies a concrete installation or client instance. Do not interchange them.
+- Token revocation, device quit, and account ban need both metadata changes and a plan for existing Sessions.
+- Online state is a transient observation and should not be the sole fact for money, authorization, or one-time business actions.
+
+Continue with [Authentication](/en/guide/integration/authentication) and [User Connection Routing](/en/server/architecture/user-routing).

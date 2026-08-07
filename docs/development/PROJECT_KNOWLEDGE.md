@@ -88,7 +88,14 @@
 - `internal/runtime/delivery` is the no-gateway/no-cluster benchmark boundary for online fanout, owner push batching, and recipient-owner recvack tracking.
 - Online Delivery must preserve complete plan execution order per canonical Channel so clients cannot observe a later `message_seq` first. Keep one globally bounded preallocated queue, hash Channel type/ID to a stable worker shard, and scale across Channel shards; multiple consumers must not race plans from one shared FIFO.
 - `internal` webhook delivery is a node-local best-effort post-commit side effect with bounded queues and finite retry. Large offline fanout should use batch observer/chunking, and webhook failure must not affect SENDACK, durable append, conversation active admission, or owner delivery.
-- Channelappend post-commit pool admission and per-channel backlog must stay bounded and independent from foreground append admission; saturation is observed and dropped so best-effort conversation/delivery work cannot pin writer-advance workers, delay durable SEND/SENDACK, or return `ErrChannelBusy` for an otherwise admissible send.
+- Channelappend post-commit handoff and per-channel backlog must stay bounded.
+  When post-commit ports are configured, append-bound items reserve global
+  handoff capacity before durable append; unavailable capacity returns
+  `ErrChannelBusy` before the message is appended. After a successful durable
+  append, SENDACK completes independently, and isolated post-commit workers
+  retain scheduler-saturated envelopes in bounded writer state rather than
+  losing an already-committed handoff. Terminal conversation/delivery failures
+  remain best-effort and do not roll back the Channel commit.
 - Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
 - Conversation-active cache churn may evict clean rows during memory-only admission; dirty persistence stays exclusively on periodic, pressure-woken, or handoff flush workers.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
@@ -304,6 +311,41 @@
   verified repository, restore accepts only the current cluster identity, and
   mixed-version or v2-to-v3 migration is never promised without exact
   release-specific evidence.
+- Phase 7 public troubleshooting starts with low-cost, read-only evidence and
+  keeps unknown state fail-closed. `wkcli` uses public APIs and Manager safety
+  gates; `wkdb` is node-local/offline and only `import` writes storage;
+  `wkbench` targets controlled benchmark clusters; Operations MCP exposes a
+  closed 12-tool observation registry with no write tool, while its bounded
+  `pprof_analyze` capture is the only active observation.
+- Phase 8 public server-architecture guidance distinguishes 256 stable physical
+  hash-slot fences from logical Slot Raft Groups, Controller intent from
+  observed Raft leadership, Slot metadata from Channel message logs, and
+  durable Channel commit from post-commit delivery and plugin effects. Client
+  Gateway transport and node transport are separate, while exact UID presence
+  authority is in-memory and target-fenced and concrete sessions remain
+  owner-local.
+- Phase 9 public guide foundations keep product capability claims
+  workload-qualified and define stable user-facing vocabulary for clusters,
+  physical hash slots, logical Slot Raft Groups, Channels, messages, users,
+  devices, and UID-owned conversations. Plain non-command `NoPersist` is a
+  compatibility success without realtime delivery; command-style `NoPersist`
+  alone enters transient delivery. Plugins are node-local `.wkp` processes:
+  Send hooks are synchronous and fail closed by default, while Receive and
+  PersistAfter are post-commit effects; Slot-owned UID bindings do not prove a
+  compatible plugin is running on every node.
+- Phase 10 public scenario tutorials treat direct and group chat as product
+  workflows over the same cluster semantics. Direct chat supplies the peer UID
+  with `channel_type=1` and leaves canonical person-Channel derivation to the
+  server. Group chat uses a product-owned group ID with `channel_type=2`; the
+  product service owns the membership source of truth and reconciles
+  subscribers through bounded requests. Current product HTTP routes remain a
+  trusted service-side boundary. Durable SEND success proves Channel quorum
+  commit, not complete fanout, RECVACK, conversation projection, or a business
+  result. `ClearUnread` advances through the newest server-visible Channel
+  message; its optional request sequence is only a fallback, not exact
+  client-side read progress. A 100,000-member workflow uses checkpointed
+  application batches and post-commit paged fanout rather than one full-member
+  request.
 - Public deployment guidance treats the root Compose stack as development-only
   and builds artifacts from reviewed source without promising an official image
   registry or tag. Traffic admission uses `/readyz`, not process-level
@@ -368,6 +410,7 @@
 - Cloud Simulation Codex tool subprocesses inherit no caller environment and run under strict filesystem/network permission profiles; Codex auth and the live Analysis Token stay in the parent Codex/MCP process, tools cannot read them, and model-authored diagnosis text never enters Draft PR metadata.
 - Cloud Simulation local analysis ignores project exec rules and rejects deployed `.codex/config.toml` or `.codex/hooks.json` before Codex starts so repository configuration cannot widen its permission profiles.
 - Cloud Simulation cleanup reconstructs temporary ingress deadlines from provider security rules; sweeps preserve unexpired local Analysis Windows and close expired, malformed, or duplicate windows.
+- Cloud Simulation safety schedules are inventory-scoped: Provision enables cleanup then monitor after persisting its provider binding and before billable creation; a complete scheduled sweep disables monitor then cleanup only after reporting no retained Run and no reconciliation failure.
 - Cloud Simulation normal completion uses a non-diagnostic Finalization Schedule plus local `finalize.sh`: arm cleanup before bounded GitHub preflight, retry an explicit in-progress workload while the lease permits, survive terminal signals through exact cleanup, then require structured provider-confirmed empty inventory.
 - Cloud Simulation stability topology uses 256 physical hash slots mapped to 10 logical Slot Raft Groups; bootstrap gates both values separately.
 - E2E `readyz` and WKProto probes prove process liveness only; scenarios that register distributed authority must also require a bounded stable window of voter-agreed actual Slot Raft leaders before creating clients.

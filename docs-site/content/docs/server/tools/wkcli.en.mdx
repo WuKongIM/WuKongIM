@@ -1,0 +1,107 @@
+---
+title: wkcli
+description: Use named contexts, Top, controlled node operations, and lightweight traffic tools against a live cluster.
+---
+
+`wkcli` is WuKongIM's online operations CLI. It works through public HTTP, Manager, Benchmark, and WKProto entry points without importing server internals. It contains read-only commands as well as commands that generate traffic or call Manager write APIs, so classify risk before use.
+
+## Command boundaries
+
+| Command | Purpose | Risk class |
+| --- | --- | --- |
+| `context` | Save and select a set of WuKongIM HTTP API addresses | Writes only the local user configuration directory |
+| `top` | Read and aggregate `/top/v1/snapshot` from one or more nodes | Online read-only |
+| `node ls` / `node diagnose` | Read dynamic-node state and bounded root-cause evidence | Manager read-only |
+| `node activate` / `node onboarding` / `node scale-in` | Advance a dynamic-node lifecycle | Controlled Manager writes |
+| `bench send` | Run a lightweight SEND/SENDACK check | Generates real connections and messages |
+| `sim` | Prepare test metadata and sustain real group-message traffic | Controlled simulation environments only |
+
+`wkcli node` neither starts nor stops server processes and never writes Controller or Slot state directly. Manager permissions, audit, and safety gates still apply.
+
+## Configure named contexts
+
+```bash
+go run ./cmd/wkcli context add dev \
+  --server http://127.0.0.1:5001 \
+  --server http://127.0.0.1:5002 \
+  --description "development cluster" \
+  --select
+
+go run ./cmd/wkcli context ls
+go run ./cmd/wkcli context show
+go run ./cmd/wkcli context current
+```
+
+`--server` may be repeated or comma-separated, and every address must be an absolute `http://` or `https://` API URL. A context stores target addresses; selecting a context named production does not grant operational approval. Recheck cluster identity and credential scope before execution.
+
+## Use Top
+
+```bash
+go run ./cmd/wkcli top --context dev --once
+go run ./cmd/wkcli top --context dev --once --json
+go run ./cmd/wkcli top --context dev --interval 2s --max-refresh 5
+go run ./cmd/wkcli top --context dev --alerts
+```
+
+Top reads bounded node-local history and does not depend on Prometheus. It refreshes until interrupted by default; use `--once` or `--max-refresh` for scripts and incident evidence. Cross-check aggregates with `/readyz`, Manager, and Prometheus.
+
+## Read dynamic-node evidence
+
+```bash
+go run ./cmd/wkcli node ls --context dev
+go run ./cmd/wkcli node diagnose 4 --context dev
+go run ./cmd/wkcli node diagnose 4 --context dev --json
+go run ./cmd/wkcli node scale-in status 4 --context dev
+```
+
+Retain health freshness, control revision, `blocked_reasons`, `safe_to_remove`, gateway drain counters, and bounded task/audit/Slot evidence. Missing data stays unknown; never infer healthy from an empty value.
+
+## Node mutations
+
+```bash
+go run ./cmd/wkcli node activate 4 --context dev
+go run ./cmd/wkcli node onboarding start 4 --context dev --max-slot-moves 1
+go run ./cmd/wkcli node scale-in start 4 --context dev
+go run ./cmd/wkcli node scale-in drain 4 --context dev --draining=true
+go run ./cmd/wkcli node scale-in remove 4 --context dev
+```
+
+Run these only inside the explicit [Scaling](/en/server/operations/scaling) procedure. A dynamically joined node does not automatically receive Slot replicas or leaders, and Controller voter change is a separate explicit decision. Removal must wait for authoritative `safe_to_remove=true`; a CLI diagnostic recommendation does not replace that gate.
+
+## Lightweight send checks
+
+```bash
+go run ./cmd/wkcli bench send \
+  --gateway 127.0.0.1:5100 \
+  --clients 8 \
+  --msgs 1000 \
+  --channels 10 \
+  --channel-prefix check-g \
+  --channel-type group \
+  --size 128B
+```
+
+`bench send` is a quick WKProto SEND-throughput and SENDACK-latency check, not a replacement for a complete `wkbench` scenario. It creates real sessions and messages. Bound clients, messages, channels, and runtime, and use dedicated test identities and channels.
+
+## Long-running simulation
+
+`sim` prepares group metadata through `/bench/v1/*`, keeps users online through the real WKProto gateway, and sends `SEND -> SENDACK` traffic. The target must explicitly enable the Benchmark API and advertise a reachable gateway.
+
+```bash
+go run ./cmd/wkcli sim \
+  --server http://127.0.0.1:5001 \
+  --users 100 \
+  --groups 50 \
+  --group-members 10 \
+  --rate 0.25/s \
+  --max-runtime 30s
+```
+
+`--rate` is per group, so aggregate offered traffic grows with group count. Run only against an isolated development or benchmark cluster, then disable the Benchmark API and remove generated data. Use [wkbench](/en/server/tools/wkbench) for full validation, capacity search, and reports.
+
+## Stop safely
+
+- Do not run node mutations when target identity, Manager permission, or authoritative state is unclear.
+- After a write request times out, read task state before retrying.
+- Stop Top, send checks, and simulations when their time or traffic budget is reached.
+- On exit, confirm there is no simulator, temporary context, exposed Benchmark API, or unfinished node task left behind.

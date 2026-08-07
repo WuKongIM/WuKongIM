@@ -45,6 +45,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 	}
 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.Version != 0 ||
 		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+		local.Workload.MaxChannelsPerNode != 5_000 ||
 		local.Workload.Topology != (TopologyConfig{LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3}) {
 		t.Fatalf("local example drifted: %+v", local)
 	}

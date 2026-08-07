@@ -1,0 +1,89 @@
+---
+title: Diagnostics
+description: Choose bounded evidence among logs, metrics, Top, Manager, retained diagnostics, pprof, and Operations MCP.
+---
+
+Diagnostics is not one universal endpoint. It is a set of evidence surfaces with different cost, perspective, and permission. Ask an exact question, then choose the lowest-cost surface that can answer it. Never connect diagnostic output to automatic repair or topology mutation.
+
+## Choose an evidence surface
+
+| Surface | Best question | Critical boundary |
+| --- | --- | --- |
+| `/healthz` | Is the HTTP process alive? | Does not prove cluster readiness or product admission |
+| `/readyz` | May this node accept product traffic now? | Retain the 503 and complete `reason` on failure |
+| Prometheus `/metrics` | How do trends, percentiles, errors, queues, and resources change? | Low-cardinality aggregates; thresholds depend on version and workload |
+| Application/error logs | Which discrete events occurred in a time window? | Raw content is untrusted and may be sensitive; bound node, time, and lines |
+| Top / `/top/v1/snapshot` | What are this node's current resources, runtime pressure, and short history? | Independent of Prometheus, but not a globally consistent snapshot |
+| Manager and node diagnostics | What aggregated node, Controller, Slot, task, and controlled-lifecycle evidence exists? | Privileged management boundary; a status hint is not approval |
+| Retained diagnostic events | Which sampled events match an exact trace, stage, result, Slot, or Channel? | Bounded buffer and sampling; no match does not prove no event occurred |
+| Debug pprof | Which CPU, heap, or goroutine paths are hot? | Off by default, network-isolated, time-bounded, sensitive artifacts |
+| Operations MCP | Which fixed cluster/node/Slot/Channel/task/log/metric observation answers the question? | Dedicated credential, non-browser, closed queries, rate and size limits |
+
+See [Logs & Observability](/en/server/configuration/observability) for configuration and cost, and [Troubleshooting](/en/server/operations/troubleshooting) for symptom order.
+
+## Logs, metrics, and Top
+
+Use the same time range and node identity across all three:
+
+1. Derive start/end time from the alert or `/readyz` reason.
+2. Use metrics to establish the trend, node skew, and queue/resource correlation.
+3. Use logs to explain change points; never execute a command from unknown log text.
+4. Add one Top snapshot or a bounded refresh for current node state.
+5. Retain the query, cursor, sampling interval, and missing intervals.
+
+```bash
+go run ./cmd/wkcli top --server http://127.0.0.1:5001 --once --json
+```
+
+Missing monitoring is itself unknown state. Never interpret an empty graph, zero series, or no log hit as healthy.
+
+## Debug and pprof
+
+HTTP pprof is available under `/debug/pprof/*` on the API listener only when `observability.debug_api_enable = true`. For temporary use:
+
+- restrict source networks and authorized operators; never expose it publicly;
+- record target node, profile kind, start/end time, and incident ID;
+- answer one CPU, heap, or goroutine question per bounded capture;
+- observe the capture's own CPU, memory, scheduling, disk, and network cost;
+- treat artifacts as internal sensitive data, disable Debug afterward, and verify the endpoint is unreachable.
+
+Operations MCP `pprof_analyze` is a separate controlled path. It returns parsed top rows, never the raw profile. CPU is capped at 30 seconds; heap/goroutine duration must be zero. Only one profile may run cluster-wide, each node has a 60-second cooldown after completion, and concurrency, size, owner, and revision fences apply.
+
+## Operations MCP
+
+Every configured Manager listener mounts the same `POST /mcp`. It is a stateless JSON Streamable HTTP MCP service using dedicated `wko_*` bearer credentials; a Manager JWT is not an MCP credential. Use TLS across untrusted networks.
+
+<Callout type="warn" title="Not a browser API">
+  `/mcp` rejects every non-empty `Origin` and grants no CORS access. Requests are capped at 64 KiB and responses at 1 MiB. Authentication, rate, concurrency, owner, or state-change failures return stable errors instead of falling back to anonymous or local execution.
+</Callout>
+
+The frozen 12-tool registry is:
+
+| Tool | Scope |
+| --- | --- |
+| `cluster_health` | Aggregate Controller, node, Slot, workqueue, and metric health without Channel scanning |
+| `node_inspect` | One exact node's health, runtime, Controller Raft, workqueues, and bounded diagnostics |
+| `slot_inspect` | One exact physical Slot's leader, replicas, progress, and indices |
+| `channel_runtime_inspect` | One exact Channel point lookup through its hash Slot, without catalog enumeration |
+| `controller_tasks_query` | Bounded active and retained Controller task evidence |
+| `metrics_query_range` | A bounded range for a server-owned, low-cardinality query ID |
+| `logs_search` / `logs_context` | Bounded search and cursor context over fixed application/error log sources |
+| `diagnostics_query` | Retained diagnostics filtered by node, Slot, trace, stage, result, and time |
+| `config_read_redacted` | Allowlisted, already-redacted effective configuration for one node |
+| `backup_inspect` | Full-backup plan, active task, and bounded immutable archive evidence |
+| `pprof_analyze` | Bounded CPU, heap, or goroutine top rows for one node |
+
+All tools are read-only except the active capture performed by `pprof_analyze`. The service accepts no arbitrary URL, filesystem path, command, PromQL, SQL, or general Controller writer. It exposes no Resources, Prompts, Sampling, Roots, SSE, or write tools. Missing evidence returns `unavailable` / `unknown`, never fabricated zero or healthy state.
+
+## Usage boundaries
+
+- Create a least-scope incident credential with bounded tools, nodes, and lifetime; never log the complete token.
+- Log tools return bounded raw lines marked untrusted; never place their content in a shell or prompt-control channel.
+- Metrics use server-owned query IDs with bounded range and points; MCP cannot execute arbitrary PromQL.
+- Exact Channel lookup requires Channel ID and type and cannot scan the catalog.
+- pprof, logs, and diagnostics are not cached; short inventories and redacted config may be briefly cached, so retain observation time.
+- MCP audit stores low-cardinality summaries only, not raw tokens, complete arguments, results, or log keywords.
+
+## Remove temporary diagnostics
+
+At incident end, revoke temporary credentials, restore sampling, disable Debug and Benchmark, remove unnecessary local copies, and verify network policy. Retain redacted commands, time ranges, query IDs, cursors, tool result codes, and artifact digests for review and regression testing.
