@@ -66,6 +66,15 @@ jobs:
           else
             [[ "$OPERATION" == finalize && -z "$STOP_AUTHORIZATION" ]]
           fi
+      - name: Authenticate durable request-scoped stop marker
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'stop'
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/operator-stop-requested.sh "$REQUEST_ID" >"$RUNNER_TEMP/operator-stop-observation.json"
+          jq -e --arg request "$REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.operator_stop_observation/v1" and .request_id == $request
+          ' "$RUNNER_TEMP/operator-stop-observation.json" >/dev/null
 
   finalize:
     name: Finalize ${{ matrix.request_id }} before zero-inventory cleanup
@@ -125,6 +134,21 @@ jobs:
               [[ -f "$WK_CHAT_HANDOFF_DIR/$name" ]]
             done
             echo 'mode=run' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup.json" && -f "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.rehearsal_cleanup/v1" and
+              .request_id == $request and (.release_run_id | type == "number") and
+              .release_run_id > 0 and .zero_inventory == true
+            ' "$WK_CHAT_HANDOFF_DIR/cleanup.json" >/dev/null
+            jq -e --slurpfile selector "$WK_CHAT_HANDOFF_DIR/release-selector.json" '
+              .schema == "wukongim.cloud_lease.release/v1" and
+              (.result.zero_inventory | type == "object") and
+              .result.zero_inventory.selector == $selector[0].selector and
+              (.result.zero_inventory.account_id_hash | test("^sha256:[0-9a-f]{64}$")) and
+              (.result.zero_inventory.observed_at | type == "string") and
+              (.result.zero_inventory.scopes | type == "array" and length > 0)
+            ' "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" >/dev/null
+            echo 'mode=cleanup_complete' >>"$GITHUB_OUTPUT"
           elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
             jq -e --arg request_id "$WK_CHAT_REQUEST_ID" '
               .schema == "wukongim.chat_lifecycle.cleanup_pending/v1" and
@@ -136,7 +160,7 @@ jobs:
             ' "$WK_CHAT_HANDOFF_DIR/release-selector.json" >/dev/null
             echo 'mode=cleanup_pending' >>"$GITHUB_OUTPUT"
           else
-            echo 'authenticated producer Artifact has neither a complete run handoff nor cleanup-pending evidence' >&2
+            echo 'authenticated producer Artifact has neither a complete run handoff nor typed cleanup evidence' >&2
             exit 1
           fi
       - name: Download previously uploaded terminal evidence
@@ -306,14 +330,36 @@ jobs:
         shell: bash
         run: echo 'Terminal evidence upload remains inside its bounded rescue window.'
       - name: Release exact Lease until zero inventory
+        id: release
         if: steps.handoff.outputs.mode == 'cleanup_pending' || steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true'
+        continue-on-error: true
         shell: bash
         env:
           WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json
         run: scripts/chat-lifecycle/release-until-zero.sh
+      - name: Classify rehearsal Release continuation
+        id: cleanup
+        if: steps.handoff.outputs.mode == 'cleanup_complete' || steps.release.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.handoff.outputs.mode }}" == cleanup_complete ]]; then
+            install -d -m 0700 "$WK_CHAT_CLEANUP_DIR"
+            cp "$WK_CHAT_HANDOFF_DIR/cleanup.json" "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" "$WK_CHAT_CLEANUP_DIR/"
+          fi
+          if [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup.json" && -f "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" ]]; then
+            echo 'zero=true' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup-pending.json" && -f "$WK_CHAT_CLEANUP_DIR/release-selector.json" ]]; then
+            echo 'zero=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'Rehearsal Release emitted neither zero proof nor cleanup continuation.' >&2
+            exit 1
+          fi
       - name: Seal fresh-formal transition after rehearsal evidence and zero inventory
         id: transition
-        if: success() && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
+        if: steps.cleanup.outputs.zero == 'true' && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && ((steps.collect.outputs.ready == 'true' && steps.final_upload.outcome == 'success') || steps.existing.outputs.ready == 'true')
         shell: bash
         env:
           WK_CHAT_TRANSITION_DIR: ${{ runner.temp }}/formal-transition
@@ -388,7 +434,7 @@ jobs:
           retention-days: 8
       - name: Assemble terminal evidence with exact zero-inventory proof
         id: complete
-        if: success() && steps.handoff.outputs.mode == 'run' && (steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
+        if: steps.cleanup.outputs.zero == 'true' && steps.handoff.outputs.mode == 'run' && (steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
         shell: bash
         env:
           WK_CHAT_COMPLETE_DIR: ${{ runner.temp }}/complete
@@ -423,20 +469,32 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Upload zero-inventory proof
-        if: success() && (steps.handoff.outputs.mode == 'cleanup_pending' || steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
+        if: steps.cleanup.outputs.zero == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-lifecycle-rehearsal-cleanup-${{ matrix.request_id }}
           path: ${{ env.WK_CHAT_CLEANUP_DIR }}
           if-no-files-found: error
           retention-days: 90
+      - name: Upload rehearsal cleanup-pending continuation
+        if: steps.cleanup.outputs.pending == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 8
       - name: Delete released encrypted deployment handoff
-        if: success() && (steps.handoff.outputs.mode == 'cleanup_pending' || steps.report_rescue.outputs.release == 'true' || steps.existing.outputs.ready == 'true')
+        if: steps.cleanup.outputs.zero == 'true'
         shell: bash
         run: |
           set -euo pipefail
           [[ "${{ matrix.handoff_artifact_id }}" =~ ^[1-9][0-9]*$ ]]
           gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ matrix.handoff_artifact_id }}"
+      - name: Fail after persisting a rehearsal Release continuation
+        if: steps.release.outcome == 'failure'
+        shell: bash
+        run: exit 1
       - name: Advance the exact tracking Issue
         if: always()
         shell: bash
@@ -453,7 +511,7 @@ jobs:
             state=rehearsal_final_artifact_pending
           elif [[ "${{ steps.final_upload.outcome }}" == success ]]; then
             state=rehearsal_terminal_evidence
-          elif [[ "${{ job.status }}" == failure ]]; then
+          elif [[ "${{ steps.cleanup.outputs.pending }}" == true || "${{ steps.release.outcome }}" == failure || "${{ job.status }}" == failure ]]; then
             state=rehearsal_cleanup_pending
           fi
           detail="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

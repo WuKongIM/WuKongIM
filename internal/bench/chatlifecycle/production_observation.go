@@ -349,6 +349,10 @@ func (s *ProductionObservationSource) commitRound(
 	}
 	if s.cfg.Profile == ProfileFormal {
 		for host, filesystem := range round.disks {
+			if !filesystem.ProcessResourcesObserved {
+				next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
+				continue
+			}
 			if host < coordinatorWorkerCount && !filesystem.ProcessUp[0] {
 				next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash})
 				continue

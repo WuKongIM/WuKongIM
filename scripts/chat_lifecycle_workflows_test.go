@@ -235,7 +235,10 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 	}
 	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
 		workflow := string(readWorkflow(t, workflowName))
-		for _, required := range []string{"operation:", "stop_authorization:", "operator-stop-chat-lifecycle", "WK_CHAT_OPERATOR_STOP"} {
+		for _, required := range []string{
+			"operation:", "stop_authorization:", "operator-stop-chat-lifecycle", "WK_CHAT_OPERATOR_STOP",
+			"Authenticate durable request-scoped stop marker", "operator-stop-requested.sh \"$REQUEST_ID\"",
+		} {
 			if !strings.Contains(workflow, required) {
 				t.Fatalf("%s stop contract is missing %q", workflowName, required)
 			}
@@ -346,6 +349,15 @@ func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(
 	zero := strings.Index(workflow, "Upload zero-inventory proof")
 	if upload < 0 || release <= upload || zero <= release {
 		t.Fatalf("finalization order is not report -> release -> zero proof")
+	}
+	for _, required := range []string{
+		"id: release", "continue-on-error: true", "Classify rehearsal Release continuation",
+		"cleanup-pending.json", "Upload rehearsal cleanup-pending continuation",
+		"Fail after persisting a rehearsal Release continuation",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("rehearsal Release continuation is missing %q", required)
+		}
 	}
 	for _, relative := range []string{
 		"scripts/chat-lifecycle/stage-orchestrate.sh",
@@ -686,10 +698,27 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 	for _, required := range []string{
 		"discover-active-handoffs.sh",
 		"WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json",
+		"mode=cleanup_complete",
 	} {
 		if !strings.Contains(finalize, required) {
 			t.Fatalf("finalizer workflow is missing %q", required)
 		}
+	}
+	formalStart := string(readWorkflow(t, "chat-lifecycle-formal.yml"))
+	for _, required := range []string{
+		"Detect immediate formal zero-inventory proof",
+		"steps.immediate_cleanup.outputs.ready == 'true'",
+		"chat-lifecycle-formal-cleanup-${{ matrix.request_id }}",
+		"retention-days: 90",
+	} {
+		if !strings.Contains(formalStart, required) {
+			t.Fatalf("formal pre-handoff cleanup evidence is missing %q", required)
+		}
+	}
+	formalFinalize := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
+	if !strings.Contains(formalFinalize, "mode=cleanup_complete") ||
+		!strings.Contains(formalFinalize, `steps.handoff.outputs.mode == 'cleanup_complete' || steps.release.outcome != 'skipped'`) {
+		t.Fatal("formal finalizer cannot recover already-zero pre-handoff cleanup evidence")
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-active-handoffs.sh"))
 	for _, required := range []string{"max_pages=50", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {

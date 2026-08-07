@@ -191,11 +191,12 @@ func TestProductionObservationSignalsLowDiskAndKeepsHourlyEvidenceAligned(t *tes
 func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
 	start := time.Date(2030, time.March, 17, 17, 15, 0, 0, time.UTC)
 	tests := []struct {
-		name    string
-		stage   Stage
-		host    int
-		process int
-		want    VerdictSignal
+		name                   string
+		stage                  Stage
+		host                   int
+		process                int
+		missingProcessEvidence bool
+		want                   VerdictSignal
 	}{
 		{
 			name: "WuKongIM service exit is a product failure", stage: StageFormal, host: 0, process: 0,
@@ -225,6 +226,11 @@ func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
 			name: "process collector exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 11,
 			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
 		},
+		{
+			name: "missing service process evidence invalidates the harness", stage: StageFormal, host: 0,
+			missingProcessEvidence: true,
+			want:                   VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -234,9 +240,13 @@ func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
 			}
 			targets, disks := validProductionObservationFakes(cfg)
 			filesystem := &disks[test.host].filesystem
-			filesystem.ProcessUp[test.process] = false
-			filesystem.ProcessCPUJiffies[test.process] = 0
-			filesystem.ProcessResidentMemoryBytes[test.process] = 0
+			if test.missingProcessEvidence {
+				filesystem.ProcessResourcesObserved = false
+			} else {
+				filesystem.ProcessUp[test.process] = false
+				filesystem.ProcessCPUJiffies[test.process] = 0
+				filesystem.ProcessResidentMemoryBytes[test.process] = 0
+			}
 			source := newProductionObservationFakeSource(t, cfg, targets, disks)
 			if err := source.Begin(start); err != nil {
 				t.Fatal(err)

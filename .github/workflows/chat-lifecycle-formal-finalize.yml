@@ -67,6 +67,15 @@ jobs:
           else
             [[ "$OPERATION" == finalize && -z "$STOP_AUTHORIZATION" ]]
           fi
+      - name: Authenticate durable request-scoped stop marker
+        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'stop'
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/operator-stop-requested.sh "$REQUEST_ID" >"$RUNNER_TEMP/operator-stop-observation.json"
+          jq -e --arg request "$REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.operator_stop_observation/v1" and .request_id == $request
+          ' "$RUNNER_TEMP/operator-stop-observation.json" >/dev/null
 
   finalize:
     name: Finalize formal ${{ matrix.request_id }} before exact Release
@@ -130,13 +139,28 @@ jobs:
               .schema == "wukongim.chat_lifecycle.rehearsal_result/v1" and .outcome == "rehearsal_pass"
             ' "$WK_CHAT_HANDOFF_DIR/rehearsal/rehearsal-result.json" >/dev/null
             echo 'mode=run' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup.json" && -f "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_cleanup/v1" and
+              .request_id == $request and (.release_run_id | type == "number") and
+              .release_run_id > 0 and .zero_inventory == true
+            ' "$WK_CHAT_HANDOFF_DIR/cleanup.json" >/dev/null
+            jq -e --slurpfile selector "$WK_CHAT_HANDOFF_DIR/release-selector.json" '
+              .schema == "wukongim.cloud_lease.release/v1" and
+              (.result.zero_inventory | type == "object") and
+              .result.zero_inventory.selector == $selector[0].selector and
+              (.result.zero_inventory.account_id_hash | test("^sha256:[0-9a-f]{64}$")) and
+              (.result.zero_inventory.observed_at | type == "string") and
+              (.result.zero_inventory.scopes | type == "array" and length > 0)
+            ' "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" >/dev/null
+            echo 'mode=cleanup_complete' >>"$GITHUB_OUTPUT"
           elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
             jq -e --arg request "$WK_CHAT_REQUEST_ID" '
               .schema == "wukongim.chat_lifecycle.cleanup_pending/v1" and .request_id == $request
             ' "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" >/dev/null
             echo 'mode=cleanup_pending' >>"$GITHUB_OUTPUT"
           else
-            echo 'Authenticated formal Artifact has no complete handoff or cleanup continuation.' >&2
+            echo 'Authenticated formal Artifact has neither a complete run handoff nor typed cleanup evidence.' >&2
             exit 1
           fi
       - name: Download previously uploaded terminal or diagnosis evidence
@@ -318,10 +342,14 @@ jobs:
         run: scripts/chat-lifecycle/release-until-zero.sh
       - name: Classify Release continuation
         id: cleanup
-        if: steps.release.outcome != 'skipped'
+        if: steps.handoff.outputs.mode == 'cleanup_complete' || steps.release.outcome != 'skipped'
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${{ steps.handoff.outputs.mode }}" == cleanup_complete ]]; then
+            install -d -m 0700 "$WK_CHAT_CLEANUP_DIR"
+            cp "$WK_CHAT_HANDOFF_DIR/cleanup.json" "$WK_CHAT_HANDOFF_DIR/zero-inventory.json" "$WK_CHAT_CLEANUP_DIR/"
+          fi
           if [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup.json" && -f "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" ]]; then
             echo 'zero=true' >>"$GITHUB_OUTPUT"
             echo 'pending=false' >>"$GITHUB_OUTPUT"

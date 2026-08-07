@@ -202,6 +202,24 @@ jobs:
           path: ${{ env.WK_CHAT_OUTPUT_DIR }}
           if-no-files-found: error
           retention-days: 8
+      - name: Detect immediate formal zero-inventory proof
+        id: immediate_cleanup
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$WK_CHAT_OUTPUT_DIR/cleanup.json" && -f "$WK_CHAT_OUTPUT_DIR/zero-inventory.json" ]]; then
+            echo 'ready=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload immediate formal zero-inventory proof
+        if: always() && steps.immediate_cleanup.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 90
       - name: Release handed-off formal Lease if handoff publication failed
         id: fallback_release
         if: always() && steps.handoff_state.outputs.publish == 'true' && steps.handoff_upload.outcome != 'success'
@@ -242,7 +260,7 @@ jobs:
         run: |
           set -euo pipefail
           state=formal_orchestration_failed
-          if [[ "${{ steps.fallback_release.outputs.released }}" == true ]]; then
+          if [[ "${{ steps.immediate_cleanup.outputs.ready }}" == true || "${{ steps.fallback_release.outputs.released }}" == true ]]; then
             state=formal_zero_inventory
           elif [[ "${{ steps.fallback_release.outputs.pending }}" == true ]]; then
             state=formal_cleanup_pending
