@@ -155,8 +155,8 @@ func TestPreflightDiskLowSignalsCoordinatedSafeStop(t *testing.T) {
 
 func TestPreflightDiskCapacityFailsWithoutStopSignal(t *testing.T) {
 	fixture := newPreflightFixture(FormalConfig())
-	fixture.disks[0].filesystem.SizeBytes = 999_999_999_999
-	fixture.disks[0].filesystem.AvailableBytes = 999_999_999_999
+	fixture.disks[0].filesystem.SizeBytes = 499_999_999_999
+	fixture.disks[0].filesystem.AvailableBytes = 499_999_999_999
 
 	result := fixture.preflight.Check(context.Background(), fixture.cfg)
 	if result.Outcome != PreflightInfrastructureFailure || result.Code != PreflightCodeDiskCapacity || result.TrafficAllowed() {

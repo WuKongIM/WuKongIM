@@ -81,7 +81,7 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/cloud-deployment-bundle"
-          install -d -m 0755 "$bundle/bin" "$bundle/assets/manager" "$bundle/assets/demo"
+          install -d -m 0755 "$bundle/bin" "$bundle/assets/manager" "$bundle/assets/demo" "$bundle/config"
           for target in wukongim:./cmd/wukongim wkbench:./cmd/wkbench wkanalysis:./cmd/wkanalysis; do
             name="${target%%:*}"
             package="${target#*:}"
@@ -94,6 +94,7 @@ jobs:
           done
           cp -a source/internal/access/manager/webui/dist/. "$bundle/assets/manager/"
           cp -a source/internal/access/api/demoui/dist/. "$bundle/assets/demo/"
+          install -m 0644 source/configs/wkbench/chat-lifecycle/formal.yaml "$bundle/config/chat-lifecycle.yaml"
       - name: Add checksum-pinned native dependencies
         shell: bash
         run: |

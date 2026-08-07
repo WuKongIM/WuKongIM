@@ -38,6 +38,9 @@ region, Plan digest, immutable expiry, Quote, resource inventory, and access
 grants. Applicable source SHA and bundle-digest provenance are typed and
 repeated as reserved tags. Every resource repeats the complete Lease tags and
 its logical resource role.
+Provider-free consumers may call `ValidateReceipt` to recheck a persisted
+Receipt against its own selector identity without receiving any Quote,
+Acquire, access-rule, Release, or Sweep capability.
 
 `GrantAccess` and `RevokeAccess` operate on typed, expiring network rules.
 An exact repeated grant and revocation of an absent grant are idempotent.

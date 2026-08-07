@@ -1,8 +1,10 @@
 # Cloud Deployment Use-Case Flow
 
-`clouddeploy` owns the procurement-independent, content-addressed payload used
-by the new Cloud Lease Deployment Action. It does not know provider inventory,
-Lease identities, runtime IP addresses, credentials, or workload stage state.
+`clouddeploy` owns the procurement-independent, content-addressed payload and
+the provider-neutral activation contract used by the Cloud Lease Deployment
+Action. It accepts only a validated non-secret Lease inventory projection; it
+has no provider API, lifecycle permission, runtime credential, or workload
+stage authority.
 
 ```text
 trusted main control SHA + immutable source SHA
@@ -14,6 +16,16 @@ trusted main control SHA + immutable source SHA
      fixed modes, no symlink or container dependency, and exact topology constants
   -> ordered file records produce one SHA-256 bundle digest
   -> Verify independently recomputes the same digest on every target host
+
+active Lease Receipt + verified bundle manifest
+  -> BuildPlan binds exact Lease, source, control, bundle, four roles, addresses,
+     disks, expiry, and fixed topology into one digest
+  -> RenderHostFiles produces Lease-specific native configuration without secrets
+  -> install-offline verifies, mounts, renders, and prepares only the selected role
+  -> activate-offline starts role infrastructure without starting the coordinator
+  -> readiness reads effective topology config from all three nodes and proves
+     host, cluster, load, proxy, and observer gates
+  -> EvaluateReadiness emits one typed receipt or stable bounded failure
 ```
 
 The bundle is deliberately free of secrets and Lease-specific configuration.
@@ -23,6 +35,16 @@ independent process metrics for every service, worker, coordinator, proxy, and
 collector through node_exporter's textfile directory. Demo static, API, and
 WebSocket paths share the same temporary Basic Authentication boundary while
 Manager retains its own read-only application login.
-Deployment Plan rendering, disk mounting, service activation, and readiness
-belong to the Deployment Action consumer. The legacy
+The load host carries the non-restarting coordinator unit and its bounded
+dependency gate, but Deployment deliberately leaves it dormant. Workload
+orchestration consumes the successful Deployment Receipt and alone authorizes
+the exact rehearsal, formal, or capacity-stage coordinator start.
+The use case renders and validates Deployment Plans and readiness outcomes.
+Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
+materialization, and live evidence collection remain host/Action adapters. The
+Action cannot Quote, Acquire, Release, or otherwise mutate provider inventory.
+The production Action mirrors the Fleet gates with a locally fakeable shell
+adapter and authenticates its caller-supplied Artifact runs before executing
+payload code.
+The legacy
 `internal/infra/cloudsim/deploy` bundle remains a separate compatibility path.

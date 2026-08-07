@@ -21,6 +21,9 @@ config
 
 `LoadConfig` accepts exactly one strict YAML document, rejects unknown fields,
 and validates the complete configuration before any network request.
+`wkbench validate chat-lifecycle --config` exposes that same parser as a
+network-free deployment readiness check and additionally requires the formal
+Soak profile.
 `ReadReport` applies the same fail-closed rule to one bounded JSON checkpoint,
 including its schema, fence, time-window, evidence, and verdict invariants.
 Neither persisted input contains credentials. The `wkbench` command adapters
@@ -768,7 +771,7 @@ Each host-metrics declaration carries an exact node_exporter `mountpoint` and
 `device`. The bounded parser accepts exactly one size and one available-byte
 series for that pair. Missing or duplicate pairs make the harness invalid; a
 filesystem below the profile minimum is an infrastructure capacity failure.
-Formal minimum size is 1,000,000,000,000 bytes. Free space below 5 percent
+Formal minimum size is 500,000,000,000 usable bytes. Free space below 5 percent
 returns an infrastructure failure and emits one narrow coordinated-stop signal;
 the observer does not own assignment control.
 

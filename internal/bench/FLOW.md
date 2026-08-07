@@ -120,10 +120,11 @@ moving worker or lifecycle evidence. Preflight results retain only their closed
 reason code so failures such as `disk_free` remain distinguishable when no final
 report can be written.
 
-`wkbench host-metrics` is the small native helper used by the local shakeout to
-serve one exact filesystem's `node_filesystem_size_bytes` and
-`node_filesystem_avail_bytes` series plus `/healthz`. A formal run may use an
-existing node exporter with the same exact device/mountpoint contract.
+`wkbench host-metrics` is the small native helper used by local shakeouts and
+the four-host cloud deployment to serve one exact filesystem's
+`node_filesystem_size_bytes` and `node_filesystem_avail_bytes` series plus
+`/healthz`. A formal run may instead use an existing node exporter with the
+same exact device/mountpoint contract.
 
 ## Coordinator Run Flow
 

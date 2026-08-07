@@ -66,6 +66,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	_ = install.MarkFlagRequired("role")
 	_ = install.MarkFlagRequired("env-dir")
 	root.AddCommand(install)
+	addOfflineHostCommand(root, stdout)
 	return root
 }
 

@@ -11,7 +11,7 @@ from `origin/main`. The Workflow keeps two checkouts:
 - `control` is the exact trusted `main` revision that owns the Workflow,
   bundle validator, and host installer;
 - `source` is the immutable product revision used for WuKongIM, wkbench,
-  wkanalysis, Manager, and Demo.
+  wkanalysis, the formal workload configuration, Manager, and Demo.
 
 Both identities are recorded in `deployment-intent.json` and
 `bundle-manifest.json`. A moving branch name is never a bundle identity.

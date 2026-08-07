@@ -118,7 +118,7 @@ func DefaultIntent(sourceSHA, controlSHA string) Intent {
 			{Path: "/etc/wukongim/secrets/analysis-cert.pem", Owner: "root", Mode: 0o600},
 			{Path: "/etc/wukongim/secrets/analysis-key.pem", Owner: "root", Mode: 0o600},
 		},
-		RequiredBaseTools: []string{"bash", "blkid", "chmod", "date", "df", "dirname", "findmnt", "getconf", "install", "lsblk", "mkfs.ext4", "mount", "mv", "sha256sum", "sleep", "systemctl", "tar", "timedatectl", "timeout", "uname"},
+		RequiredBaseTools: []string{"awk", "bash", "blkid", "cat", "chmod", "chown", "curl", "date", "df", "dirname", "findmnt", "getconf", "grep", "head", "id", "install", "lsblk", "mkdir", "mkfs.ext4", "mount", "mv", "rm", "scp", "sed", "sha256sum", "sleep", "ssh", "stat", "sudo", "systemctl", "tail", "tar", "timedatectl", "timeout", "uname", "useradd"},
 		OfflineBinaries:   []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"},
 	}
 }
@@ -244,7 +244,25 @@ func validateFiles(directory Directory, intent Intent, files []FileRecord) error
 	if err := rejectBundledSecretMaterial(files); err != nil {
 		return err
 	}
+	workload, err := directory.ReadFile("config/chat-lifecycle.yaml", maxJSONBytes)
+	if err != nil || !validFormalWorkload(string(workload)) {
+		return fmt.Errorf("%w: formal chat-lifecycle config", ErrInvalidBundle)
+	}
 	return rejectContainerDependency(directory, intent, files)
+}
+
+func validFormalWorkload(content string) bool {
+	required := []string{
+		"profile: formal", "workers: 3", "logical_slot_groups: 12", "hash_slots: 256",
+		"slot_replicas: 3", "channel_replicas: 3", "version: 0",
+		"minimum_data_filesystem_bytes: 500000000000",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(content, fragment) {
+			return false
+		}
+	}
+	return !strings.Contains(content, "minimum_data_filesystem_bytes: 1000000000000")
 }
 
 func validIntent(intent Intent) bool {
@@ -259,10 +277,11 @@ func validIntent(intent Intent) bool {
 
 func requiredFiles(intent Intent) []string {
 	paths := []string{intentName, "assets/demo/index.html", "assets/manager/index.html",
-		"config/Caddyfile.tmpl", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
-		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/verify-base-tools.sh",
+		"config/Caddyfile.tmpl", "config/chat-lifecycle.yaml", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
+		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
 		"systemd/caddy.service", "systemd/node-exporter.service", "systemd/prometheus.service",
 		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-worker@.service",
+		"systemd/wkbench-host-metrics.service",
 		"systemd/wukongim-process-metrics.service", "systemd/wukongim-evidence.service",
 		"systemd/wukongim-evidence.timer", "systemd/wukongim.service"}
 	for _, name := range intent.OfflineBinaries {

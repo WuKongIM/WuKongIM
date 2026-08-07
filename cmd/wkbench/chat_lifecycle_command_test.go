@@ -157,3 +157,17 @@ func TestWorkerChatLifecycleHelpPreservesDedicatedModeFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateChatLifecycleCommandLoadsStrictFormalSoakConfig(t *testing.T) {
+	formal := filepath.Join("..", "..", "configs", "wkbench", "chat-lifecycle", "formal.yaml")
+	var stderr bytes.Buffer
+	if code := runWithStderr([]string{"validate", "chat-lifecycle", "--config", formal}, &stderr); code != 0 {
+		t.Fatalf("validate chat-lifecycle code/stderr = %d/%q", code, stderr.String())
+	}
+
+	stderr.Reset()
+	invalid := writeWkbenchTempFile(t, "unknown: true\n")
+	if code := runWithStderr([]string{"validate", "chat-lifecycle", "--config", invalid}, &stderr); code != exitConfig {
+		t.Fatalf("invalid validate chat-lifecycle code/stderr = %d/%q", code, stderr.String())
+	}
+}

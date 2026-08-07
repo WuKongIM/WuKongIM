@@ -138,18 +138,34 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	nodeConfig := read("config/wukongim.toml.tmpl")
 	if !strings.Contains(nodeConfig, "initial_slot_count = 12") || !strings.Contains(nodeConfig, "hash_slot_count = 256") ||
 		!strings.Contains(nodeConfig, "slot_replica_n = 3") || !strings.Contains(nodeConfig, "channel_replica_n = 3") ||
+		!strings.Contains(nodeConfig, "max_channels = 50000") ||
 		!strings.Contains(nodeConfig, `external_ws_addr = "ws://{{PUBLIC_HTTP_HOST}}"`) {
 		t.Fatalf("node template = %s", nodeConfig)
 	}
 	if !strings.Contains(read("systemd/caddy.service"), "AmbientCapabilities=CAP_NET_BIND_SERVICE") {
 		t.Fatal("Caddy cannot bind the public HTTP port as the service user")
 	}
+	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
+		content := read(unit)
+		if !strings.Contains(content, "LimitNOFILE=1048576") || !strings.Contains(content, "TasksMax=infinity") {
+			t.Fatalf("%s omits native high-concurrency process limits: %s", unit, content)
+		}
+	}
 	if strings.Contains(read("systemd/node-exporter.service"), "EnvironmentFile=") {
 		t.Fatal("node exporter unexpectedly depends on a role-specific secret file")
 	}
 	coordinator := read("systemd/wkbench-coordinator.service")
-	if !strings.Contains(coordinator, "ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle ") {
+	if !strings.Contains(coordinator, "ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle ") ||
+		!strings.Contains(coordinator, "ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh") ||
+		!strings.Contains(coordinator, "Requisite=wkbench-worker@1.service") ||
+		strings.Contains(coordinator, "Requires=wkbench-worker@1.service") ||
+		!strings.Contains(coordinator, "TimeoutStartSec=960") {
 		t.Fatalf("coordinator does not use the registered wkbench command hierarchy: %s", coordinator)
+	}
+	waitScript := read("scripts/wait-coordinator-dependencies.sh")
+	if !strings.Contains(waitScript, "${#services[@]} == 3") || !strings.Contains(waitScript, "for port in 19091 19092 19093") ||
+		!strings.Contains(waitScript, "9090/-/ready") || !strings.Contains(waitScript, "/readyz") {
+		t.Fatalf("coordinator dependency gate = %s", waitScript)
 	}
 	prometheusConfig := read("config/prometheus.yml.tmpl")
 	prometheusUnit := read("systemd/prometheus.service")
@@ -185,7 +201,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	}
 	processScript := read("scripts/collect-process-metrics.sh")
 	processUnit := read("systemd/wukongim-process-metrics.service")
-	for _, process := range []string{"wukongim.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "wkbench-coordinator.service", "prometheus.service", "caddy.service", "wkanalysis.service", "wukongim-process-metrics.service"} {
+	for _, process := range []string{"wukongim.service", "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "wkbench-coordinator.service", "prometheus.service", "caddy.service", "wkanalysis.service", "wukongim-process-metrics.service"} {
 		if !strings.Contains(processScript, process) {
 			t.Fatalf("process collector omits %s", process)
 		}
@@ -290,8 +306,24 @@ func prepareTestPayload(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
+	workloadPath := filepath.Join(root, "config", "chat-lifecycle.yaml")
+	if err := os.MkdirAll(filepath.Dir(workloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(workloadPath, []byte(testFormalWorkload), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
+
+const testFormalWorkload = `profile: formal
+workload:
+  workers: 3
+  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+  sync: {version: 0}
+thresholds:
+  minimum_data_filesystem_bytes: 500000000000
+`
 
 func openDirectory(t *testing.T, root string) *clouddeployinfra.Directory {
 	t.Helper()

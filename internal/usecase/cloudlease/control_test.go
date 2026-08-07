@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	cloudleasefake "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
 
@@ -622,6 +623,28 @@ func activeReceipt(plan cloudlease.Plan, quote cloudlease.Quote, now time.Time) 
 		Resources: []cloudlease.Resource{{
 			ID: "compute-1", Kind: "compute", Role: "worker", Billable: true, Tags: resourceTags,
 		}},
+	}
+}
+
+func TestValidateReceiptSupportsProviderFreeConsumers(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := validPlan(now)
+	provider := cloudleasefake.New(cloudleasefake.Options{Now: func() time.Time { return now }})
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	quote, err := controller.Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := controller.Acquire(context.Background(), plan, quote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cloudlease.ValidateReceipt(receipt); err != nil {
+		t.Fatalf("ValidateReceipt() error = %v", err)
+	}
+	receipt.PlanDigest = "sha256:wrong"
+	if err := cloudlease.ValidateReceipt(receipt); err == nil {
+		t.Fatal("ValidateReceipt(tampered) succeeded")
 	}
 }
 

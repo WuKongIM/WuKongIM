@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -37,6 +39,27 @@ func newValidateCommand(stderr io.Writer) *cobra.Command {
 		},
 	}
 	bindBenchConfigPathFlags(cmd.Flags(), &paths)
+	cmd.AddCommand(newValidateChatLifecycleCommand())
+	return cmd
+}
+
+func newValidateChatLifecycleCommand() *cobra.Command {
+	var configPath string
+	cmd := &cobra.Command{
+		Use: "chat-lifecycle", Short: "Validate one strict chat-lifecycle YAML without network access", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			config, err := chatlifecycle.LoadConfig(configPath)
+			if err != nil {
+				return exitConfigError(err)
+			}
+			if config.Profile != chatlifecycle.ProfileFormal || config.Mode != chatlifecycle.ModeSoak {
+				return exitConfigError(fmt.Errorf("chat-lifecycle deployment config must be formal soak"))
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&configPath, "config", "", "strict chat-lifecycle YAML file")
+	_ = cmd.MarkFlagRequired("config")
 	return cmd
 }
 

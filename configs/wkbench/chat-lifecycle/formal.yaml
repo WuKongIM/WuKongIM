@@ -57,14 +57,14 @@ observation:
     - {name: worker-2, address: "http://worker-2.invalid"}
     - {name: worker-3, address: "http://worker-3.invalid"}
   host_metrics:
-    - {name: host-metrics-1, address: "http://host-metrics-1.invalid", mountpoint: /var/lib/wukongim, device: /dev/wukongim-data}
-    - {name: host-metrics-2, address: "http://host-metrics-2.invalid", mountpoint: /var/lib/wukongim, device: /dev/wukongim-data}
-    - {name: host-metrics-3, address: "http://host-metrics-3.invalid", mountpoint: /var/lib/wukongim, device: /dev/wukongim-data}
+    - {name: host-metrics-1, address: "http://host-metrics-1.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+    - {name: host-metrics-2, address: "http://host-metrics-2.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+    - {name: host-metrics-3, address: "http://host-metrics-3.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
   api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
   gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
   cadence: 5s
 thresholds:
-  minimum_data_filesystem_bytes: 1000000000000
+  minimum_data_filesystem_bytes: 500000000000
   disk_safe_stop_free_percent: 5
   correctness:
     terminal_sends: 0

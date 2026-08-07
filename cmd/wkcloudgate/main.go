@@ -55,6 +55,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	root.Flags().StringVar(&digest, "bundle-digest", "", "expected sha256 bundle digest")
 	_ = root.MarkFlagRequired("snapshot")
 	_ = root.MarkFlagRequired("bundle-digest")
+	addDeploymentCommands(root, stdout)
 	return root
 }
 

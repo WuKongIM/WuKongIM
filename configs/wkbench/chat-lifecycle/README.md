@@ -45,11 +45,11 @@ nor reassign workers. The final JSON and Markdown reports are written
 atomically. A first signal requests a coordinated terminal cut and bounded
 drain; a second signal forces process exit.
 
-The formal layout uses seven independent hosts: three service/data hosts,
-three worker hosts, and one coordinator host. Each service host exposes its own
-filesystem metrics selector and starts with at least 1,000,000,000,000 bytes on
-the selected data filesystem. The 5-percent free-space threshold is a hard
-coordinated stop.
+The formal cloud layout uses four hosts: three service/data hosts and one
+load/coordinator/monitor host running all three worker processes. Each service
+host exposes its own filesystem metrics selector and starts with at least
+500,000,000,000 usable bytes on the selected data filesystem. The 5-percent
+free-space threshold is a hard coordinated stop.
 
 For a bounded local native-process check, use:
 

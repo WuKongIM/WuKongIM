@@ -16,6 +16,7 @@ go run ./cmd/wkbench <command> [flags]
 | `soak chat-lifecycle` | Runs the continuous 24-hour qualification and 72-hour final chat-lifecycle flow. |
 | `capacity chat-lifecycle` | Searches capacity against the same live dataset after a passing 72-hour final report. |
 | `validate` | Loads target, workers, and scenario YAML and validates static config plus deterministic planning. |
+| `validate chat-lifecycle` | Strictly validates one formal Soak lifecycle YAML without network access. |
 | `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |

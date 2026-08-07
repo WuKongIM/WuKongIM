@@ -23,6 +23,7 @@ func TestCloudDeploymentBundleBuildIsTrustedOfflineAndPreProcurement(t *testing.
 		"bun install --frozen-lockfile",
 		"yarn install --frozen-lockfile",
 		"GOOS=linux GOARCH=amd64 go build",
+		"source/configs/wkbench/chat-lifecycle/formal.yaml",
 		"wkcloudbundle\" seal-offline",
 		"wkcloudbundle\" verify-offline",
 		"sha256sum cloud-deployment-bundle.tar.gz",

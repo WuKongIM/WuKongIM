@@ -12,7 +12,7 @@ constructs a new request with `version=0`, empty `last_msg_seqs`,
 Run the levels in order:
 
 1. Local 30-minute shakeout with the committed native-process helper.
-2. Formal-shape two-hour rehearsal on the seven intended hosts, stopped by one
+2. Formal-shape two-hour rehearsal on the four intended hosts, stopped by one
    coordinated `TERM`. This is operator-stop evidence, not a qualification.
 3. A fresh uninterrupted formal run. The 24-hour cut is qualification evidence
    and continues in the same generation; the 72-hour cut is the final result.
@@ -22,18 +22,18 @@ Run the levels in order:
 No run resumes. A process crash, worker loss, config change, Slot migration,
 filesystem expansion, service restart, or incomplete finalization invalidates
 the run. Preserve its artifacts for diagnosis, then use a new run ID and fresh
-service data directories. If the initial 1 TB filesystems later prove too
+service data directories. If the initial 500 GiB filesystems later prove too
 small, resize only between runs and start the next run from fresh data.
 
 ## Fixed topology
 
-Use seven independent hosts on private interfaces:
+Use four hosts on the Lease-private network; only the load host also has the
+temporary public EIP:
 
 | Hosts | Count | Responsibility |
 | --- | ---: | --- |
 | Service/data | 3 | WuKongIM API, Gateway, Manager/debug, metrics, and one filesystem metrics endpoint per host. |
-| Worker | 3 | One `wkbench worker --mode chat-lifecycle` process per host. |
-| Coordinator | 1 | One `wkbench soak chat-lifecycle` or `capacity chat-lifecycle` process and the durable report directory. |
+| Load/coordinator/monitor | 1 | Three isolated `wkbench worker --mode chat-lifecycle` processes, one coordinator, Prometheus, Analysis, proxy, and the durable report directory. |
 
 The product topology is fixed for the complete run:
 
@@ -41,7 +41,7 @@ The product topology is fixed for the complete run:
 - 256 physical hash slots;
 - Slot replicas 3 and Channel replicas 3;
 - no Slot migration, node replacement, or topology change;
-- at least 1,000,000,000,000 bytes on each selected service data filesystem;
+- at least 500,000,000,000 usable bytes on each selected service data filesystem;
 - coordinated safe stop when any selected filesystem has less than 5 percent
   available.
 
@@ -151,7 +151,7 @@ Require the rehearsal to prove:
 
 - all three workers became traffic-ready;
 - 12/256/3/3 topology preflight passed on every service node;
-- every service filesystem passed the 1 TB and 5-percent gates;
+- every service filesystem passed the 500,000,000,000-byte and 5-percent gates;
 - continuous health/readiness/Slot progress observations had no 30-second gap;
 - all logins performed valid full version-zero sync;
 - lifecycle samples, metadata-create counters, latency, queues, heap, and
@@ -252,7 +252,8 @@ final evidence; they do not authorize reuse of a partially stopped generation.
 | 9 | Infrastructure failure | Inspect filesystem/service-host evidence; start a new run after remediation. |
 | 130 | Coordinated operator stop | Expected only for rehearsal/manual termination; not a pass. |
 
-For preflight `disk_size`, provision the required 1 TB decimal filesystem. For
+For preflight `disk_size`, provision a 500 GiB data disk whose formatted
+filesystem provides at least 500,000,000,000 usable bytes. For
 `disk_free`, free or provision capacity before creating fresh data; never lower
 the 5-percent threshold to force admission. For Channel cold-activation stalls,
 check runtime-meta read results, PullHint receive stages, follower runtime

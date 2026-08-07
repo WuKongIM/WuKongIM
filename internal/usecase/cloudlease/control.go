@@ -175,6 +175,13 @@ func (c *Controller) Inspect(ctx context.Context, selector Selector) (Receipt, e
 	return cloneReceipt(receipt), nil
 }
 
+// ValidateReceipt independently checks a provider-reconciled Receipt against
+// its own exact selector identity. Consumers such as Deployment can validate a
+// persisted non-secret Receipt without receiving a cloud Provider capability.
+func ValidateReceipt(receipt Receipt) error {
+	return validateReceipt(selectorFromReceipt(receipt), receipt)
+}
+
 // GrantAccess creates one typed access rule or returns the existing exact grant.
 func (c *Controller) GrantAccess(ctx context.Context, selector Selector, grant AccessGrant) (Receipt, error) {
 	receipt, err := c.Inspect(ctx, selector)
@@ -830,10 +837,17 @@ func validateProvenance(provenance Provenance) error {
 	if provenance.SourceSHA != "" && !validLowerHexDigest(provenance.SourceSHA, 40, 64) {
 		return ErrInvalidPlan
 	}
-	if provenance.BundleDigest != "" && !validLowerHexDigest(provenance.BundleDigest, 64) {
+	if provenance.BundleDigest != "" && !validBundleDigest(provenance.BundleDigest) {
 		return ErrInvalidPlan
 	}
 	return nil
+}
+
+func validBundleDigest(value string) bool {
+	if strings.HasPrefix(value, "sha256:") {
+		value = strings.TrimPrefix(value, "sha256:")
+	}
+	return validLowerHexDigest(value, 64)
 }
 
 func validLowerHexDigest(value string, lengths ...int) bool {

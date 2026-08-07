@@ -24,6 +24,7 @@ authorization and the applicable budget.
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
 | `cloud-lease-release.yml` | `Agent Tool - Release Cloud Lease` | Releases one exact Lease or sweeps expired repository Leases through the Releaser role |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
+| `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
 | `cloud-sim-analyze.yml` | `Agent Tool - Analyze Cloud Simulation` | Operates one bounded cloud analysis session |
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
@@ -223,6 +224,21 @@ native dependencies, and publishes a content-addressed Ubuntu 24.04 payload.
 No Lease identity, cloud credential, runtime secret, or host address enters the
 bundle. See
 [`docs/superpowers/runbooks/cloud-deployment-bundle.md`](../../docs/superpowers/runbooks/cloud-deployment-bundle.md).
+
+## Cloud Deployment activation
+
+`cloud-deployment-activate.yml` has repository and Artifact read permission but
+no OIDC or provider credential. It authenticates both caller-selected Artifact
+runs as successful executions of the exact protected workflows at its own
+control SHA, builds trusted local validators before executing bundle code,
+validates an active Lease Receipt, derives a WuKongIM Deployment Plan, transfers
+one verified bundle through the public load node to three private service
+nodes, activates native non-restarting infrastructure units while leaving the
+stage-specific coordinator dormant, and emits either a typed Deployment
+Receipt or bounded stable failure.
+Only the top-level orchestrator may decide to Release or acquire a fresh Lease.
+See
+[`docs/superpowers/runbooks/cloud-deployment-activate.md`](../../docs/superpowers/runbooks/cloud-deployment-activate.md).
 
 ## Workflow maintenance
 

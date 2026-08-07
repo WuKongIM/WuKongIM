@@ -12,7 +12,7 @@ const (
 	formalRuntimeSampleSize  = 1_200
 	formalSyncLimit          = 500
 	formalSyncMessageCount   = 20
-	formalFilesystemBytes    = int64(1_000_000_000_000)
+	formalFilesystemBytes    = int64(500_000_000_000)
 	formalGroupCatalogTotal  = 2_000
 	formalVeryLargeMembers   = 100_000
 	capacityStepDuration     = 30 * time.Minute
@@ -107,9 +107,9 @@ func FormalConfig() Config {
 			ServiceNodes: []EndpointDeclaration{{Name: "service-1", Address: "http://service-1.invalid"}, {Name: "service-2", Address: "http://service-2.invalid"}, {Name: "service-3", Address: "http://service-3.invalid"}},
 			Workers:      []EndpointDeclaration{{Name: "worker-1", Address: "http://worker-1.invalid"}, {Name: "worker-2", Address: "http://worker-2.invalid"}, {Name: "worker-3", Address: "http://worker-3.invalid"}},
 			HostMetrics: []EndpointDeclaration{
-				{Name: "host-metrics-1", Address: "http://host-metrics-1.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
-				{Name: "host-metrics-2", Address: "http://host-metrics-2.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
-				{Name: "host-metrics-3", Address: "http://host-metrics-3.invalid", Mountpoint: "/var/lib/wukongim", Device: "/dev/wukongim-data"},
+				{Name: "host-metrics-1", Address: "http://host-metrics-1.invalid", Mountpoint: "/var/lib/wukongim-cloud", Device: "/dev/wukongim-data"},
+				{Name: "host-metrics-2", Address: "http://host-metrics-2.invalid", Mountpoint: "/var/lib/wukongim-cloud", Device: "/dev/wukongim-data"},
+				{Name: "host-metrics-3", Address: "http://host-metrics-3.invalid", Mountpoint: "/var/lib/wukongim-cloud", Device: "/dev/wukongim-data"},
 			},
 			APIAddrs:        []string{"http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"},
 			GatewayTCPAddrs: []string{"gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"},

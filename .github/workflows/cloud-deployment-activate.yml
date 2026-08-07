@@ -1,0 +1,310 @@
+name: Agent Tool - Activate Cloud Deployment
+run-name: Cloud Deployment ${{ inputs.lease_artifact_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      lease_artifact_run_id:
+        description: Workflow run containing the exact active Lease Receipt
+        required: true
+        type: string
+      lease_artifact_name:
+        description: Exact Cloud Lease artifact name
+        required: true
+        type: string
+      bundle_artifact_run_id:
+        description: Workflow run containing the exact offline bundle
+        required: true
+        type: string
+      bundle_artifact_name:
+        description: Exact content-addressed deployment bundle artifact name
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloud-deployment-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Activate and gate four native Ubuntu hosts
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: cloud-deployment
+    env:
+      GOWORK: "off"
+      LEASE_RUN_ID: ${{ inputs.lease_artifact_run_id }}
+      LEASE_ARTIFACT: ${{ inputs.lease_artifact_name }}
+      BUNDLE_RUN_ID: ${{ inputs.bundle_artifact_run_id }}
+      BUNDLE_ARTIFACT: ${{ inputs.bundle_artifact_name }}
+    steps:
+      - name: Checkout trusted Deployment Action
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Authenticate exact successful upstream workflow runs
+        id: provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WK_GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            artifact_provenance_invalid none '' \
+            'upstream workflow provenance validation failed' 'no deployment host was contacted'
+          [[ "$LEASE_RUN_ID" =~ ^[0-9]+$ && "$BUNDLE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$LEASE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ && "$BUNDLE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ ]]
+          api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs"
+          for pair in "lease:$LEASE_RUN_ID" "bundle:$BUNDLE_RUN_ID"; do
+            name="${pair%%:*}"
+            run_id="${pair#*:}"
+            curl --fail --silent --show-error --proto '=https' \
+              -H 'Accept: application/vnd.github+json' \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "${api}/${run_id}" >"${name}-run.json"
+          done
+          lease_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh lease-run.json .github/workflows/cloud-lease-provision.yml)"
+          bundle_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml)"
+          test "$lease_head_sha" = "$GITHUB_SHA"
+          test "$bundle_head_sha" = "$GITHUB_SHA"
+          echo "lease_head_sha=$lease_head_sha" >>"$GITHUB_OUTPUT"
+          echo "bundle_head_sha=$bundle_head_sha" >>"$GITHUB_OUTPUT"
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            artifact_download_failed none '' \
+            'authenticated upstream artifacts could not be downloaded' 'no deployment host was contacted'
+      - name: Download exact Lease Receipt
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.lease_artifact_name }}
+          path: lease-artifact
+          run-id: ${{ inputs.lease_artifact_run_id }}
+          github-token: ${{ github.token }}
+      - name: Download exact offline bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.bundle_artifact_name }}
+          path: bundle-artifact
+          run-id: ${{ inputs.bundle_artifact_run_id }}
+          github-token: ${{ github.token }}
+      - name: Build trusted deployment validators
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            artifact_provenance_invalid none '' \
+            'trusted deployment validators could not be built' 'no deployment host was contacted'
+          install -d -m 0755 "$RUNNER_TEMP/trusted-deployment-tools"
+          go build -trimpath -o "$RUNNER_TEMP/trusted-deployment-tools/wkcloudbundle" ./cmd/wkcloudbundle
+          go build -trimpath -o "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" ./cmd/wkcloudgate
+      - name: Validate artifacts and derive immutable Deployment Plan
+        id: plan
+        shell: bash
+        env:
+          BUNDLE_WORKFLOW_HEAD_SHA: ${{ steps.provenance.outputs.bundle_head_sha }}
+        run: |
+          set -euo pipefail
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            invalid_plan none '' \
+            'authenticated Lease or bundle artifact shape is invalid' 'no deployment host was contacted'
+          mapfile -t lease_receipts < <(find lease-artifact -type f -name receipt.json -print)
+          mapfile -t bundle_archives < <(find bundle-artifact -type f -name cloud-deployment-bundle.tar.gz -print)
+          mapfile -t bundle_checksums < <(find bundle-artifact -type f -name cloud-deployment-bundle.tar.gz.sha256 -print)
+          ((${#lease_receipts[@]} == 1 && ${#bundle_archives[@]} == 1 && ${#bundle_checksums[@]} == 1))
+          lease_receipt="${lease_receipts[0]}"
+          bundle_archive="${bundle_archives[0]}"
+          bundle_checksum="${bundle_checksums[0]}"
+          test "$LEASE_ARTIFACT" = "cloud-lease-provision-$(jq -er .request_id "$lease_receipt")"
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            bundle_digest_mismatch none '' \
+            'trusted offline bundle verification failed' 'no deployment host was contacted'
+          awk 'NF == 2 && $1 ~ /^[0-9a-f]{64}$/ && $2 == "cloud-deployment-bundle.tar.gz" {ok++} END {exit !(NR == 1 && ok == 1)}' "$bundle_checksum"
+          (cd "$(dirname "$bundle_archive")" && sha256sum --check --strict "$(basename "$bundle_checksum")")
+          install -d -m 0755 "$RUNNER_TEMP/deployment-bundle"
+          tar -xzf "$bundle_archive" -C "$RUNNER_TEMP/deployment-bundle"
+          "$RUNNER_TEMP/trusted-deployment-tools/wkcloudbundle" verify-offline --root "$RUNNER_TEMP/deployment-bundle" >bundle-manifest.json
+          test "$(jq -er .control_sha bundle-manifest.json)" = "$BUNDLE_WORKFLOW_HEAD_SHA"
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            invalid_plan none '' \
+            'Lease Receipt and bundle could not form one immutable Deployment Plan' 'no deployment host was contacted'
+          "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-plan \
+            --lease-receipt "$lease_receipt" \
+            --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
+            >deployment-plan.json
+          jq -e '.schema == "wukongim.cloud_deployment.plan/v1" and .topology.physical_hash_slots == 256 and .topology.logical_slot_groups == 12 and (.hosts | length) == 4' deployment-plan.json >/dev/null
+          bundle_digest="$(jq -er .bundle_digest deployment-plan.json)"
+          test "$BUNDLE_ARTIFACT" = "cloud-deployment-bundle-${bundle_digest#sha256:}"
+          install -m 0600 "$bundle_archive" cloud-deployment-bundle.tar.gz
+          load_public="$(jq -er '.hosts[] | select(.role=="load") | .public_address' deployment-plan.json)"
+          echo "bundle_digest=$bundle_digest" >>"$GITHUB_OUTPUT"
+          echo "load_public=$load_public" >>"$GITHUB_OUTPUT"
+          printf '%s\n' plan_validated >last-completed-gate.txt
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            credential_materialization_failed plan_validated load \
+            'temporary deployment credentials could not be materialized' 'load host was not contacted'
+      - name: Materialize the temporary SSH identity and runtime credentials
+        shell: bash
+        env:
+          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
+          LOAD_PUBLIC: ${{ steps.plan.outputs.load_public }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          umask 077
+          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >deployment-key
+          chmod 0600 deployment-key
+          ssh-keygen -y -f deployment-key >/dev/null
+          manager_password="$(openssl rand -hex 32)"
+          manager_jwt="$(openssl rand -hex 32)"
+          worker_token="$(openssl rand -hex 32)"
+          bench_token="$(openssl rand -hex 32)"
+          analysis_token="$(openssl rand -hex 32)"
+          demo_user=demo
+          demo_password="$manager_password"
+          demo_hash="$("$RUNNER_TEMP/deployment-bundle/bin/caddy" hash-password --plaintext "$demo_password")"
+          for secret in "$manager_password" "$manager_jwt" "$worker_token" "$bench_token" "$analysis_token" "$demo_password" "$demo_hash"; do
+            echo "::add-mask::$secret"
+          done
+          users="$(jq -cn --arg password "$manager_password" '[
+            {username:"viewer",password:$password,permissions:[{resource:"*",actions:["r"]}]},
+            {username:"analysis",password:$password,permissions:[
+              {resource:"cluster.node",actions:["r"]},{resource:"cluster.slot",actions:["r"]},
+              {resource:"cluster.controller",actions:["r"]},{resource:"cluster.diagnostics",actions:["r","w"]},
+              {resource:"cluster.log",actions:["r"]}]}]')"
+          install -d -m 0700 runtime-node runtime-load
+          printf "WK_MANAGER_JWT_SECRET=%s\nWK_MANAGER_USERS='%s'\nWK_BENCH_API_TOKEN=%s\n" "$manager_jwt" "$users" "$bench_token" >runtime-node/node.env
+          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_DEMO_BASIC_AUTH_USER=%s\nWK_DEMO_BASIC_AUTH_HASH='%s'\n" \
+            "$worker_token" "$bench_token" "$demo_user" "$demo_hash" >runtime-load/load.env
+          openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 5 -subj "/CN=${LOAD_PUBLIC}" \
+            -addext "subjectAltName=IP:${LOAD_PUBLIC},IP:127.0.0.1" \
+            -keyout runtime-load/analysis-key.pem -out runtime-load/analysis-cert.pem
+          expires_at="$(jq -er .expires_at deployment-plan.json)"
+          source_sha="$(jq -er .source_sha deployment-plan.json)"
+          lease_id="$(jq -er .lease_id deployment-plan.json)"
+          provider="$(jq -er .provider deployment-plan.json)"
+          region="$(jq -er .region deployment-plan.json)"
+          node_urls="$(jq -cn \
+            --arg one "http://$(jq -r '.hosts[]|select(.role=="service-1")|.private_address' deployment-plan.json):5001" \
+            --arg two "http://$(jq -r '.hosts[]|select(.role=="service-2")|.private_address' deployment-plan.json):5001" \
+            --arg three "http://$(jq -r '.hosts[]|select(.role=="service-3")|.private_address' deployment-plan.json):5001" \
+            '{"1":$one,"2":$two,"3":$three}')"
+          cat >runtime-load/analysis.env <<EOF
+          WK_ANALYSIS_RUN_ID=$lease_id
+          WK_ANALYSIS_RUN_STATE=running
+          WK_ANALYSIS_RUN_EXPIRES_AT=$expires_at
+          WK_ANALYSIS_PROVIDER=$provider
+          WK_ANALYSIS_REGION=$region
+          WK_ANALYSIS_SOURCE_SHA=$source_sha
+          WK_ANALYSIS_SCENARIO_PATH=/etc/wukongim/analysis-scenario.yaml
+          WK_ANALYSIS_MANAGER_BASE_URL=http://$(jq -r '.hosts[]|select(.role=="service-1")|.private_address' deployment-plan.json):5301
+          WK_ANALYSIS_MANAGER_USERNAME=analysis
+          WK_ANALYSIS_MANAGER_PASSWORD=$manager_password
+          WK_ANALYSIS_PROMETHEUS_BASE_URL=http://127.0.0.1:9090
+          WK_ANALYSIS_NODE_API_URLS='$node_urls'
+          WK_ANALYSIS_WORKLOAD_REPORT_DIR=/var/lib/wukongim-cloud/reports
+          WK_ANALYSIS_MCP_TOKEN=$analysis_token
+          WK_ANALYSIS_LISTEN_ADDR=0.0.0.0:19444
+          EOF
+          chmod 0600 runtime-node/* runtime-load/*
+          tar -czf runtime-node.tar.gz -C runtime-node .
+          tar -czf runtime-load.tar.gz -C runtime-load .
+          echo "WK_CLOUD_MANAGER_PASSWORD=$manager_password" >>"$GITHUB_ENV"
+          echo "WK_CLOUD_DEMO_USER=$demo_user" >>"$GITHUB_ENV"
+          echo "WK_CLOUD_DEMO_PASSWORD=$demo_password" >>"$GITHUB_ENV"
+      - name: Transfer through load node and activate native services
+        shell: bash
+        env:
+          WK_CLOUD_LOAD_PUBLIC_IP: ${{ steps.plan.outputs.load_public }}
+          WK_CLOUD_DEPLOYMENT_PLAN: deployment-plan.json
+          WK_CLOUD_BUNDLE_ARCHIVE: cloud-deployment-bundle.tar.gz
+          WK_CLOUD_RUNTIME_NODE_ARCHIVE: runtime-node.tar.gz
+          WK_CLOUD_RUNTIME_LOAD_ARCHIVE: runtime-load.tar.gz
+          WK_CLOUD_SSH_KEY: deployment-key
+          WK_CLOUD_SSH_CONFIG: deployment-ssh-config
+          WK_CLOUD_FAILURE_OUTPUT: deployment-failure-state.json
+          WK_CLOUD_LAST_GATE_OUTPUT: last-completed-gate.txt
+        run: |
+          set -euo pipefail
+          export WK_CLOUD_SERVICE1_IP="$(jq -er '.hosts[] | select(.role=="service-1") | .private_address' deployment-plan.json)"
+          export WK_CLOUD_SERVICE2_IP="$(jq -er '.hosts[] | select(.role=="service-2") | .private_address' deployment-plan.json)"
+          export WK_CLOUD_SERVICE3_IP="$(jq -er '.hosts[] | select(.role=="service-3") | .private_address' deployment-plan.json)"
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            bundle_transfer_failed plan_validated load \
+            'deployment SSH transport initialization failed' 'load host was not contacted'
+          scripts/cloud-deployment/write-ssh-config.sh
+          scripts/cloud-deployment/activate-hosts.sh
+      - name: Prove bounded Deployment readiness
+        id: readiness
+        shell: bash
+        env:
+          WK_CLOUD_LOAD_PUBLIC_IP: ${{ steps.plan.outputs.load_public }}
+          WK_CLOUD_DEPLOYMENT_PLAN: deployment-plan.json
+          WK_CLOUD_SSH_CONFIG: deployment-ssh-config
+          WK_CLOUD_READINESS_OUTPUT: readiness-snapshot.json
+        run: |
+          set -euo pipefail
+          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
+            readiness_evidence_invalid services_active load \
+            'bounded readiness collection did not complete' 'native services were activated; readiness is unknown'
+          export WK_CLOUD_SERVICE1_IP="$(jq -er '.hosts[] | select(.role=="service-1") | .private_address' deployment-plan.json)"
+          export WK_CLOUD_SERVICE2_IP="$(jq -er '.hosts[] | select(.role=="service-2") | .private_address' deployment-plan.json)"
+          export WK_CLOUD_SERVICE3_IP="$(jq -er '.hosts[] | select(.role=="service-3") | .private_address' deployment-plan.json)"
+          deadline=$(( $(date -u +%s) + 1200 ))
+          while true; do
+            if scripts/cloud-deployment/collect-readiness.sh; then
+              if "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-gate \
+                --plan deployment-plan.json \
+                --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
+                --snapshot readiness-snapshot.json \
+                >deployment-outcome.json; then
+                printf '%s\n' ready >last-completed-gate.txt
+                break
+              fi
+            fi
+            test "$(date -u +%s)" -lt "$deadline"
+            sleep 10
+          done
+      - name: Emit bounded failure when activation stopped before the gate
+        if: failure() || cancelled()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! jq -e '
+            (.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1") or
+            (.passed == false and .failure.schema == "wukongim.cloud_deployment.failure/v1")
+          ' deployment-outcome.json >/dev/null 2>&1; then
+            if jq -e '.passed == false and .failure.schema == "wukongim.cloud_deployment.failure/v1"' deployment-failure-state.json >/dev/null 2>&1; then
+              cp deployment-failure-state.json deployment-outcome.json
+            else
+              last_gate="$(cat last-completed-gate.txt 2>/dev/null || printf none)"
+              scripts/cloud-deployment/write-deployment-failure.sh deployment-outcome.json \
+                readiness_evidence_invalid "$last_gate" '' \
+                'Deployment Action stopped without complete typed evidence' 'known host state is unavailable'
+            fi
+          fi
+      - name: Upload typed Deployment Receipt or failure evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-deployment-${{ github.run_id }}
+          path: |
+            deployment-plan.json
+            readiness-snapshot.json
+            deployment-outcome.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Remove runner credentials
+        if: always()
+        shell: bash
+        run: rm -f deployment-key runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load

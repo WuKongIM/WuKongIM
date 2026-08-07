@@ -35,6 +35,14 @@ func TestOfflineCommandsSealAndVerifyVersionedBundle(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	workloadPath := filepath.Join(root, "config", "chat-lifecycle.yaml")
+	if err := os.MkdirAll(filepath.Dir(workloadPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	workload := "profile: formal\nworkload:\n  workers: 3\n  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}\n  sync: {version: 0}\nthresholds:\n  minimum_data_filesystem_bytes: 500000000000\n"
+	if err := os.WriteFile(workloadPath, []byte(workload), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	const sourceSHA = "0123456789012345678901234567890123456789"
 	const controlSHA = "abcdefabcdefabcdefabcdefabcdefabcdefabcd"
 	var stdout bytes.Buffer

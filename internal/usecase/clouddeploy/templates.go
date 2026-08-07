@@ -16,6 +16,7 @@ initial_slot_count = 12
 hash_slot_count = 256
 slot_replica_n = 3
 channel_replica_n = 3
+max_channels = 50000
 
 [api]
 listen_addr = "0.0.0.0:5001"
@@ -54,7 +55,7 @@ scrape_configs:
 :80 {
   handle_path /demo/* {
     basic_auth {
-      {{DEMO_BASIC_AUTH_USER}} {{DEMO_BASIC_AUTH_HASH}}
+      {$WK_DEMO_BASIC_AUTH_USER} {$WK_DEMO_BASIC_AUTH_HASH}
     }
     root * /opt/wukongim/assets/demo
     try_files {path} /index.html
@@ -66,7 +67,7 @@ scrape_configs:
   }
   handle @demo_websocket {
     basic_auth {
-      {{DEMO_BASIC_AUTH_USER}} {{DEMO_BASIC_AUTH_HASH}}
+      {$WK_DEMO_BASIC_AUTH_USER} {$WK_DEMO_BASIC_AUTH_HASH}
     }
     reverse_proxy {{DEMO_WS_UPSTREAMS}} {
       health_uri /readyz
@@ -79,7 +80,7 @@ scrape_configs:
   @demo_api path /route /user/* /channel/* /message/* /conversation/* /conversations/* /streammessage/* /web/*
   handle @demo_api {
     basic_auth {
-      {{DEMO_BASIC_AUTH_USER}} {{DEMO_BASIC_AUTH_HASH}}
+      {$WK_DEMO_BASIC_AUTH_USER} {$WK_DEMO_BASIC_AUTH_HASH}
     }
     reverse_proxy {{DEMO_API_UPSTREAMS}} {
       health_uri /readyz
@@ -114,9 +115,35 @@ set -euo pipefail
 . /etc/os-release
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
 [[ "$(uname -m)" == x86_64 ]]
-for tool in bash blkid chmod date df dirname findmnt getconf install lsblk mkfs.ext4 mount mv sha256sum sleep systemctl tar timedatectl timeout uname; do
+for tool in awk bash blkid cat chmod chown curl date df dirname findmnt getconf grep head id install lsblk mkdir mkfs.ext4 mount mv rm scp sed sha256sum sleep ssh stat sudo systemctl tail tar timedatectl timeout uname useradd; do
   command -v "$tool" >/dev/null
 done
+`,
+		"scripts/wait-coordinator-dependencies.sh": `#!/usr/bin/env bash
+set -euo pipefail
+config=/etc/wukongim/chat-lifecycle.yaml
+mapfile -t services < <(sed -n '/^  service_nodes:/,/^  workers:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
+mapfile -t host_metrics < <(sed -n '/^  host_metrics:/,/^  api_addrs:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
+((${#services[@]} == 3 && ${#host_metrics[@]} == 3))
+deadline=$(( $(date -u +%s) + 900 ))
+while (( $(date -u +%s) < deadline )); do
+  ready=true
+  for address in "${services[@]}"; do
+    curl --fail --silent --show-error --max-time 5 "http://${address}/readyz" >/dev/null || ready=false
+  done
+  for address in "${host_metrics[@]}"; do
+    curl --fail --silent --show-error --max-time 5 "http://${address}/healthz" >/dev/null || ready=false
+  done
+  for port in 19091 19092 19093; do
+    curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${port}/healthz" >/dev/null || ready=false
+  done
+  curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9090/-/ready >/dev/null || ready=false
+  if [[ "$ready" == true ]]; then
+    exit 0
+  fi
+  sleep 5
+done
+exit 1
 `,
 		"scripts/collect-evidence.sh": `#!/usr/bin/env bash
 set -euo pipefail
@@ -135,6 +162,7 @@ output="${WK_PROCESS_METRICS_OUTPUT:-/var/lib/wukongim/textfile/processes.prom}"
 interval="${WK_PROCESS_METRICS_INTERVAL_SECONDS:-15}"
 units=(
   wukongim.service
+  wkbench-host-metrics.service
   wkbench-worker@1.service
   wkbench-worker@2.service
   wkbench-worker@3.service
@@ -205,13 +233,14 @@ while true; do
   sleep "$interval"
 done
 `,
-		"systemd/wukongim.service":            serviceUnit("node.env", "/opt/wukongim/bin/wukongim -config /etc/wukongim/wukongim.toml"),
-		"systemd/wkbench-worker@.service":     serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
-		"systemd/wkbench-coordinator.service": serviceUnit("load.env", "/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports"),
-		"systemd/prometheus.service":          serviceUnit("load.env", "/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=96h --storage.tsdb.retention.size=150GB"),
-		"systemd/node-exporter.service":       serviceUnit("", "/opt/wukongim/bin/node_exporter --collector.textfile.directory=/var/lib/wukongim/textfile"),
-		"systemd/wkanalysis.service":          analysisServiceUnit(),
-		"systemd/caddy.service":               caddyServiceUnit(),
+		"systemd/wukongim.service":             serviceUnit("node.env", "/opt/wukongim/bin/wukongim -config /etc/wukongim/wukongim.toml"),
+		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data"),
+		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
+		"systemd/wkbench-coordinator.service":  coordinatorServiceUnit(),
+		"systemd/prometheus.service":           serviceUnit("load.env", "/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=96h --storage.tsdb.retention.size=150GB"),
+		"systemd/node-exporter.service":        serviceUnit("", "/opt/wukongim/bin/node_exporter --web.listen-address=0.0.0.0:9100 --collector.textfile.directory=/var/lib/wukongim/textfile"),
+		"systemd/wkanalysis.service":           analysisServiceUnit(),
+		"systemd/caddy.service":                caddyServiceUnit(),
 		"systemd/wukongim-process-metrics.service": `[Unit]
 Description=WuKongIM independent process resource observations
 After=network-online.target
@@ -262,6 +291,8 @@ Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 ExecStart=/opt/wukongim/bin/caddy run --config /etc/wukongim/Caddyfile --adapter caddyfile
 Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
@@ -288,6 +319,33 @@ Environment=WK_ANALYSIS_TLS_CERT_FILE=%d/analysis-cert.pem
 Environment=WK_ANALYSIS_TLS_KEY_FILE=%d/analysis-key.pem
 ExecStart=/opt/wukongim/bin/wkanalysis
 Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+`
+}
+
+func coordinatorServiceUnit() string {
+	return `[Unit]
+After=network-online.target time-sync.target wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+Wants=network-online.target time-sync.target
+Requisite=wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+EnvironmentFile=/etc/wukongim/secrets/load.env
+ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
+ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports
+TimeoutStartSec=960
+Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -311,6 +369,8 @@ Group=wukongim
 	}
 	return unit + `ExecStart=` + command + `
 Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
 NoNewPrivileges=true
 PrivateTmp=true
 

@@ -22,7 +22,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		formal.Workload.NewUsersPerDay != 250_000 || formal.Workload.SendRatePerSecond != 2_000 ||
 		formal.Workload.Sync.Version != 0 || formal.Thresholds.Timeline.Warmup != 2*time.Hour ||
 		formal.Thresholds.Timeline.Checkpoint != 24*time.Hour || formal.Thresholds.Timeline.Final != 72*time.Hour ||
-		formal.Thresholds.MinimumDataFilesystemBytes != 1_000_000_000_000 ||
+		formal.Thresholds.MinimumDataFilesystemBytes != 500_000_000_000 ||
 		formal.Thresholds.DiskSafeStopFreePercent != 5 {
 		t.Fatalf("formal example drifted: %+v", formal)
 	}
