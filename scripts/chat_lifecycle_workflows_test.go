@@ -229,6 +229,10 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 			t.Fatalf("coordinated pre-handoff stop is missing %q", required)
 		}
 	}
+	detector := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "operator-stop-requested.sh"))
+	if !strings.Contains(detector, "authenticate-operator-stop-producer.sh") {
+		t.Fatal("operator-stop detector does not use the shared protected-producer gate")
+	}
 	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
 		workflow := string(readWorkflow(t, workflowName))
 		for _, required := range []string{"operation:", "stop_authorization:", "operator-stop-chat-lifecycle", "WK_CHAT_OPERATOR_STOP"} {
@@ -308,6 +312,13 @@ esac
 	}
 	if observation.Schema != "wukongim.chat_lifecycle.operator_stop_observation/v1" || observation.RequestID != "request-1" || observation.RunID != 22 || observation.ArtifactID != 44 {
 		t.Fatalf("operator stop observation = %#v", observation)
+	}
+	inProgress := mapsClone(baseRun)
+	inProgress["status"] = "in_progress"
+	inProgress["conclusion"] = nil
+	write(runPath, inProgress)
+	if output, err := run(); err != nil {
+		t.Fatalf("in-progress protected stop did not become authoritative at Artifact upload: %v\n%s", err, output)
 	}
 
 	untrusted := mapsClone(baseRun)
@@ -1066,10 +1077,12 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 		t.Fatalf("formal start matrix = %+v", matrix.Include)
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
+	authenticator := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "authenticate-operator-stop-producer.sh"))
 	if !strings.Contains(discovery, "max_pages=50") || !strings.Contains(discovery, "inventory_complete=false") ||
 		!strings.Contains(discovery, "formal transition discovery exceeded") || strings.Contains(discovery, "--paginate") ||
+		!strings.Contains(discovery, "authenticate-operator-stop-producer.sh") ||
 		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") ||
-		!strings.Contains(discovery, "chat-lifecycle-stop.yml") {
+		!strings.Contains(authenticator, "chat-lifecycle-stop.yml") {
 		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
 	}
 }
@@ -1155,16 +1168,21 @@ esac
 	}
 
 	for _, test := range []struct {
-		name     string
-		stopPath string
-		wantRows int
+		name           string
+		stopPath       string
+		stopStatus     string
+		stopConclusion any
+		wantRows       int
 	}{
-		{name: "protected stop blocks", stopPath: ".github/workflows/chat-lifecycle-stop.yml", wantRows: 0},
-		{name: "untrusted name collision ignored", stopPath: ".github/workflows/another.yml", wantRows: 1},
+		{name: "protected in-progress stop blocks immediately", stopPath: ".github/workflows/chat-lifecycle-stop.yml", stopStatus: "in_progress", wantRows: 0},
+		{name: "protected canceled stop remains durable", stopPath: ".github/workflows/chat-lifecycle-stop.yml", stopStatus: "completed", stopConclusion: "cancelled", wantRows: 0},
+		{name: "untrusted name collision ignored", stopPath: ".github/workflows/another.yml", stopStatus: "completed", stopConclusion: "success", wantRows: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			stopRun := mapsClone(baseRun)
 			stopRun["path"] = test.stopPath
+			stopRun["status"] = test.stopStatus
+			stopRun["conclusion"] = test.stopConclusion
 			writeJSON(stopRunPath, stopRun)
 			output := filepath.Join(directory, strings.ReplaceAll(test.name, " ", "-")+".json")
 			command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-formal-transitions.sh"), "", output)

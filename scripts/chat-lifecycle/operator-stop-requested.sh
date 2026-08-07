@@ -44,13 +44,7 @@ jq -cs --arg name "$artifact_name" '
 while IFS= read -r artifact; do
   run_id="$(jq -er .workflow_run.id <<<"$artifact")"
   gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >"$temporary/run-${run_id}.json"
-  if jq -e --arg repository "$GITHUB_REPOSITORY" '
-    .repository.full_name == $repository and .head_repository.full_name == $repository and
-    .event == "workflow_dispatch" and .head_branch == "main" and .status == "completed" and
-    (.conclusion == "success" or .conclusion == "failure") and
-    (.path == ".github/workflows/chat-lifecycle-stop.yml" or
-     .path == ".github/workflows/chat-lifecycle-stop.yml@refs/heads/main")
-  ' "$temporary/run-${run_id}.json" >/dev/null; then
+  if scripts/chat-lifecycle/authenticate-operator-stop-producer.sh "$temporary/run-${run_id}.json"; then
     jq -cn --arg schema 'wukongim.chat_lifecycle.operator_stop_observation/v1' \
       --arg request_id "$request_id" --argjson run_id "$run_id" \
       --argjson artifact_id "$(jq -er .id <<<"$artifact")" \

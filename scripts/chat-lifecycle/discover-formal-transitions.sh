@@ -34,13 +34,7 @@ jq -s '[.[].artifacts[] | select(.expired == false)]' "$temporary/pages.json" >"
 while IFS= read -r stop; do
   stop_run_id="$(jq -er .workflow_run.id <<<"$stop")"
   gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${stop_run_id}" >"$temporary/stop-run-${stop_run_id}.json"
-  if jq -e --arg repository "$GITHUB_REPOSITORY" '
-    .repository.full_name == $repository and .head_repository.full_name == $repository and
-    .event == "workflow_dispatch" and .head_branch == "main" and .status == "completed" and
-    (.conclusion == "success" or .conclusion == "failure") and
-    (.path == ".github/workflows/chat-lifecycle-stop.yml" or
-     .path == ".github/workflows/chat-lifecycle-stop.yml@refs/heads/main")
-  ' "$temporary/stop-run-${stop_run_id}.json" >/dev/null; then
+  if scripts/chat-lifecycle/authenticate-operator-stop-producer.sh "$temporary/stop-run-${stop_run_id}.json"; then
     printf '%s\n' "$stop" >>"$temporary/authenticated-stops.jsonl"
   fi
 done < <(jq -c '.[] | select(.name | startswith("chat-lifecycle-operator-stop-"))' "$temporary/artifacts.json")
