@@ -67,10 +67,11 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 		t.Fatalf("installOfflineHost(load) error = %v", err)
 	}
 	for _, path := range []string{
-		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
+		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/wkchatlifecycle", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
 		"opt/wukongim/assets/manager/index.html", "opt/wukongim/assets/demo/index.html",
 		"etc/systemd/system/wkbench-worker@.service", "etc/systemd/system/wkbench-coordinator.service",
-		"etc/systemd/system/wkbench-rehearsal.service", "etc/wukongim/chat-lifecycle-rehearsal.yaml",
+		"etc/systemd/system/wkbench-formal.service", "etc/systemd/system/wkbench-rehearsal.service",
+		"opt/wukongim/scripts/run-formal-chain.sh", "etc/wukongim/chat-lifecycle-rehearsal.yaml",
 	} {
 		if _, err := os.Stat(filepath.Join(loadRoot, path)); err != nil {
 			t.Fatalf("load file %s: %v", path, err)
@@ -110,7 +111,7 @@ func TestActivateOfflineLoadKeepsCoordinatorDormant(t *testing.T) {
 			t.Fatalf("systemctl log omits %s: %s", unit, log)
 		}
 	}
-	if strings.Contains(log, "wkbench-coordinator.service") || strings.Contains(log, "wkbench-rehearsal.service") {
+	if strings.Contains(log, "wkbench-coordinator.service") || strings.Contains(log, "wkbench-formal.service") || strings.Contains(log, "wkbench-rehearsal.service") {
 		t.Fatalf("Deployment activated a workload coordinator: %s", log)
 	}
 }

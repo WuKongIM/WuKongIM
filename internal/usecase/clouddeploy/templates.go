@@ -181,6 +181,23 @@ while (( $(date -u +%s) < deadline )); do
 done
 exit 1
 `,
+		"scripts/run-formal-chain.sh": `#!/usr/bin/env bash
+set -euo pipefail
+formal_config=/etc/wukongim/chat-lifecycle.yaml
+formal_output=/var/lib/wukongim-cloud/reports/formal
+checkpoint=/var/lib/wukongim-cloud/reports/formal/final.json
+capacity_config=/var/lib/wukongim-cloud/reports/capacity.yaml
+capacity_output=/var/lib/wukongim-cloud/reports/capacity
+
+install -d -m 0750 "$formal_output" "$capacity_output"
+test ! -e "$checkpoint"
+test ! -e "$capacity_config"
+/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$formal_config" --output-dir "$formal_output"
+/opt/wukongim/bin/wkchatlifecycle prepare-capacity-config \
+  --config "$formal_config" --checkpoint "$checkpoint" --output "$capacity_config"
+exec /opt/wukongim/bin/wkbench capacity chat-lifecycle \
+  --config "$capacity_config" --checkpoint "$checkpoint" --output-dir "$capacity_output"
+`,
 		"scripts/collect-evidence.sh": `#!/usr/bin/env bash
 set -euo pipefail
 output="${WK_EVIDENCE_OUTPUT:-/var/lib/wukongim-cloud/evidence/host.txt}"
@@ -203,6 +220,7 @@ units=(
   wkbench-worker@2.service
   wkbench-worker@3.service
   wkbench-coordinator.service
+  wkbench-formal.service
   wkbench-rehearsal.service
   prometheus.service
   caddy.service
@@ -274,6 +292,7 @@ done
 		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data"),
 		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
 		"systemd/wkbench-coordinator.service":  coordinatorServiceUnit(),
+		"systemd/wkbench-formal.service":       formalServiceUnit(),
 		"systemd/wkbench-rehearsal.service":    rehearsalServiceUnit(),
 		"systemd/prometheus.service":           serviceUnit("load.env", "/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=96h --storage.tsdb.retention.size=150GB"),
 		"systemd/node-exporter.service":        serviceUnit("", "/opt/wukongim/bin/node_exporter --web.listen-address=0.0.0.0:9100 --collector.textfile.directory=/var/lib/wukongim/textfile"),
@@ -408,6 +427,33 @@ EnvironmentFile=/etc/wukongim/secrets/load.env
 Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle-rehearsal.yaml
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
 ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle-rehearsal.yaml --output-dir /var/lib/wukongim-cloud/reports/rehearsal
+TimeoutStartSec=960
+Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+`
+}
+
+func formalServiceUnit() string {
+	return `[Unit]
+After=network-online.target time-sync.target wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+Wants=network-online.target time-sync.target
+Requisite=wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+Conflicts=wkbench-rehearsal.service wkbench-coordinator.service
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+EnvironmentFile=/etc/wukongim/secrets/load.env
+Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle.yaml
+ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
+ExecStart=/opt/wukongim/scripts/run-formal-chain.sh
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576

@@ -11,27 +11,32 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 )
 
-func TestChatLifecycleExitCodesAreDistinct(t *testing.T) {
+func TestChatLifecycleExitCodesPreserveSuccessAndFailureClasses(t *testing.T) {
 	tests := []struct {
 		outcome chatlifecycle.VerdictOutcome
 		want    int
 	}{
 		{chatlifecycle.VerdictPass, 0},
+		{chatlifecycle.VerdictPassedWithCapacityWarning, 0},
 		{chatlifecycle.VerdictProductFailure, exitChatLifecycleProduct},
 		{chatlifecycle.VerdictHarnessInvalid, exitChatLifecycleHarness},
+		{chatlifecycle.VerdictInsufficientEvidence, exitChatLifecycleHarness},
 		{chatlifecycle.VerdictInfrastructureFailure, exitChatLifecycleInfrastructure},
 		{chatlifecycle.VerdictOperatorStop, exitChatLifecycleOperatorStop},
 	}
-	seen := make(map[int]struct{}, len(tests))
 	for _, test := range tests {
 		code := chatLifecycleVerdictExitCode(chatlifecycle.VerdictSnapshot{Terminal: true, Outcome: test.outcome})
 		if code != test.want {
 			t.Fatalf("outcome %s exit = %d, want %d", test.outcome, code, test.want)
 		}
-		if _, duplicate := seen[code]; duplicate {
-			t.Fatalf("duplicate chat-lifecycle exit code %d", code)
+	}
+	primary := []int{0, exitChatLifecycleProduct, exitChatLifecycleHarness, exitChatLifecycleInfrastructure, exitChatLifecycleOperatorStop}
+	for index, code := range primary {
+		for previous := 0; previous < index; previous++ {
+			if code == primary[previous] {
+				t.Fatalf("primary chat-lifecycle exit code %d is duplicated", code)
+			}
 		}
-		seen[code] = struct{}{}
 	}
 	if code := chatLifecycleVerdictExitCode(chatlifecycle.VerdictSnapshot{}); code != exitInternal {
 		t.Fatalf("nonterminal verdict exit = %d, want %d", code, exitInternal)

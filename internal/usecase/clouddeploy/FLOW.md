@@ -48,6 +48,10 @@ The load host carries separate non-restarting formal and rehearsal coordinator
 units plus their bounded dependency gate. The sealed formal and rehearsal YAML
 must be byte-equivalent after normalizing only `run_id` and `stage`; both retain
 the exact 10,000-online/250,000-new-user/2,000-SEND/s workload and thresholds.
+The formal unit owns one native wrapper that runs the 72-hour Soak, derives the
+capacity configuration from that exact passing report, and then `exec`s the
+at-most-eight-hour staircase plus 30-minute recovery. It never restarts the
+service or worker processes, clears data, or splices a second process lifetime.
 Deployment deliberately leaves both coordinator units dormant. Workload
 orchestration consumes the successful Deployment Receipt and alone authorizes
 the exact stage-specific coordinator start. Remote systemd, rather than a

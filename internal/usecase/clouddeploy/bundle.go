@@ -119,7 +119,7 @@ func DefaultIntent(sourceSHA, controlSHA string) Intent {
 			{Path: "/etc/wukongim/secrets/analysis-key.pem", Owner: "root", Mode: 0o600},
 		},
 		RequiredBaseTools: []string{"awk", "bash", "blkid", "cat", "chmod", "chown", "curl", "date", "df", "dirname", "findmnt", "getconf", "grep", "head", "id", "install", "lsblk", "mkdir", "mkfs.ext4", "mount", "mv", "rm", "scp", "sed", "sha256sum", "sleep", "ssh", "stat", "sudo", "systemctl", "tail", "tar", "timedatectl", "timeout", "uname", "useradd"},
-		OfflineBinaries:   []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"},
+		OfflineBinaries:   []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkchatlifecycle", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"},
 	}
 }
 
@@ -294,9 +294,9 @@ func validIntent(intent Intent) bool {
 func requiredFiles(intent Intent) []string {
 	paths := []string{intentName, "assets/demo/index.html", "assets/manager/index.html",
 		"config/Caddyfile.tmpl", "config/chat-lifecycle.yaml", "config/chat-lifecycle-rehearsal.yaml", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
-		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
+		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/run-formal-chain.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
 		"systemd/caddy.service", "systemd/node-exporter.service", "systemd/prometheus.service",
-		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-rehearsal.service", "systemd/wkbench-worker@.service",
+		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-formal.service", "systemd/wkbench-rehearsal.service", "systemd/wkbench-worker@.service",
 		"systemd/wkbench-host-metrics.service",
 		"systemd/wukongim-process-metrics.service", "systemd/wukongim-evidence.service",
 		"systemd/wukongim-evidence.timer", "systemd/wukongim.service"}

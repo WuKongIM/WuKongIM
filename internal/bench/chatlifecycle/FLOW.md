@@ -930,9 +930,10 @@ rejects missing/duplicate workers, overflow, stale sequence or uptime, and any
 monotonic counter/histogram/evidence regression before advancing its fixed
 three-worker baseline.
 
-The standalone verdict reducer has only the closed outcomes `pass`,
-`rehearsal_pass`, `product_failure`, `harness_invalid`,
-`infrastructure_failure`, and `operator_stop`. `rehearsal_pass` is valid only
+The standalone verdict reducer has the closed outcomes `pass`,
+`rehearsal_pass`, `passed_with_capacity_warning`, `product_failure`,
+`insufficient_evidence`, `harness_invalid`, `infrastructure_failure`, and
+`operator_stop`. `rehearsal_pass` is valid only
 for the bounded rehearsal and never substitutes for a formal pass; its report
 always warns that six-hour/24-hour/72-hour windows are incomplete. Within one
 atomic evidence batch its deterministic precedence
@@ -974,6 +975,18 @@ each node's queue and inflight baseline, and an explicit burst-end observation
 must return both gauges to that baseline; a burst without a baseline is harness
 invalid, and an active burst at finalization is product failure. All one-minute,
 five-minute, six-hour, and 24-hour histories remain fixed-size across 72 hours.
+
+After an exact passing 72-hour formal checkpoint, capacity mode probes the same
+live dataset generation and runs 10-minute stabilization plus 20-minute
+measurement steps. Coarse rates rise 25 percent; refinement uses 10 percent;
+the search is capped at eight hours and then proves 30 minutes of recovery at
+2,000 SEND/s. When no breakpoint is found, the report records an explicit
+lower bound. After successful recovery, a resource or queue breakpoint becomes
+`passed_with_capacity_warning/infrastructure_capacity`; a latency-only
+breakpoint with all declared headroom gates passing becomes `product_failure`;
+mixed evidence that cannot establish either attribution becomes
+`insufficient_evidence`. Correctness, evidence validity, process, cluster,
+disk, budget, and expiry failures retain their stronger terminal semantics.
 
 The standalone checkpoint recorder binds one validated configuration, start
 instant, and exact worker fence. It accepts only complete three-worker snapshot

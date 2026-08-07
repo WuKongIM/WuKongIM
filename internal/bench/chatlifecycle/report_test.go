@@ -205,24 +205,43 @@ func TestReportRejectsEarlyPassAndUnboundedVerdictTails(t *testing.T) {
 	}
 }
 
-func TestReportAcceptsCompletedCapacityPassBeforeSoakTimelineFinal(t *testing.T) {
-	report := reportFixture(t)
-	report.Mode = ModeCapacity
-	report.Kind = CheckpointFinal
-	report.Final = true
-	report.Continue = false
-	report.Window.End = report.Window.Start.Add(2 * time.Hour)
-	report.Window.Elapsed = 2 * time.Hour
-	report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
-	report.Capacity = ReportCapacityEvidence{
-		Attempted: true, Completed: true, MaximumPassingRate: 2_000,
-		FirstFailingRate: 2_500, RecoveryPassed: true,
-	}
-	for index := range report.Workers {
-		report.Workers[index].Phase = WorkerPhaseFinal
-	}
-	if _, err := MarshalReport(report, ReportFormatJSON); err != nil {
-		t.Fatalf("capacity pass report: %v", err)
+func TestReportAcceptsCapacityAttributionOutcomesBeforeSoakTimelineFinal(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		outcome     VerdictOutcome
+		cause       VerdictCause
+		attribution CapacityAttribution
+	}{
+		{"infrastructure warning", VerdictPassedWithCapacityWarning, VerdictCauseInfrastructureCapacity, CapacityAttributionInfrastructure},
+		{"headroom latency", VerdictProductFailure, VerdictCauseCapacityHeadroomLatency, CapacityAttributionProduct},
+		{"ambiguous evidence", VerdictInsufficientEvidence, VerdictCauseInsufficientEvidence, CapacityAttributionInsufficient},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			report := reportFixture(t)
+			report.Mode = ModeCapacity
+			report.Kind = CheckpointFinal
+			report.Final = true
+			report.Continue = false
+			report.Window.End = report.Window.Start.Add(2 * time.Hour)
+			report.Window.Elapsed = 2 * time.Hour
+			report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: test.outcome, Cause: test.cause}
+			report.Capacity = ReportCapacityEvidence{
+				Attempted: true, Completed: true, Attribution: test.attribution, MaximumPassingRate: 2_000,
+				FirstFailingRate: 2_500, RecoveryPassed: true,
+			}
+			for index := range report.Workers {
+				report.Workers[index].Phase = WorkerPhaseFinal
+			}
+			if _, err := MarshalReport(report, ReportFormatJSON); err != nil {
+				t.Fatalf("capacity report: %v", err)
+			}
+			report.Capacity.Attribution = CapacityAttributionInsufficient
+			if test.attribution != CapacityAttributionInsufficient {
+				if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+					t.Fatalf("mismatched attribution error = %v", err)
+				}
+			}
+		})
 	}
 }
 

@@ -172,11 +172,13 @@ type ReportClusterEvidence struct {
 
 // ReportCapacityEvidence is the stable seam populated by the later aged-data staircase.
 type ReportCapacityEvidence struct {
-	Attempted          bool   `json:"attempted"`
-	Completed          bool   `json:"completed"`
-	MaximumPassingRate uint64 `json:"maximum_passing_rate"`
-	FirstFailingRate   uint64 `json:"first_failing_rate"`
-	RecoveryPassed     bool   `json:"recovery_passed"`
+	Attempted          bool                `json:"attempted"`
+	Completed          bool                `json:"completed"`
+	Attribution        CapacityAttribution `json:"attribution,omitempty"`
+	LowerBound         bool                `json:"lower_bound"`
+	MaximumPassingRate uint64              `json:"maximum_passing_rate"`
+	FirstFailingRate   uint64              `json:"first_failing_rate"`
+	RecoveryPassed     bool                `json:"recovery_passed"`
 }
 
 // ReportVerdictEvidence is a tagged, bounded projection of the frozen evaluator state.
@@ -460,13 +462,29 @@ func validReportVerdict(report Report) bool {
 		return false
 	}
 	if report.Verdict.Outcome == VerdictPass || report.Verdict.Outcome == VerdictRehearsalPass ||
-		report.Verdict.Cause == VerdictCauseCompleted || report.Verdict.Cause == VerdictCauseRehearsalCompleted {
+		report.Verdict.Outcome == VerdictPassedWithCapacityWarning || report.Verdict.Cause == VerdictCauseCompleted ||
+		report.Verdict.Cause == VerdictCauseRehearsalCompleted || report.Verdict.Cause == VerdictCauseInfrastructureCapacity {
 		if !validSuccessfulVerdictPair(report.Verdict.Outcome, report.Verdict.Cause) || report.Kind != CheckpointFinal ||
 			(report.Mode == ModeSoak && report.Window.End.Before(report.Window.FinalAt)) ||
 			(report.Verdict.Outcome == VerdictPass && report.Stage != StageFormal) ||
 			(report.Verdict.Outcome == VerdictRehearsalPass && report.Stage != StageRehearsal) {
 			return false
 		}
+	}
+	if report.Verdict.Outcome == VerdictInsufficientEvidence || report.Verdict.Cause == VerdictCauseInsufficientEvidence {
+		if report.Verdict.Outcome != VerdictInsufficientEvidence || report.Verdict.Cause != VerdictCauseInsufficientEvidence ||
+			report.Mode != ModeCapacity || report.Capacity.Attribution != CapacityAttributionInsufficient {
+			return false
+		}
+	}
+	if report.Verdict.Cause == VerdictCauseCapacityHeadroomLatency &&
+		(report.Verdict.Outcome != VerdictProductFailure || report.Mode != ModeCapacity ||
+			report.Capacity.Attribution != CapacityAttributionProduct) {
+		return false
+	}
+	if report.Verdict.Outcome == VerdictPassedWithCapacityWarning &&
+		(report.Mode != ModeCapacity || report.Capacity.Attribution != CapacityAttributionInfrastructure) {
+		return false
 	}
 	if report.Stage == StageRehearsal && report.Verdict.Outcome == VerdictPass {
 		return false
@@ -476,7 +494,12 @@ func validReportVerdict(report Report) bool {
 
 func validReportCapacity(capacity ReportCapacityEvidence) bool {
 	if !capacity.Attempted {
-		return !capacity.Completed && capacity.MaximumPassingRate == 0 && capacity.FirstFailingRate == 0 && !capacity.RecoveryPassed
+		return !capacity.Completed && capacity.Attribution == CapacityAttributionNone && !capacity.LowerBound &&
+			capacity.MaximumPassingRate == 0 && capacity.FirstFailingRate == 0 && !capacity.RecoveryPassed
+	}
+	if capacity.Attribution != CapacityAttributionNone && capacity.Attribution != CapacityAttributionInfrastructure &&
+		capacity.Attribution != CapacityAttributionProduct && capacity.Attribution != CapacityAttributionInsufficient {
+		return false
 	}
 	if capacity.FirstFailingRate > 0 && capacity.FirstFailingRate <= capacity.MaximumPassingRate {
 		return false
@@ -484,9 +507,10 @@ func validReportCapacity(capacity ReportCapacityEvidence) bool {
 	if !capacity.Completed {
 		return !capacity.RecoveryPassed
 	}
-	// A completed staircase always includes an overload boundary before its
-	// fixed-rate recovery, even when the start rate itself was the first failure.
-	return capacity.FirstFailingRate > 0
+	if capacity.LowerBound {
+		return capacity.Attribution == CapacityAttributionNone && capacity.FirstFailingRate == 0 && capacity.MaximumPassingRate > 0
+	}
+	return capacity.FirstFailingRate > 0 && capacity.Attribution != CapacityAttributionNone
 }
 
 func validReportLatencyAnomaly(anomaly ReportLatencyAnomaly) bool {
@@ -510,7 +534,8 @@ func validReportRetention(retention ReportWindowRetention) bool {
 }
 
 func validVerdictOutcome(outcome VerdictOutcome) bool {
-	return outcome == VerdictPass || outcome == VerdictRehearsalPass || outcome == VerdictProductFailure || outcome == VerdictHarnessInvalid ||
+	return outcome == VerdictPass || outcome == VerdictRehearsalPass || outcome == VerdictPassedWithCapacityWarning ||
+		outcome == VerdictProductFailure || outcome == VerdictInsufficientEvidence || outcome == VerdictHarnessInvalid ||
 		outcome == VerdictInfrastructureFailure || outcome == VerdictOperatorStop
 }
 
@@ -524,7 +549,8 @@ func validVerdictCause(cause VerdictCause) bool {
 		VerdictCauseInvalidObservation, VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery:
 		return true
 	case VerdictCauseWorkerProduct, VerdictCauseWorkerHarness, VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness,
-		VerdictCauseMetaCreateProduct:
+		VerdictCauseMetaCreateProduct, VerdictCauseInfrastructureCapacity, VerdictCauseCapacityHeadroomLatency,
+		VerdictCauseInsufficientEvidence:
 		return true
 	default:
 		return false

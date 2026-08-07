@@ -26,6 +26,9 @@ func validateCapacity(c CapacityConfig, profile Profile, mode Mode) error {
 	if c.RecoveryDuration <= 0 {
 		return fieldError("capacity.recovery_duration", "must be greater than zero")
 	}
+	if c.MaximumDuration <= 0 {
+		return fieldError("capacity.maximum_duration", "must be greater than zero")
+	}
 	if profile == ProfileFormal && mode != ModeCapacity {
 		if err := validateFormalCapacity(c); err != nil {
 			return err
@@ -75,6 +78,9 @@ func validateFormalCapacity(c CapacityConfig) error {
 	}
 	if c.RefinePercent != expected.RefinePercent {
 		return formalError("capacity.refine_percent")
+	}
+	if c.MaximumDuration != expected.MaximumDuration {
+		return formalError("capacity.maximum_duration")
 	}
 	if c.Step.Stabilize != expected.Step.Stabilize {
 		return formalError("capacity.step.stabilize")

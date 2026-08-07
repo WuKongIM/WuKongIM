@@ -9,6 +9,8 @@ deploy hosts, run workers, or retain private credentials.
 versioned Run Plan template + four operator inputs + trusted workflow context
   -> validate exact source, operator, request, bundle, clock, and attempt
   -> bind immutable six-hour rehearsal Lease and aggregate budget ledger
+  -> require released rehearsal_pass transition before formal materialization
+  -> bind fresh 96-hour formal Lease to the same source, bundle, and ledger
   -> emit generic Cloud Lease Plan + public bootstrap access
 ```
 
@@ -17,8 +19,11 @@ is valid only after a nonzero prior commitment and excludes exactly the first
 zone/compute-type pair. Both attempts share one aggregate cost ledger: CNY
 1,350 is the operational admission stop and CNY 1,500 is the hard limit. The template fixes four Ubuntu x86 hosts, 4 vCPU/8 GiB,
 40 GiB system disks, 500/200 GiB data disks, one 20 Mbps EIP, lease-long public
-ports 22 and 80, a six-hour Lease, and a two-hour rehearsal. Runtime YAML owns
-the unchanged workload and threshold details.
+ports 22 and 80. The rehearsal template fixes a six-hour Lease and a two-hour
+run. The formal template fixes a fresh 96-hour Lease and a 72-hour run; it is
+accepted only with a typed rehearsal transition containing exact zero-inventory
+proof, the same request/source/bundle identities, and the carried aggregate
+commitment. Runtime YAML owns the unchanged workload and threshold details.
 
 This package never accepts infrastructure quantities as command-line inputs.
 The workflow supplies only trusted context derived from the protected

@@ -15,6 +15,8 @@ authorization and the applicable budget.
 | --- | --- | --- |
 | `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
+| `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
+| `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -270,12 +272,28 @@ Release until `zero_inventory == true`; a cleanup Artifact is the terminal
 proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.
 The scenario-wide concurrency lock permits only one paid Chat Lifecycle
 orchestrator at a time, and startup also refuses procurement while any prior
-authenticated handoff or cleanup-pending Lease lacks its selector-bound zero
+authenticated rehearsal or formal handoff or cleanup-pending Lease lacks its selector-bound zero
 proof. A handed-off Lease is released immediately if Artifact
 publication fails. Every immediate cleanup owner performs one complete
 provider-bounded Release pass; the finalizer retries on its next schedule, and
 the independent 15-minute Cloud Lease Sweep reconciles cleanup-pending or
 expired inventory even if an owning job is canceled.
+
+A passing rehearsal finalizer releases the rehearsal Lease first, authenticates
+its selector-bound zero proof, and publishes one `formal_transition/v1` bound to
+the same source SHA, bundle digest, request, and aggregate budget ledger.
+`chat-lifecycle-formal.yml` is an internal scheduled safety continuation, not a
+second public operator surface. It consumes at most one unspent transition,
+refuses procurement if either stage still has active inventory, reuses the
+exact original bundle, and acquires a completely fresh 96-hour formal Lease.
+Remote `wkbench-formal.service` owns the uninterrupted 72-hour Soak, hour-24
+qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
+2,000-SEND/s recovery. `chat-lifecycle-formal-finalize.yml` waits for that one
+non-restarting wrapper to exit, uploads the terminal chain result or bounded
+diagnostics, and only then releases the exact Lease to zero inventory. Failed
+Release attempts persist a stage-authenticated cleanup continuation for the
+next scheduled pass; the generic Cloud Lease sweeper remains the independent
+expiry backstop.
 
 ## Workflow maintenance
 

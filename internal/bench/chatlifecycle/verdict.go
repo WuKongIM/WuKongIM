@@ -25,12 +25,14 @@ var (
 type VerdictOutcome string
 
 const (
-	VerdictPass                  VerdictOutcome = "pass"
-	VerdictRehearsalPass         VerdictOutcome = "rehearsal_pass"
-	VerdictProductFailure        VerdictOutcome = "product_failure"
-	VerdictHarnessInvalid        VerdictOutcome = "harness_invalid"
-	VerdictInfrastructureFailure VerdictOutcome = "infrastructure_failure"
-	VerdictOperatorStop          VerdictOutcome = "operator_stop"
+	VerdictPass                      VerdictOutcome = "pass"
+	VerdictRehearsalPass             VerdictOutcome = "rehearsal_pass"
+	VerdictPassedWithCapacityWarning VerdictOutcome = "passed_with_capacity_warning"
+	VerdictProductFailure            VerdictOutcome = "product_failure"
+	VerdictInsufficientEvidence      VerdictOutcome = "insufficient_evidence"
+	VerdictHarnessInvalid            VerdictOutcome = "harness_invalid"
+	VerdictInfrastructureFailure     VerdictOutcome = "infrastructure_failure"
+	VerdictOperatorStop              VerdictOutcome = "operator_stop"
 )
 
 // VerdictCause is the closed, identity-free first-cause vocabulary.
@@ -65,6 +67,9 @@ const (
 	VerdictCauseLifecycleProduct        VerdictCause = "lifecycle_product_failure"
 	VerdictCauseLifecycleHarness        VerdictCause = "lifecycle_harness_invalid"
 	VerdictCauseMetaCreateProduct       VerdictCause = "meta_create_product_failure"
+	VerdictCauseInfrastructureCapacity  VerdictCause = "infrastructure_capacity"
+	VerdictCauseCapacityHeadroomLatency VerdictCause = "capacity_headroom_latency"
+	VerdictCauseInsufficientEvidence    VerdictCause = "insufficient_evidence"
 )
 
 // ResourceBurstState makes overload recovery evaluation explicit.

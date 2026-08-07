@@ -13,7 +13,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 )
 
-const chatLifecycleCoordinatorGeneration uint64 = 1
+func chatLifecycleGeneration(mode chatlifecycle.Mode) uint64 {
+	if mode == chatlifecycle.ModeCapacity {
+		return 2
+	}
+	return 1
+}
 
 // productionChatLifecycleRunner is the command composition root. Scheduling,
 // lifecycle, capacity, and verdict policy remain in chatlifecycle.
@@ -111,7 +116,7 @@ func composeProductionChatLifecycleRunner(cli chatLifecycleCLIConfig) (chatLifec
 	})
 	stop := make(chan struct{})
 	options := chatlifecycle.CoordinatorOptions{
-		Generation: chatLifecycleCoordinatorGeneration,
+		Generation: chatLifecycleGeneration(cli.config.Mode),
 		Preflight:  preflight, Setup: setup, Workers: workerInterfaces, Observer: observer,
 		Hooks: controller, StopRequests: stop,
 	}

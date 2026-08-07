@@ -707,8 +707,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			joinCapacityAsync()
 			result.Code = CoordinatorCodeCapacity
 			switch snapshot.Outcome {
+			case CapacityPassed, CapacityPassedWithWarning:
+				result.Outcome = CoordinatorCompleted
 			case CapacityProductFailure:
 				result.Outcome = CoordinatorProductFailure
+			case CapacityInfrastructureFailure:
+				result.Outcome = CoordinatorInfrastructureFailure
 			default:
 				result.Outcome = CoordinatorHarnessInvalid
 			}
@@ -822,7 +826,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				transition, advanceErr := capacityStaircase.Advance(evidence.request.End, evidence.observation)
 				result.Capacity = capacityStaircase.Snapshot()
 				if advanceErr != nil || result.Capacity.Terminal {
-					if result.Capacity.Outcome == CapacityPassed {
+					if result.Capacity.Outcome == CapacityPassed || result.Capacity.Outcome == CapacityPassedWithWarning {
 						observation = joinObservation()
 						cutoffOwned = true
 						goto observationComplete

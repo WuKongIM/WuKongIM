@@ -67,6 +67,69 @@ func TestProductionCapacityEvidenceRejectsWindowWithoutBaseline(t *testing.T) {
 	}
 }
 
+func TestProductionCapacityTreatsUnsafeDiskAsFatalNotCapacityWarning(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	request := CapacityEvidenceRequest{
+		Phase: CapacityPhaseMeasure, RatePerSecond: 2_000,
+		Start: time.Unix(1_970_100_000, 0).UTC(), End: time.Unix(1_970_100_000, 0).UTC().Add(20 * time.Minute),
+	}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, WorkerFence{RunID: cfg.RunID, AssignmentID: "disk", Generation: 2}, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, WorkerFence{RunID: cfg.RunID, AssignmentID: "disk", Generation: 2}, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	for index := range baseline.workers {
+		baseline.workers[index].Sessions.Target = 1
+		baseline.workers[index].Sessions.Online = 1
+		baseline.workers[index].Sessions.TrafficReady = 1
+		current.workers[index].Sessions.Target = 1
+		current.workers[index].Sessions.Online = 1
+		current.workers[index].Sessions.TrafficReady = 1
+	}
+	current.observation.Signals = []VerdictSignal{{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseDiskExhausted}}
+	observation, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !observation.InfrastructureFailure || observation.ResourceAccepted {
+		t.Fatalf("unsafe disk observation = %+v", observation)
+	}
+}
+
+func TestProductionCapacityQueueGateUsesDeclaredEightyPercentBoundary(t *testing.T) {
+	for _, test := range []struct {
+		current int
+		want    bool
+	}{
+		{80, true},
+		{81, false},
+	} {
+		if got := productionQueueBelow(test.current, 100); got != test.want {
+			t.Fatalf("queue %d/100 accepted = %t, want %t", test.current, got, test.want)
+		}
+	}
+}
+
+func TestProductionCapacitySeparatesClusterUnavailabilityFromRateBoundary(t *testing.T) {
+	baseline := ProductionObservationSnapshot{ClusterEvidence: ReportClusterEvidence{
+		HealthySamples: 10, LogicalSlotGroups: 12, LeaderGroups: 12, FullReplicaGroups: 12,
+	}}
+	current := baseline
+	current.ClusterEvidence.HealthySamples++
+	if productionCapacityClusterUnavailable(baseline, current) || !productionCapacityClusterAccepted(baseline, current) {
+		t.Fatalf("healthy cluster was rejected: %+v", current.ClusterEvidence)
+	}
+	current.ClusterEvidence.UnhealthySamples++
+	if !productionCapacityClusterUnavailable(baseline, current) || productionCapacityClusterAccepted(baseline, current) {
+		t.Fatalf("unavailable cluster was treated as a capacity boundary: %+v", current.ClusterEvidence)
+	}
+}
+
 func productionCapacityConfig(t *testing.T) Config {
 	t.Helper()
 	cfg := FormalConfig()

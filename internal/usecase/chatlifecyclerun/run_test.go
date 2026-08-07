@@ -73,6 +73,52 @@ func TestRetryCarriesBudgetAndExcludesExactlyPriorOffer(t *testing.T) {
 	}
 }
 
+func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggregateBudget(t *testing.T) {
+	template := loadRepositoryTemplateNamed(t, "formal-v1.json")
+	now := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+	input := OperatorInput{
+		SourceSHA: strings.Repeat("1", 40), Operator: "tangtaoit",
+		CodexDiagnosticPubKey: testPublicKey(t), RequestID: "chat-run-20260808",
+	}
+	trusted := TrustedContext{
+		Repository: "WuKongIM/WuKongIM", BundleDigest: "sha256:" + strings.Repeat("2", 64),
+		DeploymentPubKey: testPublicKey(t), Now: now, Attempt: 1, CommittedMicros: 75_000_000,
+		Transition: &StageTransition{
+			Schema: FormalTransitionSchemaV1, FromStage: StageRehearsal, Outcome: "rehearsal_pass",
+			RequestID: input.RequestID, SourceSHA: input.SourceSHA,
+			BundleDigest: "sha256:" + strings.Repeat("2", 64), CommittedMicros: 75_000_000,
+			ZeroInventory: true,
+		},
+	}
+	plan, err := Materialize(template, input, trusted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Stage != StageFormal || plan.WorkloadDurationSeconds != int64((72*time.Hour)/time.Second) ||
+		plan.LeasePlan.ExpiresAt != now.Add(96*time.Hour) || plan.LeasePlan.LeaseID != "chat-run-20260808-formal-1" ||
+		plan.LeasePlan.Budget.CommittedMicros != 75_000_000 || plan.LeasePlan.Tags["stage"] != StageFormal {
+		t.Fatalf("formal run plan = %+v", plan)
+	}
+
+	missing := trusted
+	missing.Transition = nil
+	if _, err := Materialize(template, input, missing); err == nil {
+		t.Fatal("formal run without a typed rehearsal transition was accepted")
+	}
+	notReleased := *trusted.Transition
+	notReleased.ZeroInventory = false
+	missing.Transition = &notReleased
+	if _, err := Materialize(template, input, missing); err == nil {
+		t.Fatal("formal run before rehearsal zero-inventory proof was accepted")
+	}
+	wrongSource := *trusted.Transition
+	wrongSource.SourceSHA = strings.Repeat("3", 40)
+	missing.Transition = &wrongSource
+	if _, err := Materialize(template, input, missing); err == nil {
+		t.Fatal("formal run with different source provenance was accepted")
+	}
+}
+
 func TestTemplateAndOperatorSurfaceFailClosed(t *testing.T) {
 	template := loadRepositoryTemplate(t)
 	body, err := os.ReadFile(filepath.Join("..", "..", "..", "configs", "cloud", "chat-lifecycle", "rehearsal-v1.json"))
@@ -103,8 +149,12 @@ func TestTemplateAndOperatorSurfaceFailClosed(t *testing.T) {
 }
 
 func loadRepositoryTemplate(t *testing.T) Template {
+	return loadRepositoryTemplateNamed(t, "rehearsal-v1.json")
+}
+
+func loadRepositoryTemplateNamed(t *testing.T, name string) Template {
 	t.Helper()
-	file, err := os.Open(filepath.Join("..", "..", "..", "configs", "cloud", "chat-lifecycle", "rehearsal-v1.json"))
+	file, err := os.Open(filepath.Join("..", "..", "..", "configs", "cloud", "chat-lifecycle", name))
 	if err != nil {
 		t.Fatal(err)
 	}

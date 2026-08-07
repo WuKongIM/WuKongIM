@@ -1,0 +1,189 @@
+name: Safety Automation - Finalize Formal Chat Lifecycle Runs
+run-name: Chat Lifecycle Formal Finalizer ${{ inputs.request_id || github.run_id }}
+
+on:
+  schedule:
+    - cron: "9,19,29,39,49,59 * * * *"
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Optional exact formal request; empty scans active handoffs
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: chat-lifecycle-formal-finalizer-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover formal handoffs without zero-inventory proof
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUEST_ID: ${{ inputs.request_id || '' }}
+      WK_CHAT_STAGE: formal
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select bounded latest formal handoffs
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/discover-active-handoffs.sh "$REQUEST_ID" matrix.json
+          echo "matrix=$(cat matrix.json)" >>"$GITHUB_OUTPUT"
+
+  finalize:
+    name: Finalize formal ${{ matrix.request_id }} before exact Release
+    needs: discover
+    if: fromJSON(needs.discover.outputs.matrix).include[0] != null
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: cloud-deployment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WK_CHAT_STAGE: formal
+      WK_CHAT_REQUEST_ID: ${{ matrix.request_id }}
+      WK_CHAT_HANDOFF_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
+      WK_CHAT_FINAL_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/final
+      WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/cleanup
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Download exact non-secret formal handoff
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_HANDOFF_DIR }}
+          run-id: ${{ matrix.handoff_run_id }}
+          github-token: ${{ github.token }}
+      - name: Reauthenticate the protected-main formal producer
+        shell: bash
+        run: scripts/chat-lifecycle/authenticate-handoff-producer.sh "${{ matrix.handoff_run_id }}" "$RUNNER_TEMP/handoff-run.json"
+      - name: Classify formal run handoff or cleanup continuation
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$WK_CHAT_HANDOFF_DIR/handoff.json" ]]; then
+            for name in deployment-plan.json run-start.json release-selector.json run-plan.json quote.json receipt.json deployment-outcome.json; do
+              test -f "$WK_CHAT_HANDOFF_DIR/$name"
+            done
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_handoff/v1" and .request_id == $request
+            ' "$WK_CHAT_HANDOFF_DIR/handoff.json" >/dev/null
+            echo 'mode=run' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.cleanup_pending/v1" and .request_id == $request
+            ' "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" >/dev/null
+            echo 'mode=cleanup_pending' >>"$GITHUB_OUTPUT"
+          else
+            echo 'Authenticated formal Artifact has no complete handoff or cleanup continuation.' >&2
+            exit 1
+          fi
+      - name: Build trusted validator and deployment SSH identity
+        if: steps.handoff.outputs.mode == 'run'
+        shell: bash
+        env:
+          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
+          umask 077
+          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/deployment-key"
+          chmod 0600 "$RUNNER_TEMP/deployment-key"
+          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >/dev/null
+      - name: Collect terminal 72-hour, capacity, and recovery evidence
+        id: collect
+        if: steps.handoff.outputs.mode == 'run'
+        shell: bash
+        env:
+          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
+          WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/formal-finalize.sh | tee "$RUNNER_TEMP/finalize-status.txt"
+          if [[ -s "$WK_CHAT_FINAL_DIR/finalization.json" ]]; then
+            echo 'ready=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload terminal formal evidence before any Release
+        if: steps.collect.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-final-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_FINAL_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Release exact formal Lease until zero inventory
+        id: release
+        if: steps.handoff.outputs.mode == 'cleanup_pending' || steps.collect.outputs.ready == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json
+        run: scripts/chat-lifecycle/release-until-zero.sh
+      - name: Classify Release continuation
+        id: cleanup
+        if: steps.release.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup.json" && -f "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" ]]; then
+            echo 'zero=true' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          elif [[ -f "$WK_CHAT_CLEANUP_DIR/cleanup-pending.json" && -f "$WK_CHAT_CLEANUP_DIR/release-selector.json" ]]; then
+            echo 'zero=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'Release emitted neither zero proof nor cleanup continuation.' >&2
+            exit 1
+          fi
+      - name: Upload formal zero-inventory proof
+        if: steps.cleanup.outputs.zero == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload formal cleanup-pending continuation
+        if: steps.cleanup.outputs.pending == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Fail after persisting a Release continuation
+        if: steps.release.outcome == 'failure'
+        shell: bash
+        run: exit 1
+      - name: Remove plaintext runner identity
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/deployment-key"

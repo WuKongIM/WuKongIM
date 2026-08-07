@@ -49,7 +49,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"-f quote_only=true",
 		"-f quote_only=false",
 		"cloud-deployment-activate.yml",
-		"systemctl start --no-block wkbench-rehearsal.service",
+		"systemctl start --no-block '$stage_service'",
 		"run-start.json",
 		"keep_active=true",
 	}
@@ -106,11 +106,57 @@ func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(
 	}
 }
 
+func TestChatLifecycleFormalTransitionRunsOnFreshLeaseAndReportsBeforeRelease(t *testing.T) {
+	rehearsalFinalizer := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
+	release := strings.Index(rehearsalFinalizer, "Release exact Lease until zero inventory")
+	transition := strings.Index(rehearsalFinalizer, "Seal fresh-formal transition after rehearsal evidence and zero inventory")
+	if release < 0 || transition <= release || !strings.Contains(rehearsalFinalizer, "formal_transition/v1") {
+		t.Fatal("formal transition is not sealed after rehearsal zero-inventory cleanup")
+	}
+
+	formal := string(readWorkflow(t, "chat-lifecycle-formal.yml"))
+	for _, required := range []string{
+		"group: chat-lifecycle-paid-${{ github.repository }}",
+		"discover-formal-transitions.sh",
+		"configs/cloud/chat-lifecycle/formal-v1.json",
+		"Refuse procurement while any paid scenario lacks zero proof",
+		"WK_CHAT_STAGE: formal",
+	} {
+		if !strings.Contains(formal, required) {
+			t.Fatalf("formal starter is missing %q", required)
+		}
+	}
+
+	finalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
+	upload := strings.Index(finalizer, "Upload terminal formal evidence before any Release")
+	formalRelease := strings.Index(finalizer, "Release exact formal Lease until zero inventory")
+	zero := strings.Index(finalizer, "Upload formal zero-inventory proof")
+	if upload < 0 || formalRelease <= upload || zero <= formalRelease ||
+		!strings.Contains(finalizer, "scripts/chat-lifecycle/formal-finalize.sh") {
+		t.Fatal("formal finalization order is not report -> exact Release -> zero proof")
+	}
+
+	collector := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "formal-finalize.sh"))
+	for _, required := range []string{
+		"wkbench-formal.service",
+		"remote_root=/var/lib/wukongim-cloud/reports",
+		"$remote_root/formal/final.json",
+		"$remote_root/capacity/final.${extension}",
+		"validate-formal-chain",
+		"9 * 60 * 60",
+	} {
+		if !strings.Contains(collector, required) {
+			t.Fatalf("formal collector is missing %q", required)
+		}
+	}
+}
+
 func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t *testing.T) {
 	start := string(readWorkflow(t, "chat-lifecycle-rehearsal.yml"))
 	for _, required := range []string{
-		"group: chat-lifecycle-rehearsal-${{ github.repository }}",
+		"group: chat-lifecycle-paid-${{ github.repository }}",
 		"Refuse a second paid scenario while any prior Lease lacks zero proof",
+		"for stage in rehearsal formal",
 		"steps.handoff_upload.outcome != 'success'",
 		`[[ ! -f "$WK_CHAT_SELECTOR" ]]`,
 	} {
@@ -118,7 +164,7 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 			t.Fatalf("start workflow is missing %q", required)
 		}
 	}
-	if strings.Contains(start, "chat-lifecycle-rehearsal-${{ github.repository }}-${{ inputs.request_id }}") {
+	if strings.Contains(start, "chat-lifecycle-paid-${{ github.repository }}-${{ inputs.request_id }}") {
 		t.Fatal("request-scoped concurrency permits multiple paid scenario runs")
 	}
 
@@ -164,8 +210,8 @@ func TestChatLifecycleShellProgramsHaveValidBashSyntax(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) != 6 {
-		t.Fatalf("chat-lifecycle shell programs = %d, want 6", len(paths))
+	if len(paths) < 8 {
+		t.Fatalf("chat-lifecycle shell programs = %d, want at least 8", len(paths))
 	}
 	for _, path := range paths {
 		info, err := os.Stat(path)
@@ -196,7 +242,11 @@ func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testin
 		t.Fatal(err)
 	}
 	filter := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "select-finalization-matrix.jq")
-	command := exec.Command("jq", "-c", "--arg", "prefix", "chat-lifecycle-rehearsal-handoff-", "--arg", "requested", "", "-f", filter)
+	command := exec.Command("jq", "-c",
+		"--arg", "prefix", "chat-lifecycle-rehearsal-handoff-",
+		"--arg", "final_prefix", "chat-lifecycle-rehearsal-final-",
+		"--arg", "cleanup_prefix", "chat-lifecycle-rehearsal-cleanup-",
+		"--arg", "requested", "", "-f", filter)
 	command.Stdin = bytes.NewReader(input)
 	output, err := command.Output()
 	if err != nil {
@@ -219,5 +269,43 @@ func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testin
 		matrix.Include[2].RequestID != "r1" || matrix.Include[2].HandoffRunID != 2 ||
 		!matrix.Include[2].FinalExists || matrix.Include[2].FinalRunID != 3 {
 		t.Fatalf("matrix = %+v", matrix.Include)
+	}
+}
+
+func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.T) {
+	artifacts := []map[string]any{
+		{"name": "chat-lifecycle-formal-transition-r1", "created_at": "2026-08-07T10:00:00Z", "workflow_run": map[string]any{"id": 11}},
+		{"name": "chat-lifecycle-formal-handoff-r1", "created_at": "2026-08-07T11:00:00Z", "workflow_run": map[string]any{"id": 12}},
+		{"name": "chat-lifecycle-formal-transition-r2", "created_at": "2026-08-07T12:00:00Z", "workflow_run": map[string]any{"id": 21}},
+		{"name": "chat-lifecycle-formal-transition-r3", "created_at": "2026-08-07T13:00:00Z", "workflow_run": map[string]any{"id": 31}},
+		{"name": "chat-lifecycle-formal-cleanup-r3", "created_at": "2026-08-07T14:00:00Z", "workflow_run": map[string]any{"id": 32}},
+	}
+	input, err := json.Marshal(artifacts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "select-formal-start-matrix.jq")
+	command := exec.Command("jq", "-c", "--arg", "requested", "", "-f", filter)
+	command.Stdin = bytes.NewReader(input)
+	output, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var matrix struct {
+		Include []struct {
+			RequestID       string `json:"request_id"`
+			TransitionRunID int    `json:"transition_run_id"`
+		} `json:"include"`
+	}
+	if err := json.Unmarshal(output, &matrix); err != nil {
+		t.Fatal(err)
+	}
+	if len(matrix.Include) != 1 || matrix.Include[0].RequestID != "r2" || matrix.Include[0].TransitionRunID != 21 {
+		t.Fatalf("formal start matrix = %+v", matrix.Include)
+	}
+	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
+	if !strings.Contains(discovery, "for page in 1 2 3 4 5") || strings.Contains(discovery, "--paginate") ||
+		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") {
+		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
 	}
 }

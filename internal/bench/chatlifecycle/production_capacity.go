@@ -200,6 +200,8 @@ func reduceProductionCapacityWindow(
 			observation.HarnessInvalid = true
 		case VerdictProductFailure:
 			observation.CorrectnessFailure = true
+		case VerdictInfrastructureFailure:
+			observation.InfrastructureFailure = true
 		}
 	}
 	observation.ErrorRateAccepted = !rationalViolates(
@@ -209,9 +211,13 @@ func reduceProductionCapacityWindow(
 	)
 	observation.LatencyAccepted = productionCapacityLatencyAccepted(deltaLatency)
 	observation.QueueInflightAccepted = productionCapacityQueuesAccepted(request, baseline, current)
+	observation.ClusterUnavailable = productionCapacityClusterUnavailable(baseline.observation, current.observation)
 	observation.ClusterLagAccepted = productionCapacityClusterAccepted(baseline.observation, current.observation)
 	observation.ResourceAccepted = productionCapacityResourcesAccepted(cfg, request, baseline.observation, current.observation)
 	observation.ReadinessAccepted = productionCapacityWorkersReady(current.workers)
+	if !observation.ReadinessAccepted {
+		observation.HarnessInvalid = true
+	}
 	observation.LifecycleAccepted = current.lifecycle.ProductFailures == baseline.lifecycle.ProductFailures &&
 		current.lifecycle.HarnessFailures == baseline.lifecycle.HarnessFailures &&
 		current.lifecycle.Completed > baseline.lifecycle.Completed && deltaLatency.Cold.Count > 0
@@ -298,15 +304,27 @@ func productionCapacityQueuesAccepted(
 }
 
 func productionQueueBelow(current, capacity int) bool {
-	return current >= 0 && capacity > 0 && current < capacity
+	if current < 0 || capacity <= 0 {
+		return false
+	}
+	// Equality at 80 percent is permitted; the declared warning boundary is
+	// strictly above 80 percent for the retained 15-minute window.
+	maximum := (capacity/5)*4 + (capacity%5)*4/5
+	return current <= maximum
 }
 
 func productionCapacityClusterAccepted(baseline, current ProductionObservationSnapshot) bool {
+	if productionCapacityClusterUnavailable(baseline, current) {
+		return false
+	}
 	left, right := baseline.ClusterEvidence, current.ClusterEvidence
-	return right.HealthySamples > left.HealthySamples && right.UnhealthySamples == left.UnhealthySamples &&
-		right.HotReplicaLagBreaches == left.HotReplicaLagBreaches &&
-		right.LogicalSlotGroups == formalLogicalSlotGroups && right.LeaderGroups == formalLogicalSlotGroups &&
-		right.FullReplicaGroups == formalLogicalSlotGroups
+	return right.HealthySamples > left.HealthySamples && right.HotReplicaLagBreaches == left.HotReplicaLagBreaches
+}
+
+func productionCapacityClusterUnavailable(baseline, current ProductionObservationSnapshot) bool {
+	left, right := baseline.ClusterEvidence, current.ClusterEvidence
+	return right.UnhealthySamples != left.UnhealthySamples || right.LogicalSlotGroups != formalLogicalSlotGroups ||
+		right.LeaderGroups != formalLogicalSlotGroups || right.FullReplicaGroups != formalLogicalSlotGroups
 }
 
 func productionCapacityResourcesAccepted(

@@ -3,6 +3,9 @@ set -euo pipefail
 
 : "${GH_TOKEN:?required}"
 : "${GITHUB_REPOSITORY:?required}"
+: "${WK_CHAT_STAGE:=rehearsal}"
+
+[[ "$WK_CHAT_STAGE" == rehearsal || "$WK_CHAT_STAGE" == formal ]]
 
 request_id="${1:?request_id required}"
 run_id="${2:?run_id required}"
@@ -15,22 +18,22 @@ destination="${4:?destination required}"
 install -d -m 0700 "$destination"
 
 gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >"$destination/producer-run.json"
-jq -e --arg repository "$GITHUB_REPOSITORY" '
+jq -e --arg repository "$GITHUB_REPOSITORY" --arg stage "$WK_CHAT_STAGE" '
   .repository.full_name == $repository and .head_repository.full_name == $repository and
   (.event == "schedule" or .event == "workflow_dispatch") and .head_branch == "main" and
   .status == "completed" and (.conclusion == "success" or .conclusion == "failure") and
-  (.path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml" or
-   .path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml@refs/heads/main" or
-   .path == ".github/workflows/chat-lifecycle-rehearsal.yml" or
-   .path == ".github/workflows/chat-lifecycle-rehearsal.yml@refs/heads/main")
+  (.path == (".github/workflows/chat-lifecycle-" + $stage + "-finalize.yml") or
+   .path == (".github/workflows/chat-lifecycle-" + $stage + "-finalize.yml@refs/heads/main") or
+   .path == (".github/workflows/chat-lifecycle-" + $stage + ".yml") or
+   .path == (".github/workflows/chat-lifecycle-" + $stage + ".yml@refs/heads/main"))
 ' "$destination/producer-run.json" >/dev/null
 
-artifact_name="chat-lifecycle-rehearsal-cleanup-${request_id}"
+artifact_name="chat-lifecycle-${WK_CHAT_STAGE}-cleanup-${request_id}"
 gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir "$destination/cleanup"
 gh run download "$handoff_run_id" --repo "$GITHUB_REPOSITORY" \
-  --name "chat-lifecycle-rehearsal-handoff-${request_id}" --dir "$destination/handoff"
-jq -e --arg request_id "$request_id" '
-  .schema == "wukongim.chat_lifecycle.rehearsal_cleanup/v1" and
+  --name "chat-lifecycle-${WK_CHAT_STAGE}-handoff-${request_id}" --dir "$destination/handoff"
+jq -e --arg request_id "$request_id" --arg stage "$WK_CHAT_STAGE" '
+  .schema == ("wukongim.chat_lifecycle." + $stage + "_cleanup/v1") and
   .request_id == $request_id and (.release_run_id | type == "number") and
   .release_run_id > 0 and .zero_inventory == true
 ' "$destination/cleanup/cleanup.json" >/dev/null

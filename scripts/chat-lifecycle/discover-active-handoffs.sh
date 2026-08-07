@@ -3,6 +3,9 @@ set -euo pipefail
 
 : "${GH_TOKEN:?required}"
 : "${GITHUB_REPOSITORY:?required}"
+: "${WK_CHAT_STAGE:=rehearsal}"
+
+[[ "$WK_CHAT_STAGE" == rehearsal || "$WK_CHAT_STAGE" == formal ]]
 
 requested="${1-}"
 output="${2:?output required}"
@@ -22,7 +25,10 @@ for page in 1 2 3 4 5; do
 done
 jq -s '[.[].artifacts[] | select(.expired == false)]' \
   "$temporary/artifacts-pages.json" >"$temporary/artifacts.json"
-jq -c --arg prefix 'chat-lifecycle-rehearsal-handoff-' --arg requested "$requested" \
+jq -c --arg prefix "chat-lifecycle-${WK_CHAT_STAGE}-handoff-" \
+  --arg final_prefix "chat-lifecycle-${WK_CHAT_STAGE}-final-" \
+  --arg cleanup_prefix "chat-lifecycle-${WK_CHAT_STAGE}-cleanup-" \
+  --arg requested "$requested" \
   -f scripts/chat-lifecycle/select-finalization-matrix.jq \
   "$temporary/artifacts.json" >"$temporary/candidate-matrix.json"
 

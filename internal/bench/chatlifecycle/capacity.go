@@ -77,23 +77,42 @@ const (
 type CapacityOutcome string
 
 const (
-	CapacityRunning        CapacityOutcome = "running"
-	CapacityPassed         CapacityOutcome = "pass"
-	CapacityProductFailure CapacityOutcome = "product_failure"
-	CapacityHarnessInvalid CapacityOutcome = "harness_invalid"
+	CapacityRunning               CapacityOutcome = "running"
+	CapacityPassed                CapacityOutcome = "pass"
+	CapacityPassedWithWarning     CapacityOutcome = "passed_with_capacity_warning"
+	CapacityProductFailure        CapacityOutcome = "product_failure"
+	CapacityInsufficientEvidence  CapacityOutcome = "insufficient_evidence"
+	CapacityInfrastructureFailure CapacityOutcome = "infrastructure_failure"
+	CapacityHarnessInvalid        CapacityOutcome = "harness_invalid"
 )
 
 // CapacityCause is the identity-free first terminal cause.
 type CapacityCause string
 
 const (
-	CapacityCauseNone        CapacityCause = ""
-	CapacityCauseCompleted   CapacityCause = "completed"
-	CapacityCauseCorrectness CapacityCause = "correctness"
-	CapacityCauseRecovery    CapacityCause = "recovery"
-	CapacityCauseObservation CapacityCause = "invalid_observation"
-	CapacityCauseRateChange  CapacityCause = "rate_change"
-	CapacityCauseNoBoundary  CapacityCause = "no_bounded_breakpoint"
+	CapacityCauseNone                   CapacityCause = ""
+	CapacityCauseCompleted              CapacityCause = "completed"
+	CapacityCauseCorrectness            CapacityCause = "correctness"
+	CapacityCauseRecovery               CapacityCause = "recovery"
+	CapacityCauseObservation            CapacityCause = "invalid_observation"
+	CapacityCauseRateChange             CapacityCause = "rate_change"
+	CapacityCauseNoBoundary             CapacityCause = "no_bounded_breakpoint"
+	CapacityCauseInfrastructureCapacity CapacityCause = "infrastructure_capacity"
+	CapacityCauseHeadroomLatency        CapacityCause = "headroom_latency"
+	CapacityCauseInsufficientEvidence   CapacityCause = "insufficient_evidence"
+	CapacityCauseUnsafeInfrastructure   CapacityCause = "unsafe_infrastructure"
+	CapacityCauseClusterUnavailable     CapacityCause = "cluster_unavailable"
+)
+
+// CapacityAttribution records why the measured breakpoint was reached after
+// the same aged dataset has recovered at the fixed baseline rate.
+type CapacityAttribution string
+
+const (
+	CapacityAttributionNone           CapacityAttribution = ""
+	CapacityAttributionInfrastructure CapacityAttribution = "infrastructure_capacity"
+	CapacityAttributionProduct        CapacityAttribution = "product_failure"
+	CapacityAttributionInsufficient   CapacityAttribution = "insufficient_evidence"
 )
 
 // CapacityGateFailure is a fixed bit set for one measured step.
@@ -111,8 +130,14 @@ const (
 
 // CapacityObservation is one bounded phase-boundary evidence projection.
 type CapacityObservation struct {
-	Complete              bool
-	CorrectnessFailure    bool
+	Complete           bool
+	CorrectnessFailure bool
+	// InfrastructureFailure is a fatal disk or equivalent safety signal. It
+	// must not be represented by ResourceAccepted, which is warning attribution.
+	InfrastructureFailure bool
+	// ClusterUnavailable is fatal availability evidence, not a throughput
+	// breakpoint that may be retried at the recovery rate.
+	ClusterUnavailable    bool
 	HarnessInvalid        bool
 	ErrorRateAccepted     bool
 	LatencyAccepted       bool
@@ -159,6 +184,9 @@ type CapacitySnapshot struct {
 	CoarseSteps      uint64
 	RefineSteps      uint64
 	RecoveryPassed   bool
+	Attribution      CapacityAttribution
+	LowerBound       bool
+	SearchEndedAt    time.Time
 	RecentSteps      []CapacityStepResult
 }
 
@@ -167,9 +195,12 @@ func (s CapacitySnapshot) ReportEvidence() ReportCapacityEvidence {
 	if s.Phase == "" || s.Outcome == "" {
 		return ReportCapacityEvidence{}
 	}
-	completed := s.Terminal && (s.Cause == CapacityCauseCompleted || s.Cause == CapacityCauseRecovery)
+	completed := s.Terminal && (s.Cause == CapacityCauseCompleted || s.Cause == CapacityCauseRecovery ||
+		s.Cause == CapacityCauseInfrastructureCapacity || s.Cause == CapacityCauseHeadroomLatency ||
+		s.Cause == CapacityCauseInsufficientEvidence)
 	return ReportCapacityEvidence{
-		Attempted: true, Completed: completed, MaximumPassingRate: s.LastPassingRate,
+		Attempted: true, Completed: completed, Attribution: s.Attribution,
+		LowerBound: s.LowerBound, MaximumPassingRate: s.LastPassingRate,
 		FirstFailingRate: s.FirstFailingRate, RecoveryPassed: s.RecoveryPassed,
 	}
 }
@@ -200,15 +231,19 @@ type CapacityStaircase struct {
 	phaseEnd     time.Time
 	stepStart    time.Time
 
-	lastPassing  uint64
-	firstFailing uint64
-	stepCount    uint64
-	coarseSteps  uint64
-	refineSteps  uint64
-	recoveryPass bool
-	recent       [maxCapacityRecentSteps]CapacityStepResult
-	recentHead   int
-	recentSize   int
+	lastPassing    uint64
+	firstFailing   uint64
+	stepCount      uint64
+	coarseSteps    uint64
+	refineSteps    uint64
+	recoveryPass   bool
+	attribution    CapacityAttribution
+	lowerBound     bool
+	searchDeadline time.Time
+	searchEndedAt  time.Time
+	recent         [maxCapacityRecentSteps]CapacityStepResult
+	recentHead     int
+	recentSize     int
 }
 
 func validateCapacityCheckpoint(cfg Config, admission CapacityAdmission) error {
@@ -263,6 +298,7 @@ func newCapacityStaircase(cfg Config, _ capacityAdmissionToken, start time.Time)
 		cfg: cfg.Capacity, start: start, last: start, phase: CapacityPhaseStabilize,
 		outcome: CapacityRunning, mode: capacitySearchCoarse, current: rate,
 		phaseStart: start, phaseEnd: start.Add(cfg.Capacity.Step.Stabilize), stepStart: start,
+		searchDeadline: start.Add(cfg.Capacity.MaximumDuration),
 	}, nil
 }
 
@@ -283,6 +319,16 @@ func (s *CapacityStaircase) Advance(at time.Time, observation CapacityObservatio
 	if observation.CorrectnessFailure {
 		s.last = at
 		s.freeze(CapacityProductFailure, CapacityCauseCorrectness, CapacityPhaseTerminal)
+		return s.transition(false), nil
+	}
+	if observation.InfrastructureFailure {
+		s.last = at
+		s.freeze(CapacityInfrastructureFailure, CapacityCauseUnsafeInfrastructure, CapacityPhaseTerminal)
+		return s.transition(false), nil
+	}
+	if observation.ClusterUnavailable {
+		s.last = at
+		s.freeze(CapacityProductFailure, CapacityCauseClusterUnavailable, CapacityPhaseTerminal)
 		return s.transition(false), nil
 	}
 	if observation.HarnessInvalid {
@@ -321,7 +367,7 @@ func (s *CapacityStaircase) Advance(at time.Time, observation CapacityObservatio
 		}
 		if capacityObservationFailures(observation) == 0 {
 			s.recoveryPass = true
-			s.freeze(CapacityPassed, CapacityCauseCompleted, CapacityPhaseComplete)
+			s.finishRecoveredBoundary()
 		} else {
 			s.freeze(CapacityProductFailure, CapacityCauseRecovery, CapacityPhaseTerminal)
 		}
@@ -398,7 +444,8 @@ func (s *CapacityStaircase) Snapshot() CapacitySnapshot {
 		CurrentRate: s.current, PendingRate: s.pendingRate, PhaseStart: s.phaseStart, PhaseEnd: s.phaseEnd,
 		LastPassingRate: s.lastPassing, FirstFailingRate: s.firstFailing,
 		StepCount: s.stepCount, CoarseSteps: s.coarseSteps, RefineSteps: s.refineSteps,
-		RecoveryPassed: s.recoveryPass, RecentSteps: recent,
+		RecoveryPassed: s.recoveryPass, LowerBound: s.lowerBound, SearchEndedAt: s.searchEndedAt, RecentSteps: recent,
+		Attribution: s.attribution,
 	}
 }
 
@@ -422,9 +469,14 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 		s.lastPassing = s.current
 	} else {
 		s.firstFailing = s.current
+		s.attribution = attributeCapacityBoundary(failures)
 	}
 
 	if s.mode == capacitySearchCoarse && passed {
+		if s.searchWindowExhausted(at) {
+			s.lowerBound = true
+			return s.beginRecovery(at), nil
+		}
 		next, ok := nextCapacityRate(s.current, s.cfg.StepPercent)
 		if !ok {
 			s.freeze(CapacityHarnessInvalid, CapacityCauseNoBoundary, CapacityPhaseTerminal)
@@ -435,11 +487,37 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 	if s.mode == capacitySearchCoarse {
 		s.mode = capacitySearchRefine
 	}
+	if s.searchWindowExhausted(at) {
+		return s.beginRecovery(at), nil
+	}
 	next, ok := refineCapacityRate(s.lastPassing, s.firstFailing, s.cfg.RefinePercent)
 	if !ok {
 		return s.beginRecovery(at), nil
 	}
 	return s.beginRateChange(at, next, CapacityPhaseStabilize), nil
+}
+
+func (s *CapacityStaircase) finishRecoveredBoundary() {
+	switch s.attribution {
+	case CapacityAttributionNone:
+		s.freeze(CapacityPassed, CapacityCauseCompleted, CapacityPhaseComplete)
+	case CapacityAttributionInfrastructure:
+		s.freeze(CapacityPassedWithWarning, CapacityCauseInfrastructureCapacity, CapacityPhaseComplete)
+	case CapacityAttributionProduct:
+		s.freeze(CapacityProductFailure, CapacityCauseHeadroomLatency, CapacityPhaseTerminal)
+	default:
+		s.freeze(CapacityInsufficientEvidence, CapacityCauseInsufficientEvidence, CapacityPhaseTerminal)
+	}
+}
+
+func attributeCapacityBoundary(failures CapacityGateFailure) CapacityAttribution {
+	if failures&(CapacityGateQueueInflight|CapacityGateResource) != 0 {
+		return CapacityAttributionInfrastructure
+	}
+	if failures == CapacityGateLatency {
+		return CapacityAttributionProduct
+	}
+	return CapacityAttributionInsufficient
 }
 
 func (s *CapacityStaircase) beginRateChange(at time.Time, rate uint64, target CapacityPhase) CapacityTransition {
@@ -451,6 +529,9 @@ func (s *CapacityStaircase) beginRateChange(at time.Time, rate uint64, target Ca
 }
 
 func (s *CapacityStaircase) beginRecovery(at time.Time) CapacityTransition {
+	if s.searchEndedAt.IsZero() {
+		s.searchEndedAt = at
+	}
 	rate := uint64(s.cfg.RecoveryRatePerSecond)
 	if s.current != rate {
 		return s.beginRateChange(at, rate, CapacityPhaseRecovery)
@@ -459,6 +540,11 @@ func (s *CapacityStaircase) beginRecovery(at time.Time) CapacityTransition {
 	s.phaseStart = at
 	s.phaseEnd = at.Add(s.cfg.RecoveryDuration)
 	return s.transition(false)
+}
+
+func (s *CapacityStaircase) searchWindowExhausted(at time.Time) bool {
+	step, ok := checkedAddPositiveDuration(s.cfg.Step.Stabilize, s.cfg.Step.Measure)
+	return !ok || !at.Before(s.searchDeadline) || at.Add(step).After(s.searchDeadline)
 }
 
 func (s *CapacityStaircase) transition(schedule bool) CapacityTransition {

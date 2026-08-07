@@ -100,5 +100,6 @@ capacity:
   recovery_rate_per_second: 2000
   step_percent: 25
   refine_percent: 10
+  maximum_duration: 8h
   step: {stabilize: 10m, measure: 20m}
   recovery_duration: 30m

@@ -145,6 +145,15 @@ func TestChatLifecycleCommandsRejectUnknownFlags(t *testing.T) {
 	}
 }
 
+func TestFormalAndCapacityUseMonotonicWorkerGenerationsWithoutRestartingWorkerServers(t *testing.T) {
+	if got := chatLifecycleGeneration(chatlifecycle.ModeSoak); got != 1 {
+		t.Fatalf("formal generation = %d, want 1", got)
+	}
+	if got := chatLifecycleGeneration(chatlifecycle.ModeCapacity); got != 2 {
+		t.Fatalf("capacity generation = %d, want 2", got)
+	}
+}
+
 func TestWorkerChatLifecycleHelpPreservesDedicatedModeFlags(t *testing.T) {
 	var stderr bytes.Buffer
 	code := runWithStderr([]string{"worker", "--mode", "chat-lifecycle", "--help"}, &stderr)

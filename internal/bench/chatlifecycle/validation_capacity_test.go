@@ -17,6 +17,7 @@ func TestCapacityModeRequiresFormalEvidenceAndExactStaircase(t *testing.T) {
 		{"start rate", func(c *Config) { c.Capacity.StartRatePerSecond = 2_001 }, "capacity.start_rate_per_second: must equal formal default"},
 		{"recovery rate", func(c *Config) { c.Capacity.RecoveryRatePerSecond = 2_001 }, "capacity.recovery_rate_per_second: must equal formal default"},
 		{"step percent", func(c *Config) { c.Capacity.StepPercent = 26 }, "capacity.step_percent: must equal formal default"},
+		{"maximum duration", func(c *Config) { c.Capacity.MaximumDuration = 9 * time.Hour }, "capacity.maximum_duration: must equal formal default"},
 		{"recovery", func(c *Config) { c.Capacity.RecoveryDuration = 31 * time.Minute }, "capacity.recovery_duration: must equal formal default"},
 	}
 	for _, tt := range tests {
@@ -44,6 +45,7 @@ func TestFormalSoakRequiresExactCapacityLeaves(t *testing.T) {
 		{"refine percent", func(c *Config) { c.Capacity.RefinePercent = 11 }, "capacity.refine_percent: must equal formal default"},
 		{"stabilize", func(c *Config) { c.Capacity.Step.Stabilize = 11 * time.Minute }, "capacity.step.stabilize: must equal formal default"},
 		{"measure", func(c *Config) { c.Capacity.Step.Measure = 21 * time.Minute }, "capacity.step.measure: must equal formal default"},
+		{"maximum duration", func(c *Config) { c.Capacity.MaximumDuration = 7 * time.Hour }, "capacity.maximum_duration: must equal formal default"},
 		{"recovery duration", func(c *Config) { c.Capacity.RecoveryDuration = 31 * time.Minute }, "capacity.recovery_duration: must equal formal default"},
 	}
 	for _, tt := range tests {
@@ -102,6 +104,7 @@ func TestConfigValidateCapacityStaircase(t *testing.T) {
 		{"zero stabilize", func(c *Config) { c.Capacity.Step.Stabilize = 0 }, "capacity.step.stabilize: must be greater than zero"},
 		{"wrong step total", func(c *Config) { c.Capacity.Step.Measure = 19 * time.Minute }, "capacity.step: stabilize plus measure must equal 30m0s"},
 		{"zero recovery", func(c *Config) { c.Capacity.RecoveryDuration = 0 }, "capacity.recovery_duration: must be greater than zero"},
+		{"zero maximum", func(c *Config) { c.Capacity.MaximumDuration = 0 }, "capacity.maximum_duration: must be greater than zero"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

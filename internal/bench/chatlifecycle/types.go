@@ -332,11 +332,13 @@ type CapacityConfig struct {
 	// StartRatePerSecond is the initial offered ingress rate for the staircase.
 	StartRatePerSecond int `json:"start_rate_per_second" yaml:"start_rate_per_second"`
 	// RecoveryRatePerSecond is the fixed reconnect/recovery rate between steps.
-	RecoveryRatePerSecond int           `json:"recovery_rate_per_second" yaml:"recovery_rate_per_second"`
-	StepPercent           int           `json:"step_percent" yaml:"step_percent"`
-	RefinePercent         int           `json:"refine_percent" yaml:"refine_percent"`
-	Step                  CapacityStep  `json:"step" yaml:"step"`
-	RecoveryDuration      time.Duration `json:"recovery_duration" yaml:"recovery_duration"`
+	RecoveryRatePerSecond int `json:"recovery_rate_per_second" yaml:"recovery_rate_per_second"`
+	StepPercent           int `json:"step_percent" yaml:"step_percent"`
+	RefinePercent         int `json:"refine_percent" yaml:"refine_percent"`
+	// MaximumDuration bounds only the staircase search; recovery follows it.
+	MaximumDuration  time.Duration `json:"maximum_duration" yaml:"maximum_duration"`
+	Step             CapacityStep  `json:"step" yaml:"step"`
+	RecoveryDuration time.Duration `json:"recovery_duration" yaml:"recovery_duration"`
 }
 
 // AgedCheckpoint is a typed reference to a completed passing prior lifecycle run.

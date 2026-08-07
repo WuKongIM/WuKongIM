@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -134,12 +135,96 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 		t.Fatalf("completed recovery transition = %+v", transition)
 	}
 	snapshot = staircase.Snapshot()
-	if snapshot.Outcome != CapacityPassed || !snapshot.Terminal || !snapshot.RecoveryPassed {
+	if snapshot.Outcome != CapacityPassedWithWarning || snapshot.Cause != CapacityCauseInfrastructureCapacity ||
+		snapshot.Attribution != CapacityAttributionInfrastructure || !snapshot.Terminal || !snapshot.RecoveryPassed {
 		t.Fatalf("capacity result = %+v", snapshot)
 	}
 	report := snapshot.ReportEvidence()
-	if !report.Attempted || !report.Completed || report.MaximumPassingRate != 2_750 || report.FirstFailingRate != 3_025 || !report.RecoveryPassed {
+	if !report.Attempted || !report.Completed || report.Attribution != CapacityAttributionInfrastructure ||
+		report.MaximumPassingRate != 2_750 || report.FirstFailingRate != 3_025 || !report.RecoveryPassed {
 		t.Fatalf("report evidence = %+v", report)
+	}
+}
+
+func TestCapacityBoundaryAttributionFreezesAfterSameDatasetRecovery(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		mutate      func(*CapacityObservation)
+		outcome     CapacityOutcome
+		cause       CapacityCause
+		attribution CapacityAttribution
+	}{
+		{
+			name: "declared resource saturation",
+			mutate: func(observation *CapacityObservation) {
+				observation.ResourceAccepted = false
+			},
+			outcome: CapacityPassedWithWarning, cause: CapacityCauseInfrastructureCapacity,
+			attribution: CapacityAttributionInfrastructure,
+		},
+		{
+			name: "latency with clear headroom",
+			mutate: func(observation *CapacityObservation) {
+				observation.LatencyAccepted = false
+			},
+			outcome: CapacityProductFailure, cause: CapacityCauseHeadroomLatency,
+			attribution: CapacityAttributionProduct,
+		},
+		{
+			name: "ambiguous latency evidence",
+			mutate: func(observation *CapacityObservation) {
+				observation.LatencyAccepted = false
+				observation.ReadinessAccepted = false
+			},
+			outcome: CapacityInsufficientEvidence, cause: CapacityCauseInsufficientEvidence,
+			attribution: CapacityAttributionInsufficient,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, admission, start := capacityTestAdmission(t)
+			staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
+			if err != nil {
+				t.Fatal(err)
+			}
+			capacityFinishStabilization(t, staircase)
+			failed := passingCapacityObservation()
+			test.mutate(&failed)
+			transition := capacityFinishMeasurement(t, staircase, failed)
+			if transition.Phase != CapacityPhaseRecovery {
+				t.Fatalf("recovery transition = %+v", transition)
+			}
+			transition, err = staircase.Advance(staircase.Snapshot().PhaseEnd, passingCapacityObservation())
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot := staircase.Snapshot()
+			if transition.Outcome != test.outcome || snapshot.Outcome != test.outcome || snapshot.Cause != test.cause ||
+				snapshot.Attribution != test.attribution || !snapshot.RecoveryPassed {
+				t.Fatalf("attributed capacity result = %+v / %+v", transition, snapshot)
+			}
+			if report := snapshot.ReportEvidence(); !report.Completed || report.Attribution != test.attribution || !validReportCapacity(report) {
+				t.Fatalf("attributed report = %+v", report)
+			}
+		})
+	}
+}
+
+func TestTerminalCapacityVerdictPreservesAttributionVocabulary(t *testing.T) {
+	for _, test := range []struct {
+		capacity CapacitySnapshot
+		outcome  VerdictOutcome
+		cause    VerdictCause
+	}{
+		{CapacitySnapshot{Outcome: CapacityPassed}, VerdictPass, VerdictCauseCompleted},
+		{CapacitySnapshot{Outcome: CapacityPassedWithWarning}, VerdictPassedWithCapacityWarning, VerdictCauseInfrastructureCapacity},
+		{CapacitySnapshot{Outcome: CapacityProductFailure, Cause: CapacityCauseHeadroomLatency}, VerdictProductFailure, VerdictCauseCapacityHeadroomLatency},
+		{CapacitySnapshot{Outcome: CapacityInsufficientEvidence}, VerdictInsufficientEvidence, VerdictCauseInsufficientEvidence},
+		{CapacitySnapshot{Outcome: CapacityHarnessInvalid}, VerdictHarnessInvalid, VerdictCauseInvalidObservation},
+	} {
+		verdict := terminalCapacityVerdict(test.capacity)
+		if !verdict.Terminal || verdict.Outcome != test.outcome || verdict.Cause != test.cause {
+			t.Fatalf("capacity %+v verdict = %+v", test.capacity, verdict)
+		}
 	}
 }
 
@@ -204,6 +289,44 @@ func TestCapacityCorrectnessFailureTerminatesImmediately(t *testing.T) {
 		t.Fatalf("correctness snapshot = %+v", snapshot)
 	} else if report := snapshot.ReportEvidence(); !report.Attempted || report.Completed || !validReportCapacity(report) {
 		t.Fatalf("correctness report evidence = %+v", report)
+	}
+}
+
+func TestCapacityUnsafeInfrastructureTerminatesBeforeBoundaryAttribution(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transition, err := staircase.Advance(start.Add(time.Minute), CapacityObservation{InfrastructureFailure: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transition.Outcome != CapacityInfrastructureFailure || transition.Phase != CapacityPhaseTerminal {
+		t.Fatalf("unsafe infrastructure transition = %+v", transition)
+	}
+	snapshot := staircase.Snapshot()
+	if snapshot.Cause != CapacityCauseUnsafeInfrastructure || snapshot.Attribution != CapacityAttributionNone || !snapshot.Terminal {
+		t.Fatalf("unsafe infrastructure snapshot = %+v", snapshot)
+	}
+	if report := snapshot.ReportEvidence(); report.Completed || report.Attribution != CapacityAttributionNone || !validReportCapacity(report) {
+		t.Fatalf("unsafe infrastructure report = %+v", report)
+	}
+}
+
+func TestCapacityClusterUnavailabilityTerminatesBeforeRecovery(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	staircase, err := newCapacityStaircaseForTest(cfg, admission, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transition, err := staircase.Advance(start.Add(time.Minute), CapacityObservation{ClusterUnavailable: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if transition.Outcome != CapacityProductFailure || staircase.Snapshot().Cause != CapacityCauseClusterUnavailable ||
+		transition.Phase != CapacityPhaseTerminal {
+		t.Fatalf("cluster-unavailable transition = %+v snapshot=%+v", transition, staircase.Snapshot())
 	}
 }
 
@@ -293,7 +416,7 @@ func TestCapacityMissedPhaseBoundaryIsHarnessInvalid(t *testing.T) {
 	}
 }
 
-func TestCapacityRateMathRejectsOverflowAndNeverLoopsForever(t *testing.T) {
+func TestCapacityNoBoundaryStopsAtEightHoursAndReportsExplicitLowerBound(t *testing.T) {
 	if _, ok := nextCapacityRate(math.MaxUint64/2, 25); ok {
 		t.Fatal("overflowing two-tick rate was accepted")
 	}
@@ -302,16 +425,26 @@ func TestCapacityRateMathRejectsOverflowAndNeverLoopsForever(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for !staircase.Snapshot().Terminal {
+	for staircase.Snapshot().Phase != CapacityPhaseRecovery {
 		capacityFinishStabilization(t, staircase)
 		transition, _ := staircase.Advance(staircase.Snapshot().PhaseEnd, passingCapacityObservation())
 		if transition.ScheduleRate {
 			capacityCommitRate(t, staircase, transition, time.Second)
 		}
 	}
+	recoveryEnd := staircase.Snapshot().PhaseEnd
+	if _, err := staircase.Advance(recoveryEnd, passingCapacityObservation()); err != nil {
+		t.Fatal(err)
+	}
 	snapshot := staircase.Snapshot()
-	if snapshot.Outcome != CapacityHarnessInvalid || snapshot.Cause != CapacityCauseNoBoundary || snapshot.StepCount > maxCapacitySteps || len(snapshot.RecentSteps) > maxCapacityRecentSteps {
-		t.Fatalf("unbounded staircase result = %+v", snapshot)
+	if snapshot.Outcome != CapacityPassed || snapshot.Cause != CapacityCauseCompleted || !snapshot.LowerBound ||
+		snapshot.FirstFailingRate != 0 || snapshot.LastPassingRate == 0 || !snapshot.RecoveryPassed ||
+		snapshot.SearchEndedAt.After(start.Add(8*time.Hour)) || len(snapshot.RecentSteps) > maxCapacityRecentSteps {
+		t.Fatalf("bounded lower-bound result = %+v", snapshot)
+	}
+	report := snapshot.ReportEvidence()
+	if !report.LowerBound || report.FirstFailingRate != 0 || report.MaximumPassingRate != snapshot.LastPassingRate {
+		t.Fatalf("lower-bound report = %+v", report)
 	}
 }
 
@@ -575,8 +708,9 @@ func TestCoordinatorRunExecutesCapacityModeThroughRecovery(t *testing.T) {
 		}
 	}
 	result := <-resultChannel
-	if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted ||
-		result.Capacity.Outcome != CapacityPassed || !result.Capacity.RecoveryPassed {
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeCapacity ||
+		result.Capacity.Outcome != CapacityInsufficientEvidence ||
+		result.Capacity.Attribution != CapacityAttributionInsufficient || !result.Capacity.RecoveryPassed {
 		t.Fatalf("capacity Run result = %+v", result)
 	}
 	first, second := <-evidence.requests, <-evidence.requests
@@ -905,7 +1039,8 @@ func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T)
 		}
 	}
 	result := <-resultChannel
-	if result.Outcome != CoordinatorCompleted || result.Capacity.Outcome != CapacityPassed ||
+	if result.Outcome != CoordinatorCompleted || result.Capacity.Outcome != CapacityPassedWithWarning ||
+		result.Capacity.Attribution != CapacityAttributionInfrastructure ||
 		result.Capacity.LastPassingRate != 2_000 || result.Capacity.FirstFailingRate != 2_200 || !result.Capacity.RecoveryPassed {
 		t.Fatalf("capacity rate result = %+v", result)
 	}
@@ -962,6 +1097,33 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 		Reference: cfg.Capacity.AgedCheckpoint.Reference, Checkpoint: checkpoint,
 	}
 	return cfg, admission, checkpoint.Window.End.Add(time.Minute)
+}
+
+func TestPrepareCapacityConfigBindsExactPassingFormalCheckpoint(t *testing.T) {
+	capacity, admission, _ := capacityTestAdmission(t)
+	formal := FormalConfig()
+	formal.RunID = admission.Checkpoint.Fence.RunHash
+	// The persisted config digest, not the report's redacted run hash, is the
+	// authoritative same-config proof.
+	formal.RunID = "capacity-aged-soak"
+	prepared, err := PrepareCapacityConfig(formal, admission.Checkpoint, "/var/lib/wukongim-cloud/reports/formal/final.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Mode != ModeCapacity || prepared.RunID != formal.RunID ||
+		prepared.Capacity.AgedCheckpoint.Reference != "/var/lib/wukongim-cloud/reports/formal/final.json" ||
+		!prepared.Capacity.AgedCheckpoint.Completed || !prepared.Capacity.AgedCheckpoint.Passed ||
+		prepared.Capacity.AgedCheckpoint.Duration != 72*time.Hour || prepared.Validate() != nil {
+		t.Fatalf("prepared capacity config = %+v", prepared)
+	}
+	if capacity.Capacity.MaximumDuration != prepared.Capacity.MaximumDuration {
+		t.Fatal("prepared config changed the reviewed capacity schedule")
+	}
+	tampered := admission.Checkpoint
+	tampered.ConfigDigest = strings.Repeat("0", 64)
+	if _, err := PrepareCapacityConfig(formal, tampered, "checkpoint.json"); !errors.Is(err, ErrCapacityAdmission) {
+		t.Fatalf("tampered checkpoint error = %v", err)
+	}
 }
 
 func capacityLiveDatasetFixture(digest string, observedAt time.Time) CapacityLiveDatasetEvidence {

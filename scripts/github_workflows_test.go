@@ -14,6 +14,8 @@ import (
 var workflowCatalog = map[string]string{
 	"chat-lifecycle-rehearsal.yml":          "Agent Tool - Start Chat Lifecycle Rehearsal",
 	"chat-lifecycle-rehearsal-finalize.yml": "Safety Automation - Finalize Chat Lifecycle Rehearsals",
+	"chat-lifecycle-formal.yml":             "Safety Automation - Start Fresh Formal Chat Lifecycle",
+	"chat-lifecycle-formal-finalize.yml":    "Safety Automation - Finalize Formal Chat Lifecycle Runs",
 	"cloud-deployment-activate.yml":         "Agent Tool - Activate Cloud Deployment",
 	"cloud-deployment-bundle.yml":           "Agent Tool - Build Cloud Deployment Bundle",
 	"cloud-lease-observe.yml":               "Agent Tool - Inspect Cloud Lease",

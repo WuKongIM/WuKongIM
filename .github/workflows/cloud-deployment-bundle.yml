@@ -93,7 +93,7 @@ jobs:
             package="${target#*:}"
             (cd source && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "$bundle/bin/$name" "$package")
           done
-          for target in wkcloudbundle:./cmd/wkcloudbundle wkcloudgate:./cmd/wkcloudgate wkcloudhost:./cmd/wkcloudhost; do
+          for target in wkchatlifecycle:./cmd/wkchatlifecycle wkcloudbundle:./cmd/wkcloudbundle wkcloudgate:./cmd/wkcloudgate wkcloudhost:./cmd/wkcloudhost; do
             name="${target%%:*}"
             package="${target#*:}"
             (cd control && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w -buildid=' -o "$bundle/bin/$name" "$package")

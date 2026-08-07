@@ -356,7 +356,7 @@ func checkpointEvidenceFixture(final bool) CheckpointEvidence {
 	capacity := ReportCapacityEvidence{}
 	if final {
 		capacity = ReportCapacityEvidence{
-			Attempted: true, Completed: true, MaximumPassingRate: 2_000,
+			Attempted: true, Completed: true, Attribution: CapacityAttributionInfrastructure, MaximumPassingRate: 2_000,
 			FirstFailingRate: 2_500, RecoveryPassed: true,
 		}
 	}

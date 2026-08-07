@@ -314,7 +314,9 @@ func validCheckpointVerdict(verdict VerdictSnapshot) bool {
 	}
 	return !verdict.Terminal || validSuccessfulVerdictPair(verdict.Outcome, verdict.Cause) ||
 		(verdict.Outcome != VerdictPass && verdict.Outcome != VerdictRehearsalPass &&
-			verdict.Cause != VerdictCauseCompleted && verdict.Cause != VerdictCauseRehearsalCompleted)
+			verdict.Outcome != VerdictPassedWithCapacityWarning &&
+			verdict.Cause != VerdictCauseCompleted && verdict.Cause != VerdictCauseRehearsalCompleted &&
+			verdict.Cause != VerdictCauseInfrastructureCapacity)
 }
 
 func validCheckpointSnapshotsForCut(snapshots []WorkerSnapshot, elapsed time.Duration, kind CheckpointKind, verdict VerdictSnapshot) bool {
@@ -341,7 +343,8 @@ func successfulVerdict(verdict VerdictSnapshot) bool {
 
 func validSuccessfulVerdictPair(outcome VerdictOutcome, cause VerdictCause) bool {
 	return (outcome == VerdictPass && cause == VerdictCauseCompleted) ||
-		(outcome == VerdictRehearsalPass && cause == VerdictCauseRehearsalCompleted)
+		(outcome == VerdictRehearsalPass && cause == VerdictCauseRehearsalCompleted) ||
+		(outcome == VerdictPassedWithCapacityWarning && cause == VerdictCauseInfrastructureCapacity)
 }
 
 func reportWarnings(cfg Config, warnings []ReportWarningCode) []ReportWarningCode {

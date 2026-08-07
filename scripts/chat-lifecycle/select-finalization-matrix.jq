@@ -6,9 +6,9 @@
 group_by(.request_id) | map(max_by(.created_at)) |
 sort_by(.created_at) | reverse |
 [ .[] as $handoff |
-  ([ $artifacts[] | select(.name == ("chat-lifecycle-rehearsal-final-" + $handoff.request_id) and .created_at >= $handoff.created_at) ] |
+  ([ $artifacts[] | select(.name == ($final_prefix + $handoff.request_id) and .created_at >= $handoff.created_at) ] |
     max_by(.created_at)) as $final |
-  ([ $artifacts[] | select(.name == ("chat-lifecycle-rehearsal-cleanup-" + $handoff.request_id) and .created_at >= $handoff.created_at) ] |
+  ([ $artifacts[] | select(.name == ($cleanup_prefix + $handoff.request_id) and .created_at >= $handoff.created_at) ] |
     max_by(.created_at)) as $cleanup |
   {request_id:$handoff.request_id,handoff_run_id:$handoff.workflow_run.id,
    final_exists:($final != null),final_run_id:($final.workflow_run.id // 0),

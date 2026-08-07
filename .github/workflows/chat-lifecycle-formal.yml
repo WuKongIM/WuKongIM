@@ -1,0 +1,227 @@
+name: Safety Automation - Start Fresh Formal Chat Lifecycle
+run-name: Chat Lifecycle Formal ${{ inputs.request_id || github.run_id }}
+
+on:
+  schedule:
+    - cron: "13,23,33,43,53 * * * *"
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Optional exact request with an authenticated formal transition
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: chat-lifecycle-paid-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover released passing rehearsals awaiting formal procurement
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUEST_ID: ${{ inputs.request_id || '' }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Select one authenticated unconsumed transition
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/discover-formal-transitions.sh "$REQUEST_ID" matrix.json
+          echo "matrix=$(cat matrix.json)" >>"$GITHUB_OUTPUT"
+
+  orchestrate:
+    name: Acquire fresh formal Lease for ${{ matrix.request_id }}
+    needs: discover
+    if: fromJSON(needs.discover.outputs.matrix).include[0] != null
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    environment: cloud-deployment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WK_CHAT_STAGE: formal
+      WK_CHAT_OPERATOR: tangtaoit
+      WK_CHAT_REQUEST_ID: ${{ matrix.request_id }}
+      WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/formal-v1.json
+      WK_CHAT_TRANSITION_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/transition
+      WK_CHAT_OUTPUT_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
+      WK_CHAT_WORK_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/work
+      WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/fallback-cleanup
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Download exact released rehearsal transition
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-formal-transition-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_TRANSITION_DIR }}
+          run-id: ${{ matrix.transition_run_id }}
+          github-token: ${{ github.token }}
+      - name: Authenticate transition, bundle, aggregate ledger, and SSH identities
+        shell: bash
+        env:
+          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${{ matrix.transition_run_id }}" >transition-run.json
+          jq -e --arg repository "$GITHUB_REPOSITORY" '
+            .repository.full_name == $repository and .head_repository.full_name == $repository and
+            (.event == "schedule" or .event == "workflow_dispatch") and .head_branch == "main" and
+            .status == "completed" and (.conclusion == "success" or .conclusion == "failure") and
+            (.path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml" or
+             .path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml@refs/heads/main")
+          ' transition-run.json >/dev/null
+          for name in transition.json handoff.json run-plan.json quote.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
+            test -f "$WK_CHAT_TRANSITION_DIR/$name"
+          done
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .from_stage == "rehearsal" and
+            .outcome == "rehearsal_pass" and .zero_inventory == true and .request_id == $request and
+            (.source_sha | test("^[0-9a-f]{40}$")) and (.bundle_digest | test("^sha256:[0-9a-f]{64}$")) and
+            (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000
+          ' "$WK_CHAT_TRANSITION_DIR/transition.json" >/dev/null
+          source_sha="$(jq -er .source_sha "$WK_CHAT_TRANSITION_DIR/transition.json")"
+          bundle_digest="$(jq -er .bundle_digest "$WK_CHAT_TRANSITION_DIR/transition.json")"
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$source_sha" --arg bundle "$bundle_digest" '
+            .schema == "wukongim.chat_lifecycle.rehearsal_handoff/v1" and .request_id == $request and
+            .source_sha == $source and .bundle_digest == $bundle and (.bundle_run_id | type == "number")
+          ' "$WK_CHAT_TRANSITION_DIR/handoff.json" >/dev/null
+          jq -e '.schema == "wukongim.chat_lifecycle.rehearsal_result/v1" and .outcome == "rehearsal_pass"' \
+            "$WK_CHAT_TRANSITION_DIR/rehearsal-result.json" >/dev/null
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.rehearsal_cleanup/v1" and .request_id == $request and .zero_inventory == true
+          ' "$WK_CHAT_TRANSITION_DIR/cleanup.json" >/dev/null
+          cmp -s <(jq -S -c .selector "$WK_CHAT_TRANSITION_DIR/release-selector.json") \
+            <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")
+          prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_TRANSITION_DIR/run-plan.json")"
+          rehearsal_quote="$(jq -er .quote.estimated_cost_micros "$WK_CHAT_TRANSITION_DIR/quote.json")"
+          test "$(( prior + rehearsal_quote ))" = "$(jq -er .committed_micros "$WK_CHAT_TRANSITION_DIR/transition.json")"
+          bundle_run_id="$(jq -er .bundle_run_id "$WK_CHAT_TRANSITION_DIR/handoff.json")"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${bundle_run_id}" >bundle-run.json
+          jq -e --arg repository "$GITHUB_REPOSITORY" '
+            .repository.full_name == $repository and .head_repository.full_name == $repository and
+            .event == "workflow_dispatch" and .head_branch == "main" and .status == "completed" and
+            .conclusion == "success" and
+            (.path == ".github/workflows/cloud-deployment-bundle.yml" or
+             .path == ".github/workflows/cloud-deployment-bundle.yml@refs/heads/main")
+          ' bundle-run.json >/dev/null
+          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          umask 077
+          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/deployment-key"
+          chmod 0600 "$RUNNER_TEMP/deployment-key"
+          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >"$RUNNER_TEMP/deployment.pub"
+          deployment_pub="$(cat "$RUNNER_TEMP/deployment.pub")"
+          jq -er --arg deployment "$deployment_pub" '
+            [.bootstrap_access.authorized_keys[] | select(. != $deployment)] | select(length == 1) | .[0]
+          ' "$WK_CHAT_TRANSITION_DIR/run-plan.json" >"$RUNNER_TEMP/codex-diagnostic.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
+          {
+            echo "WK_CHAT_SOURCE_SHA=$source_sha"
+            echo "WK_CHAT_BUNDLE_DIGEST=$bundle_digest"
+            echo "WK_CHAT_BUNDLE_RUN_ID=$bundle_run_id"
+          } >>"$GITHUB_ENV"
+      - name: Build trusted Run Plan control tool
+        shell: bash
+        run: go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
+      - name: Refuse procurement while any paid scenario lacks zero proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          for stage in rehearsal formal; do
+            WK_CHAT_STAGE="$stage" scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json"
+            jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json" >/dev/null || {
+              echo "Another Chat Lifecycle ${stage} Lease lacks authenticated zero-inventory proof." >&2
+              exit 1
+            }
+          done
+      - name: Materialize, quote, acquire, deploy, and hand off remote formal ownership
+        shell: bash
+        env:
+          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
+          WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
+          WK_CHAT_TRANSITION: ${{ env.WK_CHAT_TRANSITION_DIR }}/transition.json
+        run: |
+          set -euo pipefail
+          export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
+          export WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY="$(cat "$RUNNER_TEMP/codex-diagnostic.pub")"
+          scripts/chat-lifecycle/rehearsal-orchestrate.sh
+      - name: Detect publishable handoff or cleanup continuation
+        id: handoff_state
+        if: always()
+        shell: bash
+        run: |
+          publish=false
+          for marker in handoff.json cleanup-pending.json cleanup.json; do
+            [[ -f "$WK_CHAT_OUTPUT_DIR/$marker" ]] && publish=true
+          done
+          echo "publish=$publish" >>"$GITHUB_OUTPUT"
+      - name: Upload non-secret formal handoff or cleanup continuation
+        id: handoff_upload
+        if: always() && steps.handoff_state.outputs.publish == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Release handed-off formal Lease if handoff publication failed
+        id: fallback_release
+        if: always() && steps.handoff_state.outputs.publish == 'true' && steps.handoff_upload.outcome != 'success'
+        shell: bash
+        env:
+          WK_CHAT_SELECTOR: ${{ env.WK_CHAT_OUTPUT_DIR }}/release-selector.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$WK_CHAT_SELECTOR" ]]; then
+            echo 'released=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          elif scripts/chat-lifecycle/release-until-zero.sh; then
+            echo 'released=true' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          else
+            echo 'released=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=true' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload fallback formal zero-inventory proof
+        if: always() && steps.fallback_release.outputs.released == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-cleanup-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retry publication of formal cleanup-pending continuation evidence
+        if: always() && steps.fallback_release.outputs.pending == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-handoff-${{ matrix.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Remove plaintext runner identities
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/deployment.pub" "$RUNNER_TEMP/codex-diagnostic.pub"

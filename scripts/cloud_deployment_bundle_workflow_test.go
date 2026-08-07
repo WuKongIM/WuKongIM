@@ -26,6 +26,7 @@ func TestCloudDeploymentBundleBuildIsTrustedOfflineAndPreProcurement(t *testing.
 		"GOOS=linux GOARCH=amd64 go build",
 		"source/configs/wkbench/chat-lifecycle/formal.yaml",
 		"source/configs/wkbench/chat-lifecycle/rehearsal.yaml",
+		"wkchatlifecycle:./cmd/wkchatlifecycle",
 		"wkcloudbundle\" seal-offline",
 		"wkcloudbundle\" verify-offline",
 		"sha256sum cloud-deployment-bundle.tar.gz",

@@ -224,11 +224,11 @@ func chatLifecycleVerdictExitCode(verdict chatlifecycle.VerdictSnapshot) int {
 		return exitInternal
 	}
 	switch verdict.Outcome {
-	case chatlifecycle.VerdictPass, chatlifecycle.VerdictRehearsalPass:
+	case chatlifecycle.VerdictPass, chatlifecycle.VerdictRehearsalPass, chatlifecycle.VerdictPassedWithCapacityWarning:
 		return 0
 	case chatlifecycle.VerdictProductFailure:
 		return exitChatLifecycleProduct
-	case chatlifecycle.VerdictHarnessInvalid:
+	case chatlifecycle.VerdictHarnessInvalid, chatlifecycle.VerdictInsufficientEvidence:
 		return exitChatLifecycleHarness
 	case chatlifecycle.VerdictInfrastructureFailure:
 		return exitChatLifecycleInfrastructure

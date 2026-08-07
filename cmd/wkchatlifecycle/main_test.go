@@ -14,10 +14,52 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	cloudleasefake "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
+
+func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T) {
+	end := time.Unix(1_900_000_000, 0)
+	formal := chatlifecycle.Report{
+		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeSoak, Stage: chatlifecycle.StageFormal,
+		Kind: chatlifecycle.CheckpointFinal, Final: true, Window: chatlifecycle.ReportTimeWindow{End: end},
+		Verdict: chatlifecycle.ReportVerdictEvidence{Terminal: true, Outcome: chatlifecycle.VerdictPass, Cause: chatlifecycle.VerdictCauseCompleted},
+	}
+	if _, err := formalChainResultFromReports(formal, nil); err == nil {
+		t.Fatal("passing formal Soak without capacity recovery was accepted")
+	}
+	capacityEnd := end.Add(4 * time.Hour)
+	capacity := chatlifecycle.Report{
+		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeCapacity, Stage: chatlifecycle.StageFormal,
+		Kind: chatlifecycle.CheckpointFinal, Final: true, Window: chatlifecycle.ReportTimeWindow{End: capacityEnd},
+		Verdict: chatlifecycle.ReportVerdictEvidence{
+			Terminal: true, Outcome: chatlifecycle.VerdictPassedWithCapacityWarning,
+			Cause: chatlifecycle.VerdictCauseInfrastructureCapacity,
+		},
+		Capacity: chatlifecycle.ReportCapacityEvidence{
+			Attempted: true, Completed: true, Attribution: chatlifecycle.CapacityAttributionInfrastructure,
+			MaximumPassingRate: 2_750, FirstFailingRate: 3_025, RecoveryPassed: true,
+		},
+	}
+	result, err := formalChainResultFromReports(formal, &capacity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != chatlifecycle.VerdictPassedWithCapacityWarning ||
+		result.Cause != chatlifecycle.VerdictCauseInfrastructureCapacity || result.End != capacityEnd {
+		t.Fatalf("formal chain result = %+v", result)
+	}
+
+	formal.Verdict.Outcome, formal.Verdict.Cause = chatlifecycle.VerdictProductFailure, chatlifecycle.VerdictCauseMessageLoss
+	if _, err := formalChainResultFromReports(formal, &capacity); err == nil {
+		t.Fatal("failed formal Soak accepted a spliced capacity report")
+	}
+	if result, err := formalChainResultFromReports(formal, nil); err != nil || result.Outcome != chatlifecycle.VerdictProductFailure {
+		t.Fatalf("early formal failure result = %+v, %v", result, err)
+	}
+}
 
 func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	var output bytes.Buffer
@@ -45,6 +87,47 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 	if plan.Schema != chatlifecyclerun.RunPlanSchemaV1 || plan.Stage != chatlifecyclerun.StageRehearsal ||
 		plan.Attempt != 1 || plan.LeasePlan.HostGroups[0].Count != 3 || plan.LeasePlan.HostGroups[1].Count != 1 {
 		t.Fatalf("materialized plan = %+v", plan)
+	}
+}
+
+func TestMaterializeCommandRequiresTypedTransitionForFormalPlan(t *testing.T) {
+	directory := t.TempDir()
+	transitionPath := filepath.Join(directory, "formal-transition.json")
+	transition := chatlifecyclerun.StageTransition{
+		Schema: chatlifecyclerun.FormalTransitionSchemaV1, FromStage: chatlifecyclerun.StageRehearsal,
+		Outcome: "rehearsal_pass", RequestID: "formal-command-run", SourceSHA: strings.Repeat("c", 40),
+		BundleDigest: "sha256:" + strings.Repeat("d", 64), CommittedMicros: 80_000_000, ZeroInventory: true,
+	}
+	body, err := json.Marshal(transition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(transitionPath, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{
+		"materialize",
+		"--template", filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "formal-v1.json"),
+		"--source-sha", transition.SourceSHA, "--operator", "tangtaoit",
+		"--codex-diagnostic-pubkey", commandPublicKey(t), "--request-id", transition.RequestID,
+		"--repository", "WuKongIM/WuKongIM", "--bundle-digest", transition.BundleDigest,
+		"--deployment-pubkey", commandPublicKey(t), "--now", "2026-08-08T12:00:00Z",
+		"--attempt", "1", "--committed-micros", "80000000",
+	}
+	command := newRootCommand(&bytes.Buffer{})
+	command.SetArgs(args)
+	if err := command.Execute(); err == nil {
+		t.Fatal("formal materialization without --transition was accepted")
+	}
+	var output bytes.Buffer
+	command = newRootCommand(&output)
+	command.SetArgs(append(args, "--transition", transitionPath))
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var plan chatlifecyclerun.RunPlan
+	if err := json.Unmarshal(output.Bytes(), &plan); err != nil || plan.Stage != chatlifecyclerun.StageFormal {
+		t.Fatalf("formal plan = %+v, %v", plan, err)
 	}
 }
 

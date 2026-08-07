@@ -197,6 +197,61 @@ jobs:
         env:
           WK_CHAT_SELECTOR: ${{ env.WK_CHAT_HANDOFF_DIR }}/release-selector.json
         run: scripts/chat-lifecycle/release-until-zero.sh
+      - name: Seal fresh-formal transition after rehearsal evidence and zero inventory
+        id: transition
+        if: success() && steps.handoff.outputs.mode == 'run' && (steps.collect.outputs.ready == 'true' || steps.existing.outputs.ready == 'true')
+        shell: bash
+        env:
+          WK_CHAT_TRANSITION_DIR: ${{ runner.temp }}/formal-transition
+        run: |
+          set -euo pipefail
+          final_dir="$WK_CHAT_FINAL_DIR"
+          if [[ "${{ steps.existing.outputs.ready }}" == true ]]; then
+            final_dir="$RUNNER_TEMP/previous-final"
+          fi
+          outcome="$(jq -er .outcome "$final_dir/rehearsal-result.json")"
+          if [[ "$outcome" != rehearsal_pass ]]; then
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for name in handoff.json run-plan.json quote.json rehearsal-result.json finalization.json; do
+            test -f "$final_dir/$name"
+          done
+          for name in cleanup.json zero-inventory.json; do
+            test -f "$WK_CHAT_CLEANUP_DIR/$name"
+          done
+          cmp -s <(jq -S -c . "$final_dir/handoff.json") <(jq -S -c . "$WK_CHAT_HANDOFF_DIR/handoff.json")
+          cmp -s <(jq -S -c .selector "$WK_CHAT_HANDOFF_DIR/release-selector.json") \
+            <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_CLEANUP_DIR/zero-inventory.json")
+          request_id="$(jq -er .request_id "$final_dir/handoff.json")"
+          source_sha="$(jq -er .source_sha "$final_dir/handoff.json")"
+          bundle_digest="$(jq -er .bundle_digest "$final_dir/handoff.json")"
+          prior="$(jq -er .lease_plan.budget.committed_micros "$final_dir/run-plan.json")"
+          rehearsal_quote="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
+          committed_micros=$(( prior + rehearsal_quote ))
+          (( committed_micros > 0 && committed_micros < 1350000000 ))
+          install -d -m 0700 "$WK_CHAT_TRANSITION_DIR"
+          jq -n --arg schema 'wukongim.chat_lifecycle.formal_transition/v1' \
+            --arg from_stage rehearsal --arg outcome rehearsal_pass \
+            --arg request_id "$request_id" --arg source_sha "$source_sha" \
+            --arg bundle_digest "$bundle_digest" --argjson committed_micros "$committed_micros" \
+            '{schema:$schema,from_stage:$from_stage,outcome:$outcome,request_id:$request_id,
+              source_sha:$source_sha,bundle_digest:$bundle_digest,committed_micros:$committed_micros,
+              zero_inventory:true}' >"$WK_CHAT_TRANSITION_DIR/transition.json"
+          cp "$final_dir/handoff.json" "$final_dir/run-plan.json" "$final_dir/quote.json" \
+            "$final_dir/rehearsal-result.json" "$final_dir/finalization.json" "$WK_CHAT_TRANSITION_DIR/"
+          cp "$WK_CHAT_HANDOFF_DIR/release-selector.json" "$WK_CHAT_TRANSITION_DIR/"
+          cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" \
+            "$WK_CHAT_TRANSITION_DIR/"
+          echo 'ready=true' >>"$GITHUB_OUTPUT"
+      - name: Upload fresh-formal transition for the scheduled starter
+        if: steps.transition.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-formal-transition-${{ matrix.request_id }}
+          path: ${{ runner.temp }}/formal-transition
+          if-no-files-found: error
+          retention-days: 8
       - name: Upload zero-inventory proof
         if: success() && (steps.handoff.outputs.mode == 'cleanup_pending' || steps.collect.outputs.ready == 'true' || steps.existing.outputs.ready == 'true')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

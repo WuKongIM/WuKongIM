@@ -26,7 +26,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: chat-lifecycle-rehearsal-${{ github.repository }}
+  group: chat-lifecycle-paid-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -82,11 +82,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle.json"
-          jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle.json" >/dev/null || {
-            echo 'Another Chat Lifecycle handoff or cleanup-pending Lease has no authenticated zero-inventory proof.' >&2
-            exit 1
-          }
+          for stage in rehearsal formal; do
+            WK_CHAT_STAGE="$stage" scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json"
+            jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle-${stage}.json" >/dev/null || {
+              echo "Another Chat Lifecycle ${stage} handoff or cleanup-pending Lease has no authenticated zero-inventory proof." >&2
+              exit 1
+            }
+          done
       - name: Orchestrate until remote systemd owns the measured run
         shell: bash
         env:

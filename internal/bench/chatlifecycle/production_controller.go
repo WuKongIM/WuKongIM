@@ -229,12 +229,8 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		switch {
 		case c.cfg.Stage == StageRehearsal:
 			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictRehearsalPass, VerdictCauseRehearsalCompleted, true
-		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityPassed:
-			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictPass, VerdictCauseCompleted, true
-		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityProductFailure:
-			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictProductFailure, VerdictCauseWorkerProduct, true
 		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal:
-			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictHarnessInvalid, VerdictCauseInvalidObservation, true
+			verdict = terminalCapacityVerdict(cut.Capacity)
 		default:
 			_ = c.evaluator.Finalize(cut.At)
 			verdict = c.evaluator.Snapshot()
@@ -252,6 +248,27 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		return coordinatorOutcomeForVerdict(verdict), nil
 	}
 	return "", nil
+}
+
+func terminalCapacityVerdict(capacity CapacitySnapshot) VerdictSnapshot {
+	verdict := VerdictSnapshot{Terminal: true}
+	switch {
+	case capacity.Outcome == CapacityPassed:
+		verdict.Outcome, verdict.Cause = VerdictPass, VerdictCauseCompleted
+	case capacity.Outcome == CapacityPassedWithWarning:
+		verdict.Outcome, verdict.Cause = VerdictPassedWithCapacityWarning, VerdictCauseInfrastructureCapacity
+	case capacity.Outcome == CapacityInsufficientEvidence:
+		verdict.Outcome, verdict.Cause = VerdictInsufficientEvidence, VerdictCauseInsufficientEvidence
+	case capacity.Outcome == CapacityProductFailure && capacity.Cause == CapacityCauseHeadroomLatency:
+		verdict.Outcome, verdict.Cause = VerdictProductFailure, VerdictCauseCapacityHeadroomLatency
+	case capacity.Outcome == CapacityProductFailure:
+		verdict.Outcome, verdict.Cause = VerdictProductFailure, VerdictCauseWorkerProduct
+	case capacity.Outcome == CapacityInfrastructureFailure:
+		verdict.Outcome, verdict.Cause = VerdictInfrastructureFailure, VerdictCauseDiskExhausted
+	default:
+		verdict.Outcome, verdict.Cause = VerdictHarnessInvalid, VerdictCauseInvalidObservation
+	}
+	return verdict
 }
 
 // Finalize joins lifecycle work, rechecks dataset/meta evidence against the
@@ -396,11 +413,11 @@ func productionLifecycleSignals(snapshot LifecycleProofSnapshot) []VerdictSignal
 
 func coordinatorOutcomeForVerdict(verdict VerdictSnapshot) CoordinatorOutcome {
 	switch verdict.Outcome {
-	case VerdictPass, VerdictRehearsalPass:
+	case VerdictPass, VerdictRehearsalPass, VerdictPassedWithCapacityWarning:
 		return CoordinatorCompleted
 	case VerdictProductFailure:
 		return CoordinatorProductFailure
-	case VerdictHarnessInvalid:
+	case VerdictHarnessInvalid, VerdictInsufficientEvidence:
 		return CoordinatorHarnessInvalid
 	case VerdictInfrastructureFailure:
 		return CoordinatorInfrastructureFailure

@@ -9,6 +9,8 @@ set -euo pipefail
 
 [[ -f "$WK_CHAT_SELECTOR" ]]
 install -d -m 0700 "$WK_CHAT_CLEANUP_DIR"
+chat_stage="${WK_CHAT_STAGE:-rehearsal}"
+[[ "$chat_stage" == rehearsal || "$chat_stage" == formal ]]
 
 max_run_id() {
   gh run list --repo "$GITHUB_REPOSITORY" --workflow cloud-lease-release.yml --event workflow_dispatch --branch main \
@@ -49,7 +51,7 @@ for attempt in 1; do
     (.result.zero_inventory.scopes | type == "array" and length > 0)
   ' "${release_files[0]}" >/dev/null; then
     cp "${release_files[0]}" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json"
-    jq -n --arg schema 'wukongim.chat_lifecycle.rehearsal_cleanup/v1' \
+    jq -n --arg schema "wukongim.chat_lifecycle.${chat_stage}_cleanup/v1" \
       --arg request_id "$WK_CHAT_REQUEST_ID" --argjson release_run_id "$run_id" \
       --slurpfile release "${release_files[0]}" \
       '{schema:$schema,request_id:$request_id,release_run_id:$release_run_id,

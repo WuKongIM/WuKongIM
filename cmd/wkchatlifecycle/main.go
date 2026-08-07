@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/chatlifecyclerun"
@@ -35,12 +37,150 @@ func newRootCommand(stdout io.Writer) *cobra.Command {
 	addSelectorCommand(root)
 	addPlanSelectorCommand(root)
 	addReportCommand(root)
+	addPrepareCapacityConfigCommand(root)
+	addFormalChainReportCommand(root)
 	return root
+}
+
+type formalChainResult struct {
+	Schema          string                       `json:"schema"`
+	Outcome         chatlifecycle.VerdictOutcome `json:"outcome"`
+	Cause           chatlifecycle.VerdictCause   `json:"cause"`
+	FormalOutcome   chatlifecycle.VerdictOutcome `json:"formal_outcome"`
+	CapacityOutcome chatlifecycle.VerdictOutcome `json:"capacity_outcome,omitempty"`
+	LowerBound      bool                         `json:"lower_bound"`
+	End             time.Time                    `json:"end"`
+}
+
+func addFormalChainReportCommand(root *cobra.Command) {
+	var formalPath, capacityPath string
+	command := &cobra.Command{
+		Use: "validate-formal-chain", Short: "Validate terminal formal and same-Lease capacity reports", Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			formal, err := chatlifecycle.ReadReport(formalPath)
+			if err != nil {
+				return chatlifecyclerun.ErrInvalidInput
+			}
+			var capacity *chatlifecycle.Report
+			if strings.TrimSpace(capacityPath) != "" {
+				read, readErr := chatlifecycle.ReadReport(capacityPath)
+				if readErr != nil {
+					return chatlifecyclerun.ErrInvalidInput
+				}
+				capacity = &read
+			}
+			result, resultErr := formalChainResultFromReports(formal, capacity)
+			if resultErr != nil {
+				return resultErr
+			}
+			return json.NewEncoder(command.OutOrStdout()).Encode(result)
+		},
+	}
+	command.Flags().StringVar(&formalPath, "formal-report", "", "terminal formal 72-hour or early-failure report")
+	command.Flags().StringVar(&capacityPath, "capacity-report", "", "terminal aged-data capacity and recovery report")
+	if err := command.MarkFlagRequired("formal-report"); err != nil {
+		panic(err)
+	}
+	root.AddCommand(command)
+}
+
+func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlifecycle.Report) (formalChainResult, error) {
+	if formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
+		formal.Stage != chatlifecycle.StageFormal || formal.Kind != chatlifecycle.CheckpointFinal ||
+		!formal.Final || formal.Continue || !formal.Verdict.Terminal {
+		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
+	}
+	result := formalChainResult{
+		Schema: "wukongim.chat_lifecycle.formal_chain_result/v1", Outcome: formal.Verdict.Outcome,
+		Cause: formal.Verdict.Cause, FormalOutcome: formal.Verdict.Outcome, End: formal.Window.End,
+	}
+	if formal.Verdict.Outcome != chatlifecycle.VerdictPass {
+		if capacity != nil {
+			return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
+		}
+		return result, nil
+	}
+	if capacity == nil || capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
+		capacity.Stage != chatlifecycle.StageFormal || capacity.Kind != chatlifecycle.CheckpointFinal ||
+		!capacity.Final || capacity.Continue || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {
+		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
+	}
+	result.Outcome, result.Cause, result.CapacityOutcome = capacity.Verdict.Outcome, capacity.Verdict.Cause, capacity.Verdict.Outcome
+	result.LowerBound, result.End = capacity.Capacity.LowerBound, capacity.Window.End
+	return result, nil
+}
+
+func addPrepareCapacityConfigCommand(root *cobra.Command) {
+	var configPath, checkpointPath, outputPath string
+	command := &cobra.Command{
+		Use: "prepare-capacity-config", Short: "Bind capacity mode to one passing live 72-hour formal checkpoint", Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			formal, err := chatlifecycle.LoadConfig(configPath)
+			if err != nil {
+				return err
+			}
+			checkpoint, err := chatlifecycle.ReadReport(checkpointPath)
+			if err != nil {
+				return err
+			}
+			prepared, err := chatlifecycle.PrepareCapacityConfig(formal, checkpoint, checkpointPath)
+			if err != nil {
+				return err
+			}
+			body, err := yaml.Marshal(prepared)
+			if err != nil {
+				return err
+			}
+			return writePrivateAtomic(outputPath, body)
+		},
+	}
+	command.Flags().StringVar(&configPath, "config", "", "sealed formal chat-lifecycle YAML")
+	command.Flags().StringVar(&checkpointPath, "checkpoint", "", "passing 72-hour formal report")
+	command.Flags().StringVar(&outputPath, "output", "", "new capacity YAML output")
+	for _, name := range []string{"config", "checkpoint", "output"} {
+		if err := command.MarkFlagRequired(name); err != nil {
+			panic(err)
+		}
+	}
+	root.AddCommand(command)
+}
+
+func writePrivateAtomic(path string, body []byte) error {
+	clean := filepath.Clean(path)
+	if strings.TrimSpace(path) == "" || len(body) == 0 || clean == "." {
+		return chatlifecyclerun.ErrInvalidInput
+	}
+	if _, err := os.Stat(clean); err == nil || !os.IsNotExist(err) {
+		return chatlifecyclerun.ErrInvalidInput
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(clean), ".wkchatlifecycle-*.tmp")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if err := temporary.Chmod(0o600); err != nil {
+		temporary.Close()
+		return err
+	}
+	if _, err := temporary.Write(body); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	return os.Rename(temporaryPath, clean)
 }
 
 type materializeOptions struct {
 	templatePath, sourceSHA, operator, codexPubKey, requestID string
 	repository, bundleDigest, deploymentPubKey, nowValue      string
+	transitionPath                                            string
 	attempt, committedMicros                                  int64
 	excludedZone, excludedComputeType                         string
 }
@@ -63,6 +203,7 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.bundleDigest, "bundle-digest", "", "trusted offline bundle digest")
 	flags.StringVar(&options.deploymentPubKey, "deployment-pubkey", "", "derived deployment Ed25519 public key")
 	flags.StringVar(&options.nowValue, "now", "", "trusted RFC3339 UTC materialization time")
+	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
 	flags.StringVar(&options.excludedZone, "excluded-zone", "", "prior failed placement zone")
@@ -93,6 +234,13 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 		Repository: options.repository, BundleDigest: options.bundleDigest,
 		DeploymentPubKey: options.deploymentPubKey, Now: now,
 		Attempt: int(options.attempt), CommittedMicros: options.committedMicros,
+	}
+	if options.transitionPath != "" {
+		var transition chatlifecyclerun.StageTransition
+		if err := readStrict(options.transitionPath, &transition); err != nil {
+			return err
+		}
+		trusted.Transition = &transition
 	}
 	if options.excludedZone != "" || options.excludedComputeType != "" {
 		trusted.ExcludedPlacement = &cloudlease.PlacementExclusion{Zone: options.excludedZone, ComputeType: options.excludedComputeType}

@@ -20,10 +20,12 @@ import (
 )
 
 const (
-	TemplateSchemaV1 = "wukongim.chat_lifecycle.run_plan_template/v1"
-	RunPlanSchemaV1  = "wukongim.chat_lifecycle.run_plan/v1"
-	StageRehearsal   = "rehearsal"
-	maxDocumentBytes = 1 << 20
+	TemplateSchemaV1         = "wukongim.chat_lifecycle.run_plan_template/v1"
+	RunPlanSchemaV1          = "wukongim.chat_lifecycle.run_plan/v1"
+	FormalTransitionSchemaV1 = "wukongim.chat_lifecycle.formal_transition/v1"
+	StageRehearsal           = "rehearsal"
+	StageFormal              = "formal"
+	maxDocumentBytes         = 1 << 20
 )
 
 var (
@@ -101,6 +103,21 @@ type TrustedContext struct {
 	Attempt           int
 	CommittedMicros   int64
 	ExcludedPlacement *cloudlease.PlacementExclusion
+	Transition        *StageTransition
+}
+
+// StageTransition is the authenticated, non-secret proof that the rehearsal
+// report survived upload and its Lease reached exact zero inventory before a
+// fresh formal Lease may consume the same aggregate cost envelope.
+type StageTransition struct {
+	Schema          string `json:"schema"`
+	FromStage       string `json:"from_stage"`
+	Outcome         string `json:"outcome"`
+	RequestID       string `json:"request_id"`
+	SourceSHA       string `json:"source_sha"`
+	BundleDigest    string `json:"bundle_digest"`
+	CommittedMicros int64  `json:"committed_micros"`
+	ZeroInventory   bool   `json:"zero_inventory"`
 }
 
 // RunPlan is the non-secret materialized policy passed to generic Actions.
@@ -146,6 +163,10 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 	if !validTemplate(template) || !validOperatorInput(input) || !validTrustedContext(template, trusted) {
 		return RunPlan{}, ErrInvalidInput
 	}
+	if template.Stage == StageFormal && (trusted.Transition.RequestID != input.RequestID ||
+		trusted.Transition.SourceSHA != input.SourceSHA) {
+		return RunPlan{}, ErrInvalidInput
+	}
 	deploymentKey, err := normalizeEd25519PublicKey(trusted.DeploymentPubKey)
 	if err != nil {
 		return RunPlan{}, ErrInvalidInput
@@ -176,7 +197,7 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 	}
 	plan := cloudlease.Plan{
 		Schema:    cloudlease.PlanSchemaV1,
-		LeaseID:   fmt.Sprintf("%s-rehearsal-%d", input.RequestID, trusted.Attempt),
+		LeaseID:   fmt.Sprintf("%s-%s-%d", input.RequestID, template.Stage, trusted.Attempt),
 		RequestID: input.RequestID, Provider: template.Provider, Region: template.Region,
 		Repository: trusted.Repository, Operator: input.Operator, ExpiresAt: expiresAt,
 		Budget: cloudlease.Budget{
@@ -193,7 +214,7 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 			},
 		},
 		HostGroups: hostGroups,
-		Tags:       map[string]string{"scenario": "chat-lifecycle", "stage": StageRehearsal},
+		Tags:       map[string]string{"scenario": "chat-lifecycle", "stage": template.Stage},
 	}
 	if trusted.ExcludedPlacement != nil {
 		plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{*trusted.ExcludedPlacement}
@@ -211,10 +232,8 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 }
 
 func validTemplate(template Template) bool {
-	if template.Schema != TemplateSchemaV1 || template.Stage != StageRehearsal ||
+	if template.Schema != TemplateSchemaV1 ||
 		template.Provider != "alibaba" || template.Region != "cn-hangzhou" ||
-		template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
-		template.WorkloadDurationSeconds != int64((2*time.Hour)/time.Second) ||
 		template.ReadinessTimeoutSeconds <= 0 || template.ReadinessTimeoutSeconds > int64((2*time.Hour)/time.Second) ||
 		template.Budget.Currency != "CNY" || template.Budget.HardLimitMicros != 1_500_000_000 ||
 		template.Budget.OperationalStopMicros != 1_350_000_000 ||
@@ -222,6 +241,20 @@ func validTemplate(template Template) bool {
 		template.Compute.VCPUs != 4 || template.Compute.MemoryBytes != 8<<30 ||
 		template.Compute.Architecture != "x86_64" || !strings.EqualFold(template.Compute.BillingModel, "postpaid") ||
 		template.Compute.AllowBurstable || template.Retry.DeploymentRetries != 1 || len(template.HostGroups) != 2 {
+		return false
+	}
+	switch template.Stage {
+	case StageRehearsal:
+		if template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
+			template.WorkloadDurationSeconds != int64((2*time.Hour)/time.Second) {
+			return false
+		}
+	case StageFormal:
+		if template.LeaseDurationSeconds != int64((96*time.Hour)/time.Second) ||
+			template.WorkloadDurationSeconds != int64((72*time.Hour)/time.Second) {
+			return false
+		}
+	default:
 		return false
 	}
 	service, load := template.HostGroups[0], template.HostGroups[1]
@@ -241,11 +274,25 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 		trusted.CommittedMicros >= template.Budget.HardLimitMicros {
 		return false
 	}
+	baseCommitted := int64(0)
+	if template.Stage == StageFormal {
+		transition := trusted.Transition
+		if transition == nil || transition.Schema != FormalTransitionSchemaV1 ||
+			transition.FromStage != StageRehearsal || transition.Outcome != "rehearsal_pass" ||
+			!transition.ZeroInventory || transition.RequestID == "" || !shaPattern.MatchString(transition.SourceSHA) ||
+			transition.BundleDigest != trusted.BundleDigest || transition.CommittedMicros <= 0 ||
+			transition.CommittedMicros >= template.Budget.OperationalStopMicros {
+			return false
+		}
+		baseCommitted = transition.CommittedMicros
+	} else if trusted.Transition != nil {
+		return false
+	}
 	switch trusted.Attempt {
 	case 1:
-		return trusted.CommittedMicros == 0 && trusted.ExcludedPlacement == nil
+		return trusted.CommittedMicros == baseCommitted && trusted.ExcludedPlacement == nil
 	case 2:
-		return trusted.CommittedMicros > 0 && trusted.ExcludedPlacement != nil &&
+		return trusted.CommittedMicros > baseCommitted && trusted.ExcludedPlacement != nil &&
 			strings.TrimSpace(trusted.ExcludedPlacement.Zone) != "" &&
 			strings.TrimSpace(trusted.ExcludedPlacement.ComputeType) != ""
 	default:

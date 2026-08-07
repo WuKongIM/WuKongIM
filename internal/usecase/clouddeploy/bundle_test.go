@@ -147,10 +147,32 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		!strings.Contains(caddyUnit, "ExecStartPre=/opt/wukongim/bin/caddy validate --config /etc/wukongim/Caddyfile --adapter caddyfile") {
 		t.Fatal("Caddy unit does not validate configuration or bind the public HTTP port")
 	}
-	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-rehearsal.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
+	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-rehearsal.service", "systemd/wkbench-formal.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
 		content := read(unit)
 		if !strings.Contains(content, "LimitNOFILE=1048576") || !strings.Contains(content, "TasksMax=infinity") {
 			t.Fatalf("%s omits native high-concurrency process limits: %s", unit, content)
+		}
+	}
+	formalUnit := read("systemd/wkbench-formal.service")
+	formalChain := read("scripts/run-formal-chain.sh")
+	if !strings.Contains(formalUnit, "ExecStart=/opt/wukongim/scripts/run-formal-chain.sh") ||
+		!strings.Contains(formalUnit, "Conflicts=wkbench-rehearsal.service wkbench-coordinator.service") {
+		t.Fatalf("formal systemd ownership = %s", formalUnit)
+	}
+	ordered := []string{
+		"wkbench soak chat-lifecycle", "prepare-capacity-config", "wkbench capacity chat-lifecycle",
+	}
+	previous := -1
+	for _, fragment := range ordered {
+		index := strings.Index(formalChain[previous+1:], fragment)
+		if index < 0 {
+			t.Fatalf("formal chain omits or reorders %q: %s", fragment, formalChain)
+		}
+		previous += index + 1
+	}
+	for _, forbidden := range []string{"systemctl restart", "systemctl start wukongim", "rm -rf", "docker"} {
+		if strings.Contains(strings.ToLower(formalChain), forbidden) {
+			t.Fatalf("formal chain mutates a core process or data with %q: %s", forbidden, formalChain)
 		}
 	}
 	if strings.Contains(read("systemd/node-exporter.service"), "EnvironmentFile=") {
@@ -212,7 +234,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	}
 	processScript := read("scripts/collect-process-metrics.sh")
 	processUnit := read("systemd/wukongim-process-metrics.service")
-	for _, process := range []string{"wukongim.service", "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "wkbench-coordinator.service", "prometheus.service", "caddy.service", "wkanalysis.service", "wukongim-process-metrics.service"} {
+	for _, process := range []string{"wukongim.service", "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "wkbench-coordinator.service", "wkbench-formal.service", "prometheus.service", "caddy.service", "wkanalysis.service", "wukongim-process-metrics.service"} {
 		if !strings.Contains(processScript, process) {
 			t.Fatalf("process collector omits %s", process)
 		}

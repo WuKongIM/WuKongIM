@@ -19,6 +19,32 @@ set -euo pipefail
 [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
 [[ -x "$WK_CHAT_TOOL" && -f "$WK_CHAT_TEMPLATE" && -f "$WK_CHAT_DEPLOYMENT_KEY" ]]
 
+chat_stage="${WK_CHAT_STAGE:-rehearsal}"
+case "$chat_stage" in
+  rehearsal)
+    stage_service=wkbench-rehearsal.service
+    stage_report_dir=rehearsal
+    stage_duration_seconds=7200
+    stage_handoff_schema=wukongim.chat_lifecycle.rehearsal_handoff/v1
+    ;;
+  formal)
+    : "${WK_CHAT_BUNDLE_RUN_ID:?required for formal}"
+    : "${WK_CHAT_BUNDLE_DIGEST:?required for formal}"
+    : "${WK_CHAT_TRANSITION:?required for formal}"
+    [[ "$WK_CHAT_BUNDLE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+    [[ "$WK_CHAT_BUNDLE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+    [[ -f "$WK_CHAT_TRANSITION" ]]
+    stage_service=wkbench-formal.service
+    stage_report_dir=formal
+    stage_duration_seconds=259200
+    stage_handoff_schema=wukongim.chat_lifecycle.formal_handoff/v1
+    ;;
+  *)
+    echo 'unsupported chat lifecycle stage' >&2
+    exit 2
+    ;;
+esac
+
 install -d -m 0700 "$WK_CHAT_OUTPUT_DIR"
 install -d -m 0700 "$WK_CHAT_WORK_DIR"
 active_selector=''
@@ -110,7 +136,7 @@ release_current() {
       active_selector=''
       cp "$selector" "$WK_CHAT_OUTPUT_DIR/release-selector.json"
       cp "${release_files[0]}" "$WK_CHAT_OUTPUT_DIR/zero-inventory.json"
-      jq -n --arg schema 'wukongim.chat_lifecycle.rehearsal_cleanup/v1' \
+      jq -n --arg schema "wukongim.chat_lifecycle.${chat_stage}_cleanup/v1" \
         --arg request_id "$WK_CHAT_REQUEST_ID" --argjson release_run_id "$DISPATCH_RUN_ID" \
         --slurpfile release "${release_files[0]}" \
         '{schema:$schema,request_id:$request_id,release_run_id:$release_run_id,
@@ -140,17 +166,31 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 trap 'exit 130' INT TERM
 
-bundle_title="Cloud Deployment Bundle $WK_CHAT_SOURCE_SHA $WK_CHAT_REQUEST_ID"
-dispatch_and_wait cloud-deployment-bundle.yml "$bundle_title" \
-  -f source_sha="$WK_CHAT_SOURCE_SHA" -f request_id="$WK_CHAT_REQUEST_ID"
-bundle_run_id="$DISPATCH_RUN_ID"
-download_run "$bundle_run_id" "$WK_CHAT_WORK_DIR/bundle"
-mapfile -t bundle_manifests < <(find "$WK_CHAT_WORK_DIR/bundle" -type f -name bundle-manifest-output.json -print)
-(( ${#bundle_manifests[@]} == 1 ))
-bundle_digest="$(jq -er '.bundle_digest | select(test("^sha256:[0-9a-f]{64}$"))' "${bundle_manifests[0]}")"
+if [[ "$chat_stage" == rehearsal ]]; then
+  bundle_title="Cloud Deployment Bundle $WK_CHAT_SOURCE_SHA $WK_CHAT_REQUEST_ID"
+  dispatch_and_wait cloud-deployment-bundle.yml "$bundle_title" \
+    -f source_sha="$WK_CHAT_SOURCE_SHA" -f request_id="$WK_CHAT_REQUEST_ID"
+  bundle_run_id="$DISPATCH_RUN_ID"
+  download_run "$bundle_run_id" "$WK_CHAT_WORK_DIR/bundle"
+  mapfile -t bundle_manifests < <(find "$WK_CHAT_WORK_DIR/bundle" -type f -name bundle-manifest-output.json -print)
+  (( ${#bundle_manifests[@]} == 1 ))
+  bundle_digest="$(jq -er '.bundle_digest | select(test("^sha256:[0-9a-f]{64}$"))' "${bundle_manifests[0]}")"
+else
+  bundle_run_id="$WK_CHAT_BUNDLE_RUN_ID"
+  bundle_digest="$WK_CHAT_BUNDLE_DIGEST"
+fi
 bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
 
 committed_micros=0
+if [[ "$chat_stage" == formal ]]; then
+  committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" --arg bundle "$bundle_digest" '
+    .schema == "wukongim.chat_lifecycle.formal_transition/v1" and
+    .from_stage == "rehearsal" and .outcome == "rehearsal_pass" and .zero_inventory == true and
+    .request_id == $request and .source_sha == $source and .bundle_digest == $bundle and
+    (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000 |
+    .committed_micros
+  ' "$WK_CHAT_TRANSITION")"
+fi
 excluded_zone=''
 excluded_compute_type=''
 
@@ -194,6 +234,9 @@ for attempt in 1 2; do
   )
   if [[ "$attempt" == 2 ]]; then
     materialize_args+=(--excluded-zone "$excluded_zone" --excluded-compute-type "$excluded_compute_type")
+  fi
+  if [[ "$chat_stage" == formal ]]; then
+    materialize_args+=(--transition "$WK_CHAT_TRANSITION")
   fi
   "$WK_CHAT_TOOL" "${materialize_args[@]}" >"$attempt_dir/run-plan.json"
   jq -c '.lease_plan' "$attempt_dir/run-plan.json" >"$attempt_dir/lease-plan.json"
@@ -290,24 +333,24 @@ for attempt in 1 2; do
     export WK_CLOUD_SSH_KEY="$WK_CHAT_DEPLOYMENT_KEY"
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
-    ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl start --no-block wkbench-rehearsal.service'
+    ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo systemctl start --no-block '$stage_service'"
     readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
     readiness_deadline=$(( $(date -u +%s) + readiness_timeout ))
     while true; do
       if timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-        'sudo test -f /var/lib/wukongim-cloud/reports/rehearsal/run-start.json && sudo test -s /var/lib/wukongim-cloud/reports/rehearsal/run-start.json'; then
+        "sudo test -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && sudo test -s '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json'"; then
         timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-          'sudo head -c 65537 -- /var/lib/wukongim-cloud/reports/rehearsal/run-start.json' \
+          "sudo head -c 65537 -- '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json'" \
           >"$attempt_dir/run-start.json" || true
-        if [[ -f "$attempt_dir/run-start.json" && "$(stat --format='%s' "$attempt_dir/run-start.json")" -le 65536 ]] && jq -e '
-          .schema == "wukongim.chat_lifecycle.run_start/v1" and .stage == "rehearsal" and
+        if [[ -f "$attempt_dir/run-start.json" && "$(stat --format='%s' "$attempt_dir/run-start.json")" -le 65536 ]] && jq -e --arg stage "$chat_stage" '
+          .schema == "wukongim.chat_lifecycle.run_start/v1" and .stage == $stage and
           (.started_at | type == "string") and (.expected_end_at | type == "string") and
           (.run_hash | test("^sha256:[0-9a-f]{64}$")) and
           (.assignment_hash | test("^sha256:[0-9a-f]{64}$")) and .generation > 0
         ' "$attempt_dir/run-start.json" >/dev/null &&
           started_epoch="$(date -u -d "$(jq -er .started_at "$attempt_dir/run-start.json")" +%s)" &&
           expected_epoch="$(date -u -d "$(jq -er .expected_end_at "$attempt_dir/run-start.json")" +%s)" &&
-          (( expected_epoch - started_epoch == 7200 )); then
+          (( expected_epoch - started_epoch == stage_duration_seconds )); then
           cp "$attempt_dir/run-plan.json" "$WK_CHAT_OUTPUT_DIR/run-plan.json"
           cp "$attempt_dir/quote.json" "$WK_CHAT_OUTPUT_DIR/quote.json"
           cp "$attempt_dir/receipt.json" "$WK_CHAT_OUTPUT_DIR/receipt.json"
@@ -315,7 +358,7 @@ for attempt in 1 2; do
           cp "${deployment_outcomes[0]}" "$WK_CHAT_OUTPUT_DIR/deployment-outcome.json"
           cp "$attempt_dir/run-start.json" "$WK_CHAT_OUTPUT_DIR/run-start.json"
           cp "$active_selector" "$WK_CHAT_OUTPUT_DIR/release-selector.json"
-          jq -n --arg schema 'wukongim.chat_lifecycle.rehearsal_handoff/v1' \
+          jq -n --arg schema "$stage_handoff_schema" \
             --arg request_id "$WK_CHAT_REQUEST_ID" --argjson attempt "$attempt" \
             --arg source_sha "$WK_CHAT_SOURCE_SHA" --arg bundle_digest "$bundle_digest" \
             --argjson bundle_run_id "$bundle_run_id" --argjson acquire_run_id "$acquire_run_id" \
@@ -329,7 +372,7 @@ for attempt in 1 2; do
           exit 0
         fi
       fi
-      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-rehearsal.service || true')"
+      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo systemctl is-active '$stage_service' || true")"
       if [[ "$state" == failed || "$state" == inactive || "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
         deployment_failed=true
         break
