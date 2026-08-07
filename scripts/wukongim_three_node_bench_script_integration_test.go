@@ -710,7 +710,7 @@ func TestWukongIMThreeNodeRealQPSScriptReturnsFailureWhenP99GateFails(t *testing
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(),
 		"WK_BENCH_REAL_QPS_BASE_SCRIPT="+baseScript,
-		"WK_FAKE_REAL_QPS_P99_SECONDS=0.5",
+		"WK_FAKE_REAL_QPS_P99_SECONDS=0.7",
 		"GOWORK=off",
 	)
 	output, err := cmd.CombinedOutput()
@@ -801,7 +801,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 	display := readFile(t, filepath.Join(outDir, "summary.txt"))
 	for _, want := range []string{
 		"BENCH RESULT",
-		"p99 gate: <= 400 ms",
+		"p99 gate: <= 600 ms",
 		"send_errors: 0",
 		"actual/offered gate: >= 0.95",
 		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
@@ -854,7 +854,7 @@ func TestWukongIMThreeNodeRealQPSScriptAggregatesRuntimePoolMetrics(t *testing.T
 	topSummary := readFile(t, filepath.Join(outDir, "summary.md"))
 	for _, want := range []string{
 		"## Result",
-		"p99 gate: <= 400 ms",
+		"p99 gate: <= 600 ms",
 		"send_errors: 0",
 		"actual/offered gate: >= 0.95",
 		"best pass: offered=100 actual=99.0 qps p99=3.0ms",
