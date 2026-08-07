@@ -7,6 +7,9 @@ set -euo pipefail
 : "${WK_CHAT_TOOL:?required}"
 : "${WK_CHAT_REQUEST_ID:?required}"
 
+operator_stop="${WK_CHAT_OPERATOR_STOP:-false}"
+[[ "$operator_stop" == true || "$operator_stop" == false ]]
+
 for name in handoff.json deployment-plan.json run-start.json release-selector.json; do
   [[ -f "$WK_CHAT_HANDOFF_DIR/$name" ]]
 done
@@ -33,37 +36,64 @@ scripts/cloud-deployment/write-ssh-config.sh
 remote_json=/var/lib/wukongim-cloud/reports/rehearsal/final.json
 remote_markdown=/var/lib/wukongim-cloud/reports/rehearsal/final.md
 remote_report_max_bytes=4194304
+remote_timeout=60
+[[ "$operator_stop" == true ]] && remote_timeout=15
 
 remote_report_exists() {
-  timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
     "sudo test -f '$remote_json' && sudo test -s '$remote_json' && sudo test -f '$remote_markdown' && sudo test -s '$remote_markdown'"
 }
 
 fetch_bounded_remote_report() {
   local remote_path="$1"
   local local_path="$2"
-  timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
     "sudo head -c $(( remote_report_max_bytes + 1 )) -- '$remote_path'" >"$local_path" &&
     [[ "$(stat --format='%s' "$local_path")" -le "$remote_report_max_bytes" ]]
 }
+
+operator_stop_budget_seconds=600
+operator_stop_deadline=$(( $(date -u +%s) + operator_stop_budget_seconds - 180 ))
+if [[ "$operator_stop" == true ]]; then
+  stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    'sudo systemctl is-active wkbench-rehearsal.service || true' 2>/dev/null || printf unreachable)"
+  if [[ "$stop_state" == active || "$stop_state" == activating ]]; then
+    timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "sudo systemctl kill --kill-who=main --signal=SIGTERM wkbench-rehearsal.service || true"
+    while [[ "$(date -u +%s)" -lt "$operator_stop_deadline" ]]; do
+      remote_report_exists && break
+      stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        'sudo systemctl is-active wkbench-rehearsal.service || true' 2>/dev/null || printf unreachable)"
+      [[ "$stop_state" == active || "$stop_state" == activating ]] || break
+      sleep 5
+    done
+    stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      'sudo systemctl is-active wkbench-rehearsal.service || true' 2>/dev/null || printf unreachable)"
+    if [[ ( "$stop_state" == active || "$stop_state" == activating ) ]] && ! remote_report_exists; then
+      timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl kill --kill-who=main --signal=SIGKILL wkbench-rehearsal.service || true; \
+         sudo systemctl stop wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service || true"
+    fi
+  fi
+fi
 
 report_ready=false
 if remote_report_exists; then
   report_ready=true
 fi
 state=unreachable
-if observed_state="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-rehearsal.service || true')"; then
+if observed_state="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-rehearsal.service || true')"; then
   state="$observed_state"
 fi
-if [[ "$report_ready" != true && "$state" == unreachable && "$(date -u +%s)" -lt "$expected_epoch" ]]; then
+if [[ "$operator_stop" != true && "$report_ready" != true && "$state" == unreachable && "$(date -u +%s)" -lt "$expected_epoch" ]]; then
   printf '%s\n' not_ready
   exit 0
 fi
-if [[ "$report_ready" != true && "$state" == active && "$(date -u +%s)" -lt "$expected_epoch" ]]; then
+if [[ "$operator_stop" != true && "$report_ready" != true && "$state" == active && "$(date -u +%s)" -lt "$expected_epoch" ]]; then
   printf '%s\n' not_ready
   exit 0
 fi
-if [[ "$report_ready" != true && "$state" == active ]]; then
+if [[ "$operator_stop" != true && "$report_ready" != true && "$state" == active ]]; then
   deadline=$(( $(date -u +%s) + 900 ))
   while [[ "$(date -u +%s)" -lt "$deadline" ]]; do
     if remote_report_exists; then
@@ -71,7 +101,7 @@ if [[ "$report_ready" != true && "$state" == active ]]; then
       break
     fi
     state=unreachable
-    if observed_state="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-rehearsal.service || true')"; then
+    if observed_state="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-rehearsal.service || true')"; then
       state="$observed_state"
     fi
     [[ "$state" == active ]] || break
@@ -105,12 +135,15 @@ else
     printf 'request_id=%s\n' "$request_id"
     printf 'expected_end_at=%s\n' "$expected_end"
     printf 'observed_state=%s\n' "$state"
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl show wkbench-rehearsal.service --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-rehearsal.service --no-pager -n 500 | sha256sum'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-rehearsal.service --no-pager -n 500 | wc -l'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'df -B1 / /var/lib/wukongim-cloud'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl show wkbench-rehearsal.service --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-rehearsal.service --no-pager -n 500 | sha256sum'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-rehearsal.service --no-pager -n 500 | wc -l'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'df -B1 / /var/lib/wukongim-cloud'
   } >"$WK_CHAT_FINAL_DIR/diagnostics.txt" 2>&1 || true
-  if [[ "$report_ready" == true && "$validated_report" != true ]]; then
+  if [[ "$operator_stop" == true ]]; then
+    outcome=operator_stop
+    cause=operator_requested_evidence_incomplete
+  elif [[ "$report_ready" == true && "$validated_report" != true ]]; then
     outcome=harness_invalid
     cause=invalid_terminal_report
   else

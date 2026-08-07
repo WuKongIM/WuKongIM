@@ -17,6 +17,7 @@ authorization and the applicable budget.
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
+| `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker, cancels exact orchestration, and requests bounded operator-stop finalization |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -240,7 +241,10 @@ validates an active Lease Receipt, derives a WuKongIM Deployment Plan, transfers
 one verified bundle through the public load node to three private service
 nodes, activates native non-restarting infrastructure units while leaving the
 stage-specific coordinator dormant, and emits either a typed Deployment
-Receipt or bounded stable failure.
+Receipt or bounded stable failure. Manager/Demo plaintext credentials exist
+only in the deployment process and the request-scoped local Codex state; the
+Artifact carries an authenticated sealed box addressed to the exact diagnostic
+Ed25519 identity supplied by the paid top-level workflow.
 The two upstream runs need not share the Deployment Action's head SHA: long
 bundle builds remain valid while `main` advances. The Lease provenance still
 binds the immutable source and bundle digest, and the sealed bundle control SHA
@@ -282,6 +286,13 @@ publication fails. Every immediate cleanup owner performs one complete
 provider-bounded Release pass; the finalizer retries on its next schedule, and
 the independent 15-minute Cloud Lease Sweep reconciles cleanup-pending or
 expired inventory even if an owning job is canceled.
+
+`chat-lifecycle-stop.yml` is the only manual request-stop entrypoint. It first
+uploads an authenticated request-level stop marker, which makes formal
+transition discovery fail closed, then cancels exact matching paid
+orchestration and dispatches both stage finalizers with the fixed operator-stop
+authorization. A live coordinator receives one graceful signal and gets at
+most ten minutes to publish terminal evidence before cleanup continues.
 
 A passing rehearsal finalizer releases the rehearsal Lease first, authenticates
 its selector-bound zero proof, and publishes one `formal_transition/v1` bound to

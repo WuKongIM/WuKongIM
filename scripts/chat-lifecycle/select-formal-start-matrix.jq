@@ -10,6 +10,8 @@ sort_by(.created_at) | reverse |
     max_by(.created_at)) as $handoff |
   ([ $artifacts[] | select(.name == ("chat-lifecycle-formal-cleanup-" + $transition.request_id) and .created_at >= $transition.created_at) ] |
     max_by(.created_at)) as $cleanup |
-  select($handoff == null and $cleanup == null) |
+  ([ $artifacts[] | select(.name == ("chat-lifecycle-operator-stop-" + $transition.request_id)) ] |
+    max_by(.created_at)) as $operator_stop |
+  select($handoff == null and $cleanup == null and $operator_stop == null) |
   {request_id:$transition.request_id,transition_run_id:$transition.workflow_run.id} ] |
 {include:.[0:1]}

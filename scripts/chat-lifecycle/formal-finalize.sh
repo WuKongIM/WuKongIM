@@ -7,6 +7,9 @@ set -euo pipefail
 : "${WK_CHAT_TOOL:?required}"
 : "${WK_CHAT_REQUEST_ID:?required}"
 
+operator_stop="${WK_CHAT_OPERATOR_STOP:-false}"
+[[ "$operator_stop" == true || "$operator_stop" == false ]]
+
 for name in handoff.json deployment-plan.json run-start.json release-selector.json; do
   [[ -f "$WK_CHAT_HANDOFF_DIR/$name" ]]
 done
@@ -34,34 +37,64 @@ scripts/cloud-deployment/write-ssh-config.sh
 
 remote_root=/var/lib/wukongim-cloud/reports
 remote_report_max_bytes=4194304
+remote_timeout=60
+[[ "$operator_stop" == true ]] && remote_timeout=15
 
 remote_nonempty() {
   local path="$1"
-  timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo test -s '$path'"
+  timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo test -s '$path'"
 }
 
 fetch_bounded() {
   local remote_path="$1"
   local local_path="$2"
-  timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
     "sudo head -c $(( remote_report_max_bytes + 1 )) -- '$remote_path'" >"$local_path" &&
     [[ "$(stat --format='%s' "$local_path")" -le "$remote_report_max_bytes" ]]
 }
 
+operator_stop_budget_seconds=600
+operator_stop_deadline=$(( $(date -u +%s) + operator_stop_budget_seconds - 180 ))
+if [[ "$operator_stop" == true ]]; then
+  stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    'sudo systemctl is-active wkbench-formal.service || true' 2>/dev/null || printf unreachable)"
+  if [[ "$stop_state" == active || "$stop_state" == activating ]]; then
+    timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "sudo systemctl kill --kill-who=main --signal=SIGTERM wkbench-formal.service || true"
+    while [[ "$(date -u +%s)" -lt "$operator_stop_deadline" ]]; do
+      if remote_nonempty "$remote_root/formal/final.json" || remote_nonempty "$remote_root/capacity/final.json"; then
+        break
+      fi
+      stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        'sudo systemctl is-active wkbench-formal.service || true' 2>/dev/null || printf unreachable)"
+      [[ "$stop_state" == active || "$stop_state" == activating ]] || break
+      sleep 5
+    done
+    stop_state="$(timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      'sudo systemctl is-active wkbench-formal.service || true' 2>/dev/null || printf unreachable)"
+    if [[ ( "$stop_state" == active || "$stop_state" == activating ) ]] && \
+      ! remote_nonempty "$remote_root/formal/final.json" && ! remote_nonempty "$remote_root/capacity/final.json"; then
+      timeout 15 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl kill --kill-who=main --signal=SIGKILL wkbench-formal.service || true; \
+         sudo systemctl stop wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service || true"
+    fi
+  fi
+fi
+
 state=unreachable
-if observed_state="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-formal.service || true')"; then
+if observed_state="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl is-active wkbench-formal.service || true')"; then
   state="$observed_state"
 fi
 formal_ready=false
 remote_nonempty "$remote_root/formal/final.json" && formal_ready=true || true
 
-if [[ "$state" == active && "$(date -u +%s)" -lt "$safety_epoch" ]]; then
+if [[ "$operator_stop" != true && "$state" == active && "$(date -u +%s)" -lt "$safety_epoch" ]]; then
   # One formal-chain process owns Soak, capacity, and recovery. Even complete
   # report files are not a handoff boundary until that process has exited.
   printf '%s\n' not_ready
   exit 0
 fi
-if [[ "$state" == unreachable && "$(date -u +%s)" -lt "$safety_epoch" && "$formal_ready" != true ]]; then
+if [[ "$operator_stop" != true && "$state" == unreachable && "$(date -u +%s)" -lt "$safety_epoch" && "$formal_ready" != true ]]; then
   printf '%s\n' not_ready
   exit 0
 fi
@@ -115,12 +148,15 @@ if [[ "$validated" != true ]]; then
     printf 'expected_end_at=%s\n' "$expected_end"
     printf 'safety_deadline_epoch=%s\n' "$safety_epoch"
     printf 'observed_state=%s\n' "$state"
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl show wkbench-formal.service --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-formal.service --no-pager -n 500 | sha256sum'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-formal.service --no-pager -n 500 | wc -l'
-    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'df -B1 / /var/lib/wukongim-cloud'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo systemctl show wkbench-formal.service --property=ActiveState,SubState,Result,ExecMainCode,ExecMainStatus,NRestarts'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-formal.service --no-pager -n 500 | sha256sum'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'sudo journalctl -u wkbench-formal.service --no-pager -n 500 | wc -l'
+    timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load 'df -B1 / /var/lib/wukongim-cloud'
   } >"$WK_CHAT_FINAL_DIR/diagnostics.txt" 2>&1 || true
-  if [[ -s "$WK_CHAT_FINAL_DIR/formal/final.json" || -s "$WK_CHAT_FINAL_DIR/capacity/final.json" ]]; then
+  if [[ "$operator_stop" == true ]]; then
+    outcome=operator_stop
+    cause=operator_requested_evidence_incomplete
+  elif [[ -s "$WK_CHAT_FINAL_DIR/formal/final.json" || -s "$WK_CHAT_FINAL_DIR/capacity/final.json" ]]; then
     outcome=harness_invalid
     cause=invalid_terminal_report
   else

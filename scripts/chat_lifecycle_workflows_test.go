@@ -41,6 +41,37 @@ func TestChatLifecycleRehearsalExposesExactlyFourOperatorInputs(t *testing.T) {
 	}
 }
 
+func TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate(t *testing.T) {
+	root := repoRoot(t)
+	skill := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-chat-lifecycle", "SKILL.md"))
+	reference := readFile(t, filepath.Join(root, ".agents", "skills", "wukongim-chat-lifecycle", "references", "operator-workflow.md"))
+	for _, required := range []string{
+		"name: wukongim-chat-lifecycle",
+		"开始聊天生命周期全流程压测",
+		"CNY 1,500",
+		"status, diagnose, stop, explanations, and next-step questions never do",
+		"chat-lifecycle-rehearsal.yml",
+		"chat-lifecycle-stop.yml",
+		"$wukongim-cloud-analysis",
+		"30-minute monitor",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Fatalf("project Skill is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"wukongim-leases/chat-lifecycle/<request_id>",
+		"wkchatlifecycle open-access",
+		"operator-stop-chat-lifecycle",
+		"zero-inventory proof",
+		"UTC and Asia/Shanghai",
+	} {
+		if !strings.Contains(reference, required) {
+			t.Fatalf("project Skill operator reference is missing %q", required)
+		}
+	}
+}
+
 func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder(t *testing.T) {
 	root := repoRoot(t)
 	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
@@ -75,6 +106,65 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 	if strings.Count(workflow, "      "+"source_sha:") != 1 ||
 		!strings.Contains(workflow, "Orchestrate until remote systemd owns the measured run") {
 		t.Fatal("rehearsal workflow does not retain the fixed remote-ownership boundary")
+	}
+}
+
+func TestChatLifecycleEncryptedAccessHandoffNeverPublishesPlaintextCredentials(t *testing.T) {
+	root := repoRoot(t)
+	deployment := string(readWorkflow(t, "cloud-deployment-activate.yml"))
+	for _, required := range []string{
+		"codex_diagnostic_pubkey:",
+		"wkchatlifecycle\" seal-access",
+		"encrypted-access.json",
+		"rm -f access-credentials.json",
+	} {
+		if !strings.Contains(deployment, required) {
+			t.Fatalf("Deployment Action access handoff is missing %q", required)
+		}
+	}
+	if strings.Contains(deployment, "access-credentials.json\n            deployment-plan.json") {
+		t.Fatal("Deployment Action uploads plaintext access credentials")
+	}
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	for _, required := range []string{
+		`-f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY"`,
+		"encrypted-access.json",
+		`cp "${encrypted_access[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-access.json"`,
+	} {
+		if !strings.Contains(orchestrator, required) {
+			t.Fatalf("stage orchestration access handoff is missing %q", required)
+		}
+	}
+}
+
+func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperatorStop(t *testing.T) {
+	stop := string(readWorkflow(t, "chat-lifecycle-stop.yml"))
+	for _, required := range []string{
+		"operator-stop-chat-lifecycle",
+		"chat-lifecycle-operator-stop-${{ inputs.request_id }}",
+		"gh run cancel",
+		"chat-lifecycle-rehearsal-finalize.yml",
+		"chat-lifecycle-formal-finalize.yml",
+	} {
+		if !strings.Contains(stop, required) {
+			t.Fatalf("stop workflow is missing %q", required)
+		}
+	}
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		for _, required := range []string{"operation:", "stop_authorization:", "operator-stop-chat-lifecycle", "WK_CHAT_OPERATOR_STOP"} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s stop contract is missing %q", workflowName, required)
+			}
+		}
+	}
+	for _, relative := range []string{"rehearsal-finalize.sh", "formal-finalize.sh"} {
+		body := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", relative))
+		for _, required := range []string{"WK_CHAT_OPERATOR_STOP", "systemctl kill --kill-who=main --signal=SIGTERM", "operator_stop_deadline", "600"} {
+			if !strings.Contains(body, required) {
+				t.Fatalf("%s operator stop is missing %q", relative, required)
+			}
+		}
 	}
 }
 
@@ -379,6 +469,7 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 		{"name": "chat-lifecycle-formal-transition-r1", "created_at": "2026-08-07T10:00:00Z", "workflow_run": map[string]any{"id": 11}},
 		{"name": "chat-lifecycle-formal-handoff-r1", "created_at": "2026-08-07T11:00:00Z", "workflow_run": map[string]any{"id": 12}},
 		{"name": "chat-lifecycle-formal-transition-r2", "created_at": "2026-08-07T12:00:00Z", "workflow_run": map[string]any{"id": 21}},
+		{"name": "chat-lifecycle-operator-stop-r2", "created_at": "2026-08-07T12:01:00Z", "workflow_run": map[string]any{"id": 22}},
 		{"name": "chat-lifecycle-formal-transition-r3", "created_at": "2026-08-07T13:00:00Z", "workflow_run": map[string]any{"id": 31}},
 		{"name": "chat-lifecycle-formal-cleanup-r3", "created_at": "2026-08-07T14:00:00Z", "workflow_run": map[string]any{"id": 32}},
 	}
@@ -402,12 +493,98 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 	if err := json.Unmarshal(output, &matrix); err != nil {
 		t.Fatal(err)
 	}
-	if len(matrix.Include) != 1 || matrix.Include[0].RequestID != "r2" || matrix.Include[0].TransitionRunID != 21 {
+	if len(matrix.Include) != 0 {
 		t.Fatalf("formal start matrix = %+v", matrix.Include)
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
 	if !strings.Contains(discovery, "for page in 1 2 3 4 5") || strings.Contains(discovery, "--paginate") ||
-		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") {
+		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") ||
+		!strings.Contains(discovery, "chat-lifecycle-stop.yml") {
 		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
 	}
+}
+
+func TestFormalTransitionDiscoveryTrustsOnlyAuthenticatedStopProducer(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	artifactsPath := filepath.Join(directory, "artifacts.json")
+	transitionRunPath := filepath.Join(directory, "transition-run.json")
+	stopRunPath := filepath.Join(directory, "stop-run.json")
+	fakeGH := filepath.Join(directory, "gh")
+	artifacts := map[string]any{"artifacts": []map[string]any{
+		{"name": "chat-lifecycle-formal-transition-r2", "created_at": "2026-08-07T12:00:00Z", "expired": false, "workflow_run": map[string]any{"id": 21}},
+		{"name": "chat-lifecycle-operator-stop-r2", "created_at": "2026-08-07T12:01:00Z", "expired": false, "workflow_run": map[string]any{"id": 22}},
+	}}
+	writeJSON := func(path string, value any) {
+		t.Helper()
+		body, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeJSON(artifactsPath, artifacts)
+	baseRun := map[string]any{
+		"repository":      map[string]any{"full_name": "WuKongIM/WuKongIM"},
+		"head_repository": map[string]any{"full_name": "WuKongIM/WuKongIM"},
+		"event":           "workflow_dispatch", "head_branch": "main", "status": "completed", "conclusion": "success",
+	}
+	transitionRun := mapsClone(baseRun)
+	transitionRun["path"] = ".github/workflows/chat-lifecycle-rehearsal-finalize.yml"
+	writeJSON(transitionRunPath, transitionRun)
+	if err := os.WriteFile(fakeGH, []byte(`#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == api ]]
+case "$2" in
+  *'/actions/artifacts?'*) cat "$FAKE_ARTIFACTS" ;;
+  */actions/runs/21) cat "$FAKE_TRANSITION_RUN" ;;
+  */actions/runs/22) cat "$FAKE_STOP_RUN" ;;
+  *) exit 2 ;;
+esac
+`), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range []struct {
+		name     string
+		stopPath string
+		wantRows int
+	}{
+		{name: "protected stop blocks", stopPath: ".github/workflows/chat-lifecycle-stop.yml", wantRows: 0},
+		{name: "untrusted name collision ignored", stopPath: ".github/workflows/another.yml", wantRows: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stopRun := mapsClone(baseRun)
+			stopRun["path"] = test.stopPath
+			writeJSON(stopRunPath, stopRun)
+			output := filepath.Join(directory, strings.ReplaceAll(test.name, " ", "-")+".json")
+			command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-formal-transitions.sh"), "", output)
+			command.Dir = root
+			command.Env = append(os.Environ(),
+				"PATH="+directory+":"+os.Getenv("PATH"), "GH_TOKEN=test", "GITHUB_REPOSITORY=WuKongIM/WuKongIM",
+				"FAKE_ARTIFACTS="+artifactsPath, "FAKE_TRANSITION_RUN="+transitionRunPath, "FAKE_STOP_RUN="+stopRunPath)
+			if body, err := command.CombinedOutput(); err != nil {
+				t.Fatalf("discover formal transitions: %v\n%s", err, body)
+			}
+			var matrix struct {
+				Include []json.RawMessage `json:"include"`
+			}
+			if err := json.Unmarshal([]byte(readFile(t, output)), &matrix); err != nil {
+				t.Fatal(err)
+			}
+			if len(matrix.Include) != test.wantRows {
+				t.Fatalf("matrix rows = %d, want %d", len(matrix.Include), test.wantRows)
+			}
+		})
+	}
+}
+
+func mapsClone(source map[string]any) map[string]any {
+	clone := make(map[string]any, len(source))
+	for key, value := range source {
+		clone[key] = value
+	}
+	return clone
 }

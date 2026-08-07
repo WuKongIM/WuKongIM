@@ -1,0 +1,4 @@
+interface:
+  display_name: "WuKongIM Chat Lifecycle"
+  short_description: "Start and operate the automated cloud lifecycle test"
+  default_prompt: "Use $wukongim-chat-lifecycle to start the complete automated chat lifecycle cloud test."

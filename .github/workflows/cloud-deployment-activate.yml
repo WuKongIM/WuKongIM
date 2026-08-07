@@ -20,6 +20,10 @@ on:
         description: Exact content-addressed deployment bundle artifact name
         required: true
         type: string
+      codex_diagnostic_pubkey:
+        description: Exact request-scoped Codex Ed25519 credential recipient
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -42,6 +46,7 @@ jobs:
       LEASE_ARTIFACT: ${{ inputs.lease_artifact_name }}
       BUNDLE_RUN_ID: ${{ inputs.bundle_artifact_run_id }}
       BUNDLE_ARTIFACT: ${{ inputs.bundle_artifact_name }}
+      CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
     steps:
       - name: Checkout trusted Deployment Action
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -106,6 +111,7 @@ jobs:
           install -d -m 0755 "$RUNNER_TEMP/trusted-deployment-tools"
           go build -trimpath -o "$RUNNER_TEMP/trusted-deployment-tools/wkcloudbundle" ./cmd/wkcloudbundle
           go build -trimpath -o "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" ./cmd/wkcloudgate
+          go build -trimpath -o "$RUNNER_TEMP/trusted-deployment-tools/wkchatlifecycle" ./cmd/wkchatlifecycle
       - name: Validate artifacts and derive immutable Deployment Plan
         id: plan
         shell: bash
@@ -228,6 +234,31 @@ jobs:
           printf 'export WK_CLOUD_MANAGER_USER=%q\nexport WK_CLOUD_MANAGER_PASSWORD=%q\nexport WK_CLOUD_DEMO_USER=%q\nexport WK_CLOUD_DEMO_PASSWORD=%q\n' \
             "$manager_user" "$manager_password" "$demo_user" "$demo_password" >readiness-credentials
           chmod 0600 readiness-credentials
+          printf '%s\n' "$CODEX_DIAGNOSTIC_PUBKEY" >"$RUNNER_TEMP/codex-diagnostic.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
+          request_id="$(jq -er .request_id deployment-plan.json)"
+          lease_id="$(jq -er .lease_id deployment-plan.json)"
+          source_sha="$(jq -er .source_sha deployment-plan.json)"
+          plan_digest="$(jq -er .plan_digest deployment-plan.json)"
+          jq -n --arg schema 'wukongim.chat_lifecycle.access/v1' \
+            --arg request_id "$request_id" --arg lease_id "$lease_id" --arg source_sha "$source_sha" \
+            --arg deployment_plan_digest "$plan_digest" --arg manager_url "http://${LOAD_PUBLIC}/" \
+            --arg demo_url "http://${LOAD_PUBLIC}/demo/" --arg username "$manager_user" \
+            --arg password "$manager_password" --arg lease_expires_at "$expires_at" \
+            '{schema:$schema,request_id:$request_id,lease_id:$lease_id,source_sha:$source_sha,
+              deployment_plan_digest:$deployment_plan_digest,manager_url:$manager_url,demo_url:$demo_url,
+              username:$username,password:$password,lease_expires_at:$lease_expires_at}' \
+            >access-credentials.json
+          chmod 0600 access-credentials.json
+          "$RUNNER_TEMP/trusted-deployment-tools/wkchatlifecycle" seal-access \
+            --recipient "$CODEX_DIAGNOSTIC_PUBKEY" <access-credentials.json >encrypted-access.json
+          rm -f access-credentials.json
+          jq -e --arg request "$request_id" --arg lease "$lease_id" --arg source "$source_sha" --arg plan "$plan_digest" '
+            .schema == "wukongim.chat_lifecycle.encrypted_access/v1" and
+            .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
+            .lease_id == $lease and .source_sha == $source and .deployment_plan_digest == $plan and
+            (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
+          ' encrypted-access.json >/dev/null
       - name: Transfer through load node and activate native services
         shell: bash
         env:
@@ -309,9 +340,10 @@ jobs:
             deployment-plan.json
             readiness-snapshot.json
             deployment-outcome.json
+            encrypted-access.json
           if-no-files-found: warn
           retention-days: 7
       - name: Remove runner credentials
         if: always()
         shell: bash
-        run: rm -f deployment-key readiness-credentials runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load
+        run: rm -f deployment-key readiness-credentials access-credentials.json "$RUNNER_TEMP/codex-diagnostic.pub" runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load

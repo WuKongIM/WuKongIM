@@ -1,0 +1,113 @@
+name: Agent Tool - Stop Chat Lifecycle Request
+run-name: Chat Lifecycle Stop ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Exact chat-lifecycle request to stop
+        required: true
+        type: string
+      stop_authorization:
+        description: Exact operator-stop authorization
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: chat-lifecycle-stop-${{ github.repository }}-${{ inputs.request_id }}
+  cancel-in-progress: false
+
+jobs:
+  stop:
+    name: Seal stop intent, cancel orchestration, and request finalization
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REQUEST_ID: ${{ inputs.request_id }}
+      STOP_AUTHORIZATION: ${{ inputs.stop_authorization }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Validate exact request-scoped stop authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+          [[ "$STOP_AUTHORIZATION" == operator-stop-chat-lifecycle ]]
+      - name: Seal durable stop marker before any cancellation
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$RUNNER_TEMP/operator-stop"
+          jq -n --arg schema 'wukongim.chat_lifecycle.operator_stop/v1' \
+            --arg request_id "$REQUEST_ID" --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{schema:$schema,request_id:$request_id,outcome:"operator_stop",observed_at:$observed_at}' \
+            >"$RUNNER_TEMP/operator-stop/operator-stop.json"
+          chmod 0600 "$RUNNER_TEMP/operator-stop/operator-stop.json"
+      - name: Upload stop marker that blocks future formal procurement
+        id: stop_marker
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-operator-stop-${{ inputs.request_id }}
+          path: ${{ runner.temp }}/operator-stop/operator-stop.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Cancel exact in-flight paid orchestration
+        id: cancel
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in chat-lifecycle-rehearsal.yml chat-lifecycle-formal.yml; do
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --branch main --limit 50 \
+              --json databaseId,displayTitle,status,workflowName >"$RUNNER_TEMP/${workflow}.json"
+          done
+          jq -s 'add' "$RUNNER_TEMP/chat-lifecycle-rehearsal.yml.json" \
+            "$RUNNER_TEMP/chat-lifecycle-formal.yml.json" >"$RUNNER_TEMP/runs.json"
+          mapfile -t run_ids < <(jq -r --arg rehearsal "Chat Lifecycle Rehearsal $REQUEST_ID" \
+            --arg formal "Chat Lifecycle Formal $REQUEST_ID" '
+            .[] | select(
+              ((.workflowName == "Agent Tool - Start Chat Lifecycle Rehearsal" and .displayTitle == $rehearsal) or
+               (.workflowName == "Safety Automation - Start Fresh Formal Chat Lifecycle" and .displayTitle == $formal)) and
+              (.status == "queued" or .status == "in_progress" or .status == "waiting" or
+               .status == "requested" or .status == "pending")) | .databaseId
+          ' "$RUNNER_TEMP/runs.json")
+          cancellation_failed=false
+          for run_id in "${run_ids[@]}"; do
+            cancelled=false
+            for attempt in 1 2 3; do
+              if gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY"; then
+                cancelled=true
+                break
+              fi
+              sleep 2
+            done
+            if [[ "$cancelled" != true ]]; then
+              echo "cancellation remains unconfirmed for run ${run_id}" >&2
+              cancellation_failed=true
+            fi
+          done
+          [[ "$cancellation_failed" == false ]]
+      - name: Request immediate rehearsal and formal finalization
+        if: always() && steps.stop_marker.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dispatch_failed=false
+          for workflow in chat-lifecycle-rehearsal-finalize.yml chat-lifecycle-formal-finalize.yml; do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref main \
+              -f request_id="$REQUEST_ID" -f operation=stop \
+              -f stop_authorization=operator-stop-chat-lifecycle || dispatch_failed=true
+          done
+          [[ "$dispatch_failed" == false ]]
+      - name: Fail when exact orchestration cancellation was not confirmed
+        if: always() && steps.cancel.outcome == 'failure'
+        shell: bash
+        run: exit 1

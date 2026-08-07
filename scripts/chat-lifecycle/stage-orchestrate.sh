@@ -310,7 +310,8 @@ for attempt in 1 2; do
   deployment_failed=false
   if ! dispatch_and_wait cloud-deployment-activate.yml "$deployment_title" \
     -f lease_artifact_run_id="$acquire_run_id" -f lease_artifact_name="$lease_artifact" \
-    -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact"; then
+    -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact" \
+    -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY"; then
     deployment_failed=true
   fi
   deployment_run_id="$DISPATCH_RUN_ID"
@@ -318,6 +319,22 @@ for attempt in 1 2; do
   mapfile -t deployment_outcomes < <(find "$attempt_dir/deployment-artifact" -type f -name deployment-outcome.json -print)
   if (( ${#deployment_outcomes[@]} != 1 )) || ! jq -e '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1"' "${deployment_outcomes[0]:-/dev/null}" >/dev/null; then
     deployment_failed=true
+  fi
+  mapfile -t encrypted_access < <(find "$attempt_dir/deployment-artifact" -type f -name encrypted-access.json -print)
+  if [[ "$deployment_failed" == true ]] || (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 )); then
+    deployment_failed=true
+  else
+    deployment_lease_id="$(jq -er .receipt.lease_id "${deployment_outcomes[0]}")"
+    deployment_plan_digest="$(jq -er .receipt.deployment_plan_digest "${deployment_outcomes[0]}")"
+    if ! jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+      --arg lease "$deployment_lease_id" --arg plan "$deployment_plan_digest" '
+      .schema == "wukongim.chat_lifecycle.encrypted_access/v1" and
+      .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
+      .source_sha == $source and .lease_id == $lease and .deployment_plan_digest == $plan and
+      (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
+    ' "${encrypted_access[0]}" >/dev/null; then
+      deployment_failed=true
+    fi
   fi
 
   if [[ "$deployment_failed" != true ]]; then
@@ -355,6 +372,7 @@ for attempt in 1 2; do
           cp "$attempt_dir/receipt.json" "$WK_CHAT_OUTPUT_DIR/receipt.json"
           cp "$attempt_dir/deployment-plan.json" "$WK_CHAT_OUTPUT_DIR/deployment-plan.json"
           cp "${deployment_outcomes[0]}" "$WK_CHAT_OUTPUT_DIR/deployment-outcome.json"
+          cp "${encrypted_access[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-access.json"
           cp "$attempt_dir/run-start.json" "$WK_CHAT_OUTPUT_DIR/run-start.json"
           cp "$active_selector" "$WK_CHAT_OUTPUT_DIR/release-selector.json"
           jq -n --arg schema "$stage_handoff_schema" \

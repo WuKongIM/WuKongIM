@@ -39,6 +39,8 @@ func newRootCommand(stdout io.Writer) *cobra.Command {
 	addReportCommand(root)
 	addPrepareCapacityConfigCommand(root)
 	addFormalChainReportCommand(root)
+	addSealAccessCommand(root)
+	addOpenAccessCommand(root)
 	return root
 }
 

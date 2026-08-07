@@ -11,6 +11,17 @@ on:
         required: false
         default: ""
         type: string
+      operation:
+        description: Finalize naturally or request an immediate operator stop
+        required: false
+        default: finalize
+        type: choice
+        options: [finalize, stop]
+      stop_authorization:
+        description: Exact authorization required only for operation=stop
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -31,6 +42,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REQUEST_ID: ${{ inputs.request_id || '' }}
+      OPERATION: ${{ github.event_name == 'workflow_dispatch' && inputs.operation || 'finalize' }}
+      STOP_AUTHORIZATION: ${{ inputs.stop_authorization || '' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -42,6 +55,16 @@ jobs:
           set -euo pipefail
           scripts/chat-lifecycle/discover-active-handoffs.sh "$REQUEST_ID" matrix.json
           echo "matrix=$(cat matrix.json)" >>"$GITHUB_OUTPUT"
+      - name: Validate manual stop boundary
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == stop ]]; then
+            [[ -n "$REQUEST_ID" && "$STOP_AUTHORIZATION" == operator-stop-chat-lifecycle ]]
+          else
+            [[ "$OPERATION" == finalize && -z "$STOP_AUTHORIZATION" ]]
+          fi
 
   finalize:
     name: Finalize ${{ matrix.request_id }} before zero-inventory cleanup
@@ -60,6 +83,7 @@ jobs:
       WK_CHAT_HANDOFF_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
       WK_CHAT_FINAL_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/final
       WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/cleanup
+      WK_CHAT_OPERATOR_STOP: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'stop' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -199,7 +223,7 @@ jobs:
         run: scripts/chat-lifecycle/release-until-zero.sh
       - name: Seal fresh-formal transition after rehearsal evidence and zero inventory
         id: transition
-        if: success() && steps.handoff.outputs.mode == 'run' && (steps.collect.outputs.ready == 'true' || steps.existing.outputs.ready == 'true')
+        if: success() && env.WK_CHAT_OPERATOR_STOP != 'true' && steps.handoff.outputs.mode == 'run' && (steps.collect.outputs.ready == 'true' || steps.existing.outputs.ready == 'true')
         shell: bash
         env:
           WK_CHAT_TRANSITION_DIR: ${{ runner.temp }}/formal-transition
