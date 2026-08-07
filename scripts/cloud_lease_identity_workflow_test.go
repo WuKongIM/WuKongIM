@@ -106,6 +106,71 @@ func TestCloudLeaseGitHubIdentityConfiguratorIsExplicitAndPreservesEnvironmentSe
 	}
 }
 
+func TestCloudLeaseGitHubIdentityPlanTreats404ResponseBodyAsMissingEnvironment(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	logPath := filepath.Join(t.TempDir(), "gh.log")
+	ghPath := filepath.Join(binDir, "gh")
+	stub := `#!/bin/sh
+set -eu
+printf '%s\n' "$*" >>"$GH_STUB_LOG"
+case "${1:-}" in
+  auth)
+    exit 0
+    ;;
+  api)
+    printf '{"message":"Not Found"}\n'
+    printf 'failed: HTTP 404: Not Found\n' >&2
+    exit 1
+    ;;
+  variable)
+    printf '[]\n'
+    exit 0
+    ;;
+  secret)
+    printf 'secret list must not run for a missing Environment\n' >&2
+    exit 99
+    ;;
+esac
+printf 'unexpected gh command: %s\n' "$*" >&2
+exit 98
+`
+	if err := os.WriteFile(ghPath, []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), "bash", filepath.Join(root, "scripts", "cloud-lease", "configure-github-identity.sh"), "plan", "WuKongIM/WuKongIM")
+	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "GH_STUB_LOG="+logPath)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("identity plan with missing Environments: %v\n%s", err, output)
+	}
+	var plan struct {
+		Repository string   `json:"repository"`
+		Changes    []string `json:"changes"`
+	}
+	if err := json.Unmarshal(output, &plan); err != nil {
+		t.Fatalf("decode plan %q: %v", output, err)
+	}
+	want := []string{
+		"oidc_subject",
+		"environment:cloud-lease-provision:create",
+		"environment:cloud-lease-observe:create",
+		"environment:cloud-lease-release:create",
+		"environment:cloud-deployment:create",
+		"chat_lifecycle_wrapping_key",
+	}
+	if plan.Repository != "WuKongIM/WuKongIM" || strings.Join(plan.Changes, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("plan = %+v, want repository and changes %+v", plan, want)
+	}
+	log, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(log), "secret list") {
+		t.Fatalf("missing Environment unexpectedly triggered Secret lookup:\n%s", log)
+	}
+}
+
 func TestCloudLeaseOIDCSetupLiveVerifiesChatLifecycleWrappingKey(t *testing.T) {
 	workflow := string(readWorkflow(t, "cloud-lease-oidc-setup.yml"))
 	for _, required := range []string{

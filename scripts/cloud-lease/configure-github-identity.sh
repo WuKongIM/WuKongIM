@@ -67,6 +67,10 @@ for environment in "${environments[@]}"; do
   else
     status=$?
     [[ "$status" -eq 4 ]] || { echo "$(<"$error")" >&2; exit 1; }
+    # gh may write the JSON 404 response body to stdout even though the API
+    # request failed. Keep an empty file as the missing-Environment sentinel so
+    # later Secret lookup and apply logic cannot mistake that body for state.
+    : >"$current"
     changes+=("environment:${environment}:create")
   fi
 done
