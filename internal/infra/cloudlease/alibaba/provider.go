@@ -1,6 +1,6 @@
 // Package alibaba implements Alibaba Cloud Lease discovery and lifecycle
-// operations. The initial adapter is deliberately Quote-only: its API seam
-// contains read methods and every lifecycle mutation fails closed.
+// operations. Quote-only and paid lifecycle constructors preserve separate
+// capability seams even though both use official Alibaba SDK clients.
 package alibaba
 
 import (
@@ -50,7 +50,7 @@ var (
 	ErrUnsupportedPlan = errors.New("internal/infra/cloudlease/alibaba: unsupported plan")
 	// ErrDiscoveryUnavailable reports missing or unparseable read-only provider evidence.
 	ErrDiscoveryUnavailable = errors.New("internal/infra/cloudlease/alibaba: discovery unavailable")
-	// ErrReadOnly reports a lifecycle operation intentionally unavailable before #800.
+	// ErrReadOnly reports a lifecycle operation unavailable on a Quote-only provider.
 	ErrReadOnly = errors.New("internal/infra/cloudlease/alibaba: quote-only provider")
 
 	ubuntu2404ImagePattern = regexp.MustCompile(`^ubuntu_24_04_x64_20G_alibase_[0-9]{8}\.vhd$`)
@@ -202,25 +202,64 @@ type ReadAPI interface {
 type Options struct {
 	// Now supplies deterministic UTC Quote timestamps and billing-duration rounding.
 	Now func() time.Time
+	// ReleaseTimeout bounds one immediate cleanup attempt window. Zero uses 30 minutes.
+	ReleaseTimeout time.Duration
+	// ReleasePollInterval bounds inventory convergence polling. Zero uses five seconds.
+	ReleasePollInterval time.Duration
+	// Wait is injectable for deterministic lifecycle tests. Nil waits on a timer.
+	Wait func(context.Context, time.Duration) error
 }
 
 // Provider selects and quotes Alibaba capacity through a read-only API seam.
 type Provider struct {
 	// api is deliberately read-only so Quote cannot reach a mutation method.
 	api ReadAPI
+	// lifecycle is nil for a Quote-only adapter and contains paid mutations only
+	// for explicitly constructed provisioning or release jobs.
+	lifecycle LifecycleAPI
 	// now supplies one injectable logical Quote clock.
 	now func() time.Time
+	// releaseTimeout and releasePollInterval implement the bounded cleanup window.
+	releaseTimeout      time.Duration
+	releasePollInterval time.Duration
+	// wait makes cleanup convergence deterministic in tests.
+	wait func(context.Context, time.Duration) error
 }
 
 var _ cloudlease.Provider = (*Provider)(nil)
 
 // New creates a Quote-only Alibaba Provider.
 func New(api ReadAPI, options Options) *Provider {
+	return newProvider(api, nil, options)
+}
+
+// NewLifecycle creates an Alibaba Provider with both read-only Quote and
+// lifecycle authorities. Callers must construct it only in approved mutation jobs.
+func NewLifecycle(api ReadAPI, lifecycle LifecycleAPI, options Options) *Provider {
+	return newProvider(api, lifecycle, options)
+}
+
+func newProvider(api ReadAPI, lifecycle LifecycleAPI, options Options) *Provider {
 	now := options.Now
 	if now == nil {
 		now = time.Now
 	}
-	return &Provider{api: api, now: now}
+	releaseTimeout := options.ReleaseTimeout
+	if releaseTimeout <= 0 {
+		releaseTimeout = 30 * time.Minute
+	}
+	pollInterval := options.ReleasePollInterval
+	if pollInterval <= 0 {
+		pollInterval = 5 * time.Second
+	}
+	wait := options.Wait
+	if wait == nil {
+		wait = waitContext
+	}
+	return &Provider{
+		api: api, lifecycle: lifecycle, now: now,
+		releaseTimeout: releaseTimeout, releasePollInterval: pollInterval, wait: wait,
+	}
 }
 
 // Name returns the stable adapter identity.
@@ -428,7 +467,7 @@ type providerPlanShape struct {
 func providerShapeFor(plan cloudlease.Plan) (providerPlanShape, error) {
 	if plan.Provider != ProviderName || plan.Region != RegionHangzhou || plan.Budget.Currency != "CNY" ||
 		!plan.Network.Isolated || !plan.Network.SingleZone || plan.Network.ConservativePublicEgressBytes <= 0 ||
-		len(plan.HostGroups) == 0 {
+		len(plan.HostGroups) == 0 || providerLifecycleTagCount(plan) > 20 {
 		return providerPlanShape{}, ErrUnsupportedPlan
 	}
 	first := plan.HostGroups[0].Compute
@@ -479,6 +518,18 @@ func providerShapeFor(plan cloudlease.Plan) (providerPlanShape, error) {
 		return providerPlanShape{}, ErrUnsupportedPlan
 	}
 	return shape, nil
+}
+
+func providerLifecycleTagCount(plan cloudlease.Plan) int {
+	// Base Lease tags + public-key digest + six Alibaba reconciliation tags + role.
+	count := len(cloudlease.MandatoryBaseTagKeys()) + 1 + 6 + 1 + len(plan.Tags)
+	if plan.Provenance.SourceSHA != "" {
+		count++
+	}
+	if plan.Provenance.BundleDigest != "" {
+		count++
+	}
+	return count
 }
 
 func appendUniqueInt(values []int, value int) []int {
@@ -689,34 +740,4 @@ func checkedAdd(left, right int64) (int64, bool) {
 		return 0, false
 	}
 	return left + right, true
-}
-
-// Acquire is unavailable until the mutation adapter is implemented in #800.
-func (*Provider) Acquire(context.Context, cloudlease.AcquireRequest) (cloudlease.Receipt, error) {
-	return cloudlease.Receipt{}, ErrReadOnly
-}
-
-// Inspect is unavailable until inventory reconstruction is implemented in #800.
-func (*Provider) Inspect(context.Context, cloudlease.Selector) (cloudlease.Receipt, error) {
-	return cloudlease.Receipt{}, ErrReadOnly
-}
-
-// List is unavailable until inventory reconstruction is implemented in #800.
-func (*Provider) List(context.Context, cloudlease.InventoryFilter) ([]cloudlease.Receipt, error) {
-	return nil, ErrReadOnly
-}
-
-// GrantAccess is unavailable until the mutation adapter is implemented in #800.
-func (*Provider) GrantAccess(context.Context, cloudlease.Selector, cloudlease.AccessGrant) (cloudlease.Receipt, error) {
-	return cloudlease.Receipt{}, ErrReadOnly
-}
-
-// RevokeAccess is unavailable until the mutation adapter is implemented in #800.
-func (*Provider) RevokeAccess(context.Context, cloudlease.Selector, string) (cloudlease.Receipt, error) {
-	return cloudlease.Receipt{}, ErrReadOnly
-}
-
-// Release is unavailable until the mutation adapter is implemented in #800.
-func (*Provider) Release(context.Context, cloudlease.Selector) (cloudlease.ReleaseResult, error) {
-	return cloudlease.ReleaseResult{}, ErrReadOnly
 }

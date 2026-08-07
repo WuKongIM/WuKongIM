@@ -22,7 +22,10 @@ committed by a caller: the new estimate must fit inside the remaining aggregate
 Budget. A Plan may declare a conservative complete-Lease public-egress byte
 ceiling; it is invalid unless at least one host requests a public IPv4 address.
 
-`Acquire` first inspects the exact Lease identity. Its idempotency tuple is
+`Acquire` first inspects the exact Lease identity. `AcquireWithBootstrap` also
+accepts up to eight distinct Ed25519 public keys, normalizes them, and adds only
+their SHA-256 set digest to every resource tag; public key text and all private
+material are absent from Receipts. Its idempotency tuple is
 repository, request, Lease, and Plan digest: a Request may intentionally group
 sequential stage-specific Leases, while one Lease identity can never be reused
 for a different Plan. A matching active Receipt is an idempotent success and a

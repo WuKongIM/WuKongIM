@@ -1,8 +1,8 @@
 # Alibaba Cloud Lease Flow
 
 `internal/infra/cloudlease/alibaba` maps the provider-neutral Cloud Lease port
-to Alibaba Cloud. The current implementation is intentionally Quote-only; the
-mutation and inventory methods remain fail-closed until #800.
+to Alibaba Cloud. Quote and paid lifecycle capabilities have separate API
+interfaces and constructors so read-only jobs cannot reach mutation methods.
 
 ```text
 cloudlease.Controller.Quote
@@ -18,6 +18,26 @@ cloudlease.Controller.Quote
   -> paginated DescribeImages -> latest official cloud-init Ubuntu 24.04 x86_64
   -> DescribePrice -> one-hour host+disk and pay-by-traffic EIP unit prices
   -> choose the lowest complete full-Lease estimate
+```
+
+```text
+cloudlease.Controller.AcquireWithBootstrap
+  -> exact paid-mutation authorization + temporary OIDC credentials
+  -> idempotent tagged VPC, vSwitch, and one basic security group
+  -> 3 private service hosts + 1 private load host, regular PostPaid/NoSpot
+  -> Ubuntu cloud-init creates key-only wkdeploy access from 2 Ed25519 keys
+  -> 40 GiB system + role-sized ESSD PL0 data disk per host
+  -> one tagged 20 Mbps PostPaid PayByTraffic EIP on the load host
+  -> one private-vSwitch rule + load-address-constrained typed public rules
+  -> exhaustive provider inventory reconstruction -> active Receipt
+
+Inspect / List / Release / Sweep
+  -> list tagged roots with complete pagination
+  -> traverse instance disks/ENIs, EIP association, security-group rules,
+     NAT gateways, route tables, and custom route entries
+  -> missing child tags are cleanup-only inherited identity, never healthy
+  -> dependency-ordered deletion with a bounded 30-minute retry window
+  -> success only after every declared inventory scope is observed empty
 ```
 
 The Quote API seam contains read methods only. Missing pages, repeated page
@@ -44,3 +64,21 @@ live role has exactly one attached custom policy whose active document matches
 `DryRun=true` must additionally return an exact RAM authorization error rather
 than an arbitrary 403. These policy and permission probes are outside
 `ReadAPI`; production Quote has no mutation method.
+
+`NewLifecycleOpenAPIFromOIDCEnvironment` additionally requires the exact
+`WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease`
+value. Ordinary Quote construction leaves the lifecycle guard false even
+though clients share one SDK implementation. Provision, observe, and release
+publish separate exact non-wildcard RAM action lists. EIP creation uses the
+RAM-authorizable `AllocateEipAddress` operation with atomic tags; the similarly
+named `AllocateEipAddressPro` operation is deliberately not used because its
+official authorization table exposes no RAM action.
+
+Acquire uses one Lease-owned VPC (`10.42.0.0/16`) and vSwitch
+(`10.42.0.0/24`). No ECS instance receives a provider public IPv4 address and
+no NAT gateway is created. A single security group is safe because public
+quintuple rules include the load node's exact private `/32` destination. Every
+host receives provider-native `AutoReleaseTime`, but that deadline is only a
+backstop: Release and the 15-minute scheduled Sweep remain responsible for
+deleting instances, disks and attachments, ENIs, EIP relationships, rules,
+custom routes, unexpected NAT gateways, vSwitch, and VPC.

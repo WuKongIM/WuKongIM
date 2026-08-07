@@ -44,6 +44,9 @@ const (
 	TagExpiresAt = "wukongim-expires-at"
 	// TagResourceRole records the logical role of one provider resource.
 	TagResourceRole = "wukongim-resource-role"
+	// TagBootstrapAccessDigest binds idempotent acquisition to its normalized
+	// public bootstrap identities without exposing the public keys in inventory.
+	TagBootstrapAccessDigest = "wukongim-bootstrap-access-digest"
 )
 
 var (
@@ -376,6 +379,15 @@ type AcquireRequest struct {
 	Quote Quote `json:"quote"`
 	// BaseTags must be repeated by every resource in the Lease.
 	BaseTags map[string]string `json:"base_tags"`
+	// BootstrapAuthorizedKeys contains normalized non-secret OpenSSH public keys
+	// installed during first boot. Providers and Receipts must not persist them.
+	BootstrapAuthorizedKeys []string `json:"bootstrap_authorized_keys,omitempty"`
+}
+
+// BootstrapAccess declares ephemeral public identities installed during
+// acquisition. Private keys never cross the Cloud Lease boundary.
+type BootstrapAccess struct {
+	AuthorizedKeys []string `json:"authorized_keys"`
 }
 
 // InventoryFilter scopes provider discovery for Sweep.

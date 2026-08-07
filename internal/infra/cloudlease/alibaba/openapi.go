@@ -20,6 +20,7 @@ import (
 	ram "github.com/alibabacloud-go/ram-20150501/v2/client"
 	sts "github.com/alibabacloud-go/sts-20150401/v2/client"
 	"github.com/alibabacloud-go/tea/dara"
+	vpc "github.com/alibabacloud-go/vpc-20160428/v6/client"
 )
 
 const (
@@ -32,14 +33,16 @@ const (
 	credentialAccessKeyIDEnv       = "ALIBABA_CLOUD_ACCESS_KEY_ID"
 	credentialAccessKeySecretEnv   = "ALIBABA_CLOUD_ACCESS_KEY_SECRET"
 	credentialSecurityTokenEnv     = "ALIBABA_CLOUD_SECURITY_TOKEN"
+	lifecycleAuthorizationEnv      = "WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION"
+	lifecycleAuthorizationValue    = "create-and-delete-paid-cloud-lease"
 	officialUbuntuImageNamePattern = "ubuntu_24_04_x64_20G_alibase*"
 	eipQuotaProductCode            = "eip"
 	eipQuotaActionCode             = "eip_quota_instances_num"
 	mutationPermissionProbeID      = "i-wukongim-readonly-permission-probe"
 )
 
-// OpenAPI is the production read-only Alibaba API boundary backed by official
-// ECS, STS, Quota Center, and integration-only RAM Go SDK clients.
+// OpenAPI is the production Alibaba SDK boundary. Lifecycle methods remain
+// unreachable unless constructed through the explicit paid-mutation path.
 type OpenAPI struct {
 	// region is the single reviewed provider discovery boundary.
 	region string
@@ -51,6 +54,10 @@ type OpenAPI struct {
 	quotas *quotas.Client
 	// ram is used only by tagged integration checks to prove the exact attached policy.
 	ram *ram.Client
+	// vpc serves lifecycle VPC, vSwitch, and EIP operations; Quote never uses it.
+	vpc *vpc.Client
+	// lifecycleAuthorized is true only through the explicit paid-mutation constructor.
+	lifecycleAuthorized bool
 }
 
 var _ ReadAPI = (*OpenAPI)(nil)
@@ -59,6 +66,19 @@ var _ ReadAPI = (*OpenAPI)(nil)
 // role credentials. Requiring a security token prevents accidental fallback
 // to a long-lived AccessKey in automated Quote jobs.
 func NewOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
+	return newOpenAPIFromOIDCEnvironment(region, false)
+}
+
+// NewLifecycleOpenAPIFromOIDCEnvironment creates the live mutation boundary
+// only when the job carries the exact explicit paid-cloud authorization value.
+func NewLifecycleOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
+	if os.Getenv(lifecycleAuthorizationEnv) != lifecycleAuthorizationValue {
+		return nil, fmt.Errorf("%w: explicit Alibaba lifecycle mutation authorization is required", ErrInvalidConfig)
+	}
+	return newOpenAPIFromOIDCEnvironment(region, true)
+}
+
+func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*OpenAPI, error) {
 	accessKeyID := strings.TrimSpace(os.Getenv(credentialAccessKeyIDEnv))
 	accessKeySecret := os.Getenv(credentialAccessKeySecretEnv)
 	securityToken := strings.TrimSpace(os.Getenv(credentialSecurityTokenEnv))
@@ -88,7 +108,14 @@ func NewOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: create RAM client: %v", ErrInvalidConfig, err)
 	}
-	return &OpenAPI{region: region, ecs: ecsClient, sts: stsClient, quotas: quotaClient, ram: ramClient}, nil
+	vpcClient, err := vpc.NewClient(config)
+	if err != nil {
+		return nil, fmt.Errorf("%w: create VPC client: %v", ErrInvalidConfig, err)
+	}
+	return &OpenAPI{
+		region: region, ecs: ecsClient, sts: stsClient, quotas: quotaClient,
+		ram: ramClient, vpc: vpcClient, lifecycleAuthorized: lifecycleAuthorized,
+	}, nil
 }
 
 // RequiredQuoteActions is the exact read-only RAM action set used by OpenAPI.
@@ -105,6 +132,64 @@ func RequiredQuoteActions() []string {
 		"ram:ListPoliciesForRole",
 		"sts:GetCallerIdentity",
 	}
+}
+
+// RequiredLifecycleObserveActions is the exact non-mutating inventory set used
+// by Inspect and the discovery phase of Release and Sweep.
+func RequiredLifecycleObserveActions() []string {
+	return []string{
+		"ecs:DescribeDisks",
+		"ecs:DescribeInstances",
+		"ecs:DescribeNetworkInterfaces",
+		"ecs:DescribeSecurityGroupAttribute",
+		"ecs:DescribeSecurityGroups",
+		"sts:GetCallerIdentity",
+		"vpc:DescribeEipAddresses",
+		"vpc:DescribeNatGateways",
+		"vpc:DescribeRouteEntryList",
+		"vpc:DescribeRouteTableList",
+		"vpc:DescribeVSwitches",
+		"vpc:DescribeVpcs",
+	}
+}
+
+// RequiredLifecycleProvisionActions adds only the creation and state-tagging
+// calls consumed by Acquire to the observe set.
+func RequiredLifecycleProvisionActions() []string {
+	return append(RequiredLifecycleObserveActions(),
+		"ecs:AuthorizeSecurityGroup",
+		"ecs:CreateSecurityGroup",
+		"ecs:RunInstances",
+		"ecs:TagResources",
+		"vpc:AllocateEipAddress",
+		"vpc:AssociateEipAddress",
+		"vpc:CreateVSwitch",
+		"vpc:CreateVpc",
+		"vpc:DescribeVSwitchAttributes",
+		"vpc:DescribeVpcAttribute",
+		"vpc:TagResources",
+	)
+}
+
+// RequiredLifecycleReleaseActions adds only the revocation and deletion calls
+// consumed by Release and Sweep to the observe set.
+func RequiredLifecycleReleaseActions() []string {
+	return append(RequiredLifecycleObserveActions(),
+		"ecs:DeleteDisk",
+		"ecs:DeleteInstance",
+		"ecs:DeleteNetworkInterface",
+		"ecs:DeleteSecurityGroup",
+		"ecs:DetachDisk",
+		"ecs:RevokeSecurityGroup",
+		"ecs:TagResources",
+		"vpc:DeleteNatGateway",
+		"vpc:DeleteRouteEntry",
+		"vpc:DeleteVSwitch",
+		"vpc:DeleteVpc",
+		"vpc:ReleaseEipAddress",
+		"vpc:TagResources",
+		"vpc:UnassociateEipAddress",
+	)
 }
 
 // QuoteRolePolicyDocument renders the only policy document accepted by the

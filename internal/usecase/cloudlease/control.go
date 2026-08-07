@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // Controller enforces provider-neutral Cloud Lease identity, budget, expiry,
@@ -56,10 +58,28 @@ func (c *Controller) Quote(ctx context.Context, plan Plan) (Quote, error) {
 // Acquire creates a Lease once or returns the matching provider inventory after
 // an exact idempotent retry.
 func (c *Controller) Acquire(ctx context.Context, plan Plan, quote Quote) (Receipt, error) {
+	return c.acquire(ctx, plan, quote, BootstrapAccess{})
+}
+
+// AcquireWithBootstrap creates a Lease whose first boot installs the exact
+// normalized public identities. Their digest participates in retry identity.
+func (c *Controller) AcquireWithBootstrap(ctx context.Context, plan Plan, quote Quote, access BootstrapAccess) (Receipt, error) {
+	return c.acquire(ctx, plan, quote, access)
+}
+
+func (c *Controller) acquire(ctx context.Context, plan Plan, quote Quote, access BootstrapAccess) (Receipt, error) {
 	now := c.nowUTC()
 	normalized, digest, err := normalizeAndValidatePlan(plan, now)
 	if err != nil {
 		return Receipt{}, err
+	}
+	keys, accessDigest, err := normalizeBootstrapAccess(access)
+	if err != nil {
+		return Receipt{}, err
+	}
+	expectedTags := baseTags(normalized, digest, now)
+	if accessDigest != "" {
+		expectedTags[TagBootstrapAccessDigest] = accessDigest
 	}
 	if c == nil || c.provider == nil || c.provider.Name() != normalized.Provider {
 		return Receipt{}, ErrInvalidPlan
@@ -68,7 +88,7 @@ func (c *Controller) Acquire(ctx context.Context, plan Plan, quote Quote) (Recei
 	existing, inspectErr := c.provider.Inspect(ctx, selector)
 	switch {
 	case inspectErr == nil:
-		return reconcileExistingAcquireReceipt(normalized, digest, existing)
+		return reconcileExistingAcquireReceipt(normalized, digest, existing, expectedTags)
 	case !errors.Is(inspectErr, ErrLeaseNotFound):
 		return Receipt{}, fmt.Errorf("cloudlease acquire inspect: %w", inspectErr)
 	}
@@ -78,11 +98,11 @@ func (c *Controller) Acquire(ctx context.Context, plan Plan, quote Quote) (Recei
 
 	request := AcquireRequest{
 		Plan: clonePlan(normalized), PlanDigest: digest, RequestedAt: now,
-		Quote: cloneQuote(quote), BaseTags: baseTags(normalized, digest, now),
+		Quote: cloneQuote(quote), BaseTags: expectedTags, BootstrapAuthorizedKeys: keys,
 	}
 	acquired, acquireErr := c.provider.Acquire(ctx, request)
 	if acquireErr == nil {
-		receipt, receiptErr := reconcileNewAcquireReceipt(normalized, quote, acquired)
+		receipt, receiptErr := reconcileNewAcquireReceipt(normalized, quote, acquired, expectedTags)
 		if receiptErr != nil {
 			if errors.Is(receiptErr, ErrResidualResources) {
 				return receipt, errors.Join(ErrAcquireIncomplete, receiptErr)
@@ -94,7 +114,7 @@ func (c *Controller) Acquire(ctx context.Context, plan Plan, quote Quote) (Recei
 
 	recovered, recoverErr := c.provider.Inspect(ctx, selector)
 	if recoverErr == nil {
-		receipt, receiptErr := reconcileExistingAcquireReceipt(normalized, digest, recovered)
+		receipt, receiptErr := reconcileExistingAcquireReceipt(normalized, digest, recovered, expectedTags)
 		if receiptErr != nil {
 			if !errors.Is(receiptErr, ErrAcquireIncomplete) && !errors.Is(receiptErr, ErrResidualResources) {
 				return receipt, receiptErr
@@ -110,6 +130,33 @@ func (c *Controller) Acquire(ctx context.Context, plan Plan, quote Quote) (Recei
 		return Receipt{}, fmt.Errorf("cloudlease acquire: %v; inspect: %w", acquireErr, recoverErr)
 	}
 	return Receipt{}, fmt.Errorf("cloudlease acquire: %w", acquireErr)
+}
+
+func normalizeBootstrapAccess(access BootstrapAccess) ([]string, string, error) {
+	if len(access.AuthorizedKeys) == 0 {
+		return nil, "", nil
+	}
+	if len(access.AuthorizedKeys) > 8 {
+		return nil, "", ErrInvalidPlan
+	}
+	keys := make([]string, 0, len(access.AuthorizedKeys))
+	seen := make(map[string]struct{}, len(access.AuthorizedKeys))
+	for _, raw := range access.AuthorizedKeys {
+		trimmed := strings.TrimSpace(raw)
+		publicKey, _, _, rest, err := ssh.ParseAuthorizedKey([]byte(trimmed))
+		if err != nil || publicKey.Type() != ssh.KeyAlgoED25519 || len(strings.TrimSpace(string(rest))) != 0 || strings.ContainsAny(trimmed, "\r\n") {
+			return nil, "", ErrInvalidPlan
+		}
+		key := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(publicKey)))
+		if _, exists := seen[key]; exists {
+			return nil, "", ErrInvalidPlan
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	sum := sha256.Sum256([]byte(strings.Join(keys, "\n")))
+	return keys, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 // Inspect validates one exact provider-reconciled Lease Receipt.
@@ -373,15 +420,15 @@ func validateSelector(selector Selector) error {
 	return nil
 }
 
-func reconcileExistingAcquireReceipt(plan Plan, digest string, receipt Receipt) (Receipt, error) {
-	if err := validateAcquireReceiptForPlan(plan, digest, receipt); err != nil {
+func reconcileExistingAcquireReceipt(plan Plan, digest string, receipt Receipt, expectedTags map[string]string) (Receipt, error) {
+	if err := validateAcquireReceiptForPlan(plan, digest, receipt, expectedTags); err != nil {
 		return cloneReceipt(receipt), err
 	}
 	return classifyAcquireReceipt(receipt)
 }
 
-func reconcileNewAcquireReceipt(plan Plan, quote Quote, receipt Receipt) (Receipt, error) {
-	if err := validateAcquireReceiptForPlan(plan, quote.PlanDigest, receipt); err != nil {
+func reconcileNewAcquireReceipt(plan Plan, quote Quote, receipt Receipt, expectedTags map[string]string) (Receipt, error) {
+	if err := validateAcquireReceiptForPlan(plan, quote.PlanDigest, receipt, expectedTags); err != nil {
 		return cloneReceipt(receipt), err
 	}
 	if receipt.Zone != quote.Zone || !quotesMatchAdmitted(receipt.Quote, quote) ||
@@ -391,7 +438,7 @@ func reconcileNewAcquireReceipt(plan Plan, quote Quote, receipt Receipt) (Receip
 	return classifyAcquireReceipt(receipt)
 }
 
-func validateAcquireReceiptForPlan(plan Plan, digest string, receipt Receipt) error {
+func validateAcquireReceiptForPlan(plan Plan, digest string, receipt Receipt, expectedTags map[string]string) error {
 	selector := selectorFor(plan, digest)
 	if err := validateReceiptIdentity(selector, receipt); err != nil {
 		return ErrLeaseConflict
@@ -400,14 +447,37 @@ func validateAcquireReceiptForPlan(plan Plan, digest string, receipt Receipt) er
 		receipt.Provenance != plan.Provenance {
 		return ErrLeaseConflict
 	}
-	expectedTags := baseTags(plan, digest, receipt.CreatedAt)
-	if !maps.Equal(receipt.Tags, expectedTags) {
+	wantTags := maps.Clone(expectedTags)
+	wantTags[TagCreatedAt] = receipt.CreatedAt.UTC().Format(time.RFC3339Nano)
+	if !maps.Equal(receipt.Tags, wantTags) {
 		return ErrLeaseConflict
+	}
+	if receipt.State == StateActive && !accessGrantsMatch(plan.Network.InitialAccess, receipt.AccessGrants) {
+		return ErrProviderInvariant
 	}
 	if err := validateReceipt(selector, receipt); err != nil {
 		return err
 	}
 	return nil
+}
+
+func accessGrantsMatch(expected, actual []AccessGrant) bool {
+	if len(expected) != len(actual) {
+		return false
+	}
+	byID := make(map[string]AccessGrant, len(actual))
+	for _, grant := range actual {
+		if _, exists := byID[grant.ID]; exists {
+			return false
+		}
+		byID[grant.ID] = grant
+	}
+	for _, grant := range expected {
+		if actualGrant, exists := byID[grant.ID]; !exists || actualGrant != grant {
+			return false
+		}
+	}
+	return true
 }
 
 func classifyAcquireReceipt(receipt Receipt) (Receipt, error) {
@@ -789,7 +859,7 @@ func addProvenanceTags(tags map[string]string, provenance Provenance) {
 
 func isReservedTag(key string) bool {
 	return slices.Contains(MandatoryResourceTagKeys(), key) ||
-		key == TagSourceSHA || key == TagBundleDigest
+		key == TagSourceSHA || key == TagBundleDigest || strings.HasPrefix(key, "wukongim-")
 }
 
 func clonePlan(plan Plan) Plan {

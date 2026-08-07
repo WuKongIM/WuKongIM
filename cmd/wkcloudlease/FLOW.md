@@ -25,7 +25,11 @@ The Alibaba path requires temporary OIDC role credentials and exposes only the
 read operations listed by `alibaba.RequiredQuoteActions`; it cannot acquire or
 change cloud resources.
 
-Future billable commands must keep an explicit authorization boundary outside
-the Provider contract, validate the exact immutable Plan and Quote, and emit a
-Receipt suitable for later inventory reconstruction. WuKongIM deployment and
-workload orchestration do not belong in this command.
+`acquire` strictly consumes versioned Plan, Quote, and public bootstrap-access
+documents. `inspect` and `release` consume an exact versioned Selector, while
+`sweep` takes the fixed provider, region, and repository inventory boundary.
+They construct only the paid lifecycle adapter, which independently requires
+the exact mutation-authorization environment value. Every command emits a
+versioned non-secret JSON Receipt, Release result, or Sweep result; Release
+also emits residual evidence before returning an error. WuKongIM deployment
+and workload orchestration do not belong in this command.

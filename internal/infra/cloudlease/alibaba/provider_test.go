@@ -180,6 +180,9 @@ func TestProviderQuoteRejectsUnsupportedProviderCapabilityBeforeDiscovery(t *tes
 		{name: "multiple public EIPs", change: func(plan *cloudlease.Plan) { plan.HostGroups[1].Count = 2 }},
 		{name: "private egress", change: func(plan *cloudlease.Plan) { plan.HostGroups[0].InternetEgress = true }},
 		{name: "traffic assumption", change: func(plan *cloudlease.Plan) { plan.Network.ConservativePublicEgressBytes = 0 }},
+		{name: "provider tag limit", change: func(plan *cloudlease.Plan) {
+			plan.Tags = map[string]string{"one": "1", "two": "2", "three": "3"}
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

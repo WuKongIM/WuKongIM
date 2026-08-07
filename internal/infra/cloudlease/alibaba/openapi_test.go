@@ -7,7 +7,9 @@ import (
 	"math"
 	"net/url"
 	"reflect"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,6 +252,34 @@ func TestRequiredQuoteActionsAreReadOnlyAndExact(t *testing.T) {
 	}
 	if got := RequiredQuoteActions(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("RequiredQuoteActions() = %#v, want %#v", got, want)
+	}
+}
+
+func TestRequiredLifecycleActionsAreExplicitAndSeparated(t *testing.T) {
+	observe := RequiredLifecycleObserveActions()
+	provision := RequiredLifecycleProvisionActions()
+	release := RequiredLifecycleReleaseActions()
+	for name, actions := range map[string][]string{"observe": observe, "provision": provision, "release": release} {
+		seen := make(map[string]struct{}, len(actions))
+		for _, action := range actions {
+			if action == "" || strings.Contains(action, "*") {
+				t.Fatalf("%s action = %q, want exact non-wildcard", name, action)
+			}
+			if _, exists := seen[action]; exists {
+				t.Fatalf("%s duplicate action = %q", name, action)
+			}
+			seen[action] = struct{}{}
+		}
+	}
+	for _, action := range []string{"ecs:RunInstances", "vpc:AllocateEipAddress", "ecs:AuthorizeSecurityGroup"} {
+		if !slices.Contains(provision, action) || slices.Contains(observe, action) || slices.Contains(release, action) {
+			t.Fatalf("provision action separation failed for %q", action)
+		}
+	}
+	for _, action := range []string{"ecs:DeleteInstance", "vpc:ReleaseEipAddress", "vpc:DeleteRouteEntry"} {
+		if !slices.Contains(release, action) || slices.Contains(observe, action) || slices.Contains(provision, action) {
+			t.Fatalf("release action separation failed for %q", action)
+		}
 	}
 }
 

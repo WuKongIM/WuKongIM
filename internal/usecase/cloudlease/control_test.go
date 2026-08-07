@@ -47,6 +47,21 @@ func TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation(t *testin
 	}
 }
 
+func TestControllerRejectsCustomControlPlaneTagNamespace(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	provider := &recordingProvider{}
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	plan := validPlan(now)
+	plan.Tags["wukongim-alibaba-manifest"] = "caller-controlled"
+
+	if _, err := controller.Quote(context.Background(), plan); !errors.Is(err, cloudlease.ErrInvalidPlan) {
+		t.Fatalf("Quote() error = %v, want ErrInvalidPlan", err)
+	}
+	if provider.quoteCalls != 0 {
+		t.Fatalf("provider Quote() calls = %d, want zero", provider.quoteCalls)
+	}
+}
+
 func TestControllerQuoteRejectsNonCanonicalTagsBeforeProviderCall(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	provider := &recordingProvider{}
@@ -271,6 +286,35 @@ func TestControllerAcquireReportsMatchingPartialInventoryAsIncomplete(t *testing
 	}
 	if receipt.State != cloudlease.StateAcquiring || len(receipt.Resources) == 0 {
 		t.Fatalf("Acquire() receipt = %#v, want retained partial inventory", receipt)
+	}
+}
+
+func TestControllerAcquireRequiresEveryInitialAccessGrantInReceipt(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := validPlan(now)
+	plan.Network.InitialAccess = []cloudlease.AccessGrant{{
+		ID: "lease-ssh", TargetRole: "worker", Protocol: cloudlease.ProtocolTCP,
+		PortFrom: 22, PortTo: 22, SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"), Until: plan.ExpiresAt,
+	}}
+	provider := &recordingProvider{
+		quote: cloudlease.Quote{
+			LeaseID: plan.LeaseID, RequestID: plan.RequestID, Provider: plan.Provider,
+			Region: plan.Region, Zone: "test-zone-a", Currency: "CNY",
+			EstimatedCostMicros: 7_000_000, CapacityAvailable: true, QuotaAvailable: true,
+			QuotedAt: now, ValidUntil: now.Add(10 * time.Minute),
+		},
+		inspectErr: cloudlease.ErrLeaseNotFound,
+	}
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	quote, err := controller.Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.acquire = activeReceipt(plan, quote, now)
+
+	_, err = controller.Acquire(context.Background(), plan, quote)
+	if !errors.Is(err, cloudlease.ErrProviderInvariant) {
+		t.Fatalf("Acquire() error = %v, want ErrProviderInvariant for missing initial grant", err)
 	}
 }
 

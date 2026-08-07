@@ -3,13 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestDryRunExercisesCompleteFakeLifecycleWithoutBackgroundWork(t *testing.T) {
@@ -104,6 +107,137 @@ func TestQuoteCommandRejectsUnknownPlanFieldsBeforeProviderConstruction(t *testi
 	if providerCalls != 0 {
 		t.Fatalf("provider factory calls = %d, want 0", providerCalls)
 	}
+}
+
+func TestLifecycleCommandsAcquireInspectReleaseAndSweepTypedDocuments(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	provider := fake.New(fake.Options{Now: func() time.Time { return now }, EstimatedCostMicros: 4_000_000})
+	plan := dryRunPlan(now)
+	quote, err := cloudlease.NewController(provider, func() time.Time { return now }).Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	planPath := writeJSONDocument(t, directory, "plan.json", plan)
+	quotePath := writeJSONDocument(t, directory, "quote.json", quoteResult{Schema: quoteSchemaV1, Quote: quote})
+	bootstrapPath := writeJSONDocument(t, directory, "bootstrap.json", bootstrapAccessDocument{
+		Schema: bootstrapAccessSchemaV1, Access: testBootstrapAccess(t),
+	})
+	dependencies := commandDependencies{
+		now: func() time.Time { return now },
+		lifecycleProvider: func(gotProvider, gotRegion string) (cloudlease.Provider, error) {
+			if gotProvider != plan.Provider || gotRegion != plan.Region {
+				t.Fatalf("provider factory identity = %s/%s", gotProvider, gotRegion)
+			}
+			return provider, nil
+		},
+	}
+
+	var acquireOutput bytes.Buffer
+	acquire := newRootCommandWithDependencies(&acquireOutput, dependencies)
+	acquire.SetArgs([]string{"acquire", "--plan", planPath, "--quote", quotePath, "--bootstrap-access", bootstrapPath})
+	if err := acquire.Execute(); err != nil {
+		t.Fatalf("acquire error = %v", err)
+	}
+	var acquired receiptResult
+	if err := json.Unmarshal(acquireOutput.Bytes(), &acquired); err != nil || acquired.Schema != receiptSchemaV1 || acquired.Receipt.State != cloudlease.StateActive {
+		t.Fatalf("acquire output = %s, %v", acquireOutput.String(), err)
+	}
+	if _, exists := acquired.Receipt.Tags[cloudlease.TagBootstrapAccessDigest]; !exists {
+		t.Fatalf("receipt tags = %#v, want bootstrap access digest", acquired.Receipt.Tags)
+	}
+
+	selector := cloudlease.Selector{
+		LeaseID: plan.LeaseID, RequestID: plan.RequestID, Provider: plan.Provider,
+		Region: plan.Region, Repository: plan.Repository, PlanDigest: quote.PlanDigest,
+	}
+	selectorPath := writeJSONDocument(t, directory, "selector.json", selectorDocument{Schema: selectorSchemaV1, Selector: selector})
+	var inspectOutput bytes.Buffer
+	inspect := newRootCommandWithDependencies(&inspectOutput, dependencies)
+	inspect.SetArgs([]string{"inspect", "--selector", selectorPath})
+	if err := inspect.Execute(); err != nil {
+		t.Fatalf("inspect error = %v", err)
+	}
+	var inspected receiptResult
+	if err := json.Unmarshal(inspectOutput.Bytes(), &inspected); err != nil || inspected.Receipt.LeaseID != plan.LeaseID {
+		t.Fatalf("inspect output = %s, %v", inspectOutput.String(), err)
+	}
+
+	var releaseOutput bytes.Buffer
+	release := newRootCommandWithDependencies(&releaseOutput, dependencies)
+	release.SetArgs([]string{"release", "--selector", selectorPath})
+	if err := release.Execute(); err != nil {
+		t.Fatalf("release error = %v", err)
+	}
+	var released releaseResult
+	if err := json.Unmarshal(releaseOutput.Bytes(), &released); err != nil || released.Result.ZeroInventory == nil {
+		t.Fatalf("release output = %s, %v", releaseOutput.String(), err)
+	}
+
+	var sweepOutput bytes.Buffer
+	sweep := newRootCommandWithDependencies(&sweepOutput, dependencies)
+	sweep.SetArgs([]string{"sweep", "--provider", plan.Provider, "--region", plan.Region, "--repository", plan.Repository})
+	if err := sweep.Execute(); err != nil {
+		t.Fatalf("sweep error = %v", err)
+	}
+	var swept sweepResult
+	if err := json.Unmarshal(sweepOutput.Bytes(), &swept); err != nil || swept.Schema != sweepSchemaV1 || swept.Result.Examined != 0 {
+		t.Fatalf("sweep output = %s, %v", sweepOutput.String(), err)
+	}
+}
+
+func TestAcquireRejectsUnknownBootstrapFieldsBeforeProviderConstruction(t *testing.T) {
+	directory := t.TempDir()
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := dryRunPlan(now)
+	planPath := writeJSONDocument(t, directory, "plan.json", plan)
+	quotePath := writeJSONDocument(t, directory, "quote.json", quoteResult{Schema: quoteSchemaV1})
+	bootstrapPath := filepath.Join(directory, "bootstrap.json")
+	if err := os.WriteFile(bootstrapPath, []byte(`{"schema":"wukongim.cloud_lease.bootstrap_access/v1","access":{"authorized_keys":[]},"unknown":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	providerCalls := 0
+	command := newRootCommandWithDependencies(&bytes.Buffer{}, commandDependencies{
+		now: func() time.Time { return now },
+		lifecycleProvider: func(string, string) (cloudlease.Provider, error) {
+			providerCalls++
+			return nil, nil
+		},
+	})
+	command.SetArgs([]string{"acquire", "--plan", planPath, "--quote", quotePath, "--bootstrap-access", bootstrapPath})
+	if err := command.Execute(); err == nil {
+		t.Fatal("acquire error = nil, want strict JSON rejection")
+	}
+	if providerCalls != 0 {
+		t.Fatalf("provider calls = %d, want zero", providerCalls)
+	}
+}
+
+func testBootstrapAccess(t *testing.T) cloudlease.BootstrapAccess {
+	t.Helper()
+	keys := make([]string, 0, 2)
+	for value := byte(11); value <= 12; value++ {
+		private := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{value}, ed25519.SeedSize))
+		publicKey, err := ssh.NewPublicKey(private.Public())
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, string(ssh.MarshalAuthorizedKey(publicKey)))
+	}
+	return cloudlease.BootstrapAccess{AuthorizedKeys: keys}
+}
+
+func writeJSONDocument(t *testing.T, directory, name string, value any) string {
+	t.Helper()
+	path := filepath.Join(directory, name)
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 type quoteOnlyProvider struct {
