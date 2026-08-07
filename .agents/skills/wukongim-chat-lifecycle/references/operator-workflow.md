@@ -77,7 +77,7 @@ After an explicit stop for one resolved request, record no extra confirmation. D
 - `request_id=<exact request>`
 - `stop_authorization=operator-stop-chat-lifecycle`
 
-Correlate exactly one newer run titled `Chat Lifecycle Stop <request_id>`. The durable stop marker prevents a released rehearsal transition from purchasing a formal Lease. Before handoff, the orchestrator cancels only its exact current child, waits until that child is terminal, and then owns exact Release; do not hard-cancel the orchestrator while its child may still mutate cloud inventory. For a live workload after handoff, the stage finalizer sends one graceful SIGTERM, waits up to 10 minutes for `operator_stop` evidence, then proceeds to exact Release; a missing report remains missing evidence and must not be invented. Keep monitoring scheduled cleanup when inventory remains.
+Correlate exactly one newer run titled `Chat Lifecycle Stop <request_id>`. The durable stop marker prevents a released rehearsal transition from purchasing a formal Lease. Before handoff, the orchestrator cancels only its exact current child, waits until that child is terminal, and then owns exact Release; do not hard-cancel the orchestrator while its child may still mutate cloud inventory. For a live workload after handoff, every scheduled finalizer reauthenticates the marker, sends one graceful SIGTERM, waits up to 10 minutes for `operator_stop` evidence, then proceeds to exact Release; a missing report remains missing evidence and must not be invented. Keep monitoring scheduled cleanup when inventory remains.
 
 ## Diagnosis
 

@@ -325,7 +325,9 @@ orchestrator observes that marker, cancels only its exact current child, waits
 for the child to become terminal, and retains ownership until exact Release;
 the Stop Action must not hard-cancel that cleanup owner. After handoff, the
 stage finalizer gives a live coordinator one graceful signal and at most ten
-minutes to publish terminal evidence before cleanup continues.
+minutes to publish terminal evidence before cleanup continues. Every scheduled
+finalizer pass independently reauthenticates the durable marker, so a marker
+and handoff publication race cannot lose the stop intent.
 
 A passing rehearsal finalizer releases the rehearsal Lease first, authenticates
 its selector-bound zero proof, and publishes one `formal_transition/v1` bound to
