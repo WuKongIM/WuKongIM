@@ -52,8 +52,30 @@ release_generation=0
 cleanup_attempted=false
 deployment_key=''
 DISPATCH_RUN_ID=''
+operator_stop_requested=false
+operator_stop_authority_failed=false
 orchestration_started_epoch="$(date -u +%s)"
 orchestration_deadline_epoch=$(( orchestration_started_epoch + 20700 ))
+
+check_operator_stop() {
+  local marker status=0
+  if [[ "$operator_stop_requested" == true ]]; then
+    return 0
+  fi
+  marker="$(scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REQUEST_ID")" || status=$?
+  case "$status" in
+    0)
+      operator_stop_requested=true
+      printf '%s\n' "$marker" >"$WK_CHAT_OUTPUT_DIR/operator-stop.json"
+      return 0
+      ;;
+    1) return 1 ;;
+    *)
+      operator_stop_authority_failed=true
+      return "$status"
+      ;;
+  esac
+}
 
 workflow_run_max_id() {
   local workflow="$1"
@@ -65,8 +87,18 @@ dispatch_and_wait() {
   local workflow="$1"
   local title="$2"
   shift 2
-  local before deadline rows count watch_status=0
+  local before deadline rows count watch_timeout_seconds stop_status run_json run_status conclusion
+  local cancel_requested=false
   DISPATCH_RUN_ID=''
+  if [[ "$workflow" != cloud-lease-release.yml ]]; then
+    stop_status=0
+    check_operator_stop || stop_status=$?
+    case "$stop_status" in
+      0) return 130 ;;
+      1) ;;
+      *) return "$stop_status" ;;
+    esac
+  fi
   before="$(workflow_run_max_id "$workflow")" || return
   gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref main "$@" || return
   deadline=$(( $(date -u +%s) + 180 ))
@@ -85,19 +117,54 @@ dispatch_and_wait() {
     fi
     sleep 2
   done
-  local watch_timeout_seconds
   case "$workflow" in
     cloud-deployment-bundle.yml|cloud-lease-provision.yml) watch_timeout_seconds=2880 ;;
     cloud-deployment-activate.yml) watch_timeout_seconds=3780 ;;
     cloud-lease-release.yml) watch_timeout_seconds=2580 ;;
     *) return 1 ;;
   esac
-  timeout --signal=TERM "$watch_timeout_seconds" \
-    gh run watch "$DISPATCH_RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status || watch_status=$?
-  if [[ "$watch_status" == 124 ]]; then
-    gh run cancel "$DISPATCH_RUN_ID" --repo "$GITHUB_REPOSITORY" || true
-  fi
-  return "$watch_status"
+  deadline=$(( $(date -u +%s) + watch_timeout_seconds ))
+  while true; do
+    if [[ "$workflow" != cloud-lease-release.yml && "$operator_stop_requested" != true ]]; then
+      stop_status=0
+      check_operator_stop || stop_status=$?
+      case "$stop_status" in
+        0) ;;
+        1) ;;
+        *) operator_stop_authority_failed=true ;;
+      esac
+    fi
+    if [[ "$operator_stop_requested" == true && "$workflow" != cloud-lease-release.yml && "$cancel_requested" != true ]]; then
+      for cancel_attempt in 1 2 3; do
+        if gh run cancel "$DISPATCH_RUN_ID" --repo "$GITHUB_REPOSITORY"; then
+          cancel_requested=true
+          break
+        fi
+        sleep 2
+      done
+    fi
+
+    run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${DISPATCH_RUN_ID}")" || {
+      [[ "$(date -u +%s)" -lt "$deadline" ]] || return 124
+      sleep 10
+      continue
+    }
+    run_status="$(jq -er .status <<<"$run_json")" || return 2
+    if [[ "$run_status" == completed ]]; then
+      conclusion="$(jq -er .conclusion <<<"$run_json")" || return 2
+      if [[ "$workflow" != cloud-lease-release.yml ]]; then
+        [[ "$operator_stop_requested" != true ]] || return 130
+        [[ "$operator_stop_authority_failed" != true ]] || return 2
+      fi
+      [[ "$conclusion" == success ]]
+      return
+    fi
+    if [[ "$(date -u +%s)" -ge "$deadline" ]]; then
+      gh run cancel "$DISPATCH_RUN_ID" --repo "$GITHUB_REPOSITORY" || true
+      return 124
+    fi
+    sleep 10
+  done
 }
 
 download_run() {
@@ -208,6 +275,14 @@ complete_failed_attempt() {
     rm -f "$encrypted_identity"
   done < <(find "$attempt_dir" -type f -name encrypted-deployment-identity.json -print)
   deployment_key=''
+  if [[ "$operator_stop_requested" == true ]]; then
+    echo 'operator stop canceled the in-flight stage after exact zero-inventory cleanup' >&2
+    exit 130
+  fi
+  if [[ "$operator_stop_authority_failed" == true ]]; then
+    echo 'operator-stop authority became unavailable; refusing another paid attempt after cleanup' >&2
+    exit 1
+  fi
   if [[ "$retry_allowed" != true ]]; then
     echo 'acquisition failure is terminal after zero-inventory cleanup' >&2
     exit 1
@@ -376,6 +451,22 @@ for attempt in 1 2; do
     readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
     readiness_deadline=$(( $(date -u +%s) + readiness_timeout ))
     while true; do
+      stop_status=0
+      check_operator_stop || stop_status=$?
+      case "$stop_status" in
+        0)
+          timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+            "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+          exit 130
+          ;;
+        1) ;;
+        *)
+          timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+            "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+          operator_stop_authority_failed=true
+          exit 1
+          ;;
+      esac
       if timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
         "sudo test -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && sudo test -s '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json'"; then
         timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \

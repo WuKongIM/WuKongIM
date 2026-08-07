@@ -52,7 +52,7 @@ Return Manager/Demo credentials only when explicitly requested and only while th
 
 Require an explicit request-scoped stop intent, but do not ask for a second confirmation. Dispatch `.github/workflows/chat-lifecycle-stop.yml` on `main` with the exact request ID and `stop_authorization=operator-stop-chat-lifecycle`.
 
-The Stop Action seals the durable stop marker before cancellation, blocks future formal procurement, cancels exact in-flight orchestration, and requests bounded finalization for both possible stages. Continue monitoring cleanup. Do not report successful stop, close the Issue, or delete local request credentials until an authenticated zero-inventory proof covers the exact selector.
+The Stop Action seals the durable stop marker, blocks future formal procurement, and requests bounded finalization for both possible stages. Before handoff, the cleanup-owning orchestrator observes the marker, cancels only its exact current child, waits for that child to become terminal, and performs exact Release; the Stop Action never hard-cancels that owner. After handoff, the finalizer performs the graceful workload stop and Release. Continue monitoring cleanup. Do not report successful stop, close the Issue, or delete local request credentials until an authenticated zero-inventory proof covers the exact selector.
 
 ### Diagnose
 

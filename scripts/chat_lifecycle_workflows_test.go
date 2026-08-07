@@ -209,12 +209,24 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 	for _, required := range []string{
 		"operator-stop-chat-lifecycle",
 		"chat-lifecycle-operator-stop-${{ inputs.request_id }}",
-		"gh run cancel",
 		"chat-lifecycle-rehearsal-finalize.yml",
 		"chat-lifecycle-formal-finalize.yml",
 	} {
 		if !strings.Contains(stop, required) {
 			t.Fatalf("stop workflow is missing %q", required)
+		}
+	}
+	if strings.Contains(stop, "gh run cancel") {
+		t.Fatal("Stop Action hard-cancels the cleanup owner while a dispatched Acquire or Deployment may still mutate")
+	}
+	orchestrator := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	for _, required := range []string{
+		"operator-stop-requested.sh", `gh run cancel "$DISPATCH_RUN_ID"`,
+		"operator stop canceled the in-flight stage after exact zero-inventory cleanup",
+		"refusing another paid attempt after cleanup",
+	} {
+		if !strings.Contains(orchestrator, required) {
+			t.Fatalf("coordinated pre-handoff stop is missing %q", required)
 		}
 	}
 	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
@@ -232,6 +244,87 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 				t.Fatalf("%s operator stop is missing %q", relative, required)
 			}
 		}
+	}
+}
+
+func TestOperatorStopDiscoveryAuthenticatesProducerAndFailsClosedAtInventoryBound(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	pagePath := filepath.Join(directory, "page.json")
+	runPath := filepath.Join(directory, "run.json")
+	fakeGH := `#!/bin/sh
+case "$*" in
+  *'/actions/artifacts'*) cat "$FAKE_ARTIFACT_PAGE" ;;
+  *'/actions/runs/22'*) cat "$FAKE_STOP_RUN" ;;
+  *) exit 2 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(fakeGH), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write := func(path string, value any) {
+		t.Helper()
+		body, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(pagePath, map[string]any{"artifacts": []map[string]any{{
+		"id": 44, "name": "chat-lifecycle-operator-stop-request-1", "expired": false,
+		"created_at": "2030-01-01T00:00:00Z", "workflow_run": map[string]any{"id": 22},
+	}}})
+	baseRun := map[string]any{
+		"repository": map[string]any{"full_name": "WuKongIM/WuKongIM"}, "head_repository": map[string]any{"full_name": "WuKongIM/WuKongIM"},
+		"event": "workflow_dispatch", "head_branch": "main", "status": "completed", "conclusion": "success",
+		"path": ".github/workflows/chat-lifecycle-stop.yml",
+	}
+	write(runPath, baseRun)
+	run := func() ([]byte, error) {
+		command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "operator-stop-requested.sh"), "request-1")
+		command.Dir = root
+		command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"GH_TOKEN=test", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "FAKE_ARTIFACT_PAGE="+pagePath, "FAKE_STOP_RUN="+runPath)
+		return command.CombinedOutput()
+	}
+	output, err := run()
+	if err != nil {
+		t.Fatalf("authenticate operator stop: %v\n%s", err, output)
+	}
+	var observation struct {
+		Schema     string `json:"schema"`
+		RequestID  string `json:"request_id"`
+		RunID      int    `json:"run_id"`
+		ArtifactID int    `json:"artifact_id"`
+	}
+	if err := json.Unmarshal(output, &observation); err != nil {
+		t.Fatal(err)
+	}
+	if observation.Schema != "wukongim.chat_lifecycle.operator_stop_observation/v1" || observation.RequestID != "request-1" || observation.RunID != 22 || observation.ArtifactID != 44 {
+		t.Fatalf("operator stop observation = %#v", observation)
+	}
+
+	untrusted := mapsClone(baseRun)
+	untrusted["path"] = ".github/workflows/untrusted.yml"
+	write(runPath, untrusted)
+	if output, err := run(); err == nil || len(output) != 0 {
+		t.Fatalf("untrusted operator stop = %v, output %q", err, output)
+	}
+
+	fullPage := make([]map[string]any, 100)
+	for index := range fullPage {
+		fullPage[index] = map[string]any{"id": index + 1, "name": "chat-lifecycle-operator-stop-request-1", "expired": false,
+			"created_at": "2030-01-01T00:00:00Z", "workflow_run": map[string]any{"id": 22}}
+	}
+	write(pagePath, map[string]any{"artifacts": fullPage})
+	if output, err := run(); err == nil || !strings.Contains(string(output), "operator-stop discovery exceeded") {
+		t.Fatalf("bounded operator-stop discovery = %v\n%s", err, output)
 	}
 }
 
@@ -973,10 +1066,48 @@ func TestChatLifecycleFormalStartMatrixConsumesOnlyUnspentTransition(t *testing.
 		t.Fatalf("formal start matrix = %+v", matrix.Include)
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-formal-transitions.sh"))
-	if !strings.Contains(discovery, "for page in 1 2 3 4 5") || strings.Contains(discovery, "--paginate") ||
+	if !strings.Contains(discovery, "max_pages=50") || !strings.Contains(discovery, "inventory_complete=false") ||
+		!strings.Contains(discovery, "formal transition discovery exceeded") || strings.Contains(discovery, "--paginate") ||
 		!strings.Contains(discovery, "chat-lifecycle-rehearsal-finalize.yml") ||
 		!strings.Contains(discovery, "chat-lifecycle-stop.yml") {
 		t.Fatal("formal transition discovery is not bounded and producer-authenticated")
+	}
+}
+
+func TestFormalTransitionDiscoveryFailsClosedAtInventoryBound(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := make([]map[string]any, 100)
+	for index := range artifacts {
+		artifacts[index] = map[string]any{"id": index + 1, "name": "unrelated", "expired": false}
+	}
+	page, err := json.Marshal(map[string]any{"artifacts": artifacts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pagePath := filepath.Join(directory, "page.json")
+	if err := os.WriteFile(pagePath, page, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\ncat \"$FAKE_ARTIFACT_PAGE\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-formal-transitions.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ARTIFACT_PAGE="+pagePath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM")
+	combined, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(combined), "formal transition discovery exceeded") {
+		t.Fatalf("bounded transition discovery error = %v\n%s", err, combined)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("bounded transition discovery wrote output: %v", err)
 	}
 }
 

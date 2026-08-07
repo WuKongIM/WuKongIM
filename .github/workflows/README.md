@@ -17,7 +17,7 @@ authorization and the applicable budget.
 | `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `chat-lifecycle-formal.yml` | `Safety Automation - Start Fresh Formal Chat Lifecycle` | Consumes an authenticated released rehearsal transition and starts a fresh 96-hour formal Lease |
 | `chat-lifecycle-formal-finalize.yml` | `Safety Automation - Finalize Formal Chat Lifecycle Runs` | Collects the same-Lease Soak/capacity/recovery result before Release and zero-inventory proof |
-| `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker, cancels exact orchestration, and requests bounded operator-stop finalization |
+| `chat-lifecycle-stop.yml` | `Agent Tool - Stop Chat Lifecycle Request` | Seals one request-level stop marker and requests coordinated cancellation plus bounded operator-stop finalization |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -319,10 +319,13 @@ expired inventory even if an owning job is canceled.
 
 `chat-lifecycle-stop.yml` is the only manual request-stop entrypoint. It first
 uploads an authenticated request-level stop marker, which makes formal
-transition discovery fail closed, then cancels exact matching paid
-orchestration and dispatches both stage finalizers with the fixed operator-stop
-authorization. A live coordinator receives one graceful signal and gets at
-most ten minutes to publish terminal evidence before cleanup continues.
+transition discovery fail closed, then dispatches both stage finalizers with
+the fixed operator-stop authorization. Before a handoff exists, the paid
+orchestrator observes that marker, cancels only its exact current child, waits
+for the child to become terminal, and retains ownership until exact Release;
+the Stop Action must not hard-cancel that cleanup owner. After handoff, the
+stage finalizer gives a live coordinator one graceful signal and at most ten
+minutes to publish terminal evidence before cleanup continues.
 
 A passing rehearsal finalizer releases the rehearsal Lease first, authenticates
 its selector-bound zero proof, and publishes one `formal_transition/v1` bound to

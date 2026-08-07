@@ -14,12 +14,21 @@ fi
 temporary="$(mktemp -d)"
 trap 'rm -r "$temporary"' EXIT
 : >"$temporary/pages.json"
-for page in 1 2 3 4 5; do
+max_pages=50
+inventory_complete=false
+for ((page = 1; page <= max_pages; page++)); do
   page_file="$temporary/page-${page}.json"
   gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}" >"$page_file"
   jq -c . "$page_file" >>"$temporary/pages.json"
-  [[ "$(jq -r '.artifacts | length' "$page_file")" == 100 ]] || break
+  if [[ "$(jq -r '.artifacts | length' "$page_file")" != 100 ]]; then
+    inventory_complete=true
+    break
+  fi
 done
+[[ "$inventory_complete" == true ]] || {
+  echo "formal transition discovery exceeded the bounded ${max_pages}-page repository Artifact inventory" >&2
+  exit 1
+}
 jq -s '[.[].artifacts[] | select(.expired == false)]' "$temporary/pages.json" >"$temporary/artifacts.json"
 : >"$temporary/authenticated-stops.jsonl"
 while IFS= read -r stop; do

@@ -192,22 +192,46 @@ func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
 	start := time.Date(2030, time.March, 17, 17, 15, 0, 0, time.UTC)
 	tests := []struct {
 		name    string
+		stage   Stage
 		host    int
 		process int
 		want    VerdictSignal
 	}{
 		{
-			name: "WuKongIM service exit is a product failure", host: 0, process: 0,
+			name: "WuKongIM service exit is a product failure", stage: StageFormal, host: 0, process: 0,
 			want: VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash},
 		},
 		{
-			name: "load evidence process exit invalidates the harness", host: coordinatorWorkerCount, process: 8,
+			name: "worker exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 2,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+		{
+			name: "formal coordinator exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 6,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+		{
+			name: "rehearsal coordinator exit invalidates the harness", stage: StageRehearsal, host: coordinatorWorkerCount, process: 7,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+		{
+			name: "Prometheus exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 8,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+		{
+			name: "proxy exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 9,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+		{
+			name: "process collector exit invalidates the harness", stage: StageFormal, host: coordinatorWorkerCount, process: 11,
 			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := FormalConfig()
+			if test.stage == StageRehearsal {
+				cfg = RehearsalConfig()
+			}
 			targets, disks := validProductionObservationFakes(cfg)
 			filesystem := &disks[test.host].filesystem
 			filesystem.ProcessUp[test.process] = false

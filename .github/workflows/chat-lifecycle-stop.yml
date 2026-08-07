@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   stop:
-    name: Seal stop intent, cancel orchestration, and request finalization
+    name: Seal stop intent and request coordinated cancellation and finalization
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -60,42 +60,6 @@ jobs:
           path: ${{ runner.temp }}/operator-stop/operator-stop.json
           if-no-files-found: error
           retention-days: 90
-      - name: Cancel exact in-flight paid orchestration
-        id: cancel
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          for workflow in chat-lifecycle-rehearsal.yml chat-lifecycle-formal.yml; do
-            gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --branch main --limit 50 \
-              --json databaseId,displayTitle,status,workflowName >"$RUNNER_TEMP/${workflow}.json"
-          done
-          jq -s 'add' "$RUNNER_TEMP/chat-lifecycle-rehearsal.yml.json" \
-            "$RUNNER_TEMP/chat-lifecycle-formal.yml.json" >"$RUNNER_TEMP/runs.json"
-          mapfile -t run_ids < <(jq -r --arg rehearsal "Chat Lifecycle Rehearsal $REQUEST_ID" \
-            --arg formal "Chat Lifecycle Formal $REQUEST_ID" '
-            .[] | select(
-              ((.workflowName == "Agent Tool - Start Chat Lifecycle Rehearsal" and .displayTitle == $rehearsal) or
-               (.workflowName == "Safety Automation - Start Fresh Formal Chat Lifecycle" and .displayTitle == $formal)) and
-              (.status == "queued" or .status == "in_progress" or .status == "waiting" or
-               .status == "requested" or .status == "pending")) | .databaseId
-          ' "$RUNNER_TEMP/runs.json")
-          cancellation_failed=false
-          for run_id in "${run_ids[@]}"; do
-            cancelled=false
-            for attempt in 1 2 3; do
-              if gh run cancel "$run_id" --repo "$GITHUB_REPOSITORY"; then
-                cancelled=true
-                break
-              fi
-              sleep 2
-            done
-            if [[ "$cancelled" != true ]]; then
-              echo "cancellation remains unconfirmed for run ${run_id}" >&2
-              cancellation_failed=true
-            fi
-          done
-          [[ "$cancellation_failed" == false ]]
       - name: Request immediate rehearsal and formal finalization
         if: always() && steps.stop_marker.outcome == 'success'
         shell: bash
@@ -116,7 +80,3 @@ jobs:
           WK_CHAT_ISSUE_STATE: operator_stop_requested
           WK_CHAT_ISSUE_BODY: run=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: scripts/chat-lifecycle/comment-request-issue.sh
-      - name: Fail when exact orchestration cancellation was not confirmed
-        if: always() && steps.cancel.outcome == 'failure'
-        shell: bash
-        run: exit 1
