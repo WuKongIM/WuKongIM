@@ -30,6 +30,13 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		`manager_user="operator-$(openssl rand -hex 12)"`,
 		`demo_user="$manager_user"`,
 		`{username:$manager_user,password:$manager_password,permissions:[{resource:"*",actions:["r"]}]}`,
+		"WK_CHAT_LEASE_EXPIRES_AT=%s",
+		"WK_CHAT_LEASE_CREATED_AT=%s",
+		"WK_CHAT_BUDGET_LIMIT_MICROS=%s",
+		"WK_CHAT_BUDGET_OPERATIONAL_STOP_MICROS=%s",
+		"WK_CHAT_BUDGET_COMMITTED_MICROS=%s",
+		"WK_CHAT_BUDGET_ESTIMATED_MICROS=%s",
+		"WK_CHAT_BUDGET_LINE_ITEMS_BASE64=%s",
 		"wukongim.cloud_deployment.failure/v1",
 		"Upload typed Deployment Receipt or failure evidence",
 	} {

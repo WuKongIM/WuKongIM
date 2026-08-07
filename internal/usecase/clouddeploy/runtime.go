@@ -106,6 +106,9 @@ func renderWorkloadConfig(content string, plan DeploymentPlan) string {
 		}
 		content = replaceAll(content, replacements)
 	}
+	if load, ok := findHost(plan.Hosts, "load"); ok {
+		content = strings.ReplaceAll(content, "http://host-metrics-load.invalid", "http://"+load.PrivateAddress+":19101")
+	}
 	return content
 }
 

@@ -226,6 +226,8 @@ type ObservationConfig struct {
 	Workers []EndpointDeclaration `json:"workers" yaml:"workers"`
 	// HostMetrics declares node-local host-metrics observation endpoints.
 	HostMetrics []EndpointDeclaration `json:"host_metrics" yaml:"host_metrics"`
+	// LoadHostMetrics declares the separate workload-generator host endpoint.
+	LoadHostMetrics EndpointDeclaration `json:"load_host_metrics" yaml:"load_host_metrics"`
 	// APIAddrs is the non-secret HTTP API observation pool.
 	APIAddrs []string `json:"api_addrs" yaml:"api_addrs"`
 	// GatewayTCPAddrs is the separate non-secret TCP gateway observation pool.
@@ -307,6 +309,18 @@ type ResourceThresholds struct {
 	ForcedGCLiveHeapWindow        time.Duration `json:"forced_gc_live_heap_window" yaml:"forced_gc_live_heap_window"`
 	GoroutineGrowthPercent        int           `json:"goroutine_growth_percent" yaml:"goroutine_growth_percent"`
 	GoroutineGrowthWindow         time.Duration `json:"goroutine_growth_window" yaml:"goroutine_growth_window"`
+	// HostCPUPercent is the exclusive host-wide busy-CPU saturation boundary in percent.
+	HostCPUPercent int `json:"host_cpu_percent" yaml:"host_cpu_percent"`
+	// HostMemoryPercent is the exclusive host-wide used-memory saturation boundary in percent.
+	HostMemoryPercent int `json:"host_memory_percent" yaml:"host_memory_percent"`
+	// BoundedQueuePercent is the exclusive service runtime queue saturation boundary in percent.
+	BoundedQueuePercent int `json:"bounded_queue_percent" yaml:"bounded_queue_percent"`
+	// SustainedSaturationWindow is the uninterrupted breach duration required for infrastructure attribution.
+	SustainedSaturationWindow time.Duration `json:"sustained_saturation_window" yaml:"sustained_saturation_window"`
+	// MinimumLoadFilesystemBytes is the minimum usable data-filesystem size required on the load host.
+	MinimumLoadFilesystemBytes int64 `json:"minimum_load_filesystem_bytes" yaml:"minimum_load_filesystem_bytes"`
+	// PrometheusSafeStopBytes is the inclusive watched-directory size that triggers a fatal safe stop.
+	PrometheusSafeStopBytes int64 `json:"prometheus_safe_stop_bytes" yaml:"prometheus_safe_stop_bytes"`
 }
 
 // ClusterThresholds bounds health and leader-distribution evidence.

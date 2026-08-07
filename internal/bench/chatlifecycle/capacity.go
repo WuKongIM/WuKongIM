@@ -144,8 +144,20 @@ type CapacityObservation struct {
 	QueueInflightAccepted bool
 	ClusterLagAccepted    bool
 	ResourceAccepted      bool
-	ReadinessAccepted     bool
-	LifecycleAccepted     bool
+	// ResourceEvidenceComplete proves all four hosts and bounded service queues
+	// were sampled throughout the measured window.
+	ResourceEvidenceComplete bool
+	// ResourceSaturated is set only after a configured continuous saturation window.
+	ResourceSaturated bool
+	// ResourcePreviouslySaturated retains a recovered formal or earlier-step
+	// infrastructure warning without failing an otherwise healthy window.
+	ResourcePreviouslySaturated bool
+	// ResourceHeadroom proves the measured window contained no threshold-high samples.
+	ResourceHeadroom bool
+	// LoadUnderdelivered means the generator could not deliver the scheduled rate.
+	LoadUnderdelivered bool
+	ReadinessAccepted  bool
+	LifecycleAccepted  bool
 }
 
 // CapacityStepResult is one bounded measured rate result.
@@ -190,6 +202,11 @@ type CapacitySnapshot struct {
 	RecentSteps      []CapacityStepResult
 }
 
+func cloneCapacitySnapshot(snapshot CapacitySnapshot) CapacitySnapshot {
+	snapshot.RecentSteps = append([]CapacityStepResult(nil), snapshot.RecentSteps...)
+	return snapshot
+}
+
 // ReportEvidence projects the terminal staircase summary into the report seam.
 func (s CapacitySnapshot) ReportEvidence() ReportCapacityEvidence {
 	if s.Phase == "" || s.Outcome == "" {
@@ -231,19 +248,20 @@ type CapacityStaircase struct {
 	phaseEnd     time.Time
 	stepStart    time.Time
 
-	lastPassing    uint64
-	firstFailing   uint64
-	stepCount      uint64
-	coarseSteps    uint64
-	refineSteps    uint64
-	recoveryPass   bool
-	attribution    CapacityAttribution
-	lowerBound     bool
-	searchDeadline time.Time
-	searchEndedAt  time.Time
-	recent         [maxCapacityRecentSteps]CapacityStepResult
-	recentHead     int
-	recentSize     int
+	lastPassing                uint64
+	firstFailing               uint64
+	stepCount                  uint64
+	coarseSteps                uint64
+	refineSteps                uint64
+	recoveryPass               bool
+	attribution                CapacityAttribution
+	lowerBound                 bool
+	priorInfrastructureWarning bool
+	searchDeadline             time.Time
+	searchEndedAt              time.Time
+	recent                     [maxCapacityRecentSteps]CapacityStepResult
+	recentHead                 int
+	recentSize                 int
 }
 
 func validateCapacityCheckpoint(cfg Config, admission CapacityAdmission) error {
@@ -365,6 +383,9 @@ func (s *CapacityStaircase) Advance(at time.Time, observation CapacityObservatio
 			s.freeze(CapacityHarnessInvalid, CapacityCauseObservation, CapacityPhaseTerminal)
 			return s.transition(false), ErrCapacityObservation
 		}
+		if observation.ResourcePreviouslySaturated {
+			s.priorInfrastructureWarning = true
+		}
 		if capacityObservationFailures(observation) == 0 {
 			s.recoveryPass = true
 			s.finishRecoveredBoundary()
@@ -454,6 +475,9 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 		s.freeze(CapacityHarnessInvalid, CapacityCauseNoBoundary, CapacityPhaseTerminal)
 		return s.transition(false), ErrCapacityObservation
 	}
+	if observation.ResourcePreviouslySaturated {
+		s.priorInfrastructureWarning = true
+	}
 	failures := capacityObservationFailures(observation)
 	passed := failures == 0
 	s.recordStep(CapacityStepResult{
@@ -469,7 +493,7 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 		s.lastPassing = s.current
 	} else {
 		s.firstFailing = s.current
-		s.attribution = attributeCapacityBoundary(failures)
+		s.attribution = attributeCapacityBoundary(observation, failures)
 	}
 
 	if s.mode == capacitySearchCoarse && passed {
@@ -500,7 +524,11 @@ func (s *CapacityStaircase) finishMeasurement(at time.Time, observation Capacity
 func (s *CapacityStaircase) finishRecoveredBoundary() {
 	switch s.attribution {
 	case CapacityAttributionNone:
-		s.freeze(CapacityPassed, CapacityCauseCompleted, CapacityPhaseComplete)
+		if s.priorInfrastructureWarning {
+			s.freeze(CapacityPassedWithWarning, CapacityCauseInfrastructureCapacity, CapacityPhaseComplete)
+		} else {
+			s.freeze(CapacityPassed, CapacityCauseCompleted, CapacityPhaseComplete)
+		}
 	case CapacityAttributionInfrastructure:
 		s.freeze(CapacityPassedWithWarning, CapacityCauseInfrastructureCapacity, CapacityPhaseComplete)
 	case CapacityAttributionProduct:
@@ -510,11 +538,11 @@ func (s *CapacityStaircase) finishRecoveredBoundary() {
 	}
 }
 
-func attributeCapacityBoundary(failures CapacityGateFailure) CapacityAttribution {
-	if failures&(CapacityGateQueueInflight|CapacityGateResource) != 0 {
+func attributeCapacityBoundary(observation CapacityObservation, failures CapacityGateFailure) CapacityAttribution {
+	if observation.ResourceEvidenceComplete && (observation.ResourceSaturated || observation.LoadUnderdelivered) {
 		return CapacityAttributionInfrastructure
 	}
-	if failures == CapacityGateLatency {
+	if failures == CapacityGateLatency && observation.ResourceEvidenceComplete && observation.ResourceHeadroom {
 		return CapacityAttributionProduct
 	}
 	return CapacityAttributionInsufficient

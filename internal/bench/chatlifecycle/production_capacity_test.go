@@ -115,6 +115,185 @@ func TestProductionCapacityQueueGateUsesDeclaredEightyPercentBoundary(t *testing
 	}
 }
 
+func TestProductionCapacityAttributesSustainedHostSaturationWithoutHarnessInvalid(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_200_000, 0).UTC()
+	request := CapacityEvidenceRequest{Phase: CapacityPhaseMeasure, RatePerSecond: 2_000, Start: start, End: start.Add(20 * time.Minute)}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "resource-window", Generation: 3}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	current.observation.ResourceEvidence.Capacity.CPUHighSamples[0] = 4
+	current.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.ResourceEvidenceComplete || !result.ResourceSaturated || result.ResourceHeadroom || result.ResourceAccepted || result.HarnessInvalid {
+		t.Fatalf("sustained saturation result = %+v", result)
+	}
+}
+
+func TestProductionCapacityCarriesExistingSustainedSaturationIntoNextWindow(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_250_000, 0).UTC()
+	request := CapacityEvidenceRequest{Phase: CapacityPhaseMeasure, RatePerSecond: 2_000, Start: start, End: start.Add(20 * time.Minute)}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "active-resource-window", Generation: 3}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	baseline.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	baseline.observation.ResourceEvidence.Capacity.CPUSustainedActive[0] = true
+	current.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	current.observation.ResourceEvidence.Capacity.CPUSustainedActive[0] = true
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.ResourceSaturated || result.ResourceHeadroom || result.ResourceAccepted {
+		t.Fatalf("existing sustained saturation result = %+v", result)
+	}
+}
+
+func TestProductionCapacityRecoveryAcceptsSaturationThatClearedByWindowEnd(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_265_000, 0).UTC()
+	request := CapacityEvidenceRequest{
+		Phase: CapacityPhaseRecovery, RatePerSecond: 2_000, Start: start, End: start.Add(30 * time.Minute),
+	}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "recovered-resource-window", Generation: 3}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	current.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	current.observation.ResourceEvidence.Capacity.HostCPUPercentBasisPoints[0] = 2_000
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.ResourceAccepted || result.ResourceSaturated || !result.ResourcePreviouslySaturated || result.HarnessInvalid {
+		t.Fatalf("recovered in-window saturation result = %+v", result)
+	}
+}
+
+func TestProductionCapacityRejectsWorkerQueueGapBeforeWindowBaseline(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_270_000, 0).UTC()
+	request := CapacityEvidenceRequest{Phase: CapacityPhaseMeasure, RatePerSecond: 2_000, Start: start, End: start.Add(20 * time.Minute)}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "queue-gap-window", Generation: 3}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	baseline.observation.ResourceEvidence.Capacity.WorkerQueueMissingSamples = 1
+	current.observation.ResourceEvidence.Capacity.WorkerQueueMissingSamples = 1
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ResourceEvidenceComplete || result.ResourceAccepted {
+		t.Fatalf("pre-baseline worker queue gap was accepted: %+v", result)
+	}
+}
+
+func TestProductionCapacityRetainsRecoveredFormalSaturationAsWarning(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_275_000, 0).UTC()
+	request := CapacityEvidenceRequest{Phase: CapacityPhaseMeasure, RatePerSecond: 2_000, Start: start, End: start.Add(20 * time.Minute)}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "prior-resource-window", Generation: 3}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	baseline.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	current.observation.ResourceEvidence.Capacity.CPUSustainedEvents[0] = 1
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.ResourcePreviouslySaturated || result.ResourceSaturated || !result.ResourceHeadroom || !result.ResourceAccepted {
+		t.Fatalf("recovered prior saturation result = %+v", result)
+	}
+}
+
+func TestProductionCapacityTreatsOfferedUnderdeliveryAsInfrastructureEvidence(t *testing.T) {
+	cfg := productionCapacityConfig(t)
+	start := time.Unix(1_970_300_000, 0).UTC()
+	request := CapacityEvidenceRequest{Phase: CapacityPhaseMeasure, RatePerSecond: 2_000, Start: start, End: start.Add(20 * time.Minute)}
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "load-window", Generation: 4}
+	baseline := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.Start, 1, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(1, 1),
+	}
+	current := productionCapacityCut{
+		workers:     productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Minute, WorkerPhaseRunning),
+		observation: productionCapacityObservationSnapshot(cfg, request.End, 2, 1, 1, 0),
+		lifecycle:   productionCapacityLifecycleSnapshot(2, 2),
+	}
+	prepareCapacityWorkersReady(baseline.workers)
+	prepareCapacityWorkersReady(current.workers)
+	current.workers[0].Harness.OfferedUnderdelivery = 1
+	result, err := reduceProductionCapacityWindow(cfg, request, baseline, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.LoadUnderdelivered || result.ResourceAccepted || result.HarnessInvalid || !result.ResourceEvidenceComplete {
+		t.Fatalf("load underdelivery result = %+v", result)
+	}
+}
+
+func prepareCapacityWorkersReady(workers []WorkerSnapshot) {
+	for index := range workers {
+		workers[index].Sessions.Target = 1
+		workers[index].Sessions.Online = 1
+		workers[index].Sessions.TrafficReady = 1
+	}
+}
+
 func TestProductionCapacitySeparatesClusterUnavailabilityFromRateBoundary(t *testing.T) {
 	baseline := ProductionObservationSnapshot{ClusterEvidence: ReportClusterEvidence{
 		HealthySamples: 10, LogicalSlotGroups: 12, LeaderGroups: 12, FullReplicaGroups: 12,
@@ -231,6 +410,23 @@ func productionCapacityObservationSnapshot(
 	snapshot.Sequence = sequence
 	snapshot.ActivationRejections = activation
 	snapshot.ClusterEvidence.HealthySamples = sequence
+	resources := &snapshot.ResourceEvidence.Capacity
+	resources.Samples = sequence
+	resources.WorkerQueueSamples = sequence
+	resources.SustainedWindow = cfg.Thresholds.Resource.SustainedSaturationWindow
+	resources.Complete = true
+	resources.ProcessesComplete = true
+	resources.WorkerQueuesComplete = true
+	for index := 0; index < productionHostCount; index++ {
+		minimum := uint64(cfg.Thresholds.MinimumDataFilesystemBytes)
+		if index == coordinatorWorkerCount {
+			minimum = uint64(cfg.Thresholds.Resource.MinimumLoadFilesystemBytes)
+		}
+		resources.DataFilesystemBytes[index] = minimum
+		resources.DataFilesystemAvailableBytes[index] = minimum * 9 / 10
+		resources.SystemFilesystemBytes[index] = 40_000_000_000
+		resources.SystemFilesystemAvailableBytes[index] = 20_000_000_000
+	}
 	for index := range snapshot.Resources {
 		snapshot.Resources[index].QueueDepth = queue
 		snapshot.Resources[index].Inflight = inflight

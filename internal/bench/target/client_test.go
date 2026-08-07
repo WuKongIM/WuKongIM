@@ -1000,8 +1000,10 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 				"go_memstats_heap_alloc_bytes 1024",
 				"process_resident_memory_bytes 2048",
 				`wukongim_runtime_pool_queue_depth{pool="append"} 3`,
+				`wukongim_runtime_pool_queue_capacity{pool="append"} 10`,
 				`wukongim_runtime_pool_inflight{pool="append"} 2`,
 				`wukongim_channelv2_worker_queue_depth{worker="meta"} 4`,
+				`wukongim_channelv2_worker_queue_capacity{worker="meta"} 40`,
 				`wukongim_channelv2_activation_rejected_total{reason="capacity"} 5`,
 				`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 6`,
 				`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 7`,
@@ -1040,8 +1042,12 @@ func TestObserverReadsBoundedProtectedDebugAndMetrics(t *testing.T) {
 	require.Equal(t, float64(1024), metrics.GoHeapAllocBytes)
 	require.Equal(t, float64(2048), metrics.ProcessResidentMemoryBytes)
 	require.Equal(t, float64(3), metrics.RuntimeQueueDepth)
+	require.Equal(t, float64(10), metrics.RuntimeQueueCapacity)
+	require.Equal(t, float64(30), metrics.RuntimeQueueMaxPercent)
 	require.Equal(t, float64(2), metrics.RuntimeInflight)
 	require.Equal(t, float64(4), metrics.ChannelWorkerQueueDepth)
+	require.Equal(t, float64(40), metrics.ChannelWorkerQueueCapacity)
+	require.Equal(t, float64(10), metrics.ChannelWorkerQueueMaxPercent)
 	require.Equal(t, float64(5), metrics.ActivationRejectedTotal)
 	require.Equal(t, MetaCreateSlotCounters{Created: 6, AlreadyExisting: 7, Errors: 8}, metrics.MetaCreatedBySlot[0])
 	require.Equal(t, map[string]float64{"created": 6, "already_existing": 7, "error": 8}, metrics.MetaCreatedTotal)
@@ -1104,8 +1110,10 @@ func TestObservationMetricsUsesNodeRSSWhenProcessCollectorIsUnavailable(t *testi
 		"go_goroutines 42",
 		"go_memstats_heap_alloc_bytes 1024",
 		`wukongim_runtime_pool_queue_depth{pool="append"} 0`,
+		`wukongim_runtime_pool_queue_capacity{pool="append"} 10`,
 		`wukongim_runtime_pool_inflight{pool="append"} 0`,
 		`wukongim_channelv2_worker_queue_depth{worker="meta"} 0`,
+		`wukongim_channelv2_worker_queue_capacity{worker="meta"} 40`,
 		`wukongim_channelv2_activation_rejected_total{reason="max_channels"} 0`,
 		`wukongim_channelv2_meta_created_total{slot_id="1",result="created"} 0`,
 		`wukongim_channelv2_meta_created_total{slot_id="1",result="already_existing"} 0`,
@@ -1126,6 +1134,27 @@ func TestObservationMetricsUsesNodeRSSWhenProcessCollectorIsUnavailable(t *testi
 			require.Equal(t, test.want, snapshot.ProcessResidentMemoryBytes)
 		})
 	}
+}
+
+func TestObservationMetricsRetainsMaximumPerQueueSeriesUtilization(t *testing.T) {
+	scrape := strings.Join([]string{
+		`wukongim_runtime_pool_queue_depth{pool="busy"} 81`,
+		`wukongim_runtime_pool_queue_capacity{pool="busy"} 100`,
+		`wukongim_runtime_pool_queue_depth{pool="idle"} 0`,
+		`wukongim_runtime_pool_queue_capacity{pool="idle"} 900`,
+		`wukongim_channelv2_worker_queue_depth{pool="busy"} 91`,
+		`wukongim_channelv2_worker_queue_capacity{pool="busy"} 100`,
+		`wukongim_channelv2_worker_queue_depth{pool="idle"} 0`,
+		`wukongim_channelv2_worker_queue_capacity{pool="idle"} 900`,
+	}, "\n") + "\n"
+	snapshot, err := parseObservationMetrics([]byte(scrape))
+	require.NoError(t, err)
+	require.Equal(t, float64(81), snapshot.RuntimeQueueMaxPercent)
+	require.Equal(t, float64(91), snapshot.ChannelWorkerQueueMaxPercent)
+	require.Equal(t, float64(81), snapshot.RuntimeQueueDepth)
+	require.Equal(t, float64(1_000), snapshot.RuntimeQueueCapacity)
+	require.Equal(t, float64(91), snapshot.ChannelWorkerQueueDepth)
+	require.Equal(t, float64(1_000), snapshot.ChannelWorkerQueueCapacity)
 }
 
 func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {

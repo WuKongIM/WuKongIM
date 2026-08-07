@@ -43,7 +43,7 @@ func TestChatLifecycleRehearsalExposesExactlyFourOperatorInputs(t *testing.T) {
 
 func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrder(t *testing.T) {
 	root := repoRoot(t)
-	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "rehearsal-orchestrate.sh"))
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
 	ordered := []string{
 		"cloud-deployment-bundle.yml",
 		"-f quote_only=true",
@@ -87,7 +87,7 @@ func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(
 		t.Fatalf("finalization order is not report -> release -> zero proof")
 	}
 	for _, relative := range []string{
-		"scripts/chat-lifecycle/rehearsal-orchestrate.sh",
+		"scripts/chat-lifecycle/stage-orchestrate.sh",
 		"scripts/chat-lifecycle/release-until-zero.sh",
 	} {
 		body := readFile(t, filepath.Join(repoRoot(t), filepath.FromSlash(relative)))
@@ -125,6 +125,27 @@ func TestChatLifecycleFormalTransitionRunsOnFreshLeaseAndReportsBeforeRelease(t 
 		if !strings.Contains(formal, required) {
 			t.Fatalf("formal starter is missing %q", required)
 		}
+	}
+	for _, required := range []string{
+		"receipt.json final.json rehearsal-result.json",
+		"scripts/chat-lifecycle/accrued-cost.sh",
+		".resources.capacity.network_transmit_bytes",
+	} {
+		if !strings.Contains(rehearsalFinalizer, required) {
+			t.Fatalf("rehearsal-to-formal cost handoff is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"quote.json receipt.json final.json rehearsal-result.json",
+		"scripts/chat-lifecycle/accrued-cost.sh",
+		"prior + rehearsal_cost",
+	} {
+		if !strings.Contains(formal, required) {
+			t.Fatalf("formal accrued-cost authentication is missing %q", required)
+		}
+	}
+	if strings.Contains(formal, "prior + rehearsal_quote") {
+		t.Fatal("formal starter authenticates the accrued ledger using the full rehearsal Quote")
 	}
 
 	finalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
@@ -225,6 +246,87 @@ func TestChatLifecycleShellProgramsHaveValidBashSyntax(t *testing.T) {
 		if output, err := command.CombinedOutput(); err != nil {
 			t.Fatalf("bash -n %s: %v\n%s", filepath.Base(path), err, output)
 		}
+	}
+}
+
+func TestChatLifecycleAccruedCostUsesHeldHoursObservedTrafficAndFullRetentionRisk(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	planPath := filepath.Join(directory, "run-plan.json")
+	quotePath := filepath.Join(directory, "quote.json")
+	plan := `{"lease_plan":{"host_groups":[{"role":"service","count":3},{"role":"load","count":1}]}}`
+	quote := `{"quote":{"line_items":[` +
+		`{"kind":"postpaid_host_hour","role":"service","quantity":18,"cost_micros":180},` +
+		`{"kind":"postpaid_host_hour","role":"load","quantity":6,"cost_micros":120},` +
+		`{"kind":"eip_public_egress_gib","quantity":10,"cost_micros":50},` +
+		`{"kind":"eip_retention_policy_risk_hour","quantity":6,"cost_micros":60}]}}`
+	if err := os.WriteFile(planPath, []byte(plan), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(quotePath, []byte(quote), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	script := filepath.Join(root, "scripts", "chat-lifecycle", "accrued-cost.sh")
+	for _, test := range []struct {
+		name         string
+		networkBytes string
+		want         string
+	}{
+		{name: "observed one byte rounds to one GiB", networkBytes: "1", want: "165"},
+		{name: "unknown traffic reserves full quoted allowance", networkBytes: "-1", want: "210"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			command := exec.Command("bash", script, planPath, quotePath,
+				"2030-01-01T00:00:00.123Z", "2030-01-01T01:30:00Z", test.networkBytes)
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("accrued cost: %v\n%s", err, output)
+			}
+			if got := strings.TrimSpace(string(output)); got != test.want {
+				t.Fatalf("cost = %s, want %s", got, test.want)
+			}
+		})
+	}
+}
+
+func TestChatLifecycleLedgerSelectorsExecuteAgainstTypedEvidence(t *testing.T) {
+	root := repoRoot(t)
+	tests := []struct {
+		name   string
+		filter string
+		args   []string
+		input  string
+		want   string
+	}{
+		{
+			name:   "active receipt creation",
+			filter: "select-active-receipt-created-at.jq",
+			args:   []string{"--arg", "request", "request-1"},
+			input:  `{"schema":"wukongim.cloud_lease.receipt/v1","receipt":{"request_id":"request-1","state":"active","created_at":"2030-01-01T00:00:00Z"}}`,
+			want:   "2030-01-01T00:00:00Z",
+		},
+		{
+			name:   "formal committed cost",
+			filter: "select-formal-transition-committed.jq",
+			args:   []string{"--arg", "request", "request-1", "--arg", "source", strings.Repeat("a", 40), "--arg", "bundle", "sha256:" + strings.Repeat("b", 64)},
+			input:  `{"schema":"wukongim.chat_lifecycle.formal_transition/v1","from_stage":"rehearsal","outcome":"rehearsal_pass","zero_inventory":true,"request_id":"request-1","source_sha":"` + strings.Repeat("a", 40) + `","bundle_digest":"sha256:` + strings.Repeat("b", 64) + `","committed_micros":123456}`,
+			want:   "123456",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			arguments := append([]string{"-er"}, test.args...)
+			arguments = append(arguments, "-f", filepath.Join(root, "scripts", "chat-lifecycle", test.filter))
+			command := exec.Command("jq", arguments...)
+			command.Stdin = strings.NewReader(test.input)
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("execute selector: %v\n%s", err, output)
+			}
+			if got := strings.TrimSpace(string(output)); got != test.want {
+				t.Fatalf("selected value = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

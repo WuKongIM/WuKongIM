@@ -20,6 +20,7 @@ const maxMaterializedLogicalSlotGroups uint32 = 256
 type ChannelRuntimeMetrics struct {
 	reactorMailboxDepth      *prometheus.GaugeVec
 	workerQueueDepth         *prometheus.GaugeVec
+	workerQueueCapacity      *prometheus.GaugeVec
 	workerInflight           *prometheus.GaugeVec
 	workerInflightPeak       *prometheus.GaugeVec
 	activeRuntimes           *prometheus.GaugeVec
@@ -64,6 +65,11 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		workerQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_channelv2_worker_queue_depth",
 			Help:        "Number of pending tasks in each Channel runtime worker pool.",
+			ConstLabels: labels,
+		}, []string{"pool"}),
+		workerQueueCapacity: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelv2_worker_queue_capacity",
+			Help:        "Configured bounded task capacity in each Channel runtime worker pool.",
 			ConstLabels: labels,
 		}, []string{"pool"}),
 		workerInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -252,6 +258,7 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 	registry.MustRegister(
 		m.reactorMailboxDepth,
 		m.workerQueueDepth,
+		m.workerQueueCapacity,
 		m.workerInflight,
 		m.workerInflightPeak,
 		m.activeRuntimes,
@@ -318,6 +325,14 @@ func (m *ChannelRuntimeMetrics) SetWorkerQueueDepth(pool string, depth int) {
 		return
 	}
 	m.workerQueueDepth.WithLabelValues(pool).Set(float64(depth))
+}
+
+// SetWorkerQueueCapacity publishes the configured bound for one closed worker pool label.
+func (m *ChannelRuntimeMetrics) SetWorkerQueueCapacity(pool string, capacity int) {
+	if m == nil {
+		return
+	}
+	m.workerQueueCapacity.WithLabelValues(pool).Set(float64(capacity))
 }
 
 func (m *ChannelRuntimeMetrics) SetWorkerInflight(pool string, inflight int) {

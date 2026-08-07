@@ -94,7 +94,7 @@ func commandLeaseReceipt(t *testing.T, now time.Time, manifest clouddeploy.Manif
 	plan := cloudlease.Plan{
 		Schema: cloudlease.PlanSchemaV1, LeaseID: "lease-deploy", RequestID: "request-deploy",
 		Provider: cloudleasefake.ProviderName, Region: "local", Repository: "WuKongIM/WuKongIM", Operator: "tangtaoit",
-		ExpiresAt: now.Add(6 * time.Hour), Budget: cloudlease.Budget{Currency: "CNY", LimitMicros: 10_000_000},
+		ExpiresAt: now.Add(96 * time.Hour), Budget: cloudlease.Budget{Currency: "CNY", LimitMicros: clouddeploy.FormalBudgetHardMicros, OperationalStopMicros: clouddeploy.FormalBudgetStopMicros},
 		Provenance: cloudlease.Provenance{SourceSHA: manifest.SourceSHA, BundleDigest: manifest.BundleDigest},
 		Network:    cloudlease.NetworkPlan{Isolated: true, SingleZone: true},
 		HostGroups: []cloudlease.HostGroupPlan{
@@ -133,7 +133,7 @@ func commandReadySnapshot(plan clouddeploy.DeploymentPlan, now time.Time) cloudd
 	for _, planned := range plan.Hosts {
 		units := []string{"node-exporter.service", "wukongim-process-metrics.service", "wukongim-evidence.timer"}
 		if planned.Role == "load" {
-			units = append(units, "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "prometheus.service", "wkanalysis.service", "caddy.service")
+			units = append(units, "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "prometheus.service", "wkanalysis.service", "caddy.service")
 		} else {
 			units = append(units, "wukongim.service", "wkbench-host-metrics.service")
 		}

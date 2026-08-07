@@ -54,6 +54,8 @@ const (
 	VerdictCauseObserverGap             VerdictCause = "observer_gap"
 	VerdictCauseServerCrash             VerdictCause = "server_crash"
 	VerdictCauseDiskExhausted           VerdictCause = "disk_exhausted"
+	VerdictCauseBudgetExhausted         VerdictCause = "budget_exhausted"
+	VerdictCauseLeaseExpiry             VerdictCause = "lease_expiry"
 	VerdictCauseOperatorRequested       VerdictCause = "operator_requested"
 	VerdictCauseHotLatency              VerdictCause = "hot_latency"
 	VerdictCauseColdLatency             VerdictCause = "cold_latency"
@@ -513,7 +515,8 @@ func validVerdictSignal(signal VerdictSignal) bool {
 		return signal.Cause == VerdictCauseServerCrash || signal.Cause == VerdictCauseWorkerProduct ||
 			signal.Cause == VerdictCauseLifecycleProduct || signal.Cause == VerdictCauseMetaCreateProduct
 	case VerdictInfrastructureFailure:
-		return signal.Cause == VerdictCauseDiskExhausted
+		return signal.Cause == VerdictCauseDiskExhausted || signal.Cause == VerdictCauseBudgetExhausted ||
+			signal.Cause == VerdictCauseLeaseExpiry
 	case VerdictHarnessInvalid:
 		return signal.Cause == VerdictCauseObserverGap || signal.Cause == VerdictCauseQueueSaturation ||
 			signal.Cause == VerdictCauseCounterRegression || signal.Cause == VerdictCauseWorkerHarness ||
@@ -558,7 +561,8 @@ func verdictCauseRank(cause VerdictCause) int {
 		VerdictCauseOverallFirstAttemptRate, VerdictCauseMinuteFirstAttemptRate,
 		VerdictCauseHotLatency, VerdictCauseColdLatency, VerdictCauseSyncLatency,
 		VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery, VerdictCauseServerCrash,
-		VerdictCauseDiskExhausted, VerdictCauseCounterRegression, VerdictCauseQueueSaturation,
+		VerdictCauseDiskExhausted, VerdictCauseBudgetExhausted, VerdictCauseLeaseExpiry,
+		VerdictCauseCounterRegression, VerdictCauseQueueSaturation,
 		VerdictCauseObserverGap, VerdictCauseInvalidObservation, VerdictCauseOperatorRequested,
 		VerdictCauseWorkerProduct, VerdictCauseWorkerHarness,
 		VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness, VerdictCauseMetaCreateProduct,

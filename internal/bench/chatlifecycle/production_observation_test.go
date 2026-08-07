@@ -14,7 +14,7 @@ func TestProductionObservationCollectsOneCompleteForcedGCRound(t *testing.T) {
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)
 	targets := make([]*fakeProductionObservationTarget, coordinatorWorkerCount)
-	disks := make([]*fakeProductionObservationDisk, coordinatorWorkerCount)
+	disks := make([]*fakeProductionObservationDisk, productionHostCount)
 	for index := 0; index < coordinatorWorkerCount; index++ {
 		targets[index] = &fakeProductionObservationTarget{metrics: target.MetricsSnapshot{
 			GoGoroutines: 10 + float64(index), GoHeapAllocBytes: 100 + float64(index),
@@ -26,6 +26,9 @@ func TestProductionObservationCollectsOneCompleteForcedGCRound(t *testing.T) {
 			SizeBytes: 10_000_000_000, AvailableBytes: 9_000_000_000 - int64(index),
 		}}
 	}
+	disks[coordinatorWorkerCount] = &fakeProductionObservationDisk{filesystem: DataFilesystem{
+		SizeBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes, AvailableBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes,
+	}}
 	source, err := NewProductionObservationSource(ProductionObservationOptions{
 		Config: cfg, BenchToken: "bench-token",
 		TargetFactory: func(index int, _ EndpointDeclaration, token string) ProductionObservationTarget {
@@ -84,7 +87,7 @@ func TestProductionObservationIgnoresPreBeginAndRejectsActivationRegressionAtomi
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)
 	targets := make([]*fakeProductionObservationTarget, coordinatorWorkerCount)
-	disks := make([]*fakeProductionObservationDisk, coordinatorWorkerCount)
+	disks := make([]*fakeProductionObservationDisk, productionHostCount)
 	for index := range targets {
 		targets[index] = &fakeProductionObservationTarget{metrics: target.MetricsSnapshot{
 			GoGoroutines: 10, GoHeapAllocBytes: 100, RuntimeQueueDepth: 5,
@@ -94,6 +97,9 @@ func TestProductionObservationIgnoresPreBeginAndRejectsActivationRegressionAtomi
 			SizeBytes: 10_000_000_000, AvailableBytes: 9_000_000_000,
 		}}
 	}
+	disks[coordinatorWorkerCount] = &fakeProductionObservationDisk{filesystem: DataFilesystem{
+		SizeBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes, AvailableBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes,
+	}}
 	source, err := NewProductionObservationSource(ProductionObservationOptions{
 		Config: cfg, BenchToken: "bench-token",
 		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
@@ -202,8 +208,9 @@ func TestProductionObservationAcceptsObserverPhaseAndRoundLatencyAtHourlyBoundar
 func TestProductionObservationCancellationJoinsAllExternalReads(t *testing.T) {
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)
-	started := make(chan struct{}, coordinatorWorkerCount*2)
-	returned := make(chan struct{}, coordinatorWorkerCount*2)
+	externalReadCount := coordinatorWorkerCount + productionHostCount
+	started := make(chan struct{}, externalReadCount)
+	returned := make(chan struct{}, externalReadCount)
 	source, err := NewProductionObservationSource(ProductionObservationOptions{
 		Config: cfg, BenchToken: "bench-token",
 		TargetFactory: func(int, EndpointDeclaration, string) ProductionObservationTarget {
@@ -222,7 +229,7 @@ func TestProductionObservationCancellationJoinsAllExternalReads(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan error, 1)
 	go func() { result <- source.Observe(ctx, healthyProductionObserverSample(start)) }()
-	for index := 0; index < coordinatorWorkerCount*2; index++ {
+	for index := 0; index < externalReadCount; index++ {
 		select {
 		case <-started:
 		case <-time.After(time.Second):
@@ -234,12 +241,174 @@ func TestProductionObservationCancellationJoinsAllExternalReads(t *testing.T) {
 	if err := <-result; !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled observation error = %v", err)
 	}
-	if len(returned) != coordinatorWorkerCount*2 {
-		t.Fatalf("joined reads = %d, want %d", len(returned), coordinatorWorkerCount*2)
+	if len(returned) != externalReadCount {
+		t.Fatalf("joined reads = %d, want %d", len(returned), externalReadCount)
 	}
 	if snapshot := source.Snapshot(); snapshot.Sequence != 0 {
 		t.Fatalf("canceled observation committed snapshot = %+v", snapshot)
 	}
+}
+
+func TestProductionObservationRequiresContinuousFifteenMinuteHostAndQueueSaturation(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	for _, target := range targets {
+		target.metrics.RuntimeQueueDepth = 81
+		target.metrics.RuntimeQueueCapacity = 100
+		target.metrics.RuntimeQueueMaxPercent = 81
+	}
+	disks[0].filesystem.CPUPercent = 91
+	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	for elapsed := time.Duration(0); elapsed < 15*time.Minute; elapsed += cfg.Observation.Cadence {
+		if err := source.Observe(context.Background(), healthyProductionObserverSample(start.Add(elapsed))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if evidence.CPUSustainedEvents[0] != 0 || evidence.QueueSustainedEvents[0] != 0 {
+		t.Fatalf("premature sustained evidence = %+v", evidence)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start.Add(15*time.Minute))); err != nil {
+		t.Fatal(err)
+	}
+	evidence = source.Snapshot().ResourceEvidence.Capacity
+	if !evidence.Complete || evidence.CPUSustainedEvents[0] != 1 || evidence.QueueSustainedEvents != [3]uint64{1, 1, 1} ||
+		!evidence.CPUSustainedActive[0] || evidence.QueueSustainedActive != [3]bool{true, true, true} ||
+		evidence.CPUHighSamples[0] != 181 || evidence.QueueHighSamples[0] != 181 {
+		t.Fatalf("continuous resource evidence = %+v", evidence)
+	}
+}
+
+func TestProductionObservationUsesMaximumChannelPoolUtilization(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 17, 30, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	for _, target := range targets {
+		target.metrics.ChannelWorkerQueueDepth = 81
+		target.metrics.ChannelWorkerQueueCapacity = 1_000
+		target.metrics.ChannelWorkerQueueMaxPercent = 81
+	}
+	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if evidence.ServiceQueuePercentBasisPoints != [3]uint32{8_100, 8_100, 8_100} ||
+		evidence.QueueHighSamples != [3]uint64{1, 1, 1} {
+		t.Fatalf("maximum pool evidence = %+v", evidence)
+	}
+}
+
+func TestProductionObservationRequiresContinuousFifteenMinuteWorkerQueueSaturation(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 18, 0, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	snapshots := make([]WorkerSnapshot, coordinatorWorkerCount)
+	for index := range snapshots {
+		snapshots[index] = WorkerSnapshot{
+			Phase: WorkerPhaseRunning,
+			Queues: WorkerQueueSnapshot{
+				WorkCurrent: 81, WorkCapacity: 100, RetryCurrent: 1, RetryCapacity: 100,
+				InflightCurrent: 1, InflightCapacity: 100, TransportCurrent: 1, TransportCapacity: 100,
+			},
+		}
+	}
+	for elapsed := time.Duration(0); elapsed <= 15*time.Minute; elapsed += cfg.Observation.Cadence {
+		if err := source.ObserveWorkerQueues(context.Background(), start.Add(elapsed), snapshots); err != nil {
+			t.Fatal(err)
+		}
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if !evidence.WorkerQueuesComplete || evidence.WorkerQueueSamples != 181 ||
+		evidence.WorkerQueueSustainedEvents[0][0] != 1 || !evidence.WorkerQueueSustainedActive[0][0] {
+		t.Fatalf("continuous worker queue evidence = %+v", evidence)
+	}
+}
+
+func TestProductionObservationEmitsRuntimeBudgetSafeStop(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 19, 0, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	disks[coordinatorWorkerCount].filesystem.NetworkTransmitBytes = 123_456
+	source, err := NewProductionObservationSource(ProductionObservationOptions{
+		Config: cfg, BenchToken: "bench-token",
+		TargetFactory: func(index int, _ EndpointDeclaration, _ string) ProductionObservationTarget { return targets[index] },
+		DiskFactory:   func(index int, _ EndpointDeclaration) DiskReader { return disks[index] },
+		RuntimeSafety: runtimeSafetyGuardFunc(func(context.Context, time.Time, uint64) (RuntimeSafetySnapshot, error) {
+			return RuntimeSafetySnapshot{
+				Cause: RuntimeSafetyBudgetStop, AccruedCostMicros: 1_350_000_000,
+				NetworkTransmitBytes: 123_456, LeaseRemaining: 20 * time.Hour,
+			}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := source.Snapshot()
+	if snapshot.ResourceEvidence.Capacity.AccruedCostMicros != 1_350_000_000 ||
+		snapshot.ResourceEvidence.Capacity.NetworkTransmitBytes != 123_456 ||
+		len(snapshot.Signals) != 1 || snapshot.Signals[0].Cause != VerdictCauseBudgetExhausted {
+		t.Fatalf("runtime budget evidence = %+v", snapshot)
+	}
+}
+
+func TestProductionObservationPersistsNetworkWithoutRuntimeBudgetGuard(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 19, 30, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	disks[coordinatorWorkerCount].filesystem.NetworkTransmitBytes = 987_654
+	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+		t.Fatal(err)
+	}
+	if got := source.Snapshot().ResourceEvidence.Capacity.NetworkTransmitBytes; got != 987_654 {
+		t.Fatalf("network transmit bytes = %d, want 987654", got)
+	}
+}
+
+func TestProductionObservationMarksCadenceGapAsMissingEvidence(t *testing.T) {
+	cfg := FormalConfig()
+	start := time.Date(2030, time.March, 17, 19, 45, 0, 0, time.UTC)
+	targets, disks := validProductionObservationFakes(cfg)
+	source := newProductionObservationFakeSource(t, cfg, targets, disks)
+	if err := source.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	for _, at := range []time.Time{start, start.Add(3 * cfg.Observation.Cadence)} {
+		if err := source.Observe(context.Background(), healthyProductionObserverSample(at)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	evidence := source.Snapshot().ResourceEvidence.Capacity
+	if evidence.MissingSamples != 1 || !evidence.Complete || evidence.Samples != 2 {
+		t.Fatalf("gap evidence = %+v", evidence)
+	}
+}
+
+type runtimeSafetyGuardFunc func(context.Context, time.Time, uint64) (RuntimeSafetySnapshot, error)
+
+func (f runtimeSafetyGuardFunc) Observe(ctx context.Context, at time.Time, bytes uint64) (RuntimeSafetySnapshot, error) {
+	return f(ctx, at, bytes)
 }
 
 func TestProductionObservationPreCanceledContextPerformsNoIO(t *testing.T) {
@@ -322,18 +491,30 @@ func (f *fakeProductionObservationDisk) Filesystem(context.Context) (DataFilesys
 
 func validProductionObservationFakes(cfg Config) ([]*fakeProductionObservationTarget, []*fakeProductionObservationDisk) {
 	targets := make([]*fakeProductionObservationTarget, coordinatorWorkerCount)
-	disks := make([]*fakeProductionObservationDisk, coordinatorWorkerCount)
+	disks := make([]*fakeProductionObservationDisk, productionHostCount)
 	for index := range targets {
 		targets[index] = &fakeProductionObservationTarget{metrics: target.MetricsSnapshot{
 			GoGoroutines: 10 + float64(index), GoHeapAllocBytes: 100 + float64(index),
-			RuntimeQueueDepth: 5, ChannelWorkerQueueDepth: 7, RuntimeInflight: 3,
+			RuntimeQueueDepth: 5, RuntimeQueueCapacity: 100, ChannelWorkerQueueDepth: 7, ChannelWorkerQueueCapacity: 100,
+			RuntimeQueueMaxPercent: 5, ChannelWorkerQueueMaxPercent: 7,
+			RuntimeInflight:         3,
 			ActivationRejectedTotal: float64(index + 1),
 		}}
 		disks[index] = &fakeProductionObservationDisk{filesystem: DataFilesystem{
-			SizeBytes:      cfg.Thresholds.MinimumDataFilesystemBytes,
-			AvailableBytes: cfg.Thresholds.MinimumDataFilesystemBytes * 9 / 10,
+			SizeBytes:       cfg.Thresholds.MinimumDataFilesystemBytes,
+			AvailableBytes:  cfg.Thresholds.MinimumDataFilesystemBytes * 9 / 10,
+			SystemSizeBytes: 40_000_000_000, SystemAvailableBytes: 20_000_000_000,
+			CPUPercent: 20, MemoryPercent: 30, HostResourcesObserved: true,
 		}}
+		prepareProductionProcessEvidence(&disks[index].filesystem, index, cfg.Stage)
 	}
+	disks[coordinatorWorkerCount] = &fakeProductionObservationDisk{filesystem: DataFilesystem{
+		SizeBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes, AvailableBytes: cfg.Thresholds.Resource.MinimumLoadFilesystemBytes,
+		SystemSizeBytes: 40_000_000_000, SystemAvailableBytes: 20_000_000_000,
+		CPUPercent: 20, MemoryPercent: 30, HostResourcesObserved: true, WatchedDirectoryObserved: true,
+		NetworkTransmitObserved: true,
+	}}
+	prepareProductionProcessEvidence(&disks[coordinatorWorkerCount].filesystem, coordinatorWorkerCount, cfg.Stage)
 	return targets, disks
 }
 

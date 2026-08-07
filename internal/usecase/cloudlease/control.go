@@ -112,7 +112,9 @@ func (c *Controller) acquire(ctx context.Context, plan Plan, quote Quote, access
 	existing, inspectErr := c.provider.Inspect(ctx, selector)
 	switch {
 	case inspectErr == nil:
-		return reconcileExistingAcquireReceipt(normalized, digest, existing, expectedTags)
+		receipt, receiptErr := reconcileExistingAcquireReceipt(normalized, digest, existing, expectedTags)
+		receipt.Budget = normalized.Budget
+		return receipt, receiptErr
 	case !errors.Is(inspectErr, ErrLeaseNotFound):
 		return Receipt{}, fmt.Errorf("cloudlease acquire inspect: %w", inspectErr)
 	}
@@ -128,17 +130,20 @@ func (c *Controller) acquire(ctx context.Context, plan Plan, quote Quote, access
 	if acquireErr == nil {
 		receipt, receiptErr := reconcileNewAcquireReceipt(normalized, quote, acquired, expectedTags)
 		if receiptErr != nil {
+			receipt.Budget = normalized.Budget
 			if errors.Is(receiptErr, ErrResidualResources) {
 				return receipt, errors.Join(ErrAcquireIncomplete, receiptErr)
 			}
 			return receipt, receiptErr
 		}
+		receipt.Budget = normalized.Budget
 		return receipt, nil
 	}
 
 	recovered, recoverErr := c.provider.Inspect(ctx, selector)
 	if recoverErr == nil {
 		receipt, receiptErr := reconcileExistingAcquireReceipt(normalized, digest, recovered, expectedTags)
+		receipt.Budget = normalized.Budget
 		if receiptErr != nil {
 			if !errors.Is(receiptErr, ErrAcquireIncomplete) && !errors.Is(receiptErr, ErrResidualResources) {
 				return receipt, receiptErr

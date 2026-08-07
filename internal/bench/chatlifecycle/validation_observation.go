@@ -20,6 +20,9 @@ func validateLocalObservationShape(o ObservationConfig) error {
 		{"observation.api_addrs", len(o.APIAddrs)},
 		{"observation.gateway_tcp_addrs", len(o.GatewayTCPAddrs)},
 	}
+	if strings.TrimSpace(o.LoadHostMetrics.Name) == "" || strings.TrimSpace(o.LoadHostMetrics.Address) == "" {
+		return fieldError("observation.load_host_metrics", "must contain one load-host declaration")
+	}
 	for _, role := range roles {
 		if role.count != formalWorkers {
 			return fieldError(role.path, "must contain exactly 3 entries for local baseline")
@@ -41,13 +44,19 @@ func validateObservation(o ObservationConfig) error {
 	if err := validateEndpointRole("observation.host_metrics", o.HostMetrics); err != nil {
 		return err
 	}
+	if err := validateEndpointRole("observation.load_host_metrics", []EndpointDeclaration{o.LoadHostMetrics}); err != nil {
+		return err
+	}
 	if err := validateNonHostFilesystemSelectors("observation.service_nodes", o.ServiceNodes); err != nil {
 		return err
 	}
 	if err := validateNonHostFilesystemSelectors("observation.workers", o.Workers); err != nil {
 		return err
 	}
-	if err := validateHostFilesystemSelectors(o.HostMetrics); err != nil {
+	if err := validateHostFilesystemSelectors("observation.host_metrics", o.HostMetrics); err != nil {
+		return err
+	}
+	if err := validateHostFilesystemSelectors("observation.load_host_metrics", []EndpointDeclaration{o.LoadHostMetrics}); err != nil {
 		return err
 	}
 	if err := validateHTTPAddressPool("observation.api_addrs", o.APIAddrs); err != nil {
@@ -83,21 +92,21 @@ func validateNonHostFilesystemSelectors(path string, endpoints []EndpointDeclara
 	return nil
 }
 
-func validateHostFilesystemSelectors(endpoints []EndpointDeclaration) error {
+func validateHostFilesystemSelectors(path string, endpoints []EndpointDeclaration) error {
 	for index, endpoint := range endpoints {
 		mountpoint := strings.TrimSpace(endpoint.Mountpoint)
 		if mountpoint == "" {
-			return fieldError(fmt.Sprintf("observation.host_metrics[%d].mountpoint", index), "is required")
+			return fieldError(fmt.Sprintf("%s[%d].mountpoint", path, index), "is required")
 		}
 		if len(mountpoint) > 1024 || !strings.HasPrefix(mountpoint, "/") || pathpkg.Clean(mountpoint) != mountpoint {
-			return fieldError(fmt.Sprintf("observation.host_metrics[%d].mountpoint", index), "must be an absolute clean path")
+			return fieldError(fmt.Sprintf("%s[%d].mountpoint", path, index), "must be an absolute clean path")
 		}
 		device := strings.TrimSpace(endpoint.Device)
 		if device == "" {
-			return fieldError(fmt.Sprintf("observation.host_metrics[%d].device", index), "is required")
+			return fieldError(fmt.Sprintf("%s[%d].device", path, index), "is required")
 		}
 		if len(device) > 1024 || device != endpoint.Device {
-			return fieldError(fmt.Sprintf("observation.host_metrics[%d].device", index), "must be a bounded exact label")
+			return fieldError(fmt.Sprintf("%s[%d].device", path, index), "must be a bounded exact label")
 		}
 	}
 	return nil
@@ -184,6 +193,7 @@ func validateCrossRoleEndpointDuplicates(o ObservationConfig) error {
 		{"observation.service_nodes", o.ServiceNodes},
 		{"observation.workers", o.Workers},
 		{"observation.host_metrics", o.HostMetrics},
+		{"observation.load_host_metrics", []EndpointDeclaration{o.LoadHostMetrics}},
 	}
 	seenNames := make(map[string]string)
 	seenAddresses := make(map[string]string)

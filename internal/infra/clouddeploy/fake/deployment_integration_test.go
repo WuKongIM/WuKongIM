@@ -72,7 +72,9 @@ func integrationLease(now time.Time, manifest clouddeploy.Manifest) clouddeploy.
 	return clouddeploy.LeaseInventory{
 		LeaseID: "lease-integration", RequestID: "request-integration", Repository: "WuKongIM/WuKongIM",
 		Provider: "fake", Region: "local", Zone: "zone-a", PlanDigest: "sha256:" + strings.Repeat("5", 64),
-		SourceSHA: manifest.SourceSHA, BundleDigest: manifest.BundleDigest, State: "active", ExpiresAt: now.Add(time.Hour), Resources: resources,
+		SourceSHA: manifest.SourceSHA, BundleDigest: manifest.BundleDigest, State: "active", CreatedAt: now, ExpiresAt: now.Add(96 * time.Hour),
+		Budget:    clouddeploy.DeploymentBudget{Currency: "CNY", LimitMicros: clouddeploy.FormalBudgetHardMicros, OperationalStopMicros: clouddeploy.FormalBudgetStopMicros, EstimatedCostMicros: 100_000_000, LineItems: []clouddeploy.DeploymentBudgetLineItem{{Kind: "lease", Role: "all", Quantity: 1, CostMicros: 100_000_000}}},
+		Resources: resources,
 	}
 }
 
@@ -81,7 +83,7 @@ func integrationSnapshot(plan clouddeploy.DeploymentPlan, now time.Time) cloudde
 	for _, planned := range plan.Hosts {
 		units := []string{"node-exporter.service", "wukongim-process-metrics.service", "wukongim-evidence.timer"}
 		if planned.Role == "load" {
-			units = append(units, "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "prometheus.service", "wkanalysis.service", "caddy.service")
+			units = append(units, "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service", "prometheus.service", "wkanalysis.service", "caddy.service")
 		} else {
 			units = append(units, "wukongim.service", "wkbench-host-metrics.service")
 		}

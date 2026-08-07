@@ -596,6 +596,7 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 
 	reg.ChannelRuntime.SetReactorMailboxDepth(2, "normal", 9)
 	reg.ChannelRuntime.SetWorkerQueueDepth("store_append", 4)
+	reg.ChannelRuntime.SetWorkerQueueCapacity("store_append", 64)
 	reg.ChannelRuntime.SetWorkerInflight("store_append", 3)
 	reg.ChannelRuntime.SetWorkerInflightPeak("store_append", 7)
 	reg.ChannelRuntime.ObserveAppendBatch(16, 1024, 3*time.Millisecond)
@@ -664,6 +665,10 @@ func TestChannelRuntimeMetricsTrackReactorAndWorkerRuntime(t *testing.T) {
 		"pool":      "store_append",
 	})
 	require.Equal(t, float64(4), workerQueue.GetMetric()[0].GetGauge().GetValue())
+
+	workerQueueCapacity := requireMetricFamily(t, families, "wukongim_channelv2_worker_queue_capacity")
+	require.Len(t, workerQueueCapacity.GetMetric(), 1)
+	require.Equal(t, float64(64), workerQueueCapacity.GetMetric()[0].GetGauge().GetValue())
 
 	workerInflight := requireMetricFamily(t, families, "wukongim_channelv2_worker_inflight")
 	require.Len(t, workerInflight.GetMetric(), 1)

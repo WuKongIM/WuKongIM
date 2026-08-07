@@ -12,7 +12,7 @@ import (
 
 func TestOfflineCommandsSealAndVerifyVersionedBundle(t *testing.T) {
 	root := t.TempDir()
-	for _, name := range []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkchatlifecycle", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"} {
+	for _, name := range []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost", "wukongim"} {
 		path := filepath.Join(root, "bin", name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)

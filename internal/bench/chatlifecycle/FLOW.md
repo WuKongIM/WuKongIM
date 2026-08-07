@@ -760,13 +760,15 @@ keeps the formal topology and real sync request (`version=0`, `limit=500`,
 SENDs/s, an 80-person/20-group hot set, a fixed 16/3/0/1 group catalog with
 1,000 members in the very-large group, a 500-channel node bound, 12 runtime
 samples, two seconds/200 SENDs of burst credit, and 10/20/30-minute timeline
-checkpoints. Its three service, worker, host-metrics, HTTP API, and TCP gateway
-roles use replaceable, unique loopback declarations by default.
+checkpoints. Its three service, worker, service-host-metrics, HTTP API, and TCP
+gateway roles plus one separate load-host-metrics role use replaceable, unique
+loopback declarations by default.
 
 Formal and local execution are traffic-denied until one black-box preflight
 passes. Static validation first proves three distinct service-node, worker,
-host-metrics, API-pool, and separately addressed TCP-gateway declarations, so
-an invalid topology performs no I/O. Authenticated service checks then prove
+service-host-metrics, API-pool, and separately addressed TCP-gateway
+declarations plus one load-host-metrics declaration, so an invalid topology
+performs no I/O. Authenticated service checks then prove
 health/readiness, effective 12-logical-Slot/256-physical-hash-slot topology,
 3/3 replicas, the profile's exact Channel bound (50,000 for formal), forced-GC
 metrics, required Bench capability, and a complete live Slot view from all
@@ -780,13 +782,38 @@ all three metadata-create results on every configured logical Slot Raft Group,
 so a clean 12-group cluster exposes the complete strictly required vector
 without inventing an event or treating a missing family as zero.
 
-Each host-metrics declaration carries an exact node_exporter `mountpoint` and
-`device`. The bounded parser accepts exactly one size and one available-byte
-series for that pair. Missing or duplicate pairs make the harness invalid; a
-filesystem below the profile minimum is an infrastructure capacity failure.
-Formal minimum size is 500,000,000,000 usable bytes. Free space below 5 percent
-returns an infrastructure failure and emits one narrow coordinated-stop signal;
-the observer does not own assignment control.
+Each host-metrics declaration carries an exact `mountpoint` and `device`. The
+bounded native endpoint and parser expose exactly one data-filesystem pair,
+the system-filesystem pair, host CPU and memory utilization, and, on the load
+host, bounded Prometheus-directory bytes. It also forwards a closed, fixed-role
+process inventory with unit uptime, cumulative CPU jiffies, and RSS for every
+service, worker, coordinator, proxy, analysis, Prometheus, and collector
+process. Formal preflight requires the roles for each host, while formal and
+capacity reports persist the fixed four-host/thirteen-role arrays so resource
+attribution is auditable without PID-cardinality metrics. Missing or duplicate
+formal evidence makes the harness invalid. The root collector refreshes every
+15 seconds; the host endpoint requires both file mtime and the unique embedded
+success timestamp to be no more than 45 seconds old, so a stopped collector
+cannot leave an indefinitely valid `up` snapshot. Formal service data minimum is 500,000,000,000 usable
+bytes and the load data minimum is 200,000,000,000 bytes. Any system or data
+filesystem below 5 percent free, or Prometheus at 140,000,000,000 bytes under
+its 150 GB retention cap, returns an infrastructure failure and emits one
+narrow coordinated-stop signal; the observer does not own assignment control.
+CPU above 90 percent, memory above 85 percent, both the aggregate service
+runtime queue and the bounded Channel worker queue, and
+each worker work/retry/inflight/transport queue above 80 percent require
+uninterrupted five-second observations for 15 minutes before infrastructure-
+capacity attribution. Worker queue evidence comes from the coordinator's
+already bounded three-worker checkpoint cuts and retains only fixed counters
+and the current continuity state. A missing queue sample or a gap longer than
+two observation cadences invalidates continuity instead of resetting a breach
+into an apparent clean window. Service queue families pair depth and capacity
+by their exact bounded label set and retain the maximum pool utilization, so an
+idle pool cannot average away another pool's saturation. A load worker's offered-rate
+underdelivery is separate infrastructure evidence. Latency becomes product
+failure only when the whole measured window has complete four-host resource
+evidence and no threshold-high sample; missing or mixed evidence is
+insufficient evidence.
 
 After preflight, the target observer immediately polls and then repeats at the
 configured cadence, which is five seconds in the reviewed defaults, using
@@ -868,10 +895,17 @@ observation cutoff at the stage duration: two hours for rehearsal,
 `thresholds.timeline.final` for the 30-minute local shakeout, and 72 hours for
 formal. The healthy observer deliberately
 has no success terminal result. Before the cutoff, an observer product or
-harness result ends the run with that failure. At the exact cutoff, the
-coordinator cancels and joins the observer child; only the resulting healthy
-`stopped` permits the one
-final checkpoint followed by bounded worker stop and final aggregation. A
+harness result ends the run with that failure. At the exact cutoff, a
+rehearsal or local coordinator cancels and joins the observer child; only the
+resulting healthy `stopped` permits the one final checkpoint followed by
+bounded worker stop and final aggregation. A passing formal-chain cutoff is
+different: its in-memory continuation transfers the same still-running
+observer result channel and cancel owner alongside the exact assignments and
+grant sequence. The capacity coordinator adopts that child without invoking
+`Observer.Run` again, and cancels and joins it only at the terminal capacity
+cut. The production controller likewise keeps the same observation source,
+lifecycle proof loop, metadata ledger, and dataset identity while replacing
+only the report/evaluator stage. A
 product or harness result racing with that cancellation remains a failure. An
 outer caller cancellation instead returns coordinator `stopped` without a
 checkpoint. At the formal 24-hour threshold, the production hook captures one
@@ -987,6 +1021,27 @@ breakpoint with all declared headroom gates passing becomes `product_failure`;
 mixed evidence that cannot establish either attribution becomes
 `insufficient_evidence`. Correctness, evidence validity, process, cluster,
 disk, budget, and expiry failures retain their stronger terminal semantics.
+Capacity status ticks opt the production evidence hook into periodic bounded
+checkpoint cuts, so all four worker queues and terminal resource/safety signals
+continue to advance between the longer measurement boundaries. A saturation
+already active at the formal boundary, or one observed in an earlier capacity
+window and recovered before a later boundary, remains a sticky
+`passed_with_capacity_warning` rather than disappearing from the result. The
+30-minute recovery accepts earlier in-window saturation only after the terminal
+resource and queue evidence is currently below threshold; that recovered event
+still produces the sticky capacity warning.
+
+Rehearsal and formal startup bind the Lease creation/expiry instants, the exact admitted
+quote line items, prior committed cost, and the ¥1,350/¥1,500 limits. Every
+five-second production observation recomputes conservative accrued cost:
+host-hours round actual Lease age upward, the retention-risk allowance is
+charged in full, and all non-loopback load-host transmitted bytes round upward
+to public-egress GiB so private traffic can only overestimate spend. Reaching
+the operational stop emits an infrastructure budget terminal signal. One hour
+or less before Lease expiry emits the separate expiry-risk terminal signal,
+leaving cleanup reserve. These checks continue through the two-hour rehearsal
+and through the same observer across Soak and capacity; they are not startup-
+only admission checks.
 
 The standalone checkpoint recorder binds one validated configuration, start
 instant, and exact worker fence. It accepts only complete three-worker snapshot
@@ -1069,7 +1124,7 @@ very-large group category is present. The declared worker count must equal the
 worker observation count. The formal validator additionally retains the exact
 2,000-group and 100,000-member reviewed shape.
 
-Service-node observation, worker control, host metrics, and API-pool endpoints
+Service-node observation, worker control, service/load host metrics, and API-pool endpoints
 are absolute credential-free HTTP or HTTPS URLs without query or fragment.
 Their duplicate identity lowercases the scheme and host, canonicalizes IP text
 and default ports, removes one terminal DNS root dot, and cleans the base path

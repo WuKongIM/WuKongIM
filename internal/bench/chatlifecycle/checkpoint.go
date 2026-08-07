@@ -41,8 +41,11 @@ type CheckpointEvidence struct {
 	Cluster           ReportClusterEvidence
 	Verdict           VerdictSnapshot
 	Capacity          ReportCapacityEvidence
-	Warnings          []ReportWarningCode
-	Samples           []ReportSample
+	// Continuous proves this report is an in-process boundary in the formal
+	// Soak-to-capacity chain, never a restartable checkpoint.
+	Continuous bool
+	Warnings   []ReportWarningCode
+	Samples    []ReportSample
 }
 
 // CheckpointOutputPaths requires one atomic JSON and Markdown sibling output.
@@ -165,7 +168,9 @@ func (r *CheckpointRecorder) prepareLocked(
 	if kind == CheckpointFinal && !terminal {
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
-	if !validCheckpointSnapshotsForCut(snapshots, at.Sub(r.start), kind, evidence.Verdict) {
+	if !validCheckpointSnapshotsForCut(
+		snapshots, at.Sub(r.start), kind, evidence.Verdict, evidence.Continuous && r.cfg.Mode == ModeSoak,
+	) {
 		return Report{}, nil, "", false, false, ErrCheckpointEvidence
 	}
 
@@ -210,7 +215,7 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
 		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
 		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage, Kind: kind,
-		Final: final, Continue: !final,
+		Final: final, Continue: !final, Continuous: evidence.Continuous,
 		Fence: ReportFence{RunHash: hashReportValue(r.fence.RunID), AssignmentHash: hashReportValue(r.fence.AssignmentID), Generation: r.fence.Generation},
 		Window: ReportTimeWindow{
 			Start: r.start, WarmupEnd: r.start.Add(r.cfg.Thresholds.Timeline.Warmup),
@@ -319,7 +324,13 @@ func validCheckpointVerdict(verdict VerdictSnapshot) bool {
 			verdict.Cause != VerdictCauseInfrastructureCapacity)
 }
 
-func validCheckpointSnapshotsForCut(snapshots []WorkerSnapshot, elapsed time.Duration, kind CheckpointKind, verdict VerdictSnapshot) bool {
+func validCheckpointSnapshotsForCut(
+	snapshots []WorkerSnapshot,
+	elapsed time.Duration,
+	kind CheckpointKind,
+	verdict VerdictSnapshot,
+	continuous bool,
+) bool {
 	if len(snapshots) != coordinatorWorkerCount || elapsed < 0 {
 		return false
 	}
@@ -330,7 +341,11 @@ func validCheckpointSnapshotsForCut(snapshots []WorkerSnapshot, elapsed time.Dur
 		if !verdict.Terminal && (kind != CheckpointQualification || snapshot.Phase != WorkerPhaseRunning) {
 			return false
 		}
-		if successfulVerdict(verdict) && snapshot.Phase != WorkerPhaseFinal {
+		expectedSuccessfulPhase := WorkerPhaseFinal
+		if continuous {
+			expectedSuccessfulPhase = WorkerPhaseRunning
+		}
+		if successfulVerdict(verdict) && snapshot.Phase != expectedSuccessfulPhase {
 			return false
 		}
 	}

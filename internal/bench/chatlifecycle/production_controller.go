@@ -17,6 +17,10 @@ type productionObservationEvidence interface {
 	Snapshot() ProductionObservationSnapshot
 }
 
+type productionWorkerQueueEvidence interface {
+	ObserveWorkerQueues(context.Context, time.Time, []WorkerSnapshot) error
+}
+
 type productionLifecycleEvidence interface {
 	Run(context.Context, WorkerFence) error
 	Snapshot() LifecycleProofSnapshot
@@ -41,6 +45,9 @@ type ProductionEvidenceControllerOptions struct {
 	MetaAccounting *MetaCreateAccounting
 	Dataset        productionDatasetEvidence
 	SlotAssignment LifecycleSlotAssignment
+	// Continuous enables the one formal Soak-to-capacity process lifetime. It
+	// changes report/finalization semantics but never permits disk resumption.
+	Continuous bool
 }
 
 // ProductionEvidenceController reduces live sources into one non-resumable
@@ -48,14 +55,17 @@ type ProductionEvidenceControllerOptions struct {
 type ProductionEvidenceController struct {
 	mu sync.Mutex
 
-	cfg         Config
-	outputDir   string
-	observation productionObservationEvidence
-	lifecycle   productionLifecycleEvidence
-	meta        productionMetaEvidence
-	accounting  *MetaCreateAccounting
-	dataset     productionDatasetEvidence
-	assignment  LifecycleSlotAssignment
+	cfg              Config
+	outputDir        string
+	observation      productionObservationEvidence
+	lifecycle        productionLifecycleEvidence
+	meta             productionMetaEvidence
+	accounting       *MetaCreateAccounting
+	dataset          productionDatasetEvidence
+	assignment       LifecycleSlotAssignment
+	continuous       bool
+	continuing       bool
+	awaitingCapacity bool
 
 	begun             bool
 	closed            bool
@@ -76,6 +86,7 @@ type ProductionEvidenceController struct {
 }
 
 var _ CoordinatorRunHooks = (*ProductionEvidenceController)(nil)
+var _ CoordinatorCapacityPeriodicHooks = (*ProductionEvidenceController)(nil)
 
 // NewProductionEvidenceController validates composition without performing I/O.
 func NewProductionEvidenceController(options ProductionEvidenceControllerOptions) (*ProductionEvidenceController, error) {
@@ -88,7 +99,7 @@ func NewProductionEvidenceController(options ProductionEvidenceControllerOptions
 	return &ProductionEvidenceController{
 		cfg: options.Config, outputDir: filepath.Clean(output), observation: options.Observation,
 		lifecycle: options.Lifecycle, meta: options.Meta, accounting: options.MetaAccounting,
-		dataset: options.Dataset, assignment: options.SlotAssignment,
+		dataset: options.Dataset, assignment: options.SlotAssignment, continuous: options.Continuous,
 	}, nil
 }
 
@@ -108,7 +119,7 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.begun || c.closed || start.StartedAt.IsZero() || start.Config.Validate() != nil ||
+	if c.begun || c.closed || c.awaitingCapacity || start.StartedAt.IsZero() || start.Config.Validate() != nil ||
 		start.Config.RunID != c.cfg.RunID || start.Fence.RunID != c.cfg.RunID || !validWorkerFence(start.Fence) {
 		return errProductionController
 	}
@@ -127,8 +138,14 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 	if err != nil || !validReportHash(digest) {
 		return errProductionController
 	}
-	if err := c.observation.Begin(start.StartedAt); err != nil {
-		return errProductionController
+	if c.continuing {
+		if digest != c.datasetDigest {
+			return errProductionController
+		}
+	} else {
+		if err := c.observation.Begin(start.StartedAt); err != nil {
+			return errProductionController
+		}
 	}
 	if err := writeRunStartReceipt(filepath.Join(c.outputDir, "run-start.json"), RunStartReceipt{
 		Schema: RunStartReceiptSchemaV1, Stage: c.cfg.Stage,
@@ -138,12 +155,47 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 	}); err != nil {
 		return errProductionController
 	}
-	lifecycleCtx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
 	c.start, c.datasetDigest, c.recorder, c.evaluator = start, digest, recorder, evaluator
-	c.lifecycleCancel, c.lifecycleDone = cancel, done
+	if c.continuing {
+		observation := c.observation.Snapshot()
+		if observation.Sequence == 0 || observation.At.IsZero() || observation.At.After(start.StartedAt) {
+			return errProductionController
+		}
+		c.lastObservation, c.lastObservationID = observation, observation.Sequence
+		c.lastEvaluatorAt = start.StartedAt
+	} else {
+		lifecycleCtx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		c.lifecycleCancel, c.lifecycleDone = cancel, done
+		go func() { done <- c.lifecycle.Run(lifecycleCtx, start.Fence) }()
+	}
 	c.begun = true
-	go func() { done <- c.lifecycle.Run(lifecycleCtx, start.Fence) }()
+	return nil
+}
+
+// ContinueCapacity changes only the report/evaluator stage while preserving
+// the live observation source, lifecycle proof loop, meta ledger, dataset, and
+// worker fence. The caller must invoke it synchronously after the continuous
+// hour-72 report and before starting the capacity coordinator phase.
+func (c *ProductionEvidenceController) ContinueCapacity(cfg Config, outputDir string) error {
+	if c == nil {
+		return errProductionController
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	output := strings.TrimSpace(outputDir)
+	if !c.continuous || !c.awaitingCapacity || c.closed || output == "" || cfg.Validate() != nil ||
+		cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Stage != StageFormal ||
+		cfg.RunID != c.cfg.RunID {
+		return errProductionController
+	}
+	c.cfg, c.outputDir = cfg, filepath.Clean(output)
+	c.begun, c.awaitingCapacity, c.continuing = false, false, true
+	c.start = CoordinatorRunStart{}
+	c.recorder, c.evaluator = nil, nil
+	c.lastEvaluatorAt, c.lastObservation = time.Time{}, ProductionObservationSnapshot{}
+	c.lastObservationID = 0
+	c.prepared, c.frozen = CheckpointEvidence{}, VerdictSnapshot{}
 	return nil
 }
 
@@ -157,6 +209,11 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	defer c.mu.Unlock()
 	if !c.validCut(cut) {
 		return "", errProductionController
+	}
+	if source, ok := c.observation.(productionWorkerQueueEvidence); ok {
+		if err := source.ObserveWorkerQueues(ctx, cut.At, cut.Snapshots); err != nil {
+			return "", errProductionController
+		}
 	}
 
 	observation := c.observation.Snapshot()
@@ -250,6 +307,18 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	return "", nil
 }
 
+// ObserveCapacityPeriodic keeps resource, runtime-safety, and worker-queue
+// evidence live between long capacity-window boundaries.
+func (c *ProductionEvidenceController) ObserveCapacityPeriodic(
+	ctx context.Context,
+	cut CoordinatorEvidenceCut,
+) (CoordinatorOutcome, error) {
+	if cut.Kind != CoordinatorCutPeriodic {
+		return "", errProductionController
+	}
+	return c.Observe(ctx, cut)
+}
+
 func terminalCapacityVerdict(capacity CapacitySnapshot) VerdictSnapshot {
 	verdict := VerdictSnapshot{Terminal: true}
 	switch {
@@ -283,7 +352,12 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 		len(cut.FinalSnapshots) != coordinatorWorkerCount || !c.frozen.Terminal {
 		return errProductionController
 	}
-	c.stopLifecycleLocked()
+	if cut.Continuous != (c.continuous && !c.continuing) {
+		return errProductionController
+	}
+	if !cut.Continuous {
+		c.stopLifecycleLocked()
+	}
 	if err := c.refreshDatasetLocked(ctx); err != nil {
 		return err
 	}
@@ -315,6 +389,10 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	finalEvidence := c.checkpointEvidenceLocked(lifecycle, c.frozen, cut.Capacity)
 	if _, err := c.recorder.CaptureAndWrite(cut.At, cut.FinalSnapshots, finalEvidence, c.paths("final")); err != nil {
 		return errProductionController
+	}
+	if cut.Continuous {
+		c.awaitingCapacity = true
+		return nil
 	}
 	c.closed = true
 	return nil
@@ -361,7 +439,7 @@ func (c *ProductionEvidenceController) checkpointEvidenceLocked(
 		DatasetDigest: c.datasetDigest, TopologyValidated: true,
 		Lifecycle: lifecycle, MetaCreate: c.accounting.Snapshot(),
 		Resources: observation.ResourceEvidence, Cluster: observation.ClusterEvidence,
-		Verdict: verdict, Capacity: capacity.ReportEvidence(),
+		Verdict: verdict, Capacity: capacity.ReportEvidence(), Continuous: c.continuous,
 	}
 }
 

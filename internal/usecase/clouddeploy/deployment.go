@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"slices"
 	"sort"
@@ -37,6 +38,8 @@ const (
 	MinimumFreePercent      = 5
 	MaximumClockDriftMillis = 1000
 	MaximumReadinessAge     = 5 * time.Minute
+	FormalBudgetHardMicros  = int64(1_500_000_000)
+	FormalBudgetStopMicros  = int64(1_350_000_000)
 )
 
 var (
@@ -57,8 +60,29 @@ type LeaseInventory struct {
 	SourceSHA    string
 	BundleDigest string
 	State        string
+	CreatedAt    time.Time
 	ExpiresAt    time.Time
+	Budget       DeploymentBudget
 	Resources    []LeaseResource
+}
+
+// DeploymentBudget is the immutable admitted whole-Lease cost envelope.
+type DeploymentBudget struct {
+	Currency              string                     `json:"currency"`
+	LimitMicros           int64                      `json:"limit_micros"`
+	OperationalStopMicros int64                      `json:"operational_stop_micros"`
+	CommittedMicros       int64                      `json:"committed_micros"`
+	EstimatedCostMicros   int64                      `json:"estimated_cost_micros"`
+	LineItems             []DeploymentBudgetLineItem `json:"line_items"`
+}
+
+// DeploymentBudgetLineItem is one immutable quoted cost component retained
+// for conservative runtime accrual; it contains no provider credential.
+type DeploymentBudgetLineItem struct {
+	Kind       string `json:"kind"`
+	Role       string `json:"role"`
+	Quantity   int    `json:"quantity"`
+	CostMicros int64  `json:"cost_micros"`
 }
 
 // LeaseResource is one normalized instance, data disk, or public address.
@@ -96,24 +120,26 @@ type HostPlan struct {
 
 // DeploymentPlan is the immutable WuKongIM-specific consumer of a Lease Receipt.
 type DeploymentPlan struct {
-	Schema          string     `json:"schema"`
-	PlanDigest      string     `json:"plan_digest"`
-	LeaseID         string     `json:"lease_id"`
-	RequestID       string     `json:"request_id"`
-	Repository      string     `json:"repository"`
-	Provider        string     `json:"provider"`
-	Region          string     `json:"region"`
-	Zone            string     `json:"zone"`
-	LeasePlanDigest string     `json:"lease_plan_digest"`
-	SourceSHA       string     `json:"source_sha"`
-	ControlSHA      string     `json:"control_sha"`
-	BundleDigest    string     `json:"bundle_digest"`
-	ExpiresAt       time.Time  `json:"expires_at"`
-	OperatingSystem string     `json:"operating_system"`
-	OSVersion       string     `json:"operating_system_version"`
-	Architecture    string     `json:"architecture"`
-	Topology        Topology   `json:"topology"`
-	Hosts           []HostPlan `json:"hosts"`
+	Schema          string           `json:"schema"`
+	PlanDigest      string           `json:"plan_digest"`
+	LeaseID         string           `json:"lease_id"`
+	RequestID       string           `json:"request_id"`
+	Repository      string           `json:"repository"`
+	Provider        string           `json:"provider"`
+	Region          string           `json:"region"`
+	Zone            string           `json:"zone"`
+	LeasePlanDigest string           `json:"lease_plan_digest"`
+	SourceSHA       string           `json:"source_sha"`
+	ControlSHA      string           `json:"control_sha"`
+	BundleDigest    string           `json:"bundle_digest"`
+	LeaseCreatedAt  time.Time        `json:"lease_created_at"`
+	ExpiresAt       time.Time        `json:"expires_at"`
+	Budget          DeploymentBudget `json:"budget"`
+	OperatingSystem string           `json:"operating_system"`
+	OSVersion       string           `json:"operating_system_version"`
+	Architecture    string           `json:"architecture"`
+	Topology        Topology         `json:"topology"`
+	Hosts           []HostPlan       `json:"hosts"`
 }
 
 // HostSnapshot is bounded local evidence for one planned host.
@@ -282,6 +308,7 @@ func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (Deployme
 		strings.TrimSpace(lease.Repository) == "" || strings.TrimSpace(lease.Provider) == "" ||
 		strings.TrimSpace(lease.Region) == "" || strings.TrimSpace(lease.Zone) == "" ||
 		!validDigest(lease.PlanDigest) || lease.State != "active" || !lease.ExpiresAt.After(now.UTC()) ||
+		!validDeploymentBudget(lease.Budget) || lease.CreatedAt.IsZero() || !lease.CreatedAt.Before(lease.ExpiresAt) ||
 		lease.SourceSHA != manifest.SourceSHA || lease.BundleDigest != manifest.BundleDigest ||
 		!validSHA(lease.SourceSHA) || !validDigest(lease.BundleDigest) || !validSHA(manifest.ControlSHA) {
 		return DeploymentPlan{}, ErrInvalidDeployment
@@ -357,11 +384,13 @@ func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (Deployme
 		return DeploymentPlan{}, ErrInvalidDeployment
 	}
 	sort.Slice(hosts, func(i, j int) bool { return hostOrder(hosts[i].Role) < hostOrder(hosts[j].Role) })
+	budget := lease.Budget
+	budget.LineItems = append([]DeploymentBudgetLineItem(nil), lease.Budget.LineItems...)
 	plan := DeploymentPlan{
 		Schema: PlanSchemaV1, LeaseID: lease.LeaseID, RequestID: lease.RequestID,
 		Repository: lease.Repository, Provider: lease.Provider, Region: lease.Region, Zone: lease.Zone,
 		LeasePlanDigest: lease.PlanDigest, SourceSHA: manifest.SourceSHA, ControlSHA: manifest.ControlSHA,
-		BundleDigest: manifest.BundleDigest, ExpiresAt: lease.ExpiresAt.UTC(),
+		BundleDigest: manifest.BundleDigest, LeaseCreatedAt: lease.CreatedAt.UTC(), ExpiresAt: lease.ExpiresAt.UTC(), Budget: budget,
 		OperatingSystem: "ubuntu", OSVersion: "24.04", Architecture: "amd64",
 		Topology: fixedTopology(), Hosts: hosts,
 	}
@@ -378,7 +407,8 @@ func ValidatePlan(plan DeploymentPlan, manifest Manifest, now time.Time) error {
 		plan.Schema != PlanSchemaV1 || !validDigest(plan.PlanDigest) || plan.Topology != fixedTopology() ||
 		plan.SourceSHA != manifest.SourceSHA || plan.ControlSHA != manifest.ControlSHA || plan.BundleDigest != manifest.BundleDigest ||
 		!validDigest(plan.LeasePlanDigest) || plan.OperatingSystem != "ubuntu" || plan.OSVersion != "24.04" ||
-		plan.Architecture != "amd64" || !plan.ExpiresAt.After(now.UTC()) || len(plan.Hosts) != 4 ||
+		plan.Architecture != "amd64" || plan.LeaseCreatedAt.IsZero() || !plan.LeaseCreatedAt.Before(plan.ExpiresAt) || !plan.ExpiresAt.After(now.UTC()) ||
+		!validDeploymentBudget(plan.Budget) || len(plan.Hosts) != 4 ||
 		!boundedText(plan.LeaseID, 128) || !boundedText(plan.RequestID, 128) || !boundedText(plan.Repository, 256) ||
 		!boundedText(plan.Provider, 64) || !boundedText(plan.Region, 128) || !boundedText(plan.Zone, 128) ||
 		deploymentPlanDigest(plan) != plan.PlanDigest {
@@ -568,6 +598,7 @@ func requiredUnits(role string) []string {
 		return append([]string{"wukongim.service", "wkbench-host-metrics.service"}, common...)
 	}
 	return append([]string{
+		"wkbench-host-metrics.service",
 		"wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service",
 		"prometheus.service", "wkanalysis.service", "caddy.service",
 	}, common...)
@@ -610,6 +641,23 @@ func minimumDataBytes(role string) int64 {
 		return MinimumLoadDataBytes
 	}
 	return MinimumServiceDataBytes
+}
+
+func validDeploymentBudget(budget DeploymentBudget) bool {
+	if budget.Currency != "CNY" || budget.LimitMicros != FormalBudgetHardMicros ||
+		budget.OperationalStopMicros != FormalBudgetStopMicros || budget.CommittedMicros < 0 ||
+		budget.EstimatedCostMicros <= 0 || budget.CommittedMicros >= budget.OperationalStopMicros || len(budget.LineItems) == 0 {
+		return false
+	}
+	var total int64
+	for _, item := range budget.LineItems {
+		if !boundedText(item.Kind, 64) || !boundedText(item.Role, 64) || item.Quantity <= 0 || item.CostMicros <= 0 ||
+			item.CostMicros > math.MaxInt64-total {
+			return false
+		}
+		total += item.CostMicros
+	}
+	return total == budget.EstimatedCostMicros && budget.EstimatedCostMicros <= budget.OperationalStopMicros-budget.CommittedMicros
 }
 
 func hostOrder(role string) int {

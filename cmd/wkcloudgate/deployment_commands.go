@@ -106,6 +106,18 @@ func normalizeLeaseReceipt(receipt cloudlease.Receipt) clouddeploy.LeaseInventor
 		Provider: receipt.Provider, Region: receipt.Region, Zone: receipt.Zone, PlanDigest: deploymentDigest(receipt.PlanDigest),
 		SourceSHA: receipt.Provenance.SourceSHA, BundleDigest: receipt.Provenance.BundleDigest,
 		State: string(receipt.State), ExpiresAt: receipt.ExpiresAt,
+		CreatedAt: receipt.CreatedAt,
+		Budget: clouddeploy.DeploymentBudget{
+			Currency: receipt.Budget.Currency, LimitMicros: receipt.Budget.LimitMicros,
+			OperationalStopMicros: receipt.Budget.OperationalStopMicros,
+			CommittedMicros:       receipt.Budget.CommittedMicros,
+			EstimatedCostMicros:   receipt.Quote.EstimatedCostMicros,
+		},
+	}
+	for _, item := range receipt.Quote.LineItems {
+		result.Budget.LineItems = append(result.Budget.LineItems, clouddeploy.DeploymentBudgetLineItem{
+			Kind: item.Kind, Role: item.Role, Quantity: item.Quantity, CostMicros: item.CostMicros,
+		})
 	}
 	for _, resource := range receipt.Resources {
 		normalized := clouddeploy.LeaseResource{

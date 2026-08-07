@@ -154,26 +154,13 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		}
 	}
 	formalUnit := read("systemd/wkbench-formal.service")
-	formalChain := read("scripts/run-formal-chain.sh")
-	if !strings.Contains(formalUnit, "ExecStart=/opt/wukongim/scripts/run-formal-chain.sh") ||
+	if !strings.Contains(formalUnit, "ExecStart=/opt/wukongim/bin/wkbench formal-chain chat-lifecycle ") ||
 		!strings.Contains(formalUnit, "Conflicts=wkbench-rehearsal.service wkbench-coordinator.service") {
 		t.Fatalf("formal systemd ownership = %s", formalUnit)
 	}
-	ordered := []string{
-		"wkbench soak chat-lifecycle", "prepare-capacity-config", "wkbench capacity chat-lifecycle",
-	}
-	previous := -1
-	for _, fragment := range ordered {
-		index := strings.Index(formalChain[previous+1:], fragment)
-		if index < 0 {
-			t.Fatalf("formal chain omits or reorders %q: %s", fragment, formalChain)
-		}
-		previous += index + 1
-	}
-	for _, forbidden := range []string{"systemctl restart", "systemctl start wukongim", "rm -rf", "docker"} {
-		if strings.Contains(strings.ToLower(formalChain), forbidden) {
-			t.Fatalf("formal chain mutates a core process or data with %q: %s", forbidden, formalChain)
-		}
+	if strings.Count(formalUnit, "/opt/wukongim/bin/wkbench") != 1 ||
+		strings.Contains(formalUnit, "run-formal-chain.sh") || strings.Contains(formalUnit, "wkchatlifecycle") {
+		t.Fatalf("formal service does not own exactly one coordinator process: %s", formalUnit)
 	}
 	if strings.Contains(read("systemd/node-exporter.service"), "EnvironmentFile=") {
 		t.Fatal("node exporter unexpectedly depends on a role-specific secret file")

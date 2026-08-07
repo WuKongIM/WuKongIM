@@ -61,6 +61,7 @@ observation:
     - {name: host-metrics-1, address: "http://host-metrics-1.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
     - {name: host-metrics-2, address: "http://host-metrics-2.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
     - {name: host-metrics-3, address: "http://host-metrics-3.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+  load_host_metrics: {name: host-metrics-load, address: "http://host-metrics-load.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
   api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
   gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
   cadence: 5s
@@ -87,6 +88,12 @@ thresholds:
     forced_gc_live_heap_window: 6h
     goroutine_growth_percent: 5
     goroutine_growth_window: 24h
+    host_cpu_percent: 90
+    host_memory_percent: 85
+    bounded_queue_percent: 80
+    sustained_saturation_window: 15m
+    minimum_load_filesystem_bytes: 200000000000
+    prometheus_safe_stop_bytes: 140000000000
   cluster:
     health_poll_every: 5s
     unhealthy_fail_after: 30s

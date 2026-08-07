@@ -57,6 +57,7 @@ func TestLocalConfigValid(t *testing.T) {
 			{Name: "local-host-metrics-2", Address: "http://127.0.0.1:19102", Mountpoint: "/var/lib/wukongim-2", Device: "/dev/local-data-2"},
 			{Name: "local-host-metrics-3", Address: "http://127.0.0.1:19103", Mountpoint: "/var/lib/wukongim-3", Device: "/dev/local-data-3"},
 		},
+		LoadHostMetrics: EndpointDeclaration{Name: "local-host-metrics-load", Address: "http://127.0.0.1:19104", Mountpoint: "/var/lib/wukongim-load", Device: "/dev/local-load-data"},
 		APIAddrs:        []string{"http://127.0.0.1:15011", "http://127.0.0.1:15012", "http://127.0.0.1:15013"},
 		GatewayTCPAddrs: []string{"127.0.0.1:15101", "127.0.0.1:15102", "127.0.0.1:15103"},
 		Cadence:         5 * time.Second,

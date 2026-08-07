@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -19,18 +20,35 @@ import (
 
 var errHostMetricsConfig = errors.New("host metrics configuration failed")
 
+const processMetricsFreshnessWindow = 45 * time.Second
+
 type hostMetricsConfig struct {
-	listen     string
-	path       string
-	mountpoint string
-	device     string
+	listen             string
+	path               string
+	mountpoint         string
+	device             string
+	systemPath         string
+	watchPath          string
+	processMetricsPath string
 }
 
 type hostMetricsHandler struct {
-	path       string
-	mountpoint string
-	device     string
+	path               string
+	mountpoint         string
+	device             string
+	systemPath         string
+	watchPath          string
+	processMetricsPath string
+
+	mu             sync.Mutex
+	previousCPU    hostCPUTotals
+	previousCPUSet bool
+	watchBytes     int64
+	watchAt        time.Time
+	watchValid     bool
 }
+
+type hostCPUTotals struct{ total, idle uint64 }
 
 func newHostMetricsCommand(stderr io.Writer) *cobra.Command {
 	cfg := hostMetricsConfig{}
@@ -58,6 +76,9 @@ func newHostMetricsCommand(stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&cfg.path, "path", "", "existing data directory whose filesystem is measured")
 	cmd.Flags().StringVar(&cfg.mountpoint, "mountpoint", "", "declared mountpoint label expected by the lifecycle config")
 	cmd.Flags().StringVar(&cfg.device, "device", "", "declared device label expected by the lifecycle config")
+	cmd.Flags().StringVar(&cfg.systemPath, "system-path", "/", "system filesystem path used by the five-percent safety guard")
+	cmd.Flags().StringVar(&cfg.watchPath, "watch-path", "", "optional directory whose bounded size is exported")
+	cmd.Flags().StringVar(&cfg.processMetricsPath, "process-metrics-path", "", "optional trusted process textfile forwarded as bounded evidence")
 	return cmd
 }
 
@@ -74,7 +95,39 @@ func newHostMetricsHandler(cfg hostMetricsConfig) (http.Handler, error) {
 	if err != nil || !info.IsDir() {
 		return nil, errHostMetricsConfig
 	}
-	return &hostMetricsHandler{path: absolute, mountpoint: cfg.mountpoint, device: cfg.device}, nil
+	systemPath := strings.TrimSpace(cfg.systemPath)
+	if systemPath == "" {
+		systemPath = "/"
+	}
+	systemAbsolute, err := filepath.Abs(systemPath)
+	if err != nil {
+		return nil, errHostMetricsConfig
+	}
+	if info, err := os.Stat(systemAbsolute); err != nil || !info.IsDir() {
+		return nil, errHostMetricsConfig
+	}
+	watchAbsolute := ""
+	if strings.TrimSpace(cfg.watchPath) != "" {
+		watchAbsolute, err = filepath.Abs(cfg.watchPath)
+		if err != nil {
+			return nil, errHostMetricsConfig
+		}
+	}
+	processMetricsAbsolute := ""
+	if strings.TrimSpace(cfg.processMetricsPath) != "" {
+		processMetricsAbsolute, err = filepath.Abs(cfg.processMetricsPath)
+		if err != nil {
+			return nil, errHostMetricsConfig
+		}
+	}
+	handler := &hostMetricsHandler{
+		path: absolute, mountpoint: cfg.mountpoint, device: cfg.device, systemPath: systemAbsolute,
+		watchPath: watchAbsolute, processMetricsPath: processMetricsAbsolute,
+	}
+	if totals, ok := readHostCPUTotals(); ok {
+		handler.previousCPU, handler.previousCPUSet = totals, true
+	}
+	return handler, nil
 }
 
 func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
@@ -88,13 +141,238 @@ func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http
 			http.Error(writer, "filesystem observation failed", http.StatusServiceUnavailable)
 			return
 		}
+		processMetrics, err := readBoundedProcessMetrics(h.processMetricsPath, time.Now())
+		if err != nil {
+			http.Error(writer, "process observation failed", http.StatusServiceUnavailable)
+			return
+		}
 		writer.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		labels := fmt.Sprintf("device=%s,mountpoint=%s", strconv.Quote(h.device), strconv.Quote(h.mountpoint))
 		_, _ = fmt.Fprintf(writer, "node_filesystem_size_bytes{%s} %d\n", labels, size)
 		_, _ = fmt.Fprintf(writer, "node_filesystem_avail_bytes{%s} %d\n", labels, available)
+		systemSize, systemAvailable, systemErr := hostFilesystemBytes(h.systemPath)
+		if systemErr != nil {
+			http.Error(writer, "system filesystem observation failed", http.StatusServiceUnavailable)
+			return
+		}
+		_, _ = fmt.Fprintf(writer, "wkbench_host_system_filesystem_size_bytes %d\n", systemSize)
+		_, _ = fmt.Fprintf(writer, "wkbench_host_system_filesystem_avail_bytes %d\n", systemAvailable)
+		if cpu, ok := h.cpuPercent(); ok {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_cpu_busy_percent %.6f\n", cpu)
+		}
+		if memory, ok := hostMemoryUsedPercent(); ok {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_memory_used_percent %.6f\n", memory)
+		}
+		if transmitted, ok := hostNetworkTransmitBytes(); ok {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_network_transmit_bytes %d\n", transmitted)
+		}
+		if bytes, ok := h.watchedBytes(time.Now()); ok {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_watched_directory_bytes %d\n", bytes)
+		}
+		if len(processMetrics) > 0 {
+			_, _ = writer.Write(processMetrics)
+			if processMetrics[len(processMetrics)-1] != '\n' {
+				_, _ = io.WriteString(writer, "\n")
+			}
+		}
 	default:
 		http.NotFound(writer, request)
 	}
+}
+
+func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
+	if path == "" {
+		return nil, nil
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 0 || info.Size() > 256<<10 {
+		return nil, errHostMetricsConfig
+	}
+	age := now.Sub(info.ModTime())
+	if now.IsZero() || age < -5*time.Second || age > processMetricsFreshnessWindow {
+		return nil, errHostMetricsConfig
+	}
+	body, err := os.ReadFile(path)
+	if err != nil || int64(len(body)) != info.Size() || strings.ContainsRune(string(body), '\r') {
+		return nil, errHostMetricsConfig
+	}
+	lastSuccessSeen := false
+	for _, line := range strings.Split(string(body), "\n") {
+		if line == "" || strings.HasPrefix(line, "# ") {
+			continue
+		}
+		if strings.HasPrefix(line, "wukongim_process_collector_last_success_unixtime_seconds ") {
+			fields := strings.Fields(line)
+			if lastSuccessSeen || len(fields) != 2 {
+				return nil, errHostMetricsConfig
+			}
+			seconds, parseErr := strconv.ParseInt(fields[1], 10, 64)
+			if parseErr != nil {
+				return nil, errHostMetricsConfig
+			}
+			observedAt := time.Unix(seconds, 0)
+			observedAge := now.Sub(observedAt)
+			if observedAge < -5*time.Second || observedAge > processMetricsFreshnessWindow {
+				return nil, errHostMetricsConfig
+			}
+			lastSuccessSeen = true
+			continue
+		}
+		if !strings.HasPrefix(line, "wukongim_process_up{") &&
+			!strings.HasPrefix(line, "wukongim_process_cpu_jiffies_total{") &&
+			!strings.HasPrefix(line, "wukongim_process_resident_memory_bytes{") &&
+			!strings.HasPrefix(line, "wukongim_process_threads{") &&
+			!strings.HasPrefix(line, "wukongim_process_open_fds{") &&
+			!strings.HasPrefix(line, "wukongim_process_read_bytes_total{") &&
+			!strings.HasPrefix(line, "wukongim_process_write_bytes_total{") {
+			return nil, errHostMetricsConfig
+		}
+	}
+	if !lastSuccessSeen {
+		return nil, errHostMetricsConfig
+	}
+	return body, nil
+}
+
+func (h *hostMetricsHandler) cpuPercent() (float64, bool) {
+	current, ok := readHostCPUTotals()
+	if !ok {
+		return 0, false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	previous, seen := h.previousCPU, h.previousCPUSet
+	h.previousCPU, h.previousCPUSet = current, true
+	if !seen || current.total <= previous.total || current.idle < previous.idle {
+		return 0, false
+	}
+	total, idle := current.total-previous.total, current.idle-previous.idle
+	if idle > total {
+		return 0, false
+	}
+	return float64(total-idle) * 100 / float64(total), true
+}
+
+func readHostCPUTotals() (hostCPUTotals, bool) {
+	body, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return hostCPUTotals{}, false
+	}
+	line := strings.SplitN(string(body), "\n", 2)[0]
+	fields := strings.Fields(line)
+	if len(fields) < 5 || fields[0] != "cpu" {
+		return hostCPUTotals{}, false
+	}
+	var result hostCPUTotals
+	for index, raw := range fields[1:] {
+		value, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || math.MaxUint64-result.total < value {
+			return hostCPUTotals{}, false
+		}
+		result.total += value
+		if index == 3 || index == 4 {
+			if math.MaxUint64-result.idle < value {
+				return hostCPUTotals{}, false
+			}
+			result.idle += value
+		}
+	}
+	return result, result.total > 0
+}
+
+func hostMemoryUsedPercent() (float64, bool) {
+	body, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0, false
+	}
+	var total, available uint64
+	for _, line := range strings.Split(string(body), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		value, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		switch fields[0] {
+		case "MemTotal:":
+			total = value
+		case "MemAvailable:":
+			available = value
+		}
+	}
+	if total == 0 || available > total {
+		return 0, false
+	}
+	return float64(total-available) * 100 / float64(total), true
+}
+
+func hostNetworkTransmitBytes() (uint64, bool) {
+	body, err := os.ReadFile("/proc/net/dev")
+	if err != nil {
+		return 0, false
+	}
+	var total uint64
+	found := false
+	for _, line := range strings.Split(string(body), "\n") {
+		colon := strings.IndexByte(line, ':')
+		if colon < 0 {
+			continue
+		}
+		name := strings.TrimSpace(line[:colon])
+		fields := strings.Fields(line[colon+1:])
+		if name == "" || name == "lo" || len(fields) < 16 {
+			continue
+		}
+		value, parseErr := strconv.ParseUint(fields[8], 10, 64)
+		if parseErr != nil || math.MaxUint64-total < value {
+			return 0, false
+		}
+		total += value
+		found = true
+	}
+	return total, found
+}
+
+func (h *hostMetricsHandler) watchedBytes(now time.Time) (int64, bool) {
+	if h.watchPath == "" {
+		return 0, false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.watchValid && now.Sub(h.watchAt) < time.Minute {
+		return h.watchBytes, true
+	}
+	bytes, err := boundedDirectoryBytes(h.watchPath)
+	if err != nil {
+		return 0, false
+	}
+	h.watchBytes, h.watchAt, h.watchValid = bytes, now, true
+	return bytes, true
+}
+
+func boundedDirectoryBytes(root string) (int64, error) {
+	var bytes int64
+	entries := 0
+	err := filepath.WalkDir(root, func(_ string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		entries++
+		if entries > 1_000_000 {
+			return errHostMetricsConfig
+		}
+		if entry.Type().IsRegular() {
+			info, err := entry.Info()
+			if err != nil || info.Size() < 0 || math.MaxInt64-bytes < info.Size() {
+				return errHostMetricsConfig
+			}
+			bytes += info.Size()
+		}
+		return nil
+	})
+	return bytes, err
 }
 
 func hostFilesystemBytes(path string) (int64, int64, error) {

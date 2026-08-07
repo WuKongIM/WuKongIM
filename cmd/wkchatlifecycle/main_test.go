@@ -22,9 +22,14 @@ import (
 
 func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T) {
 	end := time.Unix(1_900_000_000, 0)
+	digest := "sha256:" + strings.Repeat("a", 64)
+	fence := chatlifecycle.ReportFence{
+		RunHash: "sha256:" + strings.Repeat("b", 64), AssignmentHash: "sha256:" + strings.Repeat("c", 64), Generation: 1,
+	}
 	formal := chatlifecycle.Report{
 		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeSoak, Stage: chatlifecycle.StageFormal,
-		Kind: chatlifecycle.CheckpointFinal, Final: true, Window: chatlifecycle.ReportTimeWindow{End: end},
+		Kind: chatlifecycle.CheckpointFinal, Final: true, Continuous: true, DatasetDigest: digest, Fence: fence,
+		Window:  chatlifecycle.ReportTimeWindow{End: end},
 		Verdict: chatlifecycle.ReportVerdictEvidence{Terminal: true, Outcome: chatlifecycle.VerdictPass, Cause: chatlifecycle.VerdictCauseCompleted},
 	}
 	if _, err := formalChainResultFromReports(formal, nil); err == nil {
@@ -33,7 +38,8 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 	capacityEnd := end.Add(4 * time.Hour)
 	capacity := chatlifecycle.Report{
 		Profile: chatlifecycle.ProfileFormal, Mode: chatlifecycle.ModeCapacity, Stage: chatlifecycle.StageFormal,
-		Kind: chatlifecycle.CheckpointFinal, Final: true, Window: chatlifecycle.ReportTimeWindow{End: capacityEnd},
+		Kind: chatlifecycle.CheckpointFinal, Final: true, Continuous: true, DatasetDigest: digest, Fence: fence,
+		Window: chatlifecycle.ReportTimeWindow{Start: end.Add(time.Second), End: capacityEnd},
 		Verdict: chatlifecycle.ReportVerdictEvidence{
 			Terminal: true, Outcome: chatlifecycle.VerdictPassedWithCapacityWarning,
 			Cause: chatlifecycle.VerdictCauseInfrastructureCapacity,
@@ -50,6 +56,20 @@ func TestFormalChainRequiresCapacityOnlyAfterPassingContinuousSoak(t *testing.T)
 	if result.Outcome != chatlifecycle.VerdictPassedWithCapacityWarning ||
 		result.Cause != chatlifecycle.VerdictCauseInfrastructureCapacity || result.End != capacityEnd {
 		t.Fatalf("formal chain result = %+v", result)
+	}
+
+	for name, mutate := range map[string]func(*chatlifecycle.Report){
+		"dataset": func(report *chatlifecycle.Report) { report.DatasetDigest = "sha256:" + strings.Repeat("d", 64) },
+		"fence":   func(report *chatlifecycle.Report) { report.Fence.Generation++ },
+		"window":  func(report *chatlifecycle.Report) { report.Window.Start = formal.Window.End },
+	} {
+		t.Run("rejects spliced "+name, func(t *testing.T) {
+			candidate := capacity
+			mutate(&candidate)
+			if _, err := formalChainResultFromReports(formal, &candidate); err == nil {
+				t.Fatalf("spliced %s report was accepted", name)
+			}
+		})
 	}
 
 	formal.Verdict.Outcome, formal.Verdict.Cause = chatlifecycle.VerdictProductFailure, chatlifecycle.VerdictCauseMessageLoss

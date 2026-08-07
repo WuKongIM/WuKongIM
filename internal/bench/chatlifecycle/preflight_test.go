@@ -66,8 +66,10 @@ func TestWorkerPreflightRejectsProtocolV1BeforeCoordinatorMutation(t *testing.T)
 func TestPreflightPassesFreshZeroEventProductMetrics(t *testing.T) {
 	registry := productmetrics.New(1, "node-1")
 	registry.RuntimePressure.SetQueueDepth("channel", "meta", "worker", "none", 0)
+	registry.RuntimePressure.SetQueueCapacity("channel", "meta", "worker", "none", 64)
 	registry.RuntimePressure.SetPoolInflight("channel", "meta", 0)
 	registry.ChannelRuntime.SetWorkerQueueDepth("meta", 0)
+	registry.ChannelRuntime.SetWorkerQueueCapacity("meta", 64)
 	productHandler := registry.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		recorder := httptest.NewRecorder()
@@ -250,10 +252,19 @@ func newPreflightFixture(cfg Config) *preflightFixture {
 		fixture.workers[index] = &fakePreflightWorker{}
 		workerTokens[cfg.Observation.Workers[index].Name] = fmt.Sprintf("worker-token-%d", index+1)
 	}
-	fixture.disks = make([]*fakeDiskReader, len(cfg.Observation.HostMetrics))
+	fixture.disks = make([]*fakeDiskReader, productionHostCount)
 	for index := range fixture.disks {
 		size := cfg.Thresholds.MinimumDataFilesystemBytes
-		fixture.disks[index] = &fakeDiskReader{filesystem: DataFilesystem{SizeBytes: size, AvailableBytes: size}}
+		if index == coordinatorWorkerCount {
+			size = cfg.Thresholds.Resource.MinimumLoadFilesystemBytes
+		}
+		fixture.disks[index] = &fakeDiskReader{filesystem: DataFilesystem{
+			SizeBytes: size, AvailableBytes: size, SystemSizeBytes: 40_000_000_000,
+			SystemAvailableBytes: 20_000_000_000, HostResourcesObserved: true,
+			WatchedDirectoryObserved: index == coordinatorWorkerCount,
+			NetworkTransmitObserved:  index == coordinatorWorkerCount,
+		}}
+		prepareProductionProcessEvidence(&fixture.disks[index].filesystem, index, cfg.Stage)
 	}
 	fixture.preflight = NewPreflight(PreflightOptions{
 		BenchToken:   "bench-token",
@@ -278,6 +289,26 @@ func newPreflightFixture(cfg Config) *preflightFixture {
 		}),
 	})
 	return fixture
+}
+
+func prepareProductionProcessEvidence(filesystem *DataFilesystem, host int, stage Stage) {
+	filesystem.ProcessResourcesObserved = true
+	required := []int{1, 11, 12}
+	if host < coordinatorWorkerCount {
+		required = append(required, 0)
+	} else {
+		required = append(required, 2, 3, 4, 8, 9, 10)
+		if stage == StageRehearsal {
+			required = append(required, 7)
+		} else {
+			required = append(required, 6)
+		}
+	}
+	for _, process := range required {
+		filesystem.ProcessUp[process] = true
+		filesystem.ProcessCPUJiffies[process] = uint64(process + 1)
+		filesystem.ProcessResidentMemoryBytes[process] = uint64(process+1) * 1_000_000
+	}
 }
 
 func requiredPreflightCapabilities() model.BenchCapabilities {

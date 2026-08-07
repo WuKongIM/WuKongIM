@@ -333,14 +333,27 @@ func TestCoordinatorDoesNotConsumeGrantBeforeEveryWorkerTrafficReady(t *testing.
 	}
 	resultChannel := make(chan CoordinatorResult, 1)
 	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
-	if period := <-clock.created; period != time.Second {
-		t.Fatalf("readiness ticker period = %s, want 1s", period)
+	select {
+	case period := <-clock.created:
+		if period != time.Second {
+			t.Fatalf("readiness ticker period = %s, want 1s", period)
+		}
+	case result := <-resultChannel:
+		t.Fatalf("coordinator ended before readiness ticker: %+v", result)
+	case <-time.After(time.Second):
+		t.Fatal("readiness ticker creation stalled")
 	}
 
 	for readinessRound := 1; readinessRound <= 3; readinessRound++ {
 		clock.advance(time.Second)
 		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-			<-statusCalls
+			select {
+			case <-statusCalls:
+			case result := <-resultChannel:
+				t.Fatalf("coordinator ended before readiness round %d worker %d: %+v", readinessRound, workerID, result)
+			case <-time.After(time.Second):
+				t.Fatalf("readiness round %d worker %d stalled", readinessRound, workerID)
+			}
 		}
 		if readinessRound < 3 {
 			for workerID, worker := range typedWorkers {

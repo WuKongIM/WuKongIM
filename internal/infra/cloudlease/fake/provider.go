@@ -162,7 +162,7 @@ func (p *Provider) Acquire(_ context.Context, request cloudlease.AcquireRequest)
 		AccountIDHash: fakeAccount, Repository: request.Plan.Repository, Operator: request.Plan.Operator,
 		PlanDigest: request.PlanDigest, Provenance: request.Plan.Provenance, State: cloudlease.StateActive,
 		CreatedAt: request.RequestedAt.UTC(), ExpiresAt: request.Plan.ExpiresAt.UTC(),
-		Quote: cloneQuote(request.Quote), Tags: maps.Clone(request.BaseTags),
+		Quote: cloneQuote(request.Quote), Budget: request.Plan.Budget, Tags: maps.Clone(request.BaseTags),
 		Resources: resources, AccessGrants: slices.Clone(request.Plan.Network.InitialAccess),
 	}
 	sortAccess(receipt.AccessGrants)

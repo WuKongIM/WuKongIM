@@ -25,6 +25,8 @@ type ProductionObservationOptions struct {
 	Config     Config
 	BenchToken string
 	HTTPClient *http.Client
+	// RuntimeSafety enforces the sealed formal budget and immutable Lease expiry.
+	RuntimeSafety RuntimeSafetyGuard
 
 	TargetFactory func(int, EndpointDeclaration, string) ProductionObservationTarget
 	DiskFactory   func(int, EndpointDeclaration) DiskReader
@@ -51,22 +53,30 @@ type ProductionObservationSnapshot struct {
 // ProductionObservationSource enriches validated Observer samples with one
 // same-round service-metrics and host-filesystem collection.
 type ProductionObservationSource struct {
-	cfg     Config
-	targets [coordinatorWorkerCount]ProductionObservationTarget
-	disks   [coordinatorWorkerCount]DiskReader
+	cfg           Config
+	targets       [coordinatorWorkerCount]ProductionObservationTarget
+	disks         [productionHostCount]DiskReader
+	runtimeSafety RuntimeSafetyGuard
 
 	// observeMu prevents overlapping external rounds; mu protects snapshots and
 	// the monotonic baselines read concurrently by Snapshot.
-	observeMu sync.Mutex
-	mu        sync.RWMutex
-	begun     bool
-	start     time.Time
-	nextGC    time.Time
-	lastAt    time.Time
-	nodeIDs   [coordinatorWorkerCount]uint64
-	lastRej   [coordinatorWorkerCount]uint64
-	rejSeen   bool
-	snapshot  ProductionObservationSnapshot
+	observeMu             sync.Mutex
+	mu                    sync.RWMutex
+	begun                 bool
+	start                 time.Time
+	nextGC                time.Time
+	lastAt                time.Time
+	nodeIDs               [coordinatorWorkerCount]uint64
+	lastRej               [coordinatorWorkerCount]uint64
+	rejSeen               bool
+	snapshot              ProductionObservationSnapshot
+	cpuSince, memorySince [productionHostCount]time.Time
+	queueSince            [coordinatorWorkerCount][serviceBoundedQueueCount]time.Time
+	cpuFired, memoryFired [productionHostCount]bool
+	queueFired            [coordinatorWorkerCount][serviceBoundedQueueCount]bool
+	workerQueueSince      [coordinatorWorkerCount][workerBoundedQueueCount]time.Time
+	workerQueueFired      [coordinatorWorkerCount][workerBoundedQueueCount]bool
+	lastWorkerQueueAt     time.Time
 }
 
 var _ ObserverSampleSink = (*ProductionObservationSource)(nil)
@@ -97,13 +107,17 @@ func NewProductionObservationSource(options ProductionObservationOptions) (*Prod
 	cfg := options.Config
 	cfg.Observation.ServiceNodes = append([]EndpointDeclaration(nil), options.Config.Observation.ServiceNodes...)
 	cfg.Observation.HostMetrics = append([]EndpointDeclaration(nil), options.Config.Observation.HostMetrics...)
-	source := &ProductionObservationSource{cfg: cfg}
+	source := &ProductionObservationSource{cfg: cfg, runtimeSafety: options.RuntimeSafety}
 	for index := 0; index < coordinatorWorkerCount; index++ {
 		source.targets[index] = options.TargetFactory(index, cfg.Observation.ServiceNodes[index], options.BenchToken)
 		source.disks[index] = options.DiskFactory(index, cfg.Observation.HostMetrics[index])
 		if source.targets[index] == nil || source.disks[index] == nil {
 			return nil, errProductionObservation
 		}
+	}
+	source.disks[coordinatorWorkerCount] = options.DiskFactory(coordinatorWorkerCount, cfg.Observation.LoadHostMetrics)
+	if source.disks[coordinatorWorkerCount] == nil {
+		return nil, errProductionObservation
 	}
 	return source, nil
 }
@@ -126,14 +140,20 @@ func (s *ProductionObservationSource) Begin(start time.Time) error {
 	s.lastRej = [coordinatorWorkerCount]uint64{}
 	s.rejSeen = false
 	s.snapshot = ProductionObservationSnapshot{}
+	s.snapshot.ResourceEvidence.Capacity.SustainedWindow = s.cfg.Thresholds.Resource.SustainedSaturationWindow
+	s.cpuSince, s.memorySince, s.queueSince = [productionHostCount]time.Time{}, [productionHostCount]time.Time{}, [coordinatorWorkerCount][serviceBoundedQueueCount]time.Time{}
+	s.cpuFired, s.memoryFired, s.queueFired = [productionHostCount]bool{}, [productionHostCount]bool{}, [coordinatorWorkerCount][serviceBoundedQueueCount]bool{}
+	s.workerQueueSince = [coordinatorWorkerCount][workerBoundedQueueCount]time.Time{}
+	s.workerQueueFired = [coordinatorWorkerCount][workerBoundedQueueCount]bool{}
+	s.lastWorkerQueueAt = time.Time{}
 	return nil
 }
 
 type productionObservationRound struct {
 	metrics    [coordinatorWorkerCount]target.MetricsSnapshot
 	metricErrs [coordinatorWorkerCount]error
-	disks      [coordinatorWorkerCount]DataFilesystem
-	diskErrs   [coordinatorWorkerCount]error
+	disks      [productionHostCount]DataFilesystem
+	diskErrs   [productionHostCount]error
 }
 
 // Observe implements ObserverSampleSink and joins every attempted external read.
@@ -169,7 +189,7 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 
 	var round productionObservationRound
 	var joined sync.WaitGroup
-	joined.Add(coordinatorWorkerCount * 2)
+	joined.Add(coordinatorWorkerCount + productionHostCount)
 	for index := 0; index < coordinatorWorkerCount; index++ {
 		index := index
 		go func() {
@@ -182,6 +202,9 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 			}
 			round.metrics[index], round.metricErrs[index] = s.targets[index].Metrics(ctx)
 		}()
+	}
+	for index := 0; index < productionHostCount; index++ {
+		index := index
 		go func() {
 			defer joined.Done()
 			round.disks[index], round.diskErrs[index] = s.disks[index].Filesystem(ctx)
@@ -194,10 +217,11 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.commitRound(sample, observationAt, forcedGC, round)
+	return s.commitRound(ctx, sample, observationAt, forcedGC, round)
 }
 
 func (s *ProductionObservationSource) commitRound(
+	ctx context.Context,
 	sample ObserverSample,
 	observationAt time.Time,
 	forcedGC bool,
@@ -226,6 +250,31 @@ func (s *ProductionObservationSource) commitRound(
 		if forcedGC {
 			resources[index].HeapBytes = float64(heap)
 			resources[index].Goroutines = float64(goroutines)
+		}
+	}
+	loadFilesystem := round.disks[coordinatorWorkerCount]
+	if loadFilesystem.SizeBytes < s.cfg.Thresholds.Resource.MinimumLoadFilesystemBytes || loadFilesystem.SizeBytes <= 0 ||
+		loadFilesystem.AvailableBytes < 0 || loadFilesystem.AvailableBytes > loadFilesystem.SizeBytes {
+		return errProductionObservation
+	}
+	if s.cfg.Profile == ProfileFormal {
+		for _, filesystem := range round.disks {
+			if !filesystem.HostResourcesObserved || filesystem.SystemSizeBytes <= 0 || filesystem.SystemAvailableBytes < 0 ||
+				filesystem.SystemAvailableBytes > filesystem.SystemSizeBytes {
+				return errProductionObservation
+			}
+		}
+		if !loadFilesystem.WatchedDirectoryObserved || loadFilesystem.WatchedDirectoryBytes < 0 ||
+			!loadFilesystem.NetworkTransmitObserved {
+			return errProductionObservation
+		}
+	}
+	var runtimeSafety RuntimeSafetySnapshot
+	if s.runtimeSafety != nil {
+		var safetyErr error
+		runtimeSafety, safetyErr = s.runtimeSafety.Observe(ctx, sample.At, loadFilesystem.NetworkTransmitBytes)
+		if safetyErr != nil || runtimeSafety.AccruedCostMicros < 0 || runtimeSafety.NetworkTransmitBytes != loadFilesystem.NetworkTransmitBytes {
+			return errProductionObservation
 		}
 	}
 
@@ -295,10 +344,28 @@ func (s *ProductionObservationSource) commitRound(
 	if sample.LeaderImbalanced {
 		cluster.LeaderImbalanceWarnings++
 	}
-	for _, filesystem := range round.disks {
-		if diskFreeBelow(filesystem, s.cfg.Thresholds.DiskSafeStopFreePercent) {
+	for index, filesystem := range round.disks {
+		if diskFreeBelow(filesystem, s.cfg.Thresholds.DiskSafeStopFreePercent) ||
+			filesystem.SystemSizeBytes > 0 && diskFreeBelow(DataFilesystem{SizeBytes: filesystem.SystemSizeBytes, AvailableBytes: filesystem.SystemAvailableBytes}, s.cfg.Thresholds.DiskSafeStopFreePercent) ||
+			index == coordinatorWorkerCount && filesystem.WatchedDirectoryObserved && filesystem.WatchedDirectoryBytes >= s.cfg.Thresholds.Resource.PrometheusSafeStopBytes {
 			next.Signals = []VerdictSignal{{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseDiskExhausted}}
 			break
+		}
+	}
+	s.updateCapacityResourcesLocked(&next, sample.At, round)
+	next.ResourceEvidence.Capacity.NetworkTransmitBytes = loadFilesystem.NetworkTransmitBytes
+	if s.runtimeSafety != nil {
+		capacity := &next.ResourceEvidence.Capacity
+		capacity.AccruedCostMicros = runtimeSafety.AccruedCostMicros
+		capacity.LeaseRemainingSeconds = int64(runtimeSafety.LeaseRemaining / time.Second)
+		switch runtimeSafety.Cause {
+		case RuntimeSafetyBudgetStop:
+			next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseBudgetExhausted})
+		case RuntimeSafetyLeaseExpiryRisk:
+			next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseLeaseExpiry})
+		case RuntimeSafetyOK:
+		default:
+			return errProductionObservation
 		}
 	}
 	s.lastAt = sample.At
@@ -322,6 +389,75 @@ func (s *ProductionObservationSource) Snapshot() ProductionObservationSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneProductionObservationSnapshot(s.snapshot)
+}
+
+// ObserveWorkerQueues retains continuous utilization for every worker-owned
+// bounded queue using the Coordinator's existing five-second evidence cut.
+func (s *ProductionObservationSource) ObserveWorkerQueues(
+	ctx context.Context,
+	at time.Time,
+	snapshots []WorkerSnapshot,
+) error {
+	if s == nil || ctx == nil || at.IsZero() || len(snapshots) != coordinatorWorkerCount {
+		return errProductionObservation
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.begun {
+		return errProductionObservation
+	}
+	if !s.lastWorkerQueueAt.IsZero() && !at.After(s.lastWorkerQueueAt) {
+		return nil
+	}
+	evidence := &s.snapshot.ResourceEvidence.Capacity
+	if !s.lastWorkerQueueAt.IsZero() && at.Sub(s.lastWorkerQueueAt) > s.cfg.Observation.Cadence*2 {
+		s.workerQueueSince = [coordinatorWorkerCount][workerBoundedQueueCount]time.Time{}
+		s.workerQueueFired = [coordinatorWorkerCount][workerBoundedQueueCount]bool{}
+		evidence.WorkerQueueMissingSamples++
+	}
+	complete := true
+	for worker, snapshot := range snapshots {
+		queues := workerQueueCurrentCapacity(snapshot.Queues)
+		for queue, values := range queues {
+			current, capacity := values[0], values[1]
+			if current < 0 || capacity <= 0 || current > capacity {
+				complete = false
+				continue
+			}
+			percent := float64(current) * 100 / float64(capacity)
+			evidence.WorkerQueuePercentBasisPoints[worker][queue] = percentBasisPoints(percent)
+			high := percent > float64(s.cfg.Thresholds.Resource.BoundedQueuePercent)
+			if high {
+				evidence.WorkerQueueHighSamples[worker][queue]++
+			}
+			if sustainedResourceEvent(
+				at, high, &s.workerQueueSince[worker][queue], &s.workerQueueFired[worker][queue], evidence.SustainedWindow,
+			) {
+				evidence.WorkerQueueSustainedEvents[worker][queue]++
+			}
+			evidence.WorkerQueueSustainedActive[worker][queue] = s.workerQueueFired[worker][queue]
+		}
+	}
+	evidence.WorkerQueuesComplete = complete
+	if complete {
+		evidence.WorkerQueueSamples++
+	} else {
+		evidence.WorkerQueueMissingSamples++
+	}
+	s.lastWorkerQueueAt = at
+	return nil
+}
+
+func workerQueueCurrentCapacity(queues WorkerQueueSnapshot) [workerBoundedQueueCount][2]int {
+	return [workerBoundedQueueCount][2]int{
+		{queues.WorkCurrent, queues.WorkCapacity},
+		{queues.RetryCurrent, queues.RetryCapacity},
+		{queues.InflightCurrent, queues.InflightCapacity},
+		{queues.TransportCurrent, queues.TransportCapacity},
+	}
 }
 
 type productionObservationTargetClient struct{ client *target.Client }
@@ -357,17 +493,25 @@ func validProductionObserverSample(sample ObserverSample, cfg Config) bool {
 
 func productionObservationRoundError(ctx context.Context, round productionObservationRound) error {
 	var causal bool
-	for _, roundErrs := range [2][coordinatorWorkerCount]error{round.metricErrs, round.diskErrs} {
-		for _, err := range roundErrs {
-			if err == nil {
-				continue
-			}
-			if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
-				causal = true
-				continue
-			}
-			return errProductionObservation
+	for _, err := range round.metricErrs {
+		if err == nil {
+			continue
 		}
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			causal = true
+			continue
+		}
+		return errProductionObservation
+	}
+	for _, err := range round.diskErrs {
+		if err == nil {
+			continue
+		}
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			causal = true
+			continue
+		}
+		return errProductionObservation
 	}
 	if causal {
 		return ctx.Err()
@@ -376,6 +520,133 @@ func productionObservationRoundError(ctx context.Context, round productionObserv
 		return err
 	}
 	return nil
+}
+
+func (s *ProductionObservationSource) updateCapacityResourcesLocked(next *ProductionObservationSnapshot, at time.Time, round productionObservationRound) {
+	evidence := &next.ResourceEvidence.Capacity
+	evidence.SustainedWindow = s.cfg.Thresholds.Resource.SustainedSaturationWindow
+	complete := true
+	if !s.lastAt.IsZero() && at.Sub(s.lastAt) > s.cfg.Observation.Cadence*2 {
+		s.cpuSince, s.memorySince, s.queueSince = [productionHostCount]time.Time{}, [productionHostCount]time.Time{}, [coordinatorWorkerCount][serviceBoundedQueueCount]time.Time{}
+		s.cpuFired, s.memoryFired, s.queueFired = [productionHostCount]bool{}, [productionHostCount]bool{}, [coordinatorWorkerCount][serviceBoundedQueueCount]bool{}
+		evidence.MissingSamples++
+	}
+	for index, filesystem := range round.disks {
+		evidence.DataFilesystemBytes[index] = nonNegativeUint64(filesystem.SizeBytes)
+		evidence.DataFilesystemAvailableBytes[index] = nonNegativeUint64(filesystem.AvailableBytes)
+		evidence.SystemFilesystemBytes[index] = nonNegativeUint64(filesystem.SystemSizeBytes)
+		evidence.SystemFilesystemAvailableBytes[index] = nonNegativeUint64(filesystem.SystemAvailableBytes)
+		evidence.ProcessUp[index] = filesystem.ProcessUp
+		evidence.ProcessCPUJiffies[index] = filesystem.ProcessCPUJiffies
+		evidence.ProcessResidentMemoryBytes[index] = filesystem.ProcessResidentMemoryBytes
+		if !filesystem.HostResourcesObserved {
+			complete = false
+			continue
+		}
+		if s.cfg.Profile == ProfileFormal && !filesystem.ProcessResourcesObserved {
+			complete = false
+		}
+		evidence.HostCPUPercentBasisPoints[index] = percentBasisPoints(filesystem.CPUPercent)
+		evidence.HostMemoryPercentBasisPoints[index] = percentBasisPoints(filesystem.MemoryPercent)
+		cpuHigh := filesystem.CPUPercent > float64(s.cfg.Thresholds.Resource.HostCPUPercent)
+		memoryHigh := filesystem.MemoryPercent > float64(s.cfg.Thresholds.Resource.HostMemoryPercent)
+		if cpuHigh {
+			evidence.CPUHighSamples[index]++
+		}
+		if memoryHigh {
+			evidence.MemoryHighSamples[index]++
+		}
+		if sustainedResourceEvent(at, cpuHigh, &s.cpuSince[index], &s.cpuFired[index], evidence.SustainedWindow) {
+			evidence.CPUSustainedEvents[index]++
+		}
+		if sustainedResourceEvent(at, memoryHigh, &s.memorySince[index], &s.memoryFired[index], evidence.SustainedWindow) {
+			evidence.MemorySustainedEvents[index]++
+		}
+		evidence.CPUSustainedActive[index] = s.cpuFired[index]
+		evidence.MemorySustainedActive[index] = s.memoryFired[index]
+	}
+	evidence.ProcessesComplete = true
+	for _, filesystem := range round.disks {
+		if !filesystem.ProcessResourcesObserved {
+			evidence.ProcessesComplete = false
+			break
+		}
+	}
+	for index, metrics := range round.metrics {
+		queues := [serviceBoundedQueueCount][2]float64{
+			{metrics.RuntimeQueueMaxPercent, 100},
+			{metrics.ChannelWorkerQueueMaxPercent, 100},
+		}
+		roundHigh, active := false, false
+		var maximumPercent float64
+		for queue, values := range queues {
+			depth, capacity := values[0], values[1]
+			if capacity <= 0 || depth < 0 || depth > capacity {
+				complete = false
+				continue
+			}
+			percent := depth * 100 / capacity
+			if percent > maximumPercent {
+				maximumPercent = percent
+			}
+			high := percent > float64(s.cfg.Thresholds.Resource.BoundedQueuePercent)
+			roundHigh = roundHigh || high
+			if sustainedResourceEvent(
+				at, high, &s.queueSince[index][queue], &s.queueFired[index][queue], evidence.SustainedWindow,
+			) {
+				evidence.QueueSustainedEvents[index]++
+			}
+			active = active || s.queueFired[index][queue]
+		}
+		evidence.ServiceQueuePercentBasisPoints[index] = percentBasisPoints(maximumPercent)
+		if roundHigh {
+			evidence.QueueHighSamples[index]++
+		}
+		evidence.QueueSustainedActive[index] = active
+	}
+	if round.disks[coordinatorWorkerCount].WatchedDirectoryObserved {
+		evidence.PrometheusBytes = nonNegativeUint64(round.disks[coordinatorWorkerCount].WatchedDirectoryBytes)
+	} else {
+		complete = false
+	}
+	evidence.Complete = complete
+	if complete {
+		evidence.Samples++
+	} else {
+		evidence.MissingSamples++
+	}
+}
+
+func sustainedResourceEvent(at time.Time, high bool, since *time.Time, fired *bool, window time.Duration) bool {
+	if !high {
+		*since, *fired = time.Time{}, false
+		return false
+	}
+	if since.IsZero() {
+		*since = at
+	}
+	if !*fired && at.Sub(*since) >= window {
+		*fired = true
+		return true
+	}
+	return false
+}
+
+func percentBasisPoints(percent float64) uint32 {
+	if percent <= 0 {
+		return 0
+	}
+	if percent >= 100 {
+		return 10_000
+	}
+	return uint32(math.Round(percent * 100))
+}
+
+func nonNegativeUint64(value int64) uint64 {
+	if value <= 0 {
+		return 0
+	}
+	return uint64(value)
 }
 
 func productionGauge(value float64) (uint64, bool) {

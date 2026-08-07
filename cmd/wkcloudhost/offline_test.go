@@ -67,11 +67,11 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 		t.Fatalf("installOfflineHost(load) error = %v", err)
 	}
 	for _, path := range []string{
-		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/wkchatlifecycle", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
+		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
 		"opt/wukongim/assets/manager/index.html", "opt/wukongim/assets/demo/index.html",
 		"etc/systemd/system/wkbench-worker@.service", "etc/systemd/system/wkbench-coordinator.service",
 		"etc/systemd/system/wkbench-formal.service", "etc/systemd/system/wkbench-rehearsal.service",
-		"opt/wukongim/scripts/run-formal-chain.sh", "etc/wukongim/chat-lifecycle-rehearsal.yaml",
+		"etc/wukongim/chat-lifecycle-rehearsal.yaml",
 	} {
 		if _, err := os.Stat(filepath.Join(loadRoot, path)); err != nil {
 			t.Fatalf("load file %s: %v", path, err)
@@ -165,7 +165,8 @@ func offlineLease(now time.Time, manifest clouddeploy.Manifest) clouddeploy.Leas
 	return clouddeploy.LeaseInventory{
 		LeaseID: "lease-offline", RequestID: "request-offline", Repository: "WuKongIM/WuKongIM", Provider: "fake", Region: "local", Zone: "zone-a",
 		PlanDigest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", SourceSHA: manifest.SourceSHA,
-		BundleDigest: manifest.BundleDigest, State: "active", ExpiresAt: now.Add(time.Hour),
+		BundleDigest: manifest.BundleDigest, State: "active", CreatedAt: now, ExpiresAt: now.Add(96 * time.Hour),
+		Budget: clouddeploy.DeploymentBudget{Currency: "CNY", LimitMicros: clouddeploy.FormalBudgetHardMicros, OperationalStopMicros: clouddeploy.FormalBudgetStopMicros, EstimatedCostMicros: 100_000_000, LineItems: []clouddeploy.DeploymentBudgetLineItem{{Kind: "lease", Role: "all", Quantity: 1, CostMicros: 100_000_000}}},
 		Resources: []clouddeploy.LeaseResource{
 			{ID: "i-service-1", Kind: "instance", Role: "service", PrivateAddress: "10.42.0.11"},
 			{ID: "i-service-2", Kind: "instance", Role: "service", PrivateAddress: "10.42.0.12"},

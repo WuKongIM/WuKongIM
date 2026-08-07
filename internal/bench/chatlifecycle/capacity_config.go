@@ -14,6 +14,7 @@ func PrepareCapacityConfig(formal Config, checkpoint Report, reference string) (
 		formal.Mode != ModeSoak || formal.Stage != StageFormal || validateReport(checkpoint) != nil ||
 		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak || checkpoint.Stage != StageFormal ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||
+		!checkpoint.Continuous ||
 		!checkpoint.Verdict.Terminal || checkpoint.Verdict.Outcome != VerdictPass ||
 		checkpoint.Verdict.Cause != VerdictCauseCompleted || checkpoint.Window.Elapsed < 72*time.Hour ||
 		checkpoint.Capacity.Attempted {

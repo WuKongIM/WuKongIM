@@ -56,6 +56,27 @@ func validateThresholds(t ThresholdsConfig) error {
 	if t.Resource.GoroutineGrowthWindow <= 0 {
 		return fieldError("thresholds.resource.goroutine_growth_window", "must be greater than zero")
 	}
+	for _, entry := range []struct {
+		path  string
+		value int
+	}{
+		{"thresholds.resource.host_cpu_percent", t.Resource.HostCPUPercent},
+		{"thresholds.resource.host_memory_percent", t.Resource.HostMemoryPercent},
+		{"thresholds.resource.bounded_queue_percent", t.Resource.BoundedQueuePercent},
+	} {
+		if entry.value < 1 || entry.value > 100 {
+			return fieldError(entry.path, "must be in 1..100")
+		}
+	}
+	if t.Resource.SustainedSaturationWindow <= 0 {
+		return fieldError("thresholds.resource.sustained_saturation_window", "must be greater than zero")
+	}
+	if t.Resource.MinimumLoadFilesystemBytes <= 0 {
+		return fieldError("thresholds.resource.minimum_load_filesystem_bytes", "must be greater than zero")
+	}
+	if t.Resource.PrometheusSafeStopBytes <= 0 {
+		return fieldError("thresholds.resource.prometheus_safe_stop_bytes", "must be greater than zero")
+	}
 	if t.Cluster.HealthPollEvery <= 0 {
 		return fieldError("thresholds.cluster.health_poll_every", "must be greater than zero")
 	}

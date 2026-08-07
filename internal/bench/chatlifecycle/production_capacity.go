@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"math"
 	"sync"
 )
 
@@ -213,7 +214,29 @@ func reduceProductionCapacityWindow(
 	observation.QueueInflightAccepted = productionCapacityQueuesAccepted(request, baseline, current)
 	observation.ClusterUnavailable = productionCapacityClusterUnavailable(baseline.observation, current.observation)
 	observation.ClusterLagAccepted = productionCapacityClusterAccepted(baseline.observation, current.observation)
-	observation.ResourceAccepted = productionCapacityResourcesAccepted(cfg, request, baseline.observation, current.observation)
+	resourceComplete, resourceSaturated, resourceHeadroom, resourceOK := productionCapacityResourceWindow(
+		baseline.observation.ResourceEvidence.Capacity,
+		current.observation.ResourceEvidence.Capacity,
+	)
+	if !resourceOK {
+		return CapacityObservation{}, errProductionCapacity
+	}
+	loadUnderdelivered, deliveryOK := productionCapacityLoadUnderdelivered(baseline.workers, current.workers)
+	if !deliveryOK {
+		return CapacityObservation{}, errProductionCapacity
+	}
+	observation.ResourceEvidenceComplete = resourceComplete
+	resourceCurrentlyHigh := productionCapacityResourceCurrentlyHigh(cfg, current.observation.ResourceEvidence.Capacity)
+	recoveredSaturation := request.Phase == CapacityPhaseRecovery && resourceSaturated && !resourceCurrentlyHigh
+	observation.ResourceSaturated = resourceSaturated && !recoveredSaturation
+	observation.ResourcePreviouslySaturated = recoveredSaturation || productionCapacityHadPriorSaturation(
+		baseline.observation.ResourceEvidence.Capacity,
+	)
+	observation.ResourceHeadroom = resourceHeadroom
+	observation.LoadUnderdelivered = loadUnderdelivered
+	observation.ResourceAccepted = productionCapacityResourcesAccepted(cfg, request, baseline.observation, current.observation) &&
+		resourceComplete && !observation.ResourceSaturated && !loadUnderdelivered &&
+		(request.Phase != CapacityPhaseRecovery || !resourceCurrentlyHigh)
 	observation.ReadinessAccepted = productionCapacityWorkersReady(current.workers)
 	if !observation.ReadinessAccepted {
 		observation.HarnessInvalid = true
@@ -222,6 +245,29 @@ func reduceProductionCapacityWindow(
 		current.lifecycle.HarnessFailures == baseline.lifecycle.HarnessFailures &&
 		current.lifecycle.Completed > baseline.lifecycle.Completed && deltaLatency.Cold.Count > 0
 	return observation, nil
+}
+
+func productionCapacityResourceCurrentlyHigh(cfg Config, resources ReportCapacityResourceEvidence) bool {
+	cpuLimit := uint32(cfg.Thresholds.Resource.HostCPUPercent * 100)
+	memoryLimit := uint32(cfg.Thresholds.Resource.HostMemoryPercent * 100)
+	queueLimit := uint32(cfg.Thresholds.Resource.BoundedQueuePercent * 100)
+	for host := 0; host < productionHostCount; host++ {
+		if resources.HostCPUPercentBasisPoints[host] > cpuLimit ||
+			resources.HostMemoryPercentBasisPoints[host] > memoryLimit {
+			return true
+		}
+	}
+	for node := 0; node < coordinatorWorkerCount; node++ {
+		if resources.ServiceQueuePercentBasisPoints[node] > queueLimit {
+			return true
+		}
+		for queue := 0; queue < workerBoundedQueueCount; queue++ {
+			if resources.WorkerQueuePercentBasisPoints[node][queue] > queueLimit {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func subtractProductionCorrectness(current, previous CorrectnessCounters) CorrectnessCounters {
@@ -350,6 +396,116 @@ func productionCapacityResourcesAccepted(
 		}
 	}
 	return true
+}
+
+func productionCapacityResourceWindow(
+	baseline, current ReportCapacityResourceEvidence,
+) (complete, saturated, headroom, valid bool) {
+	if baseline.SustainedWindow <= 0 || current.SustainedWindow != baseline.SustainedWindow ||
+		current.Samples < baseline.Samples || current.MissingSamples < baseline.MissingSamples {
+		return false, false, false, false
+	}
+	complete = baseline.Complete && current.Complete && baseline.ProcessesComplete && current.ProcessesComplete &&
+		current.Samples > baseline.Samples && baseline.MissingSamples == 0 && current.MissingSamples == 0 &&
+		baseline.WorkerQueuesComplete && current.WorkerQueuesComplete && baseline.WorkerQueueMissingSamples == 0 &&
+		current.WorkerQueueSamples > baseline.WorkerQueueSamples &&
+		current.WorkerQueueMissingSamples == 0
+	headroom = complete
+	for index := 0; index < productionHostCount; index++ {
+		if current.CPUHighSamples[index] < baseline.CPUHighSamples[index] ||
+			current.MemoryHighSamples[index] < baseline.MemoryHighSamples[index] ||
+			current.CPUSustainedEvents[index] < baseline.CPUSustainedEvents[index] ||
+			current.MemorySustainedEvents[index] < baseline.MemorySustainedEvents[index] {
+			return false, false, false, false
+		}
+		if current.CPUHighSamples[index] != baseline.CPUHighSamples[index] ||
+			current.MemoryHighSamples[index] != baseline.MemoryHighSamples[index] ||
+			current.CPUSustainedActive[index] || current.MemorySustainedActive[index] {
+			headroom = false
+		}
+		if current.CPUSustainedEvents[index] != baseline.CPUSustainedEvents[index] ||
+			current.MemorySustainedEvents[index] != baseline.MemorySustainedEvents[index] ||
+			current.CPUSustainedActive[index] || current.MemorySustainedActive[index] {
+			saturated = true
+		}
+	}
+	for index := 0; index < coordinatorWorkerCount; index++ {
+		if current.QueueHighSamples[index] < baseline.QueueHighSamples[index] ||
+			current.QueueSustainedEvents[index] < baseline.QueueSustainedEvents[index] {
+			return false, false, false, false
+		}
+		if current.QueueHighSamples[index] != baseline.QueueHighSamples[index] ||
+			current.QueueSustainedActive[index] {
+			headroom = false
+		}
+		if current.QueueSustainedEvents[index] != baseline.QueueSustainedEvents[index] ||
+			current.QueueSustainedActive[index] {
+			saturated = true
+		}
+	}
+	for worker := 0; worker < coordinatorWorkerCount; worker++ {
+		for queue := 0; queue < workerBoundedQueueCount; queue++ {
+			if current.WorkerQueueHighSamples[worker][queue] < baseline.WorkerQueueHighSamples[worker][queue] ||
+				current.WorkerQueueSustainedEvents[worker][queue] < baseline.WorkerQueueSustainedEvents[worker][queue] {
+				return false, false, false, false
+			}
+			if current.WorkerQueueHighSamples[worker][queue] != baseline.WorkerQueueHighSamples[worker][queue] ||
+				current.WorkerQueueSustainedActive[worker][queue] {
+				headroom = false
+			}
+			if current.WorkerQueueSustainedEvents[worker][queue] != baseline.WorkerQueueSustainedEvents[worker][queue] ||
+				current.WorkerQueueSustainedActive[worker][queue] {
+				saturated = true
+			}
+		}
+	}
+	for host := 0; host < productionHostCount; host++ {
+		for process := 0; process < productionProcessCount; process++ {
+			if baseline.ProcessUp[host][process] != current.ProcessUp[host][process] ||
+				current.ProcessCPUJiffies[host][process] < baseline.ProcessCPUJiffies[host][process] {
+				return false, false, false, false
+			}
+		}
+	}
+	return complete, saturated, headroom, true
+}
+
+func productionCapacityHadPriorSaturation(resources ReportCapacityResourceEvidence) bool {
+	for index := 0; index < productionHostCount; index++ {
+		if resources.CPUSustainedEvents[index] > 0 || resources.MemorySustainedEvents[index] > 0 {
+			return true
+		}
+	}
+	for index := 0; index < coordinatorWorkerCount; index++ {
+		if resources.QueueSustainedEvents[index] > 0 {
+			return true
+		}
+		for queue := 0; queue < workerBoundedQueueCount; queue++ {
+			if resources.WorkerQueueSustainedEvents[index][queue] > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func productionCapacityLoadUnderdelivered(baseline, current []WorkerSnapshot) (bool, bool) {
+	if len(baseline) != coordinatorWorkerCount || len(current) != coordinatorWorkerCount {
+		return false, false
+	}
+	var before, after uint64
+	for index := 0; index < coordinatorWorkerCount; index++ {
+		if math.MaxUint64-before < baseline[index].Harness.OfferedUnderdelivery ||
+			math.MaxUint64-after < current[index].Harness.OfferedUnderdelivery {
+			return false, false
+		}
+		before += baseline[index].Harness.OfferedUnderdelivery
+		after += current[index].Harness.OfferedUnderdelivery
+	}
+	if after < before {
+		return false, false
+	}
+	return after > before, true
 }
 
 func productionCapacityWorkersReady(snapshots []WorkerSnapshot) bool {

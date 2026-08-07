@@ -94,7 +94,7 @@ jobs:
             (.path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml" or
              .path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml@refs/heads/main")
           ' transition-run.json >/dev/null
-          for name in transition.json handoff.json run-plan.json quote.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
+          for name in transition.json handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
             test -f "$WK_CHAT_TRANSITION_DIR/$name"
           done
           jq -e --arg request "$WK_CHAT_REQUEST_ID" '
@@ -117,8 +117,17 @@ jobs:
           cmp -s <(jq -S -c .selector "$WK_CHAT_TRANSITION_DIR/release-selector.json") \
             <(jq -S -c .result.zero_inventory.selector "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")
           prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_TRANSITION_DIR/run-plan.json")"
-          rehearsal_quote="$(jq -er .quote.estimated_cost_micros "$WK_CHAT_TRANSITION_DIR/quote.json")"
-          test "$(( prior + rehearsal_quote ))" = "$(jq -er .committed_micros "$WK_CHAT_TRANSITION_DIR/transition.json")"
+          created_at="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" \
+            -f scripts/chat-lifecycle/select-active-receipt-created-at.jq \
+            "$WK_CHAT_TRANSITION_DIR/receipt.json")"
+          cmp -s <(jq -S -c .receipt.quote "$WK_CHAT_TRANSITION_DIR/receipt.json") \
+            <(jq -S -c .quote "$WK_CHAT_TRANSITION_DIR/quote.json")
+          ended_at="$(jq -er .result.zero_inventory.observed_at "$WK_CHAT_TRANSITION_DIR/zero-inventory.json")"
+          network_bytes="$(jq -er .resources.capacity.network_transmit_bytes "$WK_CHAT_TRANSITION_DIR/final.json")"
+          rehearsal_cost="$(scripts/chat-lifecycle/accrued-cost.sh \
+            "$WK_CHAT_TRANSITION_DIR/run-plan.json" "$WK_CHAT_TRANSITION_DIR/quote.json" \
+            "$created_at" "$ended_at" "$network_bytes")"
+          test "$(( prior + rehearsal_cost ))" = "$(jq -er .committed_micros "$WK_CHAT_TRANSITION_DIR/transition.json")"
           bundle_run_id="$(jq -er .bundle_run_id "$WK_CHAT_TRANSITION_DIR/handoff.json")"
           gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${bundle_run_id}" >bundle-run.json
           jq -e --arg repository "$GITHUB_REPOSITORY" '
@@ -167,7 +176,7 @@ jobs:
           set -euo pipefail
           export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
           export WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY="$(cat "$RUNNER_TEMP/codex-diagnostic.pub")"
-          scripts/chat-lifecycle/rehearsal-orchestrate.sh
+          scripts/chat-lifecycle/stage-orchestrate.sh
       - name: Detect publishable handoff or cleanup continuation
         id: handoff_state
         if: always()

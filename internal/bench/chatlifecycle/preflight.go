@@ -252,8 +252,68 @@ func (p *Preflight) Check(ctx context.Context, cfg Config) PreflightResult {
 			}
 			return result
 		}
+		if cfg.Profile == ProfileFormal && (!filesystem.HostResourcesObserved || !filesystem.ProcessResourcesObserved ||
+			!validProductionProcessRoles(index, cfg.Stage, filesystem.ProcessUp) || filesystem.SystemSizeBytes <= 0 ||
+			filesystem.SystemAvailableBytes < 0 || filesystem.SystemAvailableBytes > filesystem.SystemSizeBytes) {
+			return invalid(PreflightCodeDiskAmbiguous)
+		}
+		if filesystem.SystemSizeBytes > 0 && diskFreeBelow(DataFilesystem{SizeBytes: filesystem.SystemSizeBytes, AvailableBytes: filesystem.SystemAvailableBytes}, cfg.Thresholds.DiskSafeStopFreePercent) {
+			result := infrastructure(PreflightCodeDiskFree)
+			if p.options.SafeStop != nil {
+				_ = p.options.SafeStop.Signal(ctx, result)
+			}
+			return result
+		}
+	}
+	loadReader := p.options.DiskFactory(coordinatorWorkerCount, cfg.Observation.LoadHostMetrics)
+	if loadReader == nil {
+		return invalid(PreflightCodeDiskAmbiguous)
+	}
+	loadFilesystem, err := loadReader.Filesystem(ctx)
+	if err != nil {
+		return invalid(PreflightCodeDiskAmbiguous)
+	}
+	if loadFilesystem.SizeBytes < cfg.Thresholds.Resource.MinimumLoadFilesystemBytes || loadFilesystem.SizeBytes <= 0 ||
+		loadFilesystem.AvailableBytes < 0 || loadFilesystem.AvailableBytes > loadFilesystem.SizeBytes {
+		return infrastructure(PreflightCodeDiskCapacity)
+	}
+	if cfg.Profile == ProfileFormal && (!loadFilesystem.HostResourcesObserved || !loadFilesystem.WatchedDirectoryObserved ||
+		!loadFilesystem.NetworkTransmitObserved || !loadFilesystem.ProcessResourcesObserved ||
+		!validProductionProcessRoles(coordinatorWorkerCount, cfg.Stage, loadFilesystem.ProcessUp) ||
+		loadFilesystem.SystemSizeBytes <= 0 || loadFilesystem.SystemAvailableBytes < 0 ||
+		loadFilesystem.SystemAvailableBytes > loadFilesystem.SystemSizeBytes) {
+		return invalid(PreflightCodeDiskAmbiguous)
+	}
+	if diskFreeBelow(loadFilesystem, cfg.Thresholds.DiskSafeStopFreePercent) ||
+		loadFilesystem.SystemSizeBytes > 0 && diskFreeBelow(DataFilesystem{SizeBytes: loadFilesystem.SystemSizeBytes, AvailableBytes: loadFilesystem.SystemAvailableBytes}, cfg.Thresholds.DiskSafeStopFreePercent) ||
+		loadFilesystem.WatchedDirectoryObserved && loadFilesystem.WatchedDirectoryBytes >= cfg.Thresholds.Resource.PrometheusSafeStopBytes {
+		result := infrastructure(PreflightCodeDiskFree)
+		if p.options.SafeStop != nil {
+			_ = p.options.SafeStop.Signal(ctx, result)
+		}
+		return result
 	}
 	return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+}
+
+func validProductionProcessRoles(host int, stage Stage, up [productionProcessCount]bool) bool {
+	required := []int{1, 11, 12}
+	if host < coordinatorWorkerCount {
+		required = append(required, 0)
+	} else {
+		required = append(required, 2, 3, 4, 8, 9, 10)
+		if stage == StageRehearsal {
+			required = append(required, 7)
+		} else {
+			required = append(required, 6)
+		}
+	}
+	for _, index := range required {
+		if !up[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func matchesPreflightConfig(observed target.DebugConfig, cfg Config) bool {

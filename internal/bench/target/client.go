@@ -39,6 +39,7 @@ const (
 	maxObservationMetricLines                = 100_000
 	maxObservationMetricLineBytes            = 64 << 10
 	maxObservationMetricSeries               = 32_768
+	maxObservationQueueSeries                = 128
 	// MetaCreateLogicalSlots is the fixed reviewed logical Slot cardinality.
 	MetaCreateLogicalSlots = 12
 )
@@ -99,8 +100,11 @@ const (
 	metricActivationRejected
 	metricMetaCreated
 	metricNodeRSS
-	metricRequired = metricGoGoroutines | metricGoHeapAlloc | metricProcessRSS | metricRuntimeQueue |
-		metricRuntimeInflight | metricChannelWorkerQueue | metricActivationRejected | metricMetaCreated
+	metricRuntimeQueueCapacity
+	metricChannelWorkerQueueCapacity
+	metricRequired = metricGoGoroutines | metricGoHeapAlloc | metricProcessRSS | metricRuntimeQueue | metricRuntimeQueueCapacity |
+		metricRuntimeInflight | metricChannelWorkerQueue | metricChannelWorkerQueueCapacity |
+		metricActivationRejected | metricMetaCreated
 )
 
 // MetaCreateSlotCounters is one logical Slot's closed durable-create result vector.
@@ -116,15 +120,25 @@ type MetricsSnapshot struct {
 	GoHeapAllocBytes           float64
 	ProcessResidentMemoryBytes float64
 	RuntimeQueueDepth          float64
+	RuntimeQueueCapacity       float64
+	// RuntimeQueueMaxPercent is the maximum paired per-series depth/capacity utilization.
+	RuntimeQueueMaxPercent     float64
 	RuntimeInflight            float64
 	ChannelWorkerQueueDepth    float64
-	ActivationRejectedTotal    float64
-	MetaCreatedBySlot          [MetaCreateLogicalSlots]MetaCreateSlotCounters
+	ChannelWorkerQueueCapacity float64
+	// ChannelWorkerQueueMaxPercent prevents an idle pool from hiding a saturated pool.
+	ChannelWorkerQueueMaxPercent float64
+	ActivationRejectedTotal      float64
+	MetaCreatedBySlot            [MetaCreateLogicalSlots]MetaCreateSlotCounters
 	// MetaCreatedTotal retains the existing closed three-result aggregate for
 	// compatibility. MetaCreatedBySlot is the authoritative durable evidence.
-	MetaCreatedTotal   map[string]float64
-	metaCreatedPresent [MetaCreateLogicalSlots]uint8
-	present            uint16
+	MetaCreatedTotal             map[string]float64
+	metaCreatedPresent           [MetaCreateLogicalSlots]uint8
+	present                      uint16
+	runtimeQueueDepthBySeries    map[string]float64
+	runtimeQueueCapacityBySeries map[string]float64
+	channelQueueDepthBySeries    map[string]float64
+	channelQueueCapacityBySeries map[string]float64
 }
 
 // ValidateRequired rejects a scrape that omitted a required product or runtime family.
@@ -905,6 +919,9 @@ func parseObservationMetrics(encoded []byte) (MetricsSnapshot, error) {
 	if snapshot.present&metricMetaCreated != 0 && len(snapshot.MetaCreatedTotal) != 3 {
 		return MetricsSnapshot{}, errors.New("observation metrics contains incomplete metadata-create results")
 	}
+	if err := snapshot.finalizeQueueUtilization(); err != nil {
+		return MetricsSnapshot{}, err
+	}
 	return snapshot, nil
 }
 
@@ -963,10 +980,14 @@ func observationMetricKind(name string) uint16 {
 		return metricNodeRSS
 	case "wukongim_runtime_pool_queue_depth":
 		return metricRuntimeQueue
+	case "wukongim_runtime_pool_queue_capacity":
+		return metricRuntimeQueueCapacity
 	case "wukongim_runtime_pool_inflight":
 		return metricRuntimeInflight
 	case "wukongim_channelv2_worker_queue_depth":
 		return metricChannelWorkerQueue
+	case "wukongim_channelv2_worker_queue_capacity":
+		return metricChannelWorkerQueueCapacity
 	case "wukongim_channelv2_activation_rejected_total":
 		return metricActivationRejected
 	case "wukongim_channelv2_meta_created_total":
@@ -978,6 +999,12 @@ func observationMetricKind(name string) uint16 {
 
 func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value float64, valueText string) error {
 	s.present |= kind
+	switch kind {
+	case metricRuntimeQueue, metricRuntimeQueueCapacity, metricChannelWorkerQueue, metricChannelWorkerQueueCapacity:
+		if err := s.addQueueSeries(kind, labels, value); err != nil {
+			return err
+		}
+	}
 	var destination *float64
 	switch kind {
 	case metricGoGoroutines:
@@ -996,10 +1023,14 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 		destination = &s.ProcessResidentMemoryBytes
 	case metricRuntimeQueue:
 		destination = &s.RuntimeQueueDepth
+	case metricRuntimeQueueCapacity:
+		destination = &s.RuntimeQueueCapacity
 	case metricRuntimeInflight:
 		destination = &s.RuntimeInflight
 	case metricChannelWorkerQueue:
 		destination = &s.ChannelWorkerQueueDepth
+	case metricChannelWorkerQueueCapacity:
+		destination = &s.ChannelWorkerQueueCapacity
 	case metricActivationRejected:
 		destination = &s.ActivationRejectedTotal
 	case metricMetaCreated:
@@ -1054,6 +1085,69 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 	}
 	*destination += value
 	return nil
+}
+
+func (s *MetricsSnapshot) addQueueSeries(kind uint16, labels map[string]string, value float64) error {
+	encoded, err := json.Marshal(labels)
+	if err != nil || len(encoded) == 0 {
+		return errors.New("observation metrics contains invalid queue labels")
+	}
+	key := string(encoded)
+	var values *map[string]float64
+	switch kind {
+	case metricRuntimeQueue:
+		values = &s.runtimeQueueDepthBySeries
+	case metricRuntimeQueueCapacity:
+		values = &s.runtimeQueueCapacityBySeries
+	case metricChannelWorkerQueue:
+		values = &s.channelQueueDepthBySeries
+	case metricChannelWorkerQueueCapacity:
+		values = &s.channelQueueCapacityBySeries
+	default:
+		return errors.New("observation metrics contains invalid queue family")
+	}
+	if *values == nil {
+		*values = make(map[string]float64)
+	}
+	if _, exists := (*values)[key]; exists || len(*values) >= maxObservationQueueSeries {
+		return errors.New("observation metrics contains duplicate or excessive queue series")
+	}
+	(*values)[key] = value
+	return nil
+}
+
+func (s *MetricsSnapshot) finalizeQueueUtilization() error {
+	var err error
+	if s.present&(metricRuntimeQueue|metricRuntimeQueueCapacity) == metricRuntimeQueue|metricRuntimeQueueCapacity {
+		s.RuntimeQueueMaxPercent, err = maximumQueueUtilization(s.runtimeQueueDepthBySeries, s.runtimeQueueCapacityBySeries)
+		if err != nil {
+			return err
+		}
+	}
+	if s.present&(metricChannelWorkerQueue|metricChannelWorkerQueueCapacity) == metricChannelWorkerQueue|metricChannelWorkerQueueCapacity {
+		s.ChannelWorkerQueueMaxPercent, err = maximumQueueUtilization(s.channelQueueDepthBySeries, s.channelQueueCapacityBySeries)
+		if err != nil {
+			return err
+		}
+	}
+	s.runtimeQueueDepthBySeries, s.runtimeQueueCapacityBySeries = nil, nil
+	s.channelQueueDepthBySeries, s.channelQueueCapacityBySeries = nil, nil
+	return nil
+}
+
+func maximumQueueUtilization(depths, capacities map[string]float64) (float64, error) {
+	if len(depths) == 0 || len(depths) != len(capacities) {
+		return 0, errors.New("observation metrics contains unpaired queue series")
+	}
+	maximum := float64(0)
+	for key, depth := range depths {
+		capacity, ok := capacities[key]
+		if !ok || capacity <= 0 || depth > capacity {
+			return 0, errors.New("observation metrics contains invalid queue utilization")
+		}
+		maximum = max(maximum, depth*100/capacity)
+	}
+	return maximum, nil
 }
 
 func exactObservationMetricCounter(valueText string) (uint64, bool) {

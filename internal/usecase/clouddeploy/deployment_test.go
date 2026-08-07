@@ -236,7 +236,8 @@ func deploymentLease(now time.Time) clouddeploy.LeaseInventory {
 		LeaseID: "lease-1", RequestID: "request-1", Repository: "WuKongIM/WuKongIM",
 		Provider: "alibaba", Region: "cn-hangzhou", Zone: "cn-hangzhou-j",
 		PlanDigest: digest('c'), SourceSHA: deploymentManifest().SourceSHA,
-		BundleDigest: deploymentManifest().BundleDigest, State: "active", ExpiresAt: now.Add(6 * time.Hour),
+		BundleDigest: deploymentManifest().BundleDigest, State: "active", CreatedAt: now, ExpiresAt: now.Add(96 * time.Hour),
+		Budget: clouddeploy.DeploymentBudget{Currency: "CNY", LimitMicros: clouddeploy.FormalBudgetHardMicros, OperationalStopMicros: clouddeploy.FormalBudgetStopMicros, EstimatedCostMicros: 100_000_000, LineItems: []clouddeploy.DeploymentBudgetLineItem{{Kind: "lease", Role: "all", Quantity: 1, CostMicros: 100_000_000}}},
 		Resources: []clouddeploy.LeaseResource{
 			{ID: "i-service-c", Kind: "instance", Role: "service", PrivateAddress: "10.42.0.13"},
 			{ID: "i-load", Kind: "instance", Role: "load", PrivateAddress: "10.42.0.20"},
@@ -257,7 +258,7 @@ func readySnapshot(plan clouddeploy.DeploymentPlan, now time.Time) clouddeploy.R
 	for _, planned := range plan.Hosts {
 		units := []string{"node-exporter.service", "wukongim-process-metrics.service", "wukongim-evidence.timer"}
 		if planned.Role == "load" {
-			units = append(units, "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service",
+			units = append(units, "wkbench-host-metrics.service", "wkbench-worker@1.service", "wkbench-worker@2.service", "wkbench-worker@3.service",
 				"prometheus.service", "wkanalysis.service", "caddy.service")
 		} else {
 			units = append(units, "wukongim.service", "wkbench-host-metrics.service")

@@ -114,6 +114,7 @@ func loadCapacityChatLifecycleConfig(cli *chatLifecycleCLIConfig) error {
 	}
 	if report.Profile != chatlifecycle.ProfileFormal || report.Mode != chatlifecycle.ModeSoak || report.Stage != chatlifecycle.StageFormal ||
 		report.Kind != chatlifecycle.CheckpointFinal || !report.Final || report.Continue ||
+		!report.Continuous ||
 		!report.Verdict.Terminal || report.Verdict.Outcome != chatlifecycle.VerdictPass ||
 		report.Window.Elapsed < 72*time.Hour || report.Capacity.Attempted {
 		return fmt.Errorf("checkpoint must be a completed passing 72-hour formal Soak report")
@@ -160,6 +161,13 @@ var runChatLifecycleCLI = func(cli chatLifecycleCLIConfig, stderr io.Writer) int
 	runner, err := newChatLifecycleCommandRunner(cli)
 	if err != nil || runner == nil {
 		fmt.Fprintln(stderr, "chat-lifecycle runner configuration failed")
+		return exitInternal
+	}
+	return runPreparedChatLifecycleCLI(runner, stderr)
+}
+
+func runPreparedChatLifecycleCLI(runner chatLifecycleCommandRunner, stderr io.Writer) int {
+	if runner == nil || stderr == nil {
 		return exitInternal
 	}
 	signals := make(chan os.Signal, 2)

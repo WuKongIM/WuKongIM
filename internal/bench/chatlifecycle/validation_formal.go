@@ -226,6 +226,9 @@ func validateExactObservation(got, want ObservationConfig) error {
 	if len(got.HostMetrics) != len(want.HostMetrics) {
 		return formalError("observation.host_metrics")
 	}
+	if got.LoadHostMetrics.Name == "" || got.LoadHostMetrics.Address == "" {
+		return formalError("observation.load_host_metrics")
+	}
 	if len(got.APIAddrs) != len(want.APIAddrs) {
 		return formalError("observation.api_addrs")
 	}
@@ -287,6 +290,24 @@ func validateExactThresholds(got, want ThresholdsConfig) error {
 	}
 	if got.Resource.GoroutineGrowthWindow != want.Resource.GoroutineGrowthWindow {
 		return formalError("thresholds.resource.goroutine_growth_window")
+	}
+	if got.Resource.HostCPUPercent != want.Resource.HostCPUPercent {
+		return formalError("thresholds.resource.host_cpu_percent")
+	}
+	if got.Resource.HostMemoryPercent != want.Resource.HostMemoryPercent {
+		return formalError("thresholds.resource.host_memory_percent")
+	}
+	if got.Resource.BoundedQueuePercent != want.Resource.BoundedQueuePercent {
+		return formalError("thresholds.resource.bounded_queue_percent")
+	}
+	if got.Resource.SustainedSaturationWindow != want.Resource.SustainedSaturationWindow {
+		return formalError("thresholds.resource.sustained_saturation_window")
+	}
+	if got.Resource.MinimumLoadFilesystemBytes != want.Resource.MinimumLoadFilesystemBytes {
+		return formalError("thresholds.resource.minimum_load_filesystem_bytes")
+	}
+	if got.Resource.PrometheusSafeStopBytes != want.Resource.PrometheusSafeStopBytes {
+		return formalError("thresholds.resource.prometheus_safe_stop_bytes")
 	}
 	if got.Cluster.HealthPollEvery != want.Cluster.HealthPollEvery {
 		return formalError("thresholds.cluster.health_poll_every")

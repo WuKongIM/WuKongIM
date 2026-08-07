@@ -159,8 +159,10 @@ done
 set -euo pipefail
 config="${WK_CHAT_LIFECYCLE_CONFIG:-/etc/wukongim/chat-lifecycle.yaml}"
 mapfile -t services < <(sed -n '/^  service_nodes:/,/^  workers:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
-mapfile -t host_metrics < <(sed -n '/^  host_metrics:/,/^  api_addrs:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
+mapfile -t host_metrics < <(sed -n '/^  host_metrics:/,/^  load_host_metrics:/ s/^    - .*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
+load_host_metrics="$(sed -n 's/^  load_host_metrics:.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")"
 ((${#services[@]} == 3 && ${#host_metrics[@]} == 3))
+[[ -n "$load_host_metrics" ]]
 deadline=$(( $(date -u +%s) + 900 ))
 while (( $(date -u +%s) < deadline )); do
   ready=true
@@ -170,6 +172,7 @@ while (( $(date -u +%s) < deadline )); do
   for address in "${host_metrics[@]}"; do
     curl --fail --silent --show-error --max-time 5 "http://${address}/healthz" >/dev/null || ready=false
   done
+  curl --fail --silent --show-error --max-time 5 "http://${load_host_metrics}/healthz" >/dev/null || ready=false
   for port in 19091 19092 19093; do
     curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${port}/healthz" >/dev/null || ready=false
   done
@@ -180,23 +183,6 @@ while (( $(date -u +%s) < deadline )); do
   sleep 5
 done
 exit 1
-`,
-		"scripts/run-formal-chain.sh": `#!/usr/bin/env bash
-set -euo pipefail
-formal_config=/etc/wukongim/chat-lifecycle.yaml
-formal_output=/var/lib/wukongim-cloud/reports/formal
-checkpoint=/var/lib/wukongim-cloud/reports/formal/final.json
-capacity_config=/var/lib/wukongim-cloud/reports/capacity.yaml
-capacity_output=/var/lib/wukongim-cloud/reports/capacity
-
-install -d -m 0750 "$formal_output" "$capacity_output"
-test ! -e "$checkpoint"
-test ! -e "$capacity_config"
-/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$formal_config" --output-dir "$formal_output"
-/opt/wukongim/bin/wkchatlifecycle prepare-capacity-config \
-  --config "$formal_config" --checkpoint "$checkpoint" --output "$capacity_config"
-exec /opt/wukongim/bin/wkbench capacity chat-lifecycle \
-  --config "$capacity_config" --checkpoint "$checkpoint" --output-dir "$capacity_output"
 `,
 		"scripts/collect-evidence.sh": `#!/usr/bin/env bash
 set -euo pipefail
@@ -226,6 +212,7 @@ units=(
   caddy.service
   wkanalysis.service
   wukongim-process-metrics.service
+  node-exporter.service
 )
 
 collect() {
@@ -289,7 +276,7 @@ while true; do
 done
 `,
 		"systemd/wukongim.service":             serviceUnit("node.env", "/opt/wukongim/bin/wukongim -config /etc/wukongim/wukongim.toml"),
-		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data"),
+		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data --system-path / --watch-path /var/lib/wukongim-cloud/prometheus --process-metrics-path /var/lib/wukongim/textfile/processes.prom"),
 		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
 		"systemd/wkbench-coordinator.service":  coordinatorServiceUnit(),
 		"systemd/wkbench-formal.service":       formalServiceUnit(),
@@ -453,7 +440,7 @@ Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle.yaml
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
-ExecStart=/opt/wukongim/scripts/run-formal-chain.sh
+ExecStart=/opt/wukongim/bin/wkbench formal-chain chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576

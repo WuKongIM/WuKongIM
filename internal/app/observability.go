@@ -632,6 +632,7 @@ func (o channelMetricsObserver) SetWorkerQueueCapacity(pool string, capacity int
 	if o.metrics == nil {
 		return
 	}
+	o.metrics.ChannelRuntime.SetWorkerQueueCapacity(pool, capacity)
 	o.metrics.RuntimePressure.SetQueueCapacity(channelRuntimePressureComponent, pool, "worker", "none", capacity)
 }
 

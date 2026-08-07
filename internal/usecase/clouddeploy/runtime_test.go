@@ -28,6 +28,7 @@ observation:
   service_nodes: [{address: "http://service-1.invalid"}, {address: "http://service-2.invalid"}, {address: "http://service-3.invalid"}]
   workers: [{address: "http://worker-1.invalid"}, {address: "http://worker-2.invalid"}, {address: "http://worker-3.invalid"}]
   host_metrics: [{address: "http://host-metrics-1.invalid"}, {address: "http://host-metrics-2.invalid"}, {address: "http://host-metrics-3.invalid"}]
+  load_host_metrics: {address: "http://host-metrics-load.invalid"}
   api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
   gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
 thresholds:
@@ -44,6 +45,7 @@ observation:
   service_nodes: [{address: "http://service-1.invalid"}, {address: "http://service-2.invalid"}, {address: "http://service-3.invalid"}]
   workers: [{address: "http://worker-1.invalid"}, {address: "http://worker-2.invalid"}, {address: "http://worker-3.invalid"}]
   host_metrics: [{address: "http://host-metrics-1.invalid"}, {address: "http://host-metrics-2.invalid"}, {address: "http://host-metrics-3.invalid"}]
+  load_host_metrics: {address: "http://host-metrics-load.invalid"}
   api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
   gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
 thresholds:

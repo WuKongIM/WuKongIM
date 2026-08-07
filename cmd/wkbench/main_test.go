@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -54,8 +55,17 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 		t.Fatalf("missing path code/stderr = %d/%q", code, stderr.String())
 	}
 
+	temporary := t.TempDir()
+	processPath := filepath.Join(temporary, "processes.prom")
+	processMetrics := fmt.Sprintf(
+		"wukongim_process_up{unit=\"wukongim.service\"} 0\nwukongim_process_collector_last_success_unixtime_seconds %d\n",
+		time.Now().Unix(),
+	)
+	if err := os.WriteFile(processPath, []byte(processMetrics), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	handler, err := newHostMetricsHandler(hostMetricsConfig{
-		path: t.TempDir(), mountpoint: "/var/lib/wukongim-1", device: "/dev/local-data-1",
+		path: temporary, mountpoint: "/var/lib/wukongim-1", device: "/dev/local-data-1", processMetricsPath: processPath,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -69,6 +79,7 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	for _, want := range []string{
 		`node_filesystem_size_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
 		`node_filesystem_avail_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
+		`wukongim_process_up{unit="wukongim.service"} 0`,
 	} {
 		if !strings.Contains(response.Body.String(), want) {
 			t.Fatalf("metrics body missing %q: %q", want, response.Body.String())
@@ -79,6 +90,28 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	if response.Code != http.StatusOK {
 		t.Fatalf("health status = %d", response.Code)
+	}
+
+	staleAt := time.Now().Add(-processMetricsFreshnessWindow - time.Second)
+	if err := os.Chtimes(processPath, staleAt, staleAt); err != nil {
+		t.Fatal(err)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("stale process evidence status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+	staleMetrics := fmt.Sprintf(
+		"wukongim_process_up{unit=\"wukongim.service\"} 0\nwukongim_process_collector_last_success_unixtime_seconds %d\n",
+		time.Now().Add(-processMetricsFreshnessWindow-time.Second).Unix(),
+	)
+	if err := os.WriteFile(processPath, []byte(staleMetrics), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	response = httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("stale collector timestamp status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 	}
 }
 

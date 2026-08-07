@@ -97,7 +97,7 @@ jobs:
         run: |
           set -euo pipefail
           export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
-          scripts/chat-lifecycle/rehearsal-orchestrate.sh
+          scripts/chat-lifecycle/stage-orchestrate.sh
       - name: Detect publishable handoff or cleanup continuation
         id: handoff_state
         if: always()

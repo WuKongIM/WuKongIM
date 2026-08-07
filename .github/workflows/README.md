@@ -260,11 +260,15 @@ duration, workload, and retry values come only from the reviewed repository Run
 Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
 six-hour Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
 unit. The runner exits after the remote `run-start.json` proves 10,000 full
-syncs and acceptance of the first full 2,000 SEND/s grant.
+syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
+uses the same sealed five-second accrued-cost and one-hour expiry-reserve guard
+as formal execution, with a two-hour active-duration admission requirement.
 
 Only deployment/readiness failure may trigger the one fresh Lease retry. The
 orchestrator first releases the complete failed Lease to exact zero inventory,
-carries its quoted cost into the shared CNY 1,350 operational stop, and excludes
+rounds actual held host hours upward, reserves the full quoted egress and
+retention risk when live traffic evidence is unavailable, carries that
+conservative accrued cost into the shared CNY 1,350 operational stop, and excludes
 that exact zone/compute-type pair. Runtime or correctness failure is never
 retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
 uploads a terminal report or bounded failure diagnostics, and only then invokes
@@ -281,15 +285,25 @@ expired inventory even if an owning job is canceled.
 
 A passing rehearsal finalizer releases the rehearsal Lease first, authenticates
 its selector-bound zero proof, and publishes one `formal_transition/v1` bound to
-the same source SHA, bundle digest, request, and aggregate budget ledger.
+the same source SHA, bundle digest, request, and aggregate budget ledger. That
+ledger uses exact Lease creation-to-zero-inventory time, observed non-loopback
+transmit bytes rounded upward to GiB, and the full retention-risk allowance;
+it does not commit the whole six-hour rehearsal Quote.
 `chat-lifecycle-formal.yml` is an internal scheduled safety continuation, not a
 second public operator surface. It consumes at most one unspent transition,
 refuses procurement if either stage still has active inventory, reuses the
 exact original bundle, and acquires a completely fresh 96-hour formal Lease.
 Remote `wkbench-formal.service` owns the uninterrupted 72-hour Soak, hour-24
 qualification, at-most-eight-hour aged-data capacity staircase, and 30-minute
-2,000-SEND/s recovery. `chat-lifecycle-formal-finalize.yml` waits for that one
-non-restarting wrapper to exit, uploads the terminal chain result or bounded
+2,000-SEND/s recovery in one `wkbench formal-chain` process with the same
+worker fence, generation, observer, lifecycle proof, and dataset. Activation
+seals the Lease creation/expiry instants, exact quote line items, aggregate
+committed cost, and ¥1,350/¥1,500 limits into the root-only load environment.
+Formal-chain checks the 81.5-hour admission reserve, then re-evaluates
+conservative accrued host/retention/traffic cost and the one-hour expiry cleanup
+reserve every five seconds through both phases. `chat-lifecycle-formal-finalize.yml` waits for
+that process to exit, requires complete JSON/Markdown evidence pairs, and
+uploads the terminal chain result or bounded
 diagnostics, and only then releases the exact Lease to zero inventory. Failed
 Release attempts persist a stage-authenticated cleanup continuation for the
 next scheduled pass; the generic Cloud Lease sweeper remains the independent

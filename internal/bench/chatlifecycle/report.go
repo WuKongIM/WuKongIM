@@ -153,10 +153,90 @@ type ReportResourceNodeEvidence struct {
 	InflightCurrent              uint64 `json:"inflight_current"`
 }
 
+const productionHostCount = coordinatorWorkerCount + 1
+const serviceBoundedQueueCount = 2
+const workerBoundedQueueCount = 4
+
+// ReportCapacityResourceEvidence is a bounded monotonic projection used to
+// distinguish sustained infrastructure saturation from product latency.
+type ReportCapacityResourceEvidence struct {
+	// Samples counts complete four-host resource rounds.
+	Samples uint64 `json:"samples"`
+	// MissingSamples counts rounds missing any required host or process signal.
+	MissingSamples uint64 `json:"missing_samples"`
+	// SustainedWindow is the exact continuous-high duration required for attribution.
+	SustainedWindow time.Duration `json:"sustained_window"`
+	// HostCPUPercentBasisPoints stores service hosts 0..2 then load host 3.
+	HostCPUPercentBasisPoints [productionHostCount]uint32 `json:"host_cpu_percent_basis_points"`
+	// HostMemoryPercentBasisPoints stores service hosts 0..2 then load host 3.
+	HostMemoryPercentBasisPoints [productionHostCount]uint32 `json:"host_memory_percent_basis_points"`
+	// ServiceQueuePercentBasisPoints stores WuKongIM service nodes 0..2.
+	ServiceQueuePercentBasisPoints [coordinatorWorkerCount]uint32 `json:"service_queue_percent_basis_points"`
+	// CPUHighSamples counts above-threshold rounds per service/load host index.
+	CPUHighSamples [productionHostCount]uint64 `json:"cpu_high_samples"`
+	// MemoryHighSamples counts above-threshold rounds per service/load host index.
+	MemoryHighSamples [productionHostCount]uint64 `json:"memory_high_samples"`
+	// QueueHighSamples counts above-threshold service-queue rounds per node index.
+	QueueHighSamples [coordinatorWorkerCount]uint64 `json:"queue_high_samples"`
+	// CPUSustainedEvents counts completed continuous-high windows per host index.
+	CPUSustainedEvents [productionHostCount]uint64 `json:"cpu_sustained_events"`
+	// MemorySustainedEvents counts completed continuous-high windows per host index.
+	MemorySustainedEvents [productionHostCount]uint64 `json:"memory_sustained_events"`
+	// QueueSustainedEvents counts completed service-queue windows per node index.
+	QueueSustainedEvents [coordinatorWorkerCount]uint64 `json:"queue_sustained_events"`
+	// CPUSustainedActive marks a currently completed CPU window per host index.
+	CPUSustainedActive [productionHostCount]bool `json:"cpu_sustained_active"`
+	// MemorySustainedActive marks a currently completed memory window per host index.
+	MemorySustainedActive [productionHostCount]bool `json:"memory_sustained_active"`
+	// QueueSustainedActive marks a currently completed service-queue window per node index.
+	QueueSustainedActive [coordinatorWorkerCount]bool `json:"queue_sustained_active"`
+	// WorkerQueueSamples counts complete three-worker checkpoint cuts.
+	WorkerQueueSamples uint64 `json:"worker_queue_samples"`
+	// WorkerQueueMissingSamples counts invalid or cadence-gapped worker cuts.
+	WorkerQueueMissingSamples uint64 `json:"worker_queue_missing_samples"`
+	// WorkerQueuePercentBasisPoints indexes worker then work/retry/inflight/transport queue.
+	WorkerQueuePercentBasisPoints [coordinatorWorkerCount][workerBoundedQueueCount]uint32 `json:"worker_queue_percent_basis_points"`
+	// WorkerQueueHighSamples counts above-threshold cuts by worker and queue kind.
+	WorkerQueueHighSamples [coordinatorWorkerCount][workerBoundedQueueCount]uint64 `json:"worker_queue_high_samples"`
+	// WorkerQueueSustainedEvents counts completed continuous-high windows by worker and queue kind.
+	WorkerQueueSustainedEvents [coordinatorWorkerCount][workerBoundedQueueCount]uint64 `json:"worker_queue_sustained_events"`
+	// WorkerQueueSustainedActive marks a currently completed window by worker and queue kind.
+	WorkerQueueSustainedActive [coordinatorWorkerCount][workerBoundedQueueCount]bool `json:"worker_queue_sustained_active"`
+	// WorkerQueuesComplete marks whether the latest cut contained every bounded queue.
+	WorkerQueuesComplete bool `json:"worker_queues_complete"`
+	// DataFilesystemBytes stores total bytes for service data disks 0..2 and load data disk 3.
+	DataFilesystemBytes [productionHostCount]uint64 `json:"data_filesystem_bytes"`
+	// DataFilesystemAvailableBytes stores free bytes using the same host order.
+	DataFilesystemAvailableBytes [productionHostCount]uint64 `json:"data_filesystem_available_bytes"`
+	// SystemFilesystemBytes stores total root-filesystem bytes in service/load host order.
+	SystemFilesystemBytes [productionHostCount]uint64 `json:"system_filesystem_bytes"`
+	// SystemFilesystemAvailableBytes stores free root-filesystem bytes in the same order.
+	SystemFilesystemAvailableBytes [productionHostCount]uint64 `json:"system_filesystem_available_bytes"`
+	// PrometheusBytes is the observed load-host retention-directory size.
+	PrometheusBytes uint64 `json:"prometheus_bytes"`
+	// NetworkTransmitBytes is the load host's monotonic non-loopback transmit total.
+	NetworkTransmitBytes uint64 `json:"network_transmit_bytes"`
+	// ProcessUp indexes service/load host then the closed production systemd unit order.
+	ProcessUp [productionHostCount][productionProcessCount]bool `json:"process_up"`
+	// ProcessCPUJiffies persists cumulative CPU evidence without process identifiers.
+	ProcessCPUJiffies [productionHostCount][productionProcessCount]uint64 `json:"process_cpu_jiffies"`
+	// ProcessResidentMemoryBytes persists current RSS using the same fixed indexes.
+	ProcessResidentMemoryBytes [productionHostCount][productionProcessCount]uint64 `json:"process_resident_memory_bytes"`
+	// ProcessesComplete proves every closed unit had an up/down row and every active unit had CPU/RSS.
+	ProcessesComplete bool `json:"processes_complete"`
+	// AccruedCostMicros is conservative scenario spend in millionths of CNY.
+	AccruedCostMicros int64 `json:"accrued_cost_micros"`
+	// LeaseRemainingSeconds is signed time until provider cleanup expiry.
+	LeaseRemainingSeconds int64 `json:"lease_remaining_seconds"`
+	// Complete marks whether the latest four-host resource round was complete.
+	Complete bool `json:"complete"`
+}
+
 // ReportResourceEvidence preserves exactly three per-node projections and bounded retention counts.
 type ReportResourceEvidence struct {
 	Nodes     [coordinatorWorkerCount]ReportResourceNodeEvidence `json:"nodes"`
 	Retention ReportWindowRetention                              `json:"retention"`
+	Capacity  ReportCapacityResourceEvidence                     `json:"capacity"`
 }
 
 // ReportClusterEvidence is low-cardinality health, Slot, replica, and placement evidence.
@@ -201,14 +281,17 @@ type Report struct {
 	DesignProfile    string `json:"design_profile"`
 	ConfigDigest     string `json:"config_digest"`
 	// DatasetDigest is the immutable target-issued identity used by later aged-data admission.
-	DatasetDigest          string                          `json:"dataset_digest"`
-	Thresholds             ThresholdsConfig                `json:"thresholds"`
-	Profile                Profile                         `json:"profile"`
-	Mode                   Mode                            `json:"mode"`
-	Stage                  Stage                           `json:"stage"`
-	Kind                   CheckpointKind                  `json:"kind"`
-	Final                  bool                            `json:"final"`
-	Continue               bool                            `json:"continue"`
+	DatasetDigest string           `json:"dataset_digest"`
+	Thresholds    ThresholdsConfig `json:"thresholds"`
+	Profile       Profile          `json:"profile"`
+	Mode          Mode             `json:"mode"`
+	Stage         Stage            `json:"stage"`
+	Kind          CheckpointKind   `json:"kind"`
+	Final         bool             `json:"final"`
+	Continue      bool             `json:"continue"`
+	// Continuous marks an in-process formal-chain boundary whose worker fence
+	// remains live. It is not authorization to resume from this report.
+	Continuous             bool                            `json:"continuous"`
 	Fence                  ReportFence                     `json:"fence"`
 	Window                 ReportTimeWindow                `json:"window"`
 	MinimumWorkerUptime    time.Duration                   `json:"minimum_worker_uptime"`
@@ -328,17 +411,26 @@ func validateReport(report Report) error {
 		report.Topology.SlotReplicas <= 0 || report.Topology.ChannelReplicas <= 0 ||
 		len(report.Workers) != coordinatorWorkerCount || len(report.Warnings) > maxReportWarnings ||
 		len(report.Samples) > maxReportSamples || !validReportVerdict(report) || !validReportCapacity(report.Capacity) ||
+		!validReportCapacityResources(report.Resources.Capacity) ||
 		!validMetaCreateAccountingSnapshot(report.MetaCreate) || !validMetaCreateVerdict(report.MetaCreate, report.Verdict) ||
 		!validCoordinatorHistogram(report.Latency.SendACK) || !validCoordinatorHistogram(report.Latency.ReceiveACK) ||
 		!validCoordinatorHistogram(report.Latency.FullSync) || !validCoordinatorHistogram(report.Lifecycle.ReheatLatency) {
+		return ErrReportInvalid
+	}
+	if report.Continuous && (report.Profile != ProfileFormal || report.Stage != StageFormal) {
 		return ErrReportInvalid
 	}
 	if !validReportSyncClassification(report.Harness.Classification) || !validReportSyncClassification(report.EvidenceClassification) {
 		return ErrReportInvalid
 	}
 	for index, worker := range report.Workers {
+		expectedFinalPhase := WorkerPhaseFinal
+		if report.Continuous && report.Mode == ModeSoak && report.Final && report.Verdict.Outcome == VerdictPass {
+			expectedFinalPhase = WorkerPhaseRunning
+		}
 		if worker.WorkerIndex != uint64(index) || worker.Generation != report.Fence.Generation ||
-			worker.SnapshotSequence == 0 || (worker.Phase != WorkerPhaseRunning && worker.Phase != WorkerPhaseFinal) {
+			worker.SnapshotSequence == 0 || (worker.Phase != WorkerPhaseRunning && worker.Phase != WorkerPhaseFinal) ||
+			report.Final && report.Verdict.Terminal && validSuccessfulVerdictPair(report.Verdict.Outcome, report.Verdict.Cause) && worker.Phase != expectedFinalPhase {
 			return ErrReportInvalid
 		}
 	}
@@ -513,6 +605,57 @@ func validReportCapacity(capacity ReportCapacityEvidence) bool {
 	return capacity.FirstFailingRate > 0 && capacity.Attribution != CapacityAttributionNone
 }
 
+func validReportCapacityResources(resources ReportCapacityResourceEvidence) bool {
+	if resources.AccruedCostMicros < 0 {
+		return false
+	}
+	if resources.WorkerQueuesComplete && resources.WorkerQueueSamples == 0 {
+		return false
+	}
+	if resources.Complete && !resources.ProcessesComplete {
+		return false
+	}
+	if resources.Samples == 0 {
+		return !resources.Complete && (resources.MissingSamples == 0 && resources.SustainedWindow == 0 ||
+			resources.MissingSamples > 0 && resources.SustainedWindow > 0)
+	}
+	if resources.SustainedWindow <= 0 {
+		return false
+	}
+	for index := range resources.HostCPUPercentBasisPoints {
+		if resources.HostCPUPercentBasisPoints[index] > 10_000 || resources.HostMemoryPercentBasisPoints[index] > 10_000 ||
+			resources.DataFilesystemBytes[index] == 0 || resources.DataFilesystemAvailableBytes[index] > resources.DataFilesystemBytes[index] ||
+			resources.SystemFilesystemBytes[index] == 0 || resources.SystemFilesystemAvailableBytes[index] > resources.SystemFilesystemBytes[index] ||
+			resources.CPUSustainedActive[index] && resources.CPUSustainedEvents[index] == 0 ||
+			resources.MemorySustainedActive[index] && resources.MemorySustainedEvents[index] == 0 {
+			return false
+		}
+	}
+	for index, value := range resources.ServiceQueuePercentBasisPoints {
+		if value > 10_000 || resources.QueueSustainedActive[index] && resources.QueueSustainedEvents[index] == 0 {
+			return false
+		}
+	}
+	for worker := 0; worker < coordinatorWorkerCount; worker++ {
+		for queue := 0; queue < workerBoundedQueueCount; queue++ {
+			if resources.WorkerQueuePercentBasisPoints[worker][queue] > 10_000 ||
+				resources.WorkerQueueSustainedActive[worker][queue] && resources.WorkerQueueSustainedEvents[worker][queue] == 0 {
+				return false
+			}
+		}
+	}
+	for host := 0; host < productionHostCount; host++ {
+		for process := 0; process < productionProcessCount; process++ {
+			if resources.ProcessUp[host][process] && resources.ProcessResidentMemoryBytes[host][process] == 0 ||
+				!resources.ProcessUp[host][process] && (resources.ProcessCPUJiffies[host][process] != 0 ||
+					resources.ProcessResidentMemoryBytes[host][process] != 0) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func validReportLatencyAnomaly(anomaly ReportLatencyAnomaly) bool {
 	return !anomaly.At.IsZero() && anomaly.Count > 0 &&
 		(anomaly.Operation == LatencyHotSendACK || anomaly.Operation == LatencyColdSendACK || anomaly.Operation == LatencyFullSync)
@@ -545,6 +688,7 @@ func validVerdictCause(cause VerdictCause) bool {
 		VerdictCauseSequenceRegression, VerdictCauseTerminalSend, VerdictCauseActivationRejection,
 		VerdictCauseOverallFirstAttemptRate, VerdictCauseMinuteFirstAttemptRate, VerdictCauseCounterRegression,
 		VerdictCauseQueueSaturation, VerdictCauseObserverGap, VerdictCauseServerCrash, VerdictCauseDiskExhausted,
+		VerdictCauseBudgetExhausted, VerdictCauseLeaseExpiry,
 		VerdictCauseOperatorRequested, VerdictCauseHotLatency, VerdictCauseColdLatency, VerdictCauseSyncLatency,
 		VerdictCauseInvalidObservation, VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery:
 		return true

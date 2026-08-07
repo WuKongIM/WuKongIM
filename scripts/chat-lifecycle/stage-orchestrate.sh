@@ -183,13 +183,9 @@ bundle_artifact="cloud-deployment-bundle-${bundle_digest#sha256:}"
 
 committed_micros=0
 if [[ "$chat_stage" == formal ]]; then
-  committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" --arg bundle "$bundle_digest" '
-    .schema == "wukongim.chat_lifecycle.formal_transition/v1" and
-    .from_stage == "rehearsal" and .outcome == "rehearsal_pass" and .zero_inventory == true and
-    .request_id == $request and .source_sha == $source and .bundle_digest == $bundle and
-    (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000 |
-    .committed_micros
-  ' "$WK_CHAT_TRANSITION")"
+  committed_micros="$(jq -er --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+    --arg bundle "$bundle_digest" -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
+    "$WK_CHAT_TRANSITION")"
 fi
 excluded_zone=''
 excluded_compute_type=''
@@ -199,10 +195,13 @@ complete_failed_attempt() {
   local retry_allowed="$2"
   excluded_zone="$(jq -er .quote.zone "$quote_file")"
   excluded_compute_type="$(jq -er .quote.selection.instance_type "$quote_file")"
-  local quote_cost
-  quote_cost="$(jq -er .quote.estimated_cost_micros "$quote_file")"
-  committed_micros=$(( committed_micros + quote_cost ))
   release_current
+  local attempt_dir created_at ended_at actual_cost
+  attempt_dir="$(dirname "$quote_file")"
+  created_at="$(jq -er '.receipt.created_at // empty' "$attempt_dir/receipt.json" 2>/dev/null || jq -er .quote.quoted_at "$quote_file")"
+  ended_at="$(jq -er .result.zero_inventory.observed_at "$WK_CHAT_OUTPUT_DIR/zero-inventory.json")"
+  actual_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$attempt_dir/run-plan.json" "$quote_file" "$created_at" "$ended_at" -1)"
+  committed_micros=$(( committed_micros + actual_cost ))
   if [[ "$retry_allowed" != true ]]; then
     echo 'acquisition failure is terminal after zero-inventory cleanup' >&2
     exit 1

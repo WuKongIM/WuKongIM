@@ -182,14 +182,20 @@ jobs:
               {resource:"cluster.node",actions:["r"]},{resource:"cluster.slot",actions:["r"]},
               {resource:"cluster.controller",actions:["r"]},{resource:"cluster.diagnostics",actions:["r","w"]},
               {resource:"cluster.log",actions:["r"]}]}]')"
+          expires_at="$(jq -er .expires_at deployment-plan.json)"
+          created_at="$(jq -er .lease_created_at deployment-plan.json)"
+          budget_limit="$(jq -er .budget.limit_micros deployment-plan.json)"
+          budget_stop="$(jq -er .budget.operational_stop_micros deployment-plan.json)"
+          budget_committed="$(jq -er .budget.committed_micros deployment-plan.json)"
+          budget_estimated="$(jq -er .budget.estimated_cost_micros deployment-plan.json)"
+          budget_line_items="$(jq -er '.budget.line_items | @base64' deployment-plan.json)"
           install -d -m 0700 runtime-node runtime-load
           printf "WK_MANAGER_JWT_SECRET=%s\nWK_MANAGER_USERS='%s'\nWK_BENCH_API_TOKEN=%s\n" "$manager_jwt" "$users" "$bench_token" >runtime-node/node.env
-          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_DEMO_BASIC_AUTH_USER=%s\nWK_DEMO_BASIC_AUTH_HASH='%s'\n" \
-            "$worker_token" "$bench_token" "$demo_user" "$demo_hash" >runtime-load/load.env
+          printf "WK_BENCH_WORKER_TOKEN=%s\nWK_BENCH_API_TOKEN=%s\nWK_DEMO_BASIC_AUTH_USER=%s\nWK_DEMO_BASIC_AUTH_HASH='%s'\nWK_CHAT_LEASE_CREATED_AT=%s\nWK_CHAT_LEASE_EXPIRES_AT=%s\nWK_CHAT_BUDGET_LIMIT_MICROS=%s\nWK_CHAT_BUDGET_OPERATIONAL_STOP_MICROS=%s\nWK_CHAT_BUDGET_COMMITTED_MICROS=%s\nWK_CHAT_BUDGET_ESTIMATED_MICROS=%s\nWK_CHAT_BUDGET_LINE_ITEMS_BASE64=%s\n" \
+            "$worker_token" "$bench_token" "$demo_user" "$demo_hash" "$created_at" "$expires_at" "$budget_limit" "$budget_stop" "$budget_committed" "$budget_estimated" "$budget_line_items" >runtime-load/load.env
           openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 5 -subj "/CN=${LOAD_PUBLIC}" \
             -addext "subjectAltName=IP:${LOAD_PUBLIC},IP:127.0.0.1" \
             -keyout runtime-load/analysis-key.pem -out runtime-load/analysis-cert.pem
-          expires_at="$(jq -er .expires_at deployment-plan.json)"
           source_sha="$(jq -er .source_sha deployment-plan.json)"
           lease_id="$(jq -er .lease_id deployment-plan.json)"
           provider="$(jq -er .provider deployment-plan.json)"

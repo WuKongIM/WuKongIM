@@ -331,6 +331,8 @@ type Receipt struct {
 	ExpiresAt time.Time `json:"expires_at"`
 	// Quote is the admitted provider decision used to acquire this Lease.
 	Quote Quote `json:"quote"`
+	// Budget is the exact normalized authorization used to admit Quote.
+	Budget Budget `json:"budget"`
 	// Tags contain the mandatory Lease identity and reviewed consumer tags.
 	Tags map[string]string `json:"tags"`
 	// Resources is the complete current provider inventory for this Lease.

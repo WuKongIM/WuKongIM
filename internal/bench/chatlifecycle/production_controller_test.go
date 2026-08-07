@@ -71,6 +71,84 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}
 }
 
+func TestProductionEvidenceControllerContinuesFormalBoundaryWithoutRestartingEvidenceSources(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.RunID = "production-controller-continuous-formal"
+	start := time.Unix(1_960_006_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-continuous", Generation: 1}
+	formalOutput := t.TempDir()
+	capacityOutput := t.TempDir()
+	observation := newProductionControllerObservation(cfg, start)
+	lifecycle := &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})}
+	accounting := NewMetaCreateAccounting()
+	dataset := &productionControllerDataset{digest: hashReportValue("production-controller-continuous-dataset")}
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: formalOutput, Observation: observation,
+		Lifecycle: lifecycle, Meta: &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset: dataset, SlotAssignment: mustInitialLifecycleSlotAssignment(t), Continuous: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	// This unit focuses on the boundary/finalization transaction. Qualification
+	// sequencing and the 72-hour reducer are covered independently.
+	controller.mu.Lock()
+	controller.recorder.qualificationCaptured = true
+	controller.frozen = VerdictSnapshot{Outcome: VerdictPass, Cause: VerdictCauseCompleted, Terminal: true}
+	controller.lastObservation = observation.Snapshot()
+	controller.lastObservationID = controller.lastObservation.Sequence
+	controller.mu.Unlock()
+	running := productionControllerWorkerSnapshots(cfg, fence, 1, 72*time.Hour, WorkerPhaseRunning)
+	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
+		Start: startCut, At: start.Add(72 * time.Hour), Decision: CoordinatorCompleted,
+		Prepare: running, FinalSnapshots: running, Continuous: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-lifecycle.done:
+		t.Fatal("continuous formal boundary stopped the lifecycle proof loop")
+	default:
+	}
+	formalPath := filepath.Join(formalOutput, "final.json")
+	report, err := ReadReport(formalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Continuous || report.Fence.Generation != 1 || report.Verdict.Outcome != VerdictPass {
+		t.Fatalf("continuous formal report = %+v", report)
+	}
+	for _, worker := range report.Workers {
+		if worker.Phase != WorkerPhaseRunning || worker.Generation != 1 {
+			t.Fatalf("continuous formal worker = %+v", worker)
+		}
+	}
+	capacity, err := PrepareCapacityConfig(cfg, report, formalPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.ContinueCapacity(capacity, capacityOutput); err != nil {
+		t.Fatal(err)
+	}
+	capacityStart := CoordinatorRunStart{Config: capacity, Fence: fence, StartedAt: start.Add(72*time.Hour + time.Second)}
+	if err := controller.Begin(context.Background(), capacityStart); err != nil {
+		t.Fatal(err)
+	}
+	if observation.begin != start {
+		t.Fatalf("capacity reset observation start to %v, want %v", observation.begin, start)
+	}
+	select {
+	case <-lifecycle.done:
+		t.Fatal("capacity Begin restarted or stopped the lifecycle proof loop")
+	default:
+	}
+}
+
 func TestProductionEvidenceControllerFreezesRehearsalPassWithoutFormalLongWindows(t *testing.T) {
 	cfg := RehearsalConfig()
 	cfg.RunID = "production-controller-rehearsal"

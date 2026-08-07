@@ -214,7 +214,7 @@ jobs:
             echo 'ready=false' >>"$GITHUB_OUTPUT"
             exit 0
           fi
-          for name in handoff.json run-plan.json quote.json rehearsal-result.json finalization.json; do
+          for name in handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json; do
             test -f "$final_dir/$name"
           done
           for name in cleanup.json zero-inventory.json; do
@@ -227,8 +227,11 @@ jobs:
           source_sha="$(jq -er .source_sha "$final_dir/handoff.json")"
           bundle_digest="$(jq -er .bundle_digest "$final_dir/handoff.json")"
           prior="$(jq -er .lease_plan.budget.committed_micros "$final_dir/run-plan.json")"
-          rehearsal_quote="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
-          committed_micros=$(( prior + rehearsal_quote ))
+          created_at="$(jq -er .receipt.created_at "$final_dir/receipt.json")"
+          ended_at="$(jq -er .result.zero_inventory.observed_at "$WK_CHAT_CLEANUP_DIR/zero-inventory.json")"
+          network_bytes="$(jq -er .resources.capacity.network_transmit_bytes "$final_dir/final.json")"
+          rehearsal_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$final_dir/run-plan.json" "$final_dir/quote.json" "$created_at" "$ended_at" "$network_bytes")"
+          committed_micros=$(( prior + rehearsal_cost ))
           (( committed_micros > 0 && committed_micros < 1350000000 ))
           install -d -m 0700 "$WK_CHAT_TRANSITION_DIR"
           jq -n --arg schema 'wukongim.chat_lifecycle.formal_transition/v1' \
@@ -239,7 +242,8 @@ jobs:
               source_sha:$source_sha,bundle_digest:$bundle_digest,committed_micros:$committed_micros,
               zero_inventory:true}' >"$WK_CHAT_TRANSITION_DIR/transition.json"
           cp "$final_dir/handoff.json" "$final_dir/run-plan.json" "$final_dir/quote.json" \
-            "$final_dir/rehearsal-result.json" "$final_dir/finalization.json" "$WK_CHAT_TRANSITION_DIR/"
+            "$final_dir/receipt.json" "$final_dir/final.json" "$final_dir/rehearsal-result.json" \
+            "$final_dir/finalization.json" "$WK_CHAT_TRANSITION_DIR/"
           cp "$WK_CHAT_HANDOFF_DIR/release-selector.json" "$WK_CHAT_TRANSITION_DIR/"
           cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" \
             "$WK_CHAT_TRANSITION_DIR/"

@@ -18,6 +18,9 @@ func TestFormalObservationTopology(t *testing.T) {
 			t.Fatalf("host metrics[%d] disk selector = %+v, want explicit mountpoint/device", index, endpoint)
 		}
 	}
+	if observation.LoadHostMetrics.Mountpoint == "" || observation.LoadHostMetrics.Device == "" {
+		t.Fatalf("load host metrics disk selector = %+v, want explicit mountpoint/device", observation.LoadHostMetrics)
+	}
 }
 
 func TestDiskSelectorsAreRequiredOnlyForHostMetrics(t *testing.T) {

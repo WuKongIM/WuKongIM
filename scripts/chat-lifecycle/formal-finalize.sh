@@ -56,8 +56,8 @@ formal_ready=false
 remote_nonempty "$remote_root/formal/final.json" && formal_ready=true || true
 
 if [[ "$state" == active && "$(date -u +%s)" -lt "$safety_epoch" ]]; then
-  # The wrapper owns Soak, capacity, and recovery. Even complete report files
-  # are not a handoff boundary until that one wrapper has exited.
+  # One formal-chain process owns Soak, capacity, and recovery. Even complete
+  # report files are not a handoff boundary until that process has exited.
   printf '%s\n' not_ready
   exit 0
 fi
@@ -82,13 +82,25 @@ for extension in json md; do
 done
 
 validated=false
-if [[ -s "$WK_CHAT_FINAL_DIR/formal/final.json" ]]; then
+pair_nonempty() {
+  [[ -s "$1" && -s "$2" ]]
+}
+if pair_nonempty "$WK_CHAT_FINAL_DIR/formal/final.json" "$WK_CHAT_FINAL_DIR/formal/final.md"; then
   formal_outcome="$(jq -er '.verdict.outcome' "$WK_CHAT_FINAL_DIR/formal/final.json" 2>/dev/null || true)"
   capacity_args=()
+  artifact_pairs_complete=true
   if [[ "$formal_outcome" == pass ]]; then
-    capacity_args=(--capacity-report "$WK_CHAT_FINAL_DIR/capacity/final.json")
+    if pair_nonempty "$WK_CHAT_FINAL_DIR/formal/qualification.json" "$WK_CHAT_FINAL_DIR/formal/qualification.md" &&
+      pair_nonempty "$WK_CHAT_FINAL_DIR/capacity/final.json" "$WK_CHAT_FINAL_DIR/capacity/final.md"; then
+      capacity_args=(--capacity-report "$WK_CHAT_FINAL_DIR/capacity/final.json")
+    else
+      artifact_pairs_complete=false
+    fi
+  elif [[ -e "$WK_CHAT_FINAL_DIR/formal/qualification.json" || -e "$WK_CHAT_FINAL_DIR/formal/qualification.md" ]] &&
+    ! pair_nonempty "$WK_CHAT_FINAL_DIR/formal/qualification.json" "$WK_CHAT_FINAL_DIR/formal/qualification.md"; then
+    artifact_pairs_complete=false
   fi
-  if "$WK_CHAT_TOOL" validate-formal-chain \
+  if [[ "$artifact_pairs_complete" == true ]] && "$WK_CHAT_TOOL" validate-formal-chain \
     --formal-report "$WK_CHAT_FINAL_DIR/formal/final.json" "${capacity_args[@]}" \
     >"$WK_CHAT_FINAL_DIR/formal-result.json" 2>/dev/null; then
     validated=true

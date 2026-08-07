@@ -1,6 +1,7 @@
 package chatlifecycle
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -94,6 +95,9 @@ type CoordinatorResult struct {
 	Grant     CoordinatorGrant
 	Snapshot  CoordinatorSnapshot
 	Capacity  CapacitySnapshot
+	// Continuation is an in-memory, process-local handoff available only after
+	// a passing formal Soak boundary. It is never report or restart state.
+	Continuation *CoordinatorContinuation
 }
 
 // CoordinatorPreflight is the existing traffic admission boundary.
@@ -195,6 +199,10 @@ type CoordinatorFinalCut struct {
 	Prepare        []WorkerSnapshot
 	FinalSnapshots []WorkerSnapshot
 	Capacity       CapacitySnapshot
+	// Continuous marks the hour-72 formal boundary. Workers remain running on
+	// the same fence, and the owning formal-chain process must immediately
+	// continue into capacity rather than treating this cut as resumable state.
+	Continuous bool
 }
 
 // CoordinatorRunHooks owns evidence reduction and atomic report persistence;
@@ -205,10 +213,78 @@ type CoordinatorRunHooks interface {
 	Finalize(context.Context, CoordinatorFinalCut) error
 }
 
+// CoordinatorCapacityPeriodicHooks opts a run hook into the same bounded
+// periodic evidence cuts while the capacity staircase is active. Generic run
+// hooks do not receive these extra cuts unless they implement this interface.
+type CoordinatorCapacityPeriodicHooks interface {
+	ObserveCapacityPeriodic(context.Context, CoordinatorEvidenceCut) (CoordinatorOutcome, error)
+}
+
 // CoordinatorClock owns readiness, grant, status, and final-cutoff time.
 type CoordinatorClock interface {
 	Now() time.Time
 	NewTicker(time.Duration) ObserverTicker
+}
+
+// CoordinatorContinuation is the in-memory handoff from a passing formal
+// Soak boundary to capacity. It carries the exact live assignment fence and
+// grant sequence; it is never serialized and cannot be reconstructed from a
+// report after process exit.
+type CoordinatorContinuation struct {
+	Assignments   []CoordinatorAssignment
+	GrantSequence uint64
+	owner         *coordinatorObservationOwner
+}
+
+type coordinatorObservationOwner struct {
+	mu          sync.Mutex
+	observation <-chan ObserverResult
+	cancel      context.CancelFunc
+	claimed     bool
+}
+
+func newCoordinatorObservationOwner(
+	observation <-chan ObserverResult,
+	cancel context.CancelFunc,
+) *coordinatorObservationOwner {
+	return &coordinatorObservationOwner{observation: observation, cancel: cancel}
+}
+
+func (o *coordinatorObservationOwner) claim() (<-chan ObserverResult, context.CancelFunc, bool) {
+	if o == nil {
+		return nil, nil, false
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.claimed || o.observation == nil || o.cancel == nil {
+		return nil, nil, false
+	}
+	o.claimed = true
+	return o.observation, o.cancel, true
+}
+
+func (o *coordinatorObservationOwner) cancelUnclaimedAndJoin() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	if o.claimed || o.observation == nil || o.cancel == nil {
+		o.mu.Unlock()
+		return
+	}
+	o.claimed = true
+	observation, cancel := o.observation, o.cancel
+	o.mu.Unlock()
+	cancel()
+	<-observation
+}
+
+// CancelObservation releases and joins a formal-chain observation session
+// only when no capacity coordinator has already claimed its single ownership.
+func (c *CoordinatorContinuation) CancelObservation() {
+	if c != nil {
+		c.owner.cancelUnclaimedAndJoin()
+	}
 }
 
 // CoordinatorOptions fixes the only generation this coordinator may run.
@@ -225,25 +301,34 @@ type CoordinatorOptions struct {
 	CapacityEvidence  CoordinatorCapacityEvidence
 	CapacityDataset   CoordinatorCapacityDatasetProbe
 	Hooks             CoordinatorRunHooks
+	// KeepWorkersRunningOnSuccess is valid only for a passing formal Soak owned
+	// by the in-process formal chain. Every failure and operator stop still
+	// performs the normal bounded worker stop round.
+	KeepWorkersRunningOnSuccess bool
+	// Continuation adopts the still-running formal workers for capacity without
+	// setup, assignment, start, generation change, or grant-sequence reset.
+	Continuation *CoordinatorContinuation
 	// StopRequests asks for one coordinated terminal cut and bounded drain without canceling Run.
 	StopRequests <-chan struct{}
 }
 
 // Coordinator owns one non-resumable assignment generation.
 type Coordinator struct {
-	generation        uint64
-	preflight         CoordinatorPreflight
-	setup             CoordinatorGroupSetup
-	workers           []CoordinatorWorker
-	observer          CoordinatorObserver
-	clock             CoordinatorClock
-	cleanupTimeout    time.Duration
-	roundTimeout      time.Duration
-	capacityAdmission *CapacityAdmission
-	capacityEvidence  CoordinatorCapacityEvidence
-	capacityDataset   CoordinatorCapacityDatasetProbe
-	hooks             CoordinatorRunHooks
-	stopRequests      <-chan struct{}
+	generation                  uint64
+	preflight                   CoordinatorPreflight
+	setup                       CoordinatorGroupSetup
+	workers                     []CoordinatorWorker
+	observer                    CoordinatorObserver
+	clock                       CoordinatorClock
+	cleanupTimeout              time.Duration
+	roundTimeout                time.Duration
+	capacityAdmission           *CapacityAdmission
+	capacityEvidence            CoordinatorCapacityEvidence
+	capacityDataset             CoordinatorCapacityDatasetProbe
+	hooks                       CoordinatorRunHooks
+	keepWorkersRunningOnSuccess bool
+	continuation                *CoordinatorContinuation
+	stopRequests                <-chan struct{}
 
 	mu   sync.Mutex
 	used bool
@@ -285,12 +370,23 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 		}
 		capacityAdmission = &cloned
 	}
+	var continuation *CoordinatorContinuation
+	if options.Continuation != nil {
+		cloned := &CoordinatorContinuation{
+			GrantSequence: options.Continuation.GrantSequence,
+			owner:         options.Continuation.owner,
+		}
+		cloned.Assignments = append([]CoordinatorAssignment(nil), options.Continuation.Assignments...)
+		continuation = cloned
+	}
 	return &Coordinator{
 		generation: options.Generation, preflight: options.Preflight, setup: options.Setup,
 		workers: workers, observer: options.Observer, clock: options.Clock,
 		cleanupTimeout: options.CleanupTimeout, roundTimeout: options.RoundTimeout,
 		capacityAdmission: capacityAdmission, capacityEvidence: options.CapacityEvidence,
-		capacityDataset: options.CapacityDataset, hooks: options.Hooks, stopRequests: options.StopRequests,
+		capacityDataset: options.CapacityDataset, hooks: options.Hooks,
+		keepWorkersRunningOnSuccess: options.KeepWorkersRunningOnSuccess,
+		continuation:                continuation, stopRequests: options.StopRequests,
 	}, nil
 }
 
@@ -307,6 +403,35 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	}
 	c.used = true
 	c.mu.Unlock()
+	var observationContext context.Context
+	var cancelObservation context.CancelFunc
+	var observationChannel <-chan ObserverResult
+	observationJoined := false
+	observationTransferred := false
+	if c.continuation != nil {
+		var claimed bool
+		observationChannel, cancelObservation, claimed = c.continuation.owner.claim()
+		if !claimed {
+			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
+		}
+		observationContext = ctx
+	}
+	defer func() {
+		if observationChannel == nil || observationTransferred {
+			return
+		}
+		cancelObservation()
+		if !observationJoined {
+			<-observationChannel
+		}
+	}()
+	if c.keepWorkersRunningOnSuccess &&
+		(cfg.Profile != ProfileFormal || cfg.Mode != ModeSoak || cfg.Stage != StageFormal) {
+		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
+	}
+	if c.continuation != nil && (cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Stage != StageFormal) {
+		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
+	}
 	if cfg.Mode == ModeCapacity && (c.capacityAdmission == nil || c.capacityEvidence == nil || c.capacityDataset == nil) {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
 	}
@@ -349,10 +474,16 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
 		}
 	}
-	if err := c.setup.Run(ctx, cfg); err != nil {
-		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeSetup}
+	var assignments []CoordinatorAssignment
+	var err error
+	if c.continuation == nil {
+		if err := c.setup.Run(ctx, cfg); err != nil {
+			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeSetup}
+		}
+		assignments, err = BuildCoordinatorAssignments(cfg, c.generation)
+	} else {
+		assignments, err = validateCoordinatorContinuation(cfg, c.generation, *c.capacityAdmission, *c.continuation)
 	}
-	assignments, err := BuildCoordinatorAssignments(cfg, c.generation)
 	if err != nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeAssignment}
 	}
@@ -360,27 +491,38 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	if err != nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeAssignment}
 	}
+	if c.continuation != nil {
+		grantPlan.sequence = c.continuation.GrantSequence
+	}
 	fence := assignments[0].WorkerFence
 	result := CoordinatorResult{Fence: fence}
 	attempted := [coordinatorWorkerCount]bool{true, true, true}
 	assigned := [coordinatorWorkerCount]bool{}
-	if _, disposition := c.assignRound(ctx, assignments); disposition != coordinatorRoundSucceeded {
-		c.stopAfterFailure(fence, attempted)
-		if disposition == coordinatorRoundParentCanceled {
+	var startStatuses [coordinatorWorkerCount]WorkerStatus
+	var disposition coordinatorRoundDisposition
+	if c.continuation == nil {
+		if _, disposition = c.assignRound(ctx, assignments); disposition != coordinatorRoundSucceeded {
+			c.stopAfterFailure(fence, attempted)
+			if disposition == coordinatorRoundParentCanceled {
+				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+				return result
+			}
+			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
+			return result
+		}
+		if ctx.Err() != nil {
+			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
-		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
-		return result
+		assigned = [coordinatorWorkerCount]bool{true, true, true}
+		startStatuses, disposition = c.startRound(ctx, assignments, fence)
+	} else {
+		assigned = [coordinatorWorkerCount]bool{true, true, true}
+		startStatuses, disposition = c.statusRound(ctx, assignments)
 	}
-	if ctx.Err() != nil {
-		c.stopAfterFailure(fence, attempted)
-		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
-		return result
-	}
-	assigned = [coordinatorWorkerCount]bool{true, true, true}
-	startStatuses, disposition := c.startRound(ctx, assignments, fence)
-	if disposition != coordinatorRoundSucceeded {
+	if disposition != coordinatorRoundSucceeded ||
+		(c.continuation != nil && !allCoordinatorTrafficReady(startStatuses)) {
 		c.stopAfterFailure(fence, attempted)
 		if disposition == coordinatorRoundParentCanceled {
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
@@ -395,14 +537,16 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		return result
 	}
 
-	observationContext, cancelObservation := context.WithCancel(ctx)
-	observationChannel := make(chan ObserverResult, 1)
-	go func() {
-		observationChannel <- c.observer.Run(observationContext, cfg)
-		cancelObservation()
-	}()
+	if c.continuation == nil {
+		observationContext, cancelObservation = context.WithCancel(ctx)
+		started := make(chan ObserverResult, 1)
+		observationChannel = started
+		go func() {
+			started <- c.observer.Run(observationContext, cfg)
+			cancelObservation()
+		}()
+	}
 	var observation ObserverResult
-	observationJoined := false
 	joinObservation := func() ObserverResult {
 		if !observationJoined {
 			cancelObservation()
@@ -418,6 +562,14 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		default:
 			observation = joinObservation()
 		}
+	}
+	preserveObservation := false
+	finishObservationForCutoff := func() {
+		if c.keepWorkersRunningOnSuccess {
+			preserveObservation = true
+			return
+		}
+		observation = joinObservation()
 	}
 	completeParentCancellation := func() CoordinatorResult {
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeStopped, coordinatorRoundParentCanceled)
@@ -590,14 +742,19 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	var hookResults <-chan coordinatorHookRoundResult
 	var hookPrepareSnapshots []WorkerSnapshot
 	var hookTerminalDecision CoordinatorOutcome
-	observeHookCut := func(kind CoordinatorCutKind, at time.Time) (CoordinatorOutcome, []WorkerSnapshot, coordinatorRoundDisposition) {
+	observeHookCut := func(
+		kind CoordinatorCutKind,
+		at time.Time,
+		capacity CapacitySnapshot,
+		observe func(context.Context, CoordinatorEvidenceCut) (CoordinatorOutcome, error),
+	) (CoordinatorOutcome, []WorkerSnapshot, coordinatorRoundDisposition) {
 		snapshots, disposition := c.checkpointRound(observationContext, assignments, fence)
 		if disposition != coordinatorRoundSucceeded {
 			return "", nil, disposition
 		}
 		hookContext, cancelHook := context.WithTimeoutCause(observationContext, c.roundTimeout, errCoordinatorRoundDeadline)
-		decision, hookErr := c.hooks.Observe(hookContext, CoordinatorEvidenceCut{
-			Start: runStart, Kind: kind, At: at, Snapshots: snapshots, Capacity: result.Capacity,
+		decision, hookErr := observe(hookContext, CoordinatorEvidenceCut{
+			Start: runStart, Kind: kind, At: at, Snapshots: snapshots, Capacity: capacity,
 		})
 		cause := context.Cause(hookContext)
 		cancelHook()
@@ -625,10 +782,29 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 		results := make(chan coordinatorHookRoundResult, 1)
 		hookResults = results
+		capacity := cloneCapacitySnapshot(result.Capacity)
 		go func() {
-			decision, snapshots, disposition := observeHookCut(kind, at)
+			decision, snapshots, disposition := observeHookCut(kind, at, capacity, c.hooks.Observe)
 			results <- coordinatorHookRoundResult{
 				kind: kind, decision: decision, snapshots: snapshots, disposition: disposition,
+			}
+		}()
+		return true
+	}
+	startCapacityPeriodicHookCut := func(at time.Time) bool {
+		hooks, ok := c.hooks.(CoordinatorCapacityPeriodicHooks)
+		if !ok || hookResults != nil {
+			return false
+		}
+		results := make(chan coordinatorHookRoundResult, 1)
+		hookResults = results
+		capacity := cloneCapacitySnapshot(result.Capacity)
+		go func() {
+			decision, snapshots, disposition := observeHookCut(
+				CoordinatorCutPeriodic, at, capacity, hooks.ObserveCapacityPeriodic,
+			)
+			results <- coordinatorHookRoundResult{
+				kind: CoordinatorCutPeriodic, decision: decision, snapshots: snapshots, disposition: disposition,
 			}
 		}()
 		return true
@@ -812,6 +988,19 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				cancelObservation()
 				joinCapacityAsync()
 				goto observationComplete
+			case hook := <-hookResults:
+				hookResults = nil
+				if hook.disposition != coordinatorRoundSucceeded {
+					failureCode, failureDisposition = CoordinatorCodeCheckpoint, hook.disposition
+					goto observationFailure
+				}
+				if hook.decision != "" {
+					hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
+					observation = joinObservation()
+					cutoffOwned = true
+					joinCapacityAsync()
+					goto observationComplete
+				}
 			case evidence := <-evidenceResults:
 				evidenceResults = nil
 				if evidence.disposition == coordinatorRoundParentCanceled {
@@ -907,6 +1096,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					}
 					goto observationFailure
 				}
+				if _, ok := c.hooks.(CoordinatorCapacityPeriodicHooks); ok {
+					if hookResults == nil && !startCapacityPeriodicHookCut(now) {
+						failureCode, failureDisposition = CoordinatorCodeCheckpoint, coordinatorRoundStageFailed
+						goto observationFailure
+					}
+				}
 			case tickAt := <-grantTicker.C():
 				if ctx.Err() != nil {
 					result.Capacity = capacityStaircase.Snapshot()
@@ -951,7 +1146,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				}
 				if hook.decision != "" {
 					hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
-					observation = joinObservation()
+					finishObservationForCutoff()
 					cutoffOwned = true
 					goto observationComplete
 				}
@@ -976,7 +1171,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
-			observation = joinObservation()
+			finishObservationForCutoff()
 			cutoffOwned = true
 			goto observationComplete
 		}
@@ -1011,7 +1206,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			}
 			if hook.decision != "" {
 				hookPrepareSnapshots, hookTerminalDecision = hook.snapshots, hook.decision
-				observation = joinObservation()
+				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1045,7 +1240,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
-				observation = joinObservation()
+				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1086,7 +1281,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
-				observation = joinObservation()
+				finishObservationForCutoff()
 				cutoffOwned = true
 				goto observationComplete
 			}
@@ -1135,7 +1330,17 @@ observationComplete:
 		cancelObservation()
 		joinCapacityAsync()
 	}
-	if observation.Outcome != ObserverStopped {
+	preservedObservationEnded := false
+	if preserveObservation {
+		select {
+		case observation = <-observationChannel:
+			observationJoined = true
+			preserveObservation = false
+			preservedObservationEnded = true
+		default:
+		}
+	}
+	if preservedObservationEnded || !preserveObservation && observation.Outcome != ObserverStopped {
 		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeObserver
 		if observation.Outcome == ObserverProductFailure {
@@ -1205,9 +1410,33 @@ observationComplete:
 		}
 	}
 	prepareSnapshots := checkpoint
-	if _, err := aggregator.Aggregate(checkpoint); err != nil {
+	preparedAggregate, err := aggregator.Aggregate(checkpoint)
+	if err != nil {
 		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeCheckpoint
+		return result
+	}
+	if c.keepWorkersRunningOnSuccess && terminalDecision == CoordinatorCompleted {
+		if c.hooks != nil {
+			hookContext, cancelHook := context.WithTimeout(context.Background(), c.cleanupTimeout)
+			hookErr := c.hooks.Finalize(hookContext, CoordinatorFinalCut{
+				Start: runStart, At: c.clock.Now(), Decision: terminalDecision,
+				Prepare: prepareSnapshots, FinalSnapshots: checkpoint, Capacity: result.Capacity, Continuous: true,
+			})
+			cancelHook()
+			if hookErr != nil {
+				c.stopAfterFailure(fence, attempted)
+				result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeFinalize
+				return result
+			}
+		}
+		result.Continuation = &CoordinatorContinuation{
+			Assignments:   append([]CoordinatorAssignment(nil), assignments...),
+			GrantSequence: result.Grant.Sequence,
+			owner:         newCoordinatorObservationOwner(observationChannel, cancelObservation),
+		}
+		observationTransferred = true
+		result.Outcome, result.Code, result.Snapshot = CoordinatorCompleted, CoordinatorCodeCompleted, preparedAggregate
 		return result
 	}
 	final, err := c.stopAssignedSnapshots(fence, assigned)
@@ -2374,6 +2603,43 @@ func BuildCoordinatorAssignments(cfg Config, generation uint64) ([]CoordinatorAs
 		}
 	}
 	return assignments, nil
+}
+
+func validateCoordinatorContinuation(
+	capacity Config,
+	generation uint64,
+	admission CapacityAdmission,
+	continuation CoordinatorContinuation,
+) ([]CoordinatorAssignment, error) {
+	if continuation.GrantSequence == 0 || len(continuation.Assignments) != coordinatorWorkerCount {
+		return nil, ErrCoordinatorConfig
+	}
+	formal := continuation.Assignments[0].Config
+	prepared, err := PrepareCapacityConfig(formal, admission.Checkpoint, admission.Reference)
+	if err != nil {
+		return nil, ErrCoordinatorConfig
+	}
+	preparedBody, err := json.Marshal(prepared)
+	if err != nil {
+		return nil, ErrCoordinatorConfig
+	}
+	capacityBody, err := json.Marshal(capacity)
+	if err != nil || !bytes.Equal(preparedBody, capacityBody) {
+		return nil, ErrCoordinatorConfig
+	}
+	expected, err := BuildCoordinatorAssignments(formal, generation)
+	if err != nil {
+		return nil, ErrCoordinatorConfig
+	}
+	expectedBody, err := json.Marshal(expected)
+	if err != nil {
+		return nil, ErrCoordinatorConfig
+	}
+	actualBody, err := json.Marshal(continuation.Assignments)
+	if err != nil || !bytes.Equal(expectedBody, actualBody) {
+		return nil, ErrCoordinatorConfig
+	}
+	return append([]CoordinatorAssignment(nil), continuation.Assignments...), nil
 }
 
 func coordinatorAssignmentID(cfg Config, generation uint64) (string, error) {

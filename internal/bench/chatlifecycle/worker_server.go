@@ -1550,18 +1550,22 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			DuplicateCompletions: verification.DuplicateCompletions, ConflictingCompletions: verification.ConflictingCompletions,
 			UnknownAcknowledgments: verification.UnknownSendacks,
 		},
-		Queues: WorkerQueueSnapshot{
-			WorkCurrent: engine.QueueCurrent, WorkPeak: engine.QueuePeak, WorkCapacity: engine.QueueCapacity,
-			RetryCurrent: engine.RetryQueueDepth, RetryPeak: engine.RetryQueuePeak, RetryCapacity: engine.RetryQueueCapacity,
-			InflightCurrent: engine.InflightCurrent, InflightPeak: engine.InflightPeak, InflightCapacity: engine.InflightCapacity,
-			TransportCurrent: engine.TransportQueueDepth, TransportCapacity: engine.TransportQueueCapacity,
-		},
+		Queues: workerQueueSnapshot(engine),
 		Harness: WorkerHarnessSnapshot{
 			Classification: evidence.Classification, Failures: engine.HarnessInvalid,
 			CommandSaturation: engine.CommandSaturation, OfferedUnderdelivery: engine.ActivityUnderDelivered,
 		},
 		Evidence: evidence,
 	}, nil
+}
+
+func workerQueueSnapshot(engine EngineSnapshot) WorkerQueueSnapshot {
+	return WorkerQueueSnapshot{
+		WorkCurrent: engine.QueueCurrent, WorkPeak: engine.QueuePeak, WorkCapacity: engine.QueueCapacity,
+		RetryCurrent: engine.RetryQueueDepth, RetryPeak: engine.RetryQueuePeak, RetryCapacity: engine.RetryQueueCapacity,
+		InflightCurrent: engine.InflightCurrent, InflightPeak: engine.InflightPeak, InflightCapacity: engine.InflightCapacity,
+		TransportCurrent: engine.TransportQueueDepth, TransportCapacity: engine.TransportQueueCapacity,
+	}
 }
 
 func (g *engineWorkerGeneration) Done() <-chan error { return g.done }

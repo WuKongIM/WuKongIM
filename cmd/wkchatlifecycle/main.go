@@ -87,7 +87,7 @@ func addFormalChainReportCommand(root *cobra.Command) {
 func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlifecycle.Report) (formalChainResult, error) {
 	if formal.Profile != chatlifecycle.ProfileFormal || formal.Mode != chatlifecycle.ModeSoak ||
 		formal.Stage != chatlifecycle.StageFormal || formal.Kind != chatlifecycle.CheckpointFinal ||
-		!formal.Final || formal.Continue || !formal.Verdict.Terminal {
+		!formal.Final || formal.Continue || !formal.Continuous || !formal.Verdict.Terminal {
 		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
 	}
 	result := formalChainResult{
@@ -102,7 +102,15 @@ func formalChainResultFromReports(formal chatlifecycle.Report, capacity *chatlif
 	}
 	if capacity == nil || capacity.Profile != chatlifecycle.ProfileFormal || capacity.Mode != chatlifecycle.ModeCapacity ||
 		capacity.Stage != chatlifecycle.StageFormal || capacity.Kind != chatlifecycle.CheckpointFinal ||
-		!capacity.Final || capacity.Continue || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {
+		!capacity.Final || capacity.Continue || !capacity.Continuous || !capacity.Verdict.Terminal || !capacity.Capacity.Attempted {
+		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
+	}
+	// A terminal shape alone is not continuity evidence. Bind both reports to
+	// the exact live dataset, worker fence, threshold contract, and a strictly
+	// ordered time window so separately valid process lifetimes cannot be
+	// spliced into one formal verdict.
+	if capacity.DatasetDigest != formal.DatasetDigest || capacity.Fence != formal.Fence ||
+		capacity.Thresholds != formal.Thresholds || !capacity.Window.Start.After(formal.Window.End) {
 		return formalChainResult{}, chatlifecyclerun.ErrInvalidInput
 	}
 	result.Outcome, result.Cause, result.CapacityOutcome = capacity.Verdict.Outcome, capacity.Verdict.Cause, capacity.Verdict.Outcome

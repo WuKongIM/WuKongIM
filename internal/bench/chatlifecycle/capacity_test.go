@@ -116,6 +116,7 @@ func TestCapacityStaircaseCoarseRefineAndRecovery(t *testing.T) {
 	capacityFinishStabilization(t, staircase)
 	failed = passingCapacityObservation()
 	failed.QueueInflightAccepted = false
+	failed.ResourceSaturated = true
 	transition = capacityFinishMeasurement(t, staircase, failed)
 	if !transition.ScheduleRate || transition.RatePerSecond != 2_000 || transition.Phase != CapacityPhaseRatePending {
 		t.Fatalf("recovery transition = %+v", transition)
@@ -158,6 +159,7 @@ func TestCapacityBoundaryAttributionFreezesAfterSameDatasetRecovery(t *testing.T
 			name: "declared resource saturation",
 			mutate: func(observation *CapacityObservation) {
 				observation.ResourceAccepted = false
+				observation.ResourceSaturated = true
 			},
 			outcome: CapacityPassedWithWarning, cause: CapacityCauseInfrastructureCapacity,
 			attribution: CapacityAttributionInfrastructure,
@@ -793,6 +795,98 @@ func TestCoordinatorCapacityProductFailureFinalizesHookEvidence(t *testing.T) {
 	}
 }
 
+type terminatingCapacityPeriodicHooks struct {
+	*recordingCoordinatorRunHooks
+	periodic chan CoordinatorEvidenceCut
+}
+
+func newTerminatingCapacityPeriodicHooks() *terminatingCapacityPeriodicHooks {
+	return &terminatingCapacityPeriodicHooks{
+		recordingCoordinatorRunHooks: newRecordingCoordinatorRunHooks(),
+		periodic:                     make(chan CoordinatorEvidenceCut, 1),
+	}
+}
+
+func (h *terminatingCapacityPeriodicHooks) ObserveCapacityPeriodic(
+	_ context.Context,
+	cut CoordinatorEvidenceCut,
+) (CoordinatorOutcome, error) {
+	h.periodic <- cut
+	return CoordinatorInfrastructureFailure, nil
+}
+
+func TestCoordinatorCapacityPeriodicHookCanStopBeforeLongEvidenceWindow(t *testing.T) {
+	cfg, admission, start := capacityTestAdmission(t)
+	clock := newManualCoordinatorClock(start)
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	observerStarted := make(chan struct{})
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+		}
+	}
+	hooks := newTerminatingCapacityPeriodicHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 8,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks, CapacityAdmission: &admission,
+		CapacityEvidence: &scriptedCapacityEvidence{requests: make(chan CapacityEvidenceRequest, 1)},
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return capacityLiveDatasetFixture(admission.Checkpoint.DatasetDigest, clock.Now()), nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	<-hooks.started
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		<-grantCalls
+	}
+	for second := 1; second <= 6; second++ {
+		clock.advance(time.Second)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			select {
+			case <-grantCalls:
+			case result := <-resultChannel:
+				if second < 5 || result.Outcome != CoordinatorInfrastructureFailure || result.Code != CoordinatorCodeObserver {
+					t.Fatalf("capacity periodic result at second %d = %+v", second, result)
+				}
+				periodic := <-hooks.periodic
+				if periodic.Kind != CoordinatorCutPeriodic || len(periodic.Snapshots) != coordinatorWorkerCount {
+					t.Fatalf("capacity periodic cut = %+v", periodic)
+				}
+				return
+			case <-time.After(time.Second):
+				t.Fatalf("capacity periodic grant %d stalled at second %d", workerID, second)
+			}
+		}
+	}
+	select {
+	case result := <-resultChannel:
+		if result.Outcome != CoordinatorInfrastructureFailure || result.Code != CoordinatorCodeObserver {
+			t.Fatalf("capacity periodic result = %+v", result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("capacity periodic terminal hook did not stop the run")
+	}
+}
+
 func TestCoordinatorCapacityBeginFailureFinalizesHarnessInvalidHookEvidence(t *testing.T) {
 	cfg, admission, start := capacityTestAdmission(t)
 	clock := newManualCoordinatorClock(start)
@@ -986,6 +1080,7 @@ func TestCoordinatorCapacityRateChangesCommitInsideActiveGrantLoop(t *testing.T)
 	coarseFail.LatencyAccepted = false
 	refineFail := passingCapacityObservation()
 	refineFail.QueueInflightAccepted = false
+	refineFail.ResourceSaturated = true
 	evidence := &scriptedCapacityEvidence{
 		requests:     make(chan CapacityEvidenceRequest, 4),
 		observations: []CapacityObservation{pass, coarseFail, refineFail, pass},
@@ -1079,11 +1174,9 @@ func capacityTestAdmission(t *testing.T) (Config, CapacityAdmission, time.Time) 
 		t.Fatal(err)
 	}
 	finalSnapshots := coordinatorSnapshotFixture(fence, 2, 72*time.Hour, 2)
-	for index := range finalSnapshots {
-		finalSnapshots[index].Phase = WorkerPhaseFinal
-	}
 	finalEvidence := checkpointEvidenceFixture(false)
 	finalEvidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictPass, Cause: VerdictCauseCompleted}
+	finalEvidence.Continuous = true
 	checkpoint, err := captureCheckpoint(t, recorder, soakStart.Add(72*time.Hour), finalSnapshots, finalEvidence)
 	if err != nil {
 		t.Fatal(err)
@@ -1123,6 +1216,127 @@ func TestPrepareCapacityConfigBindsExactPassingFormalCheckpoint(t *testing.T) {
 	tampered.ConfigDigest = strings.Repeat("0", 64)
 	if _, err := PrepareCapacityConfig(formal, tampered, "checkpoint.json"); !errors.Is(err, ErrCapacityAdmission) {
 		t.Fatalf("tampered checkpoint error = %v", err)
+	}
+}
+
+func TestCoordinatorContinuationRequiresExactLiveFormalAssignmentAndGrantSequence(t *testing.T) {
+	_, admission, _ := capacityTestAdmission(t)
+	formal := FormalConfig()
+	formal.RunID = "capacity-aged-soak"
+	capacity, err := PrepareCapacityConfig(formal, admission.Checkpoint, admission.Reference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignments, err := BuildCoordinatorAssignments(formal, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	continuation := CoordinatorContinuation{Assignments: assignments, GrantSequence: 259_200}
+	validated, err := validateCoordinatorContinuation(capacity, 1, admission, continuation)
+	if err != nil || len(validated) != coordinatorWorkerCount || validated[0].Generation != 1 {
+		t.Fatalf("continuous assignment = %+v, %v", validated, err)
+	}
+
+	for name, mutate := range map[string]func(*CoordinatorContinuation){
+		"zero grant sequence": func(candidate *CoordinatorContinuation) { candidate.GrantSequence = 0 },
+		"new generation": func(candidate *CoordinatorContinuation) {
+			candidate.Assignments = append([]CoordinatorAssignment(nil), candidate.Assignments...)
+			candidate.Assignments[0].Generation = 2
+		},
+		"capacity assignment": func(candidate *CoordinatorContinuation) {
+			candidate.Assignments, _ = BuildCoordinatorAssignments(capacity, 1)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := continuation
+			mutate(&candidate)
+			if _, err := validateCoordinatorContinuation(capacity, 1, admission, candidate); err == nil {
+				t.Fatalf("invalid continuation %q was accepted", name)
+			}
+		})
+	}
+}
+
+func TestCoordinatorContinuationEarlyFailureJoinsObserverAndRejectsSecondOwner(t *testing.T) {
+	cfg, admission, _ := capacityTestAdmission(t)
+	observationContext, cancelObservation := context.WithCancel(context.Background())
+	observation := make(chan ObserverResult, 1)
+	joined := make(chan struct{})
+	go func() {
+		<-observationContext.Done()
+		observation <- ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		close(joined)
+	}()
+	continuation := &CoordinatorContinuation{
+		GrantSequence: 1,
+		owner:         newCoordinatorObservationOwner(observation, cancelObservation),
+	}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for index := range workers {
+		workers[index] = &recordingCoordinatorWorker{id: uint64(index), log: &[]string{}}
+	}
+	options := CoordinatorOptions{
+		Generation: 1,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightHarnessInvalid, Code: PreflightCodeTopology}
+		}),
+		Setup:             coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers:           workers,
+		Observer:          coordinatorObserverFunc(func(context.Context, Config) ObserverResult { return ObserverResult{} }),
+		CapacityAdmission: &admission,
+		CapacityEvidence:  &scriptedCapacityEvidence{requests: make(chan CapacityEvidenceRequest, 1)},
+		CapacityDataset: coordinatorCapacityDatasetProbeFunc(func(context.Context, Config) (CapacityLiveDatasetEvidence, error) {
+			return CapacityLiveDatasetEvidence{}, nil
+		}),
+		Continuation: continuation,
+	}
+	coordinator, err := NewCoordinator(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := coordinator.Run(context.Background(), cfg)
+	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodePreflight {
+		t.Fatalf("early continuation failure = %+v", result)
+	}
+	select {
+	case <-joined:
+	case <-time.After(time.Second):
+		t.Fatal("early continuation failure did not join the live observer")
+	}
+
+	second, err := NewCoordinator(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := second.Run(context.Background(), cfg); result.Outcome != CoordinatorHarnessInvalid ||
+		result.Code != CoordinatorCodeGenerationReuse {
+		t.Fatalf("second continuation owner = %+v", result)
+	}
+}
+
+func TestCapacityRecoveryPublishesRecoveredPriorInfrastructureWarning(t *testing.T) {
+	staircase := &CapacityStaircase{attribution: CapacityAttributionNone, priorInfrastructureWarning: true}
+	staircase.finishRecoveredBoundary()
+	if staircase.outcome != CapacityPassedWithWarning || staircase.cause != CapacityCauseInfrastructureCapacity || !staircase.terminal {
+		t.Fatalf("recovered prior saturation = %+v", staircase.Snapshot())
+	}
+}
+
+func TestCapacityRecoveryPublishesWarningForSaturationRecoveredInsideWindow(t *testing.T) {
+	end := time.Unix(1_970_280_000, 0).UTC()
+	staircase := &CapacityStaircase{
+		phase: CapacityPhaseRecovery, phaseStart: end.Add(-30 * time.Minute), phaseEnd: end,
+		attribution: CapacityAttributionNone,
+	}
+	observation := passingCapacityObservation()
+	observation.ResourcePreviouslySaturated = true
+	if _, err := staircase.Advance(end, observation); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := staircase.Snapshot()
+	if snapshot.Outcome != CapacityPassedWithWarning || snapshot.Cause != CapacityCauseInfrastructureCapacity ||
+		!snapshot.RecoveryPassed || !snapshot.Terminal {
+		t.Fatalf("recovered in-window saturation = %+v", snapshot)
 	}
 }
 
@@ -1171,6 +1385,7 @@ func passingCapacityObservation() CapacityObservation {
 	return CapacityObservation{
 		Complete: true, ErrorRateAccepted: true, LatencyAccepted: true,
 		QueueInflightAccepted: true, ClusterLagAccepted: true, ResourceAccepted: true,
+		ResourceEvidenceComplete: true, ResourceHeadroom: true,
 		ReadinessAccepted: true, LifecycleAccepted: true,
 	}
 }

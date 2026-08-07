@@ -132,7 +132,7 @@ func installOfflineHost(options offlineInstallOptions) (clouddeploy.Manifest, er
 			return clouddeploy.Manifest{}, err
 		}
 	}
-	for _, script := range []string{"collect-evidence.sh", "collect-process-metrics.sh", "run-formal-chain.sh", "verify-base-tools.sh", "wait-coordinator-dependencies.sh"} {
+	for _, script := range []string{"collect-evidence.sh", "collect-process-metrics.sh", "verify-base-tools.sh", "wait-coordinator-dependencies.sh"} {
 		if err := copyRegular(filepath.Join(options.bundleRoot, "scripts", script), rooted(options.rootPrefix, "opt/wukongim/scripts/"+script), 0o755); err != nil {
 			return clouddeploy.Manifest{}, err
 		}
@@ -245,7 +245,7 @@ func offlineBinaries(role string) []string {
 	if strings.HasPrefix(role, "service-") {
 		return []string{"wukongim", "wkbench", "node_exporter", "wkcloudbundle", "wkcloudhost"}
 	}
-	return []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkchatlifecycle", "wkcloudbundle", "wkcloudgate", "wkcloudhost"}
+	return []string{"caddy", "node_exporter", "prometheus", "wkanalysis", "wkbench", "wkcloudbundle", "wkcloudgate", "wkcloudhost"}
 }
 
 func offlineUnits(role string) []string {
@@ -253,7 +253,7 @@ func offlineUnits(role string) []string {
 	if strings.HasPrefix(role, "service-") {
 		return append([]string{"wukongim.service", "wkbench-host-metrics.service"}, common...)
 	}
-	return append([]string{"wkbench-worker@.service", "wkbench-coordinator.service", "wkbench-formal.service", "wkbench-rehearsal.service", "prometheus.service", "wkanalysis.service", "caddy.service"}, common...)
+	return append([]string{"wkbench-host-metrics.service", "wkbench-worker@.service", "wkbench-coordinator.service", "wkbench-formal.service", "wkbench-rehearsal.service", "prometheus.service", "wkanalysis.service", "caddy.service"}, common...)
 }
 
 func offlineSecrets(role string) []string {
