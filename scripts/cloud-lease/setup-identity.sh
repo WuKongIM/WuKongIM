@@ -23,7 +23,11 @@ gh auth status >/dev/null
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "$script_dir/configure-github-identity.sh" apply "$repository" >/dev/null
 
-setup_id="codex-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+setup_attempt=initial
+if [[ "$force" == true ]]; then
+  setup_attempt=forced
+fi
+setup_id="codex-$(date -u +%Y%m%dT%H%M%SZ)-$$-$setup_attempt"
 gh workflow run cloud-lease-oidc-setup.yml \
   --repo "$repository" \
   --ref main \

@@ -39,6 +39,7 @@ get_api() {
 }
 
 changes=()
+oidc_subject_change=false
 current_oidc="$temporary/current-oidc.json"
 oidc_error="$temporary/oidc-error"
 if get_api "$oidc_endpoint" "$current_oidc" "$oidc_error"; then
@@ -48,11 +49,13 @@ if get_api "$oidc_endpoint" "$current_oidc" "$oidc_error"; then
     .include_claim_keys == $desired[0].include_claim_keys
   ' "$current_oidc" >/dev/null; then
     changes+=(oidc_subject)
+    oidc_subject_change=true
   fi
 else
   status=$?
   [[ "$status" -eq 4 ]] || { echo "$(<"$oidc_error")" >&2; exit 1; }
   changes+=(oidc_subject)
+  oidc_subject_change=true
 fi
 
 environments=(cloud-lease-provision cloud-lease-observe cloud-lease-release cloud-deployment)
@@ -96,12 +99,12 @@ if [[ "$wrapping_public_exists" != true ]]; then
 fi
 
 if [[ "$operation" == plan ]]; then
-  jq -n --arg repository "$repository" --args '$ARGS.positional' -- "${changes[@]}" |
+  jq -n --arg repository "$repository" --args '$ARGS.positional' -- "${changes[@]+"${changes[@]}"}" |
     jq --arg repository "$repository" '{repository:$repository,changes:.}'
   exit 0
 fi
 
-if [[ " ${changes[*]} " == *" oidc_subject "* ]]; then
+if [[ "$oidc_subject_change" == true ]]; then
   gh api --method PUT "$oidc_endpoint" -H "X-GitHub-Api-Version: $api_version" --input "$oidc_body" >/dev/null
 fi
 for environment in "${environments[@]}"; do
