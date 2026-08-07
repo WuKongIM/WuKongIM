@@ -23,6 +23,7 @@ authorization and the applicable budget.
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
 | `cloud-lease-release.yml` | `Agent Tool - Release Cloud Lease` | Releases one exact Lease or sweeps expired repository Leases through the Releaser role |
+| `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
 | `cloud-sim-analyze.yml` | `Agent Tool - Analyze Cloud Simulation` | Operates one bounded cloud analysis session |
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
@@ -211,6 +212,17 @@ Quote/Acquire, Inspect, and Release/Sweep tools then use only their correspondin
 short-lived role. Deployment uses `cloud-deployment`, receives no `id-token`
 permission, and has no Alibaba credential. See
 [`docs/superpowers/runbooks/cloud-lease-identity.md`](../../docs/superpowers/runbooks/cloud-lease-identity.md).
+
+## Cloud Deployment offline bundle
+
+`cloud-deployment-bundle.yml` runs before any Cloud Lease Quote or Acquire and
+has only repository read permission. It separates the trusted Workflow control
+SHA from an immutable product SHA reachable from `main`, builds both frontend
+bundles and all Linux AMD64 binaries on the runner, verifies checksum-pinned
+native dependencies, and publishes a content-addressed Ubuntu 24.04 payload.
+No Lease identity, cloud credential, runtime secret, or host address enters the
+bundle. See
+[`docs/superpowers/runbooks/cloud-deployment-bundle.md`](../../docs/superpowers/runbooks/cloud-deployment-bundle.md).
 
 ## Workflow maintenance
 

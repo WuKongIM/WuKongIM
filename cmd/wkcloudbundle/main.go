@@ -93,6 +93,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	verify.Flags().StringVar(&verifyRoot, "root", "", "bundle root")
 	_ = verify.MarkFlagRequired("root")
 	root.AddCommand(render, verify)
+	addOfflineCommands(root, stdout)
 	return root
 }
 
