@@ -113,6 +113,8 @@ func TestCloudLeaseOIDCSetupLiveVerifiesChatLifecycleWrappingKey(t *testing.T) {
 		"vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
 		"secrets.WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY",
 		"ssh-keygen -y",
+		"expected-normalized.pub",
+		"awk 'NR == 1 && NF >= 2",
 		"cmp -s",
 	} {
 		if !strings.Contains(workflow, required) {

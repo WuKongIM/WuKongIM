@@ -303,8 +303,10 @@ jobs:
           printf '%s\n' "$WRAPPING_PUBLIC_KEY" >"$RUNNER_TEMP/expected.pub"
           ssh-keygen -y -f "$RUNNER_TEMP/wrapping-key" >"$RUNNER_TEMP/actual.pub"
           ssh-keygen -lf "$RUNNER_TEMP/expected.pub" | grep -q ED25519
-          cmp -s "$RUNNER_TEMP/expected.pub" "$RUNNER_TEMP/actual.pub"
+          awk 'NR == 1 && NF >= 2 {print $1 " " $2; ok=1} END {exit !ok}' \
+            "$RUNNER_TEMP/expected.pub" >"$RUNNER_TEMP/expected-normalized.pub"
+          cmp -s "$RUNNER_TEMP/expected-normalized.pub" "$RUNNER_TEMP/actual.pub"
       - name: Remove plaintext wrapping identity
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/wrapping-key" "$RUNNER_TEMP/expected.pub" "$RUNNER_TEMP/actual.pub"
+        run: rm -f "$RUNNER_TEMP/wrapping-key" "$RUNNER_TEMP/expected.pub" "$RUNNER_TEMP/expected-normalized.pub" "$RUNNER_TEMP/actual.pub"
