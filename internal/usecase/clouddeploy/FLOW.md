@@ -35,6 +35,15 @@ independent process metrics for every service, worker, coordinator, proxy, and
 collector through node_exporter's textfile directory. Demo static, API, and
 WebSocket paths share the same temporary Basic Authentication boundary while
 Manager retains its own read-only application login.
+The successful receipt returns exact `http://<load-eip>/` Manager and
+`http://<load-eip>/demo/` Demo URLs. Safe GET/HEAD proxy routes may retry a
+different healthy upstream; write routes and WebSocket upgrades use separate
+reverse-proxy handlers with load-balancer retries and upstream connection reuse
+disabled. This also prevents the underlying HTTP transport from replaying an
+otherwise idempotent-looking write after a stale reused connection.
+The native Caddy unit validates the fully rendered configuration before every
+start, so malformed route or matcher syntax fails activation instead of serving
+a partial public surface.
 The load host carries the non-restarting coordinator unit and its bounded
 dependency gate, but Deployment deliberately leaves it dormant. Workload
 orchestration consumes the successful Deployment Receipt and alone authorizes

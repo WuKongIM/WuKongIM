@@ -267,7 +267,9 @@ func validCheckpointEvidence(evidence CheckpointEvidence) bool {
 	}
 	if !evidence.TopologyValidated || len(evidence.Warnings) > maxReportWarnings || len(evidence.Samples) > maxReportSamples ||
 		!validCoordinatorHistogram(evidence.Lifecycle.ReheatLatency) || len(evidence.Verdict.CleanupErrors) > maxVerdictCleanupErrors ||
-		len(evidence.Verdict.LatencyAnomalies) > maxVerdictLatencyAnomalies {
+		len(evidence.Verdict.LatencyAnomalies) > maxVerdictLatencyAnomalies ||
+		!validMetaCreateAccountingSnapshot(evidence.MetaCreate) ||
+		!validMetaCreateVerdict(evidence.MetaCreate, projectReportVerdict(evidence.Verdict)) {
 		return false
 	}
 	for _, warning := range evidence.Warnings {

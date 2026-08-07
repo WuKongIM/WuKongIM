@@ -95,6 +95,10 @@ func TestEvaluateReadinessReturnsTypedReceipt(t *testing.T) {
 		outcome.Receipt.DeploymentPlanDigest != plan.PlanDigest || len(outcome.Receipt.Hosts) != 4 {
 		t.Fatalf("receipt = %#v", outcome.Receipt)
 	}
+	if outcome.Receipt.PublicEndpoints.Manager != "http://203.0.113.10/" ||
+		outcome.Receipt.PublicEndpoints.Demo != "http://203.0.113.10/demo/" {
+		t.Fatalf("public endpoints = %#v", outcome.Receipt.PublicEndpoints)
+	}
 }
 
 func TestEvaluateReadinessMajorFailuresAreStableAndBounded(t *testing.T) {
@@ -141,6 +145,19 @@ func TestEvaluateReadinessMajorFailuresAreStableAndBounded(t *testing.T) {
 				t.Fatalf("failure evidence = %#v", outcome.Failure)
 			}
 		})
+	}
+}
+
+func TestEvaluateReadinessRejectsInvalidPublicEndpointWithoutPanicking(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan, err := clouddeploy.BuildPlan(deploymentLease(now), deploymentManifest(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Hosts[3].PublicAddress = "not-an-ip"
+	outcome := clouddeploy.EvaluateReadiness(plan, readySnapshot(plan, now), now)
+	if outcome.Passed || outcome.Failure == nil || outcome.Failure.Code != clouddeploy.FailureEvidence || outcome.Failure.HostRole != "load" {
+		t.Fatalf("outcome = %#v", outcome)
 	}
 }
 

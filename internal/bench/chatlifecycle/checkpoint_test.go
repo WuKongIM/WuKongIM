@@ -333,7 +333,11 @@ func checkpointEvidenceFixture(final bool) CheckpointEvidence {
 			Candidates: 1_200, Loaded: 1_200, ColdEligible: 1_200, Reheated: 1_200, Completed: 1_200,
 			ReheatLatency: newWorkerHistogramSnapshot(),
 		},
-		MetaCreate: MetaCreateAccountingSnapshot{ExpectedUnique: 3_000_020, Created: 3_000_020, Checkpoints: 2},
+		MetaCreate: MetaCreateAccountingSnapshot{
+			ExpectedUnique: 3_000_020, Created: 3_000_023, ExternalDemoActivity: 3, Checkpoints: 2,
+			ExpectedBySlot: [formalLogicalSlotGroups]uint64{3_000_020},
+			CreatedBySlot:  [formalLogicalSlotGroups]uint64{3_000_023},
+		},
 		Resources: ReportResourceEvidence{Nodes: [3]ReportResourceNodeEvidence{
 			{DataFilesystemBytes: 1_000_000_000_000, DataFilesystemAvailableBytes: 900_000_000_000, ForcedGCSamples: 25, HeapStartBytes: 100, HeapEndBytes: 102, GoroutineStart: 1_000, GoroutineEnd: 1_010},
 			{DataFilesystemBytes: 1_000_000_000_000, DataFilesystemAvailableBytes: 900_000_000_000, ForcedGCSamples: 25, HeapStartBytes: 110, HeapEndBytes: 112, GoroutineStart: 1_100, GoroutineEnd: 1_110},

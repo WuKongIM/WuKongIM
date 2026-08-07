@@ -142,8 +142,10 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		!strings.Contains(nodeConfig, `external_ws_addr = "ws://{{PUBLIC_HTTP_HOST}}"`) {
 		t.Fatalf("node template = %s", nodeConfig)
 	}
-	if !strings.Contains(read("systemd/caddy.service"), "AmbientCapabilities=CAP_NET_BIND_SERVICE") {
-		t.Fatal("Caddy cannot bind the public HTTP port as the service user")
+	caddyUnit := read("systemd/caddy.service")
+	if !strings.Contains(caddyUnit, "AmbientCapabilities=CAP_NET_BIND_SERVICE") ||
+		!strings.Contains(caddyUnit, "ExecStartPre=/opt/wukongim/bin/caddy validate --config /etc/wukongim/Caddyfile --adapter caddyfile") {
+		t.Fatal("Caddy unit does not validate configuration or bind the public HTTP port")
 	}
 	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
 		content := read(unit)
@@ -175,7 +177,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		t.Fatalf("Prometheus contract = %s\n%s", prometheusConfig, prometheusUnit)
 	}
 	caddy := read("config/Caddyfile.tmpl")
-	if strings.Count(caddy, "basic_auth {") != 3 ||
+	if strings.Count(caddy, "basic_auth {") != 4 ||
 		!strings.Contains(caddy, "{{DEMO_API_UPSTREAMS}}") || !strings.Contains(caddy, "{{DEMO_WS_UPSTREAMS}}") ||
 		!strings.Contains(caddy, "{{MANAGER_UPSTREAMS}}") || strings.Contains(caddy, "{{MANAGER_UPSTREAM}}") {
 		t.Fatalf("Demo routing/auth contract = %s", caddy)
@@ -185,13 +187,22 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 			t.Fatalf("Demo routing omits client path %s: %s", demoPath, caddy)
 		}
 	}
-	if strings.Count(caddy, "health_uri /readyz") != 3 || strings.Count(caddy, "health_port 5001") != 2 ||
-		strings.Count(caddy, "lb_retry_match {") != 2 || strings.Count(caddy, "method GET") != 2 {
+	if strings.Count(caddy, "health_uri /readyz") != 5 || strings.Count(caddy, "health_port 5001") != 3 ||
+		strings.Count(caddy, "lb_retry_match {") != 2 || strings.Count(caddy, "method GET HEAD") != 4 ||
+		strings.Count(caddy, "lb_try_duration 3s") != 2 || strings.Count(caddy, "keepalive off") != 3 {
 		t.Fatalf("proxy health and safe retry contract = %s", caddy)
 	}
-	websocketBlock := caddy[strings.Index(caddy, "handle @demo_websocket"):strings.Index(caddy, "@demo_api path")]
-	if strings.Contains(websocketBlock, "lb_try_duration") || strings.Contains(websocketBlock, "lb_retry_match") {
+	websocketBlock := caddy[strings.Index(caddy, "handle @demo_websocket"):strings.Index(caddy, "@demo_api_safe")]
+	if strings.Contains(websocketBlock, "lb_try_duration") || strings.Contains(websocketBlock, "lb_retry_match") ||
+		!strings.Contains(websocketBlock, "keepalive off") {
 		t.Fatalf("WebSocket proxy may replay a connection: %s", websocketBlock)
+	}
+	demoWriteBlock := caddy[strings.Index(caddy, "handle @demo_api {"):strings.Index(caddy, "@manager_safe")]
+	managerWriteBlock := caddy[strings.LastIndex(caddy, "  handle {"):]
+	if strings.Contains(demoWriteBlock, "lb_try_duration") || strings.Contains(demoWriteBlock, "lb_retry_match") ||
+		!strings.Contains(demoWriteBlock, "keepalive off") || strings.Contains(managerWriteBlock, "lb_try_duration") ||
+		strings.Contains(managerWriteBlock, "lb_retry_match") || !strings.Contains(managerWriteBlock, "keepalive off") {
+		t.Fatalf("write proxy may replay a request: demo=%s manager=%s", demoWriteBlock, managerWriteBlock)
 	}
 	analysisUnit := read("systemd/wkanalysis.service")
 	if !strings.Contains(analysisUnit, "LoadCredential=analysis-cert.pem:/etc/wukongim/secrets/analysis-cert.pem") ||

@@ -14,7 +14,7 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v1"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v2"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
@@ -322,6 +322,7 @@ func validateReport(report Report) error {
 		report.Topology.SlotReplicas <= 0 || report.Topology.ChannelReplicas <= 0 ||
 		len(report.Workers) != coordinatorWorkerCount || len(report.Warnings) > maxReportWarnings ||
 		len(report.Samples) > maxReportSamples || !validReportVerdict(report) || !validReportCapacity(report.Capacity) ||
+		!validMetaCreateAccountingSnapshot(report.MetaCreate) || !validMetaCreateVerdict(report.MetaCreate, report.Verdict) ||
 		!validCoordinatorHistogram(report.Latency.SendACK) || !validCoordinatorHistogram(report.Latency.ReceiveACK) ||
 		!validCoordinatorHistogram(report.Latency.FullSync) || !validCoordinatorHistogram(report.Lifecycle.ReheatLatency) {
 		return ErrReportInvalid
@@ -369,6 +370,57 @@ func validateReport(report Report) error {
 		}
 	}
 	return nil
+}
+
+func validMetaCreateAccountingSnapshot(snapshot MetaCreateAccountingSnapshot) bool {
+	if snapshot.Checkpoints == 0 {
+		return false
+	}
+	var expected, created, already, errorsCount, external uint64
+	for slot := range formalLogicalSlotGroups {
+		var ok bool
+		if expected, ok = checkedUint64Add(expected, snapshot.ExpectedBySlot[slot]); !ok {
+			return false
+		}
+		if created, ok = checkedUint64Add(created, snapshot.CreatedBySlot[slot]); !ok {
+			return false
+		}
+		if already, ok = checkedUint64Add(already, snapshot.AlreadyExistingBySlot[slot]); !ok {
+			return false
+		}
+		if errorsCount, ok = checkedUint64Add(errorsCount, snapshot.ErrorsBySlot[slot]); !ok {
+			return false
+		}
+		if snapshot.CreatedBySlot[slot] > snapshot.ExpectedBySlot[slot] {
+			if external, ok = checkedUint64Add(external, snapshot.CreatedBySlot[slot]-snapshot.ExpectedBySlot[slot]); !ok {
+				return false
+			}
+		}
+	}
+	return expected == snapshot.ExpectedUnique && created == snapshot.Created &&
+		already == snapshot.AlreadyExisting && errorsCount == snapshot.Errors && external == snapshot.ExternalDemoActivity
+}
+
+func validMetaCreateVerdict(snapshot MetaCreateAccountingSnapshot, verdict ReportVerdictEvidence) bool {
+	if metaCreateSnapshotHasProductFailure(snapshot) {
+		return verdict.Terminal && verdict.Outcome == VerdictProductFailure
+	}
+	return verdict.Cause != VerdictCauseMetaCreateProduct
+}
+
+func metaCreateSnapshotHasProductFailure(snapshot MetaCreateAccountingSnapshot) bool {
+	if snapshot.Checkpoints == 0 {
+		return false
+	}
+	if snapshot.Errors != 0 {
+		return true
+	}
+	for slot := range formalLogicalSlotGroups {
+		if snapshot.ErrorsBySlot[slot] != 0 || snapshot.CreatedBySlot[slot] < snapshot.ExpectedBySlot[slot] {
+			return true
+		}
+	}
+	return false
 }
 
 func validReportSyncClassification(classification SyncClassification) bool {
@@ -460,7 +512,8 @@ func validVerdictCause(cause VerdictCause) bool {
 		VerdictCauseOperatorRequested, VerdictCauseHotLatency, VerdictCauseColdLatency, VerdictCauseSyncLatency,
 		VerdictCauseInvalidObservation, VerdictCauseHeapGrowth, VerdictCauseGoroutineGrowth, VerdictCauseQueueRecovery:
 		return true
-	case VerdictCauseWorkerProduct, VerdictCauseWorkerHarness, VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness:
+	case VerdictCauseWorkerProduct, VerdictCauseWorkerHarness, VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness,
+		VerdictCauseMetaCreateProduct:
 		return true
 	default:
 		return false

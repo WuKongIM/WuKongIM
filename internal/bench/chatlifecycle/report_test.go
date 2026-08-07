@@ -22,12 +22,15 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 			ReportSchemaVersion, ReportThresholdVersion, ReportDesignProfile,
 			report.ConfigDigest, report.Fence.RunHash, "thresholds", "logical_slot_groups", "worker_generations",
 			"minimum_worker_uptime", "generated", "payload_bytes", "messages", "sync", "lifecycle",
-			"meta_create", "latency", "resources", "data_filesystem_bytes", "cluster",
+			"meta_create", "external_demo_activity", "latency", "resources", "data_filesystem_bytes", "cluster",
 			"verdict", "capacity", string(ReportWarningShortLatencyBreach),
 		} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("%s report does not contain %q:\n%s", format, want, text)
 			}
+		}
+		if strings.Contains(text, "reheat_created") {
+			t.Fatalf("%s report retained obsolete exact-equality field:\n%s", format, text)
 		}
 	}
 
@@ -48,6 +51,33 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 	}
 	if decoded.Verdict.Outcome != report.Verdict.Outcome || decoded.Verdict.Cause != report.Verdict.Cause || decoded.Verdict.Terminal != report.Verdict.Terminal {
 		t.Fatalf("warning projection changed verdict: got %+v want %+v", decoded.Verdict, report.Verdict)
+	}
+}
+
+func TestReportRejectsInconsistentExternalDemoAccounting(t *testing.T) {
+	report := reportFixture(t)
+	report.MetaCreate.ExternalDemoActivity++
+	if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+		t.Fatalf("MarshalReport error = %v, want invalid external Demo accounting", err)
+	}
+}
+
+func TestReportRejectsLegacyV1SchemaAfterMetaAccountingContractChange(t *testing.T) {
+	report := reportFixture(t)
+	report.SchemaVersion = "wukongim/chat-lifecycle-report/v1"
+	if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+		t.Fatalf("MarshalReport legacy schema error = %v, want explicit v1 rejection", err)
+	}
+	body, err := json.Marshal(report)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "legacy-v1.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadReport(path); !errors.Is(err, ErrReportInvalid) {
+		t.Fatalf("ReadReport legacy schema error = %v, want explicit v1 rejection", err)
 	}
 }
 

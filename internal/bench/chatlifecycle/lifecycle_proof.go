@@ -934,6 +934,7 @@ type MetaCreateHashSlotCounts [formalHashSlots]uint64
 type MetaCreateAccounting struct {
 	mu          sync.Mutex
 	initialized bool
+	failed      bool
 	snapshot    MetaCreateAccountingSnapshot
 }
 
@@ -947,8 +948,8 @@ type MetaCreateAccountingSnapshot struct {
 	AlreadyExisting uint64 `json:"already_existing"`
 	// Errors is the latest authoritative create-error counter.
 	Errors uint64 `json:"errors"`
-	// ReheatCreated accumulates created delta exceeding concurrent expected growth.
-	ReheatCreated uint64 `json:"reheat_created"`
+	// ExternalDemoActivity is the cumulative create excess above marked workload expectations.
+	ExternalDemoActivity uint64 `json:"external_demo_activity"`
 	// Checkpoints counts accepted accounting checkpoints.
 	Checkpoints uint64 `json:"checkpoints"`
 	// ExpectedBySlot is the fixed logical-Slot deterministic expectation.
@@ -1036,35 +1037,36 @@ func (a *MetaCreateAccounting) Checkpoint(
 				return ErrLifecycleHarnessInvalid
 			}
 		}
-		if reheat {
-			mismatch := false
-			for slot := range formalLogicalSlotGroups {
-				expectedDelta := expectedBySlot[slot] - a.snapshot.ExpectedBySlot[slot]
-				createdDelta := createdBySlot[slot] - a.snapshot.CreatedBySlot[slot]
-				if createdDelta > expectedDelta {
-					a.snapshot.ReheatCreated = saturatingAdd(a.snapshot.ReheatCreated, createdDelta-expectedDelta)
-				}
-				if createdDelta != expectedDelta {
-					mismatch = true
-				}
-			}
-			if mismatch {
-				return ErrLifecycleProductFailure
-			}
-		}
 	} else if reheat {
 		return ErrLifecycleHarnessInvalid
 	}
+	if a.failed {
+		return ErrLifecycleProductFailure
+	}
+	productFailure := false
+	var externalDemoActivity uint64
 	for slot := range formalLogicalSlotGroups {
-		if errorsBySlot[slot] != 0 || createdBySlot[slot] != expectedBySlot[slot] {
-			return ErrLifecycleProductFailure
+		if errorsBySlot[slot] != 0 || createdBySlot[slot] < expectedBySlot[slot] {
+			productFailure = true
+		}
+		if createdBySlot[slot] > expectedBySlot[slot] {
+			var ok bool
+			externalDemoActivity, ok = checkedUint64Add(externalDemoActivity, createdBySlot[slot]-expectedBySlot[slot])
+			if !ok {
+				return ErrLifecycleHarnessInvalid
+			}
 		}
 	}
 	a.initialized = true
 	a.snapshot.ExpectedUnique, a.snapshot.Created, a.snapshot.AlreadyExisting, a.snapshot.Errors = expected, created, already, errorsCount
+	a.snapshot.ExternalDemoActivity = externalDemoActivity
 	a.snapshot.ExpectedBySlot, a.snapshot.CreatedBySlot = expectedBySlot, createdBySlot
 	a.snapshot.AlreadyExistingBySlot, a.snapshot.ErrorsBySlot = alreadyBySlot, errorsBySlot
 	a.snapshot.Checkpoints = saturatingIncrement(a.snapshot.Checkpoints)
+	if productFailure {
+		a.failed = true
+		return ErrLifecycleProductFailure
+	}
 	return nil
 }
 

@@ -4,13 +4,17 @@ set -euo pipefail
 : "${WK_CLOUD_DEPLOYMENT_PLAN:?required}"
 : "${WK_CLOUD_SSH_CONFIG:?required}"
 : "${WK_CLOUD_READINESS_OUTPUT:?required}"
+: "${WK_CLOUD_MANAGER_USER:?required}"
 : "${WK_CLOUD_MANAGER_PASSWORD:?required}"
 : "${WK_CLOUD_DEMO_USER:?required}"
 : "${WK_CLOUD_DEMO_PASSWORD:?required}"
 
+[[ "$WK_CLOUD_MANAGER_USER" =~ ^[A-Za-z0-9._-]{1,64}$ ]]
 [[ "$WK_CLOUD_MANAGER_PASSWORD" =~ ^[0-9a-f]{64}$ ]]
 [[ "$WK_CLOUD_DEMO_USER" =~ ^[A-Za-z0-9._-]{1,64}$ ]]
 [[ "$WK_CLOUD_DEMO_PASSWORD" =~ ^[0-9a-f]{32,128}$ ]]
+[[ "$WK_CLOUD_MANAGER_USER" == "$WK_CLOUD_DEMO_USER" ]]
+[[ "$WK_CLOUD_MANAGER_PASSWORD" == "$WK_CLOUD_DEMO_PASSWORD" ]]
 
 plan_digest="$(jq -er .plan_digest "$WK_CLOUD_DEPLOYMENT_PLAN")"
 load_public="$(jq -er '.hosts[] | select(.role=="load") | .public_address' "$WK_CLOUD_DEPLOYMENT_PLAN")"
@@ -101,12 +105,17 @@ for address in "$service1" "$service2" "$service3"; do
   fi
 done
 
-manager_base="http://${service1}:5301"
-login_payload="$(jq -cn --arg password "$WK_CLOUD_MANAGER_PASSWORD" '{username:"analysis",password:$password}')"
-manager_token="$(ssh_load "curl --fail --silent --show-error --max-time 10 -H 'Content-Type: application/json' --data '$login_payload' '${manager_base}/manager/login'" | jq -er .access_token)"
-nodes_json="$(ssh_load "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/nodes'")"
-slots_json="$(ssh_load "curl --fail --silent --show-error --max-time 15 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/slots'")"
-tasks_json="$(ssh_load "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/controller/tasks?limit=50'")"
+manager_base="http://${load_public}"
+login_payload="$(jq -cn --arg username "$WK_CLOUD_MANAGER_USER" --arg password "$WK_CLOUD_MANAGER_PASSWORD" '{username:$username,password:$password}')"
+manager_login="$(curl --fail --silent --show-error --max-time 10 -H 'Content-Type: application/json' --data "$login_payload" "${manager_base}/manager/login")"
+jq -e --arg username "$WK_CLOUD_MANAGER_USER" '
+  .username == $username and
+  (.permissions == [{resource:"*",actions:["r"]}])
+' <<<"$manager_login" >/dev/null
+manager_token="$(jq -er .access_token <<<"$manager_login")"
+nodes_json="$(curl --fail --silent --show-error --max-time 10 -H "Authorization: Bearer ${manager_token}" "${manager_base}/manager/nodes")"
+slots_json="$(curl --fail --silent --show-error --max-time 15 -H "Authorization: Bearer ${manager_token}" "${manager_base}/manager/slots")"
+tasks_json="$(curl --fail --silent --show-error --max-time 10 -H "Authorization: Bearer ${manager_token}" "${manager_base}/manager/controller/tasks?limit=50")"
 members="$(jq -er '[.items[] | select(.membership.join_state == "active" and .health.runtime_ready == true)] | length' <<<"$nodes_json")"
 logical_groups="$(jq -er '.items | length' <<<"$slots_json")"
 physical_slots="$(jq -er '[.items[].hash_slots.count // 0] | add // 0' <<<"$slots_json")"
@@ -117,7 +126,7 @@ pending_tasks="$(jq -er .total <<<"$tasks_json")"
 
 runtime_contracts=()
 for node_id in 1 2 3; do
-  config_json="$(ssh_load "curl --fail --silent --show-error --max-time 10 -H 'Authorization: Bearer ${manager_token}' '${manager_base}/manager/nodes/${node_id}/config'")"
+  config_json="$(curl --fail --silent --show-error --max-time 10 -H "Authorization: Bearer ${manager_token}" "${manager_base}/manager/nodes/${node_id}/config")"
   runtime_contracts+=("$(jq -cer --argjson node_id "$node_id" \
     -f "$(dirname "$0")/deployment-runtime-contract.jq" <<<"$config_json")")
 done
@@ -149,10 +158,13 @@ ssh_load "sudo -u wukongim /opt/wukongim/bin/wkbench validate chat-lifecycle --c
 analysis_ready=false
 ssh_load "sudo curl --fail --silent --show-error --max-time 10 --cacert /etc/wukongim/secrets/analysis-cert.pem https://127.0.0.1:19444/self-check >/dev/null" && analysis_ready=true
 proxy_ready=false
-manager_ready=false
+manager_ready=true
 demo_ready=false
 curl --fail --silent --show-error --max-time 10 "http://${load_public}/" >/dev/null && proxy_ready=true && manager_ready=true
-curl --fail --silent --show-error --max-time 10 --user "${WK_CLOUD_DEMO_USER}:${WK_CLOUD_DEMO_PASSWORD}" "http://${load_public}/demo/" >/dev/null && demo_ready=true
+demo_html="$(curl --fail --silent --show-error --max-time 10 --user "${WK_CLOUD_DEMO_USER}:${WK_CLOUD_DEMO_PASSWORD}" "http://${load_public}/demo/")"
+demo_asset="$(sed -n 's/.*\(\/demo\/assets\/[^" ]*\).*/\1/p' <<<"$demo_html" | head -1)"
+test -n "$demo_asset"
+curl --fail --silent --show-error --max-time 10 --user "${WK_CLOUD_DEMO_USER}:${WK_CLOUD_DEMO_PASSWORD}" "http://${load_public}${demo_asset}" >/dev/null && demo_ready=true
 
 observed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 jq -n \

@@ -29,6 +29,9 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"write-deployment-failure.sh deployment-failure-state.json",
 		"scripts/cloud-deployment/collect-readiness.sh",
 		"trusted-deployment-tools/wkcloudgate\" deployment-gate",
+		`manager_user="operator-$(openssl rand -hex 12)"`,
+		`demo_user="$manager_user"`,
+		`{username:$manager_user,password:$manager_password,permissions:[{resource:"*",actions:["r"]}]}`,
 		"wukongim.cloud_deployment.failure/v1",
 		"Upload typed Deployment Receipt or failure evidence",
 	} {
@@ -43,6 +46,26 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("activation workflow unexpectedly contains %q", forbidden)
 		}
+	}
+	for _, fixedCredential := range []string{`demo_user=demo`, `username:"viewer"`} {
+		if strings.Contains(text, fixedCredential) {
+			t.Fatalf("activation workflow retains fixed UI credential %q", fixedCredential)
+		}
+	}
+	uploadStart := strings.Index(text, "- name: Upload typed Deployment Receipt or failure evidence")
+	cleanupStart := strings.Index(text, "- name: Remove runner credentials")
+	if uploadStart < 0 || cleanupStart <= uploadStart {
+		t.Fatal("activation workflow upload/cleanup phases are missing or unordered")
+	}
+	upload := text[uploadStart:cleanupStart]
+	for _, secretArtifact := range []string{"runtime-node", "runtime-load", "deployment-key", "readiness-credentials", "GITHUB_ENV"} {
+		if strings.Contains(upload, secretArtifact) {
+			t.Fatalf("activation workflow uploads plaintext credential material %q", secretArtifact)
+		}
+	}
+	if strings.Contains(text, `>>"$GITHUB_ENV"`) || !strings.Contains(text, "source readiness-credentials") ||
+		!strings.Contains(text, "rm -f deployment-key readiness-credentials") {
+		t.Fatal("activation workflow does not scope and remove UI readiness credentials")
 	}
 }
 
@@ -59,6 +82,8 @@ func TestCloudDeploymentReadinessCollectorIsBoundedAndUsesPrivateOrigins(t *test
 		"healthy_slot_replica_sets", "logical_slot_groups:$groups", "ready_workers",
 		"runtime_config_nodes", "slot_replicas:$slot_replicas", "channel_replicas:$channel_replicas",
 		"wkbench validate chat-lifecycle", "prometheus_targets_up", "demo_ready", "analysis_ready",
+		"WK_CLOUD_MANAGER_USER", `(.permissions == [{resource:"*",actions:["r"]}])`,
+		`[[ "$WK_CLOUD_MANAGER_USER" == "$WK_CLOUD_DEMO_USER" ]]`, "demo_asset=", `http://${load_public}${demo_asset}`,
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("readiness collector missing %q", fragment)

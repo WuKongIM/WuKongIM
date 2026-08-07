@@ -165,20 +165,22 @@ jobs:
           printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >deployment-key
           chmod 0600 deployment-key
           ssh-keygen -y -f deployment-key >/dev/null
+          manager_user="operator-$(openssl rand -hex 12)"
           manager_password="$(openssl rand -hex 32)"
+          analysis_password="$(openssl rand -hex 32)"
           manager_jwt="$(openssl rand -hex 32)"
           worker_token="$(openssl rand -hex 32)"
           bench_token="$(openssl rand -hex 32)"
           analysis_token="$(openssl rand -hex 32)"
-          demo_user=demo
+          demo_user="$manager_user"
           demo_password="$manager_password"
           demo_hash="$("$RUNNER_TEMP/deployment-bundle/bin/caddy" hash-password --plaintext "$demo_password")"
-          for secret in "$manager_password" "$manager_jwt" "$worker_token" "$bench_token" "$analysis_token" "$demo_password" "$demo_hash"; do
+          for secret in "$manager_user" "$manager_password" "$analysis_password" "$manager_jwt" "$worker_token" "$bench_token" "$analysis_token" "$demo_hash"; do
             echo "::add-mask::$secret"
           done
-          users="$(jq -cn --arg password "$manager_password" '[
-            {username:"viewer",password:$password,permissions:[{resource:"*",actions:["r"]}]},
-            {username:"analysis",password:$password,permissions:[
+          users="$(jq -cn --arg manager_user "$manager_user" --arg manager_password "$manager_password" --arg analysis_password "$analysis_password" '[
+            {username:$manager_user,password:$manager_password,permissions:[{resource:"*",actions:["r"]}]},
+            {username:"analysis",password:$analysis_password,permissions:[
               {resource:"cluster.node",actions:["r"]},{resource:"cluster.slot",actions:["r"]},
               {resource:"cluster.controller",actions:["r"]},{resource:"cluster.diagnostics",actions:["r","w"]},
               {resource:"cluster.log",actions:["r"]}]}]')"
@@ -209,7 +211,7 @@ jobs:
           WK_ANALYSIS_SCENARIO_PATH=/etc/wukongim/analysis-scenario.yaml
           WK_ANALYSIS_MANAGER_BASE_URL=http://$(jq -r '.hosts[]|select(.role=="service-1")|.private_address' deployment-plan.json):5301
           WK_ANALYSIS_MANAGER_USERNAME=analysis
-          WK_ANALYSIS_MANAGER_PASSWORD=$manager_password
+          WK_ANALYSIS_MANAGER_PASSWORD=$analysis_password
           WK_ANALYSIS_PROMETHEUS_BASE_URL=http://127.0.0.1:9090
           WK_ANALYSIS_NODE_API_URLS='$node_urls'
           WK_ANALYSIS_WORKLOAD_REPORT_DIR=/var/lib/wukongim-cloud/reports
@@ -219,9 +221,9 @@ jobs:
           chmod 0600 runtime-node/* runtime-load/*
           tar -czf runtime-node.tar.gz -C runtime-node .
           tar -czf runtime-load.tar.gz -C runtime-load .
-          echo "WK_CLOUD_MANAGER_PASSWORD=$manager_password" >>"$GITHUB_ENV"
-          echo "WK_CLOUD_DEMO_USER=$demo_user" >>"$GITHUB_ENV"
-          echo "WK_CLOUD_DEMO_PASSWORD=$demo_password" >>"$GITHUB_ENV"
+          printf 'export WK_CLOUD_MANAGER_USER=%q\nexport WK_CLOUD_MANAGER_PASSWORD=%q\nexport WK_CLOUD_DEMO_USER=%q\nexport WK_CLOUD_DEMO_PASSWORD=%q\n' \
+            "$manager_user" "$manager_password" "$demo_user" "$demo_password" >readiness-credentials
+          chmod 0600 readiness-credentials
       - name: Transfer through load node and activate native services
         shell: bash
         env:
@@ -254,6 +256,7 @@ jobs:
           WK_CLOUD_READINESS_OUTPUT: readiness-snapshot.json
         run: |
           set -euo pipefail
+          source readiness-credentials
           scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
             readiness_evidence_invalid services_active load \
             'bounded readiness collection did not complete' 'native services were activated; readiness is unknown'
@@ -307,4 +310,4 @@ jobs:
       - name: Remove runner credentials
         if: always()
         shell: bash
-        run: rm -f deployment-key runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load
+        run: rm -f deployment-key readiness-credentials runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load

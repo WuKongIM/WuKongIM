@@ -232,21 +232,29 @@ type HostProof struct {
 	BundleDigest   string `json:"bundle_digest"`
 }
 
+// PublicEndpoints are the exact non-secret HTTP entry points exposed through
+// the load host for the lifetime of the Lease.
+type PublicEndpoints struct {
+	Manager string `json:"manager"`
+	Demo    string `json:"demo"`
+}
+
 // DeploymentReceipt is the non-secret handoff to workload orchestration.
 type DeploymentReceipt struct {
-	Schema               string      `json:"schema"`
-	LeaseID              string      `json:"lease_id"`
-	RequestID            string      `json:"request_id"`
-	Repository           string      `json:"repository"`
-	LeasePlanDigest      string      `json:"lease_plan_digest"`
-	DeploymentPlanDigest string      `json:"deployment_plan_digest"`
-	SourceSHA            string      `json:"source_sha"`
-	ControlSHA           string      `json:"control_sha"`
-	BundleDigest         string      `json:"bundle_digest"`
-	ActivatedAt          time.Time   `json:"activated_at"`
-	LeaseExpiresAt       time.Time   `json:"lease_expires_at"`
-	Topology             Topology    `json:"topology"`
-	Hosts                []HostProof `json:"hosts"`
+	Schema               string          `json:"schema"`
+	LeaseID              string          `json:"lease_id"`
+	RequestID            string          `json:"request_id"`
+	Repository           string          `json:"repository"`
+	LeasePlanDigest      string          `json:"lease_plan_digest"`
+	DeploymentPlanDigest string          `json:"deployment_plan_digest"`
+	SourceSHA            string          `json:"source_sha"`
+	ControlSHA           string          `json:"control_sha"`
+	BundleDigest         string          `json:"bundle_digest"`
+	ActivatedAt          time.Time       `json:"activated_at"`
+	LeaseExpiresAt       time.Time       `json:"lease_expires_at"`
+	Topology             Topology        `json:"topology"`
+	PublicEndpoints      PublicEndpoints `json:"public_endpoints"`
+	Hosts                []HostProof     `json:"hosts"`
 }
 
 // Outcome carries exactly one successful Receipt or one structured Failure.
@@ -518,16 +526,35 @@ func EvaluateReadiness(plan DeploymentPlan, snapshot ReadinessSnapshot, now time
 		hostProofs = append(hostProofs, HostProof{Role: host.Role, InstanceID: host.InstanceID, PrivateAddress: host.PrivateAddress,
 			PublicAddress: host.PublicAddress, DataDiskID: host.DataDiskID, BundleDigest: plan.BundleDigest})
 	}
+	load, found := findHost(plan.Hosts, "load")
+	publicEndpoints, validEndpoints := deploymentPublicEndpoints(load.PublicAddress)
+	if !found || !validEndpoints {
+		return failed(FailureEvidence, GateClusterConverged, "load", "public endpoint identity is invalid")
+	}
 	receipt := &DeploymentReceipt{
 		Schema: ReceiptSchemaV1, LeaseID: plan.LeaseID, RequestID: plan.RequestID, Repository: plan.Repository,
 		LeasePlanDigest: plan.LeasePlanDigest, DeploymentPlanDigest: plan.PlanDigest,
 		SourceSHA: plan.SourceSHA, ControlSHA: plan.ControlSHA, BundleDigest: plan.BundleDigest,
-		ActivatedAt: snapshot.ObservedAt.UTC(), LeaseExpiresAt: plan.ExpiresAt.UTC(), Topology: plan.Topology, Hosts: hostProofs,
+		ActivatedAt: snapshot.ObservedAt.UTC(), LeaseExpiresAt: plan.ExpiresAt.UTC(), Topology: plan.Topology,
+		PublicEndpoints: publicEndpoints, Hosts: hostProofs,
 	}
 	if !receipt.ActivatedAt.Before(receipt.LeaseExpiresAt) {
 		return failed(FailureEvidence, GateClusterConverged, "", "readiness timestamp is invalid")
 	}
 	return Outcome{Passed: true, Receipt: receipt}
+}
+
+func deploymentPublicEndpoints(publicAddress string) (PublicEndpoints, bool) {
+	address, err := netip.ParseAddr(publicAddress)
+	if err != nil {
+		return PublicEndpoints{}, false
+	}
+	host := address.String()
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	base := "http://" + host
+	return PublicEndpoints{Manager: base + "/", Demo: base + "/demo/"}, true
 }
 
 func fixedTopology() Topology {

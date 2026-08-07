@@ -75,6 +75,29 @@ scrape_configs:
       health_interval 5s
       health_timeout 2s
       health_status 2xx
+      transport http {
+        keepalive off
+      }
+    }
+  }
+  @demo_api_safe {
+    method GET HEAD
+    path /route /user/* /channel/* /message/* /conversation/* /conversations/* /streammessage/* /web/*
+  }
+  handle @demo_api_safe {
+    basic_auth {
+      {$WK_DEMO_BASIC_AUTH_USER} {$WK_DEMO_BASIC_AUTH_HASH}
+    }
+    reverse_proxy {{DEMO_API_UPSTREAMS}} {
+      health_uri /readyz
+      health_interval 5s
+      health_timeout 2s
+      health_status 2xx
+      lb_try_duration 3s
+      lb_try_interval 250ms
+      lb_retry_match {
+        method GET HEAD
+      }
     }
   }
   @demo_api path /route /user/* /channel/* /message/* /conversation/* /conversations/* /streammessage/* /web/*
@@ -87,10 +110,25 @@ scrape_configs:
       health_interval 5s
       health_timeout 2s
       health_status 2xx
+      transport http {
+        keepalive off
+      }
+    }
+  }
+  @manager_safe {
+    method GET HEAD
+  }
+  handle @manager_safe {
+    reverse_proxy {{MANAGER_UPSTREAMS}} {
+      health_uri /readyz
+      health_port 5001
+      health_interval 5s
+      health_timeout 2s
+      health_status 2xx
       lb_try_duration 3s
       lb_try_interval 250ms
       lb_retry_match {
-        method GET
+        method GET HEAD
       }
     }
   }
@@ -101,10 +139,8 @@ scrape_configs:
       health_interval 5s
       health_timeout 2s
       health_status 2xx
-      lb_try_duration 3s
-      lb_try_interval 250ms
-      lb_retry_match {
-        method GET
+      transport http {
+        keepalive off
       }
     }
   }
@@ -289,6 +325,7 @@ Type=simple
 User=wukongim
 Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
+ExecStartPre=/opt/wukongim/bin/caddy validate --config /etc/wukongim/Caddyfile --adapter caddyfile
 ExecStart=/opt/wukongim/bin/caddy run --config /etc/wukongim/Caddyfile --adapter caddyfile
 Restart=no
 LimitNOFILE=1048576

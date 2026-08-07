@@ -2098,7 +2098,7 @@ func TestMetaCreateAccountingInitialExpectedAndReheatZeroDelta(t *testing.T) {
 	if err := lifecycleMetaCheckpoint(accounting, 1_000_000, 2_000, lifecycleMetaMetrics(1_002_000, 9, 0), true); err != nil {
 		t.Fatalf("reheat: %v", err)
 	}
-	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 1_002_000 || snapshot.Created != 1_002_000 || snapshot.ReheatCreated != 0 {
+	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 1_002_000 || snapshot.Created != 1_002_000 || snapshot.ExternalDemoActivity != 0 {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
 }
@@ -2116,7 +2116,7 @@ func TestMetaCreateAccountingRejectsWrongLogicalSlotDistributionWithMatchingTota
 	}
 }
 
-func TestMetaCreateAccountingRejectsAndCountsReheatSlotRedistribution(t *testing.T) {
+func TestMetaCreateAccountingRejectsReheatSlotDeficitDespiteExternalCreates(t *testing.T) {
 	assignment := mustInitialLifecycleSlotAssignment(t)
 	var initialPerson, nextPerson, preparedGroups MetaCreateHashSlotCounts
 	initialPerson[0], nextPerson[0], preparedGroups[22] = 5, 6, 1
@@ -2137,12 +2137,24 @@ func TestMetaCreateAccountingRejectsAndCountsReheatSlotRedistribution(t *testing
 	if !errors.Is(err, ErrLifecycleProductFailure) {
 		t.Fatalf("redistributed reheat error = %v, want product failure", err)
 	}
-	if snapshot := accounting.Snapshot(); snapshot.ReheatCreated != 1 {
-		t.Fatalf("redistributed reheat snapshot = %+v, want one excess create", snapshot)
+	if snapshot := accounting.Snapshot(); snapshot.ExternalDemoActivity != 1 || snapshot.ExpectedUnique != 7 ||
+		snapshot.Created != 7 || snapshot.Checkpoints != 2 {
+		t.Fatalf("failed checkpoint did not retain classified Demo/accounting evidence: %+v", snapshot)
+	}
+	var caughtUp [formalLogicalSlotGroups]uint64
+	caughtUp[0], caughtUp[1] = 6, 2
+	if err := accounting.Checkpoint(
+		nextPerson, preparedGroups, assignment,
+		lifecycleMetaMetricsBySlot(caughtUp, [formalLogicalSlotGroups]uint64{}, [formalLogicalSlotGroups]uint64{}), true,
+	); !errors.Is(err, ErrLifecycleProductFailure) {
+		t.Fatalf("caught-up checkpoint error = %v, want sticky product failure", err)
+	}
+	if snapshot := accounting.Snapshot(); snapshot.CreatedBySlot != redistributedCreated || snapshot.Checkpoints != 2 {
+		t.Fatalf("caught-up checkpoint erased first product evidence: %+v", snapshot)
 	}
 }
 
-func TestMetaCreateAccountingReheatAllowsOnlyExpectedConcurrentGrowth(t *testing.T) {
+func TestMetaCreateAccountingAllowsAndReportsExternalDemoCreatesPerSlot(t *testing.T) {
 	accounting := NewMetaCreateAccounting()
 	if err := lifecycleMetaCheckpoint(accounting, 10, 2, lifecycleMetaMetrics(12, 3, 0), false); err != nil {
 		t.Fatal(err)
@@ -2150,17 +2162,33 @@ func TestMetaCreateAccountingReheatAllowsOnlyExpectedConcurrentGrowth(t *testing
 	if err := lifecycleMetaCheckpoint(accounting, 13, 2, lifecycleMetaMetrics(15, 9, 0), true); err != nil {
 		t.Fatalf("expected concurrent growth: %v", err)
 	}
-	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 15 || snapshot.Created != 15 || snapshot.AlreadyExisting != 9 || snapshot.ReheatCreated != 0 {
+	if snapshot := accounting.Snapshot(); snapshot.ExpectedUnique != 15 || snapshot.Created != 15 || snapshot.AlreadyExisting != 9 || snapshot.ExternalDemoActivity != 0 {
 		t.Fatalf("snapshot = %+v", snapshot)
 	}
 
 	excess := NewMetaCreateAccounting()
 	_ = lifecycleMetaCheckpoint(excess, 10, 2, lifecycleMetaMetrics(12, 0, 0), false)
-	if err := lifecycleMetaCheckpoint(excess, 13, 2, lifecycleMetaMetrics(16, 0, 0), true); !errors.Is(err, ErrLifecycleProductFailure) {
-		t.Fatalf("excess error = %v, want product failure", err)
+	if err := lifecycleMetaCheckpoint(excess, 13, 2, lifecycleMetaMetrics(16, 0, 0), true); err != nil {
+		t.Fatalf("external Demo create error = %v", err)
 	}
-	if snapshot := excess.Snapshot(); snapshot.ReheatCreated != 1 {
+	if snapshot := excess.Snapshot(); snapshot.ExternalDemoActivity != 1 || snapshot.Checkpoints != 2 {
 		t.Fatalf("excess snapshot = %+v", snapshot)
+	}
+
+	assignment := mustInitialLifecycleSlotAssignment(t)
+	var personEdges, preparedGroups MetaCreateHashSlotCounts
+	personEdges[0], preparedGroups[22] = 5, 1
+	var created [formalLogicalSlotGroups]uint64
+	created[0], created[1] = 6, 1
+	perSlot := NewMetaCreateAccounting()
+	if err := perSlot.Checkpoint(
+		personEdges, preparedGroups, assignment,
+		lifecycleMetaMetricsBySlot(created, [formalLogicalSlotGroups]uint64{}, [formalLogicalSlotGroups]uint64{}), false,
+	); err != nil {
+		t.Fatalf("per-Slot external Demo create error = %v", err)
+	}
+	if snapshot := perSlot.Snapshot(); snapshot.ExpectedUnique != 6 || snapshot.Created != 7 || snapshot.ExternalDemoActivity != 1 {
+		t.Fatalf("per-Slot external Demo snapshot = %+v", snapshot)
 	}
 }
 
@@ -2171,10 +2199,13 @@ func TestMetaCreateAccountingRejectsCreatedOnReheatErrorsRegressionAndOverflow(t
 		run  func(*MetaCreateAccounting) error
 		want error
 	}{
-		{"created on reheat", func(a *MetaCreateAccounting) error {
+		{"first checkpoint cannot be reheat", func(a *MetaCreateAccounting) error {
+			return lifecycleMetaCheckpoint(a, 10, 2, base, true)
+		}, ErrLifecycleHarnessInvalid},
+		{"external create outside reheat is allowed", func(a *MetaCreateAccounting) error {
 			_ = lifecycleMetaCheckpoint(a, 10, 2, base, false)
-			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(13, 0, 0), true)
-		}, ErrLifecycleProductFailure},
+			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(13, 0, 0), false)
+		}, nil},
 		{"error result", func(a *MetaCreateAccounting) error {
 			return lifecycleMetaCheckpoint(a, 10, 2, lifecycleMetaMetrics(12, 0, 1), false)
 		}, ErrLifecycleProductFailure},

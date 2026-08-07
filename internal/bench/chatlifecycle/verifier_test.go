@@ -410,6 +410,46 @@ func TestVerifierValidatesRecvAndAcknowledgesEveryPayloadClass(t *testing.T) {
 	}
 }
 
+func TestVerifierAcknowledgesButExcludesExternalDemoTraffic(t *testing.T) {
+	_, verifier := newTestVerifier(t, 16, 16, 16, time.Second)
+	acker := &recordingRecvAcker{err: errors.New("external ACK failure must not classify the run")}
+	external := &frame.RecvPacket{
+		MessageID: 901, MessageSeq: 7, ClientMsgNo: "demo-message", ChannelID: "demo-peer",
+		ChannelType: frame.ChannelTypePerson, FromUID: "demo-peer", Payload: []byte("manual Demo payload"),
+	}
+	if err := verifier.HandleRecv(context.Background(), "workload-recipient", external, acker); err != nil {
+		t.Fatalf("external Demo receive error = %v", err)
+	}
+	if len(acker.acks) != 1 || acker.acks[0].MessageID != external.MessageID || acker.acks[0].MessageSeq != external.MessageSeq {
+		t.Fatalf("external Demo ACKs = %+v", acker.acks)
+	}
+	if snapshot := verifier.Snapshot(); snapshot != (VerifierSnapshot{SendackLatency: newWorkerHistogramSnapshot(), RecvackLatency: newWorkerHistogramSnapshot()}) {
+		t.Fatalf("external Demo traffic entered workload counters: %+v", snapshot)
+	}
+
+	otherCfg := LocalConfig()
+	otherCfg.RunID = "other-demo-run"
+	otherIdentity, err := NewIdentitySpace(otherCfg.RunID, otherCfg.Seed, uint64(otherCfg.Workload.Workers))
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherModel, err := NewTrafficModel(otherIdentity, otherCfg.Workload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherLogical := mustLogicalSend(t, otherModel, 0, 1, TrafficPerson, "other-sender", "workload-recipient")
+	otherRecv := mustRecvPacket(t, otherModel, otherLogical, 902, 8)
+	if err := verifier.HandleRecv(context.Background(), otherLogical.Target, otherRecv, acker); err != nil {
+		t.Fatalf("other-run receive error = %v", err)
+	}
+	if len(acker.acks) != 2 {
+		t.Fatalf("other-run ACKs = %+v", acker.acks)
+	}
+	if snapshot := verifier.Snapshot(); snapshot.Received != 0 || snapshot.ReceiveAcknowledged != 0 || snapshot.ReceiveAckFailures != 0 || snapshot.Corruptions != 0 {
+		t.Fatalf("other-run marker entered workload counters: %+v", snapshot)
+	}
+}
+
 func TestVerifierRecvFailuresRemainProductFailuresAndStillAck(t *testing.T) {
 	model, verifier := newTestVerifier(t, 64, 64, 64, 10*time.Second)
 	recipient := "recipient-secret"

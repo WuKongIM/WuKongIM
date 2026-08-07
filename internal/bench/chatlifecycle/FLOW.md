@@ -255,13 +255,19 @@ compatibility. Accounting
 accepts exactly three service-node scrapes and uses checked integer arithmetic
 to reconcile their fixed 12-Slot vectors. It folds separate bounded 256-hash-slot
 person-edge and prepared-group expectations through the current immutable
-assignment, then requires both the total and every logical Slot's `created`
-counter to match. Per-Slot counters may not regress, `error` must remain zero,
-and `already_existing` may increase. Because ordinary traffic continues creating
-person channels during a reheat window, every Slot's cumulative `created` delta
-must equal that Slot's concurrent expected-unique delta; excess, deficit, or
-redistribution is product failure. The metric and all fixed-array aggregate
-snapshots remain low-cardinality and carry no channel label.
+assignment, then requires every logical Slot's `created` counter to cover its
+marked expectation. Per-Slot counters may not regress, `error` must remain zero,
+and `already_existing` may increase. A deficit in any Slot is product failure
+even when another Slot has excess creates. Every structurally valid checkpoint,
+including product-failing evidence, is retained for the final report. The first
+product-failing accounting snapshot is sticky through final reconciliation so
+a later counter catch-up cannot erase the correctness proof. The sum
+of positive per-Slot creates above the marked expectation is retained as
+`external_demo_activity` and does not fail the run; their host resource cost
+remains visible to the ordinary observers. This accounting contract is report
+schema v2; the strict reader intentionally rejects legacy v1 reports. The metric
+and all fixed-array aggregate snapshots remain low-cardinality and carry no
+channel label.
 
 Worker snapshots contain only scalar aggregates,
 fixed arrays, and the verifier's at-most-four evidence classes with at most 64
@@ -438,9 +444,14 @@ bounded grace index; unknown sequence values remain product evidence. Explicit
 terminal completion is also a product failure. Unknown, duplicate, and
 conflicting completions use fixed reason codes and redacted message fingerprints.
 
-Every protocol-valid RECV is decoded once, reconstructed through the payload
-marker and `TrafficModel`, then checked for person peer versus group channel
-semantics and strictly increasing sequence per recipient/channel. Payload
+Every RECV that carries this exact run-marker prefix is decoded once,
+reconstructed through the payload marker and `TrafficModel`, then checked for
+person peer versus group channel semantics and strictly increasing sequence per
+recipient/channel. A payload without that exact prefix, including another run's
+valid marker, is acknowledged when its server identity is positive but never
+enters receive, ACK, retry, latency, sequence, correlation, or correctness
+counters. A damaged payload that still carries this run prefix remains marked
+corruption. Payload
 decoding, deterministic identity reconstruction, and checksum/padding scans run
 outside verifier state locks. SEND/correlation/deadline state and
 receive/sequence state have independent locks; neither is held while calling

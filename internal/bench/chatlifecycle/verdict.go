@@ -62,6 +62,7 @@ const (
 	VerdictCauseWorkerHarness           VerdictCause = "worker_harness_invalid"
 	VerdictCauseLifecycleProduct        VerdictCause = "lifecycle_product_failure"
 	VerdictCauseLifecycleHarness        VerdictCause = "lifecycle_harness_invalid"
+	VerdictCauseMetaCreateProduct       VerdictCause = "meta_create_product_failure"
 )
 
 // ResourceBurstState makes overload recovery evaluation explicit.
@@ -503,7 +504,7 @@ func validVerdictSignal(signal VerdictSignal) bool {
 	switch signal.Outcome {
 	case VerdictProductFailure:
 		return signal.Cause == VerdictCauseServerCrash || signal.Cause == VerdictCauseWorkerProduct ||
-			signal.Cause == VerdictCauseLifecycleProduct
+			signal.Cause == VerdictCauseLifecycleProduct || signal.Cause == VerdictCauseMetaCreateProduct
 	case VerdictInfrastructureFailure:
 		return signal.Cause == VerdictCauseDiskExhausted
 	case VerdictHarnessInvalid:
@@ -553,7 +554,7 @@ func verdictCauseRank(cause VerdictCause) int {
 		VerdictCauseDiskExhausted, VerdictCauseCounterRegression, VerdictCauseQueueSaturation,
 		VerdictCauseObserverGap, VerdictCauseInvalidObservation, VerdictCauseOperatorRequested,
 		VerdictCauseWorkerProduct, VerdictCauseWorkerHarness,
-		VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness,
+		VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness, VerdictCauseMetaCreateProduct,
 	}
 	for index, candidate := range causes {
 		if candidate == cause {

@@ -260,6 +260,15 @@ func (m TrafficModel) VerifyPayload(payload []byte, logical LogicalSend) error {
 	return m.verifyDecodedPayloadMarker(marker, logical)
 }
 
+// hasRunMarkerPrefix reports whether a payload claims this exact workload run
+// before full checksum and declaration validation. It lets receive accounting
+// acknowledge unrelated Demo traffic without admitting it to verdict counters,
+// while a damaged payload that still carries this run marker remains corruption.
+func (m TrafficModel) hasRunMarkerPrefix(payload []byte) bool {
+	return len(payload) >= payloadMarkerRunEnd && bytes.Equal(payload[:4], payloadMagic[:]) &&
+		payload[4] == payloadMarkerVersion && bytes.Equal(payload[payloadMarkerHeaderEnd:payloadMarkerRunEnd], m.runFingerprint[:])
+}
+
 // verifyDecodedPayloadMarker matches an already structurally verified marker
 // to a validated logical send without decoding or scanning the payload again.
 func (m TrafficModel) verifyDecodedPayloadMarker(marker PayloadMarker, logical LogicalSend) error {

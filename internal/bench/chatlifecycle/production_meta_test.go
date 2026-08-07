@@ -85,7 +85,7 @@ func TestProductionMetaControllerCheckpointsThreeNodeMetricsAcrossTwelveLogicalS
 	if err := controller.Checkpoint(context.Background(), workers, assignment, true); err != nil {
 		t.Fatalf("reheat zero-delta Checkpoint: %v", err)
 	}
-	if snapshot = accounting.Snapshot(); snapshot.ReheatCreated != 0 || snapshot.Checkpoints != 2 {
+	if snapshot = accounting.Snapshot(); snapshot.ExternalDemoActivity != 0 || snapshot.Checkpoints != 2 {
 		t.Fatalf("reheat zero-delta snapshot = %+v", snapshot)
 	}
 }

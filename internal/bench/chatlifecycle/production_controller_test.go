@@ -16,8 +16,8 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller", Generation: 4}
 	observation := newProductionControllerObservation(cfg, start)
 	lifecycle := &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})}
-	meta := &productionControllerMeta{}
 	accounting := NewMetaCreateAccounting()
+	meta := &productionControllerMeta{accounting: accounting}
 	dataset := &productionControllerDataset{digest: hashReportValue("production-controller-dataset")}
 	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
 		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
@@ -78,9 +78,10 @@ func TestProductionEvidenceControllerPersistsFrozenLifecycleProductFailure(t *te
 	lifecycle := &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{
 		ProductFailures: 1, ReheatLatency: newWorkerHistogramSnapshot(),
 	}, done: make(chan struct{})}
+	accounting := NewMetaCreateAccounting()
 	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
 		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
-		Lifecycle: lifecycle, Meta: &productionControllerMeta{}, MetaAccounting: NewMetaCreateAccounting(),
+		Lifecycle: lifecycle, Meta: &productionControllerMeta{accounting: accounting, metricError: true}, MetaAccounting: accounting,
 		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-product-dataset")},
 		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
 	})
@@ -110,7 +111,7 @@ func TestProductionEvidenceControllerPersistsFrozenLifecycleProductFailure(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseLifecycleProduct {
+	if report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseLifecycleProduct || report.MetaCreate.Errors != 1 {
 		t.Fatalf("final product verdict = %+v", report.Verdict)
 	}
 }
@@ -121,10 +122,11 @@ func TestProductionEvidenceControllerSkipsPeriodicCutUntilFirstObservation(t *te
 	start := time.Unix(1_960_050_000, 0).UTC()
 	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-await", Generation: 8}
 	observation := &productionControllerObservation{}
+	accounting := NewMetaCreateAccounting()
 	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
 		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
 		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
-		Meta:      &productionControllerMeta{}, MetaAccounting: NewMetaCreateAccounting(),
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
 		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-await-dataset")},
 		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
 	})
@@ -151,10 +153,12 @@ func TestProductionEvidenceControllerWritesNonTerminalQualificationAndKeepsRunni
 	start := time.Unix(1_960_100_000, 0).UTC()
 	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-q", Generation: 5}
 	output := t.TempDir()
+	accounting := NewMetaCreateAccounting()
+	meta := &productionControllerMeta{accounting: accounting}
 	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
 		Config: cfg, OutputDir: output, Observation: newProductionControllerObservation(cfg, start),
 		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
-		Meta:      &productionControllerMeta{}, MetaAccounting: NewMetaCreateAccounting(),
+		Meta:      meta, MetaAccounting: accounting,
 		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-qualification-dataset")},
 		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
 	})
@@ -181,8 +185,103 @@ func TestProductionEvidenceControllerWritesNonTerminalQualificationAndKeepsRunni
 	if report.Kind != CheckpointQualification || report.Final || !report.Continue || report.Verdict.Terminal {
 		t.Fatalf("qualification report = %+v", report)
 	}
+	if meta.calls != 1 || report.MetaCreate.Checkpoints != 1 {
+		t.Fatalf("qualification meta checkpoints = %d/%d, want 1/1", meta.calls, report.MetaCreate.Checkpoints)
+	}
 	if _, err := os.Stat(filepath.Join(output, "final.json")); !os.IsNotExist(err) {
 		t.Fatalf("qualification unexpectedly wrote final report: %v", err)
+	}
+}
+
+func TestProductionEvidenceControllerClassifiesQualificationMetaDeficitAsProductFailure(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-qualification-meta-product"
+	start := time.Unix(1_960_125_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-q-meta", Generation: 6}
+	output := t.TempDir()
+	accounting := NewMetaCreateAccounting()
+	meta := &productionControllerMeta{accounting: accounting, deficit: true, harnessOnCall: 2}
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: output, Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      meta, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-q-meta-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	checkpointAt := start.Add(cfg.Thresholds.Timeline.Checkpoint)
+	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, cfg.Thresholds.Timeline.Checkpoint, WorkerPhaseRunning)
+	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutQualification, At: checkpointAt, Snapshots: prepare,
+	})
+	if err != nil || decision != CoordinatorProductFailure {
+		t.Fatalf("qualification meta decision/error = %q/%v", decision, err)
+	}
+	final := productionControllerWorkerSnapshots(cfg, fence, 2, cfg.Thresholds.Timeline.Checkpoint+time.Second, WorkerPhaseFinal)
+	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
+		Start: startCut, At: checkpointAt.Add(time.Second), Decision: decision, Prepare: prepare, FinalSnapshots: final,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ReadReport(filepath.Join(output, "final.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseMetaCreateProduct ||
+		report.MetaCreate.ExpectedUnique != 1 || report.MetaCreate.Created != 0 || report.MetaCreate.Checkpoints != 1 {
+		t.Fatalf("qualification meta product report = %+v", report)
+	}
+}
+
+func TestProductionEvidenceControllerClassifiesFinalMetaErrorAsProductFailure(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-final-meta-product"
+	start := time.Unix(1_960_150_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-final-meta", Generation: 7}
+	output := t.TempDir()
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: output, Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting, metricError: true}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-final-meta-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, time.Minute, WorkerPhaseRunning)
+	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(time.Minute), Snapshots: prepare, StopRequested: true,
+	})
+	if err != nil || decision != CoordinatorStopped {
+		t.Fatalf("terminal prepare decision/error = %q/%v", decision, err)
+	}
+	final := productionControllerWorkerSnapshots(cfg, fence, 2, time.Minute+time.Second, WorkerPhaseFinal)
+	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
+		Start: startCut, At: start.Add(time.Minute + time.Second), Decision: decision, Prepare: prepare, FinalSnapshots: final,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ReadReport(filepath.Join(output, "final.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict.Outcome != VerdictProductFailure || report.Verdict.Cause != VerdictCauseMetaCreateProduct ||
+		report.MetaCreate.Errors != 1 || report.MetaCreate.Checkpoints != 1 {
+		t.Fatalf("final meta product report = %+v", report)
 	}
 }
 
@@ -231,11 +330,44 @@ func (l *productionControllerLifecycle) Snapshot() LifecycleProofSnapshot {
 	return l.snapshot
 }
 
-type productionControllerMeta struct{ calls int }
+type productionControllerMeta struct {
+	calls         int
+	accounting    *MetaCreateAccounting
+	deficit       bool
+	metricError   bool
+	harnessOnCall int
+}
 
-func (m *productionControllerMeta) Checkpoint(context.Context, []WorkerSnapshot, LifecycleSlotAssignment, bool) error {
+func (m *productionControllerMeta) Checkpoint(
+	_ context.Context,
+	_ []WorkerSnapshot,
+	assignment LifecycleSlotAssignment,
+	reheat bool,
+) error {
 	m.calls++
-	return nil
+	if m.harnessOnCall > 0 && m.calls >= m.harnessOnCall {
+		return ErrLifecycleHarnessInvalid
+	}
+	var counts MetaCreateHashSlotCounts
+	var emptyCounts MetaCreateHashSlotCounts
+	if m.deficit {
+		counts[0] = 1
+	}
+	var errorsBySlot [formalLogicalSlotGroups]uint64
+	if m.metricError {
+		errorsBySlot[0] = 1
+	}
+	return m.accounting.Checkpoint(
+		counts,
+		emptyCounts,
+		assignment,
+		lifecycleMetaMetricsBySlot(
+			[formalLogicalSlotGroups]uint64{},
+			[formalLogicalSlotGroups]uint64{},
+			errorsBySlot,
+		),
+		reheat,
+	)
 }
 
 type productionControllerDataset struct {

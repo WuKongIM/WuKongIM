@@ -186,6 +186,15 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	correctness.ActivationRejections = c.lastObservation.ActivationRejections
 	signals = append(signals, productionLifecycleSignals(lifecycle)...)
 	signals = append(signals, c.lifecycleSignalsLocked()...)
+	if cut.Kind == CoordinatorCutQualification {
+		metaErr := c.meta.Checkpoint(ctx, cut.Snapshots, c.assignment, c.accounting.Snapshot().Checkpoints > 0)
+		switch {
+		case errors.Is(metaErr, ErrLifecycleProductFailure):
+			signals = append(signals, VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseMetaCreateProduct})
+		case metaErr != nil:
+			return "", errProductionController
+		}
+	}
 	resources := []NodeResourceSample(nil)
 	if c.lastObservationID == observation.Sequence && observation.At.Equal(cut.At) {
 		resources = observation.Resources
@@ -221,7 +230,6 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 			verdict = c.evaluator.Snapshot()
 		}
 	}
-
 	evidence := c.checkpointEvidenceLocked(lifecycle, verdict, cut.Capacity)
 	if cut.Kind == CoordinatorCutQualification && !verdict.Terminal {
 		if _, err := c.recorder.CaptureAndWrite(cut.At, cut.Snapshots, evidence, c.paths("qualification")); err != nil {
@@ -252,11 +260,23 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	if err := c.refreshDatasetLocked(ctx); err != nil {
 		return err
 	}
-	if err := c.meta.Checkpoint(ctx, cut.FinalSnapshots, c.assignment, c.accounting.Snapshot().Checkpoints > 0); err != nil {
+	beforeMeta := c.accounting.Snapshot()
+	hadMetaProduct := metaCreateSnapshotHasProductFailure(beforeMeta)
+	metaErr := c.meta.Checkpoint(ctx, cut.FinalSnapshots, c.assignment, beforeMeta.Checkpoints > 0)
+	// A prior structurally valid product snapshot is terminal evidence. A later
+	// harness-only reconciliation error cannot erase it or suppress the report.
+	metaProduct := hadMetaProduct || errors.Is(metaErr, ErrLifecycleProductFailure)
+	if metaErr != nil && !metaProduct {
 		return errProductionController
 	}
 	lifecycle := c.lifecycle.Snapshot()
 	current := VerdictSignal{Outcome: c.frozen.Outcome, Cause: c.frozen.Cause}
+	if metaProduct {
+		metaSignal := VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseMetaCreateProduct}
+		if verdictSignalPrecedes(metaSignal, current) {
+			current = metaSignal
+		}
+	}
 	for _, signal := range append(productionLifecycleSignals(lifecycle), c.lifecycleSignalsLocked()...) {
 		if verdictSignalPrecedes(signal, current) {
 			current = signal

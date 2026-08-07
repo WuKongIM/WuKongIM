@@ -627,6 +627,10 @@ func (v *Verifier) HandleRecvAt(ctx context.Context, recipient string, recv *fra
 }
 
 func (v *Verifier) handleRecvAt(ctx context.Context, recipient string, recv *frame.RecvPacket, acker RecvAcker, now func() time.Time) error {
+	if recv != nil && !v.model.hasRunMarkerPrefix(recv.Payload) {
+		ackExternalRecv(ctx, recv, acker)
+		return nil
+	}
 	v.recvMu.Lock()
 	if recv == nil || recv.MessageID <= 0 || recv.MessageSeq == 0 {
 		v.recvCounters.receiveFailures++
@@ -699,6 +703,16 @@ func (v *Verifier) handleRecvAt(ctx context.Context, recipient string, recv *fra
 	}
 	v.recvMu.Unlock()
 	return validationErr
+}
+
+// ackExternalRecv prevents unrelated Demo delivery from being replayed to a
+// workload session. External traffic never changes correctness or ACK metrics,
+// and its ACK result cannot classify the marked workload.
+func ackExternalRecv(ctx context.Context, recv *frame.RecvPacket, acker RecvAcker) {
+	if recv == nil || recv.MessageID <= 0 || recv.MessageSeq == 0 || acker == nil {
+		return
+	}
+	_ = acker.AckRecv(ctx, &frame.RecvackPacket{MessageID: recv.MessageID, MessageSeq: recv.MessageSeq})
 }
 
 func (v *Verifier) prepareRecv(recipient string, recv *frame.RecvPacket) (preparedRecv, error) {
