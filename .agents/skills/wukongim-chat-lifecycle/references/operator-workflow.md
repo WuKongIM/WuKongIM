@@ -9,6 +9,9 @@ Resolve the exact GitHub repository with `gh repo view --json nameWithOwner`. Re
 Store request state under the absolute OS-resolved `~/wukongim-leases/chat-lifecycle/<request_id>/` directory, outside every repository and worktree. Create the request directory with mode 0700. Store the Ed25519 private key, decrypted `access.json`, and state metadata with mode 0600. Never print private file contents. Validate the resolved cleanup target is one exact child of the chat-lifecycle state root before deleting it.
 
 Generate request IDs as `chat-<UTC basic timestamp>-<8 lowercase hex characters>`. Generate a new unencrypted OpenSSH Ed25519 key named `diagnostic_ed25519`; the filesystem mode and local state boundary protect it. Pass only the normalized `.pub` line to GitHub.
+Create it through `scripts/chat-lifecycle/local-request-state.sh init <request_id> <source_sha>`. The helper resolves the account state root without
+using an unresolved home-directory deletion target, creates 0700 directories,
+creates the key and state metadata as 0600, and refuses an existing request.
 
 Retain this diagnostic key across rehearsal and formal because the formal transition binds the same request identity. Delete a released rehearsal UI credential when it is superseded, but keep the diagnostic key until the entire request has exact zero-inventory proof.
 
@@ -38,6 +41,12 @@ Create a persistent run-scoped monitoring goal when the product supports it. Pol
 - invoke diagnosis while a qualifying failure is still live; and
 - continue until the exact Cloud Lease selector has an authenticated zero-inventory proof.
 
+An authenticated `diagnosis-window.json` with `state=diagnosis_pending` is an
+immediate monitor wake-up, not a reason to wait for the next 30-minute poll.
+Invoke `$wukongim-cloud-analysis` while its exact Lease remains live and record
+the evidence-based classification on the tracking Issue. The scheduled
+finalizer releases at the marker deadline even if the local monitor is absent.
+
 If persistent desktop monitoring is unavailable, say so explicitly and leave the Issue plus scheduled finalizers/sweeper as the fallback. Do not imply that a local monitor is active.
 
 ## Manager and Demo access
@@ -47,7 +56,7 @@ The rehearsal and formal handoff Artifacts contain `encrypted-access.json`, neve
 1. authenticate the handoff run as the exact protected-main rehearsal or formal workflow for this request;
 2. validate the envelope schema, request ID, source SHA, Lease ID, deployment Plan digest, recipient fingerprint, and algorithm;
 3. build `wkchatlifecycle` from the frozen trusted source; and
-4. run `wkchatlifecycle open-access --envelope <exact-file> --identity <diagnostic_ed25519> --request-id <request_id> --output <new-access.json>`.
+4. run `wkchatlifecycle open-access --envelope <exact-file> --identity <diagnostic_ed25519> --request-id <request_id> --now <current-UTC-RFC3339> --output <new-access.json>`.
 
 Validate the decrypted request, Lease, source, digest, expiry, `http://` URLs, and shared username/password against the authenticated Deployment Receipt. Present the credential only in the operator conversation. Do not use shell tracing while handling it.
 
@@ -75,3 +84,6 @@ Use the authenticated active handoff to resolve the current Lease/run identity, 
 Close the tracking Issue only after final evidence and exact zero inventory. The final comment includes the terminal verdict, aggregate cost, Artifact link, cleanup proof identity, and both time zones; mention `@tangtaoit`.
 
 After the close facts are persisted, delete only the exact request's private key, public key, decrypted access, encrypted download, and local metadata. Never recursively delete an unresolved variable, a state root, a repository, a worktree, a home directory, or a parent directory. Report local credential deletion in the final handoff.
+Use `scripts/chat-lifecycle/local-request-state.sh cleanup <request_id> <authenticated-zero-inventory.json>`. It validates the exact request selector,
+deletes only the fixed credential filenames, and refuses to remove a directory
+that contains unexpected files.

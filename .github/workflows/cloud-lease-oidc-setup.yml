@@ -278,3 +278,33 @@ jobs:
             --audience '${{ needs.reconcile.outputs.oidc_audience }}' \
             --expected-role CloudLeaseReleaser --policy-kind releaser |
             jq -e --arg account '${{ needs.reconcile.outputs.account_id_hash }}' '.account_id_hash == $account' >/dev/null
+
+  verify-deployment-wrapping-key:
+    name: Verify Chat Lifecycle deployment wrapping identity
+    needs: reconcile
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: cloud-deployment
+    permissions:
+      contents: read
+    env:
+      WRAPPING_PUBLIC_KEY: ${{ vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY }}
+      WRAPPING_PRIVATE_KEY: ${{ secrets.WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY }}
+    steps:
+      - name: Prove the configured wrapping keypair matches
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$WRAPPING_PUBLIC_KEY"
+          test -n "$WRAPPING_PRIVATE_KEY"
+          umask 077
+          printf '%s\n' "$WRAPPING_PRIVATE_KEY" >"$RUNNER_TEMP/wrapping-key"
+          printf '%s\n' "$WRAPPING_PUBLIC_KEY" >"$RUNNER_TEMP/expected.pub"
+          ssh-keygen -y -f "$RUNNER_TEMP/wrapping-key" >"$RUNNER_TEMP/actual.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/expected.pub" | grep -q ED25519
+          cmp -s "$RUNNER_TEMP/expected.pub" "$RUNNER_TEMP/actual.pub"
+      - name: Remove plaintext wrapping identity
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/wrapping-key" "$RUNNER_TEMP/expected.pub" "$RUNNER_TEMP/actual.pub"

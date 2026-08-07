@@ -60,6 +60,7 @@ jobs:
       WK_CHAT_OPERATOR: tangtaoit
       WK_CHAT_REQUEST_ID: ${{ matrix.request_id }}
       WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/formal-v1.json
+      WK_CHAT_WRAPPING_PUBLIC_KEY: ${{ vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY }}
       WK_CHAT_TRANSITION_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/transition
       WK_CHAT_OUTPUT_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
       WK_CHAT_WORK_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/work
@@ -82,8 +83,6 @@ jobs:
           github-token: ${{ github.token }}
       - name: Authenticate transition, bundle, aggregate ledger, and SSH identities
         shell: bash
-        env:
-          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${{ matrix.transition_run_id }}" >transition-run.json
@@ -101,6 +100,7 @@ jobs:
             .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .from_stage == "rehearsal" and
             .outcome == "rehearsal_pass" and .zero_inventory == true and .request_id == $request and
             (.source_sha | test("^[0-9a-f]{40}$")) and (.bundle_digest | test("^sha256:[0-9a-f]{64}$")) and
+            (.codex_diagnostic_pubkey | startswith("ssh-ed25519 ")) and
             (.committed_micros | type == "number") and .committed_micros > 0 and .committed_micros < 1350000000
           ' "$WK_CHAT_TRANSITION_DIR/transition.json" >/dev/null
           source_sha="$(jq -er .source_sha "$WK_CHAT_TRANSITION_DIR/transition.json")"
@@ -137,15 +137,11 @@ jobs:
             (.path == ".github/workflows/cloud-deployment-bundle.yml" or
              .path == ".github/workflows/cloud-deployment-bundle.yml@refs/heads/main")
           ' bundle-run.json >/dev/null
-          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          test -n "$WK_CHAT_WRAPPING_PUBLIC_KEY"
           umask 077
-          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/deployment-key"
-          chmod 0600 "$RUNNER_TEMP/deployment-key"
-          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >"$RUNNER_TEMP/deployment.pub"
-          deployment_pub="$(cat "$RUNNER_TEMP/deployment.pub")"
-          jq -er --arg deployment "$deployment_pub" '
-            [.bootstrap_access.authorized_keys[] | select(. != $deployment)] | select(length == 1) | .[0]
-          ' "$WK_CHAT_TRANSITION_DIR/run-plan.json" >"$RUNNER_TEMP/codex-diagnostic.pub"
+          printf '%s\n' "$WK_CHAT_WRAPPING_PUBLIC_KEY" >"$RUNNER_TEMP/wrapping.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/wrapping.pub" | grep -q ED25519
+          jq -er .codex_diagnostic_pubkey "$WK_CHAT_TRANSITION_DIR/transition.json" >"$RUNNER_TEMP/codex-diagnostic.pub"
           ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
           {
             echo "WK_CHAT_SOURCE_SHA=$source_sha"
@@ -169,12 +165,10 @@ jobs:
       - name: Materialize, quote, acquire, deploy, and hand off remote formal ownership
         shell: bash
         env:
-          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
           WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
           WK_CHAT_TRANSITION: ${{ env.WK_CHAT_TRANSITION_DIR }}/transition.json
         run: |
           set -euo pipefail
-          export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
           export WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY="$(cat "$RUNNER_TEMP/codex-diagnostic.pub")"
           scripts/chat-lifecycle/stage-orchestrate.sh
       - name: Detect publishable handoff or cleanup continuation
@@ -233,4 +227,4 @@ jobs:
       - name: Remove plaintext runner identities
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/deployment.pub" "$RUNNER_TEMP/codex-diagnostic.pub"
+        run: rm -f "$RUNNER_TEMP/wrapping.pub" "$RUNNER_TEMP/codex-diagnostic.pub"

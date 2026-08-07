@@ -79,6 +79,11 @@ GitHub runner, owns the measured execution and its report files.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The
+Action opens only the exact unexpired per-Lease deployment Ed25519 identity
+sealed to the `cloud-deployment` Environment wrapping key; the standing
+wrapping private key is never authorized on a host, and the Lease private key
+is removed from every runner after use. The independently generated Codex
+diagnostic private key never enters GitHub. The
 Action cannot Quote, Acquire, Release, or otherwise mutate provider inventory.
 The production Action mirrors the Fleet gates with a locally fakeable shell
 adapter and authenticates its caller-supplied Artifact runs before executing

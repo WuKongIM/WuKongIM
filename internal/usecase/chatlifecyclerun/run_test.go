@@ -87,7 +87,7 @@ func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggre
 			Schema: FormalTransitionSchemaV1, FromStage: StageRehearsal, Outcome: "rehearsal_pass",
 			RequestID: input.RequestID, SourceSHA: input.SourceSHA,
 			BundleDigest: "sha256:" + strings.Repeat("2", 64), CommittedMicros: 75_000_000,
-			ZeroInventory: true,
+			CodexDiagnosticPubKey: input.CodexDiagnosticPubKey, ZeroInventory: true,
 		},
 	}
 	plan, err := Materialize(template, input, trusted)
@@ -116,6 +116,12 @@ func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggre
 	missing.Transition = &wrongSource
 	if _, err := Materialize(template, input, missing); err == nil {
 		t.Fatal("formal run with different source provenance was accepted")
+	}
+	wrongCodexIdentity := *trusted.Transition
+	wrongCodexIdentity.CodexDiagnosticPubKey = testPublicKey(t)
+	missing.Transition = &wrongCodexIdentity
+	if _, err := Materialize(template, input, missing); err == nil {
+		t.Fatal("formal run with a different Codex diagnostic identity was accepted")
 	}
 }
 

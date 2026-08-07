@@ -7,8 +7,7 @@ set -euo pipefail
 : "${WK_CHAT_OPERATOR:?required}"
 : "${WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY:?required}"
 : "${WK_CHAT_REQUEST_ID:?required}"
-: "${WK_CHAT_DEPLOYMENT_PUBKEY:?required}"
-: "${WK_CHAT_DEPLOYMENT_KEY:?required}"
+: "${WK_CHAT_WRAPPING_PUBLIC_KEY:?required}"
 : "${WK_CHAT_TOOL:?required}"
 : "${WK_CHAT_TEMPLATE:?required}"
 : "${WK_CHAT_OUTPUT_DIR:?required}"
@@ -17,7 +16,7 @@ set -euo pipefail
 [[ "$WK_CHAT_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
 [[ "$WK_CHAT_OPERATOR" == tangtaoit ]]
 [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
-[[ -x "$WK_CHAT_TOOL" && -f "$WK_CHAT_TEMPLATE" && -f "$WK_CHAT_DEPLOYMENT_KEY" ]]
+[[ -x "$WK_CHAT_TOOL" && -f "$WK_CHAT_TEMPLATE" ]]
 
 chat_stage="${WK_CHAT_STAGE:-rehearsal}"
 case "$chat_stage" in
@@ -51,6 +50,7 @@ active_selector=''
 keep_active=false
 release_generation=0
 cleanup_attempted=false
+deployment_key=''
 DISPATCH_RUN_ID=''
 orchestration_started_epoch="$(date -u +%s)"
 orchestration_deadline_epoch=$(( orchestration_started_epoch + 20700 ))
@@ -161,6 +161,7 @@ cleanup_on_exit() {
   if [[ "$keep_active" != true && "$cleanup_attempted" != true && -n "$active_selector" ]]; then
     release_current || status=1
   fi
+  [[ -z "$deployment_key" ]] || rm -f "$deployment_key" "${deployment_key}.pub"
   exit "$status"
 }
 trap cleanup_on_exit EXIT
@@ -202,6 +203,11 @@ complete_failed_attempt() {
   ended_at="$(jq -er .result.zero_inventory.observed_at "$WK_CHAT_OUTPUT_DIR/zero-inventory.json")"
   actual_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$attempt_dir/run-plan.json" "$quote_file" "$created_at" "$ended_at" -1)"
   committed_micros=$(( committed_micros + actual_cost ))
+  rm -f "$deployment_key" "${deployment_key}.pub"
+  while IFS= read -r encrypted_identity; do
+    rm -f "$encrypted_identity"
+  done < <(find "$attempt_dir" -type f -name encrypted-deployment-identity.json -print)
+  deployment_key=''
   if [[ "$retry_allowed" != true ]]; then
     echo 'acquisition failure is terminal after zero-inventory cleanup' >&2
     exit 1
@@ -223,11 +229,15 @@ complete_failed_attempt() {
 for attempt in 1 2; do
   attempt_dir="$WK_CHAT_OUTPUT_DIR/attempt-$attempt"
   install -d -m 0700 "$attempt_dir"
+  deployment_key="$WK_CHAT_WORK_DIR/deployment-${chat_stage}-${attempt}"
+  ssh-keygen -q -t ed25519 -N '' -C "wukongim-chat-lifecycle-${WK_CHAT_REQUEST_ID}-${chat_stage}-${attempt}" -f "$deployment_key"
+  chmod 0600 "$deployment_key"
+  deployment_public_key="$(<"${deployment_key}.pub")"
   materialize_args=(
     materialize --template "$WK_CHAT_TEMPLATE" --source-sha "$WK_CHAT_SOURCE_SHA"
     --operator "$WK_CHAT_OPERATOR" --codex-diagnostic-pubkey "$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY"
     --request-id "$WK_CHAT_REQUEST_ID" --repository "$GITHUB_REPOSITORY"
-    --bundle-digest "$bundle_digest" --deployment-pubkey "$WK_CHAT_DEPLOYMENT_PUBKEY"
+    --bundle-digest "$bundle_digest" --deployment-pubkey "$deployment_public_key"
     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt "$attempt"
     --committed-micros "$committed_micros"
   )
@@ -305,13 +315,23 @@ for attempt in 1 2; do
     complete_failed_attempt "$attempt_dir/preflight-quote.json" false
   fi
 
+  lease_id="$(jq -er .receipt.lease_id "$attempt_dir/receipt.json")"
+  lease_plan_digest="$(jq -er .receipt.plan_digest "$attempt_dir/receipt.json")"
+  lease_expires_at="$(jq -er .receipt.expires_at "$attempt_dir/receipt.json")"
+  "$WK_CHAT_TOOL" seal-deployment-identity \
+    --recipient "$WK_CHAT_WRAPPING_PUBLIC_KEY" --identity "$deployment_key" \
+    --request-id "$WK_CHAT_REQUEST_ID" --lease-id "$lease_id" \
+    --source-sha "$WK_CHAT_SOURCE_SHA" --plan-digest "$lease_plan_digest" \
+    --expires-at "$lease_expires_at" >"$attempt_dir/encrypted-deployment-identity.json"
+
   lease_artifact="cloud-lease-provision-$WK_CHAT_REQUEST_ID"
   deployment_title="Cloud Deployment $lease_artifact"
   deployment_failed=false
   if ! dispatch_and_wait cloud-deployment-activate.yml "$deployment_title" \
     -f lease_artifact_run_id="$acquire_run_id" -f lease_artifact_name="$lease_artifact" \
     -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact" \
-    -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY"; then
+    -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" \
+    -f encrypted_deployment_identity_json="$(jq -c . "$attempt_dir/encrypted-deployment-identity.json")"; then
     deployment_failed=true
   fi
   deployment_run_id="$DISPATCH_RUN_ID"
@@ -321,7 +341,10 @@ for attempt in 1 2; do
     deployment_failed=true
   fi
   mapfile -t encrypted_access < <(find "$attempt_dir/deployment-artifact" -type f -name encrypted-access.json -print)
-  if [[ "$deployment_failed" == true ]] || (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 )); then
+  mapfile -t encrypted_deployment_identities < <(find "$attempt_dir/deployment-artifact" -type f -name encrypted-deployment-identity.json -print)
+  if [[ "$deployment_failed" == true ]] ||
+    (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 || ${#encrypted_deployment_identities[@]} != 1 )) ||
+    ! cmp -s "$attempt_dir/encrypted-deployment-identity.json" "${encrypted_deployment_identities[0]:-/dev/null}"; then
     deployment_failed=true
   else
     deployment_lease_id="$(jq -er .receipt.lease_id "${deployment_outcomes[0]}")"
@@ -346,7 +369,7 @@ for attempt in 1 2; do
     export WK_CLOUD_SERVICE1_IP="$(jq -er '.hosts[] | select(.role == "service-1") | .private_address' "$attempt_dir/deployment-plan.json")"
     export WK_CLOUD_SERVICE2_IP="$(jq -er '.hosts[] | select(.role == "service-2") | .private_address' "$attempt_dir/deployment-plan.json")"
     export WK_CLOUD_SERVICE3_IP="$(jq -er '.hosts[] | select(.role == "service-3") | .private_address' "$attempt_dir/deployment-plan.json")"
-    export WK_CLOUD_SSH_KEY="$WK_CHAT_DEPLOYMENT_KEY"
+    export WK_CLOUD_SSH_KEY="$deployment_key"
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
     ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo systemctl start --no-block '$stage_service'"
@@ -373,6 +396,10 @@ for attempt in 1 2; do
           cp "$attempt_dir/deployment-plan.json" "$WK_CHAT_OUTPUT_DIR/deployment-plan.json"
           cp "${deployment_outcomes[0]}" "$WK_CHAT_OUTPUT_DIR/deployment-outcome.json"
           cp "${encrypted_access[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-access.json"
+          cp "${encrypted_deployment_identities[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-deployment-identity.json"
+          while IFS= read -r nested_identity; do
+            [[ "$nested_identity" == "$WK_CHAT_OUTPUT_DIR/encrypted-deployment-identity.json" ]] || rm -f "$nested_identity"
+          done < <(find "$attempt_dir" -type f -name encrypted-deployment-identity.json -print)
           cp "$attempt_dir/run-start.json" "$WK_CHAT_OUTPUT_DIR/run-start.json"
           cp "$active_selector" "$WK_CHAT_OUTPUT_DIR/release-selector.json"
           jq -n --arg schema "$stage_handoff_schema" \
@@ -385,6 +412,8 @@ for attempt in 1 2; do
               started_at:$start[0].started_at,expected_end_at:$start[0].expected_end_at}' \
             >"$WK_CHAT_OUTPUT_DIR/handoff.json"
           keep_active=true
+          rm -f "$deployment_key" "${deployment_key}.pub"
+          deployment_key=''
           trap - EXIT
           exit 0
         fi

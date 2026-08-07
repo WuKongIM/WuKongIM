@@ -30,6 +30,8 @@ Require the explicit paid authority above, then execute the `Start` procedure in
 - `request_id`
 
 Create one request-scoped tracking Issue and one request-scoped local state directory outside the repository. Generate a fresh Ed25519 diagnostic identity there. Dispatch only after all read-only and identity prerequisites pass. Register a run-scoped 30-minute monitor that remains active until authenticated provider inventory is zero.
+Use `scripts/chat-lifecycle/local-request-state.sh init` for the local identity;
+do not reproduce its path validation or permissions with ad hoc deletion logic.
 
 When a successful Deployment handoff appears, authenticate its producer, download `encrypted-access.json`, and use `wkchatlifecycle open-access` with the local request identity. Give the operator the exact Manager and Demo HTTP URLs plus their shared temporary username and password only in the local conversation. Never copy them to the tracking Issue.
 
@@ -61,3 +63,6 @@ Diagnose is read-only and never authorizes procurement or cleanup. Resolve and a
 Use the tracking Issue as the human control record, never as provider authority. Record stage transitions, immutable source and Lease identities, checkpoint verdicts, cost, warnings, and cleanup evidence. Mention `tangtaoit` only for failures, capacity/resource or disk warnings, budget events, and the final outcome.
 
 Keep local diagnostic and UI credentials until the complete request has terminal evidence and exact zero inventory. Then remove only the fully resolved request-scoped files and mark the monitor complete. A workflow conclusion, accepted delete request, empty Issue, or elapsed expiry is not cleanup proof.
+Pass the authenticated `zero-inventory.json` to
+`scripts/chat-lifecycle/local-request-state.sh cleanup`; never recursively
+remove the request directory.

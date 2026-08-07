@@ -245,6 +245,14 @@ Receipt or bounded stable failure. Manager/Demo plaintext credentials exist
 only in the deployment process and the request-scoped local Codex state; the
 Artifact carries an authenticated sealed box addressed to the exact diagnostic
 Ed25519 identity supplied by the paid top-level workflow.
+Each Lease also gets a fresh Deployment/monitor Ed25519 identity. Setup stores
+only its long-lived wrapping public key as a repository Variable and the
+matching wrapping private key as a `cloud-deployment` Environment Secret. The
+top-level workflow seals the Lease private key, Deployment and finalizers open
+it only after checking request/Lease/source/Plan/expiry identity, and the
+finalizer deletes the short-lived handoff Artifact after zero inventory is
+retained separately. No standing deployment SSH private key is authorized on
+cloud hosts.
 The two upstream runs need not share the Deployment Action's head SHA: long
 bundle builds remain valid while `main` advances. The Lease provenance still
 binds the immutable source and bundle digest, and the sealed bundle control SHA
@@ -278,6 +286,18 @@ retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
 uploads a terminal report or bounded failure diagnostics, and only then invokes
 Release until `zero_inventory == true`; a cleanup Artifact is the terminal
 proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.
+An inspectable non-success first stops worker traffic and publishes an
+authenticated `diagnosis_window/v1` marker. Scheduled finalization preserves
+the first stable failure time for at most two hours so the run-scoped Codex
+monitor can invoke read-only cloud analysis; disk, budget, expiry, unreachable
+hosts, and operator stop shorten that window. Terminal Artifact upload is
+retried by the ten-minute finalizer schedule for at most two additional hours,
+then provider Release proceeds even if GitHub Artifact storage is unavailable.
+After Release returns exact zero inventory, each stage assembles a 90-day
+`chat-lifecycle-<stage>-complete-*` Artifact that nests the authenticated
+terminal evidence and cleanup receipts under one manifest. Provider billing is
+explicitly marked pending/unresolved until delayed provider-reported data is
+available; it is never fabricated from the conservative Quote.
 The scenario-wide concurrency lock permits only one paid Chat Lifecycle
 orchestrator at a time, and startup also refuses procurement while any prior
 authenticated rehearsal or formal handoff or cleanup-pending Lease lacks its selector-bound zero
@@ -315,7 +335,8 @@ conservative accrued host/retention/traffic cost and the one-hour expiry cleanup
 reserve every five seconds through both phases. `chat-lifecycle-formal-finalize.yml` waits for
 that process to exit, requires complete JSON/Markdown evidence pairs, and
 uploads the terminal chain result or bounded
-diagnostics, and only then releases the exact Lease to zero inventory. Failed
+diagnostics. It uses the same bounded live-diagnosis and report-rescue policy as
+rehearsal, and only then releases the exact Lease to zero inventory. Failed
 Release attempts persist a stage-authenticated cleanup continuation for the
 next scheduled pass; the generic Cloud Lease sweeper remains the independent
 expiry backstop.

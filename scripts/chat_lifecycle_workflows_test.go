@@ -65,6 +65,7 @@ func TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate(t *tes
 		"operator-stop-chat-lifecycle",
 		"zero-inventory proof",
 		"UTC and Asia/Shanghai",
+		"local-request-state.sh cleanup",
 	} {
 		if !strings.Contains(reference, required) {
 			t.Fatalf("project Skill operator reference is missing %q", required)
@@ -137,6 +138,56 @@ func TestChatLifecycleEncryptedAccessHandoffNeverPublishesPlaintextCredentials(t
 	}
 }
 
+func TestChatLifecycleUsesOneEncryptedDeploymentIdentityPerLease(t *testing.T) {
+	root := repoRoot(t)
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	for _, required := range []string{
+		"ssh-keygen -q -t ed25519",
+		"seal-deployment-identity",
+		"encrypted-deployment-identity.json",
+		`-f encrypted_deployment_identity_json="$(jq -c . "$attempt_dir/encrypted-deployment-identity.json")"`,
+	} {
+		if !strings.Contains(orchestrator, required) {
+			t.Fatalf("stage orchestration per-Lease identity is missing %q", required)
+		}
+	}
+	if strings.Contains(orchestrator, "WK_CHAT_DEPLOYMENT_KEY:?required") ||
+		strings.Contains(orchestrator, "WK_CHAT_DEPLOYMENT_PUBKEY:?required") {
+		t.Fatal("stage orchestration still requires one standing deployment identity")
+	}
+
+	for _, workflowName := range []string{
+		"chat-lifecycle-rehearsal.yml",
+		"chat-lifecycle-formal.yml",
+		"cloud-deployment-activate.yml",
+		"chat-lifecycle-rehearsal-finalize.yml",
+		"chat-lifecycle-formal-finalize.yml",
+	} {
+		workflow := string(readWorkflow(t, workflowName))
+		if strings.Contains(workflow, "CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY") {
+			t.Fatalf("%s still uses the standing deployment SSH private key", workflowName)
+		}
+	}
+	deployment := string(readWorkflow(t, "cloud-deployment-activate.yml"))
+	for _, required := range []string{
+		"encrypted_deployment_identity_json:",
+		"WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY",
+		"open-deployment-identity",
+	} {
+		if !strings.Contains(deployment, required) {
+			t.Fatalf("Deployment Action encrypted identity contract is missing %q", required)
+		}
+	}
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		for _, required := range []string{"encrypted-deployment-identity.json", "WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY", "open-deployment-identity"} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s encrypted finalizer identity is missing %q", workflowName, required)
+			}
+		}
+	}
+}
+
 func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperatorStop(t *testing.T) {
 	stop := string(readWorkflow(t, "chat-lifecycle-stop.yml"))
 	for _, required := range []string{
@@ -170,7 +221,7 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 
 func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(t *testing.T) {
 	workflow := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
-	upload := strings.Index(workflow, "Upload terminal report before any Release")
+	upload := strings.Index(workflow, "Upload bounded terminal or diagnosis evidence before any Release")
 	release := strings.Index(workflow, "Release exact Lease until zero inventory")
 	zero := strings.Index(workflow, "Upload zero-inventory proof")
 	if upload < 0 || release <= upload || zero <= release {
@@ -193,6 +244,97 @@ func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(
 	if strings.Contains(authenticator, ".result.zero_inventory == true") ||
 		!strings.Contains(authenticator, `.result.zero_inventory | type == "object"`) {
 		t.Fatal("cleanup authenticator does not validate the typed zero-inventory proof object")
+	}
+}
+
+func TestChatLifecycleRuntimeFailureRetainsOneBoundedDiagnosisWindow(t *testing.T) {
+	for _, contract := range []struct {
+		workflow string
+		script   string
+	}{
+		{workflow: "chat-lifecycle-rehearsal-finalize.yml", script: "rehearsal-finalize.sh"},
+		{workflow: "chat-lifecycle-formal-finalize.yml", script: "formal-finalize.sh"},
+	} {
+		workflow := string(readWorkflow(t, contract.workflow))
+		for _, required := range []string{
+			"diagnosis-window.json",
+			"previous.outputs.diagnosis_pending",
+			"steps.collect.outputs.diagnosis_pending == 'true'",
+			"Upload bounded terminal or diagnosis evidence before any Release",
+		} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s diagnosis retention is missing %q", contract.workflow, required)
+			}
+		}
+		script := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", contract.script))
+		for _, required := range []string{
+			"diagnosis_window_seconds=7200",
+			"diagnosis_pending",
+			"diagnosis-window.json",
+			"systemctl stop wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service",
+			"WK_CHAT_PREVIOUS_DIAGNOSIS_WINDOW",
+		} {
+			if !strings.Contains(script, required) {
+				t.Fatalf("%s diagnosis window is missing %q", contract.script, required)
+			}
+		}
+	}
+}
+
+func TestChatLifecycleReportUploadRetriesAreBoundedByFailureEvidenceTime(t *testing.T) {
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		for _, required := range []string{
+			"continue-on-error: true",
+			"report_rescue_deadline_epoch",
+			"steps.final_upload.outcome == 'success'",
+			"steps.final_upload.outcome == 'failure'",
+		} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s report rescue retry is missing %q", workflowName, required)
+			}
+		}
+	}
+}
+
+func TestChatLifecycleInvalidOrExpiredDeploymentIdentityStillReleasesByProvider(t *testing.T) {
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		for _, required := range []string{
+			"id: identity",
+			"continue-on-error: true",
+			"steps.identity.outcome == 'failure'",
+			"deployment_identity_unavailable",
+			"steps.credential_evidence.outputs.ready == 'true'",
+		} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s unavailable deployment identity cleanup is missing %q", workflowName, required)
+			}
+		}
+	}
+}
+
+func TestChatLifecycleCompleteArtifactCombinesTerminalAndCleanupEvidence(t *testing.T) {
+	for _, contract := range []struct {
+		workflow string
+		name     string
+	}{
+		{workflow: "chat-lifecycle-rehearsal-finalize.yml", name: "chat-lifecycle-rehearsal-complete-"},
+		{workflow: "chat-lifecycle-formal-finalize.yml", name: "chat-lifecycle-formal-complete-"},
+	} {
+		workflow := string(readWorkflow(t, contract.workflow))
+		assemble := strings.Index(workflow, "Assemble terminal evidence with exact zero-inventory proof")
+		uploadComplete := strings.Index(workflow, contract.name)
+		uploadCleanup := strings.Index(workflow, "cleanup-${{ matrix.request_id }}")
+		deleteHandoff := strings.Index(workflow, "Delete released encrypted deployment handoff")
+		if assemble < 0 || uploadComplete <= assemble || uploadCleanup <= uploadComplete || deleteHandoff <= uploadCleanup {
+			t.Fatalf("%s final evidence order is not assemble -> complete -> cleanup -> credential deletion", contract.workflow)
+		}
+		for _, required := range []string{"zero-inventory.json", "cleanup.json", "finalization.json", "retention-days: 90"} {
+			if !strings.Contains(workflow[assemble:], required) {
+				t.Fatalf("%s complete Artifact is missing %q", contract.workflow, required)
+			}
+		}
 	}
 }
 
@@ -239,7 +381,7 @@ func TestChatLifecycleFormalTransitionRunsOnFreshLeaseAndReportsBeforeRelease(t 
 	}
 
 	finalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
-	upload := strings.Index(finalizer, "Upload terminal formal evidence before any Release")
+	upload := strings.Index(finalizer, "Upload bounded terminal or diagnosis evidence before any Release")
 	formalRelease := strings.Index(finalizer, "Release exact formal Lease until zero inventory")
 	zero := strings.Index(finalizer, "Upload formal zero-inventory proof")
 	if upload < 0 || formalRelease <= upload || zero <= formalRelease ||
@@ -422,12 +564,12 @@ func TestChatLifecycleLedgerSelectorsExecuteAgainstTypedEvidence(t *testing.T) {
 
 func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testing.T) {
 	artifacts := []map[string]any{
-		{"name": "chat-lifecycle-rehearsal-handoff-r1", "created_at": "2026-08-07T10:00:00Z", "workflow_run": map[string]any{"id": 1}},
-		{"name": "chat-lifecycle-rehearsal-handoff-r1", "created_at": "2026-08-07T11:00:00Z", "workflow_run": map[string]any{"id": 2}},
+		{"id": 101, "name": "chat-lifecycle-rehearsal-handoff-r1", "created_at": "2026-08-07T10:00:00Z", "workflow_run": map[string]any{"id": 1}},
+		{"id": 102, "name": "chat-lifecycle-rehearsal-handoff-r1", "created_at": "2026-08-07T11:00:00Z", "workflow_run": map[string]any{"id": 2}},
 		{"name": "chat-lifecycle-rehearsal-final-r1", "created_at": "2026-08-07T12:00:00Z", "workflow_run": map[string]any{"id": 3}},
-		{"name": "chat-lifecycle-rehearsal-handoff-r2", "created_at": "2026-08-07T13:00:00Z", "workflow_run": map[string]any{"id": 4}},
+		{"id": 104, "name": "chat-lifecycle-rehearsal-handoff-r2", "created_at": "2026-08-07T13:00:00Z", "workflow_run": map[string]any{"id": 4}},
 		{"name": "chat-lifecycle-rehearsal-cleanup-r2", "created_at": "2026-08-07T14:00:00Z", "workflow_run": map[string]any{"id": 5}},
-		{"name": "chat-lifecycle-rehearsal-handoff-r3", "created_at": "2026-08-07T15:00:00Z", "workflow_run": map[string]any{"id": 6}},
+		{"id": 106, "name": "chat-lifecycle-rehearsal-handoff-r3", "created_at": "2026-08-07T15:00:00Z", "workflow_run": map[string]any{"id": 6}},
 	}
 	input, err := json.Marshal(artifacts)
 	if err != nil {
@@ -448,6 +590,7 @@ func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testin
 		Include []struct {
 			RequestID    string `json:"request_id"`
 			HandoffRunID int    `json:"handoff_run_id"`
+			HandoffArtifactID int `json:"handoff_artifact_id"`
 			FinalExists  bool   `json:"final_exists"`
 			FinalRunID   int    `json:"final_run_id"`
 			CleanupRunID int    `json:"cleanup_run_id"`
@@ -458,9 +601,21 @@ func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testin
 	}
 	if len(matrix.Include) != 3 || matrix.Include[0].RequestID != "r3" || matrix.Include[0].FinalExists ||
 		matrix.Include[1].RequestID != "r2" || matrix.Include[1].CleanupRunID != 5 ||
-		matrix.Include[2].RequestID != "r1" || matrix.Include[2].HandoffRunID != 2 ||
+		matrix.Include[2].RequestID != "r1" || matrix.Include[2].HandoffRunID != 2 || matrix.Include[2].HandoffArtifactID != 102 ||
 		!matrix.Include[2].FinalExists || matrix.Include[2].FinalRunID != 3 {
 		t.Fatalf("matrix = %+v", matrix.Include)
+	}
+}
+
+func TestChatLifecycleDeletesEncryptedHandoffOnlyAfterZeroInventoryArtifact(t *testing.T) {
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		zero := strings.Index(workflow, "Upload ")
+		deleteIdentity := strings.Index(workflow, "Delete released encrypted deployment handoff")
+		if zero < 0 || deleteIdentity <= zero || !strings.Contains(workflow[deleteIdentity:], "handoff_artifact_id") ||
+			!strings.Contains(workflow[deleteIdentity:], "actions/artifacts/") {
+			t.Fatalf("%s does not delete the encrypted handoff after retained zero proof", workflowName)
+		}
 	}
 }
 

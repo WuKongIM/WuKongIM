@@ -55,7 +55,7 @@ func TestAccessEnvelopeRoundTripKeepsCredentialsEncryptedAndPrivate(t *testing.T
 	}
 	command = newRootCommand(&bytes.Buffer{})
 	command.SetArgs([]string{"open-access", "--envelope", envelopePath, "--identity", privateKeyPath,
-		"--request-id", credential.RequestID, "--output", outputPath})
+		"--request-id", credential.RequestID, "--now", "2030-01-02T02:04:05Z", "--output", outputPath})
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestOpenAccessRejectsWrongIdentityRequestAndExistingOutput(t *testing.T) {
 			outputPath := filepath.Join(directory, strings.ReplaceAll(name, " ", "-")+".json")
 			command := newRootCommand(&bytes.Buffer{})
 			command.SetArgs([]string{"open-access", "--envelope", envelopePath, "--identity", identity,
-				"--request-id", request, "--output", outputPath})
+				"--request-id", request, "--now", "2030-01-02T02:04:05Z", "--output", outputPath})
 			if err := command.Execute(); err == nil {
 				t.Fatal("open-access accepted mismatched identity")
 			}
@@ -127,12 +127,49 @@ func TestOpenAccessRejectsWrongIdentityRequestAndExistingOutput(t *testing.T) {
 	}
 	command = newRootCommand(&bytes.Buffer{})
 	command.SetArgs([]string{"open-access", "--envelope", envelopePath, "--identity", privateKeyPath,
-		"--request-id", credential.RequestID, "--output", existing})
+		"--request-id", credential.RequestID, "--now", "2030-01-02T02:04:05Z", "--output", existing})
 	if err := command.Execute(); err == nil {
 		t.Fatal("open-access overwrote an existing output")
 	}
 	if body, err := os.ReadFile(existing); err != nil || string(body) != "keep" {
 		t.Fatalf("existing output changed: %q, %v", body, err)
+	}
+}
+
+func TestOpenAccessRejectsExpiredCredential(t *testing.T) {
+	publicKey, privateKeyPath := accessTestKey(t)
+	credential := accessCredential{
+		Schema: accessCredentialSchemaV1, RequestID: "request-expired", LeaseID: "lease-expired",
+		SourceSHA: strings.Repeat("1", 40), DeploymentPlanDigest: strings.Repeat("2", 64),
+		ManagerURL: "http://192.0.2.10/", DemoURL: "http://192.0.2.10/demo/",
+		Username: "operator-0123456789abcdef01234567", Password: strings.Repeat("3", 64),
+		LeaseExpiresAt: "2030-01-02T03:04:05Z",
+	}
+	body, err := json.Marshal(credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sealed bytes.Buffer
+	command := newRootCommand(&sealed)
+	command.SetIn(bytes.NewReader(body))
+	command.SetArgs([]string{"seal-access", "--recipient", publicKey})
+	if err := command.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	envelopePath := filepath.Join(directory, "encrypted-access.json")
+	outputPath := filepath.Join(directory, "access.json")
+	if err := os.WriteFile(envelopePath, sealed.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command = newRootCommand(&bytes.Buffer{})
+	command.SetArgs([]string{"open-access", "--envelope", envelopePath, "--identity", privateKeyPath,
+		"--request-id", credential.RequestID, "--now", credential.LeaseExpiresAt, "--output", outputPath})
+	if err := command.Execute(); err == nil {
+		t.Fatal("open-access accepted an expired Lease credential")
+	}
+	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
+		t.Fatalf("expired credential created output: %v", err)
 	}
 }
 

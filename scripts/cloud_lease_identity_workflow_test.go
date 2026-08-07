@@ -92,6 +92,10 @@ func TestCloudLeaseGitHubIdentityConfiguratorIsExplicitAndPreservesEnvironmentSe
 		`include_claim_keys:["repo","context","job_workflow_ref"]`,
 		"cloud-lease-provision cloud-lease-observe cloud-lease-release cloud-deployment",
 		"gh api --method PUT",
+		"WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+		"WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY",
+		"gh variable set",
+		"gh secret set",
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("GitHub identity configurator missing %q", fragment)
@@ -99,6 +103,21 @@ func TestCloudLeaseGitHubIdentityConfiguratorIsExplicitAndPreservesEnvironmentSe
 	}
 	if strings.Contains(text, "secret delete") || strings.Contains(text, "ALIBABA_CLOUD_ACCESS_KEY") {
 		t.Fatal("GitHub configurator may not read or delete Alibaba AccessKey Secrets")
+	}
+}
+
+func TestCloudLeaseOIDCSetupLiveVerifiesChatLifecycleWrappingKey(t *testing.T) {
+	workflow := string(readWorkflow(t, "cloud-lease-oidc-setup.yml"))
+	for _, required := range []string{
+		"environment: cloud-deployment",
+		"vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY",
+		"secrets.WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY",
+		"ssh-keygen -y",
+		"cmp -s",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("wrapping-key live verification is missing %q", required)
+		}
 	}
 }
 

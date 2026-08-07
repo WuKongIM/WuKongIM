@@ -113,10 +113,12 @@ func TestMaterializeCommandBindsOnlyReviewedRehearsalInputs(t *testing.T) {
 func TestMaterializeCommandRequiresTypedTransitionForFormalPlan(t *testing.T) {
 	directory := t.TempDir()
 	transitionPath := filepath.Join(directory, "formal-transition.json")
+	codexPublicKey := commandPublicKey(t)
 	transition := chatlifecyclerun.StageTransition{
 		Schema: chatlifecyclerun.FormalTransitionSchemaV1, FromStage: chatlifecyclerun.StageRehearsal,
 		Outcome: "rehearsal_pass", RequestID: "formal-command-run", SourceSHA: strings.Repeat("c", 40),
-		BundleDigest: "sha256:" + strings.Repeat("d", 64), CommittedMicros: 80_000_000, ZeroInventory: true,
+		BundleDigest: "sha256:" + strings.Repeat("d", 64), CodexDiagnosticPubKey: codexPublicKey,
+		CommittedMicros: 80_000_000, ZeroInventory: true,
 	}
 	body, err := json.Marshal(transition)
 	if err != nil {
@@ -129,7 +131,7 @@ func TestMaterializeCommandRequiresTypedTransitionForFormalPlan(t *testing.T) {
 		"materialize",
 		"--template", filepath.Join("..", "..", "configs", "cloud", "chat-lifecycle", "formal-v1.json"),
 		"--source-sha", transition.SourceSHA, "--operator", "tangtaoit",
-		"--codex-diagnostic-pubkey", commandPublicKey(t), "--request-id", transition.RequestID,
+		"--codex-diagnostic-pubkey", codexPublicKey, "--request-id", transition.RequestID,
 		"--repository", "WuKongIM/WuKongIM", "--bundle-digest", transition.BundleDigest,
 		"--deployment-pubkey", commandPublicKey(t), "--now", "2026-08-08T12:00:00Z",
 		"--attempt", "1", "--committed-micros", "80000000",

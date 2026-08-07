@@ -23,7 +23,10 @@ ports 22 and 80. The rehearsal template fixes a six-hour Lease and a two-hour
 run. The formal template fixes a fresh 96-hour Lease and a 72-hour run; it is
 accepted only with a typed rehearsal transition containing exact zero-inventory
 proof, the same request/source/bundle identities, and the carried aggregate
-commitment. Runtime YAML owns the unchanged workload and threshold details.
+commitment. The transition also carries the normalized public half of the
+request-scoped Codex diagnostic identity, so a fresh formal Lease cannot switch
+to a different local diagnostic owner. Runtime YAML owns the unchanged
+workload and threshold details.
 
 This package never accepts infrastructure quantities as command-line inputs.
 The workflow supplies only trusted context derived from the protected

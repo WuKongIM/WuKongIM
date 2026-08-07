@@ -110,14 +110,17 @@ type TrustedContext struct {
 // report survived upload and its Lease reached exact zero inventory before a
 // fresh formal Lease may consume the same aggregate cost envelope.
 type StageTransition struct {
-	Schema          string `json:"schema"`
-	FromStage       string `json:"from_stage"`
-	Outcome         string `json:"outcome"`
-	RequestID       string `json:"request_id"`
-	SourceSHA       string `json:"source_sha"`
-	BundleDigest    string `json:"bundle_digest"`
-	CommittedMicros int64  `json:"committed_micros"`
-	ZeroInventory   bool   `json:"zero_inventory"`
+	Schema       string `json:"schema"`
+	FromStage    string `json:"from_stage"`
+	Outcome      string `json:"outcome"`
+	RequestID    string `json:"request_id"`
+	SourceSHA    string `json:"source_sha"`
+	BundleDigest string `json:"bundle_digest"`
+	// CodexDiagnosticPubKey preserves the request-scoped local diagnostic
+	// identity across the released rehearsal and fresh formal Lease boundary.
+	CodexDiagnosticPubKey string `json:"codex_diagnostic_pubkey"`
+	CommittedMicros       int64  `json:"committed_micros"`
+	ZeroInventory         bool   `json:"zero_inventory"`
 }
 
 // RunPlan is the non-secret materialized policy passed to generic Actions.
@@ -174,6 +177,12 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 	codexKey, err := normalizeEd25519PublicKey(input.CodexDiagnosticPubKey)
 	if err != nil || codexKey == deploymentKey {
 		return RunPlan{}, ErrInvalidInput
+	}
+	if template.Stage == StageFormal {
+		transitionCodexKey, transitionErr := normalizeEd25519PublicKey(trusted.Transition.CodexDiagnosticPubKey)
+		if transitionErr != nil || transitionCodexKey != codexKey {
+			return RunPlan{}, ErrInvalidInput
+		}
 	}
 	keys := []string{deploymentKey, codexKey}
 	slices.Sort(keys)

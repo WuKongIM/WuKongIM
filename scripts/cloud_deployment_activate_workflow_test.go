@@ -17,7 +17,8 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 	for _, fragment := range []string{
 		"permissions:\n  contents: read\n  actions: read",
 		"environment: cloud-deployment",
-		"CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY",
+		"WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY",
+		"open-deployment-identity",
 		"validate-upstream-run.sh lease-run.json .github/workflows/cloud-lease-provision.yml",
 		"validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml",
 		"trusted-deployment-tools/wkcloudbundle",

@@ -71,6 +71,26 @@ for environment in "${environments[@]}"; do
   fi
 done
 
+wrapping_public_name=WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY
+wrapping_private_name=WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY
+variables="$temporary/variables.json"
+deployment_secrets="$temporary/deployment-secrets.json"
+gh variable list --repo "$repository" --json name,value >"$variables"
+if [[ -s "$temporary/environment-cloud-deployment.json" ]]; then
+  gh secret list --repo "$repository" --env cloud-deployment --json name >"$deployment_secrets"
+else
+  printf '[]\n' >"$deployment_secrets"
+fi
+wrapping_public_exists="$(jq -r --arg name "$wrapping_public_name" '[.[] | select(.name == $name and .value != "")] | length == 1' "$variables")"
+wrapping_private_exists="$(jq -r --arg name "$wrapping_private_name" '[.[] | select(.name == $name)] | length == 1' "$deployment_secrets")"
+if [[ "$wrapping_public_exists" != "$wrapping_private_exists" ]]; then
+  echo 'Chat Lifecycle wrapping identity is partial. Restore its matching GitHub Variable and cloud-deployment Environment Secret before setup; automatic rotation is refused.' >&2
+  exit 1
+fi
+if [[ "$wrapping_public_exists" != true ]]; then
+  changes+=(chat_lifecycle_wrapping_key)
+fi
+
 if [[ "$operation" == plan ]]; then
   jq -n --arg repository "$repository" --args '$ARGS.positional' -- "${changes[@]}" |
     jq --arg repository "$repository" '{repository:$repository,changes:.}'
@@ -93,6 +113,14 @@ for environment in "${environments[@]}"; do
     gh api --method PUT "$endpoint" -H "X-GitHub-Api-Version: $api_version" --input "$body" >/dev/null
   fi
 done
+if [[ "$wrapping_public_exists" != true ]]; then
+  wrapping_key="$temporary/chat-lifecycle-wrapping-ed25519"
+  ssh-keygen -q -t ed25519 -N '' -C 'wukongim-chat-lifecycle-wrapping' -f "$wrapping_key"
+  chmod 0600 "$wrapping_key"
+  gh variable set "$wrapping_public_name" --repo "$repository" --body "$(<"$wrapping_key.pub")"
+  gh secret set "$wrapping_private_name" --repo "$repository" --env cloud-deployment <"$wrapping_key"
+  rm -f "$wrapping_key" "$wrapping_key.pub"
+fi
 
 verified_oidc="$temporary/verified-oidc.json"
 gh api "$oidc_endpoint" -H "X-GitHub-Api-Version: $api_version" >"$verified_oidc"
@@ -105,5 +133,10 @@ for environment in "${environments[@]}"; do
   gh api "repos/${repository}/environments/${environment}" -H "X-GitHub-Api-Version: $api_version" |
     jq -e '[.protection_rules[]? | select(.type == "required_reviewers")] | length == 0' >/dev/null
 done
+gh variable list --repo "$repository" --json name,value |
+  jq -e --arg name "$wrapping_public_name" '[.[] | select(.name == $name and (.value | startswith("ssh-ed25519 ")))] | length == 1' >/dev/null
+gh secret list --repo "$repository" --env cloud-deployment --json name |
+  jq -e --arg name "$wrapping_private_name" '[.[] | select(.name == $name)] | length == 1' >/dev/null
 jq -n --arg repository "$repository" --args '$ARGS.positional' -- "${environments[@]}" |
-  jq --arg repository "$repository" '{repository:$repository,oidc_subject:["repo","context","job_workflow_ref"],environments:.}'
+  jq --arg repository "$repository" --arg wrapping_public_variable "$wrapping_public_name" --arg wrapping_private_secret "$wrapping_private_name" \
+    '{repository:$repository,oidc_subject:["repo","context","job_workflow_ref"],environments:.,wrapping_public_variable:$wrapping_public_variable,wrapping_private_secret:$wrapping_private_secret}'

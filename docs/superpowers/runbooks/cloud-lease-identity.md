@@ -52,6 +52,19 @@ This command:
 8. writes only non-secret provider, role, audience, region, and account-hash
    values to repository Variables.
 
+The same non-billable setup creates the Chat Lifecycle deployment wrapping
+identity when both halves are absent:
+
+- repository Variable `WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY`; and
+- `cloud-deployment` Environment Secret
+  `WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY`.
+
+The setup workflow derives the public key from the Environment Secret and
+compares it byte-for-byte with the Variable. A partial pair fails closed and is
+never automatically rotated, because rotation could orphan an active Lease's
+encrypted deployment identity. The wrapping private key is not an SSH identity
+authorized on any host.
+
 If a normal live check detects role, policy, session, or trust drift, the local
 setup command automatically retries once with `--force` through the existing
 AccessKey pair. `--force` may also be supplied directly. Neither path exposes
@@ -70,8 +83,9 @@ the AccessKeys to ordinary Cloud Lease jobs.
   `release_authorization=release-tagged-cloud-lease` for manual exact Release.
   Its protected 15-minute schedule sweeps repository-tagged expired or
   cleanup-pending Leases without operator input.
-- Deployment uses `cloud-deployment`, SSH credentials only, and no Alibaba
-  token.
+- Deployment uses `cloud-deployment`, one per-Lease SSH identity sealed to the
+  wrapping key, and no Alibaba token. Finalization deletes the encrypted
+  handoff after zero inventory is proved.
 
 Provision, Observe, and Deployment are manual Agent Tools. Release is also the
 unattended expiry/cleanup-pending safety automation. Ordinary push and pull

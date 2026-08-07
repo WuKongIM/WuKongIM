@@ -35,6 +35,10 @@ export WK_CLOUD_SSH_KEY="$WK_CHAT_DEPLOYMENT_KEY"
 export WK_CLOUD_SSH_CONFIG="$WK_CHAT_FINAL_DIR/deployment-ssh-config"
 scripts/cloud-deployment/write-ssh-config.sh
 
+for name in handoff.json run-plan.json quote.json receipt.json deployment-plan.json deployment-outcome.json run-start.json; do
+  cp "$WK_CHAT_HANDOFF_DIR/$name" "$WK_CHAT_FINAL_DIR/$name"
+done
+
 remote_root=/var/lib/wukongim-cloud/reports
 remote_report_max_bytes=4194304
 remote_timeout=60
@@ -165,6 +169,65 @@ if [[ "$validated" != true ]]; then
   fi
 fi
 
+diagnosis_window_seconds=7200
+hold_failure_for_diagnosis() {
+  [[ "$operator_stop" != true ]] || return 0
+  case "$outcome" in
+    rehearsal_pass|pass|passed_with_capacity_warning) return 0 ;;
+  esac
+  case "$cause" in
+    budget_exhausted|disk_exhausted|lease_expiry) return 0 ;;
+  esac
+  [[ "$state" != unreachable ]] || return 0
+
+  local now_epoch started_at started_epoch deadline_epoch lease_safety_epoch disk_used_percent previous remote_failure_at remote_failure_epoch
+  now_epoch="$(date -u +%s)"
+  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  started_epoch="$now_epoch"
+  if [[ -s "$WK_CHAT_FINAL_DIR/formal-result.json" ]]; then
+    started_at="$(jq -er .end "$WK_CHAT_FINAL_DIR/formal-result.json")"
+    started_epoch="$(date -u -d "$started_at" +%s)"
+  else
+    remote_failure_at="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      'sudo systemctl show wkbench-formal.service --value --property=InactiveEnterTimestamp' 2>/dev/null || true)"
+    if [[ -n "$remote_failure_at" ]] && remote_failure_epoch="$(date -u -d "$remote_failure_at" +%s 2>/dev/null)" &&
+      (( remote_failure_epoch > 0 && remote_failure_epoch <= now_epoch )); then
+      started_epoch="$remote_failure_epoch"
+      started_at="$(date -u -d "@$remote_failure_epoch" +%Y-%m-%dT%H:%M:%SZ)"
+    fi
+  fi
+  previous="${WK_CHAT_PREVIOUS_DIAGNOSIS_WINDOW:-}"
+  if [[ -n "$previous" && -f "$previous" ]] && jq -e --arg request "$request_id" '
+    .schema == "wukongim.chat_lifecycle.diagnosis_window/v1" and .request_id == $request and
+    .stage == "formal" and .state == "diagnosis_pending" and
+    (.started_at | type == "string") and (.deadline_at | type == "string")
+  ' "$previous" >/dev/null; then
+    cp "$previous" "$WK_CHAT_FINAL_DIR/diagnosis-window.json"
+    started_at="$(jq -er .started_at "$previous")"
+    started_epoch="$(date -u -d "$started_at" +%s)"
+  fi
+  deadline_epoch=$(( started_epoch + diagnosis_window_seconds ))
+  lease_safety_epoch=$(( $(date -u -d "$(jq -er .expires_at "$WK_CHAT_HANDOFF_DIR/deployment-plan.json")" +%s) - 1800 ))
+  (( lease_safety_epoch < deadline_epoch )) && deadline_epoch="$lease_safety_epoch"
+  (( now_epoch < deadline_epoch )) || return 0
+
+  disk_used_percent="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    "df -P /var/lib/wukongim-cloud | awk 'NR==2 {gsub(/%/,\"\",\$5); print \$5}'" 2>/dev/null || true)"
+  [[ "$disk_used_percent" =~ ^[0-9]+$ && "$disk_used_percent" -lt 95 ]] || return 0
+  timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    'sudo systemctl stop wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service || true' || true
+  jq -n --arg schema 'wukongim.chat_lifecycle.diagnosis_window/v1' \
+    --arg request_id "$request_id" --arg stage formal --arg state diagnosis_pending \
+    --arg started_at "$started_at" --arg deadline_at "$(date -u -d "@$deadline_epoch" +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg outcome "$outcome" --arg cause "$cause" \
+    '{schema:$schema,request_id:$request_id,stage:$stage,state:$state,started_at:$started_at,
+      deadline_at:$deadline_at,observed_at:$observed_at,outcome:$outcome,cause:$cause,analysis_required:true}' \
+    >"$WK_CHAT_FINAL_DIR/diagnosis-window.json"
+  printf '%s\n' diagnosis_pending
+  exit 0
+}
+hold_failure_for_diagnosis
+
 jq -n --arg schema 'wukongim.chat_lifecycle.formal_finalization/v1' \
   --arg request_id "$request_id" --arg outcome "$outcome" --arg cause "$cause" \
   --arg expected_end_at "$expected_end" --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -172,7 +235,4 @@ jq -n --arg schema 'wukongim.chat_lifecycle.formal_finalization/v1' \
   '{schema:$schema,request_id:$request_id,outcome:$outcome,cause:$cause,
     expected_end_at:$expected_end_at,observed_at:$observed_at,systemd_state:$systemd_state}' \
   >"$WK_CHAT_FINAL_DIR/finalization.json"
-for name in handoff.json run-plan.json quote.json receipt.json deployment-outcome.json; do
-  cp "$WK_CHAT_HANDOFF_DIR/$name" "$WK_CHAT_FINAL_DIR/$name"
-done
 printf '%s\n' ready

@@ -42,6 +42,7 @@ jobs:
       WK_CHAT_OPERATOR: ${{ inputs.operator }}
       WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
       WK_CHAT_REQUEST_ID: ${{ inputs.request_id }}
+      WK_CHAT_WRAPPING_PUBLIC_KEY: ${{ vars.WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY }}
       WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/rehearsal-v1.json
       WK_CHAT_OUTPUT_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/handoff
       WK_CHAT_WORK_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/work
@@ -58,23 +59,19 @@ jobs:
           cache-dependency-path: go.sum
       - name: Validate the four-input boundary and trusted source
         shell: bash
-        env:
-          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           [[ "$WK_CHAT_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$WK_CHAT_OPERATOR" == tangtaoit ]]
           [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
-          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          test -n "$WK_CHAT_WRAPPING_PUBLIC_KEY"
           git fetch --no-tags origin main
           git merge-base --is-ancestor "$WK_CHAT_SOURCE_SHA" origin/main
           umask 077
           printf '%s\n' "$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" >"$RUNNER_TEMP/codex-diagnostic.pub"
           ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
-          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/deployment-key"
-          chmod 0600 "$RUNNER_TEMP/deployment-key"
-          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >"$RUNNER_TEMP/deployment.pub"
-          ssh-keygen -lf "$RUNNER_TEMP/deployment.pub" | grep -q ED25519
+          printf '%s\n' "$WK_CHAT_WRAPPING_PUBLIC_KEY" >"$RUNNER_TEMP/wrapping.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/wrapping.pub" | grep -q ED25519
       - name: Build trusted Run Plan control tool
         shell: bash
         run: go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
@@ -92,11 +89,9 @@ jobs:
       - name: Orchestrate until remote systemd owns the measured run
         shell: bash
         env:
-          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
           WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
         run: |
           set -euo pipefail
-          export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
           scripts/chat-lifecycle/stage-orchestrate.sh
       - name: Detect publishable handoff or cleanup continuation
         id: handoff_state
@@ -178,4 +173,4 @@ jobs:
       - name: Remove plaintext runner identities
         if: always()
         shell: bash
-        run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/deployment.pub" "$RUNNER_TEMP/codex-diagnostic.pub"
+        run: rm -f "$RUNNER_TEMP/wrapping.pub" "$RUNNER_TEMP/codex-diagnostic.pub"

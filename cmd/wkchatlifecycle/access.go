@@ -105,7 +105,7 @@ func addSealAccessCommand(root *cobra.Command) {
 }
 
 func addOpenAccessCommand(root *cobra.Command) {
-	var envelopePath, identityPath, requestID, outputPath string
+	var envelopePath, identityPath, requestID, nowValue, outputPath string
 	command := &cobra.Command{
 		Use: "open-access", Short: "Decrypt one exact UI credential into a new mode-0600 local file", Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -132,6 +132,11 @@ func addOpenAccessCommand(root *cobra.Command) {
 				credential.SourceSHA != envelope.SourceSHA || credential.DeploymentPlanDigest != envelope.DeploymentPlanDigest {
 				return chatlifecyclerun.ErrInvalidInput
 			}
+			now, err := time.Parse(time.RFC3339, nowValue)
+			expiresAt, _ := time.Parse(time.RFC3339, credential.LeaseExpiresAt)
+			if err != nil || now.Location() != time.UTC || !now.Before(expiresAt) {
+				return chatlifecyclerun.ErrInvalidInput
+			}
 			return writePrivateAtomic(outputPath, plaintext)
 		},
 	}
@@ -139,8 +144,9 @@ func addOpenAccessCommand(root *cobra.Command) {
 	flags.StringVar(&envelopePath, "envelope", "", "authenticated encrypted access Artifact")
 	flags.StringVar(&identityPath, "identity", "", "request-scoped OpenSSH Ed25519 private key")
 	flags.StringVar(&requestID, "request-id", "", "exact request identity")
+	flags.StringVar(&nowValue, "now", "", "trusted current RFC3339 UTC time")
 	flags.StringVar(&outputPath, "output", "", "new local plaintext credential file")
-	for _, name := range []string{"envelope", "identity", "request-id", "output"} {
+	for _, name := range []string{"envelope", "identity", "request-id", "now", "output"} {
 		if err := command.MarkFlagRequired(name); err != nil {
 			panic(err)
 		}

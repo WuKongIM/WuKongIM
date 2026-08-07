@@ -24,6 +24,10 @@ on:
         description: Exact request-scoped Codex Ed25519 credential recipient
         required: true
         type: string
+      encrypted_deployment_identity_json:
+        description: Lease-bound deployment SSH identity sealed to the deployment Environment wrapping key
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -47,6 +51,7 @@ jobs:
       BUNDLE_RUN_ID: ${{ inputs.bundle_artifact_run_id }}
       BUNDLE_ARTIFACT: ${{ inputs.bundle_artifact_name }}
       CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
+      ENCRYPTED_DEPLOYMENT_IDENTITY_JSON: ${{ inputs.encrypted_deployment_identity_json }}
     steps:
       - name: Checkout trusted Deployment Action
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -150,6 +155,17 @@ jobs:
           bundle_digest="$(jq -er .bundle_digest deployment-plan.json)"
           test "$BUNDLE_ARTIFACT" = "cloud-deployment-bundle-${bundle_digest#sha256:}"
           install -m 0600 "$bundle_archive" cloud-deployment-bundle.tar.gz
+          printf '%s\n' "$ENCRYPTED_DEPLOYMENT_IDENTITY_JSON" >encrypted-deployment-identity.json
+          jq -e --arg request "$(jq -er .request_id "$lease_receipt")" \
+            --arg lease "$(jq -er .lease_id "$lease_receipt")" \
+            --arg source "$(jq -er .provenance.source_sha "$lease_receipt")" \
+            --arg plan "$(jq -er .plan_digest "$lease_receipt")" '
+            .schema == "wukongim.chat_lifecycle.encrypted_deployment_identity/v1" and
+            .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
+            .lease_id == $lease and .source_sha == $source and .plan_digest == $plan and
+            (.deployment_public_key | startswith("ssh-ed25519 ")) and
+            (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
+          ' encrypted-deployment-identity.json >/dev/null
           load_public="$(jq -er '.hosts[] | select(.role=="load") | .public_address' deployment-plan.json)"
           echo "bundle_digest=$bundle_digest" >>"$GITHUB_OUTPUT"
           echo "load_public=$load_public" >>"$GITHUB_OUTPUT"
@@ -160,15 +176,23 @@ jobs:
       - name: Materialize the temporary SSH identity and runtime credentials
         shell: bash
         env:
-          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
+          WRAPPING_PRIVATE_KEY: ${{ secrets.WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY }}
           LOAD_PUBLIC: ${{ steps.plan.outputs.load_public }}
         run: |
           set -euo pipefail
-          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          test -n "$WRAPPING_PRIVATE_KEY"
           umask 077
-          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >deployment-key
-          chmod 0600 deployment-key
+          printf '%s\n' "$WRAPPING_PRIVATE_KEY" >"$RUNNER_TEMP/wrapping-key"
+          chmod 0600 "$RUNNER_TEMP/wrapping-key"
+          "$RUNNER_TEMP/trusted-deployment-tools/wkchatlifecycle" open-deployment-identity \
+            --envelope encrypted-deployment-identity.json --identity "$RUNNER_TEMP/wrapping-key" \
+            --request-id "$(jq -er .request_id deployment-plan.json)" \
+            --lease-id "$(jq -er .lease_id deployment-plan.json)" \
+            --source-sha "$(jq -er .source_sha deployment-plan.json)" \
+            --plan-digest "$(jq -er .lease_plan_digest deployment-plan.json)" \
+            --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output deployment-key
           ssh-keygen -y -f deployment-key >/dev/null
+          rm -f "$RUNNER_TEMP/wrapping-key"
           manager_user="operator-$(openssl rand -hex 12)"
           manager_password="$(openssl rand -hex 32)"
           analysis_password="$(openssl rand -hex 32)"
@@ -341,9 +365,10 @@ jobs:
             readiness-snapshot.json
             deployment-outcome.json
             encrypted-access.json
+            encrypted-deployment-identity.json
           if-no-files-found: warn
           retention-days: 7
       - name: Remove runner credentials
         if: always()
         shell: bash
-        run: rm -f deployment-key readiness-credentials access-credentials.json "$RUNNER_TEMP/codex-diagnostic.pub" runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load
+        run: rm -f deployment-key readiness-credentials access-credentials.json "$RUNNER_TEMP/codex-diagnostic.pub" "$RUNNER_TEMP/wrapping-key" runtime-node.tar.gz runtime-load.tar.gz cloud-deployment-bundle.tar.gz && rm -rf runtime-node runtime-load
