@@ -45,6 +45,9 @@ its logical resource role.
 Provider-free consumers may call `ValidateReceipt` to recheck a persisted
 Receipt against its own selector identity without receiving any Quote,
 Acquire, access-rule, Release, or Sweep capability.
+`ValidateReceiptBootstrapAccess` additionally requires the complete supplied
+Ed25519 public-key set to reproduce the Receipt's bootstrap-access digest, so a
+deployment consumer cannot substitute an unrelated credential after Acquire.
 `ReleaseSelectorFromPlanQuote` derives the same exact cleanup selector from an
 admitted Plan/Quote before paid dispatch, so a canceled or artifact-losing
 Acquire can still be reconciled without guessing whether resources exist.

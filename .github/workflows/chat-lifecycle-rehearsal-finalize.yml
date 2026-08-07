@@ -167,7 +167,10 @@ jobs:
                .path == ".github/workflows/chat-lifecycle-rehearsal-finalize.yml@refs/heads/main")
             ' final-run.json >/dev/null && \
             cmp -s <(jq -S -c . "$RUNNER_TEMP/previous-final/handoff.json") \
-              <(jq -S -c . "$WK_CHAT_HANDOFF_DIR/handoff.json"); then
+              <(jq -S -c . "$WK_CHAT_HANDOFF_DIR/handoff.json") && \
+            jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "rehearsal" and
+              (.complete | type == "boolean") and (.capture_failures | type == "number") and (.captures | type == "array")' \
+              "$RUNNER_TEMP/previous-final/evidence/manifest.json" >/dev/null 2>&1; then
             if jq -e --arg request_id "$WK_CHAT_REQUEST_ID" '
               .schema == "wukongim.chat_lifecycle.rehearsal_finalization/v1" and
               .request_id == $request_id and (.outcome | type == "string") and
@@ -257,6 +260,12 @@ jobs:
             '{schema:$schema,request_id:$request_id,outcome:$outcome,cause:$cause,
               observed_at:$observed_at,systemd_state:"unavailable"}' >"$WK_CHAT_FINAL_DIR/finalization.json"
           printf 'credential_state=unavailable\ncredential_material=not_exposed\n' >"$WK_CHAT_FINAL_DIR/diagnostics.txt"
+          install -d -m 0700 "$WK_CHAT_FINAL_DIR/evidence"
+          jq -n --arg schema 'wukongim.chat_lifecycle.terminal_evidence/v1' --arg stage rehearsal \
+            --arg observed_at "$observed_at" \
+            '{schema:$schema,stage:$stage,observed_at:$observed_at,max_file_bytes:4194304,
+              capture_failures:1,complete:false,captures:[{class:"credentials",name:"deployment",state:"unavailable",bytes:0}]}' \
+            >"$WK_CHAT_FINAL_DIR/evidence/manifest.json"
           echo 'ready=true' >>"$GITHUB_OUTPUT"
           echo "report_rescue_deadline_epoch=$(date -u +%s)" >>"$GITHUB_OUTPUT"
       - name: Reuse previously uploaded final evidence
@@ -322,6 +331,12 @@ jobs:
           for name in handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json; do
             test -f "$final_dir/$name"
           done
+          jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+            .schema == "wukongim.chat_lifecycle.rehearsal_finalization/v1" and .request_id == $request and
+            .outcome == "rehearsal_pass" and .cause == "rehearsal_completed"
+          ' "$final_dir/finalization.json" >/dev/null
+          jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "rehearsal" and .complete == true' \
+            "$final_dir/evidence/manifest.json" >/dev/null
           for name in cleanup.json zero-inventory.json; do
             test -f "$WK_CHAT_CLEANUP_DIR/$name"
           done
@@ -357,6 +372,7 @@ jobs:
           cp "$final_dir/handoff.json" "$final_dir/run-plan.json" "$final_dir/quote.json" \
             "$final_dir/receipt.json" "$final_dir/final.json" "$final_dir/rehearsal-result.json" \
             "$final_dir/finalization.json" "$WK_CHAT_TRANSITION_DIR/"
+          cp -a "$final_dir/evidence" "$WK_CHAT_TRANSITION_DIR/"
           cp "$WK_CHAT_HANDOFF_DIR/release-selector.json" "$WK_CHAT_TRANSITION_DIR/"
           cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" \
             "$WK_CHAT_TRANSITION_DIR/"
@@ -383,6 +399,7 @@ jobs:
           for name in handoff.json run-plan.json quote.json receipt.json deployment-plan.json deployment-outcome.json run-start.json finalization.json; do
             test -f "$final_dir/$name"
           done
+          test -f "$final_dir/evidence/manifest.json"
           for name in cleanup.json zero-inventory.json; do
             test -f "$WK_CHAT_CLEANUP_DIR/$name"
           done
@@ -393,6 +410,7 @@ jobs:
             --arg request_id "$WK_CHAT_REQUEST_ID" --arg assembled_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --argjson conservative_quote_micros "$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")" \
             '{schema:$schema,stage:$stage,request_id:$request_id,assembled_at:$assembled_at,zero_inventory:true,
+              evidence:{terminal:"terminal/evidence/manifest.json",cleanup:"cleanup/zero-inventory.json"},
               cost:{conservative_quote_micros:$conservative_quote_micros,
                 provider_reported:{state:"pending_billing_delay",unresolved:true}}}' >"$WK_CHAT_COMPLETE_DIR/manifest.json"
       - name: Upload complete rehearsal evidence

@@ -188,6 +188,46 @@ func TestProductionObservationSignalsLowDiskAndKeepsHourlyEvidenceAligned(t *tes
 	}
 }
 
+func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
+	start := time.Date(2030, time.March, 17, 17, 15, 0, 0, time.UTC)
+	tests := []struct {
+		name    string
+		host    int
+		process int
+		want    VerdictSignal
+	}{
+		{
+			name: "WuKongIM service exit is a product failure", host: 0, process: 0,
+			want: VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash},
+		},
+		{
+			name: "load evidence process exit invalidates the harness", host: coordinatorWorkerCount, process: 8,
+			want: VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := FormalConfig()
+			targets, disks := validProductionObservationFakes(cfg)
+			filesystem := &disks[test.host].filesystem
+			filesystem.ProcessUp[test.process] = false
+			filesystem.ProcessCPUJiffies[test.process] = 0
+			filesystem.ProcessResidentMemoryBytes[test.process] = 0
+			source := newProductionObservationFakeSource(t, cfg, targets, disks)
+			if err := source.Begin(start); err != nil {
+				t.Fatal(err)
+			}
+			if err := source.Observe(context.Background(), healthyProductionObserverSample(start)); err != nil {
+				t.Fatal(err)
+			}
+			snapshot := source.Snapshot()
+			if len(snapshot.Signals) != 1 || snapshot.Signals[0] != test.want {
+				t.Fatalf("signals = %+v, want %+v", snapshot.Signals, test.want)
+			}
+		})
+	}
+}
+
 func TestProductionObservationAcceptsObserverPhaseAndRoundLatencyAtHourlyBoundary(t *testing.T) {
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)

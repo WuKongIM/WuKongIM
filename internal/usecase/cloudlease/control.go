@@ -188,6 +188,23 @@ func normalizeBootstrapAccess(access BootstrapAccess) ([]string, string, error) 
 	return keys, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+// ValidateReceiptBootstrapAccess proves that the supplied public identities
+// are the complete normalized key set bound into an active Lease Receipt.
+func ValidateReceiptBootstrapAccess(receipt Receipt, access BootstrapAccess) error {
+	if err := ValidateReceipt(receipt); err != nil {
+		return err
+	}
+	_, digest, err := normalizeBootstrapAccess(access)
+	if err != nil {
+		return err
+	}
+	bound, exists := receipt.Tags[TagBootstrapAccessDigest]
+	if !exists || digest == "" || digest != bound {
+		return ErrInvalidAccess
+	}
+	return nil
+}
+
 // Inspect validates one exact provider-reconciled Lease Receipt.
 func (c *Controller) Inspect(ctx context.Context, selector Selector) (Receipt, error) {
 	if c == nil || c.provider == nil || validateSelector(selector) != nil ||

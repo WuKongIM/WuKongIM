@@ -19,6 +19,7 @@ const maxDeploymentJSONBytes = 1 << 20
 
 func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 	var receiptPath, manifestPath, planNow string
+	var bootstrapPublicKeys []string
 	planCommand := &cobra.Command{
 		Use: "deployment-plan", Short: "Bind an active Cloud Lease Receipt to the native deployment bundle", Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
@@ -28,6 +29,11 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 			}
 			if err := cloudlease.ValidateReceipt(receipt); err != nil {
 				return fmt.Errorf("validate Lease Receipt: %w", err)
+			}
+			if _, bound := receipt.Tags[cloudlease.TagBootstrapAccessDigest]; bound || len(bootstrapPublicKeys) > 0 {
+				if err := cloudlease.ValidateReceiptBootstrapAccess(receipt, cloudlease.BootstrapAccess{AuthorizedKeys: bootstrapPublicKeys}); err != nil {
+					return fmt.Errorf("validate Lease bootstrap access: %w", err)
+				}
 			}
 			var manifest clouddeploy.Manifest
 			if err := readStrictDeploymentJSON(manifestPath, &manifest); err != nil {
@@ -47,6 +53,7 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 	planCommand.Flags().StringVar(&receiptPath, "lease-receipt", "", "strict active Cloud Lease Receipt JSON")
 	planCommand.Flags().StringVar(&manifestPath, "bundle-manifest", "", "strict offline bundle manifest JSON")
 	planCommand.Flags().StringVar(&planNow, "now", "", "optional RFC3339 validation time")
+	planCommand.Flags().StringArrayVar(&bootstrapPublicKeys, "bootstrap-pubkey", nil, "complete Ed25519 public-key set bound by the Lease Receipt")
 	_ = planCommand.MarkFlagRequired("lease-receipt")
 	_ = planCommand.MarkFlagRequired("bundle-manifest")
 

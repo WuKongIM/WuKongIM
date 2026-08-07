@@ -347,11 +347,22 @@ func (s *ProductionObservationSource) commitRound(
 	if sample.LeaderImbalanced {
 		cluster.LeaderImbalanceWarnings++
 	}
+	if s.cfg.Profile == ProfileFormal {
+		for host, filesystem := range round.disks {
+			if host < coordinatorWorkerCount && !filesystem.ProcessUp[0] {
+				next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictProductFailure, Cause: VerdictCauseServerCrash})
+				continue
+			}
+			if !validProductionProcessRoles(host, s.cfg.Stage, filesystem.ProcessUp) {
+				next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictHarnessInvalid, Cause: VerdictCauseInvalidObservation})
+			}
+		}
+	}
 	for index, filesystem := range round.disks {
 		if diskFreeBelow(filesystem, s.cfg.Thresholds.DiskSafeStopFreePercent) ||
 			filesystem.SystemSizeBytes > 0 && diskFreeBelow(DataFilesystem{SizeBytes: filesystem.SystemSizeBytes, AvailableBytes: filesystem.SystemAvailableBytes}, s.cfg.Thresholds.DiskSafeStopFreePercent) ||
 			index == coordinatorWorkerCount && filesystem.WatchedDirectoryObserved && filesystem.WatchedDirectoryBytes >= s.cfg.Thresholds.Resource.PrometheusSafeStopBytes {
-			next.Signals = []VerdictSignal{{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseDiskExhausted}}
+			next.Signals = append(next.Signals, VerdictSignal{Outcome: VerdictInfrastructureFailure, Cause: VerdictCauseDiskExhausted})
 			break
 		}
 	}

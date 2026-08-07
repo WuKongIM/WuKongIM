@@ -76,7 +76,11 @@ bound to the request, Lease, source SHA, plan digest, and expiry. The Deployment
 Action and finalizers may open it only inside the `cloud-deployment` Environment
 with `WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY`; plaintext deployment keys are
 removed by always-run cleanup steps and are never repository secrets or
-Artifacts.
+Artifacts. Before contacting any host, the Deployment Action validates the
+exact normalized Ed25519 public-key set from the encrypted deployment identity
+and the request-scoped Codex diagnostic identity against the digest recorded in
+the Lease Receipt. A missing, substituted, or partial bootstrap key set fails
+before SSH access.
 
 Runtime Manager, worker, Analysis, and Demo credentials are generated inside
 the Action, masked, installed as root-owned `0600` files, and deleted from the

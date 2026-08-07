@@ -147,14 +147,6 @@ jobs:
           scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
             invalid_plan none '' \
             'Lease Receipt and bundle could not form one immutable Deployment Plan' 'no deployment host was contacted'
-          "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-plan \
-            --lease-receipt "$lease_receipt" \
-            --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
-            >deployment-plan.json
-          jq -e '.schema == "wukongim.cloud_deployment.plan/v1" and .topology.physical_hash_slots == 256 and .topology.logical_slot_groups == 12 and (.hosts | length) == 4' deployment-plan.json >/dev/null
-          bundle_digest="$(jq -er .bundle_digest deployment-plan.json)"
-          test "$BUNDLE_ARTIFACT" = "cloud-deployment-bundle-${bundle_digest#sha256:}"
-          install -m 0600 "$bundle_archive" cloud-deployment-bundle.tar.gz
           printf '%s\n' "$ENCRYPTED_DEPLOYMENT_IDENTITY_JSON" >encrypted-deployment-identity.json
           jq -e --arg request "$(jq -er .request_id "$lease_receipt")" \
             --arg lease "$(jq -er .lease_id "$lease_receipt")" \
@@ -166,6 +158,19 @@ jobs:
             (.deployment_public_key | startswith("ssh-ed25519 ")) and
             (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
           ' encrypted-deployment-identity.json >/dev/null
+          deployment_public_key="$(jq -er .deployment_public_key encrypted-deployment-identity.json)"
+          printf '%s\n' "$CODEX_DIAGNOSTIC_PUBKEY" >"$RUNNER_TEMP/codex-diagnostic.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
+          "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-plan \
+            --lease-receipt "$lease_receipt" \
+            --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
+            --bootstrap-pubkey "$deployment_public_key" \
+            --bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY" \
+            >deployment-plan.json
+          jq -e '.schema == "wukongim.cloud_deployment.plan/v1" and .topology.physical_hash_slots == 256 and .topology.logical_slot_groups == 12 and (.hosts | length) == 4' deployment-plan.json >/dev/null
+          bundle_digest="$(jq -er .bundle_digest deployment-plan.json)"
+          test "$BUNDLE_ARTIFACT" = "cloud-deployment-bundle-${bundle_digest#sha256:}"
+          install -m 0600 "$bundle_archive" cloud-deployment-bundle.tar.gz
           load_public="$(jq -er '.hosts[] | select(.role=="load") | .public_address' deployment-plan.json)"
           echo "bundle_digest=$bundle_digest" >>"$GITHUB_OUTPUT"
           echo "load_public=$load_public" >>"$GITHUB_OUTPUT"

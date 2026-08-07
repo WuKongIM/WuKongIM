@@ -3,16 +3,56 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	cloudleasefake "github.com/WuKongIM/WuKongIM/internal/infra/cloudlease/fake"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/clouddeploy"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
+
+func TestDeploymentPlanRequiresExactReceiptBootstrapAccess(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	manifest := commandManifest()
+	keys := []string{commandPublicKey(t), commandPublicKey(t)}
+	receipt := commandLeaseReceiptWithBootstrap(t, now, manifest, cloudlease.BootstrapAccess{AuthorizedKeys: keys})
+	directory := t.TempDir()
+	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", receipt)
+	manifestPath := writeCommandJSON(t, directory, "bundle-manifest.json", manifest)
+
+	for _, test := range []struct {
+		name string
+		keys []string
+		pass bool
+	}{
+		{name: "missing", pass: false},
+		{name: "partial", keys: keys[:1], pass: false},
+		{name: "complete", keys: []string{keys[1], keys[0]}, pass: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args := []string{"deployment-plan", "--lease-receipt", receiptPath, "--bundle-manifest", manifestPath, "--now", now.Format(time.RFC3339Nano)}
+			for _, key := range test.keys {
+				args = append(args, "--bootstrap-pubkey", key)
+			}
+			command := newRootCommand(&bytes.Buffer{}, &bytes.Buffer{})
+			command.SetArgs(args)
+			err := command.Execute()
+			if test.pass && err != nil {
+				t.Fatalf("deployment-plan error = %v", err)
+			}
+			if !test.pass && err == nil {
+				t.Fatal("deployment-plan accepted mismatched bootstrap access")
+			}
+		})
+	}
+}
 
 func TestDeploymentPlanAndGateCommandsUseValidatedReceipts(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
@@ -88,6 +128,10 @@ func TestDeploymentJSONReaderRejectsOversizedInput(t *testing.T) {
 }
 
 func commandLeaseReceipt(t *testing.T, now time.Time, manifest clouddeploy.Manifest) cloudlease.Receipt {
+	return commandLeaseReceiptWithBootstrap(t, now, manifest, cloudlease.BootstrapAccess{})
+}
+
+func commandLeaseReceiptWithBootstrap(t *testing.T, now time.Time, manifest clouddeploy.Manifest, access cloudlease.BootstrapAccess) cloudlease.Receipt {
 	t.Helper()
 	provider := cloudleasefake.New(cloudleasefake.Options{Now: func() time.Time { return now }})
 	controller := cloudlease.NewController(provider, func() time.Time { return now })
@@ -106,11 +150,24 @@ func commandLeaseReceipt(t *testing.T, now time.Time, manifest clouddeploy.Manif
 	if err != nil {
 		t.Fatal(err)
 	}
-	receipt, err := controller.Acquire(context.Background(), plan, quote)
+	receipt, err := controller.AcquireWithBootstrap(context.Background(), plan, quote, access)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return receipt
+}
+
+func commandPublicKey(t *testing.T) string {
+	t.Helper()
+	public, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := ssh.NewPublicKey(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(ssh.MarshalAuthorizedKey(key))
 }
 
 func commandCompute() cloudlease.ComputePlan {

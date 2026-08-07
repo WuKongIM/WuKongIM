@@ -466,9 +466,19 @@ func TestChatLifecycleFinalArtifactCombinesRehearsalFormalCapacityCostAndCleanup
 		"aggregate_conservative_micros",
 		"formal/qualification.json",
 		"formal/capacity/final.json",
+		"rehearsal/evidence/manifest.json",
+		"formal/evidence/manifest.json",
 	} {
 		if !strings.Contains(formalFinalizer, required) {
 			t.Fatalf("combined final Artifact is missing %q", required)
+		}
+	}
+	for _, collector := range []string{"rehearsal-finalize.sh", "formal-finalize.sh"} {
+		content := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", collector))
+		for _, required := range []string{"collect-terminal-evidence.sh", "terminal_evidence_incomplete"} {
+			if !strings.Contains(content, required) {
+				t.Fatalf("%s is missing %q", collector, required)
+			}
 		}
 	}
 }
@@ -578,7 +588,7 @@ func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t 
 		}
 	}
 	discovery := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "discover-active-handoffs.sh"))
-	for _, required := range []string{"for page in 1 2 3 4 5", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
+	for _, required := range []string{"max_pages=50", "inventory_complete=false", "active handoff discovery exceeded", "authenticate-handoff-producer.sh", "authenticate-cleanup-artifact.sh"} {
 		if !strings.Contains(discovery, required) {
 			t.Fatalf("bounded discovery is missing %q", required)
 		}
@@ -665,6 +675,170 @@ func TestChatLifecycleAccruedCostUsesHeldHoursObservedTrafficAndFullRetentionRis
 				t.Fatalf("cost = %s, want %s", got, test.want)
 			}
 		})
+	}
+}
+
+func TestChatLifecycleDiagnosisWindowRechecksAggregateOperationalBudget(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	planPath := filepath.Join(directory, "run-plan.json")
+	quotePath := filepath.Join(directory, "quote.json")
+	receiptPath := filepath.Join(directory, "receipt.json")
+	reportPath := filepath.Join(directory, "final.json")
+	plan := `{"lease_plan":{"budget":{"committed_micros":100,"operational_stop_micros":266},"host_groups":[{"role":"service","count":3},{"role":"load","count":1}]}}`
+	quote := `{"quote":{"line_items":[` +
+		`{"kind":"postpaid_host_hour","role":"service","quantity":18,"cost_micros":180},` +
+		`{"kind":"postpaid_host_hour","role":"load","quantity":6,"cost_micros":120},` +
+		`{"kind":"eip_public_egress_gib","quantity":10,"cost_micros":50},` +
+		`{"kind":"eip_retention_policy_risk_hour","quantity":6,"cost_micros":60}]}}`
+	receipt := `{"receipt":{"created_at":"2030-01-01T00:00:00Z"}}`
+	report := `{"resources":{"capacity":{"network_transmit_bytes":1}}}`
+	for path, content := range map[string]string{planPath: plan, quotePath: quote, receiptPath: receipt, reportPath: report} {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	script := filepath.Join(root, "scripts", "chat-lifecycle", "diagnosis-budget.sh")
+	run := func() map[string]any {
+		command := exec.Command("bash", script, planPath, quotePath, receiptPath, "2030-01-01T01:30:00Z", reportPath)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("diagnosis budget: %v\n%s", err, output)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(output, &result); err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	if result := run(); result["safe"] != true || result["aggregate_cost_micros"] != float64(265) {
+		t.Fatalf("safe budget result = %#v", result)
+	}
+	plan = strings.Replace(plan, `"operational_stop_micros":266`, `"operational_stop_micros":265`, 1)
+	if err := os.WriteFile(planPath, []byte(plan), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if result := run(); result["safe"] != false || result["aggregate_cost_micros"] != float64(265) {
+		t.Fatalf("exhausted budget result = %#v", result)
+	}
+}
+
+func TestChatLifecycleTerminalEvidenceCollectorIsBoundedAndComplete(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	output := filepath.Join(directory, "evidence")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"timeout": "#!/bin/sh\nshift\nexec \"$@\"\n",
+		"ssh": `#!/bin/sh
+case "$*" in
+  *api/v1/targets*) printf '{"status":"success","data":{"activeTargets":[]}}\n' ;;
+  *api/v1/query_range*) printf '{"status":"success","data":{"result":[]}}\n' ;;
+  *) printf 'bounded terminal evidence\n' ;;
+esac
+`,
+	} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte(content), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sshConfig := filepath.Join(directory, "ssh-config")
+	if err := os.WriteFile(sshConfig, []byte("Host *\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "collect-terminal-evidence.sh"), "rehearsal", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"WK_CLOUD_SSH_CONFIG="+sshConfig,
+		"WK_CLOUD_SERVICE1_IP=10.0.0.1", "WK_CLOUD_SERVICE2_IP=10.0.0.2", "WK_CLOUD_SERVICE3_IP=10.0.0.3")
+	if combined, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("terminal evidence collector: %v\n%s", err, combined)
+	}
+	var manifest struct {
+		Schema          string `json:"schema"`
+		Complete        bool   `json:"complete"`
+		CaptureFailures int    `json:"capture_failures"`
+		Captures        []struct {
+			State string `json:"state"`
+			Bytes int64  `json:"bytes"`
+		} `json:"captures"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(output, "manifest.json"))), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Schema != "wukongim.chat_lifecycle.terminal_evidence/v1" || !manifest.Complete || manifest.CaptureFailures != 0 || len(manifest.Captures) != 16 {
+		t.Fatalf("terminal evidence manifest = %#v", manifest)
+	}
+	for _, capture := range manifest.Captures {
+		if capture.State != "collected" || capture.Bytes <= 0 || capture.Bytes > 4<<20 {
+			t.Fatalf("terminal evidence capture = %#v", capture)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(bin, "ssh"), []byte("#!/bin/sh\nprintf 'not-prometheus-json\\n'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	invalidOutput := filepath.Join(directory, "invalid-evidence")
+	invalidCommand := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "collect-terminal-evidence.sh"), "formal", invalidOutput)
+	invalidCommand.Dir = root
+	invalidCommand.Env = command.Env
+	if combined, err := invalidCommand.CombinedOutput(); err == nil {
+		t.Fatalf("terminal evidence collector accepted malformed Prometheus responses\n%s", combined)
+	}
+	var invalidManifest struct {
+		Complete        bool `json:"complete"`
+		CaptureFailures int  `json:"capture_failures"`
+		Captures        []struct {
+			State string `json:"state"`
+		} `json:"captures"`
+	}
+	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(invalidOutput, "manifest.json"))), &invalidManifest); err != nil {
+		t.Fatal(err)
+	}
+	if invalidManifest.Complete || invalidManifest.CaptureFailures != 2 {
+		t.Fatalf("malformed Prometheus manifest = %#v", invalidManifest)
+	}
+}
+
+func TestChatLifecycleActiveHandoffDiscoveryFailsClosedAtInventoryBound(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	artifacts := make([]map[string]any, 100)
+	for index := range artifacts {
+		artifacts[index] = map[string]any{"id": index + 1, "name": "unrelated", "expired": false}
+	}
+	page, err := json.Marshal(map[string]any{"artifacts": artifacts})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pagePath := filepath.Join(directory, "page.json")
+	if err := os.WriteFile(pagePath, page, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gh := "#!/bin/sh\ncat \"$FAKE_ARTIFACT_PAGE\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte(gh), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "matrix.json")
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "discover-active-handoffs.sh"), "", output)
+	command.Dir = root
+	command.Env = append(os.Environ(),
+		"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "FAKE_ARTIFACT_PAGE="+pagePath,
+		"GH_TOKEN=test-token", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal")
+	combined, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(combined), "active handoff discovery exceeded") {
+		t.Fatalf("bounded discovery error = %v\n%s", err, combined)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Fatalf("bounded discovery wrote output: %v", err)
 	}
 }
 

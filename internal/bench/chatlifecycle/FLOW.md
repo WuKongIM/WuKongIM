@@ -794,7 +794,10 @@ process inventory with unit uptime, cumulative CPU jiffies, and RSS for every
 service, worker, coordinator, proxy, analysis, Prometheus, and collector
 process. Formal preflight requires the roles for each host, while formal and
 capacity reports persist the fixed four-host/thirteen-role arrays so resource
-attribution is auditable without PID-cardinality metrics. Missing or duplicate
+attribution is auditable without PID-cardinality metrics. Every later formal
+observation rechecks that stage-specific required inventory: a WuKongIM unit
+exit is an immediate product/server-crash signal, while another required
+workload or evidence-process exit makes the harness invalid. Missing or duplicate
 formal evidence makes the harness invalid. The root collector refreshes every
 15 seconds; the host endpoint requires both file mtime and the unique embedded
 success timestamp to be no more than 45 seconds old, so a stopped collector

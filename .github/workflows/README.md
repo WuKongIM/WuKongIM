@@ -345,7 +345,11 @@ conservative accrued host/retention/traffic cost and the one-hour expiry cleanup
 reserve every five seconds through both phases. `chat-lifecycle-formal-finalize.yml` waits for
 that process to exit, requires complete JSON/Markdown evidence pairs, and
 uploads the terminal chain result or bounded
-diagnostics. It uses the same bounded live-diagnosis and report-rescue policy as
+diagnostics. Both stage finalizers also capture a fixed-size terminal bundle of
+four-host systemd state and journal windows, a fifteen-minute selected
+Prometheus range plus target state, and bounded WuKongIM heap/goroutine profiles;
+missing terminal evidence invalidates an otherwise passing result. It uses the
+same bounded live-diagnosis and report-rescue policy as
 rehearsal, and only then releases the exact Lease to zero inventory. Failed
 Release attempts persist a stage-authenticated cleanup continuation for the
 next scheduled pass; the generic Cloud Lease sweeper remains the independent

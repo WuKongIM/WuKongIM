@@ -97,6 +97,8 @@ jobs:
           for name in transition.json handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
             test -f "$WK_CHAT_TRANSITION_DIR/$name"
           done
+          jq -e '.schema == "wukongim.chat_lifecycle.terminal_evidence/v1" and .stage == "rehearsal" and .complete == true' \
+            "$WK_CHAT_TRANSITION_DIR/evidence/manifest.json" >/dev/null
           jq -e --arg request "$WK_CHAT_REQUEST_ID" '
             .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .from_stage == "rehearsal" and
             .outcome == "rehearsal_pass" and .zero_inventory == true and .request_id == $request and

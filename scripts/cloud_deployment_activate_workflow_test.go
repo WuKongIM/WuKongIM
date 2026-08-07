@@ -24,6 +24,8 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"trusted-deployment-tools/wkcloudbundle",
 		`test "$(jq -er .control_sha bundle-manifest.json)" = "$BUNDLE_WORKFLOW_HEAD_SHA"`,
 		"trusted-deployment-tools/wkcloudgate\" deployment-plan",
+		`--bootstrap-pubkey "$deployment_public_key"`,
+		`--bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY"`,
 		"scripts/cloud-deployment/activate-hosts.sh",
 		"write-deployment-failure.sh deployment-failure-state.json",
 		"scripts/cloud-deployment/collect-readiness.sh",

@@ -156,6 +156,14 @@ else
   fi
 fi
 
+terminal_evidence_complete=true
+WK_CHAT_EVIDENCE_TIMEOUT="$remote_timeout" \
+  scripts/chat-lifecycle/collect-terminal-evidence.sh rehearsal "$WK_CHAT_FINAL_DIR/evidence" || terminal_evidence_complete=false
+if [[ "$terminal_evidence_complete" != true && ( "$outcome" == rehearsal_pass || "$outcome" == pass || "$outcome" == passed_with_capacity_warning ) ]]; then
+  outcome=harness_invalid
+  cause=terminal_evidence_incomplete
+fi
+
 diagnosis_window_seconds=7200
 hold_failure_for_diagnosis() {
   [[ "$operator_stop" != true ]] || return 0
@@ -167,9 +175,10 @@ hold_failure_for_diagnosis() {
   esac
   [[ "$state" != unreachable ]] || return 0
 
-  local now_epoch started_at started_epoch deadline_epoch lease_safety_epoch disk_used_percent previous remote_failure_at remote_failure_epoch
+  local now_epoch now_rfc started_at started_epoch deadline_epoch lease_safety_epoch disk_used_percent previous remote_failure_at remote_failure_epoch budget_snapshot aggregate_cost operational_stop
   now_epoch="$(date -u +%s)"
-  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  now_rfc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  started_at="$now_rfc"
   started_epoch="$now_epoch"
   if [[ -s "$WK_CHAT_FINAL_DIR/rehearsal-result.json" ]]; then
     started_at="$(jq -er .end "$WK_CHAT_FINAL_DIR/rehearsal-result.json")"
@@ -198,6 +207,13 @@ hold_failure_for_diagnosis() {
   (( lease_safety_epoch < deadline_epoch )) && deadline_epoch="$lease_safety_epoch"
   (( now_epoch < deadline_epoch )) || return 0
 
+  budget_snapshot="$(scripts/chat-lifecycle/diagnosis-budget.sh \
+    "$WK_CHAT_HANDOFF_DIR/run-plan.json" "$WK_CHAT_HANDOFF_DIR/quote.json" \
+    "$WK_CHAT_HANDOFF_DIR/receipt.json" "$now_rfc" "$WK_CHAT_FINAL_DIR/final.json")" || return 0
+  [[ "$(jq -er .safe <<<"$budget_snapshot")" == true ]] || return 0
+  aggregate_cost="$(jq -er .aggregate_cost_micros <<<"$budget_snapshot")"
+  operational_stop="$(jq -er .operational_stop_micros <<<"$budget_snapshot")"
+
   disk_used_percent="$(timeout "$remote_timeout" ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
     "df -P /var/lib/wukongim-cloud | awk 'NR==2 {gsub(/%/,\"\",\$5); print \$5}'" 2>/dev/null || true)"
   [[ "$disk_used_percent" =~ ^[0-9]+$ && "$disk_used_percent" -lt 95 ]] || return 0
@@ -207,8 +223,10 @@ hold_failure_for_diagnosis() {
     --arg request_id "$request_id" --arg stage rehearsal --arg state diagnosis_pending \
     --arg started_at "$started_at" --arg deadline_at "$(date -u -d "@$deadline_epoch" +%Y-%m-%dT%H:%M:%SZ)" \
     --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg outcome "$outcome" --arg cause "$cause" \
+    --argjson aggregate_cost_micros "$aggregate_cost" --argjson operational_stop_micros "$operational_stop" \
     '{schema:$schema,request_id:$request_id,stage:$stage,state:$state,started_at:$started_at,
-      deadline_at:$deadline_at,observed_at:$observed_at,outcome:$outcome,cause:$cause,analysis_required:true}' \
+      deadline_at:$deadline_at,observed_at:$observed_at,outcome:$outcome,cause:$cause,
+      aggregate_cost_micros:$aggregate_cost_micros,operational_stop_micros:$operational_stop_micros,analysis_required:true}' \
     >"$WK_CHAT_FINAL_DIR/diagnosis-window.json"
   printf '%s\n' diagnosis_pending
   exit 0
