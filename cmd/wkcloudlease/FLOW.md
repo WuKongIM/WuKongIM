@@ -28,8 +28,11 @@ change cloud resources.
 `acquire` strictly consumes versioned Plan, Quote, and public bootstrap-access
 documents. `inspect` and `release` consume an exact versioned Selector, while
 `sweep` takes the fixed provider, region, and repository inventory boundary.
-They construct only the paid lifecycle adapter, which independently requires
-the exact mutation-authorization environment value. Every command emits a
+Inspect constructs the inventory-only adapter under the Observer role and has
+no mutation-authorization value. Acquire, Release, and Sweep construct only the
+paid lifecycle adapter, which independently requires the exact
+mutation-authorization environment value. Every command emits a
 versioned non-secret JSON Receipt, Release result, or Sweep result; Release
-also emits residual evidence before returning an error. WuKongIM deployment
+and Acquire also emit partial/residual evidence before returning an error.
+WuKongIM deployment
 and workload orchestration do not belong in this command.

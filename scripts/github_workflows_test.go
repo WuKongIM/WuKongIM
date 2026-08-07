@@ -12,6 +12,10 @@ import (
 )
 
 var workflowCatalog = map[string]string{
+	"cloud-lease-observe.yml":    "Agent Tool - Inspect Cloud Lease",
+	"cloud-lease-oidc-setup.yml": "Agent Tool - Configure Cloud Lease OIDC Roles",
+	"cloud-lease-provision.yml":  "Agent Tool - Provision Cloud Lease",
+	"cloud-lease-release.yml":    "Agent Tool - Release Cloud Lease",
 	"cloud-sim-analyze.yml":      "Agent Tool - Analyze Cloud Simulation",
 	"cloud-sim-cleanup.yml":      "Safety Automation - Reconcile Cloud Simulation Resources",
 	"cloud-sim-monitor.yml":      "Safety Automation - Patrol Cloud Simulation Runs",

@@ -132,10 +132,13 @@ func runAcquire(ctx context.Context, stdout io.Writer, planPath, quotePath, boot
 		return err
 	}
 	receipt, err := cloudlease.NewController(provider, dependencies.now).AcquireWithBootstrap(ctx, plan, quoted.Quote, bootstrap.Access)
+	if encodeErr := json.NewEncoder(stdout).Encode(receiptResult{Schema: receiptSchemaV1, Receipt: receipt}); encodeErr != nil {
+		return encodeErr
+	}
 	if err != nil {
 		return fmt.Errorf("acquire: %w", err)
 	}
-	return json.NewEncoder(stdout).Encode(receiptResult{Schema: receiptSchemaV1, Receipt: receipt})
+	return nil
 }
 
 func runInspect(ctx context.Context, stdout io.Writer, selectorPath string, dependencies commandDependencies) error {
@@ -143,7 +146,7 @@ func runInspect(ctx context.Context, stdout io.Writer, selectorPath string, depe
 	if err != nil {
 		return err
 	}
-	provider, err := constructLifecycleProvider(dependencies, selector.Provider, selector.Region)
+	provider, err := constructInventoryProvider(dependencies, selector.Provider, selector.Region)
 	if err != nil {
 		return err
 	}
@@ -199,6 +202,17 @@ func constructLifecycleProvider(dependencies commandDependencies, provider, regi
 	result, err := dependencies.lifecycleProvider(provider, region)
 	if err != nil {
 		return nil, fmt.Errorf("construct lifecycle provider: %w", err)
+	}
+	return result, nil
+}
+
+func constructInventoryProvider(dependencies commandDependencies, provider, region string) (cloudlease.Provider, error) {
+	if dependencies.inventoryProvider == nil {
+		return nil, errors.New("inventory provider factory is unavailable")
+	}
+	result, err := dependencies.inventoryProvider(provider, region)
+	if err != nil {
+		return nil, fmt.Errorf("construct inventory provider: %w", err)
 	}
 	return result, nil
 }

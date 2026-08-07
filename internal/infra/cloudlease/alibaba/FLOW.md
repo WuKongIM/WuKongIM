@@ -40,6 +40,17 @@ Inspect / List / Release / Sweep
   -> success only after every declared inventory scope is observed empty
 ```
 
+```text
+one-time Cloud Lease identity setup
+  -> existing complete repository AccessKey Secret pair (setup job only)
+  -> exact GitHub repo + Environment + workflow@main + audience trust
+  -> CloudLeaseProvisioner: Quote + Acquire + access-rule creation only
+  -> CloudLeaseObserver: price, inventory, and delayed billing reads only
+  -> CloudLeaseReleaser: tagged Release and Sweep only
+  -> live STS role plus sole canonical policy, exact complete trust, and
+     one-hour session proof for all three roles
+```
+
 The Quote API seam contains read methods only. Missing pages, repeated page
 tokens, malformed prices, incomplete quota, unknown image provenance, or an
 unpriced eligible offer fail closed because any of them could invalidate the
@@ -73,6 +84,13 @@ publish separate exact non-wildcard RAM action lists. EIP creation uses the
 RAM-authorizable `AllocateEipAddress` operation with atomic tags; the similarly
 named `AllocateEipAddressPro` operation is deliberately not used because its
 official authorization table exposes no RAM action.
+
+`NewInventoryOpenAPIFromOIDCEnvironment` is used only by the read-only Inspect
+command under CloudLeaseObserver and does not accept the paid-mutation
+authorization value. The separate identity bootstrap adapter accepts the
+long-lived AccessKey pair only in the setup command, owns no infrastructure
+create method, reconciles one provider plus three one-hour roles and policies,
+and refuses removal while any repository-tagged Lease asset exists.
 
 Acquire uses one Lease-owned VPC (`10.42.0.0/16`) and vSwitch
 (`10.42.0.0/24`). No ECS instance receives a provider public IPv4 address and

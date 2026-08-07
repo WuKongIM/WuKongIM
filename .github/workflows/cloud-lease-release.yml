@@ -1,0 +1,111 @@
+name: Agent Tool - Release Cloud Lease
+run-name: Cloud Lease Release ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Exact request correlation identifier
+        required: true
+        type: string
+      operation:
+        description: Release one exact Lease or sweep all expired repository Leases
+        required: true
+        default: release
+        type: choice
+        options: [release, sweep]
+      selector_json:
+        description: Strict selector JSON; required for release
+        required: false
+        default: ""
+        type: string
+      release_authorization:
+        description: Exact tagged-release authorization
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloud-lease-lifecycle-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Delete only exact tagged Lease inventory
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: cloud-lease-release
+    env:
+      GOWORK: "off"
+      REQUEST_ID: ${{ inputs.request_id }}
+      OPERATION: ${{ inputs.operation }}
+      SELECTOR_JSON: ${{ inputs.selector_json }}
+      RELEASE_AUTHORIZATION: ${{ inputs.release_authorization }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Validate exact cleanup authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$RELEASE_AUTHORIZATION" == release-tagged-cloud-lease ]] || {
+            echo 'Release requires release_authorization=release-tagged-cloud-lease.' >&2
+            exit 1
+          }
+          case "$OPERATION" in
+            release)
+              [[ -n "$SELECTOR_JSON" ]]
+              printf '%s\n' "$SELECTOR_JSON" >"$RUNNER_TEMP/selector.json"
+              chmod 0600 "$RUNNER_TEMP/selector.json"
+              jq -e --arg repository "$GITHUB_REPOSITORY" --arg request_id "$REQUEST_ID" '
+                .schema == "wukongim.cloud_lease.selector/v1" and
+                .selector.repository == $repository and
+                .selector.request_id == $request_id
+              ' "$RUNNER_TEMP/selector.json" >/dev/null || {
+                echo 'Selector repository and request_id must match this workflow dispatch.' >&2
+                exit 1
+              }
+              ;;
+            sweep)
+              [[ -z "$SELECTOR_JSON" ]]
+              ;;
+          esac
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Releaser OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-release-${{ github.run_id }}
+      - name: Release and retain residual evidence
+        shell: bash
+        env:
+          WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
+        run: |
+          set -euo pipefail
+          if [[ "$OPERATION" == release ]]; then
+            "$RUNNER_TEMP/wkcloudlease" release --selector "$RUNNER_TEMP/selector.json" >"$RUNNER_TEMP/release.json"
+          else
+            "$RUNNER_TEMP/wkcloudlease" sweep --provider alibaba --region cn-hangzhou --repository "$GITHUB_REPOSITORY" >"$RUNNER_TEMP/release.json"
+          fi
+          chmod 0600 "$RUNNER_TEMP/release.json"
+      - name: Upload release or residual proof
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-lease-release-${{ inputs.request_id }}
+          path: ${{ runner.temp }}/release.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -19,6 +19,10 @@ authorization and the applicable budget.
 | `issue-agent-pr-signal.yml` | `Safety Automation - Issue Agent PR Signal` | Emits credential-free lifecycle and Review hints for Issue Agent PRs |
 | `issue-agent.yml` | `Safety Automation - GitHub Issue Agent` | Reconciles Issue work and Review Agent repair requests |
 | `issue-agent-engineer.yml` | `Agent Tool - Issue Engineer` | Runs one exact Context Builder, Codex Engineer, and clean Verifier chain |
+| `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
+| `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
+| `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
+| `cloud-lease-release.yml` | `Agent Tool - Release Cloud Lease` | Releases one exact Lease or sweeps expired repository Leases through the Releaser role |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
 | `cloud-sim-analyze.yml` | `Agent Tool - Analyze Cloud Simulation` | Operates one bounded cloud analysis session |
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
@@ -188,6 +192,25 @@ documented separate Environments.
 
 See
 [`docs/superpowers/runbooks/cloud-simulation.md`](../../docs/superpowers/runbooks/cloud-simulation.md).
+
+## Cloud Lease identity and lifecycle
+
+The generic Cloud Lease flow is distinct from the older Cloud Simulation
+identity. One local administrator-authenticated setup command preserves
+unrelated Environment settings, removes human-review requirements from the
+four unattended Environments, and configures the repository OIDC subject. The
+setup Workflow then uses the existing complete Alibaba AccessKey Secret pair
+only when the seven non-secret binding Variables are absent or a forced repair
+is requested. It creates no Lease infrastructure and leaves those Secrets
+untouched.
+
+Successful setup requires live OIDC exchange plus exact sole-policy, one-hour
+session, setup-subject, and ordinary-workflow-subject verification for
+CloudLeaseProvisioner, CloudLeaseObserver, and CloudLeaseReleaser. Ordinary
+Quote/Acquire, Inspect, and Release/Sweep tools then use only their corresponding
+short-lived role. Deployment uses `cloud-deployment`, receives no `id-token`
+permission, and has no Alibaba credential. See
+[`docs/superpowers/runbooks/cloud-lease-identity.md`](../../docs/superpowers/runbooks/cloud-lease-identity.md).
 
 ## Workflow maintenance
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -125,6 +126,12 @@ func TestLifecycleCommandsAcquireInspectReleaseAndSweepTypedDocuments(t *testing
 	})
 	dependencies := commandDependencies{
 		now: func() time.Time { return now },
+		inventoryProvider: func(gotProvider, gotRegion string) (cloudlease.Provider, error) {
+			if gotProvider != plan.Provider || gotRegion != plan.Region {
+				t.Fatalf("inventory provider factory identity = %s/%s", gotProvider, gotRegion)
+			}
+			return provider, nil
+		},
 		lifecycleProvider: func(gotProvider, gotRegion string) (cloudlease.Provider, error) {
 			if gotProvider != plan.Provider || gotRegion != plan.Region {
 				t.Fatalf("provider factory identity = %s/%s", gotProvider, gotRegion)
@@ -210,6 +217,48 @@ func TestAcquireRejectsUnknownBootstrapFieldsBeforeProviderConstruction(t *testi
 	}
 	if providerCalls != 0 {
 		t.Fatalf("provider calls = %d, want zero", providerCalls)
+	}
+}
+
+func TestAcquireCommandEmitsPartialReceiptWhenAcquisitionIsIncomplete(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	provider := fake.New(fake.Options{
+		Now: func() time.Time { return now },
+		Failures: fake.FailurePlan{
+			AcquireAfterResources: 2,
+		},
+	})
+	plan := dryRunPlan(now)
+	quote, err := cloudlease.NewController(provider, func() time.Time { return now }).Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	planPath := writeJSONDocument(t, directory, "plan.json", plan)
+	quotePath := writeJSONDocument(t, directory, "quote.json", quoteResult{Schema: quoteSchemaV1, Quote: quote})
+	bootstrapPath := writeJSONDocument(t, directory, "bootstrap.json", bootstrapAccessDocument{
+		Schema: bootstrapAccessSchemaV1, Access: testBootstrapAccess(t),
+	})
+	var stdout bytes.Buffer
+	command := newRootCommandWithDependencies(&stdout, commandDependencies{
+		now: func() time.Time { return now },
+		lifecycleProvider: func(string, string) (cloudlease.Provider, error) {
+			return provider, nil
+		},
+	})
+	command.SetArgs([]string{"acquire", "--plan", planPath, "--quote", quotePath, "--bootstrap-access", bootstrapPath})
+
+	err = command.Execute()
+	if !errors.Is(err, cloudlease.ErrAcquireIncomplete) {
+		t.Fatalf("acquire error = %v, want ErrAcquireIncomplete", err)
+	}
+	var result receiptResult
+	if decodeErr := json.Unmarshal(stdout.Bytes(), &result); decodeErr != nil {
+		t.Fatalf("decode partial receipt: %v\n%s", decodeErr, stdout.String())
+	}
+	if result.Schema != receiptSchemaV1 || result.Receipt.LeaseID != plan.LeaseID ||
+		result.Receipt.State != cloudlease.StateReleasePending || len(result.Receipt.Resources) != 2 {
+		t.Fatalf("partial acquisition result = %#v", result)
 	}
 }
 

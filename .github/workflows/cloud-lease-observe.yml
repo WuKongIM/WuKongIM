@@ -1,0 +1,79 @@
+name: Agent Tool - Inspect Cloud Lease
+run-name: Cloud Lease Inspect ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Exact request correlation identifier
+        required: true
+        type: string
+      selector_json:
+        description: Strict wukongim.cloud_lease.selector/v1 JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: cloud-lease-observe-${{ github.repository }}-${{ inputs.request_id }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Reconstruct exact read-only provider inventory
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: cloud-lease-observe
+    env:
+      GOWORK: "off"
+      REQUEST_ID: ${{ inputs.request_id }}
+      SELECTOR_JSON: ${{ inputs.selector_json }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Validate exact input
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          printf '%s\n' "$SELECTOR_JSON" >"$RUNNER_TEMP/selector.json"
+          chmod 0600 "$RUNNER_TEMP/selector.json"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg request_id "$REQUEST_ID" '
+            .schema == "wukongim.cloud_lease.selector/v1" and
+            .selector.repository == $repository and
+            .selector.request_id == $request_id
+          ' "$RUNNER_TEMP/selector.json" >/dev/null || {
+            echo 'Selector repository and request_id must match this workflow dispatch.' >&2
+            exit 1
+          }
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Observer OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-observe-${{ github.run_id }}
+      - name: Inspect without mutation authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION:-}"
+          "$RUNNER_TEMP/wkcloudlease" inspect --selector "$RUNNER_TEMP/selector.json" >"$RUNNER_TEMP/receipt.json"
+          chmod 0600 "$RUNNER_TEMP/receipt.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-lease-observe-${{ inputs.request_id }}
+          path: ${{ runner.temp }}/receipt.json
+          if-no-files-found: error
+          retention-days: 7

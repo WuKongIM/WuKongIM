@@ -177,7 +177,7 @@ authorization, Review Agent evidence, retry, and monitoring contracts.
 | `cmd/wukongim/` | Product entrypoint that loads configuration and starts `internal/app`. |
 | `cmd/wkbench/` | Black-box benchmark CLI. |
 | `cmd/wkcli/`, `cmd/wkdb/` | Operations and local read-only storage diagnostics. |
-| `cmd/wkcloud*/`, `cmd/wkanalysis/` | Cloud simulation, deployment, validation, viewing, and analysis tools. |
+| `cmd/wkcloud*/`, `cmd/wkanalysis/` | Cloud lease identity/lifecycle, simulation, deployment, validation, viewing, and analysis tools. |
 | `cmd/wkissueagent/` | JSON-only GitHub Actions entrypoint for the stateless Issue Agent. |
 | `cmd/wkreviewcheck/` | Frozen selector-only helper for composite Review Agent checks. |
 | `internal/access/` | HTTP, gateway, node RPC, manager, plugin, and cloud-analysis entry adapters. |

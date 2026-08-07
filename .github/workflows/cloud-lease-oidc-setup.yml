@@ -1,0 +1,280 @@
+name: Agent Tool - Configure Cloud Lease OIDC Roles
+run-name: Cloud Lease OIDC Setup ${{ inputs.setup_id || github.run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      setup_id:
+        description: Unique setup correlation identifier
+        required: true
+        type: string
+      operation:
+        description: Idempotent identity operation
+        required: true
+        default: apply
+        type: choice
+        options: [plan, apply, remove]
+      force_reconcile:
+        description: Reconcile through the existing AccessKey pair even when Variables are complete
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloud-lease-oidc-setup-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile repository-owned Alibaba identity
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      setup_id: ${{ steps.identity.outputs.setup_id }}
+      region: ${{ steps.identity.outputs.region }}
+      account_id_hash: ${{ steps.identity.outputs.account_id_hash }}
+      oidc_provider_arn: ${{ steps.identity.outputs.oidc_provider_arn }}
+      oidc_audience: ${{ steps.identity.outputs.oidc_audience }}
+      provisioner_role_arn: ${{ steps.identity.outputs.provisioner_role_arn }}
+      observer_role_arn: ${{ steps.identity.outputs.observer_role_arn }}
+      releaser_role_arn: ${{ steps.identity.outputs.releaser_role_arn }}
+    env:
+      GOWORK: "off"
+      CONFIGURED_REGION: ${{ vars.ALIBABA_CLOUD_LEASE_REGION }}
+      CONFIGURED_ACCOUNT_ID_HASH: ${{ vars.ALIBABA_CLOUD_LEASE_ACCOUNT_ID_HASH }}
+      CONFIGURED_OIDC_PROVIDER_ARN: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+      CONFIGURED_OIDC_AUDIENCE: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+      CONFIGURED_PROVISIONER_ROLE_ARN: ${{ vars.ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN }}
+      CONFIGURED_OBSERVER_ROLE_ARN: ${{ vars.ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN }}
+      CONFIGURED_RELEASER_ROLE_ARN: ${{ vars.ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Verify repository OIDC subject contract
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/${GITHUB_REPOSITORY}/actions/oidc/customization/sub" \
+            -H 'X-GitHub-Api-Version: 2026-03-10')"
+          jq -e '
+            .use_default == false and
+            (.use_immutable_subject // false) == false and
+            .include_claim_keys == ["repo","context","job_workflow_ref"]
+          ' <<<"$current" >/dev/null || {
+            echo 'Cloud Lease OIDC subject is not configured. Run scripts/cloud-lease/configure-github-identity.sh first.' >&2
+            exit 1
+          }
+      - name: Build trusted identity tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -trimpath -o "$RUNNER_TEMP/wkcloudleaseoidc" ./cmd/wkcloudleaseoidc
+      - name: Resolve and reconcile identity
+        id: identity
+        shell: bash
+        env:
+          SETUP_ID: ${{ inputs.setup_id }}
+          OPERATION: ${{ inputs.operation }}
+          FORCE_RECONCILE: ${{ inputs.force_reconcile }}
+          ACCESS_KEY_ID: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_ID }}
+          ACCESS_KEY_SECRET: ${{ secrets.ALIBABA_CLOUD_ACCESS_KEY_SECRET }}
+        run: |
+          set -euo pipefail
+          [[ "$SETUP_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
+            echo 'setup_id must match ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$' >&2
+            exit 1
+          }
+          result="$RUNNER_TEMP/cloud-lease-oidc-result.json"
+          configured=(
+            "$CONFIGURED_REGION"
+            "$CONFIGURED_ACCOUNT_ID_HASH"
+            "$CONFIGURED_OIDC_PROVIDER_ARN"
+            "$CONFIGURED_OIDC_AUDIENCE"
+            "$CONFIGURED_PROVISIONER_ROLE_ARN"
+            "$CONFIGURED_OBSERVER_ROLE_ARN"
+            "$CONFIGURED_RELEASER_ROLE_ARN"
+          )
+          configured_count=0
+          for value in "${configured[@]}"; do
+            [[ -n "$value" ]] && configured_count=$((configured_count + 1))
+          done
+          use_existing=false
+          if [[ "$OPERATION" == apply && "$FORCE_RECONCILE" != true && "$configured_count" -eq 7 ]]; then
+            use_existing=true
+          fi
+          if [[ "$use_existing" == true ]]; then
+            jq -n \
+              --arg region "$CONFIGURED_REGION" \
+              --arg account "$CONFIGURED_ACCOUNT_ID_HASH" \
+              --arg provider "$CONFIGURED_OIDC_PROVIDER_ARN" \
+              --arg audience "$CONFIGURED_OIDC_AUDIENCE" \
+              --arg provisioner "$CONFIGURED_PROVISIONER_ROLE_ARN" \
+              --arg observer "$CONFIGURED_OBSERVER_ROLE_ARN" \
+              --arg releaser "$CONFIGURED_RELEASER_ROLE_ARN" \
+              '{schema:"wukongim.cloud_lease.oidc_bootstrap/v1",result:{region:$region,account_id_hash:$account,oidc_provider_arn:$provider,oidc_audience:$audience,provisioner_role_arn:$provisioner,observer_role_arn:$observer,releaser_role_arn:$releaser}}' >"$result"
+          else
+            if [[ -z "$ACCESS_KEY_ID" || -z "$ACCESS_KEY_SECRET" ]]; then
+              if [[ -z "$ACCESS_KEY_ID" && -z "$ACCESS_KEY_SECRET" ]]; then
+                echo 'Cloud Lease OIDC is not ready. Configure both ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET repository Secrets, then rerun setup.' >&2
+              else
+                echo 'ALIBABA_CLOUD_ACCESS_KEY_ID and ALIBABA_CLOUD_ACCESS_KEY_SECRET must be configured together before Cloud Lease setup.' >&2
+              fi
+              exit 1
+            fi
+            config="$RUNNER_TEMP/cloud-lease-oidc-config.json"
+            jq -n \
+              --arg repository "$GITHUB_REPOSITORY" \
+              --arg expected_account "$CONFIGURED_ACCOUNT_ID_HASH" \
+              '{schema:"wukongim.cloud_lease.oidc_bootstrap_config/v1",bootstrap:{region:"cn-hangzhou",repository:$repository,default_branch:"main",oidc_provider_name:"wukongim-cloud-lease-github",oidc_audience:"wukongim-cloud-lease",expected_account_id_hash:$expected_account}}' >"$config"
+            ALIBABA_CLOUD_ACCESS_KEY_ID="$ACCESS_KEY_ID" \
+            ALIBABA_CLOUD_ACCESS_KEY_SECRET="$ACCESS_KEY_SECRET" \
+              "$RUNNER_TEMP/wkcloudleaseoidc" "$OPERATION" --config "$config" >"$result"
+          fi
+          install -m 0600 "$result" "$RUNNER_TEMP/cloud-lease-oidc-output.json"
+          echo "setup_id=$SETUP_ID" >>"$GITHUB_OUTPUT"
+          if [[ "$OPERATION" == apply ]]; then
+            jq -e '.schema == "wukongim.cloud_lease.oidc_bootstrap/v1"' "$result" >/dev/null
+            {
+              echo "region=$(jq -er .result.region "$result")"
+              echo "account_id_hash=$(jq -er .result.account_id_hash "$result")"
+              echo "oidc_provider_arn=$(jq -er .result.oidc_provider_arn "$result")"
+              echo "oidc_audience=$(jq -er .result.oidc_audience "$result")"
+              echo "provisioner_role_arn=$(jq -er .result.provisioner_role_arn "$result")"
+              echo "observer_role_arn=$(jq -er .result.observer_role_arn "$result")"
+              echo "releaser_role_arn=$(jq -er .result.releaser_role_arn "$result")"
+            } >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload non-secret identity result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cloud-lease-oidc-${{ steps.identity.outputs.setup_id }}
+          path: ${{ runner.temp }}/cloud-lease-oidc-output.json
+          if-no-files-found: error
+          retention-days: 7
+
+  verify-provisioner:
+    name: Verify CloudLeaseProvisioner OIDC identity
+    needs: reconcile
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: cloud-lease-provision
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkcloudleaseoidc" ./cmd/wkcloudleaseoidc
+      - uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ needs.reconcile.outputs.provisioner_role_arn }}
+          oidc-provider-arn: ${{ needs.reconcile.outputs.oidc_provider_arn }}
+          audience: ${{ needs.reconcile.outputs.oidc_audience }}
+          role-session-name: wukongim-cloud-lease-provision-${{ github.run_id }}
+      - name: Prove exact role and policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wkcloudleaseoidc" verify \
+            --region '${{ needs.reconcile.outputs.region }}' \
+            --repository '${{ github.repository }}' \
+            --oidc-provider-arn '${{ needs.reconcile.outputs.oidc_provider_arn }}' \
+            --audience '${{ needs.reconcile.outputs.oidc_audience }}' \
+            --expected-role CloudLeaseProvisioner --policy-kind provisioner |
+            jq -e --arg account '${{ needs.reconcile.outputs.account_id_hash }}' '.account_id_hash == $account' >/dev/null
+
+  verify-observer:
+    name: Verify CloudLeaseObserver OIDC identity
+    needs: reconcile
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: cloud-lease-observe
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkcloudleaseoidc" ./cmd/wkcloudleaseoidc
+      - uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ needs.reconcile.outputs.observer_role_arn }}
+          oidc-provider-arn: ${{ needs.reconcile.outputs.oidc_provider_arn }}
+          audience: ${{ needs.reconcile.outputs.oidc_audience }}
+          role-session-name: wukongim-cloud-lease-observe-${{ github.run_id }}
+      - name: Prove exact role and policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wkcloudleaseoidc" verify \
+            --region '${{ needs.reconcile.outputs.region }}' \
+            --repository '${{ github.repository }}' \
+            --oidc-provider-arn '${{ needs.reconcile.outputs.oidc_provider_arn }}' \
+            --audience '${{ needs.reconcile.outputs.oidc_audience }}' \
+            --expected-role CloudLeaseObserver --policy-kind observer |
+            jq -e --arg account '${{ needs.reconcile.outputs.account_id_hash }}' '.account_id_hash == $account' >/dev/null
+
+  verify-releaser:
+    name: Verify CloudLeaseReleaser OIDC identity
+    needs: reconcile
+    if: inputs.operation == 'apply'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: cloud-lease-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - run: GOWORK=off go build -trimpath -o "$RUNNER_TEMP/wkcloudleaseoidc" ./cmd/wkcloudleaseoidc
+      - uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ needs.reconcile.outputs.releaser_role_arn }}
+          oidc-provider-arn: ${{ needs.reconcile.outputs.oidc_provider_arn }}
+          audience: ${{ needs.reconcile.outputs.oidc_audience }}
+          role-session-name: wukongim-cloud-lease-release-${{ github.run_id }}
+      - name: Prove exact role and policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wkcloudleaseoidc" verify \
+            --region '${{ needs.reconcile.outputs.region }}' \
+            --repository '${{ github.repository }}' \
+            --oidc-provider-arn '${{ needs.reconcile.outputs.oidc_provider_arn }}' \
+            --audience '${{ needs.reconcile.outputs.oidc_audience }}' \
+            --expected-role CloudLeaseReleaser --policy-kind releaser |
+            jq -e --arg account '${{ needs.reconcile.outputs.account_id_hash }}' '.account_id_hash == $account' >/dev/null

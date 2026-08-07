@@ -78,6 +78,13 @@ func NewLifecycleOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
 	return newOpenAPIFromOIDCEnvironment(region, true)
 }
 
+// NewInventoryOpenAPIFromOIDCEnvironment creates the provider inventory
+// boundary without accepting the explicit paid-mutation authorization value.
+// It must be paired with the read-only Observer RAM role and a read-only CLI.
+func NewInventoryOpenAPIFromOIDCEnvironment(region string) (*OpenAPI, error) {
+	return newOpenAPIFromOIDCEnvironment(region, false)
+}
+
 func newOpenAPIFromOIDCEnvironment(region string, lifecycleAuthorized bool) (*OpenAPI, error) {
 	accessKeyID := strings.TrimSpace(os.Getenv(credentialAccessKeyIDEnv))
 	accessKeySecret := os.Getenv(credentialAccessKeySecretEnv)
@@ -150,6 +157,16 @@ func RequiredLifecycleObserveActions() []string {
 		"vpc:DescribeRouteTableList",
 		"vpc:DescribeVSwitches",
 		"vpc:DescribeVpcs",
+	}
+}
+
+// RequiredBillingObserveActions is the exact delayed-billing read set reserved
+// for the Observer role. Billing APIs support only account-wide resources.
+func RequiredBillingObserveActions() []string {
+	return []string{
+		"bssapi:QueryBill",
+		"bssapi:QueryBillOverview",
+		"bssapi:QueryInstanceBill",
 	}
 }
 
@@ -258,6 +275,39 @@ func principalHasRole(arn, expectedRole string) bool {
 		return role == expectedRole
 	}
 	return false
+}
+
+// AssertCallerRole proves that the current temporary credentials belong to one
+// exact assumed role rather than accepting a role-name substring.
+func (a *OpenAPI) AssertCallerRole(ctx context.Context, expectedRole string) error {
+	arn, err := a.CallerPrincipalARN(ctx)
+	if err != nil {
+		return err
+	}
+	if !principalHasRole(arn, expectedRole) {
+		return discoveryError("GetCallerIdentity unexpected role", nil)
+	}
+	return nil
+}
+
+// AssertExactRoleTrust proves the current role retains the complete expected
+// workflow trust and one-hour session bound, not merely the setup subject.
+func (a *OpenAPI) AssertExactRoleTrust(ctx context.Context, roleName, expectedTrust string) error {
+	roleName = strings.TrimSpace(roleName)
+	expectedTrust = normalizeRAMPolicyDocument(expectedTrust)
+	if a == nil || a.ram == nil || roleName == "" || expectedTrust == "" {
+		return ErrInvalidConfig
+	}
+	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(roleName), nil)
+	if err != nil || response == nil || response.Body == nil || response.Body.Role == nil {
+		return discoveryError("GetRole failed", err)
+	}
+	role := response.Body.Role
+	if stringValue(role.RoleName) != roleName || dara.Int64Value(role.MaxSessionDuration) != 3600 ||
+		normalizeRAMPolicyDocument(stringValue(role.AssumeRolePolicyDocument)) != expectedTrust {
+		return discoveryError("GetRole unexpected trust", nil)
+	}
+	return nil
 }
 
 // Zones lists current PostPaid availability zones that advertise ESSD support.
@@ -620,9 +670,16 @@ func wholeQuotaValue(value *float32) (int64, bool) {
 // AssertExactQuoteRolePolicy proves that the live role has exactly one custom
 // attached policy and that its active document equals QuoteRolePolicyDocument.
 func (a *OpenAPI) AssertExactQuoteRolePolicy(ctx context.Context, roleName, policyName string) error {
+	return a.AssertExactRolePolicy(ctx, roleName, policyName, QuoteRolePolicyDocument())
+}
+
+// AssertExactRolePolicy proves that one role has exactly one custom attached
+// policy and that its active document equals the canonical expected document.
+func (a *OpenAPI) AssertExactRolePolicy(ctx context.Context, roleName, policyName, expectedDocument string) error {
 	roleName = strings.TrimSpace(roleName)
 	policyName = strings.TrimSpace(policyName)
-	if a == nil || a.ram == nil || roleName == "" || policyName == "" {
+	expectedDocument = normalizeRAMPolicyDocument(expectedDocument)
+	if a == nil || a.ram == nil || roleName == "" || policyName == "" || expectedDocument == "" {
 		return ErrInvalidConfig
 	}
 	list, err := a.ram.ListPoliciesForRoleWithContext(ctx,
@@ -645,7 +702,7 @@ func (a *OpenAPI) AssertExactQuoteRolePolicy(ctx context.Context, roleName, poli
 	}
 	active := version.Body.PolicyVersion
 	if !boolValue(active.IsDefaultVersion) || stringValue(active.VersionId) != versionID ||
-		normalizeRAMPolicyDocument(stringValue(active.PolicyDocument)) != QuoteRolePolicyDocument() {
+		normalizeRAMPolicyDocument(stringValue(active.PolicyDocument)) != expectedDocument {
 		return discoveryError("GetPolicyVersion unexpected document", nil)
 	}
 	return nil

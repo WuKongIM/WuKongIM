@@ -44,6 +44,7 @@ type quoteResult struct {
 type commandDependencies struct {
 	now               func() time.Time
 	quoteProvider     func(cloudlease.Plan) (cloudlease.Provider, error)
+	inventoryProvider func(provider, region string) (cloudlease.Provider, error)
 	lifecycleProvider func(provider, region string) (cloudlease.Provider, error)
 }
 
@@ -80,6 +81,18 @@ func newRootCommand(stdout io.Writer) *cobra.Command {
 			return alibaba.NewLifecycle(api, api, alibaba.Options{Now: dependencies.now}), nil
 		default:
 			return nil, fmt.Errorf("unsupported lifecycle provider %q", provider)
+		}
+	}
+	dependencies.inventoryProvider = func(provider, region string) (cloudlease.Provider, error) {
+		switch provider {
+		case alibaba.ProviderName:
+			api, err := alibaba.NewInventoryOpenAPIFromOIDCEnvironment(region)
+			if err != nil {
+				return nil, err
+			}
+			return alibaba.NewLifecycle(api, api, alibaba.Options{Now: dependencies.now}), nil
+		default:
+			return nil, fmt.Errorf("unsupported inventory provider %q", provider)
 		}
 	}
 	return newRootCommandWithDependencies(stdout, dependencies)

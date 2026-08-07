@@ -283,6 +283,13 @@ func TestRequiredLifecycleActionsAreExplicitAndSeparated(t *testing.T) {
 	}
 }
 
+func TestRequiredBillingObserveActionsAreExactAndReadOnly(t *testing.T) {
+	want := []string{"bssapi:QueryBill", "bssapi:QueryBillOverview", "bssapi:QueryInstanceBill"}
+	if got := RequiredBillingObserveActions(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("RequiredBillingObserveActions() = %#v, want %#v", got, want)
+	}
+}
+
 func TestQuoteRolePolicyDocumentIsCanonicalExactReadAllowlist(t *testing.T) {
 	document := QuoteRolePolicyDocument()
 	var decoded struct {

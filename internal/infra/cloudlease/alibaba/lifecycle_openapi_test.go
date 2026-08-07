@@ -51,6 +51,20 @@ func TestLifecycleOpenAPIRequiresExactExplicitAuthorization(t *testing.T) {
 	}
 }
 
+func TestInventoryOpenAPIUsesTemporaryOIDCWithoutPaidMutationAuthorization(t *testing.T) {
+	t.Setenv(credentialAccessKeyIDEnv, "temporary-id")
+	t.Setenv(credentialAccessKeySecretEnv, "temporary-secret")
+	t.Setenv(credentialSecurityTokenEnv, "temporary-token")
+	t.Setenv(lifecycleAuthorizationEnv, "")
+	api, err := NewInventoryOpenAPIFromOIDCEnvironment(RegionHangzhou)
+	if err != nil {
+		t.Fatalf("NewInventoryOpenAPIFromOIDCEnvironment() error = %v", err)
+	}
+	if !api.inventoryReady() || api.lifecycleReady() || api.lifecycleAuthorized {
+		t.Fatal("inventory OpenAPI did not preserve the read-only lifecycle boundary")
+	}
+}
+
 func TestQuoteOpenAPIConstructorKeepsLifecycleGuardFalse(t *testing.T) {
 	t.Setenv(credentialAccessKeyIDEnv, "temporary-access-key")
 	t.Setenv(credentialAccessKeySecretEnv, "temporary-secret")

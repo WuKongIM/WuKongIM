@@ -32,7 +32,7 @@ const (
 var _ LifecycleAPI = (*OpenAPI)(nil)
 
 func (a *OpenAPI) lifecycleReady() bool {
-	return a != nil && a.lifecycleAuthorized && a.region == RegionHangzhou && a.ecs != nil && a.vpc != nil
+	return a != nil && a.lifecycleAuthorized && a.inventoryReady()
 }
 
 // CreateNetwork creates one tagged isolated VPC, vSwitch, and basic security group.

@@ -132,10 +132,14 @@ type lifecycleSecurityPermission struct {
 	DestCIDRIP   string `json:"DestCidrIp"`
 }
 
+func (a *OpenAPI) inventoryReady() bool {
+	return a != nil && a.region == RegionHangzhou && a.ecs != nil && a.vpc != nil
+}
+
 // ListAssets exhaustively discovers tagged Lease roots and then traverses
 // provider relationships so missing child tags cannot hide residual resources.
 func (a *OpenAPI) ListAssets(ctx context.Context, query InventoryQuery) ([]LifecycleAsset, error) {
-	if !a.lifecycleReady() || query.Region != a.region || (query.LeaseID == "" && query.Repository == "") {
+	if !a.inventoryReady() || query.Region != a.region || (query.LeaseID == "" && query.Repository == "") {
 		return nil, ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
