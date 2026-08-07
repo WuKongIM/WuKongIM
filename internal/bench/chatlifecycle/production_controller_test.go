@@ -276,6 +276,47 @@ func TestProductionEvidenceControllerSkipsPeriodicCutUntilFirstObservation(t *te
 	}
 }
 
+func TestFormalSoakLatencyAttributionJoinsResourceAndDeliveryEvidence(t *testing.T) {
+	cfg := FormalConfig()
+	complete := ReportCapacityResourceEvidence{
+		Complete: true, ProcessesComplete: true, WorkerQueuesComplete: true,
+	}
+	for _, test := range []struct {
+		name      string
+		resources ReportCapacityResourceEvidence
+		delivered uint64
+		want      CapacityAttribution
+	}{
+		{name: "clear four-host headroom", resources: complete, want: CapacityAttributionProduct},
+		{name: "load underdelivery", resources: complete, delivered: 1, want: CapacityAttributionInfrastructure},
+		{name: "incomplete resource round", resources: ReportCapacityResourceEvidence{}, want: CapacityAttributionInsufficient},
+		{name: "threshold high but not sustained", resources: func() ReportCapacityResourceEvidence {
+			value := complete
+			value.HostCPUPercentBasisPoints[0] = uint32((cfg.Thresholds.Resource.HostCPUPercent + 1) * 100)
+			return value
+		}(), want: CapacityAttributionInsufficient},
+		{name: "sustained server saturation", resources: func() ReportCapacityResourceEvidence {
+			value := complete
+			value.CPUSustainedActive[0] = true
+			return value
+		}(), want: CapacityAttributionInfrastructure},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			workers := make([]WorkerSnapshot, coordinatorWorkerCount)
+			workers[0].Harness.OfferedUnderdelivery = test.delivered
+			observation := ProductionObservationSnapshot{}
+			observation.ResourceEvidence.Capacity = test.resources
+			got, total, err := formalSoakLatencyAttribution(cfg, observation, workers, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want || total != test.delivered {
+				t.Fatalf("attribution/underdelivery = %q/%d, want %q/%d", got, total, test.want, test.delivered)
+			}
+		})
+	}
+}
+
 func TestProductionEvidenceControllerWritesNonTerminalQualificationAndKeepsRunning(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "production-controller-qualification"

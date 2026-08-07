@@ -28,7 +28,7 @@ func TestLocalConfigValid(t *testing.T) {
 	if cfg.RunID != "local-chat-lifecycle" || cfg.Seed != 1 || cfg.Profile != ProfileLocal || cfg.Mode != ModeSoak || cfg.Stage != StageShakeout {
 		t.Fatalf("identity/profile/mode = %q/%d/%q/%q", cfg.RunID, cfg.Seed, cfg.Profile, cfg.Mode)
 	}
-	if cfg.Workload.Workers != 3 || cfg.Workload.OnlineUsers != 100 || cfg.Workload.NewUsersPerDay != 1_000 || cfg.Workload.SendRatePerSecond != 100 {
+	if cfg.Workload.Workers != 3 || cfg.Workload.OnlineUsers != 100 || cfg.Workload.NewUsersPerDay != 250_000 || cfg.Workload.SendRatePerSecond != 100 {
 		t.Fatalf("core workload = %+v", cfg.Workload)
 	}
 	if cfg.Workload.HotSet != (HotSetConfig{PersonChannels: 80, GroupChannels: 20}) {

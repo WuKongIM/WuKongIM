@@ -24,7 +24,7 @@ usage() {
 # Usage: run-wukongim-three-node-chat-lifecycle-shakeout.sh --run-dir DIR [options]
 #
 # Builds one WuKongIM binary and one wkbench binary, then starts three service
-# nodes, three authenticated lifecycle workers, three local filesystem metrics
+# nodes, three authenticated lifecycle workers, four local filesystem metrics
 # endpoints, and one coordinator. Every artifact stays below the fresh run dir.
 #
 # Options:
@@ -80,6 +80,7 @@ ws_port() { port "$((30 + $1))"; }
 manager_port() { port "$((40 + $1))"; }
 worker_port() { port "$((50 + $1))"; }
 host_metrics_port() { port "$((60 + $1))"; }
+load_host_metrics_port() { port 60; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -127,6 +128,7 @@ print_plan() {
     printf 'worker_%s=http://127.0.0.1:%s\n' "$node" "$(worker_port "$node")"
     printf 'host_metrics_%s=http://127.0.0.1:%s\n' "$node" "$(host_metrics_port "$node")"
   done
+  printf 'host_metrics_load=http://127.0.0.1:%s\n' "$(load_host_metrics_port)"
 }
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -142,7 +144,7 @@ if [[ -e "$RUN_DIR" ]] && [[ -n "$(find "$RUN_DIR" -mindepth 1 -maxdepth 1 -prin
   die "--run-dir must be absent or empty: $RUN_DIR"
 fi
 
-mkdir -p "$RUN_DIR/bin" "$CONFIG_DIR" "$DATA_DIR" "$LOG_DIR" "$PID_DIR" "$WORKER_DIR" "$REPORT_DIR"
+mkdir -p "$RUN_DIR/bin" "$CONFIG_DIR" "$DATA_DIR/load" "$LOG_DIR" "$PID_DIR" "$WORKER_DIR" "$REPORT_DIR"
 for node in 1 2 3; do
   mkdir -p "$DATA_DIR/node$node" "$LOG_DIR/node$node" "$WORKER_DIR/node$node"
   cp "$ROOT_DIR/scripts/wukongim/wukongim-node$node.toml" "$CONFIG_DIR/node$node.toml"
@@ -159,6 +161,7 @@ sed \
   -e "s/15101/$(gateway_port 1)/g" -e "s/15102/$(gateway_port 2)/g" -e "s/15103/$(gateway_port 3)/g" \
   -e "s/19091/$(worker_port 1)/g" -e "s/19092/$(worker_port 2)/g" -e "s/19093/$(worker_port 3)/g" \
   -e "s/19101/$(host_metrics_port 1)/g" -e "s/19102/$(host_metrics_port 2)/g" -e "s/19103/$(host_metrics_port 3)/g" \
+  -e "s/19104/$(load_host_metrics_port)/g" \
   "$ROOT_DIR/configs/wkbench/chat-lifecycle/local-shakeout.yaml" >"$LIFECYCLE_CONFIG"
 
 record_pid() {
@@ -265,6 +268,15 @@ start_host_metrics() {
   record_pid "host-metrics-$node" "$pid"
 }
 
+start_load_host_metrics() {
+  local pid
+  "$WKBENCH_BIN" host-metrics --listen "127.0.0.1:$(load_host_metrics_port)" \
+    --path "$DATA_DIR/load" --mountpoint "/var/lib/wukongim-load" --device "/dev/local-load-data" \
+    >"$LOG_DIR/host-metrics-load.log" 2>&1 &
+  pid=$!
+  record_pid host-metrics-load "$pid"
+}
+
 wait_url() {
   local name="$1" url="$2" token="${3:-}" deadline pid
   pid="$(<"$PID_DIR/$name.pid")"
@@ -291,10 +303,12 @@ wait_url() {
 for node in 1 2 3; do start_service "$node"; done
 for node in 1 2 3; do wait_url "service-$node" "http://127.0.0.1:$(api_port "$node")/readyz"; done
 for node in 1 2 3; do start_worker "$node"; start_host_metrics "$node"; done
+start_load_host_metrics
 for node in 1 2 3; do
   wait_url "worker-$node" "http://127.0.0.1:$(worker_port "$node")/healthz" "$WK_BENCH_WORKER_TOKEN"
   wait_url "host-metrics-$node" "http://127.0.0.1:$(host_metrics_port "$node")/healthz"
 done
+wait_url host-metrics-load "http://127.0.0.1:$(load_host_metrics_port)/healthz"
 
 log 'starting coordinator'
 "$WKBENCH_BIN" soak chat-lifecycle --config "$LIFECYCLE_CONFIG" --output-dir "$REPORT_DIR" \

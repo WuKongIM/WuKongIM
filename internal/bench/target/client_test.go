@@ -1157,6 +1157,34 @@ func TestObservationMetricsRetainsMaximumPerQueueSeriesUtilization(t *testing.T)
 	require.Equal(t, float64(1_000), snapshot.ChannelWorkerQueueCapacity)
 }
 
+func TestObservationMetricsIgnoresInactiveZeroCapacityQueueSeries(t *testing.T) {
+	scrape := strings.Join([]string{
+		`wukongim_runtime_pool_queue_depth{pool="bounded"} 8`,
+		`wukongim_runtime_pool_queue_capacity{pool="bounded"} 10`,
+		`wukongim_runtime_pool_queue_depth{pool="inactive"} 0`,
+		`wukongim_runtime_pool_queue_capacity{pool="inactive"} 0`,
+	}, "\n") + "\n"
+	snapshot, err := parseObservationMetrics([]byte(scrape))
+	require.NoError(t, err)
+	require.Equal(t, float64(80), snapshot.RuntimeQueueMaxPercent)
+	require.Equal(t, float64(8), snapshot.RuntimeQueueDepth)
+	require.Equal(t, float64(10), snapshot.RuntimeQueueCapacity)
+}
+
+func TestObservationMetricsIgnoresByteBoundedQueueWithoutItemCapacity(t *testing.T) {
+	scrape := strings.Join([]string{
+		`wukongim_runtime_pool_queue_depth{pool="bounded"} 8`,
+		`wukongim_runtime_pool_queue_capacity{pool="bounded"} 10`,
+		`wukongim_runtime_pool_queue_depth{pool="byte-bounded"} 3`,
+		`wukongim_runtime_pool_queue_capacity{pool="byte-bounded"} 0`,
+	}, "\n") + "\n"
+	snapshot, err := parseObservationMetrics([]byte(scrape))
+	require.NoError(t, err)
+	require.Equal(t, float64(80), snapshot.RuntimeQueueMaxPercent)
+	require.Equal(t, float64(11), snapshot.RuntimeQueueDepth)
+	require.Equal(t, float64(10), snapshot.RuntimeQueueCapacity)
+}
+
 func TestObserverRejectsOversizedAndRedactsProtectedResponses(t *testing.T) {
 	const token = "observer-redaction-secret"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

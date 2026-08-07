@@ -68,21 +68,31 @@ type LeaseInventory struct {
 
 // DeploymentBudget is the immutable admitted whole-Lease cost envelope.
 type DeploymentBudget struct {
-	Currency              string                     `json:"currency"`
-	LimitMicros           int64                      `json:"limit_micros"`
-	OperationalStopMicros int64                      `json:"operational_stop_micros"`
-	CommittedMicros       int64                      `json:"committed_micros"`
-	EstimatedCostMicros   int64                      `json:"estimated_cost_micros"`
-	LineItems             []DeploymentBudgetLineItem `json:"line_items"`
+	// Currency is the immutable ISO-style unit shared by every line item.
+	Currency string `json:"currency"`
+	// LimitMicros is the absolute whole-request authorization ceiling.
+	LimitMicros int64 `json:"limit_micros"`
+	// OperationalStopMicros is the lower conservative stop threshold checked at runtime.
+	OperationalStopMicros int64 `json:"operational_stop_micros"`
+	// CommittedMicros carries authenticated spend from earlier released Leases.
+	CommittedMicros int64 `json:"committed_micros"`
+	// EstimatedCostMicros is this proposed Lease's conservative quoted cost.
+	EstimatedCostMicros int64 `json:"estimated_cost_micros"`
+	// LineItems preserve the bounded inputs required for later conservative accrual.
+	LineItems []DeploymentBudgetLineItem `json:"line_items"`
 }
 
 // DeploymentBudgetLineItem is one immutable quoted cost component retained
 // for conservative runtime accrual; it contains no provider credential.
 type DeploymentBudgetLineItem struct {
-	Kind       string `json:"kind"`
-	Role       string `json:"role"`
-	Quantity   int    `json:"quantity"`
-	CostMicros int64  `json:"cost_micros"`
+	// Kind is the closed provider-independent billing component name.
+	Kind string `json:"kind"`
+	// Role identifies the service, load, disk, or public-network allocation.
+	Role string `json:"role"`
+	// Quantity is the quoted count or usage allowance for this component.
+	Quantity int `json:"quantity"`
+	// CostMicros is the conservative total for Quantity in the budget currency.
+	CostMicros int64 `json:"cost_micros"`
 }
 
 // LeaseResource is one normalized instance, data disk, or public address.

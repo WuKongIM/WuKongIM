@@ -65,7 +65,7 @@ func TestChatLifecycleShakeoutScriptIntegration(t *testing.T) {
 
 func reserveChatLifecyclePortRange(t *testing.T) int {
 	t.Helper()
-	offsets := []int{1, 2, 3, 11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43, 51, 52, 53, 61, 62, 63}
+	offsets := []int{1, 2, 3, 11, 12, 13, 21, 22, 23, 31, 32, 33, 41, 42, 43, 51, 52, 53, 60, 61, 62, 63}
 	for base := 30000; base <= 60000; base += 100 {
 		listeners := make([]net.Listener, 0, len(offsets))
 		available := true
@@ -94,8 +94,8 @@ func assertChatLifecyclePIDsExited(t *testing.T, pidDir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 10 {
-		t.Fatalf("PID files = %d, want 10", len(entries))
+	if len(entries) != 11 {
+		t.Fatalf("PID files = %d, want 11", len(entries))
 	}
 	for _, entry := range entries {
 		encoded, err := os.ReadFile(filepath.Join(pidDir, entry.Name()))

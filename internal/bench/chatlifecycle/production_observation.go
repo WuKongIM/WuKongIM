@@ -217,7 +217,10 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return s.commitRound(ctx, sample, observationAt, forcedGC, round)
+	if err := s.commitRound(ctx, sample, observationAt, forcedGC, round); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *ProductionObservationSource) commitRound(

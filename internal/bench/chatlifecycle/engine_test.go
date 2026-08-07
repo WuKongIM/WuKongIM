@@ -2365,7 +2365,9 @@ func TestEngineStepRejectsOwnerTimeRollbackBeforeSessionOrSchedulerMutation(t *t
 }
 
 func TestEngineTimeAdmissionAllowsEqualAndIncreasingAdvanceAndStep(t *testing.T) {
-	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		NewUsersPerDay: 1_000, WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
 	if err := fixture.engine.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}

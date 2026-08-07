@@ -26,6 +26,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 concurrency:
   group: chat-lifecycle-rehearsal-finalizer-${{ github.repository }}
@@ -361,6 +362,7 @@ jobs:
             "$WK_CHAT_TRANSITION_DIR/"
           echo 'ready=true' >>"$GITHUB_OUTPUT"
       - name: Upload fresh-formal transition for the scheduled starter
+        id: transition_upload
         if: steps.transition.outputs.ready == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -394,6 +396,7 @@ jobs:
               cost:{conservative_quote_micros:$conservative_quote_micros,
                 provider_reported:{state:"pending_billing_delay",unresolved:true}}}' >"$WK_CHAT_COMPLETE_DIR/manifest.json"
       - name: Upload complete rehearsal evidence
+        id: complete_upload
         if: steps.complete.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -416,6 +419,42 @@ jobs:
           set -euo pipefail
           [[ "${{ matrix.handoff_artifact_id }}" =~ ^[1-9][0-9]*$ ]]
           gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${{ matrix.handoff_artifact_id }}"
+      - name: Advance the exact tracking Issue
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=rehearsal_finalizer_pending
+          if [[ "${{ steps.collect.outputs.diagnosis_pending }}" == true || "${{ steps.previous.outputs.diagnosis_pending }}" == true ]]; then
+            state=rehearsal_diagnosis_pending
+          elif [[ "${{ steps.transition_upload.outcome }}" == success ]]; then
+            state=rehearsal_released_formal_ready
+          elif [[ "${{ steps.complete_upload.outcome }}" == success ]]; then
+            state=rehearsal_released
+          elif [[ "${{ steps.complete.outcome }}" == success ]]; then
+            state=rehearsal_final_artifact_pending
+          elif [[ "${{ steps.final_upload.outcome }}" == success ]]; then
+            state=rehearsal_terminal_evidence
+          elif [[ "${{ job.status }}" == failure ]]; then
+            state=rehearsal_cleanup_pending
+          fi
+          detail="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          dedupe="$state"
+          if [[ "$state" == rehearsal_finalizer_pending && -f "$WK_CHAT_HANDOFF_DIR/run-plan.json" ]]; then
+            dedupe="rehearsal_running_$(( $(date -u +%s) / 1800 ))"
+            created_at="$(jq -er .receipt.created_at "$WK_CHAT_HANDOFF_DIR/receipt.json")"
+            if stage_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$WK_CHAT_HANDOFF_DIR/run-plan.json" \
+              "$WK_CHAT_HANDOFF_DIR/quote.json" "$created_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" -1)"; then
+              prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")"
+              detail="${detail} aggregate_conservative_micros=$(( prior + stage_cost ))"
+            fi
+          elif [[ "$state" == rehearsal_released_formal_ready ]]; then
+            detail="${detail} committed_micros=$(jq -er .committed_micros "$RUNNER_TEMP/formal-transition/transition.json")"
+          fi
+          export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_DEDUPE_KEY="$dedupe"
+          export WK_CHAT_ISSUE_BODY="$detail"
+          scripts/chat-lifecycle/comment-request-issue.sh
       - name: Remove plaintext runner identity
         if: always()
         shell: bash

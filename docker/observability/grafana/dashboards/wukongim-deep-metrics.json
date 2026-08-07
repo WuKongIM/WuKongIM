@@ -66,6 +66,11 @@
           "refId": "B"
         },
         {
+          "expr": "sum(wukongim_channelv2_worker_queue_capacity{node_name=~\"$node_name\"}) by (pool)",
+          "legendFormat": "worker queue capacity {{pool}}",
+          "refId": "H"
+        },
+        {
           "expr": "sum(wukongim_channelv2_worker_inflight{node_name=~\"$node_name\"}) by (pool)",
           "legendFormat": "worker inflight {{pool}}",
           "refId": "C"

@@ -47,7 +47,11 @@ Invoke `$wukongim-cloud-analysis` while its exact Lease remains live and record
 the evidence-based classification on the tracking Issue. The scheduled
 finalizer releases at the marker deadline even if the local monitor is absent.
 
-If persistent desktop monitoring is unavailable, say so explicitly and leave the Issue plus scheduled finalizers/sweeper as the fallback. Do not imply that a local monitor is active.
+If persistent desktop monitoring is unavailable, say so explicitly. The paid
+orchestrators, scheduled finalizers, and stop workflow still append idempotent
+stage/cleanup states to the exact tracking Issue, while the scheduled sweeper
+remains the provider-cleanup fallback. Do not imply that a local monitor is
+active or that workflow comments replace live diagnosis.
 
 ## Manager and Demo access
 

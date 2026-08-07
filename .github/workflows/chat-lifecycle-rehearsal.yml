@@ -24,6 +24,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 concurrency:
   group: chat-lifecycle-paid-${{ github.repository }}
@@ -170,6 +171,22 @@ jobs:
           path: ${{ env.WK_CHAT_CLEANUP_DIR }}
           if-no-files-found: error
           retention-days: 8
+      - name: Advance the exact tracking Issue
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=rehearsal_orchestration_failed
+          if [[ "${{ steps.immediate_cleanup.outputs.ready }}" == true || "${{ steps.fallback_release.outputs.released }}" == true ]]; then
+            state=rehearsal_zero_inventory
+          elif [[ "${{ steps.fallback_release.outputs.pending }}" == true ]]; then
+            state=rehearsal_cleanup_pending
+          elif [[ "${{ steps.handoff_upload.outcome }}" == success ]]; then
+            state=rehearsal_running
+          fi
+          export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_BODY="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          scripts/chat-lifecycle/comment-request-issue.sh
       - name: Remove plaintext runner identities
         if: always()
         shell: bash

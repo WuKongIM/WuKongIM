@@ -200,8 +200,11 @@ type VerdictObservation struct {
 	At          time.Time
 	Correctness *CorrectnessCounters
 	Latency     *LatencyCounters
-	Resources   []NodeResourceSample
-	Signals     []VerdictSignal
+	// LatencyAttribution classifies the resource and load-delivery evidence
+	// overlapping this latency cut. Empty preserves legacy product attribution.
+	LatencyAttribution CapacityAttribution
+	Resources          []NodeResourceSample
+	Signals            []VerdictSignal
 }
 
 // VerdictSnapshot is a bounded projection. Pass is provisional until Terminal.
@@ -231,8 +234,9 @@ type VerdictWindowRetention struct {
 }
 
 type verdictLatencyState struct {
-	p99, p999   *CounterWindow
-	breachSince *time.Time
+	p99, p999         *CounterWindow
+	breachSince       *time.Time
+	breachAttribution CapacityAttribution
 }
 
 type verdictResourceNode struct {
@@ -267,6 +271,7 @@ type VerdictEvaluator struct {
 	latencyAnomalySize  int
 	latencyAnomalyCount uint64
 	latencyEvidence     [3]bool
+	capacityWarning     bool
 	resources           [3]verdictResourceNode
 	heapWindowCapacity  int
 	goroWindowCapacity  int
@@ -317,6 +322,10 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 		return ErrVerdictObservation
 	}
 	if observation.At.IsZero() || observation.At.Before(v.start) || (!v.last.IsZero() && !observation.At.After(v.last)) {
+		v.setTerminal(VerdictHarnessInvalid, VerdictCauseInvalidObservation)
+		return ErrVerdictObservation
+	}
+	if !validLatencyAttribution(observation.LatencyAttribution) {
 		v.setTerminal(VerdictHarnessInvalid, VerdictCauseInvalidObservation)
 		return ErrVerdictObservation
 	}
@@ -423,16 +432,31 @@ func (v *VerdictEvaluator) Observe(observation VerdictObservation) error {
 					breached := ratioAboveUnitFraction(aboveP99, countP99, 100) || ratioAboveUnitFraction(aboveP999, countP999, 1_000)
 					if !breached {
 						state.breachSince = nil
+						state.breachAttribution = CapacityAttributionNone
 						continue
 					}
 					if state.breachSince == nil {
 						started := observation.At
 						state.breachSince = &started
+						state.breachAttribution = normalizedLatencyAttribution(observation.LatencyAttribution)
 						v.incrementLatencyWarning(operation.operation)
 						continue
 					}
+					state.breachAttribution = mergeLatencyAttribution(
+						state.breachAttribution,
+						normalizedLatencyAttribution(observation.LatencyAttribution),
+					)
 					if observation.At.Sub(*state.breachSince) >= v.thresholds.Latency.SustainedBreachWindow {
-						selectSignal(VerdictSignal{Outcome: VerdictProductFailure, Cause: operation.cause})
+						switch state.breachAttribution {
+						case CapacityAttributionInfrastructure:
+							v.capacityWarning = true
+							v.snapshot.Outcome = VerdictPassedWithCapacityWarning
+							v.snapshot.Cause = VerdictCauseInfrastructureCapacity
+						case CapacityAttributionInsufficient:
+							selectSignal(VerdictSignal{Outcome: VerdictInsufficientEvidence, Cause: VerdictCauseInsufficientEvidence})
+						default:
+							selectSignal(VerdictSignal{Outcome: VerdictProductFailure, Cause: operation.cause})
+						}
 					}
 				}
 			}
@@ -545,7 +569,7 @@ func verdictOutcomeRank(outcome VerdictOutcome) int {
 		return 4
 	case VerdictInfrastructureFailure:
 		return 3
-	case VerdictHarnessInvalid:
+	case VerdictHarnessInvalid, VerdictInsufficientEvidence:
 		return 2
 	case VerdictOperatorStop:
 		return 1
@@ -737,6 +761,28 @@ func (v *VerdictEvaluator) incrementLatencyWarning(operation LatencyOperation) {
 	}
 }
 
+func validLatencyAttribution(attribution CapacityAttribution) bool {
+	return attribution == CapacityAttributionNone || attribution == CapacityAttributionInfrastructure ||
+		attribution == CapacityAttributionProduct || attribution == CapacityAttributionInsufficient
+}
+
+func normalizedLatencyAttribution(attribution CapacityAttribution) CapacityAttribution {
+	if attribution == CapacityAttributionNone {
+		return CapacityAttributionProduct
+	}
+	return attribution
+}
+
+func mergeLatencyAttribution(left, right CapacityAttribution) CapacityAttribution {
+	if left == CapacityAttributionInfrastructure || right == CapacityAttributionInfrastructure {
+		return CapacityAttributionInfrastructure
+	}
+	if left == CapacityAttributionProduct && right == CapacityAttributionProduct {
+		return CapacityAttributionProduct
+	}
+	return CapacityAttributionInsufficient
+}
+
 func (v *VerdictEvaluator) recordLatencyAnomaly(anomaly LatencyAnomaly) {
 	if math.MaxUint64-v.latencyAnomalyCount < anomaly.Count {
 		v.latencyAnomalyCount = math.MaxUint64
@@ -821,7 +867,11 @@ func (v *VerdictEvaluator) Finalize(at time.Time) error {
 		v.setTerminal(VerdictHarnessInvalid, VerdictCauseInvalidObservation)
 		return ErrVerdictObservation
 	}
-	v.setTerminal(VerdictPass, VerdictCauseCompleted)
+	if v.capacityWarning {
+		v.setTerminal(VerdictPassedWithCapacityWarning, VerdictCauseInfrastructureCapacity)
+	} else {
+		v.setTerminal(VerdictPass, VerdictCauseCompleted)
+	}
 	return nil
 }
 

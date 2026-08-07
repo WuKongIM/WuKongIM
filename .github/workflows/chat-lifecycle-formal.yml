@@ -15,6 +15,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 concurrency:
   group: chat-lifecycle-paid-${{ github.repository }}
@@ -171,6 +172,15 @@ jobs:
           set -euo pipefail
           export WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY="$(cat "$RUNNER_TEMP/codex-diagnostic.pub")"
           scripts/chat-lifecycle/stage-orchestrate.sh
+      - name: Attach authenticated rehearsal evidence to the formal handoff
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f "$WK_CHAT_OUTPUT_DIR/handoff.json" ]]; then
+            install -d -m 0700 "$WK_CHAT_OUTPUT_DIR/rehearsal"
+            cp -a "$WK_CHAT_TRANSITION_DIR/." "$WK_CHAT_OUTPUT_DIR/rehearsal/"
+          fi
       - name: Detect publishable handoff or cleanup continuation
         id: handoff_state
         if: always()
@@ -224,6 +234,22 @@ jobs:
           path: ${{ env.WK_CHAT_CLEANUP_DIR }}
           if-no-files-found: error
           retention-days: 8
+      - name: Advance the exact tracking Issue
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=formal_orchestration_failed
+          if [[ "${{ steps.fallback_release.outputs.released }}" == true ]]; then
+            state=formal_zero_inventory
+          elif [[ "${{ steps.fallback_release.outputs.pending }}" == true ]]; then
+            state=formal_cleanup_pending
+          elif [[ "${{ steps.handoff_upload.outcome }}" == success ]]; then
+            state=formal_running
+          fi
+          export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_BODY="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          scripts/chat-lifecycle/comment-request-issue.sh
       - name: Remove plaintext runner identities
         if: always()
         shell: bash

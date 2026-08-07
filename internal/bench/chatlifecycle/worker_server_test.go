@@ -1124,6 +1124,70 @@ func TestWorkerEngineCoordinatorModeEmitsPrimaryOnlyFromExternalGrant(t *testing
 	}
 }
 
+func TestWorkerEngineLocalWorkersAcceptFirstCoordinatorGrant(t *testing.T) {
+	config := LocalConfig()
+	config.RunID = "worker-local-first-grant"
+	config.Workload.Sessions = []DurationShare{{Percent: 100, Min: 3 * time.Hour, Max: 3 * time.Hour}}
+	if err := config.Validate(); err != nil {
+		t.Fatalf("local first-grant config: %v", err)
+	}
+	for _, workerID := range []uint64{0, 1, 2} {
+		workerID := workerID
+		t.Run(fmt.Sprintf("worker-%d", workerID), func(t *testing.T) {
+			startedAt := time.Unix(1_700_000_000, 0)
+			clock := &sessionFakeClock{now: startedAt}
+			sessions := &engineFakeFactory{autoAck: true}
+			ticker := newManualWorkerGenerationTicker()
+			target, targetErr := workerOnlineTarget(config.Workload.OnlineUsers, workerID, uint64(config.Workload.Workers))
+			if targetErr != nil {
+				t.Fatalf("worker online target: %v", targetErr)
+			}
+			release, releaseErr := workerOnlineTarget(config.Workload.SendRatePerSecond, workerID, uint64(config.Workload.Workers))
+			if releaseErr != nil {
+				t.Fatalf("worker release: %v", releaseErr)
+			}
+			factory := engineWorkerGenerationFactory{
+				clock:             clock,
+				newSessionFactory: func(WorkerAssignment) (SessionClientFactory, error) { return sessions, nil },
+				newSyncer: func(WorkerAssignment) (ConversationSyncer, error) {
+					return &workerBootstrapSyncer{blockAfter: target}, nil
+				},
+				newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+			}
+			worker, err := factory.New(WorkerAssignment{
+				WorkerFence: WorkerFence{RunID: config.RunID, AssignmentID: fmt.Sprintf("local-first-grant-%d", workerID), Generation: 12},
+				WorkerID:    workerID, WorkerCount: uint64(config.Workload.Workers), CoordinatorGrants: true, Config: config,
+			})
+			if err != nil {
+				t.Fatalf("New local first-grant generation: %v", err)
+			}
+			if err := worker.Start(context.Background()); err != nil {
+				t.Fatalf("Start local first-grant generation: %v", err)
+			}
+			defer worker.Stop()
+			ticker.awaitReady(t)
+
+			clock.Set(startedAt.Add(30 * time.Second))
+			ticker.tickAndWait(t)
+			worker.(*engineWorkerGeneration).engine.loginOps.Wait()
+			for tick := 0; tick < 5 && !worker.TrafficReady(); tick++ {
+				clock.Set(clock.Now().Add(time.Second))
+				ticker.tickAndWait(t)
+				worker.(*engineWorkerGeneration).engine.loginOps.Wait()
+			}
+			if !worker.TrafficReady() {
+				snapshot, snapshotErr := worker.Checkpoint(context.Background())
+				t.Fatalf("worker did not publish local traffic readiness: snapshot=%+v error=%v", snapshot, snapshotErr)
+			}
+			application, err := worker.ApplyGrant(context.Background(), uint64(release))
+			if err != nil || !application.Admitted {
+				snapshot, snapshotErr := worker.Checkpoint(context.Background())
+				t.Fatalf("first local ApplyGrant = %+v, %v; snapshot=%+v error=%v", application, err, snapshot, snapshotErr)
+			}
+		})
+	}
+}
+
 func TestWorkerEngineGenerationRejectsOverflowAndReportsClockRollbackAsFatalRuntimeTermination(t *testing.T) {
 	config := LocalConfig()
 	assignment := WorkerAssignment{
@@ -1175,7 +1239,7 @@ func TestWorkerEngineGenerationRejectsOverflowAndReportsClockRollbackAsFatalRunt
 }
 
 func TestWorkerEngineAutonomousTickTerminatesOnLifecycleReplaySaturation(t *testing.T) {
-	fixture := newEngineTestFixture(t, engineTestLimits{})
+	fixture := newEngineTestFixture(t, engineTestLimits{NewUsersPerDay: 1_000})
 	ticker := newManualWorkerGenerationTicker()
 	generation := &engineWorkerGeneration{
 		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,

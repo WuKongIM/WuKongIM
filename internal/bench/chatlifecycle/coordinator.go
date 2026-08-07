@@ -10,6 +10,7 @@ import (
 	"errors"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,11 +18,17 @@ const (
 	coordinatorWorkerCount      = 3
 	coordinatorDefaultRoundTime = 5 * time.Second
 	coordinatorGrantCadence     = time.Second
+	// coordinatorGrantTickTolerance admits platform timer timestamp quantization
+	// without accepting a delayed, skipped, or catch-up logical grant tick.
+	coordinatorGrantTickTolerance = 10 * time.Millisecond
 )
 
 var ErrCoordinatorConfig = errors.New("chat lifecycle coordinator: invalid configuration")
 
-var errCoordinatorRoundDeadline = errors.New("chat lifecycle coordinator: control round deadline")
+var (
+	errCoordinatorRoundDeadline = errors.New("chat lifecycle coordinator: control round deadline")
+	errCoordinatorStopRequested = errors.New("chat lifecycle coordinator: operator stop requested")
+)
 
 var (
 	ErrCoordinatorSnapshotCount      = errors.New("chat lifecycle coordinator: snapshot count must equal three")
@@ -308,7 +315,8 @@ type CoordinatorOptions struct {
 	// Continuation adopts the still-running formal workers for capacity without
 	// setup, assignment, start, generation change, or grant-sequence reset.
 	Continuation *CoordinatorContinuation
-	// StopRequests asks for one coordinated terminal cut and bounded drain without canceling Run.
+	// StopRequests is closed for one operator stop. It cancels context-aware
+	// startup work and, after the evidence barrier, owns one terminal cut and drain.
 	StopRequests <-chan struct{}
 }
 
@@ -441,7 +449,36 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 	}
 
-	preflight := c.preflight.Check(ctx, cfg)
+	startupContext, cancelStartup := context.WithCancelCause(ctx)
+	var startupStopRequested atomic.Bool
+	startupWatchDone := make(chan struct{})
+	startupWatchExited := make(chan struct{})
+	go func() {
+		defer close(startupWatchExited)
+		select {
+		case <-c.stopRequests:
+			startupStopRequested.Store(true)
+			cancelStartup(errCoordinatorStopRequested)
+		case <-startupWatchDone:
+		case <-ctx.Done():
+		}
+	}()
+	var stopStartupWatchOnce sync.Once
+	stopStartupWatch := func() {
+		stopStartupWatchOnce.Do(func() {
+			close(startupWatchDone)
+			<-startupWatchExited
+		})
+	}
+	defer func() {
+		stopStartupWatch()
+		cancelStartup(nil)
+	}()
+
+	preflight := c.preflight.Check(startupContext, cfg)
+	if startupStopRequested.Load() {
+		return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped, Preflight: preflight}
+	}
 	if !preflight.TrafficAllowed() {
 		outcome := CoordinatorHarnessInvalid
 		if preflight.Outcome == PreflightInfrastructureFailure {
@@ -452,12 +489,15 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	var capacityAdmission capacityAdmissionToken
 	if cfg.Mode == ModeCapacity {
 		probeStartedAt := c.clock.Now()
-		probeContext, cancelProbe := context.WithTimeoutCause(ctx, c.roundTimeout, errCoordinatorRoundDeadline)
+		probeContext, cancelProbe := context.WithTimeoutCause(startupContext, c.roundTimeout, errCoordinatorRoundDeadline)
 		liveDataset, probeErr := c.capacityDataset.ProbeCapacityDataset(probeContext, cfg)
 		probeCause := context.Cause(probeContext)
 		probeCompletedAt := c.clock.Now()
 		cancelProbe()
 		if probeErr != nil {
+			if startupStopRequested.Load() {
+				return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
+			}
 			if ctx.Err() != nil && errors.Is(probeErr, ctx.Err()) && errors.Is(probeCause, ctx.Err()) {
 				return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
 			}
@@ -470,15 +510,21 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		if admissionErr != nil {
 			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeCapacity}
 		}
-		if ctx.Err() != nil {
+		if startupStopRequested.Load() || ctx.Err() != nil {
 			return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
 		}
 	}
 	var assignments []CoordinatorAssignment
 	var err error
 	if c.continuation == nil {
-		if err := c.setup.Run(ctx, cfg); err != nil {
+		if err := c.setup.Run(startupContext, cfg); err != nil {
+			if startupStopRequested.Load() {
+				return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
+			}
 			return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeSetup}
+		}
+		if startupStopRequested.Load() {
+			return CoordinatorResult{Outcome: CoordinatorStopped, Code: CoordinatorCodeStopped}
 		}
 		assignments, err = BuildCoordinatorAssignments(cfg, c.generation)
 	} else {
@@ -501,8 +547,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	var startStatuses [coordinatorWorkerCount]WorkerStatus
 	var disposition coordinatorRoundDisposition
 	if c.continuation == nil {
-		if _, disposition = c.assignRound(ctx, assignments); disposition != coordinatorRoundSucceeded {
+		if _, disposition = c.assignRound(startupContext, assignments); disposition != coordinatorRoundSucceeded {
 			c.stopAfterFailure(fence, attempted)
+			if startupStopRequested.Load() {
+				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+				return result
+			}
 			if disposition == coordinatorRoundParentCanceled {
 				result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 				return result
@@ -510,20 +560,24 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeAssignment
 			return result
 		}
-		if ctx.Err() != nil {
+		if startupStopRequested.Load() || ctx.Err() != nil {
 			c.stopAfterFailure(fence, attempted)
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
 		}
 		assigned = [coordinatorWorkerCount]bool{true, true, true}
-		startStatuses, disposition = c.startRound(ctx, assignments, fence)
+		startStatuses, disposition = c.startRound(startupContext, assignments, fence)
 	} else {
 		assigned = [coordinatorWorkerCount]bool{true, true, true}
-		startStatuses, disposition = c.statusRound(ctx, assignments)
+		startStatuses, disposition = c.statusRound(startupContext, assignments)
 	}
 	if disposition != coordinatorRoundSucceeded ||
 		(c.continuation != nil && !allCoordinatorTrafficReady(startStatuses)) {
 		c.stopAfterFailure(fence, attempted)
+		if startupStopRequested.Load() {
+			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+			return result
+		}
 		if disposition == coordinatorRoundParentCanceled {
 			result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 			return result
@@ -531,7 +585,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		result.Outcome, result.Code = CoordinatorHarnessInvalid, CoordinatorCodeStart
 		return result
 	}
-	if ctx.Err() != nil {
+	if startupStopRequested.Load() || ctx.Err() != nil {
 		c.stopAfterFailure(fence, attempted)
 		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
 		return result
@@ -578,11 +632,20 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		c.stopAfterFailure(fence, attempted)
 		return result
 	}
+	completeStartupStop := func() CoordinatorResult {
+		observation = joinObservation()
+		c.stopAfterFailure(fence, attempted)
+		result.Outcome, result.Code = CoordinatorStopped, CoordinatorCodeStopped
+		return result
+	}
 
 	ready, earlyObservation, observerDone, readyDisposition := c.waitForTrafficReady(
-		observationContext, observationChannel, assignments, startStatuses, cfg.Thresholds.Timeline.Warmup,
+		startupContext, observationChannel, assignments, startStatuses, cfg.Thresholds.Timeline.Warmup,
 	)
 	if !ready {
+		if startupStopRequested.Load() {
+			return completeStartupStop()
+		}
 		failureCode := CoordinatorCodeRuntime
 		if observerDone {
 			observation, observationJoined = earlyObservation, true
@@ -611,6 +674,15 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		c.stopAfterFailure(fence, attempted)
 		return result
 	default:
+	}
+	stopStartupWatch()
+	select {
+	case <-c.stopRequests:
+		startupStopRequested.Store(true)
+	default:
+	}
+	if startupStopRequested.Load() {
+		return completeStartupStop()
 	}
 	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 	if err != nil {
@@ -1743,7 +1815,8 @@ func validCoordinatorGrantTick(now, tickAt, lastTickAt time.Time, haveLastTick b
 	}
 	interval := tickAt.Sub(lastTickAt)
 	if haveLastTick {
-		return interval == coordinatorGrantCadence
+		return interval >= coordinatorGrantCadence-coordinatorGrantTickTolerance &&
+			interval <= coordinatorGrantCadence+coordinatorGrantTickTolerance
 	}
 	return interval >= coordinatorGrantCadence && interval < 2*coordinatorGrantCadence
 }
@@ -2241,7 +2314,6 @@ func coordinatorSnapshotRegressed(
 		current.Queues.WorkCapacity != previous.Queues.WorkCapacity ||
 		current.Queues.RetryCapacity != previous.Queues.RetryCapacity ||
 		current.Queues.InflightCapacity != previous.Queues.InflightCapacity ||
-		current.Queues.TransportCapacity != previous.Queues.TransportCapacity ||
 		coordinatorClassificationRank(current.Harness.Classification) < coordinatorClassificationRank(previous.Harness.Classification) ||
 		coordinatorClassificationRank(current.Evidence.Classification) < coordinatorClassificationRank(previous.Evidence.Classification) {
 		return true

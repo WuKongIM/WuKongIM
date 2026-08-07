@@ -1142,8 +1142,13 @@ func maximumQueueUtilization(depths, capacities map[string]float64) (float64, er
 	maximum := float64(0)
 	for key, depth := range depths {
 		capacity, ok := capacities[key]
-		if !ok || capacity <= 0 || depth > capacity {
+		if !ok || (capacity > 0 && depth > capacity) {
 			return 0, errors.New("observation metrics contains invalid queue utilization")
+		}
+		// A zero item capacity marks either an inactive queue or a queue bounded
+		// only by bytes, so its item utilization has no valid denominator.
+		if capacity == 0 {
+			continue
 		}
 		maximum = max(maximum, depth*100/capacity)
 	}

@@ -69,14 +69,21 @@ and use the one permitted fresh retry.
 
 ## Credential handling
 
-Set `CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY` as an Environment secret for the exact
-Lease before dispatch. Runtime Manager, worker, Analysis, and Demo credentials
-are generated inside the Action, masked, installed as root-owned `0600` files,
-and deleted from the runner and upload staging directories after activation.
-The read-only Manager and Demo share one temporary password; Codex can recover
-it through its separately provisioned diagnostic SSH identity from the
-root-readable node environment and hand it to the operator without publishing
-it in an Artifact. Worker and Analysis capabilities remain separately scoped.
-The SSH private key is deleted from the runner in the always-run cleanup step.
-Bootstrap public keys remain Lease-bounded; final credential deletion and
-operator credential handoff are controlled by the top-level run workflow.
+The top-level run creates a fresh Ed25519 deployment identity for each acquired
+Lease. It stores only `encrypted-deployment-identity.json` in the handoff,
+sealed to the repository variable `WK_CHAT_LIFECYCLE_WRAPPING_PUBLIC_KEY` and
+bound to the request, Lease, source SHA, plan digest, and expiry. The Deployment
+Action and finalizers may open it only inside the `cloud-deployment` Environment
+with `WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY`; plaintext deployment keys are
+removed by always-run cleanup steps and are never repository secrets or
+Artifacts.
+
+Runtime Manager, worker, Analysis, and Demo credentials are generated inside
+the Action, masked, installed as root-owned `0600` files, and deleted from the
+runner and upload staging directories after activation. The read-only Manager
+and Demo share one temporary password; Codex recovers it through the separate
+request-scoped diagnostic SSH identity and hands it to the operator without
+publishing plaintext in an Artifact. Worker and Analysis capabilities remain
+separately scoped. Bootstrap public keys remain Lease-bounded; final credential
+deletion and operator credential handoff are controlled by the top-level run
+workflow.

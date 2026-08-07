@@ -35,7 +35,7 @@ func LocalConfig() Config {
 	cfg.Stage = StageShakeout
 	cfg.Workload.Workers = formalWorkers
 	cfg.Workload.OnlineUsers = 100
-	cfg.Workload.NewUsersPerDay = 1_000
+	cfg.Workload.NewUsersPerDay = 250_000
 	cfg.Workload.SendRatePerSecond = 100
 	cfg.Workload.HotSet = HotSetConfig{PersonChannels: 80, GroupChannels: 20}
 	cfg.Workload.RuntimeSampling = RuntimeSamplingConfig{Every: time.Minute, Size: 12}

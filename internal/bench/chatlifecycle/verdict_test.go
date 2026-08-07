@@ -393,6 +393,59 @@ func TestLatencyWindowRequiresFiveFullMinutesOfBreach(t *testing.T) {
 	}
 }
 
+func TestLatencyWindowUsesReviewedSoakAttribution(t *testing.T) {
+	start := time.Unix(75_000, 0)
+	for _, test := range []struct {
+		name        string
+		attribution CapacityAttribution
+		outcome     VerdictOutcome
+		cause       VerdictCause
+		terminal    bool
+	}{
+		{
+			name: "sustained infrastructure saturation continues as warning", attribution: CapacityAttributionInfrastructure,
+			outcome: VerdictPassedWithCapacityWarning, cause: VerdictCauseInfrastructureCapacity,
+		},
+		{
+			name: "clear headroom is product latency", attribution: CapacityAttributionProduct,
+			outcome: VerdictProductFailure, cause: VerdictCauseHotLatency, terminal: true,
+		},
+		{
+			name: "ambiguous saturation is insufficient evidence", attribution: CapacityAttributionInsufficient,
+			outcome: VerdictInsufficientEvidence, cause: VerdictCauseInsufficientEvidence, terminal: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			thresholds := FormalConfig().Thresholds
+			evaluator, err := NewVerdictEvaluator(start, thresholds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			warmupEnd := start.Add(thresholds.Timeline.Warmup)
+			counters := LatencyCountersForThresholds(thresholds.Latency)
+			if err := evaluator.Observe(VerdictObservation{
+				At: warmupEnd, Latency: &counters, LatencyAttribution: test.attribution,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			for minute := 1; minute <= 6; minute++ {
+				counters.Hot.Count += 100
+				counters.Hot.AboveP99 += 2
+				if err := evaluator.Observe(VerdictObservation{
+					At:      warmupEnd.Add(time.Duration(minute) * time.Minute),
+					Latency: &counters, LatencyAttribution: test.attribution,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := evaluator.Snapshot()
+			if got.Outcome != test.outcome || got.Cause != test.cause || got.Terminal != test.terminal {
+				t.Fatalf("attributed latency verdict = %+v", got)
+			}
+		})
+	}
+}
+
 func TestLatencyWindowUsesColdAndSyncThresholdClasses(t *testing.T) {
 	start := time.Unix(80_000, 0)
 	for _, test := range []struct {

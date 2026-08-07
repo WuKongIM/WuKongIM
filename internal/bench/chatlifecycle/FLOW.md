@@ -565,6 +565,10 @@ bounded orchestration boundary; aggregate snapshots expose planned, admitted,
 completed, skipped, expired, and replacement counts without exposing scheduler
 state. A generation lease covers the whole Step, including time waiting for
 the serial Step lock; public Tick has a separate lease covering that same wait.
+Worker transport capacity is the sum of currently online session queues rather
+than a fixed generation setting, so it may change during churn and drains to
+zero after the joined final stop. Coordinator monotonicity therefore treats
+only work, retry, and inflight capacities as immutable.
 Stop first fences admission and cancels the generation, so a Step blocked in
 session SEND admission or a Tick blocked on the serial boundary returns before
 Stop joins every Step, Tick, and login startup and then closes sessions and
@@ -756,7 +760,7 @@ ownership enforces that local limit. A single worker retains the full 8,000.
 
 `LocalConfig` is the reviewed three-node, three-worker shakeout baseline. It
 keeps the formal topology and real sync request (`version=0`, `limit=500`,
-`message_count=20`) while using 100 online users, 1,000 new users/day, 100
+`message_count=20`) while using 100 online users, 250,000 new users/day, 100
 SENDs/s, an 80-person/20-group hot set, a fixed 16/3/0/1 group catalog with
 1,000 members in the very-large group, a 500-channel node bound, 12 runtime
 samples, two seconds/200 SENDs of burst credit, and 10/20/30-minute timeline
@@ -809,8 +813,12 @@ and the current continuity state. A missing queue sample or a gap longer than
 two observation cadences invalidates continuity instead of resetting a breach
 into an apparent clean window. Service queue families pair depth and capacity
 by their exact bounded label set and retain the maximum pool utilization, so an
-idle pool cannot average away another pool's saturation. A load worker's offered-rate
-underdelivery is separate infrastructure evidence. Latency becomes product
+idle pool cannot average away another pool's saturation. A paired zero-depth,
+zero-capacity series declares an inactive queue or a queue bounded only by
+bytes and is excluded from item utilization even when its item depth is
+positive. Its raw depth still contributes to the aggregate queue-depth signal.
+A load worker's offered-rate underdelivery is separate infrastructure evidence.
+Latency becomes product
 failure only when the whole measured window has complete four-host resource
 evidence and no threshold-high sample; missing or mixed evidence is
 insufficient evidence.
@@ -869,7 +877,17 @@ ready responses are accepted only if the poll also finishes strictly before
 that deadline; equality is timeout, not success. Continuous observation starts
 immediately after the successful Start round and remains active throughout that
 readiness barrier, so a product or harness result can terminate bootstrap. The
-coordinator then produces one complete
+local shakeout keeps the reviewed 250,000-new-users/day arrival rate so its
+100-user synchronized bootstrap fits inside the shorter ten-minute warmup; its
+smaller online population and evidence label, not a stalled arrival rate, bound
+that non-formal run. The
+operator stop channel also owns bootstrap cancellation: preflight, fixed-catalog
+setup, assignment, Start, and readiness status calls receive a derived context
+that is canceled when that channel closes. A stop before the initial grant
+barrier returns `stopped` without claiming a checkpoint or report and uses the
+independent cleanup context for every attempted worker; after the barrier, the
+same channel enters the normal terminal evidence-cut path. The coordinator then
+produces one complete
 fixed three-worker grant vector per logical second and sends that same vector,
 sequence, rate, burst, and credit evidence to all three exact-fence grant
 endpoints concurrently. One transport failure may retry the identical sequence;
@@ -877,15 +895,20 @@ an unconfirmed vector stops the run. A grant response round has one shared
 deadline capped at the one-second grant cadence. Scheduled grant timestamps
 must be nonzero, non-future, and younger than one cadence. The first accepted
 tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
-must be exactly one logical second after the preceding accepted tick. Missing,
-stale, skipped, or catch-up ticks fail closed without advancing the grant plan.
+must fall within 10 milliseconds of one logical second after the preceding
+accepted tick. This narrow bound admits platform timer timestamp quantization
+without accepting a delayed, skipped, or catch-up tick; invalid ticks fail
+closed without advancing the grant plan.
 Final-cutoff and status branches inspect an already queued grant before they
 may complete the run. Each worker emits only its vector share and never advances
 an equivalent local allocator, so bootstrap phase differences or delivery retry
 cannot multiply the global budget.
 
 Worker status polling and the measured final timeline begin only after the
-initial grant barrier. The production hook atomically writes one
+initial grant barrier. The production hook uses a wall-clock-only report
+window; process-local monotonic readings are stripped before `Elapsed` is
+calculated so the JSON report validates identically after restart or transfer.
+It atomically writes one
 `wukongim.chat_lifecycle.run_start/v1` receipt at that boundary with the stage,
 start, expected end, generation, and only hashed run/assignment identities. A
 rehearsal therefore proves that all 10,000 users completed CONNECT plus a fresh
@@ -999,6 +1022,17 @@ thousand quantile edges pass. A continuously breached rolling result fails only
 after a full five minutes, while a shorter breach is a fixed warning. Operations
 over ten seconds increment a saturating count and retain only 16 anomaly rows;
 they do not independently terminate the run.
+
+Every formal-Soak latency cut also carries one closed attribution derived from
+the same cut's four-host process/resource round, all bounded worker queues, and
+the monotonic offered-load underdelivery counters. The five-minute reducer
+retains that attribution across the breached window: any overlapping sustained
+CPU, memory, service/worker queue saturation, or load underdelivery makes the
+breach an `infrastructure_capacity` warning and execution continues; complete
+below-threshold headroom makes it product latency; incomplete or merely
+threshold-high-but-not-yet-sustained evidence is `insufficient_evidence`.
+Infrastructure warnings remain sticky through finalization but never mask a
+later correctness, infrastructure-safety, or headroom-backed product failure.
 
 Resource reduction keeps three independent node states and never averages a
 leaking node away. Only exact-hour forced-GC samples with finite, nonnegative,

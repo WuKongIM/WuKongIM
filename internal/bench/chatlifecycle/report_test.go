@@ -245,6 +245,33 @@ func TestReportAcceptsCapacityAttributionOutcomesBeforeSoakTimelineFinal(t *test
 	}
 }
 
+func TestReportAcceptsReviewedFormalSoakLatencyAttributionOnly(t *testing.T) {
+	for _, test := range []struct {
+		outcome VerdictOutcome
+		cause   VerdictCause
+	}{
+		{VerdictPassedWithCapacityWarning, VerdictCauseInfrastructureCapacity},
+		{VerdictInsufficientEvidence, VerdictCauseInsufficientEvidence},
+	} {
+		report := reportFixture(t)
+		report.Kind, report.Final, report.Continue = CheckpointFinal, true, false
+		report.Window.End = report.Window.FinalAt
+		report.Window.Elapsed = report.Window.End.Sub(report.Window.Start)
+		report.MinimumWorkerUptime = report.Window.Elapsed
+		report.Verdict = ReportVerdictEvidence{Terminal: true, Outcome: test.outcome, Cause: test.cause}
+		for index := range report.Workers {
+			report.Workers[index].Phase = WorkerPhaseFinal
+		}
+		if _, err := MarshalReport(report, ReportFormatJSON); err != nil {
+			t.Fatalf("formal Soak attribution report: %v", err)
+		}
+		report.Stage = StageRehearsal
+		if _, err := MarshalReport(report, ReportFormatJSON); !errors.Is(err, ErrReportInvalid) {
+			t.Fatalf("rehearsal accepted formal Soak attribution: %v", err)
+		}
+	}
+}
+
 func TestReportConfigDigestIsDeterministicAndBindsThresholds(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "digest-run"

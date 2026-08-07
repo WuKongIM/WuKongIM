@@ -26,6 +26,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 concurrency:
   group: chat-lifecycle-formal-finalizer-${{ github.repository }}
@@ -114,9 +115,20 @@ jobs:
             for name in deployment-plan.json run-start.json release-selector.json run-plan.json quote.json receipt.json deployment-outcome.json encrypted-deployment-identity.json; do
               test -f "$WK_CHAT_HANDOFF_DIR/$name"
             done
+            for name in transition.json handoff.json run-plan.json quote.json receipt.json final.json rehearsal-result.json finalization.json cleanup.json zero-inventory.json release-selector.json; do
+              test -f "$WK_CHAT_HANDOFF_DIR/rehearsal/$name"
+            done
             jq -e --arg request "$WK_CHAT_REQUEST_ID" '
               .schema == "wukongim.chat_lifecycle.formal_handoff/v1" and .request_id == $request
             ' "$WK_CHAT_HANDOFF_DIR/handoff.json" >/dev/null
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.formal_transition/v1" and .request_id == $request and
+              .from_stage == "rehearsal" and .outcome == "rehearsal_pass" and .zero_inventory == true and
+              (.committed_micros | type == "number") and .committed_micros > 0
+            ' "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json" >/dev/null
+            jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+              .schema == "wukongim.chat_lifecycle.rehearsal_result/v1" and .outcome == "rehearsal_pass"
+            ' "$WK_CHAT_HANDOFF_DIR/rehearsal/rehearsal-result.json" >/dev/null
             echo 'mode=run' >>"$GITHUB_OUTPUT"
           elif [[ -f "$WK_CHAT_HANDOFF_DIR/cleanup-pending.json" && -f "$WK_CHAT_HANDOFF_DIR/release-selector.json" ]]; then
             jq -e --arg request "$WK_CHAT_REQUEST_ID" '
@@ -327,16 +339,32 @@ jobs:
           for name in cleanup.json zero-inventory.json; do
             test -f "$WK_CHAT_CLEANUP_DIR/$name"
           done
-          install -d -m 0700 "$WK_CHAT_COMPLETE_DIR/terminal" "$WK_CHAT_COMPLETE_DIR/cleanup"
-          cp -a "$final_dir/." "$WK_CHAT_COMPLETE_DIR/terminal/"
+          for name in transition.json rehearsal-result.json cleanup.json zero-inventory.json; do
+            test -f "$WK_CHAT_HANDOFF_DIR/rehearsal/$name"
+          done
+          install -d -m 0700 "$WK_CHAT_COMPLETE_DIR/rehearsal" "$WK_CHAT_COMPLETE_DIR/formal" "$WK_CHAT_COMPLETE_DIR/cleanup"
+          cp -a "$WK_CHAT_HANDOFF_DIR/rehearsal/." "$WK_CHAT_COMPLETE_DIR/rehearsal/"
+          cp -a "$final_dir/." "$WK_CHAT_COMPLETE_DIR/formal/"
           cp "$WK_CHAT_CLEANUP_DIR/cleanup.json" "$WK_CHAT_CLEANUP_DIR/zero-inventory.json" "$WK_CHAT_COMPLETE_DIR/cleanup/"
+          rehearsal_committed_micros="$(jq -er .committed_micros "$WK_CHAT_HANDOFF_DIR/rehearsal/transition.json")"
+          formal_quote_micros="$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")"
+          aggregate_conservative_micros=$(( rehearsal_committed_micros + formal_quote_micros ))
+          (( aggregate_conservative_micros > 0 && aggregate_conservative_micros <= 1500000000 ))
           jq -n --arg schema 'wukongim.chat_lifecycle.complete_evidence/v1' --arg stage formal \
             --arg request_id "$WK_CHAT_REQUEST_ID" --arg assembled_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --argjson conservative_quote_micros "$(jq -er .quote.estimated_cost_micros "$final_dir/quote.json")" \
+            --argjson rehearsal_committed_micros "$rehearsal_committed_micros" \
+            --argjson formal_quote_micros "$formal_quote_micros" \
+            --argjson aggregate_conservative_micros "$aggregate_conservative_micros" \
             '{schema:$schema,stage:$stage,request_id:$request_id,assembled_at:$assembled_at,zero_inventory:true,
-              cost:{conservative_quote_micros:$conservative_quote_micros,
+              evidence:{rehearsal_result:"rehearsal/rehearsal-result.json",
+                formal_hour_24:"formal/formal/qualification.json",formal_hour_72:"formal/formal/final.json",
+                capacity_recovery:"formal/capacity/final.json",cleanup:"cleanup/zero-inventory.json"},
+              cost:{rehearsal_committed_micros:$rehearsal_committed_micros,
+                formal_quote_micros:$formal_quote_micros,
+                aggregate_conservative_micros:$aggregate_conservative_micros,
                 provider_reported:{state:"pending_billing_delay",unresolved:true}}}' >"$WK_CHAT_COMPLETE_DIR/manifest.json"
       - name: Upload complete formal evidence
+        id: complete_upload
         if: steps.complete.outcome == 'success'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -371,6 +399,45 @@ jobs:
         if: steps.release.outcome == 'failure'
         shell: bash
         run: exit 1
+      - name: Advance the exact tracking Issue
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=formal_finalizer_pending
+          if [[ "${{ steps.collect.outputs.diagnosis_pending }}" == true || "${{ steps.previous.outputs.diagnosis_pending }}" == true ]]; then
+            state=formal_diagnosis_pending
+          elif [[ "${{ steps.complete_upload.outcome }}" == success ]]; then
+            state=request_complete
+          elif [[ "${{ steps.cleanup.outputs.zero }}" == true ]]; then
+            state=formal_final_artifact_pending
+          elif [[ "${{ steps.cleanup.outputs.pending }}" == true || "${{ steps.release.outcome }}" == failure ]]; then
+            state=formal_cleanup_pending
+          elif [[ "${{ steps.final_upload.outcome }}" == success ]]; then
+            state=formal_terminal_evidence
+          fi
+          detail="run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          dedupe="$state"
+          if [[ "$state" == formal_finalizer_pending && -f "$WK_CHAT_HANDOFF_DIR/run-plan.json" ]]; then
+            dedupe="formal_running_$(( $(date -u +%s) / 1800 ))"
+            created_at="$(jq -er .receipt.created_at "$WK_CHAT_HANDOFF_DIR/receipt.json")"
+            if stage_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$WK_CHAT_HANDOFF_DIR/run-plan.json" \
+              "$WK_CHAT_HANDOFF_DIR/quote.json" "$created_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" -1)"; then
+              prior="$(jq -er .lease_plan.budget.committed_micros "$WK_CHAT_HANDOFF_DIR/run-plan.json")"
+              detail="${detail} aggregate_conservative_micros=$(( prior + stage_cost ))"
+            fi
+          elif [[ "$state" == request_complete ]]; then
+            detail="${detail} artifact=${{ steps.complete_upload.outputs.artifact-url }}"
+            detail="${detail} aggregate_conservative_micros=$(jq -er .cost.aggregate_conservative_micros "$RUNNER_TEMP/complete/manifest.json")"
+            detail="${detail} terminal_outcome=$(jq -er .outcome "$RUNNER_TEMP/complete/formal/finalization.json")"
+            detail="${detail} terminal_cause=$(jq -er .cause "$RUNNER_TEMP/complete/formal/finalization.json")"
+            detail="${detail} cleanup_proof_sha256=$(sha256sum "$RUNNER_TEMP/complete/cleanup/zero-inventory.json" | awk '{print $1}')"
+          fi
+          export WK_CHAT_ISSUE_STATE="$state"
+          export WK_CHAT_ISSUE_DEDUPE_KEY="$dedupe"
+          export WK_CHAT_ISSUE_BODY="$detail"
+          [[ "$state" != request_complete ]] || export WK_CHAT_ISSUE_CLOSE=true
+          scripts/chat-lifecycle/comment-request-issue.sh
       - name: Remove plaintext runner identity
         if: always()
         shell: bash

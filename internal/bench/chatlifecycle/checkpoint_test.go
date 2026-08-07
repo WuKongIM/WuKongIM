@@ -338,6 +338,34 @@ func TestCheckpointCaptureAndWriteCommitsOnlyAfterBothAtomicOutputs(t *testing.T
 	}
 }
 
+func TestCheckpointRecorderStripsMonotonicClockFromPersistedWindow(t *testing.T) {
+	cfg := FormalConfig()
+	cfg.RunID = "checkpoint-persisted-wall-clock"
+	start := time.Now()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "assignment-wall-clock", Generation: 7}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := checkpointEvidenceFixture(false)
+	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictProductFailure, Cause: VerdictCauseMessageLoss}
+	directory := t.TempDir()
+	jsonPath := filepath.Join(directory, "final.json")
+	report, err := recorder.CaptureAndWrite(
+		start.Add(time.Second), coordinatorSnapshotFixture(fence, 1, 2*time.Second, 1), evidence,
+		CheckpointOutputPaths{JSON: jsonPath, Markdown: filepath.Join(directory, "final.md")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Window.Start != report.Window.Start.Round(0) || report.Window.End != report.Window.End.Round(0) {
+		t.Fatalf("persisted report retained process-local monotonic clock: %+v", report.Window)
+	}
+	if _, err := ReadReport(jsonPath); err != nil {
+		t.Fatalf("persisted report did not round-trip: %v", err)
+	}
+}
+
 func captureCheckpoint(
 	t *testing.T,
 	recorder *CheckpointRecorder,

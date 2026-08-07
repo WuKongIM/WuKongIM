@@ -73,6 +73,9 @@ func NewCheckpointRecorder(cfg Config, fence WorkerFence, start time.Time) (*Che
 	if start.IsZero() || !validWorkerFence(fence) || cfg.RunID != fence.RunID || cfg.Validate() != nil {
 		return nil, ErrCheckpointConfig
 	}
+	// Persisted windows use wall time only. Process-local monotonic readings are
+	// not serialized and would make an otherwise valid report fail round-trip.
+	start = start.Round(0)
 	digest, err := digestCheckpointConfig(cfg)
 	if err != nil {
 		return nil, ErrCheckpointConfig
@@ -124,6 +127,7 @@ func (r *CheckpointRecorder) prepareLocked(
 	snapshots []WorkerSnapshot,
 	evidence CheckpointEvidence,
 ) (Report, *CoordinatorSnapshotAggregator, string, bool, bool, error) {
+	at = at.Round(0)
 	if r.closed || at.IsZero() || at.Before(r.start) || !validCheckpointEvidence(evidence) {
 		if !validCheckpointEvidence(evidence) {
 			return Report{}, nil, "", false, false, ErrCheckpointEvidence

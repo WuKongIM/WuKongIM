@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,8 +77,11 @@ type ProductionEvidenceController struct {
 	lastEvaluatorAt   time.Time
 	lastObservation   ProductionObservationSnapshot
 	lastObservationID uint64
-	prepared          CheckpointEvidence
-	frozen            VerdictSnapshot
+	// lastOfferedUnderdelivery fences monotonic load-delivery evidence used by
+	// formal Soak latency attribution; it resets only with a fresh evaluator.
+	lastOfferedUnderdelivery uint64
+	prepared                 CheckpointEvidence
+	frozen                   VerdictSnapshot
 
 	lifecycleCancel context.CancelFunc
 	lifecycleDone   chan error
@@ -195,6 +199,7 @@ func (c *ProductionEvidenceController) ContinueCapacity(cfg Config, outputDir st
 	c.recorder, c.evaluator = nil, nil
 	c.lastEvaluatorAt, c.lastObservation = time.Time{}, ProductionObservationSnapshot{}
 	c.lastObservationID = 0
+	c.lastOfferedUnderdelivery = 0
 	c.prepared, c.frozen = CheckpointEvidence{}, VerdictSnapshot{}
 	return nil
 }
@@ -268,8 +273,20 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	if cut.StopRequested {
 		signals = append(signals, VerdictSignal{Outcome: VerdictOperatorStop, Cause: VerdictCauseOperatorRequested})
 	}
+	latencyAttribution := CapacityAttributionNone
+	if c.cfg.Profile == ProfileFormal && c.cfg.Mode == ModeSoak && c.cfg.Stage == StageFormal {
+		var offered uint64
+		latencyAttribution, offered, err = formalSoakLatencyAttribution(
+			c.cfg, c.lastObservation, cut.Snapshots, c.lastOfferedUnderdelivery,
+		)
+		if err != nil {
+			return "", errProductionController
+		}
+		c.lastOfferedUnderdelivery = offered
+	}
 	if err := c.evaluator.Observe(VerdictObservation{
-		At: cut.At, Correctness: &correctness, Latency: &latency, Resources: resources, Signals: signals,
+		At: cut.At, Correctness: &correctness, Latency: &latency,
+		LatencyAttribution: latencyAttribution, Resources: resources, Signals: signals,
 	}); err != nil && !c.evaluator.Snapshot().Terminal {
 		return "", errProductionController
 	}
@@ -305,6 +322,59 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 		return coordinatorOutcomeForVerdict(verdict), nil
 	}
 	return "", nil
+}
+
+func formalSoakLatencyAttribution(
+	cfg Config,
+	observation ProductionObservationSnapshot,
+	workers []WorkerSnapshot,
+	previousUnderdelivery uint64,
+) (CapacityAttribution, uint64, error) {
+	if cfg.Profile != ProfileFormal || cfg.Mode != ModeSoak || cfg.Stage != StageFormal ||
+		len(workers) != coordinatorWorkerCount {
+		return CapacityAttributionNone, 0, errProductionController
+	}
+	var offered uint64
+	for _, worker := range workers {
+		if math.MaxUint64-offered < worker.Harness.OfferedUnderdelivery {
+			return CapacityAttributionNone, 0, errProductionController
+		}
+		offered += worker.Harness.OfferedUnderdelivery
+	}
+	if offered < previousUnderdelivery {
+		return CapacityAttributionNone, 0, errProductionController
+	}
+	resources := observation.ResourceEvidence.Capacity
+	complete := resources.Complete && resources.ProcessesComplete && resources.WorkerQueuesComplete
+	if !complete {
+		return CapacityAttributionInsufficient, offered, nil
+	}
+	if offered > previousUnderdelivery || formalSoakResourcesSustained(resources) {
+		return CapacityAttributionInfrastructure, offered, nil
+	}
+	if productionCapacityResourceCurrentlyHigh(cfg, resources) {
+		return CapacityAttributionInsufficient, offered, nil
+	}
+	return CapacityAttributionProduct, offered, nil
+}
+
+func formalSoakResourcesSustained(resources ReportCapacityResourceEvidence) bool {
+	for host := 0; host < productionHostCount; host++ {
+		if resources.CPUSustainedActive[host] || resources.MemorySustainedActive[host] {
+			return true
+		}
+	}
+	for node := 0; node < coordinatorWorkerCount; node++ {
+		if resources.QueueSustainedActive[node] {
+			return true
+		}
+		for queue := 0; queue < workerBoundedQueueCount; queue++ {
+			if resources.WorkerQueueSustainedActive[node][queue] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ObserveCapacityPeriodic keeps resource, runtime-safety, and worker-queue

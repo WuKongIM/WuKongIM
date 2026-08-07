@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -186,6 +187,21 @@ func TestChatLifecycleUsesOneEncryptedDeploymentIdentityPerLease(t *testing.T) {
 			}
 		}
 	}
+	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
+		workflow := string(readWorkflow(t, workflowName))
+		for _, required := range []string{
+			"/ 1800", "WK_CHAT_ISSUE_DEDUPE_KEY", "scripts/chat-lifecycle/accrued-cost.sh", "aggregate_conservative_micros",
+		} {
+			if !strings.Contains(workflow, required) {
+				t.Fatalf("%s 30-minute Issue monitor is missing %q", workflowName, required)
+			}
+		}
+	}
+	formalFinalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
+	if !strings.Contains(formalFinalizer, "WK_CHAT_ISSUE_CLOSE=true") ||
+		!strings.Contains(formalFinalizer, "steps.complete_upload.outcome") {
+		t.Fatal("formal finalizer does not close the Issue only after the combined final Artifact")
+	}
 }
 
 func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperatorStop(t *testing.T) {
@@ -334,6 +350,137 @@ func TestChatLifecycleCompleteArtifactCombinesTerminalAndCleanupEvidence(t *test
 			if !strings.Contains(workflow[assemble:], required) {
 				t.Fatalf("%s complete Artifact is missing %q", contract.workflow, required)
 			}
+		}
+	}
+}
+
+func TestChatLifecycleWorkflowsDurablyAdvanceTheExactTrackingIssue(t *testing.T) {
+	root := repoRoot(t)
+	commenter := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "comment-request-issue.sh"))
+	for _, required := range []string{
+		`[chat-lifecycle] $WK_CHAT_REQUEST_ID`,
+		"chat-lifecycle:${WK_CHAT_REQUEST_ID}:${issue_dedupe_key}",
+		"/search/issues",
+		"/issues/${issue_number}/comments",
+		"WK_CHAT_ISSUE_CLOSE",
+		"state=closed",
+	} {
+		if !strings.Contains(commenter, required) {
+			t.Fatalf("request Issue updater is missing %q", required)
+		}
+	}
+	for _, workflowName := range []string{
+		"chat-lifecycle-rehearsal.yml",
+		"chat-lifecycle-rehearsal-finalize.yml",
+		"chat-lifecycle-formal.yml",
+		"chat-lifecycle-formal-finalize.yml",
+		"chat-lifecycle-stop.yml",
+	} {
+		workflow := string(readWorkflow(t, workflowName))
+		if !strings.Contains(workflow, "issues: write") ||
+			!strings.Contains(workflow, "scripts/chat-lifecycle/comment-request-issue.sh") {
+			t.Fatalf("%s does not durably update the tracking Issue", workflowName)
+		}
+	}
+}
+
+func TestChatLifecycleIssueUpdaterIsExactAndIdempotent(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	fakeGH := filepath.Join(directory, "gh")
+	capture := filepath.Join(directory, "comment.txt")
+	closed := filepath.Join(directory, "closed.txt")
+	if err := os.WriteFile(fakeGH, []byte(`#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == *"/search/issues"* ]]; then
+  printf '%s\n' '{"items":[{"number":42,"title":"[chat-lifecycle] request-1"}]}'
+elif [[ "$*" == *"/issues/42/comments"* && "$*" == *"--method GET"* ]]; then
+  if [[ -s "$FAKE_COMMENT" ]]; then
+    jq -n --rawfile body "$FAKE_COMMENT" '[{body:$body}]'
+  else
+    printf '%s\n' '[]'
+  fi
+elif [[ "$*" == *"/issues/42/comments"* && "$*" == *"--method POST"* ]]; then
+  while (( $# > 0 )); do
+    if [[ "$1" == -f && "${2:-}" == body=* ]]; then
+      printf '%s' "${2#body=}" >"$FAKE_COMMENT"
+      exit 0
+    fi
+    shift
+  done
+  exit 2
+elif [[ "$*" == *"/issues/42"* && "$*" == *"--method PATCH"* ]]; then
+  printf '%s' closed >"$FAKE_CLOSED"
+else
+  exit 3
+fi
+`), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(closeIssue bool) {
+		t.Helper()
+		command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "comment-request-issue.sh"))
+		command.Dir = root
+		command.Env = append(os.Environ(),
+			"PATH="+directory+":"+os.Getenv("PATH"), "GH_TOKEN=test", "GITHUB_REPOSITORY=WuKongIM/WuKongIM",
+			"WK_CHAT_REQUEST_ID=request-1", "WK_CHAT_ISSUE_STATE=formal_running", "WK_CHAT_ISSUE_BODY=run=example",
+			"WK_CHAT_ISSUE_CLOSE="+strconv.FormatBool(closeIssue),
+			"FAKE_COMMENT="+capture, "FAKE_CLOSED="+closed)
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("comment request Issue: %v\n%s", err, output)
+		}
+	}
+	run(false)
+	first := readFile(t, capture)
+	if !strings.Contains(first, "chat-lifecycle:request-1:formal_running") || !strings.Contains(first, "run=example") ||
+		!strings.Contains(first, "observed_at_utc=") || !strings.Contains(first, "observed_at_asia_shanghai=") {
+		t.Fatalf("Issue comment = %q", first)
+	}
+	run(false)
+	if second := readFile(t, capture); second != first {
+		t.Fatalf("idempotent comment changed: %q -> %q", first, second)
+	}
+	run(true)
+	if got := readFile(t, closed); got != "closed" {
+		t.Fatalf("closed marker = %q", got)
+	}
+}
+
+func TestChatLifecycleFinalArtifactCombinesRehearsalFormalCapacityCostAndCleanup(t *testing.T) {
+	formalStarter := string(readWorkflow(t, "chat-lifecycle-formal.yml"))
+	for _, required := range []string{
+		`$WK_CHAT_OUTPUT_DIR/rehearsal`,
+		`cp -a "$WK_CHAT_TRANSITION_DIR/." "$WK_CHAT_OUTPUT_DIR/rehearsal/"`,
+	} {
+		if !strings.Contains(formalStarter, required) {
+			t.Fatalf("formal handoff does not retain rehearsal evidence: missing %q", required)
+		}
+	}
+	formalFinalizer := string(readWorkflow(t, "chat-lifecycle-formal-finalize.yml"))
+	for _, required := range []string{
+		`$WK_CHAT_COMPLETE_DIR/rehearsal`,
+		`$WK_CHAT_COMPLETE_DIR/formal`,
+		`rehearsal/transition.json`,
+		"rehearsal_committed_micros",
+		"formal_quote_micros",
+		"aggregate_conservative_micros",
+		"formal/qualification.json",
+		"formal/capacity/final.json",
+	} {
+		if !strings.Contains(formalFinalizer, required) {
+			t.Fatalf("combined final Artifact is missing %q", required)
+		}
+	}
+}
+
+func TestCloudDeploymentRunbookUsesLeaseBoundEncryptedIdentity(t *testing.T) {
+	runbook := readFile(t, filepath.Join(repoRoot(t), "docs", "superpowers", "runbooks", "cloud-deployment-activate.md"))
+	if strings.Contains(runbook, "CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY") {
+		t.Fatal("deployment runbook still documents a standing SSH private key")
+	}
+	for _, required := range []string{"encrypted-deployment-identity.json", "WK_CHAT_LIFECYCLE_WRAPPING_PRIVATE_KEY"} {
+		if !strings.Contains(runbook, required) {
+			t.Fatalf("deployment runbook is missing %q", required)
 		}
 	}
 }
@@ -588,12 +735,12 @@ func TestChatLifecycleFinalizationMatrixCorrelatesCandidateArtifactSet(t *testin
 	}
 	var matrix struct {
 		Include []struct {
-			RequestID    string `json:"request_id"`
-			HandoffRunID int    `json:"handoff_run_id"`
-			HandoffArtifactID int `json:"handoff_artifact_id"`
-			FinalExists  bool   `json:"final_exists"`
-			FinalRunID   int    `json:"final_run_id"`
-			CleanupRunID int    `json:"cleanup_run_id"`
+			RequestID         string `json:"request_id"`
+			HandoffRunID      int    `json:"handoff_run_id"`
+			HandoffArtifactID int    `json:"handoff_artifact_id"`
+			FinalExists       bool   `json:"final_exists"`
+			FinalRunID        int    `json:"final_run_id"`
+			CleanupRunID      int    `json:"cleanup_run_id"`
 		} `json:"include"`
 	}
 	if err := json.Unmarshal(output, &matrix); err != nil {

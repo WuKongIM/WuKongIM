@@ -293,11 +293,21 @@ monitor can invoke read-only cloud analysis; disk, budget, expiry, unreachable
 hosts, and operator stop shorten that window. Terminal Artifact upload is
 retried by the ten-minute finalizer schedule for at most two additional hours,
 then provider Release proceeds even if GitHub Artifact storage is unavailable.
-After Release returns exact zero inventory, each stage assembles a 90-day
-`chat-lifecycle-<stage>-complete-*` Artifact that nests the authenticated
-terminal evidence and cleanup receipts under one manifest. Provider billing is
+After each Release returns exact zero inventory, the rehearsal finalizer keeps
+a 90-day stage-complete Artifact and carries the same authenticated evidence in
+the fresh-formal transition. The formal handoff preserves that released
+rehearsal evidence, so the final 90-day `chat-lifecycle-formal-complete-*`
+Artifact contains rehearsal, hour-24/hour-72 formal, capacity/recovery, both
+cost stages, and final cleanup proof under one manifest. Provider billing is
 explicitly marked pending/unresolved until delayed provider-reported data is
 available; it is never fabricated from the conservative Quote.
+All five Chat Lifecycle orchestrator/finalizer/stop workflows also advance the
+exact `[chat-lifecycle] <request_id>` Issue with idempotent hidden state markers.
+While a stage remains active, scheduled finalizers publish at most one
+conservative aggregate-cost update per 30-minute bucket. The formal finalizer
+closes the Issue only after the combined final Artifact upload succeeds with
+exact zero inventory, so progress remains durable when no local Codex monitor
+is running.
 The scenario-wide concurrency lock permits only one paid Chat Lifecycle
 orchestrator at a time, and startup also refuses procurement while any prior
 authenticated rehearsal or formal handoff or cleanup-pending Lease lacks its selector-bound zero

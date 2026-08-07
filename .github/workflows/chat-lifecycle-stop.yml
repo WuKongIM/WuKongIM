@@ -16,6 +16,7 @@ on:
 permissions:
   contents: read
   actions: write
+  issues: write
 
 concurrency:
   group: chat-lifecycle-stop-${{ github.repository }}-${{ inputs.request_id }}
@@ -107,6 +108,14 @@ jobs:
               -f stop_authorization=operator-stop-chat-lifecycle || dispatch_failed=true
           done
           [[ "$dispatch_failed" == false ]]
+      - name: Advance the exact tracking Issue
+        if: always() && steps.stop_marker.outcome == 'success'
+        shell: bash
+        env:
+          WK_CHAT_REQUEST_ID: ${{ inputs.request_id }}
+          WK_CHAT_ISSUE_STATE: operator_stop_requested
+          WK_CHAT_ISSUE_BODY: run=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/chat-lifecycle/comment-request-issue.sh
       - name: Fail when exact orchestration cancellation was not confirmed
         if: always() && steps.cancel.outcome == 'failure'
         shell: bash

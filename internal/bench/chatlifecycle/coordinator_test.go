@@ -198,6 +198,29 @@ func TestCoordinatorGrantSnapshotAggregationRejectsCounterOverflow(t *testing.T)
 	}
 }
 
+func TestCoordinatorSnapshotAggregationAllowsTransportCapacityToDrainAtFinalStop(t *testing.T) {
+	fence := WorkerFence{RunID: "snapshot-final-drain", AssignmentID: "snapshot-final-drain-assignment", Generation: 5}
+	aggregator, err := NewCoordinatorSnapshotAggregator(fence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := coordinatorSnapshotFixture(fence, 1, time.Second, 10)
+	for index := range running {
+		running[index].Queues.TransportCapacity = 64
+	}
+	if _, err := aggregator.Aggregate(running); err != nil {
+		t.Fatal(err)
+	}
+	final := coordinatorSnapshotFixture(fence, 2, 2*time.Second, 20)
+	for index := range final {
+		final[index].Phase = WorkerPhaseFinal
+		final[index].Queues.TransportCapacity = 0
+	}
+	if _, err := aggregator.Aggregate(final); err != nil {
+		t.Fatalf("final transport-capacity drain was treated as a counter regression: %v", err)
+	}
+}
+
 func TestCoordinatorGrantPlanRetainsOneGlobalTwoTickCredit(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-global-credit"
@@ -812,6 +835,123 @@ func TestCoordinatorStopRequestProducesTerminalCutAndBoundedFinalization(t *test
 	final := <-hooks.finalized
 	if final.Decision != CoordinatorStopped || len(final.Prepare) != coordinatorWorkerCount || len(final.FinalSnapshots) != coordinatorWorkerCount {
 		t.Fatalf("stop-request final cut = %+v", final)
+	}
+}
+
+func TestCoordinatorStopRequestCancelsSetupBeforeAssignment(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-stop-during-setup"
+	stopRequests := make(chan struct{})
+	setupStarted := make(chan struct{})
+	setupRelease := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{id: uint64(workerID), log: &log}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 93,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			appendCoordinatorTestLog(&log, "preflight")
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup: coordinatorSetupFunc(func(ctx context.Context, _ Config) error {
+			appendCoordinatorTestLog(&log, "setup")
+			close(setupStarted)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-setupRelease:
+				return errors.New("setup safety release")
+			}
+		}),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(context.Context, Config) ObserverResult {
+			appendCoordinatorTestLog(&log, "observe")
+			return ObserverResult{Outcome: ObserverHarnessInvalid, Code: ObserverCodeTopology}
+		}),
+		StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := make(chan CoordinatorResult, 1)
+	go func() { results <- coordinator.Run(context.Background(), cfg) }()
+	<-setupStarted
+	close(stopRequests)
+	select {
+	case result := <-results:
+		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+			t.Fatalf("setup stop result = %+v", result)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(setupRelease)
+		<-results
+		t.Fatal("setup ignored the coordinator stop request")
+	}
+	if want := []string{"preflight", "setup"}; !reflect.DeepEqual(canonicalCoordinatorLog(&log), want) {
+		t.Fatalf("setup stop log = %v, want %v", log, want)
+	}
+}
+
+func TestCoordinatorStopRequestStopsWorkersBeforeTrafficReady(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-stop-before-ready"
+	clock := newManualCoordinatorClock(time.Unix(1_700_100_000, 0))
+	stopRequests := make(chan struct{})
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &staggeredReadyCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &log},
+			readyAfter:                 math.MaxInt,
+			statusCalls:                make(chan uint64, 1),
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 94,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			appendCoordinatorTestLog(&log, "observe")
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, StopRequests: stopRequests,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	results := make(chan CoordinatorResult, 1)
+	go func() { results <- coordinator.Run(ctx, cfg) }()
+	select {
+	case period := <-clock.created:
+		if period != time.Second {
+			t.Fatalf("readiness ticker period = %s", period)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not reach the traffic-readiness barrier")
+	}
+	close(stopRequests)
+	select {
+	case result := <-results:
+		if result.Outcome != CoordinatorStopped || result.Code != CoordinatorCodeStopped {
+			t.Fatalf("pre-ready stop result = %+v", result)
+		}
+	case <-time.After(250 * time.Millisecond):
+		cancel()
+		<-results
+		t.Fatal("traffic-readiness barrier ignored the coordinator stop request")
+	}
+	wantStops := []string{"stop-0", "stop-1", "stop-2"}
+	canonical := canonicalCoordinatorLog(&log)
+	if len(canonical) < len(wantStops) || !reflect.DeepEqual(canonical[len(canonical)-len(wantStops):], wantStops) {
+		t.Fatalf("pre-ready stop cleanup = %v, want all workers stopped", canonical)
 	}
 }
 
@@ -2273,6 +2413,10 @@ func TestValidCoordinatorGrantTickRejectsUnscheduledOrStaleTimestamps(t *testing
 		{name: "first tick too early", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second - time.Nanosecond), lastTickAt: startedAt},
 		{name: "first scheduled tick", now: startedAt.Add(time.Second), tickAt: startedAt.Add(time.Second), lastTickAt: startedAt, want: true},
 		{name: "next exact scheduled tick", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(2 * time.Second), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
+		{name: "next tick accepts early timer quantization", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(2*time.Second - time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
+		{name: "next tick accepts late timer quantization", now: startedAt.Add(2*time.Second + time.Millisecond), tickAt: startedAt.Add(2*time.Second + time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true, want: true},
+		{name: "next tick rejects early timestamp outside tolerance", now: startedAt.Add(2 * time.Second), tickAt: startedAt.Add(1989 * time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true},
+		{name: "next tick rejects late timestamp outside tolerance", now: startedAt.Add(2011 * time.Millisecond), tickAt: startedAt.Add(2011 * time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true},
 		{name: "next tick skips cadence", now: startedAt.Add(2500 * time.Millisecond), tickAt: startedAt.Add(2500 * time.Millisecond), lastTickAt: startedAt.Add(time.Second), haveLastTick: true},
 	}
 	for _, testCase := range tests {

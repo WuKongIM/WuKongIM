@@ -96,31 +96,47 @@ type OperatorInput struct {
 // TrustedContext is derived only by the protected workflow or a prior typed
 // receipt. It is not an additional operator-controlled surface.
 type TrustedContext struct {
-	Repository        string
-	BundleDigest      string
-	DeploymentPubKey  string
-	Now               time.Time
-	Attempt           int
-	CommittedMicros   int64
+	// Repository is the protected workflow repository bound into every Lease selector.
+	Repository string
+	// BundleDigest identifies the already authenticated immutable deployment bundle.
+	BundleDigest string
+	// DeploymentPubKey is the fresh Lease-scoped activation and finalization identity.
+	DeploymentPubKey string
+	// Now is the trusted orchestration time used for expiry and transition checks.
+	Now time.Time
+	// Attempt is the one-based deployment attempt within the bounded retry policy.
+	Attempt int
+	// CommittedMicros is authenticated spend from all earlier attempts and stages.
+	CommittedMicros int64
+	// ExcludedPlacement prevents the sole retry from selecting the failed placement again.
 	ExcludedPlacement *cloudlease.PlacementExclusion
-	Transition        *StageTransition
+	// Transition authorizes formal procurement only after released rehearsal evidence.
+	Transition *StageTransition
 }
 
 // StageTransition is the authenticated, non-secret proof that the rehearsal
 // report survived upload and its Lease reached exact zero inventory before a
 // fresh formal Lease may consume the same aggregate cost envelope.
 type StageTransition struct {
-	Schema       string `json:"schema"`
-	FromStage    string `json:"from_stage"`
-	Outcome      string `json:"outcome"`
-	RequestID    string `json:"request_id"`
-	SourceSHA    string `json:"source_sha"`
+	// Schema pins the closed transition contract version.
+	Schema string `json:"schema"`
+	// FromStage must identify the completed rehearsal stage.
+	FromStage string `json:"from_stage"`
+	// Outcome must be the authenticated passing rehearsal outcome.
+	Outcome string `json:"outcome"`
+	// RequestID binds both paid Leases to one aggregate operator request.
+	RequestID string `json:"request_id"`
+	// SourceSHA binds formal execution to the same protected-main source revision.
+	SourceSHA string `json:"source_sha"`
+	// BundleDigest binds formal deployment to the reviewed rehearsal bundle.
 	BundleDigest string `json:"bundle_digest"`
 	// CodexDiagnosticPubKey preserves the request-scoped local diagnostic
 	// identity across the released rehearsal and fresh formal Lease boundary.
 	CodexDiagnosticPubKey string `json:"codex_diagnostic_pubkey"`
-	CommittedMicros       int64  `json:"committed_micros"`
-	ZeroInventory         bool   `json:"zero_inventory"`
+	// CommittedMicros is conservative rehearsal spend carried into the formal quote gate.
+	CommittedMicros int64 `json:"committed_micros"`
+	// ZeroInventory proves the rehearsal Lease was fully released before formal procurement.
+	ZeroInventory bool `json:"zero_inventory"`
 }
 
 // RunPlan is the non-secret materialized policy passed to generic Actions.

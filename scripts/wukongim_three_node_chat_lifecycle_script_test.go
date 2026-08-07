@@ -53,7 +53,8 @@ func TestChatLifecycleShakeoutScriptDryRunIsReadOnlyAndRejectsBroadRunDirs(t *te
 	for _, want := range []string{
 		"run_dir=" + canonicalRunDir, "logical_slot_groups=12", "hash_slots=256", "replicas=3/3",
 		"service_1=http://127.0.0.1:24001", "worker_3=http://127.0.0.1:24053",
-		"host_metrics_2=http://127.0.0.1:24062", "coordinator_config=" + filepath.Join(canonicalRunDir, "chat-lifecycle.yaml"),
+		"host_metrics_2=http://127.0.0.1:24062", "host_metrics_load=http://127.0.0.1:24060",
+		"coordinator_config=" + filepath.Join(canonicalRunDir, "chat-lifecycle.yaml"),
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dry-run output missing %q:\n%s", want, text)

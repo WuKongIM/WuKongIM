@@ -565,7 +565,9 @@ func validReportVerdict(report Report) bool {
 	}
 	if report.Verdict.Outcome == VerdictInsufficientEvidence || report.Verdict.Cause == VerdictCauseInsufficientEvidence {
 		if report.Verdict.Outcome != VerdictInsufficientEvidence || report.Verdict.Cause != VerdictCauseInsufficientEvidence ||
-			report.Mode != ModeCapacity || report.Capacity.Attribution != CapacityAttributionInsufficient {
+			(report.Mode == ModeCapacity && report.Capacity.Attribution != CapacityAttributionInsufficient) ||
+			(report.Mode == ModeSoak && report.Stage != StageFormal) ||
+			(report.Mode != ModeCapacity && report.Mode != ModeSoak) {
 			return false
 		}
 	}
@@ -575,7 +577,9 @@ func validReportVerdict(report Report) bool {
 		return false
 	}
 	if report.Verdict.Outcome == VerdictPassedWithCapacityWarning &&
-		(report.Mode != ModeCapacity || report.Capacity.Attribution != CapacityAttributionInfrastructure) {
+		((report.Mode == ModeCapacity && report.Capacity.Attribution != CapacityAttributionInfrastructure) ||
+			(report.Mode == ModeSoak && report.Stage != StageFormal) ||
+			(report.Mode != ModeCapacity && report.Mode != ModeSoak)) {
 		return false
 	}
 	if report.Stage == StageRehearsal && report.Verdict.Outcome == VerdictPass {
