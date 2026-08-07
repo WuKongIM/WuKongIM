@@ -23,10 +23,15 @@ node RPC adapter performs the compatibility conversion.
 1. Channelappend submits a bounded durable or transient
    `RecipientDeliveryPlan` through `Runtime.EnqueueRecipientDeliveryPlan`.
 2. `Runtime` validates the mode, exact-target groups, and total recipient
-   bound, clones the plan, and admits it only while the bounded runtime is
-   started.
-3. A worker resolves all exact authority-target groups through one aligned
-   presence call. A failed group does not discard successful siblings.
+   bound, takes ownership of the immutable plan storage without cloning it,
+   and admits it only while the bounded runtime is started.
+3. A preallocated, globally bounded queue hashes canonical Channel type and
+   ID onto a stable worker shard. One shard drains FIFO, so the complete
+   presence/offline/owner-push execution for an accepted plan finishes before
+   the next plan for the same Channel starts; different Channel shards retain
+   the configured worker parallelism. A worker resolves all exact
+   authority-target groups through one aligned presence call. A failed group
+   does not discard successful siblings.
 4. For durable plans, the runtime emits one de-duplicated batch for recipients
    that have no online route. Transient plans do not produce offline effects.
 5. Online routes are coalesced by owner node and split by the configured owner
@@ -38,8 +43,15 @@ node RPC adapter performs the compatibility conversion.
    push attempt emits a bounded observation. Identity values remain diagnostic
    samples and are never metric labels.
 8. `Runtime.Stop` closes admission, waits for in-flight enqueue senders, and
-   drains every accepted plan within the caller's context. A successful stop
-   leaves the runtime restartable for maintenance restore.
+   drains every accepted plan from every worker shard within the caller's
+   context. A successful stop leaves the runtime restartable for maintenance
+   restore.
+
+`RuntimeOptions.QueueSize` remains the node-wide accepted-plan capacity.
+`RuntimeOptions.Workers` is both the maximum plan-processing concurrency and
+the stable Channel-order shard count; it must never be implemented as multiple
+independent consumers racing on one shared FIFO because that can deliver a
+later `message_seq` before an earlier one for the same Channel.
 
 ## Owner-local Push and ACK Flow
 

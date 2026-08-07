@@ -142,7 +142,8 @@ func TestDeliveryExamplesDocumentRecipientWorkerConcurrency(t *testing.T) {
 		files = append(files, matches...)
 	}
 
-	want := "# Maximum recipient-authority delivery batches processed concurrently by this node.\n" +
+	want := "# Number of stable Channel-order delivery shards processed concurrently by this node.\n" +
+		"# Plans for one Channel stay FIFO on one shard; different Channels may run in parallel.\n" +
 		"# This is independent from channel_append.recipient_authority_dispatch_concurrency.\n" +
 		"recipient_worker_concurrency = 100"
 	foundDelivery := 0

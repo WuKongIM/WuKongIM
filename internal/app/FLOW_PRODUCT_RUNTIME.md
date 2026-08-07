@@ -97,8 +97,10 @@ durable path that determines SEND/SENDACK throughput.
 `ChannelAppend.RecipientAuthorityDispatchConcurrency` remains accepted for
 configuration compatibility but does not affect the canonical plan path, which
 admits exact-target groups together.
-`Delivery.RecipientWorkerConcurrency` independently defaults to 100 and controls
-only the goroutines draining the bounded Online Delivery plan queue. The
+`Delivery.RecipientWorkerConcurrency` independently defaults to 100 and is both
+the Online Delivery plan worker count and stable Channel-order shard count.
+The plan queue remains globally bounded; complete plans for one Channel drain
+FIFO on one shard while different Channel shards can run concurrently. The
 lookup-shard count controls writer map sharding; effect workers run only
 blocking effects and never write channel state concurrently with another
 advance for the same channel. The delivery observer maps aggregate writer

@@ -1,6 +1,7 @@
 # Chat Lifecycle E2E
 
-This scenario proves the natural lifecycle of one real person Channel runtime.
+This scenario proves the natural lifecycle and receive ordering of real person
+Channel runtimes.
 
 ## Boundaries
 
@@ -13,6 +14,8 @@ This scenario proves the natural lifecycle of one real person Channel runtime.
   write, or product-internal runtime call.
 - MUST use real WKProto SEND/SENDACK/RECV/RECVACK and a version-zero full
   `/conversation/sync` after every login.
+- The cross-ingress burst case MUST assert strictly increasing recipient
+  `message_seq` while both users send concurrently through different nodes.
 - Polling MUST be bounded and the package command MUST use a nine-minute
   timeout.
 - Raw identities MAY appear only in transient failure diagnostics.
@@ -20,3 +23,5 @@ This scenario proves the natural lifecycle of one real person Channel runtime.
 ## Run
 
 `GOWORK=off go test -tags=e2e ./test/e2e/message/chat_lifecycle -run TestPersonChannelNaturalReheat -count=1 -timeout=9m -p=1`
+
+`GOWORK=off go test -tags=e2e ./test/e2e/message/chat_lifecycle -run TestPersonChannelCrossIngressBurstPreservesReceiveSequence -count=1 -timeout=9m -p=1`

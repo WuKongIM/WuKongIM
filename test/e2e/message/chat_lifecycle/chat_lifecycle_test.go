@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -68,6 +69,102 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 	requireMonotonicRuntimeEvidence(t, initial, reheated)
 	require.Equal(t, baseline+1, requireCreatedTotalEventually(t, ctx, cluster, baseline+1),
 		"reheat must reuse replicated Channel metadata")
+}
+
+func TestPersonChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
+	cluster := startLifecycleCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+
+	api := lifecycleTarget(cluster)
+	const (
+		leftUID        = "e2e-sequence-left"
+		rightUID       = "e2e-sequence-right"
+		messagesPerWay = 100
+		rounds         = 6
+	)
+	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID)
+	defer func() { _ = left.Close() }()
+	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID)
+	defer func() { _ = right.Close() }()
+
+	var leftLast, rightLast uint64
+	for round := 0; round < rounds; round++ {
+		start := round*messagesPerWay + 1
+		var sends sync.WaitGroup
+		sendErrs := make(chan error, 2)
+		sends.Add(2)
+		go func() {
+			defer sends.Done()
+			sendErrs <- sendPersonBurst(left, rightUID, "left", start, messagesPerWay)
+		}()
+		go func() {
+			defer sends.Done()
+			sendErrs <- sendPersonBurst(right, leftUID, "right", start, messagesPerWay)
+		}()
+		sends.Wait()
+		close(sendErrs)
+		for sendErr := range sendErrs {
+			require.NoError(t, sendErr, cluster.DumpDiagnostics())
+		}
+
+		requireSuccessfulSendacks(t, cluster, left, messagesPerWay)
+		requireSuccessfulSendacks(t, cluster, right, messagesPerWay)
+		leftLast = requireMonotonicPersonReceives(t, cluster, left, rightUID, messagesPerWay, leftLast)
+		rightLast = requireMonotonicPersonReceives(t, cluster, right, leftUID, messagesPerWay, rightLast)
+	}
+}
+
+func sendPersonBurst(
+	client *suite.WKProtoClient,
+	peerUID, prefix string,
+	start, count int,
+) error {
+	for offset := 0; offset < count; offset++ {
+		ordinal := start + offset
+		if err := client.SendFrame(&frame.SendPacket{
+			ChannelID: peerUID, ChannelType: frame.ChannelTypePerson,
+			ClientSeq: uint64(ordinal), ClientMsgNo: fmt.Sprintf("e2e-sequence-%s-%06d", prefix, ordinal),
+			Payload: []byte("cross-ingress sequence evidence"),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireSuccessfulSendacks(t *testing.T, cluster *suite.StartedCluster, client *suite.WKProtoClient, count int) {
+	t.Helper()
+	for range count {
+		ack, err := client.ReadSendAck()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode, cluster.DumpDiagnostics())
+		require.NotZero(t, ack.MessageSeq, cluster.DumpDiagnostics())
+	}
+}
+
+func requireMonotonicPersonReceives(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	client *suite.WKProtoClient,
+	peerUID string,
+	count int,
+	previous uint64,
+) uint64 {
+	t.Helper()
+	for range count {
+		recv, err := client.ReadRecv()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, peerUID, recv.FromUID, cluster.DumpDiagnostics())
+		require.Greater(t, recv.MessageSeq, previous,
+			"person-channel receive sequence regressed from %d to %d\n%s", previous, recv.MessageSeq, cluster.DumpDiagnostics())
+		require.NoError(t, client.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
+		previous = recv.MessageSeq
+	}
+	return previous
 }
 
 func startLifecycleCluster(t *testing.T) *suite.StartedCluster {

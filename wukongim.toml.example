@@ -172,7 +172,8 @@ pending_ack_ttl = "30s"
 pending_ack_max_per_session = 1024
 # Maximum recipient delivery plans waiting for asynchronous processing.
 event_queue_size = 1024
-# Maximum recipient-authority delivery batches processed concurrently by this node.
+# Number of stable Channel-order delivery shards processed concurrently by this node.
+# Plans for one Channel stay FIFO on one shard; different Channels may run in parallel.
 # This is independent from channel_append.recipient_authority_dispatch_concurrency.
 recipient_worker_concurrency = 100
 

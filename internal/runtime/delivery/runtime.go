@@ -69,7 +69,8 @@ type RuntimeOptions struct {
 	OfflineRecipientsObserver OfflineRecipientsObserver
 	// QueueSize bounds accepted Recipient Delivery Plans.
 	QueueSize int
-	// Workers bounds concurrent plan processing.
+	// Workers is both the concurrent plan-processing limit and the stable
+	// Channel-order shard count.
 	Workers int
 	// PlanTimeout bounds one accepted plan's total processing time.
 	PlanTimeout time.Duration
@@ -111,9 +112,9 @@ type Runtime struct {
 	sessionWriter LocalSessionWriter
 	// offlineRecipientsObserver receives durable-only auxiliary effects.
 	offlineRecipientsObserver OfflineRecipientsObserver
-	// queue is the fixed-capacity ownership-transfer boundary for plans.
-	queue chan onlinedelivery.RecipientDeliveryPlan
-	// workers is the fixed plan-processing concurrency.
+	// queue is the globally bounded, Channel-sharded ownership-transfer module.
+	queue *orderedPlanQueue
+	// workers is both the fixed plan-processing concurrency and shard count.
 	workers int
 	// planTimeout bounds the complete processing lifetime of one accepted plan.
 	planTimeout time.Duration
@@ -198,7 +199,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 		remoteOwnerPusher:         opts.RemoteOwnerPusher,
 		sessionWriter:             opts.SessionWriter,
 		offlineRecipientsObserver: opts.OfflineRecipientsObserver,
-		queue:                     make(chan onlinedelivery.RecipientDeliveryPlan, queueSize),
+		queue:                     newOrderedPlanQueue(queueSize, workers),
 		workers:                   workers,
 		planTimeout:               planTimeout,
 		maxPlanRecipients:         maxPlanRecipients,
@@ -217,7 +218,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 	}
 }
 
-// WorkerCapacity returns the configured plan worker count.
+// WorkerCapacity returns the configured plan worker and Channel-shard count.
 func (r *Runtime) WorkerCapacity() int {
 	if r == nil {
 		return 0
@@ -251,9 +252,10 @@ func (r *Runtime) Start(context.Context) error {
 	var workers sync.WaitGroup
 	workers.Add(r.workers)
 	for i := 0; i < r.workers; i++ {
+		shardIndex := i
 		goruntimeregistry.SafeGo(r.goroutines, goruntimeregistry.TaskOnlineDeliveryWorker, func() {
 			defer workers.Done()
-			r.runWorker(runCtx, stopReady)
+			r.runWorker(runCtx, stopReady, shardIndex)
 		})
 	}
 	goruntimeregistry.SafeGo(r.goroutines, goruntimeregistry.TaskOnlineDeliveryLifecycle, func() {
@@ -320,7 +322,7 @@ func (r *Runtime) EnqueueRecipientDeliveryPlan(ctx context.Context, plan onlined
 	defer func() {
 		if r != nil {
 			r.observePlanAdmission(PlanAdmissionEvent{
-				Result: result, QueueDepth: len(r.queue), QueueCapacity: cap(r.queue), Duration: positiveRuntimeDuration(time.Since(started)),
+				Result: result, QueueDepth: r.queue.Depth(), QueueCapacity: r.queue.Capacity(), Duration: positiveRuntimeDuration(time.Since(started)),
 			})
 		}
 	}()
@@ -345,23 +347,21 @@ func (r *Runtime) EnqueueRecipientDeliveryPlan(ctx context.Context, plan onlined
 		result = ObservationResultClosed
 		return ErrRuntimeClosed
 	}
-	queue := r.queue
 	acceptDone := r.acceptDone
 	r.admissionSenders.Add(1)
 	r.mu.Unlock()
 	defer r.admissionSenders.Done()
 
-	select {
-	case queue <- plan:
+	err := r.queue.enqueue(ctx, acceptDone, plan)
+	if err == nil {
 		r.observePressure()
 		return nil
-	case <-acceptDone:
+	} else if errors.Is(err, ErrRuntimeClosed) {
 		result = ObservationResultClosed
-		return ErrRuntimeClosed
-	case <-ctx.Done():
-		result = runtimeResultForContext(ctx.Err())
-		return ctx.Err()
+	} else {
+		result = runtimeResultForContext(err)
 	}
+	return err
 }
 
 func (r *Runtime) validatePlan(plan onlinedelivery.RecipientDeliveryPlan) error {
@@ -387,21 +387,13 @@ func (r *Runtime) validatePlan(plan onlinedelivery.RecipientDeliveryPlan) error 
 // runWorker drains ownership-transferred plans after admission closes. The
 // generation context is canceled only when the caller's graceful-stop budget
 // expires, so a successful Stop never discards accepted delivery work.
-func (r *Runtime) runWorker(runCtx context.Context, stopReady <-chan struct{}) {
+func (r *Runtime) runWorker(runCtx context.Context, stopReady <-chan struct{}, shardIndex int) {
 	for {
-		select {
-		case plan := <-r.queue:
-			r.runPlan(runCtx, plan)
-		case <-stopReady:
-			for {
-				select {
-				case plan := <-r.queue:
-					r.runPlan(runCtx, plan)
-				default:
-					return
-				}
-			}
+		plan, ok := r.queue.dequeue(shardIndex, stopReady)
+		if !ok {
+			return
 		}
+		r.runPlan(runCtx, plan)
 	}
 }
 
@@ -1113,7 +1105,7 @@ func (r *Runtime) observePressure() {
 		_ = recover()
 	}()
 	r.observer.SetRuntimePressure(RuntimePressureEvent{
-		QueueDepth: len(r.queue), QueueCapacity: cap(r.queue),
+		QueueDepth: r.queue.Depth(), QueueCapacity: r.queue.Capacity(),
 		Inflight: int(r.inflight.Load()), Workers: r.workers,
 	})
 }
