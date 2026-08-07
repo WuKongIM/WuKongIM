@@ -502,6 +502,24 @@ for attempt in 1 2; do
               bundle_run_id:$bundle_run_id,acquire_run_id:$acquire_run_id,deployment_run_id:$deployment_run_id,
               started_at:$start[0].started_at,expected_end_at:$start[0].expected_end_at}' \
             >"$WK_CHAT_OUTPUT_DIR/handoff.json"
+          stop_status=0
+          check_operator_stop || stop_status=$?
+          case "$stop_status" in
+            0)
+              timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+                "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+              rm -f "$WK_CHAT_OUTPUT_DIR/handoff.json"
+              exit 130
+              ;;
+            1) ;;
+            *)
+              timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+                "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+              rm -f "$WK_CHAT_OUTPUT_DIR/handoff.json"
+              operator_stop_authority_failed=true
+              exit 1
+              ;;
+          esac
           keep_active=true
           rm -f "$deployment_key" "${deployment_key}.pub"
           deployment_key=''

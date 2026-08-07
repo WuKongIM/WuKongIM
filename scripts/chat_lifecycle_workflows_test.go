@@ -233,16 +233,32 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 	if !strings.Contains(detector, "authenticate-operator-stop-producer.sh") {
 		t.Fatal("operator-stop detector does not use the shared protected-producer gate")
 	}
+	handoffWrite := strings.Index(orchestrator, `>"$WK_CHAT_OUTPUT_DIR/handoff.json"`)
+	ownershipTransfer := -1
+	if handoffWrite >= 0 {
+		if relative := strings.Index(orchestrator[handoffWrite:], "keep_active=true"); relative >= 0 {
+			ownershipTransfer = handoffWrite + relative
+		}
+	}
+	if handoffWrite < 0 || ownershipTransfer <= handoffWrite ||
+		!strings.Contains(orchestrator[handoffWrite:ownershipTransfer], "check_operator_stop") {
+		t.Fatal("stage orchestration does not recheck durable stop intent immediately before handoff ownership transfer")
+	}
 	for _, workflowName := range []string{"chat-lifecycle-rehearsal-finalize.yml", "chat-lifecycle-formal-finalize.yml"} {
 		workflow := string(readWorkflow(t, workflowName))
 		for _, required := range []string{
 			"operation:", "stop_authorization:", "operator-stop-chat-lifecycle", "WK_CHAT_OPERATOR_STOP",
 			"Authenticate durable request-scoped stop marker", "operator-stop-requested.sh \"$REQUEST_ID\"",
+			"Resolve durable operator-stop intent for this handoff", "operator-stop-requested.sh \"$WK_CHAT_REQUEST_ID\"",
 		} {
 			if !strings.Contains(workflow, required) {
 				t.Fatalf("%s stop contract is missing %q", workflowName, required)
 			}
 		}
+	}
+	rehearsalFinalizer := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
+	if !strings.Contains(rehearsalFinalizer, `authenticate-handoff-producer.sh "${{ matrix.handoff_run_id }}"`) {
+		t.Fatal("rehearsal finalizer cannot consume a cleanup continuation produced by an earlier finalizer pass")
 	}
 	for _, relative := range []string{"rehearsal-finalize.sh", "formal-finalize.sh"} {
 		body := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", relative))
@@ -339,6 +355,49 @@ esac
 	write(pagePath, map[string]any{"artifacts": fullPage})
 	if output, err := run(); err == nil || !strings.Contains(string(output), "operator-stop discovery exceeded") {
 		t.Fatalf("bounded operator-stop discovery = %v\n%s", err, output)
+	}
+}
+
+func TestHandoffProducerAuthenticatesRehearsalFinalizerCleanupContinuation(t *testing.T) {
+	root := repoRoot(t)
+	directory := t.TempDir()
+	bin := filepath.Join(directory, "bin")
+	if err := os.Mkdir(bin, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	runPath := filepath.Join(directory, "run.json")
+	if err := os.WriteFile(filepath.Join(bin, "gh"), []byte("#!/bin/sh\ncat \"$FAKE_HANDOFF_RUN\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeRun := func(path, event string) {
+		t.Helper()
+		body, err := json.Marshal(map[string]any{
+			"repository":      map[string]any{"full_name": "WuKongIM/WuKongIM"},
+			"head_repository": map[string]any{"full_name": "WuKongIM/WuKongIM"},
+			"event":           event, "head_branch": "main", "status": "completed", "conclusion": "failure", "path": path,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(runPath, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func(name string) ([]byte, error) {
+		output := filepath.Join(directory, name+".json")
+		command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "authenticate-handoff-producer.sh"), "22", output)
+		command.Dir = root
+		command.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+			"GH_TOKEN=test", "GITHUB_REPOSITORY=WuKongIM/WuKongIM", "WK_CHAT_STAGE=rehearsal", "FAKE_HANDOFF_RUN="+runPath)
+		return command.CombinedOutput()
+	}
+	writeRun(".github/workflows/chat-lifecycle-rehearsal-finalize.yml", "schedule")
+	if output, err := run("finalizer"); err != nil {
+		t.Fatalf("authenticate finalizer continuation: %v\n%s", err, output)
+	}
+	writeRun(".github/workflows/untrusted.yml", "schedule")
+	if output, err := run("untrusted"); err == nil {
+		t.Fatalf("untrusted handoff producer accepted: %s", output)
 	}
 }
 

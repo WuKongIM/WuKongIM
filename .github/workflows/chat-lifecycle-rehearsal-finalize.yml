@@ -93,7 +93,6 @@ jobs:
       WK_CHAT_HANDOFF_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/handoff
       WK_CHAT_FINAL_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/final
       WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/${{ matrix.request_id }}/cleanup
-      WK_CHAT_OPERATOR_STOP: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'stop' && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -103,6 +102,22 @@ jobs:
           go-version-file: go.mod
           cache: true
           cache-dependency-path: go.sum
+      - name: Resolve durable operator-stop intent for this handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          observation="$(scripts/chat-lifecycle/operator-stop-requested.sh "$WK_CHAT_REQUEST_ID")" || status=$?
+          case "$status" in
+            0)
+              jq -e --arg request "$WK_CHAT_REQUEST_ID" '
+                .schema == "wukongim.chat_lifecycle.operator_stop_observation/v1" and .request_id == $request
+              ' <<<"$observation" >/dev/null
+              echo 'WK_CHAT_OPERATOR_STOP=true' >>"$GITHUB_ENV"
+              ;;
+            1) echo 'WK_CHAT_OPERATOR_STOP=false' >>"$GITHUB_ENV" ;;
+            *) exit "$status" ;;
+          esac
       - name: Download exact non-secret remote handoff
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -111,19 +126,8 @@ jobs:
           run-id: ${{ matrix.handoff_run_id }}
           github-token: ${{ github.token }}
       - name: Authenticate protected-main handoff or cleanup-pending producer
-        id: producer
         shell: bash
-        run: |
-          set -euo pipefail
-          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${{ matrix.handoff_run_id }}" >handoff-run.json
-          jq -e --arg repository "$GITHUB_REPOSITORY" '
-            .repository.full_name == $repository and .head_repository.full_name == $repository and
-            .event == "workflow_dispatch" and .head_branch == "main" and
-            .status == "completed" and (.conclusion == "success" or .conclusion == "failure") and
-            (.path == ".github/workflows/chat-lifecycle-rehearsal.yml" or
-             .path == ".github/workflows/chat-lifecycle-rehearsal.yml@refs/heads/main")
-          ' handoff-run.json >/dev/null
-          echo "conclusion=$(jq -er .conclusion handoff-run.json)" >>"$GITHUB_OUTPUT"
+        run: scripts/chat-lifecycle/authenticate-handoff-producer.sh "${{ matrix.handoff_run_id }}" "$RUNNER_TEMP/handoff-run.json"
       - name: Classify authenticated handoff content
         id: handoff
         shell: bash
