@@ -70,6 +70,7 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
 		"opt/wukongim/assets/manager/index.html", "opt/wukongim/assets/demo/index.html",
 		"etc/systemd/system/wkbench-worker@.service", "etc/systemd/system/wkbench-coordinator.service",
+		"etc/systemd/system/wkbench-rehearsal.service", "etc/wukongim/chat-lifecycle-rehearsal.yaml",
 	} {
 		if _, err := os.Stat(filepath.Join(loadRoot, path)); err != nil {
 			t.Fatalf("load file %s: %v", path, err)
@@ -109,8 +110,8 @@ func TestActivateOfflineLoadKeepsCoordinatorDormant(t *testing.T) {
 			t.Fatalf("systemctl log omits %s: %s", unit, log)
 		}
 	}
-	if strings.Contains(log, "wkbench-coordinator.service") {
-		t.Fatalf("Deployment activated the workload coordinator: %s", log)
+	if strings.Contains(log, "wkbench-coordinator.service") || strings.Contains(log, "wkbench-rehearsal.service") {
+		t.Fatalf("Deployment activated a workload coordinator: %s", log)
 	}
 }
 
@@ -139,6 +140,13 @@ func buildOfflineTestBundle(t *testing.T) (string, clouddeploy.Manifest) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(formalPath, formal, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rehearsal, err := os.ReadFile(filepath.Join("..", "..", "configs", "wkbench", "chat-lifecycle", "rehearsal.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "config", "chat-lifecycle-rehearsal.yaml"), rehearsal, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	directory, err := clouddeployinfra.Open(root)

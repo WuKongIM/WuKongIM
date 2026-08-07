@@ -1,0 +1,179 @@
+name: Agent Tool - Start Chat Lifecycle Rehearsal
+run-name: Chat Lifecycle Rehearsal ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact immutable source commit reachable from trusted main
+        required: true
+        type: string
+      operator:
+        description: Fixed first-version operator identity
+        required: true
+        type: string
+      codex_diagnostic_pubkey:
+        description: Per-request Codex diagnostic Ed25519 public key
+        required: true
+        type: string
+      request_id:
+        description: Exact request correlation identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: chat-lifecycle-rehearsal-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  orchestrate:
+    name: Build, quote, deploy, and hand off the remote rehearsal
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    environment: cloud-deployment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      WK_CHAT_SOURCE_SHA: ${{ inputs.source_sha }}
+      WK_CHAT_OPERATOR: ${{ inputs.operator }}
+      WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY: ${{ inputs.codex_diagnostic_pubkey }}
+      WK_CHAT_REQUEST_ID: ${{ inputs.request_id }}
+      WK_CHAT_TEMPLATE: configs/cloud/chat-lifecycle/rehearsal-v1.json
+      WK_CHAT_OUTPUT_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/handoff
+      WK_CHAT_WORK_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/work
+      WK_CHAT_CLEANUP_DIR: /tmp/wukongim-chat-lifecycle/${{ github.run_id }}/fallback-cleanup
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Validate the four-input boundary and trusted source
+        shell: bash
+        env:
+          DEPLOYMENT_SSH_PRIVATE_KEY: ${{ secrets.CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$WK_CHAT_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$WK_CHAT_OPERATOR" == tangtaoit ]]
+          [[ "$WK_CHAT_REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+          test -n "$DEPLOYMENT_SSH_PRIVATE_KEY"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$WK_CHAT_SOURCE_SHA" origin/main
+          umask 077
+          printf '%s\n' "$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" >"$RUNNER_TEMP/codex-diagnostic.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/codex-diagnostic.pub" | grep -q ED25519
+          printf '%s\n' "$DEPLOYMENT_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/deployment-key"
+          chmod 0600 "$RUNNER_TEMP/deployment-key"
+          ssh-keygen -y -f "$RUNNER_TEMP/deployment-key" >"$RUNNER_TEMP/deployment.pub"
+          ssh-keygen -lf "$RUNNER_TEMP/deployment.pub" | grep -q ED25519
+      - name: Build trusted Run Plan control tool
+        shell: bash
+        run: go build -trimpath -o "$RUNNER_TEMP/wkchatlifecycle" ./cmd/wkchatlifecycle
+      - name: Refuse a second paid scenario while any prior Lease lacks zero proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/chat-lifecycle/discover-active-handoffs.sh '' "$RUNNER_TEMP/active-chat-lifecycle.json"
+          jq -e '.include | length == 0' "$RUNNER_TEMP/active-chat-lifecycle.json" >/dev/null || {
+            echo 'Another Chat Lifecycle handoff or cleanup-pending Lease has no authenticated zero-inventory proof.' >&2
+            exit 1
+          }
+      - name: Orchestrate until remote systemd owns the measured run
+        shell: bash
+        env:
+          WK_CHAT_DEPLOYMENT_KEY: ${{ runner.temp }}/deployment-key
+          WK_CHAT_TOOL: ${{ runner.temp }}/wkchatlifecycle
+        run: |
+          set -euo pipefail
+          export WK_CHAT_DEPLOYMENT_PUBKEY="$(cat "$RUNNER_TEMP/deployment.pub")"
+          scripts/chat-lifecycle/rehearsal-orchestrate.sh
+      - name: Detect publishable handoff or cleanup continuation
+        id: handoff_state
+        if: always()
+        shell: bash
+        run: |
+          publish=false
+          for marker in handoff.json cleanup-pending.json cleanup.json; do
+            if [[ -f "$WK_CHAT_OUTPUT_DIR/$marker" ]]; then
+              publish=true
+            fi
+          done
+          echo "publish=$publish" >>"$GITHUB_OUTPUT"
+      - name: Upload non-secret remote handoff or cleanup evidence
+        id: handoff_upload
+        if: always() && steps.handoff_state.outputs.publish == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-handoff-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Detect immediate zero-inventory proof
+        id: immediate_cleanup
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$WK_CHAT_OUTPUT_DIR/cleanup.json" && -f "$WK_CHAT_OUTPUT_DIR/zero-inventory.json" ]]; then
+            echo 'ready=true' >>"$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload immediate zero-inventory proof
+        if: always() && steps.immediate_cleanup.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-cleanup-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_OUTPUT_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Release handed-off Lease if handoff publication failed
+        id: fallback_release
+        if: always() && steps.handoff_state.outputs.publish == 'true' && steps.handoff_upload.outcome != 'success'
+        shell: bash
+        env:
+          WK_CHAT_SELECTOR: ${{ env.WK_CHAT_OUTPUT_DIR }}/release-selector.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$WK_CHAT_SELECTOR" ]]; then
+            echo 'released=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if scripts/chat-lifecycle/release-until-zero.sh; then
+            echo 'released=true' >>"$GITHUB_OUTPUT"
+            echo 'pending=false' >>"$GITHUB_OUTPUT"
+          else
+            test -f "$WK_CHAT_CLEANUP_DIR/cleanup-pending.json"
+            test -f "$WK_CHAT_CLEANUP_DIR/release-selector.json"
+            echo 'released=false' >>"$GITHUB_OUTPUT"
+            echo 'pending=true' >>"$GITHUB_OUTPUT"
+          fi
+      - name: Upload fallback zero-inventory proof
+        if: always() && steps.fallback_release.outputs.released == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-cleanup-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retry publication of cleanup-pending continuation evidence
+        if: always() && steps.fallback_release.outputs.pending == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-rehearsal-handoff-${{ inputs.request_id }}
+          path: ${{ env.WK_CHAT_CLEANUP_DIR }}
+          if-no-files-found: error
+          retention-days: 8
+      - name: Remove plaintext runner identities
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/deployment-key" "$RUNNER_TEMP/deployment.pub" "$RUNNER_TEMP/codex-diagnostic.pub"

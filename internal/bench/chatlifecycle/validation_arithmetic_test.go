@@ -274,6 +274,7 @@ func TestLocalProfilePreservesTopologyAndRealSync(t *testing.T) {
 func TestLocalProfileAllowsShorterShakeout(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Profile = ProfileLocal
+	cfg.Stage = StageShakeout
 	cfg.Workload.OnlineUsers = 10
 	cfg.Workload.NewUsersPerDay = 100
 	cfg.Workload.SendRatePerSecond = 10
@@ -309,6 +310,7 @@ func TestFailureRatioStrictZeroBoundary(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := FormalConfig()
 			cfg.Profile = ProfileLocal
+			cfg.Stage = StageShakeout
 			cfg.Thresholds.Correctness.OverallFirstAttemptFailure = tt.limit
 			err := cfg.Validate()
 			if tt.wantErr == "" {

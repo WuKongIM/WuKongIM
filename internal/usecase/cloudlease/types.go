@@ -85,6 +85,8 @@ type Budget struct {
 	LimitMicros int64 `json:"limit_micros"`
 	// CommittedMicros is cost already reserved or accrued before this Lease.
 	CommittedMicros int64 `json:"committed_micros"`
+	// OperationalStopMicros is the admission ceiling below LimitMicros; zero preserves legacy behavior by using LimitMicros.
+	OperationalStopMicros int64 `json:"operational_stop_micros,omitempty"`
 }
 
 // Provenance carries optional, provider-neutral immutable input identities.
@@ -156,6 +158,18 @@ type NetworkPlan struct {
 	ConservativePublicEgressBytes int64 `json:"conservative_public_egress_bytes,omitempty"`
 }
 
+// PlacementExclusion removes one previously attempted opaque provider offer
+// without hard-coding provider SKU vocabulary into the orchestrator.
+type PlacementExclusion struct {
+	Zone        string `json:"zone"`
+	ComputeType string `json:"compute_type"`
+}
+
+// PlacementPlan carries bounded provider-offer exclusions across a fresh-Lease retry.
+type PlacementPlan struct {
+	ExcludedOffers []PlacementExclusion `json:"excluded_offers,omitempty"`
+}
+
 // Plan is the immutable, provider-neutral request for one temporary Cloud Lease.
 type Plan struct {
 	// Schema selects the strict Lease Plan version.
@@ -180,6 +194,8 @@ type Plan struct {
 	Provenance Provenance `json:"provenance,omitempty"`
 	// Network defines shared isolation and initial ingress.
 	Network NetworkPlan `json:"network"`
+	// Placement excludes exact prior zone/compute offer pairs while leaving selection to the provider.
+	Placement PlacementPlan `json:"placement,omitempty"`
 	// HostGroups define generic compute and attached storage.
 	HostGroups []HostGroupPlan `json:"host_groups"`
 	// Tags are caller-owned non-secret tags in addition to mandatory tags.

@@ -38,7 +38,26 @@ func (c Config) Validate() error {
 	if c.Workload.Workers != len(c.Observation.Workers) {
 		return fieldError("workload.workers", "must equal observation worker count")
 	}
-	return validateCapacity(c.Capacity, c.Profile, c.Mode)
+	if err := validateCapacity(c.Capacity, c.Profile, c.Mode); err != nil {
+		return err
+	}
+	switch c.Stage {
+	case StageFormal:
+		if c.Profile != ProfileFormal {
+			return fieldError("stage", "formal requires the formal profile")
+		}
+	case StageRehearsal:
+		if c.Profile != ProfileFormal || c.Mode != ModeSoak {
+			return fieldError("stage", "rehearsal requires the formal soak profile")
+		}
+	case StageShakeout:
+		if c.Profile != ProfileLocal || c.Mode != ModeSoak {
+			return fieldError("stage", "shakeout requires the local soak profile")
+		}
+	default:
+		return fieldError("stage", "must be formal, rehearsal, or shakeout")
+	}
+	return nil
 }
 
 func fieldError(path, reason string) error { return fmt.Errorf("%s: %s", path, reason) }

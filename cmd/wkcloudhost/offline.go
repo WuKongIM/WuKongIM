@@ -169,7 +169,7 @@ func installOfflineHost(options offlineInstallOptions) (clouddeploy.Manifest, er
 		if err := runCommand("chown", "-R", "wukongim:wukongim", "/var/lib/wukongim-cloud", "/var/lib/wukongim"); err != nil {
 			return clouddeploy.Manifest{}, err
 		}
-		for _, path := range []string{"/etc/wukongim/wukongim.toml", "/etc/wukongim/prometheus.yml", "/etc/wukongim/Caddyfile", "/etc/wukongim/chat-lifecycle.yaml", "/etc/wukongim/analysis-scenario.yaml"} {
+		for _, path := range []string{"/etc/wukongim/wukongim.toml", "/etc/wukongim/prometheus.yml", "/etc/wukongim/Caddyfile", "/etc/wukongim/chat-lifecycle.yaml", "/etc/wukongim/chat-lifecycle-rehearsal.yaml", "/etc/wukongim/analysis-scenario.yaml"} {
 			if _, statErr := os.Stat(path); statErr == nil {
 				if err := runCommand("chown", "root:wukongim", path); err != nil {
 					return clouddeploy.Manifest{}, err
@@ -215,6 +215,7 @@ func offlineTemplates(bundleRoot string) (map[string]string, error) {
 	paths := map[string]string{
 		"wukongim.toml": "config/wukongim.toml.tmpl", "prometheus.yml": "config/prometheus.yml.tmpl",
 		"Caddyfile": "config/Caddyfile.tmpl", "chat-lifecycle.yaml": "config/chat-lifecycle.yaml",
+		"chat-lifecycle-rehearsal.yaml": "config/chat-lifecycle-rehearsal.yaml",
 	}
 	result := make(map[string]string, len(paths))
 	for name, relative := range paths {
@@ -252,7 +253,7 @@ func offlineUnits(role string) []string {
 	if strings.HasPrefix(role, "service-") {
 		return append([]string{"wukongim.service", "wkbench-host-metrics.service"}, common...)
 	}
-	return append([]string{"wkbench-worker@.service", "wkbench-coordinator.service", "prometheus.service", "wkanalysis.service", "caddy.service"}, common...)
+	return append([]string{"wkbench-worker@.service", "wkbench-coordinator.service", "wkbench-rehearsal.service", "prometheus.service", "wkanalysis.service", "caddy.service"}, common...)
 }
 
 func offlineSecrets(role string) []string {
@@ -312,7 +313,7 @@ func activateOfflineUnits(role string) error {
 	if role == "load" {
 		units = make([]string, 0, len(offlineUnits(role))+2)
 		for _, unit := range offlineUnits(role) {
-			if unit != "wkbench-worker@.service" && unit != "wkbench-coordinator.service" {
+			if unit != "wkbench-worker@.service" && unit != "wkbench-coordinator.service" && unit != "wkbench-rehearsal.service" {
 				units = append(units, unit)
 			}
 		}

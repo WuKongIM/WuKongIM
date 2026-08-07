@@ -2,6 +2,7 @@ run_id: local-chat-lifecycle-shakeout
 seed: 1
 profile: local
 mode: soak
+stage: shakeout
 workload:
   workers: 3
   online_users: 100

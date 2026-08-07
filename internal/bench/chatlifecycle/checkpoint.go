@@ -132,10 +132,10 @@ func (r *CheckpointRecorder) prepareLocked(
 	}
 
 	checkpointAt := r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint)
-	finalAt := r.start.Add(r.cfg.Thresholds.Timeline.Final)
+	finalAt := r.start.Add(r.cfg.measuredDuration())
 	kind := CheckpointQualification
 	terminal := evidence.Verdict.Terminal
-	if r.cfg.Mode == ModeSoak && terminal && evidence.Verdict.Outcome == VerdictPass && at.Before(finalAt) {
+	if r.cfg.Mode == ModeSoak && terminal && successfulVerdict(evidence.Verdict) && at.Before(finalAt) {
 		return Report{}, nil, "", false, false, ErrCheckpointSequence
 	}
 	switch {
@@ -148,7 +148,7 @@ func (r *CheckpointRecorder) prepareLocked(
 			return Report{}, nil, "", false, false, ErrCheckpointSequence
 		}
 		if !at.Before(finalAt) {
-			if !terminal || evidence.Verdict.Outcome == VerdictPass {
+			if !terminal || (r.cfg.Stage == StageFormal && evidence.Verdict.Outcome == VerdictPass) {
 				return Report{}, nil, "", false, false, ErrCheckpointSequence
 			}
 			kind = CheckpointFinal
@@ -209,13 +209,13 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 	return Report{
 		SchemaVersion: ReportSchemaVersion, ThresholdVersion: ReportThresholdVersion, DesignProfile: ReportDesignProfile,
 		ConfigDigest: r.configDigest, DatasetDigest: evidence.DatasetDigest,
-		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Kind: kind,
+		Thresholds: r.cfg.Thresholds, Profile: r.cfg.Profile, Mode: r.cfg.Mode, Stage: r.cfg.Stage, Kind: kind,
 		Final: final, Continue: !final,
 		Fence: ReportFence{RunHash: hashReportValue(r.fence.RunID), AssignmentHash: hashReportValue(r.fence.AssignmentID), Generation: r.fence.Generation},
 		Window: ReportTimeWindow{
 			Start: r.start, WarmupEnd: r.start.Add(r.cfg.Thresholds.Timeline.Warmup),
 			QualificationAt: r.start.Add(r.cfg.Thresholds.Timeline.Checkpoint),
-			FinalAt:         r.start.Add(r.cfg.Thresholds.Timeline.Final), End: at, Elapsed: at.Sub(r.start),
+			FinalAt:         r.start.Add(r.cfg.measuredDuration()), End: at, Elapsed: at.Sub(r.start),
 		},
 		MinimumWorkerUptime: snapshot.MinimumUptime,
 		Topology: ReportTopologyProof{
@@ -234,7 +234,7 @@ func (r *CheckpointRecorder) buildReport(kind CheckpointKind, at time.Time, snap
 			Anomalies: append([]ReportLatencyAnomaly(nil), verdict.LatencyAnomalies...), Retention: verdict.Retention,
 		},
 		Resources: resources, Cluster: evidence.Cluster, Verdict: verdict, Capacity: evidence.Capacity,
-		Warnings: append([]ReportWarningCode(nil), evidence.Warnings...),
+		Warnings: reportWarnings(r.cfg, evidence.Warnings),
 		Samples:  append([]ReportSample(nil), evidence.Samples...),
 	}
 }
@@ -312,7 +312,9 @@ func validCheckpointVerdict(verdict VerdictSnapshot) bool {
 			return false
 		}
 	}
-	return !verdict.Terminal || (verdict.Outcome == VerdictPass) == (verdict.Cause == VerdictCauseCompleted)
+	return !verdict.Terminal || validSuccessfulVerdictPair(verdict.Outcome, verdict.Cause) ||
+		(verdict.Outcome != VerdictPass && verdict.Outcome != VerdictRehearsalPass &&
+			verdict.Cause != VerdictCauseCompleted && verdict.Cause != VerdictCauseRehearsalCompleted)
 }
 
 func validCheckpointSnapshotsForCut(snapshots []WorkerSnapshot, elapsed time.Duration, kind CheckpointKind, verdict VerdictSnapshot) bool {
@@ -326,11 +328,36 @@ func validCheckpointSnapshotsForCut(snapshots []WorkerSnapshot, elapsed time.Dur
 		if !verdict.Terminal && (kind != CheckpointQualification || snapshot.Phase != WorkerPhaseRunning) {
 			return false
 		}
-		if verdict.Outcome == VerdictPass && snapshot.Phase != WorkerPhaseFinal {
+		if successfulVerdict(verdict) && snapshot.Phase != WorkerPhaseFinal {
 			return false
 		}
 	}
 	return true
+}
+
+func successfulVerdict(verdict VerdictSnapshot) bool {
+	return validSuccessfulVerdictPair(verdict.Outcome, verdict.Cause)
+}
+
+func validSuccessfulVerdictPair(outcome VerdictOutcome, cause VerdictCause) bool {
+	return (outcome == VerdictPass && cause == VerdictCauseCompleted) ||
+		(outcome == VerdictRehearsalPass && cause == VerdictCauseRehearsalCompleted)
+}
+
+func reportWarnings(cfg Config, warnings []ReportWarningCode) []ReportWarningCode {
+	result := append([]ReportWarningCode(nil), warnings...)
+	if cfg.Stage != StageRehearsal {
+		return result
+	}
+	for _, warning := range result {
+		if warning == ReportWarningRehearsalLongWindowsIncomplete {
+			return result
+		}
+	}
+	if len(result) >= maxReportWarnings {
+		result = append([]ReportWarningCode(nil), result[:maxReportWarnings-1]...)
+	}
+	return append(result, ReportWarningRehearsalLongWindowsIncomplete)
 }
 
 func digestCheckpointConfig(cfg Config) (string, error) {

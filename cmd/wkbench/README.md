@@ -13,10 +13,10 @@ go run ./cmd/wkbench <command> [flags]
 | `worker` | Starts one worker control process. Workers hold WKProto clients and execute assigned workload shards. |
 | `worker --mode chat-lifecycle` | Starts one authenticated, generation-fenced chat-lifecycle worker. |
 | `host-metrics` | Exposes exact native filesystem size/free metrics for a local lifecycle service node. |
-| `soak chat-lifecycle` | Runs the continuous 24-hour qualification and 72-hour final chat-lifecycle flow. |
+| `soak chat-lifecycle` | Runs a stage-selected two-hour rehearsal or continuous 24-hour qualification/72-hour final flow. |
 | `capacity chat-lifecycle` | Searches capacity against the same live dataset after a passing 72-hour final report. |
 | `validate` | Loads target, workers, and scenario YAML and validates static config plus deterministic planning. |
-| `validate chat-lifecycle` | Strictly validates one formal Soak lifecycle YAML without network access. |
+| `validate chat-lifecycle` | Strictly validates one formal-profile Soak lifecycle YAML without network access. |
 | `doctor` | Validates target and workers, then checks target health, bench API capabilities, worker control APIs, and gateway reachability. |
 | `run` | Runs the full coordinator flow: validate, preflight, assign workers, prepare, connect, warmup, run, cooldown, and report. |
 | `dev-sim` | Runs a long-lived development simulator that keeps users online and emits low-rate person/group messages. |
@@ -123,6 +123,11 @@ Every login performs a fresh product `/conversation/sync` with `version=0`, an
 empty last-message map, and no retained cursor. The independent proof samples
 1,200 real person channels every ten minutes and waits for natural
 hot-to-cold-to-reheat transitions without a control-plane eviction.
+`configs/wkbench/chat-lifecycle/rehearsal.yaml` changes only the run identity
+and evidence stage. It ends two hours after every online user has completed
+CONNECT plus a new version-zero full sync and all workers accept the first
+global 2,000 SEND/s grant. A healthy result is `rehearsal_pass`; it is never a
+72-hour formal pass.
 
 Credentials are supplied only through `WK_BENCH_API_TOKEN` and
 `WK_BENCH_WORKER_TOKEN`, or through the owner-only token-file variables listed

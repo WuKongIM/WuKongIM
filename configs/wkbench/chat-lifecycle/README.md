@@ -1,8 +1,11 @@
 # Chat lifecycle configuration
 
-`formal.yaml` is the reviewed seven-host, 72-hour qualification profile.
-Replace every `.invalid` address and the `run_id`; do not place credentials in
-YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft Groups, 256
+`formal.yaml` is the reviewed four-host, 72-hour qualification profile.
+`rehearsal.yaml` differs only in `run_id` and `stage`; it runs the unchanged
+full-scale workload for exactly two hours after the all-user full-sync and
+first-grant barrier, and can produce only `rehearsal_pass`, never formal
+evidence. Replace every `.invalid` address and the `run_id`; do not place
+credentials in YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft Groups, 256
 physical hash slots, replicas 3/3, real TCP traffic, and version-zero full
 conversation sync at smaller scale. It is not formal evidence.
 
@@ -27,6 +30,11 @@ wkbench soak chat-lifecycle \
   --config configs/wkbench/chat-lifecycle/formal.yaml \
   --output-dir /secure/reports/chat-lifecycle
 ```
+
+Use `rehearsal.yaml` only through the reviewed cloud rehearsal orchestration or
+an equivalent remote systemd owner. It intentionally retains the formal
+six-hour, 24-hour, and 72-hour thresholds in its report while warning that
+those longer windows are incomplete.
 
 For capacity mode, copy the formal file, set `mode: capacity`, and set
 `capacity.aged_checkpoint` to the completed, passing 72-hour report reference,

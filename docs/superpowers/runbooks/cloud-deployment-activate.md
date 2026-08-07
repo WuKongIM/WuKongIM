@@ -12,13 +12,15 @@ Dispatch on protected `main` with the exact Workflow run and Artifact name for
 both `cloud-lease-provision.yml` and `cloud-deployment-bundle.yml`. The Action
 first queries the GitHub Actions API and requires both run IDs to be successful
 `workflow_dispatch` executions of those exact workflow files on protected
-`main`, from the same repository and exact control commit as the Deployment
-Action. It then builds trusted validators from that checkout, revalidates the
+`main` and from the same repository. It then builds trusted validators from its
+own protected checkout, revalidates the
 Lease Receipt and bundle before executing any payload binary, derives
 `wukongim.cloud_deployment.plan/v1`, and refuses a bundle Artifact name that
-does not contain the derived digest. The bundle's trusted control SHA must also
-equal the exact `main` revision executing the Deployment Action; main-branch
-drift therefore fails before any host mutation.
+does not contain the derived digest. Long builds remain usable when `main`
+advances: the bundle's trusted control SHA must equal its authenticated bundle
+producer run, while the Lease provenance must bind that bundle digest and the
+same immutable source SHA. An arbitrary or cross-run artifact mix therefore
+still fails before host mutation.
 
 The run Artifact `cloud-deployment-<workflow-run-id>` contains the non-secret
 Deployment Plan, bounded readiness snapshot when collection completed, and

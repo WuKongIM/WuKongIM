@@ -26,6 +26,7 @@ type VerdictOutcome string
 
 const (
 	VerdictPass                  VerdictOutcome = "pass"
+	VerdictRehearsalPass         VerdictOutcome = "rehearsal_pass"
 	VerdictProductFailure        VerdictOutcome = "product_failure"
 	VerdictHarnessInvalid        VerdictOutcome = "harness_invalid"
 	VerdictInfrastructureFailure VerdictOutcome = "infrastructure_failure"
@@ -37,6 +38,7 @@ type VerdictCause string
 
 const (
 	VerdictCauseCompleted               VerdictCause = "completed"
+	VerdictCauseRehearsalCompleted      VerdictCause = "rehearsal_completed"
 	VerdictCauseMessageLoss             VerdictCause = "message_loss"
 	VerdictCauseMessageDuplicate        VerdictCause = "message_duplicate"
 	VerdictCauseMessageCorruption       VerdictCause = "message_corruption"
@@ -555,6 +557,7 @@ func verdictCauseRank(cause VerdictCause) int {
 		VerdictCauseObserverGap, VerdictCauseInvalidObservation, VerdictCauseOperatorRequested,
 		VerdictCauseWorkerProduct, VerdictCauseWorkerHarness,
 		VerdictCauseLifecycleProduct, VerdictCauseLifecycleHarness, VerdictCauseMetaCreateProduct,
+		VerdictCauseRehearsalCompleted,
 	}
 	for index, candidate := range causes {
 		if candidate == cause {

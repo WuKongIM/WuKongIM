@@ -154,7 +154,7 @@ targets_want="$(jq -er '.data.activeTargets | length' <<<"$prometheus_targets")"
 targets_up="$(jq -er '[.data.activeTargets[] | select(.health == "up")] | length' <<<"$prometheus_targets")"
 
 workload_valid=false
-ssh_load "sudo -u wukongim /opt/wukongim/bin/wkbench validate chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml >/dev/null" && workload_valid=true
+ssh_load "sudo -u wukongim /opt/wukongim/bin/wkbench validate chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml >/dev/null && sudo -u wukongim /opt/wukongim/bin/wkbench validate chat-lifecycle --config /etc/wukongim/chat-lifecycle-rehearsal.yaml >/dev/null" && workload_valid=true
 analysis_ready=false
 ssh_load "sudo curl --fail --silent --show-error --max-time 10 --cacert /etc/wukongim/secrets/analysis-cert.pem https://127.0.0.1:19444/self-check >/dev/null" && analysis_ready=true
 proxy_ready=false

@@ -6,12 +6,15 @@ builds one content-addressed payload before Cloud Lease Quote or Acquire.
 ## Identity boundary
 
 The required `source_sha` must be a lowercase 40-character commit reachable
-from `origin/main`. The Workflow keeps two checkouts:
+from `origin/main`. The required `request_id` is correlation-only: it appears
+in the Workflow title and Artifact provenance but cannot change bundle bytes or
+identity. The Workflow keeps two checkouts:
 
 - `control` is the exact trusted `main` revision that owns the Workflow,
   bundle validator, and host installer;
 - `source` is the immutable product revision used for WuKongIM, wkbench,
-  wkanalysis, the formal workload configuration, Manager, and Demo.
+  wkanalysis, the byte-matched formal and rehearsal workload configurations,
+  Manager, and Demo.
 
 Both identities are recorded in `deployment-intent.json` and
 `bundle-manifest.json`. A moving branch name is never a bundle identity.
@@ -34,6 +37,8 @@ configuration templates, base-image verification, and bounded evidence tools.
 
 - Ubuntu 24.04 LTS, Linux AMD64, three service nodes plus one load node;
 - 256 physical hash slots, 12 workload Slot Groups, and replica count 3;
+- both committed formal and rehearsal workload configurations are present and
+  differ only in the allowed run ID and stage fields;
 - every expected executable has a Linux x86_64 ELF header and mode 0755;
 - Manager and Demo entry assets, proxy, Prometheus, systemd, and evidence files
   are present;

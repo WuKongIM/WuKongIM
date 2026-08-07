@@ -32,6 +32,30 @@ func NewController(provider Provider, now func() time.Time) *Controller {
 	return &Controller{provider: provider, now: now}
 }
 
+// ValidatePlan applies the same provider-neutral normalization and safety
+// checks used by Quote without invoking a Provider.
+func ValidatePlan(plan Plan, now time.Time) error {
+	_, _, err := normalizeAndValidatePlan(plan, now.UTC())
+	return err
+}
+
+// ReleaseSelectorFromPlanQuote derives the exact cleanup identity before a
+// paid Acquire is dispatched. This lets a caller reconcile an ambiguous
+// acquisition even when no Receipt artifact survives.
+func ReleaseSelectorFromPlanQuote(plan Plan, quote Quote, now time.Time) (Selector, error) {
+	normalized, digest, err := normalizeAndValidatePlan(plan, now.UTC())
+	if err != nil {
+		return Selector{}, err
+	}
+	if err := validateQuote(normalized, digest, quote, now.UTC()); err != nil {
+		return Selector{}, err
+	}
+	return Selector{
+		LeaseID: normalized.LeaseID, RequestID: normalized.RequestID, Provider: normalized.Provider,
+		Region: normalized.Region, Repository: normalized.Repository, PlanDigest: digest,
+	}, nil
+}
+
 // Quote validates a Plan and obtains one side-effect-free provider decision.
 func (c *Controller) Quote(ctx context.Context, plan Plan) (Quote, error) {
 	now := c.nowUTC()
@@ -651,13 +675,17 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 	plan.Repository = strings.TrimSpace(plan.Repository)
 	plan.Operator = strings.TrimSpace(plan.Operator)
 	plan.Budget.Currency = strings.TrimSpace(plan.Budget.Currency)
+	if plan.Budget.OperationalStopMicros == 0 {
+		plan.Budget.OperationalStopMicros = plan.Budget.LimitMicros
+	}
 	plan.Provenance.SourceSHA = strings.TrimSpace(plan.Provenance.SourceSHA)
 	plan.Provenance.BundleDigest = strings.TrimSpace(plan.Provenance.BundleDigest)
 	plan.ExpiresAt = plan.ExpiresAt.UTC()
 	if plan.Schema != PlanSchemaV1 || !validIdentity(plan.LeaseID) || !validIdentity(plan.RequestID) ||
 		plan.Provider == "" || plan.Region == "" || plan.Repository == "" || plan.Operator == "" ||
 		!plan.ExpiresAt.After(now) || !validCurrency(plan.Budget.Currency) || plan.Budget.LimitMicros <= 0 ||
-		plan.Budget.CommittedMicros < 0 || plan.Budget.CommittedMicros >= plan.Budget.LimitMicros ||
+		plan.Budget.OperationalStopMicros <= 0 || plan.Budget.OperationalStopMicros > plan.Budget.LimitMicros ||
+		plan.Budget.CommittedMicros < 0 || plan.Budget.CommittedMicros >= plan.Budget.OperationalStopMicros ||
 		len(plan.HostGroups) == 0 || plan.Network.ConservativePublicEgressBytes < 0 ||
 		validateProvenance(plan.Provenance) != nil {
 		return Plan{}, "", ErrInvalidPlan
@@ -706,6 +734,28 @@ func normalizeAndValidatePlan(plan Plan, now time.Time) (Plan, string, error) {
 	}
 	if plan.Network.ConservativePublicEgressBytes > 0 && !hasPublicIPv4 {
 		return Plan{}, "", ErrInvalidPlan
+	}
+	if len(plan.Placement.ExcludedOffers) > 8 {
+		return Plan{}, "", ErrInvalidPlan
+	}
+	for index := range plan.Placement.ExcludedOffers {
+		exclusion := &plan.Placement.ExcludedOffers[index]
+		exclusion.Zone = strings.TrimSpace(exclusion.Zone)
+		exclusion.ComputeType = strings.TrimSpace(exclusion.ComputeType)
+		if exclusion.Zone == "" || exclusion.ComputeType == "" {
+			return Plan{}, "", ErrInvalidPlan
+		}
+	}
+	slices.SortFunc(plan.Placement.ExcludedOffers, func(left, right PlacementExclusion) int {
+		if compared := strings.Compare(left.Zone, right.Zone); compared != 0 {
+			return compared
+		}
+		return strings.Compare(left.ComputeType, right.ComputeType)
+	})
+	for index := 1; index < len(plan.Placement.ExcludedOffers); index++ {
+		if plan.Placement.ExcludedOffers[index] == plan.Placement.ExcludedOffers[index-1] {
+			return Plan{}, "", ErrInvalidPlan
+		}
 	}
 	grantIDs := make(map[string]struct{}, len(plan.Network.InitialAccess))
 	for index := range plan.Network.InitialAccess {
@@ -762,9 +812,10 @@ func validateQuote(plan Plan, digest string, quote Quote, now time.Time) error {
 	if !quote.QuotaAvailable {
 		return ErrQuotaUnavailable
 	}
-	if quote.EstimatedCostMicros > plan.Budget.LimitMicros-plan.Budget.CommittedMicros {
-		return fmt.Errorf("%w: committed=%d estimate=%d limit=%d",
-			ErrCostLimitExceeded, plan.Budget.CommittedMicros, quote.EstimatedCostMicros, plan.Budget.LimitMicros)
+	if quote.EstimatedCostMicros > plan.Budget.OperationalStopMicros-plan.Budget.CommittedMicros {
+		return fmt.Errorf("%w: committed=%d estimate=%d operational_stop=%d hard_limit=%d",
+			ErrCostLimitExceeded, plan.Budget.CommittedMicros, quote.EstimatedCostMicros,
+			plan.Budget.OperationalStopMicros, plan.Budget.LimitMicros)
 	}
 	return nil
 }
@@ -883,6 +934,7 @@ func clonePlan(plan Plan) Plan {
 		plan.HostGroups[index].DataDisks = slices.Clone(plan.HostGroups[index].DataDisks)
 	}
 	plan.Network.InitialAccess = slices.Clone(plan.Network.InitialAccess)
+	plan.Placement.ExcludedOffers = slices.Clone(plan.Placement.ExcludedOffers)
 	return plan
 }
 

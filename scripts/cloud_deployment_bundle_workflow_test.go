@@ -16,6 +16,7 @@ func TestCloudDeploymentBundleBuildIsTrustedOfflineAndPreProcurement(t *testing.
 	text := string(content)
 	for _, fragment := range []string{
 		"permissions:\n  contents: read",
+		"request_id:",
 		"if: github.ref == 'refs/heads/main'",
 		"path: control",
 		"path: source",
@@ -24,6 +25,7 @@ func TestCloudDeploymentBundleBuildIsTrustedOfflineAndPreProcurement(t *testing.
 		"yarn install --frozen-lockfile",
 		"GOOS=linux GOARCH=amd64 go build",
 		"source/configs/wkbench/chat-lifecycle/formal.yaml",
+		"source/configs/wkbench/chat-lifecycle/rehearsal.yaml",
 		"wkcloudbundle\" seal-offline",
 		"wkcloudbundle\" verify-offline",
 		"sha256sum cloud-deployment-bundle.tar.gz",

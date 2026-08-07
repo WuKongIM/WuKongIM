@@ -13,6 +13,8 @@ authorization and the applicable budget.
 
 | File | Display name | Purpose |
 | --- | --- | --- |
+| `chat-lifecycle-rehearsal.yml` | `Agent Tool - Start Chat Lifecycle Rehearsal` | Builds, quotes, acquires, deploys, and hands a full-scale two-hour rehearsal to remote systemd |
+| `chat-lifecycle-rehearsal-finalize.yml` | `Safety Automation - Finalize Chat Lifecycle Rehearsals` | Uploads a terminal rehearsal report before Release and reconciles the Lease to zero inventory |
 | `review-agent-pr-signal.yml` | `Safety Automation - Review Agent PR Signal` | Emits a credential-free lifecycle or exact-command wake-up hint |
 | `review-agent.yml` | `Safety Automation - Review Agent Controller` | Re-reads GitHub facts and signed state, then plans one lifecycle transition |
 | `review-agent-run.yml` | `Agent Tool - Review Pull Request` | Runs one exact review or explanation generation |
@@ -22,7 +24,7 @@ authorization and the applicable budget.
 | `cloud-lease-oidc-setup.yml` | `Agent Tool - Configure Cloud Lease OIDC Roles` | Reconciles and live-verifies the three workflow-conditioned Cloud Lease roles |
 | `cloud-lease-provision.yml` | `Agent Tool - Provision Cloud Lease` | Quotes or explicitly acquires one generic Alibaba Cloud Lease |
 | `cloud-lease-observe.yml` | `Agent Tool - Inspect Cloud Lease` | Reconstructs exact Lease inventory through the read-only Observer role |
-| `cloud-lease-release.yml` | `Agent Tool - Release Cloud Lease` | Releases one exact Lease or sweeps expired repository Leases through the Releaser role |
+| `cloud-lease-release.yml` | `Safety Automation - Release Cloud Leases` | Releases one exact Lease and runs the protected 15-minute expired/cleanup-pending repository sweep |
 | `cloud-deployment-bundle.yml` | `Agent Tool - Build Cloud Deployment Bundle` | Builds and seals one procurement-independent offline Ubuntu four-host payload |
 | `cloud-deployment-activate.yml` | `Agent Tool - Activate Cloud Deployment` | Installs and gates one exact offline bundle on an active four-host Lease |
 | `cloud-sim-provision.yml` | `Agent Tool - Provision Cloud Simulation` | Creates a leased Alibaba Cloud Simulation Run |
@@ -187,8 +189,8 @@ See [`docs/agents/issue-agent.md`](../../docs/agents/issue-agent.md).
 
 ## Cloud Simulation
 
-Cloud creation and permission changes remain explicit Agent Tools. Cleanup and
-live-run patrol remain the only scheduled safety automations. Provider
+Cloud creation and permission changes remain explicit Agent Tools. The older
+Cloud Simulation's cleanup and live-run patrol remain its scheduled safety automations. Provider
 credentials, analysis credentials, and cleanup authority stay in their
 documented separate Environments.
 
@@ -217,7 +219,8 @@ permission, and has no Alibaba credential. See
 ## Cloud Deployment offline bundle
 
 `cloud-deployment-bundle.yml` runs before any Cloud Lease Quote or Acquire and
-has only repository read permission. It separates the trusted Workflow control
+has only repository read permission. Its `request_id` is correlation-only and
+does not change bundle content. It separates the trusted Workflow control
 SHA from an immutable product SHA reachable from `main`, builds both frontend
 bundles and all Linux AMD64 binaries on the runner, verifies checksum-pinned
 native dependencies, and publishes a content-addressed Ubuntu 24.04 payload.
@@ -229,16 +232,50 @@ bundle. See
 
 `cloud-deployment-activate.yml` has repository and Artifact read permission but
 no OIDC or provider credential. It authenticates both caller-selected Artifact
-runs as successful executions of the exact protected workflows at its own
-control SHA, builds trusted local validators before executing bundle code,
+runs as successful executions of the exact protected workflows on `main`,
+builds trusted local validators before executing bundle code,
 validates an active Lease Receipt, derives a WuKongIM Deployment Plan, transfers
 one verified bundle through the public load node to three private service
 nodes, activates native non-restarting infrastructure units while leaving the
 stage-specific coordinator dormant, and emits either a typed Deployment
 Receipt or bounded stable failure.
+The two upstream runs need not share the Deployment Action's head SHA: long
+bundle builds remain valid while `main` advances. The Lease provenance still
+binds the immutable source and bundle digest, and the sealed bundle control SHA
+must equal its authenticated producer run.
 Only the top-level orchestrator may decide to Release or acquire a fresh Lease.
 See
 [`docs/superpowers/runbooks/cloud-deployment-activate.md`](../../docs/superpowers/runbooks/cloud-deployment-activate.md).
+
+## Chat lifecycle full-scale rehearsal
+
+`chat-lifecycle-rehearsal.yml` is the paid top-level Agent Tool. Invoke it only
+after the user gives the exact paid-run authorization and required cloud
+identity/deployment credentials are configured. Its complete operator surface
+is exactly `source_sha`, fixed operator `tangtaoit`, one request-scoped Codex
+diagnostic Ed25519 public key, and `request_id`; infrastructure, budget,
+duration, workload, and retry values come only from the reviewed repository Run
+Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
+six-hour Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
+unit. The runner exits after the remote `run-start.json` proves 10,000 full
+syncs and acceptance of the first full 2,000 SEND/s grant.
+
+Only deployment/readiness failure may trigger the one fresh Lease retry. The
+orchestrator first releases the complete failed Lease to exact zero inventory,
+carries its quoted cost into the shared CNY 1,350 operational stop, and excludes
+that exact zone/compute-type pair. Runtime or correctness failure is never
+retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
+uploads a terminal report or bounded failure diagnostics, and only then invokes
+Release until `zero_inventory == true`; a cleanup Artifact is the terminal
+proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.
+The scenario-wide concurrency lock permits only one paid Chat Lifecycle
+orchestrator at a time, and startup also refuses procurement while any prior
+authenticated handoff or cleanup-pending Lease lacks its selector-bound zero
+proof. A handed-off Lease is released immediately if Artifact
+publication fails. Every immediate cleanup owner performs one complete
+provider-bounded Release pass; the finalizer retries on its next schedule, and
+the independent 15-minute Cloud Lease Sweep reconciles cleanup-pending or
+expired inventory even if an owning job is canceled.
 
 ## Workflow maintenance
 

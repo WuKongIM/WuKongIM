@@ -147,7 +147,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		!strings.Contains(caddyUnit, "ExecStartPre=/opt/wukongim/bin/caddy validate --config /etc/wukongim/Caddyfile --adapter caddyfile") {
 		t.Fatal("Caddy unit does not validate configuration or bind the public HTTP port")
 	}
-	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
+	for _, unit := range []string{"systemd/wukongim.service", "systemd/wkbench-host-metrics.service", "systemd/wkbench-worker@.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-rehearsal.service", "systemd/prometheus.service", "systemd/node-exporter.service", "systemd/wkanalysis.service", "systemd/caddy.service"} {
 		content := read(unit)
 		if !strings.Contains(content, "LimitNOFILE=1048576") || !strings.Contains(content, "TasksMax=infinity") {
 			t.Fatalf("%s omits native high-concurrency process limits: %s", unit, content)
@@ -324,10 +324,28 @@ func prepareTestPayload(t *testing.T) string {
 	if err := os.WriteFile(workloadPath, []byte(testFormalWorkload), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "config", "chat-lifecycle-rehearsal.yaml"), []byte(testRehearsalWorkload), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
-const testFormalWorkload = `profile: formal
+const testFormalWorkload = `run_id: replace-with-unique-formal-run-id
+profile: formal
+mode: soak
+stage: formal
+workload:
+  workers: 3
+  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+  sync: {version: 0}
+thresholds:
+  minimum_data_filesystem_bytes: 500000000000
+`
+
+const testRehearsalWorkload = `run_id: replace-with-unique-rehearsal-run-id
+profile: formal
+mode: soak
+stage: rehearsal
 workload:
   workers: 3
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}

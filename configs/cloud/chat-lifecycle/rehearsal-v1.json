@@ -1,0 +1,44 @@
+{
+  "schema": "wukongim.chat_lifecycle.run_plan_template/v1",
+  "stage": "rehearsal",
+  "provider": "alibaba",
+  "region": "cn-hangzhou",
+  "lease_duration_seconds": 21600,
+  "workload_duration_seconds": 7200,
+  "readiness_timeout_seconds": 3600,
+  "budget": {
+    "currency": "CNY",
+    "hard_limit_micros": 1500000000,
+    "operational_stop_micros": 1350000000
+  },
+  "network": {
+    "conservative_public_egress_bytes": 10737418241,
+    "peak_bandwidth_mbps": 20
+  },
+  "compute": {
+    "vcpus": 4,
+    "memory_bytes": 8589934592,
+    "architecture": "x86_64",
+    "billing_model": "postpaid",
+    "allow_burstable": false
+  },
+  "host_groups": [
+    {
+      "role": "service",
+      "count": 3,
+      "system_disk_bytes": 42949672960,
+      "data_disk_bytes": 536870912000,
+      "public_ipv4": false
+    },
+    {
+      "role": "load",
+      "count": 1,
+      "system_disk_bytes": 42949672960,
+      "data_disk_bytes": 214748364800,
+      "public_ipv4": true
+    }
+  ],
+  "retry": {
+    "deployment_retries": 1
+  }
+}

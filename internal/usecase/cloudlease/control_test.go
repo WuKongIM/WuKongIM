@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +46,102 @@ func TestControllerQuoteAdmitsPlanWithinRemainingBudgetWithoutMutation(t *testin
 	}
 	if provider.mutationCalls != 0 {
 		t.Fatalf("provider mutation calls = %d, want 0", provider.mutationCalls)
+	}
+}
+
+func TestControllerQuoteUsesOperationalStopBelowHardLimit(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := validPlan(now)
+	plan.Budget.OperationalStopMicros = 9_000_000
+	base := cloudlease.Quote{
+		LeaseID: plan.LeaseID, RequestID: plan.RequestID, Provider: plan.Provider,
+		Region: plan.Region, Zone: "test-zone-a", Currency: "CNY",
+		EstimatedCostMicros: 7_000_000, CapacityAvailable: true, QuotaAvailable: true,
+		QuotedAt: now, ValidUntil: now.Add(10 * time.Minute),
+	}
+	provider := &recordingProvider{quote: base}
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	if _, err := controller.Quote(context.Background(), plan); err != nil {
+		t.Fatalf("quote at operational stop error = %v", err)
+	}
+	provider.quote.EstimatedCostMicros++
+	if _, err := controller.Quote(context.Background(), plan); !errors.Is(err, cloudlease.ErrCostLimitExceeded) {
+		t.Fatalf("quote above operational stop error = %v", err)
+	}
+	for _, change := range []func(*cloudlease.Plan){
+		func(candidate *cloudlease.Plan) {
+			candidate.Budget.OperationalStopMicros = candidate.Budget.LimitMicros + 1
+		},
+		func(candidate *cloudlease.Plan) {
+			candidate.Budget.OperationalStopMicros = candidate.Budget.CommittedMicros
+		},
+	} {
+		candidate := plan
+		change(&candidate)
+		if err := cloudlease.ValidatePlan(candidate, now); !errors.Is(err, cloudlease.ErrInvalidPlan) {
+			t.Fatalf("invalid operational budget error = %v", err)
+		}
+	}
+}
+
+func TestControllerNormalizesPlacementExclusionsOnAClone(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := validPlan(now)
+	plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{
+		{Zone: " zone-b ", ComputeType: " type-2 "},
+		{Zone: "zone-a", ComputeType: "type-3"},
+	}
+	provider := &recordingProvider{quote: cloudlease.Quote{
+		LeaseID: plan.LeaseID, RequestID: plan.RequestID, Provider: plan.Provider,
+		Region: plan.Region, Zone: "test-zone-a", Currency: "CNY", EstimatedCostMicros: 7_000_000,
+		CapacityAvailable: true, QuotaAvailable: true, QuotedAt: now, ValidUntil: now.Add(10 * time.Minute),
+	}}
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	if _, err := controller.Quote(context.Background(), plan); err != nil {
+		t.Fatal(err)
+	}
+	want := []cloudlease.PlacementExclusion{
+		{Zone: "zone-a", ComputeType: "type-3"},
+		{Zone: "zone-b", ComputeType: "type-2"},
+	}
+	if len(provider.quotedPlan.Placement.ExcludedOffers) != len(want) ||
+		provider.quotedPlan.Placement.ExcludedOffers[0] != want[0] || provider.quotedPlan.Placement.ExcludedOffers[1] != want[1] {
+		t.Fatalf("normalized exclusions = %+v", provider.quotedPlan.Placement.ExcludedOffers)
+	}
+	if plan.Placement.ExcludedOffers[0].Zone != " zone-b " {
+		t.Fatalf("caller plan was mutated: %+v", plan.Placement.ExcludedOffers)
+	}
+	plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{
+		{Zone: "zone-a", ComputeType: "type-3"},
+		{Zone: " zone-a ", ComputeType: " type-3 "},
+	}
+	if err := cloudlease.ValidatePlan(plan, now); !errors.Is(err, cloudlease.ErrInvalidPlan) {
+		t.Fatalf("duplicate normalized exclusion error = %v", err)
+	}
+}
+
+func TestReleaseSelectorFromPlanQuoteSupportsAmbiguousAcquireCleanup(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	plan := validPlan(now)
+	provider := &recordingProvider{quote: cloudlease.Quote{
+		LeaseID: plan.LeaseID, RequestID: plan.RequestID, Provider: plan.Provider,
+		Region: plan.Region, Zone: "test-zone-a", Currency: "CNY", EstimatedCostMicros: 7_000_000,
+		CapacityAvailable: true, QuotaAvailable: true, QuotedAt: now, ValidUntil: now.Add(10 * time.Minute),
+	}}
+	quote, err := cloudlease.NewController(provider, func() time.Time { return now }).Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selector, err := cloudlease.ReleaseSelectorFromPlanQuote(plan, quote, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if selector.LeaseID != plan.LeaseID || selector.RequestID != plan.RequestID || selector.PlanDigest != quote.PlanDigest {
+		t.Fatalf("selector = %+v", selector)
+	}
+	quote.PlanDigest = "sha256:" + strings.Repeat("0", 64)
+	if _, err := cloudlease.ReleaseSelectorFromPlanQuote(plan, quote, now); !errors.Is(err, cloudlease.ErrInvalidQuote) {
+		t.Fatalf("tampered quote error = %v", err)
 	}
 }
 
@@ -650,6 +747,7 @@ func TestValidateReceiptSupportsProviderFreeConsumers(t *testing.T) {
 
 type recordingProvider struct {
 	quote         cloudlease.Quote
+	quotedPlan    cloudlease.Plan
 	quoteCalls    int
 	mutationCalls int
 	inspect       cloudlease.Receipt
@@ -667,8 +765,9 @@ type recordingProvider struct {
 
 func (*recordingProvider) Name() string { return "fake" }
 
-func (p *recordingProvider) Quote(_ context.Context, _ cloudlease.QuoteRequest) (cloudlease.Quote, error) {
+func (p *recordingProvider) Quote(_ context.Context, request cloudlease.QuoteRequest) (cloudlease.Quote, error) {
 	p.quoteCalls++
+	p.quotedPlan = request.Plan
 	return p.quote, nil
 }
 

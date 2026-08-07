@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -67,6 +68,56 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}
 	if meta.calls != 1 || dataset.calls != 3 {
 		t.Fatalf("meta/dataset calls = %d/%d, want 1/3", meta.calls, dataset.calls)
+	}
+}
+
+func TestProductionEvidenceControllerFreezesRehearsalPassWithoutFormalLongWindows(t *testing.T) {
+	cfg := RehearsalConfig()
+	cfg.RunID = "production-controller-rehearsal"
+	start := time.Unix(1_960_012_500, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-rehearsal", Generation: 5}
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: newProductionControllerObservation(cfg, start),
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset:        &productionControllerDataset{digest: hashReportValue("production-controller-rehearsal-dataset")},
+		SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	startCut := CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}
+	if err := controller.Begin(context.Background(), startCut); err != nil {
+		t.Fatal(err)
+	}
+	startBody, err := os.ReadFile(filepath.Join(controller.OutputDir(), "run-start.json"))
+	if err != nil || !strings.Contains(string(startBody), RunStartReceiptSchemaV1) ||
+		strings.Contains(string(startBody), cfg.RunID) || strings.Contains(string(startBody), fence.AssignmentID) {
+		t.Fatalf("bounded run-start receipt = %q/%v", startBody, err)
+	}
+	prepare := productionControllerWorkerSnapshots(cfg, fence, 1, 2*time.Hour, WorkerPhaseRunning)
+	decision, err := controller.Observe(context.Background(), CoordinatorEvidenceCut{
+		Start: startCut, Kind: CoordinatorCutTerminal, At: start.Add(2 * time.Hour), Snapshots: prepare,
+	})
+	if err != nil || decision != CoordinatorCompleted {
+		t.Fatalf("rehearsal terminal decision = %q/%v", decision, err)
+	}
+	final := productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Hour+time.Second, WorkerPhaseFinal)
+	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
+		Start: startCut, At: start.Add(2*time.Hour + time.Second), Decision: decision,
+		Prepare: prepare, FinalSnapshots: final,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := ReadReport(filepath.Join(controller.OutputDir(), "final.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict.Outcome != VerdictRehearsalPass || report.Verdict.Cause != VerdictCauseRehearsalCompleted ||
+		report.Stage != StageRehearsal || report.Window.FinalAt != start.Add(2*time.Hour) {
+		t.Fatalf("rehearsal final report = %+v", report)
 	}
 }
 

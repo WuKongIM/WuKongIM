@@ -16,6 +16,11 @@ on:
         description: Strict public bootstrap-access JSON with deployment and Codex Ed25519 keys
         required: true
         type: string
+      admitted_quote_json:
+        description: Exact admitted Quote consumed by paid Acquire; empty for Quote-only
+        required: false
+        default: ""
+        type: string
       quote_only:
         description: Stop after the non-mutating Quote
         required: true
@@ -47,6 +52,7 @@ jobs:
       REQUEST_ID: ${{ inputs.request_id }}
       PLAN_JSON: ${{ inputs.plan_json }}
       BOOTSTRAP_ACCESS_JSON: ${{ inputs.bootstrap_access_json }}
+      ADMITTED_QUOTE_JSON: ${{ inputs.admitted_quote_json }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -68,6 +74,17 @@ jobs:
             echo 'Paid Acquire requires paid_authorization=create-paid-cloud-lease.' >&2
             exit 1
           fi
+          if [[ "$QUOTE_ONLY" == true ]]; then
+            [[ -z "$ADMITTED_QUOTE_JSON" ]] || {
+              echo 'Quote-only must not receive an admitted Quote.' >&2
+              exit 1
+            }
+          else
+            [[ -n "$ADMITTED_QUOTE_JSON" ]] || {
+              echo 'Paid Acquire requires the exact admitted Quote.' >&2
+              exit 1
+            }
+          fi
           printf '%s\n' "$PLAN_JSON" >"$RUNNER_TEMP/plan.json"
           printf '%s\n' "$BOOTSTRAP_ACCESS_JSON" >"$RUNNER_TEMP/bootstrap-access.json"
           chmod 0600 "$RUNNER_TEMP/plan.json" "$RUNNER_TEMP/bootstrap-access.json"
@@ -79,6 +96,19 @@ jobs:
             echo 'Plan repository and request_id must match this workflow dispatch.' >&2
             exit 1
           }
+          if [[ "$QUOTE_ONLY" != true ]]; then
+            printf '%s\n' "$ADMITTED_QUOTE_JSON" >"$RUNNER_TEMP/quote.json"
+            chmod 0600 "$RUNNER_TEMP/quote.json"
+            jq -e --arg request_id "$REQUEST_ID" '
+              .schema == "wukongim.cloud_lease.quote/v1" and
+              .quote.request_id == $request_id and
+              (.quote.plan_digest | test("^[0-9a-f]{64}$")) and
+              .quote.capacity_available == true and .quote.quota_available == true
+            ' "$RUNNER_TEMP/quote.json" >/dev/null || {
+              echo 'Admitted Quote must be a matching usable Cloud Lease Quote.' >&2
+              exit 1
+            }
+          fi
       - name: Build trusted Cloud Lease tool
         shell: bash
         run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
@@ -90,6 +120,7 @@ jobs:
           audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
           role-session-name: wukongim-cloud-lease-provision-${{ github.run_id }}
       - name: Quote exact capacity and budget
+        if: inputs.quote_only == true
         shell: bash
         run: |
           set -euo pipefail

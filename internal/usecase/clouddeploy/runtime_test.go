@@ -33,6 +33,22 @@ observation:
 thresholds:
   minimum_data_filesystem_bytes: 500000000000
 `,
+		"chat-lifecycle-rehearsal.yaml": `run_id: replace-with-unique-rehearsal-run-id
+profile: formal
+stage: rehearsal
+workload:
+  workers: 3
+  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+  sync: {version: 0}
+observation:
+  service_nodes: [{address: "http://service-1.invalid"}, {address: "http://service-2.invalid"}, {address: "http://service-3.invalid"}]
+  workers: [{address: "http://worker-1.invalid"}, {address: "http://worker-2.invalid"}, {address: "http://worker-3.invalid"}]
+  host_metrics: [{address: "http://host-metrics-1.invalid"}, {address: "http://host-metrics-2.invalid"}, {address: "http://host-metrics-3.invalid"}]
+  api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
+  gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
+thresholds:
+  minimum_data_filesystem_bytes: 500000000000
+`,
 	}
 	node, err := clouddeploy.RenderHostFiles(plan, "service-1", templates)
 	if err != nil || len(node) != 1 {
@@ -44,7 +60,7 @@ thresholds:
 		t.Fatalf("node config = %s", nodeText)
 	}
 	load, err := clouddeploy.RenderHostFiles(plan, "load", templates)
-	if err != nil || len(load) != 4 {
+	if err != nil || len(load) != 5 {
 		t.Fatalf("RenderHostFiles(load) = %#v, %v", load, err)
 	}
 	joined := ""

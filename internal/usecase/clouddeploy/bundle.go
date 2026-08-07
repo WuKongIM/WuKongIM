@@ -248,12 +248,16 @@ func validateFiles(directory Directory, intent Intent, files []FileRecord) error
 	if err != nil || !validFormalWorkload(string(workload)) {
 		return fmt.Errorf("%w: formal chat-lifecycle config", ErrInvalidBundle)
 	}
+	rehearsal, err := directory.ReadFile("config/chat-lifecycle-rehearsal.yaml", maxJSONBytes)
+	if err != nil || !validRehearsalWorkload(string(workload), string(rehearsal)) {
+		return fmt.Errorf("%w: rehearsal chat-lifecycle config", ErrInvalidBundle)
+	}
 	return rejectContainerDependency(directory, intent, files)
 }
 
 func validFormalWorkload(content string) bool {
 	required := []string{
-		"profile: formal", "workers: 3", "logical_slot_groups: 12", "hash_slots: 256",
+		"profile: formal", "mode: soak", "stage: formal", "workers: 3", "logical_slot_groups: 12", "hash_slots: 256",
 		"slot_replicas: 3", "channel_replicas: 3", "version: 0",
 		"minimum_data_filesystem_bytes: 500000000000",
 	}
@@ -263,6 +267,18 @@ func validFormalWorkload(content string) bool {
 		}
 	}
 	return !strings.Contains(content, "minimum_data_filesystem_bytes: 1000000000000")
+}
+
+func validRehearsalWorkload(formal, rehearsal string) bool {
+	if !strings.Contains(rehearsal, "run_id: replace-with-unique-rehearsal-run-id") ||
+		!strings.Contains(rehearsal, "stage: rehearsal") {
+		return false
+	}
+	formal = strings.Replace(formal, "run_id: replace-with-unique-formal-run-id", "run_id: normalized", 1)
+	formal = strings.Replace(formal, "stage: formal", "stage: normalized", 1)
+	rehearsal = strings.Replace(rehearsal, "run_id: replace-with-unique-rehearsal-run-id", "run_id: normalized", 1)
+	rehearsal = strings.Replace(rehearsal, "stage: rehearsal", "stage: normalized", 1)
+	return formal == rehearsal
 }
 
 func validIntent(intent Intent) bool {
@@ -277,10 +293,10 @@ func validIntent(intent Intent) bool {
 
 func requiredFiles(intent Intent) []string {
 	paths := []string{intentName, "assets/demo/index.html", "assets/manager/index.html",
-		"config/Caddyfile.tmpl", "config/chat-lifecycle.yaml", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
+		"config/Caddyfile.tmpl", "config/chat-lifecycle.yaml", "config/chat-lifecycle-rehearsal.yaml", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
 		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
 		"systemd/caddy.service", "systemd/node-exporter.service", "systemd/prometheus.service",
-		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-worker@.service",
+		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-rehearsal.service", "systemd/wkbench-worker@.service",
 		"systemd/wkbench-host-metrics.service",
 		"systemd/wukongim-process-metrics.service", "systemd/wukongim-evidence.service",
 		"systemd/wukongim-evidence.timer", "systemd/wukongim.service"}

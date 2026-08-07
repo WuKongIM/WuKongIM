@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GH_TOKEN:?required}"
+: "${GITHUB_REPOSITORY:?required}"
+
+requested="${1-}"
+output="${2:?output required}"
+if [[ -n "$requested" ]]; then
+  [[ "$requested" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
+fi
+[[ ! -e "$output" ]]
+
+temporary="$(mktemp -d)"
+trap 'rm -r "$temporary"' EXIT
+: >"$temporary/artifacts-pages.json"
+for page in 1 2 3 4 5; do
+  page_file="$temporary/artifacts-page-${page}.json"
+  gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100&page=${page}" >"$page_file"
+  jq -c . "$page_file" >>"$temporary/artifacts-pages.json"
+  [[ "$(jq -r '.artifacts | length' "$page_file")" == 100 ]] || break
+done
+jq -s '[.[].artifacts[] | select(.expired == false)]' \
+  "$temporary/artifacts-pages.json" >"$temporary/artifacts.json"
+jq -c --arg prefix 'chat-lifecycle-rehearsal-handoff-' --arg requested "$requested" \
+  -f scripts/chat-lifecycle/select-finalization-matrix.jq \
+  "$temporary/artifacts.json" >"$temporary/candidate-matrix.json"
+
+: >"$temporary/active-rows.jsonl"
+while IFS= read -r row; do
+  request_id="$(jq -er .request_id <<<"$row")"
+  handoff_run_id="$(jq -er .handoff_run_id <<<"$row")"
+  cleanup_run_id="$(jq -er .cleanup_run_id <<<"$row")"
+  handoff_status=0
+  scripts/chat-lifecycle/authenticate-handoff-producer.sh \
+    "$handoff_run_id" "$temporary/handoff-auth/$request_id.json" || handoff_status=$?
+  case "$handoff_status" in
+    0) ;;
+    1) continue ;;
+    *) echo 'handoff producer authentication could not reach its authority' >&2; exit "$handoff_status" ;;
+  esac
+  if [[ "$cleanup_run_id" != 0 ]] && \
+    scripts/chat-lifecycle/authenticate-cleanup-artifact.sh \
+      "$request_id" "$cleanup_run_id" "$handoff_run_id" "$temporary/cleanup-auth/$request_id"; then
+    continue
+  fi
+  printf '%s\n' "$row" >>"$temporary/active-rows.jsonl"
+done < <(jq -c '.include[]' "$temporary/candidate-matrix.json")
+
+jq -sc '{include:.[0:20]}' "$temporary/active-rows.jsonl" >"$temporary/matrix.json"
+install -m 0600 "$temporary/matrix.json" "$output"

@@ -44,10 +44,14 @@ otherwise idempotent-looking write after a stale reused connection.
 The native Caddy unit validates the fully rendered configuration before every
 start, so malformed route or matcher syntax fails activation instead of serving
 a partial public surface.
-The load host carries the non-restarting coordinator unit and its bounded
-dependency gate, but Deployment deliberately leaves it dormant. Workload
+The load host carries separate non-restarting formal and rehearsal coordinator
+units plus their bounded dependency gate. The sealed formal and rehearsal YAML
+must be byte-equivalent after normalizing only `run_id` and `stage`; both retain
+the exact 10,000-online/250,000-new-user/2,000-SEND/s workload and thresholds.
+Deployment deliberately leaves both coordinator units dormant. Workload
 orchestration consumes the successful Deployment Receipt and alone authorizes
-the exact rehearsal, formal, or capacity-stage coordinator start.
+the exact stage-specific coordinator start. Remote systemd, rather than a
+GitHub runner, owns the measured execution and its report files.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The

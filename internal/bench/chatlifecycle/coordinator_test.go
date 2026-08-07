@@ -685,6 +685,76 @@ func TestCoordinatorRunHooksCaptureContinuousQualificationAndFinalCuts(t *testin
 	}
 }
 
+func TestCoordinatorRehearsalMeasuresExactlyTwoHoursAfterTrafficBarrier(t *testing.T) {
+	cfg := RehearsalConfig()
+	cfg.RunID = "coordinator-rehearsal-duration"
+	clock := newManualCoordinatorClock(time.Unix(1_700_050_000, 0))
+	observerStarted := make(chan struct{})
+	grantCalls := make(chan uint64, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &recordingCoordinatorWorker{
+			id: uint64(workerID), log: &[]string{}, grantCalled: grantCalls,
+		}
+	}
+	hooks := newRecordingCoordinatorRunHooks()
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 95,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock, Hooks: hooks,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := make(chan CoordinatorResult, 1)
+	go func() { results <- coordinator.Run(context.Background(), cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
+	}
+	start := <-hooks.started
+	for workerIndex := 0; workerIndex < coordinatorWorkerCount; workerIndex++ {
+		if sequence := <-grantCalls; sequence != 1 {
+			t.Fatalf("initial grant sequence = %d, want 1", sequence)
+		}
+	}
+	for second := 1; second < int(rehearsalDuration/time.Second); second++ {
+		at := start.StartedAt.Add(time.Duration(second) * time.Second)
+		clock.setNowAndQueue(at, map[time.Duration]time.Time{coordinatorGrantCadence: at})
+		for workerIndex := 0; workerIndex < coordinatorWorkerCount; workerIndex++ {
+			if sequence := <-grantCalls; sequence != uint64(second+1) {
+				t.Fatalf("grant at second %d sequence = %d", second, sequence)
+			}
+		}
+	}
+	beforeDeadline := start.StartedAt.Add(rehearsalDuration - time.Nanosecond)
+	clock.setNowAndQueue(beforeDeadline, nil)
+	select {
+	case result := <-results:
+		t.Fatalf("rehearsal ended before two hours: %+v", result)
+	default:
+	}
+	deadline := start.StartedAt.Add(rehearsalDuration)
+	clock.setNowAndQueue(deadline, map[time.Duration]time.Time{cfg.Observation.Cadence: deadline})
+	result := <-results
+	if result.Outcome != CoordinatorCompleted || result.Code != CoordinatorCodeCompleted {
+		t.Fatalf("two-hour rehearsal result = %+v", result)
+	}
+	final := <-hooks.finalized
+	if final.Start.StartedAt != start.StartedAt || final.Decision != CoordinatorCompleted {
+		t.Fatalf("two-hour final cut = %+v", final)
+	}
+}
+
 func TestCoordinatorStopRequestProducesTerminalCutAndBoundedFinalization(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-hook-stop"

@@ -1,7 +1,9 @@
-name: Agent Tool - Release Cloud Lease
-run-name: Cloud Lease Release ${{ inputs.request_id }}
+name: Safety Automation - Release Cloud Leases
+run-name: Cloud Lease Release ${{ inputs.request_id || format('scheduled-sweep-{0}', github.run_id) }}
 
 on:
+  schedule:
+    - cron: "3,18,33,48 * * * *"
   workflow_dispatch:
     inputs:
       request_id:
@@ -41,10 +43,10 @@ jobs:
     environment: cloud-lease-release
     env:
       GOWORK: "off"
-      REQUEST_ID: ${{ inputs.request_id }}
-      OPERATION: ${{ inputs.operation }}
+      REQUEST_ID: ${{ github.event_name == 'schedule' && format('scheduled-sweep-{0}', github.run_id) || inputs.request_id }}
+      OPERATION: ${{ github.event_name == 'schedule' && 'sweep' || inputs.operation }}
       SELECTOR_JSON: ${{ inputs.selector_json }}
-      RELEASE_AUTHORIZATION: ${{ inputs.release_authorization }}
+      RELEASE_AUTHORIZATION: ${{ github.event_name == 'schedule' && 'release-tagged-cloud-lease' || inputs.release_authorization }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -105,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cloud-lease-release-${{ inputs.request_id }}
+          name: cloud-lease-release-${{ env.REQUEST_ID }}
           path: ${{ runner.temp }}/release.json
           if-no-files-found: warn
           retention-days: 7

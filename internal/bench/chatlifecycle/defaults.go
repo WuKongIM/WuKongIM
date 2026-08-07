@@ -17,6 +17,7 @@ const (
 	formalVeryLargeMembers   = 100_000
 	capacityStepDuration     = 30 * time.Minute
 	formalCheckpointDuration = 72 * time.Hour
+	rehearsalDuration        = 2 * time.Hour
 )
 
 // DefaultConfig returns the validated formal configuration for lifecycle planning.
@@ -31,6 +32,7 @@ func LocalConfig() Config {
 	cfg := FormalConfig()
 	cfg.RunID = "local-chat-lifecycle"
 	cfg.Profile = ProfileLocal
+	cfg.Stage = StageShakeout
 	cfg.Workload.Workers = formalWorkers
 	cfg.Workload.OnlineUsers = 100
 	cfg.Workload.NewUsersPerDay = 1_000
@@ -68,6 +70,7 @@ func FormalConfig() Config {
 		Seed:    1,
 		Profile: ProfileFormal,
 		Mode:    ModeSoak,
+		Stage:   StageFormal,
 		Workload: WorkloadConfig{
 			Workers:            formalWorkers,
 			OnlineUsers:        10_000,
@@ -125,4 +128,20 @@ func FormalConfig() Config {
 		},
 		Capacity: CapacityConfig{StartRatePerSecond: 2_000, RecoveryRatePerSecond: 2_000, StepPercent: 25, RefinePercent: 10, Step: CapacityStep{Stabilize: 10 * time.Minute, Measure: 20 * time.Minute}, RecoveryDuration: 30 * time.Minute},
 	}
+}
+
+// RehearsalConfig returns the full formal workload with the distinct bounded
+// rehearsal evidence claim. Workload and threshold values remain unchanged.
+func RehearsalConfig() Config {
+	cfg := FormalConfig()
+	cfg.RunID = "rehearsal-chat-lifecycle"
+	cfg.Stage = StageRehearsal
+	return cfg
+}
+
+func (c Config) measuredDuration() time.Duration {
+	if c.Stage == StageRehearsal {
+		return rehearsalDuration
+	}
+	return c.Thresholds.Timeline.Final
 }

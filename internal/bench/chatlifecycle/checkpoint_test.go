@@ -235,6 +235,40 @@ func TestCheckpointCapacityPassCanCloseBeforeSoakTimelineFinal(t *testing.T) {
 	}
 }
 
+func TestCheckpointRehearsalPassIsDistinctAndEndsAtTwoHours(t *testing.T) {
+	cfg := RehearsalConfig()
+	cfg.RunID = "checkpoint-rehearsal-final"
+	start := time.Unix(1_800_375_000, 0)
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "rehearsal-assignment", Generation: 4}
+	recorder, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence := checkpointEvidenceFixture(false)
+	evidence.Verdict = VerdictSnapshot{Terminal: true, Outcome: VerdictRehearsalPass, Cause: VerdictCauseRehearsalCompleted}
+	snapshots := coordinatorSnapshotFixture(fence, 1, 2*time.Hour, 10)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseFinal
+	}
+	report, err := captureCheckpoint(t, recorder, start.Add(2*time.Hour), snapshots, evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Stage != StageRehearsal || report.Verdict.Outcome != VerdictRehearsalPass ||
+		report.Window.FinalAt != start.Add(2*time.Hour) || report.Window.Elapsed != 2*time.Hour ||
+		len(report.Warnings) != 2 || report.Warnings[1] != ReportWarningRehearsalLongWindowsIncomplete {
+		t.Fatalf("rehearsal report = %+v", report)
+	}
+
+	early, err := NewCheckpointRecorder(cfg, fence, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := captureCheckpoint(t, early, start.Add(2*time.Hour-time.Nanosecond), snapshots, evidence); !errors.Is(err, ErrCheckpointSequence) {
+		t.Fatalf("early rehearsal pass error = %v, want %v", err, ErrCheckpointSequence)
+	}
+}
+
 func TestCheckpointTerminalAfterQualificationFinalizesImmediately(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "checkpoint-immediate-terminal"

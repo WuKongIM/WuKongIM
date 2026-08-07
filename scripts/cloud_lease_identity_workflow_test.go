@@ -154,10 +154,13 @@ func TestCloudLeaseLifecycleToolsUseOnlyTheirExactOIDCRoles(t *testing.T) {
 			!strings.Contains(contract.text, "permissions:\n  contents: read\n  id-token: write") {
 			t.Fatalf("%s workflow does not use its exact OIDC boundary", name)
 		}
-		for _, forbidden := range []string{"ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_ACCESS_KEY_SECRET", "schedule:", "pull_request:", "push:"} {
+		for _, forbidden := range []string{"ALIBABA_CLOUD_ACCESS_KEY_ID", "ALIBABA_CLOUD_ACCESS_KEY_SECRET", "pull_request:", "push:"} {
 			if strings.Contains(contract.text, forbidden) {
 				t.Fatalf("%s workflow unexpectedly contains %q", name, forbidden)
 			}
+		}
+		if name != "release" && strings.Contains(contract.text, "schedule:") {
+			t.Fatalf("%s workflow unexpectedly contains a schedule", name)
 		}
 	}
 	if !strings.Contains(provision, "paid_authorization=create-paid-cloud-lease") ||
@@ -172,6 +175,7 @@ func TestCloudLeaseLifecycleToolsUseOnlyTheirExactOIDCRoles(t *testing.T) {
 	}
 	if !strings.Contains(release, "release_authorization=release-tagged-cloud-lease") ||
 		!strings.Contains(release, "if: always()") || strings.Contains(release, "inputs.repository") ||
+		!strings.Contains(release, `cron: "3,18,33,48 * * * *"`) ||
 		!strings.Contains(release, `--repository "$GITHUB_REPOSITORY"`) || !strings.Contains(release, `.selector.repository == $repository`) {
 		t.Fatal("release workflow lacks exact authority or residual evidence upload")
 	}

@@ -14,7 +14,7 @@ import (
 
 const (
 	// ReportSchemaVersion identifies the persisted JSON and Markdown contract.
-	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v2"
+	ReportSchemaVersion = "wukongim/chat-lifecycle-report/v3"
 	// ReportThresholdVersion binds reports to the reviewed exact threshold semantics.
 	ReportThresholdVersion = "wukongim/chat-lifecycle-thresholds/v1"
 	// ReportDesignProfile identifies the approved lifecycle-soak design baseline.
@@ -43,9 +43,10 @@ const (
 type ReportWarningCode string
 
 const (
-	ReportWarningShortLatencyBreach ReportWarningCode = "short_latency_breach"
-	ReportWarningLongLatencyAnomaly ReportWarningCode = "long_latency_anomaly"
-	ReportWarningCapacityNotRun     ReportWarningCode = "capacity_not_run"
+	ReportWarningShortLatencyBreach             ReportWarningCode = "short_latency_breach"
+	ReportWarningLongLatencyAnomaly             ReportWarningCode = "long_latency_anomaly"
+	ReportWarningCapacityNotRun                 ReportWarningCode = "capacity_not_run"
+	ReportWarningRehearsalLongWindowsIncomplete ReportWarningCode = "rehearsal_long_windows_incomplete"
 )
 
 // ReportSampleClass is the closed source vocabulary for stable hashed samples.
@@ -202,6 +203,7 @@ type Report struct {
 	Thresholds             ThresholdsConfig                `json:"thresholds"`
 	Profile                Profile                         `json:"profile"`
 	Mode                   Mode                            `json:"mode"`
+	Stage                  Stage                           `json:"stage"`
 	Kind                   CheckpointKind                  `json:"kind"`
 	Final                  bool                            `json:"final"`
 	Continue               bool                            `json:"continue"`
@@ -250,6 +252,7 @@ func MarshalReport(report Report, format ReportFormat) ([]byte, error) {
 		fmt.Fprintf(&body, "- threshold_version: `%s`\n", report.ThresholdVersion)
 		fmt.Fprintf(&body, "- design_profile: `%s`\n", report.DesignProfile)
 		fmt.Fprintf(&body, "- profile: `%s`\n", report.Profile)
+		fmt.Fprintf(&body, "- stage: `%s`\n", report.Stage)
 		fmt.Fprintf(&body, "- kind: `%s`\n", report.Kind)
 		fmt.Fprintf(&body, "- verdict: `%s`\n", report.Verdict.Outcome)
 		body.WriteString("\n## Redacted structured evidence\n\n")
@@ -310,6 +313,7 @@ func validateReport(report Report) error {
 		validateThresholds(report.Thresholds) != nil ||
 		(report.Profile != ProfileFormal && report.Profile != ProfileLocal) ||
 		(report.Mode != ModeSoak && report.Mode != ModeCapacity) ||
+		!validReportStage(report) ||
 		(report.Kind != CheckpointQualification && report.Kind != CheckpointFinal) ||
 		!validReportHash(report.Fence.RunHash) || !validReportHash(report.Fence.AssignmentHash) ||
 		report.Fence.Generation == 0 || report.Window.Start.IsZero() || report.Window.End.Before(report.Window.Start) ||
@@ -317,7 +321,7 @@ func validateReport(report Report) error {
 		report.MinimumWorkerUptime < report.Window.Elapsed ||
 		!report.Window.WarmupEnd.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Warmup)) ||
 		!report.Window.QualificationAt.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Checkpoint)) ||
-		!report.Window.FinalAt.Equal(report.Window.Start.Add(report.Thresholds.Timeline.Final)) || !report.Topology.Validated ||
+		!report.Window.FinalAt.Equal(report.Window.Start.Add(reportMeasuredDuration(report))) || !report.Topology.Validated ||
 		report.Topology.LogicalSlotGroups <= 0 || report.Topology.HashSlots <= 0 ||
 		report.Topology.SlotReplicas <= 0 || report.Topology.ChannelReplicas <= 0 ||
 		len(report.Workers) != coordinatorWorkerCount || len(report.Warnings) > maxReportWarnings ||
@@ -455,9 +459,16 @@ func validReportVerdict(report Report) bool {
 	if !report.Final || report.Continue || !validVerdictOutcome(report.Verdict.Outcome) || !validVerdictCause(report.Verdict.Cause) {
 		return false
 	}
-	if (report.Verdict.Outcome == VerdictPass) != (report.Verdict.Cause == VerdictCauseCompleted) ||
-		(report.Verdict.Outcome == VerdictPass && (report.Kind != CheckpointFinal ||
-			(report.Mode == ModeSoak && report.Window.End.Before(report.Window.FinalAt)))) {
+	if report.Verdict.Outcome == VerdictPass || report.Verdict.Outcome == VerdictRehearsalPass ||
+		report.Verdict.Cause == VerdictCauseCompleted || report.Verdict.Cause == VerdictCauseRehearsalCompleted {
+		if !validSuccessfulVerdictPair(report.Verdict.Outcome, report.Verdict.Cause) || report.Kind != CheckpointFinal ||
+			(report.Mode == ModeSoak && report.Window.End.Before(report.Window.FinalAt)) ||
+			(report.Verdict.Outcome == VerdictPass && report.Stage != StageFormal) ||
+			(report.Verdict.Outcome == VerdictRehearsalPass && report.Stage != StageRehearsal) {
+			return false
+		}
+	}
+	if report.Stage == StageRehearsal && report.Verdict.Outcome == VerdictPass {
 		return false
 	}
 	return true
@@ -499,13 +510,13 @@ func validReportRetention(retention ReportWindowRetention) bool {
 }
 
 func validVerdictOutcome(outcome VerdictOutcome) bool {
-	return outcome == VerdictPass || outcome == VerdictProductFailure || outcome == VerdictHarnessInvalid ||
+	return outcome == VerdictPass || outcome == VerdictRehearsalPass || outcome == VerdictProductFailure || outcome == VerdictHarnessInvalid ||
 		outcome == VerdictInfrastructureFailure || outcome == VerdictOperatorStop
 }
 
 func validVerdictCause(cause VerdictCause) bool {
 	switch cause {
-	case VerdictCauseCompleted, VerdictCauseMessageLoss, VerdictCauseMessageDuplicate, VerdictCauseMessageCorruption,
+	case VerdictCauseCompleted, VerdictCauseRehearsalCompleted, VerdictCauseMessageLoss, VerdictCauseMessageDuplicate, VerdictCauseMessageCorruption,
 		VerdictCauseSequenceRegression, VerdictCauseTerminalSend, VerdictCauseActivationRejection,
 		VerdictCauseOverallFirstAttemptRate, VerdictCauseMinuteFirstAttemptRate, VerdictCauseCounterRegression,
 		VerdictCauseQueueSaturation, VerdictCauseObserverGap, VerdictCauseServerCrash, VerdictCauseDiskExhausted,
@@ -521,7 +532,28 @@ func validVerdictCause(cause VerdictCause) bool {
 }
 
 func validReportWarning(warning ReportWarningCode) bool {
-	return warning == ReportWarningShortLatencyBreach || warning == ReportWarningLongLatencyAnomaly || warning == ReportWarningCapacityNotRun
+	return warning == ReportWarningShortLatencyBreach || warning == ReportWarningLongLatencyAnomaly ||
+		warning == ReportWarningCapacityNotRun || warning == ReportWarningRehearsalLongWindowsIncomplete
+}
+
+func validReportStage(report Report) bool {
+	switch report.Stage {
+	case StageFormal:
+		return report.Profile == ProfileFormal
+	case StageRehearsal:
+		return report.Profile == ProfileFormal && report.Mode == ModeSoak
+	case StageShakeout:
+		return report.Profile == ProfileLocal && report.Mode == ModeSoak
+	default:
+		return false
+	}
+}
+
+func reportMeasuredDuration(report Report) time.Duration {
+	if report.Stage == StageRehearsal {
+		return rehearsalDuration
+	}
+	return report.Thresholds.Timeline.Final
 }
 
 func validReportSampleClass(class ReportSampleClass) bool {

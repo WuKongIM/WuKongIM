@@ -279,6 +279,9 @@ func validateLifecycleAdmission(request cloudlease.AcquireRequest, shape provide
 		bootstrapErr != nil || request.BaseTags[cloudlease.TagBootstrapAccessDigest] != bootstrapDigest {
 		return cloudlease.ErrInvalidQuote
 	}
+	if excludedOffer(request.Plan.Placement.ExcludedOffers, request.Quote.Zone, selection["instance_type"]) {
+		return cloudlease.ErrInvalidQuote
+	}
 	for _, grant := range request.Plan.Network.InitialAccess {
 		if grant.TargetRole != shape.publicRole || !grant.SourcePrefix.Addr().Is4() {
 			return ErrUnsupportedPlan

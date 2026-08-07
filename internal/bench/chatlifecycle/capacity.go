@@ -213,10 +213,10 @@ type CapacityStaircase struct {
 
 func validateCapacityCheckpoint(cfg Config, admission CapacityAdmission) error {
 	checkpoint := admission.Checkpoint
-	if cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Validate() != nil ||
+	if cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Stage != StageFormal || cfg.Validate() != nil ||
 		admission.Reference != cfg.Capacity.AgedCheckpoint.Reference ||
 		!validReportHash(checkpoint.DatasetDigest) || validateReport(checkpoint) != nil ||
-		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak ||
+		checkpoint.Profile != ProfileFormal || checkpoint.Mode != ModeSoak || checkpoint.Stage != StageFormal ||
 		checkpoint.Kind != CheckpointFinal || !checkpoint.Final || checkpoint.Continue ||
 		!checkpoint.Verdict.Terminal || checkpoint.Verdict.Outcome != VerdictPass || checkpoint.Verdict.Cause != VerdictCauseCompleted ||
 		checkpoint.Window.Elapsed < formalCheckpointDuration || checkpoint.Capacity.Attempted ||
@@ -255,7 +255,7 @@ func validateCapacityLiveDataset(
 // newCapacityStaircase starts only from a token produced by the coordinator's
 // current all-node aged-dataset probe.
 func newCapacityStaircase(cfg Config, _ capacityAdmissionToken, start time.Time) (*CapacityStaircase, error) {
-	if start.IsZero() || cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Validate() != nil {
+	if start.IsZero() || cfg.Profile != ProfileFormal || cfg.Mode != ModeCapacity || cfg.Stage != StageFormal || cfg.Validate() != nil {
 		return nil, ErrCapacityConfig
 	}
 	rate := uint64(cfg.Capacity.StartRatePerSecond)

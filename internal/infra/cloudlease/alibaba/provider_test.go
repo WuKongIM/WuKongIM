@@ -110,6 +110,29 @@ func TestProviderQuoteFiltersIneligibleTypesAndUsesOneTypeForAllHosts(t *testing
 	}
 }
 
+func TestProviderQuoteExcludesOnlyTheExactPriorPlacementPair(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	api := completeReadAPI()
+	provider := New(api, Options{Now: func() time.Time { return now }})
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+	plan := approvedPlan(now)
+	first, err := controller.Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.LeaseID = "lease-quote-retry"
+	plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{{
+		Zone: first.Zone, ComputeType: first.Selection["instance_type"],
+	}}
+	retry, err := controller.Quote(context.Background(), plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retry.Zone == first.Zone && retry.Selection["instance_type"] == first.Selection["instance_type"] {
+		t.Fatalf("retry reused excluded offer: first=%s/%s retry=%s/%s", first.Zone, first.Selection["instance_type"], retry.Zone, retry.Selection["instance_type"])
+	}
+}
+
 func TestProviderQuoteFailsClosedOnMissingAdmissionInput(t *testing.T) {
 	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
 	tests := []struct {

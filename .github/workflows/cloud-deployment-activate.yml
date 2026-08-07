@@ -77,8 +77,6 @@ jobs:
           done
           lease_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh lease-run.json .github/workflows/cloud-lease-provision.yml)"
           bundle_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml)"
-          test "$lease_head_sha" = "$GITHUB_SHA"
-          test "$bundle_head_sha" = "$GITHUB_SHA"
           echo "lease_head_sha=$lease_head_sha" >>"$GITHUB_OUTPUT"
           echo "bundle_head_sha=$bundle_head_sha" >>"$GITHUB_OUTPUT"
           scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \

@@ -20,8 +20,6 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"CLOUD_DEPLOYMENT_SSH_PRIVATE_KEY",
 		"validate-upstream-run.sh lease-run.json .github/workflows/cloud-lease-provision.yml",
 		"validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml",
-		`test "$lease_head_sha" = "$GITHUB_SHA"`,
-		`test "$bundle_head_sha" = "$GITHUB_SHA"`,
 		"trusted-deployment-tools/wkcloudbundle",
 		`test "$(jq -er .control_sha bundle-manifest.json)" = "$BUNDLE_WORKFLOW_HEAD_SHA"`,
 		"trusted-deployment-tools/wkcloudgate\" deployment-plan",
@@ -42,6 +40,7 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 	for _, forbidden := range []string{
 		"id-token: write", "ALIBABA_CLOUD", "wkcloudlease", " quote ", " acquire ", " release ",
 		"create-and-delete-paid-cloud-lease", "docker", "containerd", "podman", "schedule:", "push:", "pull_request:",
+		`test "$lease_head_sha" = "$GITHUB_SHA"`, `test "$bundle_head_sha" = "$GITHUB_SHA"`,
 	} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("activation workflow unexpectedly contains %q", forbidden)

@@ -157,7 +157,7 @@ done
 `,
 		"scripts/wait-coordinator-dependencies.sh": `#!/usr/bin/env bash
 set -euo pipefail
-config=/etc/wukongim/chat-lifecycle.yaml
+config="${WK_CHAT_LIFECYCLE_CONFIG:-/etc/wukongim/chat-lifecycle.yaml}"
 mapfile -t services < <(sed -n '/^  service_nodes:/,/^  workers:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
 mapfile -t host_metrics < <(sed -n '/^  host_metrics:/,/^  api_addrs:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
 ((${#services[@]} == 3 && ${#host_metrics[@]} == 3))
@@ -203,6 +203,7 @@ units=(
   wkbench-worker@2.service
   wkbench-worker@3.service
   wkbench-coordinator.service
+  wkbench-rehearsal.service
   prometheus.service
   caddy.service
   wkanalysis.service
@@ -273,6 +274,7 @@ done
 		"systemd/wkbench-host-metrics.service": serviceUnit("", "/opt/wukongim/bin/wkbench host-metrics --listen 0.0.0.0:19101 --path /var/lib/wukongim-cloud --mountpoint /var/lib/wukongim-cloud --device /dev/wukongim-data"),
 		"systemd/wkbench-worker@.service":      serviceUnit("load.env", "/opt/wukongim/bin/wkbench worker --mode chat-lifecycle --listen 127.0.0.1:1909%i --work-dir /var/lib/wukongim-cloud/workers/%i"),
 		"systemd/wkbench-coordinator.service":  coordinatorServiceUnit(),
+		"systemd/wkbench-rehearsal.service":    rehearsalServiceUnit(),
 		"systemd/prometheus.service":           serviceUnit("load.env", "/opt/wukongim/bin/prometheus --config.file=/etc/wukongim/prometheus.yml --storage.tsdb.path=/var/lib/wukongim-cloud/prometheus --storage.tsdb.retention.time=96h --storage.tsdb.retention.size=150GB"),
 		"systemd/node-exporter.service":        serviceUnit("", "/opt/wukongim/bin/node_exporter --web.listen-address=0.0.0.0:9100 --collector.textfile.directory=/var/lib/wukongim/textfile"),
 		"systemd/wkanalysis.service":           analysisServiceUnit(),
@@ -379,6 +381,33 @@ Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
 ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports
+TimeoutStartSec=960
+Restart=no
+LimitNOFILE=1048576
+TasksMax=infinity
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+`
+}
+
+func rehearsalServiceUnit() string {
+	return `[Unit]
+After=network-online.target time-sync.target wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+Wants=network-online.target time-sync.target
+Requisite=wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service
+Conflicts=wkbench-coordinator.service
+
+[Service]
+Type=simple
+User=wukongim
+Group=wukongim
+EnvironmentFile=/etc/wukongim/secrets/load.env
+Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle-rehearsal.yaml
+ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
+ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle-rehearsal.yaml --output-dir /var/lib/wukongim-cloud/reports/rehearsal
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576

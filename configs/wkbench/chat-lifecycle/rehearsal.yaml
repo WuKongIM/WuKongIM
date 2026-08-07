@@ -1,0 +1,104 @@
+run_id: replace-with-unique-rehearsal-run-id
+seed: 1
+profile: formal
+mode: soak
+stage: rehearsal
+workload:
+  workers: 3
+  online_users: 10000
+  new_users_per_day: 250000
+  send_rate_per_second: 2000
+  traffic: {person_percent: 90, group_percent: 10}
+  hot_set: {person_channels: 8000, group_channels: 2000}
+  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
+  runtime_sampling: {every: 10m, size: 1200}
+  sync: {version: 0, limit: 500, message_count: 20}
+  burst_credit: 2s
+  max_global_burst: 4000
+  max_channels_per_node: 50000
+  login: {new_percent: 80, returning_percent: 20}
+  sessions:
+    - {percent: 25, min: 5m, max: 15m}
+    - {percent: 50, min: 15m, max: 45m}
+    - {percent: 20, min: 45m, max: 2h}
+    - {percent: 5, min: 2h, max: 6h}
+  lifecycle:
+    one_shot: {percent: 60, active_duration: {min: 0s, max: 0s}}
+    revisit: {percent: 25, active_duration: {min: 0s, max: 0s}}
+    rotating: {percent: 10, active_duration: {min: 20m, max: 40m}}
+    long: {percent: 5, active_duration: {min: 2h, max: 4h}}
+  payloads:
+    - {percent: 70, bytes: 256}
+    - {percent: 25, bytes: 1024}
+    - {percent: 4, bytes: 4096}
+    - {percent: 1, bytes: 16384}
+  person_direction: {alternating_percent: 70, one_way_percent: 30}
+  relationship:
+    initial_messages: {min: 2, max: 8}
+    initial_message_window: {min: 5s, max: 30s}
+    returning_messages: {min: 2, max: 5}
+    returning_last_24h_percent: 80
+    returning_older_percent: 20
+  retry: {max_count: 3, delays: [100ms, 500ms, 2s]}
+  groups:
+    small: 1600
+    medium: 300
+    large: 99
+    very_large: 1
+    very_large_members: 100000
+    fixed_membership: true
+    very_large_send_every: 1m
+observation:
+  service_nodes:
+    - {name: service-1, address: "http://service-1.invalid"}
+    - {name: service-2, address: "http://service-2.invalid"}
+    - {name: service-3, address: "http://service-3.invalid"}
+  workers:
+    - {name: worker-1, address: "http://worker-1.invalid"}
+    - {name: worker-2, address: "http://worker-2.invalid"}
+    - {name: worker-3, address: "http://worker-3.invalid"}
+  host_metrics:
+    - {name: host-metrics-1, address: "http://host-metrics-1.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+    - {name: host-metrics-2, address: "http://host-metrics-2.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+    - {name: host-metrics-3, address: "http://host-metrics-3.invalid", mountpoint: /var/lib/wukongim-cloud, device: /dev/wukongim-data}
+  api_addrs: ["http://api-1.invalid", "http://api-2.invalid", "http://api-3.invalid"]
+  gateway_tcp_addrs: ["gateway-1.invalid:5100", "gateway-2.invalid:5100", "gateway-3.invalid:5100"]
+  cadence: 5s
+thresholds:
+  minimum_data_filesystem_bytes: 500000000000
+  disk_safe_stop_free_percent: 5
+  correctness:
+    terminal_sends: 0
+    activation_rejections: 0
+    losses: 0
+    duplicates: 0
+    corruptions: 0
+    sequence_regressions: 0
+    overall_first_attempt_failure: {max_failures: 1, per_attempts: 10000, operator: "<"}
+    any_minute_first_attempt_failure: {max_failures: 1, per_attempts: 1000, operator: "<="}
+  latency:
+    hot_sendack: {p99: 200ms, p999: 1s}
+    cold: {p99: 2s, p999: 5s}
+    sync: {p99: 1s, p999: 3s}
+    single_anomaly: 10s
+    sustained_breach_window: 5m
+  resource:
+    forced_gc_live_heap_growth_percent: 5
+    forced_gc_live_heap_window: 6h
+    goroutine_growth_percent: 5
+    goroutine_growth_window: 24h
+  cluster:
+    health_poll_every: 5s
+    unhealthy_fail_after: 30s
+    max_hot_replica_lag_entries: 0
+    leader_imbalance_percent: 20
+    leader_imbalance_for: 10m
+  timeline: {warmup: 2h, checkpoint: 24h, final: 72h}
+capacity:
+  aged_checkpoint: {reference: "", completed: false, passed: false, duration: 0s}
+  start_rate_per_second: 2000
+  recovery_rate_per_second: 2000
+  step_percent: 25
+  refine_percent: 10
+  step: {stabilize: 10m, measure: 20m}
+  recovery_duration: 30m

@@ -12,8 +12,9 @@ constructs a new request with `version=0`, empty `last_msg_seqs`,
 Run the levels in order:
 
 1. Local 30-minute shakeout with the committed native-process helper.
-2. Formal-shape two-hour rehearsal on the four intended hosts, stopped by one
-   coordinated `TERM`. This is operator-stop evidence, not a qualification.
+2. Reviewed two-hour rehearsal on the four intended hosts. Its immutable
+   rehearsal stage ends itself at exactly two measured hours and may emit
+   `rehearsal_pass`; it is still not formal qualification evidence.
 3. A fresh uninterrupted formal run. The 24-hour cut is qualification evidence
    and continues in the same generation; the 72-hour cut is the final result.
 4. Capacity search only on the same still-live dataset after a passing 72-hour
@@ -129,23 +130,24 @@ Before continuing, verify that all recorded child PIDs exited, no configured
 ports remain open, and logs contain no panic, fatal Slot error, or leaked raw
 credential.
 
-## Formal-shape two-hour rehearsal
+## Reviewed two-hour rehearsal
 
-Use the final seven hosts and the unchanged formal YAML, but fresh rehearsal
-data and a rehearsal run ID. Start the service nodes, wait for cluster
-readiness, start the three authenticated workers, then start the coordinator:
+Use the four intended hosts, fresh rehearsal data, and the sealed
+`configs/wkbench/chat-lifecycle/rehearsal.yaml`. Deployment leaves the
+coordinator dormant; the top-level rehearsal workflow starts its remote
+systemd unit only after cluster and worker readiness:
 
 ```bash
 wkbench soak chat-lifecycle \
-  --config /secure/config/chat-lifecycle-formal-rehearsal.yaml \
+  --config /etc/wukongim-cloud/chat-lifecycle-rehearsal.yaml \
   --output-dir /secure/reports/chat-lifecycle-rehearsal
 ```
 
-After all workers report traffic-ready, allow two measured hours, then send
-exactly one `TERM` to the coordinator and wait for its bounded worker stop and
-finalization. Exit `130` with an `operator_stop` final report is the expected
-rehearsal result. A second signal is force-exit only and invalidates the
-rehearsal cleanup evidence.
+The measured clock begins only after all 10,000 users complete full version-zero
+sync and the first complete 2,000 SEND/s grant is accepted. The coordinator
+then stops and finalizes itself at exactly two measured hours. A clean result
+is `rehearsal_pass`, never formal `pass`. A manual `TERM` remains an
+`operator_stop` and does not count as completion of this reviewed stage.
 
 Require the rehearsal to prove:
 

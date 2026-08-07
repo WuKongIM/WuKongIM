@@ -50,6 +50,7 @@ func TestCapacityAdmissionRequiresPassingAgedReportAndSameLiveDataset(t *testing
 			a.Checkpoint.Verdict.Cause = VerdictCauseMessageLoss
 		}},
 		{"wrong source mode", func(a *CapacityAdmission) { a.Checkpoint.Mode = ModeCapacity }},
+		{"rehearsal source stage", func(a *CapacityAdmission) { a.Checkpoint.Stage = StageRehearsal }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			candidate := admission

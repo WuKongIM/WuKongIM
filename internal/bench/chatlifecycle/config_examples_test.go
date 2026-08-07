@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if formal.Profile != ProfileFormal || formal.Mode != ModeSoak ||
+	if formal.Profile != ProfileFormal || formal.Mode != ModeSoak || formal.Stage != StageFormal ||
 		len(formal.Observation.ServiceNodes) != 3 || len(formal.Observation.Workers) != 3 ||
 		len(formal.Observation.HostMetrics) != 3 || formal.Workload.Topology.LogicalSlotGroups != 12 ||
 		formal.Workload.Topology.HashSlots != 256 || formal.Workload.Topology.SlotReplicas != 3 ||
@@ -26,6 +27,18 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		formal.Thresholds.DiskSafeStopFreePercent != 5 {
 		t.Fatalf("formal example drifted: %+v", formal)
 	}
+	rehearsal, err := LoadConfig(filepath.Join(root, "rehearsal.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rehearsal.Stage != StageRehearsal || rehearsal.measuredDuration() != 2*time.Hour {
+		t.Fatalf("rehearsal example drifted: %+v", rehearsal)
+	}
+	formal.RunID, rehearsal.RunID = "", ""
+	formal.Stage, rehearsal.Stage = "", ""
+	if !reflect.DeepEqual(formal, rehearsal) {
+		t.Fatal("rehearsal example differs from formal workload or thresholds")
+	}
 	local, err := LoadConfig(filepath.Join(root, "local-shakeout.yaml"))
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +47,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		local.Workload.Topology != (TopologyConfig{LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3}) {
 		t.Fatalf("local example drifted: %+v", local)
 	}
-	for _, name := range []string{"formal.yaml", "local-shakeout.yaml"} {
+	for _, name := range []string{"formal.yaml", "rehearsal.yaml", "local-shakeout.yaml"} {
 		body, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil {
 			t.Fatal(err)

@@ -505,7 +505,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		}
 		result.Capacity = capacityStaircase.Snapshot()
 	}
-	observationDeadline := grantBarrierAt.Add(cfg.Thresholds.Timeline.Final)
+	observationDeadline := grantBarrierAt.Add(cfg.measuredDuration())
 	statusTicker := c.clock.NewTicker(cfg.Observation.Cadence)
 	if statusTicker == nil {
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeRuntime, coordinatorRoundStageFailed)

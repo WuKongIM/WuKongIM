@@ -50,7 +50,8 @@ func RenderHostFiles(plan DeploymentPlan, role string, templates map[string]stri
 	prometheus := templates["prometheus.yml"]
 	caddy := templates["Caddyfile"]
 	workload := templates["chat-lifecycle.yaml"]
-	if prometheus == "" || caddy == "" || workload == "" {
+	rehearsal := templates["chat-lifecycle-rehearsal.yaml"]
+	if prometheus == "" || caddy == "" || workload == "" || rehearsal == "" {
 		return nil, ErrInvalidDeployment
 	}
 	apiTargets := make([]string, 0, len(services))
@@ -75,21 +76,25 @@ func RenderHostFiles(plan DeploymentPlan, role string, templates map[string]stri
 		"{{MANAGER_UPSTREAMS}}": strings.Join(managerUpstreams, " "),
 	})
 	workload = renderWorkloadConfig(workload, plan)
+	rehearsal = renderWorkloadConfig(rehearsal, plan)
 	analysisScenario := fmt.Sprintf("version: wkbench/v1\nrun:\n  id: %s\n  random_seed: 1\n  report_dir: /var/lib/wukongim-cloud/reports\nobjectives:\n  scale: chat-lifecycle-formal\n", plan.LeaseID)
 	if strings.Contains(prometheus, "{{") || strings.Contains(caddy, "{{") || strings.Contains(workload, ".invalid") ||
-		strings.Contains(workload, "replace-with-unique-formal-run-id") {
+		strings.Contains(rehearsal, ".invalid") || strings.Contains(workload, "replace-with-unique-formal-run-id") ||
+		strings.Contains(rehearsal, "replace-with-unique-rehearsal-run-id") {
 		return nil, ErrInvalidDeployment
 	}
 	return []RenderedFile{
 		{Path: "etc/wukongim/prometheus.yml", Content: []byte(prometheus), Mode: 0o640},
 		{Path: "etc/wukongim/Caddyfile", Content: []byte(caddy), Mode: 0o640},
 		{Path: "etc/wukongim/chat-lifecycle.yaml", Content: []byte(workload), Mode: 0o640},
+		{Path: "etc/wukongim/chat-lifecycle-rehearsal.yaml", Content: []byte(rehearsal), Mode: 0o640},
 		{Path: "etc/wukongim/analysis-scenario.yaml", Content: []byte(analysisScenario), Mode: 0o640},
 	}, nil
 }
 
 func renderWorkloadConfig(content string, plan DeploymentPlan) string {
 	content = strings.Replace(content, "replace-with-unique-formal-run-id", plan.LeaseID, 1)
+	content = strings.Replace(content, "replace-with-unique-rehearsal-run-id", plan.LeaseID, 1)
 	for index, host := range plan.Hosts[:ServiceHostCount] {
 		ordinal := strconv.Itoa(index + 1)
 		replacements := map[string]string{

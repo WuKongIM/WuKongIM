@@ -2,6 +2,7 @@ run_id: replace-with-unique-formal-run-id
 seed: 1
 profile: formal
 mode: soak
+stage: formal
 workload:
   workers: 3
   online_users: 10000

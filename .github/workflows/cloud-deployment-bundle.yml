@@ -1,11 +1,15 @@
 name: Agent Tool - Build Cloud Deployment Bundle
-run-name: Cloud Deployment Bundle ${{ inputs.source_sha }}
+run-name: Cloud Deployment Bundle ${{ inputs.source_sha }} ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
     inputs:
       source_sha:
         description: Exact immutable product source commit reachable from trusted main
+        required: true
+        type: string
+      request_id:
+        description: Exact caller correlation identifier
         required: true
         type: string
 
@@ -25,6 +29,7 @@ jobs:
     env:
       GOWORK: "off"
       REQUESTED_SOURCE_SHA: ${{ inputs.source_sha }}
+      REQUEST_ID: ${{ inputs.request_id }}
     steps:
       - name: Checkout trusted control revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -58,6 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$REQUESTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$ ]]
           test "$(git -C control rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git -C source rev-parse HEAD)" = "$REQUESTED_SOURCE_SHA"
           git -C source fetch --no-tags origin main
@@ -95,6 +101,7 @@ jobs:
           cp -a source/internal/access/manager/webui/dist/. "$bundle/assets/manager/"
           cp -a source/internal/access/api/demoui/dist/. "$bundle/assets/demo/"
           install -m 0644 source/configs/wkbench/chat-lifecycle/formal.yaml "$bundle/config/chat-lifecycle.yaml"
+          install -m 0644 source/configs/wkbench/chat-lifecycle/rehearsal.yaml "$bundle/config/chat-lifecycle-rehearsal.yaml"
       - name: Add checksum-pinned native dependencies
         shell: bash
         run: |

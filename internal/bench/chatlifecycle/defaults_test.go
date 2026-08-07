@@ -11,6 +11,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Profile != ProfileFormal {
 		t.Fatalf("profile = %q, want %q", cfg.Profile, ProfileFormal)
 	}
+	if cfg.Stage != StageFormal {
+		t.Fatalf("stage = %q, want %q", cfg.Stage, StageFormal)
+	}
 	if cfg.RunID == "" || cfg.Seed == 0 {
 		t.Fatalf("identity = run_id %q, seed %d; want non-empty run ID and nonzero seed", cfg.RunID, cfg.Seed)
 	}
@@ -22,7 +25,7 @@ func TestDefaultConfig(t *testing.T) {
 func TestLocalConfigValid(t *testing.T) {
 	cfg := LocalConfig()
 
-	if cfg.RunID != "local-chat-lifecycle" || cfg.Seed != 1 || cfg.Profile != ProfileLocal || cfg.Mode != ModeSoak {
+	if cfg.RunID != "local-chat-lifecycle" || cfg.Seed != 1 || cfg.Profile != ProfileLocal || cfg.Mode != ModeSoak || cfg.Stage != StageShakeout {
 		t.Fatalf("identity/profile/mode = %q/%d/%q/%q", cfg.RunID, cfg.Seed, cfg.Profile, cfg.Mode)
 	}
 	if cfg.Workload.Workers != 3 || cfg.Workload.OnlineUsers != 100 || cfg.Workload.NewUsersPerDay != 1_000 || cfg.Workload.SendRatePerSecond != 100 {
@@ -66,6 +69,19 @@ func TestLocalConfigValid(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestRehearsalConfigChangesOnlyRunIdentityAndEvidenceStage(t *testing.T) {
+	formal := FormalConfig()
+	rehearsal := RehearsalConfig()
+	if rehearsal.Stage != StageRehearsal || rehearsal.measuredDuration() != 2*time.Hour || rehearsal.Validate() != nil {
+		t.Fatalf("rehearsal config = %+v", rehearsal)
+	}
+	formal.RunID, rehearsal.RunID = "", ""
+	formal.Stage, rehearsal.Stage = "", ""
+	if !reflect.DeepEqual(formal, rehearsal) {
+		t.Fatal("rehearsal changed the reviewed formal workload or thresholds")
 	}
 }
 

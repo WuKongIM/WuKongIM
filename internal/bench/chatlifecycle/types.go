@@ -22,6 +22,18 @@ const (
 	ModeCapacity Mode = "capacity"
 )
 
+// Stage selects the evidence claim made by one workload process lifetime.
+type Stage string
+
+const (
+	// StageFormal runs the complete formal observation window.
+	StageFormal Stage = "formal"
+	// StageRehearsal runs the full-scale workload for the bounded rehearsal window.
+	StageRehearsal Stage = "rehearsal"
+	// StageShakeout runs the reduced local validation window.
+	StageShakeout Stage = "shakeout"
+)
+
 // Config is the complete pure configuration for deterministic chat lifecycle planning.
 type Config struct {
 	// RunID is the non-secret identifier attached to plans and bounded snapshots.
@@ -32,6 +44,8 @@ type Config struct {
 	Profile Profile `json:"profile" yaml:"profile"`
 	// Mode selects soak or capacity orchestration without changing workload semantics.
 	Mode Mode `json:"mode" yaml:"mode"`
+	// Stage fixes the evidence claim and measured duration for this process lifetime.
+	Stage Stage `json:"stage" yaml:"stage"`
 	// Workload contains only deterministic traffic and lifecycle quantities.
 	Workload WorkloadConfig `json:"workload" yaml:"workload"`
 	// Observation declares non-secret observation sources and sampling cadence.

@@ -112,7 +112,7 @@ func loadCapacityChatLifecycleConfig(cli *chatLifecycleCLIConfig) error {
 	if err != nil {
 		return err
 	}
-	if report.Profile != chatlifecycle.ProfileFormal || report.Mode != chatlifecycle.ModeSoak ||
+	if report.Profile != chatlifecycle.ProfileFormal || report.Mode != chatlifecycle.ModeSoak || report.Stage != chatlifecycle.StageFormal ||
 		report.Kind != chatlifecycle.CheckpointFinal || !report.Final || report.Continue ||
 		!report.Verdict.Terminal || report.Verdict.Outcome != chatlifecycle.VerdictPass ||
 		report.Window.Elapsed < 72*time.Hour || report.Capacity.Attempted {
@@ -224,7 +224,7 @@ func chatLifecycleVerdictExitCode(verdict chatlifecycle.VerdictSnapshot) int {
 		return exitInternal
 	}
 	switch verdict.Outcome {
-	case chatlifecycle.VerdictPass:
+	case chatlifecycle.VerdictPass, chatlifecycle.VerdictRehearsalPass:
 		return 0
 	case chatlifecycle.VerdictProductFailure:
 		return exitChatLifecycleProduct

@@ -2,9 +2,11 @@
 
 `chatlifecycle` owns the deterministic configuration and workload planning
 model, narrow lifecycle-specific startup orchestration, bounded message
-verification, and redacted evidence retention for the formal or local
-chat-lifecycle workload. `profile` selects formal versus local scale, while
-`mode` separately selects soak versus capacity coordination. It contains one
+verification, and redacted evidence retention for the formal, rehearsal, or
+local chat-lifecycle workload. `profile` selects formal versus local scale,
+`mode` separately selects soak versus capacity coordination, and `stage`
+separates a formal evidence claim from a full-scale bounded rehearsal or local
+shakeout. It contains one
 bounded lifecycle engine loop; the production worker composition adapts the
 existing target HTTP and WKProto clients through the same narrow interfaces
 used by tests. It does not recreate transport pumps, persist secrets, mutate
@@ -265,7 +267,7 @@ a later counter catch-up cannot erase the correctness proof. The sum
 of positive per-Slot creates above the marked expectation is retained as
 `external_demo_activity` and does not fail the run; their host resource cost
 remains visible to the ordinary observers. This accounting contract is report
-schema v2; the strict reader intentionally rejects legacy v1 reports. The metric
+schema v3; the strict reader intentionally rejects legacy report schemas. The metric
 and all fixed-array aggregate snapshots remain low-cardinality and carry no
 channel label.
 
@@ -856,9 +858,15 @@ an equivalent local allocator, so bootstrap phase differences or delivery retry
 cannot multiply the global budget.
 
 Worker status polling and the measured final timeline begin only after the
-initial grant barrier. The coordinator records that instant with its injected
-clock and owns one normal observation cutoff at `thresholds.timeline.final`:
-30 minutes for local and 72 hours for formal. The healthy observer deliberately
+initial grant barrier. The production hook atomically writes one
+`wukongim.chat_lifecycle.run_start/v1` receipt at that boundary with the stage,
+start, expected end, generation, and only hashed run/assignment identities. A
+rehearsal therefore proves that all 10,000 users completed CONNECT plus a fresh
+version-0 full sync and all workers accepted the first complete 2,000 SEND/s
+grant before its two-hour clock begins. The coordinator owns one normal
+observation cutoff at the stage duration: two hours for rehearsal,
+`thresholds.timeline.final` for the 30-minute local shakeout, and 72 hours for
+formal. The healthy observer deliberately
 has no success terminal result. Before the cutoff, an observer product or
 harness result ends the run with that failure. At the exact cutoff, the
 coordinator cancels and joins the observer child; only the resulting healthy
@@ -923,8 +931,11 @@ monotonic counter/histogram/evidence regression before advancing its fixed
 three-worker baseline.
 
 The standalone verdict reducer has only the closed outcomes `pass`,
-`product_failure`, `harness_invalid`, `infrastructure_failure`, and
-`operator_stop`. Within one atomic evidence batch its deterministic precedence
+`rehearsal_pass`, `product_failure`, `harness_invalid`,
+`infrastructure_failure`, and `operator_stop`. `rehearsal_pass` is valid only
+for the bounded rehearsal and never substitutes for a formal pass; its report
+always warns that six-hour/24-hour/72-hour windows are incomplete. Within one
+atomic evidence batch its deterministic precedence
 is product, infrastructure, harness, then operator. The first terminal outcome
 and fixed cause never change; later cleanup failures increment a saturating
 count and retain only the last 16 closed cleanup codes. Pass can be frozen only
@@ -990,7 +1001,7 @@ capture prepares against a cloned aggregation baseline and commits recorder
 sequence state only after both JSON and Markdown writes succeed, so an output
 failure may retry the identical worker snapshot cut.
 
-Capacity admission accepts only a validated final passing formal Soak report of
+Capacity admission accepts only a validated final passing formal-stage Soak report of
 at least 72 hours whose persisted dataset-reference digest still matches a
 later exact three-node live-target probe. The caller supplies only the frozen
 checkpoint reference: after static checkpoint validation and successful

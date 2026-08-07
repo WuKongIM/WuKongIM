@@ -60,18 +60,22 @@ the AccessKeys to ordinary Cloud Lease jobs.
 ## Ordinary tools
 
 - `cloud-lease-provision.yml` uses CloudLeaseProvisioner. Quote-only is the
-  default; Acquire additionally requires
+  default; paid Acquire consumes the exact still-valid admitted Quote rather
+  than obtaining a second placement, and additionally requires
   `paid_authorization=create-paid-cloud-lease`.
 - `cloud-lease-observe.yml` uses CloudLeaseObserver for inventory, price, and
   delayed billing reads and cannot acquire, change access rules, or release
   resources.
 - `cloud-lease-release.yml` uses CloudLeaseReleaser and requires
-  `release_authorization=release-tagged-cloud-lease`.
+  `release_authorization=release-tagged-cloud-lease` for manual exact Release.
+  Its protected 15-minute schedule sweeps repository-tagged expired or
+  cleanup-pending Leases without operator input.
 - Deployment uses `cloud-deployment`, SSH credentials only, and no Alibaba
   token.
 
-All four Workflows are manual Agent Tools; ordinary CI cannot dispatch paid
-infrastructure as a consequence of a push or pull request.
+Provision, Observe, and Deployment are manual Agent Tools. Release is also the
+unattended expiry/cleanup-pending safety automation. Ordinary push and pull
+request CI cannot dispatch paid infrastructure.
 
 ## Protected removal
 

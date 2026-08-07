@@ -130,6 +130,14 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 	if err := c.observation.Begin(start.StartedAt); err != nil {
 		return errProductionController
 	}
+	if err := writeRunStartReceipt(filepath.Join(c.outputDir, "run-start.json"), RunStartReceipt{
+		Schema: RunStartReceiptSchemaV1, Stage: c.cfg.Stage,
+		StartedAt: start.StartedAt, ExpectedEndAt: start.StartedAt.Add(c.cfg.measuredDuration()),
+		RunHash: hashReportValue(start.Fence.RunID), AssignmentHash: hashReportValue(start.Fence.AssignmentID),
+		Generation: start.Fence.Generation,
+	}); err != nil {
+		return errProductionController
+	}
 	lifecycleCtx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	c.start, c.datasetDigest, c.recorder, c.evaluator = start, digest, recorder, evaluator
@@ -219,6 +227,8 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	verdict := c.evaluator.Snapshot()
 	if cut.Kind == CoordinatorCutTerminal && !verdict.Terminal {
 		switch {
+		case c.cfg.Stage == StageRehearsal:
+			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictRehearsalPass, VerdictCauseRehearsalCompleted, true
 		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityPassed:
 			verdict.Outcome, verdict.Cause, verdict.Terminal = VerdictPass, VerdictCauseCompleted, true
 		case c.cfg.Mode == ModeCapacity && cut.Capacity.Terminal && cut.Capacity.Outcome == CapacityProductFailure:
@@ -386,7 +396,7 @@ func productionLifecycleSignals(snapshot LifecycleProofSnapshot) []VerdictSignal
 
 func coordinatorOutcomeForVerdict(verdict VerdictSnapshot) CoordinatorOutcome {
 	switch verdict.Outcome {
-	case VerdictPass:
+	case VerdictPass, VerdictRehearsalPass:
 		return CoordinatorCompleted
 	case VerdictProductFailure:
 		return CoordinatorProductFailure

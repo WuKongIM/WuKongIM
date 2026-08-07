@@ -355,6 +355,9 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 		}
 		sawQuota = true
 		for _, instanceType := range types {
+			if excludedOffer(request.Plan.Placement.ExcludedOffers, zone.ID, instanceType.ID) {
+				continue
+			}
 			availability, availabilityErr := p.api.Availability(ctx, AvailabilityRequest{
 				Region: RegionHangzhou, Zone: zone.ID, InstanceType: instanceType.ID,
 				HostCount: shape.totalHosts, SystemDiskSizesGiB: shape.systemDiskSizesGiB,
@@ -436,6 +439,12 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 		LineItems: best.lineItems,
 		Selection: selection,
 	}, nil
+}
+
+func excludedOffer(exclusions []cloudlease.PlacementExclusion, zone, computeType string) bool {
+	return slices.ContainsFunc(exclusions, func(exclusion cloudlease.PlacementExclusion) bool {
+		return exclusion.Zone == zone && exclusion.ComputeType == computeType
+	})
 }
 
 func diskSelection(sizeGiB int) string {

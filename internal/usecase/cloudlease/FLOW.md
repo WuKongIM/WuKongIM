@@ -19,7 +19,11 @@ trusted CLI / orchestrator
 
 `Quote` never mutates provider state. Admission includes the cost already
 committed by a caller: the new estimate must fit inside the remaining aggregate
-Budget. A Plan may declare a conservative complete-Lease public-egress byte
+operational stop, which may be lower than the immutable hard limit. A zero
+operational stop preserves old Plans by normalizing to that hard limit. A Plan
+may also carry at most eight exact zone/compute-type exclusions; providers skip
+only those complete pairs, so a bounded retry can choose a fresh offer without
+silently excluding a whole zone or machine family. A Plan may declare a conservative complete-Lease public-egress byte
 ceiling; it is invalid unless at least one host requests a public IPv4 address.
 
 `Acquire` first inspects the exact Lease identity. `AcquireWithBootstrap` also
@@ -41,6 +45,9 @@ its logical resource role.
 Provider-free consumers may call `ValidateReceipt` to recheck a persisted
 Receipt against its own selector identity without receiving any Quote,
 Acquire, access-rule, Release, or Sweep capability.
+`ReleaseSelectorFromPlanQuote` derives the same exact cleanup selector from an
+admitted Plan/Quote before paid dispatch, so a canceled or artifact-losing
+Acquire can still be reconciled without guessing whether resources exist.
 
 `GrantAccess` and `RevokeAccess` operate on typed, expiring network rules.
 An exact repeated grant and revocation of an absent grant are idempotent.
