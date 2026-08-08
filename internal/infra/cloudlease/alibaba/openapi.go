@@ -37,7 +37,7 @@ const (
 	lifecycleAuthorizationValue    = "create-and-delete-paid-cloud-lease"
 	officialUbuntuImageNamePattern = "ubuntu_24_04_x64_20G_alibase*"
 	eipQuotaProductCode            = "eip"
-	eipQuotaActionCode             = "eip_quota_instances_num"
+	eipQuotaName                   = "eip_quota_instances_num"
 	eipQuotaCategory               = "CommonQuota"
 	mutationPermissionProbeID      = "i-wukongim-readonly-permission-probe"
 )
@@ -717,12 +717,12 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 				return EIPQuota{}, discoveryError("ListProductQuotas incomplete inventory", nil)
 			}
 			matches := make([]eipQuotaRecord, 0, 1)
-			actionMatches := 0
+			nameMatches := 0
 			for _, record := range records {
-				if record.ProductCode != eipQuotaProductCode || record.ActionCode != eipQuotaActionCode {
+				if record.ProductCode != eipQuotaProductCode || record.Name != eipQuotaName {
 					continue
 				}
-				actionMatches++
+				nameMatches++
 				// QuotaCategory is optional in the response. The request already
 				// constrains the inventory to CommonQuota, so only an explicit
 				// contradictory category invalidates the record.
@@ -732,8 +732,8 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 			}
 			if len(matches) != 1 {
 				return EIPQuota{}, discoveryError(fmt.Sprintf(
-					"ListProductQuotas exact quota (records=%d action_matches=%d exact_matches=%d observed=%s)",
-					len(records), actionMatches, len(matches), eipQuotaRecordSummary(records)), nil)
+					"ListProductQuotas exact quota (records=%d name_matches=%d exact_matches=%d observed=%s)",
+					len(records), nameMatches, len(matches), eipQuotaRecordSummary(records)), nil)
 			}
 			record := matches[0]
 			limit, limitOK := wholeQuotaValue(record.Limit)

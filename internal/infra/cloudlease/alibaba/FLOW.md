@@ -53,7 +53,9 @@ one-time Cloud Lease identity setup
 
 The Quote API seam contains read methods only. EIP quota discovery exhaustively
 paginates the provider's EIP product list, then locally requires one exact
-action-code and common-quota record whose paginated count is stable. Missing pages,
+documented quota-name and common-quota record whose paginated count is stable.
+Provider-specific opaque action codes are retained only as bounded diagnostic
+evidence. Missing pages,
 repeated page tokens, malformed prices, incomplete or ambiguous quota, unknown
 image provenance, or an unpriced eligible offer fail closed because any of them
 could invalidate the claim that the chosen offer is cheapest. Every candidate uses regular
