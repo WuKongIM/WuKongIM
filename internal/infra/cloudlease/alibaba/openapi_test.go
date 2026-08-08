@@ -315,15 +315,15 @@ func TestDiscoverEIPQuotaFailsClosedOnIncompleteOrAmbiguousEvidence(t *testing.T
 
 func TestEIPQuotaRecordSummaryIsBoundedToPublicIdentifiers(t *testing.T) {
 	records := []eipQuotaRecord{
-		{ActionCode: "quota-b", Category: eipQuotaCategory},
-		{ActionCode: "quota-a", Category: ""},
+		{ActionCode: "quota-b", Category: eipQuotaCategory, Name: "public name"},
+		{ActionCode: "quota-a", Category: "", Name: "line\ncontrol"},
 	}
 	for index := 0; index < 8; index++ {
 		records = append(records, eipQuotaRecord{ActionCode: strings.Repeat("x", 80), Category: eipQuotaCategory})
 	}
 	got := eipQuotaRecordSummary(records)
-	if !strings.Contains(got, "quota-b/CommonQuota") || !strings.Contains(got, "quota-a/(omitted)") ||
-		!strings.Contains(got, "+2_more") || strings.Contains(got, strings.Repeat("x", 65)) {
+	if !strings.Contains(got, "quota-b/CommonQuota/public name") || !strings.Contains(got, "quota-a/(omitted)/linecontrol") ||
+		!strings.Contains(got, "+2_more") || strings.Contains(got, strings.Repeat("x", 65)) || strings.Contains(got, "\n") {
 		t.Fatalf("eipQuotaRecordSummary() = %q, want bounded public action/category evidence", got)
 	}
 }

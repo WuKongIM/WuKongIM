@@ -665,6 +665,7 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 				ProductCode: stringValue(quota.ProductCode),
 				ActionCode:  stringValue(quota.QuotaActionCode),
 				Category:    stringValue(quota.QuotaCategory),
+				Name:        stringValue(quota.QuotaName),
 				Limit:       quota.TotalQuota,
 				Used:        quota.TotalUsage,
 			})
@@ -677,6 +678,7 @@ type eipQuotaRecord struct {
 	ProductCode string
 	ActionCode  string
 	Category    string
+	Name        string
 	Limit       *float32
 	Used        *float32
 }
@@ -764,26 +766,37 @@ func eipQuotaRecordSummary(records []eipQuotaRecord) string {
 	}
 	identities := make([]string, 0, count+1)
 	for _, record := range records[:count] {
-		action := strings.TrimSpace(record.ActionCode)
-		category := strings.TrimSpace(record.Category)
+		action := boundedQuotaEvidenceField(record.ActionCode, maxFieldBytes)
+		category := boundedQuotaEvidenceField(record.Category, maxFieldBytes)
 		if action == "" {
 			action = "(omitted)"
 		}
 		if category == "" {
 			category = "(omitted)"
 		}
-		if len(action) > maxFieldBytes {
-			action = action[:maxFieldBytes]
+		name := boundedQuotaEvidenceField(record.Name, maxFieldBytes)
+		if name == "" {
+			name = "(omitted)"
 		}
-		if len(category) > maxFieldBytes {
-			category = category[:maxFieldBytes]
-		}
-		identities = append(identities, action+"/"+category)
+		identities = append(identities, action+"/"+category+"/"+name)
 	}
 	if len(records) > maxRecords {
 		identities = append(identities, fmt.Sprintf("+%d_more", len(records)-maxRecords))
 	}
 	return strings.Join(identities, ",")
+}
+
+func boundedQuotaEvidenceField(value string, limit int) string {
+	value = strings.Map(func(character rune) rune {
+		if character < 0x20 || character == 0x7f {
+			return -1
+		}
+		return character
+	}, strings.TrimSpace(value))
+	if len(value) > limit {
+		value = value[:limit]
+	}
+	return value
 }
 
 func wholeQuotaValue(value *float32) (int64, bool) {
