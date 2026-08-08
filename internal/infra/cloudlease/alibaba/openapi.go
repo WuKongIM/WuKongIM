@@ -300,7 +300,7 @@ func (a *OpenAPI) AssertExactRoleTrust(ctx context.Context, roleName, expectedTr
 	if a == nil || a.ram == nil || roleName == "" || expectedTrust == "" {
 		return ErrInvalidConfig
 	}
-	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(roleName), nil)
+	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(roleName), &dara.RuntimeOptions{})
 	if err != nil || response == nil || response.Body == nil || response.Body.Role == nil {
 		return discoveryError("GetRole failed", err)
 	}

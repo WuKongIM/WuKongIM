@@ -182,12 +182,15 @@ func TestCloudLeaseOIDCSetupLiveVerifiesChatLifecycleWrappingKey(t *testing.T) {
 		"awk 'NR == 1 && NF >= 2",
 		"expected_fingerprint=\"$(ssh-keygen -lf \"$RUNNER_TEMP/expected-normalized.pub\" | awk '{print $2}')\"",
 		"actual_fingerprint=\"$(ssh-keygen -lf \"$RUNNER_TEMP/actual.pub\" | awk '{print $2}')\"",
+		`[[ "$expected_fingerprint" == "$actual_fingerprint" ]]`,
 		"wrapping key mismatch (expected fingerprint $expected_fingerprint, actual fingerprint $actual_fingerprint)",
-		"cmp -s",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("wrapping-key live verification is missing %q", required)
 		}
+	}
+	if strings.Contains(workflow, `cmp -s "$RUNNER_TEMP/expected-normalized.pub" "$RUNNER_TEMP/actual.pub"`) {
+		t.Fatal("wrapping-key verification rejects equivalent public-key text with different comments")
 	}
 }
 

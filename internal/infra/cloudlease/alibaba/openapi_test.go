@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"net/url"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
@@ -333,6 +334,16 @@ func TestPrincipalHasRoleMatchesOneExactRolePathSegment(t *testing.T) {
 				t.Fatalf("principalHasRole(%q, %q) = %v, want %v", test.arn, test.role, got, test.want)
 			}
 		})
+	}
+}
+
+func TestRoleTrustReadSuppliesSDKRuntimeOptions(t *testing.T) {
+	source, err := os.ReadFile("openapi.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(source), "GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(roleName), nil)") {
+		t.Fatal("GetRoleWithContext receives nil runtime options and panics in the Alibaba SDK")
 	}
 }
 
