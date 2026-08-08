@@ -557,10 +557,23 @@ func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityReq
 		providerRequest.SetDataDiskCategory(providerDiskESSD)
 	}
 	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
-	if err != nil || response == nil || response.Body == nil || response.Body.AvailableZones == nil {
+	if err != nil || response == nil {
 		return false, discoveryError("DescribeAvailableResource "+destination, err)
 	}
-	for _, zone := range response.Body.AvailableZones.AvailableZone {
+	return resourceAvailableFromBody(response.Body, request, destination, expected, sizesGiB)
+}
+
+func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, error) {
+	if body == nil {
+		return false, discoveryError("DescribeAvailableResource "+destination+" body", nil)
+	}
+	// Alibaba omits the AvailableZones wrapper when a successful exact query
+	// has no matching inventory. That is authoritative unavailability for this
+	// offer, not loss of discovery evidence for the remaining candidates.
+	if body.AvailableZones == nil {
+		return false, nil
+	}
+	for _, zone := range body.AvailableZones.AvailableZone {
 		if zone == nil || stringValue(zone.ZoneId) != request.Zone ||
 			!stockStatusAvailable(stringValue(zone.Status), stringValue(zone.StatusCategory)) || zone.AvailableResources == nil {
 			continue

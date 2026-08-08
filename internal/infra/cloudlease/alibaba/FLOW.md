@@ -68,6 +68,9 @@ risk allowance for the full Lease plus four cleanup hours even when the
 direct-ECS waiver is expected. The allowance carries a reviewed policy version
 and expiry, after which Quote fails closed. Live account EIP quota must still be
 at most 2,000 and have allocation headroom to prove waiver eligibility.
+For one exact `DescribeAvailableResource` candidate, a successful provider body
+that omits `AvailableZones` is authoritative no-stock evidence for that candidate;
+a missing response body or API error still makes discovery unavailable.
 
 `NewOpenAPIFromOIDCEnvironment` requires temporary AccessKey, secret, and
 security-token variables. The adapter never accepts a long-lived credential

@@ -165,6 +165,18 @@ func TestSupportedResourceAvailableRequiresWithStockAndRequestedDiskRange(t *tes
 	}
 }
 
+func TestResourceAvailableFromBodyTreatsEmptyInventoryAsUnavailable(t *testing.T) {
+	available, err := resourceAvailableFromBody(&ecs.DescribeAvailableResourceResponseBody{}, AvailabilityRequest{
+		Region: RegionHangzhou, Zone: "cn-hangzhou-h", InstanceType: "ecs.g8.large",
+	}, "InstanceType", "ecs.g8.large", nil)
+	if err != nil {
+		t.Fatalf("resourceAvailableFromBody() error = %v", err)
+	}
+	if available {
+		t.Fatal("resourceAvailableFromBody() = true for an authoritative empty inventory")
+	}
+}
+
 func TestStockStatusAvailableRejectsClosedWithStock(t *testing.T) {
 	if !stockStatusAvailable("Available", "WithStock") {
 		t.Fatal("stockStatusAvailable() rejected continuously replenished stock")
