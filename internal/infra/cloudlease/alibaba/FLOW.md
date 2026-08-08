@@ -51,9 +51,9 @@ one-time Cloud Lease identity setup
      one-hour session proof for all three roles
 ```
 
-The Quote API seam contains read methods only. EIP quota discovery filters the
-provider list by the exact product, action code, and common-quota category, then
-requires one complete record whose paginated count is stable. Missing pages,
+The Quote API seam contains read methods only. EIP quota discovery exhaustively
+paginates the provider's EIP product list, then locally requires one exact
+action-code and common-quota record whose paginated count is stable. Missing pages,
 repeated page tokens, malformed prices, incomplete or ambiguous quota, unknown
 image provenance, or an unpriced eligible offer fail closed because any of them
 could invalidate the claim that the chosen offer is cheapest. Every candidate uses regular

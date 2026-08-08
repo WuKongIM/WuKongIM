@@ -647,8 +647,6 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 	return discoverEIPQuota(ctx, func(ctx context.Context, token string) ([]eipQuotaRecord, string, int32, error) {
 		request := (&quotas.ListProductQuotasRequest{}).
 			SetProductCode(eipQuotaProductCode).
-			SetQuotaActionCode(eipQuotaActionCode).
-			SetQuotaCategory(eipQuotaCategory).
 			SetMaxResults(discoveryPageSize)
 		if token != "" {
 			request.SetNextToken(token)
@@ -665,6 +663,7 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 			records = append(records, eipQuotaRecord{
 				ProductCode: stringValue(quota.ProductCode),
 				ActionCode:  stringValue(quota.QuotaActionCode),
+				Category:    stringValue(quota.QuotaCategory),
 				Limit:       quota.TotalQuota,
 				Used:        quota.TotalUsage,
 			})
@@ -676,6 +675,7 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 type eipQuotaRecord struct {
 	ProductCode string
 	ActionCode  string
+	Category    string
 	Limit       *float32
 	Used        *float32
 }
@@ -710,13 +710,19 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 		}
 		nextToken = strings.TrimSpace(nextToken)
 		if nextToken == "" {
-			if int64(len(records)) != int64(expectedTotal) || len(records) != 1 {
-				return EIPQuota{}, discoveryError("ListProductQuotas incomplete quota", nil)
+			if int64(len(records)) != int64(expectedTotal) {
+				return EIPQuota{}, discoveryError("ListProductQuotas incomplete inventory", nil)
 			}
-			record := records[0]
-			if record.ProductCode != eipQuotaProductCode || record.ActionCode != eipQuotaActionCode {
-				return EIPQuota{}, discoveryError("ListProductQuotas identity", nil)
+			matches := make([]eipQuotaRecord, 0, 1)
+			for _, record := range records {
+				if record.ProductCode == eipQuotaProductCode && record.ActionCode == eipQuotaActionCode && record.Category == eipQuotaCategory {
+					matches = append(matches, record)
+				}
 			}
+			if len(matches) != 1 {
+				return EIPQuota{}, discoveryError("ListProductQuotas exact quota", nil)
+			}
+			record := matches[0]
 			limit, limitOK := wholeQuotaValue(record.Limit)
 			used, usedOK := wholeQuotaValue(record.Used)
 			if !limitOK || !usedOK || limit <= 0 || used > limit {

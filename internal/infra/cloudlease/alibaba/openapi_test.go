@@ -244,12 +244,15 @@ func TestDiscoverEIPQuotaPaginatesAndRequiresOneExactQuota(t *testing.T) {
 		calls = append(calls, token)
 		switch token {
 		case "":
-			return nil, "page-2", 1, nil
+			return []eipQuotaRecord{{
+				ProductCode: eipQuotaProductCode, ActionCode: "another_common_quota", Category: eipQuotaCategory,
+				Limit: float32Pointer(50), Used: float32Pointer(1),
+			}}, "page-2", 2, nil
 		case "page-2":
 			return []eipQuotaRecord{{
-				ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode,
+				ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode, Category: eipQuotaCategory,
 				Limit: float32Pointer(20), Used: float32Pointer(3),
-			}}, "", 1, nil
+			}}, "", 2, nil
 		default:
 			return nil, "", 0, errors.New("unexpected token")
 		}
@@ -267,7 +270,7 @@ func TestDiscoverEIPQuotaPaginatesAndRequiresOneExactQuota(t *testing.T) {
 
 func TestDiscoverEIPQuotaFailsClosedOnIncompleteOrAmbiguousEvidence(t *testing.T) {
 	exact := eipQuotaRecord{
-		ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode,
+		ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode, Category: eipQuotaCategory,
 		Limit: float32Pointer(20), Used: float32Pointer(3),
 	}
 	tests := []struct {
@@ -280,7 +283,7 @@ func TestDiscoverEIPQuotaFailsClosedOnIncompleteOrAmbiguousEvidence(t *testing.T
 		{name: "duplicate quota", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
 			return []eipQuotaRecord{exact, exact}, "", 2, nil
 		}},
-		{name: "wrong identity", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+		{name: "target absent", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
 			wrong := exact
 			wrong.ActionCode = "another_quota"
 			return []eipQuotaRecord{wrong}, "", 1, nil
