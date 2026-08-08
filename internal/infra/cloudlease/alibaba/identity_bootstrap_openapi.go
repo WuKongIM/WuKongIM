@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -381,14 +382,32 @@ func ResolveCloudLeaseGitHubOIDCFingerprints(ctx context.Context) ([]string, err
 	if !ok {
 		return nil, ErrIdentityBootstrapConfig
 	}
-	state := tlsConnection.ConnectionState()
+	return cloudLeaseOIDCFingerprintsFromTLSState(tlsConnection.ConnectionState())
+}
+
+func cloudLeaseOIDCFingerprintsFromTLSState(state tls.ConnectionState) ([]string, error) {
 	seen := make(map[string]struct{})
+	addCertificate := func(certificate *x509.Certificate) {
+		if certificate == nil || len(certificate.Raw) == 0 {
+			return
+		}
+		digest := sha1.Sum(certificate.Raw) // #nosec G505 -- Alibaba RAM's OIDC contract requires SHA-1.
+		seen[hex.EncodeToString(digest[:])] = struct{}{}
+	}
+	// Alibaba validates the HTTPS CA certificates presented by the issuer.
+	// Preserve every non-leaf certificate because a cross-signed chain can end
+	// before the system trust root returned in VerifiedChains.
+	for index, certificate := range state.PeerCertificates {
+		if index == 0 {
+			continue
+		}
+		addCertificate(certificate)
+	}
 	for _, chain := range state.VerifiedChains {
 		if len(chain) == 0 {
 			continue
 		}
-		digest := sha1.Sum(chain[len(chain)-1].Raw) // #nosec G505 -- Alibaba RAM's OIDC contract requires SHA-1.
-		seen[hex.EncodeToString(digest[:])] = struct{}{}
+		addCertificate(chain[len(chain)-1])
 	}
 	fingerprints := make([]string, 0, len(seen))
 	for fingerprint := range seen {
