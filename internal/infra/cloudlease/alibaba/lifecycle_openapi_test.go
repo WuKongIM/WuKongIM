@@ -65,6 +65,27 @@ func TestInventoryOpenAPIUsesTemporaryOIDCWithoutPaidMutationAuthorization(t *te
 	}
 }
 
+func TestLifecycleListedInstanceDecodesNestedVPCRelationship(t *testing.T) {
+	var instance lifecycleListedInstance
+	err := decodeLifecycleSDKBody(map[string]any{
+		"InstanceId": "i-load-1",
+		"VpcAttributes": map[string]any{
+			"VpcId":     "vpc-1",
+			"VSwitchId": "vsw-1",
+			"PrivateIpAddress": map[string]any{
+				"IpAddress": []string{"10.42.0.10"},
+			},
+		},
+	}, &instance)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vpcID, vSwitchID := instance.networkIDs()
+	if vpcID != "vpc-1" || vSwitchID != "vsw-1" {
+		t.Fatalf("networkIDs() = %q/%q, want nested VPC and vSwitch relationships", vpcID, vSwitchID)
+	}
+}
+
 func TestQuoteOpenAPIConstructorKeepsLifecycleGuardFalse(t *testing.T) {
 	t.Setenv(credentialAccessKeyIDEnv, "temporary-access-key")
 	t.Setenv(credentialAccessKeySecretEnv, "temporary-secret")

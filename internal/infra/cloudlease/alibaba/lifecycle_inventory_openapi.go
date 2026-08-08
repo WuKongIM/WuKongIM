@@ -34,9 +34,9 @@ type lifecycleListedInstance struct {
 	InstanceID    string `json:"InstanceId"`
 	InstanceType  string `json:"InstanceType"`
 	ImageID       string `json:"ImageId"`
-	VPCID         string `json:"VpcId"`
-	VSwitchID     string `json:"VSwitchId"`
 	VpcAttributes struct {
+		VPCID     string `json:"VpcId"`
+		VSwitchID string `json:"VSwitchId"`
 		PrivateIP struct {
 			IPAddress []string `json:"IpAddress"`
 		} `json:"PrivateIpAddress"`
@@ -44,6 +44,10 @@ type lifecycleListedInstance struct {
 	Tags struct {
 		Tag []lifecycleECSTagJSON `json:"Tag"`
 	} `json:"Tags"`
+}
+
+func (i lifecycleListedInstance) networkIDs() (string, string) {
+	return i.VpcAttributes.VPCID, i.VpcAttributes.VSwitchID
 }
 
 type lifecycleListedDisk struct {
@@ -206,14 +210,15 @@ func (a *OpenAPI) ListAssets(ctx context.Context, query InventoryQuery) ([]Lifec
 	inventory := newLifecycleInventory()
 	for _, instance := range instances {
 		tags := lifecycleECSTagsFromJSON(instance.Tags.Tag)
+		vpcID, vSwitchID := instance.networkIDs()
 		privateAddress := ""
 		if len(instance.VpcAttributes.PrivateIP.IPAddress) == 1 {
 			privateAddress = instance.VpcAttributes.PrivateIP.IPAddress[0]
 		}
 		asset := LifecycleAsset{ID: instance.InstanceID, Kind: ResourceKindInstance,
-			Role: tags[cloudlease.TagResourceRole], ParentID: instance.VSwitchID, Billable: true,
+			Role: tags[cloudlease.TagResourceRole], ParentID: vSwitchID, Billable: true,
 			PrivateAddress: privateAddress, Tags: tags,
-			Attributes: map[string]string{"instance_type": instance.InstanceType, "image_id": instance.ImageID, "vpc_id": instance.VPCID}}
+			Attributes: map[string]string{"instance_type": instance.InstanceType, "image_id": instance.ImageID, "vpc_id": vpcID}}
 		if err := inventory.addActual(asset); err != nil {
 			return nil, err
 		}
