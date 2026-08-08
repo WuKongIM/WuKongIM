@@ -292,14 +292,26 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 	if err != nil {
 		return SweepResult{}, err
 	}
-	result := SweepResult{Destroyed: make([]string, 0), Failed: make([]string, 0)}
+	result := SweepResult{
+		Destroyed: make([]string, 0),
+		Retained:  make([]string, 0),
+		Failed:    make([]string, 0),
+	}
 	errs := make([]error, 0)
 	now := c.now()
 	for _, run := range runs {
-		if run.State == StateReleased || run.ExpiresAt.IsZero() {
+		if run.State == StateReleased {
+			if len(run.Resources) > 0 {
+				result.Retained = append(result.Retained, run.ID)
+			}
+			continue
+		}
+		if run.ExpiresAt.IsZero() {
+			result.Retained = append(result.Retained, run.ID)
 			continue
 		}
 		if run.ExpiresAt.After(now) {
+			result.Retained = append(result.Retained, run.ID)
 			if run.PublicViewWindow != nil && (!validPublicViewPrefix(run.PublicViewWindow.SourcePrefix) ||
 				!run.PublicViewWindow.Until.After(now) || run.PublicViewWindow.Until.After(run.ExpiresAt)) {
 				if _, closeErr := c.provider.ClosePublicView(ctx, run.ID); closeErr != nil {
@@ -328,6 +340,7 @@ func (c *ControlPlane) Sweep(ctx context.Context) (SweepResult, error) {
 			continue
 		}
 		if _, destroyErr := c.provider.Destroy(ctx, run.ID); destroyErr != nil {
+			result.Retained = append(result.Retained, run.ID)
 			result.Failed = append(result.Failed, run.ID)
 			errs = append(errs, fmt.Errorf("destroy %s: %w", run.ID, destroyErr))
 			continue

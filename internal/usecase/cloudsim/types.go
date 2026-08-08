@@ -266,6 +266,10 @@ type OpenPublicViewRequest struct {
 type SweepResult struct {
 	// Destroyed contains run IDs whose cleanup was requested successfully.
 	Destroyed []string `json:"destroyed"`
+	// Retained contains run IDs whose provider inventory was not proven empty.
+	// Active leases and failed cleanup attempts remain here so callers can
+	// distinguish an idle provider binding from a sweep that did no deletion.
+	Retained []string `json:"retained"`
 	// Failed contains run IDs whose cleanup failed.
 	Failed []string `json:"failed"`
 }
