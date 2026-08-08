@@ -18,7 +18,7 @@
 
 ```go
 // proxy/store.go — 业务层唯一入口
-Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel / GetChannelForPermission / ScanChannelsSlotPage
+Store.CreateChannel / UpdateChannel / UpsertChannel / DeleteChannel / GetChannelForPermission / ReadPermissionMetadataBatch / ScanChannelsSlotPage
 Store.AddChannelSubscribers / RemoveChannelSubscribers / ListChannelSubscribers
 Store.UpsertChannelRuntimeMeta / AdvanceChannelRetentionThroughSeq / GetChannelRuntimeMeta / ListChannelRuntimeMeta / ScanChannelRuntimeMetaSlotPage
 Store.CreateUser / UpsertUser / GetUser
@@ -339,6 +339,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 | `RPCSlotChannelMetadata` | 80 | Channel 权限元数据查询与物理 Slot 权威分页扫描（Ban / Disband / SendBan / AllowStranger / SubscriberMutationVersion） | proxy/channel_rpc.go |
 | `RPCSlotUserMembership` | 83 | UID-owned 普通 membership 点读/分页与 CMD membership 分页 | proxy/membership_rpc.go |
 | `RPCSlotRuntimeMetadata` | 84 | ChannelRuntimeMeta 查询 | proxy/runtime_meta_rpc.go |
+| `RPCSlotPermissionMetadataBatch` | 85 | 按物理 Slot 批量读取原始发送权限事实，并保持结果对齐 | proxy/permission_batch_rpc.go |
 
 **RPC 状态码** (authoritative_rpc.go): `ok` / `not_found` / `not_leader` / `no_leader` / `no_slot` / `stale_meta`
 
@@ -346,6 +347,7 @@ TLV 格式: `[Version:1][CmdType:1][Tag:1 + Length:4 + Value:N]...`
 
 - **归属校验**: `fsm/statemachine.go:ApplyBatch` 必须同时校验 `cmd.SlotID == m.slot` 和 `cmd.HashSlot` 属于当前状态机拥有的 hash slot 集合；兼容旧路径时会退化为“单物理 slot 仅拥有同编号 hash slot”的默认行为。
 - **Membership RPC 归属校验**: handler 必须在领导权和数据读取前验证 request 的 `SlotID == SlotForKey(uid)`；不能让调用方提供的 SlotID 绕过 UID 所有权边界。
+- **Permission batch RPC 归属校验**: caller 按 `SlotForKey(channel_id)` 分组，每个物理 Slot 最多一次权威 RPC；handler 必须逐 read 复核 channel key 属于 request Slot。RPC 只返回 Channel/contains/has-any 原始事实，发送权限策略和 reason 优先级留在 `internal/usecase/message`。
 - **多 hashSlot 命令**: 只有显式实现 multi-hashSlot command 的命令可以在一个 Raft entry 内携带多行不同 hashSlot 数据；`UpsertChannelLatestBatch` 必须逐 entry 校验归属和迁移 fence，不能把 envelope hashSlot 当成所有行的真实归属。
 - **归属集合会热更新**: 节点收到新的 `HashSlotTable` 后，`cluster` 会把最新的 hash slot 集合推送给已打开的 `fsm.stateMachine`；迁移完成后的新路由能立即生效，Snapshot/Restore 也会按最新集合导出/导入。
 - **迁移期 Delta 是受限例外**: Controller 把迁移推进到 `PhaseDelta` 后，源 Slot 的 `fsm.stateMachine` 会由 `cluster` 注入 delta forwarder，把 live write 包装成 `apply_delta` 转发到目标 Slot；目标 Slot 只对这类 `apply_delta` 放开迁移中的 hash slot，普通命令仍按最终归属校验拒绝。

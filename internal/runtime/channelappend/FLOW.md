@@ -73,12 +73,34 @@ concurrency bound for independent canonical channels. This prevents first-use
 channel runtime metadata proposals from serially multiplying Slot round trips.
 Resolved targets are folded in original channel order before submission.
 After resolution, different canonical-channel groups use the separate fixed
-submission concurrency bound. The caller participates as one worker in both
-phases, so the router creates at most `bound-1` helper goroutines per phase. A
-single canonical channel still forms one ordered group, and completed group
-results are folded in original group and item order before retry selection.
-This removes cross-channel head-of-line waiting without adding an unbounded
-goroutine or a second cross-request queue.
+submission concurrency bound. Its default is 96 so the bounded Cloud Medium
+gateway candidate usually fits in one wave, while a batch with more than 96
+independent groups retains a small second wave so downstream RPC and store
+workers keep recovery headroom. A separate node-local 512-group admission
+bound is shared by every concurrent `SendBatch`. It retains at least five
+batch-local waves during a checkpoint-recovery burst while preventing active
+gateway sessions from multiplying the per-batch wave into unbounded append and
+transport-RPC work. Each admitted group owns one slot until its local Future or remote
+forward completes; waiting honors the group's terminal context. Both bounds
+remain fixed rather than scaling with batch size. The caller
+participates as one worker in both phases, so the router creates at most
+`bound-1` helper goroutines per phase. A single canonical channel still forms
+one ordered group, and completed group results are folded in original group and
+item order before retry selection.
+This removes serialized cross-channel head-of-line waiting while bounding both
+per-request goroutines and aggregate cross-request submissions.
+
+Router observations use low-cardinality paths. `local`, `remote`, and
+`pre_route` measure canonical-channel operations; `batch` measures the complete
+`SendBatch`. The public router-group inflight/capacity gauges expose the shared
+node-local admission pressure and must return to zero after a drain.
+The `batch` observation includes authority resolution, retries, and the
+slowest group. Comparing the whole-batch histogram with the group histograms attributes
+batch-level head-of-line time without adding Channel or UID labels.
+Prometheus additionally attributes the complete batch duration to each input
+item in `wukongim_channelappend_router_item_duration_seconds{path="batch"}`.
+That item-weighted histogram is the valid comparison with per-message gateway
+handler and SENDACK P99; the operation histogram remains one sample per batch.
 
 Router submit contexts are neutral batch transport contexts. Per-item contexts
 and deadlines are checked before route lookup, before submission, and while
@@ -181,7 +203,11 @@ those accepted batches outside `channelWriter.mu`, and re-locks only to admit
 the prepared outcomes into `channelState`. Rejected and idempotent items
 complete their item-aligned future slots immediately with their
 reason/error/result. Valid prepared items receive one message id and one server
-timestamp. Before a prepared item can enter the pending queue, its canonical
+timestamp. Preparation privately records whether that ID came from the
+node-scoped allocator. An append batch carries the server-allocation proof only
+when every included item has it; caller-supplied IDs therefore retain strict
+storage duplicate checks, including in mixed batches. Before a prepared item
+can enter the pending queue, its canonical
 prepared channel must still match the submitted `AuthorityTarget`;
 request-scoped derivation or person-channel normalization that changes the
 channel away from the target returns `ErrStaleRoute` for that item and creates
@@ -204,7 +230,13 @@ Both worker-pool sizes are capped at the maximum positive int32 capacity used by
 ants/v2, preventing oversized configuration values from wrapping into an
 unbounded or permanently full pool.
 An optional `Authorizer` runs on this final local-authority prepare path before
-idempotency lookup and message-id allocation. It is a reusable node-local
+message-id allocation. Ordinary unfenced sends defer durable idempotency
+validation to the serialized storage append, avoiding a duplicate index miss
+for every new message. A target already observed as write-fenced performs the
+pre-append idempotency lookup so an earlier committed retry can still bypass
+the new-write fence. If an unfenced append instead discovers a durable
+idempotency conflict or races into a fence, the existing append-failure
+recovery lookup returns the prior payload-hash-matched result. This is a reusable node-local
 authority admission seam; product composition keeps terminal channel business
 checks in the message usecase, so this runtime does not read Slot business
 metadata or interpret command-source lifecycle.
@@ -228,7 +260,9 @@ per-channel append order for concurrent same-channel requests or serialize the
 requests internally. Append requests
 borrow immutable send-path payloads and carry the resolved authority epoch and
 leader epoch as append fences; concrete storage adapters clone payloads when
-they cross into durable ownership.
+they cross into durable ownership. The server-allocation proof may skip only
+the durable message-ID lookup. Durable sender/client-message idempotency
+validation remains mandatory.
 
 Batch-level append errors are returned to all active items from that single
 append attempt without retry. When an unexpected append failure races with a

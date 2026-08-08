@@ -274,7 +274,13 @@ zero. Channel runtime high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; runtime append sub-stages include
 `runtime_append_reserve_wait`, `runtime_append_submit`, and
 `runtime_append_wait`; append batch metrics include `append_batch_wait` and
-`append_batch_records`; admitted future wait metrics include
+`append_batch_records`; gateway attribution includes async dispatch wait,
+SEND batch handler duration, and batch records, while channelappend router
+attribution separates successful local/remote group duration from complete
+router-batch duration and retains item-weighted batch latency; message
+attribution uses item-weighted permission, pre-append, and submitter stages;
+admitted
+future wait metrics include
 `store_append_wait`, `post_store_commit_wait`,
 `quorum_follower_pull_wait`, `quorum_ack_offset_wait`,
 `quorum_hw_advance_wait`, and `quorum_final_complete_wait`; follower replication

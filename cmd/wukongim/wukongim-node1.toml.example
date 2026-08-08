@@ -96,7 +96,9 @@ runtime_async_auth_workers = 16
 runtime_async_auth_queue_capacity = 8192
 runtime_async_pool_release_timeout = "100ms"
 default_session_async_send_batch_max_wait = "1ms"
-default_session_async_send_batch_max_records = 512
+# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.
+# The 128-record limit is qualified for sustained high-QPS workloads.
+default_session_async_send_batch_max_records = 128
 default_session_async_send_batch_max_bytes = 524288
 send_timeout = "5s"
 

@@ -35,6 +35,10 @@ ports plus channelappend recipient-authority resolution to cluster routing and
 node RPC. `ChannelMetadataStore` also exposes one restore-only subscriber page
 adapter that delegates to the node-local maintenance read; it is used only to
 rebuild the system-UID privilege cache before foreground admission resumes.
+For ordinary group SEND batches it also maps usecase-owned raw permission facts
+to one Slot-proxy batch. The proxy groups reads by physical Slot and performs at
+most one authoritative RPC per represented Slot; this adapter only maps DTOs
+and errors and never evaluates send policy.
 
 ## Management Snapshot Flow
 
@@ -146,7 +150,11 @@ This adapter is the durable append ownership boundary: outbound message payloads
 are cloned before entering `channel`, and inbound result payloads are cloned
 unless the channelappend runtime marks them unnecessary for SENDACK-only flows.
 Commit mode, expected authority epoch fences, and typed errors are mapped at
-this boundary so the channelappend runtime stays cluster-agnostic.
+this boundary so the channelappend runtime stays cluster-agnostic. The adapter
+also forwards the all-message server-allocation proof unchanged; it never
+infers trust from a non-zero message ID. Append authority resolution projects
+the current Channel write-fence state into `AuthorityTarget.WriteFenced`; the
+adapter does not decide whether a retry is idempotent.
 `channel.ErrWriteFenced` is treated as a retryable route-not-ready condition:
 the durable control-plane fence owns the decision, and upper send orchestration
 should retry after metadata refresh or migration completion rather than treating

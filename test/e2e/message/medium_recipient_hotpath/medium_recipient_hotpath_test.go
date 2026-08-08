@@ -51,6 +51,7 @@ const (
 	mediumCloudGroupChannelCount               = 5_000
 	mediumChannelRPCWorkers                    = 96
 	mediumChannelRPCBatchMaxItems              = 8
+	mediumCommitCoordinatorShards              = 1
 	mediumSenderUIDPrefix                      = "wkrc-hifi-sender"
 	mediumCIMinIngressFraction                 = 0.995
 	mediumMaxAllocatedBytesPerMessage          = 360_000
@@ -280,7 +281,7 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		sampler.start()
 		defer sampler.stop()
 	}
-	profileDone := startHotPathCPUProfiles(cluster, os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR"))
+	profileDone := startHotPathProfiles(cluster, os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR"))
 
 	sendackLatencies := make([]time.Duration, 0, len(messages))
 	recvLatencies := make([]time.Duration, 0, mediumOnlineRoutes*mediumMeasuredRounds)
@@ -712,7 +713,7 @@ func boundedPositiveEnvInt(t *testing.T, name string, fallback, minimum, maximum
 	return value
 }
 
-func startHotPathCPUProfiles(cluster *suite.StartedCluster, outputDir string) <-chan error {
+func startHotPathProfiles(cluster *suite.StartedCluster, outputDir string) <-chan error {
 	done := make(chan error, 1)
 	if strings.TrimSpace(outputDir) == "" {
 		done <- nil
@@ -727,32 +728,42 @@ func startHotPathCPUProfiles(cluster *suite.StartedCluster, outputDir string) <-
 		for _, node := range cluster.Nodes {
 			node := node
 			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+node.APIAddr()+"/debug/pprof/profile?seconds=2", nil)
-				if err != nil {
-					errs <- err
-					return
-				}
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					errs <- fmt.Errorf("node %d profile request: %w", node.Spec.ID, err)
-					return
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusOK {
-					errs <- fmt.Errorf("node %d profile status = %d", node.Spec.ID, resp.StatusCode)
-					return
-				}
-				data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-				if err != nil {
-					errs <- fmt.Errorf("node %d read profile: %w", node.Spec.ID, err)
-					return
-				}
-				path := filepath.Join(outputDir, fmt.Sprintf("node-%d-cpu.pb.gz", node.Spec.ID))
-				if err := os.WriteFile(path, data, 0o600); err != nil {
-					errs <- fmt.Errorf("node %d write profile: %w", node.Spec.ID, err)
-					return
+				for _, profile := range []struct {
+					name string
+					path string
+				}{
+					{name: "cpu", path: "/debug/pprof/profile?seconds=2"},
+					{name: "heap", path: "/debug/pprof/heap"},
+				} {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+node.APIAddr()+profile.path, nil)
+					if err != nil {
+						cancel()
+						errs <- err
+						return
+					}
+					resp, err := http.DefaultClient.Do(req)
+					if err != nil {
+						cancel()
+						errs <- fmt.Errorf("node %d %s profile request: %w", node.Spec.ID, profile.name, err)
+						return
+					}
+					data, readErr := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+					_ = resp.Body.Close()
+					cancel()
+					if resp.StatusCode != http.StatusOK {
+						errs <- fmt.Errorf("node %d %s profile status = %d", node.Spec.ID, profile.name, resp.StatusCode)
+						return
+					}
+					if readErr != nil {
+						errs <- fmt.Errorf("node %d read %s profile: %w", node.Spec.ID, profile.name, readErr)
+						return
+					}
+					path := filepath.Join(outputDir, fmt.Sprintf("node-%d-%s.pb.gz", node.Spec.ID, profile.name))
+					if err := os.WriteFile(path, data, 0o600); err != nil {
+						errs <- fmt.Errorf("node %d write %s profile: %w", node.Spec.ID, profile.name, err)
+						return
+					}
 				}
 				errs <- nil
 			}()
@@ -902,6 +913,7 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluste
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":                     "8",
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             strconv.Itoa(mediumChannelRPCWorkers),
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     strconv.Itoa(rpcBatchMaxItems),
+		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS":                       strconv.Itoa(mediumCommitCoordinatorShards),
 		"WK_GATEWAY_GNET_MULTICORE":                                  "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":                             "4",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":                      "128",
@@ -933,6 +945,7 @@ func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rp
 			SlotHeartbeatTick       int    `toml:"slot_heartbeat_tick"`
 			SlotElectionTick        int    `toml:"slot_election_tick"`
 			ChannelRPCBatchMaxItems int    `toml:"channel_rpc_batch_max_items"`
+			CommitCoordinatorShards int    `toml:"commit_coordinator_shards"`
 		} `toml:"cluster"`
 	}
 	for _, node := range cluster.Nodes {
@@ -947,18 +960,21 @@ func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rp
 		if runtime.Cluster.SlotTickInterval != mediumSlotTickInterval.String() ||
 			runtime.Cluster.SlotHeartbeatTick != mediumSlotHeartbeatTick ||
 			runtime.Cluster.SlotElectionTick != mediumSlotElectionTick ||
-			runtime.Cluster.ChannelRPCBatchMaxItems != rpcBatchMaxItems {
+			runtime.Cluster.ChannelRPCBatchMaxItems != rpcBatchMaxItems ||
+			runtime.Cluster.CommitCoordinatorShards != mediumCommitCoordinatorShards {
 			t.Fatalf(
-				"node %d runtime = Slot timing %s/%d/%d Channel RPC batch %d, want %s/%d/%d/%d",
+				"node %d runtime = Slot timing %s/%d/%d Channel RPC batch %d commit shards %d, want %s/%d/%d/%d/%d",
 				node.Spec.ID,
 				runtime.Cluster.SlotTickInterval,
 				runtime.Cluster.SlotHeartbeatTick,
 				runtime.Cluster.SlotElectionTick,
 				runtime.Cluster.ChannelRPCBatchMaxItems,
+				runtime.Cluster.CommitCoordinatorShards,
 				mediumSlotTickInterval,
 				mediumSlotHeartbeatTick,
 				mediumSlotElectionTick,
 				rpcBatchMaxItems,
+				mediumCommitCoordinatorShards,
 			)
 		}
 	}
@@ -1470,30 +1486,45 @@ func milliseconds(value time.Duration) float64 {
 }
 
 type pressureSnapshot struct {
-	maxGatewayQueueRatio           float64
-	maxRecipientQueueRatio         float64
-	maxRecipientWorkerRatio        float64
-	maxChannelRPCMetricNodes       int
-	maxTransportRPCMetricNodes     int
-	minChannelRPCWorkers           float64
-	maxChannelRPCWorkers           float64
-	maxChannelRPCQueueRatio        float64
-	maxChannelRPCWorkerRatio       float64
-	maxTransportRPCQueueRatio      float64
-	maxTransportRPCBusyRatio       float64
-	maxPermissionBatchActive       float64
-	maxPermissionSlotRPCQueueRatio float64
-	maxPermissionSlotRPCInflight   float64
-	maxAdvancePoolUtil             float64
-	maxAdvancePoolWaiting          float64
-	maxAppendPoolUtil              float64
-	maxPostCommitPoolUtil          float64
-	maxPostCommitBacklog           float64
-	maxPostCommitHandoffRatio      float64
-	maxHeapBytes                   float64
-	maxAggregateHeapBytes          float64
-	samples                        int
-	sampleErrors                   int
+	maxGatewayQueueRatio             float64
+	maxRecipientQueueRatio           float64
+	maxRecipientWorkerRatio          float64
+	maxChannelReactorMailboxRatio    float64
+	maxChannelStoreAppendQueueRatio  float64
+	maxChannelStoreAppendWorkerRatio float64
+	maxChannelStoreApplyQueueRatio   float64
+	maxChannelStoreApplyWorkerRatio  float64
+	maxRouterGroupInflight           float64
+	maxRouterGroupCapacity           float64
+	maxRouterGroupRatio              float64
+	maxChannelRPCMetricNodes         int
+	maxTransportRPCMetricNodes       int
+	minChannelRPCWorkers             float64
+	maxChannelRPCWorkers             float64
+	maxChannelRPCQueueRatio          float64
+	maxChannelRPCWorkerRatio         float64
+	maxTransportRPCQueueRatio        float64
+	maxTransportRPCBusyRatio         float64
+	maxPermissionBatchActive         float64
+	maxPermissionSlotRPCQueueRatio   float64
+	maxPermissionSlotRPCInflight     float64
+	maxAdvancePoolUtil               float64
+	maxAdvancePoolWaiting            float64
+	maxAppendPoolUtil                float64
+	maxPostCommitPoolUtil            float64
+	maxPostCommitBacklog             float64
+	maxPostCommitHandoffRatio        float64
+	maxMessageCommitQueueDepth       float64
+	maxMessageMemTableBytes          float64
+	maxMessageMemTableCount          float64
+	maxMessageReadAmplification      float64
+	maxMessageCompactionDebtBytes    float64
+	maxMessageCompactions            float64
+	maxMessageFlushes                float64
+	maxHeapBytes                     float64
+	maxAggregateHeapBytes            float64
+	samples                          int
+	sampleErrors                     int
 }
 
 type pressureSampler struct {
@@ -1609,6 +1640,14 @@ func (s *pressureSampler) observeValues(values hotPathMetricValues) {
 	s.state.maxGatewayQueueRatio = maxFloat(s.state.maxGatewayQueueRatio, ratio(values.gatewayQueueDepth, values.gatewayQueueCapacity))
 	s.state.maxRecipientQueueRatio = maxFloat(s.state.maxRecipientQueueRatio, ratio(values.recipientQueueDepth, values.recipientQueueCapacity))
 	s.state.maxRecipientWorkerRatio = maxFloat(s.state.maxRecipientWorkerRatio, ratio(values.recipientInflight, values.recipientCapacity))
+	s.state.maxChannelReactorMailboxRatio = maxFloat(s.state.maxChannelReactorMailboxRatio, values.channelReactorMailboxRatio)
+	s.state.maxChannelStoreAppendQueueRatio = maxFloat(s.state.maxChannelStoreAppendQueueRatio, values.channelStoreAppendQueueRatio)
+	s.state.maxChannelStoreAppendWorkerRatio = maxFloat(s.state.maxChannelStoreAppendWorkerRatio, values.channelStoreAppendWorkerRatio)
+	s.state.maxChannelStoreApplyQueueRatio = maxFloat(s.state.maxChannelStoreApplyQueueRatio, values.channelStoreApplyQueueRatio)
+	s.state.maxChannelStoreApplyWorkerRatio = maxFloat(s.state.maxChannelStoreApplyWorkerRatio, values.channelStoreApplyWorkerRatio)
+	s.state.maxRouterGroupInflight = maxFloat(s.state.maxRouterGroupInflight, values.routerGroupInflight)
+	s.state.maxRouterGroupCapacity = maxFloat(s.state.maxRouterGroupCapacity, values.routerGroupCapacity)
+	s.state.maxRouterGroupRatio = maxFloat(s.state.maxRouterGroupRatio, ratio(values.routerGroupInflight, values.routerGroupCapacity))
 	if values.channelRPCWorkersPresent {
 		if s.state.minChannelRPCWorkers == 0 || values.channelRPCWorkers < s.state.minChannelRPCWorkers {
 			s.state.minChannelRPCWorkers = values.channelRPCWorkers
@@ -1628,6 +1667,13 @@ func (s *pressureSampler) observeValues(values hotPathMetricValues) {
 	s.state.maxPostCommitPoolUtil = maxFloat(s.state.maxPostCommitPoolUtil, values.postCommitUtil)
 	s.state.maxPostCommitBacklog = maxFloat(s.state.maxPostCommitBacklog, values.postCommitBacklog)
 	s.state.maxPostCommitHandoffRatio = maxFloat(s.state.maxPostCommitHandoffRatio, ratio(values.handoffDepth, values.handoffCapacity))
+	s.state.maxMessageCommitQueueDepth = maxFloat(s.state.maxMessageCommitQueueDepth, values.messageCommitQueueDepth)
+	s.state.maxMessageMemTableBytes = maxFloat(s.state.maxMessageMemTableBytes, values.messageMemTableBytes)
+	s.state.maxMessageMemTableCount = maxFloat(s.state.maxMessageMemTableCount, values.messageMemTableCount)
+	s.state.maxMessageReadAmplification = maxFloat(s.state.maxMessageReadAmplification, values.messageReadAmplification)
+	s.state.maxMessageCompactionDebtBytes = maxFloat(s.state.maxMessageCompactionDebtBytes, values.messageCompactionDebtBytes)
+	s.state.maxMessageCompactions = maxFloat(s.state.maxMessageCompactions, values.messageCompactions)
+	s.state.maxMessageFlushes = maxFloat(s.state.maxMessageFlushes, values.messageFlushes)
 	s.state.maxHeapBytes = maxFloat(s.state.maxHeapBytes, values.heapBytes)
 }
 
@@ -1650,6 +1696,13 @@ type hotPathMetricValues struct {
 	recipientQueueCapacity         float64
 	recipientInflight              float64
 	recipientCapacity              float64
+	channelReactorMailboxRatio     float64
+	channelStoreAppendQueueRatio   float64
+	channelStoreAppendWorkerRatio  float64
+	channelStoreApplyQueueRatio    float64
+	channelStoreApplyWorkerRatio   float64
+	routerGroupInflight            float64
+	routerGroupCapacity            float64
 	channelRPCQueueDepth           float64
 	channelRPCQueueCapacity        float64
 	channelRPCInflight             float64
@@ -1672,11 +1725,28 @@ type hotPathMetricValues struct {
 	postCommitBacklog              float64
 	handoffDepth                   float64
 	handoffCapacity                float64
+	messageCommitQueueDepth        float64
+	messageMemTableBytes           float64
+	messageMemTableCount           float64
+	messageReadAmplification       float64
+	messageCompactionDebtBytes     float64
+	messageCompactions             float64
+	messageFlushes                 float64
 	heapBytes                      float64
 }
 
 func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 	var values hotPathMetricValues
+	mailboxDepths := make(map[string]float64)
+	mailboxCapacities := make(map[string]float64)
+	var storeAppendQueueDepth float64
+	var storeAppendQueueCapacity float64
+	var storeAppendInflight float64
+	var storeAppendWorkers float64
+	var storeApplyQueueDepth float64
+	var storeApplyQueueCapacity float64
+	var storeApplyInflight float64
+	var storeApplyWorkers float64
 	for _, sample := range samples {
 		switch sample.Name {
 		case "wukongim_gateway_async_send_queue_depth":
@@ -1692,6 +1762,15 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 		case "wukongim_delivery_recipient_worker_capacity":
 			values.recipientCapacity = sample.Value
 		case "wukongim_runtime_pool_queue_depth":
+			if isChannelReactorMailboxQueueSample(sample) {
+				mailboxDepths[channelRuntimeQueueSampleKey(sample)] = sample.Value
+			}
+			if isChannelWorkerQueueSample(sample, "channelv2-store-append") {
+				storeAppendQueueDepth = sample.Value
+			}
+			if isChannelWorkerQueueSample(sample, "channelv2-store-apply") {
+				storeApplyQueueDepth = sample.Value
+			}
 			if isChannelRPCQueueSample(sample) {
 				values.channelRPCQueueDepth = sample.Value
 			}
@@ -1699,6 +1778,15 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 				values.permissionSlotRPCQueueDepth += sample.Value
 			}
 		case "wukongim_runtime_pool_queue_capacity":
+			if isChannelReactorMailboxQueueSample(sample) {
+				mailboxCapacities[channelRuntimeQueueSampleKey(sample)] = sample.Value
+			}
+			if isChannelWorkerQueueSample(sample, "channelv2-store-append") {
+				storeAppendQueueCapacity = sample.Value
+			}
+			if isChannelWorkerQueueSample(sample, "channelv2-store-apply") {
+				storeApplyQueueCapacity = sample.Value
+			}
 			if isChannelRPCQueueSample(sample) {
 				values.channelRPCQueueCapacity = sample.Value
 				values.channelRPCQueuePresent = sample.Value > 0
@@ -1707,6 +1795,12 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 				values.permissionSlotRPCQueueCapacity += sample.Value
 			}
 		case "wukongim_runtime_pool_inflight":
+			if isChannelWorkerPoolSample(sample, "channelv2-store-append") {
+				storeAppendInflight = sample.Value
+			}
+			if isChannelWorkerPoolSample(sample, "channelv2-store-apply") {
+				storeApplyInflight = sample.Value
+			}
 			if isChannelRPCPoolSample(sample) {
 				values.channelRPCInflight = sample.Value
 			}
@@ -1714,6 +1808,12 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 				values.permissionSlotRPCInflight += sample.Value
 			}
 		case "wukongim_runtime_pool_workers":
+			if isChannelWorkerPoolSample(sample, "channelv2-store-append") {
+				storeAppendWorkers = sample.Value
+			}
+			if isChannelWorkerPoolSample(sample, "channelv2-store-apply") {
+				storeApplyWorkers = sample.Value
+			}
 			if isChannelRPCPoolSample(sample) {
 				values.channelRPCWorkers = sample.Value
 				values.channelRPCWorkersPresent = sample.Value > 0
@@ -1737,7 +1837,7 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 			}
 		case "wukongim_goroutines_active":
 			if isPermissionBatchTaskSample(sample) {
-				values.permissionBatchActive = sample.Value
+				values.permissionBatchActive += sample.Value
 			}
 		case "wukongim_ants_pool_utilization":
 			if sample.Labels["component"] != "channelappend" {
@@ -1763,11 +1863,73 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 			values.handoffDepth = sample.Value
 		case "wukongim_channelappend_post_commit_handoff_capacity":
 			values.handoffCapacity = sample.Value
+		case "wukongim_channelappend_router_group_inflight":
+			values.routerGroupInflight = sample.Value
+		case "wukongim_channelappend_router_group_capacity":
+			values.routerGroupCapacity = sample.Value
+		case "wukongim_storage_commit_queue_depth":
+			if sample.Labels["store"] == "message" {
+				values.messageCommitQueueDepth = sample.Value
+			}
+		case "wukongim_storage_pebble_memtable_size_bytes":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageMemTableBytes = sample.Value
+			}
+		case "wukongim_storage_pebble_memtable_count":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageMemTableCount = sample.Value
+			}
+		case "wukongim_storage_pebble_read_amplification":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageReadAmplification = sample.Value
+			}
+		case "wukongim_storage_pebble_compaction_estimated_debt_bytes":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageCompactionDebtBytes = sample.Value
+			}
+		case "wukongim_storage_pebble_compactions_in_progress":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageCompactions = sample.Value
+			}
+		case "wukongim_storage_pebble_flushes_in_progress":
+			if sample.Labels["store"] == "channel_log" {
+				values.messageFlushes = sample.Value
+			}
 		case "go_memstats_heap_alloc_bytes":
 			values.heapBytes = sample.Value
 		}
 	}
+	for key, depth := range mailboxDepths {
+		values.channelReactorMailboxRatio = maxFloat(
+			values.channelReactorMailboxRatio,
+			ratio(depth, mailboxCapacities[key]),
+		)
+	}
+	values.channelStoreAppendQueueRatio = ratio(storeAppendQueueDepth, storeAppendQueueCapacity)
+	values.channelStoreAppendWorkerRatio = ratio(storeAppendInflight, storeAppendWorkers)
+	values.channelStoreApplyQueueRatio = ratio(storeApplyQueueDepth, storeApplyQueueCapacity)
+	values.channelStoreApplyWorkerRatio = ratio(storeApplyInflight, storeApplyWorkers)
 	return values
+}
+
+func isChannelReactorMailboxQueueSample(sample suite.MetricSample) bool {
+	return sample.Labels["component"] == "channel" &&
+		strings.HasPrefix(sample.Labels["pool"], "reactor_") &&
+		sample.Labels["queue"] == "mailbox"
+}
+
+func channelRuntimeQueueSampleKey(sample suite.MetricSample) string {
+	return sample.Labels["pool"] + "\x00" + sample.Labels["priority"]
+}
+
+func isChannelWorkerPoolSample(sample suite.MetricSample, pool string) bool {
+	return sample.Labels["component"] == "channel" && sample.Labels["pool"] == pool
+}
+
+func isChannelWorkerQueueSample(sample suite.MetricSample, pool string) bool {
+	return isChannelWorkerPoolSample(sample, pool) &&
+		sample.Labels["queue"] == "worker" &&
+		sample.Labels["priority"] == "none"
 }
 
 func isChannelRPCPoolSample(sample suite.MetricSample) bool {
@@ -1787,7 +1949,8 @@ func isTransportRPCPoolSample(sample suite.MetricSample) bool {
 }
 
 func isPermissionBatchTaskSample(sample suite.MetricSample) bool {
-	return sample.Labels["module"] == "message" &&
+	module := sample.Labels["module"]
+	return (module == "message" || module == "slot") &&
 		sample.Labels["task"] == "permission_batch" &&
 		sample.Labels["kind"] == "burst"
 }
@@ -1809,55 +1972,217 @@ func isPermissionSlotRPCQueueSample(sample suite.MetricSample) bool {
 }
 
 func isPermissionSlotRPCServiceLabel(label string) bool {
-	return label == "slot channel metadata" || label == "slot subscriber metadata"
+	return label == "slot channel metadata" ||
+		label == "slot subscriber metadata" ||
+		label == "slot permission metadata batch"
 }
 
 type hotPathCounters struct {
-	allocatedBytes                   float64
-	gcCount                          float64
-	channelRPCAdmissionFull          float64
-	channelRPCPullBatches            float64
-	channelRPCPullBatchItems         float64
-	channelRPCHintBatches            float64
-	channelRPCHintBatchItems         float64
-	membershipMutationRows           float64
-	pluginReceiveAccepted            float64
-	pluginReceiveFull                float64
-	pluginReceiveClosed              float64
-	pluginReceiveInvokeOK            float64
-	pluginReceiveInvokeError         float64
-	recipientProcessError            float64
-	transportRPCRejected             float64
-	permissionBatchStarted           float64
-	permissionBatchPanics            float64
-	permissionSlotRPCCalls           float64
-	permissionSlotRPCErrors          float64
-	permissionSlotRPCAdmissionErrors float64
+	allocatedBytes                      float64
+	gcCount                             float64
+	channelRPCAdmissionFull             float64
+	channelRPCPullAdmissionFull         float64
+	channelRPCHintAdmissionFull         float64
+	channelRPCPullPaced                 float64
+	channelRPCHintPaced                 float64
+	channelStoreApplyTasks              float64
+	channelStoreApplyAdmissionFull      float64
+	channelStoreApplyPullPaced          float64
+	channelStoreCheckpointTasks         float64
+	channelStoreCheckpointAdmissionFull float64
+	channelRPCPullBatches               float64
+	channelRPCPullBatchItems            float64
+	channelRPCHintBatches               float64
+	channelRPCHintBatchItems            float64
+	channelPullOKEmpty                  float64
+	channelPullOKRecords                float64
+	channelPullError                    float64
+	channelAppendHintPaced              float64
+	channelResumeHintPaced              float64
+	membershipMutationRows              float64
+	pluginReceiveAccepted               float64
+	pluginReceiveFull                   float64
+	pluginReceiveClosed                 float64
+	pluginReceiveInvokeOK               float64
+	pluginReceiveInvokeError            float64
+	recipientProcessOK                  float64
+	recipientProcessRecipientsOK        float64
+	recipientProcessError               float64
+	transportRPCRejected                float64
+	permissionBatchStarted              float64
+	permissionBatchPanics               float64
+	permissionSlotRPCCalls              float64
+	permissionSlotRPCErrors             float64
+	permissionSlotRPCAdmissionErrors    float64
+	messagePhysicalCommits              float64
+	messageCommitBatchRequests          float64
+	messageCommitBatchRecords           float64
+	messageCommitBatchBytes             float64
+	messageCommitSeconds                float64
+	messageLeaderCommitRequests         float64
+	messageFollowerCommitRequests       float64
+	messageLeaderCommitSeconds          float64
+	messageFollowerCommitSeconds        float64
+	messageWALBytesIn                   float64
+	messageWALBytesWritten              float64
+	messageFlushBytesWritten            float64
+	messageCompactionBytesRead          float64
+	messageCompactionBytesWritten       float64
+	messageSSTableSizeBytes             float64
+	messageIdempotencyNegativeSkips     float64
+	messageIdempotencyPointReads        float64
 }
 
 func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 	return hotPathCounters{
-		allocatedBytes:                   c.allocatedBytes - start.allocatedBytes,
-		gcCount:                          c.gcCount - start.gcCount,
-		channelRPCAdmissionFull:          c.channelRPCAdmissionFull - start.channelRPCAdmissionFull,
-		channelRPCPullBatches:            c.channelRPCPullBatches - start.channelRPCPullBatches,
-		channelRPCPullBatchItems:         c.channelRPCPullBatchItems - start.channelRPCPullBatchItems,
-		channelRPCHintBatches:            c.channelRPCHintBatches - start.channelRPCHintBatches,
-		channelRPCHintBatchItems:         c.channelRPCHintBatchItems - start.channelRPCHintBatchItems,
-		membershipMutationRows:           c.membershipMutationRows - start.membershipMutationRows,
-		pluginReceiveAccepted:            c.pluginReceiveAccepted - start.pluginReceiveAccepted,
-		pluginReceiveFull:                c.pluginReceiveFull - start.pluginReceiveFull,
-		pluginReceiveClosed:              c.pluginReceiveClosed - start.pluginReceiveClosed,
-		pluginReceiveInvokeOK:            c.pluginReceiveInvokeOK - start.pluginReceiveInvokeOK,
-		pluginReceiveInvokeError:         c.pluginReceiveInvokeError - start.pluginReceiveInvokeError,
-		recipientProcessError:            c.recipientProcessError - start.recipientProcessError,
-		transportRPCRejected:             c.transportRPCRejected - start.transportRPCRejected,
-		permissionBatchStarted:           c.permissionBatchStarted - start.permissionBatchStarted,
-		permissionBatchPanics:            c.permissionBatchPanics - start.permissionBatchPanics,
-		permissionSlotRPCCalls:           c.permissionSlotRPCCalls - start.permissionSlotRPCCalls,
-		permissionSlotRPCErrors:          c.permissionSlotRPCErrors - start.permissionSlotRPCErrors,
-		permissionSlotRPCAdmissionErrors: c.permissionSlotRPCAdmissionErrors - start.permissionSlotRPCAdmissionErrors,
+		allocatedBytes:                      c.allocatedBytes - start.allocatedBytes,
+		gcCount:                             c.gcCount - start.gcCount,
+		channelRPCAdmissionFull:             c.channelRPCAdmissionFull - start.channelRPCAdmissionFull,
+		channelRPCPullAdmissionFull:         c.channelRPCPullAdmissionFull - start.channelRPCPullAdmissionFull,
+		channelRPCHintAdmissionFull:         c.channelRPCHintAdmissionFull - start.channelRPCHintAdmissionFull,
+		channelRPCPullPaced:                 c.channelRPCPullPaced - start.channelRPCPullPaced,
+		channelRPCHintPaced:                 c.channelRPCHintPaced - start.channelRPCHintPaced,
+		channelStoreApplyTasks:              c.channelStoreApplyTasks - start.channelStoreApplyTasks,
+		channelStoreApplyAdmissionFull:      c.channelStoreApplyAdmissionFull - start.channelStoreApplyAdmissionFull,
+		channelStoreApplyPullPaced:          c.channelStoreApplyPullPaced - start.channelStoreApplyPullPaced,
+		channelStoreCheckpointTasks:         c.channelStoreCheckpointTasks - start.channelStoreCheckpointTasks,
+		channelStoreCheckpointAdmissionFull: c.channelStoreCheckpointAdmissionFull - start.channelStoreCheckpointAdmissionFull,
+		channelRPCPullBatches:               c.channelRPCPullBatches - start.channelRPCPullBatches,
+		channelRPCPullBatchItems:            c.channelRPCPullBatchItems - start.channelRPCPullBatchItems,
+		channelRPCHintBatches:               c.channelRPCHintBatches - start.channelRPCHintBatches,
+		channelRPCHintBatchItems:            c.channelRPCHintBatchItems - start.channelRPCHintBatchItems,
+		channelPullOKEmpty:                  c.channelPullOKEmpty - start.channelPullOKEmpty,
+		channelPullOKRecords:                c.channelPullOKRecords - start.channelPullOKRecords,
+		channelPullError:                    c.channelPullError - start.channelPullError,
+		channelAppendHintPaced:              c.channelAppendHintPaced - start.channelAppendHintPaced,
+		channelResumeHintPaced:              c.channelResumeHintPaced - start.channelResumeHintPaced,
+		membershipMutationRows:              c.membershipMutationRows - start.membershipMutationRows,
+		pluginReceiveAccepted:               c.pluginReceiveAccepted - start.pluginReceiveAccepted,
+		pluginReceiveFull:                   c.pluginReceiveFull - start.pluginReceiveFull,
+		pluginReceiveClosed:                 c.pluginReceiveClosed - start.pluginReceiveClosed,
+		pluginReceiveInvokeOK:               c.pluginReceiveInvokeOK - start.pluginReceiveInvokeOK,
+		pluginReceiveInvokeError:            c.pluginReceiveInvokeError - start.pluginReceiveInvokeError,
+		recipientProcessOK:                  c.recipientProcessOK - start.recipientProcessOK,
+		recipientProcessRecipientsOK:        c.recipientProcessRecipientsOK - start.recipientProcessRecipientsOK,
+		recipientProcessError:               c.recipientProcessError - start.recipientProcessError,
+		transportRPCRejected:                c.transportRPCRejected - start.transportRPCRejected,
+		permissionBatchStarted:              c.permissionBatchStarted - start.permissionBatchStarted,
+		permissionBatchPanics:               c.permissionBatchPanics - start.permissionBatchPanics,
+		permissionSlotRPCCalls:              c.permissionSlotRPCCalls - start.permissionSlotRPCCalls,
+		permissionSlotRPCErrors:             c.permissionSlotRPCErrors - start.permissionSlotRPCErrors,
+		permissionSlotRPCAdmissionErrors:    c.permissionSlotRPCAdmissionErrors - start.permissionSlotRPCAdmissionErrors,
+		messagePhysicalCommits:              c.messagePhysicalCommits - start.messagePhysicalCommits,
+		messageCommitBatchRequests:          c.messageCommitBatchRequests - start.messageCommitBatchRequests,
+		messageCommitBatchRecords:           c.messageCommitBatchRecords - start.messageCommitBatchRecords,
+		messageCommitBatchBytes:             c.messageCommitBatchBytes - start.messageCommitBatchBytes,
+		messageCommitSeconds:                c.messageCommitSeconds - start.messageCommitSeconds,
+		messageLeaderCommitRequests:         c.messageLeaderCommitRequests - start.messageLeaderCommitRequests,
+		messageFollowerCommitRequests:       c.messageFollowerCommitRequests - start.messageFollowerCommitRequests,
+		messageLeaderCommitSeconds:          c.messageLeaderCommitSeconds - start.messageLeaderCommitSeconds,
+		messageFollowerCommitSeconds:        c.messageFollowerCommitSeconds - start.messageFollowerCommitSeconds,
+		messageWALBytesIn:                   c.messageWALBytesIn - start.messageWALBytesIn,
+		messageWALBytesWritten:              c.messageWALBytesWritten - start.messageWALBytesWritten,
+		messageFlushBytesWritten:            c.messageFlushBytesWritten - start.messageFlushBytesWritten,
+		messageCompactionBytesRead:          c.messageCompactionBytesRead - start.messageCompactionBytesRead,
+		messageCompactionBytesWritten:       c.messageCompactionBytesWritten - start.messageCompactionBytesWritten,
+		messageSSTableSizeBytes:             c.messageSSTableSizeBytes - start.messageSSTableSizeBytes,
+		messageIdempotencyNegativeSkips:     c.messageIdempotencyNegativeSkips - start.messageIdempotencyNegativeSkips,
+		messageIdempotencyPointReads:        c.messageIdempotencyPointReads - start.messageIdempotencyPointReads,
 	}
+}
+
+type messageCommitSummary struct {
+	StoreApplyTasks     float64
+	StoreApplyFull      float64
+	StoreApplyPullPaced float64
+	CheckpointTasks     float64
+	CheckpointFull      float64
+	PhysicalCommits     float64
+	BatchRequests       float64
+	BatchRecords        float64
+	BatchBytes          float64
+	CommitSeconds       float64
+	LeaderRequests      float64
+	FollowerRequests    float64
+	LeaderSeconds       float64
+	FollowerSeconds     float64
+	WALBytesIn          float64
+	WALBytesWritten     float64
+	FlushBytes          float64
+	CompactionRead      float64
+	CompactionWrite     float64
+	SSTableSizeDelta    float64
+	IdempotencySkips    float64
+	IdempotencyReads    float64
+}
+
+type channelRPCAdmissionSummary struct {
+	Full      float64
+	PullFull  float64
+	HintFull  float64
+	PullPaced float64
+	HintPaced float64
+}
+
+func (c hotPathCounters) channelRPCAdmissionSummary() channelRPCAdmissionSummary {
+	return channelRPCAdmissionSummary{
+		Full:      c.channelRPCAdmissionFull,
+		PullFull:  c.channelRPCPullAdmissionFull,
+		HintFull:  c.channelRPCHintAdmissionFull,
+		PullPaced: c.channelRPCPullPaced,
+		HintPaced: c.channelRPCHintPaced,
+	}
+}
+
+func (c hotPathCounters) messageCommitSummary() messageCommitSummary {
+	return messageCommitSummary{
+		StoreApplyTasks:     c.channelStoreApplyTasks,
+		StoreApplyFull:      c.channelStoreApplyAdmissionFull,
+		StoreApplyPullPaced: c.channelStoreApplyPullPaced,
+		CheckpointTasks:     c.channelStoreCheckpointTasks,
+		CheckpointFull:      c.channelStoreCheckpointAdmissionFull,
+		PhysicalCommits:     c.messagePhysicalCommits,
+		BatchRequests:       c.messageCommitBatchRequests,
+		BatchRecords:        c.messageCommitBatchRecords,
+		BatchBytes:          c.messageCommitBatchBytes,
+		CommitSeconds:       c.messageCommitSeconds,
+		LeaderRequests:      c.messageLeaderCommitRequests,
+		FollowerRequests:    c.messageFollowerCommitRequests,
+		LeaderSeconds:       c.messageLeaderCommitSeconds,
+		FollowerSeconds:     c.messageFollowerCommitSeconds,
+		WALBytesIn:          c.messageWALBytesIn,
+		WALBytesWritten:     c.messageWALBytesWritten,
+		FlushBytes:          c.messageFlushBytesWritten,
+		CompactionRead:      c.messageCompactionBytesRead,
+		CompactionWrite:     c.messageCompactionBytesWritten,
+		SSTableSizeDelta:    c.messageSSTableSizeBytes,
+		IdempotencySkips:    c.messageIdempotencyNegativeSkips,
+		IdempotencyReads:    c.messageIdempotencyPointReads,
+	}
+}
+
+type recipientProcessSummary struct {
+	OK         float64
+	Recipients float64
+	Errors     float64
+}
+
+func (c hotPathCounters) recipientProcessSummary() recipientProcessSummary {
+	return recipientProcessSummary{
+		OK:         c.recipientProcessOK,
+		Recipients: c.recipientProcessRecipientsOK,
+		Errors:     c.recipientProcessError,
+	}
+}
+
+func capturePermissionSoakCommitDelta(cluster *suite.StartedCluster, start hotPathCounters) (hotPathCounters, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	current, err := captureHotPathCounters(ctx, cluster)
+	if err != nil {
+		return hotPathCounters{}, err
+	}
+	return current.subtract(start), nil
 }
 
 func mustCaptureHotPathCounters(t *testing.T, cluster *suite.StartedCluster) hotPathCounters {
@@ -1929,10 +2254,6 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 				case "error", "timeout", "panic":
 					counters.pluginReceiveInvokeError += sample.Value
 				}
-			case "wukongim_delivery_recipient_worker_process_total":
-				if sample.Labels["result"] != "ok" {
-					counters.recipientProcessError += sample.Value
-				}
 			case "wukongim_goroutine_pool_rejected_total":
 				if isTransportRPCPoolSample(sample) {
 					counters.transportRPCRejected += sample.Value
@@ -1964,6 +2285,157 @@ func observeHotPathCounterSample(counters *hotPathCounters, sample suite.MetricS
 	case "wukongim_runtime_pool_admission_total":
 		if isPermissionSlotRPCQueueSample(sample) && sample.Labels["result"] != "ok" {
 			counters.permissionSlotRPCAdmissionErrors += sample.Value
+		}
+		if isChannelWorkerQueueSample(sample, "channelv2-store-checkpoint") && sample.Labels["result"] == "full" {
+			counters.channelStoreCheckpointAdmissionFull += sample.Value
+		}
+	case "wukongim_channelv2_worker_task_duration_seconds_count":
+		if sample.Labels["result"] != "ok" {
+			return
+		}
+		switch sample.Labels["kind"] {
+		case "store_apply":
+			counters.channelStoreApplyTasks += sample.Value
+		case "store_checkpoint":
+			counters.channelStoreCheckpointTasks += sample.Value
+		}
+	case "wukongim_channelv2_worker_admission_total":
+		if sample.Labels["pool"] == "channelv2-store-apply" {
+			switch {
+			case sample.Labels["kind"] == "store_apply" && sample.Labels["result"] == "full":
+				counters.channelStoreApplyAdmissionFull += sample.Value
+			case sample.Labels["kind"] == "rpc_pull" && sample.Labels["result"] == "paced":
+				counters.channelStoreApplyPullPaced += sample.Value
+			}
+			return
+		}
+		if sample.Labels["pool"] != "channelv2-rpc" {
+			return
+		}
+		switch sample.Labels["result"] {
+		case "full":
+			switch sample.Labels["kind"] {
+			case "rpc_pull":
+				counters.channelRPCPullAdmissionFull += sample.Value
+			case "rpc_pull_hint":
+				counters.channelRPCHintAdmissionFull += sample.Value
+			}
+		case "paced":
+			switch sample.Labels["kind"] {
+			case "rpc_pull":
+				counters.channelRPCPullPaced += sample.Value
+			case "rpc_pull_hint":
+				counters.channelRPCHintPaced += sample.Value
+			}
+		}
+	case "wukongim_channelv2_pull_total":
+		switch {
+		case sample.Labels["result"] == "ok" && sample.Labels["empty"] == "true":
+			counters.channelPullOKEmpty += sample.Value
+		case sample.Labels["result"] == "ok" && sample.Labels["empty"] == "false":
+			counters.channelPullOKRecords += sample.Value
+		case sample.Labels["result"] == "err":
+			counters.channelPullError += sample.Value
+		}
+	case "wukongim_channelv2_pull_hint_total":
+		if sample.Labels["result"] != "paced" {
+			return
+		}
+		switch sample.Labels["reason"] {
+		case "append":
+			counters.channelAppendHintPaced += sample.Value
+		case "resume":
+			counters.channelResumeHintPaced += sample.Value
+		}
+	case "wukongim_storage_commit_batch_duration_seconds_count":
+		if isSuccessfulMessageCommitBatchSample(sample) && sample.Labels["stage"] == "commit" {
+			counters.messagePhysicalCommits += sample.Value
+		}
+	case "wukongim_storage_commit_batch_duration_seconds_sum":
+		if isSuccessfulMessageCommitBatchSample(sample) && sample.Labels["stage"] == "commit" {
+			counters.messageCommitSeconds += sample.Value
+		}
+	case "wukongim_storage_commit_batch_requests_sum":
+		if sample.Labels["store"] == "message" {
+			counters.messageCommitBatchRequests += sample.Value
+		}
+	case "wukongim_storage_commit_batch_records_sum":
+		if sample.Labels["store"] == "message" {
+			counters.messageCommitBatchRecords += sample.Value
+		}
+	case "wukongim_storage_commit_batch_bytes_sum":
+		if sample.Labels["store"] == "message" {
+			counters.messageCommitBatchBytes += sample.Value
+		}
+	case "wukongim_storage_commit_request_duration_seconds_count":
+		observeMessageCommitRequestCounter(counters, sample, false)
+	case "wukongim_storage_commit_request_duration_seconds_sum":
+		observeMessageCommitRequestCounter(counters, sample, true)
+	case "wukongim_storage_pebble_wal_bytes_in":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageWALBytesIn += sample.Value
+		}
+	case "wukongim_storage_pebble_wal_bytes_written":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageWALBytesWritten += sample.Value
+		}
+	case "wukongim_storage_pebble_flush_bytes_written":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageFlushBytesWritten += sample.Value
+		}
+	case "wukongim_storage_pebble_compaction_bytes_read":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageCompactionBytesRead += sample.Value
+		}
+	case "wukongim_storage_pebble_compaction_bytes_written":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageCompactionBytesWritten += sample.Value
+		}
+	case "wukongim_storage_pebble_sstable_size_bytes":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageSSTableSizeBytes += sample.Value
+		}
+	case "wukongim_storage_message_idempotency_negative_filter_skips":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageIdempotencyNegativeSkips += sample.Value
+		}
+	case "wukongim_storage_message_idempotency_point_reads":
+		if sample.Labels["store"] == "channel_log" {
+			counters.messageIdempotencyPointReads += sample.Value
+		}
+	case "wukongim_delivery_recipient_worker_process_total":
+		if sample.Labels["result"] == "ok" {
+			counters.recipientProcessOK += sample.Value
+		} else {
+			counters.recipientProcessError += sample.Value
+		}
+	case "wukongim_delivery_recipient_worker_process_recipients_sum":
+		if sample.Labels["result"] == "ok" {
+			counters.recipientProcessRecipientsOK += sample.Value
+		}
+	}
+}
+
+func isSuccessfulMessageCommitBatchSample(sample suite.MetricSample) bool {
+	return sample.Labels["store"] == "message" && sample.Labels["result"] == "ok"
+}
+
+func observeMessageCommitRequestCounter(counters *hotPathCounters, sample suite.MetricSample, duration bool) {
+	if sample.Labels["store"] != "message" || sample.Labels["result"] != "ok" {
+		return
+	}
+	switch sample.Labels["lane"] {
+	case "leader_append":
+		if duration {
+			counters.messageLeaderCommitSeconds += sample.Value
+		} else {
+			counters.messageLeaderCommitRequests += sample.Value
+		}
+	case "follower_apply":
+		if duration {
+			counters.messageFollowerCommitSeconds += sample.Value
+		} else {
+			counters.messageFollowerCommitRequests += sample.Value
 		}
 	}
 }
@@ -2118,8 +2590,11 @@ func hotPathRuntimeDiagnostics(cluster *suite.StartedCluster) string {
 			if strings.HasPrefix(sample.Name, "wukongim_ants_pool_") && sample.Labels["component"] != "channelappend" {
 				continue
 			}
-			if strings.HasPrefix(sample.Name, "wukongim_runtime_pool_") && sample.Labels["component"] != "gateway" {
-				continue
+			if strings.HasPrefix(sample.Name, "wukongim_runtime_pool_") {
+				component := sample.Labels["component"]
+				if component != "gateway" && component != "channel" {
+					continue
+				}
 			}
 			nodeMetrics[diagnosticMetricKey(sample)] = sample.Value
 		}
@@ -2151,6 +2626,10 @@ func isHotPathDiagnosticMetric(name string) bool {
 		"wukongim_runtime_pool_queue_wait_duration_seconds_count",
 		"wukongim_runtime_pool_queue_wait_duration_seconds_sum",
 		"wukongim_channelappend_router_total",
+		"wukongim_channelappend_router_duration_seconds_count",
+		"wukongim_channelappend_router_duration_seconds_sum",
+		"wukongim_channelappend_effect_duration_seconds_count",
+		"wukongim_channelappend_effect_duration_seconds_sum",
 		"wukongim_channelappend_local_admission_total",
 		"wukongim_channelappend_writer_admission_depth",
 		"wukongim_channelappend_writer_pool_running",
@@ -2161,6 +2640,17 @@ func isHotPathDiagnosticMetric(name string) bool {
 		"wukongim_delivery_recipient_worker_inflight",
 		"wukongim_delivery_recipient_worker_capacity",
 		"wukongim_delivery_recipient_worker_process_total",
+		"wukongim_delivery_recipient_worker_process_duration_seconds_count",
+		"wukongim_delivery_recipient_worker_process_duration_seconds_sum",
+		"wukongim_channelv2_append_duration_seconds_count",
+		"wukongim_channelv2_append_duration_seconds_sum",
+		"wukongim_channelv2_append_stage_duration_seconds_count",
+		"wukongim_channelv2_append_stage_duration_seconds_sum",
+		"wukongim_channelv2_append_wait_stage_duration_seconds_count",
+		"wukongim_channelv2_append_wait_stage_duration_seconds_sum",
+		"wukongim_channelv2_worker_task_duration_seconds_count",
+		"wukongim_channelv2_worker_task_duration_seconds_sum",
+		"wukongim_channelv2_worker_admission_total",
 		"wukongim_conversation_directory_",
 		"wukongim_conversation_hydration_",
 	} {
@@ -2172,8 +2662,34 @@ func isHotPathDiagnosticMetric(name string) bool {
 }
 
 func hotPathGoroutineDiagnostics(cluster *suite.StartedCluster) string {
+	return hotPathGoroutineDiagnosticsMatching(cluster, []string{
+		"internal/usecase/message",
+		"internal/access/gateway",
+		"internal/runtime/channelappend",
+		"internal/infra/cluster",
+		"pkg/slot/proxy",
+		"pkg/gateway/core",
+	}, 96<<10)
+}
+
+func hotPathBottleneckGoroutineDiagnostics(cluster *suite.StartedCluster) string {
+	return hotPathGoroutineDiagnosticsMatching(cluster, []string{
+		"internal/runtime/channelappend.(*Future).Wait",
+		"internal/runtime/channelappend.(*Router).submitGroup",
+		"internal/runtime/channelappend.appendEffect.run",
+		"internal/infra/cluster.(*ChannelAppender).AppendBatch",
+		"internal/infra/cluster.(*ChannelAppendClient).ForwardSendBatch",
+		"pkg/cluster/channels.(*Service).AppendBatch",
+		"pkg/cluster/channels.(*TransportClient).ForwardAppendBatch",
+		"pkg/channel/reactor",
+		"pkg/channel/service",
+		"pkg/channel/worker",
+		"internal/runtime/delivery",
+	}, 64<<10)
+}
+
+func hotPathGoroutineDiagnosticsMatching(cluster *suite.StartedCluster, matches []string, maxOutputBytes int) string {
 	const maxProfileBytes = 2 << 20
-	const maxOutputBytes = 96 << 10
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	var out strings.Builder
@@ -2194,7 +2710,7 @@ func hotPathGoroutineDiagnostics(cluster *suite.StartedCluster) string {
 			continue
 		}
 		for _, block := range strings.Split(string(body), "\n\n") {
-			if !isHotPathGoroutineBlock(block) {
+			if !goroutineBlockMatches(block, matches) {
 				continue
 			}
 			fmt.Fprintf(&out, "node-%d\n%s\n\n", node.Spec.ID, block)
@@ -2206,15 +2722,8 @@ func hotPathGoroutineDiagnostics(cluster *suite.StartedCluster) string {
 	return out.String()
 }
 
-func isHotPathGoroutineBlock(block string) bool {
-	for _, match := range []string{
-		"internal/usecase/message",
-		"internal/access/gateway",
-		"internal/runtime/channelappend",
-		"internal/infra/cluster",
-		"pkg/slot/proxy",
-		"pkg/gateway/core",
-	} {
+func goroutineBlockMatches(block string, matches []string) bool {
+	for _, match := range matches {
 		if strings.Contains(block, match) {
 			return true
 		}

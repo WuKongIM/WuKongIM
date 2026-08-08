@@ -115,6 +115,8 @@ const (
 	RPCSlotUserMembership
 	// RPCSlotRuntimeMetadata serves Slot-leader Channel runtime metadata reads.
 	RPCSlotRuntimeMetadata
+	// RPCSlotPermissionMetadataBatch serves Slot-leader batched send-permission facts.
+	RPCSlotPermissionMetadataBatch
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -223,6 +225,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot user membership"
 	case RPCSlotRuntimeMetadata:
 		return "slot runtime metadata"
+	case RPCSlotPermissionMetadataBatch:
+		return "slot permission metadata batch"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

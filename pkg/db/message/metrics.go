@@ -4,6 +4,12 @@ import "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 
 // EngineMetricsSnapshot is a stable view of the message engine's local storage state.
 type EngineMetricsSnapshot struct {
+	// IdempotencyNegativeFilterSkips is the number of durable negative point
+	// reads avoided since the message DB opened.
+	IdempotencyNegativeFilterSkips uint64
+	// IdempotencyPointReads is the number of possible filter hits verified
+	// against durable storage since the message DB opened.
+	IdempotencyPointReads uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -22,6 +28,14 @@ type EngineMetricsSnapshot struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
+	SSTableSizeBytes uint64
+	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
+	FlushBytesWritten uint64
+	// CompactionBytesRead is the cumulative SSTable bytes read by compactions.
+	CompactionBytesRead uint64
+	// CompactionBytesWritten is the cumulative SSTable bytes written by compactions.
+	CompactionBytesWritten uint64
 	// FlushCount is the number of completed flushes since this engine opened.
 	FlushCount int64
 	// FlushesInProgress is the current number of flushes in progress.
@@ -59,7 +73,10 @@ func (db *MessageDB) MetricsSnapshot() EngineMetricsSnapshot {
 		return EngineMetricsSnapshot{}
 	}
 	defer db.endUse()
-	return engineMetricsFromSnapshot(db.engine.MetricsSnapshot())
+	snapshot := engineMetricsFromSnapshot(db.engine.MetricsSnapshot())
+	snapshot.IdempotencyNegativeFilterSkips = db.idempotencyNegativeFilterSkips.Load()
+	snapshot.IdempotencyPointReads = db.idempotencyPointReads.Load()
+	return snapshot
 }
 
 func engineMetricsFromSnapshot(snapshot engine.MetricsSnapshot) EngineMetricsSnapshot {
@@ -73,6 +90,10 @@ func engineMetricsFromSnapshot(snapshot engine.MetricsSnapshot) EngineMetricsSna
 		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
 		WALBytesIn:                   snapshot.WALBytesIn,
 		WALBytesWritten:              snapshot.WALBytesWritten,
+		SSTableSizeBytes:             snapshot.SSTableSizeBytes,
+		FlushBytesWritten:            snapshot.FlushBytesWritten,
+		CompactionBytesRead:          snapshot.CompactionBytesRead,
+		CompactionBytesWritten:       snapshot.CompactionBytesWritten,
 		FlushCount:                   snapshot.FlushCount,
 		FlushesInProgress:            snapshot.FlushesInProgress,
 		CompactionCount:              snapshot.CompactionCount,

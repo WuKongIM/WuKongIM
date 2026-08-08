@@ -25,8 +25,8 @@ func TestRootTOMLExampleLoads(t *testing.T) {
 	if cfg.Cluster.Channel.RPCWorkers != 160 || cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
 		t.Fatalf("Channel RPC workers/batch = %d/%d, want 160/16", cfg.Cluster.Channel.RPCWorkers, cfg.Cluster.Channel.RPCBatchMaxItems)
 	}
-	if cfg.Cluster.Storage.CommitShards != 4 {
-		t.Fatalf("CommitShards = %d, want 4", cfg.Cluster.Storage.CommitShards)
+	if cfg.Cluster.Storage.CommitShards != 1 {
+		t.Fatalf("CommitShards = %d, want 1", cfg.Cluster.Storage.CommitShards)
 	}
 }
 
@@ -40,8 +40,8 @@ func TestScriptThreeNodeClusterUsesQPSValidatedRPCDefaults(t *testing.T) {
 		if cfg.Cluster.Channel.RPCWorkers != 160 || cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
 			t.Fatalf("%s Channel RPC workers/batch = %d/%d, want 160/16", path, cfg.Cluster.Channel.RPCWorkers, cfg.Cluster.Channel.RPCBatchMaxItems)
 		}
-		if cfg.Cluster.Storage.CommitShards != 4 {
-			t.Fatalf("%s CommitShards = %d, want 4", path, cfg.Cluster.Storage.CommitShards)
+		if cfg.Cluster.Storage.CommitShards != 1 {
+			t.Fatalf("%s CommitShards = %d, want 1", path, cfg.Cluster.Storage.CommitShards)
 		}
 	}
 }
@@ -63,7 +63,8 @@ func TestCommandTOMLExampleLoads(t *testing.T) {
 }
 
 func TestScriptSingleNodeClusterUsesTenLogicalAndDefaultPhysicalSlots(t *testing.T) {
-	cfg, err := Load(Options{Args: []string{"-config", filepath.Join("..", "..", "scripts", "wukongim", "wukongim.toml")}, Environ: cleanEnv()})
+	path := filepath.Join("..", "..", "scripts", "wukongim", "wukongim.toml")
+	cfg, err := Load(Options{Args: []string{"-config", path}, Environ: cleanEnv()})
 	if err != nil {
 		t.Fatalf("Load(script example) error = %v", err)
 	}
@@ -72,6 +73,9 @@ func TestScriptSingleNodeClusterUsesTenLogicalAndDefaultPhysicalSlots(t *testing
 	}
 	if cfg.Cluster.Channel.RPCBatchMaxItems != 16 {
 		t.Fatalf("RPCBatchMaxItems = %d, want 16", cfg.Cluster.Channel.RPCBatchMaxItems)
+	}
+	if cfg.Cluster.Storage.CommitShards != 1 {
+		t.Fatalf("%s CommitShards = %d, want 1", path, cfg.Cluster.Storage.CommitShards)
 	}
 }
 
@@ -91,6 +95,41 @@ func TestSingleNodeClusterPrometheusExamplesUseDedicatedDefaultPort(t *testing.T
 				t.Fatalf("%s must use the dedicated app-managed Prometheus port 9099", file)
 			}
 		})
+	}
+}
+
+func TestGatewayExamplesUseQualifiedAsyncSendBatchLimit(t *testing.T) {
+	files := []string{filepath.Join("..", "..", "wukongim.toml.example")}
+	for _, pattern := range []string{
+		filepath.Join("..", "..", "cmd", "wukongim", "*.toml.example"),
+		filepath.Join("..", "..", "scripts", "wukongim", "*.toml"),
+	} {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("Glob(%s) error = %v", pattern, err)
+		}
+		files = append(files, matches...)
+	}
+
+	want := "# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.\n" +
+		"# The 128-record limit is qualified for sustained high-QPS workloads.\n" +
+		"default_session_async_send_batch_max_records = 128"
+	foundGateway := 0
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", file, err)
+		}
+		if !strings.Contains(string(content), "[gateway]") {
+			continue
+		}
+		foundGateway++
+		if !strings.Contains(string(content), want) {
+			t.Errorf("%s must document the qualified gateway async SEND batch limit", file)
+		}
+	}
+	if foundGateway == 0 {
+		t.Fatal("no shipped [gateway] examples found")
 	}
 }
 

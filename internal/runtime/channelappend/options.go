@@ -72,13 +72,13 @@ type AppendObserver interface {
 	AppendFinished(path string, err error, dur time.Duration)
 }
 
-// RouterObservation describes one routed foreground SEND group.
+// RouterObservation describes one routed foreground SEND group or whole batch.
 type RouterObservation struct {
-	// Path is local, remote, or pre_route.
+	// Path is local, remote, pre_route, or batch.
 	Path string
 	// Result is a low-cardinality result or error class.
 	Result string
-	// Items is the number of items in the observed group.
+	// Items is the number of items in the observed group or batch.
 	Items int
 	// Duration is the foreground routing and submit duration.
 	Duration time.Duration
@@ -87,8 +87,23 @@ type RouterObservation struct {
 // RouterObserver receives foreground channel authority routing observations.
 // Implementations must be safe for concurrent calls from SendBatch.
 type RouterObserver interface {
-	// ObserveChannelAppendRouter records one routed foreground SEND group.
+	// ObserveChannelAppendRouter records one routed foreground SEND group or batch.
 	ObserveChannelAppendRouter(RouterObservation)
+}
+
+// RouterGroupPressureObservation describes node-local group submission pressure
+// shared by all concurrent SendBatch calls.
+type RouterGroupPressureObservation struct {
+	// Inflight is the number of canonical-channel groups currently submitted.
+	Inflight int
+	// Capacity is the fixed node-local submission bound.
+	Capacity int
+}
+
+// RouterGroupPressureObserver receives node-local router group pressure gauges.
+type RouterGroupPressureObserver interface {
+	// SetChannelAppendRouterGroupPressure records current shared group pressure.
+	SetChannelAppendRouterGroupPressure(RouterGroupPressureObservation)
 }
 
 // LocalAdmissionObservation describes local writer-group admission for one batch.

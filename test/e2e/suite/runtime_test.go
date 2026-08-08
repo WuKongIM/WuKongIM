@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -131,6 +132,17 @@ func TestWorkspacePluginSocketStaysOutsideLongArtifactTree(t *testing.T) {
 	requirePathOutside(t, workspace.RootDir, socketPath)
 	require.LessOrEqual(t, len([]byte(socketPath)), 100)
 	require.Equal(t, "n"+nodeIDString(nodeID)+".sock", filepath.Base(socketPath))
+}
+
+func TestWorkspaceDisablesSpotlightIndexingOnlyOnDarwin(t *testing.T) {
+	workspace := NewWorkspace(t)
+	marker := filepath.Join(workspace.RootDir, ".metadata_never_index")
+	_, err := os.Stat(marker)
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, err)
+		return
+	}
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestWorkspacePluginSocketPreservesExplicitOverride(t *testing.T) {

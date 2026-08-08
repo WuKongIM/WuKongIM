@@ -53,3 +53,120 @@ func TestAppendStrictRejectsDuplicateIdempotency(t *testing.T) {
 		t.Fatalf("Append() err = %v, want conflict", err)
 	}
 }
+
+func TestAppendServerAllocatedUsesMembershipFilterForNegativeIdempotencyLookups(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	defer log.Close()
+	for i, clientMsgNo := range []string{"client-1", "client-2"} {
+		_, err := log.Append(context.Background(), []Record{{
+			ID:          uint64(81 + i),
+			ClientMsgNo: clientMsgNo,
+			FromUID:     "u1",
+			Payload:     []byte(clientMsgNo),
+		}}, AppendOptions{Mode: AppendServerAllocatedMessageID})
+		if err != nil {
+			t.Fatalf("Append(%q): %v", clientMsgNo, err)
+		}
+	}
+	if got := store.db.idempotencyNegativeFilterSkips.Load(); got != 2 {
+		t.Fatalf("negative filter skips = %d, want 2", got)
+	}
+	if got := store.db.idempotencyPointReads.Load(); got != 0 {
+		t.Fatalf("idempotency point reads = %d, want 0", got)
+	}
+
+	_, err := log.Append(context.Background(), []Record{{
+		ID:          83,
+		ClientMsgNo: "client-1",
+		FromUID:     "u1",
+		Payload:     []byte("duplicate"),
+	}}, AppendOptions{Mode: AppendServerAllocatedMessageID})
+	if !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("duplicate Append() err = %v, want conflict", err)
+	}
+	if got := store.db.idempotencyPointReads.Load(); got != 1 {
+		t.Fatalf("idempotency point reads = %d, want 1 for the possible hit", got)
+	}
+	metrics := store.db.MetricsSnapshot()
+	if metrics.IdempotencyNegativeFilterSkips != 2 || metrics.IdempotencyPointReads != 1 {
+		t.Fatalf("idempotency metrics = %+v, want skips=2 point_reads=1", metrics)
+	}
+}
+
+func TestIdempotencyMembershipFilterRebuildsFromDurableIndex(t *testing.T) {
+	path := t.TempDir()
+	store := openTestMessageStoreAt(t, path)
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), []Record{{
+		ID:          91,
+		ClientMsgNo: "durable-client",
+		FromUID:     "u1",
+		Payload:     []byte("original"),
+	}}, AppendOptions{Mode: AppendServerAllocatedMessageID}); err != nil {
+		t.Fatalf("seed Append(): %v", err)
+	}
+	if err := log.Close(); err != nil {
+		t.Fatalf("seed Close(): %v", err)
+	}
+	store.close(t)
+
+	reopened := openTestMessageStoreAt(t, path)
+	defer reopened.close(t)
+	reopenedLog := testChannelLog(reopened)
+	defer reopenedLog.Close()
+	_, err := reopenedLog.Append(context.Background(), []Record{{
+		ID:          92,
+		ClientMsgNo: "durable-client",
+		FromUID:     "u1",
+		Payload:     []byte("duplicate"),
+	}}, AppendOptions{Mode: AppendServerAllocatedMessageID})
+	if !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("duplicate after reopen err = %v, want conflict", err)
+	}
+	if got := reopened.db.idempotencyPointReads.Load(); got != 1 {
+		t.Fatalf("idempotency point reads after rebuild = %d, want 1", got)
+	}
+	if got := reopened.db.idempotencyNegativeFilterSkips.Load(); got != 0 {
+		t.Fatalf("negative skips after rebuild = %d, want 0 for durable hit", got)
+	}
+}
+
+func TestTrustedFollowerAppendKeepsLoadedIdempotencyMembershipCurrent(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	defer log.Close()
+	if _, err := log.Append(context.Background(), []Record{{
+		ID:          101,
+		ClientMsgNo: "leader-client",
+		FromUID:     "u1",
+		Payload:     []byte("leader"),
+	}}, AppendOptions{Mode: AppendServerAllocatedMessageID}); err != nil {
+		t.Fatalf("leader Append(): %v", err)
+	}
+	if _, err := log.Append(context.Background(), []Record{{
+		ID:          102,
+		ClientMsgNo: "follower-client",
+		FromUID:     "u1",
+		Payload:     []byte("follower"),
+	}}, AppendOptions{Mode: AppendTrustedContiguous}); err != nil {
+		t.Fatalf("trusted follower Append(): %v", err)
+	}
+
+	_, err := log.Append(context.Background(), []Record{{
+		ID:          103,
+		ClientMsgNo: "follower-client",
+		FromUID:     "u1",
+		Payload:     []byte("duplicate-after-role-change"),
+	}}, AppendOptions{Mode: AppendServerAllocatedMessageID})
+	if !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("duplicate after trusted append err = %v, want conflict", err)
+	}
+	if got := store.db.idempotencyPointReads.Load(); got != 1 {
+		t.Fatalf("idempotency point reads = %d, want 1 for follower-written key", got)
+	}
+}

@@ -6,6 +6,11 @@
 Current flow:
 
 1. `MessageDB` wraps the message Pebble engine and owns one channel registry.
+   The message engine uses a 64 MiB memtable, while other engines retain the
+   shared 32 MiB default. This lowers sustained message-write L0 sublevel
+   creation without multiplying memory for lower-write databases. It retains
+   a 128 MiB compaction-debt concurrency step so the larger memtable does not
+   delay bounded recovery slots.
    Database operation guards reject new work during close; close drains admitted
    operations and background commit pins before detaching entries and closing
    the physical engine exactly once. Compatibility storage metrics use the same
@@ -21,31 +26,53 @@ Current flow:
    carry channel keys or identities as labels.
 3. `ChannelLog.Append` acquires one operation guard, serializes appends on the
    canonical entry, assigns contiguous
-   sequences, validates strict duplicate constraints, and writes header/payload
-   row families plus secondary indexes atomically.
+   sequences, validates strict duplicate constraints, and writes one complete
+   primary row plus canonical secondary indexes atomically. Ordinary messages
+   write four rows: primary message, global message ID, combined
+   `(client_msg_no, from_uid)`, and sender sequence. Sender-less records retain
+   a sequence-suffixed client-message index because they cannot participate in
+   idempotency. Leader callers may present
+   an all-records proof that message IDs came from the node-scoped globally
+   unique allocator. That mode skips only existing message-ID index reads;
+   in-batch duplicate IDs and durable sender/client-message idempotency keys
+   remain validated. A bounded per-active-Channel membership filter skips
+   durable idempotency point reads only for definite negatives; possible hits
+   still read and verify the durable index and message row. The filter is
+   rebuilt by a bounded-prefix scan after reopen or Channel entry reclamation,
+   follows trusted follower applies while already loaded, and is capped at
+   approximately 1.5 KiB per indexed active Channel. Saturation can only add
+   false positives and durable reads; it cannot admit a duplicate. Caller-
+   supplied or mixed-ID batches use full strict mode.
+   The immutable channel catalog row is written with the first message only;
+   later appends and follower applies use their base sequence to omit that
+   redundant write without retaining a database-wide channel cache.
 4. `ChannelLog.LEO` lazily recovers the last durable sequence by scanning the
    primary row keyspace after reopen or after a canonical entry is reclaimed
    and reacquired.
-5. `ChannelLog.Read` and `ReadReverse` scan primary rows by sequence and
-   materialize messages from header/payload families.
+5. `ChannelLog.Read` and `ReadReverse` scan complete primary rows by sequence;
+   point reads need one primary lookup rather than separate header and payload
+   lookups.
    `ChannelLog.GetLastVisibleMessage` uses reverse iteration over the channel
    row keyspace to fetch the newest message above a visibility boundary without
    scanning the full channel or recovering LEO.
 6. `GetByMessageID`, `ListByClientMsgNo`, `LookupIdempotency`, and
-   `GetLastSenderMessageSeq` use typed
-   secondary indexes and verify indexed rows before returning. The shared
+   `GetLastSenderMessageSeq` use typed secondary indexes and verify indexed
+   rows before returning. The node-global message-ID index is the canonical
+   location map for both point lookup and newest-message scans; no duplicate
+   channel-local message-ID entry is written. The combined
+   `(channel, client_msg_no, from_uid)` index provides exact idempotency lookup
+   and prefix-based client-message listing without a second ordinary-message
+   index write. The shared
    sender/sequence index is ordered by `(channel, from_uid, message_seq)` and
    lets callers find the latest message sent by one user through an explicit
    committed high-water mark without consulting the mutable tail. The shared
-   message engine also maintains a global `message_id` index so node-local
+   message engine maintains the global `message_id` index so node-local
    newest-message pages are bounded by page size instead of channel count;
    truncation and retention remove that index entry atomically with the row.
-   A version marker gates reads while a resumable, idempotent background
-   backfill adds index entries for databases created before the index existed.
-   The backfill persists its channel/message cursor with each bounded batch and
-   pauses between batches; callers receive an explicit building error instead
-   of a partial page. Reads also bound raw index scans and delete dangling
-   projection keys left by concurrent truncate/backfill races.
+   A version marker validates index startup, with no legacy-data backfill because
+   the project has no released storage format. Reads bound raw index scans and
+   delete dangling entries whose message rows have already been physically
+   removed. Logical retention never deletes this canonical lookup state.
 7. Checkpoint, epoch history, and snapshot payload APIs store channel system
    state under the message system keyspace; snapshot install persists payload,
    checkpoint, and epoch point in one batch.
@@ -54,7 +81,8 @@ Current flow:
 9. Truncate and retention deletes remove primary rows and secondary indexes
    together; bounded retention trims can advance physical deletion in multiple
    batches while retention state preserves LEO across reopen after prefix trim.
-10. Catalog entries are updated by durable append/system mutations and can be
+10. Catalog entries are created by the first durable append or a system
+    mutation and can be
    listed through `MessageDB.ListChannels`, paged with
    `MessageDB.ListChannelsPage`, or paged through the compatibility
    `Engine.ListChannelsPage` surface for Node-owned cleanup loops.
@@ -118,7 +146,7 @@ Current flow:
     Channel checkpoint is a conflict, and final verification checks live
     checkpoint/LEO state plus deterministic snapshot content before a replica
     acknowledges staging.
-20. Restore failure cleanup removes every Channel row, global/local secondary
+20. Restore failure cleanup removes every Channel row and secondary
     index, checkpoint/history/retention record, and catalog entry before retry.
     Message and index deletion is paged in batches of at most 1024 rows and
     approximately 8 MiB of payload.

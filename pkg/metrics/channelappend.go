@@ -12,7 +12,10 @@ var channelAppendItemBuckets = []float64{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 
 type ChannelAppendMetrics struct {
 	routerTotal              *prometheus.CounterVec
 	routerDuration           *prometheus.HistogramVec
+	routerItemDuration       *prometheus.HistogramVec
 	routerItems              *prometheus.HistogramVec
+	routerGroupInflight      *prometheus.GaugeVec
+	routerGroupCapacity      *prometheus.GaugeVec
 	localAdmissionTotal      *prometheus.CounterVec
 	localAdmissionItems      *prometheus.HistogramVec
 	writerAdmission          *prometheus.GaugeVec
@@ -37,21 +40,37 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 	m := &ChannelAppendMetrics{
 		routerTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_router_total",
-			Help:        "Total internal channel append router groups by path and result.",
+			Help:        "Total internal channel append router operations by path and result.",
 			ConstLabels: labels,
 		}, []string{"path", "result"}),
 		routerDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_router_duration_seconds",
-			Help:        "Internal channel append router group latency in seconds.",
+			Help:        "Internal channel append router operation latency in seconds.",
+			ConstLabels: labels,
+			Buckets:     channelRuntimeDurationBuckets,
+		}, []string{"path", "result"}),
+		routerItemDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_channelappend_router_item_duration_seconds",
+			Help:        "Complete router-batch latency attributed to each input SEND item.",
 			ConstLabels: labels,
 			Buckets:     channelRuntimeDurationBuckets,
 		}, []string{"path", "result"}),
 		routerItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelappend_router_items",
-			Help:        "Number of SEND items in each internal channel append router group.",
+			Help:        "Number of SEND items in each internal channel append router operation.",
 			ConstLabels: labels,
 			Buckets:     channelAppendItemBuckets,
 		}, []string{"path", "result"}),
+		routerGroupInflight: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_router_group_inflight",
+			Help:        "Current canonical-channel router groups submitted across concurrent SEND batches.",
+			ConstLabels: labels,
+		}, nil),
+		routerGroupCapacity: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_channelappend_router_group_capacity",
+			Help:        "Configured node-local concurrent channelappend router group capacity.",
+			ConstLabels: labels,
+		}, nil),
 		localAdmissionTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "wukongim_channelappend_local_admission_total",
 			Help:        "Total local channel authority writer admission attempts.",
@@ -154,13 +173,18 @@ func newChannelAppendMetrics(registry prometheus.Registerer, labels prometheus.L
 	m.postCommitHandoffCap.WithLabelValues().Set(0)
 	m.postCommitRetryQueue.WithLabelValues().Set(0)
 	m.postCommitRetryContended.WithLabelValues().Set(0)
+	m.routerGroupInflight.WithLabelValues().Set(0)
+	m.routerGroupCapacity.WithLabelValues().Set(0)
 	// Materialize the append/ok histogram without recording a synthetic observation.
 	_ = m.effectItems.WithLabelValues("append", "ok")
 
 	registry.MustRegister(
 		m.routerTotal,
 		m.routerDuration,
+		m.routerItemDuration,
 		m.routerItems,
+		m.routerGroupInflight,
+		m.routerGroupCapacity,
 		m.localAdmissionTotal,
 		m.localAdmissionItems,
 		m.writerAdmission,
@@ -194,7 +218,29 @@ func (m *ChannelAppendMetrics) ObserveRouter(path, result string, items int, dur
 	}
 	m.routerTotal.WithLabelValues(path, result).Inc()
 	m.routerDuration.WithLabelValues(path, result).Observe(dur.Seconds())
+	if path == "batch" && items > 0 {
+		histogram := m.routerItemDuration.WithLabelValues(path, result)
+		seconds := dur.Seconds()
+		for range items {
+			histogram.Observe(seconds)
+		}
+	}
 	m.routerItems.WithLabelValues(path, result).Observe(float64(items))
+}
+
+// SetRouterGroupPressure sets shared router group submission pressure.
+func (m *ChannelAppendMetrics) SetRouterGroupPressure(inflight int, capacity int) {
+	if m == nil {
+		return
+	}
+	if inflight < 0 {
+		inflight = 0
+	}
+	if capacity < 0 {
+		capacity = 0
+	}
+	m.routerGroupInflight.WithLabelValues().Set(float64(inflight))
+	m.routerGroupCapacity.WithLabelValues().Set(float64(capacity))
 }
 
 // ObserveLocalAdmission records one local writer admission attempt.

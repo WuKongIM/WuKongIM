@@ -556,6 +556,44 @@ func TestStoreGetChannelForPermissionReadsAuthoritativeSlot(t *testing.T) {
 	require.Equal(t, ch, got)
 }
 
+func TestStoreReadPermissionMetadataBatchRoutesBySlotAndPreservesAlignment(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeShardedStores(t)
+
+	localChannelID := findChannelIDForSlot(t, nodes[0].cluster, 1, "local-permission-batch")
+	remoteChannelID := findChannelIDForSlot(t, nodes[0].cluster, 2, "remote-permission-batch")
+	localChannel := metadb.Channel{ChannelID: localChannelID, ChannelType: 2, Ban: 1}
+	remoteChannel := metadb.Channel{ChannelID: remoteChannelID, ChannelType: 2, Disband: 1}
+	require.NoError(t, nodes[0].db.ForHashSlot(mustHashSlotForKey(t, nodes[0].cluster, localChannelID)).UpsertChannel(ctx, localChannel))
+	require.NoError(t, nodes[1].db.ForHashSlot(mustHashSlotForKey(t, nodes[1].cluster, remoteChannelID)).UpsertChannel(ctx, remoteChannel))
+	for nodeIndex, channelID := range []string{localChannelID, remoteChannelID} {
+		shard, ok := any(nodes[nodeIndex].db.ForHashSlot(mustHashSlotForKey(t, nodes[nodeIndex].cluster, channelID))).(interface {
+			AddSubscribers(context.Context, string, int64, []string, ...uint64) error
+		})
+		require.True(t, ok)
+		require.NoError(t, shard.AddSubscribers(ctx, channelID, 2, []string{"u1"}))
+	}
+
+	results := nodes[0].store.ReadPermissionMetadataBatch(ctx, []PermissionMetadataRead{
+		{Kind: PermissionMetadataReadChannel, ChannelID: remoteChannelID, ChannelType: 2},
+		{Kind: PermissionMetadataReadSubscriberContains, ChannelID: localChannelID, ChannelType: 2, UID: "u1"},
+		{Kind: PermissionMetadataReadSubscriberContains, ChannelID: remoteChannelID, ChannelType: 2, UID: "missing"},
+		{Kind: PermissionMetadataReadChannel, ChannelID: localChannelID + "-missing", ChannelType: 2},
+		{Kind: PermissionMetadataReadSubscriberHasAny, ChannelID: remoteChannelID, ChannelType: 2},
+	})
+
+	require.Len(t, results, 5)
+	for _, result := range results {
+		require.NoError(t, result.Err)
+	}
+	require.True(t, results[0].Found)
+	require.Equal(t, remoteChannel, results[0].Channel)
+	require.True(t, results[1].Value)
+	require.False(t, results[2].Value)
+	require.False(t, results[3].Found)
+	require.True(t, results[4].Value)
+}
+
 func TestStoreListChannelSubscribersReadsAuthoritativeSlot(t *testing.T) {
 	ctx := context.Background()
 	nodes := startTwoNodeShardedStores(t)

@@ -2557,6 +2557,11 @@
           "expr": "sum by (store) (wukongim_storage_pebble_compaction_in_progress_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
           "legendFormat": "compaction active bytes {{store}}",
           "refId": "F"
+        },
+        {
+          "expr": "sum by (store) (wukongim_storage_pebble_sstable_size_bytes{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "sstable {{store}}",
+          "refId": "G"
         }
       ],
       "title": "Pebble Storage Footprint",
@@ -2682,6 +2687,21 @@
           "expr": "sum by (store) (wukongim_storage_pebble_compactions_in_progress{node_name=~\"$node_name\", store=~\"$store\"})",
           "legendFormat": "compaction active {{store}}",
           "refId": "I"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_flush_bytes_written{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "flush bytes/s {{store}}",
+          "refId": "J"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_compaction_bytes_read{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "compaction read bytes/s {{store}}",
+          "refId": "K"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_compaction_bytes_written{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "compaction written bytes/s {{store}}",
+          "refId": "L"
         }
       ],
       "title": "Pebble Storage Activity",

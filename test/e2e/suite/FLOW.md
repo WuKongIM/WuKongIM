@@ -10,6 +10,10 @@ HTTP helpers for real `cmd/wukongim` tests.
    its process-lifetime port block, so concurrently running E2E packages cannot
    return overlapping listener addresses; individual addresses are still
    probed before use to avoid unrelated host listeners.
+   On Darwin, the workspace root is marked `.metadata_never_index` before node
+   directories are created so Spotlight cannot turn multi-gigabyte Pebble test
+   artifacts into unrelated disk-pressure spikes. Other platforms are
+   unchanged.
 2. Config renderers write node TOML and derive the product environment. Static
    scenarios may choose an explicit positive node count; the three-node helper
    is the common shorthand. The

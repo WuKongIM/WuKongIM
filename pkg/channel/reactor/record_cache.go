@@ -104,18 +104,43 @@ func (c *recentRecordCache) slice(from uint64, maxOffset uint64, maxBytes int) (
 	return out, true
 }
 
+// discardThrough releases the cached prefix at or below the supplied durable
+// offset. Cache misses remain safe because follower pulls fall back to the
+// channel store.
+func (c *recentRecordCache) discardThrough(offset uint64) {
+	if c.empty() || offset < c.baseOffset {
+		return
+	}
+	if offset >= c.lastOffset() {
+		c.reset()
+		return
+	}
+	count := int(offset-c.baseOffset) + 1
+	removed := cacheRecordsBytes(c.records[:count])
+	clear(c.records[:count])
+	c.records = c.records[count:]
+	c.bytes -= removed
+	if c.bytes < 0 {
+		c.bytes = 0
+	}
+	c.baseOffset = c.records[0].Index
+}
+
 func (c *recentRecordCache) trim() {
 	if !c.enabled() {
 		c.reset()
 		return
 	}
 	if len(c.records) > c.maxRecords {
-		c.records = c.records[len(c.records)-c.maxRecords:]
+		drop := len(c.records) - c.maxRecords
+		clear(c.records[:drop])
+		c.records = c.records[drop:]
 	}
 	c.bytes = cacheRecordsBytes(c.records)
 	if c.maxBytes > 0 {
 		for len(c.records) > 1 && c.bytes > c.maxBytes {
 			c.bytes -= cacheRecordSize(c.records[0])
+			c.records[0] = ch.Record{}
 			c.records = c.records[1:]
 		}
 	}
@@ -171,4 +196,25 @@ func cacheRecordSize(record ch.Record) int {
 		return record.SizeBytes
 	}
 	return len(record.Payload)
+}
+
+// releaseRecentRecordsAcknowledgedByAllFollowers keeps only records that at
+// least one configured follower has not durably acknowledged. The cache is an
+// optimization; a follower that later requests an older offset reads it from
+// the durable store.
+func (r *Reactor) releaseRecentRecordsAcknowledgedByAllFollowers(rc *runtimeChannel) {
+	if rc == nil || rc.state == nil || rc.state.Role != ch.RoleLeader || rc.recentRecords.empty() {
+		return
+	}
+	acknowledgedThrough := rc.state.LEO
+	for _, replica := range rc.state.Replicas {
+		if replica == r.cfg.LocalNode {
+			continue
+		}
+		progress := rc.state.Progress[replica]
+		if progress.Match < acknowledgedThrough {
+			acknowledgedThrough = progress.Match
+		}
+	}
+	rc.recentRecords.discardThrough(acknowledgedThrough)
 }

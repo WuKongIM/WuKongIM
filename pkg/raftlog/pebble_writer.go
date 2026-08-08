@@ -316,8 +316,13 @@ func (op saveOp) apply(batch *pebble.Batch, state *scopeWriteState, store *pebbl
 		if state.meta.LastIndex < state.meta.FirstIndex || first < state.meta.FirstIndex {
 			state.meta.FirstIndex = first
 		}
-		if err := batch.DeleteRange(encodeEntryKey(scope, first), encodeEntryPrefixEnd(scope), nil); err != nil {
-			return err
+		// A pure tail append cannot hide any existing entry. Avoiding a suffix
+		// tombstone here is important because many overlapping range deletions
+		// make Pebble's memtable fragmentation use quadratic transient memory.
+		if first <= state.meta.LastIndex {
+			if err := batch.DeleteRange(encodeEntryKey(scope, first), encodeEntryPrefixEnd(scope), nil); err != nil {
+				return err
+			}
 		}
 		for _, entry := range entries {
 			data, err := entry.Marshal()

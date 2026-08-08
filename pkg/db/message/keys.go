@@ -88,8 +88,12 @@ func decodeMessageClientMsgNoIndexSeq(channelKey ChannelKey, clientMsgNo string,
 }
 
 func encodeMessageIdempotencyIndexKey(channelKey ChannelKey, fromUID string, clientMsgNo string) []byte {
+	key := encodeMessageClientLookupIndexPrefix(channelKey, clientMsgNo)
+	return keycodec.AppendString(key, fromUID)
+}
+
+func encodeMessageClientLookupIndexPrefix(channelKey ChannelKey, clientMsgNo string) []byte {
 	key := encodeMessageIndexPrefix(channelKey, messageIndexIDFromUIDClientMsgNo)
-	key = keycodec.AppendString(key, fromUID)
 	return keycodec.AppendString(key, clientMsgNo)
 }
 

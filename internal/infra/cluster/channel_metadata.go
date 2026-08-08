@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -28,6 +30,11 @@ type authoritativeChannelMetadataNode interface {
 	ListChannelSubscribersAuthoritative(context.Context, string, int64, string, int) ([]string, string, bool, error)
 	ContainsChannelSubscriberAuthoritative(context.Context, string, int64, string) (bool, error)
 	HasChannelSubscribersAuthoritative(context.Context, string, int64) (bool, error)
+}
+
+// AuthoritativePermissionBatchNode exposes Slot-grouped permission fact reads.
+type AuthoritativePermissionBatchNode interface {
+	ReadPermissionMetadataBatchAuthoritative(context.Context, []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult
 }
 
 type countedChannelSubscriberMutationNode interface {
@@ -256,6 +263,67 @@ func (s *ChannelMetadataStore) HasChannelSubscribers(ctx context.Context, channe
 		ctx, channelID, channelType,
 	)
 	return hasSubscribers, mapChannelPermissionReadError(err)
+}
+
+// ReadPermissionsBatch adapts one usecase-owned raw permission fact batch to
+// Slot-grouped authoritative metadata reads without moving policy into infra.
+func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads []messageusecase.PermissionRead) []messageusecase.PermissionReadResult {
+	results := make([]messageusecase.PermissionReadResult, len(reads))
+	if len(reads) == 0 {
+		return results
+	}
+	if s == nil || s.node == nil {
+		return permissionBatchErrorResults(results, clusterpkg.ErrRouteNotReady)
+	}
+	node, ok := s.node.(AuthoritativePermissionBatchNode)
+	if !ok {
+		return permissionBatchErrorResults(results, clusterpkg.ErrRouteNotReady)
+	}
+	proxyReads := make([]slotproxy.PermissionMetadataRead, len(reads))
+	for i, read := range reads {
+		kind, ok := permissionReadKindToProxy(read.Kind)
+		if !ok {
+			results[i].Err = metadb.ErrInvalidArgument
+			continue
+		}
+		proxyReads[i] = slotproxy.PermissionMetadataRead{
+			Kind: kind, ChannelID: read.ChannelID, ChannelType: read.ChannelType, UID: read.UID,
+		}
+	}
+	proxyResults := node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
+	if len(proxyResults) != len(results) {
+		return permissionBatchErrorResults(results, fmt.Errorf("permission metadata batch returned %d results for %d reads", len(proxyResults), len(results)))
+	}
+	for i, result := range proxyResults {
+		results[i] = messageusecase.PermissionReadResult{
+			Channel: result.Channel,
+			Found:   result.Found,
+			Value:   result.Value,
+			Err:     mapChannelPermissionReadError(result.Err),
+		}
+	}
+	return results
+}
+
+func permissionReadKindToProxy(kind messageusecase.PermissionReadKind) (slotproxy.PermissionMetadataReadKind, bool) {
+	switch kind {
+	case messageusecase.PermissionReadChannel:
+		return slotproxy.PermissionMetadataReadChannel, true
+	case messageusecase.PermissionReadSubscriberContains:
+		return slotproxy.PermissionMetadataReadSubscriberContains, true
+	case messageusecase.PermissionReadSubscriberHasAny:
+		return slotproxy.PermissionMetadataReadSubscriberHasAny, true
+	default:
+		return 0, false
+	}
+}
+
+func permissionBatchErrorResults(results []messageusecase.PermissionReadResult, err error) []messageusecase.PermissionReadResult {
+	mapped := mapChannelPermissionReadError(err)
+	for i := range results {
+		results[i].Err = mapped
+	}
+	return results
 }
 
 // UpsertChannelMemberships projects normal channel subscribers into UID-owned memberships.

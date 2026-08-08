@@ -120,6 +120,8 @@ type RetentionTrimResult struct {
 type AppendLeaderRequest struct {
 	Records []ch.Record
 	Sync    bool
+	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
+	ServerAllocatedMessageIDs bool
 }
 
 // AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.

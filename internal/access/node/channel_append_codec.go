@@ -114,6 +114,7 @@ func appendChannelAppendTarget(dst []byte, target channelappend.AuthorityTarget)
 	dst = appendUvarint(dst, target.LeaderNodeID)
 	dst = appendUvarint(dst, target.Epoch)
 	dst = appendUvarint(dst, target.LeaderEpoch)
+	dst = appendChannelAppendBool(dst, target.WriteFenced)
 	dst = appendChannelAppendBool(dst, target.Large)
 	return appendUvarint(dst, target.SubscriberMutationVersion)
 }
@@ -137,6 +138,9 @@ func readChannelAppendTarget(body []byte, offset int) (channelappend.AuthorityTa
 		return channelappend.AuthorityTarget{}, offset, err
 	}
 	if target.LeaderEpoch, offset, err = readUvarint(body, offset); err != nil {
+		return channelappend.AuthorityTarget{}, offset, err
+	}
+	if target.WriteFenced, offset, err = readChannelAppendBool(body, offset, "channel append target write fenced"); err != nil {
 		return channelappend.AuthorityTarget{}, offset, err
 	}
 	if target.Large, offset, err = readChannelAppendBool(body, offset, "channel append target large"); err != nil {

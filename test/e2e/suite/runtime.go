@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,9 @@ func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 
 	options := resolveSuiteOptions(opts...)
 	rootDir := allocateWorkspaceRoot(t, options.workspaceRootDir)
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".metadata_never_index"), nil, 0o600))
+	}
 	workspace := Workspace{
 		RootDir:          rootDir,
 		pluginSocketRoot: allocatePluginSocketRoot(t),

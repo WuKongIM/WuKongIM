@@ -101,7 +101,8 @@ remote channel append forwarder
 
 Channel Append RPC transports one exact `channelappend.AuthorityTarget` plus
 item-aligned `channelappend.SendCommand` values to the target channel authority
-node. The target includes recipient fanout metadata (`Large` and
+node. The target includes the resolved write-fence bit used only for
+pre-append idempotent retry recovery, plus recipient fanout metadata (`Large` and
 `SubscriberMutationVersion`) so the authority reactor can choose paged
 large-channel fanout or cached non-large subscriber snapshots without resolving
 metadata again. The server only submits to the local channel authority port; it
@@ -468,7 +469,7 @@ Manager Controller Raft RPC uses fixed magic headers:
 
 Channel Append RPC uses fixed magic headers:
 
-- Request: `W K V A 1`
+- Request: `W K V A 2`
 - Response: `W K V a 1`
 
 Manager Connection RPC uses fixed magic headers:

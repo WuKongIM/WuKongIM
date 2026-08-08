@@ -1411,7 +1411,7 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 		{
 			name: "append batch request",
 			encode: func() ([]byte, error) {
-				return encodeAppendBatchRequest(ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Messages: []ch.Message{sampleMessage}, TraceID: "trace-request", ChannelKey: "channel/key-request", Attempt: 3, CommitMode: ch.CommitModeLocal, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2, OmitResultPayload: true})
+				return encodeAppendBatchRequest(ch.AppendBatchRequest{ChannelID: ch.ChannelID{ID: "room", Type: 1}, Messages: []ch.Message{sampleMessage}, TraceID: "trace-request", ChannelKey: "channel/key-request", Attempt: 3, CommitMode: ch.CommitModeLocal, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 2, OmitResultPayload: true, ServerAllocatedMessageIDs: true})
 			},
 			decode: func(data []byte) {
 				got, err := decodeAppendBatchRequest(data)
@@ -1421,6 +1421,7 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 				require.Equal(t, "channel/key-request", got.ChannelKey)
 				require.Equal(t, 3, got.Attempt)
 				require.True(t, got.OmitResultPayload)
+				require.True(t, got.ServerAllocatedMessageIDs)
 			},
 		},
 		{
@@ -1480,6 +1481,19 @@ func TestCodecEncodesAllFramesWithBinaryPayload(t *testing.T) {
 			tt.decode(data)
 		})
 	}
+}
+
+func TestLegacyAppendBatchCodecDoesNotClaimServerAllocatedMessageIDs(t *testing.T) {
+	data, err := encodeAppendBatchRequestVersion(ch.AppendBatchRequest{
+		ChannelID:                 ch.ChannelID{ID: "room", Type: 1},
+		Messages:                  []ch.Message{{MessageID: 10, Payload: []byte("payload")}},
+		ServerAllocatedMessageIDs: true,
+	}, legacyCodecVersionV6)
+	require.NoError(t, err)
+
+	got, err := decodeAppendBatchRequest(data)
+	require.NoError(t, err)
+	require.False(t, got.ServerAllocatedMessageIDs)
 }
 
 func TestCodecLastVisibleResponsePreservesApplicationError(t *testing.T) {

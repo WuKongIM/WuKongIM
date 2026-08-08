@@ -28,7 +28,7 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 	if err != nil || result.Count == 0 {
 		return AppendResult{}, err
 	}
-	if err := l.stageCatalog(batch); err != nil {
+	if err := l.stageCatalogForAppend(batch, result.BaseSeq); err != nil {
 		return AppendResult{}, err
 	}
 	if err := batch.Commit(true); err != nil {
@@ -60,7 +60,7 @@ func (l *ChannelLog) prepareAppendRowsLocked(ctx context.Context, records []Reco
 }
 
 func (l *ChannelLog) walkAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions, onRow func(messageRow, appendKeyCache) error) (AppendResult, error) {
-	if opts.Mode != AppendStrict && opts.Mode != AppendTrustedContiguous {
+	if opts.Mode != AppendStrict && opts.Mode != AppendServerAllocatedMessageID && opts.Mode != AppendTrustedContiguous {
 		return AppendResult{}, dberrors.ErrInvalidArgument
 	}
 	leo, err := l.loadLEOLocked(ctx)
@@ -128,16 +128,10 @@ func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cach
 	if err := l.stageMessageHeaderRow(batch, row, cache); err != nil {
 		return err
 	}
-	if err := l.stageMessagePayloadRow(batch, row, cache); err != nil {
-		return err
-	}
-	if err := l.stageMessageIDIndexRow(batch, row, cache); err != nil {
-		return err
-	}
 	if err := l.stageGlobalMessageIDIndexRow(batch, row); err != nil {
 		return err
 	}
-	if row.ClientMsgNo != "" {
+	if row.ClientMsgNo != "" && row.FromUID == "" {
 		if err := l.stageClientMsgNoIndexRow(batch, row, cache); err != nil {
 			return err
 		}
@@ -165,21 +159,6 @@ func (l *channelEntry) stageMessageHeaderRow(batch *engine.Batch, row messageRow
 	return batch.SetDeferred(cache.messageRowKeyLen(), encodedMessageHeaderLen(row), func(key, value []byte) error {
 		cache.writeMessageRowKey(key, row.MessageSeq, messageHeaderFamilyID)
 		return encodeMessageHeaderTo(value, key, row)
-	})
-}
-
-func (l *channelEntry) stageMessagePayloadRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
-	return batch.SetDeferred(cache.messageRowKeyLen(), encodedMessagePayloadLen(row), func(key, value []byte) error {
-		cache.writeMessageRowKey(key, row.MessageSeq, messagePayloadFamilyID)
-		return encodeMessagePayloadTo(value, key, row)
-	})
-}
-
-func (l *channelEntry) stageMessageIDIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
-	return batch.SetDeferred(cache.messageIDIndexKeyLen(), messageIDIndexValueLen, func(key, value []byte) error {
-		cache.writeMessageIDIndexKey(key, row.MessageID)
-		writeMessageIDIndexValue(value, row.MessageSeq)
-		return nil
 	})
 }
 
@@ -251,7 +230,7 @@ func (s *appendValidationSeen) rememberIdempotencyKey(key IdempotencyKey) bool {
 }
 
 type appendValidationScratch struct {
-	messageIDIndexKey   []byte
+	globalMessageIDKey  []byte
 	idempotencyIndexKey []byte
 }
 
@@ -263,12 +242,12 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 		return fmt.Errorf("%w: duplicate message id %d", dberrors.ErrConflict, row.MessageID)
 	}
 	if mode == AppendStrict {
-		scratch.messageIDIndexKey = cache.messageIDIndexKeyTo(scratch.messageIDIndexKey, row.MessageID)
-		existingSeq, ok, err := l.lookupMessageIDSeqByKey(ctx, scratch.messageIDIndexKey)
+		scratch.globalMessageIDKey = cache.globalMessageIDIndexKeyTo(scratch.globalMessageIDKey, row.MessageID)
+		channelKey, existingSeq, ok, err := l.lookupGlobalMessageIDByKey(ctx, scratch.globalMessageIDKey)
 		if err != nil {
 			return err
 		}
-		if ok && existingSeq != row.MessageSeq {
+		if ok && (channelKey != l.key || existingSeq != row.MessageSeq) {
 			return fmt.Errorf("%w: message id %d already stored at seq %d", dberrors.ErrConflict, row.MessageID, existingSeq)
 		}
 	}
@@ -279,10 +258,25 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 	if seen.rememberIdempotencyKey(key) {
 		return fmt.Errorf("%w: duplicate idempotency key", dberrors.ErrConflict)
 	}
+	scratch.idempotencyIndexKey = cache.idempotencyIndexKeyTo(scratch.idempotencyIndexKey, key.FromUID, key.ClientMsgNo)
 	if mode == AppendTrustedContiguous {
+		// A follower may later become leader without its canonical entry being
+		// reclaimed. Keep an already-loaded filter current; adding before the
+		// physical commit is safe because false positives only cause a point read.
+		if l.idempotencyMembershipLoaded {
+			l.idempotencyMembership.add(scratch.idempotencyIndexKey)
+		}
 		return nil
 	}
-	scratch.idempotencyIndexKey = cache.idempotencyIndexKeyTo(scratch.idempotencyIndexKey, key.FromUID, key.ClientMsgNo)
+	if err := l.ensureIdempotencyMembershipLoaded(ctx); err != nil {
+		return err
+	}
+	if !l.idempotencyMembership.mayContain(scratch.idempotencyIndexKey) {
+		l.idempotencyMembership.add(scratch.idempotencyIndexKey)
+		l.db.idempotencyNegativeFilterSkips.Add(1)
+		return nil
+	}
+	l.db.idempotencyPointReads.Add(1)
 	hit, ok, err := l.lookupIdempotencyByKey(ctx, key, scratch.idempotencyIndexKey)
 	if err != nil {
 		return err
@@ -290,6 +284,7 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 	if ok && hit.MessageSeq != row.MessageSeq {
 		return fmt.Errorf("%w: idempotency key already stored at seq %d", dberrors.ErrConflict, hit.MessageSeq)
 	}
+	l.idempotencyMembership.add(scratch.idempotencyIndexKey)
 	return nil
 }
 

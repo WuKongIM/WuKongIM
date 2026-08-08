@@ -67,6 +67,9 @@ func encodeMessageHeader(key []byte, row messageRow) ([]byte, error) {
 	if err := w.Uint64(messageColumnIDPayloadSize, row.PayloadSize); err != nil {
 		return nil, err
 	}
+	if err := w.RawBytes(messageColumnIDPayload, row.Payload); err != nil {
+		return nil, err
+	}
 	if err := w.Int64(messageColumnIDServerTimestampMS, row.ServerTimestampMS); err != nil {
 		return nil, err
 	}
@@ -94,6 +97,7 @@ func encodedMessageHeaderLen(row messageRow) int {
 	payloadLen += encodedStringColumnLen(&last, messageColumnIDFromUID, row.FromUID)
 	payloadLen += encodedUint64ColumnLen(&last, messageColumnIDPayloadHash, row.PayloadHash)
 	payloadLen += encodedUint64ColumnLen(&last, messageColumnIDPayloadSize, row.PayloadSize)
+	payloadLen += encodedBytesColumnLen(&last, messageColumnIDPayload, row.Payload)
 	payloadLen += encodedInt64ColumnLen(&last, messageColumnIDServerTimestampMS, row.ServerTimestampMS)
 	return rowcodec.EnvelopeLen(payloadLen)
 }
@@ -126,6 +130,7 @@ func encodeMessageHeaderTo(dst []byte, key []byte, row messageRow) error {
 	pos = putStringColumn(payload, pos, &last, messageColumnIDFromUID, row.FromUID)
 	pos = putUint64Column(payload, pos, &last, messageColumnIDPayloadHash, row.PayloadHash)
 	pos = putUint64Column(payload, pos, &last, messageColumnIDPayloadSize, row.PayloadSize)
+	pos = putBytesColumn(payload, pos, &last, messageColumnIDPayload, row.Payload)
 	pos = putInt64Column(payload, pos, &last, messageColumnIDServerTimestampMS, row.ServerTimestampMS)
 	if pos != len(payload) {
 		return dberrors.ErrInvalidArgument
@@ -229,6 +234,10 @@ func decodeMessageHeaderColumn(s *rowcodec.Scanner, row *messageRow) error {
 		value, err := s.Uint64()
 		row.PayloadSize = value
 		return err
+	case messageColumnIDPayload:
+		value, err := s.Bytes()
+		row.Payload = value
+		return err
 	case messageColumnIDServerTimestampMS:
 		value, err := s.Int64()
 		row.ServerTimestampMS = value
@@ -302,6 +311,10 @@ func encodedInt64ColumnLen(last *uint16, columnID uint16, value int64) int {
 	return encodedColumnBeginLen(last, columnID) + uvarintLen(encodeZigZagInt64(value))
 }
 
+func encodedBytesColumnLen(last *uint16, columnID uint16, value []byte) int {
+	return encodedColumnBeginLen(last, columnID) + uvarintLen(uint64(len(value))) + len(value)
+}
+
 func encodedUint8ColumnLen(last *uint16, columnID uint16, value uint8) int {
 	return encodedColumnBeginLen(last, columnID) + 1
 }
@@ -333,6 +346,13 @@ func putUint64Column(dst []byte, pos int, last *uint16, columnID uint16, value u
 func putInt64Column(dst []byte, pos int, last *uint16, columnID uint16, value int64) int {
 	pos = putColumnBegin(dst, pos, last, columnID, rowcodec.TypeInt64)
 	return pos + binary.PutUvarint(dst[pos:], encodeZigZagInt64(value))
+}
+
+func putBytesColumn(dst []byte, pos int, last *uint16, columnID uint16, value []byte) int {
+	pos = putColumnBegin(dst, pos, last, columnID, rowcodec.TypeBytes)
+	pos += binary.PutUvarint(dst[pos:], uint64(len(value)))
+	copy(dst[pos:], value)
+	return pos + len(value)
 }
 
 func putUint8Column(dst []byte, pos int, last *uint16, columnID uint16, value uint8) int {

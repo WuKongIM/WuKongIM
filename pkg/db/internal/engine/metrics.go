@@ -20,6 +20,14 @@ type MetricsSnapshot struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
+	SSTableSizeBytes uint64
+	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
+	FlushBytesWritten uint64
+	// CompactionBytesRead is the cumulative SSTable bytes read by compactions.
+	CompactionBytesRead uint64
+	// CompactionBytesWritten is the cumulative SSTable bytes written by compactions.
+	CompactionBytesWritten uint64
 	// FlushCount is the number of completed flushes since this engine opened.
 	FlushCount int64
 	// FlushesInProgress is the current number of flushes in progress.
@@ -44,6 +52,19 @@ func (e *DB) MetricsSnapshot() MetricsSnapshot {
 	if metrics == nil {
 		return MetricsSnapshot{}
 	}
+	var sstableSizeBytes uint64
+	var flushBytesWritten uint64
+	var compactionBytesRead uint64
+	var compactionBytesWritten uint64
+	for i := range metrics.Levels {
+		level := metrics.Levels[i]
+		if level.TablesSize > 0 {
+			sstableSizeBytes += uint64(level.TablesSize)
+		}
+		flushBytesWritten += level.TableBytesFlushed
+		compactionBytesRead += level.TableBytesRead
+		compactionBytesWritten += level.TableBytesCompacted
+	}
 	return MetricsSnapshot{
 		DiskSpaceUsageBytes:          metrics.DiskSpaceUsage(),
 		ReadAmplification:            metrics.ReadAmp(),
@@ -54,6 +75,10 @@ func (e *DB) MetricsSnapshot() MetricsSnapshot {
 		WALPhysicalSizeBytes:         metrics.WAL.PhysicalSize,
 		WALBytesIn:                   metrics.WAL.BytesIn,
 		WALBytesWritten:              metrics.WAL.BytesWritten,
+		SSTableSizeBytes:             sstableSizeBytes,
+		FlushBytesWritten:            flushBytesWritten,
+		CompactionBytesRead:          compactionBytesRead,
+		CompactionBytesWritten:       compactionBytesWritten,
 		FlushCount:                   metrics.Flush.Count,
 		FlushesInProgress:            metrics.Flush.NumInProgress,
 		CompactionCount:              metrics.Compact.Count,

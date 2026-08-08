@@ -207,6 +207,15 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 	if follower.lastHintVersion == version && follower.hint.retryAt.IsZero() {
 		return
 	}
+	highWaterNumerator, highWaterDenominator := pullHintRPCWatermark(reason)
+	if r.replicationRPCPoolAtHighWater(highWaterNumerator, highWaterDenominator) {
+		r.observeReplicationRPCPaced(worker.TaskRPCPullHint)
+		r.observePullHintResult(reason, "paced", nil)
+		follower.pendingHintVersion = max(follower.pendingHintVersion, version)
+		follower.hint.retryAt = now.Add(pullHintRPCPressureDelay(rc.state.Key, node, r.cfg.PullHintRetryInterval))
+		r.scheduleLifecycleFromState(rc, now)
+		return
+	}
 	opID := r.nextOpID()
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
 	req := transport.PullHintRequest{
@@ -230,6 +239,15 @@ func (r *Reactor) trySubmitPullHint(rc *runtimeChannel, node ch.NodeID, follower
 	rc.lifecycle.beginPullHint(node, opID, version, reason, now)
 	r.observePullHintResult(reason, "submitted", nil)
 	r.observePullHintSent(rc.state.Key, node, reason)
+}
+
+// pullHintRPCWatermark gives a new append wakeup the same queue headroom as
+// foreground Pull work while keeping retry-only resume hints best effort.
+func pullHintRPCWatermark(reason transport.PullHintReason) (numerator, denominator int) {
+	if reason == transport.PullHintReasonAppend {
+		return 1, 2
+	}
+	return 1, 4
 }
 
 func (r *Reactor) handleRPCPullHintResult(result worker.Result) {
@@ -294,6 +312,7 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
 		if result.Fence.OpID == rc.committedCheckpointOp {
 			rc.committedCheckpointOp = 0
+			rc.committedCheckpointBackoff = 0
 		}
 		if rc.lifecycle.checkpoint.inflight && result.Fence.OpID == rc.lifecycle.checkpoint.opID {
 			resetLeaderCheckpointLifecycle(rc)
@@ -307,7 +326,9 @@ func (r *Reactor) handleStoreCheckpointResult(result worker.Result) {
 	if committedCheckpointCompleted {
 		rc.committedCheckpointOp = 0
 		if result.Err != nil && rc.state.HW > rc.state.CheckpointHW {
-			rc.committedCheckpointDue = now.Add(r.cfg.ReplicationMinBackoff)
+			r.backoffCommittedCheckpoint(rc, now)
+		} else if result.Err == nil {
+			rc.committedCheckpointBackoff = 0
 		}
 	}
 	if result.Fence.OpID == rc.retentionCheckpointOp {

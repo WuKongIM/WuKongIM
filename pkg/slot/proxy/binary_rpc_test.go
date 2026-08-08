@@ -129,6 +129,37 @@ func TestSubscriberRPCBinaryCodecRoundTripsPointLookupFields(t *testing.T) {
 	require.Equal(t, resp, gotResp)
 }
 
+func TestPermissionBatchRPCBinaryCodecRoundTrip(t *testing.T) {
+	req := permissionBatchRPCRequest{
+		SlotID: 2,
+		Reads: []PermissionMetadataRead{
+			{Kind: PermissionMetadataReadChannel, ChannelID: "g1", ChannelType: 2},
+			{Kind: PermissionMetadataReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
+			{Kind: PermissionMetadataReadSubscriberHasAny, ChannelID: "g1", ChannelType: 2},
+		},
+	}
+	body, err := encodePermissionBatchRPCRequest(req)
+	require.NoError(t, err)
+	gotReq, err := decodePermissionBatchRPCRequest(body)
+	require.NoError(t, err)
+	require.Equal(t, req, gotReq)
+
+	resp := permissionBatchRPCResponse{
+		Status:   rpcStatusOK,
+		LeaderID: 2,
+		Results: []PermissionMetadataReadResult{
+			{Found: true, Channel: metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1, Disband: 1}},
+			{Value: true},
+			{Value: false},
+		},
+	}
+	body, err = encodePermissionBatchRPCResponse(resp)
+	require.NoError(t, err)
+	gotResp, err := decodePermissionBatchRPCResponse(body)
+	require.NoError(t, err)
+	require.Equal(t, resp, gotResp)
+}
+
 func TestChannelRPCBinaryCodecRoundTripsStatusFlags(t *testing.T) {
 	resp := channelRPCResponse{
 		Status:   rpcStatusOK,

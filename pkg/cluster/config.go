@@ -274,7 +274,7 @@ type StorageConfig struct {
 	CommitMaxRecords int
 	// CommitMaxBytes caps approximate payload bytes in one grouped physical commit.
 	CommitMaxBytes int
-	// CommitShards routes message DB commit requests across independent coordinators. Zero uses four partition-hashed coordinators.
+	// CommitShards routes message DB commit requests across independent coordinators. Zero uses one coordinator per physical message DB.
 	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver

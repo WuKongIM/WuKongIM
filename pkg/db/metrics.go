@@ -7,6 +7,10 @@ import (
 
 // StorageEngineMetrics is a stable view of one local storage engine.
 type StorageEngineMetrics struct {
+	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
+	IdempotencyNegativeFilterSkips uint64
+	// IdempotencyPointReads is the number of possible filter hits verified durably.
+	IdempotencyPointReads uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -68,21 +72,23 @@ func (s *NodeStore) MetricsSnapshot() NodeStoreMetricsSnapshot {
 
 func storageEngineMetricsFromMessageEngine(snapshot message.EngineMetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
-		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
-		ReadAmplification:            snapshot.ReadAmplification,
-		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
-		MemTableCount:                snapshot.MemTableCount,
-		WALFiles:                     snapshot.WALFiles,
-		WALSizeBytes:                 snapshot.WALSizeBytes,
-		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
-		WALBytesIn:                   snapshot.WALBytesIn,
-		WALBytesWritten:              snapshot.WALBytesWritten,
-		FlushCount:                   snapshot.FlushCount,
-		FlushesInProgress:            snapshot.FlushesInProgress,
-		CompactionCount:              snapshot.CompactionCount,
-		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
-		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
-		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
+		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
+		ReadAmplification:              snapshot.ReadAmplification,
+		MemTableSizeBytes:              snapshot.MemTableSizeBytes,
+		MemTableCount:                  snapshot.MemTableCount,
+		WALFiles:                       snapshot.WALFiles,
+		WALSizeBytes:                   snapshot.WALSizeBytes,
+		WALPhysicalSizeBytes:           snapshot.WALPhysicalSizeBytes,
+		WALBytesIn:                     snapshot.WALBytesIn,
+		WALBytesWritten:                snapshot.WALBytesWritten,
+		FlushCount:                     snapshot.FlushCount,
+		FlushesInProgress:              snapshot.FlushesInProgress,
+		CompactionCount:                snapshot.CompactionCount,
+		CompactionEstimatedDebtBytes:   snapshot.CompactionEstimatedDebtBytes,
+		CompactionInProgressBytes:      snapshot.CompactionInProgressBytes,
+		CompactionsInProgress:          snapshot.CompactionsInProgress,
 	}
 }
 

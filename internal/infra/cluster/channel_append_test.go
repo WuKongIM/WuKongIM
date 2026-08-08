@@ -24,6 +24,7 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 			Epoch:           11,
 			LeaderEpoch:     7,
 			RouteGeneration: 23,
+			WriteFence:      channelruntime.WriteFence{Token: "migration-1", Version: 1},
 		},
 		channel: metadb.Channel{
 			ChannelID:                 channelID.ID,
@@ -42,7 +43,7 @@ func TestChannelAppendClientMapsResolvedMetaToAuthorityTarget(t *testing.T) {
 		t.Fatalf("node calls/id = %d/%#v, want one canonical resolve", node.calls, node.lastID)
 	}
 	if target.ChannelID != channelID || target.ChannelKey != "2:room" || target.LeaderNodeID != 3 || target.Epoch != 11 || target.LeaderEpoch != 7 || target.RouteGeneration != 23 ||
-		!target.Large || target.SubscriberMutationVersion != 19 {
+		!target.WriteFenced || !target.Large || target.SubscriberMutationVersion != 19 {
 		t.Fatalf("target = %#v, want mapped authority fields", target)
 	}
 }

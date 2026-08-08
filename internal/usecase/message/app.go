@@ -22,6 +22,9 @@ type Options struct {
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
 	// SendBatch may call it concurrently for independent items.
 	PermissionStore PermissionStore
+	// PermissionBatchStore optionally groups raw permission facts by authority.
+	// It is used only when PermissionCacheTTL is zero.
+	PermissionBatchStore PermissionBatchStore
 	// PersonDirectory establishes both UID-owned memberships before the first
 	// persistent ordinary append to a canonical person channel.
 	PersonDirectory PersonDirectoryEnsurer
@@ -37,6 +40,8 @@ type Options struct {
 	PermissionCacheTTL time.Duration
 	// Now supplies wall time for permission cache expiry.
 	Now func() time.Time
+	// SendBatchObserver receives bounded stage timing without entry-specific details.
+	SendBatchObserver SendBatchObserver
 }
 
 // App is a thin message facade over channel append submission and sync reads.
@@ -47,6 +52,9 @@ type App struct {
 	channelState SyncChannelStateStore
 	eventStore   MessageEventStore
 	permissions  PermissionStore
+	// permissionBatch performs one authoritative, batch-scoped metadata read
+	// when the configured store supports it and no cross-batch TTL cache is enabled.
+	permissionBatch PermissionBatchStore
 	// permissionAuthority bypasses the optional cache for terminal channel checks.
 	permissionAuthority    PermissionStore
 	personDirectory        PersonDirectoryEnsurer
@@ -55,6 +63,7 @@ type App struct {
 	personWhitelistEnabled bool
 	systemDeviceID         string
 	now                    func() time.Time
+	sendBatchObserver      SendBatchObserver
 }
 
 // New creates a message App.
@@ -63,6 +72,10 @@ func New(opts Options) *App {
 		opts.Now = time.Now
 	}
 	permissions := newPermissionCache(opts.PermissionStore, opts.PermissionCacheTTL, opts.Now)
+	var permissionBatch PermissionBatchStore
+	if opts.PermissionCacheTTL <= 0 {
+		permissionBatch = opts.PermissionBatchStore
+	}
 	return &App{
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
@@ -70,6 +83,7 @@ func New(opts Options) *App {
 		channelState:           opts.ChannelState,
 		eventStore:             opts.EventStore,
 		permissions:            permissions,
+		permissionBatch:        permissionBatch,
 		permissionAuthority:    opts.PermissionStore,
 		personDirectory:        opts.PersonDirectory,
 		sendHook:               opts.SendHook,
@@ -77,7 +91,26 @@ func New(opts Options) *App {
 		personWhitelistEnabled: opts.PersonWhitelistEnabled,
 		systemDeviceID:         opts.SystemDeviceID,
 		now:                    opts.Now,
+		sendBatchObserver:      opts.SendBatchObserver,
 	}
+}
+
+// SendBatchStageObservation describes one low-cardinality SendBatch stage.
+type SendBatchStageObservation struct {
+	// Stage is permission, pre_append, or submitter.
+	Stage string
+	// Result is ok or error.
+	Result string
+	// Items is the number of input items owned by the stage.
+	Items int
+	// Duration is the synchronous stage latency.
+	Duration time.Duration
+}
+
+// SendBatchObserver receives entry-agnostic SendBatch stage observations.
+type SendBatchObserver interface {
+	// ObserveMessageSendBatchStage records one bounded stage observation.
+	ObserveMessageSendBatchStage(SendBatchStageObservation)
 }
 
 // SyncMembershipStore reads UID-owned ordinary membership state for message pulls.
@@ -107,6 +140,38 @@ type PermissionStore interface {
 	GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 	ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error)
 	HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error)
+}
+
+// PermissionReadKind identifies one raw authorization fact. The usecase keeps
+// policy evaluation local and asks infrastructure only for authoritative data.
+type PermissionReadKind uint8
+
+const (
+	PermissionReadChannel PermissionReadKind = iota + 1
+	PermissionReadSubscriberContains
+	PermissionReadSubscriberHasAny
+)
+
+// PermissionRead describes one channel-owned authorization metadata lookup.
+type PermissionRead struct {
+	Kind        PermissionReadKind
+	ChannelID   string
+	ChannelType int64
+	UID         string
+}
+
+// PermissionReadResult is aligned with one PermissionRead.
+type PermissionReadResult struct {
+	Channel metadb.Channel
+	Found   bool
+	Value   bool
+	Err     error
+}
+
+// PermissionBatchStore reads independent permission facts through a bounded
+// authoritative batch while preserving result alignment.
+type PermissionBatchStore interface {
+	ReadPermissionsBatch(context.Context, []PermissionRead) []PermissionReadResult
 }
 
 // PersonDirectoryEnsurer establishes the durable discovery invariant for a

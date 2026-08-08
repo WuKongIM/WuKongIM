@@ -23,7 +23,7 @@ const (
 	// defaultFollowerRecoveryProbeJitter spreads recovery probes without exceeding the send timeout budget.
 	defaultFollowerRecoveryProbeJitter = time.Second
 	// defaultCommittedCheckpointInterval coalesces the final HW learned after empty pulls.
-	defaultCommittedCheckpointInterval = time.Second
+	defaultCommittedCheckpointInterval = 5 * time.Second
 )
 
 // ReactorConfig wires one reactor.
@@ -134,6 +134,8 @@ type Reactor struct {
 	activeLeaderRuntimeCount int
 	// activeFollowerRuntimeCount tracks loaded follower runtimes without scanning the channel map.
 	activeFollowerRuntimeCount int
+	// parkedFollowerRuntimeCount tracks parked loaded followers without scanning the channel map.
+	parkedFollowerRuntimeCount int
 	// loadedMetaRefreshes tracks only loaded runtimes currently resolving authoritative metadata after a newer PullHint.
 	// The map stays nil on the ordinary hot path so idle channel cardinality has no per-runtime cost.
 	loadedMetaRefreshes map[ch.ChannelKey]*loadedMetaRefreshState
@@ -189,6 +191,8 @@ type runtimeChannel struct {
 	committedCheckpointOp ch.OpID
 	// committedCheckpointDue coalesces successive record-free HW advances into one final checkpoint.
 	committedCheckpointDue time.Time
+	// committedCheckpointBackoff bounds retries when the isolated checkpoint pool rejects admission.
+	committedCheckpointBackoff time.Duration
 	// due versions fence stale scheduler entries after channel state changes.
 	appendFlushDueVersion uint64
 	replicationDueVersion uint64

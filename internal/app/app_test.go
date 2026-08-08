@@ -3457,9 +3457,10 @@ func TestNewWiresTerminalDisbandCheckIntoMessageUsecase(t *testing.T) {
 	}
 }
 
-func TestNewWiresChannelAppendIdempotencyStore(t *testing.T) {
+func TestNewWiresChannelAppendIdempotencyStoreForWriteFencedRetry(t *testing.T) {
 	cluster := newFakePresenceCluster(3, nil)
 	cluster.snapshot = readyFakeClusterSnapshot(3, 16)
+	cluster.writeFenced = true
 	cluster.idempotencyOK = true
 	cluster.idempotencyHit = channelstore.IdempotencyHit{
 		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
@@ -6362,6 +6363,7 @@ type fakePresenceCluster struct {
 	idempotencyOK            bool
 	idempotencyErr           error
 	idempotencyLookups       int
+	writeFenced              bool
 	messages                 map[metadb.ChannelKey][]channelruntime.Message
 	messageEventAppends      []metadb.MessageEventAppend
 	messageEventStates       map[metadb.MessageEventMessageKey][]metadb.MessageEventState
@@ -6641,7 +6643,15 @@ func (f *fakePresenceCluster) NodeID() uint64 {
 }
 
 func (f *fakePresenceCluster) ResolveChannelAppendAuthority(_ context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
-	return fakeChannelAuthorityMeta(f.nodeID, id), nil
+	meta := fakeChannelAuthorityMeta(f.nodeID, id)
+	if f.writeFenced {
+		meta.WriteFence = channelruntime.WriteFence{
+			Token:   "app-test-write-fence",
+			Version: 1,
+			Reason:  channelruntime.WriteFenceReasonLeaderTransfer,
+		}
+	}
+	return meta, nil
 }
 
 func (f *fakePresenceCluster) GetChannelMetadata(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {

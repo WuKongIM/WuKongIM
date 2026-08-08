@@ -2408,6 +2408,10 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 	reg := obsmetrics.New(1, "n1")
 	observer := deliveryMessageObserver{app: &App{metrics: reg}}
 
+	observer.SetChannelAppendRouterGroupPressure(channelappend.RouterGroupPressureObservation{
+		Inflight: 13,
+		Capacity: 192,
+	})
 	observer.SetChannelAppendWriterPressure(channelappend.WriterPressureObservation{
 		PostCommitHandoffDepth:    11,
 		PostCommitHandoffCapacity: 17,
@@ -2430,6 +2434,8 @@ func TestDeliveryMessageObserverMapsChannelAppendPostCommitPressure(t *testing.T
 	assertGauge("wukongim_channelappend_post_commit_handoff_capacity", 17)
 	assertGauge("wukongim_channelappend_post_commit_retry_queue_depth", 3)
 	assertGauge("wukongim_channelappend_post_commit_retry_contended", 1)
+	assertGauge("wukongim_channelappend_router_group_inflight", 13)
+	assertGauge("wukongim_channelappend_router_group_capacity", 192)
 }
 
 func TestDeliveryMessageObserverLogsChannelAppendPostCommitFailure(t *testing.T) {

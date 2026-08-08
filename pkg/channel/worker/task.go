@@ -79,9 +79,10 @@ type MetaResolveTask struct {
 
 // StoreAppendTask asks a worker to durably append leader records.
 type StoreAppendTask struct {
-	ChannelID ch.ChannelID
-	Records   []ch.Record
-	Sync      bool
+	ChannelID                 ch.ChannelID
+	Records                   []ch.Record
+	Sync                      bool
+	ServerAllocatedMessageIDs bool
 }
 
 // StoreReadLogTask asks a worker to read raw records for replication.
@@ -371,7 +372,7 @@ func runStoreAppend(ctx context.Context, deps Deps, t Task) Result {
 		return invalidResult(t)
 	}
 	defer func() { _ = cs.Close() }()
-	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync})
+	stored, err := cs.AppendLeader(ctx, store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs})
 	return Result{Kind: t.Kind, Fence: t.Fence, Err: err, StoreAppend: &StoreAppendResult{BaseOffset: stored.BaseOffset, LastOffset: stored.LastOffset}}
 }
 

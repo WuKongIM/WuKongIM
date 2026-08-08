@@ -9,7 +9,53 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
+
+func TestAppendOmitsRedundantChannelLookupIndexes(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), []Record{{
+		ID: 10, ClientMsgNo: "client-1", FromUID: "u1", Payload: []byte("one"),
+	}}, AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+
+	assertMessageIndexEntryCount(t, log, messageIndexIDMessageID, 0)
+	assertMessageIndexEntryCount(t, log, messageIndexIDClientMsgNo, 0)
+	assertMessageIndexEntryCount(t, log, messageIndexIDFromUIDClientMsgNo, 1)
+
+	canonicalKey := encodeMessageIndexPrefix(log.key, messageIndexIDFromUIDClientMsgNo)
+	canonicalKey = keycodec.AppendString(canonicalKey, "client-1")
+	canonicalKey = keycodec.AppendString(canonicalKey, "u1")
+	if _, ok, err := store.engine.Get(canonicalKey); err != nil || !ok {
+		t.Fatalf("canonical client/sender index ok=%v err=%v, want present", ok, err)
+	}
+}
+
+func assertMessageIndexEntryCount(t *testing.T, log *ChannelLog, indexID uint16, want int) {
+	t.Helper()
+	prefix := encodeMessageIndexPrefix(log.key, indexID)
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := log.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		t.Fatalf("NewIter(index %d): %v", indexID, err)
+	}
+	defer iter.Close()
+	got := 0
+	for ok := iter.First(); ok; ok = iter.Next() {
+		got++
+	}
+	if err := iter.Error(); err != nil {
+		t.Fatalf("iter(index %d): %v", indexID, err)
+	}
+	if got != want {
+		t.Fatalf("index %d entry count = %d, want %d", indexID, got, want)
+	}
+}
 
 func TestMessageIndexGetByMessageID(t *testing.T) {
 	store := openTestMessageStore(t)
@@ -128,6 +174,28 @@ func TestAppendStrictRejectsDuplicateMessageID(t *testing.T) {
 	}
 }
 
+func TestAppendStrictRejectsMessageIDStoredInAnotherChannel(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	left, err := store.db.Channel("left:1", ChannelID{ID: "left", Type: 1})
+	if err != nil {
+		t.Fatalf("Channel(left): %v", err)
+	}
+	defer left.Close()
+	right, err := store.db.Channel("right:1", ChannelID{ID: "right", Type: 1})
+	if err != nil {
+		t.Fatalf("Channel(right): %v", err)
+	}
+	defer right.Close()
+	if _, err := left.Append(context.Background(), []Record{{ID: 35, Payload: []byte("one")}}, AppendOptions{}); err != nil {
+		t.Fatalf("Append(left): %v", err)
+	}
+	if _, err := right.Append(context.Background(), []Record{{ID: 35, Payload: []byte("two")}}, AppendOptions{}); !errors.Is(err, dberrors.ErrConflict) {
+		t.Fatalf("Append(right) err = %v, want conflict", err)
+	}
+}
+
 func TestAppendStrictRejectsInBatchDuplicates(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -170,9 +238,7 @@ func TestAppendTrustedSkipsExistingIndexReads(t *testing.T) {
 		{
 			name: "message_id",
 			poison: func(t *testing.T, log *ChannelLog) {
-				value := make([]byte, 8)
-				binary.BigEndian.PutUint64(value, 1)
-				setRawMessageValue(t, log, encodeMessageIDIndexKey(log.key, 52), value)
+				setRawMessageValue(t, log, encodeGlobalMessageIDIndexKey(52), encodeGlobalMessageIDIndexValue(log.key, 1))
 			},
 		},
 		{

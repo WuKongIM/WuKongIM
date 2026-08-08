@@ -144,6 +144,8 @@ type AppendBatchItem struct {
 	Store *ChannelStore
 	// Records contains messages to append to Store.
 	Records []channel.Record
+	// ServerAllocatedMessageIDs skips only existing message-ID reads for this leader append.
+	ServerAllocatedMessageIDs bool
 }
 
 // AppendBatchResult is the per-item result returned by StoreAppendBatch.
@@ -214,9 +216,23 @@ func Open(path string) (*Engine, error) {
 	return OpenWithLogger(path, nil)
 }
 
+const messageEngineMemTableSize = 64 << 20
+const messageEngineCompactionDebtStep = 128 << 20
+
+func messageEngineOptions(logger wklog.Logger) engine.Options {
+	return engine.Options{
+		// Message appends are the sustained high-write workload. A larger
+		// memtable halves its L0 sublevel creation rate without increasing the
+		// memory reserved by metadata and other lower-write databases.
+		MemTableSize:                   messageEngineMemTableSize,
+		CompactionDebtConcurrencyBytes: messageEngineCompactionDebtStep,
+		Logger:                         logger,
+	}
+}
+
 // OpenWithLogger opens a message DB and routes Pebble diagnostics through logger.
 func OpenWithLogger(path string, logger wklog.Logger) (*Engine, error) {
-	eng, err := engine.Open(path, engine.Options{Logger: logger})
+	eng, err := engine.Open(path, messageEngineOptions(logger))
 	if err != nil {
 		return nil, err
 	}
@@ -422,23 +438,6 @@ func (e *Engine) ListLatestMessages(ctx context.Context, beforeMessageID uint64,
 	}
 	page, err := db.ListLatestMessages(ctx, beforeMessageID, limit)
 	return page, toChannelError(err)
-}
-
-// DeleteLatestMessageIndexes removes manager-only global projection entries.
-func (e *Engine) DeleteLatestMessageIndexes(ctx context.Context, messageIDs []uint64) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if e == nil {
-		return channel.ErrClosed
-	}
-	e.mu.Lock()
-	db := e.db
-	e.mu.Unlock()
-	if db == nil {
-		return channel.ErrClosed
-	}
-	return toChannelError(db.DeleteLatestMessageIndexes(ctx, messageIDs))
 }
 
 // ListChannelKeys returns persisted channels with message or system state.
@@ -650,6 +649,12 @@ func (s *ChannelStore) AppendTrusted(records []channel.Record) (uint64, error) {
 	return s.appendRecords(context.Background(), records, AppendTrustedContiguous)
 }
 
+// AppendServerAllocated appends records whose message IDs were issued by the server allocator.
+// Existing idempotency keys remain strictly validated.
+func (s *ChannelStore) AppendServerAllocated(records []channel.Record) (uint64, error) {
+	return s.appendRecords(context.Background(), records, AppendServerAllocatedMessageID)
+}
+
 func (s *ChannelStore) appendRecords(ctx context.Context, records []channel.Record, mode AppendMode) (uint64, error) {
 	if err := s.beginUse(); err != nil {
 		return 0, err
@@ -793,7 +798,11 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 			delete(locked, entry)
 			continue
 		}
-		prepared, err := item.Store.prepareAppendRecordsLocked(ctx, item.Records, AppendStrict)
+		mode := AppendStrict
+		if item.ServerAllocatedMessageIDs {
+			mode = AppendServerAllocatedMessageID
+		}
+		prepared, err := item.Store.prepareAppendRecordsLocked(ctx, item.Records, mode)
 		if err != nil {
 			results[index].Err = err
 			entry.appendMu.Unlock()
@@ -1089,6 +1098,8 @@ func (s *ChannelStore) PutIdempotency(key channel.IdempotencyKey, entry channel.
 	if err := validateCompatIdempotencyKey(s.id, key); err != nil {
 		return err
 	}
+	s.log.appendMu.Lock()
+	defer s.log.appendMu.Unlock()
 	value, err := encodeIdempotencyIndexValue(messageRow{
 		MessageSeq:  entry.MessageSeq,
 		MessageID:   entry.MessageID,
@@ -1098,9 +1109,14 @@ func (s *ChannelStore) PutIdempotency(key channel.IdempotencyKey, entry channel.
 	if err != nil {
 		return toChannelError(err)
 	}
+	storageKey := encodeMessageIdempotencyIndexKey(s.log.key, key.FromUID, key.ClientMsgNo)
+	if s.log.idempotencyMembershipLoaded {
+		// Adding before commit can only create a false positive if commit fails.
+		s.log.idempotencyMembership.add(storageKey)
+	}
 	batch := s.log.db.engine.NewBatch()
 	defer batch.Close()
-	if err := batch.Set(encodeMessageIdempotencyIndexKey(s.log.key, key.FromUID, key.ClientMsgNo), value); err != nil {
+	if err := batch.Set(storageKey, value); err != nil {
 		return toChannelError(err)
 	}
 	if err := s.log.stageCatalog(batch); err != nil {
@@ -2493,7 +2509,11 @@ func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, c
 			return toChannelError(err)
 		}
 	}
-	if err := e.stageCatalog(batch); err != nil {
+	if len(rows) > 0 {
+		if err := e.stageCatalogForAppend(batch, rows[0].MessageSeq); err != nil {
+			return toChannelError(err)
+		}
+	} else if err := e.stageCatalog(batch); err != nil {
 		return toChannelError(err)
 	}
 	return nil
@@ -2583,12 +2603,12 @@ func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, from
 	var totalBytes int
 	var current messageRow
 	var currentSeq uint64
-	var haveRow, haveHeader, havePayload bool
+	var haveRow, haveHeader bool
 	flush := func() (bool, error) {
 		if !haveRow {
 			return false, nil
 		}
-		if !haveHeader || !havePayload {
+		if !haveHeader {
 			return false, fmt.Errorf("%w: incomplete message row at seq %d", dberrors.ErrCorruptState, currentSeq)
 		}
 		if err := validateMaterializedMessageRow(current); err != nil {
@@ -2602,7 +2622,7 @@ func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, from
 		if opts.Limit > 0 && len(rows) >= opts.Limit {
 			return true, nil
 		}
-		haveRow, haveHeader, havePayload = false, false, false
+		haveRow, haveHeader = false, false
 		current = messageRow{}
 		currentSeq = 0
 		return false, nil
@@ -2638,11 +2658,6 @@ func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, from
 				return nil, err
 			}
 			haveHeader = true
-		case messagePayloadFamilyID:
-			if err := decodeMessagePayload(key, value, &current); err != nil {
-				return nil, err
-			}
-			havePayload = true
 		}
 	}
 	if err := iter.Error(); err != nil {

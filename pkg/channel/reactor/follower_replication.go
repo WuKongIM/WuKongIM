@@ -31,12 +31,22 @@ func (r *Reactor) tickFollowerReplication(rc *runtimeChannel, now time.Time) {
 			return
 		}
 	}
-	r.trySubmitCommittedCheckpoint(rc, now)
 	if rc.replication.pendingPull != nil {
 		r.trySubmitPendingApply(rc, now)
 		return
 	}
-	if rc.replication.pullInflight || (!rc.replication.nextPullAt.IsZero() && now.Before(rc.replication.nextPullAt)) {
+	if rc.replication.pullInflight {
+		return
+	}
+	if rc.replication.dirty {
+		if !rc.replication.nextPullAt.IsZero() && now.Before(rc.replication.nextPullAt) {
+			return
+		}
+		r.trySubmitPull(rc, now)
+		return
+	}
+	r.trySubmitCommittedCheckpoint(rc, now)
+	if !rc.replication.nextPullAt.IsZero() && now.Before(rc.replication.nextPullAt) {
 		return
 	}
 	r.trySubmitPull(rc, now)
@@ -50,6 +60,16 @@ func (r *Reactor) trySubmitPull(rc *runtimeChannel, now time.Time) {
 		}
 		// Keep recoveryProbe armed so the backoff retry is still classified as a recovery probe.
 		r.backoffPull(rc, ch.ErrInvalidConfig, now)
+		return
+	}
+	if r.replicationStoreApplyPoolAtHighWater(1, 2) {
+		r.observeReplicationStoreApplyPaced()
+		rc.replication.nextPullAt = now.Add(storeApplyPressureDelay(rc.state.Key, r.cfg.ReplicationMaxBackoff))
+		return
+	}
+	if r.replicationRPCPoolAtHighWater(1, 2) {
+		r.observeReplicationRPCPaced(worker.TaskRPCPull)
+		rc.replication.nextPullAt = now.Add(replicationRPCPressureDelay(rc.state.Key, r.cfg.FollowerRecoveryProbeJitter))
 		return
 	}
 	opID := r.nextOpID()
@@ -276,7 +296,6 @@ func (r *Reactor) handleFollowerPullHint(event Event) {
 		}
 		if rc.replication.parked && rc.replication.recoveryProbe && rc.replication.nextPullAt.IsZero() {
 			rc.replication.parkWithRecovery(rc.state.Key, now, r.cfg.FollowerRecoveryProbeInterval, r.cfg.FollowerRecoveryProbeJitter)
-			r.observeFollowerParkedCount(r.countParkedFollowers())
 		}
 		if event.Future != nil {
 			event.Future.Complete(Result{})
@@ -833,13 +852,18 @@ func (r *Reactor) scheduleCommittedCheckpoint(rc *runtimeChannel, now time.Time)
 		return
 	}
 	if rc.committedCheckpointDue.IsZero() {
-		rc.committedCheckpointDue = now.Add(r.cfg.CommittedCheckpointInterval)
+		rc.committedCheckpointDue = now.Add(committedCheckpointDelay(rc.state.Key, r.cfg.CommittedCheckpointInterval))
 	}
 }
 
 func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel, now time.Time) {
 	if rc == nil || rc.state == nil || rc.state.HW <= rc.state.CheckpointHW || rc.committedCheckpointOp != 0 ||
 		rc.committedCheckpointDue.IsZero() || now.Before(rc.committedCheckpointDue) {
+		return
+	}
+	if r.committedCheckpointPoolPressured() {
+		rc.committedCheckpointBackoff = 0
+		rc.committedCheckpointDue = now.Add(committedCheckpointDelay(rc.state.Key, r.cfg.CommittedCheckpointInterval))
 		return
 	}
 	opID := r.nextOpID()
@@ -851,11 +875,85 @@ func (r *Reactor) trySubmitCommittedCheckpoint(rc *runtimeChannel, now time.Time
 		OpID:        opID,
 	}
 	if err := r.submitStoreCheckpoint(context.Background(), rc.state.ID, fence, ch.Checkpoint{HW: rc.state.HW}); err != nil {
-		rc.committedCheckpointDue = now.Add(r.cfg.ReplicationMinBackoff)
+		r.backoffCommittedCheckpoint(rc, now)
 		return
 	}
 	rc.committedCheckpointOp = opID
 	rc.committedCheckpointDue = time.Time{}
+}
+
+func (r *Reactor) backoffCommittedCheckpoint(rc *runtimeChannel, now time.Time) {
+	rc.committedCheckpointBackoff = nextReplicationBackoff(
+		rc.committedCheckpointBackoff,
+		r.cfg.ReplicationMinBackoff,
+		r.cfg.ReplicationMaxBackoff,
+	)
+	rc.committedCheckpointDue = now.Add(rc.committedCheckpointBackoff)
+}
+
+// committedCheckpointPoolPressured leaves half of the isolated queue as recovery headroom.
+func (r *Reactor) committedCheckpointPoolPressured() bool {
+	if r == nil || r.cfg.Pools == nil || r.cfg.Pools.StoreCheckpoint == nil {
+		return false
+	}
+	capacity := r.cfg.Pools.StoreCheckpoint.QueueCapacity()
+	if capacity <= 0 {
+		return false
+	}
+	highWater := max(1, capacity/2)
+	return r.cfg.Pools.StoreCheckpoint.QueueDepth() >= highWater
+}
+
+const minReplicationRPCPacingHighWater = 4
+
+// replicationRPCPoolAtHighWater reports whether the shared replication RPC
+// queue has reached the caller's admission watermark. Small queues retain room
+// for one normal multi-replica fanout before percentage-based pacing begins.
+func (r *Reactor) replicationRPCPoolAtHighWater(numerator, denominator int) bool {
+	if r == nil || r.cfg.Pools == nil {
+		return false
+	}
+	return replicationWorkerPoolAtHighWater(r.cfg.Pools.RPC, numerator, denominator)
+}
+
+func (r *Reactor) replicationStoreApplyPoolAtHighWater(numerator, denominator int) bool {
+	if r == nil || r.cfg.Pools == nil {
+		return false
+	}
+	return replicationWorkerPoolAtHighWater(r.cfg.Pools.StoreApply, numerator, denominator)
+}
+
+func replicationWorkerPoolAtHighWater(pool *worker.Pool, numerator, denominator int) bool {
+	if pool == nil || numerator <= 0 || denominator <= 0 {
+		return false
+	}
+	capacity := pool.QueueCapacity()
+	if capacity <= 0 {
+		return false
+	}
+	highWater := max(minReplicationRPCPacingHighWater, (capacity*numerator+denominator-1)/denominator)
+	highWater = min(capacity, highWater)
+	return pool.QueueDepth() >= highWater
+}
+
+func (r *Reactor) observeReplicationRPCPaced(kind worker.TaskKind) {
+	if r == nil || r.cfg.Pools == nil || r.cfg.Pools.RPC == nil {
+		return
+	}
+	if observer, ok := r.cfg.Observer.(worker.KindAdmissionObserver); ok {
+		observer.ObserveWorkerAdmissionKind(r.cfg.Pools.RPC.Name(), kind, "paced")
+	}
+}
+
+func (r *Reactor) observeReplicationStoreApplyPaced() {
+	if r == nil || r.cfg.Pools == nil || r.cfg.Pools.StoreApply == nil {
+		return
+	}
+	observer, ok := r.cfg.Observer.(worker.KindAdmissionObserver)
+	if !ok || observer == nil {
+		return
+	}
+	observer.ObserveWorkerAdmissionKind(r.cfg.Pools.StoreApply.Name(), worker.TaskRPCPull, "paced")
 }
 
 func (r *Reactor) observeFollowerPullRPCWait(submittedAt time.Time, result string, completedAt time.Time) {
@@ -901,21 +999,20 @@ func (r *Reactor) scheduleEmptyLaggingPullRetry(rc *runtimeChannel, now time.Tim
 	r.observeFollowerParkedCountIfChanged(wasParked, rc)
 }
 
-func (r *Reactor) countParkedFollowers() int {
-	count := 0
-	for _, rc := range r.channels {
-		if rc != nil && rc.state != nil && rc.state.Role == ch.RoleFollower && rc.replication.parked {
-			count++
-		}
-	}
-	return count
-}
-
-func (r *Reactor) observeFollowerParkedCountIfChanged(wasParked bool, rc *runtimeChannel) {
-	if rc == nil || wasParked == rc.replication.parked {
+func (r *Reactor) observeFollowerParkedCountIfChanged(wasParkedFollower bool, rc *runtimeChannel) {
+	if r == nil {
 		return
 	}
-	r.observeFollowerParkedCount(r.countParkedFollowers())
+	isParkedFollower := rc != nil && rc.state != nil && rc.state.Role == ch.RoleFollower && rc.replication.parked
+	if wasParkedFollower == isParkedFollower {
+		return
+	}
+	if isParkedFollower {
+		r.parkedFollowerRuntimeCount++
+	} else if r.parkedFollowerRuntimeCount > 0 {
+		r.parkedFollowerRuntimeCount--
+	}
+	r.observeFollowerParkedCount(r.parkedFollowerRuntimeCount)
 }
 
 func (r *Reactor) handleFollowerStopControl(rc *runtimeChannel, resp transport.PullResponse, now time.Time) {
@@ -985,6 +1082,7 @@ func (r *Reactor) handleStoreApplyResult(result worker.Result) {
 	}
 	if rc.state.CheckpointHW >= rc.state.HW {
 		rc.committedCheckpointDue = time.Time{}
+		rc.committedCheckpointBackoff = 0
 	}
 	if rc.replication.hintedLeaderLEO <= rc.state.LEO {
 		rc.replication.hintedLeaderLEO = 0

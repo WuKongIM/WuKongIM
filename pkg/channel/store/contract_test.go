@@ -41,11 +41,11 @@ func testStoreCheckpointHWMonotonic(t *testing.T, factory Factory) {
 	cs, err := factory.ChannelStore(ch.ChannelKey("1:checkpoint"), ch.ChannelID{ID: "checkpoint", Type: 1})
 	require.NoError(t, err)
 	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{
-		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
-		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
-		{ID: 3, Payload: []byte("c"), SizeBytes: 1},
-		{ID: 4, Payload: []byte("d"), SizeBytes: 1},
-		{ID: 5, Payload: []byte("e"), SizeBytes: 1},
+		{ID: 101, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 102, Payload: []byte("b"), SizeBytes: 1},
+		{ID: 103, Payload: []byte("c"), SizeBytes: 1},
+		{ID: 104, Payload: []byte("d"), SizeBytes: 1},
+		{ID: 105, Payload: []byte("e"), SizeBytes: 1},
 	}, Sync: true})
 	require.NoError(t, err)
 
@@ -62,10 +62,10 @@ func testStoreReadCommittedHonorsMinSeq(t *testing.T, factory Factory) {
 	cs, err := factory.ChannelStore(ch.ChannelKey("1:retained"), ch.ChannelID{ID: "retained", Type: 1})
 	require.NoError(t, err)
 	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{
-		{ID: 1, Payload: []byte("a"), SizeBytes: 1},
-		{ID: 2, Payload: []byte("b"), SizeBytes: 1},
-		{ID: 3, Payload: []byte("c"), SizeBytes: 1},
-		{ID: 4, Payload: []byte("d"), SizeBytes: 1},
+		{ID: 201, Payload: []byte("a"), SizeBytes: 1},
+		{ID: 202, Payload: []byte("b"), SizeBytes: 1},
+		{ID: 203, Payload: []byte("c"), SizeBytes: 1},
+		{ID: 204, Payload: []byte("d"), SizeBytes: 1},
 	}, Sync: true})
 	require.NoError(t, err)
 

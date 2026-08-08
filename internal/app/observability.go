@@ -534,6 +534,13 @@ func (o channelMetricsObserver) ObserveWorkerAdmission(pool string, result strin
 	o.metrics.RuntimePressure.ObserveAdmission(channelRuntimePressureComponent, pool, "worker", "none", result)
 }
 
+func (o channelMetricsObserver) ObserveWorkerAdmissionKind(pool string, kind worker.TaskKind, result string) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.ChannelRuntime.ObserveWorkerAdmission(pool, channelWorkerKindLabel(kind), result)
+}
+
 func (o channelMetricsObserver) ObserveWorkerWait(pool string, kind worker.TaskKind, d time.Duration) {
 	if o.metrics == nil {
 		return
@@ -1694,6 +1701,15 @@ func (o multiChannelObserver) ObserveWorkerAdmission(pool string, result string)
 		admissionObserver, ok := observer.(worker.AdmissionObserver)
 		if ok {
 			admissionObserver.ObserveWorkerAdmission(pool, result)
+		}
+	}
+}
+
+func (o multiChannelObserver) ObserveWorkerAdmissionKind(pool string, kind worker.TaskKind, result string) {
+	for _, observer := range o {
+		admissionObserver, ok := observer.(worker.KindAdmissionObserver)
+		if ok {
+			admissionObserver.ObserveWorkerAdmissionKind(pool, kind, result)
 		}
 	}
 }

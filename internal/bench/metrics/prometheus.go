@@ -57,7 +57,25 @@ type WukongIMAttribution struct {
 	GatewayQueueCapacity                                  float64
 	GatewayQueueRatio                                     float64
 	GatewayDispatchWaitP99Seconds                         float64
+	GatewayDispatchWaitP999Seconds                        float64
+	GatewaySendHandleP99Seconds                           float64
+	GatewaySendHandleP999Seconds                          float64
 	GatewayBatchRecordsP50                                float64
+	GatewayBatchRecordsP99                                float64
+	ChannelAppendRouterLocalP99Seconds                    float64
+	ChannelAppendRouterLocalP999Seconds                   float64
+	ChannelAppendRouterRemoteP99Seconds                   float64
+	ChannelAppendRouterRemoteP999Seconds                  float64
+	ChannelAppendRouterBatchP99Seconds                    float64
+	ChannelAppendRouterBatchP999Seconds                   float64
+	ChannelAppendRouterBatchItemP99Seconds                float64
+	ChannelAppendRouterBatchItemP999Seconds               float64
+	MessageSendBatchPermissionP99Seconds                  float64
+	MessageSendBatchPermissionP999Seconds                 float64
+	MessageSendBatchPreAppendP99Seconds                   float64
+	MessageSendBatchPreAppendP999Seconds                  float64
+	MessageSendBatchSubmitterP99Seconds                   float64
+	MessageSendBatchSubmitterP999Seconds                  float64
 	GatewaySendackSystemErrorCount                        float64
 	GatewaySendackSingleErrorCount                        float64
 	GatewaySendackSingleMissingRequestContextCount        float64
@@ -134,11 +152,17 @@ type WukongIMAttribution struct {
 	ChannelRuntimeFacadeAppendWaitP99Seconds              float64
 	ChannelRuntimeAppendBatchWaitP99Seconds               float64
 	ChannelRuntimeAppendStoreWaitP99Seconds               float64
+	ChannelRuntimeAppendStoreWaitP999Seconds              float64
 	ChannelRuntimeAppendPostStoreCommitWaitP99Seconds     float64
+	ChannelRuntimeAppendPostStoreCommitWaitP999Seconds    float64
 	ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds  float64
+	ChannelRuntimeAppendQuorumFollowerPullWaitP999Seconds float64
 	ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds     float64
+	ChannelRuntimeAppendQuorumAckOffsetWaitP999Seconds    float64
 	ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds     float64
+	ChannelRuntimeAppendQuorumHWAdvanceWaitP999Seconds    float64
 	ChannelRuntimeAppendQuorumFinalCompleteP99Seconds     float64
+	ChannelRuntimeAppendQuorumFinalCompleteP999Seconds    float64
 	ChannelRuntimeReplicationPullHintToSubmitP99Seconds   float64
 	ChannelRuntimeReplicationPullRPCP99Seconds            float64
 	ChannelRuntimeNeedMetaPullRPCP99Seconds               float64
@@ -156,8 +180,11 @@ type WukongIMAttribution struct {
 	ChannelRuntimePullBatchTotalP99Seconds                float64
 	ChannelRuntimeRPCWorkerQueueWaitP99Seconds            float64
 	ChannelRuntimeLeaderPullMailboxWaitP99Seconds         float64
+	ChannelRuntimeLeaderPullMailboxWaitP999Seconds        float64
 	ChannelRuntimeLeaderPullAckApplyP99Seconds            float64
+	ChannelRuntimeLeaderPullAckApplyP999Seconds           float64
 	ChannelRuntimeLeaderPullHandlerP99Seconds             float64
+	ChannelRuntimeLeaderPullHandlerP999Seconds            float64
 	ChannelRuntimeLeaderPullCompletedWaitersP50           float64
 	ChannelRuntimeLeaderPullCompletedWaitersP99           float64
 	ChannelRuntimePendingMetaCurrentMax                   float64
@@ -217,6 +244,7 @@ type WukongIMAttribution struct {
 	StorageCommitBatchRequestsP50                         float64
 	StorageCommitBatchRecordsP50                          float64
 	StorageCommitP99Seconds                               float64
+	StorageCommitP999Seconds                              float64
 	StorageCommitTotalP99Seconds                          float64
 	StorageCommitRequestP99Seconds                        float64
 	StorageCommitRequestOKP99Seconds                      float64
@@ -228,6 +256,7 @@ type WukongIMAttribution struct {
 	StorageCommitRequestOver5sCount                       float64
 	StorageCommitRequestOver10sCount                      float64
 	StorageCommitRequestP99SecondsByLane                  map[string]float64
+	StorageCommitRequestP999SecondsByLane                 map[string]float64
 	StorageCommitRequestOver1sCountByLane                 map[string]float64
 	StorageCommitRequestOver5sCountByLane                 map[string]float64
 	StorageCommitRequestOver10sCountByLane                map[string]float64
@@ -406,6 +435,7 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 		MessageEventProposeBatchEventsP50ByPath:               map[string]float64{},
 		MessageEventProposeBatchEventsP99ByPath:               map[string]float64{},
 		StorageCommitRequestP99SecondsByLane:                  map[string]float64{},
+		StorageCommitRequestP999SecondsByLane:                 map[string]float64{},
 		StorageCommitRequestOver1sCountByLane:                 map[string]float64{},
 		StorageCommitRequestOver5sCountByLane:                 map[string]float64{},
 		StorageCommitRequestOver10sCountByLane:                map[string]float64{},
@@ -416,7 +446,25 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 		report.GatewayQueueRatio = report.GatewayQueueDepth / report.GatewayQueueCapacity
 	}
 	report.GatewayDispatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_gateway_async_send_dispatch_wait_duration_seconds")
+	report.GatewayDispatchWaitP999Seconds, _ = histogramQuantileDelta(0.999, before, after, "wukongim_gateway_async_send_dispatch_wait_duration_seconds")
+	report.GatewaySendHandleP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_gateway_frame_handle_duration_seconds", map[string]string{"frame_type": "SEND"})
+	report.GatewaySendHandleP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_gateway_frame_handle_duration_seconds", map[string]string{"frame_type": "SEND"})
 	report.GatewayBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_gateway_async_send_batch_records")
+	report.GatewayBatchRecordsP99, _ = histogramQuantileDelta(0.99, before, after, "wukongim_gateway_async_send_batch_records")
+	report.ChannelAppendRouterLocalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "local", "result": "ok"})
+	report.ChannelAppendRouterLocalP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "local", "result": "ok"})
+	report.ChannelAppendRouterRemoteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "remote", "result": "ok"})
+	report.ChannelAppendRouterRemoteP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "remote", "result": "ok"})
+	report.ChannelAppendRouterBatchP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "batch", "result": "ok"})
+	report.ChannelAppendRouterBatchP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelappend_router_duration_seconds", map[string]string{"path": "batch", "result": "ok"})
+	report.ChannelAppendRouterBatchItemP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelappend_router_item_duration_seconds", map[string]string{"path": "batch", "result": "ok"})
+	report.ChannelAppendRouterBatchItemP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelappend_router_item_duration_seconds", map[string]string{"path": "batch", "result": "ok"})
+	report.MessageSendBatchPermissionP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "permission", "result": "ok"})
+	report.MessageSendBatchPermissionP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "permission", "result": "ok"})
+	report.MessageSendBatchPreAppendP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "pre_append", "result": "ok"})
+	report.MessageSendBatchPreAppendP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "pre_append", "result": "ok"})
+	report.MessageSendBatchSubmitterP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "submitter", "result": "ok"})
+	report.MessageSendBatchSubmitterP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_message_send_batch_stage_item_duration_seconds", map[string]string{"stage": "submitter", "result": "ok"})
 	report.GatewaySendackSystemErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"reason": "system_error"})
 	report.GatewaySendackSingleErrorCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "single_error"})
 	report.GatewaySendackSingleMissingRequestContextCount, _ = counterDeltaMatching(before, after, "wukongim_gateway_sendacks_total", map[string]string{"source": "single_missing_request_context"})
@@ -540,11 +588,17 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	report.ChannelRuntimeFacadeAppendWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_stage_duration_seconds", map[string]string{"stage": "runtime_append_wait"})
 	report.ChannelRuntimeAppendBatchWaitP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_append_batch_wait_duration_seconds")
 	report.ChannelRuntimeAppendStoreWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "store_append_wait"})
+	report.ChannelRuntimeAppendStoreWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "store_append_wait"})
 	report.ChannelRuntimeAppendPostStoreCommitWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "post_store_commit_wait"})
+	report.ChannelRuntimeAppendPostStoreCommitWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "post_store_commit_wait"})
 	report.ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_follower_pull_wait"})
+	report.ChannelRuntimeAppendQuorumFollowerPullWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_follower_pull_wait"})
 	report.ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
+	report.ChannelRuntimeAppendQuorumAckOffsetWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_ack_offset_wait"})
 	report.ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
+	report.ChannelRuntimeAppendQuorumHWAdvanceWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_hw_advance_wait"})
 	report.ChannelRuntimeAppendQuorumFinalCompleteP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
+	report.ChannelRuntimeAppendQuorumFinalCompleteP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_append_wait_stage_duration_seconds", map[string]string{"stage": "quorum_final_complete_wait"})
 	report.ChannelRuntimeReplicationPullHintToSubmitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_hint_to_submit"})
 	report.ChannelRuntimeReplicationPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_pull_rpc"})
 	report.ChannelRuntimeNeedMetaPullRPCP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_replication_stage_duration_seconds", map[string]string{"stage": "follower_need_meta_pull_rpc"})
@@ -562,8 +616,11 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	report.ChannelRuntimePullBatchTotalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_pull_batch_duration_seconds", map[string]string{"stage": "total"})
 	report.ChannelRuntimeRPCWorkerQueueWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_runtime_pool_wait_duration_seconds", map[string]string{"component": "channel", "pool": "channelv2-rpc", "queue": "worker", "priority": "none"})
 	report.ChannelRuntimeLeaderPullMailboxWaitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "mailbox_wait"})
+	report.ChannelRuntimeLeaderPullMailboxWaitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "mailbox_wait"})
 	report.ChannelRuntimeLeaderPullAckApplyP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "ack_apply"})
+	report.ChannelRuntimeLeaderPullAckApplyP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "ack_apply"})
 	report.ChannelRuntimeLeaderPullHandlerP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "handler"})
+	report.ChannelRuntimeLeaderPullHandlerP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_channelv2_leader_pull_stage_duration_seconds", map[string]string{"stage": "handler"})
 	report.ChannelRuntimeLeaderPullCompletedWaitersP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_channelv2_leader_pull_completed_waiters")
 	report.ChannelRuntimeLeaderPullCompletedWaitersP99, _ = histogramQuantileDelta(0.99, before, after, "wukongim_channelv2_leader_pull_completed_waiters")
 	report.ChannelRuntimePendingMetaCurrentMax, _ = after.maxGauge("wukongim_channelv2_pending_meta_current")
@@ -623,6 +680,7 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	report.StorageCommitBatchRequestsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_requests")
 	report.StorageCommitBatchRecordsP50, _ = histogramQuantileDelta(0.50, before, after, "wukongim_storage_commit_batch_records")
 	report.StorageCommitP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "commit"})
+	report.StorageCommitP999Seconds, _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "commit"})
 	report.StorageCommitTotalP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_batch_duration_seconds", map[string]string{"stage": "total"})
 	report.StorageCommitRequestP99Seconds, _ = histogramQuantileDelta(0.99, before, after, "wukongim_storage_commit_request_duration_seconds")
 	report.StorageCommitRequestOKP99Seconds, _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_request_duration_seconds", map[string]string{"result": "ok"})
@@ -636,6 +694,7 @@ func AnalyzeWukongIMPrometheus(before, after PrometheusSnapshot) WukongIMAttribu
 	for _, lane := range histogramLabelValues(before, after, "wukongim_storage_commit_request_duration_seconds", "lane") {
 		labels := map[string]string{"lane": lane}
 		report.StorageCommitRequestP99SecondsByLane[lane], _ = histogramQuantileDeltaMatching(0.99, before, after, "wukongim_storage_commit_request_duration_seconds", labels)
+		report.StorageCommitRequestP999SecondsByLane[lane], _ = histogramQuantileDeltaMatching(0.999, before, after, "wukongim_storage_commit_request_duration_seconds", labels)
 		report.StorageCommitRequestOver1sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 1)
 		report.StorageCommitRequestOver5sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 5)
 		report.StorageCommitRequestOver10sCountByLane[lane], _ = histogramCountAboveDeltaMatching(before, after, "wukongim_storage_commit_request_duration_seconds", labels, 10)

@@ -79,6 +79,20 @@ func (o deliveryMessageObserver) ObserveChannelAppendRouter(event channelappend.
 	o.app.metrics.ChannelAppend.ObserveRouter(event.Path, event.Result, event.Items, event.Duration)
 }
 
+func (o deliveryMessageObserver) SetChannelAppendRouterGroupPressure(event channelappend.RouterGroupPressureObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelAppend.SetRouterGroupPressure(event.Inflight, event.Capacity)
+}
+
+func (o deliveryMessageObserver) ObserveMessageSendBatchStage(event message.SendBatchStageObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Message.ObserveSendBatchStage(event.Stage, event.Result, event.Items, event.Duration)
+}
+
 func (o deliveryMessageObserver) ObserveChannelAppendLocalAdmission(event channelappend.LocalAdmissionObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return

@@ -116,15 +116,17 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 		attempt = appendInitialAttempt
 	}
 	req := AppendBatchRequest{
-		ChannelID:           target.ChannelID,
-		ExpectedEpoch:       target.Epoch,
-		ExpectedLeaderEpoch: target.LeaderEpoch,
-		Messages:            make([]Message, 0, len(active)),
-		Attempt:             attempt,
-		CommitMode:          CommitModeQuorum,
-		OmitResultPayload:   true,
+		ChannelID:                 target.ChannelID,
+		ExpectedEpoch:             target.Epoch,
+		ExpectedLeaderEpoch:       target.LeaderEpoch,
+		Messages:                  make([]Message, 0, len(active)),
+		Attempt:                   attempt,
+		CommitMode:                CommitModeQuorum,
+		OmitResultPayload:         true,
+		ServerAllocatedMessageIDs: len(active) > 0,
 	}
 	for _, item := range active {
+		req.ServerAllocatedMessageIDs = req.ServerAllocatedMessageIDs && item.serverAllocatedMessageID
 		cmd := item.Command
 		if req.TraceID == "" && cmd.TraceID != "" {
 			req.TraceID = cmd.TraceID

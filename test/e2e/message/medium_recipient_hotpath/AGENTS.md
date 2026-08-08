@@ -56,7 +56,40 @@ message over a long run. Public metrics sample transport RPC executor pressure,
 permission Slot RPC queue/admission/in-flight state, managed permission-batch
 goroutines, heap/GC, plugin conservation, and membership mutation rows. A
 premature failure emits one bounded `WKRC-PERMISSION-SOAK-FAILURE` JSON row;
-a completed run emits `WKRC-PERMISSION-SOAK-EVIDENCE`.
+a completed run emits `WKRC-PERMISSION-SOAK-EVIDENCE`. Both rows include
+measured-window histogram-delta P99 and diagnostic P99.9 attribution for
+gateway dispatch, gateway SEND batch handling, complete and local/remote
+channelappend routing, message permission/pre-append/submitter stages, Channel
+store/quorum waits, sampled leader Pull handling, and leader/follower storage
+commit requests; setup and cold prime observations must
+remain outside those deltas. Channel RPC admission-full
+evidence must retain the typed Pull versus PullHint split; do not tune the
+shared pool from the aggregate counter alone.
+The same evidence should retain typed `paced` counts so proactive watermark
+activity is not confused with bounded-pool rejection.
+It must also retain store-apply `full` and store-apply-triggered Pull `paced`
+counts. Sustained acceptance requires store-apply `full` to remain zero; the
+paced count is diagnostic and may be nonzero during bounded recovery.
+Complete router-batch and message-stage comparisons with per-message SENDACK
+must use their item-weighted histograms; one-sample-per-batch quantiles
+underweight slow large batches.
+The evidence must retain measured-window record-bearing versus empty Pull
+counts, Pull/PullHint batch calls and items, and append-versus-resume PullHint
+pacing. These distinguish expected replication amplification from a delayed
+first wakeup; do not infer either from the aggregate RPC queue alone.
+It must also retain measured-window gateway batch-record P99. A low global
+gateway queue ratio does not rule out session-scoped head-of-line amplification
+when recovery makes individual SEND micro-batches grow.
+It must retain measured-window message idempotency definite-negative filter
+skips and durable point reads. This proves whether unique high-QPS sends avoid
+the per-message Pebble lookup instead of inferring that result from aggregate
+LSM read amplification or CPU profiles.
+It must retain maximum node-local channelappend router-group inflight,
+capacity, and ratio. The per-batch group bound alone does not prove bounded
+aggregate pressure when several gateway sessions submit concurrently.
+Use `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` only for an
+explicit single-variable diagnostic until the candidate value passes the
+longer acceptance gates; changing it must not weaken same-session ordering.
 
 
 ## Rules
@@ -64,7 +97,8 @@ a completed run emits `WKRC-PERMISSION-SOAK-EVIDENCE`.
 - Keep the scenario black-box through real `cmd/wukongim` processes, public
   WKProto sockets, public channel APIs, and public Prometheus metrics.
 - Preserve 256 physical hash slots, 10 logical Slot groups, and three replicas.
-- Preserve the reviewed 96-worker, 8-item Channel replication RPC envelope.
+- Preserve the reviewed 96-worker, 8-item Channel replication RPC envelope and
+  one commit-coordinator shard per physical message database.
 - Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact;
   diagnostic group-channel cardinality may change only channel reuse.
 - Require the measured high-QPS SEND window to add zero ordinary membership

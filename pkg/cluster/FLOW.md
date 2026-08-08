@@ -70,8 +70,9 @@ Node-local latest-message reads use the Node-created shared message store and
 return only replicas at or below the loaded runtime HW, falling back to the
 durable checkpoint HW for unloaded channels. Retention boundaries are applied
 before returning candidates, and a fixed scan budget rejects pathological
-logical-retention gaps after deleting the inspected retained projection keys,
-so retries make bounded progress even when physical retention GC is disabled.
+logical-retention gaps. The global message-ID index is canonical lookup state,
+so logical-retention filtering never deletes it; physical retention removes
+the entry atomically with the message row.
 Follower apply persists the leader HW covered by each applied batch atomically;
 an unloaded local leader with `MinISR=1` safely treats its durable LEO as
 committed even when additional non-required ISR members are configured.
@@ -320,8 +321,9 @@ are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
 `channel_log`, `meta`, and `raft` snapshots. Pebble types remain behind the
 storage packages; cluster only publishes the neutral metrics shape used by
 composition roots. The `channel_log` snapshot also carries aggregate canonical
-entry, caller lease, background pin, acquire, release, and reclaim counts. It
-does not expose channel keys or channel IDs.
+entry, caller lease, background pin, acquire, release, and reclaim counts plus
+cumulative definite-negative idempotency filter skips and durable point reads.
+It does not expose channel keys, channel IDs, senders, or client message IDs.
 
 ### Health Report Loop
 
@@ -413,6 +415,11 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
 the same channel-owned Slot metadata route for message permission checks.
+`ReadPermissionMetadataBatchAuthoritative` groups raw permission facts by
+physical Slot, bounds concurrent Slot groups, and performs at most one
+authoritative `RPCSlotPermissionMetadataBatch` call per represented Slot while
+preserving input alignment. Policy remains outside `pkg/cluster` and
+`pkg/slot`.
 Message event appends also route by channel ID. `stream.open`,
 `stream.delta`, and `stream.snapshot` are forwarded to the current Slot leader's
 bounded node-local stream cache and return cache state without advancing the
@@ -683,7 +690,9 @@ string matching.
 Current handlers answer a valid v5 or v6 request with the same response
 version. V6 therefore preserves `RetentionThroughSeq` and `WriteFence` in
 `Pull{NeedMeta=true}` metadata, while v7 adds the membership-backed
-last-visible head fields without changing the v6 layout. Other transport or application errors never
+last-visible head fields and the append request's all-message
+server-allocation proof. Legacy v5/v6 append frames decode that proof as false,
+so fallback can lose the read optimization but cannot weaken validation. Other transport or application errors never
 trigger codec fallback, so forwarded append execution is not duplicated.
 
 `Node.ReadChannelCommitted` and `ReadChannelCommittedBatch` are narrow message
@@ -714,6 +723,7 @@ The default Slot runtime also owns a narrow Slot proxy for authoritative channel
 and subscriber metadata. It registers the centrally allocated
 `RPCSlotSubscriberMetadata`, `RPCSlotChannelMetadata`,
 `RPCSlotUserMembership`, and `RPCSlotRuntimeMetadata` handlers, exposes
+`RPCSlotPermissionMetadataBatch` for Slot-grouped raw permission reads, exposes
 Slot-leader point/page reads, UID-owned ordinary/CMD membership reads, Channel
 runtime metadata reads, and exact counted subscriber mutations to internal
 adapters, and carries create-only/flag-patch FSM results back to the proposer.
@@ -802,7 +812,7 @@ for first-write creation.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator. `Config.Channel.RPCWorkers` independently caps replication work and zero normalizes to the QPS-validated 160-worker default. None of these settings changes durable commit or quorum ACK rules. `Config.Channel.RPCBatchMaxItems` independently bounds same-target Pull/PullHint items per blocking transport call; zero uses the Channel worker default of 16 and does not increase worker or remote-call concurrency. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` routes message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero normalizes to four coordinators. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
+When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator. `Config.Channel.RPCWorkers` independently caps replication work and zero normalizes to the QPS-validated 160-worker default. None of these settings changes durable commit or quorum ACK rules. `Config.Channel.RPCBatchMaxItems` independently bounds same-target Pull/PullHint items per blocking transport call; zero uses the Channel worker default of 16 and does not increase worker or remote-call concurrency. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` routes message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero normalizes to one coordinator so one physical message DB maximizes each durable group-commit batch instead of issuing concurrent fsyncs from independent shards. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
 
 ## Non-Goals
 

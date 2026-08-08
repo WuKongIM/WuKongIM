@@ -92,10 +92,12 @@ high dequeues, admits one waiting normal event before returning to high traffic;
 low priority remains idle-only. The fairness counter carries across small drain
 batches and `WaitOne`, so sustained Pull/worker-result traffic cannot starve
 foreground Append/Ack events. The loop runs ready due work after each drained
-batch as well as while idle. This keeps append flushes, follower
-replication retries, lifecycle checks, pending-meta deadlines, and fixed cold
-activation deadlines from waiting for the mailbox to become completely empty
-during sustained load.
+batch as well as while idle, but processes at most 128 due items per turn before
+returning to the mailbox. Remaining items stay in the coalescing min-heap for
+the next turn. This keeps append flushes, follower replication retries,
+lifecycle checks, pending-meta deadlines, and fixed cold activation deadlines
+moving during sustained load without letting a synchronized recovery wave
+starve worker completions or foreground events.
 
 `EventRuntimeProbe` and `EventDrainChannel` are read-only migration/diagnostic
 control events. Probe copies only bounded scalar proof fields from
@@ -172,6 +174,11 @@ validates the current role, channel id, epoch, leader epoch, follower replica,
 and range. Empty caught-up responses may pace the follower or offer
 `PullControlStop` when idle eviction guards pass. Leader-visible follower state
 used by these guards lives under `channelRuntimeLifecycle`.
+After applying piggybacked or standalone follower progress, the leader drops
+recent-cache records at or below the minimum match offset of every configured
+follower. A restarted or regressed follower can still request those records
+through the store-backed cache-miss path, so cache retention is never part of
+replication correctness.
 Leader-side `EventPull` uses the high-priority mailbox so quorum follower pulls
 can still reach the leader while foreground append submissions are pressuring
 the normal-priority queue.
@@ -219,7 +226,8 @@ leader PullHint or legacy Notify
 ```text
 tickFollowerReplication
   -> apply a pending pull before new pulls
-  -> persist a due coalesced committed-HW checkpoint
+  -> submit dirty foreground Pull work before maintenance
+  -> persist a due coalesced committed-HW checkpoint only while otherwise idle
   -> checkpoint and send stopped ACK after accepted stop control
   -> honor retry backoff and leader-provided park delay
   -> submit RPC Pull with AckOffset when eligible
@@ -232,11 +240,30 @@ Record-bearing applies advance the covered leader HW atomically with the rows
 while preserving existing checkpoint epoch/log-start fields, and the worker
 result returns the durable frontier covered by that apply to the reactor. If a later empty
 pull advances HW after those rows were applied, the follower schedules a fenced
-monotonic checkpoint after `CommittedCheckpointInterval` (one second by
-default). Successive empty-pull advances replace that pending frontier, while a
-later record-bearing apply can satisfy it atomically. The final learned frontier
-is therefore persisted after the bounded idle window without issuing one
-standalone checkpoint commit per message on high-cardinality traffic.
+monotonic checkpoint within `CommittedCheckpointInterval` (five seconds by
+default). The first deadline uses a deterministic channel-key spread over the
+upper half of that interval, so a shared pause cannot make every idle channel
+submit checkpoint work at the same instant while the original maximum delay is
+preserved. Successive empty-pull advances replace that pending frontier, while
+a later record-bearing apply can satisfy it atomically. The final learned
+frontier is therefore persisted after the bounded idle window without issuing
+one standalone checkpoint commit per message on high-cardinality traffic.
+Checkpoint-pool admission failures use a per-channel exponential retry delay,
+capped by the replication maximum backoff. This prevents a synchronized
+checkpoint deadline wave from retrying every millisecond while the bounded
+pool is full. A successful checkpoint, or a record-bearing apply that already
+covers the learned HW, resets that retry state.
+Pending record-bearing apply and dirty Pull work always preempt this standalone
+checkpoint path. This preserves foreground replication after a pause and lets
+the next apply persist the pending HW atomically instead of racing it with a
+redundant maintenance commit.
+If a process or disk pause leaves many deadlines overdue, the reactor stops
+submitting standalone committed-HW checkpoints when the isolated checkpoint
+queue reaches its half-capacity high-water mark. Those channels are spread over
+a fresh bounded checkpoint window. Foreground record-bearing applies can then
+cover their pending HW without a standalone write, while half the queue remains
+available as recovery headroom. Admission-error backoff remains the fallback
+for concurrent races and lifecycle-owned checkpoint work.
 The pull piggybacks the follower's latest local LEO as `AckOffset`, so hot-path
 progress return does not depend on standalone ACK RPC delivery.
 RPC worker dispatchers may batch same-target `TaskRPCPull` and
@@ -244,10 +271,37 @@ RPC worker dispatchers may batch same-target `TaskRPCPull` and
 executes the transport call. The reactor still submits and receives one fenced
 worker task per channel, so batching does not change per-channel lifecycle or
 replication state.
+Because Pull and PullHint share one bounded RPC queue, the reactor applies
+class-aware admission watermarks before submission. Each watermark permits at
+least four queued tasks so one ordinary multi-replica fanout does not pace a
+small test or deployment queue. A new append's first PullHint wakeup yields at
+half capacity, matching foreground Pull work. Retry-only resume PullHints yield
+at one-quarter capacity, preserve the latest pending activity version, and
+deterministically retry over the upper half of `PullHintRetryInterval`.
+Follower Pull yields at half capacity, keeps the channel dirty,
+and deterministically retries over the upper half of
+`FollowerRecoveryProbeJitter`. This reserves recovery headroom for critical
+Pull work without changing worker count or queue capacity. A concurrent race
+may still reach pool admission; the existing typed error and bounded backoff
+remain the fallback. Both pre-admission pacing paths increment the existing
+typed worker admission counter with `result="paced"`, independently of actual
+`result="full"` rejections.
+Before starting another follower Pull, the reactor also checks the local
+store-apply queue. At half capacity it preserves the dirty follower state and
+retries over the upper half of the configured replication maximum backoff
+(50-100 ms by default). This leaves admission headroom
+for responses from already-running Pull RPCs instead of fetching records that
+the node cannot yet persist. A retained `pendingPull` is still submitted before
+new Pull or checkpoint work. This path reports `kind="rpc_pull"` and
+`result="paced"` against the store-apply pool, separately from RPC-queue
+pacing and actual store-apply `result="full"` rejection.
 Store worker dispatchers may batch queued `TaskStoreAppend`, `TaskStoreApply`,
 or `TaskStoreCheckpoint` items across different channels when the store factory
 supports the corresponding leader-append, follower-apply, or checkpoint
-batching contract. Checkpoint tasks use a dedicated worker pool so checkpoint
+batching contract. A leader append carries the server-allocated message-ID
+proof through the reactor and worker only when every request coalesced into the
+same channel batch is proven; otherwise the complete batch uses strict
+message-ID validation. Checkpoint tasks use a dedicated worker pool so checkpoint
 fsync latency cannot consume follower-apply capacity. The ants executor only
 runs prepared blocking groups; it is not the source of worker backpressure.
 Retention apply uses the store-apply worker pool shared with follower apply.
@@ -354,6 +408,8 @@ parked state and schedules immediate pull when the hint exposes leader progress
 or the follower still needs to return a durable AckOffset; otherwise a
 deterministic jittered recovery probe runs at the configured
 send-timeout-bounded interval. The runtime default is 2s plus up to 1s jitter.
+Each reactor updates the parked-follower gauge by state-transition deltas; one
+follower parking or waking does not scan all loaded channels.
 
 ## Worker Completion Routing
 

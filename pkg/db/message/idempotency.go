@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
 // LookupIdempotency returns the indexed message selected by a sender/client pair.
@@ -48,6 +50,32 @@ func (l *ChannelLog) lookupIdempotencyByKey(ctx context.Context, key Idempotency
 		return IdempotencyHit{}, false, fmt.Errorf("%w: stale idempotency index", dberrors.ErrCorruptState)
 	}
 	return hit, true, nil
+}
+
+// ensureIdempotencyMembershipLoaded rebuilds the bounded negative filter while
+// the caller holds the canonical channel append mutex.
+func (l *ChannelLog) ensureIdempotencyMembershipLoaded(ctx context.Context) error {
+	if l.idempotencyMembershipLoaded {
+		return nil
+	}
+	prefix := l.appendKeyCache.idempotencyIndexPrefix
+	span := keycodec.NewPrefixSpan(prefix)
+	iter, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return err
+	}
+	defer iter.Close()
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		l.idempotencyMembership.add(iter.Key())
+	}
+	if err := iter.Error(); err != nil {
+		return err
+	}
+	l.idempotencyMembershipLoaded = true
+	return nil
 }
 
 const idempotencyIndexValueLen = 24

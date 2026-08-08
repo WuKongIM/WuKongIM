@@ -60,6 +60,33 @@ func TestChannelLogAppendAssignsContiguousSeq(t *testing.T) {
 	}
 }
 
+func TestChannelLogAppendStoresOnePrimaryRow(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+
+	log := testChannelLog(store)
+	if _, err := log.Append(context.Background(), testRecords(21, "one-row"), AppendOptions{}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	if _, present, err := store.engine.Get(encodeMessageRowKey(log.key, 1, messageHeaderFamilyID)); err != nil {
+		t.Fatalf("Get(primary row): %v", err)
+	} else if !present {
+		t.Fatal("primary row is missing")
+	}
+	if _, present, err := store.engine.Get(encodeMessageRowKey(log.key, 1, messagePayloadFamilyID)); err != nil {
+		t.Fatalf("Get(legacy payload row): %v", err)
+	} else if present {
+		t.Fatal("append stored a separate payload row")
+	}
+	message, present, err := log.GetBySeq(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("GetBySeq(): %v", err)
+	}
+	if !present || string(message.Payload) != "one-row" {
+		t.Fatalf("GetBySeq() = (%+v, %v), want materialized payload", message, present)
+	}
+}
+
 func TestChannelLogRecordToRowKeepsPayloadReferenceForAppendStaging(t *testing.T) {
 	store := openTestMessageStore(t)
 	defer store.close(t)

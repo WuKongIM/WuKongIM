@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
@@ -47,46 +48,96 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 		return MessagePage{}, dberrors.ErrInvalidArgument
 	}
 
-	prefix := encodeMessageClientMsgNoIndexPrefix(l.key, clientMsgNo)
-	span := keycodec.NewPrefixSpan(prefix)
-	iter, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	type indexedSeq struct {
+		seq             uint64
+		allowMissingRow bool
+	}
+	seqs := make([]indexedSeq, 0, limit)
+	canonicalPrefix := encodeMessageClientLookupIndexPrefix(l.key, clientMsgNo)
+	canonicalSpan := keycodec.NewPrefixSpan(canonicalPrefix)
+	canonicalIter, err := l.db.engine.NewIter(engine.Span{Start: canonicalSpan.Start, End: canonicalSpan.End}, engine.IterOptions{})
 	if err != nil {
 		return MessagePage{}, err
 	}
-	defer iter.Close()
-
-	seqs := make([]uint64, 0, limit)
-	for ok := iter.First(); ok; ok = iter.Next() {
+	for ok := canonicalIter.First(); ok; ok = canonicalIter.Next() {
 		if err := ctx.Err(); err != nil {
+			_ = canonicalIter.Close()
 			return MessagePage{}, err
 		}
-		seq, ok := decodeMessageClientMsgNoIndexSeq(l.key, clientMsgNo, iter.Key())
-		if !ok {
-			return MessagePage{}, fmt.Errorf("%w: corrupt client message number index", dberrors.ErrCorruptValue)
+		value, err := canonicalIter.Value()
+		if err != nil {
+			_ = canonicalIter.Close()
+			return MessagePage{}, err
 		}
-		if beforeSeq == 0 || seq < beforeSeq {
-			seqs = append(seqs, seq)
+		hit, err := decodeIdempotencyIndexValue(value)
+		if err != nil {
+			_ = canonicalIter.Close()
+			return MessagePage{}, err
+		}
+		if beforeSeq == 0 || hit.MessageSeq < beforeSeq {
+			// PutIdempotency may intentionally create a durable reservation
+			// without a corresponding message row.
+			seqs = append(seqs, indexedSeq{seq: hit.MessageSeq, allowMissingRow: true})
 		}
 	}
-	if err := iter.Error(); err != nil {
+	if err := canonicalIter.Error(); err != nil {
+		_ = canonicalIter.Close()
+		return MessagePage{}, err
+	}
+	if err := canonicalIter.Close(); err != nil {
 		return MessagePage{}, err
 	}
 
-	page := MessagePage{Messages: make([]Message, 0, boundedCapacity(len(seqs), limit))}
-	for i := len(seqs) - 1; i >= 0; i-- {
-		if len(page.Messages) == limit {
-			page.HasMore = true
-			page.NextBeforeSeq = page.Messages[len(page.Messages)-1].MessageSeq
-			break
+	// Sender-less records cannot participate in idempotency, so they retain
+	// the sequence-suffixed client index without adding a write to normal sends.
+	legacyPrefix := encodeMessageClientMsgNoIndexPrefix(l.key, clientMsgNo)
+	legacySpan := keycodec.NewPrefixSpan(legacyPrefix)
+	legacyIter, err := l.db.engine.NewIter(engine.Span{Start: legacySpan.Start, End: legacySpan.End}, engine.IterOptions{})
+	if err != nil {
+		return MessagePage{}, err
+	}
+	for ok := legacyIter.First(); ok; ok = legacyIter.Next() {
+		if err := ctx.Err(); err != nil {
+			_ = legacyIter.Close()
+			return MessagePage{}, err
 		}
-		row, ok, err := l.getRowBySeq(ctx, seqs[i])
+		seq, ok := decodeMessageClientMsgNoIndexSeq(l.key, clientMsgNo, legacyIter.Key())
+		if !ok {
+			_ = legacyIter.Close()
+			return MessagePage{}, fmt.Errorf("%w: corrupt client message number index", dberrors.ErrCorruptValue)
+		}
+		if beforeSeq == 0 || seq < beforeSeq {
+			seqs = append(seqs, indexedSeq{seq: seq})
+		}
+	}
+	if err := legacyIter.Error(); err != nil {
+		_ = legacyIter.Close()
+		return MessagePage{}, err
+	}
+	if err := legacyIter.Close(); err != nil {
+		return MessagePage{}, err
+	}
+
+	sort.Slice(seqs, func(i, j int) bool { return seqs[i].seq > seqs[j].seq })
+	messages := make([]Message, 0, len(seqs))
+	for _, indexed := range seqs {
+		row, ok, err := l.getRowBySeq(ctx, indexed.seq)
 		if err != nil {
 			return MessagePage{}, err
+		}
+		if !ok && indexed.allowMissingRow {
+			continue
 		}
 		if !ok || row.ClientMsgNo != clientMsgNo {
 			return MessagePage{}, fmt.Errorf("%w: stale client message number index", dberrors.ErrCorruptState)
 		}
-		page.Messages = append(page.Messages, messageFromRow(row))
+		messages = append(messages, messageFromRow(row))
+	}
+	page := MessagePage{Messages: messages}
+	if len(messages) > limit {
+		page.Messages = messages[:limit]
+		page.HasMore = true
+		page.NextBeforeSeq = page.Messages[len(page.Messages)-1].MessageSeq
 	}
 	return page, nil
 }
@@ -137,23 +188,26 @@ func (l *ChannelLog) lookupMessageIDSeq(ctx context.Context, messageID uint64) (
 	if messageID == 0 {
 		return 0, false, dberrors.ErrInvalidArgument
 	}
-	cache := l.appendKeyCache
-	return l.lookupMessageIDSeqByKey(ctx, cache.messageIDIndexKey(messageID))
+	channelKey, seq, ok, err := l.lookupGlobalMessageIDByKey(ctx, encodeGlobalMessageIDIndexKey(messageID))
+	if err != nil || !ok || channelKey != l.key {
+		return 0, ok && channelKey == l.key, err
+	}
+	return seq, true, nil
 }
 
-func (l *ChannelLog) lookupMessageIDSeqByKey(ctx context.Context, storageKey []byte) (uint64, bool, error) {
+func (l *ChannelLog) lookupGlobalMessageIDByKey(ctx context.Context, storageKey []byte) (ChannelKey, uint64, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return 0, false, err
+		return "", 0, false, err
 	}
 	value, ok, err := l.db.engine.Get(storageKey)
 	if err != nil || !ok {
-		return 0, ok, err
+		return "", 0, ok, err
 	}
-	seq, err := decodeMessageIDIndexValue(value)
+	channelKey, seq, err := decodeGlobalMessageIDIndexValue(value)
 	if err != nil {
-		return 0, false, err
+		return "", 0, false, err
 	}
-	return seq, true, nil
+	return channelKey, seq, true, nil
 }
 
 const messageIDIndexValueLen = 8

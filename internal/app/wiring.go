@@ -679,6 +679,7 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				MaxOutboundPerNode: a.cfg.Delivery.EventQueueSize,
 				MaxRouteAttempts:   defaultDeliveryRetryMaxAttempts,
 				Observer:           observer,
+				PressureObserver:   observer,
 			})
 			a.channelAppends = group
 			a.channelAppendRouter = router
@@ -709,6 +710,7 @@ func (a *App) wireMessages() {
 			PersonWhitelistEnabled: a.cfg.Message.PersonWhitelistEnabled,
 			SystemDeviceID:         a.cfg.Message.SystemDeviceID,
 			PermissionCacheTTL:     a.cfg.Message.PermissionCacheTTL,
+			SendBatchObserver:      deliveryMessageObserver{app: a},
 		}
 		if a.plugins != nil {
 			messageOpts.SendHook = a.plugins
@@ -716,6 +718,9 @@ func (a *App) wireMessages() {
 		if channelNode, ok := a.cluster.(clusterinfra.ChannelMetadataNode); ok {
 			channelStore := clusterinfra.NewChannelMetadataStore(channelNode, a.ensureChannelAppendMetadataCache())
 			messageOpts.PermissionStore = channelStore
+			if _, ok := channelNode.(clusterinfra.AuthoritativePermissionBatchNode); ok {
+				messageOpts.PermissionBatchStore = channelStore
+			}
 			messageOpts.ChannelState = channelStore
 			if _, ok := a.cluster.(clusterinfra.PersonDirectoryNode); ok {
 				messageOpts.PersonDirectory = channelStore

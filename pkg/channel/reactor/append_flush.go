@@ -78,10 +78,11 @@ func appendBatchWaiters(requests []appendRequest) []machine.AppendBatchWaiter {
 	waiters := make([]machine.AppendBatchWaiter, 0, len(requests))
 	for _, req := range requests {
 		waiters = append(waiters, machine.AppendBatchWaiter{
-			OpID:              req.opID,
-			CommitMode:        req.commitMode,
-			OmitResultPayload: req.req.OmitResultPayload,
-			Records:           req.records,
+			OpID:                      req.opID,
+			CommitMode:                req.commitMode,
+			OmitResultPayload:         req.req.OmitResultPayload,
+			Records:                   req.records,
+			ServerAllocatedMessageIDs: req.req.ServerAllocatedMessageIDs,
 		})
 	}
 	return waiters

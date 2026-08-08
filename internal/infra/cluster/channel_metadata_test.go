@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -143,6 +145,33 @@ func TestChannelMetadataStoreMapsUnavailablePermissionReadsToRouteNotReady(t *te
 	}
 }
 
+func TestChannelMetadataStoreMapsAuthoritativePermissionBatch(t *testing.T) {
+	node := &recordingChannelMetadataNode{permissionBatchResults: []slotproxy.PermissionMetadataReadResult{
+		{Found: true, Channel: metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1}},
+		{Value: true},
+		{Value: false},
+	}}
+	store := NewChannelMetadataStore(node, nil)
+	reads := []messageusecase.PermissionRead{
+		{Kind: messageusecase.PermissionReadChannel, ChannelID: "g1", ChannelType: 2},
+		{Kind: messageusecase.PermissionReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
+		{Kind: messageusecase.PermissionReadSubscriberHasAny, ChannelID: "g1", ChannelType: 2},
+	}
+
+	results := store.ReadPermissionsBatch(context.Background(), reads)
+
+	if len(results) != 3 || !results[0].Found || results[0].Channel.Ban != 1 || !results[1].Value || results[2].Value {
+		t.Fatalf("ReadPermissionsBatch() = %#v, want aligned mapped facts", results)
+	}
+	if got, want := node.permissionBatchReads, []slotproxy.PermissionMetadataRead{
+		{Kind: slotproxy.PermissionMetadataReadChannel, ChannelID: "g1", ChannelType: 2},
+		{Kind: slotproxy.PermissionMetadataReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
+		{Kind: slotproxy.PermissionMetadataReadSubscriberHasAny, ChannelID: "g1", ChannelType: 2},
+	}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("proxy reads = %#v, want %#v", got, want)
+	}
+}
+
 func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
 	node := &localOnlyChannelMetadataNode{}
 	store := NewChannelMetadataStore(node, nil)
@@ -223,6 +252,8 @@ type recordingChannelMetadataNode struct {
 	removeResult           metadb.SubscriberMutationResult
 	committedTail          uint64
 	directoryReadyCalls    int
+	permissionBatchReads   []slotproxy.PermissionMetadataRead
+	permissionBatchResults []slotproxy.PermissionMetadataReadResult
 }
 
 type membershipUpsertNodeCall struct {
@@ -308,6 +339,11 @@ func (r *recordingChannelMetadataNode) HasChannelSubscribersAuthoritative(contex
 		return false, r.authoritativeErr
 	}
 	return len(r.authoritativeUIDs) > 0, nil
+}
+
+func (r *recordingChannelMetadataNode) ReadPermissionMetadataBatchAuthoritative(_ context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	r.permissionBatchReads = append([]slotproxy.PermissionMetadataRead(nil), reads...)
+	return append([]slotproxy.PermissionMetadataReadResult(nil), r.permissionBatchResults...)
 }
 
 func (r *recordingChannelMetadataNode) AddChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error) {

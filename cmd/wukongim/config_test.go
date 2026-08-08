@@ -54,8 +54,8 @@ func TestLoadConfigDefaultValues(t *testing.T) {
 	if cfg.Gateway.Session.AsyncSendBatchMaxWait != time.Millisecond {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 1ms", cfg.Gateway.Session.AsyncSendBatchMaxWait)
 	}
-	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 512 {
-		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 512", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
+	if cfg.Gateway.Session.AsyncSendBatchMaxRecords != 128 {
+		t.Fatalf("AsyncSendBatchMaxRecords = %d, want 128", cfg.Gateway.Session.AsyncSendBatchMaxRecords)
 	}
 	if cfg.Channel.LargeGroupSubscriberThreshold != 500 {
 		t.Fatalf("Channel.LargeGroupSubscriberThreshold = %d, want 500", cfg.Channel.LargeGroupSubscriberThreshold)

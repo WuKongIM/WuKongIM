@@ -73,7 +73,8 @@ New(Config)
      metrics; the collector also samples local process CPU, RSS/VMS memory,
      goroutine count, and thread count via gopsutil, and pulls
      `cluster.Node.StorageMetricsSnapshot` into Pebble and aggregate channel
-     entry ownership/reclamation metrics under the fixed `channel_log` label;
+     entry ownership/reclamation metrics plus bounded idempotency negative-skip
+     and durable-point-read totals under the fixed `channel_log` label;
      it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
      gateway session-error signals with compact evidence facts so `wkcli top`
@@ -97,8 +98,9 @@ New(Config)
      snapshot reads. The database monitor category is Prometheus-only and uses
      internal message DB commit request,
      grouped commit stage, commit runtime queue, and Pebble engine snapshot
-     metrics, plus canonical channel entry, caller lease, background pin, and
-     reclamation totals. These storage metrics never use channel IDs as labels.
+     metrics, plus canonical channel entry, caller lease, background pin,
+     reclamation, and bounded idempotency lookup totals. These storage metrics
+     never use channel IDs, senders, or client message IDs as labels.
      The node monitor category keeps per-node Prometheus series for
      process CPU, RSS memory, goroutines, and Go GC pause/rate/CPU/heap-goal
      pressure so global views can show the highest-pressure node without

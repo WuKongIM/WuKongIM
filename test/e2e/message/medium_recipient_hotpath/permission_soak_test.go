@@ -6,10 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	benchmetrics "github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	benchtarget "github.com/WuKongIM/WuKongIM/internal/bench/target"
 	benchmodel "github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -31,6 +34,8 @@ const (
 	mediumPermissionSoakMaxDuration    = 30 * time.Minute
 	mediumPermissionSoakGroupChannels  = mediumCloudGroupChannelCount
 	mediumPermissionSoakMaxLatency     = 10 * time.Second
+	mediumPermissionSoakDrainAllowance = 30 * time.Second
+	mediumPermissionSoakHeartbeat      = 30 * time.Second
 )
 
 type permissionSoakConfig struct {
@@ -40,87 +45,253 @@ type permissionSoakConfig struct {
 	groupChannels int
 }
 
+// permissionSoakStageLatencyEvidence attributes end-to-end SENDACK latency to
+// bounded public histogram stages observed only during the measured window.
+type permissionSoakStageLatencyEvidence struct {
+	GatewayDispatchWaitP99MS            float64 `json:"gateway_dispatch_wait"`
+	GatewaySendHandleP99MS              float64 `json:"gateway_send_handle"`
+	ChannelAppendRouterLocalP99MS       float64 `json:"channel_append_router_local"`
+	ChannelAppendRouterRemoteP99MS      float64 `json:"channel_append_router_remote"`
+	ChannelAppendRouterBatchP99MS       float64 `json:"channel_append_router_batch"`
+	ChannelAppendRouterBatchItemP99MS   float64 `json:"channel_append_router_batch_item"`
+	MessagePermissionP99MS              float64 `json:"message_permission"`
+	MessagePreAppendP99MS               float64 `json:"message_pre_append"`
+	MessageSubmitterP99MS               float64 `json:"message_submitter"`
+	ChannelStoreAppendWaitP99MS         float64 `json:"channel_store_append_wait"`
+	ChannelPostStoreCommitWaitP99MS     float64 `json:"channel_post_store_commit_wait"`
+	ChannelQuorumFollowerPullWaitP99MS  float64 `json:"channel_quorum_follower_pull_wait"`
+	ChannelQuorumAckOffsetWaitP99MS     float64 `json:"channel_quorum_ack_offset_wait"`
+	ChannelQuorumHWAdvanceWaitP99MS     float64 `json:"channel_quorum_hw_advance_wait"`
+	ChannelQuorumFinalCompleteWaitP99MS float64 `json:"channel_quorum_final_complete_wait"`
+	StorageLeaderCommitRequestP99MS     float64 `json:"storage_leader_commit_request"`
+	StorageFollowerCommitRequestP99MS   float64 `json:"storage_follower_commit_request"`
+	StoragePhysicalCommitP99MS          float64 `json:"storage_physical_commit"`
+	ChannelLeaderPullMailboxWaitP99MS   float64 `json:"channel_leader_pull_mailbox_wait"`
+	ChannelLeaderPullAckApplyP99MS      float64 `json:"channel_leader_pull_ack_apply"`
+	ChannelLeaderPullHandlerP99MS       float64 `json:"channel_leader_pull_handler"`
+}
+
 // permissionSoakEvidence is the bounded, machine-readable result of the
 // long-running public-protocol permission pressure gate.
 type permissionSoakEvidence struct {
-	Schema                           string  `json:"schema"`
-	ConfiguredDurationMS             float64 `json:"configured_duration_ms"`
-	SendLoopDurationMS               float64 `json:"send_loop_duration_ms"`
-	MeasuredDurationMS               float64 `json:"measured_duration_ms"`
-	Messages                         int     `json:"messages"`
-	GroupChannels                    int     `json:"group_channels"`
-	ActiveGroupChannels              int     `json:"active_group_channels"`
-	Senders                          int     `json:"senders"`
-	Recipients                       int     `json:"recipients"`
-	OfferedQPS                       int     `json:"offered_qps"`
-	IngressPerSecond                 float64 `json:"ingress_per_second"`
-	CompletionPerSecond              float64 `json:"completion_per_second"`
-	SendackP50MS                     float64 `json:"sendack_p50_ms"`
-	SendackP99MS                     float64 `json:"sendack_p99_ms"`
-	SendackMaxMS                     float64 `json:"sendack_max_ms"`
-	RecvP99MS                        float64 `json:"recv_p99_ms"`
-	RecvMaxMS                        float64 `json:"recv_max_ms"`
-	TransportRPCMetricNodes          int     `json:"transport_rpc_metric_nodes"`
-	MaxTransportRPCQueueRatio        float64 `json:"max_transport_rpc_queue_ratio"`
-	MaxTransportRPCBusyRatio         float64 `json:"max_transport_rpc_busy_ratio"`
-	TransportRPCRejected             float64 `json:"transport_rpc_rejected"`
-	PermissionSlotRPCCalls           float64 `json:"permission_slot_rpc_calls"`
-	PermissionSlotRPCErrors          float64 `json:"permission_slot_rpc_errors"`
-	PermissionSlotRPCAdmissionErrors float64 `json:"permission_slot_rpc_admission_errors"`
-	MaxPermissionSlotRPCQueueRatio   float64 `json:"max_permission_slot_rpc_queue_ratio"`
-	MaxPermissionSlotRPCInflight     float64 `json:"max_permission_slot_rpc_inflight"`
-	PermissionBatchStarted           float64 `json:"permission_batch_started"`
-	PermissionBatchPanics            float64 `json:"permission_batch_panics"`
-	MaxPermissionBatchActive         float64 `json:"max_permission_batch_active"`
-	MembershipMutationRows           float64 `json:"membership_mutation_rows"`
-	PluginReceiveAccepted            float64 `json:"plugin_receive_enqueue_accepted"`
-	PluginReceiveFull                float64 `json:"plugin_receive_enqueue_full"`
-	PluginReceiveClosed              float64 `json:"plugin_receive_enqueue_closed"`
-	PluginReceiveInvokeOK            float64 `json:"plugin_receive_invoke_ok"`
-	PluginReceiveInvokeError         float64 `json:"plugin_receive_invoke_error"`
-	MaxHeapBytes                     float64 `json:"max_heap_bytes"`
-	MaxAggregateHeapBytes            float64 `json:"max_aggregate_heap_bytes"`
-	AllocatedBytes                   float64 `json:"allocated_bytes"`
-	GCCountDelta                     float64 `json:"gc_count_delta"`
-	MetricSamples                    int     `json:"metric_samples"`
-	MetricSampleErrors               int     `json:"metric_sample_errors"`
-	PendingMessages                  int64   `json:"pending_messages"`
-	Drained                          bool    `json:"drained"`
-	ProcessContinuous                bool    `json:"process_continuous"`
+	Schema                           string                             `json:"schema"`
+	ConfiguredDurationMS             float64                            `json:"configured_duration_ms"`
+	SendLoopDurationMS               float64                            `json:"send_loop_duration_ms"`
+	MeasuredDurationMS               float64                            `json:"measured_duration_ms"`
+	Messages                         int                                `json:"messages"`
+	GroupChannels                    int                                `json:"group_channels"`
+	ActiveGroupChannels              int                                `json:"active_group_channels"`
+	Senders                          int                                `json:"senders"`
+	Recipients                       int                                `json:"recipients"`
+	OfferedQPS                       int                                `json:"offered_qps"`
+	IngressPerSecond                 float64                            `json:"ingress_per_second"`
+	CompletionPerSecond              float64                            `json:"completion_per_second"`
+	SendackP50MS                     float64                            `json:"sendack_p50_ms"`
+	SendackP99MS                     float64                            `json:"sendack_p99_ms"`
+	SendackMaxMS                     float64                            `json:"sendack_max_ms"`
+	RecvP99MS                        float64                            `json:"recv_p99_ms"`
+	RecvMaxMS                        float64                            `json:"recv_max_ms"`
+	StageP99MS                       permissionSoakStageLatencyEvidence `json:"stage_p99_ms"`
+	StageP999MS                      permissionSoakStageLatencyEvidence `json:"stage_p999_ms"`
+	GatewayBatchRecordsP99           float64                            `json:"gateway_batch_records_p99"`
+	StageLatencyCaptureError         string                             `json:"stage_latency_capture_error,omitempty"`
+	MaxGatewayQueueRatio             float64                            `json:"max_gateway_queue_ratio"`
+	MaxRecipientQueueRatio           float64                            `json:"max_recipient_queue_ratio"`
+	MaxRecipientWorkerRatio          float64                            `json:"max_recipient_worker_ratio"`
+	MaxChannelReactorMailboxRatio    float64                            `json:"max_channel_reactor_mailbox_ratio"`
+	MaxChannelStoreAppendQueueRatio  float64                            `json:"max_channel_store_append_queue_ratio"`
+	MaxChannelStoreAppendWorkerRatio float64                            `json:"max_channel_store_append_worker_ratio"`
+	MaxChannelStoreApplyQueueRatio   float64                            `json:"max_channel_store_apply_queue_ratio"`
+	MaxChannelStoreApplyWorkerRatio  float64                            `json:"max_channel_store_apply_worker_ratio"`
+	MaxChannelRPCQueueRatio          float64                            `json:"max_channel_rpc_queue_ratio"`
+	MaxChannelRPCWorkerRatio         float64                            `json:"max_channel_rpc_worker_ratio"`
+	ChannelRPCAdmissionFull          float64                            `json:"channel_rpc_admission_full"`
+	ChannelRPCPullAdmissionFull      float64                            `json:"channel_rpc_pull_admission_full"`
+	ChannelRPCHintAdmissionFull      float64                            `json:"channel_rpc_pull_hint_admission_full"`
+	ChannelRPCPullPaced              float64                            `json:"channel_rpc_pull_paced"`
+	ChannelRPCHintPaced              float64                            `json:"channel_rpc_pull_hint_paced"`
+	ChannelRPCPullBatches            float64                            `json:"channel_rpc_pull_batches"`
+	ChannelRPCPullBatchItems         float64                            `json:"channel_rpc_pull_batch_items"`
+	ChannelRPCHintBatches            float64                            `json:"channel_rpc_pull_hint_batches"`
+	ChannelRPCHintBatchItems         float64                            `json:"channel_rpc_pull_hint_batch_items"`
+	ChannelPullOKEmpty               float64                            `json:"channel_pull_ok_empty"`
+	ChannelPullOKRecords             float64                            `json:"channel_pull_ok_records"`
+	ChannelPullError                 float64                            `json:"channel_pull_error"`
+	ChannelAppendHintPaced           float64                            `json:"channel_rpc_append_hint_paced"`
+	ChannelResumeHintPaced           float64                            `json:"channel_rpc_resume_hint_paced"`
+	ChannelStoreApplyTasks           float64                            `json:"channel_store_apply_tasks"`
+	ChannelStoreApplyFull            float64                            `json:"channel_store_apply_admission_full"`
+	ChannelStoreApplyPullPaced       float64                            `json:"channel_store_apply_pull_paced"`
+	ChannelStoreCheckpointTasks      float64                            `json:"channel_store_checkpoint_tasks"`
+	ChannelStoreCheckpointFull       float64                            `json:"channel_store_checkpoint_admission_full"`
+	TransportRPCMetricNodes          int                                `json:"transport_rpc_metric_nodes"`
+	MaxTransportRPCQueueRatio        float64                            `json:"max_transport_rpc_queue_ratio"`
+	MaxTransportRPCBusyRatio         float64                            `json:"max_transport_rpc_busy_ratio"`
+	TransportRPCRejected             float64                            `json:"transport_rpc_rejected"`
+	PermissionSlotRPCCalls           float64                            `json:"permission_slot_rpc_calls"`
+	PermissionSlotRPCErrors          float64                            `json:"permission_slot_rpc_errors"`
+	PermissionSlotRPCAdmissionErrors float64                            `json:"permission_slot_rpc_admission_errors"`
+	MaxPermissionSlotRPCQueueRatio   float64                            `json:"max_permission_slot_rpc_queue_ratio"`
+	MaxPermissionSlotRPCInflight     float64                            `json:"max_permission_slot_rpc_inflight"`
+	PermissionBatchStarted           float64                            `json:"permission_batch_started"`
+	PermissionBatchPanics            float64                            `json:"permission_batch_panics"`
+	MaxPermissionBatchActive         float64                            `json:"max_permission_batch_active"`
+	MembershipMutationRows           float64                            `json:"membership_mutation_rows"`
+	MaxAdvancePoolUtil               float64                            `json:"max_advance_pool_utilization"`
+	MaxAdvancePoolWaiting            float64                            `json:"max_advance_pool_waiting"`
+	MaxAppendPoolUtil                float64                            `json:"max_append_pool_utilization"`
+	MaxPostCommitPoolUtil            float64                            `json:"max_post_commit_pool_utilization"`
+	MaxPostCommitBacklog             float64                            `json:"max_post_commit_backlog"`
+	MaxPostCommitHandoffRatio        float64                            `json:"max_post_commit_handoff_ratio"`
+	MaxRouterGroupInflight           float64                            `json:"max_channel_append_router_group_inflight"`
+	MaxRouterGroupCapacity           float64                            `json:"max_channel_append_router_group_capacity"`
+	MaxRouterGroupRatio              float64                            `json:"max_channel_append_router_group_ratio"`
+	MaxMessageCommitQueueDepth       float64                            `json:"max_message_commit_queue_depth"`
+	MaxMessageMemTableBytes          float64                            `json:"max_message_memtable_bytes"`
+	MaxMessageMemTableCount          float64                            `json:"max_message_memtable_count"`
+	MaxMessageReadAmplification      float64                            `json:"max_message_read_amplification"`
+	MaxMessageCompactionDebtBytes    float64                            `json:"max_message_compaction_debt_bytes"`
+	MaxMessageCompactions            float64                            `json:"max_message_compactions_in_progress"`
+	MaxMessageFlushes                float64                            `json:"max_message_flushes_in_progress"`
+	MessageIdempotencyNegativeSkips  float64                            `json:"message_idempotency_negative_filter_skips"`
+	MessageIdempotencyPointReads     float64                            `json:"message_idempotency_point_reads"`
+	MessagePhysicalCommits           float64                            `json:"message_physical_commits"`
+	MessageCommitBatchRequests       float64                            `json:"message_commit_batch_requests"`
+	MessageCommitBatchRecords        float64                            `json:"message_commit_batch_records"`
+	MessageCommitBatchBytes          float64                            `json:"message_commit_batch_bytes"`
+	MessageCommitSeconds             float64                            `json:"message_commit_seconds"`
+	MessageLeaderCommitRequests      float64                            `json:"message_leader_commit_requests"`
+	MessageFollowerCommitRequests    float64                            `json:"message_follower_commit_requests"`
+	MessageLeaderCommitSeconds       float64                            `json:"message_leader_commit_seconds"`
+	MessageFollowerCommitSeconds     float64                            `json:"message_follower_commit_seconds"`
+	MessageWALBytesIn                float64                            `json:"message_wal_bytes_in"`
+	MessageWALBytesWritten           float64                            `json:"message_wal_bytes_written"`
+	MessageFlushBytesWritten         float64                            `json:"message_flush_bytes_written"`
+	MessageCompactionBytesRead       float64                            `json:"message_compaction_bytes_read"`
+	MessageCompactionBytesWritten    float64                            `json:"message_compaction_bytes_written"`
+	MessageSSTableSizeBytesDelta     float64                            `json:"message_sstable_size_bytes_delta"`
+	RecipientProcessOK               float64                            `json:"recipient_worker_process_ok"`
+	RecipientProcessRecipientsOK     float64                            `json:"recipient_worker_process_recipients_ok"`
+	RecipientProcessError            float64                            `json:"recipient_worker_process_error"`
+	ReceiverProgress                 []permissionSoakReceiverSnapshot   `json:"receiver_progress"`
+	PluginReceiveAccepted            float64                            `json:"plugin_receive_enqueue_accepted"`
+	PluginReceiveFull                float64                            `json:"plugin_receive_enqueue_full"`
+	PluginReceiveClosed              float64                            `json:"plugin_receive_enqueue_closed"`
+	PluginReceiveInvokeOK            float64                            `json:"plugin_receive_invoke_ok"`
+	PluginReceiveInvokeError         float64                            `json:"plugin_receive_invoke_error"`
+	MaxHeapBytes                     float64                            `json:"max_heap_bytes"`
+	MaxAggregateHeapBytes            float64                            `json:"max_aggregate_heap_bytes"`
+	AllocatedBytes                   float64                            `json:"allocated_bytes"`
+	GCCountDelta                     float64                            `json:"gc_count_delta"`
+	MetricSamples                    int                                `json:"metric_samples"`
+	MetricSampleErrors               int                                `json:"metric_sample_errors"`
+	PendingMessages                  int64                              `json:"pending_messages"`
+	Drained                          bool                               `json:"drained"`
+	ProcessContinuous                bool                               `json:"process_continuous"`
 }
 
 // permissionSoakFailureEvidence preserves bounded public-metric evidence when
 // the long-running gate fails before it can emit its complete acceptance row.
 type permissionSoakFailureEvidence struct {
-	Schema                           string  `json:"schema"`
-	Phase                            string  `json:"phase"`
-	Error                            string  `json:"error"`
-	CompletedSendCalls               int     `json:"completed_send_calls"`
-	ElapsedMS                        float64 `json:"elapsed_ms"`
-	IngressPerSecond                 float64 `json:"ingress_per_second"`
-	SendackP99MS                     float64 `json:"sendack_p99_ms"`
-	RecvP99MS                        float64 `json:"recv_p99_ms"`
-	PendingMessages                  int64   `json:"pending_messages"`
-	TransportRPCRejected             float64 `json:"transport_rpc_rejected"`
-	PermissionSlotRPCCalls           float64 `json:"permission_slot_rpc_calls"`
-	PermissionSlotRPCErrors          float64 `json:"permission_slot_rpc_errors"`
-	PermissionSlotRPCAdmissionErrors float64 `json:"permission_slot_rpc_admission_errors"`
-	MaxTransportRPCQueueRatio        float64 `json:"max_transport_rpc_queue_ratio"`
-	MaxTransportRPCBusyRatio         float64 `json:"max_transport_rpc_busy_ratio"`
-	MaxPermissionSlotRPCQueueRatio   float64 `json:"max_permission_slot_rpc_queue_ratio"`
-	MaxPermissionSlotRPCInflight     float64 `json:"max_permission_slot_rpc_inflight"`
-	PermissionBatchStarted           float64 `json:"permission_batch_started"`
-	PermissionBatchPanics            float64 `json:"permission_batch_panics"`
-	MaxPermissionBatchActive         float64 `json:"max_permission_batch_active"`
-	MembershipMutationRows           float64 `json:"membership_mutation_rows"`
-	MaxHeapBytes                     float64 `json:"max_heap_bytes"`
-	MaxAggregateHeapBytes            float64 `json:"max_aggregate_heap_bytes"`
-	AllocatedBytes                   float64 `json:"allocated_bytes"`
-	GCCountDelta                     float64 `json:"gc_count_delta"`
-	MetricSamples                    int     `json:"metric_samples"`
-	MetricSampleErrors               int     `json:"metric_sample_errors"`
-	ProcessContinuous                bool    `json:"process_continuous"`
-	CounterCaptureError              string  `json:"counter_capture_error,omitempty"`
+	Schema                           string                             `json:"schema"`
+	Phase                            string                             `json:"phase"`
+	Error                            string                             `json:"error"`
+	CompletedSendCalls               int                                `json:"completed_send_calls"`
+	ElapsedMS                        float64                            `json:"elapsed_ms"`
+	IngressPerSecond                 float64                            `json:"ingress_per_second"`
+	SendackP99MS                     float64                            `json:"sendack_p99_ms"`
+	RecvP99MS                        float64                            `json:"recv_p99_ms"`
+	StageP99MS                       permissionSoakStageLatencyEvidence `json:"stage_p99_ms"`
+	StageP999MS                      permissionSoakStageLatencyEvidence `json:"stage_p999_ms"`
+	GatewayBatchRecordsP99           float64                            `json:"gateway_batch_records_p99"`
+	StageLatencyCaptureError         string                             `json:"stage_latency_capture_error,omitempty"`
+	PendingMessages                  int64                              `json:"pending_messages"`
+	MaxGatewayQueueRatio             float64                            `json:"max_gateway_queue_ratio"`
+	MaxRecipientQueueRatio           float64                            `json:"max_recipient_queue_ratio"`
+	MaxRecipientWorkerRatio          float64                            `json:"max_recipient_worker_ratio"`
+	MaxChannelReactorMailboxRatio    float64                            `json:"max_channel_reactor_mailbox_ratio"`
+	MaxChannelStoreAppendQueueRatio  float64                            `json:"max_channel_store_append_queue_ratio"`
+	MaxChannelStoreAppendWorkerRatio float64                            `json:"max_channel_store_append_worker_ratio"`
+	MaxChannelStoreApplyQueueRatio   float64                            `json:"max_channel_store_apply_queue_ratio"`
+	MaxChannelStoreApplyWorkerRatio  float64                            `json:"max_channel_store_apply_worker_ratio"`
+	MaxChannelRPCQueueRatio          float64                            `json:"max_channel_rpc_queue_ratio"`
+	MaxChannelRPCWorkerRatio         float64                            `json:"max_channel_rpc_worker_ratio"`
+	ChannelRPCAdmissionFull          float64                            `json:"channel_rpc_admission_full"`
+	ChannelRPCPullAdmissionFull      float64                            `json:"channel_rpc_pull_admission_full"`
+	ChannelRPCHintAdmissionFull      float64                            `json:"channel_rpc_pull_hint_admission_full"`
+	ChannelRPCPullPaced              float64                            `json:"channel_rpc_pull_paced"`
+	ChannelRPCHintPaced              float64                            `json:"channel_rpc_pull_hint_paced"`
+	ChannelRPCPullBatches            float64                            `json:"channel_rpc_pull_batches"`
+	ChannelRPCPullBatchItems         float64                            `json:"channel_rpc_pull_batch_items"`
+	ChannelRPCHintBatches            float64                            `json:"channel_rpc_pull_hint_batches"`
+	ChannelRPCHintBatchItems         float64                            `json:"channel_rpc_pull_hint_batch_items"`
+	ChannelPullOKEmpty               float64                            `json:"channel_pull_ok_empty"`
+	ChannelPullOKRecords             float64                            `json:"channel_pull_ok_records"`
+	ChannelPullError                 float64                            `json:"channel_pull_error"`
+	ChannelAppendHintPaced           float64                            `json:"channel_rpc_append_hint_paced"`
+	ChannelResumeHintPaced           float64                            `json:"channel_rpc_resume_hint_paced"`
+	ChannelStoreApplyTasks           float64                            `json:"channel_store_apply_tasks"`
+	ChannelStoreApplyFull            float64                            `json:"channel_store_apply_admission_full"`
+	ChannelStoreApplyPullPaced       float64                            `json:"channel_store_apply_pull_paced"`
+	ChannelStoreCheckpointTasks      float64                            `json:"channel_store_checkpoint_tasks"`
+	ChannelStoreCheckpointFull       float64                            `json:"channel_store_checkpoint_admission_full"`
+	TransportRPCRejected             float64                            `json:"transport_rpc_rejected"`
+	PermissionSlotRPCCalls           float64                            `json:"permission_slot_rpc_calls"`
+	PermissionSlotRPCErrors          float64                            `json:"permission_slot_rpc_errors"`
+	PermissionSlotRPCAdmissionErrors float64                            `json:"permission_slot_rpc_admission_errors"`
+	MaxTransportRPCQueueRatio        float64                            `json:"max_transport_rpc_queue_ratio"`
+	MaxTransportRPCBusyRatio         float64                            `json:"max_transport_rpc_busy_ratio"`
+	MaxPermissionSlotRPCQueueRatio   float64                            `json:"max_permission_slot_rpc_queue_ratio"`
+	MaxPermissionSlotRPCInflight     float64                            `json:"max_permission_slot_rpc_inflight"`
+	PermissionBatchStarted           float64                            `json:"permission_batch_started"`
+	PermissionBatchPanics            float64                            `json:"permission_batch_panics"`
+	MaxPermissionBatchActive         float64                            `json:"max_permission_batch_active"`
+	MembershipMutationRows           float64                            `json:"membership_mutation_rows"`
+	MaxAdvancePoolUtil               float64                            `json:"max_advance_pool_utilization"`
+	MaxAdvancePoolWaiting            float64                            `json:"max_advance_pool_waiting"`
+	MaxAppendPoolUtil                float64                            `json:"max_append_pool_utilization"`
+	MaxPostCommitPoolUtil            float64                            `json:"max_post_commit_pool_utilization"`
+	MaxPostCommitBacklog             float64                            `json:"max_post_commit_backlog"`
+	MaxPostCommitHandoffRatio        float64                            `json:"max_post_commit_handoff_ratio"`
+	MaxRouterGroupInflight           float64                            `json:"max_channel_append_router_group_inflight"`
+	MaxRouterGroupCapacity           float64                            `json:"max_channel_append_router_group_capacity"`
+	MaxRouterGroupRatio              float64                            `json:"max_channel_append_router_group_ratio"`
+	MaxMessageCommitQueueDepth       float64                            `json:"max_message_commit_queue_depth"`
+	MaxMessageMemTableBytes          float64                            `json:"max_message_memtable_bytes"`
+	MaxMessageMemTableCount          float64                            `json:"max_message_memtable_count"`
+	MaxMessageReadAmplification      float64                            `json:"max_message_read_amplification"`
+	MaxMessageCompactionDebtBytes    float64                            `json:"max_message_compaction_debt_bytes"`
+	MaxMessageCompactions            float64                            `json:"max_message_compactions_in_progress"`
+	MaxMessageFlushes                float64                            `json:"max_message_flushes_in_progress"`
+	MessageIdempotencyNegativeSkips  float64                            `json:"message_idempotency_negative_filter_skips"`
+	MessageIdempotencyPointReads     float64                            `json:"message_idempotency_point_reads"`
+	MessagePhysicalCommits           float64                            `json:"message_physical_commits"`
+	MessageCommitBatchRequests       float64                            `json:"message_commit_batch_requests"`
+	MessageCommitBatchRecords        float64                            `json:"message_commit_batch_records"`
+	MessageCommitBatchBytes          float64                            `json:"message_commit_batch_bytes"`
+	MessageCommitSeconds             float64                            `json:"message_commit_seconds"`
+	MessageLeaderCommitRequests      float64                            `json:"message_leader_commit_requests"`
+	MessageFollowerCommitRequests    float64                            `json:"message_follower_commit_requests"`
+	MessageLeaderCommitSeconds       float64                            `json:"message_leader_commit_seconds"`
+	MessageFollowerCommitSeconds     float64                            `json:"message_follower_commit_seconds"`
+	MessageWALBytesIn                float64                            `json:"message_wal_bytes_in"`
+	MessageWALBytesWritten           float64                            `json:"message_wal_bytes_written"`
+	MessageFlushBytesWritten         float64                            `json:"message_flush_bytes_written"`
+	MessageCompactionBytesRead       float64                            `json:"message_compaction_bytes_read"`
+	MessageCompactionBytesWritten    float64                            `json:"message_compaction_bytes_written"`
+	MessageSSTableSizeBytesDelta     float64                            `json:"message_sstable_size_bytes_delta"`
+	RecipientProcessOK               float64                            `json:"recipient_worker_process_ok"`
+	RecipientProcessRecipientsOK     float64                            `json:"recipient_worker_process_recipients_ok"`
+	RecipientProcessError            float64                            `json:"recipient_worker_process_error"`
+	ReceiverProgress                 []permissionSoakReceiverSnapshot   `json:"receiver_progress"`
+	MaxHeapBytes                     float64                            `json:"max_heap_bytes"`
+	MaxAggregateHeapBytes            float64                            `json:"max_aggregate_heap_bytes"`
+	AllocatedBytes                   float64                            `json:"allocated_bytes"`
+	GCCountDelta                     float64                            `json:"gc_count_delta"`
+	MetricSamples                    int                                `json:"metric_samples"`
+	MetricSampleErrors               int                                `json:"metric_sample_errors"`
+	ProcessContinuous                bool                               `json:"process_continuous"`
+	CounterCaptureError              string                             `json:"counter_capture_error,omitempty"`
 }
 
 type boundedLatencyHistogram struct {
@@ -186,6 +357,19 @@ type permissionSoakTracker struct {
 	recvs    *boundedLatencyHistogram
 }
 
+type permissionSoakReceiverProgress struct {
+	received     atomic.Uint64
+	readTimeouts atomic.Uint64
+}
+
+type permissionSoakReceiverSnapshot struct {
+	Index        int    `json:"index"`
+	UID          string `json:"uid"`
+	Expected     int    `json:"expected"`
+	Received     uint64 `json:"received"`
+	ReadTimeouts uint64 `json:"read_timeouts"`
+}
+
 func TestCloudMediumPermissionSoak(t *testing.T) {
 	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK") != "1" {
 		t.Skip("set WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK=1 to run the bounded permission soak")
@@ -216,7 +400,7 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		convergence.StableDuration,
 		convergence.Leaders,
 	)
-	channels := preparePermissionSoakChannels(t, setupCtx, cluster.MustNode(1), config.groupChannels, convergence.HashSlotLeaders)
+	channels := preparePermissionSoakChannels(t, setupCtx, cluster, config.groupChannels, convergence.HashSlotLeaders)
 	primeMessages := make([]hotPathMessage, len(channels))
 	for index, channelID := range channels {
 		primeMessages[index] = hotPathMessage{
@@ -247,16 +431,72 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		receiverCounts[clientIndex]++
 	}
 	tracker := newPermissionSoakTracker()
+	receiverProgress := newPermissionSoakReceiverProgress(len(recipients))
+	receiverDeadline := time.Now().Add(config.duration + mediumPermissionSoakDrainAllowance)
+	heartbeatClients := make([]*suite.WKProtoClient, 0, len(senders)+len(recipients))
+	heartbeatClients = append(heartbeatClients, senders...)
+	heartbeatClients = append(heartbeatClients, recipients...)
+	heartbeatCtx, heartbeatCancel := context.WithCancel(context.Background())
+	defer heartbeatCancel()
+	heartbeatResults := startPermissionSoakHeartbeats(
+		heartbeatCtx,
+		heartbeatClients,
+		mediumPermissionSoakHeartbeat,
+	)
 	senderResults := startPermissionSoakSenderReaders(senders, senderCounts, tracker)
-	receiverResults := startPermissionSoakReceiverReaders(recipients, receiverCounts, tracker)
+	receiverResults := startPermissionSoakReceiverReaders(
+		recipients,
+		receiverCounts,
+		receiverDeadline,
+		tracker,
+		receiverProgress,
+	)
 	sampler := newPressureSampler(cluster, mediumMetricSampleInterval)
 	sampler.start()
 	defer sampler.stop()
 	counterStart := mustCaptureHotPathCounters(t, cluster)
+	stageLatencyStart := mustCapturePermissionSoakStageLatencySnapshot(t, cluster)
+	profileDir := os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR")
+	profileDone := startPermissionSoakProfiles(cluster, profileDir, config.duration)
+	duringLoadDiagnostics := startPermissionSoakDuringLoadDiagnostics(cluster, profileDir, config.duration)
 	payload := bytes.Repeat([]byte("s"), mediumPayloadBytes)
 
 	measuredStart := time.Now()
 	for index := 0; index < messageCount; index++ {
+		if index < messageCount-len(senders) {
+			for _, source := range []struct {
+				phase   string
+				results <-chan error
+			}{
+				{phase: "sender_read", results: senderResults},
+				{phase: "receiver_read", results: receiverResults},
+				{phase: "heartbeat", results: heartbeatResults},
+			} {
+				failure, ready := pollPermissionSoakResult(source.results)
+				if !ready {
+					continue
+				}
+				if failure == nil {
+					failure = fmt.Errorf("%s completed before all measured messages were sent", source.phase)
+				}
+				logPermissionSoakFailureEvidence(
+					t,
+					cluster,
+					tracker,
+					sampler,
+					counterStart,
+					stageLatencyStart,
+					receiverCounts,
+					receiverProgress,
+					source.phase,
+					index,
+					time.Since(measuredStart),
+					failure,
+				)
+				logPermissionSoakFailureRuntimeDiagnostics(t, cluster, profileDir, duringLoadDiagnostics)
+				t.Fatalf("permission soak %s: %v\n%s", source.phase, failure, cluster.DumpDiagnostics())
+			}
+		}
 		paceMessage(measuredStart, index, config.offeredQPS)
 		clientIndex := index % mediumSenderConnections
 		clientMsgNo := fmt.Sprintf("wkrc-permission-soak-%09d", index+1)
@@ -274,26 +514,81 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 				tracker,
 				sampler,
 				counterStart,
+				stageLatencyStart,
+				receiverCounts,
+				receiverProgress,
+				"send",
 				index,
 				time.Since(measuredStart),
 				err,
 			)
+			logPermissionSoakFailureRuntimeDiagnostics(t, cluster, profileDir, duringLoadDiagnostics)
 			t.Fatalf("permission soak send %s: %v\n%s", clientMsgNo, err, cluster.DumpDiagnostics())
+		}
+		if index > 0 && index%(config.offeredQPS*60) == 0 {
+			commitDelta, commitErr := capturePermissionSoakCommitDelta(cluster, counterStart)
+			t.Logf(
+				"WKRC-PERMISSION-SOAK-MINUTE elapsed=%s pending=%d sendacks=%d recvs=%d recipients=%v delivery=%+v pressure=%+v channel_rpc_admission=%+v commits=%+v commit_error=%v",
+				time.Since(measuredStart).Round(time.Second),
+				tracker.pending.Load(),
+				tracker.sendacks.count.Load(),
+				tracker.recvs.count.Load(),
+				permissionSoakReceiverSnapshots(receiverCounts, receiverProgress),
+				commitDelta.recipientProcessSummary(),
+				sampler.snapshot(),
+				commitDelta.channelRPCAdmissionSummary(),
+				commitDelta.messageCommitSummary(),
+				commitErr,
+			)
 		}
 	}
 	sendLoopDuration := time.Since(measuredStart)
 
 	for range senders {
 		if err := <-senderResults; err != nil {
+			logPermissionSoakFailureEvidence(
+				t, cluster, tracker, sampler, counterStart, stageLatencyStart, receiverCounts,
+				receiverProgress, "sender_read", messageCount, sendLoopDuration, err,
+			)
+			logPermissionSoakFailureRuntimeDiagnostics(t, cluster, profileDir, duringLoadDiagnostics)
 			t.Fatalf("permission soak sender read: %v\n%s", err, cluster.DumpDiagnostics())
 		}
 	}
 	for range recipients {
 		if err := <-receiverResults; err != nil {
+			logPermissionSoakFailureEvidence(
+				t, cluster, tracker, sampler, counterStart, stageLatencyStart, receiverCounts,
+				receiverProgress, "receiver_read", messageCount, sendLoopDuration, err,
+			)
+			logPermissionSoakFailureRuntimeDiagnostics(t, cluster, profileDir, duringLoadDiagnostics)
 			t.Fatalf("permission soak receiver read: %v\n%s", err, cluster.DumpDiagnostics())
 		}
 	}
+	heartbeatCancel()
+	for range heartbeatClients {
+		if err := <-heartbeatResults; err != nil {
+			t.Fatalf("permission soak heartbeat: %v\n%s", err, cluster.DumpDiagnostics())
+		}
+	}
 	measuredDuration := time.Since(measuredStart)
+	stageP99MS := permissionSoakStageLatencyEvidence{}
+	stageP999MS := permissionSoakStageLatencyEvidence{}
+	gatewayBatchRecordsP99 := float64(0)
+	stageLatencyCaptureError := ""
+	stageLatencyCtx, stageLatencyCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	stageLatencyEnd, stageLatencyErr := capturePermissionSoakStageLatencySnapshot(stageLatencyCtx, cluster)
+	stageLatencyCancel()
+	if stageLatencyErr != nil {
+		stageLatencyCaptureError = stageLatencyErr.Error()
+	} else {
+		stageP99MS = permissionSoakStageLatencyFromSnapshots(stageLatencyStart, stageLatencyEnd)
+		stageP999MS = permissionSoakStageTailLatencyFromSnapshots(stageLatencyStart, stageLatencyEnd)
+		gatewayBatchRecordsP99 = permissionSoakGatewayBatchRecordsP99FromSnapshots(stageLatencyStart, stageLatencyEnd)
+	}
+	if err := <-profileDone; err != nil {
+		t.Fatalf("capture permission soak profiles: %v\n%s", err, cluster.DumpDiagnostics())
+	}
+	duringLoadGoroutines := <-duringLoadDiagnostics
 
 	drainCtx, drainCancel := context.WithTimeout(context.Background(), 20*time.Second)
 	drainErr := waitForHotPathDrain(drainCtx, cluster)
@@ -338,6 +633,39 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		SendackMaxMS:                     milliseconds(tracker.sendacks.maximum()),
 		RecvP99MS:                        milliseconds(tracker.recvs.percentile(0.99)),
 		RecvMaxMS:                        milliseconds(tracker.recvs.maximum()),
+		StageP99MS:                       stageP99MS,
+		StageP999MS:                      stageP999MS,
+		GatewayBatchRecordsP99:           gatewayBatchRecordsP99,
+		StageLatencyCaptureError:         stageLatencyCaptureError,
+		MaxGatewayQueueRatio:             pressure.maxGatewayQueueRatio,
+		MaxRecipientQueueRatio:           pressure.maxRecipientQueueRatio,
+		MaxRecipientWorkerRatio:          pressure.maxRecipientWorkerRatio,
+		MaxChannelReactorMailboxRatio:    pressure.maxChannelReactorMailboxRatio,
+		MaxChannelStoreAppendQueueRatio:  pressure.maxChannelStoreAppendQueueRatio,
+		MaxChannelStoreAppendWorkerRatio: pressure.maxChannelStoreAppendWorkerRatio,
+		MaxChannelStoreApplyQueueRatio:   pressure.maxChannelStoreApplyQueueRatio,
+		MaxChannelStoreApplyWorkerRatio:  pressure.maxChannelStoreApplyWorkerRatio,
+		MaxChannelRPCQueueRatio:          pressure.maxChannelRPCQueueRatio,
+		MaxChannelRPCWorkerRatio:         pressure.maxChannelRPCWorkerRatio,
+		ChannelRPCAdmissionFull:          counterDelta.channelRPCAdmissionFull,
+		ChannelRPCPullAdmissionFull:      counterDelta.channelRPCPullAdmissionFull,
+		ChannelRPCHintAdmissionFull:      counterDelta.channelRPCHintAdmissionFull,
+		ChannelRPCPullPaced:              counterDelta.channelRPCPullPaced,
+		ChannelRPCHintPaced:              counterDelta.channelRPCHintPaced,
+		ChannelRPCPullBatches:            counterDelta.channelRPCPullBatches,
+		ChannelRPCPullBatchItems:         counterDelta.channelRPCPullBatchItems,
+		ChannelRPCHintBatches:            counterDelta.channelRPCHintBatches,
+		ChannelRPCHintBatchItems:         counterDelta.channelRPCHintBatchItems,
+		ChannelPullOKEmpty:               counterDelta.channelPullOKEmpty,
+		ChannelPullOKRecords:             counterDelta.channelPullOKRecords,
+		ChannelPullError:                 counterDelta.channelPullError,
+		ChannelAppendHintPaced:           counterDelta.channelAppendHintPaced,
+		ChannelResumeHintPaced:           counterDelta.channelResumeHintPaced,
+		ChannelStoreApplyTasks:           counterDelta.channelStoreApplyTasks,
+		ChannelStoreApplyFull:            counterDelta.channelStoreApplyAdmissionFull,
+		ChannelStoreApplyPullPaced:       counterDelta.channelStoreApplyPullPaced,
+		ChannelStoreCheckpointTasks:      counterDelta.channelStoreCheckpointTasks,
+		ChannelStoreCheckpointFull:       counterDelta.channelStoreCheckpointAdmissionFull,
 		TransportRPCMetricNodes:          pressure.maxTransportRPCMetricNodes,
 		MaxTransportRPCQueueRatio:        pressure.maxTransportRPCQueueRatio,
 		MaxTransportRPCBusyRatio:         pressure.maxTransportRPCBusyRatio,
@@ -351,6 +679,43 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		PermissionBatchPanics:            counterDelta.permissionBatchPanics,
 		MaxPermissionBatchActive:         pressure.maxPermissionBatchActive,
 		MembershipMutationRows:           counterDelta.membershipMutationRows,
+		MaxAdvancePoolUtil:               pressure.maxAdvancePoolUtil,
+		MaxAdvancePoolWaiting:            pressure.maxAdvancePoolWaiting,
+		MaxAppendPoolUtil:                pressure.maxAppendPoolUtil,
+		MaxPostCommitPoolUtil:            pressure.maxPostCommitPoolUtil,
+		MaxPostCommitBacklog:             pressure.maxPostCommitBacklog,
+		MaxPostCommitHandoffRatio:        pressure.maxPostCommitHandoffRatio,
+		MaxRouterGroupInflight:           pressure.maxRouterGroupInflight,
+		MaxRouterGroupCapacity:           pressure.maxRouterGroupCapacity,
+		MaxRouterGroupRatio:              pressure.maxRouterGroupRatio,
+		MaxMessageCommitQueueDepth:       pressure.maxMessageCommitQueueDepth,
+		MaxMessageMemTableBytes:          pressure.maxMessageMemTableBytes,
+		MaxMessageMemTableCount:          pressure.maxMessageMemTableCount,
+		MaxMessageReadAmplification:      pressure.maxMessageReadAmplification,
+		MaxMessageCompactionDebtBytes:    pressure.maxMessageCompactionDebtBytes,
+		MaxMessageCompactions:            pressure.maxMessageCompactions,
+		MaxMessageFlushes:                pressure.maxMessageFlushes,
+		MessageIdempotencyNegativeSkips:  counterDelta.messageIdempotencyNegativeSkips,
+		MessageIdempotencyPointReads:     counterDelta.messageIdempotencyPointReads,
+		MessagePhysicalCommits:           counterDelta.messagePhysicalCommits,
+		MessageCommitBatchRequests:       counterDelta.messageCommitBatchRequests,
+		MessageCommitBatchRecords:        counterDelta.messageCommitBatchRecords,
+		MessageCommitBatchBytes:          counterDelta.messageCommitBatchBytes,
+		MessageCommitSeconds:             counterDelta.messageCommitSeconds,
+		MessageLeaderCommitRequests:      counterDelta.messageLeaderCommitRequests,
+		MessageFollowerCommitRequests:    counterDelta.messageFollowerCommitRequests,
+		MessageLeaderCommitSeconds:       counterDelta.messageLeaderCommitSeconds,
+		MessageFollowerCommitSeconds:     counterDelta.messageFollowerCommitSeconds,
+		MessageWALBytesIn:                counterDelta.messageWALBytesIn,
+		MessageWALBytesWritten:           counterDelta.messageWALBytesWritten,
+		MessageFlushBytesWritten:         counterDelta.messageFlushBytesWritten,
+		MessageCompactionBytesRead:       counterDelta.messageCompactionBytesRead,
+		MessageCompactionBytesWritten:    counterDelta.messageCompactionBytesWritten,
+		MessageSSTableSizeBytesDelta:     counterDelta.messageSSTableSizeBytes,
+		RecipientProcessOK:               counterDelta.recipientProcessOK,
+		RecipientProcessRecipientsOK:     counterDelta.recipientProcessRecipientsOK,
+		RecipientProcessError:            counterDelta.recipientProcessError,
+		ReceiverProgress:                 permissionSoakReceiverSnapshots(receiverCounts, receiverProgress),
 		PluginReceiveAccepted:            counterDelta.pluginReceiveAccepted,
 		PluginReceiveFull:                counterDelta.pluginReceiveFull,
 		PluginReceiveClosed:              counterDelta.pluginReceiveClosed,
@@ -375,8 +740,233 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		t.Logf("WKRC-PERMISSION-SOAK-SLOT-RPC-DIAGNOSTICS %s", permissionSlotRPCMetricDiagnostics(cluster))
 	}
 	if err := permissionSoakAcceptanceError(evidence, config); err != nil {
+		t.Logf("WKRC-PERMISSION-SOAK-ACCEPTANCE-RUNTIME %s", hotPathRuntimeDiagnostics(cluster))
+		if duringLoadGoroutines != "" {
+			t.Logf("WKRC-PERMISSION-SOAK-DURING-LOAD-GOROUTINES\n%s", duringLoadGoroutines)
+		}
 		t.Fatal(err)
 	}
+}
+
+func startPermissionSoakProfiles(cluster *suite.StartedCluster, profileDir string, duration time.Duration) <-chan error {
+	done := make(chan error, 1)
+	if strings.TrimSpace(profileDir) == "" {
+		done <- nil
+		return done
+	}
+	go func() {
+		timer := time.NewTimer(permissionSoakDiagnosticDelay(duration))
+		defer timer.Stop()
+		<-timer.C
+		done <- <-startHotPathProfiles(cluster, profileDir)
+	}()
+	return done
+}
+
+func startPermissionSoakDuringLoadDiagnostics(cluster *suite.StartedCluster, profileDir string, duration time.Duration) <-chan string {
+	done := make(chan string, 1)
+	if strings.TrimSpace(profileDir) == "" {
+		done <- ""
+		return done
+	}
+	go func() {
+		timer := time.NewTimer(permissionSoakDiagnosticDelay(duration))
+		defer timer.Stop()
+		<-timer.C
+		captured := hotPathBottleneckGoroutineDiagnostics(cluster)
+		_ = writePermissionSoakDiagnosticArtifact(profileDir, "scheduled-goroutines.txt", captured)
+		done <- captured
+	}()
+	return done
+}
+
+func permissionSoakDiagnosticDelay(duration time.Duration) time.Duration {
+	if duration >= 8*time.Minute {
+		return 7 * time.Minute
+	}
+	if duration >= 5*time.Minute {
+		return 4 * time.Minute
+	}
+	if duration >= 2*time.Minute {
+		return 90 * time.Second
+	}
+	return 5 * time.Second
+}
+
+func mustCapturePermissionSoakStageLatencySnapshot(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+) benchmetrics.PrometheusSnapshot {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	snapshot, err := capturePermissionSoakStageLatencySnapshot(ctx, cluster)
+	if err != nil {
+		t.Fatalf("capture permission soak stage latency: %v", err)
+	}
+	return snapshot
+}
+
+func capturePermissionSoakStageLatencySnapshot(
+	ctx context.Context,
+	cluster *suite.StartedCluster,
+) (benchmetrics.PrometheusSnapshot, error) {
+	snapshot := benchmetrics.PrometheusSnapshot{}
+	for _, node := range cluster.Nodes {
+		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+		if err != nil {
+			return benchmetrics.PrometheusSnapshot{}, fmt.Errorf("node %d metrics: %w", node.Spec.ID, err)
+		}
+		for _, sample := range samples {
+			if !isPermissionSoakStageLatencyBucket(sample.Name) {
+				continue
+			}
+			snapshot.Samples = append(snapshot.Samples, benchmetrics.PrometheusSample{
+				Name: sample.Name, Labels: sample.Labels, Value: sample.Value,
+			})
+		}
+	}
+	return snapshot, nil
+}
+
+func isPermissionSoakStageLatencyBucket(name string) bool {
+	switch name {
+	case "wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket",
+		"wukongim_gateway_async_send_batch_records_bucket",
+		"wukongim_gateway_frame_handle_duration_seconds_bucket",
+		"wukongim_channelappend_router_duration_seconds_bucket",
+		"wukongim_channelappend_router_item_duration_seconds_bucket",
+		"wukongim_message_send_batch_stage_item_duration_seconds_bucket",
+		"wukongim_channelv2_append_wait_stage_duration_seconds_bucket",
+		"wukongim_channelv2_leader_pull_stage_duration_seconds_bucket",
+		"wukongim_channel_append_wait_stage_duration_seconds_bucket",
+		"wukongim_storage_commit_request_duration_seconds_bucket",
+		"wukongim_storage_commit_batch_duration_seconds_bucket":
+		return true
+	default:
+		return false
+	}
+}
+
+func permissionSoakStageLatencyFromSnapshots(
+	before benchmetrics.PrometheusSnapshot,
+	after benchmetrics.PrometheusSnapshot,
+) permissionSoakStageLatencyEvidence {
+	report := benchmetrics.AnalyzeWukongIMPrometheus(before, after)
+	return permissionSoakStageLatencyEvidence{
+		GatewayDispatchWaitP99MS:            report.GatewayDispatchWaitP99Seconds * 1000,
+		GatewaySendHandleP99MS:              report.GatewaySendHandleP99Seconds * 1000,
+		ChannelAppendRouterLocalP99MS:       report.ChannelAppendRouterLocalP99Seconds * 1000,
+		ChannelAppendRouterRemoteP99MS:      report.ChannelAppendRouterRemoteP99Seconds * 1000,
+		ChannelAppendRouterBatchP99MS:       report.ChannelAppendRouterBatchP99Seconds * 1000,
+		ChannelAppendRouterBatchItemP99MS:   report.ChannelAppendRouterBatchItemP99Seconds * 1000,
+		MessagePermissionP99MS:              report.MessageSendBatchPermissionP99Seconds * 1000,
+		MessagePreAppendP99MS:               report.MessageSendBatchPreAppendP99Seconds * 1000,
+		MessageSubmitterP99MS:               report.MessageSendBatchSubmitterP99Seconds * 1000,
+		ChannelStoreAppendWaitP99MS:         report.ChannelRuntimeAppendStoreWaitP99Seconds * 1000,
+		ChannelPostStoreCommitWaitP99MS:     report.ChannelRuntimeAppendPostStoreCommitWaitP99Seconds * 1000,
+		ChannelQuorumFollowerPullWaitP99MS:  report.ChannelRuntimeAppendQuorumFollowerPullWaitP99Seconds * 1000,
+		ChannelQuorumAckOffsetWaitP99MS:     report.ChannelRuntimeAppendQuorumAckOffsetWaitP99Seconds * 1000,
+		ChannelQuorumHWAdvanceWaitP99MS:     report.ChannelRuntimeAppendQuorumHWAdvanceWaitP99Seconds * 1000,
+		ChannelQuorumFinalCompleteWaitP99MS: report.ChannelRuntimeAppendQuorumFinalCompleteP99Seconds * 1000,
+		StorageLeaderCommitRequestP99MS:     report.StorageCommitRequestP99SecondsByLane["leader_append"] * 1000,
+		StorageFollowerCommitRequestP99MS:   report.StorageCommitRequestP99SecondsByLane["follower_apply"] * 1000,
+		StoragePhysicalCommitP99MS:          report.StorageCommitP99Seconds * 1000,
+		ChannelLeaderPullMailboxWaitP99MS:   report.ChannelRuntimeLeaderPullMailboxWaitP99Seconds * 1000,
+		ChannelLeaderPullAckApplyP99MS:      report.ChannelRuntimeLeaderPullAckApplyP99Seconds * 1000,
+		ChannelLeaderPullHandlerP99MS:       report.ChannelRuntimeLeaderPullHandlerP99Seconds * 1000,
+	}
+}
+
+func permissionSoakGatewayBatchRecordsP99FromSnapshots(
+	before benchmetrics.PrometheusSnapshot,
+	after benchmetrics.PrometheusSnapshot,
+) float64 {
+	report := benchmetrics.AnalyzeWukongIMPrometheus(before, after)
+	return report.GatewayBatchRecordsP99
+}
+
+func permissionSoakStageTailLatencyFromSnapshots(
+	before benchmetrics.PrometheusSnapshot,
+	after benchmetrics.PrometheusSnapshot,
+) permissionSoakStageLatencyEvidence {
+	report := benchmetrics.AnalyzeWukongIMPrometheus(before, after)
+	return permissionSoakStageLatencyEvidence{
+		GatewayDispatchWaitP99MS:            report.GatewayDispatchWaitP999Seconds * 1000,
+		GatewaySendHandleP99MS:              report.GatewaySendHandleP999Seconds * 1000,
+		ChannelAppendRouterLocalP99MS:       report.ChannelAppendRouterLocalP999Seconds * 1000,
+		ChannelAppendRouterRemoteP99MS:      report.ChannelAppendRouterRemoteP999Seconds * 1000,
+		ChannelAppendRouterBatchP99MS:       report.ChannelAppendRouterBatchP999Seconds * 1000,
+		ChannelAppendRouterBatchItemP99MS:   report.ChannelAppendRouterBatchItemP999Seconds * 1000,
+		MessagePermissionP99MS:              report.MessageSendBatchPermissionP999Seconds * 1000,
+		MessagePreAppendP99MS:               report.MessageSendBatchPreAppendP999Seconds * 1000,
+		MessageSubmitterP99MS:               report.MessageSendBatchSubmitterP999Seconds * 1000,
+		ChannelStoreAppendWaitP99MS:         report.ChannelRuntimeAppendStoreWaitP999Seconds * 1000,
+		ChannelPostStoreCommitWaitP99MS:     report.ChannelRuntimeAppendPostStoreCommitWaitP999Seconds * 1000,
+		ChannelQuorumFollowerPullWaitP99MS:  report.ChannelRuntimeAppendQuorumFollowerPullWaitP999Seconds * 1000,
+		ChannelQuorumAckOffsetWaitP99MS:     report.ChannelRuntimeAppendQuorumAckOffsetWaitP999Seconds * 1000,
+		ChannelQuorumHWAdvanceWaitP99MS:     report.ChannelRuntimeAppendQuorumHWAdvanceWaitP999Seconds * 1000,
+		ChannelQuorumFinalCompleteWaitP99MS: report.ChannelRuntimeAppendQuorumFinalCompleteP999Seconds * 1000,
+		StorageLeaderCommitRequestP99MS:     report.StorageCommitRequestP999SecondsByLane["leader_append"] * 1000,
+		StorageFollowerCommitRequestP99MS:   report.StorageCommitRequestP999SecondsByLane["follower_apply"] * 1000,
+		StoragePhysicalCommitP99MS:          report.StorageCommitP999Seconds * 1000,
+		ChannelLeaderPullMailboxWaitP99MS:   report.ChannelRuntimeLeaderPullMailboxWaitP999Seconds * 1000,
+		ChannelLeaderPullAckApplyP99MS:      report.ChannelRuntimeLeaderPullAckApplyP999Seconds * 1000,
+		ChannelLeaderPullHandlerP99MS:       report.ChannelRuntimeLeaderPullHandlerP999Seconds * 1000,
+	}
+}
+
+func pollPermissionSoakResult(results <-chan error) (error, bool) {
+	select {
+	case result := <-results:
+		return result, true
+	default:
+		return nil, false
+	}
+}
+
+func permissionSoakFailureDiagnostics(
+	scheduled <-chan string,
+	live func() string,
+) (scheduledSnapshot string, liveSnapshot string) {
+	select {
+	case scheduledSnapshot = <-scheduled:
+	default:
+	}
+	return scheduledSnapshot, live()
+}
+
+func logPermissionSoakFailureRuntimeDiagnostics(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	profileDir string,
+	duringLoadDiagnostics <-chan string,
+) {
+	t.Helper()
+	t.Logf("WKRC-PERMISSION-SOAK-FAILURE-RUNTIME %s", hotPathRuntimeDiagnostics(cluster))
+	scheduled, live := permissionSoakFailureDiagnostics(
+		duringLoadDiagnostics,
+		func() string { return hotPathBottleneckGoroutineDiagnostics(cluster) },
+	)
+	if scheduled != "" {
+		t.Logf("WKRC-PERMISSION-SOAK-SCHEDULED-GOROUTINES\n%s", scheduled)
+	}
+	if live != "" {
+		if err := writePermissionSoakDiagnosticArtifact(profileDir, "failure-goroutines.txt", live); err != nil {
+			t.Logf("WKRC-PERMISSION-SOAK-FAILURE-GOROUTINES-WRITE error=%v", err)
+		}
+		t.Logf("WKRC-PERMISSION-SOAK-FAILURE-GOROUTINES\n%s", live)
+	}
+}
+
+func writePermissionSoakDiagnosticArtifact(dir, name, content string) error {
+	if strings.TrimSpace(dir) == "" || strings.TrimSpace(name) == "" {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644)
 }
 
 func logPermissionSoakFailureEvidence(
@@ -385,6 +975,10 @@ func logPermissionSoakFailureEvidence(
 	tracker *permissionSoakTracker,
 	sampler *pressureSampler,
 	counterStart hotPathCounters,
+	stageLatencyStart benchmetrics.PrometheusSnapshot,
+	receiverCounts []int,
+	receiverProgress []*permissionSoakReceiverProgress,
+	phase string,
 	completedSendCalls int,
 	elapsed time.Duration,
 	failure error,
@@ -401,6 +995,20 @@ func logPermissionSoakFailureEvidence(
 	} else {
 		counterDelta = counterEnd.subtract(counterStart)
 	}
+	stageP99MS := permissionSoakStageLatencyEvidence{}
+	stageP999MS := permissionSoakStageLatencyEvidence{}
+	gatewayBatchRecordsP99 := float64(0)
+	stageLatencyCaptureError := ""
+	stageLatencyCtx, stageLatencyCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	stageLatencyEnd, stageLatencyErr := capturePermissionSoakStageLatencySnapshot(stageLatencyCtx, cluster)
+	stageLatencyCancel()
+	if stageLatencyErr != nil {
+		stageLatencyCaptureError = stageLatencyErr.Error()
+	} else {
+		stageP99MS = permissionSoakStageLatencyFromSnapshots(stageLatencyStart, stageLatencyEnd)
+		stageP999MS = permissionSoakStageTailLatencyFromSnapshots(stageLatencyStart, stageLatencyEnd)
+		gatewayBatchRecordsP99 = permissionSoakGatewayBatchRecordsP99FromSnapshots(stageLatencyStart, stageLatencyEnd)
+	}
 	processContinuous := true
 	for _, node := range cluster.Nodes {
 		processContinuous = processContinuous && node.Process.Running()
@@ -411,14 +1019,47 @@ func logPermissionSoakFailureEvidence(
 	}
 	evidence := permissionSoakFailureEvidence{
 		Schema:                           mediumPermissionSoakFailureSchema,
-		Phase:                            "send",
+		Phase:                            phase,
 		Error:                            failure.Error(),
 		CompletedSendCalls:               completedSendCalls,
 		ElapsedMS:                        milliseconds(elapsed),
 		IngressPerSecond:                 ingressPerSecond,
 		SendackP99MS:                     milliseconds(tracker.sendacks.percentile(0.99)),
 		RecvP99MS:                        milliseconds(tracker.recvs.percentile(0.99)),
+		StageP99MS:                       stageP99MS,
+		StageP999MS:                      stageP999MS,
+		GatewayBatchRecordsP99:           gatewayBatchRecordsP99,
+		StageLatencyCaptureError:         stageLatencyCaptureError,
 		PendingMessages:                  tracker.pending.Load(),
+		MaxGatewayQueueRatio:             pressure.maxGatewayQueueRatio,
+		MaxRecipientQueueRatio:           pressure.maxRecipientQueueRatio,
+		MaxRecipientWorkerRatio:          pressure.maxRecipientWorkerRatio,
+		MaxChannelReactorMailboxRatio:    pressure.maxChannelReactorMailboxRatio,
+		MaxChannelStoreAppendQueueRatio:  pressure.maxChannelStoreAppendQueueRatio,
+		MaxChannelStoreAppendWorkerRatio: pressure.maxChannelStoreAppendWorkerRatio,
+		MaxChannelStoreApplyQueueRatio:   pressure.maxChannelStoreApplyQueueRatio,
+		MaxChannelStoreApplyWorkerRatio:  pressure.maxChannelStoreApplyWorkerRatio,
+		MaxChannelRPCQueueRatio:          pressure.maxChannelRPCQueueRatio,
+		MaxChannelRPCWorkerRatio:         pressure.maxChannelRPCWorkerRatio,
+		ChannelRPCAdmissionFull:          counterDelta.channelRPCAdmissionFull,
+		ChannelRPCPullAdmissionFull:      counterDelta.channelRPCPullAdmissionFull,
+		ChannelRPCHintAdmissionFull:      counterDelta.channelRPCHintAdmissionFull,
+		ChannelRPCPullPaced:              counterDelta.channelRPCPullPaced,
+		ChannelRPCHintPaced:              counterDelta.channelRPCHintPaced,
+		ChannelRPCPullBatches:            counterDelta.channelRPCPullBatches,
+		ChannelRPCPullBatchItems:         counterDelta.channelRPCPullBatchItems,
+		ChannelRPCHintBatches:            counterDelta.channelRPCHintBatches,
+		ChannelRPCHintBatchItems:         counterDelta.channelRPCHintBatchItems,
+		ChannelPullOKEmpty:               counterDelta.channelPullOKEmpty,
+		ChannelPullOKRecords:             counterDelta.channelPullOKRecords,
+		ChannelPullError:                 counterDelta.channelPullError,
+		ChannelAppendHintPaced:           counterDelta.channelAppendHintPaced,
+		ChannelResumeHintPaced:           counterDelta.channelResumeHintPaced,
+		ChannelStoreApplyTasks:           counterDelta.channelStoreApplyTasks,
+		ChannelStoreApplyFull:            counterDelta.channelStoreApplyAdmissionFull,
+		ChannelStoreApplyPullPaced:       counterDelta.channelStoreApplyPullPaced,
+		ChannelStoreCheckpointTasks:      counterDelta.channelStoreCheckpointTasks,
+		ChannelStoreCheckpointFull:       counterDelta.channelStoreCheckpointAdmissionFull,
 		TransportRPCRejected:             counterDelta.transportRPCRejected,
 		PermissionSlotRPCCalls:           counterDelta.permissionSlotRPCCalls,
 		PermissionSlotRPCErrors:          counterDelta.permissionSlotRPCErrors,
@@ -431,6 +1072,43 @@ func logPermissionSoakFailureEvidence(
 		PermissionBatchPanics:            counterDelta.permissionBatchPanics,
 		MaxPermissionBatchActive:         pressure.maxPermissionBatchActive,
 		MembershipMutationRows:           counterDelta.membershipMutationRows,
+		MaxAdvancePoolUtil:               pressure.maxAdvancePoolUtil,
+		MaxAdvancePoolWaiting:            pressure.maxAdvancePoolWaiting,
+		MaxAppendPoolUtil:                pressure.maxAppendPoolUtil,
+		MaxPostCommitPoolUtil:            pressure.maxPostCommitPoolUtil,
+		MaxPostCommitBacklog:             pressure.maxPostCommitBacklog,
+		MaxPostCommitHandoffRatio:        pressure.maxPostCommitHandoffRatio,
+		MaxRouterGroupInflight:           pressure.maxRouterGroupInflight,
+		MaxRouterGroupCapacity:           pressure.maxRouterGroupCapacity,
+		MaxRouterGroupRatio:              pressure.maxRouterGroupRatio,
+		MaxMessageCommitQueueDepth:       pressure.maxMessageCommitQueueDepth,
+		MaxMessageMemTableBytes:          pressure.maxMessageMemTableBytes,
+		MaxMessageMemTableCount:          pressure.maxMessageMemTableCount,
+		MaxMessageReadAmplification:      pressure.maxMessageReadAmplification,
+		MaxMessageCompactionDebtBytes:    pressure.maxMessageCompactionDebtBytes,
+		MaxMessageCompactions:            pressure.maxMessageCompactions,
+		MaxMessageFlushes:                pressure.maxMessageFlushes,
+		MessageIdempotencyNegativeSkips:  counterDelta.messageIdempotencyNegativeSkips,
+		MessageIdempotencyPointReads:     counterDelta.messageIdempotencyPointReads,
+		MessagePhysicalCommits:           counterDelta.messagePhysicalCommits,
+		MessageCommitBatchRequests:       counterDelta.messageCommitBatchRequests,
+		MessageCommitBatchRecords:        counterDelta.messageCommitBatchRecords,
+		MessageCommitBatchBytes:          counterDelta.messageCommitBatchBytes,
+		MessageCommitSeconds:             counterDelta.messageCommitSeconds,
+		MessageLeaderCommitRequests:      counterDelta.messageLeaderCommitRequests,
+		MessageFollowerCommitRequests:    counterDelta.messageFollowerCommitRequests,
+		MessageLeaderCommitSeconds:       counterDelta.messageLeaderCommitSeconds,
+		MessageFollowerCommitSeconds:     counterDelta.messageFollowerCommitSeconds,
+		MessageWALBytesIn:                counterDelta.messageWALBytesIn,
+		MessageWALBytesWritten:           counterDelta.messageWALBytesWritten,
+		MessageFlushBytesWritten:         counterDelta.messageFlushBytesWritten,
+		MessageCompactionBytesRead:       counterDelta.messageCompactionBytesRead,
+		MessageCompactionBytesWritten:    counterDelta.messageCompactionBytesWritten,
+		MessageSSTableSizeBytesDelta:     counterDelta.messageSSTableSizeBytes,
+		RecipientProcessOK:               counterDelta.recipientProcessOK,
+		RecipientProcessRecipientsOK:     counterDelta.recipientProcessRecipientsOK,
+		RecipientProcessError:            counterDelta.recipientProcessError,
+		ReceiverProgress:                 permissionSoakReceiverSnapshots(receiverCounts, receiverProgress),
 		MaxHeapBytes:                     pressure.maxHeapBytes,
 		MaxAggregateHeapBytes:            pressure.maxAggregateHeapBytes,
 		AllocatedBytes:                   counterDelta.allocatedBytes,
@@ -451,7 +1129,7 @@ func logPermissionSoakFailureEvidence(
 func preparePermissionSoakChannels(
 	t *testing.T,
 	ctx context.Context,
-	node *suite.StartedNode,
+	cluster *suite.StartedCluster,
 	totalChannels int,
 	hashSlotLeaders []uint64,
 ) []string {
@@ -471,18 +1149,22 @@ func preparePermissionSoakChannels(
 			Subscribers: []string{mediumSenderUID(clientIndex), mediumPermissionSoakReceiverUID(clientIndex)},
 		}
 	}
-	client := benchtarget.NewClient(benchtarget.Config{APIAddrs: []string{"http://" + node.APIAddr()}})
+	apiAddrs := make([]string, 0, len(cluster.Nodes))
+	for _, node := range cluster.Nodes {
+		apiAddrs = append(apiAddrs, "http://"+node.APIAddr())
+	}
+	client := benchtarget.NewClient(benchtarget.Config{APIAddrs: apiAddrs})
 	if err := client.UpsertChannels(ctx, benchmodel.BatchChannelsRequest{
 		RunID: "wkrc-permission-soak", BatchID: "channels", Upsert: true, Channels: channelItems,
 	}); err != nil {
-		t.Fatalf("prepare permission soak channels: %v\n%s", err, node.DumpDiagnostics())
+		t.Fatalf("prepare permission soak channels: %v\n%s", err, cluster.DumpDiagnostics())
 	}
 	for start := 0; start < len(subscriberItems); start += 200 {
 		end := min(start+200, len(subscriberItems))
 		if err := client.AddSubscribers(ctx, benchmodel.BatchSubscribersRequest{
 			RunID: "wkrc-permission-soak", BatchID: fmt.Sprintf("subscribers-%04d", start/200), Items: subscriberItems[start:end],
 		}); err != nil {
-			t.Fatalf("prepare permission soak subscribers [%d,%d): %v\n%s", start, end, err, node.DumpDiagnostics())
+			t.Fatalf("prepare permission soak subscribers [%d,%d): %v\n%s", start, end, err, cluster.DumpDiagnostics())
 		}
 	}
 	return channels
@@ -575,32 +1257,133 @@ func startPermissionSoakSenderReaders(
 func startPermissionSoakReceiverReaders(
 	clients []*suite.WKProtoClient,
 	counts []int,
+	deadline time.Time,
 	tracker *permissionSoakTracker,
+	progress []*permissionSoakReceiverProgress,
 ) <-chan error {
 	results := make(chan error, len(clients))
 	for index, client := range clients {
 		client := client
 		count := counts[index]
+		uid := mediumPermissionSoakReceiverUID(index)
+		clientProgress := progress[index]
 		go func() {
-			for range count {
-				recv, err := client.ReadRecv()
-				if err != nil {
-					results <- err
-					return
-				}
-				if _, err := tracker.observeRecv(recv.ClientMsgNo); err != nil {
-					results <- err
-					return
-				}
-				if err := client.RecvAck(recv.MessageID, recv.MessageSeq); err != nil {
-					results <- err
-					return
-				}
-			}
-			results <- nil
+			results <- runPermissionSoakReceiver(client, count, uid, deadline, tracker, clientProgress)
 		}()
 	}
 	return results
+}
+
+type permissionSoakReceiver interface {
+	ReadRecv() (*frame.RecvPacket, error)
+	RecvAck(messageID int64, messageSeq uint64) error
+}
+
+type permissionSoakHeartbeatClient interface {
+	SendFrame(frame.Frame) error
+}
+
+func startPermissionSoakHeartbeats(
+	ctx context.Context,
+	clients []*suite.WKProtoClient,
+	interval time.Duration,
+) <-chan error {
+	results := make(chan error, len(clients))
+	for index, client := range clients {
+		client := client
+		clientIndex := index
+		go func() {
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			err := runPermissionSoakHeartbeat(ctx, client, ticker.C)
+			if err != nil {
+				err = fmt.Errorf("client=%d: %w", clientIndex, err)
+			}
+			results <- err
+		}()
+	}
+	return results
+}
+
+func runPermissionSoakHeartbeat(
+	ctx context.Context,
+	client permissionSoakHeartbeatClient,
+	ticks <-chan time.Time,
+) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case _, ok := <-ticks:
+			if !ok {
+				return nil
+			}
+			if err := client.SendFrame(&frame.PingPacket{}); err != nil {
+				return fmt.Errorf("send PING heartbeat: %w", err)
+			}
+		}
+	}
+}
+
+func runPermissionSoakReceiver(
+	client permissionSoakReceiver,
+	count int,
+	uid string,
+	deadline time.Time,
+	tracker *permissionSoakTracker,
+	progress *permissionSoakReceiverProgress,
+) error {
+	for received := 0; received < count; {
+		recv, err := client.ReadRecv()
+		if errors.Is(err, context.DeadlineExceeded) && time.Now().Before(deadline) {
+			progress.readTimeouts.Add(1)
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf(
+				"permission soak recipient %s received=%d/%d read_timeouts=%d: %w",
+				uid,
+				received,
+				count,
+				progress.readTimeouts.Load(),
+				err,
+			)
+		}
+		if _, err := tracker.observeRecv(recv.ClientMsgNo); err != nil {
+			return fmt.Errorf("permission soak recipient %s observe RECV: %w", uid, err)
+		}
+		if err := client.RecvAck(recv.MessageID, recv.MessageSeq); err != nil {
+			return fmt.Errorf("permission soak recipient %s ack RECV: %w", uid, err)
+		}
+		received++
+		progress.received.Add(1)
+	}
+	return nil
+}
+
+func newPermissionSoakReceiverProgress(count int) []*permissionSoakReceiverProgress {
+	progress := make([]*permissionSoakReceiverProgress, count)
+	for index := range progress {
+		progress[index] = &permissionSoakReceiverProgress{}
+	}
+	return progress
+}
+
+func permissionSoakReceiverSnapshots(
+	counts []int,
+	progress []*permissionSoakReceiverProgress,
+) []permissionSoakReceiverSnapshot {
+	snapshots := make([]permissionSoakReceiverSnapshot, 0, min(len(counts), len(progress)))
+	for index := 0; index < len(counts) && index < len(progress); index++ {
+		snapshots = append(snapshots, permissionSoakReceiverSnapshot{
+			Index:        index,
+			UID:          mediumPermissionSoakReceiverUID(index),
+			Expected:     counts[index],
+			Received:     progress[index].received.Load(),
+			ReadTimeouts: progress[index].readTimeouts.Load(),
+		})
+	}
+	return snapshots
 }
 
 func newPermissionSoakTracker() *permissionSoakTracker {
@@ -737,6 +1520,10 @@ func permissionSoakAcceptanceError(evidence permissionSoakEvidence, config permi
 		return fmt.Errorf("permission soak SENDACK P99 = %.3fms, want at most 1000ms", evidence.SendackP99MS)
 	case evidence.RecvP99MS > 2_000:
 		return fmt.Errorf("permission soak RECV P99 = %.3fms, want at most 2000ms", evidence.RecvP99MS)
+	case evidence.ChannelRPCAdmissionFull != 0:
+		return fmt.Errorf("permission soak Channel RPC admission full = %.0f, want 0", evidence.ChannelRPCAdmissionFull)
+	case evidence.ChannelStoreApplyFull != 0:
+		return fmt.Errorf("permission soak Channel store-apply admission full = %.0f, want 0", evidence.ChannelStoreApplyFull)
 	case evidence.TransportRPCMetricNodes != mediumReplicaCount:
 		return fmt.Errorf("permission soak transport RPC metric nodes = %d, want %d", evidence.TransportRPCMetricNodes, mediumReplicaCount)
 	case evidence.MaxTransportRPCQueueRatio >= 1:

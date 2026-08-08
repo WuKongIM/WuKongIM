@@ -109,18 +109,6 @@ func (db *MessageDB) ListLatestMessages(ctx context.Context, beforeMessageID uin
 	return page, nil
 }
 
-// DeleteLatestMessageIndexes removes manager-only global projection entries.
-func (db *MessageDB) DeleteLatestMessageIndexes(ctx context.Context, messageIDs []uint64) error {
-	if err := db.beginUse(); err != nil {
-		return err
-	}
-	defer db.endUse()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return db.deleteLatestMessageIndexes(messageIDs)
-}
-
 func (db *MessageDB) deleteLatestMessageIndexes(messageIDs []uint64) error {
 	if len(messageIDs) == 0 {
 		return nil
@@ -167,22 +155,11 @@ func getMessageRowBySeq(ctx context.Context, db *MessageDB, channelKey ChannelKe
 	if err != nil {
 		return messageRow{}, false, err
 	}
-	payloadKey := encodeMessageRowKey(channelKey, seq, messagePayloadFamilyID)
-	payloadValue, okPayload, err := db.engine.Get(payloadKey)
-	if err != nil {
-		return messageRow{}, false, err
-	}
-	if !okHeader && !okPayload {
+	if !okHeader {
 		return messageRow{}, false, nil
-	}
-	if !okHeader || !okPayload {
-		return messageRow{}, false, dberrors.ErrCorruptState
 	}
 	row := messageRow{MessageSeq: seq}
 	if err := decodeMessageHeader(headerKey, headerValue, &row); err != nil {
-		return messageRow{}, false, err
-	}
-	if err := decodeMessagePayload(payloadKey, payloadValue, &row); err != nil {
 		return messageRow{}, false, err
 	}
 	if err := validateMaterializedMessageRow(row); err != nil {

@@ -56,6 +56,16 @@
           "expr": "sum(rate(wukongim_message_append_total{node_name=~\"$node_name\"}[$__rate_interval])) by (path,result)",
           "legendFormat": "{{result}}{{path}}{{channel_type}}{{target_node}}{{shard}}",
           "refId": "A"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_message_idempotency_negative_filter_skips{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
+          "legendFormat": "idempotency filter skips {{store}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(wukongim_storage_message_idempotency_point_reads{node_name=~\"$node_name\"}[$__rate_interval])) by (store)",
+          "legendFormat": "idempotency point reads {{store}}",
+          "refId": "C"
         }
       ],
       "title": "Message append rate",
@@ -96,6 +106,11 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_append_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le,path,result))",
           "legendFormat": "{{result}}{{path}}{{channel_type}}{{target_node}}{{shard}}",
           "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_message_send_batch_stage_item_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, stage, result))",
+          "legendFormat": "send batch {{stage}} {{result}}",
+          "refId": "B"
         }
       ],
       "title": "Message append p95",

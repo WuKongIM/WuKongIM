@@ -139,6 +139,75 @@ func TestNewRouterUsesBoundedConcurrentBatchDefaults(t *testing.T) {
 			defaultRouterMaxConcurrentGroupsPerBatch,
 		)
 	}
+	if router.maxConcurrentGroups != defaultRouterMaxConcurrentGroups {
+		t.Fatalf(
+			"default concurrent groups across batches = %d, want %d",
+			router.maxConcurrentGroups,
+			defaultRouterMaxConcurrentGroups,
+		)
+	}
+}
+
+func TestRouterDefaultGlobalAdmissionRetainsFiveBatchWaves(t *testing.T) {
+	router := NewRouter(RouterOptions{})
+	const recoveryBatchWaves = 5
+	wantMinimum := recoveryBatchWaves * router.maxConcurrentGroupsPerBatch
+	if router.maxConcurrentGroups < wantMinimum {
+		t.Fatalf(
+			"default concurrent groups across batches = %d, want at least %d (%d batch waves)",
+			router.maxConcurrentGroups,
+			wantMinimum,
+			recoveryBatchWaves,
+		)
+	}
+}
+
+func TestRouterDefaultGroupConcurrencyCoversSixtyFourIndependentChannels(t *testing.T) {
+	const channelCount = 64
+	targets := make(map[ChannelID]AuthorityTarget, channelCount)
+	items := make([]SendBatchItem, 0, channelCount)
+	for index := range channelCount {
+		channelID := fmt.Sprintf("channel-%02d", index)
+		target := routerTarget(channelID, 2, 7)
+		targets[target.ChannelID] = target
+		items = append(items, routerItem("u0", channelID, 2))
+	}
+
+	local := newRouterReleaseLocalSubmitter(channelCount)
+	router := NewRouter(RouterOptions{
+		LocalNodeID: 7,
+		Resolver:    &routerResolverForTest{targetsByChannel: targets},
+		Local:       local,
+	})
+	done := make(chan []SendBatchItemResult, 1)
+	go func() {
+		done <- router.SendBatch(items)
+	}()
+
+	enteredBeforeRelease := 0
+	timer := time.NewTimer(250 * time.Millisecond)
+	defer timer.Stop()
+waitForGroups:
+	for enteredBeforeRelease < channelCount {
+		select {
+		case <-local.entered:
+			enteredBeforeRelease++
+		case <-timer.C:
+			break waitForGroups
+		}
+	}
+	close(local.release)
+	select {
+	case results := <-done:
+		if len(results) != channelCount {
+			t.Fatalf("results len = %d, want %d", len(results), channelCount)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("SendBatch did not finish after releasing default group submissions")
+	}
+	if enteredBeforeRelease != channelCount {
+		t.Fatalf("concurrent groups before release = %d, want %d", enteredBeforeRelease, channelCount)
+	}
 }
 
 func TestRouterConcurrentResolvePreservesItemAlignedSuccessAndErrors(t *testing.T) {
@@ -254,6 +323,64 @@ func TestRouterSendBatchRunsIndependentChannelGroupsWithBoundedConcurrency(t *te
 		return
 	}
 	t.Fatal("channel a group was not submitted")
+}
+
+func TestRouterBoundsConcurrentGroupsAcrossSendBatches(t *testing.T) {
+	targets := make(map[ChannelID]AuthorityTarget, 4)
+	for _, channelID := range []string{"a", "b", "c", "d"} {
+		target := routerTarget(channelID, 2, 7)
+		targets[target.ChannelID] = target
+	}
+	local := newRouterControlledLocalSubmitter(4)
+	pressure := &recordingRouterPressureObserverForTest{}
+	router := NewRouter(RouterOptions{
+		LocalNodeID:                 7,
+		Resolver:                    &routerResolverForTest{targetsByChannel: targets},
+		Local:                       local,
+		MaxConcurrentGroupsPerBatch: 2,
+		MaxConcurrentGroups:         2,
+		PressureObserver:            pressure,
+	})
+
+	done := make(chan []SendBatchItemResult, 2)
+	for _, items := range [][]SendBatchItem{
+		{routerItem("u0", "a", 2), routerItem("u1", "b", 2)},
+		{routerItem("u2", "c", 2), routerItem("u3", "d", 2)},
+	} {
+		items := items
+		go func() { done <- router.SendBatch(items) }()
+	}
+
+	first := local.nextCall(t)
+	second := local.nextCall(t)
+	select {
+	case call := <-local.entered:
+		t.Fatalf("third cross-batch group %q entered before a global slot was released", call.target.ChannelID.ID)
+	default:
+	}
+	local.complete(first, controlledRouterResults(first.items))
+	third := local.nextCall(t)
+	local.complete(second, controlledRouterResults(second.items))
+	fourth := local.nextCall(t)
+	local.complete(third, controlledRouterResults(third.items))
+	local.complete(fourth, controlledRouterResults(fourth.items))
+
+	for range 2 {
+		select {
+		case results := <-done:
+			if len(results) != 2 {
+				t.Fatalf("results len = %d, want 2", len(results))
+			}
+		case <-time.After(time.Second):
+			t.Fatal("SendBatch did not finish after global group slots were released")
+		}
+	}
+	if got := local.maxConcurrentCalls(); got != 2 {
+		t.Fatalf("max concurrent groups across batches = %d, want 2", got)
+	}
+	if maxInflight, inflight, capacity := pressure.snapshot(); maxInflight != 2 || inflight != 0 || capacity != 2 {
+		t.Fatalf("router pressure max/current/capacity = %d/%d/%d, want 2/0/2", maxInflight, inflight, capacity)
+	}
 }
 
 func TestRouterSendBatchSerializesRemoteGroupsWithinSameLeaderOutboundLane(t *testing.T) {
@@ -754,6 +881,45 @@ func TestRouterRejectsMissingChannelWithoutResolve(t *testing.T) {
 	}
 }
 
+func TestNewRouterDefaultsToBoundedCloudMediumGatewayBatchWave(t *testing.T) {
+	router := NewRouter(RouterOptions{})
+	if got, want := router.maxConcurrentGroupsPerBatch, 96; got != want {
+		t.Fatalf("max concurrent groups per batch = %d, want %d", got, want)
+	}
+	if got, want := router.maxConcurrentGroups, 512; got != want {
+		t.Fatalf("max concurrent groups across batches = %d, want %d", got, want)
+	}
+}
+
+func TestRouterSendBatchObservesWholeBatch(t *testing.T) {
+	observer := &recordingRouterObserverForTest{}
+	router := NewRouter(RouterOptions{
+		LocalNodeID: 7,
+		Resolver:    &routerResolverForTest{targets: []AuthorityTarget{routerTarget("a", 2, 7), routerTarget("b", 2, 7)}},
+		Local:       routerImmediateLocalSubmitter{},
+		Observer:    observer,
+	})
+
+	results := router.SendBatch([]SendBatchItem{routerItem("u1", "a", 2), routerItem("u1", "b", 2)})
+	if len(results) != 2 || results[0].Err != nil || results[1].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want two successes", results)
+	}
+	events := observer.snapshot()
+	batchEvents := 0
+	for _, event := range events {
+		if event.Path != "batch" {
+			continue
+		}
+		batchEvents++
+		if event.Result != channelAppendResultOK || event.Items != 2 || event.Duration <= 0 {
+			t.Fatalf("batch observation = %#v, want ok/2/positive duration", event)
+		}
+	}
+	if batchEvents != 1 {
+		t.Fatalf("batch observations = %d, want 1; all events = %#v", batchEvents, events)
+	}
+}
+
 func BenchmarkRouterSubmitResolvedGroupsNoLeaderOverflow(b *testing.B) {
 	const groupCount = 32
 	groups := make([]routerBatchGroup, groupCount)
@@ -868,6 +1034,23 @@ type routerResolverForTest struct {
 	invalidated      []AuthorityTarget
 }
 
+type recordingRouterObserverForTest struct {
+	mu     sync.Mutex
+	events []RouterObservation
+}
+
+func (o *recordingRouterObserverForTest) ObserveChannelAppendRouter(event RouterObservation) {
+	o.mu.Lock()
+	o.events = append(o.events, event)
+	o.mu.Unlock()
+}
+
+func (o *recordingRouterObserverForTest) snapshot() []RouterObservation {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]RouterObservation(nil), o.events...)
+}
+
 type routerControlledResolver struct {
 	mu          sync.Mutex
 	entered     chan ChannelID
@@ -963,6 +1146,11 @@ type routerControlledSubmitCall struct {
 	once   sync.Once
 }
 
+type routerReleaseLocalSubmitter struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
 type routerControlledLocalSubmitter struct {
 	mu          sync.Mutex
 	entered     chan *routerControlledSubmitCall
@@ -983,6 +1171,29 @@ type routerControlledRemoteForwarder struct {
 	entered     chan *routerControlledRemoteCall
 	inFlight    int
 	maxInFlight int
+}
+
+type recordingRouterPressureObserverForTest struct {
+	mu          sync.Mutex
+	maxInflight int
+	inflight    int
+	capacity    int
+}
+
+func (o *recordingRouterPressureObserverForTest) SetChannelAppendRouterGroupPressure(event RouterGroupPressureObservation) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.inflight = event.Inflight
+	o.capacity = event.Capacity
+	if event.Inflight > o.maxInflight {
+		o.maxInflight = event.Inflight
+	}
+}
+
+func (o *recordingRouterPressureObserverForTest) snapshot() (maxInflight, inflight, capacity int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.maxInflight, o.inflight, o.capacity
 }
 
 type routerRetryingLocalSubmitterForTest struct {
@@ -1084,6 +1295,25 @@ func (r *routerControlledRemoteForwarder) maxConcurrentCalls() int {
 
 func newRouterControlledLocalSubmitter(capacity int) *routerControlledLocalSubmitter {
 	return &routerControlledLocalSubmitter{entered: make(chan *routerControlledSubmitCall, capacity)}
+}
+
+func newRouterReleaseLocalSubmitter(capacity int) *routerReleaseLocalSubmitter {
+	return &routerReleaseLocalSubmitter{
+		entered: make(chan struct{}, capacity),
+		release: make(chan struct{}),
+	}
+}
+
+func (s *routerReleaseLocalSubmitter) SubmitLocal(ctx context.Context, _ AuthorityTarget, items []SendBatchItem) (*Future, error) {
+	s.entered <- struct{}{}
+	select {
+	case <-s.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	future := newFuture(len(items))
+	future.complete(controlledRouterResults(items))
+	return future, nil
 }
 
 func (s *routerControlledLocalSubmitter) SubmitLocal(_ context.Context, target AuthorityTarget, items []SendBatchItem) (*Future, error) {

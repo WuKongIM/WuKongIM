@@ -2,6 +2,7 @@ package reactor
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"hash/fnv"
 	"math"
@@ -255,4 +256,43 @@ func followerRecoveryProbeDelay(key ch.ChannelKey, interval time.Duration, jitte
 		return time.Duration(math.MaxInt64)
 	}
 	return interval + extra
+}
+
+// committedCheckpointDelay spreads one bounded checkpoint deadline by channel key.
+func committedCheckpointDelay(key ch.ChannelKey, interval time.Duration) time.Duration {
+	return deterministicUpperHalfDelay(key, interval, 0)
+}
+
+// replicationRPCPressureDelay spreads a deferred follower Pull across the
+// upper half of its configured recovery-jitter window.
+func replicationRPCPressureDelay(key ch.ChannelKey, interval time.Duration) time.Duration {
+	return deterministicUpperHalfDelay(key, interval, 1)
+}
+
+// pullHintRPCPressureDelay spreads one follower's deferred PullHint across the
+// upper half of the configured retry window.
+func pullHintRPCPressureDelay(key ch.ChannelKey, node ch.NodeID, interval time.Duration) time.Duration {
+	return deterministicUpperHalfDelay(key, interval, uint64(node)+2)
+}
+
+func storeApplyPressureDelay(key ch.ChannelKey, maxBackoff time.Duration) time.Duration {
+	if maxBackoff <= 0 {
+		maxBackoff = 100 * time.Millisecond
+	}
+	return deterministicUpperHalfDelay(key, maxBackoff, 0x6170706c79)
+}
+
+func deterministicUpperHalfDelay(key ch.ChannelKey, interval time.Duration, salt uint64) time.Duration {
+	if interval <= 0 {
+		return 0
+	}
+	minDelay := interval/2 + interval%2
+	spread := interval - minDelay
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(key))
+	var encodedSalt [8]byte
+	binary.LittleEndian.PutUint64(encodedSalt[:], salt)
+	_, _ = h.Write(encodedSalt[:])
+	extra := time.Duration(h.Sum64() % uint64(spread+1))
+	return minDelay + extra
 }

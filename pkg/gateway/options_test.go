@@ -100,8 +100,8 @@ func TestDefaultSessionOptions(t *testing.T) {
 	if opts.AsyncSendBatchMaxWait != time.Millisecond {
 		t.Fatalf("expected default async SEND batch wait 1ms, got %s", opts.AsyncSendBatchMaxWait)
 	}
-	if opts.AsyncSendBatchMaxRecords != 512 {
-		t.Fatalf("expected default async SEND batch records 512, got %d", opts.AsyncSendBatchMaxRecords)
+	if opts.AsyncSendBatchMaxRecords != 128 {
+		t.Fatalf("expected default async SEND batch records 128, got %d", opts.AsyncSendBatchMaxRecords)
 	}
 }
 

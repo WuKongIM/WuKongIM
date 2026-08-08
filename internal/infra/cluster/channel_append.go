@@ -135,6 +135,7 @@ func channelAppendTargetFromMeta(meta channelruntime.Meta) channelappend.Authori
 		Epoch:           meta.Epoch,
 		LeaderEpoch:     meta.LeaderEpoch,
 		RouteGeneration: meta.RouteGeneration,
+		WriteFenced:     meta.WriteFence.Set(),
 	}
 }
 

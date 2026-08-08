@@ -438,12 +438,14 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 		if err != nil {
 			return err
 		}
-		payload, ok, err := view.Get(encodeMessageRowKey(channelKey, seq, messagePayloadFamilyID))
-		if err != nil {
+		row := messageRow{MessageSeq: seq}
+		if err := decodeMessageHeader(key, header, &row); err != nil {
 			return err
 		}
-		if !ok {
-			return fmt.Errorf("%w: message %d payload is missing", dberrors.ErrCorruptState, seq)
+		payloadKey := encodeMessageRowKey(channelKey, seq, messagePayloadFamilyID)
+		payload, err := encodeMessagePayload(payloadKey, row)
+		if err != nil {
+			return err
 		}
 		if err := visit(seq, header, payload); err != nil {
 			return err

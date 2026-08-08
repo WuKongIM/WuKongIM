@@ -46,6 +46,7 @@ type ChannelRuntimeMetrics struct {
 	replicationStageDuration *prometheus.HistogramVec
 	workerTaskDuration       *prometheus.HistogramVec
 	workerTaskErrorTotal     *prometheus.CounterVec
+	workerAdmissionTotal     *prometheus.CounterVec
 	workerBatchItems         *prometheus.HistogramVec
 	rpcPullTotal             *prometheus.CounterVec
 }
@@ -221,6 +222,11 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 			Help:        "Total Channel runtime worker task errors by kind and low-cardinality error class.",
 			ConstLabels: labels,
 		}, []string{"kind", "error"}),
+		workerAdmissionTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_channelv2_worker_admission_total",
+			Help:        "Total Channel runtime worker admission outcomes by pool and bounded task kind.",
+			ConstLabels: labels,
+		}, []string{"pool", "kind", "result"}),
 		workerBatchItems: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_channelv2_worker_batch_items",
 			Help:        "Number of logical worker tasks coalesced into each Channel runtime worker-side batch.",
@@ -266,6 +272,7 @@ func newChannelRuntimeMetrics(registry prometheus.Registerer, labels prometheus.
 		m.replicationStageDuration,
 		m.workerTaskDuration,
 		m.workerTaskErrorTotal,
+		m.workerAdmissionTotal,
 		m.workerBatchItems,
 		m.rpcPullTotal,
 	)
@@ -473,6 +480,13 @@ func (m *ChannelRuntimeMetrics) ObserveWorkerResult(kind string, result string, 
 	if kind == "rpc_pull" {
 		m.rpcPullTotal.WithLabelValues(result).Inc()
 	}
+}
+
+func (m *ChannelRuntimeMetrics) ObserveWorkerAdmission(pool string, kind string, result string) {
+	if m == nil {
+		return
+	}
+	m.workerAdmissionTotal.WithLabelValues(pool, kind, result).Inc()
 }
 
 func (m *ChannelRuntimeMetrics) ObserveWorkerBatch(kind string, result string, items int) {

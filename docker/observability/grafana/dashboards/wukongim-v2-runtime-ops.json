@@ -203,6 +203,21 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_local_admission_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
           "legendFormat": "local admission items p95 {{result}}",
           "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_router_item_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, path, result))",
+          "legendFormat": "router item p95 {{path}} {{result}}",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_router_group_inflight{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} router groups inflight",
+          "refId": "G"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_router_group_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} router group capacity",
+          "refId": "H"
         }
       ],
       "title": "Channel Append Router And Admission",
@@ -305,6 +320,11 @@
           "expr": "max(wukongim_channelappend_post_commit_retry_contended{node_name=~\"$node_name\"}) by (node_name)",
           "legendFormat": "{{node_name}} post-commit retry contended",
           "refId": "M"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_worker_admission_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, pool, kind, result)",
+          "legendFormat": "{{node_name}} worker admission {{pool}} {{kind}} {{result}}",
+          "refId": "N"
         }
       ],
       "title": "Channel Append Writer And Effect Pool",

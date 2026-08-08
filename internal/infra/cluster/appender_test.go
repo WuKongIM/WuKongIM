@@ -56,14 +56,15 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	appender := NewChannelAppender(node)
 
 	res, err := appender.AppendBatch(context.Background(), channelappend.AppendBatchRequest{
-		ChannelID:           channelappend.ChannelID{ID: "room", Type: 1},
-		ExpectedEpoch:       12,
-		ExpectedLeaderEpoch: 34,
-		TraceID:             "trace-request",
-		ChannelKey:          "channel/key-request",
-		Attempt:             4,
-		CommitMode:          channelappend.CommitModeQuorum,
-		OmitResultPayload:   true,
+		ChannelID:                 channelappend.ChannelID{ID: "room", Type: 1},
+		ExpectedEpoch:             12,
+		ExpectedLeaderEpoch:       34,
+		TraceID:                   "trace-request",
+		ChannelKey:                "channel/key-request",
+		Attempt:                   4,
+		CommitMode:                channelappend.CommitModeQuorum,
+		OmitResultPayload:         true,
+		ServerAllocatedMessageIDs: true,
 		Messages: []channelappend.Message{
 			{
 				MessageID:         10,
@@ -117,6 +118,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	}
 	if !req.OmitResultPayload {
 		t.Fatalf("OmitResultPayload = false, want true")
+	}
+	if !req.ServerAllocatedMessageIDs {
+		t.Fatal("ServerAllocatedMessageIDs = false, want true")
 	}
 	if len(req.Messages) != 2 {
 		t.Fatalf("len(Messages) = %d, want 2", len(req.Messages))

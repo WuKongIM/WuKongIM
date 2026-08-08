@@ -219,7 +219,7 @@ func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
 	return encodeAppendBatchRequestVersion(req, codecVersion)
 }
 func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
-	return encodeRequestFrame(version, kindAppendBatch, appendAppendBatchRequest(nil, req))
+	return encodeRequestFrame(version, kindAppendBatch, appendAppendBatchRequest(nil, req, version))
 }
 func decodeAppendBatchRequest(data []byte) (ch.AppendBatchRequest, error) {
 	version, payload, err := decodeFrameWithVersion(data, kindAppendBatch)
@@ -904,7 +904,7 @@ func readAppendResult(body []byte, offset int, version uint8) (ch.AppendResult, 
 	return result, offset, nil
 }
 
-func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest) []byte {
+func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest, version uint8) []byte {
 	dst = appendChannelID(dst, req.ChannelID)
 	dst = appendMessages(dst, req.Messages)
 	dst = appendString(dst, req.TraceID)
@@ -914,6 +914,9 @@ func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest) []byte {
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
 	dst = appendBool(dst, req.OmitResultPayload)
+	if version >= codecVersion {
+		dst = appendBool(dst, req.ServerAllocatedMessageIDs)
+	}
 	return dst
 }
 
@@ -950,6 +953,11 @@ func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBa
 	}
 	if req.OmitResultPayload, offset, err = readBool(body, offset, "append batch omit result payload"); err != nil {
 		return ch.AppendBatchRequest{}, offset, err
+	}
+	if version >= codecVersion {
+		if req.ServerAllocatedMessageIDs, offset, err = readBool(body, offset, "append batch server allocated message ids"); err != nil {
+			return ch.AppendBatchRequest{}, offset, err
+		}
 	}
 	return req, offset, nil
 }

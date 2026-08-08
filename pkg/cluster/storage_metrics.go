@@ -8,6 +8,10 @@ import (
 
 // StorageEngineMetrics is a stable view of one local storage engine.
 type StorageEngineMetrics struct {
+	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
+	IdempotencyNegativeFilterSkips uint64
+	// IdempotencyPointReads is the number of possible filter hits verified durably.
+	IdempotencyPointReads uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -26,6 +30,14 @@ type StorageEngineMetrics struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
+	SSTableSizeBytes uint64
+	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
+	FlushBytesWritten uint64
+	// CompactionBytesRead is the cumulative SSTable bytes read by compactions.
+	CompactionBytesRead uint64
+	// CompactionBytesWritten is the cumulative SSTable bytes written by compactions.
+	CompactionBytesWritten uint64
 	// FlushCount is the number of completed flushes since this engine opened.
 	FlushCount int64
 	// FlushesInProgress is the current number of flushes in progress.
@@ -114,21 +126,27 @@ func storageChannelEntryMetricsFromChannelStore(snapshot channelstore.MessageDBF
 
 func storageMetricsFromChannelStore(snapshot channelstore.MessageDBFactoryMetricsSnapshot) StorageEngineMetrics {
 	return StorageEngineMetrics{
-		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
-		ReadAmplification:            snapshot.ReadAmplification,
-		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
-		MemTableCount:                snapshot.MemTableCount,
-		WALFiles:                     snapshot.WALFiles,
-		WALSizeBytes:                 snapshot.WALSizeBytes,
-		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
-		WALBytesIn:                   snapshot.WALBytesIn,
-		WALBytesWritten:              snapshot.WALBytesWritten,
-		FlushCount:                   snapshot.FlushCount,
-		FlushesInProgress:            snapshot.FlushesInProgress,
-		CompactionCount:              snapshot.CompactionCount,
-		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
-		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
-		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
+		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
+		ReadAmplification:              snapshot.ReadAmplification,
+		MemTableSizeBytes:              snapshot.MemTableSizeBytes,
+		MemTableCount:                  snapshot.MemTableCount,
+		WALFiles:                       snapshot.WALFiles,
+		WALSizeBytes:                   snapshot.WALSizeBytes,
+		WALPhysicalSizeBytes:           snapshot.WALPhysicalSizeBytes,
+		WALBytesIn:                     snapshot.WALBytesIn,
+		WALBytesWritten:                snapshot.WALBytesWritten,
+		SSTableSizeBytes:               snapshot.SSTableSizeBytes,
+		FlushBytesWritten:              snapshot.FlushBytesWritten,
+		CompactionBytesRead:            snapshot.CompactionBytesRead,
+		CompactionBytesWritten:         snapshot.CompactionBytesWritten,
+		FlushCount:                     snapshot.FlushCount,
+		FlushesInProgress:              snapshot.FlushesInProgress,
+		CompactionCount:                snapshot.CompactionCount,
+		CompactionEstimatedDebtBytes:   snapshot.CompactionEstimatedDebtBytes,
+		CompactionInProgressBytes:      snapshot.CompactionInProgressBytes,
+		CompactionsInProgress:          snapshot.CompactionsInProgress,
 	}
 }
 
@@ -143,6 +161,10 @@ func storageMetricsFromMetaDB(snapshot metadb.EngineMetricsSnapshot) StorageEngi
 		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
 		WALBytesIn:                   snapshot.WALBytesIn,
 		WALBytesWritten:              snapshot.WALBytesWritten,
+		SSTableSizeBytes:             snapshot.SSTableSizeBytes,
+		FlushBytesWritten:            snapshot.FlushBytesWritten,
+		CompactionBytesRead:          snapshot.CompactionBytesRead,
+		CompactionBytesWritten:       snapshot.CompactionBytesWritten,
 		FlushCount:                   snapshot.FlushCount,
 		FlushesInProgress:            snapshot.FlushesInProgress,
 		CompactionCount:              snapshot.CompactionCount,
@@ -163,6 +185,10 @@ func storageMetricsFromRaftLog(snapshot raftlog.MetricsSnapshot) StorageEngineMe
 		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
 		WALBytesIn:                   snapshot.WALBytesIn,
 		WALBytesWritten:              snapshot.WALBytesWritten,
+		SSTableSizeBytes:             snapshot.SSTableSizeBytes,
+		FlushBytesWritten:            snapshot.FlushBytesWritten,
+		CompactionBytesRead:          snapshot.CompactionBytesRead,
+		CompactionBytesWritten:       snapshot.CompactionBytesWritten,
 		FlushCount:                   snapshot.FlushCount,
 		FlushesInProgress:            snapshot.FlushesInProgress,
 		CompactionCount:              snapshot.CompactionCount,

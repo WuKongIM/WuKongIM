@@ -38,6 +38,29 @@ func TestSendBatchDelegatesToSubmitter(t *testing.T) {
 	}
 }
 
+func TestSendBatchObservesBoundedStages(t *testing.T) {
+	observer := &recordingSendBatchStageObserver{}
+	app := New(Options{
+		Submitter:         &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{Reason: ReasonSuccess}}}},
+		SendBatchObserver: observer,
+	})
+
+	results := app.SendBatch([]SendBatchItem{{Command: SendCommand{
+		FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("one"),
+	}}})
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("SendBatch() = %#v, want success", results)
+	}
+	if got, want := observer.stages(), []string{"permission", "pre_append", "submitter"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("observed stages = %v, want %v", got, want)
+	}
+	for _, event := range observer.events {
+		if event.Result != "ok" || event.Items != 1 || event.Duration <= 0 {
+			t.Fatalf("stage observation = %#v, want ok/1/positive duration", event)
+		}
+	}
+}
+
 func TestSendBatchBoundsConcurrentPermissionChecksAndPreservesOrder(t *testing.T) {
 	const itemCount = sendBatchPermissionWorkers * 2
 	store := &blockingBatchPermissionStore{
@@ -92,6 +115,237 @@ func TestSendBatchBoundsConcurrentPermissionChecksAndPreservesOrder(t *testing.T
 	}
 	if len(submitter.batchItems) != 1 || !reflect.DeepEqual(submitter.batchItems[0], items) {
 		t.Fatalf("delegated items = %#v, want original order", submitter.batchItems)
+	}
+}
+
+func TestSendBatchCoalescesEquivalentPermissionScopes(t *testing.T) {
+	const itemCount = 64
+	store := newFakePermissionStore()
+	store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{
+		ChannelID:   "g1",
+		ChannelType: int64(channelTypeGroup),
+	}
+	store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
+	batchResults := make([]SendBatchItemResult, itemCount)
+	items := make([]SendBatchItem, itemCount)
+	for i := range items {
+		batchResults[i] = SendBatchItemResult{Result: SendResult{MessageID: uint64(i + 1), Reason: ReasonSuccess}}
+		items[i] = SendBatchItem{Command: SendCommand{
+			FromUID:     "u1",
+			ClientSeq:   uint64(i + 1),
+			ClientMsgNo: fmt.Sprintf("message-%02d", i+1),
+			ChannelID:   "g1",
+			ChannelType: channelTypeGroup,
+			Payload:     []byte(fmt.Sprintf("payload-%02d", i+1)),
+		}}
+	}
+	submitter := &recordingSubmitter{batchResults: batchResults}
+	app := New(Options{Submitter: submitter, PermissionStore: store})
+
+	results := app.SendBatch(items)
+
+	if !reflect.DeepEqual(results, batchResults) {
+		t.Fatalf("SendBatch() = %#v, want item-aligned delegated results", results)
+	}
+	if got := store.getChannelCalls.Load(); got != 2 {
+		t.Fatalf("GetChannelForPermission calls = %d, want sender and group checked once", got)
+	}
+	if got := store.containsCalls.Load(); got != 2 {
+		t.Fatalf("ContainsChannelSubscriber calls = %d, want denylist and membership checked once", got)
+	}
+	if got := store.hasAnyCalls.Load(); got != 1 {
+		t.Fatalf("HasChannelSubscribers calls = %d, want allowlist checked once", got)
+	}
+	if len(submitter.batchItems) != 1 || !reflect.DeepEqual(submitter.batchItems[0], items) {
+		t.Fatalf("delegated items = %#v, want every original command in order", submitter.batchItems)
+	}
+}
+
+func TestSendBatchUsesOneAuthoritativePermissionReadBatchForDistinctGroups(t *testing.T) {
+	const itemCount = 64
+	base := newFakePermissionStore()
+	items := make([]SendBatchItem, itemCount)
+	batchResults := make([]SendBatchItemResult, itemCount)
+	for i := range items {
+		channelID := fmt.Sprintf("group-%02d", i+1)
+		base.channels[permissionKey(channelID, int64(channelTypeGroup))] = metadb.Channel{
+			ChannelID:   channelID,
+			ChannelType: int64(channelTypeGroup),
+		}
+		base.members[permissionKey(channelID, int64(channelTypeGroup))] = map[string]bool{"u1": true}
+		items[i] = SendBatchItem{Command: SendCommand{
+			FromUID:     "u1",
+			ChannelID:   channelID,
+			ChannelType: channelTypeGroup,
+			Payload:     []byte(channelID),
+		}}
+		batchResults[i] = SendBatchItemResult{Result: SendResult{MessageID: uint64(i + 1), Reason: ReasonSuccess}}
+	}
+	store := &recordingPermissionBatchStore{base: base}
+	submitter := &recordingSubmitter{batchResults: batchResults}
+	app := New(Options{Submitter: submitter, PermissionStore: store, PermissionBatchStore: store})
+
+	results := app.SendBatch(items)
+
+	if !reflect.DeepEqual(results, batchResults) {
+		t.Fatalf("SendBatch() = %#v, want item-aligned delegated results", results)
+	}
+	if got := store.batchCalls.Load(); got != 1 {
+		t.Fatalf("ReadPermissionsBatch calls = %d, want 1", got)
+	}
+	if got := base.getChannelCalls.Load() + base.containsCalls.Load() + base.hasAnyCalls.Load(); got != 0 {
+		t.Fatalf("point permission calls = %d, want 0 when authoritative batch is available", got)
+	}
+	if got, want := len(store.reads), 1+itemCount*5; got != want {
+		t.Fatalf("batched permission reads = %d, want %d deduplicated facts", got, want)
+	}
+	if len(submitter.batchItems) != 1 || !reflect.DeepEqual(submitter.batchItems[0], items) {
+		t.Fatalf("delegated items = %#v, want every original command in order", submitter.batchItems)
+	}
+}
+
+func TestSendBatchPermissionReadPlanMatchesSingleSendPolicy(t *testing.T) {
+	groupKey := channelmembers.ChannelKey{ChannelID: "g1", ChannelType: channelTypeGroup}
+	denyID := channelmembers.DenylistChannelID(groupKey)
+	allowID := channelmembers.AllowlistChannelID(groupKey)
+	tests := []struct {
+		name      string
+		cmd       SendCommand
+		configure func(*fakePermissionStore)
+		opts      func(*Options)
+		want      Reason
+	}{
+		{
+			name: "allowed member",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
+				store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
+			},
+			want: ReasonSuccess,
+		},
+		{
+			name: "sender send ban precedes group state",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("u1", int64(channelTypePerson))] = metadb.Channel{SendBan: 1}
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{Ban: 1}
+			},
+			want: ReasonSendBan,
+		},
+		{
+			name: "missing group",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			want: ReasonChannelNotExist,
+		},
+		{
+			name: "banned group",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{Ban: 1}
+			},
+			want: ReasonBan,
+		},
+		{
+			name: "disbanded group",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{Disband: 1}
+			},
+			want: ReasonDisband,
+		},
+		{
+			name: "denylist precedes subscriber",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{}
+				store.members[permissionKey(denyID, int64(channelTypeGroup))] = map[string]bool{"u1": true}
+			},
+			want: ReasonInBlacklist,
+		},
+		{
+			name: "missing subscriber",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{}
+			},
+			want: ReasonSubscriberNotExist,
+		},
+		{
+			name: "nonempty allowlist miss",
+			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{}
+				store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
+				store.hasAny[permissionKey(allowID, int64(channelTypeGroup))] = true
+			},
+			want: ReasonNotInWhitelist,
+		},
+		{
+			name: "system uid may target missing group",
+			cmd:  SendCommand{FromUID: "sys", ChannelID: "g1", ChannelType: channelTypeGroup},
+			opts: func(opts *Options) {
+				opts.SystemUIDs = fakeSystemUIDChecker{"sys": true}
+			},
+			want: ReasonSuccess,
+		},
+		{
+			name: "system uid still rejects disband",
+			cmd:  SendCommand{FromUID: "sys", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{Disband: 1}
+			},
+			opts: func(opts *Options) {
+				opts.SystemUIDs = fakeSystemUIDChecker{"sys": true}
+			},
+			want: ReasonDisband,
+		},
+		{
+			name: "system device bypass follows sender send ban",
+			cmd:  SendCommand{FromUID: "u1", DeviceID: "system-device", ChannelID: "g1", ChannelType: channelTypeGroup},
+			configure: func(store *fakePermissionStore) {
+				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{}
+			},
+			opts: func(opts *Options) {
+				opts.SystemDeviceID = "system-device"
+			},
+			want: ReasonSuccess,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			singleStore := newFakePermissionStore()
+			batchBase := newFakePermissionStore()
+			if tc.configure != nil {
+				tc.configure(singleStore)
+				tc.configure(batchBase)
+			}
+			singleSubmitter := &recordingSubmitter{sendResult: SendResult{MessageID: 1, Reason: ReasonSuccess}}
+			singleOpts := Options{Submitter: singleSubmitter, PermissionStore: singleStore}
+			batchSubmitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{Result: SendResult{MessageID: 1, Reason: ReasonSuccess}}}}
+			batchStore := &recordingPermissionBatchStore{base: batchBase}
+			batchOpts := Options{Submitter: batchSubmitter, PermissionStore: batchStore, PermissionBatchStore: batchStore}
+			if tc.opts != nil {
+				tc.opts(&singleOpts)
+				tc.opts(&batchOpts)
+			}
+
+			singleResult, singleErr := New(singleOpts).Send(context.Background(), tc.cmd)
+			batchResults := New(batchOpts).SendBatch([]SendBatchItem{{Context: context.Background(), Command: tc.cmd}})
+			if len(batchResults) != 1 {
+				t.Fatalf("batch results len = %d, want 1", len(batchResults))
+			}
+			if singleErr != nil || batchResults[0].Err != nil {
+				t.Fatalf("single/batch errors = %v/%v, want nil", singleErr, batchResults[0].Err)
+			}
+			if singleResult.Reason != tc.want || batchResults[0].Result.Reason != tc.want {
+				t.Fatalf("single/batch reasons = %v/%v, want %v", singleResult.Reason, batchResults[0].Result.Reason, tc.want)
+			}
+			if got := batchStore.batchCalls.Load(); got != 1 {
+				t.Fatalf("permission batch calls = %d, want 1", got)
+			}
+		})
 	}
 }
 
@@ -702,6 +956,22 @@ type recordingPersonDirectoryEnsurer struct {
 	err        error
 }
 
+type recordingSendBatchStageObserver struct {
+	events []SendBatchStageObservation
+}
+
+func (o *recordingSendBatchStageObserver) ObserveMessageSendBatchStage(event SendBatchStageObservation) {
+	o.events = append(o.events, event)
+}
+
+func (o *recordingSendBatchStageObserver) stages() []string {
+	stages := make([]string, len(o.events))
+	for i, event := range o.events {
+		stages[i] = event.Stage
+	}
+	return stages
+}
+
 func (e *recordingPersonDirectoryEnsurer) EnsurePersonChannelDirectory(_ context.Context, channelID string, _ int64) error {
 	e.channelIDs = append(e.channelIDs, channelID)
 	return e.err
@@ -734,6 +1004,52 @@ type fakePermissionStore struct {
 	members         map[string]map[string]bool
 	hasAny          map[string]bool
 	getChannelCalls atomic.Int64
+	containsCalls   atomic.Int64
+	hasAnyCalls     atomic.Int64
+}
+
+type recordingPermissionBatchStore struct {
+	base       *fakePermissionStore
+	batchCalls atomic.Int64
+	reads      []PermissionRead
+}
+
+func (s *recordingPermissionBatchStore) GetChannelForPermission(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error) {
+	return s.base.GetChannelForPermission(ctx, channelID, channelType)
+}
+
+func (s *recordingPermissionBatchStore) ContainsChannelSubscriber(ctx context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	return s.base.ContainsChannelSubscriber(ctx, channelID, channelType, uid)
+}
+
+func (s *recordingPermissionBatchStore) HasChannelSubscribers(ctx context.Context, channelID string, channelType int64) (bool, error) {
+	return s.base.HasChannelSubscribers(ctx, channelID, channelType)
+}
+
+func (s *recordingPermissionBatchStore) ReadPermissionsBatch(_ context.Context, reads []PermissionRead) []PermissionReadResult {
+	s.batchCalls.Add(1)
+	s.reads = append([]PermissionRead(nil), reads...)
+	results := make([]PermissionReadResult, len(reads))
+	for i, read := range reads {
+		key := permissionKey(read.ChannelID, read.ChannelType)
+		switch read.Kind {
+		case PermissionReadChannel:
+			if err, ok := s.base.channelErrs[key]; ok {
+				results[i].Err = err
+				continue
+			}
+			channel, ok := s.base.channels[key]
+			results[i].Channel = channel
+			results[i].Found = ok
+		case PermissionReadSubscriberContains:
+			results[i].Value = s.base.members[key][read.UID]
+		case PermissionReadSubscriberHasAny:
+			results[i].Value = s.base.hasAny[key]
+		default:
+			results[i].Err = fmt.Errorf("unexpected permission read kind %d", read.Kind)
+		}
+	}
+	return results
 }
 
 func newFakePermissionStore() *fakePermissionStore {
@@ -792,10 +1108,12 @@ func (*blockingBatchPermissionStore) HasChannelSubscribers(context.Context, stri
 }
 
 func (s *fakePermissionStore) ContainsChannelSubscriber(_ context.Context, channelID string, channelType int64, uid string) (bool, error) {
+	s.containsCalls.Add(1)
 	return s.members[permissionKey(channelID, channelType)][uid], nil
 }
 
 func (s *fakePermissionStore) HasChannelSubscribers(_ context.Context, channelID string, channelType int64) (bool, error) {
+	s.hasAnyCalls.Add(1)
 	return s.hasAny[permissionKey(channelID, channelType)], nil
 }
 

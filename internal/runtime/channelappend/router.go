@@ -15,7 +15,14 @@ const (
 	defaultRouterRetryBackoff                  = time.Millisecond
 	defaultRouterMaxRouteAttempts              = 3
 	defaultRouterMaxConcurrentResolvesPerBatch = 16
-	defaultRouterMaxConcurrentGroupsPerBatch   = 16
+	// Bound aggregate group submissions across concurrent SendBatch calls. Five
+	// batch-local waves plus bounded spillover preserve recovery throughput when
+	// checkpoint work briefly delays append completion without allowing every
+	// active session to multiply the append wave.
+	defaultRouterMaxConcurrentGroups = 512
+	// Keep most of the bounded Cloud Medium gateway candidate in one submit
+	// wave while reserving downstream RPC and store-worker headroom.
+	defaultRouterMaxConcurrentGroupsPerBatch = 96
 )
 
 // AuthorityResolver resolves the append authority for a canonical channel.
@@ -65,8 +72,12 @@ type RouterOptions struct {
 	MaxConcurrentResolvesPerBatch int
 	// MaxConcurrentGroupsPerBatch bounds concurrently submitted independent canonical-channel groups within one SendBatch. Values <= 0 use the default.
 	MaxConcurrentGroupsPerBatch int
+	// MaxConcurrentGroups bounds concurrently submitted canonical-channel groups across all SendBatch calls. Values <= 0 use the default.
+	MaxConcurrentGroups int
 	// Observer receives foreground routing observations.
 	Observer RouterObserver
+	// PressureObserver receives shared cross-batch group pressure observations.
+	PressureObserver RouterGroupPressureObserver
 }
 
 // Router sends commands to the current channel authority.
@@ -80,10 +91,15 @@ type Router struct {
 	maxRouteAttempts              int
 	maxConcurrentResolvesPerBatch int
 	maxConcurrentGroupsPerBatch   int
+	maxConcurrentGroups           int
+	groupSlots                    chan struct{}
+	groupPressureMu               sync.Mutex
+	groupInflight                 int
 	maxOutbound                   int
 	outbound                      map[uint64]int
 	outboundMu                    sync.Mutex
 	observer                      RouterObserver
+	pressureObserver              RouterGroupPressureObserver
 }
 
 // NewRouter creates a channel authority router.
@@ -100,11 +116,15 @@ func NewRouter(opts RouterOptions) *Router {
 	if maxConcurrentGroupsPerBatch <= 0 {
 		maxConcurrentGroupsPerBatch = defaultRouterMaxConcurrentGroupsPerBatch
 	}
+	maxConcurrentGroups := opts.MaxConcurrentGroups
+	if maxConcurrentGroups <= 0 {
+		maxConcurrentGroups = defaultRouterMaxConcurrentGroups
+	}
 	maxConcurrentResolvesPerBatch := opts.MaxConcurrentResolvesPerBatch
 	if maxConcurrentResolvesPerBatch <= 0 {
 		maxConcurrentResolvesPerBatch = defaultRouterMaxConcurrentResolvesPerBatch
 	}
-	return &Router{
+	router := &Router{
 		localNodeID:                   opts.LocalNodeID,
 		resolver:                      opts.Resolver,
 		local:                         opts.Local,
@@ -113,10 +133,15 @@ func NewRouter(opts RouterOptions) *Router {
 		maxRouteAttempts:              maxRouteAttempts,
 		maxConcurrentResolvesPerBatch: maxConcurrentResolvesPerBatch,
 		maxConcurrentGroupsPerBatch:   maxConcurrentGroupsPerBatch,
+		maxConcurrentGroups:           maxConcurrentGroups,
+		groupSlots:                    make(chan struct{}, maxConcurrentGroups),
 		maxOutbound:                   opts.MaxOutboundPerNode,
 		outbound:                      make(map[uint64]int),
 		observer:                      opts.Observer,
+		pressureObserver:              opts.PressureObserver,
 	}
+	router.observeGroupPressure()
+	return router
 }
 
 // Send routes one send command through channel authority.
@@ -129,11 +154,20 @@ func (r *Router) Send(ctx context.Context, cmd SendCommand) (SendResult, error) 
 }
 
 // SendBatch routes sends and returns item-aligned results.
-func (r *Router) SendBatch(items []SendBatchItem) []SendBatchItemResult {
+func (r *Router) SendBatch(items []SendBatchItem) (results []SendBatchItemResult) {
+	startedAt := time.Now()
+	defer func() {
+		observeRouterGroup(r.observer, RouterObservation{
+			Path:     "batch",
+			Result:   routerResultsClass(results),
+			Items:    len(items),
+			Duration: time.Since(startedAt),
+		})
+	}()
 	if len(items) == 1 {
 		return []SendBatchItemResult{r.sendSingle(items[0])}
 	}
-	results := make([]SendBatchItemResult, len(items))
+	results = make([]SendBatchItemResult, len(items))
 	pending := make([]int, 0, len(items))
 	attempts := make([]int, len(items))
 	routeChannels := make([]ChannelID, len(items))
@@ -425,6 +459,10 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	}
 	ctx, cancel := routerAllItemsContext(activeItems)
 	defer cancel()
+	if !r.acquireGroup(ctx) {
+		return finishActive(routerErrorResults(len(activeItems), ctx.Err()))
+	}
+	defer r.releaseGroup()
 	if group.target.LeaderNodeID == r.localNodeID {
 		path = "local"
 		if r.local == nil {
@@ -469,6 +507,10 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 	}
 	ctx, cancel := routerAllItemsContext([]SendBatchItem{item})
 	defer cancel()
+	if !r.acquireGroup(ctx) {
+		return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: ctx.Err()}, time.Now()))
+	}
+	defer r.releaseGroup()
 	if target.LeaderNodeID == r.localNodeID {
 		path = "local"
 		if r.local == nil {
@@ -900,6 +942,43 @@ func (r *Router) acquireOutbound(nodeID uint64) bool {
 	}
 	r.outbound[nodeID]++
 	return true
+}
+
+func (r *Router) acquireGroup(ctx context.Context) bool {
+	select {
+	case r.groupSlots <- struct{}{}:
+		r.groupPressureMu.Lock()
+		r.groupInflight++
+		r.observeGroupPressureLocked()
+		r.groupPressureMu.Unlock()
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (r *Router) releaseGroup() {
+	<-r.groupSlots
+	r.groupPressureMu.Lock()
+	r.groupInflight--
+	r.observeGroupPressureLocked()
+	r.groupPressureMu.Unlock()
+}
+
+func (r *Router) observeGroupPressure() {
+	r.groupPressureMu.Lock()
+	defer r.groupPressureMu.Unlock()
+	r.observeGroupPressureLocked()
+}
+
+func (r *Router) observeGroupPressureLocked() {
+	if r.pressureObserver == nil {
+		return
+	}
+	r.pressureObserver.SetChannelAppendRouterGroupPressure(RouterGroupPressureObservation{
+		Inflight: r.groupInflight,
+		Capacity: r.maxConcurrentGroups,
+	})
 }
 
 func (r *Router) releaseOutbound(nodeID uint64) {

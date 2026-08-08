@@ -392,7 +392,7 @@ func TestAsyncSendBatchOptionsUseDefaults(t *testing.T) {
 	if got, want := opt.AsyncSendBatchMaxWait, time.Millisecond; got != want {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want %s", got, want)
 	}
-	if got, want := opt.AsyncSendBatchMaxRecords, 512; got != want {
+	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
 		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
 	}
 	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {
@@ -409,7 +409,7 @@ func TestAsyncSendBatchOptionsCanDisableWaitButNotBounds(t *testing.T) {
 	if opt.AsyncSendBatchMaxWait != 0 {
 		t.Fatalf("AsyncSendBatchMaxWait = %s, want 0", opt.AsyncSendBatchMaxWait)
 	}
-	if got, want := opt.AsyncSendBatchMaxRecords, 512; got != want {
+	if got, want := opt.AsyncSendBatchMaxRecords, 128; got != want {
 		t.Fatalf("AsyncSendBatchMaxRecords = %d, want %d", got, want)
 	}
 	if got, want := opt.AsyncSendBatchMaxBytes, 512*1024; got != want {

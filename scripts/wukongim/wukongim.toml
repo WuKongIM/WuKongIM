@@ -78,9 +78,9 @@ commit_coordinator_max_records = 0
 
 commit_coordinator_max_bytes = 0
 
-# Four partition-hashed coordinators preserve per-channel append locking and
-# synchronous durable commits while allowing unrelated channels to commit concurrently.
-commit_coordinator_shards = 4
+# One coordinator maximizes durable group-commit batches for the single physical
+# message DB and avoids concurrent fsync contention. Increase only after storage-specific validation.
+commit_coordinator_shards = 1
 
 [api]
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
@@ -215,7 +215,9 @@ runtime_async_pool_release_timeout = "0s"
 
 default_session_async_send_batch_max_wait = "1ms"
 
-default_session_async_send_batch_max_records = 512
+# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.
+# The 128-record limit is qualified for sustained high-QPS workloads.
+default_session_async_send_batch_max_records = 128
 
 default_session_async_send_batch_max_bytes = 524288
 

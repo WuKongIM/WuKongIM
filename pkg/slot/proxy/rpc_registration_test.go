@@ -24,6 +24,7 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 		int(identityRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
+		int(permissionBatchRPCServiceID),
 		int(channelMigrationRPCServiceID),
 		int(pluginBindingRPCServiceID),
 		int(membershipRPCServiceID),
@@ -48,6 +49,7 @@ func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T)
 		int(runtimeMetaRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
+		int(permissionBatchRPCServiceID),
 		int(membershipRPCServiceID),
 	}
 	sort.Ints(want)

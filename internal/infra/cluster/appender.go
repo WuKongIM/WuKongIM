@@ -62,15 +62,16 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelappend.App
 		attempt = channelAppendDefaultAttempt
 	}
 	res, err := a.node.AppendChannelBatch(ctx, channelruntime.AppendBatchRequest{
-		ChannelID:            channelruntime.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
-		ExpectedChannelEpoch: req.ExpectedEpoch,
-		ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
-		Messages:             toChannelMessages(req.Messages),
-		TraceID:              req.TraceID,
-		ChannelKey:           req.ChannelKey,
-		Attempt:              attempt,
-		CommitMode:           toChannelCommitMode(req.CommitMode),
-		OmitResultPayload:    req.OmitResultPayload,
+		ChannelID:                 channelruntime.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
+		ExpectedChannelEpoch:      req.ExpectedEpoch,
+		ExpectedLeaderEpoch:       req.ExpectedLeaderEpoch,
+		Messages:                  toChannelMessages(req.Messages),
+		TraceID:                   req.TraceID,
+		ChannelKey:                req.ChannelKey,
+		Attempt:                   attempt,
+		CommitMode:                toChannelCommitMode(req.CommitMode),
+		OmitResultPayload:         req.OmitResultPayload,
+		ServerAllocatedMessageIDs: req.ServerAllocatedMessageIDs,
 	})
 	if err != nil {
 		mappedErr := mapAppendError(err)

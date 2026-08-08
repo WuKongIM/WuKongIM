@@ -22,7 +22,7 @@ func TestMessageHeaderCodecRoundTrip(t *testing.T) {
 	if err := decodeMessageHeader(key, value, &got); err != nil {
 		t.Fatalf("decodeMessageHeader(): %v", err)
 	}
-	if got.MessageID != row.MessageID || got.ClientMsgNo != row.ClientMsgNo || got.PayloadHash != row.PayloadHash || got.PayloadSize != row.PayloadSize || got.ServerTimestampMS != row.ServerTimestampMS {
+	if got.MessageID != row.MessageID || got.ClientMsgNo != row.ClientMsgNo || got.PayloadHash != row.PayloadHash || got.PayloadSize != row.PayloadSize || string(got.Payload) != string(row.Payload) || got.ServerTimestampMS != row.ServerTimestampMS {
 		t.Fatalf("decoded row = %#v, want %#v", got, row)
 	}
 }
@@ -46,7 +46,7 @@ func TestMessageHeaderDirectCodecMatchesEncoder(t *testing.T) {
 	if err := decodeMessageHeader(key, got, &decoded); err != nil {
 		t.Fatalf("decodeMessageHeader(): %v", err)
 	}
-	if decoded.MessageID != row.MessageID || decoded.ClientMsgNo != row.ClientMsgNo || decoded.PayloadHash != row.PayloadHash || decoded.PayloadSize != row.PayloadSize || decoded.ServerTimestampMS != row.ServerTimestampMS {
+	if decoded.MessageID != row.MessageID || decoded.ClientMsgNo != row.ClientMsgNo || decoded.PayloadHash != row.PayloadHash || decoded.PayloadSize != row.PayloadSize || string(decoded.Payload) != string(row.Payload) || decoded.ServerTimestampMS != row.ServerTimestampMS {
 		t.Fatalf("decoded row = %#v, want %#v", decoded, row)
 	}
 }

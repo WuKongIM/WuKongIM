@@ -891,7 +891,6 @@ func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint
 	}
 	latestStore, ok := storeFactory.(interface {
 		ListLatestMessages(context.Context, uint64, int) ([]channelruntime.Message, bool, uint64, error)
-		DeleteLatestMessageIndexes(context.Context, []uint64) error
 	})
 	if !ok {
 		return nil, false, 0, channelruntime.ErrInvalidConfig
@@ -922,12 +921,10 @@ func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint
 		if err := n.loadLocalLatestVisibility(ctx, storeFactory, items, visibility); err != nil {
 			return nil, false, 0, err
 		}
-		retainedMessageIDs := make([]uint64, 0)
 		pageFull := false
 		for _, item := range items {
 			state := visibility[localLatestChannelKey{id: item.ChannelID, typ: item.ChannelType}]
 			if item.MessageSeq <= state.retentionThrough {
-				retainedMessageIDs = append(retainedMessageIDs, item.MessageID)
 				continue
 			}
 			if item.MessageSeq > state.hw {
@@ -937,11 +934,6 @@ func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint
 			if len(visible) == limit+1 {
 				pageFull = true
 				break
-			}
-		}
-		if len(retainedMessageIDs) > 0 {
-			if err := latestStore.DeleteLatestMessageIndexes(ctx, retainedMessageIDs); err != nil {
-				return nil, false, 0, err
 			}
 		}
 		if pageFull {

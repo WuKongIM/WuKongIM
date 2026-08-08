@@ -48,8 +48,8 @@ func TestConfigDefaultsSingleNodeControl(t *testing.T) {
 	if cfg.Channel.RPCWorkers != 160 || cfg.Channel.RPCBatchMaxItems != 16 {
 		t.Fatalf("Channel RPC defaults = %d/%d, want 160/16", cfg.Channel.RPCWorkers, cfg.Channel.RPCBatchMaxItems)
 	}
-	if cfg.Storage.CommitShards != 4 {
-		t.Fatalf("Storage.CommitShards default = %d, want 4", cfg.Storage.CommitShards)
+	if cfg.Storage.CommitShards != 1 {
+		t.Fatalf("Storage.CommitShards default = %d, want 1", cfg.Storage.CommitShards)
 	}
 }
 

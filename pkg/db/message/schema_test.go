@@ -15,12 +15,22 @@ func TestMessageSchemaValidates(t *testing.T) {
 	}
 }
 
-func TestMessageSchemaSeparatesPayloadFamily(t *testing.T) {
-	payloadFamily, ok := MessageTable.Family(messagePayloadFamilyID)
+func TestMessageSchemaStoresCompleteMessageInOneFamily(t *testing.T) {
+	rowFamily, ok := MessageTable.Family(messageHeaderFamilyID)
 	if !ok {
-		t.Fatal("payload family missing")
+		t.Fatal("row family missing")
 	}
-	if len(payloadFamily.Columns) != 1 || payloadFamily.Columns[0] != messageColumnIDPayload {
-		t.Fatalf("payload family columns = %v", payloadFamily.Columns)
+	if len(MessageTable.Families) != 1 {
+		t.Fatalf("message families = %d, want 1", len(MessageTable.Families))
+	}
+	foundPayload := false
+	for _, columnID := range rowFamily.Columns {
+		if columnID == messageColumnIDPayload {
+			foundPayload = true
+			break
+		}
+	}
+	if !foundPayload {
+		t.Fatalf("row family columns = %v, want payload", rowFamily.Columns)
 	}
 }

@@ -4,6 +4,10 @@ import messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 
 // MessageDBFactoryMetricsSnapshot is a stable view of the factory-owned message store.
 type MessageDBFactoryMetricsSnapshot struct {
+	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
+	IdempotencyNegativeFilterSkips uint64
+	// IdempotencyPointReads is the number of possible filter hits verified durably.
+	IdempotencyPointReads uint64
 	// ChannelEntries contains aggregate canonical entry ownership for the message store.
 	ChannelEntries messagedb.ChannelEntryMetricsSnapshot
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
@@ -24,6 +28,14 @@ type MessageDBFactoryMetricsSnapshot struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
+	SSTableSizeBytes uint64
+	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
+	FlushBytesWritten uint64
+	// CompactionBytesRead is the cumulative SSTable bytes read by compactions.
+	CompactionBytesRead uint64
+	// CompactionBytesWritten is the cumulative SSTable bytes written by compactions.
+	CompactionBytesWritten uint64
 	// FlushCount is the number of completed flushes since this engine opened.
 	FlushCount int64
 	// FlushesInProgress is the current number of flushes in progress.
@@ -58,20 +70,26 @@ func (f *MessageDBFactory) ChannelEntryMetricsSnapshot() messagedb.ChannelEntryM
 
 func messageFactoryMetricsFromSnapshot(snapshot messagedb.EngineMetricsSnapshot) MessageDBFactoryMetricsSnapshot {
 	return MessageDBFactoryMetricsSnapshot{
-		DiskSpaceUsageBytes:          snapshot.DiskSpaceUsageBytes,
-		ReadAmplification:            snapshot.ReadAmplification,
-		MemTableSizeBytes:            snapshot.MemTableSizeBytes,
-		MemTableCount:                snapshot.MemTableCount,
-		WALFiles:                     snapshot.WALFiles,
-		WALSizeBytes:                 snapshot.WALSizeBytes,
-		WALPhysicalSizeBytes:         snapshot.WALPhysicalSizeBytes,
-		WALBytesIn:                   snapshot.WALBytesIn,
-		WALBytesWritten:              snapshot.WALBytesWritten,
-		FlushCount:                   snapshot.FlushCount,
-		FlushesInProgress:            snapshot.FlushesInProgress,
-		CompactionCount:              snapshot.CompactionCount,
-		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
-		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
-		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		IdempotencyNegativeFilterSkips: snapshot.IdempotencyNegativeFilterSkips,
+		IdempotencyPointReads:          snapshot.IdempotencyPointReads,
+		DiskSpaceUsageBytes:            snapshot.DiskSpaceUsageBytes,
+		ReadAmplification:              snapshot.ReadAmplification,
+		MemTableSizeBytes:              snapshot.MemTableSizeBytes,
+		MemTableCount:                  snapshot.MemTableCount,
+		WALFiles:                       snapshot.WALFiles,
+		WALSizeBytes:                   snapshot.WALSizeBytes,
+		WALPhysicalSizeBytes:           snapshot.WALPhysicalSizeBytes,
+		WALBytesIn:                     snapshot.WALBytesIn,
+		WALBytesWritten:                snapshot.WALBytesWritten,
+		SSTableSizeBytes:               snapshot.SSTableSizeBytes,
+		FlushBytesWritten:              snapshot.FlushBytesWritten,
+		CompactionBytesRead:            snapshot.CompactionBytesRead,
+		CompactionBytesWritten:         snapshot.CompactionBytesWritten,
+		FlushCount:                     snapshot.FlushCount,
+		FlushesInProgress:              snapshot.FlushesInProgress,
+		CompactionCount:                snapshot.CompactionCount,
+		CompactionEstimatedDebtBytes:   snapshot.CompactionEstimatedDebtBytes,
+		CompactionInProgressBytes:      snapshot.CompactionInProgressBytes,
+		CompactionsInProgress:          snapshot.CompactionsInProgress,
 	}
 }
