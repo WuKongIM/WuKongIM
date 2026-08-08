@@ -238,6 +238,78 @@ func TestWholeQuotaValueFailsClosedOnNonIntegralProviderValues(t *testing.T) {
 	}
 }
 
+func TestDiscoverEIPQuotaPaginatesAndRequiresOneExactQuota(t *testing.T) {
+	calls := make([]string, 0, 2)
+	got, err := discoverEIPQuota(context.Background(), func(_ context.Context, token string) ([]eipQuotaRecord, string, int32, error) {
+		calls = append(calls, token)
+		switch token {
+		case "":
+			return nil, "page-2", 1, nil
+		case "page-2":
+			return []eipQuotaRecord{{
+				ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode,
+				Limit: float32Pointer(20), Used: float32Pointer(3),
+			}}, "", 1, nil
+		default:
+			return nil, "", 0, errors.New("unexpected token")
+		}
+	})
+	if err != nil {
+		t.Fatalf("discoverEIPQuota() error = %v", err)
+	}
+	if !reflect.DeepEqual(calls, []string{"", "page-2"}) {
+		t.Fatalf("page tokens = %#v, want initial and page-2", calls)
+	}
+	if got != (EIPQuota{Limit: 20, Used: 3}) {
+		t.Fatalf("discoverEIPQuota() = %#v, want limit 20 used 3", got)
+	}
+}
+
+func TestDiscoverEIPQuotaFailsClosedOnIncompleteOrAmbiguousEvidence(t *testing.T) {
+	exact := eipQuotaRecord{
+		ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode,
+		Limit: float32Pointer(20), Used: float32Pointer(3),
+	}
+	tests := []struct {
+		name  string
+		fetch eipQuotaPageFetcher
+	}{
+		{name: "no quota", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+			return nil, "", 0, nil
+		}},
+		{name: "duplicate quota", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+			return []eipQuotaRecord{exact, exact}, "", 2, nil
+		}},
+		{name: "wrong identity", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+			wrong := exact
+			wrong.ActionCode = "another_quota"
+			return []eipQuotaRecord{wrong}, "", 1, nil
+		}},
+		{name: "missing use", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+			missing := exact
+			missing.Used = nil
+			return []eipQuotaRecord{missing}, "", 1, nil
+		}},
+		{name: "changing total", fetch: func(_ context.Context, token string) ([]eipQuotaRecord, string, int32, error) {
+			if token == "" {
+				return nil, "page-2", 1, nil
+			}
+			return []eipQuotaRecord{exact}, "", 2, nil
+		}},
+		{name: "token cycle", fetch: func(context.Context, string) ([]eipQuotaRecord, string, int32, error) {
+			return nil, "cycle", 1, nil
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := discoverEIPQuota(context.Background(), test.fetch)
+			if !errors.Is(err, ErrDiscoveryUnavailable) {
+				t.Fatalf("discoverEIPQuota() error = %v, want ErrDiscoveryUnavailable", err)
+			}
+		})
+	}
+}
+
 func TestRequiredQuoteActionsAreReadOnlyAndExact(t *testing.T) {
 	want := []string{
 		"ecs:DescribeAccountAttributes",
@@ -246,7 +318,7 @@ func TestRequiredQuoteActionsAreReadOnlyAndExact(t *testing.T) {
 		"ecs:DescribeInstanceTypes",
 		"ecs:DescribePrice",
 		"ecs:DescribeZones",
-		"quotas:GetProductQuota",
+		"quotas:ListProductQuotas",
 		"ram:GetPolicyVersion",
 		"ram:ListPoliciesForRole",
 		"sts:GetCallerIdentity",

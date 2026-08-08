@@ -13,7 +13,7 @@ cloudlease.Controller.Quote
   -> ECS DescribeZones -> PostPaid ESSD-capable zones
   -> paginated DescribeInstanceTypes -> exact 4 vCPU / 8 GiB candidates
   -> DescribeAccountAttributes -> remaining PostPaid vCPU quota
-  -> Quota Center GetProductQuota -> EIP headroom + retention-fee waiver proof
+  -> paginated Quota Center ListProductQuotas -> EIP headroom + retention-fee waiver proof
   -> DescribeAvailableResource -> WithStock NoSpot instance + requested ESSD ranges
   -> paginated DescribeImages -> latest official cloud-init Ubuntu 24.04 x86_64
   -> DescribePrice -> one-hour host+disk and pay-by-traffic EIP unit prices
@@ -51,10 +51,12 @@ one-time Cloud Lease identity setup
      one-hour session proof for all three roles
 ```
 
-The Quote API seam contains read methods only. Missing pages, repeated page
-tokens, malformed prices, incomplete quota, unknown image provenance, or an
-unpriced eligible offer fail closed because any of them could invalidate the
-claim that the chosen offer is cheapest. Every candidate uses regular
+The Quote API seam contains read methods only. EIP quota discovery filters the
+provider list by the exact product, action code, and common-quota category, then
+requires one complete record whose paginated count is stable. Missing pages,
+repeated page tokens, malformed prices, incomplete or ambiguous quota, unknown
+image provenance, or an unpriced eligible offer fail closed because any of them
+could invalidate the claim that the chosen offer is cheapest. Every candidate uses regular
 PostPaid/NoSpot capacity, one instance type for every host in the Plan, one ESSD
 PL0 data disk per host, and one directly associated pay-by-traffic EIP. Workload
 role names, host counts, disk sizes, and bandwidth are use-case decisions rather

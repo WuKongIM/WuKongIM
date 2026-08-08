@@ -38,6 +38,7 @@ const (
 	officialUbuntuImageNamePattern = "ubuntu_24_04_x64_20G_alibase*"
 	eipQuotaProductCode            = "eip"
 	eipQuotaActionCode             = "eip_quota_instances_num"
+	eipQuotaCategory               = "CommonQuota"
 	mutationPermissionProbeID      = "i-wukongim-readonly-permission-probe"
 )
 
@@ -134,7 +135,7 @@ func RequiredQuoteActions() []string {
 		"ecs:DescribeInstanceTypes",
 		"ecs:DescribePrice",
 		"ecs:DescribeZones",
-		"quotas:GetProductQuota",
+		"quotas:ListProductQuotas",
 		"ram:GetPolicyVersion",
 		"ram:ListPoliciesForRole",
 		"sts:GetCallerIdentity",
@@ -643,22 +644,96 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 	if err := ctx.Err(); err != nil {
 		return EIPQuota{}, err
 	}
-	response, err := a.quotas.GetProductQuotaWithContext(ctx, (&quotas.GetProductQuotaRequest{}).
-		SetProductCode(eipQuotaProductCode).
-		SetQuotaActionCode(eipQuotaActionCode), &dara.RuntimeOptions{})
-	if err != nil || response == nil || response.Body == nil || response.Body.Quota == nil {
-		return EIPQuota{}, discoveryError("GetProductQuota", err)
+	return discoverEIPQuota(ctx, func(ctx context.Context, token string) ([]eipQuotaRecord, string, int32, error) {
+		request := (&quotas.ListProductQuotasRequest{}).
+			SetProductCode(eipQuotaProductCode).
+			SetQuotaActionCode(eipQuotaActionCode).
+			SetQuotaCategory(eipQuotaCategory).
+			SetMaxResults(discoveryPageSize)
+		if token != "" {
+			request.SetNextToken(token)
+		}
+		response, err := a.quotas.ListProductQuotasWithContext(ctx, request, &dara.RuntimeOptions{})
+		if err != nil || response == nil || response.Body == nil || response.Body.TotalCount == nil {
+			return nil, "", 0, discoveryError("ListProductQuotas", err)
+		}
+		records := make([]eipQuotaRecord, 0, len(response.Body.Quotas))
+		for _, quota := range response.Body.Quotas {
+			if quota == nil {
+				return nil, "", 0, discoveryError("ListProductQuotas nil quota", nil)
+			}
+			records = append(records, eipQuotaRecord{
+				ProductCode: stringValue(quota.ProductCode),
+				ActionCode:  stringValue(quota.QuotaActionCode),
+				Limit:       quota.TotalQuota,
+				Used:        quota.TotalUsage,
+			})
+		}
+		return records, stringValue(response.Body.NextToken), int32Value(response.Body.TotalCount), nil
+	})
+}
+
+type eipQuotaRecord struct {
+	ProductCode string
+	ActionCode  string
+	Limit       *float32
+	Used        *float32
+}
+
+type eipQuotaPageFetcher func(context.Context, string) ([]eipQuotaRecord, string, int32, error)
+
+func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota, error) {
+	if fetch == nil {
+		return EIPQuota{}, ErrDiscoveryUnavailable
 	}
-	quota := response.Body.Quota
-	if stringValue(quota.ProductCode) != eipQuotaProductCode || stringValue(quota.QuotaActionCode) != eipQuotaActionCode {
-		return EIPQuota{}, discoveryError("GetProductQuota identity", nil)
+	records := make([]eipQuotaRecord, 0, 1)
+	seenTokens := make(map[string]struct{}, maxDiscoveryPages)
+	expectedTotal := int32(-1)
+	token := ""
+	for page := 0; page < maxDiscoveryPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return EIPQuota{}, err
+		}
+		items, nextToken, total, err := fetch(ctx, token)
+		if err != nil {
+			return EIPQuota{}, err
+		}
+		if total < 0 || (expectedTotal >= 0 && total != expectedTotal) {
+			return EIPQuota{}, discoveryError("ListProductQuotas inconsistent total", nil)
+		}
+		if expectedTotal < 0 {
+			expectedTotal = total
+		}
+		records = append(records, items...)
+		if int64(len(records)) > int64(expectedTotal) {
+			return EIPQuota{}, discoveryError("ListProductQuotas excess records", nil)
+		}
+		nextToken = strings.TrimSpace(nextToken)
+		if nextToken == "" {
+			if int64(len(records)) != int64(expectedTotal) || len(records) != 1 {
+				return EIPQuota{}, discoveryError("ListProductQuotas incomplete quota", nil)
+			}
+			record := records[0]
+			if record.ProductCode != eipQuotaProductCode || record.ActionCode != eipQuotaActionCode {
+				return EIPQuota{}, discoveryError("ListProductQuotas identity", nil)
+			}
+			limit, limitOK := wholeQuotaValue(record.Limit)
+			used, usedOK := wholeQuotaValue(record.Used)
+			if !limitOK || !usedOK || limit <= 0 || used > limit {
+				return EIPQuota{}, discoveryError("ListProductQuotas value", nil)
+			}
+			return EIPQuota{Limit: limit, Used: used}, nil
+		}
+		if nextToken == token {
+			return EIPQuota{}, discoveryError("ListProductQuotas repeated token", nil)
+		}
+		if _, exists := seenTokens[nextToken]; exists {
+			return EIPQuota{}, discoveryError("ListProductQuotas token cycle", nil)
+		}
+		seenTokens[nextToken] = struct{}{}
+		token = nextToken
 	}
-	limit, limitOK := wholeQuotaValue(quota.TotalQuota)
-	used, usedOK := wholeQuotaValue(quota.TotalUsage)
-	if !limitOK || !usedOK || limit <= 0 || used > limit {
-		return EIPQuota{}, discoveryError("GetProductQuota value", nil)
-	}
-	return EIPQuota{Limit: limit, Used: used}, nil
+	return EIPQuota{}, discoveryError("ListProductQuotas page limit", nil)
 }
 
 func wholeQuotaValue(value *float32) (int64, bool) {
