@@ -180,6 +180,9 @@ func TestCloudLeaseOIDCSetupLiveVerifiesChatLifecycleWrappingKey(t *testing.T) {
 		"ssh-keygen -y",
 		"expected-normalized.pub",
 		"awk 'NR == 1 && NF >= 2",
+		"expected_fingerprint=\"$(ssh-keygen -lf \"$RUNNER_TEMP/expected-normalized.pub\" | awk '{print $2}')\"",
+		"actual_fingerprint=\"$(ssh-keygen -lf \"$RUNNER_TEMP/actual.pub\" | awk '{print $2}')\"",
+		"wrapping key mismatch (expected fingerprint $expected_fingerprint, actual fingerprint $actual_fingerprint)",
 		"cmp -s",
 	} {
 		if !strings.Contains(workflow, required) {

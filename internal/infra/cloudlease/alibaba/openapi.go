@@ -272,7 +272,9 @@ func principalHasRole(arn, expectedRole string) bool {
 		}
 		roleAndSession := arn[index+len(marker):]
 		role, _, _ := strings.Cut(roleAndSession, "/")
-		return role == expectedRole
+		// Alibaba canonicalizes RAM role names to lowercase in ARNs even when
+		// GetRole returns the original display casing.
+		return strings.EqualFold(role, expectedRole)
 	}
 	return false
 }

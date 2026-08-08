@@ -322,6 +322,7 @@ func TestPrincipalHasRoleMatchesOneExactRolePathSegment(t *testing.T) {
 	}{
 		{name: "assumed role", arn: "acs:ram::123:assumed-role/CloudLeaseQuote/session", role: "CloudLeaseQuote", want: true},
 		{name: "role", arn: "acs:ram::123:role/CloudLeaseQuote/session", role: "CloudLeaseQuote", want: true},
+		{name: "canonical lowercase ARN", arn: "acs:ram::123:role/cloudleasequote/session", role: "CloudLeaseQuote", want: true},
 		{name: "substring", arn: "acs:ram::123:assumed-role/CloudLeaseQuoteAdmin/session", role: "CloudLeaseQuote"},
 		{name: "wrong identity", arn: "acs:ram::123:user/CloudLeaseQuote", role: "CloudLeaseQuote"},
 		{name: "role path injection", arn: "acs:ram::123:assumed-role/CloudLeaseQuote/session", role: "CloudLeaseQuote/session"},

@@ -305,7 +305,12 @@ jobs:
           ssh-keygen -lf "$RUNNER_TEMP/expected.pub" | grep -q ED25519
           awk 'NR == 1 && NF >= 2 {print $1 " " $2; ok=1} END {exit !ok}' \
             "$RUNNER_TEMP/expected.pub" >"$RUNNER_TEMP/expected-normalized.pub"
-          cmp -s "$RUNNER_TEMP/expected-normalized.pub" "$RUNNER_TEMP/actual.pub"
+          if ! cmp -s "$RUNNER_TEMP/expected-normalized.pub" "$RUNNER_TEMP/actual.pub"; then
+            expected_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/expected-normalized.pub" | awk '{print $2}')"
+            actual_fingerprint="$(ssh-keygen -lf "$RUNNER_TEMP/actual.pub" | awk '{print $2}')"
+            echo "::error::wrapping key mismatch (expected fingerprint $expected_fingerprint, actual fingerprint $actual_fingerprint)"
+            exit 1
+          fi
       - name: Remove plaintext wrapping identity
         if: always()
         shell: bash
