@@ -121,7 +121,7 @@ func (a *IdentityBootstrapOpenAPI) ReadIdentityBootstrapState(ctx context.Contex
 	}
 	var state IdentityBootstrapState
 	response, err := a.ims.GetOIDCProviderWithContext(ctx,
-		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), nil)
+		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), &dara.RuntimeOptions{})
 	if err == nil && response.Body != nil && response.Body.OIDCProvider != nil {
 		provider := response.Body.OIDCProvider
 		state.OIDCProvider = IdentityOIDCProviderSpec{
@@ -174,24 +174,24 @@ func (a *IdentityBootstrapOpenAPI) RemoveIdentityBootstrapState(ctx context.Cont
 	var errs []error
 	for _, policy := range desired.Policies {
 		_, detachErr := a.ram.DetachPolicyFromRoleWithContext(ctx, (&ram.DetachPolicyFromRoleRequest{}).
-			SetPolicyName(policy.Name).SetPolicyType("Custom").SetRoleName(policy.AttachedRole), nil)
+			SetPolicyName(policy.Name).SetPolicyType("Custom").SetRoleName(policy.AttachedRole), &dara.RuntimeOptions{})
 		if detachErr != nil && !identityBootstrapNotFound(detachErr) {
 			errs = append(errs, fmt.Errorf("detach identity policy %s: %w", policy.Name, detachErr))
 		}
 		_, deleteErr := a.ram.DeletePolicyWithContext(ctx,
-			(&ram.DeletePolicyRequest{}).SetPolicyName(policy.Name).SetCascadingDelete(true), nil)
+			(&ram.DeletePolicyRequest{}).SetPolicyName(policy.Name).SetCascadingDelete(true), &dara.RuntimeOptions{})
 		if deleteErr != nil && !identityBootstrapNotFound(deleteErr) {
 			errs = append(errs, fmt.Errorf("delete identity policy %s: %w", policy.Name, deleteErr))
 		}
 	}
 	for _, role := range desired.Roles {
-		_, err := a.ram.DeleteRoleWithContext(ctx, (&ram.DeleteRoleRequest{}).SetRoleName(role.Name), nil)
+		_, err := a.ram.DeleteRoleWithContext(ctx, (&ram.DeleteRoleRequest{}).SetRoleName(role.Name), &dara.RuntimeOptions{})
 		if err != nil && !identityBootstrapNotFound(err) {
 			errs = append(errs, fmt.Errorf("delete identity role %s: %w", role.Name, err))
 		}
 	}
 	_, err := a.ims.DeleteOIDCProviderWithContext(ctx,
-		(&ims.DeleteOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), nil)
+		(&ims.DeleteOIDCProviderRequest{}).SetOIDCProviderName(desired.OIDCProvider.Name), &dara.RuntimeOptions{})
 	if err != nil && !identityBootstrapNotFound(err) {
 		errs = append(errs, fmt.Errorf("delete Cloud Lease OIDC provider: %w", err))
 	}
@@ -199,7 +199,7 @@ func (a *IdentityBootstrapOpenAPI) RemoveIdentityBootstrapState(ctx context.Cont
 }
 
 func (a *IdentityBootstrapOpenAPI) readIdentityRole(ctx context.Context, desired IdentityRoleSpec) (IdentityRoleSpec, error) {
-	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(desired.Name), nil)
+	response, err := a.ram.GetRoleWithContext(ctx, (&ram.GetRoleRequest{}).SetRoleName(desired.Name), &dara.RuntimeOptions{})
 	if err != nil {
 		if identityBootstrapNotFound(err) {
 			return IdentityRoleSpec{}, nil
@@ -219,7 +219,7 @@ func (a *IdentityBootstrapOpenAPI) readIdentityRole(ctx context.Context, desired
 
 func (a *IdentityBootstrapOpenAPI) readIdentityPolicy(ctx context.Context, desired IdentityPolicySpec) (IdentityPolicySpec, error) {
 	response, err := a.ram.GetPolicyWithContext(ctx,
-		(&ram.GetPolicyRequest{}).SetPolicyName(desired.Name).SetPolicyType("Custom"), nil)
+		(&ram.GetPolicyRequest{}).SetPolicyName(desired.Name).SetPolicyType("Custom"), &dara.RuntimeOptions{})
 	if err != nil {
 		if identityBootstrapNotFound(err) {
 			return IdentityPolicySpec{}, nil
@@ -231,7 +231,7 @@ func (a *IdentityBootstrapOpenAPI) readIdentityPolicy(ctx context.Context, desir
 	}
 	attachedRole := ""
 	list, listErr := a.ram.ListPoliciesForRoleWithContext(ctx,
-		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), nil)
+		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 	if listErr != nil && !identityBootstrapNotFound(listErr) {
 		return IdentityPolicySpec{}, fmt.Errorf("list identity role policies %s: %w", desired.AttachedRole, listErr)
 	}
@@ -250,7 +250,7 @@ func (a *IdentityBootstrapOpenAPI) readIdentityPolicy(ctx context.Context, desir
 
 func (a *IdentityBootstrapOpenAPI) upsertIdentityOIDCProvider(ctx context.Context, desired IdentityOIDCProviderSpec) error {
 	response, err := a.ims.GetOIDCProviderWithContext(ctx,
-		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.Name), nil)
+		(&ims.GetOIDCProviderRequest{}).SetOIDCProviderName(desired.Name), &dara.RuntimeOptions{})
 	if err == nil && response.Body != nil && response.Body.OIDCProvider != nil {
 		current := response.Body.OIDCProvider
 		if strings.TrimSpace(stringValue(current.IssuerUrl)) != desired.IssuerURL {
@@ -258,7 +258,7 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityOIDCProvider(ctx context.Contex
 		}
 		if !slices.Equal(identitySplitCSV(stringValue(current.ClientIds)), desired.Audiences) {
 			if _, updateErr := a.ims.UpdateOIDCProviderWithContext(ctx, (&ims.UpdateOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetClientIds(strings.Join(desired.Audiences, ",")), nil); updateErr != nil {
+				SetOIDCProviderName(desired.Name).SetClientIds(strings.Join(desired.Audiences, ",")), &dara.RuntimeOptions{}); updateErr != nil {
 				return fmt.Errorf("update Cloud Lease OIDC audiences: %w", updateErr)
 			}
 		}
@@ -268,7 +268,7 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityOIDCProvider(ctx context.Contex
 				continue
 			}
 			if _, addErr := a.ims.AddFingerprintToOIDCProviderWithContext(ctx, (&ims.AddFingerprintToOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), nil); addErr != nil {
+				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), &dara.RuntimeOptions{}); addErr != nil {
 				return fmt.Errorf("add Cloud Lease OIDC fingerprint: %w", addErr)
 			}
 		}
@@ -277,7 +277,7 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityOIDCProvider(ctx context.Contex
 				continue
 			}
 			if _, removeErr := a.ims.RemoveFingerprintFromOIDCProviderWithContext(ctx, (&ims.RemoveFingerprintFromOIDCProviderRequest{}).
-				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), nil); removeErr != nil {
+				SetOIDCProviderName(desired.Name).SetFingerprint(fingerprint), &dara.RuntimeOptions{}); removeErr != nil {
 				return fmt.Errorf("remove Cloud Lease OIDC fingerprint: %w", removeErr)
 			}
 		}
@@ -289,7 +289,7 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityOIDCProvider(ctx context.Contex
 	_, err = a.ims.CreateOIDCProviderWithContext(ctx, (&ims.CreateOIDCProviderRequest{}).
 		SetOIDCProviderName(desired.Name).SetIssuerUrl(desired.IssuerURL).
 		SetClientIds(strings.Join(desired.Audiences, ",")).SetFingerprints(strings.Join(desired.Fingerprints, ",")).
-		SetDescription("WuKongIM Cloud Lease GitHub OIDC"), nil)
+		SetDescription("WuKongIM Cloud Lease GitHub OIDC"), &dara.RuntimeOptions{})
 	if err != nil {
 		return fmt.Errorf("create Cloud Lease OIDC provider: %w", err)
 	}
@@ -304,12 +304,12 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityRole(ctx context.Context, desir
 	if current.Name == "" {
 		_, err = a.ram.CreateRoleWithContext(ctx, (&ram.CreateRoleRequest{}).
 			SetRoleName(desired.Name).SetAssumeRolePolicyDocument(desired.TrustPolicy).
-			SetMaxSessionDuration(desired.MaxSessionDuration).SetDescription("WuKongIM Cloud Lease workflow role"), nil)
+			SetMaxSessionDuration(desired.MaxSessionDuration).SetDescription("WuKongIM Cloud Lease workflow role"), &dara.RuntimeOptions{})
 	} else if normalizeRAMPolicyDocument(current.TrustPolicy) != normalizeRAMPolicyDocument(desired.TrustPolicy) ||
 		current.MaxSessionDuration != desired.MaxSessionDuration {
 		_, err = a.ram.UpdateRoleWithContext(ctx, (&ram.UpdateRoleRequest{}).
 			SetRoleName(desired.Name).SetNewAssumeRolePolicyDocument(desired.TrustPolicy).
-			SetNewMaxSessionDuration(desired.MaxSessionDuration), nil)
+			SetNewMaxSessionDuration(desired.MaxSessionDuration), &dara.RuntimeOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("upsert identity role %s: %w", desired.Name, err)
@@ -325,17 +325,17 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityPolicy(ctx context.Context, des
 	if current.Name == "" {
 		_, err = a.ram.CreatePolicyWithContext(ctx, (&ram.CreatePolicyRequest{}).
 			SetPolicyName(desired.Name).SetPolicyDocument(desired.Document).
-			SetDescription("WuKongIM Cloud Lease least-privilege policy"), nil)
+			SetDescription("WuKongIM Cloud Lease least-privilege policy"), &dara.RuntimeOptions{})
 	} else if normalizeRAMPolicyDocument(current.Document) != normalizeRAMPolicyDocument(desired.Document) {
 		_, err = a.ram.CreatePolicyVersionWithContext(ctx, (&ram.CreatePolicyVersionRequest{}).
 			SetPolicyName(desired.Name).SetPolicyDocument(desired.Document).
-			SetSetAsDefault(true).SetRotateStrategy("DeleteOldestNonDefaultVersionWhenLimitExceeded"), nil)
+			SetSetAsDefault(true).SetRotateStrategy("DeleteOldestNonDefaultVersionWhenLimitExceeded"), &dara.RuntimeOptions{})
 	}
 	if err != nil {
 		return fmt.Errorf("upsert identity policy %s: %w", desired.Name, err)
 	}
 	list, err := a.ram.ListPoliciesForRoleWithContext(ctx,
-		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), nil)
+		(&ram.ListPoliciesForRoleRequest{}).SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 	if err != nil {
 		return fmt.Errorf("list attached identity policies %s: %w", desired.AttachedRole, err)
 	}
@@ -353,14 +353,14 @@ func (a *IdentityBootstrapOpenAPI) upsertIdentityPolicy(ctx context.Context, des
 			continue
 		}
 		_, detachErr := a.ram.DetachPolicyFromRoleWithContext(ctx, (&ram.DetachPolicyFromRoleRequest{}).
-			SetPolicyName(name).SetPolicyType(policyType).SetRoleName(desired.AttachedRole), nil)
+			SetPolicyName(name).SetPolicyType(policyType).SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 		if detachErr != nil {
 			return fmt.Errorf("detach unexpected identity policy %s from %s: %w", name, desired.AttachedRole, detachErr)
 		}
 	}
 	if !foundDesired {
 		_, err = a.ram.AttachPolicyToRoleWithContext(ctx, (&ram.AttachPolicyToRoleRequest{}).
-			SetPolicyName(desired.Name).SetPolicyType("Custom").SetRoleName(desired.AttachedRole), nil)
+			SetPolicyName(desired.Name).SetPolicyType("Custom").SetRoleName(desired.AttachedRole), &dara.RuntimeOptions{})
 		if err != nil {
 			return fmt.Errorf("attach identity policy %s: %w", desired.Name, err)
 		}
