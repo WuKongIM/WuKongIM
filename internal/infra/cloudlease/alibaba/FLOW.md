@@ -14,7 +14,7 @@ cloudlease.Controller.Quote
   -> paginated DescribeInstanceTypes -> exact 4 vCPU / 8 GiB candidates
   -> DescribeAccountAttributes -> remaining PostPaid vCPU quota
   -> paginated Quota Center ListProductQuotas -> EIP headroom + retention-fee waiver proof
-  -> DescribeAvailableResource -> WithStock NoSpot instance + requested ESSD ranges
+  -> DescribeAvailableResource -> exact available NoSpot instance + requested ESSD ranges
   -> paginated DescribeImages -> latest official cloud-init Ubuntu 24.04 x86_64
   -> DescribePrice -> one-hour host+disk and pay-by-traffic EIP unit prices
   -> choose the lowest complete full-Lease estimate
@@ -71,6 +71,11 @@ at most 2,000 and have allocation headroom to prove waiver eligibility.
 For one exact `DescribeAvailableResource` candidate, a successful provider body
 that omits `AvailableZones` is authoritative no-stock evidence for that candidate;
 a missing response body or API error still makes discovery unavailable.
+For an exact nested resource, `Available` and `WithStock` are independently
+authoritative positive inventory signals when the provider omits the other
+optional field. Explicitly negative or contradictory fields and a response that
+omits both still fail closed. Disk availability always retains the exact ESSD
+value and requested-size-range checks.
 When all candidates lack capacity, Quote emits only bounded reason categories and
 aggregate counts for the instance, system-disk, and data-disk checks. This
 distinguishes provider stock, omitted status, missing resource, and disk-range

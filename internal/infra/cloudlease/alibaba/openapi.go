@@ -41,6 +41,8 @@ const (
 	eipQuotaCategory               = "CommonQuota"
 	mutationPermissionProbeID      = "i-wukongim-readonly-permission-probe"
 	availabilityWithStock          = "with_stock"
+	availabilityStatusOnly         = "available_status_only"
+	availabilityCategoryOnly       = "with_stock_category_only"
 	availabilityEmptyZones         = "empty_zones"
 	availabilityZoneNotReturned    = "zone_not_returned"
 	availabilityZoneStatusMissing  = "zone_status_missing"
@@ -557,6 +559,15 @@ func validDiskSizes(sizesGiB []int, maximumGiB int) bool {
 }
 
 func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
+	providerRequest := availabilityProviderRequest(request, destination)
+	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
+	if err != nil || response == nil {
+		return false, "", discoveryError("DescribeAvailableResource "+destination, err)
+	}
+	return resourceAvailableFromBody(response.Body, request, destination, expected, sizesGiB)
+}
+
+func availabilityProviderRequest(request AvailabilityRequest, destination string) *ecs.DescribeAvailableResourceRequest {
 	providerRequest := (&ecs.DescribeAvailableResourceRequest{}).
 		SetRegionId(request.Region).
 		SetZoneId(request.Zone).
@@ -571,13 +582,10 @@ func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityReq
 	case "SystemDisk":
 		providerRequest.SetSystemDiskCategory(providerDiskESSD)
 	case "DataDisk":
+		providerRequest.SetSystemDiskCategory(providerDiskESSD)
 		providerRequest.SetDataDiskCategory(providerDiskESSD)
 	}
-	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
-	if err != nil || response == nil {
-		return false, "", discoveryError("DescribeAvailableResource "+destination, err)
-	}
-	return resourceAvailableFromBody(response.Body, request, destination, expected, sizesGiB)
+	return providerRequest
 }
 
 func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
@@ -632,7 +640,7 @@ func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, 
 				valueFound = true
 				reason := supportedResourceAvailabilityReason(supported, sizesGiB)
 				switch reason {
-				case availabilityWithStock:
+				case availabilityWithStock, availabilityStatusOnly, availabilityCategoryOnly:
 					return true, reason, nil
 				case availabilityStatusMissing:
 					statusMissing = true
@@ -679,7 +687,15 @@ func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, 
 }
 
 func supportedResourceAvailable(supported *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource, expected string, sizesGiB []int) bool {
-	return supported != nil && stringValue(supported.Value) == expected && supportedResourceAvailabilityReason(supported, sizesGiB) == availabilityWithStock
+	if supported == nil || stringValue(supported.Value) != expected {
+		return false
+	}
+	switch supportedResourceAvailabilityReason(supported, sizesGiB) {
+	case availabilityWithStock, availabilityStatusOnly, availabilityCategoryOnly:
+		return true
+	default:
+		return false
+	}
 }
 
 func supportedResourceAvailabilityReason(supported *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource, sizesGiB []int) string {
@@ -692,15 +708,25 @@ func supportedResourceAvailabilityReason(supported *ecs.DescribeAvailableResourc
 	case status == "" && category == "":
 		return availabilityBothStatusMissing
 	case status == "":
+		if category == "WithStock" {
+			return supportedResourceRangeReason(supported, sizesGiB, availabilityCategoryOnly)
+		}
 		return availabilityStatusMissing
 	case category == "":
+		if status == "Available" {
+			return supportedResourceRangeReason(supported, sizesGiB, availabilityStatusOnly)
+		}
 		return availabilityCategoryMissing
 	}
 	if !stockStatusAvailable(status, category) {
 		return availabilityWithoutStock
 	}
+	return supportedResourceRangeReason(supported, sizesGiB, availabilityWithStock)
+}
+
+func supportedResourceRangeReason(supported *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource, sizesGiB []int, availableReason string) string {
 	if len(sizesGiB) == 0 {
-		return availabilityWithStock
+		return availableReason
 	}
 	if stringValue(supported.Unit) != "GiB" || supported.Min == nil || supported.Max == nil || *supported.Min <= 0 {
 		return availabilityRangeMissing
@@ -710,7 +736,7 @@ func supportedResourceAvailabilityReason(supported *ecs.DescribeAvailableResourc
 			return availabilityRangeNotCovered
 		}
 	}
-	return availabilityWithStock
+	return availableReason
 }
 
 func stockStatusAvailable(status, category string) bool {

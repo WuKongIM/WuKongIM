@@ -192,7 +192,7 @@ func TestProviderQuoteReportsBoundedAggregateAvailabilityEvidence(t *testing.T) 
 		api.availability[key] = Availability{
 			InstanceReason:      availabilityEmptyZones,
 			SystemESSDPL0Reason: availabilityRangeNotCovered,
-			DataESSDPL0Reason:   availabilityStatusMissing,
+			DataESSDPL0Reason:   availabilityBothStatusMissing,
 		}
 	}
 	provider := New(api, Options{Now: func() time.Time { return now }})
@@ -202,7 +202,7 @@ func TestProviderQuoteReportsBoundedAggregateAvailabilityEvidence(t *testing.T) 
 	if !errors.Is(err, cloudlease.ErrCapacityUnavailable) {
 		t.Fatalf("Quote() error = %v, want ErrCapacityUnavailable", err)
 	}
-	want := "checks=4 evidence=instance/empty_zones=4,system_disk/disk_range_not_covered=4,data_disk/supported_status_missing=4"
+	want := "checks=4 evidence=instance/empty_zones=4,system_disk/disk_range_not_covered=4,data_disk/supported_status_and_category_missing=4"
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("Quote() error = %q, want bounded evidence %q", err, want)
 	}

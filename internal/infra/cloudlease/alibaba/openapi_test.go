@@ -133,6 +133,16 @@ func TestSupportedResourceAvailableRequiresWithStockAndRequestedDiskRange(t *tes
 	}{
 		{name: "matching disks", sizes: []int{500, 200}, want: true},
 		{name: "instance ignores range", want: true},
+		{name: "status omitted with positive category", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.Status = nil
+		}, want: true},
+		{name: "category omitted with positive status", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.StatusCategory = nil
+		}, want: true},
+		{name: "status and category omitted", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.Status = nil
+			value.StatusCategory = nil
+		}},
 		{name: "closed with stock", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.SetStatus("Closed")
 		}},
@@ -180,6 +190,15 @@ func TestResourceAvailableFromBodyTreatsEmptyInventoryAsUnavailable(t *testing.T
 	}
 }
 
+func TestAvailabilityProviderRequestConstrainsAttachedDataDiskBySystemDisk(t *testing.T) {
+	request := availabilityProviderRequest(AvailabilityRequest{
+		Region: RegionHangzhou, Zone: "cn-hangzhou-h", InstanceType: "ecs.g8.large",
+	}, "DataDisk")
+	if stringValue(request.SystemDiskCategory) != providerDiskESSD || stringValue(request.DataDiskCategory) != providerDiskESSD {
+		t.Fatalf("availabilityProviderRequest() disk categories = system:%q data:%q, want exact ESSD constraints", stringValue(request.SystemDiskCategory), stringValue(request.DataDiskCategory))
+	}
+}
+
 func TestSupportedResourceAvailabilityReasonIsBounded(t *testing.T) {
 	newResource := func() *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource {
 		return (&ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource{}).
@@ -197,12 +216,12 @@ func TestSupportedResourceAvailabilityReasonIsBounded(t *testing.T) {
 		want   string
 	}{
 		{name: "with stock", sizes: []int{500}, want: availabilityWithStock},
-		{name: "status missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+		{name: "status omitted with positive category", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.Status = nil
-		}, want: availabilityStatusMissing},
-		{name: "category missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+		}, want: availabilityCategoryOnly},
+		{name: "category omitted with positive status", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.StatusCategory = nil
-		}, want: availabilityCategoryMissing},
+		}, want: availabilityStatusOnly},
 		{name: "status and category missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.Status = nil
 			value.StatusCategory = nil
@@ -210,10 +229,18 @@ func TestSupportedResourceAvailabilityReasonIsBounded(t *testing.T) {
 		{name: "without stock", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.SetStatusCategory("WithoutStock")
 		}, want: availabilityWithoutStock},
+		{name: "omitted category does not override sold out", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.SetStatus("SoldOut")
+			value.StatusCategory = nil
+		}, want: availabilityCategoryMissing},
 		{name: "range missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.Max = nil
 		}, want: availabilityRangeMissing},
 		{name: "range not covered", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.SetMax(499)
+		}, want: availabilityRangeNotCovered},
+		{name: "status-only still checks range", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.StatusCategory = nil
 			value.SetMax(499)
 		}, want: availabilityRangeNotCovered},
 	}
