@@ -28,7 +28,7 @@ cloudlease.Controller.AcquireWithBootstrap
   -> Ubuntu cloud-init creates key-only wkdeploy access from 2 Ed25519 keys
   -> 40 GiB system + role-sized ESSD PL0 data disk per host
   -> one tagged 20 Mbps PostPaid PayByTraffic EIP on the load host
-  -> one private-vSwitch rule + load-address-constrained typed public rules
+  -> one private-vSwitch-source rule + load-address-constrained typed public rules
   -> exhaustive provider inventory reconstruction -> active Receipt
 
 Inspect / List / Release / Sweep
@@ -110,8 +110,10 @@ and refuses removal while any repository-tagged Lease asset exists.
 
 Acquire uses one Lease-owned VPC (`10.42.0.0/16`) and vSwitch
 (`10.42.0.0/24`). No ECS instance receives a provider public IPv4 address and
-no NAT gateway is created. A single security group is safe because public
-quintuple rules include the load node's exact private `/32` destination. Every
+no NAT gateway is created. A single security group is safe because the private
+rule admits only the Lease vSwitch source prefix and uses the security-group
+scope as its destination boundary, while public quintuple rules include the
+load node's exact private `/32` destination. Every
 host receives provider-native `AutoReleaseTime`, but that deadline is only a
 backstop: Release and the 15-minute scheduled Sweep remain responsible for
 deleting instances, disks and attachments, ENIs, EIP relationships, rules,

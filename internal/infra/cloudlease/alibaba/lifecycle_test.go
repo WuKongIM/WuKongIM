@@ -55,7 +55,8 @@ func TestLifecycleAcquireCreatesExactTaggedTopology(t *testing.T) {
 	if len(lifecycleAPI.accessRequests) != 3 {
 		t.Fatalf("access requests = %#v, want private plus SSH and HTTP", lifecycleAPI.accessRequests)
 	}
-	if private := lifecycleAPI.accessRequests[0]; private.Kind != AccessRulePrivate || private.SourcePrefix.String() != "10.42.0.0/24" {
+	if private := lifecycleAPI.accessRequests[0]; private.Kind != AccessRulePrivate || private.SourcePrefix.String() != "10.42.0.0/24" ||
+		private.DestinationPrefix.String() != "0.0.0.0/0" {
 		t.Fatalf("private access = %#v", private)
 	}
 	loadAddress := lifecycleAPI.addressForRole("load")

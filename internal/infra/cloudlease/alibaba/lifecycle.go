@@ -232,10 +232,11 @@ func (p *Provider) Acquire(ctx context.Context, request cloudlease.AcquireReques
 		return cloudlease.Receipt{}, fmt.Errorf("associate EIP: %w", err)
 	}
 	privatePrefix := netip.MustParsePrefix(leaseVSwitchIPv4CIDR)
+	anyIPv4Prefix := netip.MustParsePrefix("0.0.0.0/0")
 	if err := p.lifecycle.SetAccessRule(ctx, AccessRuleRequest{
 		Region: request.Plan.Region, Kind: AccessRulePrivate, ID: "private-vswitch",
 		SecurityGroupID: securityGroupID, TargetRole: "network", Protocol: cloudlease.ProtocolTCP,
-		PortFrom: 1, PortTo: 65535, SourcePrefix: privatePrefix, DestinationPrefix: privatePrefix,
+		PortFrom: 1, PortTo: 65535, SourcePrefix: privatePrefix, DestinationPrefix: anyIPv4Prefix,
 		Until: request.Plan.ExpiresAt, Tags: providerTags,
 	}); err != nil {
 		return cloudlease.Receipt{}, fmt.Errorf("create private ingress: %w", err)
