@@ -78,6 +78,125 @@ func TestSessionPoolLoginSyncExpiryAndFreshRelogin(t *testing.T) {
 	}
 }
 
+func TestSessionPoolHeartbeatsTrafficReadySessionAndLogoutJoinsHeartbeat(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	sleepEntered := make(chan time.Duration, 1)
+	sleepRelease := make(chan struct{})
+	firstSleep := true
+	fixture.pool.heartbeatSleep = func(ctx context.Context, duration time.Duration) error {
+		if firstSleep {
+			firstSleep = false
+			sleepEntered <- duration
+			select {
+			case <-sleepRelease:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	pingEntered := make(chan struct{}, 1)
+	pingRelease := make(chan struct{})
+	fixture.factory.pingEntered = pingEntered
+	fixture.factory.pingRelease = pingRelease
+
+	uid := fixture.identity.UID(18)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 18, LoginOrdinal: 10}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if interval := <-sleepEntered; interval != 30*time.Second {
+		t.Fatalf("heartbeat interval = %v, want 30s", interval)
+	}
+	if got := fixture.events.snapshot(); len(got) != 3 || got[0] != "factory" || got[1] != "connect" || got[2] != "sync" {
+		t.Fatalf("heartbeat started before traffic-ready sync: events = %v", got)
+	}
+	close(sleepRelease)
+	select {
+	case <-pingEntered:
+	case <-time.After(time.Second):
+		t.Fatal("traffic-ready session did not send a heartbeat")
+	}
+
+	client := fixture.factory.clients()[0]
+	closeEntered := make(chan struct{}, 1)
+	client.closeEntered = closeEntered
+	logoutDone := make(chan error, 1)
+	go func() { logoutDone <- fixture.pool.Logout(uid) }()
+	select {
+	case <-closeEntered:
+	case <-time.After(time.Second):
+		t.Fatal("Logout did not close the session")
+	}
+	select {
+	case err := <-logoutDone:
+		t.Fatalf("Logout returned before heartbeat exited: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(pingRelease)
+	select {
+	case err := <-logoutDone:
+		if err != nil {
+			t.Fatalf("Logout: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Logout did not join heartbeat after Ping returned")
+	}
+}
+
+func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	sleepEntered := make(chan struct{}, 1)
+	sleepRelease := make(chan struct{})
+	firstSleep := true
+	fixture.pool.heartbeatSleep = func(ctx context.Context, _ time.Duration) error {
+		if firstSleep {
+			firstSleep = false
+			sleepEntered <- struct{}{}
+			select {
+			case <-sleepRelease:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	fixture.factory.pingErr = errors.New("redacted heartbeat write failure")
+
+	uid := fixture.identity.UID(21)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 21, LoginOrdinal: 11}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	<-sleepEntered
+	client := fixture.factory.clients()[0]
+	closeEntered := make(chan struct{}, 2)
+	client.closeEntered = closeEntered
+	fixture.pool.mu.RLock()
+	session := fixture.pool.online[uid]
+	fixture.pool.mu.RUnlock()
+	close(sleepRelease)
+	select {
+	case <-closeEntered:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat write failure did not close the session")
+	}
+	select {
+	case <-session.done:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat write failure did not terminate the receive drain")
+	}
+	if fixture.pool.IsOnline(uid) || fixture.pool.isOwned(uid) {
+		t.Fatal("heartbeat write failure retained session ownership")
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("heartbeat write failure evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
+	}
+}
+
 func TestSessionPoolRecordsBoundedConnectAndConversationSyncLatency(t *testing.T) {
 	t.Parallel()
 	fixture := newSessionTestFixture(t)
@@ -821,6 +940,7 @@ func (c *parallelSessionClient) ReadFrame(ctx context.Context) (frame.Frame, err
 	}
 }
 func (c *parallelSessionClient) Send(context.Context, *frame.SendPacket) error       { return nil }
+func (c *parallelSessionClient) Ping(context.Context) error                          { return nil }
 func (c *parallelSessionClient) AckRecv(context.Context, *frame.RecvackPacket) error { return nil }
 func (c *parallelSessionClient) Close() error {
 	c.closeOnce.Do(func() { close(c.stop) })
@@ -896,6 +1016,9 @@ type sessionFakeFactory struct {
 	onConnect     func()
 	connectErr    error
 	newSessionErr error
+	pingEntered   chan<- struct{}
+	pingRelease   <-chan struct{}
+	pingErr       error
 }
 
 func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token string) (SessionClient, error) {
@@ -907,6 +1030,7 @@ func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token strin
 		events: f.events, frames: make(chan frame.Frame, 8), acked: make(chan uint64, 8),
 		readErrors: make(chan error, 8), readEntered: make(chan struct{}, 8), readReturned: make(chan struct{}, 8),
 		stop: make(chan struct{}), readExited: make(chan struct{}), onConnect: f.onConnect, connectErr: f.connectErr,
+		pingEntered: f.pingEntered, pingRelease: f.pingRelease, pingErr: f.pingErr,
 	}
 	f.mu.Lock()
 	f.tokensV = append(f.tokensV, token)
@@ -971,6 +1095,9 @@ type sessionFakeClient struct {
 	isClosed             bool
 	onConnect            func()
 	connectErr           error
+	pingEntered          chan<- struct{}
+	pingRelease          <-chan struct{}
+	pingErr              error
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -1015,6 +1142,16 @@ type sessionFakeReadError struct {
 func (e *sessionFakeReadError) Error() string { return "redacted fake read error" }
 
 func (c *sessionFakeClient) Send(context.Context, *frame.SendPacket) error { return nil }
+
+func (c *sessionFakeClient) Ping(context.Context) error {
+	if c.pingEntered != nil {
+		c.pingEntered <- struct{}{}
+	}
+	if c.pingRelease != nil {
+		<-c.pingRelease
+	}
+	return c.pingErr
+}
 
 func (c *sessionFakeClient) AckRecv(_ context.Context, ack *frame.RecvackPacket) error {
 	c.acked <- ack.MessageSeq

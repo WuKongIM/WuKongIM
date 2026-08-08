@@ -494,12 +494,20 @@ recipient.
 deterministic per-UID CONNECT token, creates a fresh client for every login, and
 then delegates CONNECT-before-zero-coverage-full-sync semantics to `RunLoginSync`.
 The narrow `WKProtoSessionAdapter` delegates CONNECT, SEND, frame reads,
-RECVACK, close, and numeric queue gauges to the existing non-dropping
+PING, RECVACK, close, and numeric queue gauges to the existing non-dropping
 `internal/bench/wkproto.Client`; it does not recreate protocol pumps.
 The ordered session drain uses an explicit streaming read whose lifetime is
 owned only by the generation or caller context; the transport's default
 short-operation timeout still bounds CONNECT and control writes but never
 detaches an otherwise idle session.
+After full sync makes a session traffic-ready, one joined heartbeat loop sends
+WKProto PING every 30 seconds. This keeps the owner route active in the
+authority presence directory even for idle sessions; the formal 10,000-user
+bound therefore owns at most 10,000 heartbeat loops in addition to its already
+required receive drains. Each PING uses the single-anomaly timeout and the
+client's bounded control-frame writer. An unexpected heartbeat write failure
+closes the socket so the ordered drain publishes the existing bounded session
+failure and the engine replaces the resulting online-target deficit.
 Independent login I/O runs concurrently under one explicit starting-session
 capacity and retains only the UIDs whose CONNECT/sync is active; capacity
 exhaustion is harness-invalid. Scheduler admission reserves `starting` under
@@ -507,11 +515,14 @@ the pool ownership lock before generation-owned CONNECT plus full-sync work is
 launched, so concurrent returning plans cannot select the same UID. Results use
 a fixed completion queue with the same capacity and are consumed by later
 steps; one slow sync never serializes traffic advancement. Only a validated sync starts the recipient's
-sole ordered frame drain. The session factory, CONNECT, sync, and drain are
+sole ordered frame drain and heartbeat. The session factory, CONNECT, sync,
+drain, and heartbeat are
 children of the active engine-generation context; stopping a generation fences
-new admission, cancels that context, then joins startup work and drains.
+new admission, cancels that context, then joins startup work, drains, and
+heartbeats.
 Expected logout and expiry first remove online admission, then cancel and close
-the socket, join the drain, and finally release recipient sequence state. The
+the socket, join the drain and heartbeat, and finally release recipient
+sequence state. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication
 error, which keeps the same drain online and returns both the wire `ClientSeq`
 and stable `client_msg_no` to the engine-owned retry state, from a terminal remote reader
@@ -911,7 +922,9 @@ tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
 must fall within 10 milliseconds of one logical second after the preceding
 accepted tick. This narrow bound admits platform timer timestamp quantization
 without accepting a delayed, skipped, or catch-up tick; invalid ticks fail
-closed without advancing the grant plan.
+closed without advancing the grant plan. Coverage checks use that same 10ms
+tolerance so a due ticker has time to publish after the one-second boundary;
+once consumed, its timestamp must still satisfy the strict tick rules.
 Final-cutoff and status branches inspect an already queued grant before they
 may complete the run. Each worker emits only its vector share and never advances
 an equivalent local allocator, so bootstrap phase differences or delivery retry

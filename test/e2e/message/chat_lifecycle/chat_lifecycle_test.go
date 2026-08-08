@@ -118,6 +118,61 @@ func TestPersonChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
 	}
 }
 
+func TestGroupChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
+	cluster := startLifecycleCluster(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ctx, 2*time.Second)
+	require.NoError(t, err, cluster.DumpDiagnostics())
+
+	const (
+		channelID      = "e2e-sequence-group"
+		leftUID        = "e2e-sequence-group-left"
+		rightUID       = "e2e-sequence-group-right"
+		recipientUID   = "e2e-sequence-group-recipient"
+		messagesPerWay = 100
+		rounds         = 6
+	)
+	require.NoError(t, suite.PostChannel(ctx, cluster.MustNode(1).APIAddr(), map[string]any{
+		"channel_id": channelID, "channel_type": frame.ChannelTypeGroup,
+		"reset": 1, "subscribers": []string{leftUID, rightUID, recipientUID},
+	}), cluster.DumpDiagnostics())
+
+	api := lifecycleTarget(cluster)
+	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID)
+	defer func() { _ = left.Close() }()
+	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID)
+	defer func() { _ = right.Close() }()
+	recipient := connectAndFullSync(t, ctx, cluster, api, 3, recipientUID)
+	defer func() { _ = recipient.Close() }()
+
+	var previous uint64
+	for round := 0; round < rounds; round++ {
+		start := round*messagesPerWay + 1
+		var sends sync.WaitGroup
+		sendErrs := make(chan error, 2)
+		sends.Add(2)
+		go func() {
+			defer sends.Done()
+			sendErrs <- sendGroupBurst(left, channelID, "left", start, messagesPerWay)
+		}()
+		go func() {
+			defer sends.Done()
+			sendErrs <- sendGroupBurst(right, channelID, "right", start, messagesPerWay)
+		}()
+		sends.Wait()
+		close(sendErrs)
+		for sendErr := range sendErrs {
+			require.NoError(t, sendErr, cluster.DumpDiagnostics())
+		}
+
+		requireSuccessfulSendacks(t, cluster, left, messagesPerWay)
+		requireSuccessfulSendacks(t, cluster, right, messagesPerWay)
+		previous = requireMonotonicGroupReceives(t, cluster, recipient, channelID, messagesPerWay*2, previous)
+	}
+}
+
 func sendPersonBurst(
 	client *suite.WKProtoClient,
 	peerUID, prefix string,
@@ -129,6 +184,20 @@ func sendPersonBurst(
 			ChannelID: peerUID, ChannelType: frame.ChannelTypePerson,
 			ClientSeq: uint64(ordinal), ClientMsgNo: fmt.Sprintf("e2e-sequence-%s-%06d", prefix, ordinal),
 			Payload: []byte("cross-ingress sequence evidence"),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func sendGroupBurst(client *suite.WKProtoClient, channelID, prefix string, start, count int) error {
+	for offset := 0; offset < count; offset++ {
+		ordinal := start + offset
+		if err := client.SendFrame(&frame.SendPacket{
+			ChannelID: channelID, ChannelType: frame.ChannelTypeGroup,
+			ClientSeq: uint64(ordinal), ClientMsgNo: fmt.Sprintf("e2e-sequence-group-%s-%06d", prefix, ordinal),
+			Payload: []byte("cross-ingress group sequence evidence"),
 		}); err != nil {
 			return err
 		}
@@ -161,6 +230,27 @@ func requireMonotonicPersonReceives(
 		require.Equal(t, peerUID, recv.FromUID, cluster.DumpDiagnostics())
 		require.Greater(t, recv.MessageSeq, previous,
 			"person-channel receive sequence regressed from %d to %d\n%s", previous, recv.MessageSeq, cluster.DumpDiagnostics())
+		require.NoError(t, client.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
+		previous = recv.MessageSeq
+	}
+	return previous
+}
+
+func requireMonotonicGroupReceives(
+	t *testing.T,
+	cluster *suite.StartedCluster,
+	client *suite.WKProtoClient,
+	channelID string,
+	count int,
+	previous uint64,
+) uint64 {
+	t.Helper()
+	for range count {
+		recv, err := client.ReadRecv()
+		require.NoError(t, err, cluster.DumpDiagnostics())
+		require.Equal(t, channelID, recv.ChannelID, cluster.DumpDiagnostics())
+		require.Greater(t, recv.MessageSeq, previous,
+			"group-channel receive sequence regressed from %d to %d\n%s", previous, recv.MessageSeq, cluster.DumpDiagnostics())
 		require.NoError(t, client.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
 		previous = recv.MessageSeq
 	}

@@ -19,6 +19,8 @@ var (
 	errSessionOffline = errors.New("chat lifecycle session: UID is offline")
 )
 
+const defaultSessionHeartbeatInterval = 30 * time.Second
+
 // SessionClock is the narrow time source used for login latency and expiration.
 // Unit workers can advance it without wall-clock sleeps.
 type SessionClock interface {
@@ -31,6 +33,7 @@ type SessionClient interface {
 	Connect(context.Context, string, string) error
 	ReadFrame(context.Context) (frame.Frame, error)
 	Send(context.Context, *frame.SendPacket) error
+	Ping(context.Context) error
 	AckRecv(context.Context, *frame.RecvackPacket) error
 	Close() error
 	// QueueSnapshot must stop waiting when its context is canceled.
@@ -68,6 +71,10 @@ func (a *WKProtoSessionAdapter) ReadFrame(ctx context.Context) (frame.Frame, err
 
 func (a *WKProtoSessionAdapter) Send(ctx context.Context, packet *frame.SendPacket) error {
 	return a.client.Send(ctx, packet)
+}
+
+func (a *WKProtoSessionAdapter) Ping(ctx context.Context) error {
+	return a.client.Ping(ctx)
 }
 
 func (a *WKProtoSessionAdapter) AckRecv(ctx context.Context, ack *frame.RecvackPacket) error {
@@ -121,6 +128,9 @@ type SessionPoolConfig struct {
 	// boundary that cannot be reconstructed from the fixed 2s/5s histogram buckets.
 	SyncLatency   LatencyLimit
 	SingleAnomaly time.Duration
+	// HeartbeatInterval keeps every traffic-ready session present in the
+	// authority routing directory. Zero selects the real-client 30s cadence.
+	HeartbeatInterval time.Duration
 	// StartingCapacity bounds concurrent CONNECT plus full-sync operations.
 	StartingCapacity int
 
@@ -194,25 +204,30 @@ type onlineSession struct {
 	client                SessionClient
 	cancel                context.CancelFunc
 	done                  chan struct{}
+	heartbeatDone         chan struct{}
 	groupIndex            int
 	groupPosition         int
 	relationshipsObserved bool
 }
 
 // SessionPool owns only currently online clients. A UID has exactly one
-// receive drain, and logout joins that drain before releasing verifier state.
+// receive drain and one heartbeat loop; logout joins both before releasing
+// verifier state.
 type SessionPool struct {
-	identity         *IdentitySpace
-	schedule         ScheduleModel
-	catalog          GroupCatalog
-	factory          SessionClientFactory
-	syncer           ConversationSyncer
-	verifier         *Verifier
-	clock            SessionClock
-	deviceID         string
-	startingCapacity int
-	onSendack        func(string, *frame.SendackPacket, error)
-	onAsyncSendError func(string, uint64, string)
+	identity          *IdentitySpace
+	schedule          ScheduleModel
+	catalog           GroupCatalog
+	factory           SessionClientFactory
+	syncer            ConversationSyncer
+	verifier          *Verifier
+	clock             SessionClock
+	deviceID          string
+	startingCapacity  int
+	heartbeatInterval time.Duration
+	heartbeatTimeout  time.Duration
+	heartbeatSleep    func(context.Context, time.Duration) error
+	onSendack         func(string, *frame.SendackPacket, error)
+	onAsyncSendError  func(string, uint64, string)
 
 	mu                 sync.RWMutex
 	online             map[string]*onlineSession
@@ -243,16 +258,22 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 		config.SyncLatency = LatencyLimit{P99: time.Second, P999: 3 * time.Second}
 		config.SingleAnomaly = 10 * time.Second
 	}
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = defaultSessionHeartbeatInterval
+	}
 	if config.Identity == nil || config.Schedule.identity != config.Identity || config.Catalog.identity != config.Identity || config.Factory == nil ||
 		config.Syncer == nil || config.Verifier == nil || config.Clock == nil || config.DeviceID == "" ||
 		config.StartingCapacity <= 0 || config.StartingCapacity > maxVerifierCapacity ||
-		config.SyncLatency.P99 <= 0 || config.SyncLatency.P999 < config.SyncLatency.P99 || config.SingleAnomaly < config.SyncLatency.P999 {
+		config.SyncLatency.P99 <= 0 || config.SyncLatency.P999 < config.SyncLatency.P99 || config.SingleAnomaly < config.SyncLatency.P999 ||
+		config.HeartbeatInterval <= 0 {
 		return nil, errSessionConfig
 	}
 	return &SessionPool{
 		identity: config.Identity, schedule: config.Schedule, catalog: config.Catalog, factory: config.Factory,
 		syncer: config.Syncer, verifier: config.Verifier, clock: config.Clock,
-		deviceID: config.DeviceID, startingCapacity: config.StartingCapacity, onSendack: config.OnSendack,
+		deviceID: config.DeviceID, startingCapacity: config.StartingCapacity,
+		heartbeatInterval: config.HeartbeatInterval, heartbeatTimeout: config.SingleAnomaly, heartbeatSleep: sleepSessionHeartbeat,
+		onSendack:          config.OnSendack,
 		onAsyncSendError:   config.OnAsyncSendError,
 		online:             make(map[string]*onlineSession),
 		onlineByIndex:      make(map[uint64]*onlineSession),
@@ -268,8 +289,8 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 }
 
 // Login creates a fresh connection, completes CONNECT then zero-coverage full
-// sync through RunLoginSync, and starts the sole ordered receive drain only
-// after the session is traffic-ready.
+// sync through RunLoginSync, and starts the ordered receive drain plus heartbeat
+// only after the session is traffic-ready.
 func (p *SessionPool) Login(ctx context.Context, login SessionLogin) (SessionSnapshot, error) {
 	return p.login(ctx, context.Background(), login)
 }
@@ -351,7 +372,7 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	}
 	drainCtx, cancel := context.WithCancel(drainParent)
 	session := &onlineSession{
-		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}),
+		snapshot: snapshot, client: client, cancel: cancel, done: make(chan struct{}), heartbeatDone: make(chan struct{}),
 		groupIndex: -1, groupPosition: -1, relationshipsObserved: !login.NewIdentity,
 	}
 	if group, _, member, groupErr := p.catalog.GroupForMemberIndex(login.UserIndex); groupErr != nil {
@@ -372,6 +393,7 @@ func (p *SessionPool) loginReserved(ctx, drainParent context.Context, login Sess
 	}
 	p.mu.Unlock()
 	go p.drain(drainCtx, session)
+	go p.heartbeat(drainCtx, session)
 	return snapshot, nil
 }
 
@@ -568,7 +590,7 @@ func (p *SessionPool) Expire(now time.Time) int {
 }
 
 // Logout removes online admission, cancels and closes the socket, joins its
-// sole ordered drain, and only then releases recipient monotonic state.
+// ordered drain and heartbeat, and only then releases recipient monotonic state.
 func (p *SessionPool) Logout(uid string) error {
 	if p == nil {
 		return errSessionOffline
@@ -586,6 +608,7 @@ func (p *SessionPool) Logout(uid string) error {
 	session.cancel()
 	closeErr := session.client.Close()
 	<-session.done
+	<-session.heartbeatDone
 	p.verifier.ReleaseRecipient(uid)
 	p.finishClosing(uid, session)
 	return closeErr
@@ -760,6 +783,29 @@ func (p *SessionPool) drain(ctx context.Context, session *onlineSession) {
 	}
 }
 
+// heartbeat keeps an otherwise idle real client visible to the authority
+// presence directory. A control-write failure closes the socket so the sole
+// receive drain publishes the existing bounded unexpected-session evidence and
+// the engine replaces the missing online session.
+func (p *SessionPool) heartbeat(ctx context.Context, session *onlineSession) {
+	defer close(session.heartbeatDone)
+	for {
+		if err := p.heartbeatSleep(ctx, p.heartbeatInterval); err != nil {
+			return
+		}
+		pingCtx, cancel := context.WithTimeout(ctx, p.heartbeatTimeout)
+		err := session.client.Ping(pingCtx)
+		cancel()
+		if err == nil {
+			continue
+		}
+		if ctx.Err() == nil {
+			_ = session.client.Close()
+		}
+		return
+	}
+}
+
 func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bool) {
 	class := FailureClassHarness
 	code := FailureCodeSessionReadFailed
@@ -783,6 +829,7 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 
 	session.cancel()
 	_ = session.client.Close()
+	<-session.heartbeatDone
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
 	p.finishClosing(session.snapshot.UID, session)
 }
@@ -882,4 +929,15 @@ type sessionLoginConnector struct {
 
 func (c sessionLoginConnector) Connect(ctx context.Context, uid string) error {
 	return c.client.Connect(ctx, uid, c.deviceID)
+}
+
+func sleepSessionHeartbeat(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

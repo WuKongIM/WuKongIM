@@ -796,7 +796,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		return coordinatorRoundSucceeded
 	}
 	grantCoverageMissing := func(at time.Time) bool {
-		return at.Sub(lastGrantTickAt) > coordinatorGrantCadence
+		return coordinatorGrantCoverageMissing(at, lastGrantTickAt)
 	}
 	cutoffOwned := false
 	stopRequested := false
@@ -1819,6 +1819,10 @@ func validCoordinatorGrantTick(now, tickAt, lastTickAt time.Time, haveLastTick b
 			interval <= coordinatorGrantCadence+coordinatorGrantTickTolerance
 	}
 	return interval >= coordinatorGrantCadence && interval < 2*coordinatorGrantCadence
+}
+
+func coordinatorGrantCoverageMissing(at, lastTickAt time.Time) bool {
+	return at.Sub(lastTickAt) > coordinatorGrantCadence+coordinatorGrantTickTolerance
 }
 
 func (c *Coordinator) deliverGrant(

@@ -16,12 +16,12 @@ const (
 	defaultAdvancePoolSize             = 1
 	defaultAdmissionCapacityPerShard   = 1024
 	defaultChannelBacklogHighWatermark = 1024
-	// defaultAppendInflightBatchesPerChannel only bounds how many same-channel
-	// append batches this runtime keeps in flight toward the appender. The
-	// downstream channel reactor serializes and coalesces per-channel appends,
-	// so this value affects submit concurrency and batching efficiency, never
-	// durable ordering or MessageSeq assignment.
-	defaultAppendInflightBatchesPerChannel = 10
+	// defaultAppendInflightBatchesPerChannel keeps the generic Appender contract
+	// safe: concurrent calls may reach a downstream per-channel serializer in
+	// goroutine race order rather than upstream batch order. Callers may opt in
+	// to a larger value only when their Appender preserves same-channel request
+	// order before assigning durable MessageSeq values.
+	defaultAppendInflightBatchesPerChannel = 1
 	defaultInboxCoalesceWindow             = 250 * time.Microsecond
 	defaultInboxCoalesceMaxItems           = 16
 	defaultWriterIdleRetention             = 10 * time.Minute
@@ -329,7 +329,7 @@ type Options struct {
 	ChannelBacklogHighWatermark int
 	// PostCommitHandoffCapacity globally bounds append-bound messages across pending append, append execution, and required durable post-commit work. Admission reserves one slot before append so an acknowledged durable message is never dropped between append and post-commit scheduling. Values <= 0 derive a capacity from the foreground backlog and effect-pool batch throughput.
 	PostCommitHandoffCapacity int
-	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the runtime default.
+	// AppendInflightBatchesPerChannel bounds same-channel append batches in flight. Values <= 0 use the order-safe runtime default; values above one require an Appender that preserves same-channel request order.
 	AppendInflightBatchesPerChannel int
 	// InboxCoalesceWindow is the bounded delay a scheduled writer may wait to merge near-simultaneous same-channel submissions. A negative value disables coalescing; zero uses the runtime default.
 	InboxCoalesceWindow time.Duration

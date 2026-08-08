@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-func TestDefaultAppendInflightBatchesPerChannelIsTen(t *testing.T) {
+func TestDefaultAppendInflightBatchesPerChannelIsOrderSafe(t *testing.T) {
 	opts := applyDefaults(Options{})
 
-	if opts.AppendInflightBatchesPerChannel != 10 {
-		t.Fatalf("AppendInflightBatchesPerChannel = %d, want 10", opts.AppendInflightBatchesPerChannel)
+	if opts.AppendInflightBatchesPerChannel != 1 {
+		t.Fatalf("AppendInflightBatchesPerChannel = %d, want 1", opts.AppendInflightBatchesPerChannel)
 	}
 }
 

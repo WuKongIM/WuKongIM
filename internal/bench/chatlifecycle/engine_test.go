@@ -5005,6 +5005,7 @@ func (c *expiryCompletionClient) ReadFrame(ctx context.Context) (frame.Frame, er
 }
 
 func (*expiryCompletionClient) Send(context.Context, *frame.SendPacket) error { return nil }
+func (*expiryCompletionClient) Ping(context.Context) error                    { return nil }
 func (*expiryCompletionClient) AckRecv(context.Context, *frame.RecvackPacket) error {
 	return nil
 }
@@ -5202,6 +5203,7 @@ func (c *engineFakeClient) Send(ctx context.Context, packet *frame.SendPacket) e
 	return err
 }
 func (c *engineFakeClient) AckRecv(context.Context, *frame.RecvackPacket) error { return nil }
+func (c *engineFakeClient) Ping(context.Context) error                          { return nil }
 func (c *engineFakeClient) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.stop)

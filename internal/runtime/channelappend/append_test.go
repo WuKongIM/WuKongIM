@@ -47,6 +47,35 @@ func TestAppendPreservesOrderWithinOneChannel(t *testing.T) {
 	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 11, 2)
 }
 
+func TestDefaultAppendSerializesSameChannelBatchesForDurableSequenceOrder(t *testing.T) {
+	appender := newBlockingAppenderForAppendTest()
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:    1,
+		MessageID:      newSequenceIDsForPrepare(20),
+		Appender:       appender,
+		EffectPoolSize: 4,
+	})
+	target := localTargetForAppendTest("room")
+
+	firstC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "first"))
+	firstStart := appender.waitStarted(t)
+
+	secondC := submitNoWaitForAppendTest(group, target, appendSendItemForTest("u1", "room", "second"))
+	time.Sleep(20 * time.Millisecond)
+	if got := appender.Calls(); got != 1 {
+		t.Fatalf("default append calls while first same-channel append is in flight = %d, want 1", got)
+	}
+
+	firstStart.Release()
+	first := receiveSubmitResult(t, firstC)
+	requireAppendSuccess(t, waitFutureForTest(t, first.future), 0, 20, 1)
+
+	secondStart := appender.waitStarted(t)
+	secondStart.Release()
+	second := receiveSubmitResult(t, secondC)
+	requireAppendSuccess(t, waitFutureForTest(t, second.future), 0, 21, 2)
+}
+
 func TestAppendInflightBatchesPerChannelAboveOneAllowsSecondSameChannelAppend(t *testing.T) {
 	appender := newBlockingAppenderForAppendTest()
 	group := newStartedTestGroup(t, Options{

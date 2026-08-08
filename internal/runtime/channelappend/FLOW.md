@@ -247,8 +247,11 @@ delivery queue accepts the transient envelope or returns an error. If no
 recipient delivery enqueuer is configured, the transient send fails instead of
 reporting a success that cannot be delivered.
 
-The writer builds channel-aligned append batches from prepared pending items
-and keeps up to `AppendInflightBatchesPerChannel` append batches in flight per channel.
+The writer builds channel-aligned append batches from prepared pending items.
+The order-safe default keeps one append batch in flight per channel. A caller
+may configure a larger `AppendInflightBatchesPerChannel` only when its Appender
+preserves same-channel request order before assigning durable sequences;
+merely serializing concurrent calls in goroutine arrival order is insufficient.
 Blocking `Appender.AppendBatch` calls run on the foreground append pool and wake the
 same writer when they complete. Completion events are drained by append sequence
 before mutating `channelState`, so SENDACK and post-commit handoff remain in
@@ -256,8 +259,7 @@ submission order even when same-channel append calls finish out of order. A
 later completion waiting on an earlier sequence gap remains pending but does
 not reactivate the writer, because only the missing completion callback can
 make that ordered drain runnable. The appender port must preserve durable
-per-channel append order for concurrent same-channel requests or serialize the
-requests internally. Append requests
+per-channel append order for concurrent same-channel requests. Append requests
 borrow immutable send-path payloads and carry the resolved authority epoch and
 leader epoch as append fences; concrete storage adapters clone payloads when
 they cross into durable ownership. The server-allocation proof may skip only

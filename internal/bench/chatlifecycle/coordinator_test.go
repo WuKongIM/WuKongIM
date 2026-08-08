@@ -2428,6 +2428,27 @@ func TestValidCoordinatorGrantTickRejectsUnscheduledOrStaleTimestamps(t *testing
 	}
 }
 
+func TestCoordinatorGrantCoverageUsesTheReviewedTickTolerance(t *testing.T) {
+	startedAt := time.Unix(1_700_000_000, 0)
+	tests := []struct {
+		name string
+		at   time.Time
+		want bool
+	}{
+		{name: "exact cadence is covered", at: startedAt.Add(coordinatorGrantCadence)},
+		{name: "sub-millisecond scheduler delay is covered", at: startedAt.Add(coordinatorGrantCadence + 500*time.Microsecond)},
+		{name: "exact reviewed tolerance is covered", at: startedAt.Add(coordinatorGrantCadence + coordinatorGrantTickTolerance)},
+		{name: "outside reviewed tolerance is missing", at: startedAt.Add(coordinatorGrantCadence + coordinatorGrantTickTolerance + time.Nanosecond), want: true},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := coordinatorGrantCoverageMissing(testCase.at, startedAt); got != testCase.want {
+				t.Fatalf("coordinatorGrantCoverageMissing(%s, %s) = %v, want %v", testCase.at, startedAt, got, testCase.want)
+			}
+		})
+	}
+}
+
 func TestCoordinatorFinalCutoffCannotBypassQueuedStaleGrant(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-cutoff-stale-grant"
