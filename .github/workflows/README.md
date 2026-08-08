@@ -252,11 +252,15 @@ Ed25519 identity supplied by the paid top-level workflow.
 Each Lease also gets a fresh Deployment/monitor Ed25519 identity. Setup stores
 only its long-lived wrapping public key as a repository Variable and the
 matching wrapping private key as a `cloud-deployment` Environment Secret. The
-top-level workflow seals the Lease private key, Deployment and finalizers open
-it only after checking request/Lease/source/Plan/expiry identity, and the
-finalizer deletes the short-lived handoff Artifact after zero inventory is
-retained separately. No standing deployment SSH private key is authorized on
-cloud hosts.
+top-level workflow generates and seals the Lease private key against the Run
+Plan's request/Lease/source/Plan/expiry identity before paid Acquire. It accepts
+an active Receipt only when those values match the pre-sealed envelope exactly,
+so key parsing or sealing errors cannot create billable resources and no local
+sealing step separates a valid Acquire from Deployment. Deployment and
+finalizers open the identity only after the same checks, and the finalizer
+deletes the short-lived handoff Artifact after zero inventory is retained
+separately. No standing deployment SSH private key is authorized on cloud
+hosts.
 The two upstream runs need not share the Deployment Action's head SHA: long
 bundle builds remain valid while `main` advances. The Lease provenance still
 binds the immutable source and bundle digest, and the sealed bundle control SHA
@@ -279,6 +283,9 @@ unit. The runner exits after the remote `run-start.json` proves 10,000 full
 syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
 uses the same sealed five-second accrued-cost and one-hour expiry-reserve guard
 as formal execution, with a two-hour active-duration admission requirement.
+Before paid Acquire, it seals the generated Deployment/monitor private key with
+the Lease ID, Plan digest, source SHA, and expiry already fixed by the Run Plan.
+The acquired Receipt must equal that identity before Deployment dispatch.
 
 Deployment/readiness failure retains the exact acquired Lease rather than
 buying replacement hosts. The orchestrator publishes typed repair state on the

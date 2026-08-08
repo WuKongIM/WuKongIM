@@ -458,6 +458,15 @@ for attempt in 1; do
     --quote "$attempt_dir/preflight-quote.json" >"$attempt_dir/release-selector.json"
   active_selector="$attempt_dir/release-selector.json"
 
+  planned_lease_id="$(jq -er .lease_plan.lease_id "$attempt_dir/run-plan.json")"
+  planned_plan_digest="$(jq -er .selector.plan_digest "$attempt_dir/release-selector.json")"
+  planned_expires_at="$(jq -er .lease_plan.expires_at "$attempt_dir/run-plan.json")"
+  "$WK_CHAT_TOOL" seal-deployment-identity \
+    --recipient "$WK_CHAT_WRAPPING_PUBLIC_KEY" --identity "$deployment_key" \
+    --request-id "$WK_CHAT_REQUEST_ID" --lease-id "$planned_lease_id" \
+    --source-sha "$WK_CHAT_SOURCE_SHA" --plan-digest "$planned_plan_digest" \
+    --expires-at "$planned_expires_at" >"$attempt_dir/encrypted-deployment-identity.json"
+
   acquire_failed=false
   if ! dispatch_and_wait cloud-lease-provision.yml "$provision_title" \
     -f request_id="$WK_CHAT_REQUEST_ID" -f plan_json="$(cat "$attempt_dir/lease-plan.json")" \
@@ -484,8 +493,10 @@ for attempt in 1; do
   receipt_active=false
   if (( ${#receipt_files[@]} == 1 )); then
     cp "${receipt_files[0]}" "$attempt_dir/receipt.json"
-    if jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" --arg bundle "$bundle_digest" '
+    if jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" --arg bundle "$bundle_digest" \
+      --arg lease "$planned_lease_id" --arg plan "$planned_plan_digest" --arg expires "$planned_expires_at" '
       .schema == "wukongim.cloud_lease.receipt/v1" and .receipt.request_id == $request and
+      .receipt.lease_id == $lease and .receipt.plan_digest == $plan and .receipt.expires_at == $expires and
       .receipt.state == "active" and .receipt.provenance.source_sha == $source and
       .receipt.provenance.bundle_digest == $bundle
     ' "$attempt_dir/receipt.json" >/dev/null &&
@@ -493,7 +504,15 @@ for attempt in 1; do
       cmp -s <(jq -S -c .selector "$attempt_dir/receipt-selector.json") \
         <(jq -S -c .selector "$attempt_dir/release-selector.json") &&
       cmp -s <(jq -S -c .receipt.quote "$attempt_dir/receipt.json") \
-        <(jq -S -c .quote "$attempt_dir/quote.json"); then
+        <(jq -S -c .quote "$attempt_dir/quote.json") &&
+      jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+        --arg lease "$planned_lease_id" --arg plan "$planned_plan_digest" --arg expires "$planned_expires_at" '
+        .schema == "wukongim.chat_lifecycle.encrypted_deployment_identity/v1" and
+        .request_id == $request and .lease_id == $lease and .source_sha == $source and
+        .plan_digest == $plan and .expires_at == $expires and
+        (.deployment_public_key | startswith("ssh-ed25519 ")) and
+        (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
+      ' "$attempt_dir/encrypted-deployment-identity.json" >/dev/null; then
       receipt_active=true
     fi
   fi
@@ -505,11 +524,6 @@ for attempt in 1; do
   lease_id="$(jq -er .receipt.lease_id "$attempt_dir/receipt.json")"
   lease_plan_digest="$(jq -er .receipt.plan_digest "$attempt_dir/receipt.json")"
   lease_expires_at="$(jq -er .receipt.expires_at "$attempt_dir/receipt.json")"
-  "$WK_CHAT_TOOL" seal-deployment-identity \
-    --recipient "$WK_CHAT_WRAPPING_PUBLIC_KEY" --identity "$deployment_key" \
-    --request-id "$WK_CHAT_REQUEST_ID" --lease-id "$lease_id" \
-    --source-sha "$WK_CHAT_SOURCE_SHA" --plan-digest "$lease_plan_digest" \
-    --expires-at "$lease_expires_at" >"$attempt_dir/encrypted-deployment-identity.json"
 
   lease_artifact="cloud-lease-provision-$WK_CHAT_REQUEST_ID"
   deployment_title="Cloud Deployment $lease_artifact"

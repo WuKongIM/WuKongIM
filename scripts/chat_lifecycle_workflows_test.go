@@ -176,6 +176,11 @@ func TestChatLifecycleUsesOneEncryptedDeploymentIdentityPerLease(t *testing.T) {
 			t.Fatalf("stage orchestration per-Lease identity is missing %q", required)
 		}
 	}
+	sealIdentity := strings.Index(orchestrator, `"$WK_CHAT_TOOL" seal-deployment-identity`)
+	paidAcquire := strings.Index(orchestrator, `-f paid_authorization=create-paid-cloud-lease`)
+	if sealIdentity < 0 || paidAcquire < 0 || sealIdentity >= paidAcquire {
+		t.Fatal("stage orchestration does not validate and seal the deployment identity before paid Acquire")
+	}
 	if strings.Contains(orchestrator, "WK_CHAT_DEPLOYMENT_KEY:?required") ||
 		strings.Contains(orchestrator, "WK_CHAT_DEPLOYMENT_PUBKEY:?required") {
 		t.Fatal("stage orchestration still requires one standing deployment identity")

@@ -138,6 +138,12 @@ Acceptance criteria:
 
 - The build finishes before procurement and produces an immutable bundle with a
   SHA-256 digest.
+- The Run Plan fixes the Lease ID, Plan digest, and expiry before procurement.
+  The top-level orchestrator must generate and seal the per-Lease deployment
+  identity against those values before paid Acquire; any local key, recipient,
+  or envelope error therefore fails without creating billable resources.
+- An active Lease Receipt must exactly match the pre-sealed request, Lease,
+  source, Plan, and expiry identity before the Deployment Action is dispatched.
 - Cloud hosts do not clone source, compile Go, install Docker, or pull a mutable
   image.
 - The Deployment Action receives only a Lease Receipt, deployment bundle
@@ -634,6 +640,13 @@ only as request-correlated encrypted Artifacts decryptable inside approved
 deployment, monitor, and finalization jobs. Plaintext never enters logs,
 summaries, Issues, tags, or Artifacts.
 
+The top-level orchestrator creates the per-Lease deployment identity and seals
+its private half before paid Acquire, using the immutable Lease ID, Plan digest,
+source SHA, and expiry already present in the Run Plan. After Acquire, the
+active Receipt must equal every one of those pre-sealed values. No local
+identity-sealing operation remains between a valid active Receipt and the first
+Deployment Action dispatch.
+
 Each Lease has two distinct SSH identities:
 
 - A GitHub deployment/monitor identity supports deployment, evidence rescue,
@@ -869,6 +882,12 @@ Action with the same Lease artifact run/name, bundle artifact run/name,
 diagnostic public key, and encrypted deployment identity. One distinct control
 SHA is attempted at most once, so a persistent defect cannot create an
 unbounded dispatch loop.
+
+Failures while generating, parsing, or sealing the deployment identity occur
+before paid Acquire and are terminal without a Lease. Once Acquire returns a
+valid active Receipt, the orchestrator first proves that it matches the already
+sealed envelope exactly and then enters Deployment; an identity mismatch fails
+closed and invokes exact Release.
 
 The repair loop stops and releases the exact Lease when the operator requests
 stop, the aggregate conservative spend reaches CNY 1,350, the Lease no longer
