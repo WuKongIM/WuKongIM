@@ -239,7 +239,7 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 			},
 		},
 		HostGroups: hostGroups,
-		Tags:       map[string]string{"scenario": "chat-lifecycle", "stage": template.Stage},
+		Tags:       map[string]string{"stage": template.Stage},
 	}
 	if trusted.ExcludedPlacement != nil {
 		plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{*trusted.ExcludedPlacement}

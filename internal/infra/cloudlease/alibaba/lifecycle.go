@@ -39,7 +39,6 @@ const (
 	manifestTag                = "wukongim-alibaba-manifest"
 	accountHashTag             = "wukongim-alibaba-account-hash"
 	zoneTag                    = "wukongim-alibaba-zone"
-	quoteCurrencyTag           = "wukongim-alibaba-quote-currency"
 	quoteCostTag               = "wukongim-alibaba-quote-cost-micros"
 	adapterTagPrefix           = "wukongim-alibaba-"
 	leaseVPCIPv4CIDR           = "10.42.0.0/16"
@@ -296,7 +295,6 @@ func lifecycleTags(request cloudlease.AcquireRequest, shape providerPlanShape) m
 	tags[manifestTag] = lifecycleManifest(shape, len(request.Plan.Network.InitialAccess))
 	tags[accountHashTag] = request.Quote.AccountIDHash
 	tags[zoneTag] = request.Quote.Zone
-	tags[quoteCurrencyTag] = request.Quote.Currency
 	tags[quoteCostTag] = strconv.FormatInt(request.Quote.EstimatedCostMicros, 10)
 	return tags
 }
@@ -472,7 +470,7 @@ func reconcileLifecycleAssets(assets []LifecycleAsset, accountHash string, selec
 	cost, costErr := strconv.ParseInt(first.Tags[quoteCostTag], 10, 64)
 	manifest, manifestErr := parseLifecycleManifest(first.Tags[manifestTag])
 	if createdErr != nil || expiresErr != nil || costErr != nil || cost <= 0 || manifestErr != nil ||
-		first.Tags[accountHashTag] != accountHash || first.Tags[zoneTag] == "" || first.Tags[quoteCurrencyTag] == "" {
+		first.Tags[accountHashTag] != accountHash || first.Tags[zoneTag] == "" {
 		return cloudlease.Receipt{}, ErrAmbiguousInventory
 	}
 	receipt := cloudlease.Receipt{
@@ -488,7 +486,9 @@ func reconcileLifecycleAssets(assets []LifecycleAsset, accountHash string, selec
 	receipt.Quote = cloudlease.Quote{
 		LeaseID: receipt.LeaseID, RequestID: receipt.RequestID, Provider: receipt.Provider,
 		Region: receipt.Region, Zone: receipt.Zone, AccountIDHash: accountHash, PlanDigest: receipt.PlanDigest,
-		Currency: first.Tags[quoteCurrencyTag], EstimatedCostMicros: cost,
+		// The Alibaba adapter admits only CNY plans, so storing that constant on
+		// every resource would consume one of the provider's 20 tag slots.
+		Currency: "CNY", EstimatedCostMicros: cost,
 		CapacityAvailable: true, QuotaAvailable: true,
 	}
 	if selector != nil && (receipt.LeaseID != selector.LeaseID || receipt.RequestID != selector.RequestID ||
@@ -649,7 +649,7 @@ func validateLifecycleAsset(asset LifecycleAsset, baseTags, reference map[string
 		asset.Tags[cloudlease.TagResourceRole] != asset.Role || !maps.Equal(lifecycleBaseTags(asset.Tags), baseTags) {
 		return ErrAmbiguousInventory
 	}
-	for _, key := range []string{lifecycleStateTag, manifestTag, accountHashTag, zoneTag, quoteCurrencyTag, quoteCostTag} {
+	for _, key := range []string{lifecycleStateTag, manifestTag, accountHashTag, zoneTag, quoteCostTag} {
 		if asset.Tags[key] == "" || asset.Tags[key] != reference[key] && key != lifecycleStateTag {
 			return ErrAmbiguousInventory
 		}

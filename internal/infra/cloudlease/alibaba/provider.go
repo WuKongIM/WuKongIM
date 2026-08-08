@@ -530,8 +530,8 @@ func providerShapeFor(plan cloudlease.Plan) (providerPlanShape, error) {
 }
 
 func providerLifecycleTagCount(plan cloudlease.Plan) int {
-	// Base Lease tags + public-key digest + six Alibaba reconciliation tags + role.
-	count := len(cloudlease.MandatoryBaseTagKeys()) + 1 + 6 + 1 + len(plan.Tags)
+	// Base Lease tags + public-key digest + five Alibaba reconciliation tags + role.
+	count := len(cloudlease.MandatoryBaseTagKeys()) + 1 + 5 + 1 + len(plan.Tags)
 	if plan.Provenance.SourceSHA != "" {
 		count++
 	}

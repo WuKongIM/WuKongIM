@@ -42,6 +42,9 @@ func TestRepositoryRehearsalTemplateMaterializesExactFourHostLease(t *testing.T)
 		lease.Network.InitialAccess[0].SourcePrefix.String() != "0.0.0.0/0" || len(plan.BootstrapAccess.AuthorizedKeys) != 2 {
 		t.Fatalf("lease plan = %+v", lease)
 	}
+	if !reflect.DeepEqual(lease.Tags, map[string]string{"stage": StageRehearsal}) {
+		t.Fatalf("lease tags = %#v, want one stage tag within the provider resource limit", lease.Tags)
+	}
 	if err := cloudlease.ValidatePlan(lease, now); err != nil {
 		t.Fatalf("materialized generic Lease Plan was rejected: %v", err)
 	}

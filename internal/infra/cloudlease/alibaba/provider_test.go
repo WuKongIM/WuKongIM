@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -204,7 +205,7 @@ func TestProviderQuoteRejectsUnsupportedProviderCapabilityBeforeDiscovery(t *tes
 		{name: "private egress", change: func(plan *cloudlease.Plan) { plan.HostGroups[0].InternetEgress = true }},
 		{name: "traffic assumption", change: func(plan *cloudlease.Plan) { plan.Network.ConservativePublicEgressBytes = 0 }},
 		{name: "provider tag limit", change: func(plan *cloudlease.Plan) {
-			plan.Tags = map[string]string{"one": "1", "two": "2", "three": "3"}
+			plan.Tags = map[string]string{"one": "1", "two": "2", "three": "3", "four": "4"}
 		}},
 	}
 	for _, test := range tests {
@@ -242,6 +243,22 @@ func TestProviderShapeAcceptsWorkloadTopologyChosenByUseCase(t *testing.T) {
 		len(shape.groups) != 2 || shape.groups[0].role != "replica" || shape.groups[0].dataDiskGiB != 400 ||
 		shape.groups[1].role != "coordinator" || shape.groups[1].dataDiskGiB != 300 {
 		t.Fatalf("providerShapeFor() = %#v, want generic provider capability mapping", shape)
+	}
+}
+
+func TestProviderShapeAcceptsChatLifecycleProvenanceWithinTagLimit(t *testing.T) {
+	plan := approvedPlan(time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC))
+	plan.Provenance = cloudlease.Provenance{
+		SourceSHA:    strings.Repeat("a", 40),
+		BundleDigest: "sha256:" + strings.Repeat("b", 64),
+	}
+	plan.Tags = map[string]string{"stage": "rehearsal"}
+
+	if got := providerLifecycleTagCount(plan); got != 20 {
+		t.Fatalf("providerLifecycleTagCount() = %d, want Alibaba's 20-tag resource limit", got)
+	}
+	if _, err := providerShapeFor(plan); err != nil {
+		t.Fatalf("providerShapeFor(chat lifecycle plan) error = %v", err)
 	}
 }
 
