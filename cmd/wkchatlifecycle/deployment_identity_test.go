@@ -81,6 +81,42 @@ func TestDeploymentIdentityEnvelopeRoundTripIsLeaseBoundAndPrivate(t *testing.T)
 	}
 }
 
+func TestSealDeploymentIdentityAcceptsCommentedRecipient(t *testing.T) {
+	wrappingPublic, _ := accessTestKey(t)
+	_, deploymentPrivate := accessTestKey(t)
+	wrappingPublic += " wukongim-chat-lifecycle-wrapping"
+
+	command := newRootCommand(&bytes.Buffer{})
+	command.SetArgs([]string{
+		"seal-deployment-identity",
+		"--recipient", wrappingPublic,
+		"--identity", deploymentPrivate,
+		"--request-id", "chat-20260808T165940Z-f7d0120d",
+		"--lease-id", "chat-20260808T165940Z-f7d0120d-rehearsal-1",
+		"--source-sha", strings.Repeat("a", 40),
+		"--plan-digest", strings.Repeat("b", 64),
+		"--expires-at", "2030-01-02T03:04:05Z",
+	})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("seal-deployment-identity rejected one commented OpenSSH recipient: %v", err)
+	}
+}
+
+func TestEd25519RecipientRejectsAuthorizedKeyOptionsAndAdditionalKeys(t *testing.T) {
+	first, _ := accessTestKey(t)
+	second, _ := accessTestKey(t)
+	for name, value := range map[string]string{
+		"authorized-key options": "no-port-forwarding " + first,
+		"additional key":         first + "\n" + second,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := parseEd25519PublicKey(value); err == nil {
+				t.Fatal("parseEd25519PublicKey accepted ambiguous recipient material")
+			}
+		})
+	}
+}
+
 func TestOpenDeploymentIdentityRejectsMismatchExpirationAndExistingOutput(t *testing.T) {
 	wrappingPublic, wrappingPrivate := accessTestKey(t)
 	_, wrongWrappingPrivate := accessTestKey(t)

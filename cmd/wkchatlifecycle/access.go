@@ -191,8 +191,8 @@ func validAccessURL(raw, exactPath string) (*url.URL, bool) {
 }
 
 func parseEd25519PublicKey(raw string) (*[32]byte, ssh.PublicKey, error) {
-	parsed, rest, _, _, err := ssh.ParseAuthorizedKey([]byte(strings.TrimSpace(raw)))
-	if err != nil || strings.TrimSpace(rest) != "" || parsed.Type() != ssh.KeyAlgoED25519 {
+	parsed, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(strings.TrimSpace(raw)))
+	if err != nil || len(options) != 0 || strings.TrimSpace(string(rest)) != "" || parsed.Type() != ssh.KeyAlgoED25519 {
 		return nil, nil, chatlifecyclerun.ErrInvalidInput
 	}
 	cryptoKey, ok := parsed.(ssh.CryptoPublicKey)
