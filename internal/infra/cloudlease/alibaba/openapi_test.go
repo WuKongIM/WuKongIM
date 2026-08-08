@@ -198,8 +198,15 @@ func TestSupportedResourceAvailabilityReasonIsBounded(t *testing.T) {
 	}{
 		{name: "with stock", sizes: []int{500}, want: availabilityWithStock},
 		{name: "status missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
-			value.StatusCategory = nil
+			value.Status = nil
 		}, want: availabilityStatusMissing},
+		{name: "category missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.StatusCategory = nil
+		}, want: availabilityCategoryMissing},
+		{name: "status and category missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.Status = nil
+			value.StatusCategory = nil
+		}, want: availabilityBothStatusMissing},
 		{name: "without stock", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
 			value.SetStatusCategory("WithoutStock")
 		}, want: availabilityWithoutStock},

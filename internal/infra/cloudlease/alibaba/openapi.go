@@ -48,6 +48,8 @@ const (
 	availabilityResourceMissing    = "resource_not_returned"
 	availabilityValueMissing       = "supported_value_not_returned"
 	availabilityStatusMissing      = "supported_status_missing"
+	availabilityCategoryMissing    = "supported_category_missing"
+	availabilityBothStatusMissing  = "supported_status_and_category_missing"
 	availabilityWithoutStock       = "supported_not_with_stock"
 	availabilityRangeMissing       = "disk_range_missing"
 	availabilityRangeNotCovered    = "disk_range_not_covered"
@@ -594,6 +596,8 @@ func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, 
 	resourceFound := false
 	valueFound := false
 	statusMissing := false
+	categoryMissing := false
+	bothStatusMissing := false
 	withoutStock := false
 	rangeMissing := false
 	rangeNotCovered := false
@@ -632,6 +636,10 @@ func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, 
 					return true, reason, nil
 				case availabilityStatusMissing:
 					statusMissing = true
+				case availabilityCategoryMissing:
+					categoryMissing = true
+				case availabilityBothStatusMissing:
+					bothStatusMissing = true
 				case availabilityWithoutStock:
 					withoutStock = true
 				case availabilityRangeMissing:
@@ -657,6 +665,10 @@ func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, 
 		return false, availabilityRangeNotCovered, nil
 	case rangeMissing:
 		return false, availabilityRangeMissing, nil
+	case bothStatusMissing:
+		return false, availabilityBothStatusMissing, nil
+	case categoryMissing:
+		return false, availabilityCategoryMissing, nil
 	case statusMissing:
 		return false, availabilityStatusMissing, nil
 	case withoutStock:
@@ -674,10 +686,17 @@ func supportedResourceAvailabilityReason(supported *ecs.DescribeAvailableResourc
 	if supported == nil {
 		return availabilityValueMissing
 	}
-	if stringValue(supported.Status) == "" || stringValue(supported.StatusCategory) == "" {
+	status := stringValue(supported.Status)
+	category := stringValue(supported.StatusCategory)
+	switch {
+	case status == "" && category == "":
+		return availabilityBothStatusMissing
+	case status == "":
 		return availabilityStatusMissing
+	case category == "":
+		return availabilityCategoryMissing
 	}
-	if !stockStatusAvailable(stringValue(supported.Status), stringValue(supported.StatusCategory)) {
+	if !stockStatusAvailable(status, category) {
 		return availabilityWithoutStock
 	}
 	if len(sizesGiB) == 0 {
