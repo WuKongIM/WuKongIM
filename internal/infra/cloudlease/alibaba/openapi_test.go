@@ -250,7 +250,7 @@ func TestDiscoverEIPQuotaPaginatesAndRequiresOneExactQuota(t *testing.T) {
 			}}, "page-2", 2, nil
 		case "page-2":
 			return []eipQuotaRecord{{
-				ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode, Category: eipQuotaCategory,
+				ProductCode: eipQuotaProductCode, ActionCode: eipQuotaActionCode,
 				Limit: float32Pointer(20), Used: float32Pointer(3),
 			}}, "", 2, nil
 		default:

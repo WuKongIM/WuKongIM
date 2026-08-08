@@ -647,6 +647,7 @@ func (a *OpenAPI) EIPQuota(ctx context.Context, region string) (EIPQuota, error)
 	return discoverEIPQuota(ctx, func(ctx context.Context, token string) ([]eipQuotaRecord, string, int32, error) {
 		request := (&quotas.ListProductQuotasRequest{}).
 			SetProductCode(eipQuotaProductCode).
+			SetQuotaCategory(eipQuotaCategory).
 			SetMaxResults(discoveryPageSize)
 		if token != "" {
 			request.SetNextToken(token)
@@ -714,13 +715,23 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 				return EIPQuota{}, discoveryError("ListProductQuotas incomplete inventory", nil)
 			}
 			matches := make([]eipQuotaRecord, 0, 1)
+			actionMatches := 0
 			for _, record := range records {
-				if record.ProductCode == eipQuotaProductCode && record.ActionCode == eipQuotaActionCode && record.Category == eipQuotaCategory {
+				if record.ProductCode != eipQuotaProductCode || record.ActionCode != eipQuotaActionCode {
+					continue
+				}
+				actionMatches++
+				// QuotaCategory is optional in the response. The request already
+				// constrains the inventory to CommonQuota, so only an explicit
+				// contradictory category invalidates the record.
+				if record.Category == "" || record.Category == eipQuotaCategory {
 					matches = append(matches, record)
 				}
 			}
 			if len(matches) != 1 {
-				return EIPQuota{}, discoveryError("ListProductQuotas exact quota", nil)
+				return EIPQuota{}, discoveryError(fmt.Sprintf(
+					"ListProductQuotas exact quota (records=%d action_matches=%d exact_matches=%d)",
+					len(records), actionMatches, len(matches)), nil)
 			}
 			record := matches[0]
 			limit, limitOK := wholeQuotaValue(record.Limit)
