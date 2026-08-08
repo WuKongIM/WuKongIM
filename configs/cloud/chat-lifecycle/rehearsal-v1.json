@@ -3,7 +3,7 @@
   "stage": "rehearsal",
   "provider": "alibaba",
   "region": "cn-hangzhou",
-  "lease_duration_seconds": 21600,
+  "lease_duration_seconds": 43200,
   "workload_duration_seconds": 7200,
   "readiness_timeout_seconds": 3600,
   "budget": {
@@ -39,6 +39,6 @@
     }
   ],
   "retry": {
-    "deployment_retries": 1
+    "deployment_retries": 0
   }
 }

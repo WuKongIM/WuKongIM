@@ -41,6 +41,19 @@ Create a persistent run-scoped monitoring goal when the product supports it. Pol
 - invoke diagnosis while a qualifying failure is still live; and
 - continue until the exact Cloud Lease selector has an authenticated zero-inventory proof.
 
+An Issue state ending in `deployment_repair_pending` is also an immediate
+monitor wake-up. Inspect the exact typed Deployment Action failure and its
+bounded logs, fix only Deployment Action/workflow control code that can safely
+reuse the authenticated original Lease and bundle, run the relevant tests, and
+push one protected-`main` commit whose message has the exact trailer
+`Chat-Lifecycle-Repair: <request_id>`. Do not dispatch Acquire, Release, or a
+second paid rehearsal: the still-running top-level orchestrator recognizes the
+request-bound trailer and re-invokes `cloud-deployment-activate.yml` with the
+same Lease, bundle, and sealed identity. Each control SHA is attempted at most
+once. If the failure requires a new product source or bundle, do not weaken
+provenance; let the exact Lease release to zero inventory and report that a new
+explicit start is required.
+
 An authenticated `diagnosis-window.json` with `state=diagnosis_pending` is an
 immediate monitor wake-up, not a reason to wait for the next 30-minute poll.
 Invoke `$wukongim-cloud-analysis` while its exact Lease remains live and record

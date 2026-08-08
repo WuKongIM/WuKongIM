@@ -55,7 +55,7 @@ DISPATCH_RUN_ID=''
 operator_stop_requested=false
 operator_stop_authority_failed=false
 orchestration_started_epoch="$(date -u +%s)"
-orchestration_deadline_epoch=$(( orchestration_started_epoch + 20700 ))
+orchestration_deadline_epoch=$(( orchestration_started_epoch + 17100 ))
 
 check_operator_stop() {
   local marker status=0
@@ -255,14 +255,9 @@ if [[ "$chat_stage" == formal ]]; then
     --arg bundle "$bundle_digest" -f scripts/chat-lifecycle/select-formal-transition-committed.jq \
     "$WK_CHAT_TRANSITION")"
 fi
-excluded_zone=''
-excluded_compute_type=''
-
-complete_failed_attempt() {
+release_failed_attempt() {
   local quote_file="$1"
-  local retry_allowed="$2"
-  excluded_zone="$(jq -er .quote.zone "$quote_file")"
-  excluded_compute_type="$(jq -er .quote.selection.instance_type "$quote_file")"
+  local reason="$2"
   release_current
   local attempt_dir created_at ended_at actual_cost
   attempt_dir="$(dirname "$quote_file")"
@@ -280,28 +275,147 @@ complete_failed_attempt() {
     exit 130
   fi
   if [[ "$operator_stop_authority_failed" == true ]]; then
-    echo 'operator-stop authority became unavailable; refusing another paid attempt after cleanup' >&2
+    echo 'operator-stop authority became unavailable; paid Lease was released after cleanup' >&2
     exit 1
   fi
-  if [[ "$retry_allowed" != true ]]; then
-    echo 'acquisition failure is terminal after zero-inventory cleanup' >&2
-    exit 1
-  fi
-  if [[ "$attempt" == 2 ]]; then
-    echo 'second acquisition/deployment/readiness attempt failed after zero-inventory cleanup' >&2
-    exit 1
-  fi
-  retry_safety_seconds=17100
-  if (( $(date -u +%s) + retry_safety_seconds > orchestration_deadline_epoch )); then
-    echo 'deployment retry skipped because the bounded orchestration safety window is exhausted' >&2
-    exit 1
-  fi
-  rm -f "$WK_CHAT_OUTPUT_DIR/cleanup.json" "$WK_CHAT_OUTPUT_DIR/zero-inventory.json" \
-    "$WK_CHAT_OUTPUT_DIR/release-selector.json"
-  cleanup_attempted=false
+  echo "$reason" >&2
+  exit 1
 }
 
-for attempt in 1 2; do
+record_deployment_repair_pending() {
+  local failure_code="$1"
+  local last_gate="$2"
+  local repair_deadline="$3"
+  local issue_status=1
+  jq -n --arg schema "wukongim.chat_lifecycle.${chat_stage}_deployment_repair/v1" \
+    --arg request_id "$WK_CHAT_REQUEST_ID" --arg source_sha "$WK_CHAT_SOURCE_SHA" \
+    --arg bundle_digest "$bundle_digest" --arg lease_id "$lease_id" \
+    --arg failure_code "$failure_code" --arg last_successful_gate "$last_gate" \
+    --arg control_sha "$deployment_control_sha" --arg repair_deadline "$repair_deadline" \
+    --argjson acquire_run_id "$acquire_run_id" --argjson deployment_run_id "$deployment_run_id" \
+    --argjson generation "$deployment_generation" \
+    '{schema:$schema,request_id:$request_id,source_sha:$source_sha,bundle_digest:$bundle_digest,
+      lease_id:$lease_id,failure_code:$failure_code,last_successful_gate:$last_successful_gate,
+      control_sha:$control_sha,repair_deadline:$repair_deadline,acquire_run_id:$acquire_run_id,
+      deployment_run_id:$deployment_run_id,generation:$generation}' \
+    >"$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
+  export WK_CHAT_ISSUE_STATE="${chat_stage}_deployment_repair_pending"
+  export WK_CHAT_ISSUE_DEDUPE_KEY="${chat_stage}_deployment_repair_${deployment_generation}"
+  export WK_CHAT_ISSUE_BODY="failure_code=${failure_code} last_gate=${last_gate} deployment_run=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${deployment_run_id} control_sha=${deployment_control_sha} repair_deadline_utc=${repair_deadline}; retaining the exact Lease and waiting for a protected-main revision with trailer Chat-Lifecycle-Repair: ${WK_CHAT_REQUEST_ID}"
+  for issue_attempt in 1 2 3; do
+    if scripts/chat-lifecycle/comment-request-issue.sh; then
+      issue_status=0
+      break
+    fi
+    sleep 2
+  done
+  unset WK_CHAT_ISSUE_STATE WK_CHAT_ISSUE_DEDUPE_KEY WK_CHAT_ISSUE_BODY
+  return "$issue_status"
+}
+
+wait_for_deployment_repair_revision() {
+  local attempted_shas_file="$1"
+  local repair_deadline_epoch="$2"
+  local created_at current_cost aggregate_cost operational_stop stop_status candidate_json candidate_sha
+  created_at="$(jq -er .receipt.created_at "$attempt_dir/receipt.json")"
+  operational_stop="$(jq -er .lease_plan.budget.operational_stop_micros "$attempt_dir/run-plan.json")"
+  while true; do
+    stop_status=0
+    check_operator_stop || stop_status=$?
+    case "$stop_status" in
+      0) return 130 ;;
+      1) ;;
+      *) operator_stop_authority_failed=true; return "$stop_status" ;;
+    esac
+    if (( $(date -u +%s) >= repair_deadline_epoch )); then
+      return 124
+    fi
+    current_cost="$(scripts/chat-lifecycle/accrued-cost.sh "$attempt_dir/run-plan.json" \
+      "$attempt_dir/quote.json" "$created_at" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" -1)" || return
+    aggregate_cost=$(( committed_micros + current_cost ))
+    if (( aggregate_cost >= operational_stop )); then
+      return 125
+    fi
+    candidate_json="$(gh api "/repos/${GITHUB_REPOSITORY}/commits/main" \
+      --jq '{sha:.sha,message:.commit.message}' 2>/dev/null || true)"
+    candidate_sha="$(jq -er .sha <<<"$candidate_json" 2>/dev/null || true)"
+    if [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] && ! grep -Fqx "$candidate_sha" "$attempted_shas_file" &&
+      jq -e --arg trailer "Chat-Lifecycle-Repair: $WK_CHAT_REQUEST_ID" \
+        '.message | split("\n") | any(. == $trailer)' <<<"$candidate_json" >/dev/null; then
+      printf '%s\n' "$candidate_sha"
+      return 0
+    fi
+    sleep 30
+  done
+}
+
+run_deployment_action() {
+  local control_identity_attempt
+  deployment_generation=$(( deployment_generation + 1 ))
+  deployment_artifact_dir="$attempt_dir/deployment-${deployment_generation}-artifact"
+  deployment_failed=false
+  if ! dispatch_and_wait cloud-deployment-activate.yml "$deployment_title" \
+    -f lease_artifact_run_id="$acquire_run_id" -f lease_artifact_name="$lease_artifact" \
+    -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact" \
+    -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" \
+    -f encrypted_deployment_identity_json="$(jq -c . "$attempt_dir/encrypted-deployment-identity.json")"; then
+    deployment_failed=true
+  fi
+  deployment_run_id="${DISPATCH_RUN_ID:-0}"
+  deployment_control_sha=''
+  deployment_control_identity_valid=false
+  if [[ "$deployment_run_id" =~ ^[1-9][0-9]*$ ]]; then
+    for control_identity_attempt in 1 2 3; do
+      deployment_control_sha="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${deployment_run_id}" \
+        --jq .head_sha 2>/dev/null || true)"
+      if [[ "$deployment_control_sha" =~ ^[0-9a-f]{40}$ ]]; then
+        deployment_control_identity_valid=true
+        break
+      fi
+      sleep 2
+    done
+  fi
+  if [[ "$deployment_control_identity_valid" == true ]] && \
+    ! grep -Fqx "$deployment_control_sha" "$attempted_control_shas_file"; then
+    printf '%s\n' "$deployment_control_sha" >>"$attempted_control_shas_file"
+  fi
+  if [[ "$deployment_run_id" =~ ^[1-9][0-9]*$ ]]; then
+    download_run "$deployment_run_id" "$deployment_artifact_dir" || true
+  fi
+  mapfile -t deployment_outcomes < <(find "$deployment_artifact_dir" -type f -name deployment-outcome.json -print 2>/dev/null || true)
+  if (( ${#deployment_outcomes[@]} != 1 )) || ! jq -e \
+    '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1"' \
+    "${deployment_outcomes[0]:-/dev/null}" >/dev/null; then
+    deployment_failed=true
+  fi
+  mapfile -t encrypted_access < <(find "$deployment_artifact_dir" -type f -name encrypted-access.json -print 2>/dev/null || true)
+  mapfile -t encrypted_deployment_identities < <(find "$deployment_artifact_dir" -type f -name encrypted-deployment-identity.json -print 2>/dev/null || true)
+  if [[ "$deployment_failed" == true ]] ||
+    (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 || ${#encrypted_deployment_identities[@]} != 1 )) ||
+    ! cmp -s "$attempt_dir/encrypted-deployment-identity.json" "${encrypted_deployment_identities[0]:-/dev/null}"; then
+    deployment_failed=true
+    return 0
+  fi
+  deployment_lease_id="$(jq -er .receipt.lease_id "${deployment_outcomes[0]}")" || {
+    deployment_failed=true
+    return 0
+  }
+  deployment_plan_digest="$(jq -er .receipt.deployment_plan_digest "${deployment_outcomes[0]}")" || {
+    deployment_failed=true
+    return 0
+  }
+  if ! jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+    --arg lease "$deployment_lease_id" --arg plan "$deployment_plan_digest" '
+      .schema == "wukongim.chat_lifecycle.encrypted_access/v1" and
+      .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
+      .source_sha == $source and .lease_id == $lease and .deployment_plan_digest == $plan and
+      (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
+    ' "${encrypted_access[0]}" >/dev/null; then
+    deployment_failed=true
+  fi
+}
+
+for attempt in 1; do
   attempt_dir="$WK_CHAT_OUTPUT_DIR/attempt-$attempt"
   install -d -m 0700 "$attempt_dir"
   deployment_key="$WK_CHAT_WORK_DIR/deployment-${chat_stage}-${attempt}"
@@ -316,9 +430,6 @@ for attempt in 1 2; do
     --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --attempt "$attempt"
     --committed-micros "$committed_micros"
   )
-  if [[ "$attempt" == 2 ]]; then
-    materialize_args+=(--excluded-zone "$excluded_zone" --excluded-compute-type "$excluded_compute_type")
-  fi
   if [[ "$chat_stage" == formal ]]; then
     materialize_args+=(--transition "$WK_CHAT_TRANSITION")
   fi
@@ -387,7 +498,8 @@ for attempt in 1 2; do
     fi
   fi
   if [[ "$acquire_failed" == true || "$receipt_active" != true ]]; then
-    complete_failed_attempt "$attempt_dir/preflight-quote.json" false
+    release_failed_attempt "$attempt_dir/preflight-quote.json" \
+      'acquisition failure is terminal after exact zero-inventory cleanup'
   fi
 
   lease_id="$(jq -er .receipt.lease_id "$attempt_dir/receipt.json")"
@@ -401,42 +513,66 @@ for attempt in 1 2; do
 
   lease_artifact="cloud-lease-provision-$WK_CHAT_REQUEST_ID"
   deployment_title="Cloud Deployment $lease_artifact"
-  deployment_failed=false
-  if ! dispatch_and_wait cloud-deployment-activate.yml "$deployment_title" \
-    -f lease_artifact_run_id="$acquire_run_id" -f lease_artifact_name="$lease_artifact" \
-    -f bundle_artifact_run_id="$bundle_run_id" -f bundle_artifact_name="$bundle_artifact" \
-    -f codex_diagnostic_pubkey="$WK_CHAT_CODEX_DIAGNOSTIC_PUBKEY" \
-    -f encrypted_deployment_identity_json="$(jq -c . "$attempt_dir/encrypted-deployment-identity.json")"; then
-    deployment_failed=true
+  readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
+  lease_expires_epoch="$(date -u -d "$lease_expires_at" +%s)"
+  repair_reserve_seconds=$(( 3780 + readiness_timeout + stage_duration_seconds + 3600 ))
+  repair_deadline_epoch=$(( lease_expires_epoch - repair_reserve_seconds ))
+  if (( repair_deadline_epoch > orchestration_deadline_epoch )); then
+    repair_deadline_epoch="$orchestration_deadline_epoch"
   fi
-  deployment_run_id="$DISPATCH_RUN_ID"
-  download_run "$deployment_run_id" "$attempt_dir/deployment-artifact" || true
-  mapfile -t deployment_outcomes < <(find "$attempt_dir/deployment-artifact" -type f -name deployment-outcome.json -print)
-  if (( ${#deployment_outcomes[@]} != 1 )) || ! jq -e '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v1"' "${deployment_outcomes[0]:-/dev/null}" >/dev/null; then
-    deployment_failed=true
+  if (( repair_deadline_epoch <= $(date -u +%s) )); then
+    release_failed_attempt "$attempt_dir/quote.json" \
+      'Lease has insufficient time for deployment, readiness, measured execution, and release reserve'
   fi
-  mapfile -t encrypted_access < <(find "$attempt_dir/deployment-artifact" -type f -name encrypted-access.json -print)
-  mapfile -t encrypted_deployment_identities < <(find "$attempt_dir/deployment-artifact" -type f -name encrypted-deployment-identity.json -print)
-  if [[ "$deployment_failed" == true ]] ||
-    (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 || ${#encrypted_deployment_identities[@]} != 1 )) ||
-    ! cmp -s "$attempt_dir/encrypted-deployment-identity.json" "${encrypted_deployment_identities[0]:-/dev/null}"; then
-    deployment_failed=true
-  else
-    deployment_lease_id="$(jq -er .receipt.lease_id "${deployment_outcomes[0]}")"
-    deployment_plan_digest="$(jq -er .receipt.deployment_plan_digest "${deployment_outcomes[0]}")"
-    if ! jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
-      --arg lease "$deployment_lease_id" --arg plan "$deployment_plan_digest" '
-      .schema == "wukongim.chat_lifecycle.encrypted_access/v1" and
-      .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
-      .source_sha == $source and .lease_id == $lease and .deployment_plan_digest == $plan and
-      (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
-    ' "${encrypted_access[0]}" >/dev/null; then
-      deployment_failed=true
-    fi
-  fi
+  repair_deadline="$(date -u -d "@$repair_deadline_epoch" +%Y-%m-%dT%H:%M:%SZ)"
+  attempted_control_shas_file="$attempt_dir/attempted-deployment-control-shas"
+  : >"$attempted_control_shas_file"
+  deployment_generation=0
 
-  if [[ "$deployment_failed" != true ]]; then
-    mapfile -t deployment_plans < <(find "$attempt_dir/deployment-artifact" -type f -name deployment-plan.json -print)
+  while true; do
+    run_deployment_action
+    if [[ "$deployment_failed" == true ]]; then
+      if [[ "$deployment_control_identity_valid" != true ]]; then
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'Deployment Action control identity is ambiguous; exact Lease was released'
+      fi
+      failure_code='deployment_action_incomplete'
+      last_gate='none'
+      if (( ${#deployment_outcomes[@]} == 1 )); then
+        failure_code="$(jq -er '.failure.code // "deployment_action_incomplete"' "${deployment_outcomes[0]}" 2>/dev/null || printf deployment_action_incomplete)"
+        last_gate="$(jq -er '.failure.last_successful_gate // "none"' "${deployment_outcomes[0]}" 2>/dev/null || printf none)"
+      fi
+      if ! record_deployment_repair_pending "$failure_code" "$last_gate" "$repair_deadline"; then
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'deployment repair state could not be published; exact Lease was released'
+      fi
+      repair_wait_status=0
+      wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch" || repair_wait_status=$?
+      case "$repair_wait_status" in
+        0)
+          rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
+          continue
+          ;;
+        124)
+          release_failed_attempt "$attempt_dir/quote.json" \
+            'deployment repair deadline expired; exact Lease was released'
+          ;;
+        125)
+          release_failed_attempt "$attempt_dir/quote.json" \
+            'aggregate conservative cost reached the operational stop; exact Lease was released'
+          ;;
+        130)
+          release_failed_attempt "$attempt_dir/quote.json" \
+            'operator stop canceled deployment repair after exact zero-inventory cleanup'
+          ;;
+        *)
+          release_failed_attempt "$attempt_dir/quote.json" \
+            'deployment repair control became unavailable; exact Lease was released'
+          ;;
+      esac
+    fi
+
+    mapfile -t deployment_plans < <(find "$deployment_artifact_dir" -type f -name deployment-plan.json -print)
     (( ${#deployment_plans[@]} == 1 ))
     cp "${deployment_plans[0]}" "$attempt_dir/deployment-plan.json"
     load_public="$(jq -er '.hosts[] | select(.role == "load") | .public_address' "$attempt_dir/deployment-plan.json")"
@@ -447,10 +583,17 @@ for attempt in 1 2; do
     export WK_CLOUD_SSH_KEY="$deployment_key"
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
-    ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo systemctl start --no-block '$stage_service'"
-    readiness_timeout="$(jq -er .readiness_timeout_seconds "$attempt_dir/run-plan.json")"
+    rm -f "$attempt_dir/run-start.json"
+    stage_readiness_failure_code='stage_start_failed'
+    if ! timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "sudo rm -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && sudo systemctl reset-failed '$stage_service' && sudo systemctl start --no-block '$stage_service'"; then
+      deployment_failed=true
+    else
+      stage_readiness_failure_code='stage_readiness_timeout'
+      deployment_failed=false
+    fi
     readiness_deadline=$(( $(date -u +%s) + readiness_timeout ))
-    while true; do
+    while [[ "$deployment_failed" != true ]]; do
       stop_status=0
       check_operator_stop || stop_status=$?
       case "$stop_status" in
@@ -527,16 +670,50 @@ for attempt in 1 2; do
           exit 0
         fi
       fi
-      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load "sudo systemctl is-active '$stage_service' || true")"
-      if [[ "$state" == failed || "$state" == inactive || "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
+      state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+        "sudo systemctl is-active '$stage_service' || true" 2>/dev/null || printf unreachable)"
+      if [[ "$state" == failed || "$state" == inactive || "$state" == unreachable || \
+        "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
         deployment_failed=true
         break
       fi
       sleep 10
     done
-  fi
-
-  complete_failed_attempt "$attempt_dir/quote.json" true
+    timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+    if [[ "$deployment_control_identity_valid" != true ]]; then
+      release_failed_attempt "$attempt_dir/quote.json" \
+        'Deployment Action control identity is ambiguous after readiness failure; exact Lease was released'
+    fi
+    if ! record_deployment_repair_pending "$stage_readiness_failure_code" deployment_receipt "$repair_deadline"; then
+      release_failed_attempt "$attempt_dir/quote.json" \
+        'pre-clock readiness repair state could not be published; exact Lease was released'
+    fi
+    repair_wait_status=0
+    wait_for_deployment_repair_revision "$attempted_control_shas_file" "$repair_deadline_epoch" || repair_wait_status=$?
+    case "$repair_wait_status" in
+      0)
+        rm -f "$WK_CHAT_OUTPUT_DIR/deployment-repair-pending.json"
+        continue
+        ;;
+      124)
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'pre-clock readiness repair deadline expired; exact Lease was released'
+        ;;
+      125)
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'aggregate conservative cost reached the operational stop; exact Lease was released'
+        ;;
+      130)
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'operator stop canceled pre-clock readiness repair after exact zero-inventory cleanup'
+        ;;
+      *)
+        release_failed_attempt "$attempt_dir/quote.json" \
+          'pre-clock readiness repair control became unavailable; exact Lease was released'
+        ;;
+    esac
+  done
 done
 
 exit 1

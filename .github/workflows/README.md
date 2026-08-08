@@ -274,19 +274,24 @@ is exactly `source_sha`, fixed operator `tangtaoit`, one request-scoped Codex
 diagnostic Ed25519 public key, and `request_id`; infrastructure, budget,
 duration, workload, and retry values come only from the reviewed repository Run
 Plan. It builds the immutable bundle, obtains a read-only Quote, acquires one
-six-hour Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
+12-hour AutoRelease Lease by consuming that exact admitted Quote, activates the deployment, and starts the dormant rehearsal
 unit. The runner exits after the remote `run-start.json` proves 10,000 full
 syncs and acceptance of the first full 2,000 SEND/s grant. The remote rehearsal
 uses the same sealed five-second accrued-cost and one-hour expiry-reserve guard
 as formal execution, with a two-hour active-duration admission requirement.
 
-Only deployment/readiness failure may trigger the one fresh Lease retry. The
-orchestrator first releases the complete failed Lease to exact zero inventory,
-rounds actual held host hours upward, reserves the full quoted egress and
-retention risk when live traffic evidence is unavailable, carries that
-conservative accrued cost into the shared CNY 1,350 operational stop, and excludes
-that exact zone/compute-type pair. Runtime or correctness failure is never
-retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
+Deployment/readiness failure retains the exact acquired Lease rather than
+buying replacement hosts. The orchestrator publishes typed repair state on the
+tracking Issue and waits for a distinct protected-`main` revision carrying the
+exact `Chat-Lifecycle-Repair: <request_id>` commit trailer. It then reuses the
+same Lease Artifact, immutable bundle Artifact, diagnostic recipient, and
+encrypted per-Lease deployment identity when it invokes the Deployment Action
+again. Each control SHA is tried at most once. The loop releases to exact zero
+inventory when operator stop, the shared CNY 1,350 operational stop, immutable
+expiry/stage reserve, or safe-control loss ends the window. It never substitutes
+a changed product source or bundle into the acquired Lease; such a repair is
+terminal and needs a separately authorized run after cleanup. Runtime or
+correctness failure is never retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
 uploads a terminal report or bounded failure diagnostics, and only then invokes
 Release until `zero_inventory == true`; a cleanup Artifact is the terminal
 proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.
@@ -338,7 +343,7 @@ its selector-bound zero proof, and publishes one `formal_transition/v1` bound to
 the same source SHA, bundle digest, request, and aggregate budget ledger. That
 ledger uses exact Lease creation-to-zero-inventory time, observed non-loopback
 transmit bytes rounded upward to GiB, and the full retention-risk allowance;
-it does not commit the whole six-hour rehearsal Quote.
+it does not commit the whole 12-hour rehearsal Quote.
 `chat-lifecycle-formal.yml` is an internal scheduled safety continuation, not a
 second public operator surface. It consumes at most one unspent transition,
 refuses procurement if either stage still has active inventory, reuses the

@@ -193,7 +193,6 @@ type materializeOptions struct {
 	repository, bundleDigest, deploymentPubKey, nowValue      string
 	transitionPath                                            string
 	attempt, committedMicros                                  int64
-	excludedZone, excludedComputeType                         string
 }
 
 func addMaterializeCommand(root *cobra.Command) {
@@ -217,8 +216,6 @@ func addMaterializeCommand(root *cobra.Command) {
 	flags.StringVar(&options.transitionPath, "transition", "", "authenticated prior-stage transition document")
 	flags.Int64Var(&options.attempt, "attempt", 0, "trusted Lease attempt number")
 	flags.Int64Var(&options.committedMicros, "committed-micros", 0, "prior aggregate budget commitment")
-	flags.StringVar(&options.excludedZone, "excluded-zone", "", "prior failed placement zone")
-	flags.StringVar(&options.excludedComputeType, "excluded-compute-type", "", "prior failed provider compute type")
 	for _, name := range []string{"template", "source-sha", "operator", "codex-diagnostic-pubkey", "request-id", "repository", "bundle-digest", "deployment-pubkey", "now", "attempt"} {
 		if err := command.MarkFlagRequired(name); err != nil {
 			panic(err)
@@ -252,9 +249,6 @@ func runMaterialize(stdout io.Writer, options materializeOptions) error {
 			return err
 		}
 		trusted.Transition = &transition
-	}
-	if options.excludedZone != "" || options.excludedComputeType != "" {
-		trusted.ExcludedPlacement = &cloudlease.PlacementExclusion{Zone: options.excludedZone, ComputeType: options.excludedComputeType}
 	}
 	plan, err := chatlifecyclerun.Materialize(template, chatlifecyclerun.OperatorInput{
 		SourceSHA: options.sourceSHA, Operator: options.operator,

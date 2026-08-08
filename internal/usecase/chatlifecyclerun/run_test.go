@@ -30,7 +30,7 @@ func TestRepositoryRehearsalTemplateMaterializesExactFourHostLease(t *testing.T)
 	}
 	if plan.Schema != RunPlanSchemaV1 || plan.Stage != StageRehearsal || plan.Attempt != 1 ||
 		plan.WorkloadDurationSeconds != 7200 || plan.ReadinessTimeoutSeconds != 3600 ||
-		plan.OperationalStopMicros != 1_350_000_000 || plan.LeasePlan.ExpiresAt != now.Add(6*time.Hour) {
+		plan.OperationalStopMicros != 1_350_000_000 || plan.LeasePlan.ExpiresAt != now.Add(12*time.Hour) {
 		t.Fatalf("run plan = %+v", plan)
 	}
 	lease := plan.LeasePlan
@@ -50,7 +50,7 @@ func TestRepositoryRehearsalTemplateMaterializesExactFourHostLease(t *testing.T)
 	}
 }
 
-func TestRetryCarriesBudgetAndExcludesExactlyPriorOffer(t *testing.T) {
+func TestSecondProcurementAttemptIsRejected(t *testing.T) {
 	template := loadRepositoryTemplate(t)
 	input := OperatorInput{SourceSHA: strings.Repeat("c", 40), Operator: "tangtaoit", CodexDiagnosticPubKey: testPublicKey(t), RequestID: "retry-run"}
 	base := TrustedContext{
@@ -61,18 +61,7 @@ func TestRetryCarriesBudgetAndExcludesExactlyPriorOffer(t *testing.T) {
 		Repository: base.Repository, BundleDigest: base.BundleDigest, DeploymentPubKey: base.DeploymentPubKey,
 		Now: base.Now, Attempt: 2, CommittedMicros: 50_000_000,
 	}); err == nil {
-		t.Fatal("retry without an excluded placement was accepted")
-	}
-	exclusion := cloudlease.PlacementExclusion{Zone: "cn-hangzhou-h", ComputeType: "ecs.g8.large"}
-	base.Attempt, base.CommittedMicros, base.ExcludedPlacement = 2, 50_000_000, &exclusion
-	retry, err := Materialize(template, input, base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if retry.LeasePlan.Budget.CommittedMicros != 50_000_000 ||
-		!reflect.DeepEqual(retry.LeasePlan.Placement.ExcludedOffers, []cloudlease.PlacementExclusion{exclusion}) ||
-		retry.LeasePlan.LeaseID != "retry-run-rehearsal-2" {
-		t.Fatalf("retry plan = %+v", retry)
+		t.Fatal("second procurement attempt was accepted")
 	}
 }
 

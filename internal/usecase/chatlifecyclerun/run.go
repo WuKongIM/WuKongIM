@@ -82,6 +82,8 @@ type HostGroupTemplate struct {
 }
 
 type RetryTemplate struct {
+	// DeploymentRetries is the number of fresh-Lease deployment retries. It is
+	// fixed to zero because control repair retains the existing Lease.
 	DeploymentRetries int `json:"deployment_retries"`
 }
 
@@ -104,12 +106,10 @@ type TrustedContext struct {
 	DeploymentPubKey string
 	// Now is the trusted orchestration time used for expiry and transition checks.
 	Now time.Time
-	// Attempt is the one-based deployment attempt within the bounded retry policy.
+	// Attempt is the one-based procurement attempt and is fixed to one per stage.
 	Attempt int
 	// CommittedMicros is authenticated spend from all earlier attempts and stages.
 	CommittedMicros int64
-	// ExcludedPlacement prevents the sole retry from selecting the failed placement again.
-	ExcludedPlacement *cloudlease.PlacementExclusion
 	// Transition authorizes formal procurement only after released rehearsal evidence.
 	Transition *StageTransition
 }
@@ -241,9 +241,6 @@ func Materialize(template Template, input OperatorInput, trusted TrustedContext)
 		HostGroups: hostGroups,
 		Tags:       map[string]string{"stage": template.Stage},
 	}
-	if trusted.ExcludedPlacement != nil {
-		plan.Placement.ExcludedOffers = []cloudlease.PlacementExclusion{*trusted.ExcludedPlacement}
-	}
 	if err := cloudlease.ValidatePlan(plan, trusted.Now); err != nil {
 		return RunPlan{}, ErrInvalidInput
 	}
@@ -265,12 +262,12 @@ func validTemplate(template Template) bool {
 		template.Network.ConservativePublicEgressBytes <= 0 || template.Network.PeakBandwidthMbps != 20 ||
 		template.Compute.VCPUs != 4 || template.Compute.MemoryBytes != 8<<30 ||
 		template.Compute.Architecture != "x86_64" || !strings.EqualFold(template.Compute.BillingModel, "postpaid") ||
-		template.Compute.AllowBurstable || template.Retry.DeploymentRetries != 1 || len(template.HostGroups) != 2 {
+		template.Compute.AllowBurstable || template.Retry.DeploymentRetries != 0 || len(template.HostGroups) != 2 {
 		return false
 	}
 	switch template.Stage {
 	case StageRehearsal:
-		if template.LeaseDurationSeconds != int64((6*time.Hour)/time.Second) ||
+		if template.LeaseDurationSeconds != int64((12*time.Hour)/time.Second) ||
 			template.WorkloadDurationSeconds != int64((2*time.Hour)/time.Second) {
 			return false
 		}
@@ -313,16 +310,7 @@ func validTrustedContext(template Template, trusted TrustedContext) bool {
 	} else if trusted.Transition != nil {
 		return false
 	}
-	switch trusted.Attempt {
-	case 1:
-		return trusted.CommittedMicros == baseCommitted && trusted.ExcludedPlacement == nil
-	case 2:
-		return trusted.CommittedMicros > baseCommitted && trusted.ExcludedPlacement != nil &&
-			strings.TrimSpace(trusted.ExcludedPlacement.Zone) != "" &&
-			strings.TrimSpace(trusted.ExcludedPlacement.ComputeType) != ""
-	default:
-		return false
-	}
+	return trusted.Attempt == 1 && trusted.CommittedMicros == baseCommitted
 }
 
 func normalizeEd25519PublicKey(value string) (string, error) {

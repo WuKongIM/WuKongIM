@@ -64,6 +64,8 @@ func TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate(t *tes
 		"wukongim-leases/chat-lifecycle/<request_id>",
 		"wkchatlifecycle open-access",
 		"operator-stop-chat-lifecycle",
+		"deployment_repair_pending",
+		"Chat-Lifecycle-Repair: <request_id>",
 		"zero-inventory proof",
 		"UTC and Asia/Shanghai",
 		"local-request-state.sh cleanup",
@@ -81,7 +83,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"cloud-deployment-bundle.yml",
 		"-f quote_only=true",
 		"-f quote_only=false",
-		"cloud-deployment-activate.yml",
+		"  while true; do\n    run_deployment_action",
 		"systemctl start --no-block '$stage_service'",
 		"run-start.json",
 		"keep_active=true",
@@ -101,8 +103,30 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 			t.Fatalf("orchestrator unexpectedly contains %q", forbidden)
 		}
 	}
-	if strings.Count(orchestrator, "cleanup_attempted=false") != 2 {
-		t.Fatal("fresh deployment retry does not re-arm EXIT cleanup ownership")
+	for _, required := range []string{
+		"deployment_repair_pending",
+		"Chat-Lifecycle-Repair: $WK_CHAT_REQUEST_ID",
+		"wait_for_deployment_repair_revision",
+		"attempted-deployment-control-shas",
+		"repair_reserve_seconds",
+		"for attempt in 1; do",
+	} {
+		if !strings.Contains(orchestrator, required) {
+			t.Fatalf("same-Lease deployment repair is missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		"for attempt in 1 2",
+		"complete_failed_attempt",
+		"second acquisition/deployment/readiness attempt failed",
+		"--excluded-zone",
+	} {
+		if strings.Contains(orchestrator, forbidden) {
+			t.Fatalf("orchestrator still contains fresh-Lease deployment retry %q", forbidden)
+		}
+	}
+	if strings.Count(orchestrator, `-f quote_only=false`) != 1 {
+		t.Fatal("orchestrator may acquire more than one Lease per stage")
 	}
 	workflow := string(readWorkflow(t, "chat-lifecycle-rehearsal.yml"))
 	if strings.Count(workflow, "      "+"source_sha:") != 1 ||
@@ -223,7 +247,7 @@ func TestChatLifecycleStopActionBlocksFormalProcurementAndRequestsBoundedOperato
 	for _, required := range []string{
 		"operator-stop-requested.sh", `gh run cancel "$DISPATCH_RUN_ID"`,
 		"operator stop canceled the in-flight stage after exact zero-inventory cleanup",
-		"refusing another paid attempt after cleanup",
+		"paid Lease was released after cleanup",
 	} {
 		if !strings.Contains(orchestrator, required) {
 			t.Fatalf("coordinated pre-handoff stop is missing %q", required)

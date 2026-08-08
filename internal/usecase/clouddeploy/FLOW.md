@@ -76,6 +76,12 @@ Deployment deliberately leaves both coordinator units dormant. Workload
 orchestration consumes the successful Deployment Receipt and alone authorizes
 the exact stage-specific coordinator start. Remote systemd, rather than a
 GitHub runner, owns the measured execution and its report files.
+Before that ownership transfer, the Deployment Action may be re-invoked on the
+same Lease with the same source, content-addressed bundle, and sealed SSH
+identity after a request-bound protected-main control fix. Host installation is
+idempotent for an already mounted expected ext4 data disk and overwrites only
+the reviewed role payload and per-deployment runtime credentials. The Action
+still cannot replace bundle provenance or mutate the Lease lifecycle.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The

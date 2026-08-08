@@ -39,6 +39,6 @@
     }
   ],
   "retry": {
-    "deployment_retries": 1
+    "deployment_retries": 0
   }
 }

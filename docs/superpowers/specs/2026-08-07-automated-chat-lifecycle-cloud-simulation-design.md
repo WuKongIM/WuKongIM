@@ -144,8 +144,19 @@ Acceptance criteria:
   identity, WuKongIM Deployment Plan, and temporary deployment credential.
 - The Deployment Action cannot create or delete cloud resources.
 - It emits a typed Deployment Receipt and structured failure evidence.
-- A failed first deployment releases the entire lease and permits one fresh
-  deployment attempt; no third attempt is allowed.
+- A deployment or pre-clock readiness failure retains the exact acquired Lease
+  and publishes typed repair evidence instead of releasing and repurchasing
+  hosts.
+- The top-level orchestrator waits for a distinct protected-`main` control
+  revision, then invokes the Deployment Action again with the exact same Lease
+  Receipt, immutable bundle, and sealed per-Lease SSH identity.
+- Same-Lease repair is bounded by the aggregate CNY 1,350 operational stop,
+  operator stop, the immutable Lease expiry, and the time still required for
+  deployment, readiness, the measured stage, and its one-hour release reserve.
+- A repair that requires a different product source or bundle is not silently
+  substituted into the acquired Lease. It is terminal for that Lease because
+  its provenance no longer matches; cleanup must prove zero inventory before a
+  separately authorized run can acquire another Lease.
 
 ### Exercise real login and complete conversation synchronization
 
@@ -291,15 +302,16 @@ Acceptance criteria:
 - The command does not report success until provider inventory is zero; if
   cleanup is still pending it says so plainly.
 
-### Bound spend across every stage and retry
+### Bound spend across every stage and repair
 
 As the operator, I want one aggregate budget for the full command so that a
-deployment retry or second lease cannot silently reset cost authorization.
+deployment repair window or later formal Lease cannot silently reset cost
+authorization.
 
 Acceptance criteria:
 
 - The hard Cost Envelope is ¥1,500 across rehearsal, formal, capacity, all
-  disks, EIP traffic, and the one allowed deployment retry.
+  disks, EIP traffic, and billable same-Lease deployment repair time.
 - At an estimated aggregate cost of ¥1,350 the orchestrator safely stops new
   workload and reserves the remaining ¥150 for bounded evidence collection,
   billing lag, and release.
@@ -456,9 +468,9 @@ The selected instance must be:
   availability checks.
 
 All four hosts use the same instance type. If no exact candidate fits the
-remaining aggregate Cost Envelope, acquisition stops before mutation. A fresh
-deployment retry must exclude the first zone and instance-type combination; if
-no alternative is eligible, the retry is not attempted.
+remaining aggregate Cost Envelope, acquisition stops before mutation.
+Deployment repair reuses the selected hosts and therefore does not perform a
+second placement selection.
 
 The image is the latest provider official, cloud-init-compatible Ubuntu 24.04
 LTS x86_64 point image available at quote time. Its exact image identifier is
@@ -585,7 +597,8 @@ The Deployment Action:
 
 It cannot call Acquire, Release, or other billable cloud mutations. On failure
 it emits a stable failure code, last successful gate, bounded logs, and known
-host state. The top-level orchestrator owns release and the one fresh retry.
+host state. The top-level orchestrator owns release and the bounded same-Lease
+repair loop. A failed Deployment Action never acquires or releases resources.
 
 ### Authentication and credential handling
 
@@ -712,14 +725,17 @@ true:
 - 10,000 sessions completed CONNECT and full conversation synchronization; and
 - the first full 2,000 SEND/s grant was delivered to the workers.
 
-Readiness has a bounded deadline. A timeout is a deployment failure and follows
-the one-fresh-Lease retry rule. Active duration and cost accounting are separate:
-cost begins when billable resources are acquired, while test duration begins
-only at the completed readiness gate.
+Readiness has a bounded deadline. A timeout enters the same-Lease deployment
+repair window after the dormant stage coordinator is stopped. Active duration
+and cost accounting are separate: cost begins when billable resources are
+acquired, while test duration begins only at the completed readiness gate.
 
 ### Stage lifecycle
 
-The rehearsal Lease has an immutable six-hour expiry. It starts from empty data,
+The rehearsal Lease has an immutable 12-hour expiry. This is an AutoRelease
+ceiling that leaves a real bounded control-repair window; successful or terminal
+orchestration still releases it immediately, so PostPaid billing follows actual
+hold time rather than intentionally retaining it for 12 hours. It starts from empty data,
 runs the full profile for exactly two hours after readiness, emits bounded
 evidence, and is always released before the formal Lease is acquired.
 
@@ -839,13 +855,37 @@ percent free, Prometheus reaching 140 GB, aggregate budget stop, and immutable
 expiry risk. Hardware insufficiency without a fatal condition is reported, not
 automatically repaired.
 
-### Failure, retry, and diagnosis policy
+### Failure, repair, retry, and diagnosis policy
 
-The only automatic paid retry is a complete fresh Lease after the first
-deployment/readiness failure. Before retry, the failed Lease is released and
-zero inventory is proved. The retry uses the same source, bundle, workload,
-budget ledger, and Plans, but excludes the first zone/instance-type
-combination. A second deployment failure is terminal.
+Procurement is not retried after a valid active Lease Receipt exists.
+Deployment or pre-clock readiness failure keeps that exact Lease active and
+enters a bounded repair loop. Each failed Deployment Action publishes its typed
+failure code, last successful gate, exact child run, exact Deployment Action
+control SHA, and repair deadline on the request Issue without publishing host
+addresses or credentials. The orchestrator then waits for a different
+protected-`main` revision whose commit message has the exact
+`Chat-Lifecycle-Repair: <request_id>` trailer and re-dispatches the Deployment
+Action with the same Lease artifact run/name, bundle artifact run/name,
+diagnostic public key, and encrypted deployment identity. One distinct control
+SHA is attempted at most once, so a persistent defect cannot create an
+unbounded dispatch loop.
+
+The repair loop stops and releases the exact Lease when the operator requests
+stop, the aggregate conservative spend reaches CNY 1,350, the Lease no longer
+has enough time for one bounded Deployment Action plus readiness, the full
+measured stage, and the one-hour release reserve, or the orchestrator loses
+safe control. Release remains selector-bound and must end in authenticated
+zero-inventory proof. A workflow/job interruption also prefers immediate exact
+Release; provider AutoRelease and the 15-minute sweeper remain independent
+backstops.
+
+The original product source SHA and content-addressed bundle stay immutable
+during same-Lease repair. Protected-main changes may fix Deployment Action
+orchestration and repository control scripts because the Deployment Action
+authenticates the original upstream artifacts independently of its current
+control SHA. If diagnosis shows that the product binary, frontend, or sealed
+bundle payload itself must change, the current Lease is released and the run is
+terminal; a new paid run requires a new explicit start authorization.
 
 There is no automatic retry for rehearsal workload, formal workload,
 qualification, 72-hour Soak, capacity, recovery, correctness, runtime process,
@@ -874,7 +914,7 @@ Lifecycle Run, not a per-Lease amount. The ledger includes:
 - rehearsal compute, disks, EIP, and traffic;
 - formal compute, disks, EIP, and traffic;
 - capacity and recovery time;
-- the failed first deployment Lease, if any;
+- all billable hold time spent repairing deployment on the current Lease;
 - evidence/diagnostic retention; and
 - cleanup and provider billing delay.
 
@@ -922,7 +962,7 @@ the two-hour rescue policy.
 
 ### Cleanup and expiry
 
-The rehearsal Lease expires after six hours and the formal Lease after 96
+The rehearsal Lease expires after 12 hours and the formal Lease after 96
 hours. Expiry cannot be extended. Every compute instance receives provider
 native scheduled release where supported. An independent scheduled sweeper
 runs every 15 minutes.
@@ -1079,6 +1119,7 @@ The implementation boundary is reinforced by these accepted, scoped ADRs:
 - ADR 0044 separates GitHub Deployment and local Codex SSH identities.
 - ADR 0045 excludes manual Demo traffic from workload verdicts.
 - ADR 0046 reports attributable resource saturation as a capacity warning.
+- ADR 0047 retains one acquired Lease across bounded Deployment Action repair.
 
 The affected existing ADRs contain explicit pointers to these scoped
 exceptions, so the general Cloud Simulation behavior is not silently changed.
@@ -1120,7 +1161,7 @@ The implementation is complete only when:
    bounded aged-data capacity and recovery stages;
 7. resource saturation produces the reviewed capacity-warning attribution while
    correctness and headroom-backed latency failures remain product failures;
-8. operator stop, budget stop, disk stop, deployment retry, report rescue, and
+8. operator stop, budget stop, disk stop, same-Lease deployment repair, report rescue, and
    scheduled Sweep have verified failure paths;
 9. the final Artifact contains bounded evidence and zero-inventory proof without
    secret leakage; and
