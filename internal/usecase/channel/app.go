@@ -21,7 +21,6 @@ const (
 type Store interface {
 	GetChannel(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 	UpsertChannel(ctx context.Context, ch metadb.Channel) error
-	DeleteChannel(ctx context.Context, channelID string, channelType int64) error
 	AddChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	RemoveChannelSubscribers(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion ...uint64) error
 	ListChannelSubscribers(ctx context.Context, channelID string, channelType int64, afterUID string, limit int) ([]string, string, bool, error)
@@ -45,9 +44,14 @@ type conditionalChannelStore interface {
 // MembershipIndex maintains the UID-owned reverse channel membership index.
 type MembershipIndex interface {
 	// UpsertChannelMemberships records that uids belong to a normal channel.
-	UpsertChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error
-	// DeleteChannelMemberships removes normal channel membership rows for uids.
-	DeleteChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error
+	UpsertChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, committedTail, sourceVersion uint64, updatedAt int64) error
+	// TombstoneChannelMemberships records normal channel removals for uids.
+	TombstoneChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, sourceVersion uint64, updatedAt int64) error
+}
+
+// CommittedTailReader captures one committed channel tail for a logical bulk add.
+type CommittedTailReader interface {
+	CommittedChannelTail(ctx context.Context, channelID string, channelType int64) (uint64, error)
 }
 
 // Options contains dependencies for the channel usecase.
@@ -55,6 +59,8 @@ type Options struct {
 	Store Store
 	// MembershipIndex receives ordinary subscriber membership projections.
 	MembershipIndex MembershipIndex
+	// CommittedTail supplies the join visibility boundary for ordinary membership writes.
+	CommittedTail CommittedTailReader
 	// SubscriberPageLimit bounds internal subscriber pages and mutation chunks.
 	SubscriberPageLimit int
 	// LargeGroupSubscriberThreshold marks ordinary channels large when subscriber count exceeds it.
@@ -70,6 +76,7 @@ type Options struct {
 type App struct {
 	store                         Store
 	membershipIndex               MembershipIndex
+	committedTail                 CommittedTailReader
 	subscriberMutationObserver    SubscriberMutationObserver
 	subscriberPageLimit           int
 	largeGroupSubscriberThreshold int
@@ -93,6 +100,7 @@ func New(opts Options) *App {
 	return &App{
 		store:                         opts.Store,
 		membershipIndex:               opts.MembershipIndex,
+		committedTail:                 opts.CommittedTail,
 		subscriberMutationObserver:    opts.SubscriberMutationObserver,
 		subscriberPageLimit:           limit,
 		largeGroupSubscriberThreshold: largeGroupThreshold,
@@ -151,8 +159,12 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 		return err
 	}
 	if err == nil {
+		if existing.Disband != 0 {
+			channel.Disband = 1
+		}
 		channel.SubscriberMutationVersion = existing.SubscriberMutationVersion
 		channel.SubscriberCount = existing.SubscriberCount
+		channel.DirectoryReady = existing.DirectoryReady
 	}
 	return a.store.UpsertChannel(ctx, channel)
 }
@@ -193,6 +205,13 @@ func (a *App) PatchMetadataFlags(ctx context.Context, key ChannelKey, flags Busi
 	if !ok {
 		return ErrStoreRequired
 	}
+	existing, err := a.store.GetChannel(ctx, key.ChannelID, int64(key.ChannelType))
+	if err != nil {
+		return err
+	}
+	if existing.Disband != 0 {
+		flags.Disband = true
+	}
 	return store.PatchChannelBusinessFlags(
 		ctx,
 		key.ChannelID,
@@ -205,12 +224,24 @@ func (a *App) PatchMetadataFlags(ctx context.Context, key ChannelKey, flags Busi
 	)
 }
 
-// Delete removes channel metadata.
+// Delete terminally disbands a channel while retaining its durable identity.
 func (a *App) Delete(ctx context.Context, key ChannelKey) error {
 	if err := a.requireStore(); err != nil {
 		return err
 	}
-	return a.store.DeleteChannel(ctx, key.ChannelID, int64(key.ChannelType))
+	channel, err := a.store.GetChannel(ctx, key.ChannelID, int64(key.ChannelType))
+	if err != nil {
+		return err
+	}
+	store, ok := a.store.(conditionalChannelStore)
+	if !ok {
+		return ErrStoreRequired
+	}
+	return store.PatchChannelBusinessFlags(ctx, key.ChannelID, int64(key.ChannelType), metadb.ChannelBusinessFlags{
+		Ban:     channel.Ban,
+		Disband: 1,
+		SendBan: channel.SendBan,
+	})
 }
 
 // AddSubscribers appends subscribers to a channel, replacing existing members
@@ -288,6 +319,13 @@ func (a *App) MutateSubscribersCounted(ctx context.Context, cmd SubscriberComman
 	if err != nil {
 		return metadb.SubscriberMutationResult{}, err
 	}
+	var committedTail uint64
+	if add && a.membershipIndex != nil {
+		committedTail, err = a.readCommittedTail(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+		if err != nil {
+			return metadb.SubscriberMutationResult{}, err
+		}
+	}
 	var result metadb.SubscriberMutationResult
 	if add {
 		result, err = store.AddChannelSubscribersCounted(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, version)
@@ -299,9 +337,9 @@ func (a *App) MutateSubscribersCounted(ctx context.Context, cmd SubscriberComman
 	}
 	if a.membershipIndex != nil {
 		if add {
-			err = a.membershipIndex.UpsertChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, 0, a.now().UnixNano())
+			err = a.membershipIndex.UpsertChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, committedTail, version, a.now().UnixNano())
 		} else {
-			err = a.membershipIndex.DeleteChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, a.now().UnixNano())
+			err = a.membershipIndex.TombstoneChannelMemberships(ctx, cmd.ChannelID, int64(cmd.ChannelType), cmd.Subscribers, version, a.now().UnixNano())
 		}
 		if err != nil {
 			return result, err
@@ -642,6 +680,10 @@ func (a *App) removeAllOrdinarySubscribersFor(ctx context.Context, channelID str
 }
 
 func (a *App) addOrdinarySubscribersChunked(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion uint64) error {
+	committedTail, err := a.readCommittedTail(ctx, channelID, channelType)
+	if err != nil {
+		return err
+	}
 	return a.forEachSubscriberChunk(uids, func(chunk []string) error {
 		if err := a.store.AddChannelSubscribers(ctx, channelID, channelType, chunk, subscriberMutationVersion); err != nil {
 			return err
@@ -649,7 +691,7 @@ func (a *App) addOrdinarySubscribersChunked(ctx context.Context, channelID strin
 		if a.membershipIndex == nil {
 			return nil
 		}
-		return a.membershipIndex.UpsertChannelMemberships(ctx, channelID, channelType, chunk, 0, a.now().UnixNano())
+		return a.membershipIndex.UpsertChannelMemberships(ctx, channelID, channelType, chunk, committedTail, subscriberMutationVersion, a.now().UnixNano())
 	})
 }
 
@@ -667,8 +709,15 @@ func (a *App) removeOrdinarySubscribersChunked(ctx context.Context, channelID st
 		if a.membershipIndex == nil {
 			return nil
 		}
-		return a.membershipIndex.DeleteChannelMemberships(ctx, channelID, channelType, chunk, a.now().UnixNano())
+		return a.membershipIndex.TombstoneChannelMemberships(ctx, channelID, channelType, chunk, subscriberMutationVersion, a.now().UnixNano())
 	})
+}
+
+func (a *App) readCommittedTail(ctx context.Context, channelID string, channelType int64) (uint64, error) {
+	if a.committedTail == nil {
+		return 0, nil
+	}
+	return a.committedTail.CommittedChannelTail(ctx, channelID, channelType)
 }
 
 func (a *App) removeSubscribersChunked(ctx context.Context, channelID string, channelType int64, uids []string, subscriberMutationVersion uint64) error {

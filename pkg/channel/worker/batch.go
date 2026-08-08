@@ -282,7 +282,7 @@ func (p *Pool) runStoreAppendBatch(ctx context.Context, group []queuedTask, batc
 		items = append(items, store.AppendLeaderBatchItem{
 			ChannelKey: queued.task.Fence.ChannelKey,
 			ChannelID:  payload.ChannelID,
-			Request:    store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync},
+			Request:    store.AppendLeaderRequest{Records: payload.Records, Sync: payload.Sync, ServerAllocatedMessageIDs: payload.ServerAllocatedMessageIDs},
 		})
 		active = append(active, i)
 	}

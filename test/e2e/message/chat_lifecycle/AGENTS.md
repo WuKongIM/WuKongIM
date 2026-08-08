@@ -12,8 +12,9 @@ Channel runtimes.
   natural absence on all three nodes.
 - MUST NOT use a runtime eviction endpoint, mocked clock, direct database
   write, or product-internal runtime call.
-- MUST use real WKProto SEND/SENDACK/RECV/RECVACK and a version-zero full
-  `/conversation/sync` after every login.
+- MUST use real WKProto SEND/SENDACK/RECV/RECVACK and a zero-coverage full
+  `/conversation/list` page walk, including bounded unresolved retry, after
+  every login.
 - The cross-ingress burst case MUST assert strictly increasing recipient
   `message_seq` while both users send concurrently through different nodes.
 - Polling MUST be bounded and the package command MUST use a nine-minute

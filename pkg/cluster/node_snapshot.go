@@ -84,9 +84,6 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 			return err
 		}
 	}
-	if n.router != nil && (firstSnapshot || changes.nodes || changes.slots || changes.hashSlots) {
-		n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot)
-	}
 	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
 		if err := n.reconcileTasks(ctx, snapshot); err != nil {
 			return err

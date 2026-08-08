@@ -34,7 +34,7 @@ func TestConversationClearUnreadMapsLegacyRequestToUsecaseCommand(t *testing.T) 
 		t.Fatalf("NormalizePersonChannel() error = %v", err)
 	}
 	got := conversations.clearUnreadCommands[0]
-	if got.UID != "u1" || got.ChannelID != wantChannelID || got.ChannelType != frame.ChannelTypePerson || got.MessageSeq != 12 {
+	if got.UID != "u1" || got.ChannelID != wantChannelID || got.ChannelType != frame.ChannelTypePerson {
 		t.Fatalf("clear unread command = %#v, want normalized personal channel command", got)
 	}
 }
@@ -88,7 +88,7 @@ func TestConversationDeleteMapsLegacyRequestToUsecaseCommand(t *testing.T) {
 		t.Fatalf("NormalizePersonChannel() error = %v", err)
 	}
 	got := conversations.deleteCommands[0]
-	if got.UID != "u1" || got.ChannelID != wantChannelID || got.ChannelType != frame.ChannelTypePerson || got.MessageSeq != 12 {
+	if got.UID != "u1" || got.ChannelID != wantChannelID || got.ChannelType != frame.ChannelTypePerson {
 		t.Fatalf("delete command = %#v, want normalized personal channel command", got)
 	}
 }
@@ -128,5 +128,20 @@ func TestConversationDeleteReportsMissingUsecase(t *testing.T) {
 	}
 	if !jsonEqual(rec.Body.String(), `{"msg":"conversation usecase not configured","status":400}`) {
 		t.Fatalf("body = %q, want missing usecase error", rec.Body.String())
+	}
+}
+
+func TestConversationActivateMapsExplicitNavigationToUsecase(t *testing.T) {
+	conversations := &recordingConversationUsecase{}
+	srv := New(Options{Conversations: conversations})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/conversations/activate", bytes.NewBufferString(`{"uid":"u1","channel_id":"g1","channel_type":2}`))
+	req.Header.Set("Content-Type", "application/json")
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || len(conversations.activateCommands) != 1 {
+		t.Fatalf("status=%d body=%s commands=%#v", rec.Code, rec.Body.String(), conversations.activateCommands)
+	}
+	if got := conversations.activateCommands[0]; got.UID != "u1" || got.ChannelID != "g1" || got.ChannelType != frame.ChannelTypeGroup {
+		t.Fatalf("activate command = %#v", got)
 	}
 }

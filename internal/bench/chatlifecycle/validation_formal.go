@@ -49,14 +49,11 @@ func validateFormalDefaults(c Config) error {
 	if w.RuntimeSampling.Size != wantW.RuntimeSampling.Size {
 		return formalError("workload.runtime_sampling.size")
 	}
-	if w.Sync.Version != wantW.Sync.Version {
-		return formalError("workload.sync.version")
+	if w.Sync.CompletedCoverage != wantW.Sync.CompletedCoverage {
+		return formalError("workload.sync.completed_coverage")
 	}
-	if w.Sync.Limit != wantW.Sync.Limit {
-		return formalError("workload.sync.limit")
-	}
-	if w.Sync.MessageCount != wantW.Sync.MessageCount {
-		return formalError("workload.sync.message_count")
+	if w.Sync.MaxConversations != wantW.Sync.MaxConversations {
+		return formalError("workload.sync.max_conversations")
 	}
 	if w.BurstCredit != wantW.BurstCredit {
 		return formalError("workload.burst_credit")

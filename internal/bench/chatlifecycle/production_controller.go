@@ -138,16 +138,20 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 	if err != nil {
 		return errProductionController
 	}
+	// Arm the observation source at the exact grant barrier before the live
+	// dataset proof. That proof may legitimately take longer than one observer
+	// phase, but it must not consume the first exact-hour forced-GC window.
+	if !c.continuing {
+		if err := c.observation.Begin(start.StartedAt); err != nil {
+			return errProductionController
+		}
+	}
 	digest, err := c.dataset.ProbeDatasetDigest(ctx, c.cfg)
 	if err != nil || !validReportHash(digest) {
 		return errProductionController
 	}
 	if c.continuing {
 		if digest != c.datasetDigest {
-			return errProductionController
-		}
-	} else {
-		if err := c.observation.Begin(start.StartedAt); err != nil {
 			return errProductionController
 		}
 	}

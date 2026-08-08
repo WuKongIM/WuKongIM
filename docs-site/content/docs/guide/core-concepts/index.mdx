@@ -34,7 +34,7 @@ description: 建立理解 WuKongIM 接入、消息路径和集群行为所需的
 3. Hash Slot 与集群元数据把请求路由到正确的 Channel Leader。
 4. Channel 按顺序追加消息，并等待持久化提交。
 5. 提交成功后，发送者得到确认；在线接收者获得投递。
-6. 离线或重连设备从已提交位置同步缺失消息，会话状态随之更新。
+6. 离线或重连设备分页同步 membership 目录，并拉取缺失的已提交 Channel 消息。
 
 <Callout type="info" title="顺序边界">
   WuKongIM 的消息顺序以频道为核心理解。不同频道之间不应假设存在全局顺序。
@@ -54,7 +54,7 @@ description: 建立理解 WuKongIM 接入、消息路径和集群行为所需的
   <Card title="消息" description="理解标识、频道内顺序、提交、投递和确认。" href="/zh/guide/core-concepts/messages" />
   <Card title="频道" description="理解 Channel 身份、成员策略、日志与副本。" href="/zh/guide/core-concepts/channels" />
   <Card title="用户与设备" description="区分 UID、Device、Session 与 Presence route。" href="/zh/guide/core-concepts/users-and-devices" />
-  <Card title="会话" description="理解最近会话投影、未读和删除可见性。" href="/zh/guide/core-concepts/conversations" />
+  <Card title="会话" description="理解 membership-backed 目录同步、未读和删除可见性。" href="/zh/guide/core-concepts/conversations" />
 </Cards>
 
 下一步可以运行[快速开始](/zh/guide/quick-start)，或查看[服务端架构](/zh/server/architecture)。

@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -16,18 +18,49 @@ func TestChannelMetadataStoreProjectsUserMemberships(t *testing.T) {
 	node := &recordingChannelMetadataNode{}
 	store := NewChannelMetadataStore(node, nil)
 
-	if err := store.UpsertChannelMemberships(context.Background(), "g1", 2, []string{"u1", "u2"}, 9, 123); err != nil {
+	if err := store.UpsertChannelMemberships(context.Background(), "g1", 2, []string{"u1", "u2"}, 9, 7, 123); err != nil {
 		t.Fatalf("UpsertChannelMemberships(): %v", err)
 	}
-	if err := store.DeleteChannelMemberships(context.Background(), "g1", 2, []string{"u1"}, 456); err != nil {
-		t.Fatalf("DeleteChannelMemberships(): %v", err)
+	if err := store.TombstoneChannelMemberships(context.Background(), "g1", 2, []string{"u1"}, 8, 456); err != nil {
+		t.Fatalf("TombstoneChannelMemberships(): %v", err)
 	}
 
-	if got, want := node.membershipUpserts, []membershipUpsertNodeCall{{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, joinSeq: 9, updatedAt: 123}}; !equalMembershipUpsertNodeCalls(got, want) {
+	if got, want := node.membershipUpserts, []membershipUpsertNodeCall{{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, committedTail: 9, sourceVersion: 7, updatedAt: 123}}; !equalMembershipUpsertNodeCalls(got, want) {
 		t.Fatalf("membership upserts = %#v, want %#v", got, want)
 	}
-	if got, want := node.membershipDeletes, []membershipDeleteNodeCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, updatedAt: 456}}; !equalMembershipDeleteNodeCalls(got, want) {
+	if got, want := node.membershipDeletes, []membershipDeleteNodeCall{{channelID: "g1", channelType: 2, uids: []string{"u1"}, sourceVersion: 8, updatedAt: 456}}; !equalMembershipDeleteNodeCalls(got, want) {
 		t.Fatalf("membership deletes = %#v, want %#v", got, want)
+	}
+}
+
+func TestChannelMetadataStoreEnsuresPersonDirectoryOnce(t *testing.T) {
+	node := &recordingChannelMetadataNode{committedTail: 9}
+	cache := NewChannelAppendMetadataCache()
+	store := NewChannelMetadataStore(node, cache)
+
+	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("EnsurePersonChannelDirectory(): %v", err)
+	}
+	if len(node.membershipUpserts) != 1 {
+		t.Fatalf("membership upserts = %+v", node.membershipUpserts)
+	}
+	call := node.membershipUpserts[0]
+	if call.channelID != "u1@u2" || call.channelType != 1 || call.committedTail != 9 || call.sourceVersion != 1 || !equalStringSlices(call.uids, []string{"u1", "u2"}) {
+		t.Fatalf("membership upsert = %+v", call)
+	}
+	if node.directoryReadyCalls != 1 {
+		t.Fatalf("directory ready calls = %d, want 1", node.directoryReadyCalls)
+	}
+	metadata, ok := cache.Lookup(channelappend.ChannelID{ID: "u1@u2", Type: 1})
+	if !ok || !metadata.DirectoryReady {
+		t.Fatalf("metadata = %+v ok=%v", metadata, ok)
+	}
+
+	if err := store.EnsurePersonChannelDirectory(context.Background(), "u1@u2", 1); err != nil {
+		t.Fatalf("EnsurePersonChannelDirectory(cached): %v", err)
+	}
+	if len(node.membershipUpserts) != 1 || node.directoryReadyCalls != 1 {
+		t.Fatalf("cached ensure repeated writes: upserts=%d ready=%d", len(node.membershipUpserts), node.directoryReadyCalls)
 	}
 }
 
@@ -112,6 +145,33 @@ func TestChannelMetadataStoreMapsUnavailablePermissionReadsToRouteNotReady(t *te
 	}
 }
 
+func TestChannelMetadataStoreMapsAuthoritativePermissionBatch(t *testing.T) {
+	node := &recordingChannelMetadataNode{permissionBatchResults: []slotproxy.PermissionMetadataReadResult{
+		{Found: true, Channel: metadb.Channel{ChannelID: "g1", ChannelType: 2, Ban: 1}},
+		{Value: true},
+		{Value: false},
+	}}
+	store := NewChannelMetadataStore(node, nil)
+	reads := []messageusecase.PermissionRead{
+		{Kind: messageusecase.PermissionReadChannel, ChannelID: "g1", ChannelType: 2},
+		{Kind: messageusecase.PermissionReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
+		{Kind: messageusecase.PermissionReadSubscriberHasAny, ChannelID: "g1", ChannelType: 2},
+	}
+
+	results := store.ReadPermissionsBatch(context.Background(), reads)
+
+	if len(results) != 3 || !results[0].Found || results[0].Channel.Ban != 1 || !results[1].Value || results[2].Value {
+		t.Fatalf("ReadPermissionsBatch() = %#v, want aligned mapped facts", results)
+	}
+	if got, want := node.permissionBatchReads, []slotproxy.PermissionMetadataRead{
+		{Kind: slotproxy.PermissionMetadataReadChannel, ChannelID: "g1", ChannelType: 2},
+		{Kind: slotproxy.PermissionMetadataReadSubscriberContains, ChannelID: "g1", ChannelType: 2, UID: "u1"},
+		{Kind: slotproxy.PermissionMetadataReadSubscriberHasAny, ChannelID: "g1", ChannelType: 2},
+	}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("proxy reads = %#v, want %#v", got, want)
+	}
+}
+
 func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
 	node := &localOnlyChannelMetadataNode{}
 	store := NewChannelMetadataStore(node, nil)
@@ -190,21 +250,27 @@ type recordingChannelMetadataNode struct {
 	localReadCalls         int
 	addResult              metadb.SubscriberMutationResult
 	removeResult           metadb.SubscriberMutationResult
+	committedTail          uint64
+	directoryReadyCalls    int
+	permissionBatchReads   []slotproxy.PermissionMetadataRead
+	permissionBatchResults []slotproxy.PermissionMetadataReadResult
 }
 
 type membershipUpsertNodeCall struct {
-	channelID   string
-	channelType int64
-	uids        []string
-	joinSeq     uint64
-	updatedAt   int64
+	channelID     string
+	channelType   int64
+	uids          []string
+	committedTail uint64
+	sourceVersion uint64
+	updatedAt     int64
 }
 
 type membershipDeleteNodeCall struct {
-	channelID   string
-	channelType int64
-	uids        []string
-	updatedAt   int64
+	channelID     string
+	channelType   int64
+	uids          []string
+	sourceVersion uint64
+	updatedAt     int64
 }
 
 func (r *recordingChannelMetadataNode) GetChannelMetadata(context.Context, string, int64) (metadb.Channel, error) {
@@ -275,6 +341,11 @@ func (r *recordingChannelMetadataNode) HasChannelSubscribersAuthoritative(contex
 	return len(r.authoritativeUIDs) > 0, nil
 }
 
+func (r *recordingChannelMetadataNode) ReadPermissionMetadataBatchAuthoritative(_ context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	r.permissionBatchReads = append([]slotproxy.PermissionMetadataRead(nil), reads...)
+	return append([]slotproxy.PermissionMetadataReadResult(nil), r.permissionBatchResults...)
+}
+
 func (r *recordingChannelMetadataNode) AddChannelSubscribersCounted(context.Context, string, int64, []string, uint64) (metadb.SubscriberMutationResult, error) {
 	return r.addResult, nil
 }
@@ -283,24 +354,36 @@ func (r *recordingChannelMetadataNode) RemoveChannelSubscribersCounted(context.C
 	return r.removeResult, nil
 }
 
-func (r *recordingChannelMetadataNode) UpsertUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
+func (r *recordingChannelMetadataNode) UpsertUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, committedTail, sourceVersion uint64, updatedAt int64) error {
 	r.membershipUpserts = append(r.membershipUpserts, membershipUpsertNodeCall{
-		channelID:   channelID,
-		channelType: channelType,
-		uids:        append([]string(nil), uids...),
-		joinSeq:     joinSeq,
-		updatedAt:   updatedAt,
+		channelID:     channelID,
+		channelType:   channelType,
+		uids:          append([]string(nil), uids...),
+		committedTail: committedTail,
+		sourceVersion: sourceVersion,
+		updatedAt:     updatedAt,
 	})
 	return nil
 }
 
-func (r *recordingChannelMetadataNode) DeleteUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error {
+func (r *recordingChannelMetadataNode) TombstoneUserChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, sourceVersion uint64, updatedAt int64) error {
 	r.membershipDeletes = append(r.membershipDeletes, membershipDeleteNodeCall{
-		channelID:   channelID,
-		channelType: channelType,
-		uids:        append([]string(nil), uids...),
-		updatedAt:   updatedAt,
+		channelID:     channelID,
+		channelType:   channelType,
+		uids:          append([]string(nil), uids...),
+		sourceVersion: sourceVersion,
+		updatedAt:     updatedAt,
 	})
+	return nil
+}
+
+func (r *recordingChannelMetadataNode) CommittedChannelTail(context.Context, string, int64) (uint64, error) {
+	return r.committedTail, nil
+}
+
+func (r *recordingChannelMetadataNode) EnsureChannelDirectoryReady(context.Context, string, int64) error {
+	r.directoryReadyCalls++
+	r.authoritativeChannel.DirectoryReady = 1
 	return nil
 }
 
@@ -309,7 +392,7 @@ func equalMembershipUpsertNodeCalls(a, b []membershipUpsertNodeCall) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].joinSeq != b[i].joinSeq || a[i].updatedAt != b[i].updatedAt || !equalStringSlices(a[i].uids, b[i].uids) {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].committedTail != b[i].committedTail || a[i].sourceVersion != b[i].sourceVersion || a[i].updatedAt != b[i].updatedAt || !equalStringSlices(a[i].uids, b[i].uids) {
 			return false
 		}
 	}
@@ -321,7 +404,7 @@ func equalMembershipDeleteNodeCalls(a, b []membershipDeleteNodeCall) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].updatedAt != b[i].updatedAt || !equalStringSlices(a[i].uids, b[i].uids) {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].sourceVersion != b[i].sourceVersion || a[i].updatedAt != b[i].updatedAt || !equalStringSlices(a[i].uids, b[i].uids) {
 			return false
 		}
 	}

@@ -312,7 +312,7 @@ func (w *channelWriter) prepareInbox(inbox []submittedBatch) []preparedInboxBatc
 	for _, batch := range inbox {
 		prepared = append(prepared, preparedInboxBatch{
 			batch:   batch,
-			outcome: prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare),
+			outcome: prepareBatch(w.ports.runtimeCtx, batch.items, w.ports.prepare, batch.target.WriteFenced),
 		})
 	}
 	return prepared

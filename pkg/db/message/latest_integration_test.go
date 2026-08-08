@@ -7,9 +7,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
-	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
 func TestMessageDBListsLatestMessagesAcrossChannels(t *testing.T) {
@@ -71,7 +68,7 @@ func TestMessageDBLatestIndexFollowsTruncate(t *testing.T) {
 	}
 }
 
-func TestMessageDBBackfillsLatestIndexForExistingRows(t *testing.T) {
+func TestMessageDBLatestIndexSurvivesReopen(t *testing.T) {
 	path := t.TempDir()
 	store := openTestMessageStoreAt(t, path)
 	log := testChannelLog(store)
@@ -80,37 +77,12 @@ func TestMessageDBBackfillsLatestIndexForExistingRows(t *testing.T) {
 	}
 	store.close(t)
 
-	raw, err := engine.Open(path, engine.Options{})
-	if err != nil {
-		t.Fatalf("engine.Open(raw): %v", err)
-	}
-	batch := raw.NewBatch()
-	span := keycodec.NewPrefixSpan(encodeGlobalMessageIDIndexPrefix())
-	if err := batch.DeleteRange(engine.Span{Start: span.Start, End: span.End}); err != nil {
-		t.Fatalf("DeleteRange(global index): %v", err)
-	}
-	if err := batch.Delete(encodeGlobalLatestIndexStateKey()); err != nil {
-		t.Fatalf("Delete(index state): %v", err)
-	}
-	if err := batch.Commit(true); err != nil {
-		t.Fatalf("Commit(remove current index): %v", err)
-	}
-	if err := batch.Close(); err != nil {
-		t.Fatalf("Batch.Close(): %v", err)
-	}
-	if err := raw.Close(); err != nil {
-		t.Fatalf("engine.Close(raw): %v", err)
-	}
-
 	reopened := openTestMessageStoreAt(t, path)
 	defer reopened.close(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := reopened.db.WaitLatestMessageIndex(ctx); err != nil {
 		t.Fatalf("WaitLatestMessageIndex(): %v", err)
-	}
-	if _, ok, err := reopened.engine.Get(encodeGlobalLatestIndexProgressKey()); err != nil || ok {
-		t.Fatalf("latest index progress after completion ok=%v err=%v, want deleted", ok, err)
 	}
 	page, err := reopened.db.ListLatestMessages(ctx, 0, 10)
 	if err != nil {

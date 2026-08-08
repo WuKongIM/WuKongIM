@@ -46,9 +46,9 @@ func storeRPCHandlers(store *Store) []storeRPCRegistration {
 		{serviceID: identityRPCServiceID, handler: store.handleIdentityRPC},
 		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
 		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
-		{serviceID: userConversationStateRPCServiceID, handler: store.handleUserConversationStateRPC},
+		{serviceID: permissionBatchRPCServiceID, handler: store.handlePermissionBatchRPC},
 		{serviceID: channelMigrationRPCServiceID, handler: store.handleChannelMigrationRPC},
-		{serviceID: cmdConversationStateRPCServiceID, handler: store.handleCMDConversationStateRPC},
 		{serviceID: pluginBindingRPCServiceID, handler: store.handlePluginBindingRPC},
+		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 	}
 }

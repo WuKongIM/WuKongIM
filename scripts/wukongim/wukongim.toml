@@ -78,9 +78,9 @@ commit_coordinator_max_records = 0
 
 commit_coordinator_max_bytes = 0
 
-# Four partition-hashed coordinators preserve per-channel append locking and
-# synchronous durable commits while allowing unrelated channels to commit concurrently.
-commit_coordinator_shards = 4
+# One coordinator maximizes durable group-commit batches for the single physical
+# message DB and avoids concurrent fsync contention. Increase only after storage-specific validation.
+commit_coordinator_shards = 1
 
 [api]
 # Optional HTTP API listener for /healthz, /readyz, metrics, and bench/v1.
@@ -215,7 +215,9 @@ runtime_async_pool_release_timeout = "0s"
 
 default_session_async_send_batch_max_wait = "1ms"
 
-default_session_async_send_batch_max_records = 512
+# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.
+# The 128-record limit is qualified for sustained high-QPS workloads.
+default_session_async_send_batch_max_records = 128
 
 default_session_async_send_batch_max_bytes = 524288
 
@@ -235,34 +237,6 @@ touch_batch_size = 512
 touch_max_routes_per_flush = 65536
 
 route_ttl = "90s"
-
-[conversation]
-# Conversation authority and list-read tuning.
-# Bounds concurrent channel tail reads used to hydrate one /conversation/list page.
-max_last_message_concurrency = 32
-
-# Conversation authority cache, handoff, and admission controls.
-authority_cache_max_rows_per_uid = 4096
-
-authority_cache_max_rows = 100000
-
-authority_list_db_window_max = 1000
-
-authority_handoff_timeout = "3s"
-
-authority_active_cooldown = "2h"
-
-authority_flush_interval = "1s"
-
-authority_flush_timeout = "5s"
-
-authority_flush_batch_rows = 512
-
-authority_admit_batch_rows = 512
-
-authority_admit_concurrency = 16
-
-
 
 [delivery]
 # Online delivery fanout and owner-local recvack tracking are enabled by default; set false to disable them.

@@ -9,22 +9,20 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-func TestListRecentConversationsMapsSyncResultAndTruncates(t *testing.T) {
-	syncer := &fakeRecentConversationSyncer{
-		result: conversationusecase.SyncResult{Conversations: []conversationusecase.SyncConversation{
+func TestListRecentConversationsMapsMembershipResultAndTruncates(t *testing.T) {
+	lister := &fakeRecentConversationLister{
+		result: conversationusecase.ListResult{Items: []conversationusecase.Conversation{
 			{
-				ChannelID: "g1", ChannelType: 2, Unread: 3, Timestamp: 100,
-				LastMsgSeq: 12, LastClientMsgNo: "c12", ReadToMsgSeq: 9, Version: 1000,
-				Recents: []conversationusecase.SyncMessage{{
+				ChannelID: "g1", ChannelType: 2, Unread: 3, ReadSeq: 9, UpdatedAt: 1000,
+				LastMessage: &conversationusecase.LastMessage{
 					MessageID: 99, MessageSeq: 12, ClientMsgNo: "c12",
-					ChannelID: "g1", ChannelType: 2, FromUID: "u2",
-					ServerTimestampMS: 100000, Payload: []byte("hello"),
-				}},
+					FromUID: "u2", ServerTimestampMS: 100000, Payload: []byte("hello"),
+				},
 			},
-			{ChannelID: "g2", ChannelType: 2, Unread: 0, Timestamp: 90, LastMsgSeq: 8, ReadToMsgSeq: 8, Version: 900},
+			{ChannelID: "g2", ChannelType: 2, Unread: 1, ReadSeq: 8, UpdatedAt: 900},
 		}},
 	}
-	app := New(Options{Conversations: syncer})
+	app := New(Options{Conversations: lister})
 
 	got, err := app.ListRecentConversations(context.Background(), RecentConversationsRequest{
 		UID: " u1 ", Limit: 1, MsgCount: 1, OnlyUnread: true,
@@ -33,8 +31,8 @@ func TestListRecentConversationsMapsSyncResultAndTruncates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRecentConversations() error = %v", err)
 	}
-	if syncer.query.UID != "u1" || syncer.query.Limit != 2 || syncer.query.MsgCount != 1 || !syncer.query.OnlyUnread {
-		t.Fatalf("Sync query = %#v, want uid u1 limit 2 msg_count 1 only_unread", syncer.query)
+	if lister.request.UID != "u1" || lister.request.Limit != 2 {
+		t.Fatalf("List request = %#v, want uid u1 limit 2", lister.request)
 	}
 	if !got.Truncated || got.UID != "u1" || got.Limit != 1 || got.MsgCount != 1 || !got.OnlyUnread {
 		t.Fatalf("response header = %#v, want truncated u1 limit/msg_count/only_unread", got)
@@ -54,7 +52,7 @@ func TestListRecentConversationsMapsSyncResultAndTruncates(t *testing.T) {
 }
 
 func TestListRecentConversationsRejectsInvalidRequest(t *testing.T) {
-	app := New(Options{Conversations: &fakeRecentConversationSyncer{}})
+	app := New(Options{Conversations: &fakeRecentConversationLister{}})
 	maxInt := int(^uint(0) >> 1)
 	for _, req := range []RecentConversationsRequest{
 		{UID: "", Limit: 1, MsgCount: 0},
@@ -81,7 +79,7 @@ func TestListRecentConversationsReturnsUnavailableWhenSyncerMissing(t *testing.T
 
 func TestListRecentConversationsPropagatesSyncError(t *testing.T) {
 	wantErr := errors.New("sync failed")
-	app := New(Options{Conversations: &fakeRecentConversationSyncer{err: wantErr}})
+	app := New(Options{Conversations: &fakeRecentConversationLister{err: wantErr}})
 
 	_, err := app.ListRecentConversations(context.Background(), RecentConversationsRequest{UID: "u1", Limit: 1})
 
@@ -90,14 +88,14 @@ func TestListRecentConversationsPropagatesSyncError(t *testing.T) {
 	}
 }
 
-type fakeRecentConversationSyncer struct {
-	query  conversationusecase.SyncQuery
-	result conversationusecase.SyncResult
-	err    error
+type fakeRecentConversationLister struct {
+	request conversationusecase.ListRequest
+	result  conversationusecase.ListResult
+	err     error
 }
 
-func (f *fakeRecentConversationSyncer) Sync(_ context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error) {
-	f.query = query
+func (f *fakeRecentConversationLister) List(_ context.Context, query conversationusecase.ListRequest) (conversationusecase.ListResult, error) {
+	f.request = query
 	return f.result, f.err
 }
 

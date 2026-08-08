@@ -156,10 +156,11 @@ instead of reusing benchmark-only cursors.
 Acceptance criteria:
 
 - Every login establishes a real WKProto connection and waits for CONNACK.
-- Every login then synchronizes conversations from version zero with an empty
-  last-message sequence list, limit 500, and recent-message count 20.
-- No conversation version or per-channel message cursor is retained between
-  sessions.
+- Every login then starts `/conversation/list` with `completed_coverage=0` and
+  an empty cursor, follows bounded 200-candidate pages until `done=true`, and
+  retries bounded unresolved keys through `/conversation/retry`.
+- No completed coverage, directory cursor, or per-channel message cursor is
+  retained between sessions.
 - Realtime traffic begins for that session only after its synchronization
   response passes validation.
 - Each virtual user remains below 500 conversations; reaching the limit is a
@@ -1113,7 +1114,7 @@ The implementation is complete only when:
    evidence, and proves zero inventory after release;
 4. Manager and Demo are reachable over the returned HTTP URLs with the
    temporary credential while private service-node surfaces remain private;
-5. every simulated login performs and validates a version-zero full
+5. every simulated login performs and validates a zero-coverage full
    conversation synchronization before traffic;
 6. the orchestration can execute a fresh 72-hour formal Soak followed by the
    bounded aged-data capacity and recovery stages;

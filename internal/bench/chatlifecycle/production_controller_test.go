@@ -71,6 +71,38 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}
 }
 
+func TestProductionEvidenceControllerArmsObservationBeforeDatasetProbe(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "production-controller-observation-order"
+	start := time.Unix(1_960_003_000, 0).UTC()
+	fence := WorkerFence{RunID: cfg.RunID, AssignmentID: "production-controller-observation-order", Generation: 1}
+	observation := newProductionControllerObservation(cfg, start)
+	probeSawObservation := false
+	dataset := &productionControllerDataset{
+		digest: hashReportValue("production-controller-observation-order-dataset"),
+		onProbe: func() {
+			probeSawObservation = observation.begin.Equal(start)
+		},
+	}
+	accounting := NewMetaCreateAccounting()
+	controller, err := NewProductionEvidenceController(ProductionEvidenceControllerOptions{
+		Config: cfg, OutputDir: t.TempDir(), Observation: observation,
+		Lifecycle: &productionControllerLifecycle{snapshot: LifecycleProofSnapshot{ReheatLatency: newWorkerHistogramSnapshot()}, done: make(chan struct{})},
+		Meta:      &productionControllerMeta{accounting: accounting}, MetaAccounting: accounting,
+		Dataset: dataset, SlotAssignment: mustInitialLifecycleSlotAssignment(t),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	if err := controller.Begin(context.Background(), CoordinatorRunStart{Config: cfg, Fence: fence, StartedAt: start}); err != nil {
+		t.Fatal(err)
+	}
+	if !probeSawObservation {
+		t.Fatal("dataset probe started before the observation source was armed at the grant barrier")
+	}
+}
+
 func TestProductionEvidenceControllerContinuesFormalBoundaryWithoutRestartingEvidenceSources(t *testing.T) {
 	cfg := FormalConfig()
 	cfg.RunID = "production-controller-continuous-formal"
@@ -541,12 +573,16 @@ func (m *productionControllerMeta) Checkpoint(
 }
 
 type productionControllerDataset struct {
-	digest string
-	calls  int
+	digest  string
+	calls   int
+	onProbe func()
 }
 
 func (d *productionControllerDataset) ProbeDatasetDigest(context.Context, Config) (string, error) {
 	d.calls++
+	if d.onProbe != nil {
+		d.onProbe()
+	}
 	return d.digest, nil
 }
 

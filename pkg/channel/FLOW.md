@@ -102,8 +102,11 @@ Leader reactors keep a configurable recent-record suffix cache for durable
 append records, defaulting to 128 records. Follower `Pull` requests that are
 covered by this suffix can complete from memory; older requests still use
 `TaskStoreReadLog`, and the leader may append a cache-covered suffix to the
-store prefix when doing so does not create gaps. The cache is cleared by
-metadata fences or role changes and is only a performance optimization.
+store prefix when doing so does not create gaps. As ACK progress advances, the
+leader releases the prefix acknowledged by every configured follower; a later
+request for a released offset safely falls back to the durable store. The cache
+is also cleared by metadata fences or role changes and is only a performance
+optimization.
 
 Ordinary follower progress is piggybacked on `PullRequest.AckOffset`: after a follower durably applies records, it schedules the next `Pull` immediately and carries the latest local LEO as the ACK offset. The standalone `Ack` RPC remains only for stopped-follower lifecycle confirmation, not for the hot replication path.
 
@@ -112,9 +115,21 @@ path after the reactor has validated pull fencing and continuous follower
 offsets, avoiding redundant existing-index reads in the hot replication path.
 Each record-bearing apply returns the checkpoint HW persisted atomically with
 its rows. A committed HW learned only from a later empty pull is coalesced for
-one second by default; a subsequent record apply can persist it for free, while
-an idle channel still receives one final standalone checkpoint after that
-bounded window.
+at most five seconds by default. Its first deadline is deterministically spread
+by channel key over the upper half of that interval, so pause recovery does not
+release every idle-channel checkpoint simultaneously. A subsequent record
+apply can persist it for free, while an idle channel still receives one final
+standalone checkpoint within the bounded window.
+After a pause makes many deadlines overdue, committed-HW checkpoint submission
+uses the isolated pool's half-capacity high-water mark and spreads excess work
+over a fresh bounded window. This prevents maintenance recovery from crowding
+out foreground replication or spinning on a full checkpoint queue.
+The reactor also processes at most 128 ready maintenance deadlines between
+mailbox turns. Unprocessed deadlines remain coalesced in the scheduler, so a
+high-cardinality recovery wave cannot monopolize the reactor goroutine.
+Pending record apply and dirty follower Pull work run before an idle committed-HW
+checkpoint, allowing foreground traffic to cover that HW atomically whenever
+possible.
 Follower-side replication stage metrics split PullHint wakeup, pull RPC wait,
 store apply wait, and apply-to-`AckOffset` return wait. These complement the
 leader-side quorum append wait stages: leader stages show when an append becomes
@@ -124,11 +139,32 @@ coverage.
 The RPC worker dispatcher may coalesce queued `TaskRPCPull` or
 `TaskRPCPullHint` items that target the same remote node into one transport
 batch before executing the group on the ants-backed worker executor.
+The shared RPC queue uses reactor-side priority watermarks: a new append's first
+PullHint wakeup and critical follower Pull work yield at 50% occupancy, while
+retry-only resume PullHint work yields at 25%.
+Both thresholds allow at least four queued tasks first, preserving one normal
+multi-replica fanout when a test or deployment uses a very small queue.
+Deferred channels keep their pending state and are deterministically spread
+over the upper half of their configured retry windows, both one second by
+default. This prevents
+a pause-recovery hint wave from consuming Pull headroom; bounded pool admission
+and retry backoff still cover concurrent overshoot. Typed `result="paced"`
+counters distinguish proactive pacing from actual `result="full"` rejection.
+Follower Pull admission also yields when the local store-apply queue reaches
+50%, leaving half the queue for responses already in flight. These followers
+retain dirty state and retry over the upper half of the configured maximum
+backoff (50-100 ms by default); already
+fetched `pendingPull` data keeps precedence. Store-apply-pool
+`kind="rpc_pull",result="paced"` counts distinguish this persistence
+backpressure from the RPC-queue watermarks.
 
 Store worker dispatchers may coalesce queued `TaskStoreAppend`,
 `TaskStoreApply`, or `TaskStoreCheckpoint` items when the store factory
 implements the corresponding optional batch surface; ants only runs the
-prepared blocking group. Checkpoint work uses its own bounded low-concurrency
+prepared blocking group. Reactor and machine batching preserve the
+all-records `ServerAllocatedMessageIDs` proof only when every contributing
+append waiter carries it; mixed batches fail closed to strict message-ID
+validation. Checkpoint work uses its own bounded low-concurrency
 pool, and the message DB adapter persists a cross-channel checkpoint group with
 one checkpoint-lock-only commit. This prevents idle-channel checkpoint fsyncs
 from consuming every foreground follower-apply worker or taking foreground
@@ -173,6 +209,9 @@ addition to loaded leader/follower/missing counts, `RuntimeProbe` returns a
 bounded per-loaded-channel proof record: channel epoch, leader epoch, role,
 status, LEO, HW, checkpoint HW, current write fence, in-flight append boolean,
 and pending append count. It never copies pending append entries or payloads.
+Cluster conversation hydration uses one probe for the locally assigned part of
+each Leader batch so a hot quorum channel exposes current HW without converting
+the intentionally coalesced durable checkpoint into a per-message write.
 `DrainChannel` is a migration-only service boundary. It polls the owning reactor
 until the requested local leader is still fenced by the expected fence version,
 has no accepted in-flight or pending append work, and local HW covers local LEO;

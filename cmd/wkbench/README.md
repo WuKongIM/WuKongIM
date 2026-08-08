@@ -119,13 +119,15 @@ The reviewed profile is
 `configs/wkbench/chat-lifecycle/formal.yaml`: three service nodes, three
 workers, one coordinator, 12 logical Slot Raft Groups over 256 physical hash
 slots, replicas `3/3`, 10,000 online users, and one global 2,000 SEND/s budget.
-Every login performs a fresh product `/conversation/sync` with `version=0`, an
-empty last-message map, and no retained cursor. The independent proof samples
+Every login performs a fresh product `/conversation/list` pass with
+`completed_coverage=0`, an empty initial cursor, all pages through `done=true`,
+and bounded `/conversation/retry` hydration. No cursor or coverage is retained.
+The independent proof samples
 1,200 real person channels every ten minutes and waits for natural
 hot-to-cold-to-reheat transitions without a control-plane eviction.
 `configs/wkbench/chat-lifecycle/rehearsal.yaml` changes only the run identity
 and evidence stage. It ends two hours after every online user has completed
-CONNECT plus a new version-zero full sync and all workers accept the first
+CONNECT plus a new zero-coverage full sync and all workers accept the first
 global 2,000 SEND/s grant. A healthy result is `rehearsal_pass`; it is never a
 72-hour formal pass.
 

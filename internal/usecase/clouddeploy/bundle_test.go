@@ -346,7 +346,7 @@ stage: formal
 workload:
   workers: 3
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
-  sync: {version: 0}
+  sync: {completed_coverage: 0, max_conversations: 500}
 thresholds:
   minimum_data_filesystem_bytes: 500000000000
 `
@@ -358,7 +358,7 @@ stage: rehearsal
 workload:
   workers: 3
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
-  sync: {version: 0}
+  sync: {completed_coverage: 0, max_conversations: 500}
 thresholds:
   minimum_data_filesystem_bytes: 500000000000
 `

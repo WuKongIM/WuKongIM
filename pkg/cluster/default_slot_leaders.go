@@ -12,26 +12,48 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 )
 
-const defaultSeedJoinSlotLeaderPollInterval = 250 * time.Millisecond
+const (
+	defaultSeedJoinSlotLeaderPollInterval = 250 * time.Millisecond
+	defaultRemoteSlotLeaderPollInterval   = time.Second
+	remoteSlotLeaderRoundTimeout          = 250 * time.Millisecond
+	remoteSlotLeaderMaxConcurrency        = 8
+)
 
-// startSlotLeaderLoop publishes local default Slot leadership into the foreground router.
+// startSlotLeaderLoop publishes local and remote default Slot leadership from
+// independent managed loops so network observation cannot delay the 10ms
+// local Raft readiness path.
 func (n *Node) startSlotLeaderLoop() {
 	if n == nil || n.defaultSlotRuntime == nil || n.slotLeaderCancel != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	n.slotLeaderCancel = cancel
-	n.slotLeaderWG.Add(1)
+	n.slotLeaderWG.Add(2)
 	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
 		defer n.slotLeaderWG.Done()
-		ticker := time.NewTicker(n.slotLeaderPollInterval())
-		defer ticker.Stop()
+		localTicker := time.NewTicker(n.slotLeaderPollInterval())
+		defer localTicker.Stop()
+		n.refreshDefaultSlotLeaders()
 		for {
-			n.refreshDefaultSlotLeaders()
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-localTicker.C:
+				n.refreshDefaultSlotLeaders()
+			}
+		}
+	})
+	goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
+		defer n.slotLeaderWG.Done()
+		remoteTicker := time.NewTicker(n.remoteSlotLeaderPollInterval())
+		defer remoteTicker.Stop()
+		n.refreshRemoteSlotLeaders(ctx)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-remoteTicker.C:
+				n.refreshRemoteSlotLeaders(ctx)
 			}
 		}
 	})
@@ -58,9 +80,6 @@ func (n *Node) refreshDefaultSlotLeaders() {
 	n.mu.RUnlock()
 	statuses := defaultSlotStatuses(n.defaultSlotRuntime, slotIDs)
 	n.updateDefaultSlotsReady(revision, localAssignedSlotsReady(localAssignedSlotIDs, statuses))
-	if n.cfg.seedJoinMode() && n.refreshSeedJoinRemoteSlotLeaders(context.Background()) {
-		return
-	}
 	if len(slotIDs) == 0 {
 		return
 	}
@@ -160,24 +179,38 @@ func (n *Node) slotLeaderPollInterval() time.Duration {
 	return defaultSlotLeaderPollInterval
 }
 
-func (n *Node) refreshSeedJoinRemoteSlotLeaders(ctx context.Context) bool {
-	if n == nil || !n.cfg.seedJoinMode() {
+func (n *Node) remoteSlotLeaderPollInterval() time.Duration {
+	if n != nil && n.cfg.seedJoinMode() {
+		return defaultSeedJoinSlotLeaderPollInterval
+	}
+	return defaultRemoteSlotLeaderPollInterval
+}
+
+// refreshRemoteSlotLeaders copies one Controller snapshot and publishes only
+// actual leaders observed from remote replicas within a bounded network round.
+func (n *Node) refreshRemoteSlotLeaders(ctx context.Context) bool {
+	if n == nil {
 		return false
 	}
 	n.mu.RLock()
 	snapshot := n.controlSnapshot.Clone()
 	n.mu.RUnlock()
-	if !n.installSeedJoinActiveRemoteSlotLeaders(ctx, snapshot) {
+	if !n.installObservedRemoteSlotLeaders(ctx, snapshot) {
 		return false
 	}
 	return true
 }
 
-func (n *Node) installSeedJoinActiveRemoteSlotLeaders(ctx context.Context, snapshot control.Snapshot) bool {
-	if n == nil || n.router == nil || n.slotStatusCaller == nil || !n.cfg.seedJoinMode() || !snapshotHasActiveNode(snapshot, n.cfg.NodeID) {
+// installObservedRemoteSlotLeaders updates non-local logical Slots without
+// treating Controller preferred placement as current Raft authority.
+func (n *Node) installObservedRemoteSlotLeaders(ctx context.Context, snapshot control.Snapshot) bool {
+	if n == nil || n.router == nil || n.slotStatusCaller == nil {
 		return false
 	}
-	slotIDs := slotIDsFromSnapshot(snapshot)
+	if n.cfg.seedJoinMode() && !snapshotHasActiveNode(snapshot, n.cfg.NodeID) {
+		return false
+	}
+	slotIDs := remoteSlotIDsFromSnapshot(snapshot, n.cfg.NodeID)
 	if len(slotIDs) == 0 {
 		return false
 	}
@@ -192,24 +225,67 @@ func (n *Node) installSeedJoinActiveRemoteSlotLeaders(ctx context.Context, snaps
 	return true
 }
 
+// remoteSlotLeaderStatuses queries at most eight peers concurrently and caps
+// the entire observation round, independent of cluster node count.
 func (n *Node) remoteSlotLeaderStatuses(ctx context.Context, snapshot control.Snapshot, slotIDs []uint32) []routing.SlotStatus {
 	client := slotStatusClient{caller: n.slotStatusCaller}
-	bySlot := make(map[uint32]routing.SlotStatus, len(slotIDs))
-	for _, nodeID := range slotStatusPeerIDs(snapshot, n.cfg.NodeID) {
-		callCtx, cancel := context.WithTimeout(ctx, defaultSeedJoinSlotLeaderPollInterval)
-		statuses, err := client.Statuses(callCtx, nodeID, slotIDs)
-		cancel()
-		if err != nil {
-			continue
-		}
-		for _, status := range statuses {
-			if status.SlotID == 0 || status.Leader == 0 {
-				continue
+	peerIDs := slotStatusPeerIDs(snapshot, n.cfg.NodeID, slotIDs)
+	if len(peerIDs) == 0 {
+		return nil
+	}
+	roundCtx, cancel := context.WithTimeout(ctx, remoteSlotLeaderRoundTimeout)
+	defer cancel()
+	type peerResult struct {
+		statuses []routing.SlotStatus
+	}
+	jobs := make(chan uint64, len(peerIDs))
+	results := make(chan peerResult, len(peerIDs))
+	workerCount := remoteSlotLeaderWorkerCount(len(peerIDs))
+	for range workerCount {
+		goruntimeregistry.SafeGo(n.cfg.Goroutines, goruntimeregistry.TaskClusterSlotLeaderRefresh, func() {
+			for {
+				select {
+				case <-roundCtx.Done():
+					return
+				case nodeID, ok := <-jobs:
+					if !ok {
+						return
+					}
+					statuses, err := client.Statuses(roundCtx, nodeID, slotIDs)
+					if err != nil {
+						results <- peerResult{}
+						continue
+					}
+					results <- peerResult{statuses: statuses}
+				}
 			}
-			bySlot[status.SlotID] = status
-		}
-		if len(bySlot) == len(slotIDs) {
-			break
+		})
+	}
+	for _, peerID := range peerIDs {
+		jobs <- peerID
+	}
+	close(jobs)
+
+	bySlot := make(map[uint32]routing.SlotStatus, len(slotIDs))
+	for completed := 0; completed < len(peerIDs); completed++ {
+		select {
+		case <-roundCtx.Done():
+			completed = len(peerIDs)
+			continue
+		case result := <-results:
+			for _, status := range result.statuses {
+				if status.SlotID == 0 || status.Leader == 0 {
+					continue
+				}
+				current, ok := bySlot[status.SlotID]
+				if !ok || status.LeaderTerm > current.LeaderTerm {
+					bySlot[status.SlotID] = status
+				}
+			}
+			if len(bySlot) == len(slotIDs) {
+				cancel()
+				completed = len(peerIDs)
+			}
 		}
 	}
 	out := make([]routing.SlotStatus, 0, len(bySlot))
@@ -220,10 +296,14 @@ func (n *Node) remoteSlotLeaderStatuses(ctx context.Context, snapshot control.Sn
 	return out
 }
 
-func slotIDsFromSnapshot(snapshot control.Snapshot) []uint32 {
+func remoteSlotLeaderWorkerCount(peerCount int) int {
+	return min(peerCount, remoteSlotLeaderMaxConcurrency)
+}
+
+func remoteSlotIDsFromSnapshot(snapshot control.Snapshot, localNodeID uint64) []uint32 {
 	out := make([]uint32, 0, len(snapshot.Slots))
 	for _, slot := range snapshot.Slots {
-		if slot.SlotID == 0 {
+		if slot.SlotID == 0 || containsNodeID(slot.DesiredPeers, localNodeID) {
 			continue
 		}
 		out = append(out, slot.SlotID)
@@ -232,9 +312,16 @@ func slotIDsFromSnapshot(snapshot control.Snapshot) []uint32 {
 	return out
 }
 
-func slotStatusPeerIDs(snapshot control.Snapshot, localNodeID uint64) []uint64 {
+func slotStatusPeerIDs(snapshot control.Snapshot, localNodeID uint64, slotIDs []uint32) []uint64 {
+	wanted := make(map[uint32]struct{}, len(slotIDs))
+	for _, slotID := range slotIDs {
+		wanted[slotID] = struct{}{}
+	}
 	seen := make(map[uint64]struct{})
 	for _, slot := range snapshot.Slots {
+		if _, ok := wanted[slot.SlotID]; !ok {
+			continue
+		}
 		for _, peerID := range slot.DesiredPeers {
 			if peerID == 0 || peerID == localNodeID {
 				continue
@@ -248,6 +335,15 @@ func slotStatusPeerIDs(snapshot control.Snapshot, localNodeID uint64) []uint64 {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+func containsNodeID(nodeIDs []uint64, want uint64) bool {
+	for _, nodeID := range nodeIDs {
+		if nodeID == want {
+			return true
+		}
+	}
+	return false
 }
 
 func snapshotHasActiveNode(snapshot control.Snapshot, nodeID uint64) bool {

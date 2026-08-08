@@ -32,7 +32,6 @@ A durable SEND crosses entry adaptation, business permissions, Channel authority
       ├────────► 8. SENDACK success
       │
       └────────► 9. post-commit effects
-                    conversation projection
                     subscriber paging + presence lookup
                     owner-node online delivery
                     PersistAfter plugin / webhook
@@ -78,12 +77,15 @@ If the client disconnects before SENDACK, use a stable `client_msg_no` and query
 
 A new commit becomes an immutable `CommittedEnvelope` in the authority writer. The following work is scheduled independently of SENDACK:
 
-1. Ordinary messages create a normal conversation-active projection; command-sync messages use a separate kind.
-2. Direct channels derive participants, ordinary channels load a versioned subscriber snapshot, and large groups page by cursor.
-3. Sender and recipient UIDs resolve under one route snapshot into exact presence targets.
-4. A bounded `RecipientDeliveryPlan` groups by authority target and enters the online-delivery runtime.
-5. Online routes coalesce by owner node; local owners write Sessions and remote owners receive owner-push RPC.
-6. Optional PersistAfter plugins and webhooks receive best-effort events from the same committed boundary.
+1. Direct channels derive participants, ordinary channels load a versioned subscriber snapshot, and large groups page by cursor.
+2. Recipient UIDs resolve under one route snapshot into exact presence targets.
+3. A bounded `RecipientDeliveryPlan` groups by authority target and enters the online-delivery runtime.
+4. Online routes coalesce by owner node; local owners write Sessions and remote owners receive owner-push RPC.
+5. Optional PersistAfter plugins and webhooks receive best-effort events from the same committed boundary.
+
+SEND performs no recipient membership or conversation write. Clients discover
+ordinary conversations later by paging their UID-owned membership directory;
+the server groups Channel-head hydration by Leader and constructs the response.
 
 Failure in one recipient group does not change a successful SENDACK or block unrelated targets. Stage-specific logs and metrics expose the failure.
 
@@ -97,7 +99,7 @@ Durable committed history and whether one client has RECVACKed are separate dime
 
 A plain non-command-channel `NoPersist` send (without `SyncOnce` and without an existing command-channel ID) performs only side-effect-safe pre-route validation and then returns terminal success. It does not resolve authority, append to a Channel, or dispatch realtime delivery. This compatibility branch is not an online-message delivery capability.
 
-A command-style `NoPersist` send (with `SyncOnce` or an existing command-channel ID) maps to the command channel, resolves authority, and enters online recipient routing in writer order. It skips the Channel durable log, conversation projection, and PersistAfter, and reports success only after the online delivery plan is accepted. If no online-delivery capability exists, it fails rather than fabricating success.
+A command-style `NoPersist` send (with `SyncOnce` or an existing command-channel ID) maps to the command channel, resolves authority, and enters online recipient routing in writer order. It skips the Channel durable log, membership state, and PersistAfter, and reports success only after the online delivery plan is accepted. If no online-delivery capability exists, it fails rather than fabricating success.
 
 Neither `NoPersist` branch has a durable sequence or offline-recovery guarantee, so neither is suitable for business events that require reliable replay.
 

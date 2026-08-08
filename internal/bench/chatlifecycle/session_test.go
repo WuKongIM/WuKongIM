@@ -212,7 +212,7 @@ func TestSessionPoolRecordsRealConnectAndSyncOutcomesWithStableEvidence(t *testi
 		{
 			name: "sync validation failure",
 			configure: func(fixture *sessionTestFixture, _ context.CancelFunc) {
-				fixture.syncer.rows = make([]target.ConversationSyncConversation, conversationSyncLimit)
+				fixture.syncer.rows = make([]target.ConversationSyncConversation, conversationSyncMaxConversations)
 			},
 			wantConnectStarted: 1, wantConnectCompleted: 1, wantSyncStarted: 1, wantSyncFailed: 1,
 			wantStage: LoginSyncStageSync, wantReason: "conversation_limit_reached",

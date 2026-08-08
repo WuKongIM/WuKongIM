@@ -39,11 +39,11 @@ func TestOfflineCommandsSealAndVerifyVersionedBundle(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(workloadPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	workload := "run_id: replace-with-unique-formal-run-id\nprofile: formal\nmode: soak\nstage: formal\nworkload:\n  workers: 3\n  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}\n  sync: {version: 0}\nthresholds:\n  minimum_data_filesystem_bytes: 500000000000\n"
+	workload := "run_id: replace-with-unique-formal-run-id\nprofile: formal\nmode: soak\nstage: formal\nworkload:\n  workers: 3\n  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}\n  sync: {completed_coverage: 0, max_conversations: 500}\nthresholds:\n  minimum_data_filesystem_bytes: 500000000000\n"
 	if err := os.WriteFile(workloadPath, []byte(workload), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	rehearsal := "run_id: replace-with-unique-rehearsal-run-id\nprofile: formal\nmode: soak\nstage: rehearsal\nworkload:\n  workers: 3\n  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}\n  sync: {version: 0}\nthresholds:\n  minimum_data_filesystem_bytes: 500000000000\n"
+	rehearsal := "run_id: replace-with-unique-rehearsal-run-id\nprofile: formal\nmode: soak\nstage: rehearsal\nworkload:\n  workers: 3\n  topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}\n  sync: {completed_coverage: 0, max_conversations: 500}\nthresholds:\n  minimum_data_filesystem_bytes: 500000000000\n"
 	if err := os.WriteFile(filepath.Join(root, "config", "chat-lifecycle-rehearsal.yaml"), []byte(rehearsal), 0o644); err != nil {
 		t.Fatal(err)
 	}

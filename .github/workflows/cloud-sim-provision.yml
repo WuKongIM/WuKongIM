@@ -52,13 +52,8 @@ on:
         required: true
         default: "70"
         type: string
-      storage_calibration_run_id:
-        description: Completed 30m calibration Run Identity; required for 48h and 168h
-        required: false
-        default: ""
-        type: string
-      storage_bytes_per_message:
-        description: Worst-node retained bytes per message measured by that 30m calibration
+      storage_calibration:
+        description: Completed 30m calibration as RUN_ID:BYTES_PER_MESSAGE; required for 48h and 168h
         required: false
         default: ""
         type: string
@@ -88,8 +83,6 @@ jobs:
       ACTIVE_DURATION: ${{ inputs.duration }}
       ALIBABA_REGION: ${{ inputs.region }}
       PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
-      STORAGE_CALIBRATION_RUN_ID: ${{ inputs.storage_calibration_run_id }}
-      STORAGE_BYTES_PER_MESSAGE: ${{ inputs.storage_bytes_per_message }}
       CONFIRM_LARGE_168H_COST: ${{ inputs.confirm_large_168h_cost }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -243,8 +236,7 @@ jobs:
       ALIBABA_REGION: ${{ inputs.region }}
       MAX_TOTAL_COST: ${{ inputs.max_total_cost }}
       PUBLIC_OBSERVATION: ${{ inputs.public_observation }}
-      STORAGE_CALIBRATION_RUN_ID: ${{ inputs.storage_calibration_run_id }}
-      STORAGE_BYTES_PER_MESSAGE: ${{ inputs.storage_bytes_per_message }}
+      STORAGE_CALIBRATION: ${{ inputs.storage_calibration }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -293,15 +285,18 @@ jobs:
           jq -e '.account_id_hash | test("^sha256:[0-9a-f]{64}$")' provider.json >/dev/null
           case '${{ inputs.duration }}' in
             48h|168h)
-              if [[ ! "$STORAGE_CALIBRATION_RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] ||
-                 ! jq -en --arg value "$STORAGE_BYTES_PER_MESSAGE" '$value | tonumber | . > 0' >/dev/null; then
+              storage_calibration_run_id="${STORAGE_CALIBRATION%%:*}"
+              storage_bytes_per_message="${STORAGE_CALIBRATION#*:}"
+              if [[ "$storage_calibration_run_id" == "$STORAGE_CALIBRATION" || "$storage_bytes_per_message" == *:* ||
+                    ! "$storage_calibration_run_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] ||
+                 ! jq -en --arg value "$storage_bytes_per_message" '$value | tonumber | . > 0' >/dev/null; then
                 echo "Standard stability runs require a completed 30m storage calibration" >&2
                 exit 1
               fi
               ingress_qps="$(case "$EFFECTIVE_SCENARIO" in cloud-small) echo 500;; cloud-medium) echo 5000;; cloud-large) echo 20000;; esac)"
               duration_seconds="$(case '${{ inputs.duration }}' in 48h) echo 172800;; 168h) echo 604800;; esac)"
               calibrated_data_disk_gib="$(jq -nr \
-                --argjson qps "$ingress_qps" --argjson seconds "$duration_seconds" --argjson bytes "$STORAGE_BYTES_PER_MESSAGE" \
+                --argjson qps "$ingress_qps" --argjson seconds "$duration_seconds" --argjson bytes "$storage_bytes_per_message" \
                 '($qps * $seconds * $bytes * 1.5 / 0.7 / 1073741824 | ceil) | if . < 100 then 100 else . end')"
               jq --argjson size "$calibrated_data_disk_gib" '.data_disk_size_gib = $size' provider.json >provider-calibrated.json
               mv provider-calibrated.json provider.json

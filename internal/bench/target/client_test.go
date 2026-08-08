@@ -560,80 +560,68 @@ func TestClientProbeChannelRuntimeFallbackDoesNotKeepStaleDecodedFields(t *testi
 	require.Equal(t, model.ChannelRuntimeProbeResult{NodeID: 2}, got)
 }
 
-func TestClientConversationSyncPostsExactProductRequestAndDecodesRecents(t *testing.T) {
+func TestClientConversationSyncPagesFromZeroAndRetriesUnresolved(t *testing.T) {
 	const benchToken = "bench-secret-not-for-product-routes"
+	requestNumber := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestNumber++
 		require.Equal(t, http.MethodPost, r.Method)
-		require.Equal(t, "/conversation/sync", r.URL.Path)
 		require.Empty(t, r.Header.Get("Authorization"))
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
-		require.JSONEq(t, `{
-			"uid":"derived-user",
-			"version":0,
-			"last_msg_seqs":"",
-			"msg_count":20,
-			"only_unread":0,
-			"limit":500
-		}`, string(body))
-		_, _ = io.WriteString(w, `[{
-			"channel_id":"peer-user",
-			"channel_type":1,
-			"unread":3,
-			"timestamp":1722787200,
-			"last_msg_seq":19,
-			"last_client_msg_no":"client-19",
-			"offset_msg_seq":7,
-			"readed_to_msg_seq":16,
-			"version":23,
-			"recents":[{
-				"message_id":101,
-				"message_idstr":"101",
-				"message_seq":19,
-				"client_msg_no":"client-19",
-				"from_uid":"sender-user",
-				"channel_id":"peer-user",
-				"channel_type":1,
-				"timestamp":1722787200,
-				"payload":"bGlmZWN5Y2xlLW1hcmtlcg=="
-			}]
-		}]`)
+		switch requestNumber {
+		case 1:
+			require.Equal(t, "/conversation/list", r.URL.Path)
+			require.JSONEq(t, `{"uid":"derived-user","cursor":"","limit":200,"completed_coverage":0}`, string(body))
+			_, _ = io.WriteString(w, `{
+				"conversations":[{"channel_id":"peer-user","channel_type":1,"active_at":1722787200,"read_seq":16,"deleted_to_seq":7,"unread":3,
+				"last_message":{"message_id":101,"message_idstr":"101","message_seq":19,"client_msg_no":"client-19","from_uid":"sender-user","server_timestamp_ms":1722787200000,"payload":"bGlmZWN5Y2xlLW1hcmtlcg=="}}],
+				"deletes":[],"unresolved":[{"channel_id":"retry-group","channel_type":2}],"next_cursor":"cursor-1","done":false,"reset_required":false}`)
+		case 2:
+			require.Equal(t, "/conversation/list", r.URL.Path)
+			require.JSONEq(t, `{"uid":"derived-user","cursor":"cursor-1","limit":200,"completed_coverage":0}`, string(body))
+			_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"group-2","channel_type":2,"last_message":null}],"deletes":[],"unresolved":[],"done":true,"reset_required":false}`)
+		case 3:
+			require.Equal(t, "/conversation/retry", r.URL.Path)
+			require.JSONEq(t, `{"uid":"derived-user","channels":[{"channel_id":"retry-group","channel_type":2}]}`, string(body))
+			_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"retry-group","channel_type":2,"last_message":null}],"deletes":[],"unresolved":[],"done":true,"reset_required":false}`)
+		default:
+			t.Fatalf("unexpected request %d", requestNumber)
+		}
 	}))
 	defer server.Close()
 
 	client := NewClient(Config{APIAddrs: []string{server.URL}, Token: benchToken})
 	got, err := client.ConversationSync(context.Background(), ConversationSyncRequest{
-		UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, OnlyUnread: 0, Limit: 500,
+		UID: "derived-user", CompletedCoverage: 0, MaxConversations: 500,
 	})
 
 	require.NoError(t, err)
 	require.Equal(t, []ConversationSyncConversation{{
-		ChannelID: "peer-user", ChannelType: 1, Unread: 3, Timestamp: 1722787200,
-		LastMsgSeq: 19, LastClientMsgNo: "client-19", OffsetMsgSeq: 7,
-		ReadedToMsgSeq: 16, Version: 23,
-		Recents: []ConversationSyncMessage{{
-			MessageID: 101, MessageIDStr: "101", MessageSeq: 19,
-			ClientMsgNo: "client-19", FromUID: "sender-user", ChannelID: "peer-user",
-			ChannelType: 1, Timestamp: 1722787200, Payload: []byte("lifecycle-marker"),
-		}},
-	}}, got)
+		ChannelID: "peer-user", ChannelType: 1, ActiveAt: 1722787200, ReadSeq: 16, DeletedToSeq: 7, Unread: 3,
+		LastMessage: &ConversationSyncMessage{
+			MessageID: 101, MessageIDStr: "101", MessageSeq: 19, ClientMsgNo: "client-19",
+			FromUID: "sender-user", ServerTimestampMS: 1722787200000, Payload: []byte("lifecycle-marker"),
+		},
+	}, {ChannelID: "group-2", ChannelType: 2}, {ChannelID: "retry-group", ChannelType: 2}}, got)
+	require.Equal(t, 3, requestNumber)
 }
 
 func TestClientConversationSyncFallbackDoesNotKeepStaleDecodedRows(t *testing.T) {
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/conversation/sync", r.URL.Path)
-		_, _ = io.WriteString(w, `[{"channel_id":"stale","channel_type":1},{"channel_type":"bad"}]`)
+		require.Equal(t, "/conversation/list", r.URL.Path)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"stale","channel_type":1},{"channel_type":"bad"}],"deletes":[],"unresolved":[],"done":true}`)
 	}))
 	defer first.Close()
 	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/conversation/sync", r.URL.Path)
-		_, _ = io.WriteString(w, `[{"channel_id":"fresh","channel_type":2}]`)
+		require.Equal(t, "/conversation/list", r.URL.Path)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"fresh","channel_type":2}],"deletes":[],"unresolved":[],"done":true}`)
 	}))
 	defer second.Close()
 
 	got, err := NewClient(Config{APIAddrs: []string{first.URL, second.URL}}).ConversationSync(
 		context.Background(),
-		ConversationSyncRequest{UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, Limit: 500},
+		ConversationSyncRequest{UID: "derived-user", MaxConversations: 500},
 	)
 
 	require.NoError(t, err)
@@ -650,14 +638,14 @@ func TestClientConversationSyncErrorsDoNotExposeProductIdentitiesOrBenchToken(t 
 	}))
 	defer statusServer.Close()
 	invalidBase64Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `[{"channel_id":"peer","channel_type":1,"recents":[{"payload":"%%%not-base64%%%"}]}]`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"payload":"%%%not-base64%%%"}}],"deletes":[],"unresolved":[],"done":true}`)
 	}))
 	defer invalidBase64Server.Close()
 
 	_, err := NewClient(Config{
 		APIAddrs: []string{statusServer.URL, invalidBase64Server.URL},
 		Token:    benchToken,
-	}).ConversationSync(context.Background(), ConversationSyncRequest{UID: uid, MsgCount: 20, Limit: 500})
+	}).ConversationSync(context.Background(), ConversationSyncRequest{UID: uid, MaxConversations: 500})
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "decode")
@@ -668,13 +656,13 @@ func TestClientConversationSyncErrorsDoNotExposeProductIdentitiesOrBenchToken(t 
 
 func TestClientConversationSyncRejectsMalformedRecentJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `[{"channel_id":"peer","channel_type":1,"recents":[{"message_seq":1,]}]`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"message_seq":1,}}],"deletes":[],"unresolved":[],"done":true}`)
 	}))
 	defer server.Close()
 
 	_, err := NewClient(Config{APIAddrs: []string{server.URL}}).ConversationSync(
 		context.Background(),
-		ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500},
+		ConversationSyncRequest{UID: "derived-user", MaxConversations: 500},
 	)
 
 	require.ErrorContains(t, err, "decode")
@@ -694,7 +682,7 @@ func TestClientConversationSyncRejectsOversizedSuccessBody(t *testing.T) {
 
 	_, err := NewClient(Config{APIAddrs: []string{"http://api.example.test"}, HTTPClient: httpClient}).ConversationSync(
 		context.Background(),
-		ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500},
+		ConversationSyncRequest{UID: "derived-user", MaxConversations: 500},
 	)
 
 	require.ErrorContains(t, err, "conversation sync response exceeds byte limit")
@@ -711,7 +699,7 @@ func TestClientConversationSyncPreservesContextCancellation(t *testing.T) {
 	_, err := NewClient(Config{
 		APIAddrs:   []string{"http://api-1.example.test", "http://api-2.example.test"},
 		HTTPClient: httpClient,
-	}).ConversationSync(ctx, ConversationSyncRequest{UID: "derived-user", MsgCount: 20, Limit: 500})
+	}).ConversationSync(ctx, ConversationSyncRequest{UID: "derived-user", MaxConversations: 500})
 
 	require.ErrorIs(t, err, context.Canceled)
 }

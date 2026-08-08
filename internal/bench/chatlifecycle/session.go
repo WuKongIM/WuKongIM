@@ -267,7 +267,7 @@ func NewSessionPool(config SessionPoolConfig) (*SessionPool, error) {
 	}, nil
 }
 
-// Login creates a fresh connection, completes CONNECT then version-zero full
+// Login creates a fresh connection, completes CONNECT then zero-coverage full
 // sync through RunLoginSync, and starts the sole ordered receive drain only
 // after the session is traffic-ready.
 func (p *SessionPool) Login(ctx context.Context, login SessionLogin) (SessionSnapshot, error) {

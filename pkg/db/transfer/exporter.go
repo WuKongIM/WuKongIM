@@ -123,7 +123,7 @@ func exportMetaFiles(ctx context.Context, root string, meta *metadb.MetaDB, opts
 		{table: "channel", path: "meta/channels.jsonl", kind: FileKindMetaChannels, convert: exportChannelRecord, count: func(s *ExportStats) { s.ChannelsExported++ }},
 		{table: "subscriber", path: "meta/subscribers.jsonl", kind: FileKindMetaSubscribers, convert: exportSubscriberRecord, count: func(s *ExportStats) { s.SubscribersExported++ }},
 		{table: "user_channel_membership", path: "meta/memberships.jsonl", kind: FileKindMetaUserChannelMemberships, convert: exportUserChannelMembershipRecord},
-		{table: "conversation", path: "meta/conversations.jsonl", kind: FileKindMetaConversations, convert: exportConversationRecord},
+		{table: "user_cmd_channel_membership", path: "meta/cmd_memberships.jsonl", kind: FileKindMetaUserCMDChannelMemberships, convert: exportUserCMDChannelMembershipRecord},
 		{table: "channel_latest", path: "meta/channel_latest.jsonl", kind: FileKindMetaChannelLatest, convert: exportChannelLatestRecord},
 	}
 
@@ -570,30 +570,6 @@ func exportUserChannelMembershipRecord(slot uint16, row metadb.InspectRow) (any,
 	if err != nil {
 		return nil, err
 	}
-	updatedAt, err := rowInt64(row, "updated_at")
-	if err != nil {
-		return nil, err
-	}
-	return UserChannelMembershipRecord{HashSlot: slot, UID: uid, ChannelID: channelID, ChannelType: channelType, JoinSeq: Uint64(joinSeq), UpdatedAtMS: updatedAt}, nil
-}
-
-func exportConversationRecord(slot uint16, row metadb.InspectRow) (any, error) {
-	uid, err := rowString(row, "uid")
-	if err != nil {
-		return nil, err
-	}
-	kind, err := exportConversationKind(row)
-	if err != nil {
-		return nil, err
-	}
-	channelID, err := rowString(row, "channel_id")
-	if err != nil {
-		return nil, err
-	}
-	channelType, err := rowInt64(row, "channel_type")
-	if err != nil {
-		return nil, err
-	}
 	readSeq, err := rowUint64(row, "read_seq")
 	if err != nil {
 		return nil, err
@@ -602,7 +578,19 @@ func exportConversationRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	activeAt, err := rowInt64(row, "active_at")
+	activatedAt, err := rowInt64(row, "activated_at")
+	if err != nil {
+		return nil, err
+	}
+	tombstone, err := rowBool(row, "tombstone")
+	if err != nil {
+		return nil, err
+	}
+	tombstoneAt, err := rowInt64(row, "tombstone_at")
+	if err != nil {
+		return nil, err
+	}
+	sourceVersion, err := rowUint64(row, "source_version")
 	if err != nil {
 		return nil, err
 	}
@@ -610,37 +598,52 @@ func exportConversationRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	sparseActive, err := rowBool(row, "sparse_active")
-	if err != nil {
-		return nil, err
-	}
-	return ConversationRecord{
-		HashSlot:     slot,
-		UID:          uid,
-		Kind:         kind,
-		ChannelID:    channelID,
-		ChannelType:  channelType,
-		ReadSeq:      Uint64(readSeq),
-		DeletedToSeq: Uint64(deletedToSeq),
-		ActiveAt:     activeAt,
-		UpdatedAt:    updatedAt,
-		SparseActive: sparseActive,
+	return UserChannelMembershipRecord{
+		HashSlot: slot, UID: uid, ChannelID: channelID, ChannelType: channelType,
+		JoinSeq: Uint64(joinSeq), ReadSeq: Uint64(readSeq), DeletedToSeq: Uint64(deletedToSeq),
+		ActivatedAt: activatedAt, Tombstone: tombstone, TombstoneAt: tombstoneAt,
+		SourceVersion: Uint64(sourceVersion), UpdatedAtMS: updatedAt,
 	}, nil
 }
 
-func exportConversationKind(row metadb.InspectRow) (string, error) {
-	kind, err := rowUint64(row, "kind")
+func exportUserCMDChannelMembershipRecord(slot uint16, row metadb.InspectRow) (any, error) {
+	uid, err := rowString(row, "uid")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	switch metadb.ConversationKind(kind) {
-	case metadb.ConversationKindNormal:
-		return "normal", nil
-	case metadb.ConversationKindCMD:
-		return "cmd", nil
-	default:
-		return "", fmt.Errorf("%w: unknown conversation kind %d", ErrValidation, kind)
+	channelID, err := rowString(row, "command_channel_id")
+	if err != nil {
+		return nil, err
 	}
+	channelType, err := rowInt64(row, "channel_type")
+	if err != nil {
+		return nil, err
+	}
+	startSeq, err := rowUint64(row, "start_seq")
+	if err != nil {
+		return nil, err
+	}
+	ackSeq, err := rowUint64(row, "ack_seq")
+	if err != nil {
+		return nil, err
+	}
+	tombstone, err := rowBool(row, "tombstone")
+	if err != nil {
+		return nil, err
+	}
+	tombstoneAt, err := rowInt64(row, "tombstone_at")
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := rowInt64(row, "updated_at")
+	if err != nil {
+		return nil, err
+	}
+	return UserCMDChannelMembershipRecord{
+		HashSlot: slot, UID: uid, CommandChannelID: channelID, ChannelType: channelType,
+		StartSeq: Uint64(startSeq), AckSeq: Uint64(ackSeq), Tombstone: tombstone,
+		TombstoneAt: tombstoneAt, UpdatedAtMS: updatedAt,
+	}, nil
 }
 
 func exportChannelLatestRecord(slot uint16, row metadb.InspectRow) (any, error) {

@@ -34,7 +34,7 @@ A user can have multiple devices, and each device can create many connections ov
 3. Hash-slot and cluster metadata route the request to the correct Channel leader.
 4. The Channel appends the message in order and waits for durable commit.
 5. After commit, the sender receives an acknowledgement and online recipients receive delivery.
-6. Offline or reconnecting devices synchronize missing committed messages, and conversation state advances.
+6. Offline or reconnecting devices page their membership directory and synchronize missing committed Channel messages.
 
 <Callout type="info" title="Ordering boundary">
   Understand WuKongIM message ordering at the channel boundary. Do not assume a global order across different channels.
@@ -54,7 +54,7 @@ A user can have multiple devices, and each device can create many connections ov
   <Card title="Messages" description="Understand identity, per-Channel order, commit, delivery, and acknowledgement." href="/en/guide/core-concepts/messages" />
   <Card title="Channels" description="Understand Channel identity, membership policy, logs, and replicas." href="/en/guide/core-concepts/channels" />
   <Card title="Users & Devices" description="Distinguish UID, Device, Session, and Presence routes." href="/en/guide/core-concepts/users-and-devices" />
-  <Card title="Conversations" description="Understand recent-conversation projections, unread state, and delete visibility." href="/en/guide/core-concepts/conversations" />
+  <Card title="Conversations" description="Understand membership-backed directory sync, unread state, and delete visibility." href="/en/guide/core-concepts/conversations" />
 </Cards>
 
 Next, run the [Quick Start](/en/guide/quick-start) or review [Server Architecture](/en/server/architecture).

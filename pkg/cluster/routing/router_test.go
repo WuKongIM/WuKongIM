@@ -316,6 +316,23 @@ func TestRouterIgnoresZeroLeaderObservation(t *testing.T) {
 	}
 }
 
+func TestRouterIgnoresOlderLeaderTermObservation(t *testing.T) {
+	r := NewRouter()
+	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {
+		t.Fatalf("UpdateControlSnapshot() error = %v", err)
+	}
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 2, LeaderTerm: 10}})
+	r.UpdateSlotLeaders([]SlotStatus{{SlotID: 1, Leader: 1, LeaderTerm: 9}})
+
+	route, err := r.RouteHashSlot(0)
+	if err != nil {
+		t.Fatalf("RouteHashSlot() error = %v", err)
+	}
+	if route.Leader != 2 || route.LeaderTerm != 10 {
+		t.Fatalf("route = %#v, want newer leader 2 term 10 retained", route)
+	}
+}
+
 func TestRouterRouteKeysErrorIncludesKeyAndHashSlot(t *testing.T) {
 	r := NewRouter()
 	if err := r.UpdateControlSnapshot(testSnapshot()); err != nil {

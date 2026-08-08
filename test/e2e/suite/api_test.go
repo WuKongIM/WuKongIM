@@ -352,7 +352,7 @@ func TestPostConversationListDecodesPublicResponse(t *testing.T) {
 		require.Equal(t, float64(10), req["limit"])
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"conversations":[{"channel_id":"g1","channel_type":2,"sparse_active":false,"last_message":{"message_id":7,"message_seq":3,"from_uid":"u2","client_msg_no":"c1","payload":"aGVsbG8="}}],"more":0}`))
+		_, _ = w.Write([]byte(`{"conversations":[{"channel_id":"g1","channel_type":2,"read_seq":1,"deleted_to_seq":2,"last_message":{"message_id":7,"message_seq":3,"from_uid":"u2","client_msg_no":"c1","payload":"aGVsbG8="}}],"done":true}`))
 	}))
 	defer server.Close()
 
@@ -360,7 +360,59 @@ func TestPostConversationListDecodesPublicResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, page.Conversations, 1)
 	require.Equal(t, "g1", page.Conversations[0].ChannelID)
+	require.Equal(t, uint64(1), page.Conversations[0].ReadSeq)
+	require.Equal(t, uint64(2), page.Conversations[0].DeletedToSeq)
 	require.Equal(t, []byte("hello"), page.Conversations[0].LastMessage.Payload)
+}
+
+func TestPostConversationListPageSendsOpaqueCursorAndCoverage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/conversation/list", r.URL.Path)
+		var req ConversationListRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, ConversationListRequest{
+			UID: "u1", Cursor: "opaque-cursor", Limit: 1, CompletedCoverage: 42,
+		}, req)
+		_, _ = io.WriteString(w, `{"conversations":[],"deletes":[],"unresolved":[],"done":true}`)
+	}))
+	defer server.Close()
+
+	page, err := PostConversationListPage(context.Background(), strings.TrimPrefix(server.URL, "http://"), ConversationListRequest{
+		UID: "u1", Cursor: "opaque-cursor", Limit: 1, CompletedCoverage: 42,
+	})
+	require.NoError(t, err)
+	require.True(t, page.Done)
+}
+
+func TestPostConversationRetrySendsUnresolvedKeysAndDecodesPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/conversation/retry", r.URL.Path)
+		var req ConversationRetryRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, ConversationRetryRequest{
+			UID: "u1", Channels: []ConversationListKey{{ChannelID: "g1", ChannelType: 2}},
+		}, req)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"g1","channel_type":2}],"deletes":[],"unresolved":[],"done":true}`)
+	}))
+	defer server.Close()
+
+	page, err := PostConversationRetry(context.Background(), strings.TrimPrefix(server.URL, "http://"), ConversationRetryRequest{
+		UID: "u1", Channels: []ConversationListKey{{ChannelID: "g1", ChannelType: 2}},
+	})
+	require.NoError(t, err)
+	require.True(t, page.Done)
+	require.Len(t, page.Conversations, 1)
+	require.Equal(t, "g1", page.Conversations[0].ChannelID)
+}
+
+func TestFindConversationKeyMatchesIDAndType(t *testing.T) {
+	keys := []ConversationListKey{{ChannelID: "same", ChannelType: 1}, {ChannelID: "same", ChannelType: 2}}
+
+	got, ok := FindConversationKey(keys, "same", 2)
+	require.True(t, ok)
+	require.Equal(t, ConversationListKey{ChannelID: "same", ChannelType: 2}, got)
+	_, ok = FindConversationKey(keys, "missing", 2)
+	require.False(t, ok)
 }
 
 func TestGetJSONDecodesPublicResponse(t *testing.T) {
@@ -407,6 +459,24 @@ func TestParseMetricSampleMatchesLabels(t *testing.T) {
 	require.Equal(t, float64(3), value)
 	require.True(t, metricLabelsMatch(labels, map[string]string{"result": "ok"}))
 	require.False(t, metricLabelsMatch(labels, map[string]string{"result": "error"}))
+}
+
+func TestParseMetricSamplePreservesSpacesInQuotedLabelValues(t *testing.T) {
+	name, labels, value, ok := parseMetricSample(`wukongim_transport_rpc_total{service="slot channel metadata",result="ok"} 7`)
+
+	require.True(t, ok)
+	require.Equal(t, "wukongim_transport_rpc_total", name)
+	require.Equal(t, map[string]string{"service": "slot channel metadata", "result": "ok"}, labels)
+	require.Equal(t, float64(7), value)
+}
+
+func TestParseMetricSamplePreservesValueBeforeOptionalTimestamp(t *testing.T) {
+	name, labels, value, ok := parseMetricSample(`wukongim_transport_rpc_total{service="slot channel metadata",result="ok"} 7 1720000000000`)
+
+	require.True(t, ok)
+	require.Equal(t, "wukongim_transport_rpc_total", name)
+	require.Equal(t, map[string]string{"service": "slot channel metadata", "result": "ok"}, labels)
+	require.Equal(t, float64(7), value)
 }
 
 func TestFetchMetricSamplesReturnsOnePublicSnapshot(t *testing.T) {

@@ -353,6 +353,87 @@ wukongim_channelv2_replication_stage_duration_seconds_bucket{stage="follower_nee
 	}
 }
 
+func TestAnalyzeWukongIMPrometheusReportsGatewayBatchRecordsP99(t *testing.T) {
+	before := PrometheusSnapshot{Samples: []PrometheusSample{
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "8"}, Value: 10},
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "32"}, Value: 10},
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "+Inf"}, Value: 10},
+	}}
+	after := PrometheusSnapshot{Samples: []PrometheusSample{
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "8"}, Value: 60},
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "32"}, Value: 110},
+		{Name: "wukongim_gateway_async_send_batch_records_bucket", Labels: map[string]string{"le": "+Inf"}, Value: 110},
+	}}
+
+	report := AnalyzeWukongIMPrometheus(before, after)
+	if report.GatewayBatchRecordsP99 <= report.GatewayBatchRecordsP50 {
+		t.Fatalf("gateway batch record quantiles = p50 %.3f p99 %.3f, want p99 > p50", report.GatewayBatchRecordsP50, report.GatewayBatchRecordsP99)
+	}
+}
+
+func TestAnalyzeWukongIMPrometheusReportsGatewayHandleAndRouterLatency(t *testing.T) {
+	before := PrometheusSnapshot{Samples: []PrometheusSample{
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "1"}, Value: 10},
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "+Inf"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "+Inf"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "+Inf"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "+Inf"}, Value: 10},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "+Inf"}, Value: 10},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "1"}, Value: 10},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "+Inf"}, Value: 10},
+	}}
+	after := PrometheusSnapshot{Samples: []PrometheusSample{
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "1"}, Value: 110},
+		{Name: "wukongim_gateway_frame_handle_duration_seconds_bucket", Labels: map[string]string{"frame_type": "SEND", "le": "+Inf"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "1"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "local", "result": "ok", "le": "+Inf"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "1"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "remote", "result": "ok", "le": "+Inf"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "1"}, Value: 110},
+		{Name: "wukongim_channelappend_router_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "+Inf"}, Value: 110},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "1"}, Value: 110},
+		{Name: "wukongim_channelappend_router_item_duration_seconds_bucket", Labels: map[string]string{"path": "batch", "result": "ok", "le": "+Inf"}, Value: 110},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "0.1"}, Value: 10},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "1"}, Value: 110},
+		{Name: "wukongim_message_send_batch_stage_item_duration_seconds_bucket", Labels: map[string]string{"stage": "permission", "result": "ok", "le": "+Inf"}, Value: 110},
+	}}
+
+	report := AnalyzeWukongIMPrometheus(before, after)
+	for name, value := range map[string]float64{
+		"gateway handle P99":   report.GatewaySendHandleP99Seconds,
+		"gateway handle P99.9": report.GatewaySendHandleP999Seconds,
+		"local router P99":     report.ChannelAppendRouterLocalP99Seconds,
+		"local router P99.9":   report.ChannelAppendRouterLocalP999Seconds,
+		"remote router P99":    report.ChannelAppendRouterRemoteP99Seconds,
+		"remote router P99.9":  report.ChannelAppendRouterRemoteP999Seconds,
+		"batch router P99":     report.ChannelAppendRouterBatchP99Seconds,
+		"batch router P99.9":   report.ChannelAppendRouterBatchP999Seconds,
+		"batch item P99":       report.ChannelAppendRouterBatchItemP99Seconds,
+		"batch item P99.9":     report.ChannelAppendRouterBatchItemP999Seconds,
+		"permission P99":       report.MessageSendBatchPermissionP99Seconds,
+		"permission P99.9":     report.MessageSendBatchPermissionP999Seconds,
+	} {
+		if value <= 0 {
+			t.Fatalf("%s = %v, want > 0", name, value)
+		}
+	}
+}
+
 func TestAnalyzeWukongIMPrometheusClassifiesChannelRuntimePressure(t *testing.T) {
 	before, err := ParsePrometheusText(strings.NewReader(`
 wukongim_gateway_async_send_queue_depth 0

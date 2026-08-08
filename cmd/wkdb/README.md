@@ -90,7 +90,7 @@ wkdb-dump/
     channels.jsonl
     subscribers.jsonl
     user_channel_memberships.jsonl
-    conversations.jsonl
+    user_cmd_channel_memberships.jsonl
     channel_latest.jsonl
   message/
     channels.jsonl
@@ -101,8 +101,8 @@ wkdb-dump/
 `hash_slot_count`, and `files[]` entries with `path`, `kind`, `rows`, and
 `sha256`. Supported file kinds are `meta.users`, `meta.devices`,
 `meta.channels`, `meta.subscribers`, `meta.user_channel_memberships`,
-`meta.conversations`, `meta.channel_latest`, `message.channels`, and
-`message.messages`.
+`meta.user_cmd_channel_memberships`, `meta.channel_latest`,
+`message.channels`, and `message.messages`.
 
 The first `export` implementation intentionally does not aggregate data across
 cluster nodes, create online consistency snapshots, export incremental changes,

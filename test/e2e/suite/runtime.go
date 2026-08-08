@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -149,6 +150,9 @@ func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 
 	options := resolveSuiteOptions(opts...)
 	rootDir := allocateWorkspaceRoot(t, options.workspaceRootDir)
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".metadata_never_index"), nil, 0o600))
+	}
 	workspace := Workspace{
 		RootDir:          rootDir,
 		pluginSocketRoot: allocatePluginSocketRoot(t),
@@ -209,13 +213,18 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 
 // StartThreeNodeCluster starts three static wukongim child processes.
 func (s *Suite) StartThreeNodeCluster(opts ...Option) *StartedCluster {
+	return s.StartStaticCluster(3, opts...)
+}
+
+// StartStaticCluster starts nodeCount static wukongim child processes.
+func (s *Suite) StartStaticCluster(nodeCount int, opts ...Option) *StartedCluster {
 	s.t.Helper()
+	require.Greater(s.t, nodeCount, 0, "static cluster node count must be positive")
 
 	workspace, options := s.startContext(opts...)
-	ports := []PortSet{
-		ReserveLoopbackPorts(s.t),
-		ReserveLoopbackPorts(s.t),
-		ReserveLoopbackPorts(s.t),
+	ports := make([]PortSet, nodeCount)
+	for index := range ports {
+		ports[index] = ReserveLoopbackPorts(s.t)
 	}
 	specs := make([]NodeSpec, 0, len(ports))
 	for i, portSet := range ports {

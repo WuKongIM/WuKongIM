@@ -4,15 +4,16 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
-func TestSyncReadsCMDKindRowsAndStripsCommandSuffix(t *testing.T) {
+func TestSyncReadsCMDMembershipRowsAndStripsCommandSuffix(t *testing.T) {
 	store := newCmdSyncStore()
-	store.active = []metadb.ConversationState{{
-		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, ActiveAt: 100,
+	store.memberships = []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, StartSeq: 1,
 	}}
 	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = []SyncedMessage{{
 		MessageID: 1, MessageSeq: 3, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, FromUID: "u2", Payload: []byte("cmd"),
@@ -28,10 +29,30 @@ func TestSyncReadsCMDKindRowsAndStripsCommandSuffix(t *testing.T) {
 	}
 }
 
-func TestSyncAckAdvancesCMDKindReadSeqOnlyFromLatestGeneration(t *testing.T) {
+func TestSyncScansEveryCMDMembershipPage(t *testing.T) {
 	store := newCmdSyncStore()
-	store.active = []metadb.ConversationState{{
-		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, ActiveAt: 100,
+	store.memberships = []metadb.UserCMDChannelMembership{
+		{UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, StartSeq: 1},
+		{UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g2"), ChannelType: 2, StartSeq: 1},
+	}
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g2"), ChannelType: 2}] = []SyncedMessage{{
+		MessageID: 2, MessageSeq: 1, ChannelID: runtimechannelid.ToCommandChannel("g2"), ChannelType: 2,
+	}}
+	app := New(Options{States: store, Messages: store, ActiveScanLimit: 1})
+
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+	if err != nil {
+		t.Fatalf("Sync(): %v", err)
+	}
+	if gotIDs := syncMessageChannelIDs(got.Messages); !reflect.DeepEqual(gotIDs, []string{"g2"}) {
+		t.Fatalf("message channel IDs = %#v, want row from second membership page", gotIDs)
+	}
+}
+
+func TestSyncAckAdvancesCMDMembershipAckOnlyFromLatestGeneration(t *testing.T) {
+	store := newCmdSyncStore()
+	store.memberships = []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, StartSeq: 1,
 	}}
 	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = []SyncedMessage{{
 		MessageSeq: 5, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2,
@@ -44,37 +65,35 @@ func TestSyncAckAdvancesCMDKindReadSeqOnlyFromLatestGeneration(t *testing.T) {
 	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1", LastMessageSeq: 5}); err != nil {
 		t.Fatalf("SyncAck(): %v", err)
 	}
-	if len(store.upserts) != 1 || store.upserts[0].Kind != metadb.ConversationKindCMD || store.upserts[0].ReadSeq != 5 {
-		t.Fatalf("upserts = %+v", store.upserts)
+	if len(store.acks) != 1 || store.acks[0].CommandChannelID != runtimechannelid.ToCommandChannel("g1") || store.acks[0].AckSeq != 5 {
+		t.Fatalf("acks = %+v", store.acks)
 	}
 }
 
-func TestSyncAckAdvancesSyncOnceSourceChannelRows(t *testing.T) {
+func TestSyncSkipsTombstonedCMDMemberships(t *testing.T) {
 	store := newCmdSyncStore()
-	store.active = []metadb.ConversationState{{
-		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: "g1", ChannelType: 2, ActiveAt: 100,
+	store.memberships = []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2, StartSeq: 1, Tombstone: true,
 	}}
-	store.messages[CommandChannelKey{ChannelID: "g1", ChannelType: 2}] = []SyncedMessage{{
-		MessageSeq: 6, ChannelID: "g1", ChannelType: 2,
+	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = []SyncedMessage{{
+		MessageSeq: 6, ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2,
 	}}
 	app := New(Options{States: store, Messages: store})
 
-	if _, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10}); err != nil {
+	got, err := app.Sync(context.Background(), SyncQuery{UID: "u1", Limit: 10})
+	if err != nil {
 		t.Fatalf("Sync(): %v", err)
 	}
-	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1"}); err != nil {
-		t.Fatalf("SyncAck(): %v", err)
-	}
-	if len(store.upserts) != 1 || store.upserts[0].ChannelID != "g1" || store.upserts[0].ReadSeq != 6 {
-		t.Fatalf("upserts = %+v, want sync_once source channel read progress", store.upserts)
+	if len(got.Messages) != 0 || len(store.messageCalls) != 0 {
+		t.Fatalf("Sync() messages=%+v calls=%+v, want tombstone skipped", got.Messages, store.messageCalls)
 	}
 }
 
-func TestSyncUsesReadDeleteFloorAndSortsDeterministically(t *testing.T) {
+func TestSyncUsesStartAndAckFloorAndSortsDeterministically(t *testing.T) {
 	store := newCmdSyncStore()
-	store.active = []metadb.ConversationState{
-		{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, ReadSeq: 1, DeletedToSeq: 3, ActiveAt: 200},
-		{UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2, ReadSeq: 0, ActiveAt: 100},
+	store.memberships = []metadb.UserCMDChannelMembership{
+		{UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, StartSeq: 2, AckSeq: 3},
+		{UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2, StartSeq: 1},
 	}
 	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2}] = []SyncedMessage{
 		{MessageID: 12, MessageSeq: 4, ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2, ServerTimestampMS: 10},
@@ -90,8 +109,8 @@ func TestSyncUsesReadDeleteFloorAndSortsDeterministically(t *testing.T) {
 		t.Fatalf("Sync(): %v", err)
 	}
 	if want := []messageLoadCall{
-		{key: CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2}, fromSeq: 4, limit: 10},
 		{key: CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("a"), ChannelType: 2}, fromSeq: 1, limit: 10},
+		{key: CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("b"), ChannelType: 2}, fromSeq: 4, limit: 10},
 	}; !reflect.DeepEqual(store.messageCalls, want) {
 		t.Fatalf("message calls = %#v, want %#v", store.messageCalls, want)
 	}
@@ -102,8 +121,8 @@ func TestSyncUsesReadDeleteFloorAndSortsDeterministically(t *testing.T) {
 
 func TestSyncRecordsLatestGenerationOnly(t *testing.T) {
 	store := newCmdSyncStore()
-	store.active = []metadb.ConversationState{{
-		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2, ActiveAt: 100,
+	store.memberships = []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2, StartSeq: 1,
 	}}
 	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2}] = []SyncedMessage{{
 		MessageSeq: 2, ChannelID: runtimechannelid.ToCommandChannel("old"), ChannelType: 2,
@@ -113,8 +132,8 @@ func TestSyncRecordsLatestGenerationOnly(t *testing.T) {
 		t.Fatalf("first Sync(): %v", err)
 	}
 
-	store.active = []metadb.ConversationState{{
-		UID: "u1", Kind: metadb.ConversationKindCMD, ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2, ActiveAt: 200,
+	store.memberships = []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2, StartSeq: 1,
 	}}
 	store.messages[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2}] = []SyncedMessage{{
 		MessageSeq: 9, ChannelID: runtimechannelid.ToCommandChannel("new"), ChannelType: 2,
@@ -125,8 +144,8 @@ func TestSyncRecordsLatestGenerationOnly(t *testing.T) {
 	if err := app.SyncAck(context.Background(), SyncAckCommand{UID: "u1"}); err != nil {
 		t.Fatalf("SyncAck(): %v", err)
 	}
-	if len(store.upserts) != 1 || store.upserts[0].ChannelID != runtimechannelid.ToCommandChannel("new") || store.upserts[0].ReadSeq != 9 {
-		t.Fatalf("upserts = %+v, want latest generation only", store.upserts)
+	if len(store.acks) != 1 || store.acks[0].CommandChannelID != runtimechannelid.ToCommandChannel("new") || store.acks[0].AckSeq != 9 {
+		t.Fatalf("acks = %+v, want latest generation only", store.acks)
 	}
 }
 
@@ -149,32 +168,96 @@ func TestSyncRejectsMissingDependencies(t *testing.T) {
 	}
 }
 
+func TestBindCapturesCommandTailAndWritesOneMembership(t *testing.T) {
+	store := newCmdSyncStore()
+	store.tails[CommandChannelKey{ChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2}] = 41
+	app := New(Options{States: store, Messages: store, Now: func() time.Time { return time.Unix(0, 99) }})
+
+	if err := app.Bind(context.Background(), BindCommand{UID: " u1 ", ChannelID: " g1 ", ChannelType: 2}); err != nil {
+		t.Fatalf("Bind(): %v", err)
+	}
+	if got, want := store.upserts, []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2,
+		StartSeq: 42, UpdatedAt: 99,
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("upserts = %#v, want %#v", got, want)
+	}
+}
+
+func TestUnbindWritesCommandMembershipTombstone(t *testing.T) {
+	store := newCmdSyncStore()
+	app := New(Options{States: store, Messages: store, Now: func() time.Time { return time.Unix(0, 101) }})
+
+	if err := app.Unbind(context.Background(), UnbindCommand{UID: "u1", ChannelID: "g1", ChannelType: 2}); err != nil {
+		t.Fatalf("Unbind(): %v", err)
+	}
+	if got, want := store.tombstones, []metadb.UserCMDChannelMembership{{
+		UID: "u1", CommandChannelID: runtimechannelid.ToCommandChannel("g1"), ChannelType: 2,
+		Tombstone: true, TombstoneAt: 101, UpdatedAt: 101,
+	}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("tombstones = %#v, want %#v", got, want)
+	}
+	if len(store.tailCalls) != 0 {
+		t.Fatalf("tail calls = %#v, want none", store.tailCalls)
+	}
+}
+
 type cmdSyncStore struct {
-	active       []metadb.ConversationState
-	upserts      []metadb.ConversationState
+	memberships  []metadb.UserCMDChannelMembership
+	acks         []metadb.UserCMDChannelMembership
+	upserts      []metadb.UserCMDChannelMembership
+	tombstones   []metadb.UserCMDChannelMembership
 	messages     map[CommandChannelKey][]SyncedMessage
+	tails        map[CommandChannelKey]uint64
+	tailCalls    []CommandChannelKey
 	messageCalls []messageLoadCall
 }
 
 func newCmdSyncStore() *cmdSyncStore {
-	return &cmdSyncStore{messages: make(map[CommandChannelKey][]SyncedMessage)}
+	return &cmdSyncStore{messages: make(map[CommandChannelKey][]SyncedMessage), tails: make(map[CommandChannelKey]uint64)}
 }
 
-func (s *cmdSyncStore) ListConversationActiveView(_ context.Context, uid string, limit int) ([]metadb.ConversationState, error) {
-	rows := make([]metadb.ConversationState, 0, len(s.active))
-	for _, row := range s.active {
-		if row.UID == uid && row.Kind == metadb.ConversationKindCMD {
+func (s *cmdSyncStore) ListUserCMDChannelMembershipPage(_ context.Context, uid string, cursor metadb.UserCMDChannelMembershipCursor, limit int) ([]metadb.UserCMDChannelMembership, metadb.UserCMDChannelMembershipCursor, bool, error) {
+	rows := make([]metadb.UserCMDChannelMembership, 0, len(s.memberships))
+	for _, row := range s.memberships {
+		if row.UID == uid {
 			rows = append(rows, row)
 		}
 	}
-	if limit > 0 && len(rows) > limit {
-		rows = rows[:limit]
+	start := 0
+	if cursor != (metadb.UserCMDChannelMembershipCursor{}) {
+		for index, row := range rows {
+			if row.CommandChannelID == cursor.CommandChannelID && row.ChannelType == cursor.ChannelType {
+				start = index + 1
+				break
+			}
+		}
 	}
-	return rows, nil
+	end := len(rows)
+	if limit > 0 && start+limit < end {
+		end = start + limit
+	}
+	page := append([]metadb.UserCMDChannelMembership(nil), rows[start:end]...)
+	next := cursor
+	if len(page) > 0 {
+		last := page[len(page)-1]
+		next = metadb.UserCMDChannelMembershipCursor{CommandChannelID: last.CommandChannelID, ChannelType: last.ChannelType}
+	}
+	return page, next, end == len(rows), nil
 }
 
-func (s *cmdSyncStore) UpsertConversationStates(_ context.Context, states []metadb.ConversationState) error {
-	s.upserts = append(s.upserts, states...)
+func (s *cmdSyncStore) AdvanceUserCMDChannelMembershipAcks(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
+	s.acks = append(s.acks, memberships...)
+	return nil
+}
+
+func (s *cmdSyncStore) UpsertUserCMDChannelMemberships(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
+	s.upserts = append(s.upserts, memberships...)
+	return nil
+}
+
+func (s *cmdSyncStore) TombstoneUserCMDChannelMemberships(_ context.Context, memberships []metadb.UserCMDChannelMembership) error {
+	s.tombstones = append(s.tombstones, memberships...)
 	return nil
 }
 
@@ -204,6 +287,11 @@ func (s *cmdSyncStore) LoadCommandMessages(_ context.Context, key CommandChannel
 		}
 	}
 	return out, nil
+}
+
+func (s *cmdSyncStore) CommandChannelTail(_ context.Context, key CommandChannelKey) (uint64, error) {
+	s.tailCalls = append(s.tailCalls, key)
+	return s.tails[key], nil
 }
 
 func syncMessageChannelIDs(messages []SyncedMessage) []string {

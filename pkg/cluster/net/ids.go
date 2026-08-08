@@ -46,8 +46,8 @@ const (
 	RPCChannelPullHintBatch
 	// RPCChannelLastVisible serves routed Channel last-visible message reads.
 	RPCChannelLastVisible
-	// RPCConversationAuthority serves internal UID conversation authority cache requests.
-	RPCConversationAuthority
+	// RPCReservedConversationDirectory keeps a removed development RPC number reserved.
+	RPCReservedConversationDirectory
 	// RPCChannelAuthoritySend serves internal SEND forwarding requests to the channel append authority.
 	RPCChannelAuthoritySend
 	// RPCManagerConnection serves internal owner-node manager connection inventory requests.
@@ -107,8 +107,16 @@ const (
 	RPCSlotSubscriberMetadata
 	// RPCSlotChannelMetadata serves Slot-leader channel metadata point reads.
 	RPCSlotChannelMetadata
-	// RPCSlotChannelRuntimeMeta serves Slot-leader channel runtime metadata reads.
-	RPCSlotChannelRuntimeMeta
+	// RPCChannelConversationHeads serves one same-leader conversation-head batch.
+	RPCChannelConversationHeads
+	// RPCChannelCommittedReads serves one same-leader committed-message batch.
+	RPCChannelCommittedReads
+	// RPCSlotUserMembership serves Slot-leader ordinary and CMD membership reads.
+	RPCSlotUserMembership
+	// RPCSlotRuntimeMetadata serves Slot-leader Channel runtime metadata reads.
+	RPCSlotRuntimeMetadata
+	// RPCSlotPermissionMetadataBatch serves Slot-leader batched send-permission facts.
+	RPCSlotPermissionMetadataBatch
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -155,8 +163,12 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel pull hint batch"
 	case RPCChannelLastVisible:
 		return "channel last visible"
-	case RPCConversationAuthority:
-		return "conversation authority"
+	case RPCReservedConversationDirectory:
+		return "reserved conversation directory"
+	case RPCChannelConversationHeads:
+		return "channel conversation heads"
+	case RPCChannelCommittedReads:
+		return "channel committed reads"
 	case RPCChannelAuthoritySend:
 		return "send authority"
 	case RPCManagerConnection:
@@ -209,8 +221,12 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot subscriber metadata"
 	case RPCSlotChannelMetadata:
 		return "slot channel metadata"
-	case RPCSlotChannelRuntimeMeta:
-		return "slot channel runtime meta"
+	case RPCSlotUserMembership:
+		return "slot user membership"
+	case RPCSlotRuntimeMetadata:
+		return "slot runtime metadata"
+	case RPCSlotPermissionMetadataBatch:
+		return "slot permission metadata batch"
 	case RPCChannelMigrationMeta:
 		return "channel migration meta"
 	case RPCMessageEventAppend:

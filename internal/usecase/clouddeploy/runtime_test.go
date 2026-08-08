@@ -23,7 +23,7 @@ profile: formal
 workload:
   workers: 3
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
-  sync: {version: 0}
+  sync: {completed_coverage: 0, max_conversations: 500}
 observation:
   service_nodes: [{address: "http://service-1.invalid"}, {address: "http://service-2.invalid"}, {address: "http://service-3.invalid"}]
   workers: [{address: "http://worker-1.invalid"}, {address: "http://worker-2.invalid"}, {address: "http://worker-3.invalid"}]
@@ -40,7 +40,7 @@ stage: rehearsal
 workload:
   workers: 3
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
-  sync: {version: 0}
+  sync: {completed_coverage: 0, max_conversations: 500}
 observation:
   service_nodes: [{address: "http://service-1.invalid"}, {address: "http://service-2.invalid"}, {address: "http://service-3.invalid"}]
   workers: [{address: "http://worker-1.invalid"}, {address: "http://worker-2.invalid"}, {address: "http://worker-3.invalid"}]

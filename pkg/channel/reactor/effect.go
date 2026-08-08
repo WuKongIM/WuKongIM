@@ -21,9 +21,10 @@ func (r *Reactor) submitStoreAppend(ctx context.Context, channelID ch.ChannelID,
 		Fence:   task.Fence,
 		Context: ctx,
 		StoreAppend: &worker.StoreAppendTask{
-			ChannelID: channelID,
-			Records:   appendTask.Records,
-			Sync:      appendTask.Sync,
+			ChannelID:                 channelID,
+			Records:                   appendTask.Records,
+			Sync:                      appendTask.Sync,
+			ServerAllocatedMessageIDs: appendTask.ServerAllocatedMessageIDs,
 		},
 	})
 }

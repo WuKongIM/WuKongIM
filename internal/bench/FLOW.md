@@ -111,7 +111,8 @@ the explicit lifecycle boundary completed in Phase 3 task 4.
 The production commands are `wkbench soak chat-lifecycle` and `wkbench
 capacity chat-lifecycle`. They compose exactly three authenticated workers,
 three service/API observations, three host-filesystem observations, real
-WKProto clients, and real version-zero `/conversation/sync` calls. The
+WKProto clients, and real zero-coverage `/conversation/list` page walks with
+bounded `/conversation/retry` hydration. The
 coordinator writes a non-terminal qualification cut while traffic continues,
 then stops and joins all workers before the final metadata-create equality
 check and atomic final report. Capacity terminal failures also join continuous
@@ -320,7 +321,13 @@ zero. Channel runtime high-level stage labels include `meta_resolve`,
 `meta_apply`, and `runtime_append`; runtime append sub-stages include
 `runtime_append_reserve_wait`, `runtime_append_submit`, and
 `runtime_append_wait`; append batch metrics include `append_batch_wait` and
-`append_batch_records`; admitted future wait metrics include
+`append_batch_records`; gateway attribution includes async dispatch wait,
+SEND batch handler duration, and batch records, while channelappend router
+attribution separates successful local/remote group duration from complete
+router-batch duration and retains item-weighted batch latency; message
+attribution uses item-weighted permission, pre-append, and submitter stages;
+admitted
+future wait metrics include
 `store_append_wait`, `post_store_commit_wait`,
 `quorum_follower_pull_wait`, `quorum_ack_offset_wait`,
 `quorum_hw_advance_wait`, and `quorum_final_complete_wait`; follower replication
@@ -688,7 +695,8 @@ For split traffic, message indexes are partitioned by `TrafficPartitionCount` an
 - `POST /bench/v1/channels`
 - `POST /bench/v1/channels/subscribers`
 - `POST /bench/v1/channels/subscribers/remove`
-- `POST /conversation/sync`
+- `POST /conversation/list`
+- `POST /conversation/retry`
 
 The server-side implementation lives outside this package. Keep request/response types in `pkg/bench/model` aligned with the bench API surface and avoid depending on internal server usecases from wkbench code.
 The observation calls use the same optional Bench bearer as the restricted
@@ -713,14 +721,16 @@ channel ID and type at every index. Generated responses must not contain detaile
 rows. These validation errors contain no request or response identities.
 Eviction remains generated-range only.
 
-Conversation sync is a product route, not a Bench API route, so the target
-client never attaches its Bench bearer token. It serializes the legacy zero
-values explicitly, tries configured API addresses in deterministic order, and
-decodes each attempt into fresh storage so a malformed response cannot pollute
-a later fallback. Successful top-level array responses are bounded at 256 MiB,
-which covers 499 conversations with twenty maximum-size 16 KiB payloads after
-base64 expansion and legacy JSON overhead. Status and decode errors omit request
-UIDs, channel IDs, payloads, credentials, and server error bodies.
+Conversation synchronization uses product routes, not Bench API routes, so the
+target client never attaches its Bench bearer token. Every login starts with
+empty cursor and `completed_coverage=0`, follows opaque `/conversation/list`
+cursors with the product's 200-candidate page bound until `done=true`, and
+hydrates bounded unresolved keys through `/conversation/retry`. It deduplicates
+cross-page moves, never retains coverage for a later login, and decodes each
+address attempt into fresh storage so a malformed response cannot pollute a
+later fallback. Each successful page is bounded at 256 MiB. Status and decode
+errors omit request UIDs, channel IDs, payloads, credentials, and server error
+bodies.
 
 ## Failure Handling
 

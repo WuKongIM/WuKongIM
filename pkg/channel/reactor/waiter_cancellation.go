@@ -180,7 +180,10 @@ func (r *Reactor) evictRuntimeChannel(key ch.ChannelKey, rc *runtimeChannel, rea
 	r.closeStoreAsync(key, rc.state.Generation, storeHandle)
 	r.observeChannelRuntimeEvicted(key, role)
 	if wasParkedFollower {
-		r.observeFollowerParkedCount(r.countParkedFollowers())
+		if r.parkedFollowerRuntimeCount > 0 {
+			r.parkedFollowerRuntimeCount--
+		}
+		r.observeFollowerParkedCount(r.parkedFollowerRuntimeCount)
 	}
 	r.updateActiveRuntimeRole(role, 0)
 	return true

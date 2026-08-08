@@ -258,6 +258,7 @@ OnData:
      - 记录 OnFrameIn
      - SEND: 浅拷贝 packet 元数据后提交到 `asyncRuntime.send`；`sendExecutor` 先占用全局有界 backlog，再按 gateway session 选择 `workqueue.ShardedMailbox` shard。若协议实现 `DecodedFrameOwner` 则复用 decoded payload 并收紧 slice cap，否则深拷贝 payload；workqueue 在 shard 内按条数/等待时间收集微批，gateway 再按 payload bytes 拆分批次，记录可选 `AsyncSendObserver` 队列/批处理/等待事件，并优先调用 `SendBatchHandler.OnSendBatch`
        - 每个 shard mailbox 容量由 `AsyncSendQueueCapacity` 按 worker/shard 数切分，避免 worker 数扩张导致启动期常驻内存线性放大
+       - `AsyncSendBatchMaxRecords` 产品默认值为 128；该上限已通过 4,500 QPS、5,000 Channel、30 分钟持续负载验证，用于抑制同 session 大批次对下游的突发放大
      - SEND 微批只作为入口批处理 hint；gateway 不按业务 channel 分组。个人频道归一化、权限检查、按 canonical channel 分组和最终严格顺序仍在 `internal/access/gateway` → `internal/usecase/message` → `pkg/channel` 链路内完成
      - Handler 未实现 `SendBatchHandler` 时，worker 保持原顺序逐帧调用 `dispatchFrame`
      - 其他 frame: 同步调用 dispatchFrame

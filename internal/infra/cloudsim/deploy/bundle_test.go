@@ -155,9 +155,6 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 	if !strings.Contains(config, "hash_slot_count = 256") || !strings.Contains(config, "initial_slot_count = 10") || !strings.Contains(config, "channel_replica_n = 3") || strings.Count(config, "[[cluster.nodes]]") != 3 {
 		t.Fatalf("node config does not preserve the three-node 256 hash-slot and 10 Slot Group contract:\n%s", config)
 	}
-	if !strings.Contains(config, "[conversation]") || !strings.Contains(config, "authority_cache_max_rows = 750000") {
-		t.Fatalf("cloud node config does not retain the bounded Medium conversation working set:\n%s", config)
-	}
 	if !strings.Contains(config, "[delivery]") || !strings.Contains(config, fmt.Sprintf("recipient_worker_concurrency = %d", cloudMediumRecipientWorkerConcurrency)) {
 		t.Fatalf("cloud Medium node config does not retain the measured recipient worker capacity:\n%s", config)
 	}
@@ -200,12 +197,11 @@ func TestRenderedContractsUseSystemdAndThreeNode256Slots(t *testing.T) {
 func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 	tests := []struct {
 		scale                string
-		wantCacheRows        int
 		wantRecipientWorkers int
 	}{
-		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: cloudDefaultRecipientWorkers},
-		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
-		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: cloudDefaultRecipientWorkers},
+		{scale: "small", wantRecipientWorkers: cloudDefaultRecipientWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency},
+		{scale: "large", wantRecipientWorkers: cloudDefaultRecipientWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -218,16 +214,10 @@ func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 			if err != nil {
 				t.Fatalf("nodeRuntimeProfileForScenario() error = %v", err)
 			}
-			if profile.ConversationAuthorityCacheMaxRows != test.wantCacheRows {
-				t.Fatalf("authority cache max rows = %d, want %d", profile.ConversationAuthorityCacheMaxRows, test.wantCacheRows)
-			}
 			if profile.RecipientWorkerConcurrency != test.wantRecipientWorkers {
 				t.Fatalf("recipient worker concurrency = %d, want %d", profile.RecipientWorkerConcurrency, test.wantRecipientWorkers)
 			}
 			config := nodeConfig(1, testBundleSpec("unused").PrivateIPv4, profile)
-			if !strings.Contains(config, fmt.Sprintf("authority_cache_max_rows = %d", test.wantCacheRows)) {
-				t.Fatalf("node config does not use %s ceiling %d:\n%s", test.scale, test.wantCacheRows, config)
-			}
 			workerConfigLine := fmt.Sprintf("recipient_worker_concurrency = %d", test.wantRecipientWorkers)
 			if !strings.Contains(config, workerConfigLine) {
 				t.Fatalf("node config does not use %s recipient worker capacity %d:\n%s", test.scale, test.wantRecipientWorkers, config)
@@ -239,13 +229,12 @@ func TestNodeRuntimeProfileUsesReviewedCloudScale(t *testing.T) {
 func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 	tests := []struct {
 		scale                string
-		wantCacheRows        int
 		wantRecipientWorkers int
 		wantRPCWorkers       int
 	}{
-		{scale: "small", wantCacheRows: cloudSmallAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
-		{scale: "medium", wantCacheRows: cloudMediumAuthorityCacheMaxRows, wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers},
-		{scale: "large", wantCacheRows: cloudLargeAuthorityCacheMaxRows, wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+		{scale: "small", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
+		{scale: "medium", wantRecipientWorkers: cloudMediumRecipientWorkerConcurrency, wantRPCWorkers: cloudMediumChannelRPCWorkers},
+		{scale: "large", wantRecipientWorkers: 100, wantRPCWorkers: cloudDefaultChannelRPCWorkers},
 	}
 	for _, test := range tests {
 		t.Run(test.scale, func(t *testing.T) {
@@ -280,9 +269,6 @@ func TestRenderedCloudScaleNodeConfigLoadsReviewedRuntimeProfile(t *testing.T) {
 			}
 			if loaded.Delivery.RecipientWorkerConcurrency != test.wantRecipientWorkers {
 				t.Fatalf("recipient worker concurrency = %d, want %d", loaded.Delivery.RecipientWorkerConcurrency, test.wantRecipientWorkers)
-			}
-			if loaded.Conversation.AuthorityCacheMaxRows != test.wantCacheRows {
-				t.Fatalf("authority cache max rows = %d, want %d", loaded.Conversation.AuthorityCacheMaxRows, test.wantCacheRows)
 			}
 			if loaded.Cluster.Slots.HashSlotCount != 256 || loaded.Cluster.Slots.InitialSlotCount != 10 {
 				t.Fatalf("cluster slots = hash %d / initial %d, want 256 / 10", loaded.Cluster.Slots.HashSlotCount, loaded.Cluster.Slots.InitialSlotCount)

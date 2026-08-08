@@ -74,9 +74,11 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 		return Decision{}
 	}
 	records := make([]ch.Record, 0, recordCount)
+	serverAllocatedMessageIDs := len(waiters) > 0
 	waiterOpIDs := make([]ch.OpID, 0, len(waiters))
 	waiterRecordCounts := make([]int, 0, len(waiters))
 	for _, waiter := range waiters {
+		serverAllocatedMessageIDs = serverAllocatedMessageIDs && waiter.ServerAllocatedMessageIDs
 		mode := waiter.CommitMode
 		if mode == 0 {
 			mode = ch.CommitModeQuorum
@@ -90,7 +92,7 @@ func (s *ChannelState) ProposeAppendBatch(cmd AppendBatchCommand) Decision {
 	}
 	fence := ch.Fence{ChannelKey: s.Key, Generation: s.Generation, Epoch: s.Epoch, LeaderEpoch: s.LeaderEpoch, OpID: cmd.BatchOpID}
 	s.InflightAppend = &AppendOp{OpID: cmd.BatchOpID, Records: records, WaiterOpIDs: waiterOpIDs, WaiterRecordCounts: waiterRecordCounts}
-	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true}}}}
+	return Decision{Tasks: []Task{{Kind: TaskKindStoreAppend, Fence: fence, StoreAppend: &StoreAppendTask{Records: records, Sync: true, ServerAllocatedMessageIDs: serverAllocatedMessageIDs}}}}
 }
 
 // CancelAppendWaiter removes an append waiter that the client no longer observes.

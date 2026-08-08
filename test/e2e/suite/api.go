@@ -37,10 +37,36 @@ type MessageSendResponse struct {
 	Reason     uint8  `json:"reason"`
 }
 
+// ConversationListRequest is the public membership-directory page request.
+type ConversationListRequest struct {
+	UID               string `json:"uid"`
+	Cursor            string `json:"cursor,omitempty"`
+	Limit             int    `json:"limit"`
+	CompletedCoverage int64  `json:"completed_coverage,omitempty"`
+}
+
+// ConversationRetryRequest rebuilds a bounded set of unresolved directory keys.
+type ConversationRetryRequest struct {
+	UID      string                `json:"uid"`
+	Channels []ConversationListKey `json:"channels"`
+}
+
 // ConversationListPage is the public /conversation/list response page.
 type ConversationListPage struct {
-	Conversations []ConversationListItem `json:"conversations"`
-	More          int                    `json:"more"`
+	Conversations           []ConversationListItem `json:"conversations"`
+	Deletes                 []ConversationListKey  `json:"deletes"`
+	Unresolved              []ConversationListKey  `json:"unresolved"`
+	NextCursor              string                 `json:"next_cursor"`
+	Done                    bool                   `json:"done"`
+	Coverage                int64                  `json:"coverage"`
+	TombstonesRetainedSince int64                  `json:"tombstones_retained_since"`
+	ResetRequired           bool                   `json:"reset_required"`
+}
+
+// ConversationListKey identifies one deleted or retryable channel.
+type ConversationListKey struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelType int64  `json:"channel_type"`
 }
 
 // ConversationListItem is one recent-conversation row returned by /conversation/list.
@@ -48,7 +74,8 @@ type ConversationListItem struct {
 	ChannelID    string                   `json:"channel_id"`
 	ChannelType  int64                    `json:"channel_type"`
 	ActiveAt     int64                    `json:"active_at"`
-	SparseActive bool                     `json:"sparse_active"`
+	ReadSeq      uint64                   `json:"read_seq"`
+	DeletedToSeq uint64                   `json:"deleted_to_seq"`
 	Unread       uint64                   `json:"unread"`
 	LastMessage  *ConversationLastMessage `json:"last_message"`
 }
@@ -223,11 +250,20 @@ func messageSendRetryExhaustedError(url string, attempts int, contextErr, lastSt
 
 // PostConversationList fetches one public /conversation/list page.
 func PostConversationList(ctx context.Context, apiAddr, uid string, limit int) (ConversationListPage, error) {
+	return PostConversationListPage(ctx, apiAddr, ConversationListRequest{UID: uid, Limit: limit})
+}
+
+// PostConversationListPage fetches one public /conversation/list page with an opaque cursor.
+func PostConversationListPage(ctx context.Context, apiAddr string, req ConversationListRequest) (ConversationListPage, error) {
 	var page ConversationListPage
-	_, err := PostJSON(ctx, "http://"+apiAddr+"/conversation/list", map[string]any{
-		"uid":   uid,
-		"limit": limit,
-	}, &page)
+	_, err := PostJSON(ctx, "http://"+apiAddr+"/conversation/list", req, &page)
+	return page, err
+}
+
+// PostConversationRetry retries one bounded set returned by /conversation/list.
+func PostConversationRetry(ctx context.Context, apiAddr string, req ConversationRetryRequest) (ConversationListPage, error) {
+	var page ConversationListPage
+	_, err := PostJSON(ctx, "http://"+apiAddr+"/conversation/retry", req, &page)
 	return page, err
 }
 
@@ -290,4 +326,14 @@ func FindConversation(page ConversationListPage, channelID string) (Conversation
 		}
 	}
 	return ConversationListItem{}, false
+}
+
+// FindConversationKey returns the matching delete or unresolved channel key.
+func FindConversationKey(keys []ConversationListKey, channelID string, channelType int64) (ConversationListKey, bool) {
+	for _, key := range keys {
+		if key.ChannelID == channelID && key.ChannelType == channelType {
+			return key, true
+		}
+	}
+	return ConversationListKey{}, false
 }

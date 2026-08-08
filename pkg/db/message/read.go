@@ -139,13 +139,12 @@ func readMessagesRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, 
 	var currentSeq uint64
 	var haveRow bool
 	var haveHeader bool
-	var havePayload bool
 
 	flush := func() (bool, error) {
 		if !haveRow {
 			return false, nil
 		}
-		if !haveHeader || !havePayload {
+		if !haveHeader {
 			return false, fmt.Errorf("%w: incomplete message row at seq %d", dberrors.ErrCorruptState, currentSeq)
 		}
 		if err := validateMaterializedMessageRow(current); err != nil {
@@ -156,7 +155,6 @@ func readMessagesRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, 
 		messages, totalBytes, stop = appendReadMessage(messages, totalBytes, msg, opts)
 		haveRow = false
 		haveHeader = false
-		havePayload = false
 		current = messageRow{}
 		currentSeq = 0
 		return stop, nil
@@ -196,11 +194,6 @@ func readMessagesRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, 
 				return nil, err
 			}
 			haveHeader = true
-		case messagePayloadFamilyID:
-			if err := decodeMessagePayload(storageKey, value, &current); err != nil {
-				return nil, err
-			}
-			havePayload = true
 		}
 	}
 	if err := iter.Error(); err != nil {
@@ -231,22 +224,11 @@ func (l *ChannelLog) getRowBySeq(ctx context.Context, seq uint64) (messageRow, b
 	if err != nil {
 		return messageRow{}, false, err
 	}
-	payloadKey := encodeMessageRowKey(l.key, seq, messagePayloadFamilyID)
-	payloadValue, okPayload, err := l.db.engine.Get(payloadKey)
-	if err != nil {
-		return messageRow{}, false, err
-	}
-	if !okHeader && !okPayload {
+	if !okHeader {
 		return messageRow{}, false, nil
-	}
-	if !okHeader || !okPayload {
-		return messageRow{}, false, fmt.Errorf("%w: incomplete message row at seq %d", dberrors.ErrCorruptState, seq)
 	}
 	row := messageRow{MessageSeq: seq}
 	if err := decodeMessageHeader(headerKey, headerValue, &row); err != nil {
-		return messageRow{}, false, err
-	}
-	if err := decodeMessagePayload(payloadKey, payloadValue, &row); err != nil {
 		return messageRow{}, false, err
 	}
 	if err := validateMaterializedMessageRow(row); err != nil {

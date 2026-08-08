@@ -15,17 +15,25 @@ cluster runtimes.
 
 ```text
 SendBatch(items)
-  -> for each item:
+  -> group commands with identical permission-relevant sender/channel scope
+  -> for ordinary group commands, when PermissionBatchStore is available and PermissionCacheTTL is zero:
+       deduplicate sender metadata, group metadata, denylist, subscriber, and allowlist facts across the batch
+       issue one raw authoritative permission batch while keeping policy evaluation in this usecase
+       evaluate the legacy reason precedence independently for every permission scope
+  -> check remaining independent permission scopes with at most 16 workers:
        normalize command-channel IDs to their source channel for permission checks
        normalize person-channel IDs when requested by the entry adapter
        if PermissionStore is nil, allow
-       if sender is a system UID, allow
+       if sender is a system UID, authoritatively check source-channel Disband then bypass nonterminal checks
        check sender SendBan through the sender's person metadata row
-       if DeviceID matches SystemDeviceID, allow channel-specific checks
-       enforce group metadata, ban/disband, subscriber, denylist, and allowlist checks
+       if DeviceID matches SystemDeviceID, authoritatively check source-channel Disband then bypass remaining nonterminal checks
+       authoritatively reject Disband for every source channel type
+       enforce group metadata, ban, subscriber, denylist, and allowlist checks
        enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
        enforce agent participant and visitors/customer-service membership checks
        reject denied items with item-aligned Reason values
+  -> for each permission-accepted item in original order:
+       establish the person directory when required
        if SendHook is configured, run it before append admission
        reject hook-denied items with item-aligned Reason values
   -> if Submitter is nil, return ErrRouteNotReady for remaining allowed items
@@ -40,11 +48,32 @@ or reject with a usecase `Reason`; it does not run for permission-rejected
 items. Plugin-origin sends carry `Origin`/`HookDepth` recursion controls, and
 trusted internal paths may set `SkipPluginHooks`.
 
+`PermissionStore` implementations must support concurrent calls. Equivalent
+permission scopes are evaluated once per `SendBatch` without merging their
+commands, payloads, identities, or results. The optional `PermissionBatchStore`
+returns only raw authoritative facts; deny/subscribe/allow and trusted-sender
+policy order remains here. Its implementation groups facts by physical Slot so
+one gateway batch uses at most one RPC per represented Slot. There is no
+cross-batch cache or stale window. A configured positive `PermissionCacheTTL`
+keeps the existing read-through cache path and disables this batch path. The
+fixed 16-worker fallback prevents non-group and unsupported modes from
+serializing independent reads while preserving original order for
+person-directory establishment, hooks, append admission, and result alignment.
+
+`SendBatchObserver` emits one low-cardinality latency observation for each
+`permission`, `pre_append`, and `submitter` stage. It carries only result class,
+item count, and duration—never UID, Channel, Slot, or entry-protocol data. The
+stages distinguish authoritative permission fanout from hooks/directory work
+and channelappend routing without changing synchronous ordering.
+Prometheus attributes each stage duration to every input item so its quantiles
+have the same per-message weighting as gateway handler and SENDACK latency;
+slow large batches must not be underweighted as one sample.
+
 The configured submitter is normally the app-level channel append router, which
 resolves channel append authority and admits work into the authority node's
 channel append reactor. Validation, request-scoped command-channel derivation,
 message ID allocation, append retries, committed cursors, subscriber scan,
-conversation projection, NoPersist realtime dispatch, PersistAfter hooks, and
+NoPersist realtime dispatch, PersistAfter hooks, and
 online delivery are all owned by `internal/runtime/channelappend`.
 
 Permission checks preserve legacy reason semantics while staying
@@ -52,7 +81,10 @@ entry-agnostic: `internal/access/gateway` and `internal/access/api` map the
 usecase `Reason` values back to protocol reason codes at their boundaries.
 `PermissionCacheTTL` optionally wraps the permission metadata port with a
 bounded read-through cache for channel rows, subscriber point lookups,
-subscriber-set non-emptiness, and missing channel rows.
+subscriber-set non-emptiness, and missing channel rows. Terminal source-channel
+checks bypass this cache, and the normal group path reuses that authoritative
+channel read, so a cached live row cannot revive a disbanded channel and group
+SEND does not add a second channel metadata read.
 
 ## SyncChannelMessages Flow
 
@@ -60,6 +92,9 @@ subscriber-set non-emptiness, and missing channel rows.
 SyncChannelMessages(query)
   -> validate login_uid, channel_id, and channel_type with legacy error strings
   -> canonicalize person-channel IDs using login_uid
+  -> require a live UID-owned membership
+  -> clamp visibility to join_seq and deleted_to_seq
+  -> reject terminally disbanded channels
   -> cap limit to the legacy maximum
   -> call ChannelMessageReader.SyncMessages with a normalized ChannelID
   -> treat missing channel runtime/storage as an empty page
@@ -68,6 +103,13 @@ SyncChannelMessages(query)
      full metadata, batch-read MessageEventStore states for stream messages by
      (channel_id, channel_type, client_msg_no) and attach compact event_meta
 ```
+
+`SyncChannelMessagesBatch` accepts at most 200 items. It prepares and validates
+every membership before issuing any Channel read, then calls the optional batch
+reader once. The cluster implementation groups those reads by exact Channel
+Leader and returns item-aligned pages/errors; one unavailable Channel need not
+discard successful siblings. Neither single nor batch pull performs a
+subscriber lookup or changes membership state.
 
 The sync usecase returns `SyncedMessage` DTOs with the fields needed by legacy
 HTTP responses. Concrete storage adapters may return zero values for fields that

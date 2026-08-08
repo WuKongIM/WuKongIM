@@ -17,6 +17,18 @@ var (
 	ErrSyncChannelTypeRequired = errors.New("channel_type不能为空！")
 	// ErrMessageReaderRequired reports that channel message sync is not configured.
 	ErrMessageReaderRequired = errors.New("internal/message: message reader required")
+	// ErrSyncMembershipRequired rejects pulls without a live UID membership.
+	ErrSyncMembershipRequired = errors.New("internal/message: valid channel membership required")
+	// ErrSyncChannelDisbanded rejects pulls from a terminal channel identity.
+	ErrSyncChannelDisbanded = errors.New("internal/message: channel disbanded")
+	// ErrSyncBatchItemsRequired reports an empty batch message-pull request.
+	ErrSyncBatchItemsRequired = errors.New("internal/message: batch message sync items required")
+	// ErrSyncBatchTooLarge reports a batch above the bounded item count.
+	ErrSyncBatchTooLarge = errors.New("internal/message: batch message sync exceeds 200 items")
+	// ErrSyncBatchReaderRequired reports that grouped batch message reads are unavailable.
+	ErrSyncBatchReaderRequired = errors.New("internal/message: batch message reader required")
+	// ErrSyncBatchResultMismatch reports a broken item-alignment contract.
+	ErrSyncBatchResultMismatch = errors.New("internal/message: batch message result count mismatch")
 	// ErrMessageEventStoreRequired reports that message event projection storage is not configured.
 	ErrMessageEventStoreRequired = errors.New("internal/message: message event store required")
 	// ErrMessageEventChannelIDRequired reports that a message event append has no channel ID.

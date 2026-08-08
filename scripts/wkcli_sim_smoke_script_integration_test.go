@@ -345,7 +345,7 @@ func TestWkcliSimThreeNodeSmokeScriptAllowsFollowerSnapshotsWithoutCounts(t *tes
 		"- send_errors: 0",
 		"- snapshots: bench-snapshots/",
 		"- metrics: metrics/",
-		"- max_flush_error_selected_rows: 0",
+		"- max_conversation_directory_error_total: 0",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("summary missing %q:\n%s", want, summary)
@@ -391,7 +391,7 @@ func TestWkcliSimThreeNodeSmokeScriptWaitsForSimOutputBeforeVerification(t *test
 	}
 }
 
-func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationActiveMetricGate(t *testing.T) {
+func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationDirectoryMetricGate(t *testing.T) {
 	runHeavyShellScriptTestInParallel(t)
 	root := repoRoot(t)
 	binDir := t.TempDir()
@@ -420,10 +420,10 @@ func TestWkcliSimThreeNodeSmokeScriptFailsOnConversationActiveMetricGate(t *test
 	)
 	output, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("script should fail when conversation active metrics exceed gates:\n%s", output)
+		t.Fatalf("script should fail when conversation directory errors exceed gates:\n%s", output)
 	}
-	if !strings.Contains(string(output), "conversation_active selected_error_rows=5 exceeds limit 0") {
-		t.Fatalf("failure output missing selected-error gate:\n%s", output)
+	if !strings.Contains(string(output), "conversation_directory errors=5 exceeds limit 0") {
+		t.Fatalf("failure output missing conversation-directory gate:\n%s", output)
 	}
 }
 
@@ -921,16 +921,14 @@ case "$url" in
     fi
     count=$((count + 1))
     printf '%s\n' "$count" > "$count_file"
-    selected_error=0
+	conversation_directory_error=0
     if [[ "${WK_FAKE_THREE_NODE_SIM_METRICS_BAD:-}" == "1" && "$count" -gt 3 ]]; then
-      selected_error=5
+	  conversation_directory_error=5
     fi
     cat <<METRICS
 go_goroutines 100
 go_memstats_heap_alloc_bytes 1000
-wukongim_conversation_active_flush_rows_sum{kind="selected",result="error"} ${selected_error}
-wukongim_conversation_authority_handoff_total{result="error"} 0
-wukongim_conversation_authority_handoff_total{result="timeout"} 0
+wukongim_conversation_directory_list_total{result="error"} ${conversation_directory_error}
 METRICS
     ;;
   *)

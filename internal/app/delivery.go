@@ -79,6 +79,20 @@ func (o deliveryMessageObserver) ObserveChannelAppendRouter(event channelappend.
 	o.app.metrics.ChannelAppend.ObserveRouter(event.Path, event.Result, event.Items, event.Duration)
 }
 
+func (o deliveryMessageObserver) SetChannelAppendRouterGroupPressure(event channelappend.RouterGroupPressureObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.ChannelAppend.SetRouterGroupPressure(event.Inflight, event.Capacity)
+}
+
+func (o deliveryMessageObserver) ObserveMessageSendBatchStage(event message.SendBatchStageObservation) {
+	if o.app == nil || o.app.metrics == nil {
+		return
+	}
+	o.app.metrics.Message.ObserveSendBatchStage(event.Stage, event.Result, event.Items, event.Duration)
+}
+
 func (o deliveryMessageObserver) ObserveChannelAppendLocalAdmission(event channelappend.LocalAdmissionObservation) {
 	if o.app == nil || o.app.metrics == nil {
 		return
@@ -175,9 +189,7 @@ func channelAppendPostCommitFailureFields(event channelappend.PostCommitFailureO
 }
 
 func isExpectedPostCommitRouteFailure(err error) bool {
-	return errors.Is(err, conversationusecase.ErrStaleRoute) ||
-		errors.Is(err, conversationusecase.ErrNotLeader) ||
-		errors.Is(err, conversationusecase.ErrRouteNotReady) ||
+	return errors.Is(err, conversationusecase.ErrRouteNotReady) ||
 		errors.Is(err, channelappend.ErrStaleRoute) ||
 		errors.Is(err, channelappend.ErrNotLeader) ||
 		errors.Is(err, channelappend.ErrRouteNotReady)

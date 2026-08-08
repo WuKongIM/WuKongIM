@@ -161,6 +161,8 @@ type AppendMode uint8
 const (
 	// AppendStrict checks existing unique indexes before writing.
 	AppendStrict AppendMode = iota
+	// AppendServerAllocatedMessageID skips the existing message-ID lookup while preserving idempotency-key reads.
+	AppendServerAllocatedMessageID
 	// AppendTrustedContiguous skips existing index reads for caller-validated rows.
 	AppendTrustedContiguous
 )

@@ -67,12 +67,12 @@ func TestStoreShowTablesAndDescribe(t *testing.T) {
 		t.Fatalf("describe meta.channel rows = %+v, want ban int64", channelDesc.Rows)
 	}
 
-	conversationDesc, err := store.Query(context.Background(), "describe meta.conversation")
+	membershipDesc, err := store.Query(context.Background(), "describe meta.user_channel_membership")
 	if err != nil {
-		t.Fatalf("describe meta.conversation err = %v", err)
+		t.Fatalf("describe meta.user_channel_membership err = %v", err)
 	}
-	if !resultHasRow(conversationDesc, Row{"column": "sparse_active", "type": "bool"}) {
-		t.Fatalf("describe meta.conversation rows = %+v, want sparse_active bool", conversationDesc.Rows)
+	if !resultHasRow(membershipDesc, Row{"column": "tombstone", "type": "bool"}) {
+		t.Fatalf("describe meta.user_channel_membership rows = %+v, want tombstone bool", membershipDesc.Rows)
 	}
 }
 
@@ -99,14 +99,14 @@ func TestStoreQueryMetaUserByUID(t *testing.T) {
 	}
 }
 
-func TestStoreQueryMetaConversationSparseActiveProjection(t *testing.T) {
-	path := seedInspectConversations(t, 16, []meta.UserConversationState{{
-		UID:          "u1",
-		ChannelID:    "g1",
-		ChannelType:  2,
-		ActiveAt:     100,
-		UpdatedAt:    101,
-		SparseActive: true,
+func TestStoreQueryMetaUserChannelMembershipProjection(t *testing.T) {
+	path := seedInspectMemberships(t, 16, []meta.UserChannelMembership{{
+		UID:         "u1",
+		ChannelID:   "g1",
+		ChannelType: 2,
+		ActivatedAt: 100,
+		UpdatedAt:   101,
+		Tombstone:   true,
 	}})
 	store, err := OpenStore(Options{MetaPath: path, HashSlotCount: 16})
 	if err != nil {
@@ -114,12 +114,12 @@ func TestStoreQueryMetaConversationSparseActiveProjection(t *testing.T) {
 	}
 	defer store.Close()
 
-	result, err := store.Query(context.Background(), "select sparse_active from meta.conversation where uid='u1' limit 10")
+	result, err := store.Query(context.Background(), "select tombstone from meta.user_channel_membership where uid='u1' limit 10")
 	if err != nil {
 		t.Fatalf("Query() err = %v", err)
 	}
-	if len(result.Rows) != 1 || result.Rows[0]["sparse_active"] != true {
-		t.Fatalf("rows = %+v, want sparse_active true", result.Rows)
+	if len(result.Rows) != 1 || result.Rows[0]["tombstone"] != true {
+		t.Fatalf("rows = %+v, want tombstone true", result.Rows)
 	}
 	if _, ok := result.Rows[0]["uid"]; ok {
 		t.Fatalf("row = %+v, projected row should not include uid", result.Rows[0])
@@ -298,7 +298,7 @@ func seedInspectMetaUsers(t *testing.T, hashSlotCount uint16, users []meta.User)
 	return path
 }
 
-func seedInspectConversations(t *testing.T, hashSlotCount uint16, states []meta.UserConversationState) string {
+func seedInspectMemberships(t *testing.T, hashSlotCount uint16, states []meta.UserChannelMembership) string {
 	t.Helper()
 
 	path := t.TempDir()
@@ -309,8 +309,8 @@ func seedInspectConversations(t *testing.T, hashSlotCount uint16, states []meta.
 	db := meta.NewDB(eng)
 	for _, state := range states {
 		hashSlot := meta.HashSlot(hashslot.HashSlotForKey(state.UID, hashSlotCount))
-		if err := db.HashSlot(hashSlot).UpsertUserConversationState(context.Background(), state); err != nil {
-			t.Fatalf("UpsertUserConversationState(%s/%s) err = %v", state.UID, state.ChannelID, err)
+		if err := db.HashSlot(hashSlot).UpsertUserChannelMembership(context.Background(), state); err != nil {
+			t.Fatalf("UpsertUserChannelMembership(%s/%s) err = %v", state.UID, state.ChannelID, err)
 		}
 	}
 	if err := eng.Close(); err != nil {

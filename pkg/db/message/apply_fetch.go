@@ -67,7 +67,11 @@ func (l *ChannelLog) ApplyFetch(ctx context.Context, req ApplyFetchRequest) (App
 			return AppendResult{}, err
 		}
 	}
-	if err := l.stageCatalog(batch); err != nil {
+	if len(rows) > 0 {
+		if err := l.stageCatalogForAppend(batch, rows[0].MessageSeq); err != nil {
+			return AppendResult{}, err
+		}
+	} else if err := l.stageCatalog(batch); err != nil {
 		return AppendResult{}, err
 	}
 	if err := batch.Commit(true); err != nil {

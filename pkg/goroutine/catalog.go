@@ -17,9 +17,9 @@ const (
 	ModuleChannel       Module = "channel"
 	ModuleDatabase      Module = "database"
 	ModulePresence      Module = "presence"
+	ModuleMessage       Module = "message"
 	ModuleChannelAppend Module = "channelappend"
 	ModuleDelivery      Module = "delivery"
-	ModuleConversation  Module = "conversation"
 	ModuleWebhook       Module = "webhook"
 	ModulePlugin        Module = "plugin"
 	ModuleBackup        Module = "backup"
@@ -71,9 +71,6 @@ const (
 	TaskAppTopCollector                  TaskID = "app/top_collector"
 	TaskAppPresenceTouch                 TaskID = "app/presence_touch"
 	TaskAppSeedJoin                      TaskID = "app/seed_join"
-	TaskAppConversationFlush             TaskID = "app/conversation_flush"
-	TaskAppConversationRoute             TaskID = "app/conversation_route"
-	TaskAppConversationDrain             TaskID = "app/conversation_drain"
 	TaskAppTaskAudit                     TaskID = "app/task_audit"
 	TaskAppPrometheusWait                TaskID = "app/prometheus_wait"
 	TaskAppDeliveryMetadata              TaskID = "app/delivery_metadata"
@@ -113,7 +110,6 @@ const (
 	TaskClusterChannelRetention          TaskID = "cluster/channel_retention"
 	TaskClusterChannelMigration          TaskID = "cluster/channel_migration"
 	TaskClusterSlotLeaderRefresh         TaskID = "cluster/slot_leader_refresh"
-	TaskClusterConversationTouch         TaskID = "cluster/conversation_touch"
 	TaskClusterRaftTransport             TaskID = "cluster/raft_transport"
 	TaskClusterObserveLoop               TaskID = "cluster/observe_loop"
 	TaskControllerRaftRun                TaskID = "controller/raft_run"
@@ -123,6 +119,7 @@ const (
 	TaskSlotRaftTicker                   TaskID = "slot/raft_ticker"
 	TaskSlotRaftApplyWorker              TaskID = "slot/raft_apply_worker"
 	TaskSlotConditionWaiter              TaskID = "slot/condition_waiter"
+	TaskSlotPermissionBatch              TaskID = "slot/permission_batch"
 	TaskChannelReactor                   TaskID = "channel/reactor"
 	TaskChannelReactorClose              TaskID = "channel/reactor_close"
 	TaskChannelStoreClose                TaskID = "channel/store_close"
@@ -134,7 +131,7 @@ const (
 	TaskDatabaseBackupStream             TaskID = "database/backup_stream"
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
-	TaskConversationBatchRead            TaskID = "conversation/batch_read"
+	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskChannelAppendRouter              TaskID = "channelappend/router"
 	TaskChannelAppendPoolRelease         TaskID = "channelappend/pool_release"
 	TaskChannelAppendAdvanceScheduler    TaskID = "channelappend/advance_scheduler"
@@ -161,9 +158,6 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskAppTopCollector, Module: ModuleApp, Name: "top_collector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskAppPresenceTouch, Module: ModuleApp, Name: "presence_touch", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic, Expected: 2},
 	{ID: TaskAppSeedJoin, Module: ModuleApp, Name: "seed_join", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskAppConversationFlush, Module: ModuleApp, Name: "conversation_flush", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskAppConversationRoute, Module: ModuleApp, Name: "conversation_route", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
-	{ID: TaskAppConversationDrain, Module: ModuleApp, Name: "conversation_drain", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskAppTaskAudit, Module: ModuleApp, Name: "task_audit", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskAppPrometheusWait, Module: ModuleApp, Name: "prometheus_wait", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRecover, Expected: 1},
 	{ID: TaskAppDeliveryMetadata, Module: ModuleApp, Name: "delivery_metadata", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -203,7 +197,6 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskClusterChannelRetention, Module: ModuleCluster, Name: "channel_retention", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterChannelMigration, Module: ModuleCluster, Name: "channel_migration", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterSlotLeaderRefresh, Module: ModuleCluster, Name: "slot_leader_refresh", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
-	{ID: TaskClusterConversationTouch, Module: ModuleCluster, Name: "conversation_touch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskClusterRaftTransport, Module: ModuleCluster, Name: "raft_transport", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterObserveLoop, Module: ModuleCluster, Name: "observe_loop", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskControllerRaftRun, Module: ModuleController, Name: "raft_run", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
@@ -213,6 +206,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskSlotRaftTicker, Module: ModuleSlot, Name: "raft_ticker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskSlotRaftApplyWorker, Module: ModuleSlot, Name: "raft_apply_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotConditionWaiter, Module: ModuleSlot, Name: "condition_waiter", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskSlotPermissionBatch, Module: ModuleSlot, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactor, Module: ModuleChannel, Name: "reactor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactorClose, Module: ModuleChannel, Name: "reactor_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelStoreClose, Module: ModuleChannel, Name: "store_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
@@ -224,7 +218,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
-	{ID: TaskConversationBatchRead, Module: ModuleConversation, Name: "batch_read", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendRouter, Module: ModuleChannelAppend, Name: "router", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPoolRelease, Module: ModuleChannelAppend, Name: "pool_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskChannelAppendAdvanceScheduler, Module: ModuleChannelAppend, Name: "advance_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

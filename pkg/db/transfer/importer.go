@@ -46,7 +46,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		FileKindMetaChannels,
 		FileKindMetaSubscribers,
 		FileKindMetaUserChannelMemberships,
-		FileKindMetaConversations,
+		FileKindMetaUserCMDChannelMemberships,
 		FileKindMetaChannelLatest,
 	} {
 		for _, entry := range entries[kind] {
@@ -187,28 +187,17 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 	case FileKindMetaUserChannelMemberships:
 		row := record.(UserChannelMembershipRecord)
 		return meta.HashSlot(row.HashSlot).UpsertUserChannelMembership(ctx, metadb.UserChannelMembership{
-			UID:         row.UID,
-			ChannelID:   row.ChannelID,
-			ChannelType: row.ChannelType,
-			JoinSeq:     uint64(row.JoinSeq),
-			UpdatedAt:   row.UpdatedAtMS,
+			UID: row.UID, ChannelID: row.ChannelID, ChannelType: row.ChannelType,
+			JoinSeq: uint64(row.JoinSeq), ReadSeq: uint64(row.ReadSeq), DeletedToSeq: uint64(row.DeletedToSeq),
+			ActivatedAt: row.ActivatedAt, Tombstone: row.Tombstone, TombstoneAt: row.TombstoneAt,
+			SourceVersion: uint64(row.SourceVersion), UpdatedAt: row.UpdatedAtMS,
 		})
-	case FileKindMetaConversations:
-		row := record.(ConversationRecord)
-		kind, err := conversationKind(row.Kind)
-		if err != nil {
-			return err
-		}
-		return meta.HashSlot(row.HashSlot).UpsertConversationState(ctx, metadb.ConversationState{
-			UID:          row.UID,
-			Kind:         kind,
-			ChannelID:    row.ChannelID,
-			ChannelType:  row.ChannelType,
-			ReadSeq:      uint64(row.ReadSeq),
-			DeletedToSeq: uint64(row.DeletedToSeq),
-			ActiveAt:     row.ActiveAt,
-			UpdatedAt:    row.UpdatedAt,
-			SparseActive: row.SparseActive,
+	case FileKindMetaUserCMDChannelMemberships:
+		row := record.(UserCMDChannelMembershipRecord)
+		return meta.HashSlot(row.HashSlot).UpsertUserCMDChannelMembership(ctx, metadb.UserCMDChannelMembership{
+			UID: row.UID, CommandChannelID: row.CommandChannelID, ChannelType: row.ChannelType,
+			StartSeq: uint64(row.StartSeq), AckSeq: uint64(row.AckSeq), Tombstone: row.Tombstone,
+			TombstoneAt: row.TombstoneAt, UpdatedAt: row.UpdatedAtMS,
 		})
 	case FileKindMetaChannelLatest:
 		row := record.(ChannelLatestRecord)
@@ -225,17 +214,6 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 		})
 	default:
 		return fmt.Errorf("%w: unsupported import kind %q", ErrValidation, kind)
-	}
-}
-
-func conversationKind(kind string) (metadb.ConversationKind, error) {
-	switch kind {
-	case "normal":
-		return metadb.ConversationKindNormal, nil
-	case "cmd":
-		return metadb.ConversationKindCMD, nil
-	default:
-		return 0, fmt.Errorf("%w: unknown conversation kind %q", ErrValidation, kind)
 	}
 }
 

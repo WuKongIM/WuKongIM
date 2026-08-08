@@ -12,7 +12,7 @@ workload:
   hot_set: {person_channels: 80, group_channels: 20}
   topology: {logical_slot_groups: 12, hash_slots: 256, slot_replicas: 3, channel_replicas: 3}
   runtime_sampling: {every: 1m, size: 12}
-  sync: {version: 0, limit: 500, message_count: 20}
+  sync: {completed_coverage: 0, max_conversations: 500}
   burst_credit: 2s
   max_global_burst: 200
   max_channels_per_node: 5000

@@ -8,7 +8,6 @@ import (
 
 type commitPorts struct {
 	subscribers                SubscriberSource
-	activeAdmitter             ConversationActiveAdmitter
 	recipientAuthorityResolver RecipientAuthorityResolver
 	deliveryEnqueuer           OnlineDeliveryEnqueuer
 	persistAfter               PersistAfterEnqueuer
@@ -18,11 +17,11 @@ type commitPorts struct {
 }
 
 func (p commitPorts) hasPostCommitWork() bool {
-	return p.persistAfter != nil || p.activeAdmitter != nil || p.deliveryEnqueuer != nil
+	return p.persistAfter != nil || p.deliveryEnqueuer != nil
 }
 
 func (p commitPorts) hasRecipientWork() bool {
-	return p.activeAdmitter != nil || p.deliveryEnqueuer != nil
+	return p.deliveryEnqueuer != nil
 }
 
 type commitEffect struct {
@@ -81,16 +80,6 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 			continue
 		}
 		dispatch, err := dispatchCommittedRecipientsForTarget(runtimeCtx, e.target, event, cache, ports)
-		if dispatch.activeErr != nil {
-			itemResult := errorClass(dispatch.activeErr)
-			recordResult(itemResult)
-			completion.failures = append(completion.failures, commitCompletedItem{
-				err:    fmt.Errorf("%w: %w", ErrCommitEffectFailed, dispatch.activeErr),
-				result: itemResult,
-				event:  event,
-				detail: postCommitFailureDetailFromError(dispatch.activeErr),
-			})
-		}
 		if err != nil {
 			itemResult := errorClass(err)
 			recordResult(itemResult)

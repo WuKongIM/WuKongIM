@@ -13,7 +13,6 @@ type clearConversationUnreadRequest struct {
 	UID         string `json:"uid"`
 	ChannelID   string `json:"channel_id"`
 	ChannelType uint8  `json:"channel_type"`
-	MessageSeq  uint64 `json:"message_seq"`
 }
 
 type setConversationUnreadRequest struct {
@@ -45,7 +44,6 @@ func (s *Server) handleConversationClearUnread(c *gin.Context) {
 		UID:         req.UID,
 		ChannelID:   channelID,
 		ChannelType: req.ChannelType,
-		MessageSeq:  req.MessageSeq,
 	}))
 }
 
@@ -97,7 +95,29 @@ func (s *Server) handleConversationDelete(c *gin.Context) {
 		UID:         req.UID,
 		ChannelID:   channelID,
 		ChannelType: req.ChannelType,
-		MessageSeq:  req.MessageSeq,
+	}))
+}
+
+func (s *Server) handleConversationActivate(c *gin.Context) {
+	var req clearConversationUnreadRequest
+	if !bindJSON(c, &req) {
+		return
+	}
+	if err := validateClearConversationUnreadRequest(req); err != nil {
+		writeJSONError(c, err.Error())
+		return
+	}
+	if s == nil || s.conversations == nil {
+		writeJSONError(c, "conversation usecase not configured")
+		return
+	}
+	channelID, err := normalizeLegacyConversationChannelID(req.UID, req.ChannelID, req.ChannelType)
+	if err != nil {
+		writeJSONError(c, "invalid channel_id")
+		return
+	}
+	writeMutationResult(c, s.conversations.ActivateConversation(c.Request.Context(), conversationusecase.ActivateConversationCommand{
+		UID: req.UID, ChannelID: channelID, ChannelType: req.ChannelType,
 	}))
 }
 

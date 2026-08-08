@@ -23,6 +23,11 @@ type channelEntry struct {
 	appendKeyCache appendKeyCache
 	// appendMu serializes append frontier mutations for the canonical channel.
 	appendMu sync.Mutex
+	// idempotencyMembership is a bounded negative filter guarded by appendMu.
+	idempotencyMembership idempotencyMembershipFilter
+	// idempotencyMembershipLoaded reports that the filter covers every durable
+	// idempotency key visible when it was initialized. It is guarded by appendMu.
+	idempotencyMembershipLoaded bool
 	// checkpointMu serializes checkpoint reads followed by writes.
 	checkpointMu sync.Mutex
 	// leo caches the last durable message sequence after it is loaded.

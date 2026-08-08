@@ -11,10 +11,21 @@ import (
 var (
 	// ErrUIDRequired reports a missing user id in CMD sync commands.
 	ErrUIDRequired = errors.New("internal/usecase/cmdsync: uid required")
+	// ErrChannelRequired reports a missing source channel id in CMD binding commands.
+	ErrChannelRequired = errors.New("internal/usecase/cmdsync: channel id required")
+	// ErrChannelTypeRequired reports a missing source channel type in CMD binding commands.
+	ErrChannelTypeRequired = errors.New("internal/usecase/cmdsync: channel type required")
+	// ErrSequenceExhausted reports a command channel whose tail cannot produce a new start sequence.
+	ErrSequenceExhausted = errors.New("internal/usecase/cmdsync: command channel sequence exhausted")
 	// ErrStateStoreRequired reports a missing durable CMD state dependency.
 	ErrStateStoreRequired = errors.New("internal/usecase/cmdsync: state store required")
 	// ErrMessageStoreRequired reports a missing command-channel message dependency.
 	ErrMessageStoreRequired = errors.New("internal/usecase/cmdsync: message store required")
+	// ErrChannelDisbanded rejects CMD pulls from a terminal source channel.
+	ErrChannelDisbanded = errors.New("internal/usecase/cmdsync: channel disbanded")
+	// ErrStateCursorDidNotAdvance prevents an infinite scan when a state store
+	// reports another page without advancing its stable cursor.
+	ErrStateCursorDidNotAdvance = errors.New("internal/usecase/cmdsync: state cursor did not advance")
 )
 
 // SyncQuery is the /message/sync request after access-layer validation.
@@ -33,6 +44,20 @@ type SyncAckCommand struct {
 	UID string
 	// LastMessageSeq is accepted for legacy compatibility but does not select channels.
 	LastMessageSeq uint64
+}
+
+// BindCommand creates or restores durable CMD discovery for one UID and source channel.
+type BindCommand struct {
+	UID         string
+	ChannelID   string
+	ChannelType uint8
+}
+
+// UnbindCommand tombstones durable CMD discovery for one UID and source channel.
+type UnbindCommand struct {
+	UID         string
+	ChannelID   string
+	ChannelType uint8
 }
 
 // SyncedMessage is a command-channel message returned by CMD sync.
@@ -71,20 +96,23 @@ type CommandChannelKey struct {
 	ChannelType uint8
 }
 
-// StateStore supplies CMD-kind conversation state from the unified projection.
+// StateStore supplies the UID-owned CMD directory and persists acknowledgements.
 type StateStore interface {
-	ListConversationActiveView(ctx context.Context, uid string, limit int) ([]metadb.ConversationState, error)
-	UpsertConversationStates(ctx context.Context, states []metadb.ConversationState) error
+	ListUserCMDChannelMembershipPage(ctx context.Context, uid string, after metadb.UserCMDChannelMembershipCursor, limit int) ([]metadb.UserCMDChannelMembership, metadb.UserCMDChannelMembershipCursor, bool, error)
+	UpsertUserCMDChannelMemberships(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
+	AdvanceUserCMDChannelMembershipAcks(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
+	TombstoneUserCMDChannelMemberships(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
 }
 
 // MessageStore loads authoritative messages from command-channel logs.
 type MessageStore interface {
+	CommandChannelTail(ctx context.Context, key CommandChannelKey) (uint64, error)
 	LoadCommandMessages(ctx context.Context, key CommandChannelKey, fromSeq uint64, limit int) ([]SyncedMessage, error)
 }
 
 // Options configures the CMD sync usecase.
 type Options struct {
-	// States supplies CMD-kind unified conversation rows and persists read progress.
+	// States supplies CMD directory rows and persists acknowledgement progress.
 	States StateStore
 	// Messages loads command-channel messages.
 	Messages MessageStore
@@ -92,7 +120,8 @@ type Options struct {
 	Records *SyncRecordCache
 	// Now supplies wall-clock time for deterministic tests.
 	Now func() time.Time
-	// ActiveScanLimit bounds the number of CMD active rows scanned per sync.
+	// ActiveScanLimit bounds each CMD membership page; Sync continues until the
+	// stable UID directory is exhausted while retaining only the result limit.
 	ActiveScanLimit int
 	// DefaultLimit is used when SyncQuery.Limit is not positive.
 	DefaultLimit int

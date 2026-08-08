@@ -176,7 +176,7 @@ func TestConfigValidate(t *testing.T) {
 		{"relationship messages", func(c *Config) { c.Workload.Relationship.InitialMessages.Min = 9 }, "workload.relationship.initial_messages: min must not exceed max"},
 		{"retry count", func(c *Config) { c.Workload.Retry.MaxCount = 4 }, "workload.retry.max_count: must not exceed 3"},
 		{"retry delays", func(c *Config) { c.Workload.Retry.Delays = c.Workload.Retry.Delays[:2] }, "workload.retry.delays: must contain exactly 3 delays"},
-		{"formal sync", func(c *Config) { c.Workload.Sync.Limit = 499 }, "workload.sync.limit: must equal 500 for real sync"},
+		{"formal sync", func(c *Config) { c.Workload.Sync.MaxConversations = 499 }, "workload.sync.max_conversations: must equal 500 for bounded full-sync evidence"},
 		{"burst cap", func(c *Config) { c.Workload.MaxGlobalBurst = 3_999 }, "workload.max_global_burst: must equal burst_credit times send_rate_per_second"},
 		{"filesystem", func(c *Config) { c.Thresholds.MinimumDataFilesystemBytes = 499_999_999_999 }, "thresholds.minimum_data_filesystem_bytes: must equal formal default"},
 		{"disk percent", func(c *Config) { c.Thresholds.DiskSafeStopFreePercent = 0 }, "thresholds.disk_safe_stop_free_percent: must be in 1..100"},

@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	conversationSyncMessageCount = 20
-	conversationSyncLimit        = 500
+	conversationSyncMaxConversations = 500
 )
 
 // SyncClassification identifies who owns a conversation-sync validation failure.
@@ -78,7 +77,7 @@ func validLoginSyncFailure(failure LoginSyncFailure) bool {
 	switch failure.Reason {
 	case "conversation_limit_reached":
 		return failure.Classification == SyncClassificationHarnessInvalid
-	case "conversation_identity_invalid", "duplicate_conversation", "recent_identity_mismatch", "recent_sequence_invalid":
+	case "conversation_identity_invalid", "duplicate_conversation", "last_message_invalid":
 		return failure.Classification == SyncClassificationProductFailure
 	default:
 		return false
@@ -117,21 +116,18 @@ func (e *ConversationSyncValidationError) ReasonCode() string {
 // Stage identifies validation as part of the full conversation sync.
 func (*ConversationSyncValidationError) Stage() LoginSyncStage { return LoginSyncStageSync }
 
-// NewConversationSyncRequest constructs a fresh stateless full-sync request for every login.
+// NewConversationSyncRequest constructs a fresh zero-coverage full-sync request for every login.
 func NewConversationSyncRequest(uid string) target.ConversationSyncRequest {
 	return target.ConversationSyncRequest{
-		UID:         uid,
-		Version:     0,
-		LastMsgSeqs: "",
-		MsgCount:    conversationSyncMessageCount,
-		OnlyUnread:  0,
-		Limit:       conversationSyncLimit,
+		UID:               uid,
+		CompletedCoverage: 0,
+		MaxConversations:  conversationSyncMaxConversations,
 	}
 }
 
-// ValidateConversationSync proves the bounded response is complete and internally ordered.
+// ValidateConversationSync proves the complete bounded directory is internally valid.
 func ValidateConversationSync(conversations []target.ConversationSyncConversation) error {
-	if len(conversations) >= conversationSyncLimit {
+	if len(conversations) >= conversationSyncMaxConversations {
 		return newConversationSyncValidationError(SyncClassificationHarnessInvalid, "conversation_limit_reached")
 	}
 
@@ -146,15 +142,9 @@ func ValidateConversationSync(conversations []target.ConversationSyncConversatio
 		}
 		seen[identity] = struct{}{}
 
-		var previousSequence uint64
-		for index, recent := range conversation.Recents {
-			if recent.ChannelID != conversation.ChannelID || recent.ChannelType != conversation.ChannelType {
-				return newConversationSyncValidationError(SyncClassificationProductFailure, "recent_identity_mismatch")
-			}
-			if recent.MessageSeq == 0 || (index > 0 && previousSequence <= recent.MessageSeq) {
-				return newConversationSyncValidationError(SyncClassificationProductFailure, "recent_sequence_invalid")
-			}
-			previousSequence = recent.MessageSeq
+		if conversation.LastMessage != nil &&
+			(conversation.LastMessage.MessageID == 0 || conversation.LastMessage.MessageSeq == 0) {
+			return newConversationSyncValidationError(SyncClassificationProductFailure, "last_message_invalid")
 		}
 	}
 	return nil

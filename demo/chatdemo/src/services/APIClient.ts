@@ -162,19 +162,36 @@ export default class APIClient {
     // 仅仅做演示，所以直接调用的WuKongIM的接口，实际项目中，建议调用自己的后台接口，
     // 然后后台接口再调用WuKongIM的接口，这样自己的后台可以返回一些自己的业务数据填充到Conversation.extra中
     syncConversations = async () => {
-        let resultConversations = new Array<Conversation>()
-        const resp = await APIClient.shared.post('/conversation/sync', {
-            uid: WKSDK.shared().config.uid,
-            msg_count: 1,
-        })
-        const conversationList = resp
-        if (conversationList) {
-            conversationList.forEach((v: any) => {
-                const conversation = Convert.toConversation(v);
-                resultConversations.push(conversation);
-            });
-        }
-        return resultConversations
+        const conversations = new Map<string, Conversation>()
+        let cursor = ""
+        let done = false
+        do {
+            const resp = await APIClient.shared.post('/conversation/list', {
+                uid: WKSDK.shared().config.uid,
+                cursor,
+                limit: 200,
+            })
+            const page = resp && resp["conversations"]
+            if (page) {
+                page.forEach((value: any) => {
+                    const conversation = Convert.toConversation(value)
+                    conversations.set(`${value.channel_id}:${value.channel_type}`, conversation)
+                })
+            }
+            const deletes = resp && resp["deletes"]
+            if (deletes) {
+                deletes.forEach((value: any) => {
+                    conversations.delete(`${value.channel_id}:${value.channel_type}`)
+                })
+            }
+            done = resp && resp["done"] === true
+            const nextCursor = resp && resp["next_cursor"]
+            if (!done && (!nextCursor || nextCursor === cursor)) {
+                throw new Error("conversation directory did not advance")
+            }
+            cursor = nextCursor || ""
+        } while (!done)
+        return Array.from(conversations.values())
     }
     clearUnread = async (channel:Channel) => {
        return APIClient.shared.post('/conversations/setUnread', {

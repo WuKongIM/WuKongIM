@@ -37,7 +37,12 @@ resolve routes, append messages, dispatch recipients, or push gateway frames.
 - `AuthorityTarget` identifies the fenced channel authority route used for
   write admission. `RouteGeneration` versions the complete projected route for
   cache invalidation; it is not a Channel machine or wire-protocol fence.
+  `WriteFenced` mirrors the resolved authority state so a local writer can
+  recover an already committed idempotent retry before the new-append fence.
 - `AppendBatchRequest` carries the expected authority epoch and leader epoch so
   append adapters can reject stale writes without re-resolving caller intent.
+- `AppendBatchRequest.ServerAllocatedMessageIDs` is an all-items proof created
+  by the local preparation runtime. It permits storage to omit only existing
+  message-ID reads; it never relaxes sender/client-message idempotency checks.
 - Reason constants and append/routing error sentinels remain stable so entry
   adapters can map SENDACK outcomes without depending on runtime packages.

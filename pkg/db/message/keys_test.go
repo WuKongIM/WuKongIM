@@ -27,12 +27,12 @@ func TestMessageCatalogKeyUsesGlobalPartition(t *testing.T) {
 }
 
 func TestMessageIndexPrefixIncludesIndexID(t *testing.T) {
-	prefix := encodeMessageIndexPrefix(ChannelKey("ch-1"), messageIndexIDMessageID)
+	prefix := encodeMessageIndexPrefix(ChannelKey("ch-1"), messageIndexIDFromUIDClientMsgNo)
 	wantPrefix := []byte{byte(keycodec.DomainMessage), byte(keycodec.PartitionChannel)}
 	if !bytes.HasPrefix(prefix, wantPrefix) {
 		t.Fatalf("index prefix %x missing domain partition", prefix)
 	}
-	if !bytes.Contains(prefix, []byte{byte(messageIndexIDMessageID)}) {
+	if !bytes.Contains(prefix, []byte{byte(messageIndexIDFromUIDClientMsgNo)}) {
 		t.Fatalf("index prefix %x missing index id", prefix)
 	}
 }
@@ -67,20 +67,6 @@ func TestChannelLogAppendKeyCacheMatchesEncoders(t *testing.T) {
 			name: "row_payload",
 			got:  cache.messageRowKey(7, messagePayloadFamilyID),
 			want: encodeMessageRowKey(log.key, 7, messagePayloadFamilyID),
-		},
-		{
-			name: "message_id_index",
-			got:  cache.messageIDIndexKey(99),
-			want: encodeMessageIDIndexKey(log.key, 99),
-		},
-		{
-			name: "message_id_index_to",
-			got: func() []byte {
-				key := make([]byte, cache.messageIDIndexKeyLen())
-				cache.writeMessageIDIndexKey(key, 99)
-				return key
-			}(),
-			want: encodeMessageIDIndexKey(log.key, 99),
 		},
 		{
 			name: "client_msg_no_index",
@@ -130,17 +116,17 @@ func TestChannelLogAppendKeyCacheMatchesEncoders(t *testing.T) {
 
 func TestAppendKeyCacheReusesLookupScratch(t *testing.T) {
 	cache := newAppendKeyCache(ChannelKey("cached:1"), ChannelID{ID: "cached", Type: 1})
-	messageIDKey := make([]byte, 0, cache.messageIDIndexKeyLen())
+	messageIDKey := make([]byte, 0, len(cache.globalMessageIDIndexPrefix)+8)
 	idempotencyKey := make([]byte, 0, cache.idempotencyIndexKeyLen("u1", "client-1"))
 
 	allocs := testing.AllocsPerRun(100, func() {
-		messageIDKey = cache.messageIDIndexKeyTo(messageIDKey, 99)
+		messageIDKey = cache.globalMessageIDIndexKeyTo(messageIDKey, 99)
 		idempotencyKey = cache.idempotencyIndexKeyTo(idempotencyKey, "u1", "client-1")
 	})
 	if allocs != 0 {
 		t.Fatalf("lookup scratch allocations = %v, want 0", allocs)
 	}
-	if want := encodeMessageIDIndexKey(ChannelKey("cached:1"), 99); !bytes.Equal(messageIDKey, want) {
+	if want := encodeGlobalMessageIDIndexKey(99); !bytes.Equal(messageIDKey, want) {
 		t.Fatalf("message ID lookup scratch key = %x, want %x", messageIDKey, want)
 	}
 	if want := encodeMessageIdempotencyIndexKey(ChannelKey("cached:1"), "u1", "client-1"); !bytes.Equal(idempotencyKey, want) {

@@ -437,8 +437,10 @@ func TestCloudSimulationWorkflowFailsFastOnTerminalBootstrapGateAndCleansCancell
 func TestCloudSimulationWorkflowRequiresEmpiricalStorageCalibrationForStandardRuns(t *testing.T) {
 	provision := readWorkflowText(t, repositoryRoot(t), "cloud-sim-provision.yml")
 	for _, required := range []string{
-		"storage_calibration_run_id:",
-		"storage_bytes_per_message:",
+		"storage_calibration:",
+		"RUN_ID:BYTES_PER_MESSAGE",
+		`storage_calibration_run_id="${STORAGE_CALIBRATION%%:*}"`,
+		`storage_bytes_per_message="${STORAGE_CALIBRATION#*:}"`,
 		"48h|168h)",
 		"Standard stability runs require a completed 30m storage calibration",
 		"calibrated_data_disk_gib",

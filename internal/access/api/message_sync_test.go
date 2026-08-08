@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -124,12 +125,50 @@ func TestMessageSyncAckRejectsLegacyValidationErrors(t *testing.T) {
 	}
 }
 
+func TestMessageCMDBindAndUnbindMapToUsecase(t *testing.T) {
+	cmdSync := &recordingCMDSyncUsecase{}
+	srv := New(Options{CMDSync: cmdSync})
+	for _, test := range []struct {
+		path string
+		body string
+	}{
+		{path: "/message/cmd/bind", body: `{"uid":"u1","channel_id":"g1","channel_type":2}`},
+		{path: "/message/cmd/unbind", body: `{"uid":"u1","channel_id":"g1","channel_type":2}`},
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, test.path, bytes.NewBufferString(test.body))
+		req.Header.Set("Content-Type", "application/json")
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK || !jsonEqual(rec.Body.String(), `{"status":200}`) {
+			t.Fatalf("%s status=%d body=%s", test.path, rec.Code, rec.Body.String())
+		}
+	}
+	if got, want := cmdSync.binds, []cmdsync.BindCommand{{UID: "u1", ChannelID: "g1", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("binds = %#v, want %#v", got, want)
+	}
+	if got, want := cmdSync.unbinds, []cmdsync.UnbindCommand{{UID: "u1", ChannelID: "g1", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unbinds = %#v, want %#v", got, want)
+	}
+}
+
 type recordingCMDSyncUsecase struct {
 	syncQueries []cmdsync.SyncQuery
 	acks        []cmdsync.SyncAckCommand
+	binds       []cmdsync.BindCommand
+	unbinds     []cmdsync.UnbindCommand
 	syncResult  cmdsync.SyncResult
 	syncErr     error
 	ackErr      error
+}
+
+func (r *recordingCMDSyncUsecase) Bind(_ context.Context, cmd cmdsync.BindCommand) error {
+	r.binds = append(r.binds, cmd)
+	return nil
+}
+
+func (r *recordingCMDSyncUsecase) Unbind(_ context.Context, cmd cmdsync.UnbindCommand) error {
+	r.unbinds = append(r.unbinds, cmd)
+	return nil
 }
 
 func (r *recordingCMDSyncUsecase) Sync(_ context.Context, query cmdsync.SyncQuery) (cmdsync.SyncResult, error) {

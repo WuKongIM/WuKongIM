@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
+func TestWukongIMGroupMembershipDirectoryBuildsConversations(t *testing.T) {
 	node := suite.New(t).StartSingleNodeCluster()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -27,6 +27,7 @@ func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		"channel_type": frame.ChannelTypeGroup,
 		"subscribers":  []string{"conv-small-sender", "conv-small-a", "conv-small-b"},
 	}))
+	smallMembershipRowsBefore := requireMembershipMutationRows(t, ctx, *node, "ordinary")
 	smallSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-small-sender",
 		"channel_id":    smallChannelID,
@@ -43,13 +44,15 @@ func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		page := suite.RequireConversationEventually(t, *node, uid, smallChannelID, func(item suite.ConversationListItem) error {
 			return checkRecipientConversation(item, smallSend, "conv-small-sender", "conv-small-1", "small group recipient authority")
 		})
-		require.Equal(t, 0, page.More)
+		require.True(t, page.Done)
 	}
 	page := suite.RequireConversationEventually(t, *node, "conv-small-sender", smallChannelID, func(item suite.ConversationListItem) error {
 		return checkRecipientConversation(item, smallSend, "conv-small-sender", "conv-small-1", "small group recipient authority")
 	})
-	require.Equal(t, 0, page.More)
+	require.True(t, page.Done)
 	suite.RequireConversationAbsent(t, ctx, *node, "conv-small-outsider", smallChannelID)
+	require.Equal(t, smallMembershipRowsBefore, requireMembershipMutationRows(t, ctx, *node, "ordinary"),
+		"ordinary SEND changed actual membership proposal rows")
 
 	const largeChannelID = "e2e-recipient-authority-large-group"
 	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
@@ -57,6 +60,7 @@ func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		"channel_type": frame.ChannelTypeGroup,
 		"subscribers":  []string{"conv-large-sender", "conv-large-a", "conv-large-b", "conv-large-c"},
 	}))
+	largeMembershipRowsBefore := requireMembershipMutationRows(t, ctx, *node, "ordinary")
 	largeSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-large-sender",
 		"channel_id":    largeChannelID,
@@ -73,19 +77,28 @@ func TestWukongIMGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
 		page := suite.RequireConversationEventually(t, *node, uid, largeChannelID, func(item suite.ConversationListItem) error {
 			return checkRecipientConversation(item, largeSend, "conv-large-sender", "conv-large-1", "large group recipient authority")
 		})
-		require.Equal(t, 0, page.More)
+		require.True(t, page.Done)
 	}
 	page = suite.RequireConversationEventually(t, *node, "conv-large-sender", largeChannelID, func(item suite.ConversationListItem) error {
 		return checkRecipientConversation(item, largeSend, "conv-large-sender", "conv-large-1", "large group recipient authority")
 	})
-	require.Equal(t, 0, page.More)
+	require.True(t, page.Done)
 	suite.RequireConversationAbsent(t, ctx, *node, "conv-large-outsider", largeChannelID)
+	require.Equal(t, largeMembershipRowsBefore, requireMembershipMutationRows(t, ctx, *node, "ordinary"),
+		"large-group SEND changed actual membership proposal rows")
 
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_admit_total`, map[string]string{"result": "ok"}, 1)
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
+	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_directory_list_total`, map[string]string{"result": "ok"}, 1)
+	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_hydration_batch_total`, map[string]string{"result": "ok"}, 1)
 }
 
-func TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T) {
+func requireMembershipMutationRows(t *testing.T, ctx context.Context, node suite.StartedNode, directory string) float64 {
+	t.Helper()
+	samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+	require.NoError(t, err, node.DumpDiagnostics())
+	return suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", map[string]string{"directory": directory})
+}
+
+func TestWukongIMHundredKGroupMembershipDirectoryBuildsConversations(t *testing.T) {
 	if os.Getenv("WK_E2E_100K_CONVERSATION") != "1" {
 		t.Skip("set WK_E2E_100K_CONVERSATION=1 to run the 100k recipient-authority stress test")
 	}
@@ -103,6 +116,7 @@ func TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T)
 		"channel_type": frame.ChannelTypeGroup,
 		"subscribers":  subscribers,
 	}))
+	membershipRowsBefore := requireMembershipMutationRows(t, ctx, *node, "ordinary")
 	sendResp, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      "conv-100k-sender",
 		"channel_id":    channelID,
@@ -112,6 +126,8 @@ func TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T)
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint8(frame.ReasonSuccess), sendResp.Reason)
+	require.Equal(t, membershipRowsBefore, requireMembershipMutationRows(t, ctx, *node, "ordinary"),
+		"100k-member SEND changed actual membership proposal rows")
 
 	for _, uid := range []string{hundredKConversationSubscriberUID(0), hundredKConversationSubscriberUID(50000), hundredKConversationSubscriberUID(99999)} {
 		suite.RequireConversationEventuallyWithin(t, *node, uid, channelID, 5*time.Minute, func(item suite.ConversationListItem) error {
@@ -123,14 +139,11 @@ func TestWukongIMHundredKGroupRecipientAuthorityUpdatesSubscribers(t *testing.T)
 	})
 	suite.RequireConversationAbsent(t, ctx, *node, "conv-100k-outsider", channelID)
 
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_admit_total`, map[string]string{"result": "ok"}, 1)
-	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_authority_list_total`, map[string]string{"result": "ok"}, 1)
+	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_directory_list_total`, map[string]string{"result": "ok"}, 1)
+	suite.RequireMetricAtLeastEventually(t, *node, `wukongim_conversation_hydration_batch_total`, map[string]string{"result": "ok"}, 1)
 }
 
 func checkRecipientConversation(item suite.ConversationListItem, send suite.MessageSendResponse, fromUID, clientMsgNo, payload string) error {
-	if item.SparseActive {
-		return fmt.Errorf("sparse_active = true, want recipient-scoped row")
-	}
 	if item.LastMessage == nil {
 		return fmt.Errorf("last_message is nil")
 	}

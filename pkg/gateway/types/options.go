@@ -56,6 +56,7 @@ type SessionOptions struct {
 	// AsyncSendBatchMaxWait bounds how long a SEND shard waits to collect adjacent frames.
 	AsyncSendBatchMaxWait time.Duration
 	// AsyncSendBatchMaxRecords caps SEND frames in one gateway micro-batch.
+	// The default is 128 to bound downstream burst amplification under sustained high QPS.
 	AsyncSendBatchMaxRecords int
 	// AsyncSendBatchMaxBytes caps payload bytes in one gateway micro-batch.
 	AsyncSendBatchMaxBytes int
@@ -86,7 +87,7 @@ const (
 	defaultAsyncPoolReleaseTimeout = 100 * time.Millisecond
 
 	defaultAsyncSendBatchMaxWait    = time.Millisecond
-	defaultAsyncSendBatchMaxRecords = 512
+	defaultAsyncSendBatchMaxRecords = 128
 	defaultAsyncSendBatchMaxBytes   = 512 * 1024
 )
 

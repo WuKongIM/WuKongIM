@@ -24,10 +24,10 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 		int(identityRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
-		int(userConversationStateRPCServiceID),
+		int(permissionBatchRPCServiceID),
 		int(channelMigrationRPCServiceID),
-		int(cmdConversationStateRPCServiceID),
 		int(pluginBindingRPCServiceID),
+		int(membershipRPCServiceID),
 	}
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {
@@ -35,7 +35,7 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 	}
 }
 
-func TestNewChannelMetadataStoreRegistersRuntimeMetadataHandler(t *testing.T) {
+func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T) {
 	cluster := &promotedRPCRegistrationCluster{}
 
 	NewChannelMetadataStore(cluster, nil)
@@ -49,6 +49,8 @@ func TestNewChannelMetadataStoreRegistersRuntimeMetadataHandler(t *testing.T) {
 		int(runtimeMetaRPCServiceID),
 		int(subscriberRPCServiceID),
 		int(channelRPCServiceID),
+		int(permissionBatchRPCServiceID),
+		int(membershipRPCServiceID),
 	}
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {

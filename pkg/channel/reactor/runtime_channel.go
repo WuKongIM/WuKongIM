@@ -51,17 +51,17 @@ func (r *Reactor) applyLoadedRuntimeMeta(rc *runtimeChannel, meta ch.Meta, fence
 	if err := rc.state.ValidateMeta(meta); err != nil {
 		return err
 	}
-	wasParked := rc.replication.parked
+	previousRole := rc.state.Role
+	wasParkedFollower := previousRole == ch.RoleFollower && rc.replication.parked
 	if fencePendingState {
 		r.clearFencedRuntimeWork(rc, ch.ErrStaleMeta)
 	}
-	previousRole := rc.state.Role
 	decision := rc.state.ApplyMeta(meta)
 	if decision.Err != nil {
 		return decision.Err
 	}
 	r.applyLoadedMetaDecision(rc, fencePendingState)
-	r.observeFollowerParkedCountIfChanged(wasParked, rc)
+	r.observeFollowerParkedCountIfChanged(wasParkedFollower, rc)
 	r.updateActiveRuntimeRole(previousRole, rc.state.Role)
 	return nil
 }

@@ -90,6 +90,17 @@ func (l *channelEntry) stageCatalog(batch *engine.Batch) error {
 	return batch.Set(cache.catalogKey, cache.catalogValue)
 }
 
+// stageCatalogForAppend writes the immutable catalog row only with the first
+// message. A later base sequence proves that the channel was cataloged by an
+// earlier durable message or system mutation, so rewriting it would only add
+// write amplification to the append hot path.
+func (l *channelEntry) stageCatalogForAppend(batch *engine.Batch, baseSeq uint64) error {
+	if baseSeq > 1 {
+		return nil
+	}
+	return l.stageCatalog(batch)
+}
+
 func encodeCatalogValue(id ChannelID) []byte {
 	value := keycodec.AppendString(nil, id.ID)
 	return append(value, id.Type)

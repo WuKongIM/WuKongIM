@@ -35,7 +35,9 @@ Submit(ctx, Task)
 
 `PoolConfig.QueueSize` is the admission queue capacity. `QueueDepth` reports
 current workqueue admission occupancy, including accepted work not yet entered
-by the executor. `PoolConfig.Workers` is the workqueue ants executor capacity.
+by the executor. `QueueCapacity` exposes the same fixed bound to owners that
+pace different work classes before admission. `PoolConfig.Workers` is the
+workqueue ants executor capacity.
 The Channel reactor supplies the QPS-validated 160-worker default for the RPC
 pool when its composition config leaves that capacity unset.
 `Pools.MetaResolve` is created only when `Deps.MetaResolver` is configured;
@@ -57,12 +59,18 @@ task. Both use the configured `RPCBatchMaxItems`, defaulting to 16, and the
 built-in 250-microsecond collection window. This is not strict queue isolation;
 later tasks of another RPC kind or target can enter the same window and are
 partitioned into serial subgroups whose first-run priority rotates across
-windows. Store append, store apply, and checkpoint
+windows. The channel reactor uses `QueueDepth` and `QueueCapacity` to make
+retry-only resume PullHint yield at one-quarter capacity, while new-append
+PullHint and follower Pull yield at half capacity, preserving shared-queue
+headroom without increasing the pool's concurrency or admission bound. Store
+append, store apply, and checkpoint
 tasks can batch across different channel keys when the store factory exposes
 the corresponding optional batch interface. The message DB checkpoint batch
 path commits monotonic HW updates through one grouped commit without taking
 foreground append locks, instead of issuing one synchronous physical commit
-per channel.
+per channel. Store-append tasks preserve the reactor's all-records
+server-allocated message-ID proof for both single and cross-channel batch
+execution; the worker does not infer or widen that proof.
 Store-apply results also return the checkpoint HW persisted atomically with the
 follower records, allowing the reactor to suppress a redundant standalone
 checkpoint task.
@@ -123,3 +131,14 @@ adapted to queue/capacity/admission/ants usage metrics. Typed wait, task, batch,
 and inflight observations stay in this package because they need `TaskKind`,
 `Fence`, and per-result errors. Inflight is the number of running task groups,
 not the number of original tasks inside those groups.
+
+Admission additionally exposes a bounded `pool` / `TaskKind` / `result` split.
+This distinguishes critical follower Pull saturation from best-effort,
+retryable PullHint bursts when both share the RPC pool. Reactor-side
+pre-admission watermarks use `result="paced"` and allow a minimum of four
+queued tasks before pacing small pools; actual bounded-pool rejection continues
+to use `result="full"`.
+The reactor additionally reports `kind="rpc_pull",result="paced"` against the
+store-apply pool when that queue reaches half capacity and a new Pull is
+deferred. This is prefetch backpressure, distinct from an attempted
+`kind="store_apply",result="full"` admission.

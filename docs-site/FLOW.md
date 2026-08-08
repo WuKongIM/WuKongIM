@@ -98,7 +98,7 @@ content/docs/**/*.mdx
   chat uses product-owned group IDs and `channel_type=2`; the product service
   remains authoritative for group lifecycle and reconciles subscriber
   metadata through bounded requests. Durable SEND success means Channel
-  quorum commit, not complete fanout, RECVACK, conversation projection, or a
+  quorum commit, not complete fanout, RECVACK, directory synchronization, or a
   business result. Current product HTTP routes remain a trusted service-side
   boundary without general product authentication. Large-group guidance MUST
   use bounded application batches and post-commit paged fanout, never one

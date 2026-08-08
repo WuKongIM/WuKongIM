@@ -105,7 +105,8 @@ func TestAddSubscribersProjectsOrdinaryMemberships(t *testing.T) {
 		},
 	}
 	memberships := &recordingMembershipIndex{}
-	app := New(Options{Store: store, MembershipIndex: memberships, SubscriberPageLimit: 2})
+	tails := &recordingCommittedTailReader{tail: 25}
+	app := New(Options{Store: store, MembershipIndex: memberships, CommittedTail: tails, SubscriberPageLimit: 2})
 
 	if err := app.AddSubscribers(context.Background(), SubscriberCommand{
 		ChannelID:   "g1",
@@ -116,8 +117,8 @@ func TestAddSubscribersProjectsOrdinaryMemberships(t *testing.T) {
 	}
 
 	want := []membershipUpsertCall{
-		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, joinSeq: 0},
-		{channelID: "g1", channelType: 2, uids: []string{"u3"}, joinSeq: 0},
+		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, committedTail: 25, sourceVersion: 1},
+		{channelID: "g1", channelType: 2, uids: []string{"u3"}, committedTail: 25, sourceVersion: 1},
 	}
 	if !equalMembershipUpsertCalls(memberships.upserts, want) {
 		t.Fatalf("membership upserts = %#v, want %#v", memberships.upserts, want)
@@ -126,6 +127,9 @@ func TestAddSubscribersProjectsOrdinaryMemberships(t *testing.T) {
 		if call.updatedAt <= 0 {
 			t.Fatalf("membership upsert updatedAt = %d, want positive", call.updatedAt)
 		}
+	}
+	if tails.calls != 1 {
+		t.Fatalf("committed tail reads = %d, want one per logical bulk add", tails.calls)
 	}
 }
 
@@ -147,8 +151,8 @@ func TestRemoveSubscribersDeletesOrdinaryMemberships(t *testing.T) {
 	}
 
 	want := []membershipDeleteCall{
-		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}},
-		{channelID: "g1", channelType: 2, uids: []string{"u3"}},
+		{channelID: "g1", channelType: 2, uids: []string{"u1", "u2"}, sourceVersion: 1},
+		{channelID: "g1", channelType: 2, uids: []string{"u3"}, sourceVersion: 1},
 	}
 	if !equalMembershipDeleteCalls(memberships.deletes, want) {
 		t.Fatalf("membership deletes = %#v, want %#v", memberships.deletes, want)
@@ -402,6 +406,36 @@ func TestPatchMetadataFlagsPreservesUnrelatedMetadata(t *testing.T) {
 	}
 }
 
+func TestDisbandIsTerminalAcrossDeleteUpdateAndPatch(t *testing.T) {
+	store := &recordingStore{channels: map[string]metadb.Channel{
+		recordingChannelKey("g1", 2): {
+			ChannelID: "g1", ChannelType: 2, Ban: 1, SendBan: 1,
+		},
+	}}
+	app := New(Options{Store: store})
+	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
+
+	if err := app.Delete(context.Background(), key); err != nil {
+		t.Fatalf("Delete(): %v", err)
+	}
+	if got := store.channels[recordingChannelKey("g1", 2)]; got.Disband != 1 || got.Ban != 1 || got.SendBan != 1 {
+		t.Fatalf("channel after Delete() = %#v, want preserved flags and terminal disband", got)
+	}
+	if len(store.deleteChannels) != 0 {
+		t.Fatalf("physical deletes = %#v, want none", store.deleteChannels)
+	}
+
+	if err := app.UpdateInfo(context.Background(), Info{ChannelID: "g1", ChannelType: 2}); err != nil {
+		t.Fatalf("UpdateInfo(): %v", err)
+	}
+	if err := app.PatchMetadataFlags(context.Background(), key, BusinessFlags{}); err != nil {
+		t.Fatalf("PatchMetadataFlags(): %v", err)
+	}
+	if got := store.channels[recordingChannelKey("g1", 2)]; got.Disband != 1 {
+		t.Fatalf("channel after attempted revival = %#v, want terminal disband", got)
+	}
+}
+
 func TestMutateAllowlistCountedValidatesParentAndCreatesDerivedChannel(t *testing.T) {
 	store := &recordingStore{
 		channels: map[string]metadb.Channel{
@@ -436,7 +470,13 @@ func TestMutateSubscribersCountedMaintainsReverseProjection(t *testing.T) {
 		countedAddResult: metadb.SubscriberMutationResult{RequestedCount: 2, ChangedCount: 1},
 	}
 	memberships := &recordingMembershipIndex{}
-	app := New(Options{Store: store, MembershipIndex: memberships})
+	tails := &recordingCommittedTailReader{tail: 25}
+	tails.onRead = func() {
+		if len(store.addSubscribers) != 0 {
+			t.Fatal("committed tail was captured after subscriber visibility changed")
+		}
+	}
+	app := New(Options{Store: store, MembershipIndex: memberships, CommittedTail: tails})
 
 	result, err := app.MutateSubscribersCounted(context.Background(), SubscriberCommand{
 		ChannelID: "g1", ChannelType: 2, Subscribers: []string{"u1", "u2"},
@@ -449,6 +489,9 @@ func TestMutateSubscribersCountedMaintainsReverseProjection(t *testing.T) {
 	}
 	if len(memberships.upserts) != 1 || !equalStrings(memberships.upserts[0].uids, []string{"u1", "u2"}) {
 		t.Fatalf("membership upserts = %#v", memberships.upserts)
+	}
+	if memberships.upserts[0].committedTail != 25 || tails.calls != 1 {
+		t.Fatalf("membership tail = %d, reads = %d, want 25 captured once before add", memberships.upserts[0].committedTail, tails.calls)
 	}
 }
 
@@ -496,6 +539,20 @@ type recordingMembershipIndex struct {
 	deletes []membershipDeleteCall
 }
 
+type recordingCommittedTailReader struct {
+	tail   uint64
+	calls  int
+	onRead func()
+}
+
+func (r *recordingCommittedTailReader) CommittedChannelTail(context.Context, string, int64) (uint64, error) {
+	r.calls++
+	if r.onRead != nil {
+		r.onRead()
+	}
+	return r.tail, nil
+}
+
 type recordingSubscriberMutationObserver struct {
 	events []SubscriberMutationEvent
 }
@@ -507,37 +564,41 @@ func (o *recordingSubscriberMutationObserver) ObserveSubscriberMutation(_ contex
 }
 
 type membershipUpsertCall struct {
-	channelID   string
-	channelType int64
-	uids        []string
-	joinSeq     uint64
-	updatedAt   int64
+	channelID     string
+	channelType   int64
+	uids          []string
+	committedTail uint64
+	sourceVersion uint64
+	updatedAt     int64
 }
 
 type membershipDeleteCall struct {
-	channelID   string
-	channelType int64
-	uids        []string
-	updatedAt   int64
+	channelID     string
+	channelType   int64
+	uids          []string
+	sourceVersion uint64
+	updatedAt     int64
 }
 
-func (r *recordingMembershipIndex) UpsertChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, joinSeq uint64, updatedAt int64) error {
+func (r *recordingMembershipIndex) UpsertChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, committedTail, sourceVersion uint64, updatedAt int64) error {
 	r.upserts = append(r.upserts, membershipUpsertCall{
-		channelID:   channelID,
-		channelType: channelType,
-		uids:        append([]string(nil), uids...),
-		joinSeq:     joinSeq,
-		updatedAt:   updatedAt,
+		channelID:     channelID,
+		channelType:   channelType,
+		uids:          append([]string(nil), uids...),
+		committedTail: committedTail,
+		sourceVersion: sourceVersion,
+		updatedAt:     updatedAt,
 	})
 	return nil
 }
 
-func (r *recordingMembershipIndex) DeleteChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, updatedAt int64) error {
+func (r *recordingMembershipIndex) TombstoneChannelMemberships(_ context.Context, channelID string, channelType int64, uids []string, sourceVersion uint64, updatedAt int64) error {
 	r.deletes = append(r.deletes, membershipDeleteCall{
-		channelID:   channelID,
-		channelType: channelType,
-		uids:        append([]string(nil), uids...),
-		updatedAt:   updatedAt,
+		channelID:     channelID,
+		channelType:   channelType,
+		uids:          append([]string(nil), uids...),
+		sourceVersion: sourceVersion,
+		updatedAt:     updatedAt,
 	})
 	return nil
 }
@@ -726,7 +787,7 @@ func equalMembershipUpsertCalls(a, b []membershipUpsertCall) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].joinSeq != b[i].joinSeq || !equalStrings(a[i].uids, b[i].uids) {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].committedTail != b[i].committedTail || a[i].sourceVersion != b[i].sourceVersion || !equalStrings(a[i].uids, b[i].uids) {
 			return false
 		}
 	}
@@ -738,7 +799,7 @@ func equalMembershipDeleteCalls(a, b []membershipDeleteCall) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || !equalStrings(a[i].uids, b[i].uids) {
+		if a[i].channelID != b[i].channelID || a[i].channelType != b[i].channelType || a[i].sourceVersion != b[i].sourceVersion || !equalStrings(a[i].uids, b[i].uids) {
 			return false
 		}
 	}

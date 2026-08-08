@@ -25,7 +25,7 @@ SEND
   -> ordered durable append and replica progress
   -> committed high watermark
   -> SENDACK
-  -> conversation / delivery / webhook / post-commit plugins
+  -> delivery / webhook / post-commit plugins
 ```
 
 durable SEND 的 SENDACK 成功表示 Channel append 已达到 quorum commit，不表示每个在线设备都已收到，也不表示 Webhook、插件或业务动作完成。

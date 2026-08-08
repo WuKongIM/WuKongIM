@@ -1,66 +1,75 @@
 ---
 title: 会话
-description: 理解 UID 所有的最近会话投影、排序、未读数、删除边界和消息日志关系。
+description: 理解 membership-backed 会话目录、服务端 badge 计算、分页、可见性边界和 CMD 隔离。
 ---
 
-Conversation 是面向某个 UID 的最近交互视图。它帮助客户端展示会话列表、最近消息、已读位置和未读数，但它不是 Channel 消息日志，也不拥有消息提交顺序。
+Conversation 是服务端为某个 UID 临时构建的视图。WuKongIM 不持久化
+conversation 行，也不会在发送消息时更新每一个接收者。Channel 日志持有消息与
+sequence 顺序；UID-owned membership 持有目录发现和个人可见性状态。
 
-## 投影与日志
+## 持久状态
 
-```text
-Channel-owned committed messages
-          |
-          +-> newest visible message reads
-          |
-          +-> post-commit recipient activity
-                    |
-                    v
-          UID-owned ConversationState
-```
-
-Channel 持有消息正文和 sequence；ConversationState 按 UID、kind、Channel ID 和类型持有用户视角的状态。普通会话与 CMD 同步会话使用同一张 kind-aware 元数据表，但属于不同 kind。
-
-## 关键字段
+普通频道使用 `user_channel_membership`：
 
 | 字段 | 含义 |
 | --- | --- |
-| `active_at` | 最近活动排序锚点；会话列表按它排序，而不是用最近消息时间重新排序 |
-| `read_seq` | 用户已读位置，只能决定该用户视角的未读状态 |
-| `deleted_to_seq` | 删除可见性 floor；小于等于该位置的消息不会重新显示 |
-| `message_seq` | 投影观察到的消息 fence，用于防止旧活动越过删除屏障 |
-| `sparse_active` | 表示只保留稀疏活跃投影，不改变它在 active index 中的位置语义 |
+| `join_seq` | 当前入群周期内第一条可见 sequence |
+| `read_seq` | 只由清除/设置未读命令单调推进的红点 floor |
+| `deleted_to_seq` | 单调隐藏边界 |
+| `activated_at` | 用户显式进入频道后用于目录同步的优先级 |
+| tombstone 字段 | 成员移除证据 |
+| `source_version` | 拒绝陈旧订阅者派生写的 fence |
 
-概念上的未读计算是：
+`activated_at` 不是最后消息时间。SEND、接收、在线投递和消息拉取都不更新它。
+置顶和最终 UI 排序由客户端决定。
+
+CMD 发现使用独立的 `user_cmd_channel_membership`，字段包含
+`start_seq`、`ack_seq` 和 tombstone。CMD/SyncOnce 消息使用独立命令
+Channel 日志，不占用普通 sequence，也不改变普通红点。
+
+## 目录同步
 
 ```text
-unread = max(last_visible_message_seq - max(read_seq, deleted_to_seq), 0)
+按 (activated_at desc, channel_id, channel_type) 分页扫描 membership
+  -> tombstone 直接返回 delete
+  -> live Channel 按 exact Channel Leader 分组
+  -> 批量读取 committed head、retention floor、最近展示消息、
+     当前 UID 最后一条已提交普通 SEND
+  -> 返回 conversations + deletes + unresolved + cursor + done
 ```
 
-发送者自己发送的消息在兼容同步路径中不会被当作自己的未读消息。
+limit 限制扫描的 membership 候选数，而不是返回的 conversation 数。因此空页也可能
+尚未完成；只有 `done=true` 表示一次遍历结束。cursor 是不透明的，扫描采用最终一致
+语义。客户端按 Channel key 去重，先同步活跃页，再后台补齐不活跃页，并独立重试
+`unresolved`。
 
-## 列表与同步不同
+## 红点与可见性
 
-### 会话列表
+对一条有效 membership：
 
-列表从 UID-owned active index 按 `(active_at desc, channel_id, channel_type)` 分页，再批量读取各 Channel 的最新可见普通消息。没有可见消息的投影仍可以返回，`LastMessage=nil` 且未读为 0。
+```text
+visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)
+effective_read   = max(visibility_floor, read_seq, current_user_last_send_seq)
+unread           = max(0, last_committed_seq - effective_read)
+```
 
-### 兼容同步
+发送者 sequence 来自与普通消息同批原子写入的 Channel-local 索引。这样 SEND
+无需写 membership，同时用户自己的消息不会产生自己的红点。
 
-同步会合并有界 active 工作集与客户端携带的已知 Channel overlay，读取最新消息、过滤删除 floor 和排除类型，再按最新消息时间整理最终窗口。客户端 overlay 不是让服务端扫描完整会话目录的请求。
+未激活且没有入群后消息的 membership 不返回；显式激活的空频道可以返回且没有
+last message。隐藏会推进 `deleted_to_seq` 并清零 activation，但不会退出频道；
+更高 sequence 的新消息可以让它再次可见。真正移除会写 tombstone，重新加入会建立
+新的 join 边界。
 
-## 已读与删除
+## 消息拉取
 
-- 清未读把 `read_seq` 推进到最新可见消息或兼容请求位置。
-- 设置未读数通过最新消息反推 `read_seq`，不会复制消息。
-- 删除会话写入单调 `deleted_to_seq` 屏障并清除 active 状态，不删除 Channel 日志。
-- 删除后更高 sequence 的新活动可以重新激活会话；旧投影和旧重试不能越过屏障。
+普通消息拉取要求 membership 有效，不再次查询 subscriber。服务端把客户端 cursor
+钳制到 join、hide 和 retention 边界。批量拉取会先验证全部 membership，再执行一次
+按 Leader 分组的 Channel 批量读取。目录 cursor 与各 Channel 的消息 cursor 相互独立。
 
-## 缓存与持久化
-
-UID Authority 使用有界 active cache 合并高频活动，并通过周期、压力唤醒或 hash-slot handoff 批量写入 Slot。Admission 不等待持久 flush；缓存压力会明确拒绝，而不是无界增长或静默丢弃脏状态。版本和删除 fence 防止并发 flush 把新状态回滚。
-
-<Callout type="info" title="提交边界">
-  Conversation 更新是消息提交后的用户视图。投影失败不能回滚已经提交的 Channel 消息；应用需要把“消息存在”和“会话视图已更新”作为不同观测。
+<Callout type="info" title="SEND 成本">
+  普通 SEND 只追加 Channel 消息和 sender index，再执行在线投递；它不写接收者
+  membership，也不写 conversation 行，因此持久写成本不随群成员数增长。
 </Callout>
 
 继续阅读[消息](/zh/guide/core-concepts/messages)、[用户与设备](/zh/guide/core-concepts/users-and-devices)和[消息收发集成](/zh/guide/integration/messaging)。

@@ -53,7 +53,7 @@ func TestUserChannelMembershipUpsertGetListAndDelete(t *testing.T) {
 		t.Fatalf("next page = %+v cursor=%+v done=%v, want g2 and done", page, cursor, done)
 	}
 
-	if err := shard.DeleteUserChannelMembership(ctx, "u1", ConversationKey{ChannelID: "g1", ChannelType: 2}); err != nil {
+	if err := shard.DeleteUserChannelMembership(ctx, "u1", ChannelKey{ChannelID: "g1", ChannelType: 2}); err != nil {
 		t.Fatalf("DeleteUserChannelMembership(): %v", err)
 	}
 	_, ok, err = shard.GetUserChannelMembership(ctx, "u1", "g1", 2)
@@ -69,19 +69,19 @@ func TestUserChannelMembershipUpsertGetListAndDelete(t *testing.T) {
 	}
 }
 
-func TestUserChannelMembershipUpsertKeepsMonotonicJoinSeqAndUpdatedAt(t *testing.T) {
+func TestUserChannelMembershipLiveUpsertPreservesPersonalStateAndAdvancesSourceVersion(t *testing.T) {
 	store := openTestMetaStore(t)
 	defer store.close(t)
 	ctx := context.Background()
 	shard := store.db.HashSlot(12)
 
 	if err := shard.UpsertUserChannelMembership(ctx, UserChannelMembership{
-		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 100, UpdatedAt: 1000,
+		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 100, SourceVersion: 2, UpdatedAt: 1000,
 	}); err != nil {
 		t.Fatalf("UpsertUserChannelMembership(initial): %v", err)
 	}
 	if err := shard.UpsertUserChannelMembership(ctx, UserChannelMembership{
-		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 90, UpdatedAt: 900,
+		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 90, SourceVersion: 1, UpdatedAt: 900,
 	}); err != nil {
 		t.Fatalf("UpsertUserChannelMembership(stale): %v", err)
 	}
@@ -91,11 +91,11 @@ func TestUserChannelMembershipUpsertKeepsMonotonicJoinSeqAndUpdatedAt(t *testing
 		t.Fatalf("GetUserChannelMembership() ok=%v err=%v, want ok", ok, err)
 	}
 	if got.JoinSeq != 100 || got.UpdatedAt != 1000 {
-		t.Fatalf("membership after stale upsert = %+v, want original monotonic values", got)
+		t.Fatalf("membership after stale upsert = %+v, want original state", got)
 	}
 
 	if err := shard.UpsertUserChannelMembership(ctx, UserChannelMembership{
-		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 110, UpdatedAt: 1100,
+		UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 110, SourceVersion: 3, UpdatedAt: 1100,
 	}); err != nil {
 		t.Fatalf("UpsertUserChannelMembership(newer): %v", err)
 	}
@@ -103,8 +103,8 @@ func TestUserChannelMembershipUpsertKeepsMonotonicJoinSeqAndUpdatedAt(t *testing
 	if err != nil || !ok {
 		t.Fatalf("GetUserChannelMembership(newer) ok=%v err=%v, want ok", ok, err)
 	}
-	if got.JoinSeq != 110 || got.UpdatedAt != 1100 {
-		t.Fatalf("membership after newer upsert = %+v, want updated monotonic values", got)
+	if got.JoinSeq != 100 || got.SourceVersion != 3 || got.UpdatedAt != 1100 {
+		t.Fatalf("membership after newer live upsert = %+v, want preserved personal state and source version 3", got)
 	}
 }
 
@@ -136,6 +136,139 @@ func TestUserChannelMembershipBatchWritesMultipleHashSlots(t *testing.T) {
 	}
 	if _, ok, err := store.db.HashSlot(1).GetUserChannelMembership(ctx, "u1", "g1", 2); err != nil || !ok {
 		t.Fatalf("GetUserChannelMembership(1) ok=%v err=%v, want ok", ok, err)
+	}
+}
+
+func TestUserChannelMembershipDirectoryUsesActivationOrderAndRemovesOldIndex(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(13)
+
+	for _, membership := range []UserChannelMembership{
+		{UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 11, ReadSeq: 10, DeletedToSeq: 10, ActivatedAt: 100, SourceVersion: 1, UpdatedAt: 100},
+		{UID: "u1", ChannelID: "g2", ChannelType: 2, JoinSeq: 21, ReadSeq: 20, DeletedToSeq: 20, ActivatedAt: 300, SourceVersion: 1, UpdatedAt: 300},
+		{UID: "u1", ChannelID: "g3", ChannelType: 2, JoinSeq: 31, ReadSeq: 30, DeletedToSeq: 30, ActivatedAt: 0, SourceVersion: 1, UpdatedAt: 50},
+	} {
+		if err := shard.UpsertUserChannelMembership(ctx, membership); err != nil {
+			t.Fatalf("UpsertUserChannelMembership(%s): %v", membership.ChannelID, err)
+		}
+	}
+
+	page, cursor, done, err := shard.ListUserChannelMembershipPage(ctx, "u1", UserChannelMembershipCursor{}, 2)
+	if err != nil {
+		t.Fatalf("ListUserChannelMembershipPage(first): %v", err)
+	}
+	if done || len(page) != 2 || page[0].ChannelID != "g2" || page[1].ChannelID != "g1" {
+		t.Fatalf("first page = %+v done=%v, want [g2 g1] and more", page, done)
+	}
+	if cursor.ActivatedAt != 100 || cursor.ChannelID != "g1" || cursor.ChannelType != 2 {
+		t.Fatalf("first cursor = %+v, want full g1 activation position", cursor)
+	}
+
+	updated := page[1]
+	if err := shard.SetUserChannelMembershipActivatedAt(ctx, updated.UID, ChannelKey{ChannelID: updated.ChannelID, ChannelType: updated.ChannelType}, 400, 400); err != nil {
+		t.Fatalf("SetUserChannelMembershipActivatedAt(move activation): %v", err)
+	}
+	page, _, done, err = shard.ListUserChannelMembershipPage(ctx, "u1", UserChannelMembershipCursor{}, 10)
+	if err != nil {
+		t.Fatalf("ListUserChannelMembershipPage(after move): %v", err)
+	}
+	if !done || len(page) != 3 || page[0].ChannelID != "g1" || page[1].ChannelID != "g2" || page[2].ChannelID != "g3" {
+		t.Fatalf("page after activation move = %+v done=%v, want [g1 g2 g3] without stale index", page, done)
+	}
+	if got := page[0]; got.ReadSeq != 10 || got.DeletedToSeq != 10 || got.SourceVersion != 1 || got.Tombstone {
+		t.Fatalf("encoded membership fields = %+v", got)
+	}
+}
+
+func TestUserChannelMembershipReducerFencesStaleAndResetsTrueRejoin(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(14)
+
+	initial := UserChannelMembership{UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 11, ReadSeq: 10, DeletedToSeq: 10, ActivatedAt: 100, SourceVersion: 2, UpdatedAt: 100}
+	if err := shard.UpsertUserChannelMembership(ctx, initial); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(initial): %v", err)
+	}
+	staleDelete := initial
+	staleDelete.Tombstone = true
+	staleDelete.TombstoneAt = 200
+	staleDelete.SourceVersion = 1
+	if err := shard.UpsertUserChannelMembership(ctx, staleDelete); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(stale delete): %v", err)
+	}
+	got, ok, err := shard.GetUserChannelMembership(ctx, "u1", "g1", 2)
+	if err != nil || !ok || got.Tombstone {
+		t.Fatalf("membership after stale delete = (%+v, %v, %v), want live", got, ok, err)
+	}
+
+	remove := initial
+	remove.Tombstone = true
+	remove.TombstoneAt = 300
+	remove.SourceVersion = 3
+	remove.UpdatedAt = 300
+	if err := shard.UpsertUserChannelMembership(ctx, remove); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(remove): %v", err)
+	}
+	rejoin := UserChannelMembership{UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 51, ReadSeq: 50, DeletedToSeq: 50, SourceVersion: 4, UpdatedAt: 400}
+	if err := shard.UpsertUserChannelMembership(ctx, rejoin); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(rejoin): %v", err)
+	}
+	got, ok, err = shard.GetUserChannelMembership(ctx, "u1", "g1", 2)
+	if err != nil || !ok {
+		t.Fatalf("GetUserChannelMembership(rejoin) = (%+v, %v, %v)", got, ok, err)
+	}
+	if got.Tombstone || got.JoinSeq != 51 || got.ReadSeq != 50 || got.DeletedToSeq != 50 || got.ActivatedAt != 0 || got.SourceVersion != 4 {
+		t.Fatalf("membership after true rejoin = %+v", got)
+	}
+}
+
+func TestUserChannelMembershipPersonalStateIsMonotonicAndTombstoneProtected(t *testing.T) {
+	store := openTestMetaStore(t)
+	defer store.close(t)
+	ctx := context.Background()
+	shard := store.db.HashSlot(17)
+	key := ChannelKey{ChannelID: "g1", ChannelType: 2}
+	initial := UserChannelMembership{UID: "u1", ChannelID: key.ChannelID, ChannelType: key.ChannelType, JoinSeq: 11, ReadSeq: 10, DeletedToSeq: 10, SourceVersion: 1, UpdatedAt: 100}
+	if err := shard.UpsertUserChannelMembership(ctx, initial); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(): %v", err)
+	}
+	if err := shard.AdvanceUserChannelMembershipReadSeq(ctx, "u1", key, 20, 200); err != nil {
+		t.Fatalf("AdvanceUserChannelMembershipReadSeq(20): %v", err)
+	}
+	if err := shard.AdvanceUserChannelMembershipReadSeq(ctx, "u1", key, 15, 300); err != nil {
+		t.Fatalf("AdvanceUserChannelMembershipReadSeq(15): %v", err)
+	}
+	if err := shard.SetUserChannelMembershipActivatedAt(ctx, "u1", key, 400, 400); err != nil {
+		t.Fatalf("SetUserChannelMembershipActivatedAt(): %v", err)
+	}
+	if err := shard.HideUserChannelMembership(ctx, "u1", key, 25, 500); err != nil {
+		t.Fatalf("HideUserChannelMembership(): %v", err)
+	}
+
+	got, ok, err := shard.GetUserChannelMembership(ctx, "u1", key.ChannelID, key.ChannelType)
+	if err != nil || !ok || got.ReadSeq != 20 || got.DeletedToSeq != 25 || got.ActivatedAt != 0 || got.SourceVersion != 1 {
+		t.Fatalf("membership after personal state = (%+v, %v, %v)", got, ok, err)
+	}
+	remove := got
+	remove.Tombstone = true
+	remove.TombstoneAt = 600
+	remove.SourceVersion = 2
+	remove.UpdatedAt = 600
+	if err := shard.UpsertUserChannelMembership(ctx, remove); err != nil {
+		t.Fatalf("UpsertUserChannelMembership(tombstone): %v", err)
+	}
+	if err := shard.AdvanceUserChannelMembershipReadSeq(ctx, "u1", key, 99, 700); err != nil {
+		t.Fatalf("AdvanceUserChannelMembershipReadSeq(tombstone): %v", err)
+	}
+	if err := shard.SetUserChannelMembershipActivatedAt(ctx, "u1", key, 800, 800); err != nil {
+		t.Fatalf("SetUserChannelMembershipActivatedAt(tombstone): %v", err)
+	}
+	got, ok, err = shard.GetUserChannelMembership(ctx, "u1", key.ChannelID, key.ChannelType)
+	if err != nil || !ok || !got.Tombstone || got.ReadSeq != 20 || got.ActivatedAt != 0 {
+		t.Fatalf("membership after tombstone commands = (%+v, %v, %v)", got, ok, err)
 	}
 }
 

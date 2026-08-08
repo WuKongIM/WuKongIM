@@ -30,12 +30,18 @@ type StorageMetrics struct {
 	pebbleWALPhysicalSizeBytes      *prometheus.GaugeVec
 	pebbleWALBytesIn                *prometheus.GaugeVec
 	pebbleWALBytesWritten           *prometheus.GaugeVec
+	pebbleSSTableSizeBytes          *prometheus.GaugeVec
+	pebbleFlushBytesWritten         *prometheus.GaugeVec
+	pebbleCompactionBytesRead       *prometheus.GaugeVec
+	pebbleCompactionBytesWritten    *prometheus.GaugeVec
 	pebbleFlushCount                *prometheus.GaugeVec
 	pebbleFlushesInProgress         *prometheus.GaugeVec
 	pebbleCompactionCount           *prometheus.GaugeVec
 	pebbleCompactionEstimatedDebt   *prometheus.GaugeVec
 	pebbleCompactionInProgressBytes *prometheus.GaugeVec
 	pebbleCompactionsInProgress     *prometheus.GaugeVec
+	messageIdempotencyNegativeSkips *prometheus.GaugeVec
+	messageIdempotencyPointReads    *prometheus.GaugeVec
 	commitQueueDepth                *prometheus.GaugeVec
 	commitBatchRecords              *prometheus.HistogramVec
 	commitBatchBytes                *prometheus.HistogramVec
@@ -81,6 +87,10 @@ type StorageCommitRequestObservation struct {
 
 // StoragePebbleObservation describes one Pebble-backed storage engine snapshot.
 type StoragePebbleObservation struct {
+	// IdempotencyNegativeFilterSkips is the number of durable negative point reads avoided.
+	IdempotencyNegativeFilterSkips uint64
+	// IdempotencyPointReads is the number of possible filter hits verified durably.
+	IdempotencyPointReads uint64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -99,6 +109,14 @@ type StoragePebbleObservation struct {
 	WALBytesIn uint64
 	// WALBytesWritten is the physical bytes written to the WAL.
 	WALBytesWritten uint64
+	// SSTableSizeBytes is the current physical size of live SSTables across all levels.
+	SSTableSizeBytes uint64
+	// FlushBytesWritten is the cumulative bytes written to SSTables by flushes.
+	FlushBytesWritten uint64
+	// CompactionBytesRead is the cumulative SSTable bytes read by compactions.
+	CompactionBytesRead uint64
+	// CompactionBytesWritten is the cumulative SSTable bytes written by compactions.
+	CompactionBytesWritten uint64
 	// FlushCount is the number of completed flushes since the engine opened.
 	FlushCount int64
 	// FlushesInProgress is the current number of flushes in progress.
@@ -187,6 +205,26 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Pebble physical bytes written to the WAL by storage subsystem.",
 			ConstLabels: labels,
 		}, []string{"store"}),
+		pebbleSSTableSizeBytes: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_sstable_size_bytes",
+			Help:        "Pebble live SSTable size across all levels by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleFlushBytesWritten: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_flush_bytes_written",
+			Help:        "Pebble cumulative bytes written to SSTables by flushes since engine open.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionBytesRead: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compaction_bytes_read",
+			Help:        "Pebble cumulative SSTable bytes read by compactions since engine open.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleCompactionBytesWritten: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_compaction_bytes_written",
+			Help:        "Pebble cumulative bytes written to SSTables by compactions since engine open.",
+			ConstLabels: labels,
+		}, []string{"store"}),
 		pebbleFlushCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_pebble_flush_count",
 			Help:        "Pebble completed flush count by storage subsystem since engine open.",
@@ -215,6 +253,16 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		pebbleCompactionsInProgress: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_pebble_compactions_in_progress",
 			Help:        "Pebble compactions currently in progress by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		messageIdempotencyNegativeSkips: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_message_idempotency_negative_filter_skips",
+			Help:        "Durable idempotency negative point reads avoided by the bounded membership filter.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		messageIdempotencyPointReads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_message_idempotency_point_reads",
+			Help:        "Possible idempotency membership hits verified through durable point reads.",
 			ConstLabels: labels,
 		}, []string{"store"}),
 		commitQueueDepth: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -308,12 +356,18 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.pebbleWALPhysicalSizeBytes,
 		m.pebbleWALBytesIn,
 		m.pebbleWALBytesWritten,
+		m.pebbleSSTableSizeBytes,
+		m.pebbleFlushBytesWritten,
+		m.pebbleCompactionBytesRead,
+		m.pebbleCompactionBytesWritten,
 		m.pebbleFlushCount,
 		m.pebbleFlushesInProgress,
 		m.pebbleCompactionCount,
 		m.pebbleCompactionEstimatedDebt,
 		m.pebbleCompactionInProgressBytes,
 		m.pebbleCompactionsInProgress,
+		m.messageIdempotencyNegativeSkips,
+		m.messageIdempotencyPointReads,
 		m.commitQueueDepth,
 		m.commitBatchRequests,
 		m.commitBatchRecords,
@@ -384,12 +438,18 @@ func (m *StorageMetrics) SetPebbleMetrics(store string, obs StoragePebbleObserva
 	m.pebbleWALPhysicalSizeBytes.WithLabelValues(store).Set(float64(obs.WALPhysicalSizeBytes))
 	m.pebbleWALBytesIn.WithLabelValues(store).Set(float64(obs.WALBytesIn))
 	m.pebbleWALBytesWritten.WithLabelValues(store).Set(float64(obs.WALBytesWritten))
+	m.pebbleSSTableSizeBytes.WithLabelValues(store).Set(float64(obs.SSTableSizeBytes))
+	m.pebbleFlushBytesWritten.WithLabelValues(store).Set(float64(obs.FlushBytesWritten))
+	m.pebbleCompactionBytesRead.WithLabelValues(store).Set(float64(obs.CompactionBytesRead))
+	m.pebbleCompactionBytesWritten.WithLabelValues(store).Set(float64(obs.CompactionBytesWritten))
 	m.pebbleFlushCount.WithLabelValues(store).Set(float64(obs.FlushCount))
 	m.pebbleFlushesInProgress.WithLabelValues(store).Set(float64(obs.FlushesInProgress))
 	m.pebbleCompactionCount.WithLabelValues(store).Set(float64(obs.CompactionCount))
 	m.pebbleCompactionEstimatedDebt.WithLabelValues(store).Set(float64(obs.CompactionEstimatedDebtBytes))
 	m.pebbleCompactionInProgressBytes.WithLabelValues(store).Set(float64(obs.CompactionInProgressBytes))
 	m.pebbleCompactionsInProgress.WithLabelValues(store).Set(float64(obs.CompactionsInProgress))
+	m.messageIdempotencyNegativeSkips.WithLabelValues(store).Set(float64(obs.IdempotencyNegativeFilterSkips))
+	m.messageIdempotencyPointReads.WithLabelValues(store).Set(float64(obs.IdempotencyPointReads))
 }
 
 func (m *StorageMetrics) SetCommitQueueDepth(store string, depth int) {

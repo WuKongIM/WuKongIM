@@ -42,6 +42,36 @@ func TestAppendStoredCanOmitReplyPayload(t *testing.T) {
 	require.Empty(t, decision.Replies[0].Append.Message.Payload)
 }
 
+func TestProposeAppendBatchTrustsMessageIDsOnlyWhenEveryWaiterIsServerAllocated(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		trusted []bool
+		want    bool
+	}{
+		{name: "all server allocated", trusted: []bool{true, true}, want: true},
+		{name: "mixed", trusted: []bool{true, false}, want: false},
+		{name: "none trusted", trusted: []bool{false, false}, want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			state := leaderState(t, 1, []ch.NodeID{1}, []ch.NodeID{1}, 1)
+			waiters := make([]AppendBatchWaiter, len(tt.trusted))
+			for i, trusted := range tt.trusted {
+				waiters[i] = AppendBatchWaiter{
+					OpID:                      ch.OpID(i + 1),
+					Records:                   []ch.Record{{ID: uint64(i + 10), Payload: []byte("a"), SizeBytes: 1}},
+					ServerAllocatedMessageIDs: trusted,
+				}
+			}
+
+			decision := state.ProposeAppendBatch(AppendBatchCommand{BatchOpID: 100, Waiters: waiters})
+
+			require.NoError(t, decision.Err)
+			require.Len(t, decision.Tasks, 1)
+			require.Equal(t, tt.want, decision.Tasks[0].StoreAppend.ServerAllocatedMessageIDs)
+		})
+	}
+}
+
 func TestAppendStoredWaitsForQuorumFollowerAck(t *testing.T) {
 	state := leaderState(t, 1, []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2)
 	decision := state.ProposeAppend(AppendCommand{OpID: 1, CommitMode: ch.CommitModeQuorum, Records: []ch.Record{{ID: 10, Payload: []byte("a"), SizeBytes: 1}}})

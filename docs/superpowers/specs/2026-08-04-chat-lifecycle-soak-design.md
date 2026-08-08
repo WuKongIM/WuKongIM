@@ -159,19 +159,21 @@ Every login performs a real client startup flow:
 
 ```text
 WKProto CONNECT / CONNACK
-  -> POST /conversation/sync
-       version = 0
-       last_msg_seqs = empty
-       limit = 500
-       msg_count = 20
+  -> POST /conversation/list
+       completed_coverage = 0
+       cursor = empty on the first page
+       limit = 200 candidates per page
+       follow next_cursor until done = true
+  -> POST /conversation/retry for bounded unresolved keys
   -> begin realtime send and receive work
 ```
 
-The benchmark intentionally stores no client conversation version or per-channel
-message cursor between sessions. Every login synchronizes all conversations and
-the most recent 20 messages for each conversation from zero. The generator must
-keep each virtual user's total conversation count below 500. Reaching 500 is a
-scenario-invalidating failure rather than silent truncation.
+The benchmark intentionally stores no completed directory coverage, directory
+cursor, or per-channel message cursor between sessions. Every login synchronizes
+all conversations from zero coverage and validates the server-provided last
+message projection. The generator must keep each virtual user's total
+conversation count below 500. Reaching 500 is a scenario-invalidating failure
+rather than silent truncation.
 
 ## Person Relationship Graph
 
@@ -302,8 +304,8 @@ Verification is asynchronous so it does not serialize the 2,000 SEND/s path:
    check.
 4. Sampled channel-tail reads verify payload ownership, absence of duplicate
    persistence, and continuous sequence after a cold reactivation.
-5. Full conversation sync responses are validated for channel uniqueness,
-   bounds, recent-message ordering, and payload markers.
+5. Full conversation sync responses are validated for completion, channel
+   uniqueness, bounds, last-message identity, and payload decoding.
 
 Any confirmed loss, duplicate durable message, payload corruption, or sequence
 regression is an immediate product failure. Correctness errors have no tolerance

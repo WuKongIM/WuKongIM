@@ -3,6 +3,7 @@ package reactor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +30,13 @@ func TestDefaultReactorConfigSetsFollowerRecoveryProbe(t *testing.T) {
 	require.Equal(t, time.Second, cfg.FollowerRecoveryProbeJitter)
 }
 
+func TestDefaultReactorConfigBoundsCommittedCheckpointCoalescing(t *testing.T) {
+	cfg := defaultReactorConfig(ReactorConfig{LocalNode: 1, Store: store.NewMemoryFactory()})
+	if cfg.CommittedCheckpointInterval != 5*time.Second {
+		t.Fatalf("CommittedCheckpointInterval = %s, want 5s", cfg.CommittedCheckpointInterval)
+	}
+}
+
 func TestFollowerRecoveryProbeDelayIsDeterministicAndBounded(t *testing.T) {
 	delay := followerRecoveryProbeDelay(ch.ChannelKey("1:room"), time.Minute, 30*time.Second)
 	require.GreaterOrEqual(t, delay, time.Minute)
@@ -39,6 +47,369 @@ func TestFollowerRecoveryProbeDelayIsDeterministicAndBounded(t *testing.T) {
 func TestFollowerRecoveryProbeDelaySaturatesOverflow(t *testing.T) {
 	delay := followerRecoveryProbeDelay(ch.ChannelKey("1:room"), time.Duration(1<<63-2), 30*time.Second)
 	require.Equal(t, time.Duration(1<<63-1), delay)
+}
+
+func TestCommittedCheckpointDelayIsDeterministicBoundedAndSpread(t *testing.T) {
+	const interval = 5 * time.Second
+	minDelay := interval
+	maxDelay := time.Duration(0)
+	for i := range 1000 {
+		key := ch.ChannelKey(fmt.Sprintf("2:checkpoint-%04d", i))
+		delay := committedCheckpointDelay(key, interval)
+		require.GreaterOrEqual(t, delay, interval/2)
+		require.LessOrEqual(t, delay, interval)
+		require.Equal(t, delay, committedCheckpointDelay(key, interval))
+		minDelay = min(minDelay, delay)
+		maxDelay = max(maxDelay, delay)
+	}
+	require.Greater(t, maxDelay-minDelay, 2*time.Second)
+}
+
+func TestScheduleCommittedCheckpointUsesStaggeredDeadline(t *testing.T) {
+	const interval = 5 * time.Second
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, MailboxSize: 16,
+		CommittedCheckpointInterval: interval,
+	})
+	meta := followerTestMeta("staggered-committed-checkpoint")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.HW = 1
+	rc.state.CheckpointHW = 0
+	now := time.Unix(100, 0)
+
+	r.scheduleCommittedCheckpoint(rc, now)
+
+	require.Equal(t, now.Add(committedCheckpointDelay(meta.Key, interval)), rc.committedCheckpointDue)
+}
+
+func TestCommittedCheckpointDefersWhenCheckpointQueueReachesHighWater(t *testing.T) {
+	const interval = 5 * time.Second
+	factory := newBlockingCheckpointFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pool, err := worker.NewPool(
+		worker.PoolConfig{Name: "checkpoint-pressure", Workers: 1, QueueSize: 4},
+		worker.Deps{Stores: factory},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		factory.UnblockCheckpoints()
+		require.NoError(t, pool.Close())
+	}()
+
+	require.NoError(t, pool.Submit(context.Background(), checkpointWorkerTask("pressure-running", 1)))
+	select {
+	case <-factory.checkpointStarted:
+	case <-time.After(time.Second):
+		t.Fatal("checkpoint worker did not start")
+	}
+	require.NoError(t, pool.Submit(context.Background(), checkpointWorkerTask("pressure-queued-a", 2)))
+	require.NoError(t, pool.Submit(context.Background(), checkpointWorkerTask("pressure-queued-b", 3)))
+	require.Equal(t, 2, pool.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: &worker.Pools{StoreCheckpoint: pool}, MailboxSize: 16,
+		CommittedCheckpointInterval: interval,
+	})
+	meta := followerTestMeta("checkpoint-pressure-target")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.HW = 1
+	rc.state.CheckpointHW = 0
+	rc.committedCheckpointDue = time.Unix(100, 0)
+	now := rc.committedCheckpointDue
+
+	r.trySubmitCommittedCheckpoint(rc, now)
+
+	require.Zero(t, rc.committedCheckpointOp)
+	require.Equal(t, 2, pool.QueueDepth())
+	require.Equal(t, now.Add(committedCheckpointDelay(meta.Key, interval)), rc.committedCheckpointDue)
+}
+
+func TestPendingFollowerApplyPreemptsDueCommittedCheckpoint(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	meta := followerTestMeta("pending-apply-preempts-checkpoint")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.HW = 1
+	rc.state.CheckpointHW = 0
+	rc.replication.pendingPull = &transport.PullResponse{
+		ChannelKey: meta.Key, Epoch: meta.Epoch, LeaderEpoch: meta.LeaderEpoch,
+		LeaderHW: 1, LeaderLEO: 1,
+		Records: []ch.Record{{ID: 1, Index: 1, Payload: []byte("next"), SizeBytes: 4}},
+	}
+	now := time.Unix(100, 0)
+	rc.committedCheckpointDue = now
+
+	r.tickFollowerReplication(rc, now)
+
+	require.Equal(t, worker.TaskStoreApply, sink.awaitResultKind(t, worker.TaskStoreApply).Kind)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+}
+
+func TestDirtyFollowerPullPreemptsDueCommittedCheckpoint(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	meta := followerTestMeta("dirty-pull-preempts-checkpoint")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 1
+	rc.state.HW = 1
+	rc.state.CheckpointHW = 0
+	rc.replication.dirty = true
+	now := time.Unix(100, 0)
+	rc.committedCheckpointDue = now
+
+	r.tickFollowerReplication(rc, now)
+
+	require.Equal(t, worker.TaskRPCPull, sink.awaitResultKind(t, worker.TaskRPCPull).Kind)
+	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreCheckpoint)
+}
+
+func TestDirtyFollowerSubmitsPullBelowHalfRPCQueueWatermark(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	net.BlockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	obs := &rpcPacingObserver{captureObserver: &captureObserver{}}
+	pool, err := worker.NewPool(
+		worker.PoolConfig{Name: "rpc-pressure-pull-headroom", Workers: 1, QueueSize: 16, RPCBatchMaxItems: 1},
+		worker.Deps{Transport: net},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		net.UnblockPulls()
+		require.NoError(t, pool.Close())
+	}()
+
+	require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask("pressure-running", 1)))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	for i := 0; i < 7; i++ {
+		require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask(fmt.Sprintf("pressure-queued-%d", i), ch.OpID(i+2))))
+	}
+	require.Equal(t, 7, pool.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: &worker.Pools{RPC: pool}, MailboxSize: 16,
+		FollowerRecoveryProbeJitter: time.Second, Observer: obs,
+	})
+	meta := followerTestMeta("rpc-pull-headroom-target")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.dirty = true
+
+	r.tickFollowerReplication(rc, time.Unix(100, 0))
+
+	require.True(t, rc.replication.pullInflight)
+	require.False(t, rc.replication.dirty)
+	require.Equal(t, 8, pool.QueueDepth())
+	require.Equal(t, 0, obs.Paced(worker.TaskRPCPull))
+}
+
+func TestDirtyFollowerDefersWhenRPCQueueReachesPullHighWater(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	net.BlockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	obs := &rpcPacingObserver{captureObserver: &captureObserver{}}
+	pool, err := worker.NewPool(
+		worker.PoolConfig{Name: "rpc-pressure-pull", Workers: 1, QueueSize: 16, RPCBatchMaxItems: 1},
+		worker.Deps{Transport: net},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		net.UnblockPulls()
+		require.NoError(t, pool.Close())
+	}()
+
+	require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask("pressure-running", 1)))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	for i := 0; i < 8; i++ {
+		require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask(fmt.Sprintf("pressure-queued-%d", i), ch.OpID(i+2))))
+	}
+	require.Equal(t, 8, pool.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: &worker.Pools{RPC: pool}, MailboxSize: 16,
+		FollowerRecoveryProbeJitter: time.Second, Observer: obs,
+	})
+	meta := followerTestMeta("rpc-pull-pressure-target")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.dirty = true
+	now := time.Unix(100, 0)
+
+	r.tickFollowerReplication(rc, now)
+
+	require.False(t, rc.replication.pullInflight)
+	require.True(t, rc.replication.dirty)
+	require.Equal(t, 8, pool.QueueDepth())
+	require.GreaterOrEqual(t, rc.replication.nextPullAt.Sub(now), 500*time.Millisecond)
+	require.LessOrEqual(t, rc.replication.nextPullAt.Sub(now), time.Second)
+	require.Equal(t, 1, obs.Paced(worker.TaskRPCPull))
+
+	net.UnblockPulls()
+	require.Eventually(t, func() bool { return pool.QueueDepth() == 0 }, time.Second, time.Millisecond)
+	r.tickFollowerReplication(rc, rc.replication.nextPullAt)
+	require.True(t, rc.replication.pullInflight)
+	require.False(t, rc.replication.dirty)
+}
+
+func TestDirtyFollowerDefersPullWhenStoreApplyQueueReachesHighWater(t *testing.T) {
+	factory := newBlockingApplyFactory()
+	factory.BlockApplies()
+	net := newCapturingTransport()
+	net.BlockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	obs := &rpcPacingObserver{captureObserver: &captureObserver{}}
+	pools := newDirectTestPoolsWithTransport(t, factory, net, sink)
+	defer func() {
+		factory.UnblockApplies()
+		net.UnblockPulls()
+		require.NoError(t, pools.Close())
+	}()
+
+	require.NoError(t, pools.StoreApply.Submit(context.Background(), storeApplyWorkerTask("apply-pressure-running", 1)))
+	require.Eventually(t, factory.ApplyStarted, time.Second, time.Millisecond)
+	for i := 0; i < 4; i++ {
+		require.NoError(t, pools.StoreApply.Submit(
+			context.Background(),
+			storeApplyWorkerTask(fmt.Sprintf("apply-pressure-queued-%d", i), ch.OpID(i+2)),
+		))
+	}
+	require.Equal(t, 4, pools.StoreApply.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		ReplicationMinBackoff: time.Millisecond, ReplicationMaxBackoff: 100 * time.Millisecond, Observer: obs,
+	})
+	meta := followerTestMeta("apply-pressure-target")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.replication.dirty = true
+	now := time.Unix(100, 0)
+
+	r.tickFollowerReplication(rc, now)
+
+	require.Zero(t, net.PullCalls())
+	require.False(t, rc.replication.pullInflight)
+	require.True(t, rc.replication.dirty)
+	require.GreaterOrEqual(t, rc.replication.nextPullAt.Sub(now), 50*time.Millisecond)
+	require.LessOrEqual(t, rc.replication.nextPullAt.Sub(now), 100*time.Millisecond)
+	require.Equal(t, 1, obs.Paced(worker.TaskRPCPull))
+}
+
+func TestAppendPullHintSubmitsBetweenRetryAndForegroundRPCQueueWatermarks(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	net.BlockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	obs := &rpcPacingObserver{captureObserver: &captureObserver{}}
+	pool, err := worker.NewPool(
+		worker.PoolConfig{Name: "rpc-pressure-append-hint", Workers: 1, QueueSize: 16, RPCBatchMaxItems: 1},
+		worker.Deps{Transport: net},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		net.UnblockPulls()
+		require.NoError(t, pool.Close())
+	}()
+
+	require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask("append-hint-pressure-running", 1)))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	for i := 0; i < 4; i++ {
+		require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask(fmt.Sprintf("append-hint-pressure-queued-%d", i), ch.OpID(i+2))))
+	}
+	require.Equal(t, 4, pool.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: &worker.Pools{RPC: pool}, MailboxSize: 16,
+		PullHintRetryInterval: time.Second, Observer: obs,
+	})
+	meta := testMeta("rpc-append-hint-pressure-target", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 1
+	rc.lifecycle.version = 1
+	r.syncLeaderFollowers(rc)
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+
+	r.trySubmitPullHint(rc, 2, follower, transport.PullHintReasonAppend, time.Unix(100, 0))
+
+	require.True(t, follower.hint.inflight)
+	require.Equal(t, 5, pool.QueueDepth())
+	require.Equal(t, 0, obs.Paced(worker.TaskRPCPullHint))
+}
+
+func TestResumePullHintDefersWhenRPCQueueReachesRetryHighWater(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	net := newCapturingTransport()
+	net.BlockPulls()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	obs := &rpcPacingObserver{captureObserver: &captureObserver{}}
+	pool, err := worker.NewPool(
+		worker.PoolConfig{Name: "rpc-pressure-hint", Workers: 1, QueueSize: 16, RPCBatchMaxItems: 1},
+		worker.Deps{Transport: net},
+		sink,
+	)
+	require.NoError(t, err)
+	defer func() {
+		net.UnblockPulls()
+		require.NoError(t, pool.Close())
+	}()
+
+	require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask("hint-pressure-running", 1)))
+	require.Eventually(t, func() bool { return net.PullCalls() == 1 }, time.Second, time.Millisecond)
+	for i := 0; i < 4; i++ {
+		require.NoError(t, pool.Submit(context.Background(), rpcPullWorkerTask(fmt.Sprintf("hint-pressure-queued-%d", i), ch.OpID(i+2))))
+	}
+	require.Equal(t, 4, pool.QueueDepth())
+
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: &worker.Pools{RPC: pool}, MailboxSize: 16,
+		PullHintRetryInterval: time.Second, Observer: obs,
+	})
+	meta := testMeta("rpc-hint-pressure-target", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2}
+	meta.ISR = []ch.NodeID{1}
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	rc.state.LEO = 1
+	rc.lifecycle.version = 1
+	r.syncLeaderFollowers(rc)
+	follower := rc.lifecycle.followers[2]
+	require.NotNil(t, follower)
+	now := time.Unix(100, 0)
+
+	r.trySubmitPullHint(rc, 2, follower, transport.PullHintReasonResume, now)
+
+	require.False(t, follower.hint.inflight)
+	require.Equal(t, 4, pool.QueueDepth())
+	require.Equal(t, uint64(1), follower.pendingHintVersion)
+	require.GreaterOrEqual(t, follower.hint.retryAt.Sub(now), 500*time.Millisecond)
+	require.LessOrEqual(t, follower.hint.retryAt.Sub(now), time.Second)
+	require.Equal(t, 1, obs.Paced(worker.TaskRPCPullHint))
+
+	net.UnblockPulls()
+	require.Eventually(t, func() bool { return pool.QueueDepth() == 0 }, time.Second, time.Millisecond)
+	r.trySubmitPullHint(rc, 2, follower, transport.PullHintReasonResume, follower.hint.retryAt)
+	require.True(t, follower.hint.inflight)
 }
 
 func TestFollowerParksAfterEmptyCaughtUpPull(t *testing.T) {
@@ -87,7 +458,10 @@ func TestFollowerEmptyPullCoalescesAndPersistsLatestCommittedHW(t *testing.T) {
 		LeaderHW: 0, LeaderLEO: 1,
 		Records: []ch.Record{{ID: 10, Index: 1, Payload: []byte("a"), SizeBytes: 1}},
 	})
-	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16})
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 2, Store: factory, Pools: pools, MailboxSize: 16,
+		CommittedCheckpointInterval: time.Second,
+	})
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	r.tickFollowerReplication(rc, time.Now())
@@ -134,6 +508,40 @@ func TestFollowerEmptyPullCoalescesAndPersistsLatestCommittedHW(t *testing.T) {
 	require.Equal(t, uint64(2), initial.CheckpointHW)
 }
 
+func TestCommittedCheckpointSubmitFailureUsesBoundedBackoff(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	r := NewReactor(ReactorConfig{
+		ID:                    0,
+		LocalNode:             2,
+		Store:                 factory,
+		MailboxSize:           16,
+		ReplicationMinBackoff: time.Millisecond,
+		ReplicationMaxBackoff: 8 * time.Millisecond,
+	})
+	meta := followerTestMeta("committed-checkpoint-submit-backoff")
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	rc := r.channels[meta.Key]
+	require.NotNil(t, rc)
+	rc.state.LEO = 1
+	rc.state.HW = 1
+	rc.state.CheckpointHW = 0
+	rc.committedCheckpointDue = time.Unix(100, 0)
+
+	for _, want := range []time.Duration{
+		time.Millisecond,
+		2 * time.Millisecond,
+		4 * time.Millisecond,
+		8 * time.Millisecond,
+		8 * time.Millisecond,
+	} {
+		attemptAt := rc.committedCheckpointDue
+		r.trySubmitCommittedCheckpoint(rc, attemptAt)
+
+		require.Zero(t, rc.committedCheckpointOp)
+		require.Equal(t, want, rc.committedCheckpointDue.Sub(attemptAt))
+	}
+}
+
 func TestRecoveryProbeSubmitFailureObserved(t *testing.T) {
 	obs := &captureObserver{}
 	factory := store.NewMemoryFactory()
@@ -171,8 +579,9 @@ func TestFollowerParkedCountUpdatesWhenRecordsArrive(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
-	r.observeFollowerParkedCount(r.countParkedFollowers())
+	r.observeFollowerParkedCountIfChanged(false, rc)
 	require.Equal(t, 1, obs.FollowerParked())
+	require.Equal(t, 1, r.parkedFollowerRuntimeCount)
 
 	rc.replication.pullInflight = true
 	rc.replication.pullOpID = 7
@@ -200,7 +609,7 @@ func TestFollowerParkedCountUpdatesWhenMetadataLeavesFollower(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
-	r.observeFollowerParkedCount(r.countParkedFollowers())
+	r.observeFollowerParkedCountIfChanged(false, rc)
 	require.Equal(t, 1, obs.FollowerParked())
 
 	leaderMeta := meta
@@ -219,7 +628,7 @@ func TestFollowerParkedCountUpdatesWhenRuntimeEvicted(t *testing.T) {
 	require.NoError(t, applyMetaDirect(t, r, meta))
 	rc := r.channels[meta.Key]
 	rc.replication.parkWithRecovery(meta.Key, time.Now(), time.Minute, 0)
-	r.observeFollowerParkedCount(r.countParkedFollowers())
+	r.observeFollowerParkedCountIfChanged(false, rc)
 	require.Equal(t, 1, obs.FollowerParked())
 
 	require.True(t, r.evictRuntimeChannel(meta.Key, rc, "test"))
@@ -4378,6 +4787,47 @@ func TestLeaderPullCoveredByRecentCacheCompletesWithoutStoreRead(t *testing.T) {
 	requireNoWorkerResultKind(t, sink.results, worker.TaskStoreReadLog)
 }
 
+func TestLeaderPullAckReleasesRecentRecordsAcknowledgedByEveryFollower(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
+	pools := newDirectTestPools(t, factory, sink)
+	defer pools.Close()
+
+	meta := testMeta("recent-cache-release-after-all-follower-acks", 1, 1)
+	meta.Replicas = []ch.NodeID{1, 2, 3}
+	meta.ISR = []ch.NodeID{1}
+	meta.MinISR = 1
+	r := NewReactor(ReactorConfig{
+		ID: 0, LocalNode: 1, Store: factory, Pools: pools, MailboxSize: 16,
+		AppendBatchMaxRecords: 1, LeaderRecentRecordCacheSize: 10, LeaderRecentRecordCacheBytes: 1024,
+	})
+	require.NoError(t, applyMetaDirect(t, r, meta))
+	require.NoError(t, appendDirect(t, r, sink, meta, 1, "a").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 2, "b").Err)
+	require.NoError(t, appendDirect(t, r, sink, meta, 3, "c").Err)
+
+	rc := r.channels[meta.Key]
+	require.Equal(t, uint64(1), rc.recentRecords.base())
+	require.Equal(t, uint64(3), rc.recentRecords.lastOffset())
+
+	_, err := r.applyLeaderPullAckOffset(rc, transport.PullRequest{Follower: 2, AckOffset: 2}, false)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), rc.recentRecords.base(), "the cache must retain records still needed by follower 3")
+
+	_, err = r.applyLeaderPullAckOffset(rc, transport.PullRequest{Follower: 3, AckOffset: 2}, false)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), rc.recentRecords.base())
+	require.Equal(t, uint64(3), rc.recentRecords.lastOffset())
+
+	_, err = r.applyLeaderPullAckOffset(rc, transport.PullRequest{Follower: 2, AckOffset: 3}, false)
+	require.NoError(t, err)
+	require.False(t, rc.recentRecords.empty(), "follower 3 has not acknowledged record 3")
+
+	_, err = r.applyLeaderPullAckOffset(rc, transport.PullRequest{Follower: 3, AckOffset: 3}, false)
+	require.NoError(t, err)
+	require.True(t, rc.recentRecords.empty())
+}
+
 func TestLeaderPullCacheHitDoesNotOfferStopWithRecords(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	sink := captureCompletionSink{results: make(chan worker.Result, 16)}
@@ -5212,6 +5662,128 @@ type blockingApplyFactory struct {
 	base         *store.MemoryFactory
 	applyStarted chan struct{}
 	unblock      chan struct{}
+}
+
+type blockingCheckpointFactory struct {
+	base              *store.MemoryFactory
+	checkpointStarted chan struct{}
+	unblock           chan struct{}
+}
+
+func newBlockingCheckpointFactory() *blockingCheckpointFactory {
+	return &blockingCheckpointFactory{
+		base:              store.NewMemoryFactory(),
+		checkpointStarted: make(chan struct{}, 1),
+		unblock:           make(chan struct{}),
+	}
+}
+
+func (f *blockingCheckpointFactory) ChannelStore(key ch.ChannelKey, id ch.ChannelID) (store.ChannelStore, error) {
+	base, err := f.base.ChannelStore(key, id)
+	if err != nil {
+		return nil, err
+	}
+	return &blockingCheckpointStore{ChannelStore: base, parent: f}, nil
+}
+
+func (f *blockingCheckpointFactory) UnblockCheckpoints() {
+	select {
+	case <-f.unblock:
+	default:
+		close(f.unblock)
+	}
+}
+
+type blockingCheckpointStore struct {
+	store.ChannelStore
+	parent *blockingCheckpointFactory
+}
+
+func (s *blockingCheckpointStore) StoreCheckpoint(ctx context.Context, checkpoint ch.Checkpoint) error {
+	select {
+	case s.parent.checkpointStarted <- struct{}{}:
+	default:
+	}
+	select {
+	case <-s.parent.unblock:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return s.ChannelStore.StoreCheckpoint(ctx, checkpoint)
+}
+
+func checkpointWorkerTask(id string, opID ch.OpID) worker.Task {
+	return worker.Task{
+		Kind:  worker.TaskStoreCheckpoint,
+		Fence: ch.Fence{ChannelKey: ch.ChannelKey("2:" + id), OpID: opID},
+		StoreCheckpoint: &worker.StoreCheckpointTask{
+			ChannelID:  ch.ChannelID{ID: id, Type: 2},
+			Checkpoint: ch.Checkpoint{HW: uint64(opID)},
+		},
+	}
+}
+
+func storeApplyWorkerTask(id string, opID ch.OpID) worker.Task {
+	return worker.Task{
+		Kind:  worker.TaskStoreApply,
+		Fence: ch.Fence{ChannelKey: ch.ChannelKey("2:" + id), OpID: opID},
+		StoreApply: &worker.StoreApplyTask{
+			ChannelID: ch.ChannelID{ID: id, Type: 2},
+			Records:   []ch.Record{{ID: uint64(opID), Index: 1, Payload: []byte("a"), SizeBytes: 1}},
+			LeaderHW:  1,
+		},
+	}
+}
+
+func rpcPullWorkerTask(id string, opID ch.OpID) worker.Task {
+	return worker.Task{
+		Kind:    worker.TaskRPCPull,
+		Fence:   ch.Fence{ChannelKey: ch.ChannelKey("2:" + id), OpID: opID},
+		Context: context.Background(),
+		RPCPull: &worker.RPCPullTask{
+			Node:    1,
+			Timeout: time.Second,
+			Request: transport.PullRequest{
+				ChannelKey:  ch.ChannelKey("2:" + id),
+				ChannelID:   ch.ChannelID{ID: id, Type: 2},
+				Epoch:       1,
+				LeaderEpoch: 1,
+				Follower:    2,
+				NextOffset:  1,
+				MaxBytes:    1024,
+			},
+		},
+	}
+}
+
+type rpcPacingObserver struct {
+	*captureObserver
+	mu       sync.Mutex
+	pull     int
+	pullHint int
+}
+
+func (o *rpcPacingObserver) ObserveWorkerAdmissionKind(_ string, kind worker.TaskKind, result string) {
+	if result != "paced" {
+		return
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	switch kind {
+	case worker.TaskRPCPull:
+		o.pull++
+	case worker.TaskRPCPullHint:
+		o.pullHint++
+	}
+}
+
+func (o *rpcPacingObserver) Paced(kind worker.TaskKind) int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if kind == worker.TaskRPCPull {
+		return o.pull
+	}
+	return o.pullHint
 }
 
 func newBlockingApplyFactory() *blockingApplyFactory {

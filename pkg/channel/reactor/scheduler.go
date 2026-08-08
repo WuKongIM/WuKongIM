@@ -7,6 +7,9 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
+// defaultReactorDueDrain bounds maintenance work between mailbox turns.
+const defaultReactorDueDrain = 128
+
 type dueKind uint8
 
 const (
@@ -140,7 +143,7 @@ func (r *Reactor) processDue(now time.Time) {
 	if r == nil {
 		return
 	}
-	for {
+	for processed := 0; processed < defaultReactorDueDrain; processed++ {
 		item, ok := r.due.popDue(now)
 		if !ok {
 			return

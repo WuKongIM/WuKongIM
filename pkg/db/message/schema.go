@@ -6,7 +6,9 @@ const (
 	// TableIDMessage is the channel message table ID.
 	TableIDMessage uint32 = 1
 
-	messageHeaderFamilyID  uint16 = 0
+	messageHeaderFamilyID uint16 = 0
+	// messagePayloadFamilyID is used only to bind the portable backup payload
+	// envelope to a distinct logical key. Live storage uses one complete row.
 	messagePayloadFamilyID uint16 = 1
 
 	messagePrimaryIndexID            uint16 = 1
@@ -14,6 +16,7 @@ const (
 	messageIndexIDClientMsgNo        uint16 = 3
 	messageIndexIDFromUIDClientMsgNo uint16 = 4
 	messageIndexIDGlobalMessageID    uint16 = 5
+	messageIndexIDFromUIDMessageSeq  uint16 = 6
 
 	messageSystemIDCheckpoint          uint16 = 1
 	messageSystemIDHistory             uint16 = 2
@@ -74,7 +77,7 @@ var MessageTable = schema.Table{
 	Families: []schema.Family{
 		{
 			ID:   messageHeaderFamilyID,
-			Name: "header",
+			Name: "row",
 			Columns: []uint16{
 				messageColumnIDMessageID,
 				messageColumnIDFramerFlags,
@@ -93,13 +96,9 @@ var MessageTable = schema.Table{
 				messageColumnIDFromUID,
 				messageColumnIDPayloadHash,
 				messageColumnIDPayloadSize,
+				messageColumnIDPayload,
 				messageColumnIDServerTimestampMS,
 			},
-		},
-		{
-			ID:      messagePayloadFamilyID,
-			Name:    "payload",
-			Columns: []uint16{messageColumnIDPayload},
 		},
 	},
 	Primary: schema.Index{
@@ -110,9 +109,9 @@ var MessageTable = schema.Table{
 		Columns: []uint16{messageColumnIDMessageSeq},
 	},
 	Indexes: []schema.Index{
-		{ID: messageIndexIDMessageID, Name: "uidx_message_id", Unique: true, Columns: []uint16{messageColumnIDMessageID}},
-		{ID: messageIndexIDClientMsgNo, Name: "idx_client_msg_no", Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDMessageSeq}},
-		{ID: messageIndexIDFromUIDClientMsgNo, Name: "uidx_from_uid_client_msg_no", Unique: true, Columns: []uint16{messageColumnIDFromUID, messageColumnIDClientMsgNo}},
+		{ID: messageIndexIDClientMsgNo, Name: "idx_senderless_client_msg_no", Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDMessageSeq}},
+		{ID: messageIndexIDFromUIDClientMsgNo, Name: "uidx_client_msg_no_from_uid", Unique: true, Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDFromUID}},
 		{ID: messageIndexIDGlobalMessageID, Name: "uidx_global_message_id", Unique: true, Columns: []uint16{messageColumnIDMessageID}},
+		{ID: messageIndexIDFromUIDMessageSeq, Name: "idx_from_uid_message_seq", Columns: []uint16{messageColumnIDFromUID, messageColumnIDMessageSeq}},
 	},
 }

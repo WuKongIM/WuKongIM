@@ -14,16 +14,14 @@ import (
 func TestConversationSyncRequestAlwaysStartsFromZero(t *testing.T) {
 	first := NewConversationSyncRequest("derived-user")
 	require.Equal(t, target.ConversationSyncRequest{
-		UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, OnlyUnread: 0, Limit: 500,
+		UID: "derived-user", CompletedCoverage: 0, MaxConversations: 500,
 	}, first)
 
-	first.Version = 29
-	first.LastMsgSeqs = "peer:1:99"
-	first.MsgCount = 1
-	first.Limit = 2
+	first.CompletedCoverage = 29
+	first.MaxConversations = 2
 
 	require.Equal(t, target.ConversationSyncRequest{
-		UID: "derived-user", Version: 0, LastMsgSeqs: "", MsgCount: 20, OnlyUnread: 0, Limit: 500,
+		UID: "derived-user", CompletedCoverage: 0, MaxConversations: 500,
 	}, NewConversationSyncRequest("derived-user"))
 }
 
@@ -55,31 +53,25 @@ func TestConversationSyncValidationAllows499AndClassifiesLimitAsHarnessInvalid(t
 	}
 }
 
-func TestConversationSyncValidationRequiresStrictlyDescendingRecentSequences(t *testing.T) {
+func TestConversationSyncValidationRequiresValidLastMessageIdentity(t *testing.T) {
 	valid := target.ConversationSyncConversation{
 		ChannelID: "peer", ChannelType: 1,
-		Recents: []target.ConversationSyncMessage{
-			{ChannelID: "peer", ChannelType: 1, MessageSeq: 11},
-			{ChannelID: "peer", ChannelType: 1, MessageSeq: 10},
-			{ChannelID: "peer", ChannelType: 1, MessageSeq: 7},
-		},
+		LastMessage: &target.ConversationSyncMessage{MessageID: 9, MessageSeq: 11},
 	}
 	require.NoError(t, ValidateConversationSync([]target.ConversationSyncConversation{valid}))
 
 	for _, test := range []struct {
-		name string
-		seqs []uint64
+		name      string
+		messageID uint64
+		sequence  uint64
 	}{
-		{name: "duplicate", seqs: []uint64{11, 11}},
-		{name: "increase", seqs: []uint64{10, 11}},
-		{name: "zero", seqs: []uint64{1, 0}},
+		{name: "zero message id", sequence: 1},
+		{name: "zero sequence", messageID: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			row := target.ConversationSyncConversation{ChannelID: "peer", ChannelType: 1}
-			for _, seq := range test.seqs {
-				row.Recents = append(row.Recents, target.ConversationSyncMessage{
-					ChannelID: "peer", ChannelType: 1, MessageSeq: seq,
-				})
+			row := target.ConversationSyncConversation{
+				ChannelID: "peer", ChannelType: 1,
+				LastMessage: &target.ConversationSyncMessage{MessageID: test.messageID, MessageSeq: test.sequence},
 			}
 
 			err := ValidateConversationSync([]target.ConversationSyncConversation{row})
@@ -87,13 +79,13 @@ func TestConversationSyncValidationRequiresStrictlyDescendingRecentSequences(t *
 			var validationErr *ConversationSyncValidationError
 			require.ErrorAs(t, err, &validationErr)
 			require.Equal(t, SyncClassificationProductFailure, validationErr.Classification())
-			require.Equal(t, "recent_sequence_invalid", validationErr.ReasonCode())
+			require.Equal(t, "last_message_invalid", validationErr.ReasonCode())
 			require.NotContains(t, err.Error(), "peer")
 		})
 	}
 }
 
-func TestConversationSyncValidationRequiresConversationAndRecentIdentity(t *testing.T) {
+func TestConversationSyncValidationRequiresUniqueConversationIdentity(t *testing.T) {
 	tests := []struct {
 		name string
 		rows []target.ConversationSyncConversation
@@ -112,22 +104,6 @@ func TestConversationSyncValidationRequiresConversationAndRecentIdentity(t *test
 			},
 			code: "duplicate_conversation",
 		},
-		{
-			name: "recent channel id mismatch",
-			rows: []target.ConversationSyncConversation{{
-				ChannelID: "peer", ChannelType: 1,
-				Recents: []target.ConversationSyncMessage{{ChannelID: "other", ChannelType: 1, MessageSeq: 1}},
-			}},
-			code: "recent_identity_mismatch",
-		},
-		{
-			name: "recent channel type mismatch",
-			rows: []target.ConversationSyncConversation{{
-				ChannelID: "group", ChannelType: 2,
-				Recents: []target.ConversationSyncMessage{{ChannelID: "group", ChannelType: 1, MessageSeq: 1}},
-			}},
-			code: "recent_identity_mismatch",
-		},
 	}
 
 	for _, test := range tests {
@@ -139,8 +115,6 @@ func TestConversationSyncValidationRequiresConversationAndRecentIdentity(t *test
 			require.Equal(t, SyncClassificationProductFailure, validationErr.Classification())
 			require.Equal(t, test.code, validationErr.ReasonCode())
 			require.NotContains(t, err.Error(), "peer")
-			require.NotContains(t, err.Error(), "group")
-			require.NotContains(t, err.Error(), "other")
 		})
 	}
 }

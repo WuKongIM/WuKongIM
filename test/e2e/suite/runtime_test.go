@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -41,6 +42,20 @@ func TestStartThreeNodeClusterWritesWukongIMStaticConfigs(t *testing.T) {
 		require.Contains(t, string(cfg), `dir = "`+node.Spec.LogDir+`"`)
 		require.Contains(t, node.Spec.Env, "WK_NODE_ID="+nodeIDString(node.Spec.ID))
 		require.Contains(t, node.Spec.Env, "WK_PLUGIN_ENABLE=false")
+	}
+}
+
+func TestStartStaticClusterUsesRequestedNodeCount(t *testing.T) {
+	t.Setenv("WK_E2E_BINARY", writeFakeNodeBinary(t))
+
+	cluster := New(t).StartStaticCluster(4)
+
+	require.Len(t, cluster.Nodes, 4)
+	for _, node := range cluster.Nodes {
+		cfg, err := os.ReadFile(node.Spec.ConfigPath)
+		require.NoError(t, err)
+		require.Contains(t, string(cfg), "initial_slot_count = 4\n")
+		require.Contains(t, string(cfg), "slot_replica_n = 4\n")
 	}
 }
 
@@ -117,6 +132,17 @@ func TestWorkspacePluginSocketStaysOutsideLongArtifactTree(t *testing.T) {
 	requirePathOutside(t, workspace.RootDir, socketPath)
 	require.LessOrEqual(t, len([]byte(socketPath)), 100)
 	require.Equal(t, "n"+nodeIDString(nodeID)+".sock", filepath.Base(socketPath))
+}
+
+func TestWorkspaceDisablesSpotlightIndexingOnlyOnDarwin(t *testing.T) {
+	workspace := NewWorkspace(t)
+	marker := filepath.Join(workspace.RootDir, ".metadata_never_index")
+	_, err := os.Stat(marker)
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, err)
+		return
+	}
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestWorkspacePluginSocketPreservesExplicitOverride(t *testing.T) {

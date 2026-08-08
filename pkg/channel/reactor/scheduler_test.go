@@ -100,6 +100,23 @@ func TestProcessDueHandlesEveryReadyItem(t *testing.T) {
 	require.Empty(t, keys)
 }
 
+func TestProcessDueBoundsReadyWorkPerTurn(t *testing.T) {
+	now := time.Unix(115, 0)
+	r := NewReactor(ReactorConfig{ID: 0, LocalNode: 1, Store: store.NewMemoryFactory(), MailboxSize: 16})
+	for i := 0; i < defaultReactorDueDrain+1; i++ {
+		r.due.push(dueItem{
+			key:     ch.ChannelKey("bounded-due-" + strconv.Itoa(i)),
+			kind:    dueReplication,
+			due:     now,
+			version: 1,
+		})
+	}
+
+	r.processDue(now)
+
+	require.Len(t, r.due.items, 1)
+}
+
 func TestReactorProcessesDueAppendFlushWhileMailboxBusy(t *testing.T) {
 	factory := store.NewMemoryFactory()
 	g, err := NewGroup(Config{
@@ -239,6 +256,7 @@ func TestCommittedCheckpointCompletionReschedulesNewerFrontier(t *testing.T) {
 	rc.replication = replicationState{}
 	rc.committedCheckpointOp = 7
 	rc.committedCheckpointDue = time.Now().Add(time.Second)
+	rc.committedCheckpointBackoff = 8 * time.Millisecond
 
 	r.handleStoreCheckpointResult(worker.Result{
 		Kind: worker.TaskStoreCheckpoint,
@@ -253,6 +271,7 @@ func TestCommittedCheckpointCompletionReschedulesNewerFrontier(t *testing.T) {
 	})
 
 	require.Equal(t, uint64(1), rc.state.CheckpointHW)
+	require.Zero(t, rc.committedCheckpointBackoff)
 	require.Len(t, r.due.items, 1)
 	require.Equal(t, dueReplication, r.due.items[0].kind)
 	require.Equal(t, rc.committedCheckpointDue, r.due.items[0].due)

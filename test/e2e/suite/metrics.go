@@ -23,6 +23,12 @@ type MetricSample struct {
 	Value float64
 }
 
+// MetricHistogramSnapshot contains the cumulative count and sum of one histogram.
+type MetricHistogramSnapshot struct {
+	Count float64
+	Sum   float64
+}
+
 // RequireMetricAtLeastEventually waits for one public /metrics sample to reach at least want.
 func RequireMetricAtLeastEventually(t *testing.T, node StartedNode, name string, labels map[string]string, want float64) {
 	t.Helper()
@@ -94,16 +100,40 @@ func FetchMetricSamples(ctx context.Context, apiAddr string) ([]MetricSample, er
 	return samples, nil
 }
 
+// SumMetricSamples returns the sum of one metric family matching the requested label subset.
+func SumMetricSamples(samples []MetricSample, name string, labels map[string]string) float64 {
+	total := float64(0)
+	for _, sample := range samples {
+		if sample.Name == name && metricLabelsMatch(sample.Labels, labels) {
+			total += sample.Value
+		}
+	}
+	return total
+}
+
+// HistogramSnapshot extracts one histogram's cumulative count and sum.
+func HistogramSnapshot(samples []MetricSample, name string, labels map[string]string) MetricHistogramSnapshot {
+	return MetricHistogramSnapshot{
+		Count: SumMetricSamples(samples, name+"_count", labels),
+		Sum:   SumMetricSamples(samples, name+"_sum", labels),
+	}
+}
+
 func parseMetricSample(line string) (string, map[string]string, float64, bool) {
-	parts := strings.Fields(line)
-	if len(parts) != 2 {
+	line = strings.TrimSpace(line)
+	separator := metricSampleValueSeparator(line)
+	if separator <= 0 || separator == len(line)-1 {
 		return "", nil, 0, false
 	}
-	value, err := strconv.ParseFloat(parts[1], 64)
+	nameAndLabels := strings.TrimSpace(line[:separator])
+	valueFields := strings.Fields(line[separator+1:])
+	if nameAndLabels == "" || len(valueFields) == 0 {
+		return "", nil, 0, false
+	}
+	value, err := strconv.ParseFloat(valueFields[0], 64)
 	if err != nil {
 		return "", nil, 0, false
 	}
-	nameAndLabels := parts[0]
 	labels := map[string]string{}
 	if idx := strings.IndexByte(nameAndLabels, '{'); idx >= 0 {
 		if !strings.HasSuffix(nameAndLabels, "}") {
@@ -124,6 +154,43 @@ func parseMetricSample(line string) (string, map[string]string, float64, bool) {
 		return name, labels, value, true
 	}
 	return nameAndLabels, labels, value, true
+}
+
+func metricSampleValueSeparator(line string) int {
+	braceDepth := 0
+	inQuotes := false
+	escaped := false
+	for index := 0; index < len(line); index++ {
+		character := line[index]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if inQuotes && character == '\\' {
+			escaped = true
+			continue
+		}
+		if character == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		if inQuotes {
+			continue
+		}
+		switch character {
+		case '{':
+			braceDepth++
+		case '}':
+			if braceDepth > 0 {
+				braceDepth--
+			}
+		case ' ', '\t':
+			if braceDepth == 0 {
+				return index
+			}
+		}
+	}
+	return -1
 }
 
 func metricLabelsMatch(got, want map[string]string) bool {

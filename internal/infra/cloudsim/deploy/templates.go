@@ -35,15 +35,6 @@ const (
 	cloudGatewayAsyncSendWorkers       = 128
 	cloudGatewayAsyncSendQueueCapacity = 131_072
 	cloudDefaultRecipientWorkers       = 100
-	// cloudSmallAuthorityCacheMaxRows preserves the default cache ceiling while
-	// covering the complete 30,860-row Cloud Small conversation working set.
-	cloudSmallAuthorityCacheMaxRows = 100_000
-	// cloudMediumAuthorityCacheMaxRows covers the complete 569,520-row Cloud
-	// Medium working set plus bounded churn and temporary leader skew.
-	cloudMediumAuthorityCacheMaxRows = 750_000
-	// cloudLargeAuthorityCacheMaxRows covers the complete 15,593,050-row Cloud
-	// Large working set plus bounded churn and temporary leader skew.
-	cloudLargeAuthorityCacheMaxRows = 20_000_000
 	// cloudMediumRecipientWorkerConcurrency is the measured Cloud Medium plan
 	// capacity. At 108-113 ms per plan, 320 workers cover the reviewed 5,100
 	// plans/s cluster load when the busiest node owns 40 percent of the ten Slot
@@ -67,7 +58,6 @@ var effectiveRuntimeContractKeys = []string{
 	"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
 	"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY",
 	"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY",
-	"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS",
 }
 
 // EffectiveNodeRuntimeContract is the exact non-secret runtime shape deployed to every cloud node.
@@ -104,8 +94,6 @@ type EffectiveNodeRuntimeContract struct {
 	GatewayAsyncSendQueueCapacity int `json:"gateway_async_send_queue_capacity"`
 	// RecipientWorkerConcurrency is the reviewed delivery recipient worker count.
 	RecipientWorkerConcurrency int `json:"recipient_worker_concurrency"`
-	// ConversationAuthorityCacheMaxRows is the reviewed per-node authority cache ceiling.
-	ConversationAuthorityCacheMaxRows int `json:"conversation_authority_cache_max_rows"`
 	// ValueSources records the observed Manager source for every critical key during bootstrap.
 	// It is omitted from the immutable expected contract stored in the bundle.
 	ValueSources map[string]string `json:"value_sources,omitempty"`
@@ -134,13 +122,10 @@ func effectiveNodeRuntimeContractForScale(scale string) (EffectiveNodeRuntimeCon
 	}
 	switch contract.Scale {
 	case "small":
-		contract.ConversationAuthorityCacheMaxRows = cloudSmallAuthorityCacheMaxRows
 	case "medium":
-		contract.ConversationAuthorityCacheMaxRows = cloudMediumAuthorityCacheMaxRows
 		contract.RecipientWorkerConcurrency = cloudMediumRecipientWorkerConcurrency
 		contract.ChannelRPCWorkers = cloudMediumChannelRPCWorkers
 	case "large":
-		contract.ConversationAuthorityCacheMaxRows = cloudLargeAuthorityCacheMaxRows
 	default:
 		return EffectiveNodeRuntimeContract{}, fmt.Errorf("%w: scenario objectives.scale must be small, medium, or large", ErrInvalidBundle)
 	}
@@ -165,8 +150,7 @@ func runtimeContractValuesEqual(left, right EffectiveNodeRuntimeContract) bool {
 		left.GatewayGnetEventLoops == right.GatewayGnetEventLoops &&
 		left.GatewayAsyncSendWorkers == right.GatewayAsyncSendWorkers &&
 		left.GatewayAsyncSendQueueCapacity == right.GatewayAsyncSendQueueCapacity &&
-		left.RecipientWorkerConcurrency == right.RecipientWorkerConcurrency &&
-		left.ConversationAuthorityCacheMaxRows == right.ConversationAuthorityCacheMaxRows
+		left.RecipientWorkerConcurrency == right.RecipientWorkerConcurrency
 }
 
 func cloudViewConfig(runID string, addresses map[string]string) string {
@@ -259,12 +243,6 @@ runtime_async_send_workers = %d
 runtime_async_send_queue_capacity = %d
 
 %s
-[conversation]
-# Bounds per-node active-conversation authority rows for the selected reviewed
-# scale. Entries allocate on demand; the ceiling includes bounded churn
-# headroom even when actual Raft leaders are temporarily skewed.
-authority_cache_max_rows = %d
-
 [[gateway.listeners]]
 name = "tcp-wkproto"
 network = "tcp"
@@ -302,7 +280,7 @@ enable = true
 		addresses[fmt.Sprintf("node-%d", nodeID)], addresses[fmt.Sprintf("node-%d", nodeID)],
 		contract.GatewayGnetMulticore, contract.GatewayGnetEventLoops,
 		contract.GatewayAsyncSendWorkers, contract.GatewayAsyncSendQueueCapacity,
-		deliveryConfig, contract.ConversationAuthorityCacheMaxRows, addresses["sim"])
+		deliveryConfig, addresses["sim"])
 }
 
 func targetConfig(addresses map[string]string) string {

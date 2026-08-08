@@ -80,8 +80,9 @@ Node-local latest-message reads use the Node-created shared message store and
 return only replicas at or below the loaded runtime HW, falling back to the
 durable checkpoint HW for unloaded channels. Retention boundaries are applied
 before returning candidates, and a fixed scan budget rejects pathological
-logical-retention gaps after deleting the inspected retained projection keys,
-so retries make bounded progress even when physical retention GC is disabled.
+logical-retention gaps. The global message-ID index is canonical lookup state,
+so logical-retention filtering never deletes it; physical retention removes
+the entry atomically with the message row.
 Follower apply persists the leader HW covered by each applied batch atomically;
 an unloaded local leader with `MinISR=1` safely treats its durable LEO as
 committed even when additional non-required ISR members are configured.
@@ -182,7 +183,15 @@ treats `Leader=0` as an unknown observation and keeps the last known non-zero
 Slot leader and term in the foreground router until a new non-zero leader is
 observed. This prevents transient Raft status gaps from briefly removing an
 otherwise valid route; stale leaders are still fenced by downstream Slot/Channel
-leadership checks.
+leadership checks. Nodes that are not replicas of a logical Slot also poll that
+Slot's desired peers at a lower frequency and install the highest-term observed
+leader. This applies to ordinary static members as well as activated seed-join
+members, so every ingress node can route UID-owned metadata without hosting a
+local replica. Route installation ignores lower-term observations so a delayed
+peer response cannot regress a newer leader. Remote observation runs in an
+independent managed loop, so snapshot application and the local 10ms readiness
+loop never wait for network I/O. Each remote round has a 250ms overall deadline
+and queries at most eight peers concurrently.
 
 ## Start Flow
 
@@ -205,7 +214,7 @@ Start(ctx)
   -> slots.Reconcile(snapshot)
   -> start Controller watch loop for later snapshots
   -> start the independent idle preferred-leader reconciliation loop; Start and snapshot apply never wait for it
-  -> start the default Slot leader observation loop when the default Slot runtime is active
+  -> start independent local and remote Slot leader observation loops when the default Slot runtime is active
   -> mark Channel runtime ready and start the tick loop
   -> mark node started
   -> start low-frequency Controller health reporting
@@ -322,8 +331,9 @@ are exposed through `Node.StorageMetricsSnapshot` as low-cardinality
 `channel_log`, `meta`, and `raft` snapshots. Pebble types remain behind the
 storage packages; cluster only publishes the neutral metrics shape used by
 composition roots. The `channel_log` snapshot also carries aggregate canonical
-entry, caller lease, background pin, acquire, release, and reclaim counts. It
-does not expose channel keys or channel IDs.
+entry, caller lease, background pin, acquire, release, and reclaim counts plus
+cumulative definite-negative idempotency filter skips and durable point reads.
+It does not expose channel keys, channel IDs, senders, or client message IDs.
 
 ### Health Report Loop
 
@@ -415,6 +425,11 @@ The propose path returns typed not-ready/no-leader/not-leader errors and does no
 Channel metadata, subscriber rows, and legacy `channel_latest` rows route by
 channel ID. Subscriber point lookups and subscriber-set non-emptiness reads use
 the same channel-owned Slot metadata route for message permission checks.
+`ReadPermissionMetadataBatchAuthoritative` groups raw permission facts by
+physical Slot, bounds concurrent Slot groups, and performs at most one
+authoritative `RPCSlotPermissionMetadataBatch` call per represented Slot while
+preserving input alignment. Policy remains outside `pkg/cluster` and
+`pkg/slot`.
 Message event appends also route by channel ID. `stream.open`,
 `stream.delta`, and `stream.snapshot` are forwarded to the current Slot leader's
 bounded node-local stream cache and return cache state without advancing the
@@ -547,10 +562,14 @@ facades that scan metadata rows owned by one physical Slot, merging the Slot's
 hash-slot shards into one legacy-compatible ordered page.
 
 UID-owned reverse tables route by UID. `UpsertUserChannelMemberships` and
-`DeleteUserChannelMemberships` group the requested UIDs by `RouteKey(uid)` hash
-slot and submit one Slot proposal per touched hash slot. Reads such as
-`ListUserChannelMembershipPage` also route by UID and read the current local
-metadata shard for that UID hash slot.
+`TombstoneUserChannelMemberships` group requested UIDs by `RouteKey(uid)` hash
+slot and submit one Slot proposal per touched hash slot. Point reads and
+activation-index pages use the same UID ownership and route to the current Slot
+leader when the ingress node is not a replica. Badge, hide, and activation
+commands are monotonic foreground mutations; message SEND never invokes them.
+CMD binding, acknowledgement, and tombstone operations use the separate
+`user_cmd_channel_membership` table and the same UID routing rule; CMD directory
+pages are also Slot-leader authoritative from non-replica ingress nodes.
 
 Plugin binding rows are UID-owned for writes and Receive hook lookups.
 `BindPluginUser`, `UnbindPluginUser`, and `ListPluginBindingsByUID` route by
@@ -562,32 +581,10 @@ last emitted `(plugin_no, uid)`. The scan never reads only the manager node's
 local DB as a cluster-wide answer, and it does not materialize all bindings for
 one plugin before paging.
 
-Kind-aware UID-owned conversation rows are the active recent-conversation path.
-`UpsertConversationStatesBatch`, `TouchConversationActiveAtBatch`, and
-`HideConversationsBatch` route each row by `RouteKey(uid)`, group rows by
-physical Slot, and submit bounded Slot FSM commands that carry each row's real
-UID hash slot plus its `ConversationKind`. `TouchConversationActiveAtBatch`
-resolves the patch UIDs against one route snapshot, then submits independent
-physical-Slot groups with at most four proposals in flight. Chunks for the same
-physical Slot remain ordered, and errors are returned in sorted Slot order after
-all admitted groups finish. Active patches are monotonic and idempotent, so a
-caller may retry the full batch after a partial cross-Slot failure without
-requiring cross-Slot atomicity. The proposals use background admission because
-they are retryable active-cache projection flushes; user-facing UID metadata
-writes keep the default foreground class. The Slot FSM then applies each conversation state,
-active patch, or delete barrier to that UID-owned hash slot and logical kind,
-preserving `SparseActive`, read/delete visibility floors, and the active
-ordering anchor in one metadata mutation. Hide requests advance `DeletedToSeq`
-and clear `active_at` through the same Slot ownership path. Reads such as
-`GetConversationState`, `GetConversationStates`, and
-`ListConversationActivePage` route by UID and require a
-`ConversationKind` so normal and CMD projections stay isolated. Active pages
-scan the local conversation active index for that UID hash slot and selected
-kind with the `(active_at, channel_id, channel_type)` cursor; kind is part of
-the scan scope, not the cursor. `GetConversationStates` resolves all requested
-UIDs against one route snapshot before issuing hash-slot-local point reads.
-Legacy `channel_latest` remains a channel-owned
-projection for old callers and is not the recent-conversation active path.
+There is no durable conversation table or active-hint overlay. Ordinary
+conversation responses are built later from membership rows and Channel-owned
+committed state. `channel_latest` remains a narrow channel-owned projection for
+metadata consumers, not a per-user directory.
 
 ## Channel runtime Flow
 
@@ -596,7 +593,7 @@ Node.AppendChannel / AppendChannelBatch
   -> channels.Service
   -> Append: EnsureChannelMeta from append-only ChannelMetaEnsurer when available
       -> SlotMetaSource reads authoritative ChannelRuntimeMeta from Slot metadata storage
-      -> if missing: derive initial replicas/leader from Slot placement and submit command 52 through RuntimeMetaCreator
+      -> if missing: derive initial replicas/leader from Slot placement and submit command 59 through RuntimeMetaCreator
       -> treat both authoritative created=true and created=false as successful create attempts
       -> reread and return the final authoritative ChannelRuntimeMeta from the current physical Slot leader; never substitute the origin candidate
       -> if local node is channel leader: ApplyMeta to local Channel runtime runtime, then Append locally
@@ -669,25 +666,27 @@ and the remote `channels.Service` append path. These sub-stages separate
 origin-side dispatch/transport wait from the leader's actual append/quorum
 work when diagnosing forwarded SEND p99.
 
-Channel RPC uses versioned binary frames. During a v5/v6 rolling upgrade, the
-client prefers v6 and retries once with v5 only when the remote handler rejects
+Channel RPC uses versioned binary frames. The client prefers the current v7
+codec and ordinary calls retry once with v5 only when the remote handler rejects
 the frame before dispatch with the legacy `channels: invalid frame` error. The
-confirmed v6 rejection is cached per peer for a bounded interval, after which one
-ordinary request per peer probes v6 while concurrent ordinary traffic remains
-on v5. A successful v6 probe immediately promotes the peer, avoiding both
-minute-bound upgrade lag and a concurrent fallback/re-encode spike. Per-peer
+confirmed current-version rejection is cached per peer for a bounded interval,
+after which one ordinary request per peer probes v7 while concurrent ordinary
+traffic remains on v5. A successful current-version probe immediately promotes
+the peer, avoiding both minute-bound upgrade lag and a concurrent
+fallback/re-encode spike. Per-peer
 request generations prevent delayed pre-upgrade successes or rejections from
 overwriting newer codec evidence. Probe ownership carries the same generation,
 so an older long request cannot release a newer in-flight probe. Idle peer state
 is capped so historical node churn cannot grow the compatibility cache without
 bound.
-`Pull{NeedMeta=true}` and batches containing it bypass that cache and probe v6
-immediately because v5 cannot carry retention or write-fence authority fields.
-If the peer rejects v6, authority reads fail closed and never retry with v5;
+`Pull{NeedMeta=true}` and batches containing it bypass that cache and probe the
+current v7 codec immediately because v5 cannot carry retention or write-fence
+authority fields. If the peer rejects v7, authority reads may retry the
+layout-compatible v6 codec, but fail closed and never retry with v5;
 ordinary replication and forwarding calls may still use the bounded fallback.
 Current handlers likewise reject legacy `NeedMeta` requests before business
 dispatch, covering the old-client/new-server rolling direction. Current clients
-also require the successful authority response frame itself to be v6 before
+also require the successful authority response frame to be v6 or newer before
 applying metadata or promoting peer codec state.
 The real transport exposes that remote handler rejection as a structured
 `transport.RemoteError` with code `remote_error` and an exactly matching
@@ -699,21 +698,19 @@ for mixed-version peers it also recognizes only the old server's exact
 service-specific message. Callers can therefore distinguish a capability absent
 during rolling upgrade from node or transport unavailability without broad
 string matching.
-Current handlers answer a valid v5 request with a v5 response; v6 requests keep
-v6 responses and therefore preserve `RetentionThroughSeq` and `WriteFence` in
-`Pull{NeedMeta=true}` metadata. Other transport or application errors never
+Current handlers answer a valid v5 or v6 request with the same response
+version. V6 therefore preserves `RetentionThroughSeq` and `WriteFence` in
+`Pull{NeedMeta=true}` metadata, while v7 adds the membership-backed
+last-visible head fields and the append request's all-message
+server-allocation proof. Legacy v5/v6 append frames decode that proof as false,
+so fallback can lose the read optimization but cannot weaken validation. Other transport or application errors never
 trigger codec fallback, so forwarded append execution is not duplicated.
 
-`Node.ReadChannelCommitted` is a narrow read facade for internal HTTP message
-sync. It opens the Node-created default Channel runtime store for the requested
-channel, resolves the authoritative `ChannelRuntimeMeta`, applies
-`RetentionThroughSeq + 1` as the minimum visible message sequence, and then
-delegates to `channel/store.ReadCommitted`; it does not replace Channel runtime
-append, replication, or metadata routing. The facade closes its per-call store
-lease on success, read failure, cancellation, and post-acquisition metadata
-failure. Callers that override the
-Channel runtime service without using the Node-created default store do not
-automatically get this read facade.
+`Node.ReadChannelCommitted` and `ReadChannelCommittedBatch` are narrow message
+sync facades. The batch resolves exact Channel routes, groups remote items by
+Leader, performs bounded local committed reads, and preserves item alignment.
+Retention and committed HW/LEO rules remain in the Channel service, and every
+per-call store lease is closed on all return paths.
 `Node.LookupChannelIdempotency` is a local-only read facade for SEND retry
 recovery. It opens the same Node-created default Channel runtime store and delegates
 to the optional `channel/store.IdempotencyLookup` index without creating
@@ -721,30 +718,34 @@ messages, advancing HW, or routing to another node, then closes the per-call
 store lease on every return path. Internal uses it only
 after canonical channel routing has selected the local append authority.
 
-`Node.ReadChannelLastVisible` is the channel-owned routed read facade used by
-conversation list display. It resolves authoritative ChannelRuntimeMeta for the
-channel, reads the local store only when this node is the Channel runtime leader, and
-otherwise forwards a typed RPC to the resolved leader. The leader-side handler
-validates local channel leadership before reading its local store with a reverse
-limit-1 committed read and applying the maximum of the caller's visibility
-floor and `RetentionThroughSeq`; the local read closes its per-call store lease
-on every return path. Channel not found or no visible tail returns
-`ok=false`; route, not-ready, not-leader, and stale-route errors propagate to
-the caller.
+`Node.ReadChannelConversationHeads` is the membership-directory hydration
+facade. It groups channels by exact Leader and returns aligned committed tails,
+retention floors, newest display messages, and the current UID's latest
+committed ordinary sender-index sequence. The Leader validates route epochs and
+terminal channel state. For locally loaded quorum channels, one bounded reactor
+probe per Leader batch supplies the live HW because durable HW checkpoints are
+intentionally coalesced; unloaded channels fall back to durable checkpoint HW,
+while `MinISR=1` leaders retain their durable LEO rule. Channel-not-found maps
+to delete; temporary route, leadership, or readiness errors stay item-scoped
+for unresolved retry.
 
 `WithProposer` and `WithChannels` are public override options for tests, smoke harnesses, and app-level composition. If callers do not provide them, `Node.Start` creates a default Controller runtime, proposer, and Channel runtime service, backs Channel runtime with the message DB under `DataDir/channellog`, wires the node-local data-plane lease as Channel runtime append admission, registers Channel runtime replication/append-forward handlers on the default node RPC transport, and owns the Channel runtime tick loop plus default store factory cleanup. The default proposer is backed by a real local Slot Multi-Raft runtime, durable Slot Raft log storage under `DataDir/slotraft`, metadata FSM storage under `DataDir/slotmeta`, and cluster typed RPC transport for multi-replica Slot Raft traffic.
 The default Slot runtime also owns a narrow Slot proxy for authoritative channel
-runtime, business, and subscriber metadata. It registers the centrally
-allocated `RPCSlotChannelRuntimeMeta`, `RPCSlotSubscriberMetadata`, and
-`RPCSlotChannelMetadata` handlers, exposes Slot-leader point/page reads and
-exact counted subscriber mutations to internal adapters, and carries
-create-only/flag-patch FSM results back to the proposer. An unloaded Channel
-follower resolves runtime metadata through that dedicated runtime-meta service;
-it must never reuse a Channel replication service ID.
+runtime, business, subscriber, and membership metadata. It registers the centrally allocated
+`RPCSlotSubscriberMetadata`, `RPCSlotChannelMetadata`,
+`RPCSlotUserMembership`, and `RPCSlotRuntimeMetadata` handlers, exposes
+`RPCSlotPermissionMetadataBatch` for Slot-grouped raw permission reads, exposes
+Slot-leader point/page reads, UID-owned ordinary/CMD membership reads, Channel
+runtime metadata reads, and exact counted subscriber mutations to internal
+adapters, and carries create-only/flag-patch FSM results back to the proposer.
+Membership RPC handlers validate that the supplied Slot ID is exactly the
+current `SlotForKey(uid)` before checking leadership or reading data.
+An unloaded Channel follower resolves runtime metadata through that dedicated
+runtime-meta service; it must never reuse a Channel replication service ID.
 It does not register the proxy package's unrelated services a second time.
 Its final proposal enqueue is also fenced by the node's terminal source-write
 admission boundary; forwarded Slot proposals cannot bypass that boundary.
-Command 52 completion is observed by the routed Slot Raft Group leader's proposer through
+Command 59 completion is observed by the routed Slot Raft Group leader's proposer through
 the accepted proposal future's single bounded completion observer after its
 authoritative result resolves and is decoded. The observer follows the
 runtime-owned future rather than the caller-scoped `Wait(ctx)`, so caller
@@ -815,7 +816,7 @@ leader-forwarding control facade as other Controller writes. Cluster fan-out,
 target readiness checks, and safety fences are owned by
 `internal/usecase/management`, not cluster.
 
-`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including `RouteGeneration` for complete append-cache versioning and the durable write-fence token/version/reason/deadline used to block new leader appends. The generation remains cache metadata and is not added to Channel replication RPC codecs or machine decisions. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned create-only metadata port before any Channel runtime append is attempted. Existing rows never propose creation. Missing rows submit command 52 exactly once, accept both created and concurrent-loser results, then reread the physical Slot leader's authoritative row. Ordinary runtime-meta upsert remains separate for migration and repair. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata creator call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
+`channels.Service` keeps a combined runtime interface because the public Channel runtime `Cluster` surface and replication `transport.Server` surface are separate. `StaticMetaSource` is available for tests and smoke runs. `SlotMetaSource` adapts authoritative `pkg/db/meta` `ChannelRuntimeMeta` records into Channel runtime metadata for production wiring, including `RouteGeneration` for complete append-cache versioning and the durable write-fence token/version/reason/deadline used to block new leader appends. The generation remains cache metadata and is not added to Channel replication RPC codecs or machine decisions. `ResolveChannelMeta` remains read-only; `EnsureChannelMeta` is the append-only path that may create the initial ChannelRuntimeMeta through the Slot-owned create-only metadata port before any Channel runtime append is attempted. Existing rows never propose creation. Missing rows submit command 59 exactly once, accept both created and concurrent-loser results, then reread the physical Slot leader's authoritative row. Ordinary runtime-meta upsert remains separate for migration and repair. `SlotMetaSource` emits low-cardinality metadata resolve sub-stages for Slot meta read, initial placement/build, missing-meta write/propose, aggregate create/write, and final reread so cold activation tail latency can be attributed before pprof. In the default runtime, `meta_create_propose` wraps the Slot metadata creator call; `meta_create_propose_local` and `meta_create_propose_forward` split origin-side routing, `meta_create_slot_propose_submit` times local `Runtime.Propose`, and `meta_create_slot_propose_wait` times the subsequent Multi-Raft future wait. The default proposer also bridges the append stage observer into `pkg/slot/multiraft`, allowing the same Channel runtime stage histogram to report `meta_create_slot_control_wait`, `meta_create_slot_raft_commit_wait`, `meta_create_slot_fsm_apply`, `meta_create_slot_fsm_commit`, and `meta_create_slot_mark_applied`.
 
 Initial Channel runtime placement is data-plane placement, not Slot metadata
 placement. Slot routing identifies the authoritative metadata Slot and its
@@ -843,7 +844,7 @@ for first-write creation.
 
 Bench runtime controls flow from internal HTTP through `internal/infra/cluster`, `pkg/cluster.Node`, `pkg/cluster/channels.Service`, and finally the hosted Channel runtime runtime. These routes are benchmark-only observation/cleanup controls and do not replace the gateway SEND activation path.
 
-When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator. `Config.Channel.RPCWorkers` independently caps replication work and zero normalizes to the QPS-validated 160-worker default. None of these settings changes durable commit or quorum ACK rules. `Config.Channel.RPCBatchMaxItems` independently bounds same-target Pull/PullHint items per blocking transport call; zero uses the Channel worker default of 16 and does not increase worker or remote-call concurrency. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` routes message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero normalizes to four coordinators. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
+When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware Channel runtime reactor count from `GOMAXPROCS` with a minimum of four partitions. Explicit positive values are preserved for deployments that need to pin the runtime shape. `Config.Channel.StoreAppendWorkers` and `Config.Channel.StoreApplyWorkers` cap the blocking leader-append and follower-apply worker pools independently; zero keeps Channel runtime's reactor-derived defaults, which give store pools extra workers but cap them to avoid overdriving the shared message DB commit coordinator. `Config.Channel.RPCWorkers` independently caps replication work and zero normalizes to the QPS-validated 160-worker default. None of these settings changes durable commit or quorum ACK rules. `Config.Channel.RPCBatchMaxItems` independently bounds same-target Pull/PullHint items per blocking transport call; zero uses the Channel worker default of 16 and does not increase worker or remote-call concurrency. `Config.Channel.StoreAppendBatchMaxWait` can shorten the store-append worker's cross-channel coalescing wait; zero keeps the Channel runtime worker default. `Config.Storage.CommitShards` routes message DB commit requests across partition-hashed coordinators while preserving synchronous physical commits and per-channel append locking; zero normalizes to one coordinator so one physical message DB maximizes each durable group-commit batch instead of issuing concurrent fsyncs from independent shards. `Config.Channel.AppendBatchMaxRecords`, `Config.Channel.AppendBatchMaxWait`, `Config.Channel.AppendBatchAdaptiveFlush`, and `Config.Channel.AppendBatchColdMaxWait` pass through to the hosted Channel runtime runtime; zero values and the default disabled adaptive flag keep the Channel runtime defaults. `Config.Channel.Observer` is passed to the default Channel runtime service so composition roots can expose reactor mailbox, append batch, and worker pool metrics without changing channel append semantics.
 
 ## Non-Goals
 
@@ -858,9 +859,10 @@ When `Config.Channel.ReactorCount` is left at zero, cluster derives a CPU-aware 
 - Controller integration supports Controller-backed runtime startup, single-node cluster bootstrap, static multi-voter bootstrap, mirror sync, and multi-voter Raft transport wiring through `pkg/transport`. Dynamic production operator workflows remain outside this package-level slice.
 - Slot coverage now uses the real default Slot runtime for default propose in single-node clusters and static multi-node clusters. Destructive Slot cleanup remains disabled.
 - Channel runtime append forwarding and first-append metadata creation require a configured Slot-backed ChannelMetaSource and Forward client; without them, pre-applied local runtime state is required and non-leader appends return Channel runtime typed errors.
-- Channel RPC v5/v6 rolling compatibility is bounded to the immediately previous
-  binary frame version; v3/v4 remain decode-only compatibility inputs and are
-  not negotiated response formats.
+- Channel RPC keeps v6 as the immediately previous authority-capable frame and
+  v5 as the bounded ordinary fallback; v3/v4 remain decode-only compatibility
+  inputs and are not negotiated response formats. Membership-backed head and
+  committed-read RPCs require v7.
 - Observe loops are intentionally small and low-frequency; foreground write paths only read atomic route/channel state.
 
 ## Backup And Restore Seams

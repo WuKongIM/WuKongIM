@@ -34,7 +34,7 @@ type Info struct {
 	Large bool
 	// Ban blocks channel messaging when true.
 	Ban bool
-	// Disband marks a channel as disbanded; currently accepted for compatibility.
+	// Disband terminally closes a channel; it cannot be cleared or reused.
 	Disband bool
 	// SendBan blocks sending while allowing receives; currently accepted for compatibility.
 	SendBan bool

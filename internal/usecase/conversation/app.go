@@ -11,10 +11,6 @@ import (
 const (
 	defaultListLimit = 50
 	maxListLimit     = 200
-
-	defaultSyncLimit           = 200
-	maxSyncLimit               = 500
-	defaultSyncActiveScanLimit = 2000
 )
 
 var (
@@ -24,156 +20,291 @@ var (
 	ErrInvalidRequest = errors.New("internal/usecase/conversation: invalid request")
 )
 
-// Store pages authoritative UID-owned conversation active rows.
-type Store interface {
-	ListConversationActiveView(ctx context.Context, kind metadb.ConversationKind, uid string, after metadb.ConversationActiveCursor, limit int) (ActiveViewPage, error)
+// DirectoryStore pages UID-owned ordinary membership rows.
+type DirectoryStore interface {
+	ListUserChannelMembershipPage(ctx context.Context, uid string, after metadb.UserChannelMembershipCursor, limit int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
 }
 
-// StateStore reads durable UID-owned conversation rows outside the active view window.
-type StateStore interface {
-	GetConversationState(ctx context.Context, kind metadb.ConversationKind, uid, channelID string, channelType int64) (metadb.ConversationState, bool, error)
+// HydrationOutcome classifies one aligned channel-head result.
+type HydrationOutcome uint8
+
+const (
+	HydrationOK HydrationOutcome = iota + 1
+	HydrationNoVisibleMessage
+	HydrationDelete
+	HydrationRetryable
+)
+
+// HydrationResult contains bounded Channel-Leader data for one membership.
+type HydrationResult struct {
+	Key                    ConversationKey
+	Outcome                HydrationOutcome
+	LastCommittedSeq       uint64
+	RetentionThroughSeq    uint64
+	CurrentUserLastSendSeq uint64
+	LastMessage            *LastMessage
 }
 
-// StateMutationStore persists durable UID-owned conversation read state.
-type StateMutationStore interface {
-	UpsertConversationStates(ctx context.Context, states []metadb.ConversationState) error
+// HeadHydrator returns one aligned result per live membership candidate.
+type HeadHydrator interface {
+	HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error)
 }
 
-// DeleteStore persists durable UID-owned conversation delete barriers.
-type DeleteStore interface {
-	HideConversations(ctx context.Context, reqs []metadb.ConversationDelete) error
-}
-
-// LastVisibleMessageRequest identifies one channel tail read and its visibility floor.
-type LastVisibleMessageRequest struct {
-	// ChannelID identifies the message log to read.
-	ChannelID string
-	// ChannelType identifies the message log namespace.
-	ChannelType int64
-	// VisibleAfterSeq hides messages at or below this sequence.
-	VisibleAfterSeq uint64
-}
-
-// MessageStore reads channel-owned message log tails for the current page.
-type MessageStore interface {
-	GetLastVisibleMessages(ctx context.Context, requests []LastVisibleMessageRequest) (map[metadb.ConversationKey]LastMessage, error)
-}
-
-// RecentMessageStore reads newest channel messages for legacy-compatible sync responses.
-type RecentMessageStore interface {
-	GetRecentMessages(ctx context.Context, keys []ConversationKey, limit int) (map[ConversationKey][]SyncMessage, error)
+// MembershipMutationStore reads and mutates UID-owned personal membership
+// state. It is the durable source for badge, hide, and activation commands.
+type MembershipMutationStore interface {
+	GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error)
+	AdvanceUserChannelMembershipReadSeq(ctx context.Context, uid, channelID string, channelType int64, readSeq uint64, updatedAt int64) error
+	HideUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64, deletedToSeq uint64, updatedAt int64) error
+	ActivateUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64, activatedAt, updatedAt int64) error
 }
 
 // Options contains dependencies and read bounds for the conversation usecase.
 type Options struct {
-	// Store reads UID-owned active conversation rows.
-	Store Store
-	// StateStore reads durable UID-owned rows for client-known overlay conversations.
-	StateStore StateStore
-	// StateMutationStore writes durable UID-owned read cursors.
-	StateMutationStore StateMutationStore
-	// DeleteStore writes durable UID-owned delete barriers.
-	DeleteStore DeleteStore
-	// Messages reads the newest visible message for returned rows.
-	Messages MessageStore
-	// ActiveScanLimit bounds the active rows scanned by legacy-compatible sync.
-	ActiveScanLimit int
+	// Directory reads UID-owned membership pages.
+	Directory DirectoryStore
+	// Hydrator performs bounded channel-head reads for one membership page.
+	Hydrator HeadHydrator
+	// MembershipMutations owns ordinary per-user badge, hide, and activation state.
+	MembershipMutations MembershipMutationStore
 	// Now returns the current time for mutation timestamps.
 	Now func() time.Time
+	// TombstonesRetainedSince reports the oldest deletion coverage still guaranteed.
+	// Zero means tombstones have not been expired.
+	TombstonesRetainedSince func() int64
 }
 
 // App coordinates entry-agnostic conversation list reads.
 type App struct {
-	store           Store
-	stateStore      StateStore
-	stateWriter     StateMutationStore
-	deleteStore     DeleteStore
-	messages        MessageStore
-	activeScanLimit int
-	now             func() time.Time
+	directory               DirectoryStore
+	hydrator                HeadHydrator
+	memberships             MembershipMutationStore
+	now                     func() time.Time
+	tombstonesRetainedSince func() int64
 }
 
 // New creates a conversation usecase.
 func New(opts Options) *App {
-	if opts.ActiveScanLimit <= 0 {
-		opts.ActiveScanLimit = defaultSyncActiveScanLimit
-	}
-	if opts.StateStore == nil {
-		if stateStore, ok := opts.Store.(StateStore); ok {
-			opts.StateStore = stateStore
-		}
-	}
-	if opts.StateMutationStore == nil {
-		if stateWriter, ok := opts.Store.(StateMutationStore); ok {
-			opts.StateMutationStore = stateWriter
-		}
-	}
-	if opts.DeleteStore == nil {
-		if deleteStore, ok := opts.Store.(DeleteStore); ok {
-			opts.DeleteStore = deleteStore
-		}
-	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
+	if opts.TombstonesRetainedSince == nil {
+		opts.TombstonesRetainedSince = func() int64 { return 0 }
+	}
 	return &App{
-		store:           opts.Store,
-		stateStore:      opts.StateStore,
-		stateWriter:     opts.StateMutationStore,
-		deleteStore:     opts.DeleteStore,
-		messages:        opts.Messages,
-		activeScanLimit: opts.ActiveScanLimit,
-		now:             opts.Now,
+		directory:               opts.Directory,
+		hydrator:                opts.Hydrator,
+		memberships:             opts.MembershipMutations,
+		now:                     opts.Now,
+		tombstonesRetainedSince: opts.TombstonesRetainedSince,
 	}
 }
 
 // List returns one active-index conversation page for uid.
 func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
-	if a == nil || a.store == nil || a.messages == nil {
+	if a == nil || a.directory == nil || a.hydrator == nil {
 		return ListResult{}, ErrStoreRequired
 	}
+	return a.listMembershipDirectory(ctx, req)
+}
+
+func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (ListResult, error) {
 	if err := validateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
 	limit := normalizeListLimit(req.Limit)
-	page, err := a.store.ListConversationActiveView(ctx, metadb.ConversationKindNormal, req.UID, req.Cursor.toMeta(), limit+1)
+	rows, next, done, err := a.directory.ListUserChannelMembershipPage(ctx, req.UID, req.Cursor.toMembershipMeta(), limit)
 	if err != nil {
 		return ListResult{}, err
 	}
-	rows := page.Rows
-	hasMore := !page.Done
-	nextCursor := page.Cursor
-	if len(rows) > limit {
-		hasMore = true
-		rows = rows[:limit]
-		nextCursor = cursorFromRow(rows[len(rows)-1])
-	}
-	lastMessages, err := a.messages.GetLastVisibleMessages(ctx, lastVisibleMessageRequests(rows))
-	if err != nil {
-		return ListResult{}, err
-	}
-	items := conversationsFromRows(rows, lastMessages)
 	result := ListResult{
-		Items:   items,
-		HasMore: hasMore,
+		ScannedCandidates: len(rows),
+		Items:             make([]Conversation, 0, len(rows)),
+		Deletes:           make([]ConversationKey, 0),
+		Unresolved:        make([]ConversationKey, 0),
+		Done:              done,
+		HasMore:           !done,
+		Coverage:          a.now().UnixNano(),
 	}
-	if hasMore {
-		result.NextCursor = cursorFromMeta(nextCursor)
+	result.TombstonesRetainedSince = a.tombstonesRetainedSince()
+	result.ResetRequired = req.CompletedCoverage > 0 && result.TombstonesRetainedSince > 0 && req.CompletedCoverage < result.TombstonesRetainedSince
+	if !done || len(rows) > 0 {
+		result.NextCursor = cursorFromMembershipMeta(next)
+	}
+	live := make([]metadb.UserChannelMembership, 0, len(rows))
+	for _, row := range rows {
+		if row.Tombstone {
+			result.Deletes = append(result.Deletes, ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType})
+			continue
+		}
+		live = append(live, row)
+	}
+	if len(live) == 0 {
+		return result, nil
+	}
+	hydrated, err := a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
+	if err != nil {
+		return ListResult{}, err
+	}
+	if len(hydrated) != len(live) {
+		return ListResult{}, errors.New("internal/usecase/conversation: misaligned hydration result")
+	}
+	for i, row := range live {
+		head := hydrated[i]
+		key := ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
+		if head.Key != key {
+			return ListResult{}, errors.New("internal/usecase/conversation: misaligned hydration key")
+		}
+		switch head.Outcome {
+		case HydrationDelete:
+			result.Deletes = append(result.Deletes, key)
+		case HydrationRetryable:
+			result.Unresolved = append(result.Unresolved, key)
+		case HydrationOK, HydrationNoVisibleMessage:
+			if item, ok := conversationFromMembership(row, head); ok {
+				result.Items = append(result.Items, item)
+			}
+		default:
+			return ListResult{}, errors.New("internal/usecase/conversation: invalid hydration outcome")
+		}
 	}
 	return result, nil
+}
+
+// Retry rebuilds only the requested unresolved conversations from current
+// membership and Channel-leader state.
+func (a *App) Retry(ctx context.Context, req RetryRequest) (ListResult, error) {
+	if a == nil || a.memberships == nil || a.hydrator == nil {
+		return ListResult{}, ErrStoreRequired
+	}
+	if req.UID == "" || len(req.Keys) == 0 || len(req.Keys) > maxListLimit {
+		return ListResult{}, ErrInvalidRequest
+	}
+	result := ListResult{
+		ScannedCandidates: len(req.Keys),
+		Items:             make([]Conversation, 0, len(req.Keys)),
+		Deletes:           make([]ConversationKey, 0),
+		Unresolved:        make([]ConversationKey, 0),
+		Done:              true,
+	}
+	live := make([]metadb.UserChannelMembership, 0, len(req.Keys))
+	seen := make(map[ConversationKey]struct{}, len(req.Keys))
+	for _, key := range req.Keys {
+		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
+			return ListResult{}, ErrInvalidRequest
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		row, ok, err := a.memberships.GetUserChannelMembership(ctx, req.UID, key.ChannelID, key.ChannelType)
+		if err != nil {
+			return ListResult{}, err
+		}
+		if !ok || row.Tombstone {
+			result.Deletes = append(result.Deletes, key)
+			continue
+		}
+		live = append(live, row)
+	}
+	if len(live) == 0 {
+		return result, nil
+	}
+	hydrated, err := a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
+	if err != nil {
+		return ListResult{}, err
+	}
+	if len(hydrated) != len(live) {
+		return ListResult{}, errors.New("internal/usecase/conversation: misaligned retry hydration result")
+	}
+	for index, row := range live {
+		key := ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
+		head := hydrated[index]
+		if head.Key != key {
+			return ListResult{}, errors.New("internal/usecase/conversation: misaligned retry hydration key")
+		}
+		switch head.Outcome {
+		case HydrationDelete:
+			result.Deletes = append(result.Deletes, key)
+		case HydrationRetryable:
+			result.Unresolved = append(result.Unresolved, key)
+		case HydrationOK, HydrationNoVisibleMessage:
+			if item, ok := conversationFromMembership(row, head); ok {
+				result.Items = append(result.Items, item)
+			}
+		default:
+			return ListResult{}, errors.New("internal/usecase/conversation: invalid retry hydration outcome")
+		}
+	}
+	return result, nil
+}
+
+func conversationFromMembership(row metadb.UserChannelMembership, head HydrationResult) (Conversation, bool) {
+	visibleMessage := head.LastCommittedSeq >= row.JoinSeq && head.LastCommittedSeq > row.DeletedToSeq
+	if !visibleMessage && row.ActivatedAt <= 0 {
+		return Conversation{}, false
+	}
+	visibilityFloor := maxMembershipFloor(joinVisibilityFloor(row.JoinSeq), row.DeletedToSeq, head.RetentionThroughSeq)
+	effectiveRead := maxMembershipFloor(visibilityFloor, row.ReadSeq, head.CurrentUserLastSendSeq)
+	unread := uint64(0)
+	if head.LastCommittedSeq > effectiveRead {
+		unread = head.LastCommittedSeq - effectiveRead
+	}
+	var last *LastMessage
+	if visibleMessage && head.LastMessage != nil && head.LastMessage.MessageSeq > visibilityFloor {
+		cloned := *head.LastMessage
+		cloned.Payload = append([]byte(nil), cloned.Payload...)
+		last = &cloned
+	}
+	return Conversation{
+		ChannelID: row.ChannelID, ChannelType: row.ChannelType, JoinSeq: row.JoinSeq,
+		ActiveAt: row.ActivatedAt, ReadSeq: row.ReadSeq, DeletedToSeq: row.DeletedToSeq,
+		UpdatedAt: row.UpdatedAt, LastMessage: last, Unread: unread,
+	}, true
+}
+
+func joinVisibilityFloor(joinSeq uint64) uint64 {
+	if joinSeq == 0 {
+		return 0
+	}
+	return joinSeq - 1
+}
+
+func maxMembershipFloor(values ...uint64) uint64 {
+	var out uint64
+	for _, value := range values {
+		if value > out {
+			out = value
+		}
+	}
+	return out
 }
 
 func validateListRequest(req ListRequest) error {
 	if req.UID == "" {
 		return ErrInvalidRequest
 	}
+	if req.CompletedCoverage < 0 {
+		return ErrInvalidRequest
+	}
 	if req.Limit < 0 || req.Limit > maxListLimit {
 		return ErrInvalidRequest
 	}
-	if req.Cursor != (Cursor{}) && (req.Cursor.ActiveAt <= 0 || req.Cursor.ChannelID == "" || req.Cursor.ChannelType == 0) {
+	if req.Cursor != (Cursor{}) && (req.Cursor.ActiveAt < 0 || req.Cursor.ChannelID == "" || req.Cursor.ChannelType == 0) {
 		return ErrInvalidRequest
 	}
 	return nil
+}
+
+func (c Cursor) toMembershipMeta() metadb.UserChannelMembershipCursor {
+	if c == (Cursor{}) {
+		return metadb.UserChannelMembershipCursor{}
+	}
+	return metadb.UserChannelMembershipCursor{ActivatedAt: c.ActiveAt, ChannelID: c.ChannelID, ChannelType: c.ChannelType}
+}
+
+func cursorFromMembershipMeta(cursor metadb.UserChannelMembershipCursor) Cursor {
+	return Cursor{ActiveAt: cursor.ActivatedAt, ChannelID: cursor.ChannelID, ChannelType: cursor.ChannelType}
 }
 
 func normalizeListLimit(limit int) int {
@@ -181,80 +312,4 @@ func normalizeListLimit(limit int) int {
 		return defaultListLimit
 	}
 	return limit
-}
-
-func (c Cursor) toMeta() metadb.ConversationActiveCursor {
-	if c == (Cursor{}) {
-		return metadb.ConversationActiveCursor{}
-	}
-	return metadb.ConversationActiveCursor{
-		ActiveAt:    c.ActiveAt,
-		ChannelID:   c.ChannelID,
-		ChannelType: c.ChannelType,
-	}
-}
-
-func cursorFromMeta(cursor metadb.ConversationActiveCursor) Cursor {
-	return Cursor{
-		ActiveAt:    cursor.ActiveAt,
-		ChannelID:   cursor.ChannelID,
-		ChannelType: cursor.ChannelType,
-	}
-}
-
-func cursorFromRow(row metadb.ConversationState) metadb.ConversationActiveCursor {
-	return metadb.ConversationActiveCursor{
-		ActiveAt:    row.ActiveAt,
-		ChannelID:   row.ChannelID,
-		ChannelType: row.ChannelType,
-	}
-}
-
-func lastVisibleMessageRequests(rows []metadb.ConversationState) []LastVisibleMessageRequest {
-	requests := make([]LastVisibleMessageRequest, 0, len(rows))
-	for _, row := range rows {
-		requests = append(requests, LastVisibleMessageRequest{
-			ChannelID:       row.ChannelID,
-			ChannelType:     row.ChannelType,
-			VisibleAfterSeq: row.DeletedToSeq,
-		})
-	}
-	return requests
-}
-
-func conversationsFromRows(rows []metadb.ConversationState, lastMessages map[metadb.ConversationKey]LastMessage) []Conversation {
-	items := make([]Conversation, 0, len(rows))
-	for _, row := range rows {
-		key := metadb.ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
-		var last *LastMessage
-		var unread uint64
-		if msg, ok := lastMessages[key]; ok {
-			msg.Payload = append([]byte(nil), msg.Payload...)
-			last = &msg
-			unread = unreadCount(row, msg.MessageSeq)
-		}
-		items = append(items, Conversation{
-			ChannelID:    row.ChannelID,
-			ChannelType:  row.ChannelType,
-			ActiveAt:     row.ActiveAt,
-			ReadSeq:      row.ReadSeq,
-			DeletedToSeq: row.DeletedToSeq,
-			SparseActive: row.SparseActive,
-			UpdatedAt:    row.UpdatedAt,
-			LastMessage:  last,
-			Unread:       unread,
-		})
-	}
-	return items
-}
-
-func unreadCount(row metadb.ConversationState, lastMessageSeq uint64) uint64 {
-	floor := row.ReadSeq
-	if row.DeletedToSeq > floor {
-		floor = row.DeletedToSeq
-	}
-	if lastMessageSeq <= floor {
-		return 0
-	}
-	return lastMessageSeq - floor
 }

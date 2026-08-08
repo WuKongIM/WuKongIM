@@ -148,7 +148,7 @@ rewrite_import_smoke_manifest() {
       meta/channels.jsonl \
       meta/subscribers.jsonl \
       meta/user_channel_memberships.jsonl \
-      meta/conversations.jsonl \
+      meta/user_cmd_channel_memberships.jsonl \
       meta/channel_latest.jsonl \
       message/channels.jsonl \
       message/messages-000001.jsonl
@@ -160,7 +160,7 @@ rewrite_import_smoke_manifest() {
         meta/channels.jsonl) kind="meta.channels" ;;
         meta/subscribers.jsonl) kind="meta.subscribers" ;;
         meta/user_channel_memberships.jsonl) kind="meta.user_channel_memberships" ;;
-        meta/conversations.jsonl) kind="meta.conversations" ;;
+        meta/user_cmd_channel_memberships.jsonl) kind="meta.user_cmd_channel_memberships" ;;
         meta/channel_latest.jsonl) kind="meta.channel_latest" ;;
         message/channels.jsonl) kind="message.channels" ;;
         message/messages-000001.jsonl) kind="message.messages" ;;

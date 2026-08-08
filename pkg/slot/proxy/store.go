@@ -12,19 +12,8 @@ import (
 // Store provides business-level distributed storage APIs
 // built on top of the cluster metadata proposal port.
 type Store struct {
-	cluster                       Cluster
-	db                            *metadb.DB
-	userConversationActiveOverlay UserConversationActiveOverlay
-}
-
-// UserConversationActiveOverlay exposes hot UID-owned active hints that have
-// not been durably folded into the slot state yet.
-type UserConversationActiveOverlay interface {
-	// ListHotUserConversationActive returns hot hints ordered by active_at.
-	// A negative limit requests the complete bounded hot set for the UID.
-	ListHotUserConversationActive(ctx context.Context, uid string, limit int) ([]metadb.UserConversationActiveHint, error)
-	SubmitHints(ctx context.Context, hints []metadb.UserConversationActiveHint) error
-	RemoveHints(ctx context.Context, barriers []metadb.UserConversationDeleteBarrier) error
+	cluster Cluster
+	db      *metadb.DB
 }
 
 // New creates a Store.
@@ -42,15 +31,10 @@ func NewChannelMetadataStore(cluster Cluster, db *metadb.DB) *Store {
 		{serviceID: runtimeMetaRPCServiceID, handler: store.handleRuntimeMetaRPC},
 		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
 		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
+		{serviceID: permissionBatchRPCServiceID, handler: store.handlePermissionBatchRPC},
+		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 	})
 	return store
-}
-
-func (s *Store) RegisterUserConversationActiveOverlay(overlay UserConversationActiveOverlay) {
-	if s == nil {
-		return
-	}
-	s.userConversationActiveOverlay = overlay
 }
 
 func (s *Store) HashSlotTableVersion() uint64 {

@@ -48,4 +48,7 @@ func TestTruncateDeletesRowsAndIndexes(t *testing.T) {
 	if len(page.Messages) != 0 {
 		t.Fatalf("client c-3 messages = %+v, want empty", page.Messages)
 	}
+	if _, ok, err := log.GetLastSenderMessageSeq(context.Background(), "u2", 3); err != nil || ok {
+		t.Fatalf("GetLastSenderMessageSeq(u2) = ok %v err %v, want missing", ok, err)
+	}
 }

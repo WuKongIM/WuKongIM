@@ -193,6 +193,7 @@ func (r *Reactor) afterSuccessfulLeaderAppendStored(rc *runtimeChannel, batchOpI
 	r.markAppendActivity(rc, now)
 	rc.lifecycle.version = rc.state.LEO
 	r.syncFollowerMatches(rc)
+	r.releaseRecentRecordsAcknowledgedByAllFollowers(rc)
 	for _, follower := range rc.lifecycle.followers {
 		if follower == nil || follower.match >= rc.state.LEO {
 			continue

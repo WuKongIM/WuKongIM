@@ -96,7 +96,9 @@ runtime_async_auth_workers = 16
 runtime_async_auth_queue_capacity = 8192
 runtime_async_pool_release_timeout = "100ms"
 default_session_async_send_batch_max_wait = "1ms"
-default_session_async_send_batch_max_records = 512
+# Maximum SEND frames coalesced into one asynchronous gateway dispatch batch.
+# The 128-record limit is qualified for sustained high-QPS workloads.
+default_session_async_send_batch_max_records = 128
 default_session_async_send_batch_max_bytes = 524288
 send_timeout = "5s"
 
@@ -113,19 +115,6 @@ touch_batch_size = 512
 # Must be positive and greater than or equal to touch_batch_size.
 touch_max_routes_per_flush = 65536
 route_ttl = "90s"
-
-[conversation]
-max_last_message_concurrency = 32
-authority_cache_max_rows_per_uid = 4096
-authority_cache_max_rows = 100000
-authority_list_db_window_max = 1000
-authority_handoff_timeout = "3s"
-authority_flush_interval = "1s"
-authority_flush_timeout = "5s"
-# Maximum dirty active rows persisted by one periodic, pressure-woken, or authority-handoff flush attempt.
-authority_flush_batch_rows = 512
-authority_admit_batch_rows = 512
-authority_admit_concurrency = 16
 
 [channel]
 large_group_subscriber_threshold = 500

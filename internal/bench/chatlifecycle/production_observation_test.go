@@ -262,7 +262,7 @@ func TestProductionObservationMakesRequiredProcessExitTerminal(t *testing.T) {
 	}
 }
 
-func TestProductionObservationAcceptsObserverPhaseAndRoundLatencyAtHourlyBoundary(t *testing.T) {
+func TestProductionObservationBoundsHourlyAlignmentByObserverRecoverySemantics(t *testing.T) {
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)
 	targets, disks := validProductionObservationFakes(cfg)
@@ -270,12 +270,34 @@ func TestProductionObservationAcceptsObserverPhaseAndRoundLatencyAtHourlyBoundar
 	if err := source.Begin(start); err != nil {
 		t.Fatal(err)
 	}
-	latestValid := start.Add(cfg.Observation.Cadence + observerMaxRoundTimeout)
+	latestValid := start.Add(cfg.Observation.Cadence + observerMaxRoundTimeout + cfg.Thresholds.Cluster.UnhealthyFailAfter)
 	if err := source.Observe(context.Background(), healthyProductionObserverSample(latestValid)); err != nil {
-		t.Fatalf("phase plus round-latency sample = %v", err)
+		t.Fatalf("phase plus round-latency and recoverable cluster gap sample = %v", err)
 	}
 	if snapshot := source.Snapshot(); snapshot.At != start || snapshot.Sequence != 1 || !snapshot.Resources[0].ForcedGC {
 		t.Fatalf("aligned delayed snapshot = %+v", snapshot)
+	}
+
+	lateTargets, lateDisks := validProductionObservationFakes(cfg)
+	lateSource := newProductionObservationFakeSource(t, cfg, lateTargets, lateDisks)
+	if err := lateSource.Begin(start); err != nil {
+		t.Fatal(err)
+	}
+	if err := lateSource.Observe(context.Background(), healthyProductionObserverSample(latestValid.Add(time.Nanosecond))); !errors.Is(err, errProductionObservation) {
+		t.Fatalf("sample beyond the observer recovery bound error = %v", err)
+	}
+	if snapshot := lateSource.Snapshot(); snapshot.Sequence != 0 {
+		t.Fatalf("late sample committed snapshot = %+v", snapshot)
+	}
+	for index := range lateTargets {
+		if lateTargets[index].forced != 0 || lateTargets[index].scraped != 0 {
+			t.Fatalf("late node %d performed force/metrics I/O", index)
+		}
+	}
+	for index := range lateDisks {
+		if lateDisks[index].reads != 0 {
+			t.Fatalf("late host %d performed disk I/O", index)
+		}
 	}
 }
 

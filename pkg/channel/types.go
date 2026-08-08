@@ -226,6 +226,9 @@ type AppendBatchRequest struct {
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
 	OmitResultPayload    bool
+	// ServerAllocatedMessageIDs proves all message IDs came from a node-scoped globally unique allocator.
+	// Stores may skip only the existing-message-ID lookup when this is true.
+	ServerAllocatedMessageIDs bool
 }
 
 // AppendBatchResult aligns per-message append results with the request order.

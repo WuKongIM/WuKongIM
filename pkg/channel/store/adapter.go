@@ -59,6 +59,12 @@ type IdempotencyLookup interface {
 	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
 }
 
+// SenderSequenceLookup finds the latest sequence sent by one user through an
+// explicit committed boundary.
+type SenderSequenceLookup interface {
+	GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error)
+}
+
 // IdempotencyHit is the durable message selected by an idempotency key.
 type IdempotencyHit struct {
 	// Message is the durable committed row selected by the sender/client key.
@@ -114,6 +120,8 @@ type RetentionTrimResult struct {
 type AppendLeaderRequest struct {
 	Records []ch.Record
 	Sync    bool
+	// ServerAllocatedMessageIDs permits skipping only existing message-ID lookups.
+	ServerAllocatedMessageIDs bool
 }
 
 // AppendLeaderBatchItem is one channel-scoped leader append inside a store-level batch.

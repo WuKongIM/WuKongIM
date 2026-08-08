@@ -368,7 +368,6 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	appender.err = fmt.Errorf("%w: channel: corrupt state: db: conflict: idempotency key already stored at seq 7", ErrAppendFailed)
 	idempotency := &sequencedIdempotencyForAppendTest{
 		results: []idempotencyResultForAppendTest{
-			{},
 			{result: SendResult{MessageID: 42, MessageSeq: 7, Reason: ReasonSuccess}, ok: true},
 		},
 	}
@@ -392,10 +391,10 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	if got := appender.Calls(); got != 1 {
 		t.Fatalf("append calls = %d, want one failed append before idempotency recovery", got)
 	}
-	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 2 {
-		t.Fatalf("idempotency queries = %d, want prepare miss plus post-append recovery hit", len(gotQueries))
-	} else if gotQueries[1] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
-		t.Fatalf("recovery query = %#v, want canonical sender/client/channel", gotQueries[1])
+	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
+		t.Fatalf("idempotency queries = %d, want only post-append recovery hit", len(gotQueries))
+	} else if gotQueries[0] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
+		t.Fatalf("recovery query = %#v, want canonical sender/client/channel", gotQueries[0])
 	}
 }
 

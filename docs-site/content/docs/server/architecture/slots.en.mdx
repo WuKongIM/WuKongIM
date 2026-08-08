@@ -3,7 +3,7 @@ title: Slot Metadata Layer
 description: Understand physical hash slots, logical Slot Raft Groups, metadata routing, and authoritative reads and writes.
 ---
 
-The Slot layer is the distributed metadata store. Users, channel definitions, subscriptions, conversation projections, and `ChannelRuntimeMeta` are partitioned by stable physical hash slot and replicated through logical Slot Raft Groups.
+The Slot layer is the distributed metadata store. Users, channel definitions, subscriptions, UID-owned ordinary/CMD memberships, and `ChannelRuntimeMeta` are partitioned by stable physical hash slot and replicated through logical Slot Raft Groups.
 
 ## Do not mix the two Slot concepts
 
@@ -38,7 +38,7 @@ The route table is an immutable snapshot replaced atomically, so hot paths can r
 
 - users, devices, and system UIDs;
 - channel definitions, subscribers, allowlists, denylists, and membership;
-- conversation state, unread/read cursors, and active projections;
+- ordinary membership join/hide/badge/activation state and separate CMD bindings;
 - Channel Leader, Replicas, ISR, epochs, write fences, and retention boundary;
 - Channel migration tasks, plugin bindings, and bounded message-event projections.
 

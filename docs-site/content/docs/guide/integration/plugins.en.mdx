@@ -36,7 +36,7 @@ When Manager updates configuration, an existing secret represented by `SecretHid
 | Hook | Timing | Failure semantics |
 | --- | --- | --- |
 | Send | After permission succeeds, before Channel append admission | Synchronous; fail-closed by default with explicit fail-open option; may mutate payload or reject |
-| Receive | After durable commit for an offline UID batch | Independent recipient failure does not change SENDACK, online delivery, or conversation projection |
+| Receive | After durable commit for an offline UID batch | Independent recipient failure does not change SENDACK, online delivery, or membership state |
 | PersistAfter | After durable commit | Failure reaches worker logs/metrics only and never rolls back the message |
 
 Candidate plugins are ordered by priority descending and plugin number ascending. A Send response may replace only the payload, not sender, Channel, Session, or routing fields. A plugin-origin send still enters the message usecase, permission checks, recursion guard, and Channel authority.

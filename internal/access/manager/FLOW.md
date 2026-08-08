@@ -81,7 +81,7 @@ GET  /manager/diagnostics/events (diagnostics event query, including optional ex
 GET  /manager/diagnostics/tracking-rules (diagnostics tracking rule list; requires cluster.diagnostics:r when Auth.On=true)
 POST /manager/diagnostics/tracking-rules (create diagnostics tracking rule on all eligible nodes by default, or one exact optional node_id; requires cluster.diagnostics:w when Auth.On=true)
 DELETE /manager/diagnostics/tracking-rules/:rule_id (delete diagnostics tracking rule; requires cluster.diagnostics:w when Auth.On=true)
-GET  /manager/channel-runtime-meta (read-only channel runtime metadata list; requires cluster.channel:r when Auth.On=true)
+GET  /manager/channel-runtime-meta (read-only channel runtime metadata list or exact point read; requires cluster.channel:r when Auth.On=true)
 POST /manager/channel-migrations/leader-transfer (manual Channel leader-transfer task creation; requires cluster.channel:w when Auth.On=true)
 POST /manager/channel-migrations/replica-replace (manual Channel replica-replacement task creation; requires cluster.channel:w when Auth.On=true)
 GET  /manager/channel-migrations/active (active Channel migration task list scoped by channel_id/channel_type; requires cluster.channel:r when Auth.On=true)
@@ -339,8 +339,9 @@ of rendering empty charts. This route does not read from the top collector or
 any in-process dashboard ring buffer. PromQL is scoped to the app-managed
 `wukongim` Prometheus job so unrelated Prometheus jobs cannot be mixed into the
 realtime cards. Conversation cards include a `conversationSync` stage
-covering the `/conversation/sync` client experience, active-cache dirty age,
-active flush health, and conversation authority pressure. Gateway cards cover
+covering membership-directory request rate, latency, errors, scanned and
+returned candidates, deletes, unresolved rows, and Channel-Leader hydration
+latency and read amplification. Gateway cards cover
 client ingress, active connections, async SEND queue usage, connection churn,
 close-reason distribution, auth success/latency, SENDACK error rate, gateway
 traffic, frame handling latency, async SEND batch shape, async auth pressure,
@@ -507,7 +508,9 @@ query parameters. It exposes read-only runtime metadata and augments rows with
 the physical `slot_leader`, control-plane `preferred_leader`, Channel
 write-fence, degraded, and active migration hints. The existing `leader` field
 continues to mean Channel data leader. Channel detail, repair, and generic
-mutation operation routes remain unmigrated in internal.
+mutation operation routes remain unmigrated in internal. `exact=1` requires an
+exact `channel_id` and `channel_type` and delegates to the point-read usecase;
+it does not enumerate unrelated physical Slots.
 
 `/manager/channel-migrations/*` exposes the narrow manual Channel migration
 surface. HTTP parses operator intent, requires positive node IDs where
@@ -521,7 +524,8 @@ global task index.
 `/manager/conversations` preserves the legacy recent conversation manager
 response shape for the web recent-conversation list view, including `uid`,
 `limit`, `msg_count`, and `only_unread` query parameters. It reuses the
-internal conversation sync usecase and remains a read-only display route.
+membership-backed conversation construction usecase and remains a read-only
+display route.
 Embedded `recent_messages[].message_id` values are decimal strings so browser
 clients preserve the complete unsigned 64-bit identifier.
 

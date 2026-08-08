@@ -180,7 +180,17 @@ func (s *ProductionObservationSource) Observe(ctx context.Context, sample Observ
 	forcedGC := !sample.At.Before(nextGC)
 	observationAt := sample.At
 	if forcedGC {
-		alignmentTolerance := s.cfg.Observation.Cadence + min(s.cfg.Observation.Cadence, observerMaxRoundTimeout)
+		alignmentTolerance, ok := checkedAddPositiveDuration(
+			s.cfg.Observation.Cadence,
+			min(s.cfg.Observation.Cadence, observerMaxRoundTimeout),
+		)
+		if !ok {
+			return errProductionObservation
+		}
+		alignmentTolerance, ok = checkedAddPositiveDuration(alignmentTolerance, s.cfg.Thresholds.Cluster.UnhealthyFailAfter)
+		if !ok {
+			return errProductionObservation
+		}
 		if sample.At.Sub(nextGC) > alignmentTolerance || !sample.At.Before(nextGC.Add(time.Hour)) {
 			return errProductionObservation
 		}

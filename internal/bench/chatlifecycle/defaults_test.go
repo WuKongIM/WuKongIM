@@ -40,7 +40,7 @@ func TestLocalConfigValid(t *testing.T) {
 	if cfg.Workload.RuntimeSampling != (RuntimeSamplingConfig{Every: time.Minute, Size: 12}) {
 		t.Fatalf("runtime sampling = %+v", cfg.Workload.RuntimeSampling)
 	}
-	if cfg.Workload.Sync != (SyncConfig{Version: 0, Limit: 500, MessageCount: 20}) {
+	if cfg.Workload.Sync != (SyncConfig{CompletedCoverage: 0, MaxConversations: 500}) {
 		t.Fatalf("sync = %+v", cfg.Workload.Sync)
 	}
 	if cfg.Workload.BurstCredit != 2*time.Second || cfg.Workload.MaxGlobalBurst != 200 || cfg.Workload.MaxChannelsPerNode != 5_000 {
@@ -125,7 +125,7 @@ func TestFormalConfigDefaults(t *testing.T) {
 	if cfg.Workload.RuntimeSampling.Every != 10*time.Minute || cfg.Workload.RuntimeSampling.Size != 1_200 {
 		t.Fatalf("runtime sampling = %+v", cfg.Workload.RuntimeSampling)
 	}
-	if cfg.Workload.Sync != (SyncConfig{Version: 0, Limit: 500, MessageCount: 20}) {
+	if cfg.Workload.Sync != (SyncConfig{CompletedCoverage: 0, MaxConversations: 500}) {
 		t.Fatalf("sync = %+v", cfg.Workload.Sync)
 	}
 	if cfg.Workload.BurstCredit != 2*time.Second || cfg.Workload.MaxGlobalBurst != 4_000 || cfg.Workload.MaxChannelsPerNode != 50_000 {

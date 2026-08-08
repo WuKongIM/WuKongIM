@@ -77,14 +77,3 @@ func TestMessageIDIndexValueDirectCodecMatchesEncoder(t *testing.T) {
 		t.Fatalf("direct message ID index value = %x, want %x", value, want)
 	}
 }
-
-func TestLatestMessageIndexProgressCodecRoundTrips(t *testing.T) {
-	want := latestMessageIndexProgress{afterChannel: "channel-a", currentChannel: "channel-b", lastMessageID: 401}
-	got, err := decodeLatestMessageIndexProgress(encodeLatestMessageIndexProgress(want))
-	if err != nil {
-		t.Fatalf("decodeLatestMessageIndexProgress(): %v", err)
-	}
-	if got != want {
-		t.Fatalf("progress = %#v, want %#v", got, want)
-	}
-}

@@ -256,9 +256,8 @@ func TestLocalProfilePreservesTopologyAndRealSync(t *testing.T) {
 		want   string
 	}{
 		{"topology", func(c *Config) { c.Workload.Topology.HashSlots = 255 }, "workload.topology"},
-		{"sync version", func(c *Config) { c.Workload.Sync.Version = 1 }, "workload.sync.version"},
-		{"sync limit", func(c *Config) { c.Workload.Sync.Limit = 499 }, "workload.sync.limit"},
-		{"sync message count", func(c *Config) { c.Workload.Sync.MessageCount = 19 }, "workload.sync.message_count"},
+		{"sync completed coverage", func(c *Config) { c.Workload.Sync.CompletedCoverage = 1 }, "workload.sync.completed_coverage"},
+		{"sync maximum", func(c *Config) { c.Workload.Sync.MaxConversations = 499 }, "workload.sync.max_conversations"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

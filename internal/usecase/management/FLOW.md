@@ -668,17 +668,15 @@ it aborted and clear the task-owned fence.
 ```text
 manager HTTP handler
   -> management.App.ListRecentConversations
-  -> conversation.App.Sync
-  -> UID conversation active view
-  -> channel latest/recent message reads
+  -> conversation.App.List(limit + 1 membership candidates)
+  -> UID membership directory plus Channel-Leader head hydration
   -> bounded manager recent conversation DTO rows
 ```
 
-The recent conversation projection keeps legacy manager query bounds and
-truncation behavior in the management usecase while delegating ordering,
-unread calculation, and recent-message hydration to the internal conversation
-sync usecase. Embedded message timestamps are converted back to Unix seconds so
-the manager JSON shape remains compatible with the existing web page.
+The manager keeps its existing bounds, optional unread filter, truncation flag,
+and JSON shape while delegating activation ordering and badge calculation to
+the membership-backed conversation usecase. It embeds at most the hydrated
+last message and converts its timestamp back to Unix seconds.
 
 ## Message Management Flow
 

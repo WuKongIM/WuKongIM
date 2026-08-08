@@ -291,7 +291,7 @@ type defaultChannelRuntimeMetaStore struct {
 	observer channels.AppendStageObserver
 }
 
-// CreateChannelRuntimeMeta submits command 52 and decodes its authoritative apply result.
+// CreateChannelRuntimeMeta submits command 59 and decodes its authoritative apply result.
 func (s defaultChannelRuntimeMetaStore) CreateChannelRuntimeMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (channels.RuntimeMetaCreateResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channels.RuntimeMetaCreateResult{}, err

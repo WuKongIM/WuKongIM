@@ -3,7 +3,7 @@ title: Slot 元数据层
 description: 理解物理哈希槽、逻辑 Slot Raft Group、元数据路由和权威读写。
 ---
 
-Slot 层是分布式元数据存储。用户、频道定义、订阅关系、会话投影和 `ChannelRuntimeMeta` 等状态按稳定物理哈希槽分片，再由逻辑 Slot Raft Group 复制和提交。
+Slot 层是分布式元数据存储。用户、频道定义、订阅关系、UID-owned 普通/CMD membership 和 `ChannelRuntimeMeta` 等状态按稳定物理哈希槽分片，再由逻辑 Slot Raft Group 复制和提交。
 
 ## 两种 Slot 不要混用
 
@@ -38,7 +38,7 @@ LeaderNodeID + LeaderTerm + ConfigEpoch + RouteRevision
 
 - 用户、设备和系统 UID；
 - 频道定义、订阅者、黑白名单与成员关系；
-- 会话状态、未读/已读 cursor 和 active projection；
+- 普通 membership 的 join/hide/badge/activation 状态与独立 CMD binding；
 - Channel Leader、Replicas、ISR、epoch、写 fence 与 retention 边界；
 - Channel migration task、插件绑定和有界消息事件投影。
 

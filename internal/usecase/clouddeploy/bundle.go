@@ -258,7 +258,7 @@ func validateFiles(directory Directory, intent Intent, files []FileRecord) error
 func validFormalWorkload(content string) bool {
 	required := []string{
 		"profile: formal", "mode: soak", "stage: formal", "workers: 3", "logical_slot_groups: 12", "hash_slots: 256",
-		"slot_replicas: 3", "channel_replicas: 3", "version: 0",
+		"slot_replicas: 3", "channel_replicas: 3", "completed_coverage: 0", "max_conversations: 500",
 		"minimum_data_filesystem_bytes: 500000000000",
 	}
 	for _, fragment := range required {

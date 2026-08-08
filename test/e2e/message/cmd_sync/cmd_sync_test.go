@@ -73,6 +73,8 @@ func TestWukongIMUnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
 	suite.RequireConversationEventually(t, *node, bobUID, channelID, func(item suite.ConversationListItem) error {
 		return checkOrdinaryConversation(item, ordinaryMsgNo, ordinaryPayload)
 	})
+	requireCMDBind(t, *node, bobUID, channelID, frame.ChannelTypeGroup)
+	cmdMembershipRowsBefore := requireCMDMembershipMutationRows(t, ctx, *node)
 
 	cmdSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      aliceUID,
@@ -106,16 +108,23 @@ func TestWukongIMUnifiedConversationProjectionIsolatesCMDSync(t *testing.T) {
 	item, ok := suite.FindConversation(page, channelID)
 	require.True(t, ok, "ordinary conversation missing after cmd sync: %#v\n%s", page.Conversations, node.DumpDiagnostics())
 	require.NoError(t, checkOrdinaryConversation(item, ordinaryMsgNo, ordinaryPayload), node.DumpDiagnostics())
+	require.Equal(t, cmdMembershipRowsBefore, requireCMDMembershipMutationRows(t, ctx, *node),
+		"CMD SEND changed actual CMD membership proposal rows")
 
 	requireMessageSyncAck(t, *node, bobUID, cmdMessages[len(cmdMessages)-1].MessageSeq)
 	requireMessageSyncEmptyEventually(t, *node, bobUID, 10*time.Second)
 	requireMessageSyncEmptyFor(t, *node, bobUID, 500*time.Millisecond)
 }
 
+func requireCMDMembershipMutationRows(t *testing.T, ctx context.Context, node suite.StartedNode) float64 {
+	t.Helper()
+	samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+	require.NoError(t, err, node.DumpDiagnostics())
+	return suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", map[string]string{"directory": "cmd"})
+}
+
 func TestWukongIMCMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {
-	node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{
-		"WK_CONVERSATION_AUTHORITY_FLUSH_INTERVAL": "1h",
-	}))
+	node := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{}))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -133,6 +142,7 @@ func TestWukongIMCMDSyncProjectionSurvivesRestartBeforeSync(t *testing.T) {
 		"reset":        1,
 		"subscribers":  []string{aliceUID, bobUID},
 	}), node.DumpDiagnostics())
+	requireCMDBind(t, *node, bobUID, channelID, frame.ChannelTypeGroup)
 
 	cmdSend, err := suite.PostMessageSend(ctx, node.APIAddr(), map[string]any{
 		"from_uid":      aliceUID,
@@ -252,6 +262,16 @@ func requireMessageSyncAck(t *testing.T, node suite.StartedNode, uid string, las
 	require.NoError(t, err, node.DumpDiagnostics())
 }
 
+func requireCMDBind(t *testing.T, node suite.StartedNode, uid, channelID string, channelType uint8) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/message/cmd/bind", map[string]any{
+		"uid": uid, "channel_id": channelID, "channel_type": channelType,
+	}, nil)
+	require.NoError(t, err, node.DumpDiagnostics())
+}
+
 func requireMessageSyncEmptyEventually(t *testing.T, node suite.StartedNode, uid string, timeout time.Duration) {
 	t.Helper()
 
@@ -305,9 +325,6 @@ func containsClientMsgNo(messages []legacyCMDMessage, clientMsgNo string) bool {
 }
 
 func checkOrdinaryConversation(item suite.ConversationListItem, clientMsgNo, payload string) error {
-	if item.SparseActive {
-		return fmt.Errorf("sparse_active = true, want ordinary conversation row")
-	}
 	if item.LastMessage == nil {
 		return fmt.Errorf("last_message is nil")
 	}

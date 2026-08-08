@@ -53,11 +53,11 @@ func TestReadJSONLRejectsMissingRequiredField(t *testing.T) {
 	}
 }
 
-func TestReadJSONLRejectsUnknownConversationKind(t *testing.T) {
-	input := strings.NewReader("{\"hash_slot\":1,\"uid\":\"u1\",\"kind\":\"other\",\"channel_id\":\"g1\",\"channel_type\":2}\n")
-	err := readJSONL(context.Background(), input, FileKindMetaConversations, func(any) error { return nil })
-	if err == nil || !strings.Contains(err.Error(), "kind") {
-		t.Fatalf("readJSONL() error = %v, want kind error", err)
+func TestReadJSONLRejectsMissingCommandChannelID(t *testing.T) {
+	input := strings.NewReader("{\"hash_slot\":1,\"uid\":\"u1\",\"channel_type\":2}\n")
+	err := readJSONL(context.Background(), input, FileKindMetaUserCMDChannelMemberships, func(any) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), "command_channel_id") {
+		t.Fatalf("readJSONL() error = %v, want command_channel_id error", err)
 	}
 }
 

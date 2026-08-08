@@ -98,9 +98,9 @@ func (v *bundleValidator) Visit(kind FileKind, record any) error {
 	case FileKindMetaUserChannelMemberships:
 		row := record.(UserChannelMembershipRecord)
 		return v.validateHashSlot("user_channel_memberships", row.UID, row.HashSlot)
-	case FileKindMetaConversations:
-		row := record.(ConversationRecord)
-		return v.validateHashSlot("conversations", row.UID, row.HashSlot)
+	case FileKindMetaUserCMDChannelMemberships:
+		row := record.(UserCMDChannelMembershipRecord)
+		return v.validateHashSlot("user_cmd_channel_memberships", row.UID, row.HashSlot)
 	case FileKindMetaChannelLatest:
 		row := record.(ChannelLatestRecord)
 		return v.validateHashSlot("channel_latest", row.ChannelID, row.HashSlot)

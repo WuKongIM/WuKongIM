@@ -57,29 +57,6 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *removeSubscribersCmd:
 		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
-	case *upsertConversationStatesCmd:
-		return simpleInspection("upsert_conversation_states", map[string]any{
-			"states": conversationStatesPayload(typed.states()),
-		}), nil
-	case *touchConversationActiveAtCmd:
-		return simpleInspection("touch_conversation_active_at", map[string]any{
-			"patches": conversationActivePatchesPayload(typed.patches()),
-		}), nil
-	case *clearConversationActiveAtCmd:
-		return simpleInspection("clear_conversation_active_at", map[string]any{
-			"kind": uint8(typed.kind),
-			"uid":  typed.uid,
-			"keys": conversationKeysPayload(typed.keys),
-		}), nil
-	case *reservedConversationProjectionCmd:
-		return simpleInspection("reserved_conversation_projection", map[string]any{
-			"deprecated": true,
-			"reserved":   true,
-		}), nil
-	case *hideConversationsCmd:
-		return simpleInspection("hide_conversations", map[string]any{
-			"deletes": conversationDeletesPayload(typed.deletes()),
-		}), nil
 	case *appendMessageEventCmd:
 		return simpleInspection("append_message_event", messageEventAppendPayload(typed.event)), nil
 	case *appendMessageEventsBatchCmd:
@@ -269,59 +246,6 @@ func applyDeltaInspection(cmd *applyDeltaCmd) (CommandInspection, error) {
 	}), nil
 }
 
-func conversationStatesPayload(states []metadb.ConversationState) []map[string]any {
-	out := make([]map[string]any, 0, len(states))
-	for _, state := range states {
-		out = append(out, map[string]any{
-			"uid":            state.UID,
-			"kind":           uint8(state.Kind),
-			"channel_id":     state.ChannelID,
-			"channel_type":   state.ChannelType,
-			"read_seq":       state.ReadSeq,
-			"deleted_to_seq": state.DeletedToSeq,
-			"active_at":      state.ActiveAt,
-			"updated_at":     state.UpdatedAt,
-			"sparse_active":  state.SparseActive,
-		})
-	}
-	return out
-}
-
-func conversationActivePatchesPayload(patches []metadb.ConversationActivePatch) []map[string]any {
-	out := make([]map[string]any, 0, len(patches))
-	for _, patch := range patches {
-		out = append(out, map[string]any{
-			"uid":               patch.UID,
-			"kind":              uint8(patch.Kind),
-			"channel_id":        patch.ChannelID,
-			"channel_type":      patch.ChannelType,
-			"read_seq":          patch.ReadSeq,
-			"deleted_to_seq":    patch.DeletedToSeq,
-			"active_at":         patch.ActiveAt,
-			"updated_at":        patch.UpdatedAt,
-			"message_seq":       patch.MessageSeq,
-			"sparse_active":     patch.SparseActive,
-			"sparse_active_set": patch.SparseActiveSet,
-		})
-	}
-	return out
-}
-
-func conversationDeletesPayload(deletes []metadb.ConversationDelete) []map[string]any {
-	out := make([]map[string]any, 0, len(deletes))
-	for _, req := range deletes {
-		out = append(out, map[string]any{
-			"uid":            req.UID,
-			"kind":           uint8(req.Kind),
-			"channel_id":     req.ChannelID,
-			"channel_type":   req.ChannelType,
-			"deleted_to_seq": req.DeletedToSeq,
-			"updated_at":     req.UpdatedAt,
-		})
-	}
-	return out
-}
-
 func messageEventAppendBatchPayload(events []metadb.MessageEventAppend) []map[string]any {
 	out := make([]map[string]any, 0, len(events))
 	for _, event := range events {
@@ -345,7 +269,7 @@ func messageEventAppendPayload(event metadb.MessageEventAppend) map[string]any {
 	}
 }
 
-func conversationKeysPayload(keys []metadb.ConversationKey) []map[string]any {
+func conversationKeysPayload(keys []metadb.ChannelKey) []map[string]any {
 	out := make([]map[string]any, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, map[string]any{

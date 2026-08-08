@@ -1614,7 +1614,7 @@
     "/conversations/clearUnread": {
       "post": {
         "summary": "Clear Conversation Unread",
-        "description": "Clear unread count for a conversation",
+        "description": "Advance the membership badge baseline to the latest committed ordinary message",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
@@ -1643,7 +1643,7 @@
     "/conversations/setUnread": {
       "post": {
         "summary": "Set Conversation Unread",
-        "description": "Set unread count for a conversation",
+        "description": "Monotonically advance the membership badge baseline so unread is capped at the requested count",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
@@ -1672,7 +1672,7 @@
     "/conversations/delete": {
       "post": {
         "summary": "Delete Conversation",
-        "description": "Delete a conversation",
+        "description": "Hide currently visible history while preserving channel membership",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
@@ -1698,31 +1698,28 @@
         }
       }
     },
-    "/conversation/sync": {
+    "/conversation/list": {
       "post": {
-        "summary": "Sync User Conversation",
-        "description": "Synchronize user conversations",
+        "summary": "List Membership-Backed Conversations",
+        "description": "Scan one bounded membership directory page and construct transient conversations",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConversationSyncRequest"
+                "$ref": "#/components/schemas/ConversationListRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Conversations synchronized",
+            "description": "Membership candidates scanned and conversations constructed",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ConversationResponse"
-                  }
+                  "$ref": "#/components/schemas/ConversationListResponse"
                 }
               }
             }
@@ -1730,31 +1727,28 @@
         }
       }
     },
-    "/conversation/syncMessages": {
+    "/conversation/retry": {
       "post": {
-        "summary": "Sync Recent Messages",
-        "description": "Synchronize recent messages for conversations",
+        "summary": "Retry Conversation Hydration",
+        "description": "Retry a bounded set of unresolved membership-backed conversations",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SyncRecentMessagesRequest"
+                "$ref": "#/components/schemas/ConversationRetryRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Recent messages synchronized successfully",
+            "description": "Conversation hydration retry result",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChannelRecentMessagesResponse"
-                  }
+                  "$ref": "#/components/schemas/ConversationListResponse"
                 }
               }
             }
@@ -1762,31 +1756,28 @@
         }
       }
     },
-    "/conversation/channels": {
+    "/conversations/activate": {
       "post": {
-        "summary": "Get Conversation Channels",
-        "description": "Get channel collection for recent conversations",
+        "summary": "Activate Conversation",
+        "description": "Prioritize a valid membership in future directory pages",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConversationChannelsRequest"
+                "$ref": "#/components/schemas/DeleteConversationRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Conversation channels retrieved successfully",
+            "description": "Conversation activated successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ChannelResponse"
-                  }
+                  "$ref": "#/components/schemas/SuccessResponse"
                 }
               }
             }
@@ -1794,40 +1785,6 @@
         }
       }
     },
-    "/conversation/syncByChannels": {
-      "post": {
-        "summary": "Sync Conversations By Channels",
-        "description": "Synchronize conversation data by specified channel collection",
-        "tags": ["Conversation"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SyncConversationByChannelsRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Conversations synchronized successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ConversationResponse"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-
-
     "/connz": {
       "get": {
         "summary": "Get Connection Information",
@@ -3529,16 +3486,10 @@
             "type": "integer",
             "format": "int8",
             "example": 2
-          },
-          "message_seq": {
-            "type": "integer",
-            "format": "int32",
-            "example": 1001,
-            "description": "Message sequence number (required for large groups)"
           }
         }
       },
-      "ConversationSyncRequest": {
+      "ConversationListRequest": {
         "type": "object",
         "required": ["uid"],
         "properties": {
@@ -3547,43 +3498,43 @@
             "description": "User ID",
             "example": "user123"
           },
-          "version": {
-            "type": "integer",
-            "format": "int64",
-            "example": 1640995200000000000,
-            "description": "Version timestamp for incremental sync"
-          },
-          "last_msg_seqs": {
+          "cursor": {
             "type": "string",
-            "description": "Client's last message sequences for all conversations. Format: channelID:channelType:last_msg_seq|channelID:channelType:last_msg_seq",
-            "example": "user1:1:100|group1:2:200"
+            "description": "Opaque membership directory cursor"
           },
-          "msg_count": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Maximum membership candidates scanned"
+          },
+          "completed_coverage": {
             "type": "integer",
             "format": "int64",
-            "example": 10,
-            "description": "Number of recent messages to include per conversation"
-          },
-          "only_unread": {
-            "type": "integer",
-            "format": "uint8",
-            "description": "Only return unread conversations (1=only unread, 0=all)",
-            "enum": [0, 1],
-            "default": 0
-          },
-          "exclude_channel_types": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "uint8"
-            },
-            "description": "Array of channel types to exclude from results",
-            "example": [3, 4]
+            "description": "Coverage timestamp from the client's last completed directory pass"
           }
         }
       },
-      "ConversationResponse": {
+      "ConversationRetryRequest": {
         "type": "object",
+        "required": ["uid", "channels"],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "example": "user123"
+          },
+          "channels": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ConversationListKey"
+            }
+          }
+        }
+      },
+      "ConversationListKey": {
+        "type": "object",
+        "required": ["channel_id", "channel_type"],
         "properties": {
           "channel_id": {
             "type": "string",
@@ -3593,41 +3544,85 @@
             "type": "integer",
             "format": "int8",
             "example": 2
-          },
-          "unread": {
-            "type": "integer",
-            "example": 5
-          },
-          "timestamp": {
+          }
+        }
+      },
+      "ConversationLastMessage": {
+        "type": "object",
+        "properties": {
+          "message_id": {
             "type": "integer",
             "format": "int64",
-            "example": 1640995200
-          },
-          "last_msg_seq": {
-            "type": "integer",
-            "format": "int32",
             "example": 1001
           },
-          "last_client_msg_no": {
+          "message_idstr": {
             "type": "string",
-            "example": "client_msg_123"
+            "example": "1001"
           },
-          "readed_to_msg_seq": {
+          "message_seq": {
             "type": "integer",
-            "format": "int32",
-            "example": 996
+            "format": "int64"
           },
-          "version": {
+          "from_uid": {
+            "type": "string",
+            "example": "user123"
+          },
+          "client_msg_no": {
+            "type": "string"
+          },
+          "server_timestamp_ms": {
             "type": "integer",
-            "format": "int64",
-            "example": 1640995200000000000
+            "format": "int64"
           },
-          "recents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MessageResponse"
+          "payload": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "ConversationListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ConversationListKey"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "active_at": {"type": "integer", "format": "int64"},
+              "read_seq": {"type": "integer", "format": "int64"},
+              "deleted_to_seq": {"type": "integer", "format": "int64"},
+              "unread": {"type": "integer", "format": "int64"},
+              "last_message": {
+                "nullable": true,
+                "allOf": [
+                  {"$ref": "#/components/schemas/ConversationLastMessage"}
+                ]
+              }
             }
           }
+        ]
+      },
+      "ConversationListResponse": {
+        "type": "object",
+        "required": ["conversations", "deletes", "unresolved", "done", "coverage", "tombstones_retained_since", "reset_required"],
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/ConversationListItem"}
+          },
+          "deletes": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/ConversationListKey"}
+          },
+          "unresolved": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/ConversationListKey"}
+          },
+          "next_cursor": {"type": "string"},
+          "done": {"type": "boolean"},
+          "coverage": {"type": "integer", "format": "int64"},
+          "tombstones_retained_since": {"type": "integer", "format": "int64"},
+          "reset_required": {"type": "boolean"}
         }
       },
 
@@ -4154,7 +4149,7 @@
           },
           "unread": {
             "type": "integer",
-            "description": "Unread count to set",
+            "description": "Maximum unread count; the stored read_seq never moves backward",
             "example": 5
           }
         }
@@ -4177,120 +4172,6 @@
             "type": "integer",
             "description": "Channel type (1=person, 2=group)",
             "enum": [1, 2]
-          }
-        }
-      },
-      "SyncRecentMessagesRequest": {
-        "type": "object",
-        "required": ["uid", "channels"],
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "User ID",
-            "example": "user123"
-          },
-          "channels": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ChannelRecentMessageRequest"
-            },
-            "description": "List of channels to sync messages for"
-          },
-          "msg_count": {
-            "type": "integer",
-            "description": "Number of messages to retrieve per channel",
-            "example": 15,
-            "default": 15
-          },
-          "order_by_last": {
-            "type": "integer",
-            "description": "Whether to order by last message (1=yes, 0=no)",
-            "enum": [0, 1],
-            "default": 0
-          }
-        }
-      },
-      "ChannelRecentMessageRequest": {
-        "type": "object",
-        "required": ["channel_id", "channel_type"],
-        "properties": {
-          "channel_id": {
-            "type": "string",
-            "description": "Channel ID",
-            "example": "channel456"
-          },
-          "channel_type": {
-            "type": "integer",
-            "description": "Channel type (1=person, 2=group)",
-            "enum": [1, 2]
-          }
-        }
-      },
-      "ChannelRecentMessagesResponse": {
-        "type": "object",
-        "properties": {
-          "channel_id": {
-            "type": "string",
-            "description": "Channel ID",
-            "example": "channel456"
-          },
-          "channel_type": {
-            "type": "integer",
-            "description": "Channel type",
-            "example": 2
-          },
-          "messages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MessageResponse"
-            }
-          }
-        }
-      },
-      "ConversationChannelsRequest": {
-        "type": "object",
-        "required": ["uid"],
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "User ID",
-            "example": "user123"
-          }
-        }
-      },
-      "SyncConversationByChannelsRequest": {
-        "type": "object",
-        "required": ["uid", "channels"],
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "User ID",
-            "example": "user123"
-          },
-          "channels": {
-            "type": "array",
-            "description": "Channel collection to sync",
-            "items": {
-              "type": "object",
-              "properties": {
-                "channel_id": {
-                  "type": "string",
-                  "description": "Channel ID",
-                  "example": "user456"
-                },
-                "channel_type": {
-                  "type": "integer",
-                  "format": "int8",
-                  "description": "Channel type (1: person, 2: group)",
-                  "example": 1
-                }
-              }
-            }
-          },
-          "msg_count": {
-            "type": "integer",
-            "description": "Number of recent messages to return per conversation",
-            "example": 15
           }
         }
       },

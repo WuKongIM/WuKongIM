@@ -6,7 +6,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/authority"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 )
 
 const (
@@ -73,13 +72,13 @@ type AppendObserver interface {
 	AppendFinished(path string, err error, dur time.Duration)
 }
 
-// RouterObservation describes one routed foreground SEND group.
+// RouterObservation describes one routed foreground SEND group or whole batch.
 type RouterObservation struct {
-	// Path is local, remote, or pre_route.
+	// Path is local, remote, pre_route, or batch.
 	Path string
 	// Result is a low-cardinality result or error class.
 	Result string
-	// Items is the number of items in the observed group.
+	// Items is the number of items in the observed group or batch.
 	Items int
 	// Duration is the foreground routing and submit duration.
 	Duration time.Duration
@@ -88,8 +87,23 @@ type RouterObservation struct {
 // RouterObserver receives foreground channel authority routing observations.
 // Implementations must be safe for concurrent calls from SendBatch.
 type RouterObserver interface {
-	// ObserveChannelAppendRouter records one routed foreground SEND group.
+	// ObserveChannelAppendRouter records one routed foreground SEND group or batch.
 	ObserveChannelAppendRouter(RouterObservation)
+}
+
+// RouterGroupPressureObservation describes node-local group submission pressure
+// shared by all concurrent SendBatch calls.
+type RouterGroupPressureObservation struct {
+	// Inflight is the number of canonical-channel groups currently submitted.
+	Inflight int
+	// Capacity is the fixed node-local submission bound.
+	Capacity int
+}
+
+// RouterGroupPressureObserver receives node-local router group pressure gauges.
+type RouterGroupPressureObserver interface {
+	// SetChannelAppendRouterGroupPressure records current shared group pressure.
+	SetChannelAppendRouterGroupPressure(RouterGroupPressureObservation)
 }
 
 // LocalAdmissionObservation describes local writer-group admission for one batch.
@@ -291,29 +305,6 @@ type PersistAfterEnqueuer interface {
 	EnqueuePersistAfter(context.Context, CommittedEnvelope)
 }
 
-// ConversationActiveAdmitter admits committed recipient activity into the conversation active worker.
-type ConversationActiveAdmitter interface {
-	// AdmitActiveBatch hands one committed recipient set to the conversation active worker.
-	AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error
-}
-
-// ConversationActiveTargetBatch binds one active projection batch to the
-// complete exact UID authority fence resolved by channelappend.
-type ConversationActiveTargetBatch struct {
-	// Target is the complete physical hash-slot authority fence.
-	Target RecipientAuthorityTarget
-	// Batch contains only sender and recipient rows owned by Target.
-	Batch conversationactive.ActiveBatch
-}
-
-// RoutedConversationActiveAdmitter accepts active groups whose first-attempt
-// authority targets were already resolved by channelappend.
-type RoutedConversationActiveAdmitter interface {
-	// AdmitRoutedActiveBatches preserves aligned exact targets and may fresh-route
-	// only failed groups under its bounded retry policy.
-	AdmitRoutedActiveBatches(context.Context, []ConversationActiveTargetBatch) error
-}
-
 // Options configures the local channel append group.
 type Options struct {
 	// LocalNodeID is the node id allowed to own local channel authority state.
@@ -358,8 +349,6 @@ type Options struct {
 	OnlineDeliveryEnqueuer OnlineDeliveryEnqueuer
 	// PersistAfterEnqueuer queues durable committed messages for plugin PersistAfter side effects.
 	PersistAfterEnqueuer PersistAfterEnqueuer
-	// ConversationActiveAdmitter admits active conversation batches after recipient expansion.
-	ConversationActiveAdmitter ConversationActiveAdmitter
 	// SubscriberScanPageSize bounds each group-channel subscriber scan page. Values <= 0 use a bounded default.
 	SubscriberScanPageSize int
 	// RecipientBatchSize bounds total recipients in one delivery plan. Values <= 0 use a bounded default.
@@ -458,7 +447,6 @@ func appendPortsFromOptions(opts Options) appendPorts {
 func commitPortsFromOptions(opts Options) commitPorts {
 	return commitPorts{
 		subscribers:                opts.Subscribers,
-		activeAdmitter:             opts.ConversationActiveAdmitter,
 		recipientAuthorityResolver: opts.RecipientAuthorityResolver,
 		deliveryEnqueuer:           opts.OnlineDeliveryEnqueuer,
 		persistAfter:               opts.PersistAfterEnqueuer,

@@ -203,6 +203,21 @@
           "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_local_admission_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
           "legendFormat": "local admission items p95 {{result}}",
           "refId": "E"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_channelappend_router_item_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, path, result))",
+          "legendFormat": "router item p95 {{path}} {{result}}",
+          "refId": "F"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_router_group_inflight{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} router groups inflight",
+          "refId": "G"
+        },
+        {
+          "expr": "sum(wukongim_channelappend_router_group_capacity{node_name=~\"$node_name\"}) by (node_name)",
+          "legendFormat": "{{node_name}} router group capacity",
+          "refId": "H"
         }
       ],
       "title": "Channel Append Router And Admission",
@@ -305,6 +320,11 @@
           "expr": "max(wukongim_channelappend_post_commit_retry_contended{node_name=~\"$node_name\"}) by (node_name)",
           "legendFormat": "{{node_name}} post-commit retry contended",
           "refId": "M"
+        },
+        {
+          "expr": "sum(rate(wukongim_channelv2_worker_admission_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, pool, kind, result)",
+          "legendFormat": "{{node_name}} worker admission {{pool}} {{kind}} {{result}}",
+          "refId": "N"
         }
       ],
       "title": "Channel Append Writer And Effect Pool",
@@ -396,57 +416,42 @@
       },
       "targets": [
         {
-          "expr": "sum(wukongim_conversation_active_cache_rows{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "cache rows {{node_name}}",
+          "expr": "sum(rate(wukongim_conversation_directory_list_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result, done)",
+          "legendFormat": "list {{node_name}} {{result}} done={{done}}",
           "refId": "A"
         },
         {
-          "expr": "sum(wukongim_conversation_active_cache_dirty_rows{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "dirty rows {{node_name}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_directory_list_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, done))",
+          "legendFormat": "latency p95 {{node_name}} {{result}} done={{done}}",
           "refId": "B"
         },
         {
-          "expr": "max(wukongim_conversation_active_cache_oldest_dirty_age_seconds{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "oldest dirty age {{node_name}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_directory_scanned_candidates_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, done))",
+          "legendFormat": "scanned p95 {{node_name}} {{result}}",
           "refId": "C"
         },
         {
-          "expr": "sum(rate(wukongim_conversation_active_flush_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
-          "legendFormat": "flush {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_directory_returned_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, done))",
+          "legendFormat": "returned p95 {{node_name}} {{result}}",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
-          "legendFormat": "flush p95 {{node_name}} {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_directory_deletes_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, done))",
+          "legendFormat": "deletes p95 {{node_name}} {{result}}",
           "refId": "E"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_rows_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, kind))",
-          "legendFormat": "flush rows p95 {{node_name}} {{result}} {{kind}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_directory_unresolved_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, done))",
+          "legendFormat": "unresolved p95 {{node_name}} {{result}}",
           "refId": "F"
         },
         {
-          "expr": "sum by (kind) (wukongim_conversation_active_cache_kind_rows{node_name=~\"$node_name\"})",
-          "legendFormat": "cache rows {{kind}}",
+          "expr": "sum(rate(wukongim_conversation_membership_mutation_rows_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, directory, operation)",
+          "legendFormat": "mutations {{node_name}} {{directory}} {{operation}}",
           "refId": "G"
-        },
-        {
-          "expr": "sum by (kind) (wukongim_conversation_active_cache_kind_dirty_rows{node_name=~\"$node_name\"})",
-          "legendFormat": "dirty rows {{kind}}",
-          "refId": "H"
-        },
-        {
-          "expr": "sum(wukongim_conversation_active_cache_dirty_queue_rows{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "dirty queue rows {{node_name}}",
-          "refId": "I"
-        },
-        {
-          "expr": "sum(wukongim_conversation_active_cache_dirty_age_buckets{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "dirty age buckets {{node_name}}",
-          "refId": "J"
         }
       ],
-      "title": "Conversation Active Cache And Flush",
+      "title": "Conversation Directory",
       "type": "timeseries"
     },
     {
@@ -483,32 +488,32 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(wukongim_conversation_sync_total{node_name=~\"$node_name\"}[$__rate_interval])) by (result)",
-          "legendFormat": "sync {{result}}",
+          "expr": "sum(rate(wukongim_conversation_hydration_batch_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result)",
+          "legendFormat": "batches {{node_name}} {{result}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "sync p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_hydration_batch_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "latency p95 {{node_name}} {{result}}",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_recent_load_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "recent load p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_hydration_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "items p95 {{node_name}} {{result}}",
           "refId": "C"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_returned_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "returned items p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_hydration_remote_batch_calls_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "remote batches p95 {{node_name}} {{result}}",
           "refId": "D"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_sync_overlay_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, result))",
-          "legendFormat": "overlay items p95 {{result}}",
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_hydration_local_reads_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result))",
+          "legendFormat": "local reads p95 {{node_name}} {{result}}",
           "refId": "E"
         }
       ],
-      "title": "Conversation Sync",
+      "title": "Conversation Hydration",
       "type": "timeseries"
     },
     {
@@ -924,194 +929,6 @@
         }
       ],
       "title": "Channel registry lifecycle rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 56
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(wukongim_conversation_active_dirty_mutations_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, event)",
-          "legendFormat": "mutation {{node_name}} {{event}}",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(wukongim_conversation_active_flush_rows_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, result, stage, reason)",
-          "legendFormat": "flush {{node_name}} {{result}} {{stage}} {{reason}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Conversation Active Conservation Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 56
-      },
-      "id": 15,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_flush_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, stage))",
-          "legendFormat": "stage p95 {{node_name}} {{result}} {{stage}}",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_pressure_wakeup_wait_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name))",
-          "legendFormat": "wakeup p95 {{node_name}}",
-          "refId": "B"
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_active_cache_lock_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, result, phase))",
-          "legendFormat": "cache lock p95 {{node_name}} {{result}} {{phase}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Conversation Active Latency Breakdown",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 64
-      },
-      "id": 16,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "max(wukongim_conversation_active_pressure_draining{node_name=~\"$node_name\"}) by (node_name)",
-          "legendFormat": "draining {{node_name}}",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(wukongim_conversation_active_pressure_events_total{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, event)",
-          "legendFormat": "event/s {{node_name}} {{event}}",
-          "refId": "B"
-        }
-      ],
-      "title": "Conversation Active Pressure Lifecycle",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "Prometheus",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 64
-      },
-      "id": 17,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "time() - max(wukongim_conversation_active_pressure_last_event_timestamp_seconds{node_name=~\"$node_name\"}) by (node_name, event)",
-          "legendFormat": "event age {{node_name}} {{event}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Conversation Active Pressure Event Age",
       "type": "timeseries"
     },
     {

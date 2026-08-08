@@ -264,6 +264,9 @@ func (t *Table) cloneWithLeaders(status []SlotStatus) *Table {
 		if item.Leader == 0 {
 			continue
 		}
+		if currentTerm := out.SlotLeaderTerms[item.SlotID]; currentTerm != 0 && item.LeaderTerm < currentTerm {
+			continue
+		}
 		out.SlotLeaders[item.SlotID] = item.Leader
 		out.SlotLeaderTerms[item.SlotID] = item.LeaderTerm
 	}

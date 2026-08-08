@@ -421,7 +421,6 @@ func TestLoadBuildsNormalizedEffectiveCriticalConfigSnapshot(t *testing.T) {
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":        {value: "128", source: managementusecase.NodeConfigValueSourceDefault},
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY": {value: "131072", source: managementusecase.NodeConfigValueSourceDefault},
 		"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY":     {value: "100", source: managementusecase.NodeConfigValueSourceDefault},
-		"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS":     {value: "100000", source: managementusecase.NodeConfigValueSourceDefault},
 	}
 	for key, want := range wants {
 		item, ok := snapshotItem(cfg.StartupConfigSnapshot, key)

@@ -988,7 +988,7 @@ func TestWorkerEngineGenerationBootstrapsBeforeTrafficAndUsesAssignedGeneration(
 		}
 		for _, request := range requests {
 			if request != NewConversationSyncRequest(request.UID) {
-				t.Fatalf("generation %d did not issue a version-zero full sync: %+v", generation, request)
+				t.Fatalf("generation %d did not issue a zero-coverage full sync: %+v", generation, request)
 			}
 		}
 

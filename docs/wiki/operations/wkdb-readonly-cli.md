@@ -327,7 +327,7 @@ manifest 规则：
 - `meta.channels`
 - `meta.subscribers`
 - `meta.user_channel_memberships`
-- `meta.conversations`
+- `meta.user_cmd_channel_memberships`
 - `meta.channel_latest`
 - `message.channels`
 - `message.messages`
@@ -340,8 +340,8 @@ record 字段如下。未特别说明时，数值字段缺省为 0，字符串�
 - `meta.devices`：`hash_slot`, `uid`, `device_flag`, `token`, `device_level`。
 - `meta.channels`：`hash_slot`, `channel_id`, `channel_type`, `ban`, `disband`, `send_ban`, `allow_stranger`, `large`, `subscriber_mutation_version`。
 - `meta.subscribers`：`hash_slot`, `channel_id`, `channel_type`, `uid`。
-- `meta.user_channel_memberships`：`hash_slot`, `uid`, `channel_id`, `channel_type`, `join_seq`, `updated_at_ms`。
-- `meta.conversations`：`hash_slot`, `uid`, `kind`, `channel_id`, `channel_type`, `read_seq`, `deleted_to_seq`, `active_at`, `updated_at`, `sparse_active`。`kind` 只能是 `normal` 或 `cmd`。
+- `meta.user_channel_memberships`：`hash_slot`, `uid`, `channel_id`, `channel_type`, `join_seq`, `read_seq`, `deleted_to_seq`, `activated_at`, `tombstone`, `tombstone_at`, `source_version`, `updated_at_ms`。
+- `meta.user_cmd_channel_memberships`：`hash_slot`, `uid`, `command_channel_id`, `channel_type`, `start_seq`, `ack_seq`, `tombstone`, `tombstone_at`, `updated_at_ms`。
 - `meta.channel_latest`：`hash_slot`, `channel_id`, `channel_type`, `last_message_id`, `last_message_seq`, `last_at`, `from_uid`, `client_msg_no`, `last_payload_b64`, `updated_at`。当前实现要求字段名是 `last_payload_b64`。
 - `message.channels`：`channel_key`, `channel_id`, `channel_type`。
 - `message.messages`：`channel_key`, `message_seq`, `message_id`, `client_msg_no`, `from_uid`, `server_timestamp_ms`, `payload_b64`。
@@ -350,7 +350,7 @@ hash-slot 校验规则：
 
 - `meta.users` 和 `meta.devices` 按 `uid` 重算 `hash_slot`。
 - `meta.channels`、`meta.subscribers`、`meta.channel_latest` 按 `channel_id` 重算 `hash_slot`。
-- `meta.user_channel_memberships` 和 `meta.conversations` 按 `uid` 重算 `hash_slot`。
+- `meta.user_channel_memberships` 和 `meta.user_cmd_channel_memberships` 按 `uid` 重算 `hash_slot`。
 
 排序和引用规则：
 
@@ -406,7 +406,8 @@ wkdb --data-dir ./data/node-1 --hash-slot-count 256 query "select * from meta.us
 - `meta.channel`：`channel_id`
 - `meta.channel_runtime_meta`：`channel_id`
 - `meta.subscriber`：`channel_id`
-- `meta.conversation`：`uid`（普通会话与 CMD 同步共用，通过 `kind` 区分）
+- `meta.user_channel_membership`：`uid`
+- `meta.user_cmd_channel_membership`：`uid`
 - `meta.plugin_binding`：`uid`
 - `meta.channel_migration`：`channel_id`
 

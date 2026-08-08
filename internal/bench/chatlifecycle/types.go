@@ -128,9 +128,8 @@ type RuntimeSamplingConfig struct {
 
 // SyncConfig defines the real history synchronization request shape.
 type SyncConfig struct {
-	Version      uint64 `json:"version" yaml:"version"`
-	Limit        int    `json:"limit" yaml:"limit"`
-	MessageCount int    `json:"message_count" yaml:"message_count"`
+	CompletedCoverage int64 `json:"completed_coverage" yaml:"completed_coverage"`
+	MaxConversations  int   `json:"max_conversations" yaml:"max_conversations"`
 }
 
 // LoginDistribution specifies new and returning login shares in percentage points.

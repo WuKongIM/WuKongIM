@@ -339,6 +339,63 @@ func TestStoreAppendBatchRejectsDuplicateCanonicalEntry(t *testing.T) {
 	}
 }
 
+func TestStoreAppendBatchServerAllocatedIDsSkipsOnlyMessageIDLookup(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "append-server-allocated", Type: 1}
+	store := mustForChannel(t, eng, "append-server-allocated:1", id)
+	defer store.Close()
+
+	if _, err := store.Append([]channel.Record{compatTestRecord(t, 9601, id.ID, "first")}); err != nil {
+		t.Fatalf("Append(): %v", err)
+	}
+	results := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:                     store,
+		Records:                   []channel.Record{compatTestRecord(t, 9601, id.ID, "second")},
+		ServerAllocatedMessageIDs: true,
+	}})
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("StoreAppendBatch() = %+v, want trusted message-id append success", results)
+	}
+
+	results = StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:                     store,
+		Records:                   []channel.Record{compatTestRecord(t, 9602, id.ID, "second")},
+		ServerAllocatedMessageIDs: true,
+	}})
+	if len(results) != 1 || !errors.Is(results[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("StoreAppendBatch() duplicate idempotency = %+v, want conflict", results)
+	}
+}
+
+func TestPutIdempotencyKeepsLoadedNegativeFilterCurrent(t *testing.T) {
+	eng := openCompatEngine(t)
+	id := channel.ChannelID{ID: "put-idempotency-filter", Type: 1}
+	store := mustForChannel(t, eng, "put-idempotency-filter:1", id)
+	defer store.Close()
+
+	results := StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:                     store,
+		Records:                   []channel.Record{compatTestRecord(t, 9701, id.ID, "leader-client")},
+		ServerAllocatedMessageIDs: true,
+	}})
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("seed StoreAppendBatch() = %+v, want success", results)
+	}
+	key := channel.IdempotencyKey{ChannelID: id, FromUID: "u1", ClientMsgNo: "reserved-client"}
+	if err := store.PutIdempotency(key, channel.IdempotencyEntry{MessageID: 9999, MessageSeq: 99, Offset: 98}); err != nil {
+		t.Fatalf("PutIdempotency(): %v", err)
+	}
+
+	results = StoreAppendBatch(context.Background(), []AppendBatchItem{{
+		Store:                     store,
+		Records:                   []channel.Record{compatTestRecord(t, 9702, id.ID, "reserved-client")},
+		ServerAllocatedMessageIDs: true,
+	}})
+	if len(results) != 1 || !errors.Is(results[0].Err, channel.ErrCorruptState) {
+		t.Fatalf("reserved StoreAppendBatch() = %+v, want durable reservation verification", results)
+	}
+}
+
 func TestStoreAppendBatchRejectsClosedAndLiveSiblingBeforeLeaseValidation(t *testing.T) {
 	eng := openCompatEngine(t)
 	duplicateID := channel.ChannelID{ID: "append-closed-sibling", Type: 1}

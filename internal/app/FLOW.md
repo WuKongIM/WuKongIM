@@ -13,8 +13,8 @@ optional app-managed Prometheus child process, and the optional gateway runtime.
 runtime supports single-node clusters and static multi-node clusters for the
 `SEND -> SENDACK` write path, legacy-compatible channel/user metadata
 management, UID connection-route authority, channel-authority write routing,
-per-channel authority writers, UID recipient authority inside post-commit effects,
-conversation authority active cache/list reads, and opt-in local online
+per-channel authority writers, UID recipient authority inside post-commit
+delivery, membership-backed conversation construction, and opt-in local online
 delivery.
 
 This package owns lifecycle ordering. Business rules stay in usecase packages,
@@ -60,13 +60,9 @@ New(Config)
      the combined Channel observer forwards this hook once to each capable child
      plus direct ants/v2 pool occupancy gauges for instrumented runtime pools
      plus canonical Online Delivery local and remote owner-push attempts on the
-     bounded delivery push metric families, conversation list request latency/page-shape metrics, conversation
-     authority admit/list/cache-pressure/handoff counters, conversation active
-     cache gauges, dirty-mutation counters, persisted/cleared/requeued/superseded
-     flush conservation counters, fair dirty-queue and bounded dirty-age-index
-     gauges, accepted/rejected admission cache-lock wait/hold histograms, split clear lock-wait/apply
-     flush-stage histograms, and pressure-wakeup
-     lifecycle metrics, channel append and post-commit
+     bounded delivery push metric families, conversation directory list
+     latency/scanned/returned/delete/unresolved metrics and Channel hydration
+     batch/local-read/remote-call metrics, channel append and post-commit
      counters, presence authority expiry cost/index gauges and bounded owner
      touch-flush route/chunk/target-group counters plus aggregate exact-target
      endpoint lookup path/outcome/retry metrics, recipient authority batch
@@ -88,7 +84,8 @@ New(Config)
      metrics; the collector also samples local process CPU, RSS/VMS memory,
      goroutine count, and thread count via gopsutil, and pulls
      `cluster.Node.StorageMetricsSnapshot` into Pebble and aggregate channel
-     entry ownership/reclamation metrics under the fixed `channel_log` label;
+     entry ownership/reclamation metrics plus bounded idempotency negative-skip
+     and durable-point-read totals under the fixed `channel_log` label;
      it keeps a bounded
      in-memory sticky alert window for readiness, pressure, sendack-error, and
      gateway session-error signals with compact evidence facts so `wkcli top`
@@ -112,8 +109,9 @@ New(Config)
      snapshot reads. The database monitor category is Prometheus-only and uses
      internal message DB commit request,
      grouped commit stage, commit runtime queue, and Pebble engine snapshot
-     metrics, plus canonical channel entry, caller lease, background pin, and
-     reclamation totals. These storage metrics never use channel IDs as labels.
+     metrics, plus canonical channel entry, caller lease, background pin,
+     reclamation, and bounded idempotency lookup totals. These storage metrics
+     never use channel IDs, senders, or client message IDs as labels.
      The node monitor category keeps per-node Prometheus series for
      process CPU, RSS memory, goroutines, and Go GC pause/rate/CPU/heap-goal
      pressure so global views can show the highest-pressure node without
@@ -147,16 +145,11 @@ New(Config)
        mutation observer that updates channelappend channel-state caches, and,
        when exposed by the cluster, wire the same adapter as the UID-owned
        membership projection index
-  -> when the cluster exposes conversation metadata reads:
-       create an infra/cluster read adapter for channel-owned last visible
-       message reads and DB-only UID-owned active conversation pages
-       when the cluster also exposes conversation authority routing and metadata
-       writes, create one local authority route facade backed by
-       runtime/conversationactive.Manager plus one routed
-       ConversationAuthorityClient, register the conversation authority RPC
-       adapter, create the route-authority lifecycle, and use that client as
-       the conversation list and delete Store while keeping the read adapter as
-       Messages, durable state reads, and read-cursor writes
+  -> when the cluster exposes UID memberships and Channel head reads:
+       create infra/cluster ConversationStore, then wire
+       internal/usecase/conversation for membership-directory paging,
+       Channel-Leader-grouped hydration, and explicit badge/hide/activation
+       membership mutations; no conversation authority runtime is created
   -> when the cluster exposes cluster Slot metadata subscriber APIs, create
      a delivery metadata adapter backed by real storage for bench setup,
      and channelappend subscriber scans
@@ -278,13 +271,12 @@ New(Config)
        online-status observer
        Plugin hooks and webhook sinks coexist on the same side-effect surfaces.
        Webhook failures are best-effort side effects and must not affect
-       SENDACK, durable append, recipient delivery, or conversation active
-       admission.
+       SENDACK, durable append, recipient delivery, or membership state.
   -> when the cluster exposes Channel runtime append plus channel append authority:
        create channelappend.Group with hash-sharded per-channel authority writers,
        cluster ChannelAppender, node-scoped message IDs, subscriber source,
        cluster-backed idempotency lookup when the cluster exposes it,
-       infra/cluster recipient authority resolver adapter, conversation active-batch admitter,
+       infra/cluster recipient authority resolver adapter,
        optional canonical Online Delivery plan enqueuer, optional plugin/webhook
        PersistAfter enqueuers, append metrics observer, and shared append/post-commit worker
        pools
@@ -294,13 +286,14 @@ New(Config)
        authority writer group
   -> create message.App with channelappend.Router, cluster channel metadata
      permission reads, system UID cache, configured message permission switches,
+     source-channel terminal checks for ordinary, system-UID, and system-device
+     sends (trusted classes bypass only nonterminal permission checks),
      the optional plugin Send hook usecase when plugins are enabled, the
      cluster committed message reader when exposed for channel message sync, and
      the cluster message event projection store when exposed for `/message/event`
      and `/channel/messagesync` event metadata enrichment
-  -> when the cluster exposes unified conversation metadata writes and Channel runtime
-     committed reads, create internal/usecase/cmdsync with one
-     infra/cluster CMDSyncStore over ConversationKindCMD rows
+  -> when the cluster exposes CMD memberships and CMD Channel committed reads,
+     create internal/usecase/cmdsync with infra/cluster CMDSyncStore
   -> create access/gateway.Handler with the message facade and activation-timeout-wrapped presence usecases
   -> create access/api.Server with the embedded chat Demo, channel, user,
      message, CMD sync, and conversation usecases, legacy route address lookup
@@ -408,9 +401,6 @@ Start(ctx)
      do not block service startup
   -> seed join loop Start(ctx): retry JoinNode against stable-order seeds when seed-join config is present
   -> wait for cluster write routing when the cluster runtime exposes route snapshots; the gate also runs the cluster write probe, which proves Slot metadata writes and Channel runtime placement data-node candidates before gateway SEND admission
-  -> conversation authority route lifecycle Start(ctx): watch route authorities and seed current targets
-  -> conversation active flush worker Start(ctx): persist dirty active rows
-     periodically or on a coalesced cache-pressure wakeup
   -> presence touch worker Start(ctx)
   -> plugin runtime Start(ctx): open the host RPC socket, scan local plugins, and start enabled processes
   -> plugin PersistAfter worker Start(ctx): accept durable commit side effects before channel append opens
@@ -447,7 +437,7 @@ Stop(ctx)
      post-commit effects, and retry ownership
      if this caller's context expires before that drain completes:
        return the stop error immediately
-       keep delivery, webhook, plugin, conversation, presence, seed-join, cluster,
+       keep delivery, webhook, plugin, presence, seed-join, cluster,
        and controller-task-audit dependencies running
        retain their started flags so a later Stop(newCtx) waits for the same
        channel append drain and then resumes this dependency shutdown sequence
@@ -455,8 +445,6 @@ Stop(ctx)
   -> webhook runtime Stop(ctx): stop accepting new webhook side effects after producers drain
   -> plugin PersistAfter worker Stop(ctx): stop accepting new side effects after channel append drains
   -> plugin runtime Stop(ctx): stop plugin processes and close the host RPC socket
-  -> conversation active flush worker Stop(ctx): cancel periodic flush and persist remaining dirty active rows
-  -> conversation authority route lifecycle Stop(ctx): cancel authority watcher
   -> presence touch worker Stop(ctx)
   -> seed join loop Stop(ctx): cancel pre-membership JoinNode retries
   -> cluster.Stop(ctx)
@@ -522,8 +510,8 @@ workqueue runtime with an HTTP sender before delivery and channelappend
 producers open. Channelappend and presence see only small adapter ports:
 post-commit PersistAfter, batch offline recipient observation, and online-status
 observation. Webhook queue admission, retries, and HTTP failures remain
-best-effort and do not change SENDACK, durable append, plugin hooks,
-conversation active admission, or owner delivery.
+best-effort and do not change SENDACK, durable append, plugin hooks, membership
+state, or owner delivery.
 The Online Delivery runtime drains accepted plans before it stops. Retryable
 owner routes are narrowed and retried inside the plan's bounded execution
 window. Stale pending recvacks expire during owner-local push activity. The runtime admits at
@@ -583,108 +571,19 @@ result/stage labels; they do not expose UID, session, hash-slot, or target
 identity. A context canceled before the flush starts still emits one canceled
 touch summary but does not run or observe expiry.
 
-## Conversation Active Flush Worker
+## Conversation Directory Composition
 
-```text
-periodic tick or coalesced cache-pressure wakeup
-  -> derive an AuthorityFlushTimeout-bounded attempt context
-  -> conversationAuthority.FlushActiveRows(attemptCtx, AuthorityFlushBatchRows)
-  -> runtime/conversationactive.Manager selects dirty rows with version fencing
-  -> batch-read durable conversation rows for receiver-only cooldown filtering
-  -> skip receiver-only ActiveAt updates inside AuthorityActiveCooldown
-  -> store.TouchConversationActiveAtBatch persists remaining ActiveAt/ReadSeq/UpdatedAt
-  -> after a successful pressure-cycle attempt with cleared rows, the Manager
-     requeues one coalesced wakeup while dirty rows remain above the 70% low
-     watermark
-  -> when a selected pressure batch clears no dirty marker while retryable rows
-     remain, the app worker schedules one cancellation-safe delayed retry with
-     bounded exponential backoff from 25ms to 250ms; progress, no work, or an error
-     cancels that retry and returns continuation ownership to the normal
-     Manager pressure signal or periodic tick
+The app wires no conversation-active cache, dirty queue, flush worker, authority
+RPC, or authority handoff lifecycle. A conversation list request reads one
+UID-owned membership page and hydrates its live candidates through the Channel
+cluster service. That service resolves exact routes, groups remote work by
+Channel Leader, preserves item alignment, and returns terminal channels as
+deletes or temporarily unavailable channels as unresolved items.
 
-cache admission
-  -> keep the latest receiver activity visible in cache while suppressing only
-     its durable dirty work against a separately tracked clean ActiveAt baseline
-     strictly inside AuthorityActiveCooldown
-  -> at 80% total occupancy with dirty rows above the 70% low watermark, start
-     one pressure cycle
-  -> if clean-row eviction cannot satisfy the hard cache bound, reject
-     atomically with cache_pressure
-  -> never call the store or wait for an in-flight flush
-
-Stop(ctx)
-  -> channelappend has already closed admission and drained accepted post-commit effects
-  -> cancel the periodic loop
-  -> drain remaining dirty active rows in bounded batches with the caller's stop context
-     and the same per-attempt timeout
-  -> after a successful drain, repeated Stop calls return without flushing
-     again under the restore maintenance fence; a timed-out or failed drain
-     remains retryable
-```
-
-The flush worker does not construct conversation rows and does not read message
-payloads. It only persists dirty active rows already admitted into the
-conversationactive cache, keeping cache visibility immediate while bounding
-eventual durable lag. The capacity-1 pressure channel and single worker goroutine
-coalesce concurrent wakeups; every attempt remains bounded by
-`AuthorityFlushBatchRows` and `AuthorityFlushTimeout`. The worker owns and reuses
-the delayed pressure-retry timer, stops it on cancellation, and never immediately
-re-signals a zero-progress batch, so repeated version conflicts cannot create a
-busy loop.
-
-## Conversation Authority Handoff
-
-```text
-cluster.RouteAuthorityEvent
-  -> ignore stale events by hash-slot route revision, Slot config epoch, Slot leader term, and diagnostic authority epoch tie-break
-  -> when handing off a previous local target, mark that exact target draining
-     under the authority mutex so no new admission reservation can start
-  -> hand the reservation wait and flush/purge to a bounded background drain;
-     the route watcher remains free to publish a newer local tenure
-  -> in that background drain, wait within the handoff timeout for only that
-     exact target's accepted admission reservations to reach zero
-  -> if local node becomes authority:
-       mark the exact conversation authority target active
-       purge clean rows for that hash slot before reusing its cache baseline
-  -> if leader becomes unknown:
-       drain the previous local or warming target with AuthorityHandoffTimeout
-       mark the no-leader target warming
-  -> if another node becomes authority:
-       drain the previous local or warming target with AuthorityHandoffTimeout
-       leave the remote target unroutable to the local authority
-```
-
-Foreground committed-message admission still resolves the current UID authority
-through the routed `ConversationAuthorityClient`. The watcher only maintains
-local cache/list readiness for targets that this node can serve. Handoff drains
-only after the previous exact target's accepted cache mutations have returned;
-it then drains dirty runtime rows indexed under the previous target's UID hash slot, using
-`AuthorityFlushBatchRows` per iteration until the target is clean or
-`AuthorityHandoffTimeout` expires. The same timeout bounds reservation wait and
-durable drain together. A successful drain then purges clean rows for
-that hash slot; activation also purges any clean rows retained from an older
-leader tenure, so a stale durable baseline is never reused after leadership
-returns. Every drain iteration and its final purge revalidate the exact draining
-target. If a newer local tenure has replaced it, the obsolete drain returns
-`transferred` without purging or continuing through the new tenure. Dirty rows
-for other hash slots stay owned by
-their current authorities and are left for their own scoped drains or the normal
-conversation active flush worker. The lifecycle also periodically pulls current
-authorities from the same initial route source so missed watch events and startup
-races repair local authority state. The hard local authority identity is
-`(HashSlot, SlotID, LeaderNodeID, Slot leader term, Slot config epoch)`; route
-revision orders observations, and the authority epoch is retained only as a
-local diagnostic tie-breaker for the same distributed identity.
-Reservations are keyed by that complete hard identity rather than hash slot, so
-an old target waiting to drain does not serialize admission to a newly published
-local target for the same logical hash slot. Chained unknown or remote route
-events retain every older exact target that is already draining until its
-accepted reservations and scoped flush complete; a newly active local tenure
-may supersede those drains because it owns any late cache mutation for the hash
-slot. A successful final purge retires that exact draining target atomically,
-so completed remote/unknown handoffs do not accumulate route state. A failed or
-timed-out drain remains fenced for an explicit bounded retry or later local
-tenure replacement.
+Directory-list and hydration observers publish only low-cardinality page size,
+returned/deleted/unresolved counts, local read counts, remote batch-call counts,
+latency, and result labels. SEND never feeds this observer through a recipient
+membership projection path.
 
 ## Cloud Analysis Gateway Composition
 

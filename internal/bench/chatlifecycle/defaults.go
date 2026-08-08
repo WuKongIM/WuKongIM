@@ -5,16 +5,15 @@ import (
 )
 
 const (
-	formalWorkers           = 3
-	formalLogicalSlotGroups = 12
-	formalHashSlots         = 256
-	formalReplicas          = 3
-	formalRuntimeSampleSize = 1_200
-	formalSyncLimit         = 500
-	formalSyncMessageCount  = 20
-	formalFilesystemBytes   = int64(500_000_000_000)
-	formalGroupCatalogTotal = 2_000
-	formalVeryLargeMembers  = 100_000
+	formalWorkers              = 3
+	formalLogicalSlotGroups    = 12
+	formalHashSlots            = 256
+	formalReplicas             = 3
+	formalRuntimeSampleSize    = 1_200
+	formalSyncMaxConversations = 500
+	formalFilesystemBytes      = int64(500_000_000_000)
+	formalGroupCatalogTotal    = 2_000
+	formalVeryLargeMembers     = 100_000
 	// localMaxChannelsPerNode covers the five-minute loaded relationship window
 	// at 250,000 new users/day plus the fixed local hot set on every replica.
 	localMaxChannelsPerNode  = 5_000
@@ -84,7 +83,7 @@ func FormalConfig() Config {
 			HotSet:             HotSetConfig{PersonChannels: 8_000, GroupChannels: 2_000},
 			Topology:           TopologyConfig{LogicalSlotGroups: formalLogicalSlotGroups, HashSlots: formalHashSlots, SlotReplicas: formalReplicas, ChannelReplicas: formalReplicas},
 			RuntimeSampling:    RuntimeSamplingConfig{Every: 10 * time.Minute, Size: formalRuntimeSampleSize},
-			Sync:               SyncConfig{Version: 0, Limit: formalSyncLimit, MessageCount: formalSyncMessageCount},
+			Sync:               SyncConfig{CompletedCoverage: 0, MaxConversations: formalSyncMaxConversations},
 			BurstCredit:        2 * time.Second,
 			MaxGlobalBurst:     4_000,
 			MaxChannelsPerNode: 50_000,

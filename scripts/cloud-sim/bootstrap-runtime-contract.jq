@@ -18,8 +18,7 @@ end |
   "WK_GATEWAY_GNET_NUM_EVENT_LOOP",
   "WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS",
   "WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY",
-  "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY",
-  "WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"
+  "WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY"
 ] as $keys |
 def item($key):
   if $items[$key] == null then error("missing effective config " + $key) else $items[$key] end;
@@ -47,6 +46,5 @@ def source($key):
   gateway_async_send_workers: integer("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS"),
   gateway_async_send_queue_capacity: integer("WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY"),
   recipient_worker_concurrency: integer("WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY"),
-  conversation_authority_cache_max_rows: integer("WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS"),
   value_sources: (reduce $keys[] as $key ({}; .[$key] = source($key)))
 }

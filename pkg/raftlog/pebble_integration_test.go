@@ -15,6 +15,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/batchrepr"
 	raft "go.etcd.io/raft/v3"
 	"go.etcd.io/raft/v3/raftpb"
 )
@@ -114,6 +115,90 @@ func TestPebbleOpenInitializesManifest(t *testing.T) {
 		t.Fatalf("manifest key missing: %v", err)
 	}
 	defer closer.Close()
+}
+
+func TestPebblePureEntryAppendDoesNotStageRangeDelete(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	scope := SlotScope(7)
+	state := &scopeWriteState{
+		entries: benchEntries(1, 1, 1, 8),
+		meta:    logMeta{FirstIndex: 1, LastIndex: 1},
+	}
+	batch := db.db.NewBatch()
+	defer batch.Close()
+	op := saveOp{state: persistentWriteState{Entries: benchEntries(2, 2, 1, 8)}}
+	if err := op.apply(batch, state, &pebbleStore{db: db, scope: scope}); err != nil {
+		t.Fatalf("apply() error = %v", err)
+	}
+
+	reader := batchrepr.Read(batch.Repr())
+	rangeDeletes := 0
+	for {
+		kind, _, _, ok, err := reader.Next()
+		if err != nil {
+			t.Fatalf("read batch: %v", err)
+		}
+		if !ok {
+			break
+		}
+		if kind == pebble.InternalKeyKindRangeDelete {
+			rangeDeletes++
+		}
+	}
+	if rangeDeletes != 0 {
+		t.Fatalf("range deletes = %d, want 0 for a pure tail append", rangeDeletes)
+	}
+}
+
+func TestPebbleEntryOverwriteStagesRangeDelete(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "raft"), Options{})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	scope := SlotScope(7)
+	state := &scopeWriteState{
+		entries: benchEntries(1, 3, 1, 8),
+		meta:    logMeta{FirstIndex: 1, LastIndex: 3},
+	}
+	batch := db.db.NewBatch()
+	defer batch.Close()
+	op := saveOp{state: persistentWriteState{Entries: benchEntries(2, 2, 2, 8)}}
+	if err := op.apply(batch, state, &pebbleStore{db: db, scope: scope}); err != nil {
+		t.Fatalf("apply() error = %v", err)
+	}
+
+	reader := batchrepr.Read(batch.Repr())
+	rangeDeletes := 0
+	for {
+		kind, _, _, ok, err := reader.Next()
+		if err != nil {
+			t.Fatalf("read batch: %v", err)
+		}
+		if !ok {
+			break
+		}
+		if kind == pebble.InternalKeyKindRangeDelete {
+			rangeDeletes++
+		}
+	}
+	if rangeDeletes != 1 {
+		t.Fatalf("range deletes = %d, want 1 for a suffix overwrite", rangeDeletes)
+	}
 }
 
 func TestScopeEntryKeysSortByVersionScopeAndIndex(t *testing.T) {

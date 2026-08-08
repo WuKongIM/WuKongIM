@@ -23,12 +23,15 @@ import (
 const (
 	defaultTimeout                         = 60 * time.Second
 	maxExplicitChannelRuntimeProbeChannels = 1200
+	conversationListPageLimit              = 200
+	conversationRetryMaxAttempts           = 4
+	maxConversationSyncPages               = 4096
 	// A valid all-missing explicit response can repeat the configured 10 MiB
 	// request identity payload in both compatibility and detailed fields.
 	// Thirty-two MiB leaves fixed evidence overhead while keeping allocation finite.
 	maxChannelRuntimeProbeResponseBytes int64 = 32 << 20
-	// This covers 499 conversations with twenty maximum-size 16 KiB payloads
-	// after base64 expansion plus bounded legacy JSON metadata.
+	// This covers one maximum-size membership-directory page with 16 KiB last
+	// message payloads after base64 expansion plus bounded JSON metadata.
 	maxConversationSyncResponseBytes   int64 = 256 << 20
 	maxObservationDebugResponseBytes   int64 = 64 << 10
 	maxObservationClusterResponseBytes int64 = 1 << 20
@@ -150,43 +153,79 @@ func (s MetricsSnapshot) ValidateRequired() error {
 	return nil
 }
 
-// ConversationSyncRequest is the legacy product conversation sync request.
-// Zero-valued cursor fields are intentionally serialized for compatibility.
+// ConversationSyncRequest starts one stateless complete membership-directory pass.
 type ConversationSyncRequest struct {
-	UID         string `json:"uid"`
-	Version     uint64 `json:"version"`
-	LastMsgSeqs string `json:"last_msg_seqs"`
-	MsgCount    int    `json:"msg_count"`
-	OnlyUnread  uint8  `json:"only_unread"`
-	Limit       int    `json:"limit"`
+	UID               string
+	CompletedCoverage int64
+	MaxConversations  int
 }
 
-// ConversationSyncConversation is one legacy conversation sync row.
+// ConversationSyncConversation is one validated membership-directory row.
 type ConversationSyncConversation struct {
-	ChannelID       string                    `json:"channel_id"`
-	ChannelType     uint8                     `json:"channel_type"`
-	Unread          int                       `json:"unread"`
-	Timestamp       int64                     `json:"timestamp"`
-	LastMsgSeq      uint64                    `json:"last_msg_seq"`
-	LastClientMsgNo string                    `json:"last_client_msg_no"`
-	OffsetMsgSeq    int64                     `json:"offset_msg_seq"`
-	ReadedToMsgSeq  uint64                    `json:"readed_to_msg_seq"`
-	Version         int64                     `json:"version"`
-	Recents         []ConversationSyncMessage `json:"recents"`
+	ChannelID    string
+	ChannelType  uint8
+	ActiveAt     int64
+	ReadSeq      uint64
+	DeletedToSeq uint64
+	Unread       uint64
+	LastMessage  *ConversationSyncMessage
 }
 
-// ConversationSyncMessage is the verifier-facing recent-message projection.
-// Encoding/json decodes the product's base64 payload string into Payload bytes.
+// ConversationSyncMessage is the verifier-facing last-message projection.
 type ConversationSyncMessage struct {
-	MessageID    int64  `json:"message_id"`
-	MessageIDStr string `json:"message_idstr"`
-	MessageSeq   uint64 `json:"message_seq"`
-	ClientMsgNo  string `json:"client_msg_no"`
-	FromUID      string `json:"from_uid"`
-	ChannelID    string `json:"channel_id"`
-	ChannelType  uint8  `json:"channel_type"`
-	Timestamp    int64  `json:"timestamp"`
-	Payload      []byte `json:"payload"`
+	MessageID         uint64
+	MessageIDStr      string
+	MessageSeq        uint64
+	ClientMsgNo       string
+	FromUID           string
+	ServerTimestampMS int64
+	Payload           []byte
+}
+
+type conversationListRequest struct {
+	UID               string `json:"uid"`
+	Cursor            string `json:"cursor"`
+	Limit             int    `json:"limit"`
+	CompletedCoverage int64  `json:"completed_coverage"`
+}
+
+type conversationRetryRequest struct {
+	UID      string                `json:"uid"`
+	Channels []conversationListKey `json:"channels"`
+}
+
+type conversationListResponse struct {
+	Conversations []conversationListItem `json:"conversations"`
+	Deletes       []conversationListKey  `json:"deletes"`
+	Unresolved    []conversationListKey  `json:"unresolved"`
+	NextCursor    string                 `json:"next_cursor"`
+	Done          bool                   `json:"done"`
+	ResetRequired bool                   `json:"reset_required"`
+}
+
+type conversationListKey struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelType int64  `json:"channel_type"`
+}
+
+type conversationListItem struct {
+	ChannelID    string                   `json:"channel_id"`
+	ChannelType  int64                    `json:"channel_type"`
+	ActiveAt     int64                    `json:"active_at"`
+	ReadSeq      uint64                   `json:"read_seq"`
+	DeletedToSeq uint64                   `json:"deleted_to_seq"`
+	Unread       uint64                   `json:"unread"`
+	LastMessage  *conversationLastMessage `json:"last_message"`
+}
+
+type conversationLastMessage struct {
+	MessageID         uint64 `json:"message_id"`
+	MessageIDStr      string `json:"message_idstr"`
+	MessageSeq        uint64 `json:"message_seq"`
+	FromUID           string `json:"from_uid"`
+	ClientMsgNo       string `json:"client_msg_no"`
+	ServerTimestampMS int64  `json:"server_timestamp_ms"`
+	Payload           []byte `json:"payload"`
 }
 
 // Config controls the black-box target bench API client.
@@ -322,12 +361,48 @@ func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, erro
 	return out, nil
 }
 
-// ConversationSync calls the product route without the bench API bearer token.
+// ConversationSync performs one complete stateless membership-directory pass.
+// It follows every opaque cursor, retries bounded unresolved keys, and never
+// attaches the Bench bearer token to product routes.
 func (c *Client) ConversationSync(ctx context.Context, req ConversationSyncRequest) ([]ConversationSyncConversation, error) {
-	var out []ConversationSyncConversation
+	if req.UID == "" || req.CompletedCoverage < 0 || req.MaxConversations <= 0 {
+		return nil, errors.New("invalid conversation sync request")
+	}
+	pageLimit := min(req.MaxConversations, conversationListPageLimit)
+	state := newConversationSyncState(req.MaxConversations)
+	cursor := ""
+	for pageNumber := 0; pageNumber < maxConversationSyncPages; pageNumber++ {
+		page, err := c.conversationListPage(ctx, conversationListRequest{
+			UID: req.UID, Cursor: cursor, Limit: pageLimit, CompletedCoverage: req.CompletedCoverage,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err := state.applyPage(page, pageLimit); err != nil {
+			return nil, err
+		}
+		if page.ResetRequired {
+			return nil, errors.New("invalid conversation sync response: reset required during stateless pass")
+		}
+		if page.Done {
+			if err := c.resolveConversationSyncUnresolved(ctx, req.UID, state); err != nil {
+				return nil, err
+			}
+			return state.rows(), nil
+		}
+		if page.NextCursor == "" || page.NextCursor == cursor {
+			return nil, errors.New("invalid conversation sync response: cursor did not advance")
+		}
+		cursor = page.NextCursor
+	}
+	return nil, errors.New("invalid conversation sync response: page limit exceeded")
+}
+
+func (c *Client) conversationListPage(ctx context.Context, req conversationListRequest) (conversationListResponse, error) {
+	var out conversationListResponse
 	if err := c.postAnyOutMappedAuth(
 		ctx,
-		"/conversation/sync",
+		"/conversation/list",
 		req,
 		&out,
 		maxConversationSyncResponseBytes,
@@ -335,12 +410,200 @@ func (c *Client) ConversationSync(ctx context.Context, req ConversationSyncReque
 		false,
 		"conversation sync response exceeds byte limit",
 	); err != nil {
-		return nil, err
+		return conversationListResponse{}, err
 	}
-	if out == nil {
-		return nil, errors.New("invalid conversation sync response: expected array")
+	if out.Conversations == nil || out.Deletes == nil || out.Unresolved == nil {
+		return conversationListResponse{}, errors.New("invalid conversation sync response: expected bounded arrays")
 	}
 	return out, nil
+}
+
+func (c *Client) conversationRetryPage(ctx context.Context, req conversationRetryRequest) (conversationListResponse, error) {
+	var out conversationListResponse
+	if err := c.postAnyOutMappedAuth(
+		ctx,
+		"/conversation/retry",
+		req,
+		&out,
+		maxConversationSyncResponseBytes,
+		safeConversationSyncError,
+		false,
+		"conversation sync response exceeds byte limit",
+	); err != nil {
+		return conversationListResponse{}, err
+	}
+	if out.Conversations == nil || out.Deletes == nil || out.Unresolved == nil {
+		return conversationListResponse{}, errors.New("invalid conversation sync response: expected bounded arrays")
+	}
+	return out, nil
+}
+
+func (c *Client) resolveConversationSyncUnresolved(ctx context.Context, uid string, state *conversationSyncState) error {
+	for attempt := 0; attempt < conversationRetryMaxAttempts && len(state.unresolved) > 0; attempt++ {
+		keys := state.unresolvedKeys()
+		state.clearUnresolved()
+		for start := 0; start < len(keys); start += conversationListPageLimit {
+			end := min(start+conversationListPageLimit, len(keys))
+			page, err := c.conversationRetryPage(ctx, conversationRetryRequest{UID: uid, Channels: keys[start:end]})
+			if err != nil {
+				return err
+			}
+			if !page.Done || page.NextCursor != "" || page.ResetRequired {
+				return errors.New("invalid conversation sync retry response")
+			}
+			if err := state.applyPage(page, end-start); err != nil {
+				return err
+			}
+		}
+	}
+	if len(state.unresolved) > 0 {
+		return errors.New("conversation sync unresolved retry limit reached")
+	}
+	return nil
+}
+
+type conversationSyncIdentity struct {
+	channelID   string
+	channelType uint8
+}
+
+type conversationSyncState struct {
+	max          int
+	rowsByKey    map[conversationSyncIdentity]ConversationSyncConversation
+	rowOrder     []conversationSyncIdentity
+	rowOrdered   map[conversationSyncIdentity]struct{}
+	unresolved   map[conversationSyncIdentity]conversationListKey
+	unresolvedAt []conversationSyncIdentity
+	limitReached bool
+}
+
+func newConversationSyncState(maxRows int) *conversationSyncState {
+	return &conversationSyncState{
+		max: maxRows, rowsByKey: make(map[conversationSyncIdentity]ConversationSyncConversation, maxRows),
+		rowOrder:   make([]conversationSyncIdentity, 0, maxRows),
+		rowOrdered: make(map[conversationSyncIdentity]struct{}, maxRows),
+		unresolved: make(map[conversationSyncIdentity]conversationListKey),
+	}
+}
+
+func (s *conversationSyncState) applyPage(page conversationListResponse, limit int) error {
+	if limit <= 0 || len(page.Conversations)+len(page.Deletes)+len(page.Unresolved) > limit {
+		return errors.New("invalid conversation sync response: page cardinality exceeded")
+	}
+	pageKeys := make(map[conversationSyncIdentity]struct{}, limit)
+	for _, item := range page.Conversations {
+		key, err := conversationSyncKey(item.ChannelID, item.ChannelType)
+		if err != nil {
+			return err
+		}
+		if _, exists := pageKeys[key]; exists {
+			return errors.New("invalid conversation sync response: duplicate page identity")
+		}
+		pageKeys[key] = struct{}{}
+		delete(s.unresolved, key)
+		row := conversationSyncRow(item)
+		if _, exists := s.rowsByKey[key]; exists {
+			s.rowsByKey[key] = row
+			continue
+		}
+		if len(s.rowsByKey) >= s.max {
+			s.limitReached = true
+			continue
+		}
+		s.rowsByKey[key] = row
+		if _, ordered := s.rowOrdered[key]; !ordered {
+			s.rowOrder = append(s.rowOrder, key)
+			s.rowOrdered[key] = struct{}{}
+		}
+	}
+	for _, item := range page.Deletes {
+		key, err := conversationSyncKey(item.ChannelID, item.ChannelType)
+		if err != nil {
+			return err
+		}
+		if _, exists := pageKeys[key]; exists {
+			return errors.New("invalid conversation sync response: conflicting page identity")
+		}
+		pageKeys[key] = struct{}{}
+		delete(s.rowsByKey, key)
+		delete(s.unresolved, key)
+	}
+	for _, item := range page.Unresolved {
+		key, err := conversationSyncKey(item.ChannelID, item.ChannelType)
+		if err != nil {
+			return err
+		}
+		if _, exists := pageKeys[key]; exists {
+			return errors.New("invalid conversation sync response: conflicting page identity")
+		}
+		pageKeys[key] = struct{}{}
+		if _, exists := s.unresolved[key]; exists {
+			continue
+		}
+		if len(s.unresolved) >= s.max {
+			s.limitReached = true
+			continue
+		}
+		s.unresolved[key] = item
+		s.unresolvedAt = append(s.unresolvedAt, key)
+	}
+	return nil
+}
+
+func (s *conversationSyncState) unresolvedKeys() []conversationListKey {
+	keys := make([]conversationListKey, 0, len(s.unresolved))
+	seen := make(map[conversationSyncIdentity]struct{}, len(s.unresolved))
+	for _, key := range s.unresolvedAt {
+		if item, ok := s.unresolved[key]; ok {
+			if _, duplicate := seen[key]; duplicate {
+				continue
+			}
+			seen[key] = struct{}{}
+			keys = append(keys, item)
+		}
+	}
+	return keys
+}
+
+func (s *conversationSyncState) clearUnresolved() {
+	s.unresolved = make(map[conversationSyncIdentity]conversationListKey)
+	s.unresolvedAt = s.unresolvedAt[:0]
+}
+
+func (s *conversationSyncState) rows() []ConversationSyncConversation {
+	rows := make([]ConversationSyncConversation, 0, len(s.rowsByKey)+1)
+	for _, key := range s.rowOrder {
+		if row, ok := s.rowsByKey[key]; ok {
+			rows = append(rows, row)
+		}
+	}
+	if s.limitReached && len(rows) < s.max {
+		rows = append(rows, make([]ConversationSyncConversation, s.max-len(rows))...)
+	}
+	return rows
+}
+
+func conversationSyncKey(channelID string, channelType int64) (conversationSyncIdentity, error) {
+	if channelID == "" || channelType <= 0 || channelType > 255 {
+		return conversationSyncIdentity{}, errors.New("invalid conversation sync response: invalid identity")
+	}
+	return conversationSyncIdentity{channelID: channelID, channelType: uint8(channelType)}, nil
+}
+
+func conversationSyncRow(item conversationListItem) ConversationSyncConversation {
+	row := ConversationSyncConversation{
+		ChannelID: item.ChannelID, ChannelType: uint8(item.ChannelType), ActiveAt: item.ActiveAt,
+		ReadSeq: item.ReadSeq, DeletedToSeq: item.DeletedToSeq, Unread: item.Unread,
+	}
+	if item.LastMessage != nil {
+		row.LastMessage = &ConversationSyncMessage{
+			MessageID: item.LastMessage.MessageID, MessageIDStr: item.LastMessage.MessageIDStr,
+			MessageSeq: item.LastMessage.MessageSeq, ClientMsgNo: item.LastMessage.ClientMsgNo,
+			FromUID: item.LastMessage.FromUID, ServerTimestampMS: item.LastMessage.ServerTimestampMS,
+			Payload: append([]byte(nil), item.LastMessage.Payload...),
+		}
+	}
+	return row
 }
 
 // ChannelRuntimeSnapshots reads local runtime snapshots from every target API address.

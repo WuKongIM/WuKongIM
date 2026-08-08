@@ -204,6 +204,37 @@ func TestMessageDBStoreAdapterLookupIdempotency(t *testing.T) {
 	require.False(t, found)
 }
 
+func TestMessageDBStoreAdapterLooksUpLastCommittedSenderSequence(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "sender-sequence", Type: 2}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	closeChannelStoreOnCleanup(t, cs)
+
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{
+		Records: []ch.Record{
+			{ID: 10, FromUID: "u1", Payload: []byte("one")},
+			{ID: 11, FromUID: "u2", Payload: []byte("two")},
+			{ID: 12, FromUID: "u1", Payload: []byte("three"), SyncOnce: true},
+		},
+		Sync: true,
+	})
+	require.NoError(t, err)
+
+	lookup, ok := cs.(SenderSequenceLookup)
+	require.True(t, ok)
+	seq, found, err := lookup.GetLastSenderMessageSeq(ctx, "u1", 2)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(1), seq)
+	seq, found, err = lookup.GetLastSenderMessageSeq(ctx, "u1", 3)
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, uint64(1), seq)
+}
+
 func TestMessageDBStoreAdapterPreservesSyncOnceFlag(t *testing.T) {
 	ctx := context.Background()
 	factory := NewMessageDBFactory(t.TempDir())
@@ -333,6 +364,9 @@ func TestMessageDBChannelStoreMethodsReturnErrClosedAfterClose(t *testing.T) {
 	require.ErrorIs(t, err, ch.ErrClosed)
 	idempotency := cs.(IdempotencyLookup)
 	_, _, err = idempotency.LookupIdempotency(ctx, "", "")
+	require.ErrorIs(t, err, ch.ErrClosed)
+	senderSequence := cs.(SenderSequenceLookup)
+	_, _, err = senderSequence.GetLastSenderMessageSeq(ctx, "u1", 1)
 	require.ErrorIs(t, err, ch.ErrClosed)
 	require.NoError(t, cs.Close())
 }
@@ -653,11 +687,11 @@ func TestNewMessageDBFactoryWithOptionsConfiguresCommitCoordinatorTuning(t *test
 	require.Equal(t, 4, cfg.Shards)
 }
 
-func TestNewMessageDBFactoryUsesQPSValidatedCommitShardsByDefault(t *testing.T) {
+func TestNewMessageDBFactoryUsesOneCommitShardByDefault(t *testing.T) {
 	factory := NewMessageDBFactory(t.TempDir())
 	t.Cleanup(func() { _ = factory.Close() })
 
-	require.Equal(t, 4, factory.CommitCoordinatorConfig().Shards)
+	require.Equal(t, 1, factory.CommitCoordinatorConfig().Shards)
 }
 
 func TestMessageDBFactoryMetricsSnapshotReportsPhysicalStore(t *testing.T) {

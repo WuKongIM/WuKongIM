@@ -141,6 +141,8 @@ type Management interface {
 	MutateBusinessChannelMembers(ctx context.Context, req managementusecase.MutateBusinessChannelMembersRequest) (managementusecase.MutateBusinessChannelMembersResponse, error)
 	// ListChannelRuntimeMeta returns manager-facing channel runtime metadata rows.
 	ListChannelRuntimeMeta(ctx context.Context, req managementusecase.ListChannelRuntimeMetaRequest) (managementusecase.ListChannelRuntimeMetaResponse, error)
+	// GetChannelRuntimeMeta returns one exact authoritative runtime metadata row.
+	GetChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) (managementusecase.ChannelRuntimeMeta, error)
 	// RequestChannelLeaderTransfer submits a manual Channel leader transfer.
 	RequestChannelLeaderTransfer(ctx context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error)
 	// RequestChannelReplicaReplace submits a manual Channel replica replacement.

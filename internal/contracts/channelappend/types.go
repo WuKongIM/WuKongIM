@@ -81,6 +81,9 @@ type AuthorityTarget struct {
 	LeaderEpoch uint64
 	// RouteGeneration versions the complete authoritative channel routing record.
 	RouteGeneration uint64
+	// WriteFenced reports that the resolved authority currently blocks new appends.
+	// The local writer may still recover an already committed idempotent retry.
+	WriteFenced bool
 	// Large reports whether the channel should use paged subscriber fanout.
 	Large bool
 	// SubscriberMutationVersion identifies the subscriber-list version used for recipient cache invalidation.
@@ -272,6 +275,9 @@ type AppendBatchRequest struct {
 	CommitMode CommitMode
 	// OmitResultPayload lets appenders skip payloads in successful item results when callers only need id and sequence.
 	OmitResultPayload bool
+	// ServerAllocatedMessageIDs proves every message ID in this request was issued by the node-scoped allocator.
+	// Storage may skip only its existing-message-ID lookup; idempotency-key validation remains strict.
+	ServerAllocatedMessageIDs bool
 }
 
 // Clone returns an independent copy of the append request.
@@ -343,7 +349,7 @@ type CommittedEnvelope struct {
 	Payload []byte
 	// RedDot carries the client red-dot flag for delivery side effects.
 	RedDot bool
-	// SyncOnce marks a one-shot sync command for post-commit conversation projection.
+	// SyncOnce marks a one-shot command that is persisted in the separate CMD Channel log.
 	SyncOnce bool
 	// MessageScopedUIDs are request-scoped one-shot delivery targets.
 	MessageScopedUIDs []string

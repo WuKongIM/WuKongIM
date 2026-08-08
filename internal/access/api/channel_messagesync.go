@@ -26,6 +26,25 @@ type syncChannelMessagesResponse struct {
 	Messages        []legacyMessageResp `json:"messages"`
 }
 
+type syncChannelMessagesBatchRequest struct {
+	LoginUID string                       `json:"login_uid"`
+	Items    []syncChannelMessagesRequest `json:"items"`
+}
+
+type syncChannelMessagesBatchItemResponse struct {
+	ChannelID       string              `json:"channel_id"`
+	ChannelType     uint8               `json:"channel_type"`
+	StartMessageSeq uint64              `json:"start_message_seq"`
+	EndMessageSeq   uint64              `json:"end_message_seq"`
+	More            int                 `json:"more"`
+	Messages        []legacyMessageResp `json:"messages"`
+	Error           string              `json:"error,omitempty"`
+}
+
+type syncChannelMessagesBatchResponse struct {
+	Items []syncChannelMessagesBatchItemResponse `json:"items"`
+}
+
 func (s *Server) handleChannelMessageSync(c *gin.Context) {
 	var req syncChannelMessagesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -59,6 +78,58 @@ func (s *Server) handleChannelMessageSync(c *gin.Context) {
 	}
 	for _, msg := range result.Messages {
 		resp.Messages = append(resp.Messages, newLegacyMessageResp(req.LoginUID, msg))
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) handleChannelMessageSyncBatch(c *gin.Context) {
+	var req syncChannelMessagesBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"msg": "数据格式有误！", "status": http.StatusBadRequest})
+		return
+	}
+	if s == nil || s.messages == nil {
+		writeJSONError(c, "message usecase not configured")
+		return
+	}
+	query := messageusecase.SyncChannelMessagesBatchQuery{
+		LoginUID: req.LoginUID,
+		Items:    make([]messageusecase.SyncChannelMessagesQuery, len(req.Items)),
+	}
+	for index, item := range req.Items {
+		query.Items[index] = messageusecase.SyncChannelMessagesQuery{
+			ChannelID:        item.ChannelID,
+			ChannelType:      item.ChannelType,
+			StartMessageSeq:  item.StartMessageSeq,
+			EndMessageSeq:    item.EndMessageSeq,
+			Limit:            item.Limit,
+			PullMode:         item.PullMode,
+			IncludeEventMeta: item.IncludeEventMeta != 0,
+			EventSummaryMode: item.EventSummaryMode,
+		}
+	}
+	result, err := s.messages.SyncChannelMessagesBatch(c.Request.Context(), query)
+	if err != nil {
+		writeJSONError(c, err.Error())
+		return
+	}
+	resp := syncChannelMessagesBatchResponse{Items: make([]syncChannelMessagesBatchItemResponse, len(result.Items))}
+	for index, item := range result.Items {
+		requestItem := req.Items[index]
+		responseItem := &resp.Items[index]
+		responseItem.ChannelID = item.ChannelID
+		responseItem.ChannelType = item.ChannelType
+		responseItem.StartMessageSeq = requestItem.StartMessageSeq
+		responseItem.EndMessageSeq = requestItem.EndMessageSeq
+		responseItem.More = boolToInt(item.Result.More)
+		responseItem.Messages = make([]legacyMessageResp, 0, len(item.Result.Messages))
+		if item.Err != nil {
+			responseItem.Error = item.Err.Error()
+			continue
+		}
+		for _, msg := range item.Result.Messages {
+			responseItem.Messages = append(responseItem.Messages, newLegacyMessageResp(req.LoginUID, msg))
+		}
 	}
 	c.JSON(http.StatusOK, resp)
 }

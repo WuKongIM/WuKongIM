@@ -1217,6 +1217,34 @@ func TestManagerChannelRuntimeMetaReturnsClusterRuntimeList(t *testing.T) {
 	}
 }
 
+func TestManagerChannelRuntimeMetaExactUsesPointRead(t *testing.T) {
+	srv := New(Options{
+		Auth: testAuthConfig([]UserConfig{{
+			Username: "admin", Password: "secret",
+			Permissions: []PermissionConfig{{Resource: "cluster.channel", Actions: []string{"r"}}},
+		}}),
+		Management: managerNodesStub{channelRuntimeMetaPoint: managementusecase.ChannelRuntimeMeta{
+			ChannelID: "g1____cmd", ChannelType: 2, SlotID: 4, Leader: 3, Status: "active",
+		}},
+	})
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/manager/channel-runtime-meta?exact=1&channel_id=g1____cmd&channel_type=2", nil)
+	req.Header.Set("Authorization", "Bearer "+mustIssueTestToken(t, srv, "admin"))
+	srv.Engine().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var body ChannelRuntimeMetaListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ChannelID != "g1____cmd" || body.Items[0].Leader != 3 {
+		t.Fatalf("items = %#v, want exact command runtime row", body.Items)
+	}
+}
+
 func TestManagerBusinessChannelsRejectsInvalidNodeID(t *testing.T) {
 	srv := New(Options{Management: managerNodesStub{}})
 
@@ -1462,6 +1490,7 @@ type managerNodesStub struct {
 	nodeConfigSnapshot                 managementusecase.NodeConfigSnapshot
 	slots                              []managementusecase.Slot
 	channelRuntimeMeta                 managementusecase.ListChannelRuntimeMetaResponse
+	channelRuntimeMetaPoint            managementusecase.ChannelRuntimeMeta
 	channelMigrationSummary            managementusecase.ChannelMigrationSummary
 	channelMigrationList               managementusecase.ChannelMigrationListResponse
 	businessChannels                   managementusecase.ListBusinessChannelsResponse
@@ -1734,6 +1763,18 @@ func (s managerNodesStub) ListChannelRuntimeMeta(_ context.Context, req manageme
 		*s.lastChannelRuntimeMetaRequest = req
 	}
 	return s.channelRuntimeMeta, s.channelRuntimeMetaErr
+}
+
+func (s managerNodesStub) GetChannelRuntimeMeta(_ context.Context, channelID string, channelType int64) (managementusecase.ChannelRuntimeMeta, error) {
+	if s.channelRuntimeMetaErr != nil {
+		return managementusecase.ChannelRuntimeMeta{}, s.channelRuntimeMetaErr
+	}
+	item := s.channelRuntimeMetaPoint
+	if item.ChannelID == "" {
+		item.ChannelID = channelID
+		item.ChannelType = channelType
+	}
+	return item, nil
 }
 
 func (s managerNodesStub) RequestChannelLeaderTransfer(_ context.Context, req managementusecase.LeaderTransferInput) (managementusecase.ChannelMigrationSummary, error) {

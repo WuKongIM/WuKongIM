@@ -12,10 +12,9 @@ import (
 // ErrRecentConversationsUnavailable reports that manager conversation reads are not wired.
 var ErrRecentConversationsUnavailable = errors.New("management: recent conversations unavailable")
 
-// ConversationSyncer exposes legacy-compatible conversation sync for manager pages.
-type ConversationSyncer interface {
-	// Sync returns UID-scoped conversations ordered by the conversation usecase.
-	Sync(ctx context.Context, query conversationusecase.SyncQuery) (conversationusecase.SyncResult, error)
+// ConversationLister exposes membership-backed conversation construction for manager pages.
+type ConversationLister interface {
+	List(ctx context.Context, request conversationusecase.ListRequest) (conversationusecase.ListResult, error)
 }
 
 // RecentConversationsRequest configures one manager recent-conversation query.
@@ -42,7 +41,7 @@ type RecentConversationsResponse struct {
 	OnlyUnread bool
 	// Truncated reports whether more matching conversations were detected.
 	Truncated bool
-	// Items contains conversations ordered by the conversation sync usecase.
+	// Items contains conversations ordered by membership activation priority.
 	Items []RecentConversation
 }
 
@@ -50,7 +49,7 @@ type RecentConversationsResponse struct {
 type RecentConversation struct {
 	// UID is the owner user for this conversation row.
 	UID string
-	// ChannelID is the display channel id returned by conversation sync.
+	// ChannelID is the display channel id returned by transient construction.
 	ChannelID string
 	// ChannelType is the WuKong channel type.
 	ChannelType uint8
@@ -58,7 +57,7 @@ type RecentConversation struct {
 	Unread int
 	// Timestamp is the latest message timestamp in Unix seconds.
 	Timestamp int64
-	// LastMsgSeq is the latest message sequence known to conversation sync.
+	// LastMsgSeq is the latest committed message sequence in the constructed view.
 	LastMsgSeq uint32
 	// LastClientMsgNo is the latest client message number when present.
 	LastClientMsgNo string
@@ -101,17 +100,18 @@ func (a *App) ListRecentConversations(ctx context.Context, req RecentConversatio
 		return RecentConversationsResponse{}, ErrRecentConversationsUnavailable
 	}
 
-	result, err := a.conversations.Sync(ctx, conversationusecase.SyncQuery{
-		UID:        uid,
-		Limit:      req.Limit + 1,
-		MsgCount:   req.MsgCount,
-		OnlyUnread: req.OnlyUnread,
-	})
+	result, err := a.conversations.List(ctx, conversationusecase.ListRequest{UID: uid, Limit: req.Limit + 1})
 	if err != nil {
 		return RecentConversationsResponse{}, err
 	}
 
-	conversations := result.Conversations
+	conversations := make([]conversationusecase.Conversation, 0, len(result.Items))
+	for _, item := range result.Items {
+		if req.OnlyUnread && item.Unread == 0 {
+			continue
+		}
+		conversations = append(conversations, item)
+	}
 	truncated := len(conversations) > req.Limit
 	if truncated {
 		conversations = conversations[:req.Limit]
@@ -125,43 +125,45 @@ func (a *App) ListRecentConversations(ctx context.Context, req RecentConversatio
 		Items:      make([]RecentConversation, 0, len(conversations)),
 	}
 	for _, item := range conversations {
-		resp.Items = append(resp.Items, recentConversationFromSync(uid, item))
+		resp.Items = append(resp.Items, recentConversationFromMembership(uid, item, req.MsgCount))
 	}
 	return resp, nil
 }
 
-func recentConversationFromSync(uid string, item conversationusecase.SyncConversation) RecentConversation {
-	return RecentConversation{
-		UID:             uid,
-		ChannelID:       item.ChannelID,
-		ChannelType:     item.ChannelType,
-		Unread:          item.Unread,
-		Timestamp:       item.Timestamp,
-		LastMsgSeq:      item.LastMsgSeq,
-		LastClientMsgNo: item.LastClientMsgNo,
-		ReadToMsgSeq:    item.ReadToMsgSeq,
-		Version:         item.Version,
-		RecentMessages:  messagesFromSyncMessages(item.Recents),
+func recentConversationFromMembership(uid string, item conversationusecase.Conversation, msgCount int) RecentConversation {
+	result := RecentConversation{
+		UID: uid, ChannelID: item.ChannelID, ChannelType: uint8(item.ChannelType),
+		Unread: boundedInt(item.Unread), ReadToMsgSeq: boundedUint32(item.ReadSeq), Version: item.UpdatedAt,
 	}
+	if item.LastMessage == nil {
+		return result
+	}
+	result.Timestamp = item.LastMessage.ServerTimestampMS / 1000
+	result.LastMsgSeq = boundedUint32(item.LastMessage.MessageSeq)
+	result.LastClientMsgNo = item.LastMessage.ClientMsgNo
+	if msgCount > 0 {
+		result.RecentMessages = []Message{{
+			MessageID: item.LastMessage.MessageID, MessageSeq: item.LastMessage.MessageSeq,
+			ClientMsgNo: item.LastMessage.ClientMsgNo, ChannelID: item.ChannelID,
+			ChannelType: item.ChannelType, FromUID: item.LastMessage.FromUID,
+			Timestamp: item.LastMessage.ServerTimestampMS / 1000,
+			Payload:   append([]byte(nil), item.LastMessage.Payload...),
+		}}
+	}
+	return result
 }
 
-func messagesFromSyncMessages(items []conversationusecase.SyncMessage) []Message {
-	out := make([]Message, 0, len(items))
-	for _, item := range items {
-		out = append(out, messageFromSyncMessage(item))
+func boundedUint32(value uint64) uint32 {
+	if value > uint64(^uint32(0)) {
+		return ^uint32(0)
 	}
-	return out
+	return uint32(value)
 }
 
-func messageFromSyncMessage(item conversationusecase.SyncMessage) Message {
-	return Message{
-		MessageID:   item.MessageID,
-		MessageSeq:  item.MessageSeq,
-		ClientMsgNo: item.ClientMsgNo,
-		ChannelID:   item.ChannelID,
-		ChannelType: int64(item.ChannelType),
-		FromUID:     item.FromUID,
-		Timestamp:   item.ServerTimestampMS / 1000,
-		Payload:     append([]byte(nil), item.Payload...),
+func boundedInt(value uint64) int {
+	max := uint64(^uint(0) >> 1)
+	if value > max {
+		return int(max)
 	}
+	return int(value)
 }

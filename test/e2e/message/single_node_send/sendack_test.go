@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
@@ -46,9 +47,6 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		if item.ChannelID != "e2e-recipient" || item.ChannelType != int64(frame.ChannelTypePerson) {
 			return fmt.Errorf("conversation key = %s/%d, want peer person channel", item.ChannelID, item.ChannelType)
 		}
-		if item.SparseActive {
-			return fmt.Errorf("sparse_active = true, want dense person conversation")
-		}
 		if item.LastMessage == nil {
 			return fmt.Errorf("last_message is nil")
 		}
@@ -60,7 +58,7 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		}
 		return nil
 	})
-	require.Equal(t, 0, senderPage.More)
+	require.True(t, senderPage.Done)
 
 	receiverPage := requireSingleConversationEventually(t, *node, "e2e-recipient", "e2e-sender", func(item suite.ConversationListItem) error {
 		if item.ChannelID != "e2e-sender" || item.ChannelType != int64(frame.ChannelTypePerson) {
@@ -71,7 +69,72 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 		}
 		return nil
 	})
-	require.Equal(t, 0, receiverPage.More)
+	require.True(t, receiverPage.Done)
+}
+
+func TestWukongIMPersonDirectoryReadyMakesLaterSendMembershipWriteFree(t *testing.T) {
+	node := suite.New(t).StartSingleNodeCluster()
+
+	client, err := suite.NewWKProtoClient()
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }()
+	require.NoError(t, client.Connect(node.GatewayAddr(), "directory-ready-alice", "directory-ready-device"), node.DumpDiagnostics())
+
+	first := sendPersonMessage(t, *node, client, "directory-ready-bob", 1, "directory-ready-first")
+	requireSingleConversationEventually(t, *node, "directory-ready-alice", "directory-ready-bob", func(item suite.ConversationListItem) error {
+		return requireConversationMessage(item, first.MessageSeq, "directory-ready-first")
+	})
+	requireSingleConversationEventually(t, *node, "directory-ready-bob", "directory-ready-alice", func(item suite.ConversationListItem) error {
+		return requireConversationMessage(item, first.MessageSeq, "directory-ready-first")
+	})
+
+	before := requireMembershipMutationRows(t, *node, "ordinary")
+	require.Positive(t, before, "first persistent person SEND must initialize both directory memberships")
+
+	second := sendPersonMessage(t, *node, client, "directory-ready-bob", 2, "directory-ready-second")
+	requireSingleConversationEventually(t, *node, "directory-ready-alice", "directory-ready-bob", func(item suite.ConversationListItem) error {
+		return requireConversationMessage(item, second.MessageSeq, "directory-ready-second")
+	})
+	requireSingleConversationEventually(t, *node, "directory-ready-bob", "directory-ready-alice", func(item suite.ConversationListItem) error {
+		return requireConversationMessage(item, second.MessageSeq, "directory-ready-second")
+	})
+
+	after := requireMembershipMutationRows(t, *node, "ordinary")
+	require.Equal(t, before, after, "SEND after directory_ready changed ordinary membership proposal rows")
+}
+
+func sendPersonMessage(t *testing.T, node suite.StartedNode, client *suite.WKProtoClient, channelID string, clientSeq uint64, clientMsgNo string) *frame.SendackPacket {
+	t.Helper()
+	require.NoError(t, client.SendFrame(&frame.SendPacket{
+		ChannelID: channelID, ChannelType: frame.ChannelTypePerson,
+		ClientSeq: clientSeq, ClientMsgNo: clientMsgNo, Payload: []byte(clientMsgNo),
+	}), node.DumpDiagnostics())
+	ack, err := client.ReadSendAck()
+	require.NoError(t, err, node.DumpDiagnostics())
+	require.Equal(t, frame.ReasonSuccess, ack.ReasonCode, node.DumpDiagnostics())
+	require.Equal(t, clientSeq, ack.ClientSeq)
+	require.Equal(t, clientMsgNo, ack.ClientMsgNo)
+	require.NotZero(t, ack.MessageSeq)
+	return ack
+}
+
+func requireConversationMessage(item suite.ConversationListItem, messageSeq uint64, clientMsgNo string) error {
+	if item.LastMessage == nil {
+		return fmt.Errorf("last_message is nil")
+	}
+	if item.LastMessage.MessageSeq != messageSeq || item.LastMessage.ClientMsgNo != clientMsgNo {
+		return fmt.Errorf("last_message = %#v, want seq=%d client_msg_no=%s", item.LastMessage, messageSeq, clientMsgNo)
+	}
+	return nil
+}
+
+func requireMembershipMutationRows(t *testing.T, node suite.StartedNode, directory string) float64 {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
+	require.NoError(t, err, node.DumpDiagnostics())
+	return suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", map[string]string{"directory": directory})
 }
 
 func requireSingleConversationEventually(t *testing.T, node suite.StartedNode, uid, channelID string, check func(suite.ConversationListItem) error) suite.ConversationListPage {

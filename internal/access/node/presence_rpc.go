@@ -8,14 +8,11 @@ import (
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
-	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
 	managementusecase "github.com/WuKongIM/WuKongIM/internal/usecase/management"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
-	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -77,17 +74,6 @@ type PresenceOwner interface {
 // DeliveryOwnerPush accepts owner-node delivery batches over node RPC.
 type DeliveryOwnerPush interface {
 	Push(context.Context, runtimedelivery.PushCommand) (runtimedelivery.PushResult, error)
-}
-
-// ConversationAuthority handles UID-owned conversation active cache and durable hide requests.
-type ConversationAuthority interface {
-	AdmitPatches(context.Context, conversationusecase.RouteTarget, []conversationusecase.ActivePatch) error
-	// AdmitActiveBatch admits one already-routed channelappend active batch at the target authority.
-	AdmitActiveBatch(context.Context, conversationusecase.RouteTarget, conversationactive.ActiveBatch) error
-	// HideConversationsForTarget applies exact hide mutations at one fenced UID authority target.
-	HideConversationsForTarget(context.Context, conversationusecase.RouteTarget, []metadb.ConversationDelete) error
-	ListConversationActiveViewForTarget(context.Context, conversationusecase.RouteTarget, metadb.ConversationKind, string, metadb.ConversationActiveCursor, int) (conversationusecase.ActiveViewPage, error)
-	DrainAuthority(context.Context, conversationusecase.RouteTarget) (string, error)
 }
 
 // ManagerConnectionReader handles owner-local manager connection inventory requests.
@@ -245,8 +231,6 @@ type Options struct {
 	Owner PresenceOwner
 	// Delivery handles owner-local delivery push batches after payload decoding.
 	Delivery DeliveryOwnerPush
-	// ConversationAuthority handles UID conversation authority cache requests after payload decoding.
-	ConversationAuthority ConversationAuthority
 	// ManagerConnections handles owner-local manager connection inventory requests.
 	ManagerConnections ManagerConnectionReader
 	// ManagerLogs handles node-local manager distributed log page requests.
@@ -307,8 +291,7 @@ type Adapter struct {
 	owner PresenceOwner
 	// delivery pushes messages into owner-local delivery sessions.
 	delivery DeliveryOwnerPush
-	// conversation owns UID conversation active cache decisions.
-	conversation ConversationAuthority
+	// presence owns UID connection authority decisions.
 	// managerConnections reads owner-local connection inventory for manager pages.
 	managerConnections ManagerConnectionReader
 	// managerLogs reads node-local distributed logs for manager pages.
@@ -370,7 +353,6 @@ func New(opts Options) *Adapter {
 		authority:                opts.Authority,
 		owner:                    opts.Owner,
 		delivery:                 opts.Delivery,
-		conversation:             opts.ConversationAuthority,
 		managerConnections:       opts.ManagerConnections,
 		managerLogs:              opts.ManagerLogs,
 		managerControllerRaft:    opts.ManagerControllerRaft,

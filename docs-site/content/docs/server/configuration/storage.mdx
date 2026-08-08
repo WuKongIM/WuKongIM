@@ -30,7 +30,7 @@ description: 规划节点数据目录、消息保留、队列、批处理、并�
 | Gateway | async worker、queue capacity、session batch | 连接内存、排队时间、发送吞吐 |
 | Channel append | shard、pool、batch、dispatch concurrency | CPU 竞争、提交延迟、分配和磁盘批量 |
 | Delivery | page、push batch、event queue、recipient workers | 大群 Fanout、待确认状态、反压 |
-| Conversation/Presence | cache、flush/admit batch、touch batch | 行数上限、DB 往返、脏数据积压 |
+| Membership directory/Presence | 分页同步和 hydration batch、touch batch | 候选上限、DB 读取、远端批次数 |
 | Webhook | queue、workers、batch、timeout、retry | 下游故障放大、内存和丢弃边界 |
 
 队列容量不是容量规划本身。扩大队列会增加可吸收的短时突发，也会增加内存和最坏等待时间，并可能延迟暴露持续过载。Worker 和批量上限也必须一起观察。

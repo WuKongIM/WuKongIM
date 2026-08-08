@@ -81,7 +81,7 @@ Receivers should ignore unknown fields and safely degrade on unknown `type` valu
 After a successful SENDACK for a persistent message, these activities may still run independently:
 
 - online-recipient delivery;
-- conversation activity projection;
+- membership-backed conversation construction during client sync;
 - webhook admission and delivery;
 - enabled plugin post-commit hooks.
 

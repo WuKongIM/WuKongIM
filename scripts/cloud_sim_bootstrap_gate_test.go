@@ -107,7 +107,6 @@ func TestCloudSimulationBootstrapCollectorCapturesEffectiveRuntimeContract(t *te
 		`WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS`,
 		`WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY`,
 		`WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY`,
-		`WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS`,
 		`node_runtime_contracts`,
 		`expected_node_runtime_contract`,
 		`runtime_scale`,
@@ -170,8 +169,7 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 		{"key":"WK_GATEWAY_GNET_NUM_EVENT_LOOP","value":"4","source":"toml"},
 		{"key":"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS","value":"128","source":"toml"},
 		{"key":"WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY","value":"131072","source":"toml"},
-		{"key":"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY","value":"320","source":"toml"},
-		{"key":"WK_CONVERSATION_AUTHORITY_CACHE_MAX_ROWS","value":"750000","source":"toml"}
+		{"key":"WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY","value":"320","source":"toml"}
 	]}]}`
 	program := filepath.Join(repoRoot(t), "scripts", "cloud-sim", "bootstrap-runtime-contract.jq")
 	command := exec.Command("jq", "-c", "-e", "--arg", "scale", "medium", "--argjson", "node_id", "2", "-f", program)
@@ -181,15 +179,14 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 		t.Fatalf("build runtime contract: %v\n%s", err, output)
 	}
 	var contract struct {
-		Schema                            string            `json:"schema"`
-		Scale                             string            `json:"scale"`
-		PhysicalHashSlotCount             int               `json:"physical_hash_slot_count"`
-		LogicalSlotGroupCount             int               `json:"logical_slot_group_count"`
-		ChannelRPCWorkers                 int               `json:"channel_rpc_workers"`
-		ChannelRPCBatchMaxItems           int               `json:"channel_rpc_batch_max_items"`
-		RecipientWorkerConcurrency        int               `json:"recipient_worker_concurrency"`
-		ConversationAuthorityCacheMaxRows int               `json:"conversation_authority_cache_max_rows"`
-		ValueSources                      map[string]string `json:"value_sources"`
+		Schema                     string            `json:"schema"`
+		Scale                      string            `json:"scale"`
+		PhysicalHashSlotCount      int               `json:"physical_hash_slot_count"`
+		LogicalSlotGroupCount      int               `json:"logical_slot_group_count"`
+		ChannelRPCWorkers          int               `json:"channel_rpc_workers"`
+		ChannelRPCBatchMaxItems    int               `json:"channel_rpc_batch_max_items"`
+		RecipientWorkerConcurrency int               `json:"recipient_worker_concurrency"`
+		ValueSources               map[string]string `json:"value_sources"`
 	}
 	if err := json.Unmarshal(output, &contract); err != nil {
 		t.Fatalf("decode runtime contract: %v\n%s", err, output)
@@ -197,8 +194,7 @@ func TestCloudSimulationBootstrapRuntimeContractUsesNormalizedManagerValues(t *t
 	if contract.Schema != "wukongim/cloud-effective-node-runtime-contract/v1" || contract.Scale != "medium" ||
 		contract.PhysicalHashSlotCount != 256 || contract.LogicalSlotGroupCount != 10 ||
 		contract.ChannelRPCWorkers != 96 || contract.ChannelRPCBatchMaxItems != 8 ||
-		contract.RecipientWorkerConcurrency != 320 ||
-		contract.ConversationAuthorityCacheMaxRows != 750000 || len(contract.ValueSources) != 15 {
+		contract.RecipientWorkerConcurrency != 320 || len(contract.ValueSources) != 14 {
 		t.Fatalf("runtime contract = %#v", contract)
 	}
 	for key, source := range contract.ValueSources {

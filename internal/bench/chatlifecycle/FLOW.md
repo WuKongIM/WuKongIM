@@ -312,17 +312,19 @@ fatal runtime error follows that same unexpected-exit path.
 The eventual plan and runtime must keep history-independent memory: generated
 identity and relationship decisions derive from the stable run seed instead of
 retaining unbounded activity history. Target mutation uses public benchmark APIs
-and WKProto only. It exercises real sync behavior (`version=0`, runtime-owned
-empty last-message sequences, bounded sync limit), never a synthetic history
-shortcut.
+and WKProto only. It exercises real membership-directory sync behavior
+(`completed_coverage=0`, an empty initial cursor, bounded 200-candidate pages,
+and bounded unresolved retries), never a synthetic history shortcut.
 
 Every login first completes WKProto CONNECT and then issues a newly constructed
-product conversation-sync request with `version=0`, empty `last_msg_seqs`,
-`msg_count=20`, `only_unread=0`, and `limit=500`. No response version, cursor,
-or conversation state can seed a later login. CONNECT and HTTP sync latencies
-are measured independently, and traffic is admitted only after the HTTP result
-passes validation. A canceled or failed CONNECT never starts sync; a canceled,
-failed, or invalid sync never becomes traffic-ready.
+product `/conversation/list` request with `completed_coverage=0`, empty cursor,
+and page limit 200. The target client follows every opaque cursor until
+`done=true`, deduplicates cross-page moves, and retries unresolved keys through
+bounded `/conversation/retry` batches. No coverage, cursor, or conversation
+state can seed a later login. CONNECT and HTTP sync latencies are measured
+independently, and traffic is admitted only after the complete HTTP pass
+validates. A canceled or failed CONNECT never starts sync; a canceled, failed,
+incomplete, or invalid sync never becomes traffic-ready.
 
 Latency snapshots use one fixed 16-bucket layout with explicit bounds at zero,
 1/2/5/10/20/50/100/200/500 milliseconds, and 1/2/5/10/30/60 seconds. Negative
@@ -353,13 +355,13 @@ never read wall time; deterministic tests and the production pool use the
 explicit-clock methods.
 
 Conversation sync accepts at most 499 unique conversation identities. A result
-with 500 or more rows is `harness_invalid` because the harness cannot prove that
-the full directory fit in one response. Each recent message must carry the same
-client-facing channel ID and type as its conversation (including peer IDs for
-person channels), have a positive message sequence, and appear in strictly
-descending sequence order. Duplicate conversations, mismatched recent identity,
-duplicate/reascending recent sequences, malformed JSON, or invalid base64
-payloads fail the login with bounded low-cardinality errors.
+with 500 or more rows is `harness_invalid` because it exceeds the reviewed
+per-user evidence bound, even though transport pagination itself is complete.
+Every returned conversation has a valid client-facing identity (including peer
+IDs for person channels); an attached last message must have positive durable
+message ID and sequence. Duplicate final conversations, malformed JSON, invalid
+base64 payloads, cursor non-progress, or unresolved retry exhaustion fail the
+login with bounded low-cardinality errors.
 
 Identity planning uses zero-based worker IDs. Worker-local index `n` on worker
 `w` maps to global index `n*workers+w`; division and remainder recover the
@@ -490,7 +492,7 @@ recipient.
 
 `SessionPool` owns only traffic-ready online sessions. Its factory receives a
 deterministic per-UID CONNECT token, creates a fresh client for every login, and
-then delegates CONNECT-before-version-zero-sync semantics to `RunLoginSync`.
+then delegates CONNECT-before-zero-coverage-full-sync semantics to `RunLoginSync`.
 The narrow `WKProtoSessionAdapter` delegates CONNECT, SEND, frame reads,
 RECVACK, close, and numeric queue gauges to the existing non-dropping
 `internal/bench/wkproto.Client`; it does not recreate protocol pumps.
@@ -762,8 +764,9 @@ snapshots expose the local quotient/remainder limit, and engine active/pending
 ownership enforces that local limit. A single worker retains the full 8,000.
 
 `LocalConfig` is the reviewed three-node, three-worker shakeout baseline. It
-keeps the formal topology and real sync request (`version=0`, `limit=500`,
-`message_count=20`) while using 100 online users, 250,000 new users/day, 100
+keeps the formal topology and real zero-coverage paginated sync
+(`completed_coverage=0`, 200 candidates per page, 500-conversation evidence
+bound) while using 100 online users, 250,000 new users/day, 100
 SENDs/s, an 80-person/20-group hot set, a fixed 16/3/0/1 group catalog with
 1,000 members in the very-large group, a 5,000-channel node bound that covers
 the five-minute loaded relationship window at the retained formal arrival
@@ -921,8 +924,13 @@ calculated so the JSON report validates identically after restart or transfer.
 It atomically writes one
 `wukongim.chat_lifecycle.run_start/v1` receipt at that boundary with the stage,
 start, expected end, generation, and only hashed run/assignment identities. A
-rehearsal therefore proves that all 10,000 users completed CONNECT plus a fresh
-version-0 full sync and all workers accepted the first complete 2,000 SEND/s
+fresh production controller arms the observation source at that exact barrier
+before probing the live dataset digest. The digest proof may take longer than
+one observer phase, but it therefore cannot consume the first exact-hour
+forced-GC evidence window; a failed digest remains a terminal Begin failure and
+the armed source is discarded with that failed run. A rehearsal therefore
+proves that all 10,000 users completed CONNECT plus a fresh
+zero-coverage full sync and all workers accepted the first complete 2,000 SEND/s
 grant before its two-hour clock begins. The coordinator owns one normal
 observation cutoff at the stage duration: two hours for rehearsal,
 `thresholds.timeline.final` for the 30-minute local shakeout, and 72 hours for
@@ -1048,7 +1056,11 @@ Resource reduction keeps three independent node states and never averages a
 leaking node away. Only exact-hour forced-GC samples with finite, nonnegative,
 integral uint64 heap and goroutine gauges enter the derived fixed-capacity
 six-hour and 24-hour rings. Growth strictly above five percent fails; equality
-passes. Queue-only observations may arrive more frequently. Warmup establishes
+passes. The forced-GC read may complete after its canonical hour only within
+one observer phase, the capped round latency, and the configured recoverable
+cluster-unhealthy window; the evidence timestamp remains the exact hour, and a
+later sample is harness invalid before any resource I/O. Queue-only observations
+may arrive more frequently. Warmup establishes
 each node's queue and inflight baseline, and an explicit burst-end observation
 must return both gauges to that baseline; a burst without a baseline is harness
 invalid, and an active burst at finalization is product failure. All one-minute,

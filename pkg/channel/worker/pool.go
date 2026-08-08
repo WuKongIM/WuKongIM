@@ -52,6 +52,12 @@ type AdmissionObserver interface {
 	ObserveWorkerAdmission(pool string, result string)
 }
 
+// KindAdmissionObserver receives worker enqueue outcomes split by bounded task kind.
+// Implementations are called synchronously from Submit and should be concurrency-safe and non-blocking.
+type KindAdmissionObserver interface {
+	ObserveWorkerAdmissionKind(pool string, kind TaskKind, result string)
+}
+
 // WaitObserver receives queue wait time for accepted worker tasks.
 // Implementations are called synchronously from worker goroutines and should be concurrency-safe and non-blocking.
 type WaitObserver interface {
@@ -207,21 +213,26 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	}
 	if p.runtime.Closed() {
 		p.observeAdmission("closed")
+		p.observeAdmissionKind(task.Kind, "closed")
 		p.observeQueueDepth()
 		return ch.ErrClosed
 	}
 	if err := ctx.Err(); err != nil {
-		p.observeAdmission(workerAdmissionResult(err))
+		result := workerAdmissionResult(err)
+		p.observeAdmission(result)
+		p.observeAdmissionKind(task.Kind, result)
 		p.observeQueueDepth()
 		return err
 	}
 	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() {
 		p.observeAdmission("full")
+		p.observeAdmissionKind(task.Kind, "full")
 		p.observeQueueDepth()
 		return ch.ErrBackpressured
 	}
 	queued := queuedTask{task: task, enqueuedAt: time.Now()}
 	err := p.runtime.Submit(ctx, queued)
+	p.observeAdmissionKind(task.Kind, workerAdmissionResultFromSubmit(err))
 	switch {
 	case err == nil:
 		return nil
@@ -259,6 +270,14 @@ func (p *Pool) QueueDepth() int {
 		return 0
 	}
 	return p.runtime.QueueDepth()
+}
+
+// QueueCapacity returns the configured bounded admission capacity.
+func (p *Pool) QueueCapacity() int {
+	if p == nil || p.runtime == nil {
+		return 0
+	}
+	return p.runtime.QueueCapacity()
 }
 
 func (p *Pool) observeQueueDepth() {
@@ -303,6 +322,14 @@ func (p *Pool) observeAdmission(result string) {
 		return
 	}
 	obs.ObserveWorkerAdmission(p.cfg.Name, result)
+}
+
+func (p *Pool) observeAdmissionKind(kind TaskKind, result string) {
+	obs, ok := p.observer().(KindAdmissionObserver)
+	if !ok {
+		return
+	}
+	obs.ObserveWorkerAdmissionKind(p.cfg.Name, kind, result)
 }
 
 func (p *Pool) observeWait(kind TaskKind, d time.Duration) {
@@ -435,6 +462,19 @@ func workerAdmissionResult(err error) string {
 		return "timeout"
 	default:
 		return "other"
+	}
+}
+
+func workerAdmissionResultFromSubmit(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, workqueue.ErrFull):
+		return "full"
+	case errors.Is(err, workqueue.ErrClosed):
+		return "closed"
+	default:
+		return workerAdmissionResult(err)
 	}
 }
 

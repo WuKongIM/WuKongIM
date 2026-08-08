@@ -47,20 +47,14 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 	if w.RuntimeSampling.Size > formalRuntimeSampleSize {
 		return fieldError("workload.runtime_sampling.size", "must not exceed 1200")
 	}
-	if w.Sync.Limit <= 0 {
-		return fieldError("workload.sync.limit", "must be greater than zero")
+	if w.Sync.MaxConversations <= 0 {
+		return fieldError("workload.sync.max_conversations", "must be greater than zero")
 	}
-	if w.Sync.MessageCount <= 0 {
-		return fieldError("workload.sync.message_count", "must be greater than zero")
+	if w.Sync.CompletedCoverage != 0 {
+		return fieldError("workload.sync.completed_coverage", "must equal 0 for a stateless full sync")
 	}
-	if w.Sync.Version != 0 {
-		return fieldError("workload.sync.version", "must equal 0 for real sync")
-	}
-	if w.Sync.Limit != formalSyncLimit {
-		return fieldError("workload.sync.limit", "must equal 500 for real sync")
-	}
-	if w.Sync.MessageCount != formalSyncMessageCount {
-		return fieldError("workload.sync.message_count", "must equal 20 for real sync")
+	if w.Sync.MaxConversations != formalSyncMaxConversations {
+		return fieldError("workload.sync.max_conversations", "must equal 500 for bounded full-sync evidence")
 	}
 	if w.BurstCredit <= 0 {
 		return fieldError("workload.burst_credit", "must be greater than zero")

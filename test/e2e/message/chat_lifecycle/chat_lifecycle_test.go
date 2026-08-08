@@ -260,13 +260,8 @@ func connectAndFullSyncContaining(
 
 func syncContains(rows []target.ConversationSyncConversation, clientMsgNo string) bool {
 	for _, row := range rows {
-		if row.LastClientMsgNo == clientMsgNo {
+		if row.LastMessage != nil && row.LastMessage.ClientMsgNo == clientMsgNo {
 			return true
-		}
-		for _, recent := range row.Recents {
-			if recent.ClientMsgNo == clientMsgNo {
-				return true
-			}
 		}
 	}
 	return false

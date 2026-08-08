@@ -56,24 +56,23 @@ func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error 
 	if err := batch.Delete(encodeMessageRowKey(l.key, msg.MessageSeq, messageHeaderFamilyID)); err != nil {
 		return err
 	}
-	if err := batch.Delete(encodeMessageRowKey(l.key, msg.MessageSeq, messagePayloadFamilyID)); err != nil {
-		return err
-	}
 	if msg.MessageID != 0 {
-		if err := batch.Delete(encodeMessageIDIndexKey(l.key, msg.MessageID)); err != nil {
-			return err
-		}
 		if err := batch.Delete(encodeGlobalMessageIDIndexKey(msg.MessageID)); err != nil {
 			return err
 		}
 	}
-	if msg.ClientMsgNo != "" {
+	if msg.ClientMsgNo != "" && msg.FromUID == "" {
 		if err := batch.Delete(encodeMessageClientMsgNoIndexKey(l.key, msg.ClientMsgNo, msg.MessageSeq)); err != nil {
 			return err
 		}
 	}
 	if msg.FromUID != "" && msg.ClientMsgNo != "" {
 		if err := batch.Delete(encodeMessageIdempotencyIndexKey(l.key, msg.FromUID, msg.ClientMsgNo)); err != nil {
+			return err
+		}
+	}
+	if msg.FromUID != "" {
+		if err := batch.Delete(encodeMessageSenderSeqIndexKey(l.key, msg.FromUID, msg.MessageSeq)); err != nil {
 			return err
 		}
 	}

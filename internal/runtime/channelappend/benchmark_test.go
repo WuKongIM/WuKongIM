@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/onlinedelivery"
-	"github.com/WuKongIM/WuKongIM/internal/runtime/conversationactive"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -488,24 +487,15 @@ func (o *benchmarkWriterPressureObserver) SetChannelAppendWriterPressure(event W
 	o.pressure.Store(int64(event.PendingAppendItems + event.AppendInflightItems + event.PostCommitBacklog))
 }
 
-// benchmarkNoopActiveAdmitter enables the post-commit path (hasPostCommitWork
-// == true) so advance() - not advanceAppendOnly() - is exercised, without
-// adding real delivery cost. This is the path where commitEffect duffcopy
-// dominates under load.
-type benchmarkNoopActiveAdmitter struct{}
-
-func (benchmarkNoopActiveAdmitter) AdmitActiveBatch(context.Context, conversationactive.ActiveBatch) error {
-	return nil
-}
-
 func BenchmarkSubmitLocalHotChannelPostCommit(b *testing.B) {
+	persistAfter := &benchmarkPersistAfterEnqueuer{}
 	group := newBenchmarkChannelAppendGroup(b, Options{
-		LocalNodeID:                1,
-		AuthorityShardCount:        1,
-		EffectPoolSize:             4,
-		AdmissionCapacityPerShard:  4096,
-		InboxCoalesceWindow:        -time.Nanosecond,
-		ConversationActiveAdmitter: benchmarkNoopActiveAdmitter{},
+		LocalNodeID:               1,
+		AuthorityShardCount:       1,
+		EffectPoolSize:            4,
+		AdmissionCapacityPerShard: 4096,
+		InboxCoalesceWindow:       -time.Nanosecond,
+		PersistAfterEnqueuer:      persistAfter,
 	})
 	target := benchmarkAuthorityTarget("bench-postcommit")
 	item := benchmarkSendItem("bench-postcommit")

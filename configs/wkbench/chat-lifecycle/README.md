@@ -6,7 +6,7 @@ full-scale workload for exactly two hours after the all-user full-sync and
 first-grant barrier, and can produce only `rehearsal_pass`, never formal
 evidence. Replace every `.invalid` address and the `run_id`; do not place
 credentials in YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft Groups, 256
-physical hash slots, replicas 3/3, real TCP traffic, and version-zero full
+physical hash slots, replicas 3/3, real TCP traffic, and zero-coverage paginated
 conversation sync at smaller scale. It is not formal evidence.
 
 Supply secrets through exactly one source per credential:

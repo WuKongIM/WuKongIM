@@ -23,7 +23,8 @@ var (
 	channelRPCRequestMagic    = [...]byte{'W', 'K', 'C', 'Q', 2}
 	channelRPCResponseMagicV1 = [...]byte{'W', 'K', 'C', 'S', 1}
 	channelRPCResponseMagicV2 = [...]byte{'W', 'K', 'C', 'S', 2}
-	channelRPCResponseMagic   = [...]byte{'W', 'K', 'C', 'S', 3}
+	channelRPCResponseMagicV3 = [...]byte{'W', 'K', 'C', 'S', 3}
+	channelRPCResponseMagic   = [...]byte{'W', 'K', 'C', 'S', 4}
 )
 
 type channelRPCRequest struct {
@@ -331,6 +332,9 @@ func decodeChannelRPCResponseBinary(body []byte) (channelRPCResponse, error) {
 	if runtimeMetaHasMagic(body, channelRPCResponseMagicV2[:]) {
 		return decodeChannelRPCResponseV2(body)
 	}
+	if runtimeMetaHasMagic(body, channelRPCResponseMagicV3[:]) {
+		return decodeChannelRPCResponseV3(body)
+	}
 	if !runtimeMetaHasMagic(body, channelRPCResponseMagic[:]) {
 		return channelRPCResponse{}, fmt.Errorf("metastore: invalid channel response codec")
 	}
@@ -394,6 +398,34 @@ func decodeChannelRPCResponseV2(body []byte) (channelRPCResponse, error) {
 		return channelRPCResponse{}, err
 	}
 	if resp.Channels, offset, err = readChannelsBase(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if resp.Cursor, offset, err = runtimeMetaReadChannelCursor(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if resp.Done, offset, err = runtimeMetaReadBool(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if offset != len(body) {
+		return channelRPCResponse{}, fmt.Errorf("metastore: trailing channel response bytes")
+	}
+	return resp, nil
+}
+
+func decodeChannelRPCResponseV3(body []byte) (channelRPCResponse, error) {
+	offset := len(channelRPCResponseMagicV3)
+	var resp channelRPCResponse
+	var err error
+	if resp.Status, offset, err = runtimeMetaReadString(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if resp.LeaderID, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if resp.Channel, offset, err = readChannelPtrV3(body, offset); err != nil {
+		return channelRPCResponse{}, err
+	}
+	if resp.Channels, offset, err = readChannelsV3(body, offset); err != nil {
 		return channelRPCResponse{}, err
 	}
 	if resp.Cursor, offset, err = runtimeMetaReadChannelCursor(body, offset); err != nil {
@@ -504,6 +536,7 @@ func appendChannel(dst []byte, ch metadb.Channel) []byte {
 	dst = runtimeMetaAppendVarint(dst, ch.AllowStranger)
 	dst = runtimeMetaAppendUvarint(dst, ch.SubscriberCount)
 	dst = runtimeMetaAppendVarint(dst, ch.Large)
+	dst = runtimeMetaAppendVarint(dst, ch.DirectoryReady)
 	return dst
 }
 
@@ -552,6 +585,60 @@ func readChannels(body []byte, offset int) ([]metadb.Channel, int, error) {
 }
 
 func readChannel(body []byte, offset int) (metadb.Channel, int, error) {
+	ch, offset, err := readChannelBase(body, offset)
+	if err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.AllowStranger, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.SubscriberCount, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.Large, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	if ch.DirectoryReady, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+		return metadb.Channel{}, offset, err
+	}
+	return ch, offset, nil
+}
+
+func readChannelPtrV3(body []byte, offset int) (*metadb.Channel, int, error) {
+	marker, next, err := runtimeMetaReadMarker(body, offset, "channel")
+	if err != nil || marker == 0 {
+		return nil, next, err
+	}
+	ch, next, err := readChannelV3(body, next)
+	if err != nil {
+		return nil, offset, err
+	}
+	return &ch, next, nil
+}
+
+func readChannelsV3(body []byte, offset int) ([]metadb.Channel, int, error) {
+	count, next, err := runtimeMetaReadUvarint(body, offset)
+	if err != nil {
+		return nil, offset, err
+	}
+	offset = next
+	if count == 0 {
+		return nil, offset, nil
+	}
+	channelsLen, err := runtimeMetaCollectionLen(count, len(body)-offset, "channel list")
+	if err != nil {
+		return nil, offset, err
+	}
+	channels := make([]metadb.Channel, channelsLen)
+	for i := range channels {
+		if channels[i], offset, err = readChannelV3(body, offset); err != nil {
+			return nil, offset, err
+		}
+	}
+	return channels, offset, nil
+}
+
+func readChannelV3(body []byte, offset int) (metadb.Channel, int, error) {
 	ch, offset, err := readChannelBase(body, offset)
 	if err != nil {
 		return metadb.Channel{}, offset, err
