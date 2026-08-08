@@ -313,6 +313,21 @@ func TestDiscoverEIPQuotaFailsClosedOnIncompleteOrAmbiguousEvidence(t *testing.T
 	}
 }
 
+func TestEIPQuotaRecordSummaryIsBoundedToPublicIdentifiers(t *testing.T) {
+	records := []eipQuotaRecord{
+		{ActionCode: "quota-b", Category: eipQuotaCategory},
+		{ActionCode: "quota-a", Category: ""},
+	}
+	for index := 0; index < 8; index++ {
+		records = append(records, eipQuotaRecord{ActionCode: strings.Repeat("x", 80), Category: eipQuotaCategory})
+	}
+	got := eipQuotaRecordSummary(records)
+	if !strings.Contains(got, "quota-b/CommonQuota") || !strings.Contains(got, "quota-a/(omitted)") ||
+		!strings.Contains(got, "+2_more") || strings.Contains(got, strings.Repeat("x", 65)) {
+		t.Fatalf("eipQuotaRecordSummary() = %q, want bounded public action/category evidence", got)
+	}
+}
+
 func TestRequiredQuoteActionsAreReadOnlyAndExact(t *testing.T) {
 	want := []string{
 		"ecs:DescribeAccountAttributes",

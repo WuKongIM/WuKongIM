@@ -730,8 +730,8 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 			}
 			if len(matches) != 1 {
 				return EIPQuota{}, discoveryError(fmt.Sprintf(
-					"ListProductQuotas exact quota (records=%d action_matches=%d exact_matches=%d)",
-					len(records), actionMatches, len(matches)), nil)
+					"ListProductQuotas exact quota (records=%d action_matches=%d exact_matches=%d observed=%s)",
+					len(records), actionMatches, len(matches), eipQuotaRecordSummary(records)), nil)
 			}
 			record := matches[0]
 			limit, limitOK := wholeQuotaValue(record.Limit)
@@ -751,6 +751,39 @@ func discoverEIPQuota(ctx context.Context, fetch eipQuotaPageFetcher) (EIPQuota,
 		token = nextToken
 	}
 	return EIPQuota{}, discoveryError("ListProductQuotas page limit", nil)
+}
+
+func eipQuotaRecordSummary(records []eipQuotaRecord) string {
+	const (
+		maxRecords    = 8
+		maxFieldBytes = 64
+	)
+	count := len(records)
+	if count > maxRecords {
+		count = maxRecords
+	}
+	identities := make([]string, 0, count+1)
+	for _, record := range records[:count] {
+		action := strings.TrimSpace(record.ActionCode)
+		category := strings.TrimSpace(record.Category)
+		if action == "" {
+			action = "(omitted)"
+		}
+		if category == "" {
+			category = "(omitted)"
+		}
+		if len(action) > maxFieldBytes {
+			action = action[:maxFieldBytes]
+		}
+		if len(category) > maxFieldBytes {
+			category = category[:maxFieldBytes]
+		}
+		identities = append(identities, action+"/"+category)
+	}
+	if len(records) > maxRecords {
+		identities = append(identities, fmt.Sprintf("+%d_more", len(records)-maxRecords))
+	}
+	return strings.Join(identities, ",")
 }
 
 func wholeQuotaValue(value *float32) (int64, bool) {
