@@ -71,6 +71,10 @@ at most 2,000 and have allocation headroom to prove waiver eligibility.
 For one exact `DescribeAvailableResource` candidate, a successful provider body
 that omits `AvailableZones` is authoritative no-stock evidence for that candidate;
 a missing response body or API error still makes discovery unavailable.
+When all candidates lack capacity, Quote emits only bounded reason categories and
+aggregate counts for the instance, system-disk, and data-disk checks. This
+distinguishes provider stock, omitted status, missing resource, and disk-range
+failures without exposing offer identities or account data.
 
 `NewOpenAPIFromOIDCEnvironment` requires temporary AccessKey, secret, and
 security-token variables. The adapter never accepts a long-lived credential

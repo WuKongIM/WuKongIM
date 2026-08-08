@@ -99,9 +99,14 @@ type Image struct {
 type Availability struct {
 	// Instance reports current regular PostPaid stock for the exact type.
 	Instance bool
+	// InstanceReason is a bounded diagnostic category, never provider identity data.
+	InstanceReason string
 	// SystemESSDPL0 and DataESSDPL0 include WithStock status and requested-size range checks.
 	SystemESSDPL0 bool
-	DataESSDPL0   bool
+	// SystemESSDPL0Reason and DataESSDPL0Reason are bounded diagnostic categories.
+	SystemESSDPL0Reason string
+	DataESSDPL0         bool
+	DataESSDPL0Reason   string
 }
 
 // AvailabilityRequest describes the provider capabilities checked in one zone.
@@ -345,6 +350,8 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 	var best *offer
 	sawCapacity := false
 	sawQuota := false
+	availabilityChecks := 0
+	availabilityEvidence := make(map[string]map[string]int)
 	for _, zone := range zones {
 		quota, quotaErr := p.api.PostPaidVCPUQuota(ctx, RegionHangzhou, zone.ID)
 		if quotaErr != nil || quota.Limit < 0 || quota.Used < 0 || quota.Used > quota.Limit {
@@ -366,7 +373,11 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 			if availabilityErr != nil {
 				return cloudlease.Quote{}, discoveryError("availability", availabilityErr)
 			}
+			availabilityChecks++
 			if !availability.Instance || !availability.SystemESSDPL0 || !availability.DataESSDPL0 {
+				recordAvailabilityEvidence(availabilityEvidence, "instance", availability.Instance, availability.InstanceReason)
+				recordAvailabilityEvidence(availabilityEvidence, "system_disk", availability.SystemESSDPL0, availability.SystemESSDPL0Reason)
+				recordAvailabilityEvidence(availabilityEvidence, "data_disk", availability.DataESSDPL0, availability.DataESSDPL0Reason)
 				continue
 			}
 			sawCapacity = true
@@ -394,7 +405,7 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 		case !sawQuota:
 			return cloudlease.Quote{}, cloudlease.ErrQuotaUnavailable
 		case !sawCapacity:
-			return cloudlease.Quote{}, cloudlease.ErrCapacityUnavailable
+			return cloudlease.Quote{}, fmt.Errorf("%w: checks=%d evidence=%s", cloudlease.ErrCapacityUnavailable, availabilityChecks, formatAvailabilityEvidence(availabilityEvidence))
 		default:
 			return cloudlease.Quote{}, cloudlease.ErrCapacityUnavailable
 		}
@@ -439,6 +450,41 @@ func (p *Provider) Quote(ctx context.Context, request cloudlease.QuoteRequest) (
 		LineItems: best.lineItems,
 		Selection: selection,
 	}, nil
+}
+
+func recordAvailabilityEvidence(evidence map[string]map[string]int, resource string, available bool, reason string) {
+	if available {
+		return
+	}
+	if reason == "" {
+		reason = "unspecified"
+	}
+	if evidence[resource] == nil {
+		evidence[resource] = make(map[string]int)
+	}
+	evidence[resource][reason]++
+}
+
+func formatAvailabilityEvidence(evidence map[string]map[string]int) string {
+	parts := make([]string, 0, len(evidence))
+	for _, resource := range []string{"instance", "system_disk", "data_disk"} {
+		reasons := evidence[resource]
+		if len(reasons) == 0 {
+			continue
+		}
+		keys := make([]string, 0, len(reasons))
+		for reason := range reasons {
+			keys = append(keys, reason)
+		}
+		slices.Sort(keys)
+		for _, reason := range keys {
+			parts = append(parts, resource+"/"+reason+"="+strconv.Itoa(reasons[reason]))
+		}
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, ",")
 }
 
 func excludedOffer(exclusions []cloudlease.PlacementExclusion, zone, computeType string) bool {

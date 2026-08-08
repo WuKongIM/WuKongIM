@@ -40,6 +40,17 @@ const (
 	eipQuotaName                   = "eip_quota_instances_num"
 	eipQuotaCategory               = "CommonQuota"
 	mutationPermissionProbeID      = "i-wukongim-readonly-permission-probe"
+	availabilityWithStock          = "with_stock"
+	availabilityEmptyZones         = "empty_zones"
+	availabilityZoneNotReturned    = "zone_not_returned"
+	availabilityZoneStatusMissing  = "zone_status_missing"
+	availabilityZoneWithoutStock   = "zone_not_with_stock"
+	availabilityResourceMissing    = "resource_not_returned"
+	availabilityValueMissing       = "supported_value_not_returned"
+	availabilityStatusMissing      = "supported_status_missing"
+	availabilityWithoutStock       = "supported_not_with_stock"
+	availabilityRangeMissing       = "disk_range_missing"
+	availabilityRangeNotCovered    = "disk_range_not_covered"
 )
 
 // OpenAPI is the production Alibaba SDK boundary. Lifecycle methods remain
@@ -512,19 +523,23 @@ func (a *OpenAPI) Availability(ctx context.Context, request AvailabilityRequest)
 		!validDiskSizes(request.DataDiskSizesGiB, maxDataDiskGiB) {
 		return Availability{}, ErrInvalidConfig
 	}
-	instance, err := a.resourceAvailable(ctx, request, "InstanceType", request.InstanceType, nil)
+	instance, instanceReason, err := a.resourceAvailable(ctx, request, "InstanceType", request.InstanceType, nil)
 	if err != nil {
 		return Availability{}, err
 	}
-	systemDisk, err := a.resourceAvailable(ctx, request, "SystemDisk", providerDiskESSD, request.SystemDiskSizesGiB)
+	systemDisk, systemDiskReason, err := a.resourceAvailable(ctx, request, "SystemDisk", providerDiskESSD, request.SystemDiskSizesGiB)
 	if err != nil {
 		return Availability{}, err
 	}
-	dataDisk, err := a.resourceAvailable(ctx, request, "DataDisk", providerDiskESSD, request.DataDiskSizesGiB)
+	dataDisk, dataDiskReason, err := a.resourceAvailable(ctx, request, "DataDisk", providerDiskESSD, request.DataDiskSizesGiB)
 	if err != nil {
 		return Availability{}, err
 	}
-	return Availability{Instance: instance, SystemESSDPL0: systemDisk, DataESSDPL0: dataDisk}, nil
+	return Availability{
+		Instance: instance, InstanceReason: instanceReason,
+		SystemESSDPL0: systemDisk, SystemESSDPL0Reason: systemDiskReason,
+		DataESSDPL0: dataDisk, DataESSDPL0Reason: dataDiskReason,
+	}, nil
 }
 
 func validDiskSizes(sizesGiB []int, maximumGiB int) bool {
@@ -539,7 +554,7 @@ func validDiskSizes(sizesGiB []int, maximumGiB int) bool {
 	return true
 }
 
-func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, error) {
+func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
 	providerRequest := (&ecs.DescribeAvailableResourceRequest{}).
 		SetRegionId(request.Region).
 		SetZoneId(request.Zone).
@@ -558,57 +573,125 @@ func (a *OpenAPI) resourceAvailable(ctx context.Context, request AvailabilityReq
 	}
 	response, err := a.ecs.DescribeAvailableResourceWithContext(ctx, providerRequest, &dara.RuntimeOptions{})
 	if err != nil || response == nil {
-		return false, discoveryError("DescribeAvailableResource "+destination, err)
+		return false, "", discoveryError("DescribeAvailableResource "+destination, err)
 	}
 	return resourceAvailableFromBody(response.Body, request, destination, expected, sizesGiB)
 }
 
-func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, error) {
+func resourceAvailableFromBody(body *ecs.DescribeAvailableResourceResponseBody, request AvailabilityRequest, destination, expected string, sizesGiB []int) (bool, string, error) {
 	if body == nil {
-		return false, discoveryError("DescribeAvailableResource "+destination+" body", nil)
+		return false, "", discoveryError("DescribeAvailableResource "+destination+" body", nil)
 	}
 	// Alibaba omits the AvailableZones wrapper when a successful exact query
 	// has no matching inventory. That is authoritative unavailability for this
 	// offer, not loss of discovery evidence for the remaining candidates.
 	if body.AvailableZones == nil {
-		return false, nil
+		return false, availabilityEmptyZones, nil
 	}
+	zoneFound := false
+	zoneStatusMissing := false
+	zoneWithoutStock := false
+	resourceFound := false
+	valueFound := false
+	statusMissing := false
+	withoutStock := false
+	rangeMissing := false
+	rangeNotCovered := false
 	for _, zone := range body.AvailableZones.AvailableZone {
-		if zone == nil || stringValue(zone.ZoneId) != request.Zone ||
-			!stockStatusAvailable(stringValue(zone.Status), stringValue(zone.StatusCategory)) || zone.AvailableResources == nil {
+		if zone == nil || stringValue(zone.ZoneId) != request.Zone {
+			continue
+		}
+		zoneFound = true
+		if stringValue(zone.Status) == "" || stringValue(zone.StatusCategory) == "" {
+			zoneStatusMissing = true
+			continue
+		}
+		if !stockStatusAvailable(stringValue(zone.Status), stringValue(zone.StatusCategory)) {
+			zoneWithoutStock = true
+			continue
+		}
+		if zone.AvailableResources == nil {
 			continue
 		}
 		for _, resource := range zone.AvailableResources.AvailableResource {
-			if resource == nil || stringValue(resource.Type) != destination || resource.SupportedResources == nil {
+			if resource == nil || stringValue(resource.Type) != destination {
+				continue
+			}
+			resourceFound = true
+			if resource.SupportedResources == nil {
 				continue
 			}
 			for _, supported := range resource.SupportedResources.SupportedResource {
-				if supportedResourceAvailable(supported, expected, sizesGiB) {
-					return true, nil
+				if supported == nil || stringValue(supported.Value) != expected {
+					continue
+				}
+				valueFound = true
+				reason := supportedResourceAvailabilityReason(supported, sizesGiB)
+				switch reason {
+				case availabilityWithStock:
+					return true, reason, nil
+				case availabilityStatusMissing:
+					statusMissing = true
+				case availabilityWithoutStock:
+					withoutStock = true
+				case availabilityRangeMissing:
+					rangeMissing = true
+				case availabilityRangeNotCovered:
+					rangeNotCovered = true
 				}
 			}
 		}
 	}
-	return false, nil
+	switch {
+	case !zoneFound:
+		return false, availabilityZoneNotReturned, nil
+	case zoneStatusMissing:
+		return false, availabilityZoneStatusMissing, nil
+	case zoneWithoutStock:
+		return false, availabilityZoneWithoutStock, nil
+	case !resourceFound:
+		return false, availabilityResourceMissing, nil
+	case !valueFound:
+		return false, availabilityValueMissing, nil
+	case rangeNotCovered:
+		return false, availabilityRangeNotCovered, nil
+	case rangeMissing:
+		return false, availabilityRangeMissing, nil
+	case statusMissing:
+		return false, availabilityStatusMissing, nil
+	case withoutStock:
+		return false, availabilityWithoutStock, nil
+	default:
+		return false, availabilityValueMissing, nil
+	}
 }
 
 func supportedResourceAvailable(supported *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource, expected string, sizesGiB []int) bool {
-	if supported == nil || stringValue(supported.Value) != expected ||
-		!stockStatusAvailable(stringValue(supported.Status), stringValue(supported.StatusCategory)) {
-		return false
+	return supported != nil && stringValue(supported.Value) == expected && supportedResourceAvailabilityReason(supported, sizesGiB) == availabilityWithStock
+}
+
+func supportedResourceAvailabilityReason(supported *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource, sizesGiB []int) string {
+	if supported == nil {
+		return availabilityValueMissing
+	}
+	if stringValue(supported.Status) == "" || stringValue(supported.StatusCategory) == "" {
+		return availabilityStatusMissing
+	}
+	if !stockStatusAvailable(stringValue(supported.Status), stringValue(supported.StatusCategory)) {
+		return availabilityWithoutStock
 	}
 	if len(sizesGiB) == 0 {
-		return true
+		return availabilityWithStock
 	}
 	if stringValue(supported.Unit) != "GiB" || supported.Min == nil || supported.Max == nil || *supported.Min <= 0 {
-		return false
+		return availabilityRangeMissing
 	}
 	for _, sizeGiB := range sizesGiB {
 		if *supported.Min > int32(sizeGiB) || int32(sizeGiB) > *supported.Max {
-			return false
+			return availabilityRangeNotCovered
 		}
 	}
-	return true
+	return availabilityWithStock
 }
 
 func stockStatusAvailable(status, category string) bool {

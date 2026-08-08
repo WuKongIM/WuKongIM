@@ -146,9 +146,9 @@ func TestProviderQuoteFailsClosedOnMissingAdmissionInput(t *testing.T) {
 		{name: "candidate", change: func(api *fakeReadAPI) { api.instanceTypes = nil }, want: cloudlease.ErrCapacityUnavailable},
 		{name: "image", change: func(api *fakeReadAPI) { api.images = nil }, want: cloudlease.ErrCapacityUnavailable},
 		{name: "disk compatibility", change: func(api *fakeReadAPI) {
-			api.availability[offerKey("cn-hangzhou-h", "ecs.g8.large")] = Availability{}
-			api.availability[offerKey("cn-hangzhou-i", "ecs.g8.large")] = Availability{}
-			api.availability[offerKey("cn-hangzhou-h", "ecs.c8.large-cheaper")] = Availability{}
+			api.availability[offerKey("cn-hangzhou-h", "ecs.g8.large")] = Availability{InstanceReason: availabilityEmptyZones, SystemESSDPL0Reason: availabilityRangeNotCovered, DataESSDPL0Reason: availabilityRangeNotCovered}
+			api.availability[offerKey("cn-hangzhou-i", "ecs.g8.large")] = Availability{InstanceReason: availabilityEmptyZones, SystemESSDPL0Reason: availabilityRangeNotCovered, DataESSDPL0Reason: availabilityRangeNotCovered}
+			api.availability[offerKey("cn-hangzhou-h", "ecs.c8.large-cheaper")] = Availability{InstanceReason: availabilityEmptyZones, SystemESSDPL0Reason: availabilityRangeNotCovered, DataESSDPL0Reason: availabilityRangeNotCovered}
 		}, want: cloudlease.ErrCapacityUnavailable},
 		{name: "quota", change: func(api *fakeReadAPI) {
 			api.quotas["cn-hangzhou-h"] = VCPUQuota{Limit: 16, Used: 1}
@@ -182,6 +182,34 @@ func TestProviderQuoteFailsClosedOnMissingAdmissionInput(t *testing.T) {
 				t.Fatalf("read-only API write calls = %d, want 0", api.writeCalls)
 			}
 		})
+	}
+}
+
+func TestProviderQuoteReportsBoundedAggregateAvailabilityEvidence(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	api := completeReadAPI()
+	for key := range api.availability {
+		api.availability[key] = Availability{
+			InstanceReason:      availabilityEmptyZones,
+			SystemESSDPL0Reason: availabilityRangeNotCovered,
+			DataESSDPL0Reason:   availabilityStatusMissing,
+		}
+	}
+	provider := New(api, Options{Now: func() time.Time { return now }})
+	controller := cloudlease.NewController(provider, func() time.Time { return now })
+
+	_, err := controller.Quote(context.Background(), approvedPlan(now))
+	if !errors.Is(err, cloudlease.ErrCapacityUnavailable) {
+		t.Fatalf("Quote() error = %v, want ErrCapacityUnavailable", err)
+	}
+	want := "checks=4 evidence=instance/empty_zones=4,system_disk/disk_range_not_covered=4,data_disk/supported_status_missing=4"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("Quote() error = %q, want bounded evidence %q", err, want)
+	}
+	for _, secretOrIdentity := range []string{"cn-hangzhou", "ecs.g8.large", "ecs.c8.large-cheaper"} {
+		if strings.Contains(err.Error(), secretOrIdentity) {
+			t.Fatalf("Quote() error exposed candidate identity %q: %v", secretOrIdentity, err)
+		}
 	}
 }
 

@@ -166,7 +166,7 @@ func TestSupportedResourceAvailableRequiresWithStockAndRequestedDiskRange(t *tes
 }
 
 func TestResourceAvailableFromBodyTreatsEmptyInventoryAsUnavailable(t *testing.T) {
-	available, err := resourceAvailableFromBody(&ecs.DescribeAvailableResourceResponseBody{}, AvailabilityRequest{
+	available, reason, err := resourceAvailableFromBody(&ecs.DescribeAvailableResourceResponseBody{}, AvailabilityRequest{
 		Region: RegionHangzhou, Zone: "cn-hangzhou-h", InstanceType: "ecs.g8.large",
 	}, "InstanceType", "ecs.g8.large", nil)
 	if err != nil {
@@ -174,6 +174,52 @@ func TestResourceAvailableFromBodyTreatsEmptyInventoryAsUnavailable(t *testing.T
 	}
 	if available {
 		t.Fatal("resourceAvailableFromBody() = true for an authoritative empty inventory")
+	}
+	if reason != availabilityEmptyZones {
+		t.Fatalf("resourceAvailableFromBody() reason = %q, want %q", reason, availabilityEmptyZones)
+	}
+}
+
+func TestSupportedResourceAvailabilityReasonIsBounded(t *testing.T) {
+	newResource := func() *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource {
+		return (&ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource{}).
+			SetValue(providerDiskESSD).
+			SetStatus("Available").
+			SetStatusCategory("WithStock").
+			SetUnit("GiB").
+			SetMin(20).
+			SetMax(2_048)
+	}
+	tests := []struct {
+		name   string
+		change func(*ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource)
+		sizes  []int
+		want   string
+	}{
+		{name: "with stock", sizes: []int{500}, want: availabilityWithStock},
+		{name: "status missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.StatusCategory = nil
+		}, want: availabilityStatusMissing},
+		{name: "without stock", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.SetStatusCategory("WithoutStock")
+		}, want: availabilityWithoutStock},
+		{name: "range missing", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.Max = nil
+		}, want: availabilityRangeMissing},
+		{name: "range not covered", sizes: []int{500}, change: func(value *ecs.DescribeAvailableResourceResponseBodyAvailableZonesAvailableZoneAvailableResourcesAvailableResourceSupportedResourcesSupportedResource) {
+			value.SetMax(499)
+		}, want: availabilityRangeNotCovered},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			value := newResource()
+			if test.change != nil {
+				test.change(value)
+			}
+			if got := supportedResourceAvailabilityReason(value, test.sizes); got != test.want {
+				t.Fatalf("supportedResourceAvailabilityReason() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 
