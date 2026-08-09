@@ -192,10 +192,13 @@ func TestCloudDeploymentFrozenWorkerHealthCompatibilityIsNarrow(t *testing.T) {
 	for _, fragment := range []string{
 		"4daf86e4a88478ccdecd9675acee8414810413be",
 		"b3a93b9f5f0ca88462ea9f77e910afdc8601c8ea24b4e1fe52916d416907118c",
+		"7624a9237b0d40583eedd4447a01714b312cd1e957561e1f55e74fe424f7836b",
 		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
+		`stage_unit="wkbench-${stage}.service"`,
 		`[[ "${WK_BENCH_WORKER_TOKEN:-}" =~ ^[0-9a-f]{64}$ ]]`,
 		`-H "Authorization: Bearer ${WK_BENCH_WORKER_TOKEN}"`,
-		`[[ "$target_sha256" == "$legacy_sha256" ]]`,
+		`wukongim_process_up{unit=\"" unit "\"}`, `up == 1 && cpu == 1 && memory == 1`,
+		`[[ "$target_sha256" == "$legacy_sha256" || "$target_sha256" == "$authenticated_sha256" ]]`,
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("frozen worker-health compatibility helper missing %q", fragment)

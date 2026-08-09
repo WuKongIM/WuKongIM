@@ -95,11 +95,15 @@ state, removes the overlay, and leaves the real unit failed for the frozen
 orchestrator to reset immediately before its authorized start. The current
 orchestrator treats reset as idempotent. Other control revisions do not create
 the account or prime coordinator state. The frozen dependency script also
-predates authenticated worker health endpoints. Its exact legacy file hash may
-be replaced atomically with the current token-bearing equivalent after load
-host preparation; unknown content fails closed. The immutable template remains
+predates authenticated worker health endpoints. Its exact legacy file hash or
+the exact first authenticated compatibility hash may be replaced atomically
+with the current token-bearing equivalent after load host preparation; unknown
+content fails closed. The immutable template remains
 unchanged while this active source/bundle identity is in use; a later bundle
-revision must carry the same authenticated probe directly.
+revision must carry the same authenticated probe directly. The compatibility
+gate also waits until the 15-second process collector exposes exactly one
+up/CPU/RSS row for the selected stage unit; formal preflight therefore cannot
+race a stale pre-start process snapshot and misclassify it as disk ambiguity.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The
