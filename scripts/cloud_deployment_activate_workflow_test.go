@@ -149,6 +149,7 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
 		"install-orchestrator-compat-user.sh", "${role}-orchestrator-compat", "load-orchestrator-compat",
 		"install-frozen-worker-health-compat.sh", "load-worker-health-compat",
+		"install-frozen-stage-process-compat.sh", "load-stage-process-compat",
 		"prime-frozen-orchestrator-stage.sh", "load-orchestrator-stage-prime",
 		"${role}-quiesce", "sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service",
 		"load-quiesce", "sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
@@ -168,6 +169,7 @@ func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 	for _, name := range []string{
 		"activate-hosts.sh", "collect-readiness.sh", "validate-upstream-run.sh",
 		"install-orchestrator-compat-user.sh", "install-frozen-worker-health-compat.sh",
+		"install-frozen-stage-process-compat.sh",
 		"prime-frozen-orchestrator-stage.sh",
 		"write-deployment-failure.sh", "write-ssh-config.sh",
 	} {
@@ -193,15 +195,40 @@ func TestCloudDeploymentFrozenWorkerHealthCompatibilityIsNarrow(t *testing.T) {
 		"4daf86e4a88478ccdecd9675acee8414810413be",
 		"b3a93b9f5f0ca88462ea9f77e910afdc8601c8ea24b4e1fe52916d416907118c",
 		"7624a9237b0d40583eedd4447a01714b312cd1e957561e1f55e74fe424f7836b",
+		"5d9c417ddb91a670a8336e775e93a064aca8f95b332b0876a8932d2ebf2ab6ed",
 		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
-		`stage_unit="wkbench-${stage}.service"`,
 		`[[ "${WK_BENCH_WORKER_TOKEN:-}" =~ ^[0-9a-f]{64}$ ]]`,
 		`-H "Authorization: Bearer ${WK_BENCH_WORKER_TOKEN}"`,
-		`wukongim_process_up{unit=\"" unit "\"}`, `up == 1 && cpu == 1 && memory == 1`,
-		`[[ "$target_sha256" == "$legacy_sha256" || "$target_sha256" == "$authenticated_sha256" ]]`,
+		`[[ "$target_sha256" == "$legacy_sha256" || "$target_sha256" == "$authenticated_sha256" || "$target_sha256" == "$prestart_process_wait_sha256" ]]`,
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("frozen worker-health compatibility helper missing %q", fragment)
+		}
+	}
+}
+
+func TestCloudDeploymentFrozenStageProcessCompatibilityIsNarrow(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "install-frozen-stage-process-compat.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		"4daf86e4a88478ccdecd9675acee8414810413be",
+		"5f2b8469d3f027cc693d9ce15f60a38006b677a86e24c483e07b55440a209fde",
+		"23598d4a8f2d76a7abbf3b211b1dd61be47f57a27773f9d4619b730569289df2",
+		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
+		`[[ "$(sha256sum "$unit_path" | awk '{print $1}')" == "$expected_unit_sha256" ]]`,
+		`stage_unit="wkbench-${stage}.service"`,
+		`wukongim_process_up{unit=\"" unit "\"}`,
+		`up == 1 && cpu == 1 && memory == 1`,
+		`exec "${command[@]}"`,
+		"91-frozen-stage-process-evidence.conf",
+		`ExecStart=${wrapper} ${stage}`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("frozen stage-process compatibility helper missing %q", fragment)
 		}
 	}
 }
