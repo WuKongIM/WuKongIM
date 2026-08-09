@@ -24,7 +24,8 @@ active Lease Receipt + verified bundle manifest
   -> install-offline verifies, mounts, renders, and prepares only the selected role
   -> activate-offline starts role infrastructure without starting the coordinator
   -> readiness reads effective topology config from all three nodes and proves
-     host, cluster, load, proxy, and observer gates
+     host, cluster, load, proxy, and observer gates; host clock evidence comes
+     directly from each Ubuntu chrony daemon instead of the untrusted runner clock
   -> EvaluateReadiness emits one typed receipt or stable bounded failure
 ```
 

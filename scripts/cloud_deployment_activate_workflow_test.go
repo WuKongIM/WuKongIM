@@ -98,8 +98,7 @@ func TestCloudDeploymentReadinessCollectorIsBoundedAndUsesPrivateOrigins(t *test
 	text := string(content)
 	for _, fragment := range []string{
 		"clock_offset_milliseconds", "data_filesystem_bytes", "system_filesystem_bytes",
-		"host_time_before=$(date -u +%s%3N)", "host_time_after=$(date -u +%s%3N)",
-		"host_time_before - before + host_time_after - after",
+		"chronyc waitsync 1 1.0", "chronyc -c tracking", `$14 == "Normal"`, `$5 * 1000`,
 		"/manager/nodes", "/manager/nodes/${node_id}/config", "/manager/slots", "/manager/controller/tasks?limit=50",
 		"healthy_slot_replica_sets", "logical_slot_groups:$groups", "ready_workers",
 		"runtime_config_nodes", "slot_replicas:$slot_replicas", "channel_replicas:$channel_replicas",

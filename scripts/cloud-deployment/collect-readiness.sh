@@ -47,16 +47,24 @@ collect_host() {
   else
     required_units='wukongim.service wkbench-host-metrics.service node-exporter.service wukongim-process-metrics.service wukongim-evidence.timer'
   fi
-  local before after raw
-  before="$(date -u +%s%3N)"
+  local raw
   raw="$(
     "${remote[@]}" "sudo bash -s -- '$required_units'" <<'REMOTE'
 set -u
 required_units="$1"
-host_time_before=$(date -u +%s%3N)
 . /etc/os-release
 base=false
 /opt/wukongim/scripts/verify-base-tools.sh >/dev/null 2>&1 && base=true
+chronyc waitsync 1 1.0 >/dev/null
+clock_offset=$(chronyc -c tracking | awk -F, '
+  NF == 14 && $14 == "Normal" && $5 ~ /^-?[0-9]+([.][0-9]+)?$/ {
+    rounded = sprintf("%.0f", $5 * 1000)
+    print rounded == "-0" ? "0" : rounded
+    found = 1
+  }
+  END { if (!found) exit 1 }
+')
+[[ "$clock_offset" =~ ^-?[0-9]+$ ]]
 digest=$(sed -n 's/.*digest="\([^" ]*\)".*/\1/p' /var/lib/wukongim/textfile/bundle.prom | head -1)
 disk=$(cat /var/lib/wukongim-cloud/.wukongim-data-disk-id 2>/dev/null || true)
 mount=$(findmnt -rn -T /var/lib/wukongim-cloud -o TARGET 2>/dev/null || true)
@@ -66,17 +74,11 @@ units=
 for unit in $required_units; do
   if systemctl is-active --quiet "$unit"; then units="${units}${units:+,}$unit"; fi
 done
-host_time_after=$(date -u +%s%3N)
-printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$ID" "$VERSION_ID" "$(uname -m)" "$base" "$digest" "$disk" "$mount" "$data_size" "$data_free" "$system_size" "$system_free" "$host_time_before" "$host_time_after" "$units"
+printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$ID" "$VERSION_ID" "$(uname -m)" "$base" "$digest" "$disk" "$mount" "$data_size" "$data_free" "$system_size" "$system_free" "$clock_offset" "$units"
 REMOTE
   )"
-  after="$(date -u +%s%3N)"
-  local os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time_before host_time_after units
-  IFS='|' read -r os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time_before host_time_after units <<<"$raw"
-  local offset
-  # NTP's four-timestamp offset formula excludes both the remote evidence
-  # collection time and the round-trip transport time from the clock proof.
-  offset="$(((host_time_before - before + host_time_after - after) / 2))"
+  local os_id os_version architecture base digest disk mount data_size data_free system_size system_free offset units
+  IFS='|' read -r os_id os_version architecture base digest disk mount data_size data_free system_size system_free offset units <<<"$raw"
   jq -n \
     --arg role "$role" --arg os "$os_id" --arg version "$os_version" --arg arch "$architecture" \
     --argjson base "$base" --arg digest "$digest" --arg disk "$disk" --arg mount "$mount" \

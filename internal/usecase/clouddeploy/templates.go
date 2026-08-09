@@ -151,7 +151,7 @@ set -euo pipefail
 . /etc/os-release
 [[ "$ID" == ubuntu && "$VERSION_ID" == 24.04 ]]
 [[ "$(uname -m)" == x86_64 ]]
-for tool in awk bash blkid cat chmod chown curl date df dirname findmnt getconf grep head id install lsblk mkdir mkfs.ext4 mount mv rm scp sed sha256sum sleep ssh stat sudo systemctl tail tar timedatectl timeout uname useradd; do
+for tool in awk bash blkid cat chmod chown chronyc curl date df dirname findmnt getconf grep head id install lsblk mkdir mkfs.ext4 mount mv rm scp sed sha256sum sleep ssh stat sudo systemctl tail tar timedatectl timeout uname useradd; do
   command -v "$tool" >/dev/null
 done
 `,
