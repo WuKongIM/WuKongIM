@@ -4383,20 +4383,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 		t.Fatalf("bootstrap Step: %v", err)
 	}
 	fixture.settleScheduledLogins(t, now, bootstrap)
-	settleCompletions := func(stage string) {
-		t.Helper()
-		var snapshot EngineSnapshot
-		var snapshotErr error
-		for range 10_000 {
-			snapshot, snapshotErr = fixture.engine.Snapshot()
-			if snapshotErr == nil && snapshot.InflightCurrent == 0 && snapshot.RetryQueueDepth == 0 {
-				return
-			}
-			runtime.Gosched()
-		}
-		t.Fatalf("%s completions did not settle: snapshot=%+v snapshot_err=%v", stage, snapshot, snapshotErr)
-	}
-	settleCompletions("bootstrap")
+	waitForEngineCompletions(t, fixture.engine, "bootstrap")
 	now = now.Add(30 * time.Second)
 	fixture.clock.Set(now)
 	for iteration := 0; iteration < 100; iteration++ {
@@ -4410,7 +4397,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("drain activity Advance(%d): %v", iteration, err)
 		}
-		settleCompletions(fmt.Sprintf("drain activity %d", iteration))
+		waitForEngineCompletions(t, fixture.engine, fmt.Sprintf("drain activity %d", iteration))
 	}
 	beforeDeadline, err := fixture.engine.Snapshot()
 	if err != nil {
@@ -4430,7 +4417,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("active Advance: %v", err)
 	}
-	settleCompletions("active")
+	waitForEngineCompletions(t, fixture.engine, "active")
 	if sent := fixture.factory.sentCount() - before; sent != 100 {
 		t.Fatalf("active first-attempt sends = %d, want 100", sent)
 	}
@@ -4718,17 +4705,28 @@ func TestEngineCompletionPressureCannotDeadlockBatchAdvance(t *testing.T) {
 	if processed, err := fixture.engine.Advance(now); err != nil || processed != 100 {
 		t.Fatalf("Advance = %d, %v", processed, err)
 	}
-	var snapshot EngineSnapshot
-	for range 10_000 {
-		snapshot, _ = fixture.engine.Snapshot()
-		if snapshot.InflightCurrent == 0 {
-			break
-		}
-		runtime.Gosched()
-	}
+	snapshot := waitForEngineCompletions(t, fixture.engine, "completion pressure")
 	if snapshot.InflightCurrent != 0 || snapshot.FutureCurrent != 0 || fixture.verifier.Snapshot().Acknowledged != 100 {
 		t.Fatalf("completion pressure snapshot = engine %+v verifier %+v", snapshot, fixture.verifier.Snapshot())
 	}
+}
+
+func waitForEngineCompletions(t testing.TB, engine *Engine, stage string) EngineSnapshot {
+	t.Helper()
+	var snapshot EngineSnapshot
+	for range 10_000 {
+		var err error
+		snapshot, err = engine.Snapshot()
+		if err != nil {
+			t.Fatalf("%s Snapshot: %v", stage, err)
+		}
+		if snapshot.InflightCurrent == 0 && snapshot.RetryQueueDepth == 0 {
+			return snapshot
+		}
+		runtime.Gosched()
+	}
+	t.Fatalf("%s completions did not settle: %+v", stage, snapshot)
+	return snapshot
 }
 
 func approveCurrentColdRevisit(t *testing.T, engine *Engine, identity string) (bool, error) {

@@ -2,7 +2,6 @@ package chatlifecycle
 
 import (
 	"context"
-	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -80,19 +79,7 @@ func BenchmarkEngineAdvanceAutoAck2000(b *testing.B) {
 		if err != nil || processed != workPerIteration {
 			b.Fatalf("Advance = %d, %v", processed, err)
 		}
-		for spin := 0; ; spin++ {
-			snapshot, snapshotErr := fixture.engine.Snapshot()
-			if snapshotErr != nil {
-				b.Fatalf("Snapshot: %v", snapshotErr)
-			}
-			if snapshot.InflightCurrent == 0 {
-				break
-			}
-			if spin >= 10_000 {
-				b.Fatalf("auto-ACK completion did not settle: %+v", snapshot)
-			}
-			runtime.Gosched()
-		}
+		waitForEngineCompletions(b, fixture.engine, "benchmark auto-ACK")
 		b.StopTimer()
 		fixture.factory.mu.Lock()
 		fixture.factory.routesV = nil
