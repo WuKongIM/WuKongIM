@@ -73,5 +73,3 @@ Return:
 Do not claim that an operational action was taken. If a write is needed,
 describe it as a proposal requiring an operator through the normal Manager
 workflow.
-
-Canary reference: [missing contract](references/canary-missing.md).
