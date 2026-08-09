@@ -27,6 +27,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 		{name: "transfer", failTool: "scp", wantCode: "bundle_transfer_failed", wantGate: "plan_validated", wantRole: "load"},
 		{name: "verification", failHost: "10.42.0.12", failCommand: "verify-offline", wantCode: "bundle_digest_mismatch", wantGate: "bundle_transferred", wantRole: "service-2"},
 		{name: "orchestrator compatibility", failHost: "10.42.0.12", failCommand: "orchestrator-compat", wantCode: "credential_materialization_failed", wantGate: "bundle_verified", wantRole: "service-2"},
+		{name: "worker health compatibility", failHost: "wukong-load", failCommand: "worker-health-compat", wantCode: "credential_materialization_failed", wantGate: "bundle_verified", wantRole: "load"},
 		{name: "stage handoff compatibility", failHost: "wukong-load", failCommand: "stage-prime", wantCode: "credential_materialization_failed", wantGate: "services_active", wantRole: "load"},
 		{name: "repair quiesce", failHost: "10.42.0.12", failCommand: "systemctl stop", wantCode: "data_disk_mount_invalid", wantGate: "bundle_verified", wantRole: "service-2"},
 		{name: "preparation", failHost: "10.42.0.13", failCommand: "install-offline", wantCode: "data_disk_mount_invalid", wantGate: "bundle_verified", wantRole: "service-3"},
@@ -46,8 +47,9 @@ joined="$*"
 if [[ "$joined" == *"root_source="* ]]; then printf '/dev/fake-data\n'; exit 0; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == normalize-config && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sed -i"* ]]; then exit 42; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == orchestrator-compat && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sudo bash /home/wkdeploy/install-orchestrator-compat-user.sh"* ]]; then exit 42; fi
+if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == worker-health-compat && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sudo bash /home/wkdeploy/install-frozen-worker-health-compat.sh"* ]]; then exit 42; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == stage-prime && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sudo bash /home/wkdeploy/prime-frozen-orchestrator-stage.sh"* ]]; then exit 42; fi
-if [[ -n "${WK_FAKE_FAIL_HOST:-}" && -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" != orchestrator-compat && "$WK_FAKE_FAIL_COMMAND" != stage-prime && "$joined" == *"$WK_FAKE_FAIL_HOST"* && "$joined" == *"$WK_FAKE_FAIL_COMMAND"* ]]; then exit 42; fi
+if [[ -n "${WK_FAKE_FAIL_HOST:-}" && -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" != orchestrator-compat && "$WK_FAKE_FAIL_COMMAND" != worker-health-compat && "$WK_FAKE_FAIL_COMMAND" != stage-prime && "$joined" == *"$WK_FAKE_FAIL_HOST"* && "$joined" == *"$WK_FAKE_FAIL_COMMAND"* ]]; then exit 42; fi
 exit 0
 `)
 			writeFakeDeploymentCommand(t, fakeBin, "scp", `#!/usr/bin/env bash

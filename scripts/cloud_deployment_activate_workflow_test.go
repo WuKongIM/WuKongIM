@@ -148,6 +148,7 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"credential_cleanup_failed services_active",
 		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
 		"install-orchestrator-compat-user.sh", "${role}-orchestrator-compat", "load-orchestrator-compat",
+		"install-frozen-worker-health-compat.sh", "load-worker-health-compat",
 		"prime-frozen-orchestrator-stage.sh", "load-orchestrator-stage-prime",
 		"${role}-quiesce", "sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service",
 		"load-quiesce", "sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
@@ -166,7 +167,8 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 	for _, name := range []string{
 		"activate-hosts.sh", "collect-readiness.sh", "validate-upstream-run.sh",
-		"install-orchestrator-compat-user.sh", "prime-frozen-orchestrator-stage.sh",
+		"install-orchestrator-compat-user.sh", "install-frozen-worker-health-compat.sh",
+		"prime-frozen-orchestrator-stage.sh",
 		"write-deployment-failure.sh", "write-ssh-config.sh",
 	} {
 		path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", name)
@@ -176,6 +178,27 @@ func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 		}
 		if info.Mode().Perm()&0o111 == 0 {
 			t.Fatalf("workflow-invoked helper %s is not executable", name)
+		}
+	}
+}
+
+func TestCloudDeploymentFrozenWorkerHealthCompatibilityIsNarrow(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "install-frozen-worker-health-compat.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		"4daf86e4a88478ccdecd9675acee8414810413be",
+		"b3a93b9f5f0ca88462ea9f77e910afdc8601c8ea24b4e1fe52916d416907118c",
+		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
+		`[[ "${WK_BENCH_WORKER_TOKEN:-}" =~ ^[0-9a-f]{64}$ ]]`,
+		`-H "Authorization: Bearer ${WK_BENCH_WORKER_TOKEN}"`,
+		`[[ "$target_sha256" == "$legacy_sha256" ]]`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("frozen worker-health compatibility helper missing %q", fragment)
 		}
 	}
 }

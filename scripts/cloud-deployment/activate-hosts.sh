@@ -36,6 +36,7 @@ cloud_ssh_retry load-upload 3 5 scp -F "$WK_CLOUD_SSH_CONFIG" \
   "$WK_CLOUD_BUNDLE_ARCHIVE" "$WK_CLOUD_DEPLOYMENT_PLAN" \
   "$WK_CLOUD_RUNTIME_NODE_ARCHIVE" "$WK_CLOUD_RUNTIME_LOAD_ARCHIVE" \
   "$script_dir/install-orchestrator-compat-user.sh" \
+  "$script_dir/install-frozen-worker-health-compat.sh" \
   "$script_dir/prime-frozen-orchestrator-stage.sh" \
   wukong-load:/home/wkdeploy/
 
@@ -112,6 +113,11 @@ cloud_ssh_retry load-quiesce 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service'
 cloud_ssh_retry load-prepare 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role load --runtime-dir /home/wkdeploy/run-secrets --data-device '$load_data_device' --no-systemd"
+write_failure credential_materialization_failed bundle_verified load \
+  "frozen coordinator dependency authentication compatibility could not be installed" \
+  "load host is prepared; coordinator worker-health authentication is unavailable"
+cloud_ssh_retry load-worker-health-compat 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  'sudo bash /home/wkdeploy/install-frozen-worker-health-compat.sh'
 complete_gate hosts_prepared
 
 for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; do
@@ -145,4 +151,4 @@ done
 write_failure credential_cleanup_failed services_active load \
   "deployment staging credentials could not be removed" "load services are active; staging cleanup is unconfirmed"
 cloud_ssh_retry cleanup-load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh /home/wkdeploy/prime-frozen-orchestrator-stage.sh'
+  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh /home/wkdeploy/install-frozen-worker-health-compat.sh /home/wkdeploy/prime-frozen-orchestrator-stage.sh'
