@@ -1,6 +1,10 @@
 /.github/workflows/ @tangtaoit
 /.github/CODEOWNERS @tangtaoit
 
+/.agents/skills/ @tangtaoit
+/.agents/skill-tests.json @tangtaoit
+/scripts/skillcheck/ @tangtaoit
+
 /.github/review-agent/ @tangtaoit
 /.github/actions/install-review-agent-tools/ @tangtaoit
 /.github/workflows/review-agent-pr-signal.yml @tangtaoit
