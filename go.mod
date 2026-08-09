@@ -44,6 +44,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/valyala/bytebufferpool v1.0.0
+	github.com/yuin/goldmark v1.8.2
 	go.etcd.io/raft/v3 v3.6.0
 	go.uber.org/zap v1.27.0
 	go.yaml.in/yaml/v3 v3.0.4

@@ -59,6 +59,16 @@
   true no-op never enters the credentialed State Writer or Publisher and never
   dispatches; mutation and projection paths reuse the exact run-scoped,
   control-SHA-bound binary Artifact.
+- Repository Skill verification has two layers. `agent-artifact-contracts`
+  validates Skill metadata, local-reference containment, interface YAML,
+  fixtures, executable bits, the focused-test registry, and Review policy
+  routing without executing Skill scripts. `skill-focused-contracts` runs only
+  the allowlisted `go test ./scripts/... -run '^Test...' -count=1` commands in
+  `.agents/skill-tests.json`; every pattern must match a default-tier Go test,
+  and their declared timeouts total at most 40 seconds.
+  The paired static and focused named checks have a combined 60-second budget.
+  Review check commands and path selection remain authoritative only in
+  `.github/review-agent/policy.json`.
 - Backup has one Manager-owned plan in Controller state; it is configured only through Manager, supports Cron or `@every`, and has no TOML/environment compatibility path.
 - Saving backup repository configuration is a durable Controller operation and never proves connectivity. Only the exact saved plan revision that completes the repository and all-active-data-node probe is verified and eligible for backup admission. A nil verification record is legacy verified state until the effective repository changes.
 - Every run publishes one independent full 256-hash-slot archive to the shared file repository under `<data_dir>/backup-repository`, Alibaba OSS, Tencent COS, or a generic S3-compatible repository. `COMPLETE` makes an archive visible, `HOLD` exempts it from retention, and object-storage credentials are encrypted in Controller state while archive payloads are not encrypted.
