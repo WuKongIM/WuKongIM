@@ -173,6 +173,27 @@
       "timeout_seconds": 600,
       "max_output_bytes": 8388608
     },
+    "agent-artifact-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/skillcheck"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 15,
+      "max_output_bytes": 1048576
+    },
+    "skill-focused-contracts": {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/skillcheck",
+        "--run-focused"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 45,
+      "max_output_bytes": 1048576
+    },
     "workflow-contracts": {
       "arguments": [
         "go",
@@ -389,6 +410,21 @@
       "checks": [
         "workflow-contracts",
         "go-unit"
+      ],
+      "exclusive": false
+    },
+    {
+      "name": "agent-skills",
+      "paths": [
+        ".agents/skill-tests.json"
+      ],
+      "prefixes": [
+        ".agents/skills/"
+      ],
+      "suffixes": [],
+      "checks": [
+        "agent-artifact-contracts",
+        "skill-focused-contracts"
       ],
       "exclusive": false
     },

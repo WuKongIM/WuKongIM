@@ -91,6 +91,12 @@ verdict. A trusted validator maps signed state to the sole required Check
 maps to failure, and `inconclusive` maps to `action_required`. A human
 `REQUEST_CHANGES` Review remains independently blocking.
 
+Repository Skills use the protected `agent-artifact-contracts` and
+`skill-focused-contracts` checks. Their Review Agent command definitions live
+only in `.github/review-agent/policy.json`; focused Skill test commands live
+only in `.agents/skill-tests.json`. The structural check never discovers or
+executes files from a Skill's `scripts/` directory.
+
 The model request passes through one root-owned loopback proxy that clamps
 `max_output_tokens` to the protected policy and injects the OpenRouter
 credential. The root-only credential handoff file is deleted before the
