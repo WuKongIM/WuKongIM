@@ -2,6 +2,7 @@ package scripts_test
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -151,8 +152,9 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"install-frozen-worker-health-compat.sh", "load-worker-health-compat",
 		"install-frozen-stage-process-compat.sh", "load-stage-process-compat",
 		"prime-frozen-orchestrator-stage.sh", "load-orchestrator-stage-prime",
-		"${role}-quiesce", "sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service",
-		"load-quiesce", "sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
+		"${role}-quiesce", "for unit in node-exporter.service wukongim.service wkbench-host-metrics.service",
+		"load-quiesce", "for unit in node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
+		`sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?`,
 		`if test \"\$first\" = 'mode = \"release\"' && test -z \"\$second\"; then sudo sed -i '1,2d' /etc/wukongim/wukongim.toml; fi`,
 		`test \"\$(sudo sed -n '1p' /etc/wukongim/wukongim.toml)\" = '[node]'`,
 		`if ! sudo grep -qxF '[log]' /etc/wukongim/wukongim.toml`,
@@ -163,6 +165,79 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 			t.Fatalf("activation script missing %q", fragment)
 		}
 	}
+}
+
+func TestCloudDeploymentHostQuiesceToleratesOnlyMissingFreshHostUnits(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "activate-hosts.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+
+	commands := map[string]string{
+		"service": extractSingleQuotedCommandAfter(t, text, `cloud_ssh_retry "${role}-quiesce"`),
+		"load":    extractSingleQuotedCommandAfter(t, text, "cloud_ssh_retry load-quiesce"),
+	}
+	fakeBin := t.TempDir()
+	fakeSudo := filepath.Join(fakeBin, "sudo")
+	if err := os.WriteFile(fakeSudo, []byte(`#!/usr/bin/env bash
+if [[ "$1" != "systemctl" ]]; then
+  exit 97
+fi
+case "$2" in
+  cat) exit "${FAKE_SYSTEMCTL_CAT_STATUS:-0}" ;;
+  stop) exit "${FAKE_SYSTEMCTL_STOP_STATUS:-0}" ;;
+  *) exit 98 ;;
+esac
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	for role, command := range commands {
+		t.Run(role+"_fresh_host", func(t *testing.T) {
+			cmd := exec.Command("bash", "-c", command)
+			cmd.Env = append(os.Environ(),
+				"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"FAKE_SYSTEMCTL_CAT_STATUS=5",
+				"FAKE_SYSTEMCTL_STOP_STATUS=5",
+			)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("fresh-host quiesce must ignore only absent units: %v\n%s", err, output)
+			}
+		})
+
+		t.Run(role+"_stop_failure", func(t *testing.T) {
+			cmd := exec.Command("bash", "-c", command)
+			cmd.Env = append(os.Environ(),
+				"PATH="+fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"FAKE_SYSTEMCTL_CAT_STATUS=0",
+				"FAKE_SYSTEMCTL_STOP_STATUS=5",
+			)
+			if err := cmd.Run(); err == nil {
+				t.Fatal("quiesce must preserve a real failure stopping an installed unit")
+			}
+		})
+	}
+}
+
+func extractSingleQuotedCommandAfter(t *testing.T, text, marker string) string {
+	t.Helper()
+	markerIndex := strings.Index(text, marker)
+	if markerIndex < 0 {
+		t.Fatalf("activation script missing marker %q", marker)
+	}
+	tail := text[markerIndex+len(marker):]
+	start := strings.Index(tail, "'")
+	if start < 0 {
+		t.Fatalf("activation command after %q is not single quoted", marker)
+	}
+	tail = tail[start+1:]
+	end := strings.Index(tail, "'")
+	if end < 0 {
+		t.Fatalf("activation command after %q has no closing quote", marker)
+	}
+	return tail[:end]
 }
 
 func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
