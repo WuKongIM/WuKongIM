@@ -72,7 +72,7 @@ func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 }
 
 func TestWorkerServerLifecycleCandidateLeaseIsBoundedFencedAndTransient(t *testing.T) {
-	now := time.Unix(2_000, 0)
+	now := time.Unix(2_000, 0).UTC()
 	candidate := lifecycleTestCandidates(t, now)[0]
 	generation := &fakeLifecycleLeaseGeneration{fakeWorkerGeneration: newFakeWorkerGeneration(), candidates: []LifecycleCandidate{candidate}}
 	server, fence := startWorkerServerForGeneration(t, generation, "lifecycle-lease")

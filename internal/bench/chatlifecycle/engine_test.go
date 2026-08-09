@@ -4383,6 +4383,20 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 		t.Fatalf("bootstrap Step: %v", err)
 	}
 	fixture.settleScheduledLogins(t, now, bootstrap)
+	settleCompletions := func(stage string) {
+		t.Helper()
+		var snapshot EngineSnapshot
+		var snapshotErr error
+		for range 10_000 {
+			snapshot, snapshotErr = fixture.engine.Snapshot()
+			if snapshotErr == nil && snapshot.InflightCurrent == 0 && snapshot.RetryQueueDepth == 0 {
+				return
+			}
+			runtime.Gosched()
+		}
+		t.Fatalf("%s completions did not settle: snapshot=%+v snapshot_err=%v", stage, snapshot, snapshotErr)
+	}
+	settleCompletions("bootstrap")
 	now = now.Add(30 * time.Second)
 	fixture.clock.Set(now)
 	for iteration := 0; iteration < 100; iteration++ {
@@ -4396,6 +4410,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("drain activity Advance(%d): %v", iteration, err)
 		}
+		settleCompletions(fmt.Sprintf("drain activity %d", iteration))
 	}
 	beforeDeadline, err := fixture.engine.Snapshot()
 	if err != nil {
@@ -4415,6 +4430,7 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("active Advance: %v", err)
 	}
+	settleCompletions("active")
 	if sent := fixture.factory.sentCount() - before; sent != 100 {
 		t.Fatalf("active first-attempt sends = %d, want 100", sent)
 	}
