@@ -111,6 +111,8 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"repair_reserve_seconds",
 		"for attempt in 1; do",
 		"(sudo systemctl reset-failed '$stage_service' || true)",
+		"capture-stage-journal-cursor.sh",
+		"pre-clock journal cursor unavailable; exact Lease was released",
 		"read_pre_clock_terminal_code",
 		"--after-cursor='$journal_cursor'",
 		"classify-pre-clock-summary.sh",
@@ -125,6 +127,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"complete_failed_attempt",
 		"second acquisition/deployment/readiness attempt failed",
 		"--excluded-zone",
+		"capture-stage-journal-cursor.sh \\\n      \"$WK_CLOUD_SSH_CONFIG\" wukong-load || true",
 	} {
 		if strings.Contains(orchestrator, forbidden) {
 			t.Fatalf("orchestrator still contains fresh-Lease deployment retry %q", forbidden)
@@ -155,6 +158,30 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 			ok:      true,
 		},
 		{
+			name:    "observer detail remains terminal",
+			summary: "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer observer_code=cluster_health preflight_code= report=unavailable",
+			want:    "observer\n",
+			ok:      true,
+		},
+		{
+			name:    "legacy observer summary remains terminal",
+			summary: "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer preflight_code= report=unavailable",
+			want:    "observer\n",
+			ok:      true,
+		},
+		{
+			name:    "unknown observer detail fails closed",
+			summary: "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer observer_code=future_reason preflight_code= report=unavailable",
+		},
+		{
+			name:    "empty observer detail fails closed",
+			summary: "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer observer_code= preflight_code= report=unavailable",
+		},
+		{
+			name:    "non-observer rejects observer detail",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=setup observer_code=service_health preflight_code= report=unavailable",
+		},
+		{
 			name:    "preflight remains repairable",
 			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=preflight preflight_code=process_evidence report=unavailable",
 		},
@@ -181,6 +208,41 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 				t.Fatalf("classification unexpectedly succeeded: %q", output)
 			}
 		})
+	}
+}
+
+func TestChatLifecycleCapturesJournalCursorBeforeFirstUnitStart(t *testing.T) {
+	root := repoRoot(t)
+	binDir := t.TempDir()
+	fakeSSH := filepath.Join(binDir, "ssh")
+	if err := os.WriteFile(fakeSSH, []byte(`#!/usr/bin/env bash
+set -euo pipefail
+if [[ " $* " == *" -u "* ]]; then
+  printf '%s\n' '-- No entries --'
+  exit 0
+fi
+printf '%s\n' '-- cursor: s=0123456789abcdef;i=2;b=abcdef0123456789;m=3;t=4;x=5'
+`), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fakeTimeout := filepath.Join(binDir, "timeout")
+	if err := os.WriteFile(fakeTimeout, []byte("#!/usr/bin/env bash\nshift\nexec \"$@\"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sshConfig := filepath.Join(t.TempDir(), "ssh-config")
+	if err := os.WriteFile(sshConfig, []byte("Host wukong-load\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "capture-stage-journal-cursor.sh"), sshConfig, "wukong-load")
+	command.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("capture journal cursor: %v\n%s", err, output)
+	}
+	const want = "s=0123456789abcdef;i=2;b=abcdef0123456789;m=3;t=4;x=5\n"
+	if string(output) != want {
+		t.Fatalf("cursor = %q, want %q", output, want)
 	}
 }
 

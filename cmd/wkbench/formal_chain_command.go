@@ -442,10 +442,7 @@ func coordinatorRunResult(result chatlifecycle.CoordinatorResult, reportPath str
 	verdict := chatLifecycleCoordinatorVerdict(result)
 	return chatLifecycleRunResult{
 		Verdict: verdict,
-		Summary: fmt.Sprintf(
-			"chat-lifecycle outcome=%s cause=%s coordinator_code=%s preflight_code=%s report=%s\n",
-			verdict.Outcome, verdict.Cause, result.Code, result.Preflight.Code, reportPath,
-		),
+		Summary: chatLifecycleCoordinatorSummary(verdict, result, reportPath),
 	}
 }
 

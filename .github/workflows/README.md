@@ -304,8 +304,10 @@ inventory when operator stop, the shared CNY 1,350 operational stop, immutable
 expiry/stage reserve, or safe-control loss ends the window. It never substitutes
 a changed product source or bundle into the acquired Lease; such a repair is
 terminal and needs a separately authorized run after cleanup. Before the
-workload clock starts, the orchestrator reads only the bounded terminal summary
-after its exact journal cursor: recognized non-preflight coordinator codes are
+workload clock starts, the orchestrator captures a global journal cursor so a
+unit's first-ever start is covered, then reads only that unit's bounded terminal
+summary after the cursor. The summary carries the closed observer reason when
+observation caused termination: recognized non-preflight coordinator codes are
 runtime/correctness failures and release immediately, while preflight or
 unrecognized evidence remains in the bounded deployment/readiness repair path.
 Runtime or correctness failure is never retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,

@@ -96,6 +96,8 @@ type coordinatorTerminationReason struct {
 type CoordinatorResult struct {
 	Outcome CoordinatorOutcome
 	Code    CoordinatorCode
+	// ObserverCode retains the bounded terminal observer reason when Code is observer.
+	ObserverCode ObserverCode
 	// Preflight retains the bounded admission reason without raw errors or credentials.
 	Preflight PreflightResult
 	Fence     WorkerFence
@@ -400,7 +402,7 @@ func NewCoordinator(options CoordinatorOptions) (*Coordinator, error) {
 
 // Run enforces preflight -> setup -> assign -> start -> observed readiness ->
 // grants -> final cutoff -> checkpoint/finalize.
-func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
+func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorResult) {
 	if c == nil {
 		return CoordinatorResult{Outcome: CoordinatorHarnessInvalid, Code: CoordinatorCodeGenerationReuse}
 	}
@@ -416,6 +418,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 	var observationChannel <-chan ObserverResult
 	observationJoined := false
 	observationTransferred := false
+	var observation ObserverResult
+	defer func() {
+		if observationJoined && result.Code == CoordinatorCodeObserver {
+			result.ObserverCode = observation.Code
+		}
+	}()
 	if c.continuation != nil {
 		var claimed bool
 		observationChannel, cancelObservation, claimed = c.continuation.owner.claim()
@@ -541,7 +549,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 		grantPlan.sequence = c.continuation.GrantSequence
 	}
 	fence := assignments[0].WorkerFence
-	result := CoordinatorResult{Fence: fence}
+	result = CoordinatorResult{Fence: fence}
 	attempted := [coordinatorWorkerCount]bool{true, true, true}
 	assigned := [coordinatorWorkerCount]bool{}
 	var startStatuses [coordinatorWorkerCount]WorkerStatus
@@ -600,7 +608,6 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) CoordinatorResult {
 			cancelObservation()
 		}()
 	}
-	var observation ObserverResult
 	joinObservation := func() ObserverResult {
 		if !observationJoined {
 			cancelObservation()

@@ -31,3 +31,10 @@ Deployment retains no cloud lifecycle permission, and workflow failure still
 prefers exact Release with AutoRelease and the scheduled sweeper as backstops.
 The longer rehearsal expiry is a safety ceiling, not a planned hold: PostPaid
 hosts are released immediately after success or terminal failure.
+
+Before the first coordinator start, the orchestrator captures the global
+journal cursor rather than a unit-scoped cursor because a never-started unit has
+no cursor of its own. Post-cursor reads remain unit-scoped, and the bounded
+terminal summary carries the closed observer reason when observer failure caused
+termination. This preserves immediate terminal classification without widening
+the log window or exposing raw observations.

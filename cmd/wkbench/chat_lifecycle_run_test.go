@@ -43,6 +43,20 @@ func TestChatLifecycleExitCodesPreserveSuccessAndFailureClasses(t *testing.T) {
 	}
 }
 
+func TestChatLifecycleUnavailableSummaryIncludesObserverCode(t *testing.T) {
+	result := chatlifecycle.CoordinatorResult{
+		Outcome:      chatlifecycle.CoordinatorProductFailure,
+		Code:         chatlifecycle.CoordinatorCodeObserver,
+		ObserverCode: chatlifecycle.ObserverCodeClusterHealth,
+	}
+	verdict := chatLifecycleCoordinatorVerdict(result)
+	got := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
+	const want = "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer observer_code=cluster_health preflight_code= report=unavailable\n"
+	if got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
+	}
+}
+
 func TestChatLifecycleFirstSignalRequestsGracefulStopAndWaitsForFinalResult(t *testing.T) {
 	runner := newSignalTestChatLifecycleRunner()
 	signals := make(chan os.Signal, 2)

@@ -254,9 +254,19 @@ func (r *productionChatLifecycleRunner) Run(ctx context.Context) (chatLifecycleR
 	verdict := chatLifecycleCoordinatorVerdict(result)
 	return chatLifecycleRunResult{
 		Verdict: verdict,
-		Summary: fmt.Sprintf("chat-lifecycle outcome=%s cause=%s coordinator_code=%s preflight_code=%s report=unavailable\n",
-			verdict.Outcome, verdict.Cause, result.Code, result.Preflight.Code),
+		Summary: chatLifecycleCoordinatorSummary(verdict, result, "unavailable"),
 	}, errors.New("chat-lifecycle final report unavailable")
+}
+
+func chatLifecycleCoordinatorSummary(
+	verdict chatlifecycle.VerdictSnapshot,
+	result chatlifecycle.CoordinatorResult,
+	report string,
+) string {
+	return fmt.Sprintf(
+		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s observer_code=%s preflight_code=%s report=%s\n",
+		verdict.Outcome, verdict.Cause, result.Code, result.ObserverCode, result.Preflight.Code, report,
+	)
 }
 
 func (r *productionChatLifecycleRunner) RequestStop() {

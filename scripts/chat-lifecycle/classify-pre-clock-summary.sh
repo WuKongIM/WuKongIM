@@ -5,9 +5,22 @@ set -euo pipefail
 summary="$1"
 (( ${#summary} <= 1024 ))
 
-pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+) preflight_code=([a-z_]*) report=unavailable$'
+pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+)( observer_code=([a-z_]*))? preflight_code=([a-z_]*) report=unavailable$'
 [[ "$summary" =~ $pattern ]]
 coordinator_code="${BASH_REMATCH[3]}"
+observer_field="${BASH_REMATCH[4]:-}"
+observer_code="${BASH_REMATCH[5]:-}"
+
+if [[ "$coordinator_code" == observer ]]; then
+  if [[ -n "$observer_field" ]]; then
+    case "$observer_code" in
+      stopped|topology|service_health|cluster_health|leader_imbalance|evidence) ;;
+      *) exit 1 ;;
+    esac
+  fi
+elif [[ -n "$observer_code" ]]; then
+  exit 1
+fi
 
 case "$coordinator_code" in
   preflight)
