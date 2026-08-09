@@ -12,7 +12,7 @@
         "^TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate$",
         "-count=1"
       ],
-      "timeout_seconds": 20
+      "timeout_seconds": 15
     },
     {
       "id": "cloud-analysis-skill-contracts",
@@ -25,7 +25,20 @@
         "^TestCloudAnalysisSkill",
         "-count=1"
       ],
-      "timeout_seconds": 20
+      "timeout_seconds": 15
+    },
+    {
+      "id": "operations-skill-contracts",
+      "skill": "wukongim-ops",
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/...",
+        "-run",
+        "^TestOperationsSkillKeepsDiagnosisReadOnlyAndEvidenceOrdered$",
+        "-count=1"
+      ],
+      "timeout_seconds": 10
     }
   ]
 }
