@@ -27,7 +27,7 @@ trap 'rm -f "$temporary"' EXIT
 cat >"$temporary" <<EOF
 Host wukong-load
   HostName $WK_CLOUD_LOAD_PUBLIC_IP
-  User wukong
+  User wkdeploy
   IdentityFile "$key_path"
   IdentitiesOnly yes
   BatchMode yes
@@ -38,7 +38,7 @@ Host wukong-load
   StrictHostKeyChecking accept-new
 
 Host $WK_CLOUD_SERVICE1_IP $WK_CLOUD_SERVICE2_IP $WK_CLOUD_SERVICE3_IP
-  User wukong
+  User wkdeploy
   IdentityFile "$key_path"
   IdentitiesOnly yes
   BatchMode yes

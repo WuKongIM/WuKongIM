@@ -165,3 +165,31 @@ func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 		}
 	}
 }
+
+func TestCloudDeploymentUsesTheProvisionedBootstrapUser(t *testing.T) {
+	root := repoRoot(t)
+	sshConfig, err := os.ReadFile(filepath.Join(root, "scripts", "cloud-deployment", "write-ssh-config.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation, err := os.ReadFile(filepath.Join(root, "scripts", "cloud-deployment", "activate-hosts.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cloudInit, err := os.ReadFile(filepath.Join(root, "internal", "infra", "cloudlease", "alibaba", "lifecycle_openapi.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{
+		"SSH config": string(sshConfig), "activation": string(activation), "cloud-init": string(cloudInit),
+	} {
+		if !strings.Contains(content, "wkdeploy") {
+			t.Fatalf("%s does not use the provisioned bootstrap user", name)
+		}
+	}
+	for name, content := range map[string]string{"SSH config": string(sshConfig), "activation": string(activation)} {
+		if strings.Contains(content, "User wukong") || strings.Contains(content, "wukong@") || strings.Contains(content, "/home/wukong/") {
+			t.Fatalf("%s still uses the nonexistent deployment user", name)
+		}
+	}
+}

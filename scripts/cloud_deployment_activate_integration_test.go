@@ -28,7 +28,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 		{name: "verification", failHost: "10.42.0.12", failCommand: "verify-offline", wantCode: "bundle_digest_mismatch", wantGate: "bundle_transferred", wantRole: "service-2"},
 		{name: "preparation", failHost: "10.42.0.13", failCommand: "install-offline", wantCode: "data_disk_mount_invalid", wantGate: "bundle_verified", wantRole: "service-3"},
 		{name: "activation", failHost: "wukong-load", failCommand: "activate-offline", wantCode: "native_activation_failed", wantGate: "hosts_prepared", wantRole: "load"},
-		{name: "credential cleanup", failHost: "10.42.0.12", failCommand: "rm -rf /home/wukong/run-secrets /home/wukong/runtime-node.tar.gz", wantCode: "credential_cleanup_failed", wantGate: "services_active", wantRole: "service-2"},
+		{name: "credential cleanup", failHost: "10.42.0.12", failCommand: "rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz", wantCode: "credential_cleanup_failed", wantGate: "services_active", wantRole: "service-2"},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
 			root := t.TempDir()
