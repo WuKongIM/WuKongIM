@@ -116,6 +116,12 @@ cloud_ssh_retry load-quiesce 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'for unit in node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service; do sudo systemctl cat "$unit" >/dev/null 2>&1 || continue; sudo systemctl stop "$unit" || exit $?; done'
 cloud_ssh_retry load-prepare 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role load --runtime-dir /home/wkdeploy/run-secrets --data-device '$load_data_device' --no-systemd"
+# Source d3701b839 seals the stage runner into the authenticated bundle but its
+# installer omits that one file. Install from the already verified bundle so
+# the retained Lease can be repaired; newer bundles perform the same copy in
+# wkcloudhost itself.
+cloud_ssh_retry load-stage-runner 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  'sudo install -o root -g root -m 0755 /home/wkdeploy/bundle/scripts/run-chat-lifecycle-stage.sh /opt/wukongim/scripts/run-chat-lifecycle-stage.sh'
 write_failure credential_materialization_failed bundle_verified load \
   "frozen coordinator dependency authentication compatibility could not be installed" \
   "load host is prepared; coordinator worker-health authentication is unavailable"

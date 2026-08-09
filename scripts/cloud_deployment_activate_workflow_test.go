@@ -148,6 +148,7 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"data_disk_mount_invalid bundle_verified", "native_activation_failed hosts_prepared",
 		"credential_cleanup_failed services_active",
 		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
+		"load-stage-runner", "sudo install -o root -g root -m 0755 /home/wkdeploy/bundle/scripts/run-chat-lifecycle-stage.sh /opt/wukongim/scripts/run-chat-lifecycle-stage.sh",
 		"install-orchestrator-compat-user.sh", "${role}-orchestrator-compat", "load-orchestrator-compat",
 		"install-frozen-worker-health-compat.sh", "load-worker-health-compat",
 		"install-frozen-stage-process-compat.sh", "load-stage-process-compat",

@@ -132,7 +132,7 @@ func installOfflineHost(options offlineInstallOptions) (clouddeploy.Manifest, er
 			return clouddeploy.Manifest{}, err
 		}
 	}
-	for _, script := range []string{"collect-evidence.sh", "collect-process-metrics.sh", "verify-base-tools.sh", "wait-coordinator-dependencies.sh"} {
+	for _, script := range []string{"collect-evidence.sh", "collect-process-metrics.sh", "run-chat-lifecycle-stage.sh", "verify-base-tools.sh", "wait-coordinator-dependencies.sh"} {
 		if err := copyRegular(filepath.Join(options.bundleRoot, "scripts", script), rooted(options.rootPrefix, "opt/wukongim/scripts/"+script), 0o755); err != nil {
 			return clouddeploy.Manifest{}, err
 		}

@@ -68,6 +68,7 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 	}
 	for _, path := range []string{
 		"opt/wukongim/bin/wkbench", "opt/wukongim/bin/prometheus", "opt/wukongim/bin/caddy",
+		"opt/wukongim/scripts/run-chat-lifecycle-stage.sh",
 		"opt/wukongim/assets/manager/index.html", "opt/wukongim/assets/demo/index.html",
 		"etc/systemd/system/wkbench-worker@.service", "etc/systemd/system/wkbench-coordinator.service",
 		"etc/systemd/system/wkbench-formal.service", "etc/systemd/system/wkbench-rehearsal.service",
@@ -77,6 +78,7 @@ func TestInstallOfflineHostRendersRoleSpecificNativePayload(t *testing.T) {
 			t.Fatalf("load file %s: %v", path, err)
 		}
 	}
+	assertOfflineMode(t, filepath.Join(loadRoot, "opt/wukongim/scripts/run-chat-lifecycle-stage.sh"), 0o755)
 	workload := readOfflineTestFile(t, filepath.Join(loadRoot, "etc/wukongim/chat-lifecycle.yaml"))
 	if strings.Contains(workload, ".invalid") || !strings.Contains(workload, "10.42.0.11:5001") ||
 		!strings.Contains(workload, "10.42.0.11:19101") || !strings.Contains(workload, "mountpoint: /var/lib/wukongim-cloud") ||
