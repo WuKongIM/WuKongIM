@@ -43,7 +43,7 @@ collect_host() {
   fi
   local required_units
   if [[ "$role" == load ]]; then
-    required_units='wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service wkanalysis.service caddy.service node-exporter.service wukongim-process-metrics.service wukongim-evidence.timer'
+    required_units='wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service prometheus.service wkanalysis.service caddy.service node-exporter.service wukongim-process-metrics.service wukongim-evidence.timer'
   else
     required_units='wukongim.service wkbench-host-metrics.service node-exporter.service wukongim-process-metrics.service wukongim-evidence.timer'
   fi

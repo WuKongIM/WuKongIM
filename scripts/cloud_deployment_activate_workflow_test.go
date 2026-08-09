@@ -101,6 +101,7 @@ func TestCloudDeploymentReadinessCollectorIsBoundedAndUsesPrivateOrigins(t *test
 		"chronyc waitsync 1 1.0", "chronyc -c tracking", `$14 == "Normal"`, `$5 * 1000`,
 		"/manager/nodes", "/manager/nodes/${node_id}/config", "/manager/slots", "/manager/controller/tasks?limit=50",
 		"healthy_slot_replica_sets", "logical_slot_groups:$groups", "ready_workers",
+		"wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service",
 		"runtime_config_nodes", "slot_replicas:$slot_replicas", "channel_replicas:$channel_replicas",
 		"wkbench validate chat-lifecycle", "prometheus_targets_up", "demo_ready", "analysis_ready",
 		`grep -c \"^WK_BENCH_WORKER_TOKEN=\" /etc/wukongim/secrets/load.env`,
