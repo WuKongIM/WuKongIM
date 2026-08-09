@@ -83,7 +83,8 @@ Require:
 - `deepseek/deepseek-v4-flash` with `high` effort;
 - immutable Codex Action/CLI identifiers;
 - three active repository leases and one per PR;
-- 90-minute generation timeout;
+- 90-minute timeout per review infrastructure attempt and a 180-minute
+  generation cap;
 - two reconsiderations and one infrastructure retry;
 - a finite per-head explanation-session and response-byte budget;
 - a 32,768-token maximum output budget on every model request;
@@ -692,8 +693,8 @@ Delete its root-only credential handoff before publishing the listener; do not
 leave a second unclamped proxy reachable to runner-user Codex.
 
 Drop `sudo`, disable Docker socket access, expose full public internet through
-the tested private-network fence, and keep the model job within the 90-minute
-generation deadline.
+the tested private-network fence, and keep each model job within its signed
+90-minute review infrastructure attempt deadline.
 
 - [ ] **Step 3a: Add the bounded explanation mode**
 

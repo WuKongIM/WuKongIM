@@ -28,5 +28,14 @@ validated durable decision + fresh publication facts
      without a human REQUEST_CHANGES Review
 ```
 
+Each review infrastructure attempt receives one signed 90-minute deadline. The
+single automatic retry remains in the same generation but receives a fresh
+attempt deadline, so it cannot inherit a budget shorter than the protected
+baseline/reviewer/publication reservation. A retry waiting in the scheduler
+has no active attempt deadline; the fresh deadline starts only when its lease
+is reacquired. The signed generation `StartedAt` derives the 180-minute cap;
+if that cap cannot contain a complete fresh attempt, reconciliation fails
+closed instead of dispatching a shortened or unbounded retry.
+
 Only adapters execute plans. A model result never chooses a GitHub Check
 conclusion directly.

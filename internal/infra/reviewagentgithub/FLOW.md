@@ -27,6 +27,10 @@ Review Agent App token
   -> one exact-head merge only after fresh admin/member authorization
 ```
 
+An infrastructure-sourced terminal projection reports that no current findings
+were adjudicated. Findings retained in signed state for a later reconsideration
+are not republished as if the failed attempt had confirmed them.
+
 The bounded scheduler recovery never rewinds or rewrites the protected state
 ref. A strict successor may name that one legacy checkpoint; after the next
 successor, it leaves the two-checkpoint verification window.

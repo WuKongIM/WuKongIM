@@ -143,6 +143,99 @@ func TestValidateFinalResultOverridesChangesRequiredOnCheckError(t *testing.T) {
 	require.Contains(t, validated.Reason, "infrastructure")
 }
 
+func TestValidateFinalResultDowngradesFailedMandatoryWithoutRestoringWithdrawnFindings(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	prior := contract.Finding{
+		Kind:       contract.FindingBlocking,
+		Dimension:  contract.DimensionRegressionTests,
+		Title:      "Missing contract anchor",
+		Path:       "internal/runtime/delivery/queue.go",
+		LineStart:  1,
+		LineEnd:    1,
+		Scenario:   "The old candidate omitted a required contract anchor.",
+		Impact:     "The structural contract check failed.",
+		Evidence:   []string{"check:agent-artifact-contracts"},
+		Resolution: "Restore the required anchor.",
+	}
+	priorDigest, err := contract.FindingDigest(prior)
+	require.NoError(t, err)
+	context := validReviewContext()
+	context.PriorFindings = []contract.PriorFindingContext{{
+		Digest:  priorDigest,
+		Finding: prior,
+	}}
+	evidence := validReviewEvidence()
+	evidence.Checks[0].Outcome = contract.CheckOutcomeFailed
+	evidence.Checks[0].ExitCode = 1
+	advisory := contract.Finding{
+		Kind:       contract.FindingAdvisory,
+		Dimension:  contract.DimensionRegressionTests,
+		Title:      "Pre-existing flaky unit test",
+		Path:       "internal/runtime/delivery/queue.go",
+		LineStart:  1,
+		LineEnd:    1,
+		Scenario:   "The unit test also fails on the base revision.",
+		Impact:     "The mandatory check remains non-passing.",
+		Evidence:   []string{"check:go-unit"},
+		Resolution: "Stabilize the pre-existing test separately.",
+	}
+	result := validApprovedResult()
+	result.Findings = []contract.Finding{advisory}
+	result.PriorFindingDispositions = []contract.PriorFindingDisposition{{
+		FindingDigest: priorDigest,
+		Status:        "withdrawn",
+		Reason:        "The current structural contract check passes.",
+	}}
+	result.Sources = []string{"check:go-unit -> failed on head and base"}
+
+	validated, err := verify.ValidateFinalResult(
+		context,
+		evidence,
+		result,
+		digest("f"),
+		digest("f"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, contract.DecisionInconclusive, validated.Decision)
+	require.Contains(t, validated.Reason, "did not pass")
+	require.Equal(t, []contract.Finding{advisory}, validated.Findings)
+	require.NotNil(t, validated.EffectiveResult)
+	require.Equal(
+		t,
+		contract.DecisionInconclusive,
+		validated.EffectiveResult.Decision,
+	)
+	require.Equal(
+		t,
+		[]contract.Finding{advisory},
+		validated.EffectiveResult.Findings,
+	)
+	require.Equal(
+		t,
+		[]string{"check:go-unit"},
+		validated.EffectiveResult.Sources,
+	)
+	effectiveDigest, err := contract.ReviewResultDigest(
+		*validated.EffectiveResult,
+	)
+	require.NoError(t, err)
+	require.Equal(t, effectiveDigest, validated.ResultDigest)
+	revalidated, err := verify.ValidateFinalResult(
+		context,
+		evidence,
+		*validated.EffectiveResult,
+		digest("f"),
+		digest("f"),
+	)
+	require.NoError(t, err)
+	require.Equal(t, contract.DecisionInconclusive, revalidated.Decision)
+	require.Equal(t, []contract.Finding{advisory}, revalidated.Findings)
+	require.Equal(t, effectiveDigest, revalidated.ResultDigest)
+}
+
 func TestValidateFinalResultNeverApprovesBinaryChanges(t *testing.T) {
 	t.Parallel()
 

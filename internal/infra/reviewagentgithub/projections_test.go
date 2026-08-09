@@ -112,6 +112,63 @@ func TestPublisherUsesOnlyGitHubDiffLinesForInlineFindings(t *testing.T) {
 	require.Equal(t, 1, writer.inline[0].Line)
 }
 
+func TestPublisherDoesNotProjectCarriedFindingsAsCurrentInfrastructureEvidence(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	state := conflictState()
+	state.Phase = contract.PhaseInconclusive
+	state.DecisionSource = contract.DecisionSourceInfrastructure
+	state.Reason = "Review infrastructure retry budget exhausted"
+	state.PriorFindings = []contract.Finding{{
+		Kind:       contract.FindingBlocking,
+		Dimension:  contract.DimensionRegressionTests,
+		Title:      "Old generation contract failure",
+		Path:       "internal/app/a.go",
+		LineStart:  1,
+		LineEnd:    1,
+		Scenario:   "An earlier generation failed a contract check.",
+		Impact:     "That earlier candidate could not be approved.",
+		Evidence:   []string{"check:agent-artifact-contracts"},
+		Resolution: "Repair the earlier candidate.",
+	}}
+	stateHead := strings.Repeat("f", 40)
+	writer := &recordingProjectionWriter{}
+	publisher, err := github.NewReviewPublisher(
+		"WuKongIM/WuKongIM",
+		"wukongim-review-agent",
+		"wukongim-review-agent[bot]",
+		fixedReviewStateReader{head: stateHead, state: state},
+		fixedReviewFactsReader{snapshot: github.PullRequestSnapshot{
+			Facts: usecase.PullRequestFacts{
+				Repository:   state.Generation.Repository,
+				PullRequest:  state.Generation.PullRequest,
+				HeadSHA:      state.Generation.HeadSHA,
+				BaseSHA:      state.Generation.BaseSHA,
+				TestMergeSHA: state.Generation.TestMergeSHA,
+				IntentDigest: state.Generation.IntentDigest,
+				Open:         true,
+			},
+		}},
+		writer,
+	)
+	require.NoError(t, err)
+
+	_, err = publisher.PublishDecision(
+		context.Background(),
+		github.ReviewPublicationRequest{
+			ExpectedStateHead: stateHead,
+			State:             state,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, usecase.FormalReviewComment, writer.review)
+	require.Contains(t, writer.reviewBody, "signed `inconclusive` decision")
+	require.NotContains(t, writer.reviewBody, "Old generation contract failure")
+	require.Empty(t, writer.inline)
+}
+
 func TestPublisherRepairsPersistedExplanationFromLifecycleState(t *testing.T) {
 	t.Parallel()
 
@@ -540,6 +597,7 @@ func (reader fixedReviewFactsReader) ActorPermission(
 
 type recordingProjectionWriter struct {
 	review             usecase.FormalReview
+	reviewBody         string
 	inline             []github.InlineReviewComment
 	checkStatus        string
 	checkConclusion    *usecase.CheckConclusion
@@ -569,10 +627,11 @@ func (writer *recordingProjectionWriter) CreateReview(
 	_ int64,
 	_ string,
 	review usecase.FormalReview,
-	_ string,
+	body string,
 	inline []github.InlineReviewComment,
 ) (int64, error) {
 	writer.review = review
+	writer.reviewBody = body
 	writer.inline = append([]github.InlineReviewComment(nil), inline...)
 	return 12, nil
 }

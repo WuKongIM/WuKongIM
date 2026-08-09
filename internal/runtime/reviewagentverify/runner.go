@@ -116,8 +116,8 @@ func (runner *Runner) Result(
 	return contract.CheckEvidence{}, errors.New("trusted check has no result")
 }
 
-// CollectEvidence validates the ledger chain and returns the newest result for
-// every executed check, requiring the complete mandatory set.
+// CollectEvidence validates the ledger chain, preserves the first sealed
+// result for every mandatory check, and returns the newest optional result.
 func (runner *Runner) CollectEvidence(
 	generation contract.GenerationIdentity,
 	mandatory []string,
@@ -160,6 +160,15 @@ func CollectEvidence(
 	if err != nil {
 		return contract.ReviewEvidence{}, err
 	}
+	mandatoryNames := make(map[string]struct{}, len(mandatory))
+	for _, name := range mandatory {
+		if _, exists := policy.TrustedChecks[name]; !exists {
+			return contract.ReviewEvidence{}, errors.New(
+				"mandatory evidence names an unknown trusted check",
+			)
+		}
+		mandatoryNames[name] = struct{}{}
+	}
 	latest := make(map[string]contract.CheckEvidence)
 	for _, record := range records {
 		if _, protected := policy.TrustedChecks[record.Evidence.Name]; !protected {
@@ -167,14 +176,14 @@ func CollectEvidence(
 				"evidence ledger names an unknown trusted check",
 			)
 		}
+		if _, mandatoryCheck := mandatoryNames[record.Evidence.Name]; mandatoryCheck {
+			if _, sealed := latest[record.Evidence.Name]; sealed {
+				continue
+			}
+		}
 		latest[record.Evidence.Name] = record.Evidence
 	}
 	for _, name := range mandatory {
-		if _, exists := policy.TrustedChecks[name]; !exists {
-			return contract.ReviewEvidence{}, errors.New(
-				"mandatory evidence names an unknown trusted check",
-			)
-		}
 		if _, exists := latest[name]; !exists {
 			return contract.ReviewEvidence{}, errors.New(
 				"mandatory trusted check has no evidence",

@@ -95,7 +95,8 @@ func BuildNextState(
 		if contract.MustGenerationDigest(next.Generation) ==
 			contract.MustGenerationDigest(previous.Generation) {
 			next.StartedAt = previous.StartedAt
-			if next.SessionDeadlineAt.IsZero() {
+			if next.SessionDeadlineAt.IsZero() &&
+				plan.Action != ActionRetryAndEnqueue {
 				next.SessionDeadlineAt = previous.SessionDeadlineAt
 			}
 		}

@@ -512,10 +512,10 @@ new generation from fresh eligible facts and consume the existing head's
 reconsideration allowance rather than starting an unrequested review.
 
 Runner, provider, dependency-download, or public-network infrastructure
-failure may retry once inside the same attempt before publishing
-`inconclusive`. Assertions, races, build failures, and code defects are not
-infrastructure retries. `changes_required` can change only after a new commit
-or explicit reconsideration.
+failure may retry once as a fresh signed infrastructure attempt inside the
+same generation before publishing `inconclusive`. Assertions, races, build
+failures, and code defects are not infrastructure retries. `changes_required`
+can change only after a new commit or explicit reconsideration.
 
 Human `REQUEST_CHANGES` remains blocking even when the Review Agent approves.
 The Agent cannot dismiss, resolve, or override a human Review.
@@ -593,7 +593,8 @@ Initial hard budgets are:
 - one active generation per pull request;
 - at most three active Review Agent sessions repository-wide;
 - at most one active first-time external-author session;
-- 90 minutes wall-clock per complete generation;
+- 90 minutes wall-clock per review infrastructure attempt and at most 180
+  minutes for a generation that consumes its single automatic retry;
 - one administrator-requested initial review per head;
 - at most two explicit reconsiderations per head;
 - one automatic infrastructure retry per signed review generation.

@@ -621,8 +621,20 @@ func TestReconcilePullRequestRetriesInfrastructureFailureOnce(
 	require.True(t, plan.Dispatch)
 	require.Equal(t, int64(421), plan.LeaseRunID)
 	require.Equal(t, uint32(1), plan.NextBudget.InfrastructureRetriesUsed)
+	require.Equal(
+		t,
+		time.Date(2026, 7, 30, 5, 30, 0, 0, time.UTC),
+		plan.DeadlineAt,
+	)
 	require.Empty(t, plan.EvidenceDigest)
 	require.Empty(t, plan.ResultDigest)
+	next, err := reviewagent.BuildNextState(
+		&state,
+		plan,
+		time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
+	)
+	require.NoError(t, err)
+	require.Equal(t, plan.DeadlineAt, next.SessionDeadlineAt)
 }
 
 func TestReconcilePullRequestFailsClosedAfterInfrastructureRetry(t *testing.T) {
@@ -716,7 +728,9 @@ func TestReconcilePullRequestRecoversSchedulerReleaseBeforeTerminalState(
 ) {
 	t.Parallel()
 
+	now := time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC)
 	state := testReviewingState()
+	state.SessionDeadlineAt = now.Add(time.Minute)
 	state.PriorFindings = []contract.Finding{testFinding()}
 	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
 		Facts: testFacts(), State: &state, Scheduler: testScheduler(),
@@ -724,14 +738,120 @@ func TestReconcilePullRequestRecoversSchedulerReleaseBeforeTerminalState(
 			Kind: reviewagent.SignalWorkerFailure, RunID: 433,
 		},
 		Policy: testPolicy(),
-		Now:    time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC),
+		Now:    now,
 	})
 	require.NoError(t, err)
 	require.Equal(t, reviewagent.ActionRetryAndDispatch, plan.Action)
 	require.True(t, plan.Dispatch)
+	require.Equal(t, now.Add(90*time.Minute), plan.DeadlineAt)
 	require.Equal(t, uint32(1), plan.NextBudget.InfrastructureRetriesUsed)
 	require.Equal(t, state.PriorFindings, plan.PriorFindings)
 	require.Len(t, plan.NextScheduler.Active, 1)
+}
+
+func TestReconcilePullRequestQueuesReleasedWorkerWithoutOldAttemptDeadline(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC)
+	state := testReviewingState()
+	state.SessionDeadlineAt = now.Add(time.Minute)
+	scheduler := testScheduler()
+	for index := 0; index < testPolicy().Scheduler.MaxActive; index++ {
+		scheduler.Active = append(scheduler.Active, reviewagent.Lease{
+			Generation: generationForPR(int64(100 + index)),
+			RunID:      int64(500 + index),
+			AcquiredAt: now.Add(-time.Minute),
+		})
+	}
+	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+		Facts: testFacts(), State: &state, Scheduler: scheduler,
+		Signal: reviewagent.Signal{
+			Kind: reviewagent.SignalWorkerFailure, RunID: 437,
+		},
+		Policy: testPolicy(), Now: now,
+	})
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionRetryAndEnqueue, plan.Action)
+	require.False(t, plan.Dispatch)
+
+	queued, err := reviewagent.BuildNextState(&state, plan, now)
+	require.NoError(t, err)
+	require.True(t, queued.SessionDeadlineAt.IsZero())
+
+	available := plan.NextScheduler
+	available.Active = nil
+	later := now.Add(10 * time.Minute)
+	resumed, err := reviewagent.ReconcilePullRequest(
+		reviewagent.ReconcileInput{
+			Facts: testFacts(), State: &queued, Scheduler: available,
+			Signal: reviewagent.Signal{
+				Kind: reviewagent.SignalManual, RunID: 438,
+			},
+			Policy: testPolicy(), Now: later,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionAcquireAndDispatch, resumed.Action)
+	require.Equal(t, later.Add(90*time.Minute), resumed.DeadlineAt)
+}
+
+func TestReconcilePullRequestRejectsQueuedRetryWithoutFullBoundedAttempt(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC)
+	state := testReviewingState()
+	state.SessionDeadlineAt = now.Add(time.Minute)
+	state.PriorFindings = []contract.Finding{testFinding()}
+	scheduler := testScheduler()
+	for index := 0; index < testPolicy().Scheduler.MaxActive; index++ {
+		scheduler.Active = append(scheduler.Active, reviewagent.Lease{
+			Generation: generationForPR(int64(200 + index)),
+			RunID:      int64(600 + index),
+			AcquiredAt: now.Add(-time.Minute),
+		})
+	}
+	plan, err := reviewagent.ReconcilePullRequest(reviewagent.ReconcileInput{
+		Facts: testFacts(), State: &state, Scheduler: scheduler,
+		Signal: reviewagent.Signal{
+			Kind: reviewagent.SignalWorkerFailure, RunID: 439,
+		},
+		Policy: testPolicy(), Now: now,
+	})
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionRetryAndEnqueue, plan.Action)
+	queued, err := reviewagent.BuildNextState(&state, plan, now)
+	require.NoError(t, err)
+
+	available := plan.NextScheduler
+	available.Active = nil
+	later := now.Add(time.Hour)
+	acquired, lease, err := reviewagent.AcquireNext(
+		available,
+		440,
+		later,
+		testPolicy().Scheduler,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, lease)
+	rejected, err := reviewagent.ReconcilePullRequest(
+		reviewagent.ReconcileInput{
+			Facts: testFacts(), State: &queued, Scheduler: acquired,
+			Signal: reviewagent.Signal{
+				Kind: reviewagent.SignalManual, RunID: 440,
+			},
+			Policy: testPolicy(), Now: later,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, reviewagent.ActionRecordInconclusive, rejected.Action)
+	require.Equal(t, contract.PhaseInconclusive, rejected.DesiredPhase)
+	require.False(t, rejected.Dispatch)
+	require.Empty(t, rejected.NextScheduler.Active)
+	require.Equal(t, state.PriorFindings, rejected.PriorFindings)
 }
 
 func TestReconcilePullRequestExpiresPersistedWorkerRetry(t *testing.T) {
