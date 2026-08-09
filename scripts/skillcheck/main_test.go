@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunAcceptsMinimalSkill(t *testing.T) {
@@ -403,6 +404,70 @@ func TestRunFocusedExecutesOnlyRegisteredTest(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunFocusedBatchesRegisteredTestsUnderSharedBudget(t *testing.T) {
+	root := newTestRepo(t)
+	writeMinimalSkill(t, root)
+	writeTestFile(t, root, ".agents/skill-tests.json", `{
+  "schema_version": 1,
+  "tests": [
+    {
+      "id": "example-two-contracts",
+      "skill": "example",
+      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleTwo$", "-count=1"],
+      "timeout_seconds": 17
+    },
+    {
+      "id": "example-one-contracts",
+      "skill": "example",
+      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleOne$", "-count=1"],
+      "timeout_seconds": 13
+    }
+  ]
+}
+`)
+
+	var executed [][]string
+	executor := func(
+		ctx context.Context,
+		_ string,
+		arguments []string,
+		_ io.Writer,
+		_ io.Writer,
+	) error {
+		executed = append(executed, append([]string(nil), arguments...))
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Fatal("focused batch context has no deadline")
+		}
+		remaining := time.Until(deadline)
+		if remaining < 29*time.Second || remaining > 30*time.Second {
+			t.Fatalf("focused batch deadline remaining = %v, want about 30s", remaining)
+		}
+		return nil
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if code := runWithExecutor(
+		[]string{"--root", root, "--run-focused"},
+		&stdout,
+		&stderr,
+		executor,
+	); code != 0 {
+		t.Fatalf("runWithExecutor() code = %d, want 0; stderr = %q", code, stderr.String())
+	}
+	if len(executed) != 1 {
+		t.Fatalf("executed %d commands, want one focused batch", len(executed))
+	}
+	wantArguments := []string{
+		"go", "test", "./scripts/...", "-run",
+		"(^TestExampleOne$)|(^TestExampleTwo$)", "-count=1",
+	}
+	if got := strings.Join(executed[0], "\x00"); got != strings.Join(wantArguments, "\x00") {
+		t.Fatalf("arguments = %q, want %q", executed[0], wantArguments)
 	}
 }
 

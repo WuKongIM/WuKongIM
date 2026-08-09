@@ -217,15 +217,32 @@ func runWithExecutor(
 	sort.Slice(tests, func(left int, right int) bool {
 		return tests[left].ID < tests[right].ID
 	})
+	patterns := make([]string, 0, len(tests))
+	totalTimeoutSeconds := 0
 	for _, test := range tests {
 		fmt.Fprintf(stdout, "skillcheck: running focused test %s (%s)\n", test.ID, test.Skill)
+		patterns = append(patterns, test.Arguments[4])
+		totalTimeoutSeconds += test.TimeoutSeconds
+	}
+	if len(tests) > 0 {
+		arguments := append([]string(nil), tests[0].Arguments...)
+		if len(patterns) > 1 {
+			for index, pattern := range patterns {
+				patterns[index] = "(" + pattern + ")"
+			}
+			arguments[4] = strings.Join(patterns, "|")
+		}
 		ctx, cancel := context.WithTimeout(
-			context.Background(), time.Duration(test.TimeoutSeconds)*time.Second,
+			context.Background(), time.Duration(totalTimeoutSeconds)*time.Second,
 		)
-		err := executor(ctx, *root, test.Arguments, stdout, stderr)
+		err := executor(ctx, *root, arguments, stdout, stderr)
 		cancel()
 		if err != nil {
-			fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test %q failed: %v\n", test.ID, err)
+			if len(tests) == 1 {
+				fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test %q failed: %v\n", tests[0].ID, err)
+			} else {
+				fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test batch failed: %v\n", err)
+			}
 			return 1
 		}
 	}
@@ -588,7 +605,7 @@ type focusedTest struct {
 	Skill string `json:"skill"`
 	// Arguments is an argv-only command constrained by parseFocusedTestCommand.
 	Arguments []string `json:"arguments"`
-	// TimeoutSeconds bounds this command within the registry's shared fast budget.
+	// TimeoutSeconds contributes to the registry's shared focused-batch deadline.
 	TimeoutSeconds int `json:"timeout_seconds"`
 }
 
