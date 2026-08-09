@@ -616,11 +616,10 @@ for attempt in 1; do
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
     rm -f "$attempt_dir/run-start.json"
-    stage_journal_cursor="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-      "sudo journalctl -u '$stage_service' --no-pager -n 0 --show-cursor" 2>/dev/null | \
-      sed -n 's/^-- cursor: //p' | tail -n 1 || true)"
-    if [[ ! "$stage_journal_cursor" =~ ^[A-Za-z0-9_=\;:.-]{1,512}$ ]]; then
-      stage_journal_cursor=''
+    if ! stage_journal_cursor="$(scripts/chat-lifecycle/capture-stage-journal-cursor.sh \
+      "$WK_CLOUD_SSH_CONFIG" wukong-load)"; then
+      release_failed_attempt "$attempt_dir/quote.json" \
+        'pre-clock journal cursor unavailable; exact Lease was released'
     fi
     stage_terminal_code=''
     stage_readiness_failure_code='stage_start_failed'

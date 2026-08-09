@@ -860,7 +860,10 @@ are an optional bounded, unique declaration; an empty declaration means all 12
 workload groups. Any healthy sample resets the corresponding 30-second service
 or hot-replication failure window. Leader balance compares each node with the
 exact rational `slots/nodes` share rather than assuming 4/4/4; a deviation above
-20 percent must remain continuous for ten minutes before product failure.
+20 percent must remain continuous for ten minutes before product failure. When
+the observer terminates the coordinator, `CoordinatorResult.ObserverCode`
+retains the closed observer reason so a pre-report process exit remains
+diagnosable without raw endpoint responses.
 
 One coordinator process owns exactly one non-resumable assignment generation.
 After preflight passes, `GroupSetup` streams the fixed group catalog through the

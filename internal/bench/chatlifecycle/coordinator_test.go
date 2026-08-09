@@ -563,6 +563,9 @@ func TestCoordinatorObserverProductFailureStopsWorkersBeforeTrafficReady(t *test
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
 		t.Fatalf("Run() pre-ready observer result = %+v, want product_failure/observer", result)
 	}
+	if result.ObserverCode != ObserverCodeServiceHealth {
+		t.Fatalf("Run() observer code = %q, want %q", result.ObserverCode, ObserverCodeServiceHealth)
+	}
 	wantStops := []string{"stop-0", "stop-1", "stop-2"}
 	canonical := canonicalCoordinatorLog(&log)
 	if len(canonical) < len(wantStops) || !reflect.DeepEqual(canonical[len(canonical)-len(wantStops):], wantStops) {
