@@ -745,6 +745,30 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	}
 }
 
+func TestEngineWorkerGenerationFormalSnapshotReservesEveryPersonRelationship(t *testing.T) {
+	t.Parallel()
+
+	config := FormalConfig()
+	for workerID, wantWorkCapacity := range []int{36_008, 35_996, 35_996} {
+		generation, err := NewEngineWorkerGenerationFactory().New(WorkerAssignment{
+			WorkerFence: WorkerFence{
+				RunID: config.RunID, AssignmentID: "formal-relationship-capacity", Generation: 1,
+			},
+			WorkerID: uint64(workerID), WorkerCount: uint64(config.Workload.Workers), Config: config,
+		})
+		if err != nil {
+			t.Fatalf("new formal worker %d: %v", workerID, err)
+		}
+		snapshot, err := generation.Snapshot(context.Background())
+		if err != nil {
+			t.Fatalf("snapshot formal worker %d: %v", workerID, err)
+		}
+		if snapshot.Queues.WorkCapacity != wantWorkCapacity {
+			t.Fatalf("formal worker %d work capacity = %d, want %d", workerID, snapshot.Queues.WorkCapacity, wantWorkCapacity)
+		}
+	}
+}
+
 func TestWorkerEngineSequenceCapacityCoversPersonAndFixedGroupChannels(t *testing.T) {
 	formal := FormalConfig()
 	for workerID, want := range []int{36_674, 36_663, 36_663} {
