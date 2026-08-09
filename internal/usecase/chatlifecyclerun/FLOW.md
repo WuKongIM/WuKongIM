@@ -21,9 +21,11 @@ revisions. There is no fresh-Lease deployment retry. The request shares one
 aggregate cost ledger: CNY 1,350 is the operational admission stop and CNY
 1,500 is the hard limit. The template fixes four Ubuntu x86 hosts, 4 vCPU/8 GiB,
 40 GiB system disks, 500/200 GiB data disks, one 20 Mbps EIP, lease-long public
-ports 22 and 80. The rehearsal template fixes a 12-hour AutoRelease ceiling and a two-hour
-run. The formal template fixes a fresh 96-hour Lease and a 72-hour run; it is
-accepted only with a typed rehearsal transition containing exact zero-inventory
+ports 22 and 80. The rehearsal template fixes a 12-hour AutoRelease ceiling, a
+two-hour pre-clock readiness window, and a two-hour run. The formal template
+fixes a fresh 96-hour Lease, the same two-hour readiness window, and a 72-hour
+run. It is accepted only with a typed rehearsal transition containing exact
+zero-inventory
 proof, the same request/source/bundle identities, and the carried aggregate
 commitment. The transition also carries the normalized public half of the
 request-scoped Codex diagnostic identity, so a fresh formal Lease cannot switch

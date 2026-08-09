@@ -5,7 +5,7 @@
   "region": "cn-hangzhou",
   "lease_duration_seconds": 43200,
   "workload_duration_seconds": 7200,
-  "readiness_timeout_seconds": 3600,
+  "readiness_timeout_seconds": 7200,
   "budget": {
     "currency": "CNY",
     "hard_limit_micros": 1500000000,

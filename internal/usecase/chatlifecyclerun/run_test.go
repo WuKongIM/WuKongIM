@@ -29,7 +29,7 @@ func TestRepositoryRehearsalTemplateMaterializesExactFourHostLease(t *testing.T)
 		t.Fatal(err)
 	}
 	if plan.Schema != RunPlanSchemaV1 || plan.Stage != StageRehearsal || plan.Attempt != 1 ||
-		plan.WorkloadDurationSeconds != 7200 || plan.ReadinessTimeoutSeconds != 3600 ||
+		plan.WorkloadDurationSeconds != 7200 || plan.ReadinessTimeoutSeconds != int64((2*time.Hour)/time.Second) ||
 		plan.OperationalStopMicros != 1_350_000_000 || plan.LeasePlan.ExpiresAt != now.Add(12*time.Hour) {
 		t.Fatalf("run plan = %+v", plan)
 	}
@@ -87,6 +87,7 @@ func TestRepositoryFormalTemplateRequiresReleasedPassingRehearsalAndCarriesAggre
 		t.Fatal(err)
 	}
 	if plan.Stage != StageFormal || plan.WorkloadDurationSeconds != int64((72*time.Hour)/time.Second) ||
+		plan.ReadinessTimeoutSeconds != int64((2*time.Hour)/time.Second) ||
 		plan.LeasePlan.ExpiresAt != now.Add(96*time.Hour) || plan.LeasePlan.LeaseID != "chat-run-20260808-formal-1" ||
 		plan.LeasePlan.Budget.CommittedMicros != 75_000_000 || plan.LeasePlan.Tags["stage"] != StageFormal {
 		t.Fatalf("formal run plan = %+v", plan)
