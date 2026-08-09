@@ -24,7 +24,9 @@ func TestDeploymentPlanRequiresExactReceiptBootstrapAccess(t *testing.T) {
 	keys := []string{commandPublicKey(t), commandPublicKey(t)}
 	receipt := commandLeaseReceiptWithBootstrap(t, now, manifest, cloudlease.BootstrapAccess{AuthorizedKeys: keys})
 	directory := t.TempDir()
-	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", receipt)
+	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", cloudLeaseReceiptDocument{
+		Schema: cloudLeaseReceiptDocumentV1, Receipt: receipt,
+	})
 	manifestPath := writeCommandJSON(t, directory, "bundle-manifest.json", manifest)
 
 	for _, test := range []struct {
@@ -59,7 +61,9 @@ func TestDeploymentPlanAndGateCommandsUseValidatedReceipts(t *testing.T) {
 	manifest := commandManifest()
 	receipt := commandLeaseReceipt(t, now, manifest)
 	directory := t.TempDir()
-	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", receipt)
+	receiptPath := writeCommandJSON(t, directory, "lease-receipt.json", cloudLeaseReceiptDocument{
+		Schema: cloudLeaseReceiptDocumentV1, Receipt: receipt,
+	})
 	manifestPath := writeCommandJSON(t, directory, "bundle-manifest.json", manifest)
 
 	var stdout bytes.Buffer
@@ -87,6 +91,31 @@ func TestDeploymentPlanAndGateCommandsUseValidatedReceipts(t *testing.T) {
 	var outcome clouddeploy.Outcome
 	if err := json.Unmarshal(stdout.Bytes(), &outcome); err != nil || !outcome.Passed || outcome.Receipt == nil {
 		t.Fatalf("outcome = %#v, %v", outcome, err)
+	}
+}
+
+func TestDeploymentPlanRejectsUnversionedOrUnknownReceiptDocument(t *testing.T) {
+	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
+	manifest := commandManifest()
+	receipt := commandLeaseReceipt(t, now, manifest)
+	directory := t.TempDir()
+	manifestPath := writeCommandJSON(t, directory, "bundle-manifest.json", manifest)
+
+	for _, test := range []struct {
+		name     string
+		document any
+	}{
+		{name: "unversioned receipt", document: receipt},
+		{name: "unknown schema", document: cloudLeaseReceiptDocument{Schema: "wukongim.cloud_lease.receipt/v2", Receipt: receipt}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			receiptPath := writeCommandJSON(t, directory, test.name+".json", test.document)
+			command := newRootCommand(&bytes.Buffer{}, &bytes.Buffer{})
+			command.SetArgs([]string{"deployment-plan", "--lease-receipt", receiptPath, "--bundle-manifest", manifestPath, "--now", now.Format(time.RFC3339Nano)})
+			if err := command.Execute(); err == nil {
+				t.Fatal("deployment-plan accepted an invalid Lease Receipt document")
+			}
+		})
 	}
 }
 

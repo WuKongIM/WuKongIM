@@ -15,7 +15,15 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudlease"
 )
 
-const maxDeploymentJSONBytes = 1 << 20
+const (
+	maxDeploymentJSONBytes      = 1 << 20
+	cloudLeaseReceiptDocumentV1 = "wukongim.cloud_lease.receipt/v1"
+)
+
+type cloudLeaseReceiptDocument struct {
+	Schema  string             `json:"schema"`
+	Receipt cloudlease.Receipt `json:"receipt"`
+}
 
 func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 	var receiptPath, manifestPath, planNow string
@@ -23,10 +31,14 @@ func addDeploymentCommands(root *cobra.Command, stdout io.Writer) {
 	planCommand := &cobra.Command{
 		Use: "deployment-plan", Short: "Bind an active Cloud Lease Receipt to the native deployment bundle", Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			var receipt cloudlease.Receipt
-			if err := readStrictDeploymentJSON(receiptPath, &receipt); err != nil {
+			var document cloudLeaseReceiptDocument
+			if err := readStrictDeploymentJSON(receiptPath, &document); err != nil {
 				return fmt.Errorf("read Lease Receipt: %w", err)
 			}
+			if document.Schema != cloudLeaseReceiptDocumentV1 {
+				return errors.New("Lease Receipt schema is not supported")
+			}
+			receipt := document.Receipt
 			if err := cloudlease.ValidateReceipt(receipt); err != nil {
 				return fmt.Errorf("validate Lease Receipt: %w", err)
 			}
