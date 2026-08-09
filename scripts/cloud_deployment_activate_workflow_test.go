@@ -142,7 +142,9 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"bundle_transfer_failed plan_validated", "bundle_digest_mismatch bundle_transferred",
 		"data_disk_mount_invalid bundle_verified", "native_activation_failed hosts_prepared",
 		"credential_cleanup_failed services_active",
-		"install-offline", "--no-systemd", "activate-offline",
+		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
+		`sudo sed -i '1{/^mode = \"release\"\$/d;}' /etc/wukongim/wukongim.toml`,
+		`test \"\$(sudo sed -n '1p' /etc/wukongim/wukongim.toml)\" = '[node]'`,
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Fatalf("activation script missing %q", fragment)

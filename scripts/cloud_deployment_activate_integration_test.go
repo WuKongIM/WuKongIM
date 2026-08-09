@@ -27,6 +27,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 		{name: "transfer", failTool: "scp", wantCode: "bundle_transfer_failed", wantGate: "plan_validated", wantRole: "load"},
 		{name: "verification", failHost: "10.42.0.12", failCommand: "verify-offline", wantCode: "bundle_digest_mismatch", wantGate: "bundle_transferred", wantRole: "service-2"},
 		{name: "preparation", failHost: "10.42.0.13", failCommand: "install-offline", wantCode: "data_disk_mount_invalid", wantGate: "bundle_verified", wantRole: "service-3"},
+		{name: "config normalization", failHost: "10.42.0.11", failCommand: "normalize-config", wantCode: "data_disk_mount_invalid", wantGate: "bundle_verified", wantRole: "service-1"},
 		{name: "activation", failHost: "wukong-load", failCommand: "activate-offline", wantCode: "native_activation_failed", wantGate: "hosts_prepared", wantRole: "load"},
 		{name: "credential cleanup", failHost: "10.42.0.12", failCommand: "rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz", wantCode: "credential_cleanup_failed", wantGate: "services_active", wantRole: "service-2"},
 	} {
@@ -40,6 +41,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 set -euo pipefail
 joined="$*"
 if [[ "$joined" == *"root_source="* ]]; then printf '/dev/fake-data\n'; exit 0; fi
+if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == normalize-config && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sed -i"* ]]; then exit 42; fi
 if [[ -n "${WK_FAKE_FAIL_HOST:-}" && -n "${WK_FAKE_FAIL_COMMAND:-}" && "$joined" == *"$WK_FAKE_FAIL_HOST"* && "$joined" == *"$WK_FAKE_FAIL_COMMAND"* ]]; then exit 42; fi
 exit 0
 `)

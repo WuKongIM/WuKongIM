@@ -78,6 +78,8 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
   [[ "$data_device" =~ ^/dev/[A-Za-z0-9._/-]+$ ]]
   cloud_ssh_retry "${role}-prepare" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
     "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role '$role' --runtime-dir /home/wkdeploy/run-secrets --data-device '$data_device' --no-systemd"
+  cloud_ssh_retry "${role}-normalize-config" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
+    "sudo sed -i '1{/^mode = \"release\"\$/d;}' /etc/wukongim/wukongim.toml && test \"\$(sudo sed -n '1p' /etc/wukongim/wukongim.toml)\" = '[node]' && ! sudo grep -q '^mode[[:space:]]*=' /etc/wukongim/wukongim.toml"
 done
 
 write_failure data_disk_mount_invalid bundle_verified load \
