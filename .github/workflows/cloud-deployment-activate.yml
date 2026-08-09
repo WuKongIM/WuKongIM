@@ -189,12 +189,13 @@ jobs:
           umask 077
           printf '%s\n' "$WRAPPING_PRIVATE_KEY" >"$RUNNER_TEMP/wrapping-key"
           chmod 0600 "$RUNNER_TEMP/wrapping-key"
+          lease_plan_digest="$(jq -er '.lease_plan_digest | select(test("^sha256:[0-9a-f]{64}$")) | sub("^sha256:"; "")' deployment-plan.json)"
           "$RUNNER_TEMP/trusted-deployment-tools/wkchatlifecycle" open-deployment-identity \
             --envelope encrypted-deployment-identity.json --identity "$RUNNER_TEMP/wrapping-key" \
             --request-id "$(jq -er .request_id deployment-plan.json)" \
             --lease-id "$(jq -er .lease_id deployment-plan.json)" \
             --source-sha "$(jq -er .source_sha deployment-plan.json)" \
-            --plan-digest "$(jq -er .lease_plan_digest deployment-plan.json)" \
+            --plan-digest "$lease_plan_digest" \
             --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --output deployment-key
           ssh-keygen -y -f deployment-key >/dev/null
           rm -f "$RUNNER_TEMP/wrapping-key"

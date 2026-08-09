@@ -27,6 +27,8 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		`jq -er .receipt.lease_id "$lease_receipt"`,
 		`jq -er .receipt.provenance.source_sha "$lease_receipt"`,
 		`jq -er .receipt.plan_digest "$lease_receipt"`,
+		`lease_plan_digest="$(jq -er '.lease_plan_digest | select(test("^sha256:[0-9a-f]{64}$")) | sub("^sha256:"; "")' deployment-plan.json)"`,
+		`--plan-digest "$lease_plan_digest"`,
 		"trusted-deployment-tools/wkcloudgate\" deployment-plan",
 		`--bootstrap-pubkey "$deployment_public_key"`,
 		`--bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY"`,
@@ -57,6 +59,7 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		`test "$lease_head_sha" = "$GITHUB_SHA"`, `test "$bundle_head_sha" = "$GITHUB_SHA"`,
 		`jq -er .request_id "$lease_receipt"`, `jq -er .lease_id "$lease_receipt"`,
 		`jq -er .provenance.source_sha "$lease_receipt"`, `jq -er .plan_digest "$lease_receipt"`,
+		`--plan-digest "$(jq -er .lease_plan_digest deployment-plan.json)"`,
 	} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("activation workflow unexpectedly contains %q", forbidden)
