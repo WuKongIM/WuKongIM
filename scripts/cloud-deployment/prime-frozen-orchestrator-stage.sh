@@ -44,11 +44,19 @@ chown root:root "$dropin_path"
 chmod 0644 "$dropin_path"
 systemctl daemon-reload
 
-if systemctl start "$unit"; then
-  echo "stage reset priming unexpectedly started successfully" >&2
-  exit 1
-fi
-systemctl is-failed --quiet "$unit"
+# Type=simple may report a successful start job before /bin/false exits. The
+# resulting unit state, rather than the synchronous start exit code, is the
+# compatibility contract consumed by the frozen orchestrator.
+systemctl start "$unit" >/dev/null 2>&1 || true
+primed=false
+for ((probe = 0; probe < 50; probe++)); do
+  if systemctl is-failed --quiet "$unit"; then
+    primed=true
+    break
+  fi
+  sleep 0.1
+done
+[[ "$primed" == true ]]
 
 rm -f "$dropin_path"
 rmdir "$dropin_dir" 2>/dev/null || true

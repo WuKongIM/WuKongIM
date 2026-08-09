@@ -192,7 +192,8 @@ func TestCloudDeploymentFrozenOrchestratorStagePrimingIsNarrow(t *testing.T) {
 		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
 		`capture("-(?<stage>rehearsal|formal)-[1-9][0-9]*$")`,
 		`if systemctl is-active --quiet "$unit"`,
-		"ExecStart=/bin/false", `systemctl is-failed --quiet "$unit"`,
+		"ExecStart=/bin/false", `systemctl start "$unit" >/dev/null 2>&1 || true`,
+		`for ((probe = 0; probe < 50; probe++))`, `systemctl is-failed --quiet "$unit"`,
 		"90-frozen-orchestrator-reset-prime.conf",
 	} {
 		if !strings.Contains(text, fragment) {
