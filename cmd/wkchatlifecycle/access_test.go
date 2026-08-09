@@ -18,7 +18,7 @@ func TestAccessEnvelopeRoundTripKeepsCredentialsEncryptedAndPrivate(t *testing.T
 	publicKey, privateKeyPath := accessTestKey(t)
 	credential := accessCredential{
 		Schema: accessCredentialSchemaV1, RequestID: "chat-request-1", LeaseID: "lease-1",
-		SourceSHA: strings.Repeat("a", 40), DeploymentPlanDigest: strings.Repeat("b", 64),
+		SourceSHA: strings.Repeat("a", 40), DeploymentPlanDigest: "sha256:" + strings.Repeat("b", 64),
 		ManagerURL: "http://203.0.113.10/", DemoURL: "http://203.0.113.10/demo/",
 		Username: "operator-0123456789abcdef01234567", Password: strings.Repeat("c", 64),
 		LeaseExpiresAt: "2030-01-02T03:04:05Z",
@@ -80,7 +80,7 @@ func TestOpenAccessRejectsWrongIdentityRequestAndExistingOutput(t *testing.T) {
 	_, wrongPrivateKeyPath := accessTestKey(t)
 	credential := accessCredential{
 		Schema: accessCredentialSchemaV1, RequestID: "request-safe", LeaseID: "lease-safe",
-		SourceSHA: strings.Repeat("d", 40), DeploymentPlanDigest: strings.Repeat("e", 64),
+		SourceSHA: strings.Repeat("d", 40), DeploymentPlanDigest: "sha256:" + strings.Repeat("e", 64),
 		ManagerURL: "http://198.51.100.8/", DemoURL: "http://198.51.100.8/demo/",
 		Username: "operator-abcdef0123456789abcdef01", Password: strings.Repeat("f", 64),
 		LeaseExpiresAt: "2030-01-02T03:04:05Z",
@@ -140,7 +140,7 @@ func TestOpenAccessRejectsExpiredCredential(t *testing.T) {
 	publicKey, privateKeyPath := accessTestKey(t)
 	credential := accessCredential{
 		Schema: accessCredentialSchemaV1, RequestID: "request-expired", LeaseID: "lease-expired",
-		SourceSHA: strings.Repeat("1", 40), DeploymentPlanDigest: strings.Repeat("2", 64),
+		SourceSHA: strings.Repeat("1", 40), DeploymentPlanDigest: "sha256:" + strings.Repeat("2", 64),
 		ManagerURL: "http://192.0.2.10/", DemoURL: "http://192.0.2.10/demo/",
 		Username: "operator-0123456789abcdef01234567", Password: strings.Repeat("3", 64),
 		LeaseExpiresAt: "2030-01-02T03:04:05Z",
@@ -170,6 +170,27 @@ func TestOpenAccessRejectsExpiredCredential(t *testing.T) {
 	}
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
 		t.Fatalf("expired credential created output: %v", err)
+	}
+}
+
+func TestSealAccessRejectsNoncanonicalDeploymentPlanDigest(t *testing.T) {
+	publicKey, _ := accessTestKey(t)
+	credential := accessCredential{
+		Schema: accessCredentialSchemaV1, RequestID: "request-invalid-digest", LeaseID: "lease-invalid-digest",
+		SourceSHA: strings.Repeat("a", 40), DeploymentPlanDigest: strings.Repeat("b", 64),
+		ManagerURL: "http://192.0.2.10/", DemoURL: "http://192.0.2.10/demo/",
+		Username: "operator-0123456789abcdef01234567", Password: strings.Repeat("c", 64),
+		LeaseExpiresAt: "2030-01-02T03:04:05Z",
+	}
+	body, err := json.Marshal(credential)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := newRootCommand(&bytes.Buffer{})
+	command.SetIn(bytes.NewReader(body))
+	command.SetArgs([]string{"seal-access", "--recipient", publicKey})
+	if err := command.Execute(); err == nil {
+		t.Fatal("seal-access accepted a Deployment Plan digest without its sha256 prefix")
 	}
 }
 

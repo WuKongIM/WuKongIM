@@ -269,7 +269,7 @@ jobs:
           request_id="$(jq -er .request_id deployment-plan.json)"
           lease_id="$(jq -er .lease_id deployment-plan.json)"
           source_sha="$(jq -er .source_sha deployment-plan.json)"
-          plan_digest="$(jq -er .plan_digest deployment-plan.json)"
+          plan_digest="$(jq -er '.plan_digest | select(test("^sha256:[0-9a-f]{64}$"))' deployment-plan.json)"
           jq -n --arg schema 'wukongim.chat_lifecycle.access/v1' \
             --arg request_id "$request_id" --arg lease_id "$lease_id" --arg source_sha "$source_sha" \
             --arg deployment_plan_digest "$plan_digest" --arg manager_url "http://${LOAD_PUBLIC}/" \

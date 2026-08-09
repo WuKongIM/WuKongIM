@@ -35,6 +35,7 @@ var (
 	accessIdentityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$`)
 	hex40Pattern          = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	hex64Pattern          = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	sha256DigestPattern   = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	accessUserPattern     = regexp.MustCompile(`^operator-[0-9a-f]{24}$`)
 )
 
@@ -157,7 +158,7 @@ func addOpenAccessCommand(root *cobra.Command) {
 func validAccessCredential(credential accessCredential) bool {
 	if credential.Schema != accessCredentialSchemaV1 || !accessIdentityPattern.MatchString(credential.RequestID) ||
 		!accessIdentityPattern.MatchString(credential.LeaseID) || !hex40Pattern.MatchString(credential.SourceSHA) ||
-		!hex64Pattern.MatchString(credential.DeploymentPlanDigest) || !accessUserPattern.MatchString(credential.Username) ||
+		!sha256DigestPattern.MatchString(credential.DeploymentPlanDigest) || !accessUserPattern.MatchString(credential.Username) ||
 		!hex64Pattern.MatchString(credential.Password) {
 		return false
 	}
@@ -173,7 +174,7 @@ func validAccessCredential(credential accessCredential) bool {
 func validEncryptedAccessEnvelope(envelope encryptedAccessEnvelope) bool {
 	return envelope.Schema == encryptedAccessSchemaV1 && envelope.Algorithm == accessEncryptionAlgorithm &&
 		accessIdentityPattern.MatchString(envelope.RequestID) && accessIdentityPattern.MatchString(envelope.LeaseID) &&
-		hex40Pattern.MatchString(envelope.SourceSHA) && hex64Pattern.MatchString(envelope.DeploymentPlanDigest) &&
+		hex40Pattern.MatchString(envelope.SourceSHA) && sha256DigestPattern.MatchString(envelope.DeploymentPlanDigest) &&
 		strings.HasPrefix(envelope.RecipientFingerprint, "SHA256:") && len(envelope.RecipientFingerprint) <= 80 &&
 		len(envelope.CiphertextBase64) > 0 && len(envelope.CiphertextBase64) <= 2*maxInputBytes
 }
