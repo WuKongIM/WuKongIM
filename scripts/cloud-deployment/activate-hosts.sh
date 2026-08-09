@@ -35,6 +35,7 @@ cloud_ssh_retry load-ready 30 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load true
 cloud_ssh_retry load-upload 3 5 scp -F "$WK_CLOUD_SSH_CONFIG" \
   "$WK_CLOUD_BUNDLE_ARCHIVE" "$WK_CLOUD_DEPLOYMENT_PLAN" \
   "$WK_CLOUD_RUNTIME_NODE_ARCHIVE" "$WK_CLOUD_RUNTIME_LOAD_ARCHIVE" \
+  "$script_dir/install-orchestrator-compat-user.sh" \
   wukong-load:/home/wkdeploy/
 
 eval "$(ssh-agent -s)"
@@ -51,7 +52,7 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
   write_failure bundle_transfer_failed plan_validated "$role" \
     "private service host did not receive the deployment payload" "$role payload is absent or incomplete"
   cloud_ssh_retry "${role}-relay" 3 5 ssh -A -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-    "scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new /home/wkdeploy/cloud-deployment-bundle.tar.gz /home/wkdeploy/deployment-plan.json /home/wkdeploy/runtime-node.tar.gz 'wkdeploy@${address}:/home/wkdeploy/'"
+    "scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new /home/wkdeploy/cloud-deployment-bundle.tar.gz /home/wkdeploy/deployment-plan.json /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh 'wkdeploy@${address}:/home/wkdeploy/'"
 done
 complete_gate bundle_transferred
 
@@ -68,6 +69,19 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
     'rm -rf /home/wkdeploy/bundle /home/wkdeploy/run-secrets && mkdir /home/wkdeploy/bundle /home/wkdeploy/run-secrets && tar -xzf /home/wkdeploy/cloud-deployment-bundle.tar.gz -C /home/wkdeploy/bundle && tar -xzf /home/wkdeploy/runtime-node.tar.gz -C /home/wkdeploy/run-secrets && /home/wkdeploy/bundle/bin/wkcloudbundle verify-offline --root /home/wkdeploy/bundle >/dev/null'
 done
 complete_gate bundle_verified
+
+for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; do
+  role="${pair%%:*}"
+  address="${pair#*:}"
+  write_failure credential_materialization_failed bundle_verified "$role" \
+    "frozen orchestrator SSH compatibility could not be installed" "$role compatibility access is unavailable"
+  cloud_ssh_retry "${role}-orchestrator-compat" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
+    'sudo bash /home/wkdeploy/install-orchestrator-compat-user.sh'
+done
+write_failure credential_materialization_failed bundle_verified load \
+  "frozen orchestrator SSH compatibility could not be installed" "load compatibility access is unavailable"
+cloud_ssh_retry load-orchestrator-compat 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  'sudo bash /home/wkdeploy/install-orchestrator-compat-user.sh'
 
 for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; do
   role="${pair%%:*}"
@@ -119,9 +133,9 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
   write_failure credential_cleanup_failed services_active "$role" \
     "deployment staging credentials could not be removed" "$role services are active; staging cleanup is unconfirmed"
   cloud_ssh_retry "${role}-cleanup-secrets" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
-    'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz'
+    'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh'
 done
 write_failure credential_cleanup_failed services_active load \
   "deployment staging credentials could not be removed" "load services are active; staging cleanup is unconfirmed"
 cloud_ssh_retry cleanup-load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz'
+  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh'

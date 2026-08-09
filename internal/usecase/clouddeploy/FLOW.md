@@ -83,6 +83,12 @@ identity after a request-bound protected-main control fix. Host installation is
 idempotent for an already mounted expected ext4 data disk and overwrites only
 the reviewed role payload and per-deployment runtime credentials. The Action
 still cannot replace bundle provenance or mutate the Lease lifecycle.
+The one exact `4daf86e4a88478ccdecd9675acee8414810413be` orchestrator revision
+predates the `wkdeploy` bootstrap-user correction. Its repair deployment adds
+an idempotent `wukong` compatibility account carrying only the already admitted
+public keys and equivalent sudo policy so that the already-running orchestrator
+and its finalizer can finish without replacing the Lease. Other control
+revisions do not create that account.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The
