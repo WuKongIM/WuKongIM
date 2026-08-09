@@ -217,15 +217,32 @@ func runWithExecutor(
 	sort.Slice(tests, func(left int, right int) bool {
 		return tests[left].ID < tests[right].ID
 	})
+	patterns := make([]string, 0, len(tests))
+	totalTimeoutSeconds := 0
 	for _, test := range tests {
 		fmt.Fprintf(stdout, "skillcheck: running focused test %s (%s)\n", test.ID, test.Skill)
+		patterns = append(patterns, test.Arguments[4])
+		totalTimeoutSeconds += test.TimeoutSeconds
+	}
+	if len(tests) > 0 {
+		arguments := append([]string(nil), tests[0].Arguments...)
+		if len(patterns) > 1 {
+			for index, pattern := range patterns {
+				patterns[index] = "(" + pattern + ")"
+			}
+			arguments[4] = strings.Join(patterns, "|")
+		}
 		ctx, cancel := context.WithTimeout(
-			context.Background(), time.Duration(test.TimeoutSeconds)*time.Second,
+			context.Background(), time.Duration(totalTimeoutSeconds)*time.Second,
 		)
-		err := executor(ctx, *root, test.Arguments, stdout, stderr)
+		err := executor(ctx, *root, arguments, stdout, stderr)
 		cancel()
 		if err != nil {
-			fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test %q failed: %v\n", test.ID, err)
+			if len(tests) == 1 {
+				fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test %q failed: %v\n", tests[0].ID, err)
+			} else {
+				fmt.Fprintf(stderr, ".agents/skill-tests.json: focused test batch failed: %v\n", err)
+			}
 			return 1
 		}
 	}
@@ -588,7 +605,7 @@ type focusedTest struct {
 	Skill string `json:"skill"`
 	// Arguments is an argv-only command constrained by parseFocusedTestCommand.
 	Arguments []string `json:"arguments"`
-	// TimeoutSeconds bounds this command within the registry's shared fast budget.
+	// TimeoutSeconds contributes to the registry's shared focused-batch deadline.
 	TimeoutSeconds int `json:"timeout_seconds"`
 }
 
@@ -668,20 +685,20 @@ func readFocusedTestRegistry(
 		pattern, allowed := parseFocusedTestCommand(test.Arguments)
 		if !allowed {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q must be an explicit go test ./scripts/... -run '^Test...' -count=1 command",
+				"%s: test %q must be an explicit go test ./scripts/skillcontracts -run '^Test...' -count=1 command",
 				registryRelative, test.ID,
 			))
 			continue
 		}
-		matched, err := matchesDefaultScriptsTest(repoRoot, pattern)
+		matched, err := matchesFocusedContractTest(repoRoot, pattern)
 		if err != nil {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q cannot inspect default scripts tests: %v",
+				"%s: test %q cannot inspect default skillcontracts tests: %v",
 				registryRelative, test.ID, err,
 			))
 		} else if !matched {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q -run pattern %q matches no default scripts test",
+				"%s: test %q -run pattern %q matches no default skillcontracts test",
 				registryRelative, test.ID, pattern.String(),
 			))
 		}
@@ -705,7 +722,7 @@ func readFocusedTestRegistry(
 
 func parseFocusedTestCommand(arguments []string) (*regexp.Regexp, bool) {
 	if len(arguments) != 6 || arguments[0] != "go" || arguments[1] != "test" ||
-		arguments[2] != "./scripts/..." || arguments[3] != "-run" ||
+		arguments[2] != "./scripts/skillcontracts" || arguments[3] != "-run" ||
 		arguments[5] != "-count=1" || !strings.HasPrefix(arguments[4], "^Test") {
 		return nil, false
 	}
@@ -713,10 +730,10 @@ func parseFocusedTestCommand(arguments []string) (*regexp.Regexp, bool) {
 	return pattern, err == nil
 }
 
-func matchesDefaultScriptsTest(repoRoot string, pattern *regexp.Regexp) (bool, error) {
-	scriptsRoot := filepath.Join(repoRoot, "scripts")
+func matchesFocusedContractTest(repoRoot string, pattern *regexp.Regexp) (bool, error) {
+	contractsRoot := filepath.Join(repoRoot, "scripts", "skillcontracts")
 	matched := false
-	err := filepath.WalkDir(scriptsRoot, func(
+	err := filepath.WalkDir(contractsRoot, func(
 		path string,
 		entry fs.DirEntry,
 		walkErr error,
@@ -725,7 +742,7 @@ func matchesDefaultScriptsTest(repoRoot string, pattern *regexp.Regexp) (bool, e
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != scriptsRoot && (entry.Name() == "testdata" ||
+			if path != contractsRoot && (entry.Name() == "testdata" ||
 				entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".") ||
 				strings.HasPrefix(entry.Name(), "_")) {
 				return filepath.SkipDir

@@ -62,10 +62,13 @@
 - Repository Skill verification has two layers. `agent-artifact-contracts`
   validates Skill metadata, local-reference containment, interface YAML,
   fixtures, executable bits, the focused-test registry, and Review policy
-  routing without executing Skill scripts. `skill-focused-contracts` runs only
-  the allowlisted `go test ./scripts/... -run '^Test...' -count=1` commands in
-  `.agents/skill-tests.json`; every pattern must match a default-tier Go test,
-  and their declared timeouts total at most 40 seconds.
+  routing without executing Skill scripts. `skill-focused-contracts` batches
+  the registry patterns into one allowlisted
+  `go test ./scripts/skillcontracts -run '<registered patterns>' -count=1`
+  process, so a fresh runner compiles only the lightweight contract package.
+  Every pattern in `.agents/skill-tests.json` must match a default-tier Go
+  test, and the declared timeout shares sum to one deadline of at most 40
+  seconds.
   The paired static and focused named checks have a combined 60-second budget.
   Review check commands and path selection remain authoritative only in
   `.github/review-agent/policy.json`.

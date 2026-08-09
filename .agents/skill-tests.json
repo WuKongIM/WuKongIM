@@ -7,12 +7,12 @@
       "arguments": [
         "go",
         "test",
-        "./scripts/...",
+        "./scripts/skillcontracts",
         "-run",
         "^TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate$",
         "-count=1"
       ],
-      "timeout_seconds": 20
+      "timeout_seconds": 15
     },
     {
       "id": "cloud-analysis-skill-contracts",
@@ -20,12 +20,25 @@
       "arguments": [
         "go",
         "test",
-        "./scripts/...",
+        "./scripts/skillcontracts",
         "-run",
         "^TestCloudAnalysisSkill",
         "-count=1"
       ],
-      "timeout_seconds": 20
+      "timeout_seconds": 15
+    },
+    {
+      "id": "operations-skill-contracts",
+      "skill": "wukongim-ops",
+      "arguments": [
+        "go",
+        "test",
+        "./scripts/skillcontracts",
+        "-run",
+        "^TestOperationsSkillKeepsDiagnosisReadOnlyAndEvidenceOrdered$",
+        "-count=1"
+      ],
+      "timeout_seconds": 10
     }
   ]
 }
