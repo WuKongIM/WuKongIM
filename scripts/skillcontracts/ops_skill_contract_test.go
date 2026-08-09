@@ -1,4 +1,4 @@
-package scripts_test
+package skillcontracts_test
 
 import (
 	"path/filepath"

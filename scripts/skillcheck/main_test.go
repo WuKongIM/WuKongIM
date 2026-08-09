@@ -180,7 +180,7 @@ Read [the contract][rules].
     {
       "id": "example-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExample", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExample", "-count=1"],
       "timeout_seconds": 20
     }
   ]
@@ -336,7 +336,27 @@ func TestRunRejectsFocusedTestOutsideCommandAllowlist(t *testing.T) {
 }
 `)
 
-	want := ".agents/skill-tests.json: test \"unsafe\" must be an explicit go test ./scripts/... -run '^Test...' -count=1 command\n"
+	want := ".agents/skill-tests.json: test \"unsafe\" must be an explicit go test ./scripts/skillcontracts -run '^Test...' -count=1 command\n"
+	requireSkillcheckError(t, root, want)
+}
+
+func TestRunRejectsBroadScriptsFocusedCommand(t *testing.T) {
+	root := newTestRepo(t)
+	writeMinimalSkill(t, root)
+	writeTestFile(t, root, ".agents/skill-tests.json", `{
+  "schema_version": 1,
+  "tests": [
+    {
+      "id": "broad",
+      "skill": "example",
+      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExample", "-count=1"],
+      "timeout_seconds": 30
+    }
+  ]
+}
+`)
+
+	want := ".agents/skill-tests.json: test \"broad\" must be an explicit go test ./scripts/skillcontracts -run '^Test...' -count=1 command\n"
 	requireSkillcheckError(t, root, want)
 }
 
@@ -358,7 +378,7 @@ func TestRunFocusedExecutesOnlyRegisteredTest(t *testing.T) {
     {
       "id": "example-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExample", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExample", "-count=1"],
       "timeout_seconds": 30
     }
   ]
@@ -393,7 +413,7 @@ func TestRunFocusedExecutesOnlyRegisteredTest(t *testing.T) {
 	if len(executed) != 1 {
 		t.Fatalf("executed %d commands, want 1", len(executed))
 	}
-	wantArguments := []string{"go", "test", "./scripts/...", "-run", "^TestExample", "-count=1"}
+	wantArguments := []string{"go", "test", "./scripts/skillcontracts", "-run", "^TestExample", "-count=1"}
 	if got := strings.Join(executed[0], "\x00"); got != strings.Join(wantArguments, "\x00") {
 		t.Fatalf("arguments = %q, want %q", executed[0], wantArguments)
 	}
@@ -416,13 +436,13 @@ func TestRunFocusedBatchesRegisteredTestsUnderSharedBudget(t *testing.T) {
     {
       "id": "example-two-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleTwo$", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExampleTwo$", "-count=1"],
       "timeout_seconds": 17
     },
     {
       "id": "example-one-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleOne$", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExampleOne$", "-count=1"],
       "timeout_seconds": 13
     }
   ]
@@ -463,7 +483,7 @@ func TestRunFocusedBatchesRegisteredTestsUnderSharedBudget(t *testing.T) {
 		t.Fatalf("executed %d commands, want one focused batch", len(executed))
 	}
 	wantArguments := []string{
-		"go", "test", "./scripts/...", "-run",
+		"go", "test", "./scripts/skillcontracts", "-run",
 		"(^TestExampleOne$)|(^TestExampleTwo$)", "-count=1",
 	}
 	if got := strings.Join(executed[0], "\x00"); got != strings.Join(wantArguments, "\x00") {
@@ -566,13 +586,13 @@ func TestRunRejectsFocusedTestsBeyondFastGateBudget(t *testing.T) {
     {
       "id": "example-one",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleOne", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExampleOne", "-count=1"],
       "timeout_seconds": 25
     },
     {
       "id": "example-two",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExampleTwo", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExampleTwo", "-count=1"],
       "timeout_seconds": 20
     }
   ]
@@ -592,14 +612,40 @@ func TestRunRejectsFocusedTestWithNoMatchingGoTest(t *testing.T) {
     {
       "id": "missing-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestMissing$", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestMissing$", "-count=1"],
       "timeout_seconds": 20
     }
   ]
 }
 `)
 
-	want := ".agents/skill-tests.json: test \"missing-contracts\" -run pattern \"^TestMissing$\" matches no default scripts test\n"
+	want := ".agents/skill-tests.json: test \"missing-contracts\" -run pattern \"^TestMissing$\" matches no default skillcontracts test\n"
+	requireSkillcheckError(t, root, want)
+}
+
+func TestRunRejectsPatternThatMatchesOnlyOutsideSkillcontracts(t *testing.T) {
+	root := newTestRepo(t)
+	writeMinimalSkill(t, root)
+	writeTestFile(t, root, "scripts/root_only_test.go", `package scripts
+
+import "testing"
+
+func TestRootOnly(t *testing.T) {}
+`)
+	writeTestFile(t, root, ".agents/skill-tests.json", `{
+  "schema_version": 1,
+  "tests": [
+    {
+      "id": "root-only",
+      "skill": "example",
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestRootOnly$", "-count=1"],
+      "timeout_seconds": 20
+    }
+  ]
+}
+`)
+
+	want := ".agents/skill-tests.json: test \"root-only\" -run pattern \"^TestRootOnly$\" matches no default skillcontracts test\n"
 	requireSkillcheckError(t, root, want)
 }
 
@@ -623,14 +669,14 @@ func TestRunRejectsNonDiscoverableFocusedTestFunction(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := newTestRepo(t)
 			writeMinimalSkill(t, root)
-			writeTestFile(t, root, "scripts/example_test.go", "package scripts\n\nimport \"testing\"\n\n"+test.function+"\n")
+			writeTestFile(t, root, "scripts/skillcontracts/example_test.go", "package skillcontracts\n\nimport \"testing\"\n\n"+test.function+"\n")
 			writeTestFile(t, root, ".agents/skill-tests.json", fmt.Sprintf(`{
   "schema_version": 1,
   "tests": [
     {
       "id": "non-discoverable",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", %q, "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", %q, "-count=1"],
       "timeout_seconds": 20
     }
   ]
@@ -638,7 +684,7 @@ func TestRunRejectsNonDiscoverableFocusedTestFunction(t *testing.T) {
 `, test.pattern))
 
 			want := fmt.Sprintf(
-				".agents/skill-tests.json: test \"non-discoverable\" -run pattern %q matches no default scripts test\n",
+				".agents/skill-tests.json: test \"non-discoverable\" -run pattern %q matches no default skillcontracts test\n",
 				test.pattern,
 			)
 			requireSkillcheckError(t, root, want)
@@ -738,7 +784,7 @@ func requireSkillcheckError(t *testing.T, root string, want string) {
 func newTestRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	writeTestFile(t, root, "scripts/example_test.go", `package scripts
+	writeTestFile(t, root, "scripts/skillcontracts/example_test.go", `package skillcontracts
 
 import "testing"
 
@@ -762,7 +808,7 @@ func writeExampleFocusedTest(t *testing.T, root string) {
     {
       "id": "example-contracts",
       "skill": "example",
-      "arguments": ["go", "test", "./scripts/...", "-run", "^TestExample", "-count=1"],
+      "arguments": ["go", "test", "./scripts/skillcontracts", "-run", "^TestExample", "-count=1"],
       "timeout_seconds": 20
     }
   ]

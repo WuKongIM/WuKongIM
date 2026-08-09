@@ -7,7 +7,7 @@
       "arguments": [
         "go",
         "test",
-        "./scripts/...",
+        "./scripts/skillcontracts",
         "-run",
         "^TestChatLifecycleProjectSkillKeepsPaidAuthorityAndOperationsSeparate$",
         "-count=1"
@@ -20,7 +20,7 @@
       "arguments": [
         "go",
         "test",
-        "./scripts/...",
+        "./scripts/skillcontracts",
         "-run",
         "^TestCloudAnalysisSkill",
         "-count=1"
@@ -33,7 +33,7 @@
       "arguments": [
         "go",
         "test",
-        "./scripts/...",
+        "./scripts/skillcontracts",
         "-run",
         "^TestOperationsSkillKeepsDiagnosisReadOnlyAndEvidenceOrdered$",
         "-count=1"

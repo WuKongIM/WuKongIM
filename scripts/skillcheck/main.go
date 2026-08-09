@@ -685,20 +685,20 @@ func readFocusedTestRegistry(
 		pattern, allowed := parseFocusedTestCommand(test.Arguments)
 		if !allowed {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q must be an explicit go test ./scripts/... -run '^Test...' -count=1 command",
+				"%s: test %q must be an explicit go test ./scripts/skillcontracts -run '^Test...' -count=1 command",
 				registryRelative, test.ID,
 			))
 			continue
 		}
-		matched, err := matchesDefaultScriptsTest(repoRoot, pattern)
+		matched, err := matchesFocusedContractTest(repoRoot, pattern)
 		if err != nil {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q cannot inspect default scripts tests: %v",
+				"%s: test %q cannot inspect default skillcontracts tests: %v",
 				registryRelative, test.ID, err,
 			))
 		} else if !matched {
 			diagnostics = append(diagnostics, fmt.Sprintf(
-				"%s: test %q -run pattern %q matches no default scripts test",
+				"%s: test %q -run pattern %q matches no default skillcontracts test",
 				registryRelative, test.ID, pattern.String(),
 			))
 		}
@@ -722,7 +722,7 @@ func readFocusedTestRegistry(
 
 func parseFocusedTestCommand(arguments []string) (*regexp.Regexp, bool) {
 	if len(arguments) != 6 || arguments[0] != "go" || arguments[1] != "test" ||
-		arguments[2] != "./scripts/..." || arguments[3] != "-run" ||
+		arguments[2] != "./scripts/skillcontracts" || arguments[3] != "-run" ||
 		arguments[5] != "-count=1" || !strings.HasPrefix(arguments[4], "^Test") {
 		return nil, false
 	}
@@ -730,10 +730,10 @@ func parseFocusedTestCommand(arguments []string) (*regexp.Regexp, bool) {
 	return pattern, err == nil
 }
 
-func matchesDefaultScriptsTest(repoRoot string, pattern *regexp.Regexp) (bool, error) {
-	scriptsRoot := filepath.Join(repoRoot, "scripts")
+func matchesFocusedContractTest(repoRoot string, pattern *regexp.Regexp) (bool, error) {
+	contractsRoot := filepath.Join(repoRoot, "scripts", "skillcontracts")
 	matched := false
-	err := filepath.WalkDir(scriptsRoot, func(
+	err := filepath.WalkDir(contractsRoot, func(
 		path string,
 		entry fs.DirEntry,
 		walkErr error,
@@ -742,7 +742,7 @@ func matchesDefaultScriptsTest(repoRoot string, pattern *regexp.Regexp) (bool, e
 			return walkErr
 		}
 		if entry.IsDir() {
-			if path != scriptsRoot && (entry.Name() == "testdata" ||
+			if path != contractsRoot && (entry.Name() == "testdata" ||
 				entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".") ||
 				strings.HasPrefix(entry.Name(), "_")) {
 				return filepath.SkipDir
