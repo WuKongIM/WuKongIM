@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -35,8 +36,10 @@ func (db *MessageDB) listChannelsPage(ctx context.Context, after ChannelKey, lim
 	prefix := encodeCatalogPrefix()
 	span := keycodec.NewPrefixSpan(prefix)
 	start := span.Start
+	var afterKeyEncoded []byte
 	if after != "" {
-		start = encodeCatalogKey(after)
+		afterKeyEncoded = encodeCatalogKey(after)
+		start = afterKeyEncoded
 	}
 	iter, err := db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
@@ -54,12 +57,24 @@ func (db *MessageDB) listChannelsPage(ctx context.Context, after ChannelKey, lim
 		if err := ctx.Err(); err != nil {
 			return nil, "", false, err
 		}
+		// afterKeyEncoded, when set, is exactly the Start bound above, so the
+		// iterator never yields a row that sorts before it in the engine's
+		// true (encoded) key order. The only row left to exclude here is the
+		// cursor row itself, an exact byte match. Do NOT compare decoded
+		// channel_key strings for this: encodeCatalogKey length-prefixes the
+		// channel_key (see keycodec.AppendString), so the engine's real
+		// iteration order groups rows by channel_key length before content —
+		// a different order than plain Go string "<=" whenever two
+		// channel_key values on the same page have different lengths.
+		// Comparing decoded strings here used to drop a channel at page
+		// boundaries whenever that ordering diverged (this backs production
+		// paths: channel retention GC and backup/restore channel paging).
+		if afterKeyEncoded != nil && bytes.Equal(iter.Key(), afterKeyEncoded) {
+			continue
+		}
 		key, ok := decodeCatalogKey(iter.Key())
 		if !ok {
 			return nil, "", false, fmt.Errorf("%w: corrupt catalog key", dberrors.ErrCorruptValue)
-		}
-		if after != "" && key <= after {
-			continue
 		}
 		value, err := iter.Value()
 		if err != nil {

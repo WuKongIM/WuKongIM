@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -83,8 +84,10 @@ func inspectChannelCatalogPage(ctx context.Context, db *MessageDB, req InspectMe
 	prefix := encodeCatalogPrefix()
 	span := keycodec.NewPrefixSpan(prefix)
 	start := span.Start
+	var afterKeyEncoded []byte
 	if req.AfterChannelKey != "" {
-		start = encodeCatalogKey(ChannelKey(req.AfterChannelKey))
+		afterKeyEncoded = encodeCatalogKey(ChannelKey(req.AfterChannelKey))
+		start = afterKeyEncoded
 	}
 	iter, err := db.engine.NewIter(engine.Span{Start: start, End: span.End}, engine.IterOptions{})
 	if err != nil {
@@ -99,12 +102,23 @@ func inspectChannelCatalogPage(ctx context.Context, db *MessageDB, req InspectMe
 		if err := ctx.Err(); err != nil {
 			return nil, 0, false, err
 		}
-		key, entry, err := decodeCatalogIteratorEntry(iter)
+		// afterKeyEncoded, when set, is exactly the Start bound above, so the
+		// iterator never yields a row that sorts before it in the engine's
+		// true (encoded) key order. The only row left to exclude here is the
+		// cursor row itself, an exact byte match. Do NOT compare decoded
+		// channel_key strings for this: encodeCatalogKey length-prefixes the
+		// channel_key (see keycodec.AppendString), so the engine's real
+		// iteration order groups rows by channel_key length before content —
+		// a different order than plain Go string "<=" whenever two
+		// channel_key values on the same page have different lengths.
+		// Comparing decoded strings here used to drop a channel at page
+		// boundaries whenever that ordering diverged.
+		if afterKeyEncoded != nil && bytes.Equal(iter.Key(), afterKeyEncoded) {
+			continue
+		}
+		_, entry, err := decodeCatalogIteratorEntry(iter)
 		if err != nil {
 			return nil, 0, false, err
-		}
-		if req.AfterChannelKey != "" && string(key) <= req.AfterChannelKey {
-			continue
 		}
 		scannedRows++
 		entries = append(entries, entry)
@@ -123,7 +137,12 @@ func inspectChannelCatalogPoint(ctx context.Context, db *MessageDB, channelKey s
 	if err := ctx.Err(); err != nil {
 		return nil, 0, false, err
 	}
-	if afterChannelKey != "" && channelKey <= afterChannelKey {
+	// Compare encoded catalog keys, not the decoded strings: the catalog's
+	// true order groups rows by channel_key length before content (see the
+	// comment in inspectChannelCatalogPage), so a plain string "<=" here can
+	// disagree with that order whenever channelKey and afterChannelKey have
+	// different lengths.
+	if afterChannelKey != "" && bytes.Compare(encodeCatalogKey(ChannelKey(channelKey)), encodeCatalogKey(ChannelKey(afterChannelKey))) <= 0 {
 		return nil, 0, true, nil
 	}
 	value, ok, err := db.engine.Get(encodeCatalogKey(ChannelKey(channelKey)))
