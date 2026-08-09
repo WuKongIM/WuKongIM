@@ -134,7 +134,7 @@ jobs:
           lease_receipt="${lease_receipts[0]}"
           bundle_archive="${bundle_archives[0]}"
           bundle_checksum="${bundle_checksums[0]}"
-          test "$LEASE_ARTIFACT" = "cloud-lease-provision-$(jq -er .request_id "$lease_receipt")"
+          test "$LEASE_ARTIFACT" = "cloud-lease-provision-$(jq -er .receipt.request_id "$lease_receipt")"
           scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
             bundle_digest_mismatch none '' \
             'trusted offline bundle verification failed' 'no deployment host was contacted'
@@ -148,10 +148,10 @@ jobs:
             invalid_plan none '' \
             'Lease Receipt and bundle could not form one immutable Deployment Plan' 'no deployment host was contacted'
           printf '%s\n' "$ENCRYPTED_DEPLOYMENT_IDENTITY_JSON" >encrypted-deployment-identity.json
-          jq -e --arg request "$(jq -er .request_id "$lease_receipt")" \
-            --arg lease "$(jq -er .lease_id "$lease_receipt")" \
-            --arg source "$(jq -er .provenance.source_sha "$lease_receipt")" \
-            --arg plan "$(jq -er .plan_digest "$lease_receipt")" '
+          jq -e --arg request "$(jq -er .receipt.request_id "$lease_receipt")" \
+            --arg lease "$(jq -er .receipt.lease_id "$lease_receipt")" \
+            --arg source "$(jq -er .receipt.provenance.source_sha "$lease_receipt")" \
+            --arg plan "$(jq -er .receipt.plan_digest "$lease_receipt")" '
             .schema == "wukongim.chat_lifecycle.encrypted_deployment_identity/v1" and
             .algorithm == "x25519-xsalsa20-poly1305-sealed-box" and .request_id == $request and
             .lease_id == $lease and .source_sha == $source and .plan_digest == $plan and

@@ -23,6 +23,10 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml",
 		"trusted-deployment-tools/wkcloudbundle",
 		`test "$(jq -er .control_sha bundle-manifest.json)" = "$BUNDLE_WORKFLOW_HEAD_SHA"`,
+		`jq -er .receipt.request_id "$lease_receipt"`,
+		`jq -er .receipt.lease_id "$lease_receipt"`,
+		`jq -er .receipt.provenance.source_sha "$lease_receipt"`,
+		`jq -er .receipt.plan_digest "$lease_receipt"`,
 		"trusted-deployment-tools/wkcloudgate\" deployment-plan",
 		`--bootstrap-pubkey "$deployment_public_key"`,
 		`--bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY"`,
@@ -51,6 +55,8 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"id-token: write", "ALIBABA_CLOUD", "wkcloudlease", " quote ", " acquire ", " release ",
 		"create-and-delete-paid-cloud-lease", "docker", "containerd", "podman", "schedule:", "push:", "pull_request:",
 		`test "$lease_head_sha" = "$GITHUB_SHA"`, `test "$bundle_head_sha" = "$GITHUB_SHA"`,
+		`jq -er .request_id "$lease_receipt"`, `jq -er .lease_id "$lease_receipt"`,
+		`jq -er .provenance.source_sha "$lease_receipt"`, `jq -er .plan_digest "$lease_receipt"`,
 	} {
 		if strings.Contains(strings.ToLower(text), strings.ToLower(forbidden)) {
 			t.Fatalf("activation workflow unexpectedly contains %q", forbidden)
