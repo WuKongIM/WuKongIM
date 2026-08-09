@@ -600,7 +600,7 @@ for attempt in 1; do
     rm -f "$attempt_dir/run-start.json"
     stage_readiness_failure_code='stage_start_failed'
     if ! timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-      "sudo rm -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && sudo systemctl reset-failed '$stage_service' && sudo systemctl start --no-block '$stage_service'"; then
+      "sudo rm -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && (sudo systemctl reset-failed '$stage_service' || true) && sudo systemctl start --no-block '$stage_service'"; then
       deployment_failed=true
     else
       stage_readiness_failure_code='stage_readiness_timeout'

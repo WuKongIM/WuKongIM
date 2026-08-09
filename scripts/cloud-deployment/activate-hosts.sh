@@ -36,6 +36,7 @@ cloud_ssh_retry load-upload 3 5 scp -F "$WK_CLOUD_SSH_CONFIG" \
   "$WK_CLOUD_BUNDLE_ARCHIVE" "$WK_CLOUD_DEPLOYMENT_PLAN" \
   "$WK_CLOUD_RUNTIME_NODE_ARCHIVE" "$WK_CLOUD_RUNTIME_LOAD_ARCHIVE" \
   "$script_dir/install-orchestrator-compat-user.sh" \
+  "$script_dir/prime-frozen-orchestrator-stage.sh" \
   wukong-load:/home/wkdeploy/
 
 eval "$(ssh-agent -s)"
@@ -127,6 +128,12 @@ cloud_ssh_retry load-activate 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'sudo /home/wkdeploy/bundle/bin/wkcloudhost activate-offline --role load'
 complete_gate services_active
 
+write_failure credential_materialization_failed services_active load \
+  "frozen orchestrator stage handoff compatibility could not be prepared" \
+  "load services are active; the dormant stage unit is not handoff-ready"
+cloud_ssh_retry load-orchestrator-stage-prime 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  'sudo bash /home/wkdeploy/prime-frozen-orchestrator-stage.sh'
+
 for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; do
   role="${pair%%:*}"
   address="${pair#*:}"
@@ -138,4 +145,4 @@ done
 write_failure credential_cleanup_failed services_active load \
   "deployment staging credentials could not be removed" "load services are active; staging cleanup is unconfirmed"
 cloud_ssh_retry cleanup-load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
-  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh'
+  'rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-node.tar.gz /home/wkdeploy/runtime-load.tar.gz /home/wkdeploy/install-orchestrator-compat-user.sh /home/wkdeploy/prime-frozen-orchestrator-stage.sh'

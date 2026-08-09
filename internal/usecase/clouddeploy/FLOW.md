@@ -87,8 +87,14 @@ The one exact `4daf86e4a88478ccdecd9675acee8414810413be` orchestrator revision
 predates the `wkdeploy` bootstrap-user correction. Its repair deployment adds
 an idempotent `wukong` compatibility account carrying only the already admitted
 public keys and equivalent sudo policy so that the already-running orchestrator
-and its finalizer can finish without replacing the Lease. Other control
-revisions do not create that account.
+and its finalizer can finish without replacing the Lease. That same frozen
+revision also treats `systemctl reset-failed` as an always-successful operation;
+on systemd versions that reject a never-failed dormant unit, the repair Action
+briefly overlays the selected coordinator with `/bin/false`, proves the failed
+state, removes the overlay, and leaves the real unit failed for the frozen
+orchestrator to reset immediately before its authorized start. The current
+orchestrator treats reset as idempotent. Other control revisions do not create
+the account or prime coordinator state.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The

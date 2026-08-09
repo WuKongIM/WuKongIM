@@ -148,6 +148,7 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"credential_cleanup_failed services_active",
 		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
 		"install-orchestrator-compat-user.sh", "${role}-orchestrator-compat", "load-orchestrator-compat",
+		"prime-frozen-orchestrator-stage.sh", "load-orchestrator-stage-prime",
 		"${role}-quiesce", "sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service",
 		"load-quiesce", "sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
 		`if test \"\$first\" = 'mode = \"release\"' && test -z \"\$second\"; then sudo sed -i '1,2d' /etc/wukongim/wukongim.toml; fi`,
@@ -165,7 +166,8 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 	for _, name := range []string{
 		"activate-hosts.sh", "collect-readiness.sh", "validate-upstream-run.sh",
-		"install-orchestrator-compat-user.sh", "write-deployment-failure.sh", "write-ssh-config.sh",
+		"install-orchestrator-compat-user.sh", "prime-frozen-orchestrator-stage.sh",
+		"write-deployment-failure.sh", "write-ssh-config.sh",
 	} {
 		path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", name)
 		info, err := os.Stat(path)
@@ -174,6 +176,27 @@ func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 		}
 		if info.Mode().Perm()&0o111 == 0 {
 			t.Fatalf("workflow-invoked helper %s is not executable", name)
+		}
+	}
+}
+
+func TestCloudDeploymentFrozenOrchestratorStagePrimingIsNarrow(t *testing.T) {
+	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "prime-frozen-orchestrator-stage.sh")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	for _, fragment := range []string{
+		"4daf86e4a88478ccdecd9675acee8414810413be",
+		`[[ "$control_sha" == "$frozen_orchestrator_control" ]] || exit 0`,
+		`capture("-(?<stage>rehearsal|formal)-[1-9][0-9]*$")`,
+		`if systemctl is-active --quiet "$unit"`,
+		"ExecStart=/bin/false", `systemctl is-failed --quiet "$unit"`,
+		"90-frozen-orchestrator-reset-prime.conf",
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Fatalf("frozen orchestrator stage priming helper missing %q", fragment)
 		}
 	}
 }

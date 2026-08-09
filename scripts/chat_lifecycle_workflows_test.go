@@ -110,6 +110,7 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"attempted-deployment-control-shas",
 		"repair_reserve_seconds",
 		"for attempt in 1; do",
+		"(sudo systemctl reset-failed '$stage_service' || true)",
 	} {
 		if !strings.Contains(orchestrator, required) {
 			t.Fatalf("same-Lease deployment repair is missing %q", required)
