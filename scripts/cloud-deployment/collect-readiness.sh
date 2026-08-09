@@ -53,6 +53,7 @@ collect_host() {
     "${remote[@]}" "sudo bash -s -- '$required_units'" <<'REMOTE'
 set -u
 required_units="$1"
+host_time_before=$(date -u +%s%3N)
 . /etc/os-release
 base=false
 /opt/wukongim/scripts/verify-base-tools.sh >/dev/null 2>&1 && base=true
@@ -65,15 +66,17 @@ units=
 for unit in $required_units; do
   if systemctl is-active --quiet "$unit"; then units="${units}${units:+,}$unit"; fi
 done
-printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$ID" "$VERSION_ID" "$(uname -m)" "$base" "$digest" "$disk" "$mount" "$data_size" "$data_free" "$system_size" "$system_free" "$(date -u +%s%3N)" "$units"
+host_time_after=$(date -u +%s%3N)
+printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$ID" "$VERSION_ID" "$(uname -m)" "$base" "$digest" "$disk" "$mount" "$data_size" "$data_free" "$system_size" "$system_free" "$host_time_before" "$host_time_after" "$units"
 REMOTE
   )"
   after="$(date -u +%s%3N)"
-  local os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time units
-  IFS='|' read -r os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time units <<<"$raw"
-  local midpoint offset
-  midpoint="$(((before + after) / 2))"
-  offset="$((host_time - midpoint))"
+  local os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time_before host_time_after units
+  IFS='|' read -r os_id os_version architecture base digest disk mount data_size data_free system_size system_free host_time_before host_time_after units <<<"$raw"
+  local offset
+  # NTP's four-timestamp offset formula excludes both the remote evidence
+  # collection time and the round-trip transport time from the clock proof.
+  offset="$(((host_time_before - before + host_time_after - after) / 2))"
   jq -n \
     --arg role "$role" --arg os "$os_id" --arg version "$os_version" --arg arch "$architecture" \
     --argjson base "$base" --arg digest "$digest" --arg disk "$disk" --arg mount "$mount" \
