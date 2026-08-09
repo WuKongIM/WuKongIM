@@ -294,7 +294,7 @@ func validIntent(intent Intent) bool {
 func requiredFiles(intent Intent) []string {
 	paths := []string{intentName, "assets/demo/index.html", "assets/manager/index.html",
 		"config/Caddyfile.tmpl", "config/chat-lifecycle.yaml", "config/chat-lifecycle-rehearsal.yaml", "config/prometheus.yml.tmpl", "config/wukongim.toml.tmpl",
-		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
+		"scripts/collect-evidence.sh", "scripts/collect-process-metrics.sh", "scripts/run-chat-lifecycle-stage.sh", "scripts/verify-base-tools.sh", "scripts/wait-coordinator-dependencies.sh",
 		"systemd/caddy.service", "systemd/node-exporter.service", "systemd/prometheus.service",
 		"systemd/wkanalysis.service", "systemd/wkbench-coordinator.service", "systemd/wkbench-formal.service", "systemd/wkbench-rehearsal.service", "systemd/wkbench-worker@.service",
 		"systemd/wkbench-host-metrics.service",

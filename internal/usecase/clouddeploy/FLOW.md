@@ -99,13 +99,14 @@ predates authenticated worker health endpoints. Its exact legacy file hash,
 the exact first authenticated compatibility hash, or the exact rejected
 pre-start self-wait hash may be replaced atomically with the token-bearing
 equivalent after load host preparation; unknown content fails closed. The
-immutable template remains unchanged while this active source/bundle identity
-is in use; a later bundle revision must carry the same authenticated probe
-directly. A separate exact-unit-hash compatibility drop-in starts a bounded
-wrapper as the stage's main process, waits until the 15-second collector
-exposes exactly one up/CPU/RSS row for that unit, and only then execs wkbench.
-Formal preflight therefore sees its own current unit without attempting the
-impossible wait for a main process from ExecStartPre.
+immutable template remains unchanged while that active source/bundle identity
+is in use. Current bundles carry the authenticated probe directly and start a
+bounded stage wrapper as the systemd main process; the wrapper waits until the
+15-second collector exposes exactly one up/CPU/RSS row for that unit and only
+then execs wkbench. Formal preflight therefore sees its own current unit
+without attempting the impossible wait for a main process from ExecStartPre.
+The exact-unit-hash compatibility drop-in gives only the frozen bundle the
+same behavior.
 The use case renders and validates Deployment Plans and readiness outcomes.
 Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
 materialization, and live evidence collection remain host/Action adapters. The

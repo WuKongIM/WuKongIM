@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -154,11 +155,11 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		}
 	}
 	formalUnit := read("systemd/wkbench-formal.service")
-	if !strings.Contains(formalUnit, "ExecStart=/opt/wukongim/bin/wkbench formal-chain chat-lifecycle ") ||
+	if !strings.Contains(formalUnit, "ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh formal") ||
 		!strings.Contains(formalUnit, "Conflicts=wkbench-rehearsal.service wkbench-coordinator.service") {
 		t.Fatalf("formal systemd ownership = %s", formalUnit)
 	}
-	if strings.Count(formalUnit, "/opt/wukongim/bin/wkbench") != 1 ||
+	if strings.Count(formalUnit, "/opt/wukongim/scripts/run-chat-lifecycle-stage.sh") != 1 ||
 		strings.Contains(formalUnit, "run-formal-chain.sh") || strings.Contains(formalUnit, "wkchatlifecycle") {
 		t.Fatalf("formal service does not own exactly one coordinator process: %s", formalUnit)
 	}
@@ -166,7 +167,7 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 		t.Fatal("node exporter unexpectedly depends on a role-specific secret file")
 	}
 	coordinator := read("systemd/wkbench-coordinator.service")
-	if !strings.Contains(coordinator, "ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle ") ||
+	if !strings.Contains(coordinator, "ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh coordinator") ||
 		!strings.Contains(coordinator, "ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh") ||
 		!strings.Contains(coordinator, "Requisite=wkbench-worker@1.service") ||
 		strings.Contains(coordinator, "Requires=wkbench-worker@1.service") ||
@@ -175,8 +176,29 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	}
 	waitScript := read("scripts/wait-coordinator-dependencies.sh")
 	if !strings.Contains(waitScript, "${#services[@]} == 3") || !strings.Contains(waitScript, "for port in 19091 19092 19093") ||
-		!strings.Contains(waitScript, "9090/-/ready") || !strings.Contains(waitScript, "/readyz") {
+		!strings.Contains(waitScript, "9090/-/ready") || !strings.Contains(waitScript, "/readyz") ||
+		!strings.Contains(waitScript, `[[ "${WK_BENCH_WORKER_TOKEN:-}" =~ ^[0-9a-f]{64}$ ]]`) ||
+		!strings.Contains(waitScript, `-H "Authorization: Bearer ${WK_BENCH_WORKER_TOKEN}"`) {
 		t.Fatalf("coordinator dependency gate = %s", waitScript)
+	}
+	stageScript := read("scripts/run-chat-lifecycle-stage.sh")
+	for _, fragment := range []string{
+		"stage_unit=wkbench-coordinator.service", "stage_unit=wkbench-rehearsal.service", "stage_unit=wkbench-formal.service",
+		`wukongim_process_up{unit=\"" unit "\"}`, `up == 1 && cpu == 1 && memory == 1`,
+		`exec "${command[@]}"`,
+	} {
+		if !strings.Contains(stageScript, fragment) {
+			t.Fatalf("stage process-evidence wrapper missing %q: %s", fragment, stageScript)
+		}
+	}
+	rehearsalUnit := read("systemd/wkbench-rehearsal.service")
+	if !strings.Contains(rehearsalUnit, "ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh rehearsal") {
+		t.Fatalf("rehearsal systemd ownership = %s", rehearsalUnit)
+	}
+	for _, script := range []string{"scripts/wait-coordinator-dependencies.sh", "scripts/run-chat-lifecycle-stage.sh"} {
+		if output, err := exec.Command("bash", "-n", filepath.Join(root, script)).CombinedOutput(); err != nil {
+			t.Fatalf("bash -n %s: %v\n%s", script, err, output)
+		}
 	}
 	prometheusConfig := read("config/prometheus.yml.tmpl")
 	prometheusUnit := read("systemd/prometheus.service")

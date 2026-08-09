@@ -158,6 +158,7 @@ done
 		"scripts/wait-coordinator-dependencies.sh": `#!/usr/bin/env bash
 set -euo pipefail
 config="${WK_CHAT_LIFECYCLE_CONFIG:-/etc/wukongim/chat-lifecycle.yaml}"
+[[ "${WK_BENCH_WORKER_TOKEN:-}" =~ ^[0-9a-f]{64}$ ]]
 mapfile -t services < <(sed -n '/^  service_nodes:/,/^  workers:/ s/.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
 mapfile -t host_metrics < <(sed -n '/^  host_metrics:/,/^  load_host_metrics:/ s/^    - .*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")
 load_host_metrics="$(sed -n 's/^  load_host_metrics:.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")"
@@ -174,13 +175,53 @@ while (( $(date -u +%s) < deadline )); do
   done
   curl --fail --silent --show-error --max-time 5 "http://${load_host_metrics}/healthz" >/dev/null || ready=false
   for port in 19091 19092 19093; do
-    curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:${port}/healthz" >/dev/null || ready=false
+    curl --fail --silent --show-error --max-time 5 -H "Authorization: Bearer ${WK_BENCH_WORKER_TOKEN}" "http://127.0.0.1:${port}/healthz" >/dev/null || ready=false
   done
   curl --fail --silent --show-error --max-time 5 http://127.0.0.1:9090/-/ready >/dev/null || ready=false
   if [[ "$ready" == true ]]; then
     exit 0
   fi
   sleep 5
+done
+exit 1
+`,
+		"scripts/run-chat-lifecycle-stage.sh": `#!/usr/bin/env bash
+set -euo pipefail
+
+[[ "$#" -eq 1 ]]
+stage="$1"
+case "$stage" in
+  coordinator)
+    config=/etc/wukongim/chat-lifecycle.yaml
+    stage_unit=wkbench-coordinator.service
+    command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
+    ;;
+  rehearsal)
+    config=/etc/wukongim/chat-lifecycle-rehearsal.yaml
+    stage_unit=wkbench-rehearsal.service
+    command=(/opt/wukongim/bin/wkbench soak chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports/rehearsal)
+    ;;
+  formal)
+    config=/etc/wukongim/chat-lifecycle.yaml
+    stage_unit=wkbench-formal.service
+    command=(/opt/wukongim/bin/wkbench formal-chain chat-lifecycle --config "$config" --output-dir /var/lib/wukongim-cloud/reports)
+    ;;
+  *) exit 1 ;;
+esac
+
+load_host_metrics="$(sed -n 's/^  load_host_metrics:.*address: "http:\/\/\([^"]*\)".*/\1/p' "$config")"
+[[ -n "$load_host_metrics" ]]
+deadline=$(( $(date -u +%s) + 120 ))
+while (( $(date -u +%s) < deadline )); do
+  if curl --fail --silent --show-error --max-time 5 "http://${load_host_metrics}/metrics" | awk -v unit="$stage_unit" '
+    $1 == "wukongim_process_up{unit=\"" unit "\"}" && NF == 2 && $2 == "1" { up++ }
+    $1 == "wukongim_process_cpu_jiffies_total{unit=\"" unit "\"}" && NF == 2 && $2 ~ /^[0-9]+$/ { cpu++ }
+    $1 == "wukongim_process_resident_memory_bytes{unit=\"" unit "\"}" && NF == 2 && $2 ~ /^[0-9]+$/ && $2 + 0 > 0 { memory++ }
+    END { exit !(up == 1 && cpu == 1 && memory == 1) }
+  '; then
+    exec "${command[@]}"
+  fi
+  sleep 2
 done
 exit 1
 `,
@@ -386,7 +427,7 @@ User=wukongim
 Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
-ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports
+ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh coordinator
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576
@@ -413,7 +454,7 @@ Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle-rehearsal.yaml
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
-ExecStart=/opt/wukongim/bin/wkbench soak chat-lifecycle --config /etc/wukongim/chat-lifecycle-rehearsal.yaml --output-dir /var/lib/wukongim-cloud/reports/rehearsal
+ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh rehearsal
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576
@@ -440,7 +481,7 @@ Group=wukongim
 EnvironmentFile=/etc/wukongim/secrets/load.env
 Environment=WK_CHAT_LIFECYCLE_CONFIG=/etc/wukongim/chat-lifecycle.yaml
 ExecStartPre=/opt/wukongim/scripts/wait-coordinator-dependencies.sh
-ExecStart=/opt/wukongim/bin/wkbench formal-chain chat-lifecycle --config /etc/wukongim/chat-lifecycle.yaml --output-dir /var/lib/wukongim-cloud/reports
+ExecStart=/opt/wukongim/scripts/run-chat-lifecycle-stage.sh formal
 TimeoutStartSec=960
 Restart=no
 LimitNOFILE=1048576
