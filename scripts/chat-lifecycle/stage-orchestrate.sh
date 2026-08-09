@@ -282,6 +282,24 @@ release_failed_attempt() {
   exit 1
 }
 
+read_pre_clock_terminal_code() {
+  local journal_cursor="$1"
+  local summary terminal_code
+  [[ "$journal_cursor" =~ ^[A-Za-z0-9_=\;:.-]{1,512}$ ]] || return 1
+  summary="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+    "sudo journalctl -u '$stage_service' --after-cursor='$journal_cursor' --no-pager -o cat | grep '^chat-lifecycle outcome=' | tail -n 1 | head -c 1025" \
+    2>/dev/null)" || return 1
+  (( ${#summary} <= 1024 )) || return 1
+  terminal_code="$(scripts/chat-lifecycle/classify-pre-clock-summary.sh "$summary")" || return 1
+  jq -n --arg schema 'wukongim.chat_lifecycle.pre_clock_terminal/v1' \
+    --arg request_id "$WK_CHAT_REQUEST_ID" --arg stage "$chat_stage" \
+    --arg summary "$summary" --arg coordinator_code "$terminal_code" \
+    '{schema:$schema,request_id:$request_id,stage:$stage,summary:$summary,
+      coordinator_code:$coordinator_code}' \
+    >"$WK_CHAT_OUTPUT_DIR/pre-clock-terminal.json"
+  printf '%s\n' "$terminal_code"
+}
+
 record_deployment_repair_pending() {
   local failure_code="$1"
   local last_gate="$2"
@@ -598,6 +616,13 @@ for attempt in 1; do
     export WK_CLOUD_SSH_CONFIG="$attempt_dir/deployment-ssh-config"
     scripts/cloud-deployment/write-ssh-config.sh
     rm -f "$attempt_dir/run-start.json"
+    stage_journal_cursor="$(timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+      "sudo journalctl -u '$stage_service' --no-pager -n 0 --show-cursor" 2>/dev/null | \
+      sed -n 's/^-- cursor: //p' | tail -n 1 || true)"
+    if [[ ! "$stage_journal_cursor" =~ ^[A-Za-z0-9_=\;:.-]{1,512}$ ]]; then
+      stage_journal_cursor=''
+    fi
+    stage_terminal_code=''
     stage_readiness_failure_code='stage_start_failed'
     if ! timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
       "sudo rm -f '/var/lib/wukongim-cloud/reports/$stage_report_dir/run-start.json' && (sudo systemctl reset-failed '$stage_service' || true) && sudo systemctl start --no-block '$stage_service'"; then
@@ -686,8 +711,12 @@ for attempt in 1; do
       fi
       state="$(ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
         "sudo systemctl is-active '$stage_service' || true" 2>/dev/null || printf unreachable)"
-      if [[ "$state" == failed || "$state" == inactive || "$state" == unreachable || \
-        "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
+      if [[ "$state" == failed || "$state" == inactive ]]; then
+        stage_terminal_code="$(read_pre_clock_terminal_code "$stage_journal_cursor")" || true
+        deployment_failed=true
+        break
+      fi
+      if [[ "$state" == unreachable || "$(date -u +%s)" -ge "$readiness_deadline" ]]; then
         deployment_failed=true
         break
       fi
@@ -695,6 +724,10 @@ for attempt in 1; do
     done
     timeout 60 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
       "sudo systemctl kill --kill-who=main --signal=SIGTERM '$stage_service' || true" || true
+    if [[ -n "$stage_terminal_code" ]]; then
+      release_failed_attempt "$attempt_dir/quote.json" \
+        "stage terminated before run-start with coordinator_code=${stage_terminal_code}; exact Lease was released"
+    fi
     if [[ "$deployment_control_identity_valid" != true ]]; then
       release_failed_attempt "$attempt_dir/quote.json" \
         'Deployment Action control identity is ambiguous after readiness failure; exact Lease was released'

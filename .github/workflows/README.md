@@ -297,8 +297,12 @@ again. Each control SHA is tried at most once. The loop releases to exact zero
 inventory when operator stop, the shared CNY 1,350 operational stop, immutable
 expiry/stage reserve, or safe-control loss ends the window. It never substitutes
 a changed product source or bundle into the acquired Lease; such a repair is
-terminal and needs a separately authorized run after cleanup. Runtime or
-correctness failure is never retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
+terminal and needs a separately authorized run after cleanup. Before the
+workload clock starts, the orchestrator reads only the bounded terminal summary
+after its exact journal cursor: recognized non-preflight coordinator codes are
+runtime/correctness failures and release immediately, while preflight or
+unrecognized evidence remains in the bounded deployment/readiness repair path.
+Runtime or correctness failure is never retried. `chat-lifecycle-rehearsal-finalize.yml` discovers handed-off runs,
 uploads a terminal report or bounded failure diagnostics, and only then invokes
 Release until `zero_inventory == true`; a cleanup Artifact is the terminal
 proof. The two-hour result can be `rehearsal_pass`, never formal `pass`.

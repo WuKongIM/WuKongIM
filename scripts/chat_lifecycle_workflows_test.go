@@ -111,6 +111,10 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 		"repair_reserve_seconds",
 		"for attempt in 1; do",
 		"(sudo systemctl reset-failed '$stage_service' || true)",
+		"read_pre_clock_terminal_code",
+		"--after-cursor='$journal_cursor'",
+		"classify-pre-clock-summary.sh",
+		"stage terminated before run-start with coordinator_code=",
 	} {
 		if !strings.Contains(orchestrator, required) {
 			t.Fatalf("same-Lease deployment repair is missing %q", required)
@@ -133,6 +137,50 @@ func TestChatLifecycleRehearsalFixesBuildQuoteAcquireDeployAndRemoteOwnershipOrd
 	if strings.Count(workflow, "      "+"source_sha:") != 1 ||
 		!strings.Contains(workflow, "Orchestrate until remote systemd owns the measured run") {
 		t.Fatal("rehearsal workflow does not retain the fixed remote-ownership boundary")
+	}
+}
+
+func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
+	classifier := filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "classify-pre-clock-summary.sh")
+	tests := []struct {
+		name    string
+		summary string
+		want    string
+		ok      bool
+	}{
+		{
+			name:    "setup is terminal",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=setup preflight_code= report=unavailable",
+			want:    "setup\n",
+			ok:      true,
+		},
+		{
+			name:    "preflight remains repairable",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=preflight preflight_code=process_evidence report=unavailable",
+		},
+		{
+			name:    "unknown code fails closed",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=future_code preflight_code= report=unavailable",
+		},
+		{
+			name:    "extra line is rejected",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=setup preflight_code= report=unavailable\nsecret=value",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command := exec.Command("bash", classifier, test.summary)
+			output, err := command.CombinedOutput()
+			if test.ok {
+				if err != nil || string(output) != test.want {
+					t.Fatalf("classification = %q, %v; want %q, success", output, err, test.want)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("classification unexpectedly succeeded: %q", output)
+			}
+		})
 	}
 }
 
