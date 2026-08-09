@@ -143,6 +143,8 @@ func TestCloudDeploymentHostActivationUsesExactTypedPhases(t *testing.T) {
 		"data_disk_mount_invalid bundle_verified", "native_activation_failed hosts_prepared",
 		"credential_cleanup_failed services_active",
 		"install-offline", "--no-systemd", "activate-offline", "${role}-normalize-config",
+		"${role}-quiesce", "sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service",
+		"load-quiesce", "sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service",
 		`if test \"\$first\" = 'mode = \"release\"' && test -z \"\$second\"; then sudo sed -i '1,2d' /etc/wukongim/wukongim.toml; fi`,
 		`test \"\$(sudo sed -n '1p' /etc/wukongim/wukongim.toml)\" = '[node]'`,
 		`if ! sudo grep -qxF '[log]' /etc/wukongim/wukongim.toml`,

@@ -76,6 +76,11 @@ for pair in "service-1:$service1" "service-2:$service2" "service-3:$service3"; d
     "service data disk discovery or native preparation failed" "$role is not prepared"
   data_device="$(cloud_ssh_retry_capture "${role}-data-device" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" 'root_source=$(findmnt -no SOURCE /); root_parent=$(lsblk -no PKNAME "$root_source" | head -1); test -n "$root_parent" || root_parent=$(lsblk -no NAME "$root_source" | head -1); mapfile -t candidates < <(lsblk -dpno NAME,TYPE | awk -v root="/dev/$root_parent" '\''$2=="disk" && $1!=root {print $1}'\''); ((${#candidates[@]} == 1)); printf "%s\n" "${candidates[0]}"')"
   [[ "$data_device" =~ ^/dev/[A-Za-z0-9._/-]+$ ]]
+  # A repair deployment may replace binaries left running by an earlier
+  # partial activation. Quiesce the known role units before install-offline
+  # so the immutable bundle installer never truncates an executing inode.
+  cloud_ssh_retry "${role}-quiesce" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
+    'sudo systemctl stop node-exporter.service wukongim.service wkbench-host-metrics.service'
   cloud_ssh_retry "${role}-prepare" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
     "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role '$role' --runtime-dir /home/wkdeploy/run-secrets --data-device '$data_device' --no-systemd"
   cloud_ssh_retry "${role}-normalize-config" 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" "$address" \
@@ -88,6 +93,8 @@ load_data_device="$(cloud_ssh_retry_capture load-data-device 3 5 ssh -F "$WK_CLO
 [[ "$load_data_device" =~ ^/dev/[A-Za-z0-9._/-]+$ ]]
 cloud_ssh_retry load-secrets 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   'rm -rf /home/wkdeploy/run-secrets && mkdir /home/wkdeploy/run-secrets && tar -xzf /home/wkdeploy/runtime-load.tar.gz -C /home/wkdeploy/run-secrets'
+cloud_ssh_retry load-quiesce 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
+  'sudo systemctl stop node-exporter.service wkbench-host-metrics.service wkbench-worker@1.service wkbench-worker@2.service wkbench-worker@3.service wkbench-coordinator.service wkbench-formal.service wkbench-rehearsal.service prometheus.service wkanalysis.service caddy.service'
 cloud_ssh_retry load-prepare 3 5 ssh -F "$WK_CLOUD_SSH_CONFIG" wukong-load \
   "sudo /home/wkdeploy/bundle/bin/wkcloudhost install-offline --bundle /home/wkdeploy/bundle --plan /home/wkdeploy/deployment-plan.json --role load --runtime-dir /home/wkdeploy/run-secrets --data-device '$load_data_device' --no-systemd"
 complete_gate hosts_prepared
