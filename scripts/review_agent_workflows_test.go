@@ -395,6 +395,20 @@ func TestReviewAgentRunWorkflowMaintainsRoleIsolation(t *testing.T) {
 	require.Contains(t, raw, "terminal-request.json")
 	require.Contains(t, raw, "prior_finding_dispositions")
 	require.Equal(t, 2, strings.Count(raw, "(.prior_findings // [])[]"))
+	require.Contains(t, raw, `'.effective_result != null'`)
+	require.Contains(
+		t,
+		raw,
+		`.effective_result "$RUNNER_TEMP/validated-decision.json"`,
+	)
+	require.Equal(
+		t,
+		4,
+		strings.Count(
+			raw,
+			`"$(jq -r .decision "$RUNNER_TEMP/validated-decision.json")" !=`,
+		),
+	)
 	require.Contains(t, raw, "gh workflow run review-agent-run.yml")
 	require.Contains(t, raw, `-f "infrastructure_attempt=$attempt"`)
 	require.Contains(t, raw, "review-agent-trusted-baseline")

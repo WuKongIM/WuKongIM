@@ -117,14 +117,16 @@ All repository-wide Go commands use `GOWORK=off` and explicit roots. Root
 - Durable PR and scheduler state use a verified latest-plus-predecessor rolling
   checkpoint; older App-authored commits remain append-only audit history.
 
-Each signed lease has one 90-minute wall-time budget, including its one
-automatic infrastructure retry. Reconsideration and explanation leases use the
-same rule. Late review results fail closed as `inconclusive`; late explanations
-cannot change the decision. Merge conflicts are deterministic
+Each review infrastructure attempt has one signed 90-minute wall-time budget.
+The single automatic retry remains in the same generation with a fresh signed
+attempt deadline, so a complete generation is bounded to 180 minutes.
+Reconsideration and explanation leases retain their own signed deadline. Late
+review results fail closed as `inconclusive`; late explanations cannot change
+the decision. Merge conflicts are deterministic
 `changes_required` decisions and do not consume a model session.
 Every named trusted check is capped at 30 minutes. The workflow reserves up to
 30 minutes for baseline checks, 40 minutes for the reviewer, and 20 minutes for
-evidence validation and signed-state publication within the same lease.
+evidence validation and signed-state publication within each review attempt.
 
 Pull-request changes to `AGENTS.md`, `FLOW.md`, policy, prompts, schemas,
 Workflows, CODEOWNERS, or Review Agent code cannot govern their own review.

@@ -507,17 +507,22 @@ func (publisher *ReviewPublisher) ensureLifecycleReview(
 		string(state.Phase) + "` decision."
 	inline := make([]InlineReviewComment, 0, contract.MaxInlineComments)
 	validLines := rightSideReviewLines(snapshot.CommentPatches)
-	for _, finding := range state.PriorFindings {
-		body += "\n\n---\n\n" + renderFinding(finding)
-		if finding.Kind == contract.FindingBlocking &&
-			finding.Path != "" &&
-			validLines[finding.Path][int(finding.LineStart)] &&
-			len(inline) < contract.MaxInlineComments {
-			inline = append(inline, InlineReviewComment{
-				Path: finding.Path,
-				Line: int(finding.LineStart),
-				Body: renderFinding(finding),
-			})
+	if state.DecisionSource == contract.DecisionSourceInfrastructure {
+		body += "\n\nNo current findings were adjudicated because the " +
+			"review infrastructure did not complete."
+	} else {
+		for _, finding := range state.PriorFindings {
+			body += "\n\n---\n\n" + renderFinding(finding)
+			if finding.Kind == contract.FindingBlocking &&
+				finding.Path != "" &&
+				validLines[finding.Path][int(finding.LineStart)] &&
+				len(inline) < contract.MaxInlineComments {
+				inline = append(inline, InlineReviewComment{
+					Path: finding.Path,
+					Line: int(finding.LineStart),
+					Body: renderFinding(finding),
+				})
+			}
 		}
 	}
 	if len(body) > 64<<10 {

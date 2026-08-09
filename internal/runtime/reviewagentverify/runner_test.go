@@ -73,6 +73,54 @@ func TestRunnerResolvesOnlyProtectedNamedChecks(t *testing.T) {
 	require.Equal(t, "go-unit", records[0].Evidence.Name)
 }
 
+func TestCollectEvidencePreservesSealedMandatoryBaselineAcrossReruns(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	root := t.TempDir()
+	ledger, err := verify.NewFileLedger(
+		filepath.Join(t.TempDir(), "ledger.jsonl"),
+		root,
+	)
+	require.NoError(t, err)
+	generation := testGeneration()
+	baseline := contract.CheckEvidence{
+		Name:          "go-unit",
+		CommandDigest: digest("1"),
+		Outcome:       contract.CheckOutcomeFailed,
+		ExitCode:      1,
+		DurationMS:    239_784,
+		StdoutDigest:  digest("2"),
+		StderrDigest:  digest("3"),
+		Stdout:        "pre-existing flaky test failed",
+	}
+	require.NoError(t, ledger.Append(generation, baseline))
+	require.NoError(t, ledger.Append(generation, contract.CheckEvidence{
+		Name:          "go-unit",
+		CommandDigest: digest("1"),
+		Outcome:       contract.CheckOutcomeError,
+		ExitCode:      0,
+		DurationMS:    1,
+		StdoutDigest:  digest("4"),
+		StderrDigest:  digest("5"),
+	}))
+
+	evidence, err := verify.CollectEvidence(
+		ledger,
+		verify.Policy{TrustedChecks: map[string]verify.CheckPlan{
+			"go-unit": {},
+		}},
+		func() time.Time {
+			return time.Date(2026, 8, 9, 14, 0, 0, 0, time.UTC)
+		},
+		generation,
+		[]string{"go-unit"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, []contract.CheckEvidence{baseline}, evidence.Checks)
+}
+
 func TestFileLedgerMustRemainOutsideModelWorkspace(t *testing.T) {
 	t.Parallel()
 

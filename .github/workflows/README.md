@@ -112,9 +112,11 @@ request is fenced to the reviewed head SHA and still obeys repository rules.
 Repository administrators retain GitHub's manual merge authority for every PR
 whether or not Review Agent was invoked or produced a verdict.
 
-The signed lease bounds the complete generation to 90 minutes. Infrastructure
-failure is retried once inside that same generation and deadline; a late result
-is forced to `inconclusive`. A merge conflict bypasses the model and publishes
+Each review infrastructure attempt has a signed 90-minute deadline.
+Infrastructure failure is retried once inside the same generation with a fresh
+signed attempt deadline, so the complete generation remains bounded to at most
+180 minutes. A result that is late for its active attempt is forced to
+`inconclusive`. A merge conflict bypasses the model and publishes
 `changes_required`. Candidate baseline commands run only after the shared
 network fence disables both Docker access and `sudo`. Candidate checks receive
 isolated loopback inside a rootless network namespace whose host loopback is

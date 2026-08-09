@@ -14,6 +14,9 @@ type ValidatedDecision struct {
 	EvidenceDigest string             `json:"evidence_digest"`
 	ResultDigest   string             `json:"result_digest"`
 	Findings       []contract.Finding `json:"findings"`
+	// EffectiveResult is present when trusted evidence downgrades the advisory
+	// model decision and therefore requires a newly bound publication result.
+	EffectiveResult *contract.ReviewResult `json:"effective_result,omitempty"`
 }
 
 // ValidateFinalResult prevents advisory model output from outranking missing,
@@ -154,11 +157,37 @@ func ValidateFinalResult(
 		}
 		if result.Decision == contract.DecisionApproved &&
 			check.Outcome != contract.CheckOutcomePassed {
-			return inconclusive(
-				"mandatory trusted check did not pass",
-				evidenceDigest,
-				resultDigest,
+			const reason = "mandatory trusted check did not pass"
+			effective := result
+			effective.Decision = contract.DecisionInconclusive
+			effective.Summary = reason
+			effective.Findings = append(
+				[]contract.Finding(nil),
+				result.Findings...,
 			)
+			effective.Sources = make([]string, 0, len(evidence.Checks))
+			for _, trustedCheck := range evidence.Checks {
+				effective.Sources = append(
+					effective.Sources,
+					"check:"+trustedCheck.Name,
+				)
+			}
+			effective.UnresolvedUncertainty = reason
+			effectiveDigest, digestErr := contract.ReviewResultDigest(effective)
+			if digestErr != nil {
+				return ValidatedDecision{}, digestErr
+			}
+			return ValidatedDecision{
+				Decision:       contract.DecisionInconclusive,
+				Reason:         reason,
+				EvidenceDigest: evidenceDigest,
+				ResultDigest:   effectiveDigest,
+				Findings: append(
+					[]contract.Finding(nil),
+					result.Findings...,
+				),
+				EffectiveResult: &effective,
+			}, nil
 		}
 	}
 	for _, source := range result.Sources {

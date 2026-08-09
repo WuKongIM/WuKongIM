@@ -25,6 +25,11 @@ complete ReviewResult + trusted ReviewEvidence + immutable tree digest
   -> validated decision or fail-closed inconclusive
 ```
 
+The first ledger result for each mandatory check is the sealed baseline result.
+Model-requested reruns remain append-only evidence but cannot replace that
+mandatory baseline during final collection. Trusted downgrades bind a complete
+effective result and digest for publication.
+
 No caller may supply a command, working directory, environment override, URL,
 test pattern, ref, or repository path to the runner. Only protected catalog
 names cross the Check MCP boundary.

@@ -832,15 +832,42 @@ jobs:
               infrastructure_completion
               exit 0
             fi
+            if [[ "$(jq -r .decision "$RUNNER_TEMP/validated-decision.json")" != \
+                  "$(jq -r .decision "$RUNNER_TEMP/effective-result.json")" ]]; then
+              infrastructure_completion
+              exit 0
+            fi
           fi
           if [[ "$(jq -r .decision "$RUNNER_TEMP/validated-decision.json")" != \
-                "$(jq -r .decision "$RUNNER_TEMP/effective-result.json")" ]] ||
-              ! jq -e '
-                (.evidence_digest | test("^sha256:[0-9a-f]{64}$")) and
-                (.result_digest | test("^sha256:[0-9a-f]{64}$"))
-              ' "$RUNNER_TEMP/validated-decision.json" >/dev/null; then
+                "$(jq -r .decision "$RUNNER_TEMP/effective-result.json")" ]]; then
+            if jq -e '.effective_result != null' \
+                "$RUNNER_TEMP/validated-decision.json" >/dev/null; then
+              jq .effective_result "$RUNNER_TEMP/validated-decision.json" \
+                >"$RUNNER_TEMP/effective-result.json"
+            else
+              synthesize
+            fi
+            if ! validate; then
+              infrastructure_completion
+              exit 0
+            fi
+            if [[ "$(jq -r .decision "$RUNNER_TEMP/validated-decision.json")" != \
+                  "$(jq -r .decision "$RUNNER_TEMP/effective-result.json")" ]]; then
+              infrastructure_completion
+              exit 0
+            fi
+          fi
+          if ! jq -e '
+            (.evidence_digest | test("^sha256:[0-9a-f]{64}$")) and
+            (.result_digest | test("^sha256:[0-9a-f]{64}$"))
+          ' "$RUNNER_TEMP/validated-decision.json" >/dev/null; then
             synthesize
             if ! validate; then
+              infrastructure_completion
+              exit 0
+            fi
+            if [[ "$(jq -r .decision "$RUNNER_TEMP/validated-decision.json")" != \
+                  "$(jq -r .decision "$RUNNER_TEMP/effective-result.json")" ]]; then
               infrastructure_completion
               exit 0
             fi

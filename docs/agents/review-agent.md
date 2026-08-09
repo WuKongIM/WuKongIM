@@ -230,11 +230,12 @@ waits for another administrator review command. Infrastructure failure retries
 once inside the protected budget, then becomes `inconclusive`. Code/check
 failures are not infrastructure retries. The next administrator review command
 creates the new generation.
-One generation has a 90-minute wall-time budget measured from its signed lease;
-the initial review, automatic retry, reconsideration worker, and explanation
-worker all honor their own signed lease deadline. Late review results can never
-approve and are recorded as `inconclusive`; late explanations are discarded
-without changing the verdict. A fresh merge conflict is adjudicated without a
+Each review infrastructure attempt has a 90-minute wall-time budget. The one
+automatic retry remains in the same generation but receives a fresh signed
+attempt deadline, bounding a generation to 180 minutes. Reconsideration and
+explanation workers honor their own signed lease deadlines. Late review results
+can never approve and are recorded as `inconclusive`; late explanations are
+discarded without changing the verdict. A fresh merge conflict is adjudicated without a
 model as `changes_required`, with a formal `REQUEST_CHANGES` Review and failed
 Verdict. A failed Controller state, projection, or dispatch effect is
 automatically reconciled once from fresh facts.

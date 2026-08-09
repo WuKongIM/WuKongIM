@@ -42,9 +42,11 @@
 - Review Agent baseline candidate-network rules live only in that rootless
   namespace, whose host loopback is disabled. The trusted host disables Docker
   and `sudo` but retains runner transport for pinned post-job Artifact actions.
-- A Review Agent generation has one signed 90-minute deadline and at most one
-  automatic infrastructure retry. Merge conflicts deterministically publish
-  `changes_required`; late results are always `inconclusive`.
+- A Review Agent review infrastructure attempt has one signed 90-minute
+  deadline. The single automatic retry stays in the generation with a fresh
+  signed attempt deadline, bounding the generation to 180 minutes. Merge
+  conflicts deterministically publish `changes_required`; results late for the
+  active attempt are always `inconclusive`.
 - Review Agent interaction budgets are per head, not per control revision. An
   authorized reconsideration for the current head binds fresh eligible
   control, intent, base, and test-merge facts and consumes the existing signed
