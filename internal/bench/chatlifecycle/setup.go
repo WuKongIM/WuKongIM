@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	groupChannelType             uint8 = 2
-	maxGroupSetupChannelBatch          = maxGroupCatalogCount
-	maxGroupSetupSubscriberBatch       = 4_096
+	groupChannelType          uint8 = 2
+	maxGroupSetupChannelBatch       = maxGroupCatalogCount
+
+	// MaxGroupSetupSubscribersPerBatch keeps one benchmark request within the
+	// downstream subscriber Raft command's fixed UID-count boundary.
+	MaxGroupSetupSubscribersPerBatch = 1_000
 )
 
 var ErrGroupSetupConfig = errors.New("chat lifecycle group setup: invalid configuration")
@@ -60,7 +63,7 @@ func NewGroupSetup(options GroupSetupOptions) (*GroupSetup, error) {
 	if options.Target == nil || options.MaxChannelsPerBatch <= 0 ||
 		options.MaxChannelsPerBatch > maxGroupSetupChannelBatch ||
 		options.MaxSubscribersPerBatch <= 0 ||
-		options.MaxSubscribersPerBatch > maxGroupSetupSubscriberBatch {
+		options.MaxSubscribersPerBatch > MaxGroupSetupSubscribersPerBatch {
 		return nil, ErrGroupSetupConfig
 	}
 	return &GroupSetup{

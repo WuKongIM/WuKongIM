@@ -866,8 +866,9 @@ One coordinator process owns exactly one non-resumable assignment generation.
 After preflight passes, `GroupSetup` streams the fixed group catalog through the
 existing `/bench/v1/channels` and `/bench/v1/channels/subscribers` APIs. Channel
 rows use bounded consecutive-index batches; subscriber rows reconstruct one UID
-at a time and retain only one bounded member batch, including for the 100,000-
-member group. Setup never emits a person channel. Deterministic versioned batch
+at a time and retain only one bounded member batch. Each subscriber request is
+capped at 1,000 UIDs so the request remains within one subscriber Raft command,
+including for the 100,000-member group. Setup never emits a person channel. Deterministic versioned batch
 IDs make a partial target failure safe to replay against the product's set-like
 channel/subscriber mutations.
 

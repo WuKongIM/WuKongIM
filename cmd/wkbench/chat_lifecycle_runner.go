@@ -95,7 +95,8 @@ func composeProductionChatLifecycleRuntime(
 		Token:    credentials.BenchToken(), HTTPClient: httpClient,
 	})
 	setup, err := chatlifecycle.NewGroupSetup(chatlifecycle.GroupSetupOptions{
-		Target: targetClient, MaxChannelsPerBatch: 2_000, MaxSubscribersPerBatch: 4_096,
+		Target: targetClient, MaxChannelsPerBatch: 2_000,
+		MaxSubscribersPerBatch: chatlifecycle.MaxGroupSetupSubscribersPerBatch,
 	})
 	if err != nil {
 		return nil, errors.New("chat-lifecycle production composition failed")

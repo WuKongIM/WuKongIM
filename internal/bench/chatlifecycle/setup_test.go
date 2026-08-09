@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
+	"github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
 
 func TestGroupSetupPreparesDeterministicBoundedGroupCatalog(t *testing.T) {
@@ -63,6 +64,25 @@ func TestGroupSetupPreparesDeterministicBoundedGroupCatalog(t *testing.T) {
 	}
 	if target.duplicateBatchID {
 		t.Fatal("setup reused a batch ID for different requests")
+	}
+}
+
+func TestGroupSetupRejectsSubscriberBatchAboveTargetCommandLimit(t *testing.T) {
+	if MaxGroupSetupSubscribersPerBatch != fsm.MaxSubscriberCommandUIDs {
+		t.Fatalf("setup subscriber batch limit = %d, Raft command limit = %d", MaxGroupSetupSubscribersPerBatch, fsm.MaxSubscriberCommandUIDs)
+	}
+	target := &recordingGroupSetupTarget{}
+	if _, err := NewGroupSetup(GroupSetupOptions{
+		Target: target, MaxChannelsPerBatch: 1,
+		MaxSubscribersPerBatch: MaxGroupSetupSubscribersPerBatch,
+	}); err != nil {
+		t.Fatalf("NewGroupSetup() at command limit error = %v", err)
+	}
+	if _, err := NewGroupSetup(GroupSetupOptions{
+		Target: target, MaxChannelsPerBatch: 1,
+		MaxSubscribersPerBatch: MaxGroupSetupSubscribersPerBatch + 1,
+	}); !errors.Is(err, ErrGroupSetupConfig) {
+		t.Fatalf("NewGroupSetup() above command limit error = %v, want %v", err, ErrGroupSetupConfig)
 	}
 }
 
