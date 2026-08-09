@@ -145,7 +145,10 @@ channel_replicas="$(jq -er 'map(.channel_replicas) | unique | if length == 1 the
 
 ready_workers=0
 for port in 19091 19092 19093; do
-  if ssh_load "curl --fail --silent --show-error --max-time 5 'http://127.0.0.1:${port}/healthz' >/dev/null"; then
+  # The dedicated chat-lifecycle worker authenticates every endpoint,
+  # including healthz. Read and use its token only inside the load host so the
+  # readiness runner never receives or logs the credential.
+  if ssh_load "sudo bash -c 'set -eo pipefail; test \"\$(grep -c \"^WK_BENCH_WORKER_TOKEN=\" /etc/wukongim/secrets/load.env)\" -eq 1; worker_token=\"\$(sed -n \"s/^WK_BENCH_WORKER_TOKEN=//p\" /etc/wukongim/secrets/load.env)\"; [[ \"\$worker_token\" =~ ^[0-9a-f]{64}\$ ]]; curl --fail --silent --show-error --max-time 5 -H \"Authorization: Bearer \$worker_token\" \"http://127.0.0.1:${port}/healthz\" >/dev/null'"; then
     ready_workers=$((ready_workers + 1))
   fi
 done

@@ -102,6 +102,8 @@ func TestCloudDeploymentReadinessCollectorIsBoundedAndUsesPrivateOrigins(t *test
 		"healthy_slot_replica_sets", "logical_slot_groups:$groups", "ready_workers",
 		"runtime_config_nodes", "slot_replicas:$slot_replicas", "channel_replicas:$channel_replicas",
 		"wkbench validate chat-lifecycle", "prometheus_targets_up", "demo_ready", "analysis_ready",
+		`grep -c \"^WK_BENCH_WORKER_TOKEN=\" /etc/wukongim/secrets/load.env`,
+		`-H \"Authorization: Bearer \$worker_token\"`,
 		"WK_CLOUD_MANAGER_USER", `(.permissions == [{resource:"*",actions:["r"]}])`,
 		`[[ "$WK_CLOUD_MANAGER_USER" == "$WK_CLOUD_DEMO_USER" ]]`, "demo_asset=", `http://${load_public}${demo_asset}`,
 	} {
