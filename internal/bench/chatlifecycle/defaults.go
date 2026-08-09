@@ -11,6 +11,7 @@ const (
 	formalReplicas             = 3
 	formalRuntimeSampleSize    = 1_200
 	formalSyncMaxConversations = 500
+	formalBootstrapLoginRate   = 25
 	formalFilesystemBytes      = int64(500_000_000_000)
 	formalGroupCatalogTotal    = 2_000
 	formalVeryLargeMembers     = 100_000
@@ -75,19 +76,20 @@ func FormalConfig() Config {
 		Mode:    ModeSoak,
 		Stage:   StageFormal,
 		Workload: WorkloadConfig{
-			Workers:            formalWorkers,
-			OnlineUsers:        10_000,
-			NewUsersPerDay:     250_000,
-			SendRatePerSecond:  2_000,
-			Traffic:            TrafficShareConfig{PersonPercent: 90, GroupPercent: 10},
-			HotSet:             HotSetConfig{PersonChannels: 8_000, GroupChannels: 2_000},
-			Topology:           TopologyConfig{LogicalSlotGroups: formalLogicalSlotGroups, HashSlots: formalHashSlots, SlotReplicas: formalReplicas, ChannelReplicas: formalReplicas},
-			RuntimeSampling:    RuntimeSamplingConfig{Every: 10 * time.Minute, Size: formalRuntimeSampleSize},
-			Sync:               SyncConfig{CompletedCoverage: 0, MaxConversations: formalSyncMaxConversations},
-			BurstCredit:        2 * time.Second,
-			MaxGlobalBurst:     4_000,
-			MaxChannelsPerNode: 50_000,
-			Login:              LoginDistribution{NewPercent: 80, ReturningPercent: 20},
+			Workers:                  formalWorkers,
+			OnlineUsers:              10_000,
+			BootstrapLoginsPerSecond: formalBootstrapLoginRate,
+			NewUsersPerDay:           250_000,
+			SendRatePerSecond:        2_000,
+			Traffic:                  TrafficShareConfig{PersonPercent: 90, GroupPercent: 10},
+			HotSet:                   HotSetConfig{PersonChannels: 8_000, GroupChannels: 2_000},
+			Topology:                 TopologyConfig{LogicalSlotGroups: formalLogicalSlotGroups, HashSlots: formalHashSlots, SlotReplicas: formalReplicas, ChannelReplicas: formalReplicas},
+			RuntimeSampling:          RuntimeSamplingConfig{Every: 10 * time.Minute, Size: formalRuntimeSampleSize},
+			Sync:                     SyncConfig{CompletedCoverage: 0, MaxConversations: formalSyncMaxConversations},
+			BurstCredit:              2 * time.Second,
+			MaxGlobalBurst:           4_000,
+			MaxChannelsPerNode:       50_000,
+			Login:                    LoginDistribution{NewPercent: 80, ReturningPercent: 20},
 			Sessions: []DurationShare{
 				{Percent: 25, Min: 5 * time.Minute, Max: 15 * time.Minute},
 				{Percent: 50, Min: 15 * time.Minute, Max: 45 * time.Minute},

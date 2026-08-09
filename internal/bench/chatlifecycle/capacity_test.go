@@ -769,16 +769,31 @@ func TestCoordinatorCapacityProductFailureFinalizesHookEvidence(t *testing.T) {
 	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
 		<-grantCalls
 	}
+	var result CoordinatorResult
+	haveResult := false
+capacityProductTicks:
 	for second := 1; second <= int((30*time.Minute)/time.Second); second++ {
 		clock.advance(time.Second)
 		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
-			<-grantCalls
+			select {
+			case <-grantCalls:
+			case result = <-resultChannel:
+				if second < int((30*time.Minute)/time.Second) {
+					t.Fatalf("capacity product Run ended at second %d: %+v", second, result)
+				}
+				haveResult = true
+				break capacityProductTicks
+			case <-time.After(time.Second):
+				t.Fatalf("capacity product grant %d stalled at second %d", workerID, second)
+			}
 		}
 		if second == int((10*time.Minute)/time.Second) || second == int((30*time.Minute)/time.Second) {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
-	result := <-resultChannel
+	if !haveResult {
+		result = <-resultChannel
+	}
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver ||
 		result.Capacity.Outcome != CapacityProductFailure {
 		t.Fatalf("capacity product result = %+v", result)

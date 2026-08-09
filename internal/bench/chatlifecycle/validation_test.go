@@ -86,6 +86,7 @@ func TestFormalConfigRejectsApprovedDefaultMutations(t *testing.T) {
 	}{
 		{"workers", func(c *Config) { c.Workload.Workers = 4 }, "workload.workers"},
 		{"online users", func(c *Config) { c.Workload.OnlineUsers = 10_001 }, "workload.online_users"},
+		{"bootstrap login rate", func(c *Config) { c.Workload.BootstrapLoginsPerSecond = 26 }, "workload.bootstrap_logins_per_second"},
 		{"new users", func(c *Config) { c.Workload.NewUsersPerDay = 250_001 }, "workload.new_users_per_day"},
 		{"send rate", func(c *Config) { c.Workload.SendRatePerSecond = 2_001; c.Workload.MaxGlobalBurst = 4_002 }, "workload.send_rate_per_second"},
 		{"traffic person", func(c *Config) { c.Workload.Traffic.PersonPercent = 89; c.Workload.Traffic.GroupPercent = 11 }, "workload.traffic.person_percent"},
@@ -165,6 +166,7 @@ func TestConfigValidate(t *testing.T) {
 		{"zero seed", func(c *Config) { c.Seed = 0 }, "seed: must be nonzero"},
 		{"formal workers", func(c *Config) { c.Workload.Workers = 2 }, "workload.workers: must equal formal default"},
 		{"nonpositive users", func(c *Config) { c.Workload.OnlineUsers = 0 }, "workload.online_users: must be greater than zero"},
+		{"nonpositive bootstrap login rate", func(c *Config) { c.Workload.BootstrapLoginsPerSecond = 0 }, "workload.bootstrap_logins_per_second: must be greater than zero"},
 		{"formal topology", func(c *Config) { c.Workload.Topology.HashSlots = 255 }, "workload.topology: must preserve 12 logical slot groups, 256 hash slots, and 3 replicas"},
 		{"sample size", func(c *Config) { c.Workload.RuntimeSampling.Size = 1_201 }, "workload.runtime_sampling.size: must not exceed 1200"},
 		{"sample cadence", func(c *Config) { c.Workload.RuntimeSampling.Every = 0 }, "workload.runtime_sampling.every: must be greater than zero"},

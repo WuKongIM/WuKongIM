@@ -20,7 +20,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		len(formal.Observation.HostMetrics) != 3 || formal.Workload.Topology.LogicalSlotGroups != 12 ||
 		formal.Workload.Topology.HashSlots != 256 || formal.Workload.Topology.SlotReplicas != 3 ||
 		formal.Workload.Topology.ChannelReplicas != 3 || formal.Workload.OnlineUsers != 10_000 ||
-		formal.Workload.NewUsersPerDay != 250_000 || formal.Workload.SendRatePerSecond != 2_000 ||
+		formal.Workload.BootstrapLoginsPerSecond != 25 || formal.Workload.NewUsersPerDay != 250_000 || formal.Workload.SendRatePerSecond != 2_000 ||
 		formal.Workload.Sync.CompletedCoverage != 0 || formal.Thresholds.Timeline.Warmup != 2*time.Hour ||
 		formal.Thresholds.Timeline.Checkpoint != 24*time.Hour || formal.Thresholds.Timeline.Final != 72*time.Hour ||
 		formal.Thresholds.MinimumDataFilesystemBytes != 500_000_000_000 ||
@@ -44,7 +44,7 @@ func TestConfigExamplesLoadThroughStrictProductionParser(t *testing.T) {
 		t.Fatal(err)
 	}
 	if local.Profile != ProfileLocal || local.Mode != ModeSoak || local.Workload.Sync.CompletedCoverage != 0 ||
-		local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
+		local.Workload.BootstrapLoginsPerSecond != 25 || local.Workload.NewUsersPerDay != 250_000 || local.Thresholds.Timeline.Warmup != 10*time.Minute ||
 		local.Workload.MaxChannelsPerNode != 5_000 ||
 		local.Workload.Topology != (TopologyConfig{LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3}) {
 		t.Fatalf("local example drifted: %+v", local)

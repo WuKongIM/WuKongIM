@@ -9,6 +9,17 @@ credentials in YAML. `local-shakeout.yaml` keeps the same 12 logical Slot Raft G
 physical hash slots, replicas 3/3, real TCP traffic, and zero-coverage paginated
 conversation sync at smaller scale. It is not formal evidence.
 
+The reviewed empty-dataset bootstrap rate is one global 25 logins/second until
+all 10,000 users are simultaneously online. This does not bypass startup work:
+each login still completes WKProto CONNECT/CONNACK and a fresh version-zero full
+conversation sync. The deterministic three-worker churn model reaches the barrier in 421
+seconds and must remain within 15 minutes. Missed or unused per-step credit is
+discarded rather than caught up in a burst. Immutable 9/8/8 worker shares keep
+subsecond skew, including UTC-second boundary skew, within the global 25-login
+ceiling; coordinator-controlled workers stay all-new at their local shares
+until the first global grant moves all three to the unchanged
+250,000-new-user/day 80/20 stream.
+
 Supply secrets through exactly one source per credential:
 
 ```bash

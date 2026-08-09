@@ -1203,10 +1203,17 @@ func TestWorkerEngineLocalWorkersAcceptFirstCoordinatorGrant(t *testing.T) {
 				snapshot, snapshotErr := worker.Checkpoint(context.Background())
 				t.Fatalf("worker did not publish local traffic readiness: snapshot=%+v error=%v", snapshot, snapshotErr)
 			}
+			engine := worker.(*engineWorkerGeneration).engine
+			if !engine.scheduler.bootstrapping {
+				t.Fatal("coordinator-controlled worker left bootstrap before the global first-grant barrier")
+			}
 			application, err := worker.ApplyGrant(context.Background(), uint64(release))
 			if err != nil || !application.Admitted {
 				snapshot, snapshotErr := worker.Checkpoint(context.Background())
 				t.Fatalf("first local ApplyGrant = %+v, %v; snapshot=%+v error=%v", application, err, snapshot, snapshotErr)
+			}
+			if engine.scheduler.bootstrapping {
+				t.Fatal("coordinator-controlled worker remained in bootstrap after the global first-grant barrier")
 			}
 		})
 	}
@@ -1277,6 +1284,9 @@ func TestWorkerEngineAutonomousTickTerminatesOnLifecycleReplaySaturation(t *test
 	}
 	defer generation.Stop()
 	ticker.awaitReady(t)
+	// This test isolates lifecycle replay overflow from login bootstrap work.
+	generation.engine.scheduler.bootstrapping = false
+	generation.engine.scheduler.onlineTarget = 0
 	due := fixture.clock.Now().Add(time.Second)
 	overflow := installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
 	fixture.clock.Set(due)
@@ -1525,6 +1535,9 @@ func TestWorkerEngineConcurrentTickAndExternalTerminalCleanupDoesNotDeadlock(t *
 	}
 	defer generation.Stop()
 	ticker.awaitReady(t)
+	// This test isolates dual terminal cleanup from the production readiness
+	// barrier that normally precedes the first external grant.
+	generation.engine.scheduler.onlineTarget = 0
 	due := fixture.clock.Now().Add(time.Second)
 	installLifecycleReplaySaturationWork(t, generation.engine, due, 2)
 	fixture.clock.Set(due)

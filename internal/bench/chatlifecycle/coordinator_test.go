@@ -318,6 +318,53 @@ func TestCoordinatorDeliversOneGlobalGrantAfterAllWorkersReadyAndRetriesSameSequ
 	}
 }
 
+func TestCoordinatorInitialGrantUsesControlRoundDeadlineBeforeMeasuredCadence(t *testing.T) {
+	const roundTimeout = 5 * time.Second
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-initial-grant-control-round"
+	hooks := newRecordingCoordinatorRunHooks()
+	grantEntered := make(chan coordinatorGrantContext, coordinatorWorkerCount)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &deadlineRecordingGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			entered:                    grantEntered,
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 26,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			select {
+			case <-hooks.started:
+				return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}
+			case <-ctx.Done():
+				return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+			}
+		}),
+		Hooks: hooks, RoundTimeout: roundTimeout,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+
+	result := coordinator.Run(context.Background(), cfg)
+	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
+		t.Fatalf("Run() result = %+v, want product_failure/observer after the valid initial grant", result)
+	}
+	for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+		observed := <-grantEntered
+		remaining := observed.deadline.Sub(observed.observedAt)
+		if !observed.hasDeadline || observed.request.Sequence != 1 || remaining <= coordinatorGrantCadence || remaining > roundTimeout {
+			t.Fatalf("worker %d initial grant deadline = %+v remaining=%s, want sequence 1 control-round deadline", workerID, observed, remaining)
+		}
+	}
+}
+
 func TestCoordinatorDoesNotConsumeGrantBeforeEveryWorkerTrafficReady(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-ready-barrier"
@@ -2310,16 +2357,20 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	}
 }
 
-func TestCoordinatorGrantRoundRejectsLateSuccessWithinOneCadence(t *testing.T) {
+func TestCoordinatorScheduledGrantRoundUsesOneCadenceDeadline(t *testing.T) {
+	const roundTimeout = 5 * time.Second
 	cfg := LocalConfig()
-	cfg.RunID = "coordinator-grant-late-success"
+	cfg.RunID = "coordinator-scheduled-grant-deadline"
+	clock := newManualCoordinatorClock(time.Unix(1_700_000_000, 0))
+	grantEntered := make(chan coordinatorGrantContext, coordinatorWorkerCount*2)
 	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
 	for workerID := range workers {
-		workers[workerID] = &lateSuccessGrantCoordinatorWorker{
+		workers[workerID] = &deadlineRecordingGrantCoordinatorWorker{
 			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
-			lateAfter:                  2 * time.Second,
+			entered:                    grantEntered,
 		}
 	}
+	observerStarted := make(chan struct{})
 	coordinator, err := NewCoordinator(CoordinatorOptions{
 		Generation: 30,
 		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
@@ -2328,23 +2379,48 @@ func TestCoordinatorGrantRoundRejectsLateSuccessWithinOneCadence(t *testing.T) {
 		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
 		Workers: workers,
 		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			close(observerStarted)
 			<-ctx.Done()
 			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
 		}),
+		Clock: clock, RoundTimeout: roundTimeout,
 	})
 	if err != nil {
 		t.Fatalf("NewCoordinator() error = %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	started := time.Now()
-	result := coordinator.Run(ctx, cfg)
-	elapsed := time.Since(started)
-	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
-		t.Fatalf("Run() late grant result = %+v, want harness_invalid/grant", result)
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+	<-observerStarted
+	for tickerIndex := 0; tickerIndex < 2; tickerIndex++ {
+		<-clock.created
 	}
-	if elapsed >= 1500*time.Millisecond {
-		t.Fatalf("Run() late grant elapsed = %s, want fail-closed within one-second cadence", elapsed)
+	clock.advance(coordinatorGrantCadence)
+
+	observedBySequence := map[uint64][]coordinatorGrantContext{}
+	for attempt := 0; attempt < coordinatorWorkerCount*2; attempt++ {
+		observed := <-grantEntered
+		observedBySequence[observed.request.Sequence] = append(observedBySequence[observed.request.Sequence], observed)
+	}
+	cancel()
+	if result := <-resultChannel; result.Outcome != CoordinatorStopped {
+		t.Fatalf("Run() result = %+v, want stopped after deadline capture", result)
+	}
+	for sequence, wantMaximum := range map[uint64]time.Duration{1: roundTimeout, 2: coordinatorGrantCadence} {
+		observations := observedBySequence[sequence]
+		if len(observations) != coordinatorWorkerCount {
+			t.Fatalf("sequence %d observations = %d, want %d", sequence, len(observations), coordinatorWorkerCount)
+		}
+		for workerID, observed := range observations {
+			remaining := observed.deadline.Sub(observed.observedAt)
+			if !observed.hasDeadline || remaining <= 0 || remaining > wantMaximum {
+				t.Fatalf("sequence %d worker %d remaining deadline = %s, want (0,%s]", sequence, workerID, remaining, wantMaximum)
+			}
+			if sequence == 1 && remaining <= coordinatorGrantCadence {
+				t.Fatalf("initial grant remaining deadline = %s, want control-round deadline above measured cadence", remaining)
+			}
+		}
 	}
 }
 
@@ -2639,6 +2715,7 @@ type coordinatorGrantContext struct {
 	workerID    uint64
 	request     WorkerGrantRequest
 	deadline    time.Time
+	observedAt  time.Time
 	hasDeadline bool
 }
 
@@ -3055,23 +3132,19 @@ type blockingGrantCoordinatorWorker struct {
 	entered chan<- coordinatorGrantContext
 }
 
-type lateSuccessGrantCoordinatorWorker struct {
+type deadlineRecordingGrantCoordinatorWorker struct {
 	*recordingCoordinatorWorker
-	lateAfter time.Duration
+	entered chan<- coordinatorGrantContext
 }
 
-func (w *lateSuccessGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
-	timer := time.NewTimer(w.lateAfter)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-	case <-ctx.Done():
+func (w *deadlineRecordingGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	deadline, ok := ctx.Deadline()
+	if w.entered != nil {
+		w.entered <- coordinatorGrantContext{
+			workerID: w.id, request: request, deadline: deadline, observedAt: time.Now(), hasDeadline: ok,
+		}
 	}
-	released, _ := request.Released.worker(w.id)
-	return WorkerGrantResponse{
-		WorkerFence: request.WorkerFence, WorkerID: w.id, WorkerCount: coordinatorWorkerCount,
-		Sequence: request.Sequence, Released: released,
-	}, nil
+	return w.recordingCoordinatorWorker.Grant(ctx, request)
 }
 
 func (w *blockingGrantCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {

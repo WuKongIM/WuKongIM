@@ -13,6 +13,9 @@ func validateFormalDefaults(c Config) error {
 	if w.OnlineUsers != wantW.OnlineUsers {
 		return formalError("workload.online_users")
 	}
+	if w.BootstrapLoginsPerSecond != wantW.BootstrapLoginsPerSecond {
+		return formalError("workload.bootstrap_logins_per_second")
+	}
 	if w.NewUsersPerDay != wantW.NewUsersPerDay {
 		return formalError("workload.new_users_per_day")
 	}

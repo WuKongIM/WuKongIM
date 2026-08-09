@@ -372,12 +372,13 @@ deterministic choices use independent semantic-purpose hashes; introducing one
 choice cannot consume or shift another choice's output. Bounded choices whose
 range is not a power of two reject the biased hash prefix and derive retries
 from a separate semantic domain plus attempt number.
-Each engine declares the common worker count plus its own worker ID. Its
-scheduler retains a monotonic worker-local arrival index and calls
+Each engine declares the common worker count plus its own worker ID. Within one
+login-rate regime, its scheduler retains a monotonic worker-local arrival index
+and calls
 `GlobalIndex` at the production login boundary. Quotient/remainder partitioning
 assigns the 10,000 formal online target as 3,334, 3,333, and 3,333 without
 overlapping UIDs.
-Login arrivals likewise form one checked global rational token stream. Every
+Steady login arrivals form one checked global rational token stream. Every
 worker advances the same cumulative integer prefix but owns only token ordinals
 whose modulo is its worker ID; per-worker burst caps partition the global cap.
 The owned local attempt ordinal is mapped back to the interleaved global login
@@ -399,7 +400,8 @@ each duration or message-count range. Every session bucket has a positive
 integer percentage, which bounds even a local profile to at most 100 buckets.
 At 250,000 new users per day the identity growth rate is about 2.9 new
 users/second; because new users are 80% of logins, the total login rate is about
-3.6 logins/second.
+3.6 logins/second after bootstrap. Empty-dataset bootstrap is a separate fixed
+global 25-login/second phase until 10,000 users are simultaneously online.
 
 Each new relationship plan has a finite two-to-eight-message initial burst over
 five to thirty seconds and explicitly requires both endpoints online. Revisit
@@ -420,6 +422,13 @@ the next tick and discard old-rate credit rather than creating retroactive
 token debt. Each worker maps its local ordinal through `GlobalIndex`, so
 aggregating the three workers reconstructs one non-duplicated global cycle with
 exactly 2,000 SENDs/s and the reviewed traffic and payload shares.
+
+The first complete vector crosses all three workers before `CoordinatorRunStart`
+exists, so it uses the normal bounded coordinator control-round deadline. Only
+after that barrier fixes the measured clock do scheduled grant rounds cap their
+deadline to the one-second grant cadence. Bootstrap application latency may
+therefore consume bounded pre-clock control time, but it cannot relax, skip, or
+catch up any measured grant tick.
 
 Primary traffic kind, payload size, and person direction use independent
 run-rotated ordinal cycles. Formal cycles are exactly 90/10 person/group,
@@ -566,12 +575,25 @@ locking its sampling phase to the 90/10 traffic-kind cycle. The very-large
 group remains an independently counted one-per-minute owner-routed canary. The
 generator has no product metadata or runtime mutation interface.
 
-The private session scheduler derives checked rational login credit from
-`new_users_per_day` and the 80% new share, which is about 3.6 total logins per
-second in the formal profile. Bootstrap substitutes new identities until the
-online target is first reached; fake-clock churn coverage proves that formal
-startup reaches 10,000 online within the bounded startup window and then exits
-the all-new substitution state. Steady scheduling preserves the exact 80/20
+The private session scheduler uses the fixed global
+`bootstrap_logins_per_second` rate while the empty dataset is bootstrapping.
+It partitions that stream exactly across three workers, substitutes new
+identities until the online target is first reached, and still requires every
+identity to complete a real WKProto CONNECT/CONNACK plus fresh version-zero
+full conversation sync. Each worker has 256 bounded concurrent starting slots.
+Missed whole attempts and unused per-step credit are discarded, so a delayed
+tick or recovered sync path cannot catch up above the fixed global rate. Every
+UTC-aligned second gives the workers immutable 9/8/8 shares, so even subsecond
+skew across the boundary cannot mix adjacent extra positions; a whole missed
+range is discarded.
+Fake-clock three-worker churn coverage reaches 10,000 simultaneous online users in 421
+seconds and enforces a 15-minute scheduler bound. A coordinator-controlled
+worker remains in all-new bootstrap at its local target; the first grant, sent
+only after every local share is ready, clears bootstrap credit, bucket phase,
+and the unequal fixed-share attempt ordinals on all workers. UID allocation is
+not reset. The scheduler then derives steady checked rational
+login credit from `new_users_per_day` and the 80% new share, about 3.6 total
+logins per second in the formal profile. Steady scheduling preserves the exact 80/20
 planned, admitted, and completed split, uses `ReturningCandidate` for real
 offline history, and uses the older-history fifth to keep paired fixed-roster
 members online across every group category without adding sessions beyond that
@@ -905,10 +927,11 @@ ready responses are accepted only if the poll also finishes strictly before
 that deadline; equality is timeout, not success. Continuous observation starts
 immediately after the successful Start round and remains active throughout that
 readiness barrier, so a product or harness result can terminate bootstrap. The
-local shakeout keeps the reviewed 250,000-new-users/day arrival rate so its
-100-user synchronized bootstrap fits inside the shorter ten-minute warmup; its
-smaller online population and evidence label, not a stalled arrival rate, bound
-that non-formal run. The
+local shakeout uses the same fixed global 25-login/second bootstrap rate so its
+100-user synchronized population fits inside the shorter ten-minute warmup;
+after readiness it keeps the reviewed 250,000-new-users/day steady arrival
+rate. Its smaller online population and evidence label bound that non-formal
+run. The
 operator stop channel also owns bootstrap cancellation: preflight, fixed-catalog
 setup, assignment, Start, and readiness status calls receive a derived context
 that is canceled when that channel closes. A stop before the initial grant
@@ -919,8 +942,9 @@ produces one complete
 fixed three-worker grant vector per logical second and sends that same vector,
 sequence, rate, burst, and credit evidence to all three exact-fence grant
 endpoints concurrently. One transport failure may retry the identical sequence;
-an unconfirmed vector stops the run. A grant response round has one shared
-deadline capped at the one-second grant cadence. Scheduled grant timestamps
+an unconfirmed vector stops the run. The first pre-clock grant response round
+uses the ordinary shared control-round deadline; each later measured response
+round is capped at the one-second grant cadence. Scheduled grant timestamps
 must be nonzero, non-future, and younger than one cadence. The first accepted
 tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
 must fall within 10 milliseconds of one logical second after the preceding
@@ -976,7 +1000,8 @@ Assignment, Start, status, and checkpoint rounds each launch exactly three
 requests with one shared at-most-five-second deadline, join every attempted
 request, reject a valid-looking result returned after that deadline, and
 validate results in worker-index order. Every grant round uses the same bounded
-concurrent shape with the stricter one-second cap. A blocked control request
+concurrent shape; only measured grant rounds use the stricter one-second cap.
+A blocked control request
 therefore cannot starve the final cutoff indefinitely. Each control round
 retains each response's error and validity evidence. An ordinary non-context
 error or a nil-error invalid response remains `harness_invalid` regardless of

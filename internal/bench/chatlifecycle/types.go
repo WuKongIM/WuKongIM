@@ -62,6 +62,9 @@ type WorkloadConfig struct {
 	Workers int `json:"workers" yaml:"workers"`
 	// OnlineUsers is the target concurrent connected user count.
 	OnlineUsers int `json:"online_users" yaml:"online_users"`
+	// BootstrapLoginsPerSecond is the global real CONNECT plus full-sync rate
+	// used only while filling the initial online population.
+	BootstrapLoginsPerSecond int `json:"bootstrap_logins_per_second" yaml:"bootstrap_logins_per_second"`
 	// NewUsersPerDay is the number of new identities introduced each day.
 	NewUsersPerDay int `json:"new_users_per_day" yaml:"new_users_per_day"`
 	// SendRatePerSecond is the global logical SEND rate before retries.

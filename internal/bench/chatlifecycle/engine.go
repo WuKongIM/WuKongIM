@@ -164,14 +164,16 @@ type EngineGrantResult struct {
 }
 
 type sessionScheduler struct {
-	workload                      WorkloadConfig
-	workerID                      uint64
-	workerCount                   uint64
-	onlineTarget                  int
-	lastStep                      time.Time
-	credit                        uint64
-	creditRemainder               uint64
-	globalLoginTokens             uint64
+	workload          WorkloadConfig
+	workerID          uint64
+	workerCount       uint64
+	onlineTarget      int
+	lastStep          time.Time
+	credit            uint64
+	creditRemainder   uint64
+	globalLoginTokens uint64
+	// bootstrapSecond is the last UTC-aligned login bucket considered by this worker.
+	bootstrapSecond               int64
 	replacements                  uint64
 	loginOrdinal                  uint64
 	nextNewIndex                  uint64
@@ -209,6 +211,7 @@ func (s *sessionScheduler) reset(now time.Time) {
 	s.credit = 0
 	s.creditRemainder = 0
 	s.globalLoginTokens = 0
+	s.bootstrapSecond = now.Unix()
 	s.replacements = 0
 	s.loginOrdinal = 0
 	s.bootstrapping = true
@@ -231,6 +234,9 @@ func (s *sessionScheduler) release(now time.Time) (int, error) {
 	}
 	elapsed := uint64(now.Sub(s.lastStep))
 	s.lastStep = now
+	if s.bootstrapping {
+		return s.releaseBootstrap(now)
+	}
 	numerator := uint64(s.workload.NewUsersPerDay) * distributionCycle
 	denominator := uint64(secondsPerDay) * uint64(time.Second) * uint64(s.workload.Login.NewPercent)
 	hi, lo := bits.Mul64(elapsed, numerator)
@@ -276,6 +282,36 @@ func (s *sessionScheduler) release(now time.Time) (int, error) {
 		due = uint64(s.onlineTarget)
 	}
 	return int(due), nil
+}
+
+func (s *sessionScheduler) releaseBootstrap(now time.Time) (int, error) {
+	rate := s.workload.BootstrapLoginsPerSecond
+	second := now.Unix()
+	if rate <= 0 || second < 0 || second < s.bootstrapSecond {
+		return 0, errSchedulerClock
+	}
+	if second == s.bootstrapSecond {
+		// Unused bootstrap credit expires at the next scheduler step. A second
+		// step in the same shared wall-clock bucket cannot mint more credit.
+		s.credit = 0
+		return 0, nil
+	}
+
+	// Every worker owns one immutable share of each UTC-aligned second. Keeping
+	// the extra token on the same worker prevents adjacent buckets observed
+	// across a subsecond boundary from combining into a 26-login burst.
+	localWhole, err := workerOnlineTarget(rate, s.workerID, s.workerCount)
+	if err != nil {
+		return 0, err
+	}
+	s.bootstrapSecond = second
+	s.creditRemainder = 0
+	s.globalLoginTokens = 0
+	s.credit = uint64(localWhole)
+	if s.credit > uint64(s.onlineTarget) {
+		s.credit = uint64(s.onlineTarget)
+	}
+	return int(s.credit), nil
 }
 
 // workerTokenCount returns how many ordinals in [0,total) belong to workerID
@@ -1040,6 +1076,10 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	if err := admissionCtx.Err(); err != nil {
 		return EngineGrantResult{}, err
 	}
+	// Coordinator grants begin only after every worker has reported its local
+	// synchronized share ready, so the first admitted grant is the global
+	// bootstrap barrier for externally granted generations.
+	e.finishBootstrap(now)
 	result := EngineGrantResult{Admitted: true}
 	snapshot, err := e.applyGrant(generationCtx, now, released)
 	result.Snapshot = snapshot
@@ -1666,6 +1706,12 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 
 	result := EngineStepSnapshot{}
 	resultErr := e.drainLoginResults(now, &result)
+	// A non-coordinator generation starts local traffic only after its own
+	// readiness latch. Coordinator-controlled generations keep demand nil and
+	// remain in bootstrap until their first globally fenced grant.
+	if demand != nil {
+		e.finishBootstrapIfOnline(now)
+	}
 	expired := e.sessions.Expire(now)
 	e.schedulerMetrics.expired.Add(uint64(expired))
 	result.Expired = expired
@@ -1755,11 +1801,6 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 		startingSlots--
 	}
 	poolAfterLogins := e.sessions.Counts()
-	if e.scheduler.bootstrapping && poolAfterLogins.Online >= e.onlineTarget {
-		e.scheduler.bootstrapping = false
-		e.scheduler.credit = 0
-		e.scheduler.replacements = 0
-	}
 	if scheduled >= e.maxWork &&
 		poolAfterLogins.Online+poolAfterLogins.Starting < e.onlineTarget &&
 		(e.scheduler.credit > 0 || e.scheduler.replacements > 0) {
@@ -1779,6 +1820,30 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	resultErr = errors.Join(resultErr, e.drainLoginResults(now, &result))
 	result.Online = e.sessions.Counts().Online
 	return result, resultErr
+}
+
+// finishBootstrapIfOnline switches rate regimes only at an explicit traffic
+// barrier. It is idempotent so an exact grant retry cannot switch twice.
+func (e *Engine) finishBootstrapIfOnline(now time.Time) {
+	if !e.scheduler.bootstrapping || e.sessions.Counts().Online < e.onlineTarget {
+		return
+	}
+	e.finishBootstrap(now)
+}
+
+// finishBootstrap clears all credit and attempt ordinals whose phase belongs to
+// the bootstrap regime before the exact steady login sequence begins.
+func (e *Engine) finishBootstrap(now time.Time) {
+	if !e.scheduler.bootstrapping {
+		return
+	}
+	e.scheduler.bootstrapping = false
+	e.scheduler.lastStep = now
+	e.scheduler.credit = 0
+	e.scheduler.creditRemainder = 0
+	e.scheduler.globalLoginTokens = 0
+	e.scheduler.replacements = 0
+	e.scheduler.loginOrdinal = 0
 }
 
 func (e *Engine) startScheduledLogin(generationCtx context.Context, result engineLoginResult) {

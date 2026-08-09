@@ -701,7 +701,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	}
 	result.Grant = grant
 	if grantDisposition := c.deliverGrant(
-		observationContext, assignments, grantPlan.request(fence, grant),
+		observationContext, assignments, grantPlan.request(fence, grant), c.roundTimeout,
 	); grantDisposition != coordinatorRoundSucceeded {
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, grantDisposition)
 		joinFailureObservation()
@@ -779,7 +779,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			return coordinatorRoundStageFailed
 		}
 		if disposition := c.deliverGrant(
-			observationContext, assignments, grantPlan.request(fence, grant),
+			observationContext, assignments, grantPlan.request(fence, grant), coordinatorGrantCadence,
 		); disposition != coordinatorRoundSucceeded {
 			if capacityStaircase != nil && grant.RateChanged {
 				_, _ = capacityStaircase.FailRateChange(tickAt)
@@ -1832,12 +1832,18 @@ func coordinatorGrantCoverageMissing(at, lastTickAt time.Time) bool {
 	return at.Sub(lastTickAt) > coordinatorGrantCadence+coordinatorGrantTickTolerance
 }
 
+// deliverGrant applies one exact grant vector concurrently to all workers.
+// maximum distinguishes the pre-clock control round from measured cadence.
 func (c *Coordinator) deliverGrant(
 	parent context.Context,
 	assignments []CoordinatorAssignment,
 	request WorkerGrantRequest,
+	maxRoundTimeout time.Duration,
 ) coordinatorRoundDisposition {
-	grantRoundTimeout := min(c.roundTimeout, coordinatorGrantCadence)
+	if maxRoundTimeout <= 0 {
+		return coordinatorRoundStageFailed
+	}
+	grantRoundTimeout := min(c.roundTimeout, maxRoundTimeout)
 	roundContext, cancel := context.WithTimeoutCause(parent, grantRoundTimeout, errCoordinatorRoundDeadline)
 	defer cancel()
 	type grantResult struct {

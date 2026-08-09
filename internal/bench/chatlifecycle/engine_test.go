@@ -90,14 +90,8 @@ func TestEngineTickAdmitsOneGlobalGrantWithoutHistoryRetention(t *testing.T) {
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	step, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step = %+v, %v", step, err)
-	}
-	step = fixture.settleScheduledLogins(t, now, step)
-	if step.Online != 100 {
-		t.Fatalf("settled bootstrap Step = %+v", step)
-	}
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	tick, err := fixture.engine.Tick(now, fixture.demand(1_000))
 	if err != nil {
 		t.Fatalf("Tick: %v", err)
@@ -126,11 +120,8 @@ func TestEngineTickRoutesEveryGrantThroughCurrentlyOnlineEligibleSender(t *testi
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step: %v", err)
-	}
-	fixture.settleScheduledLogins(t, now, bootstrap)
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	for index := uint64(0); index < 50; index++ {
 		if err := fixture.engine.Logout(fixture.identity.UID(index)); err != nil {
 			t.Fatalf("Logout(%d): %v", index, err)
@@ -2372,6 +2363,9 @@ func TestEngineTimeAdmissionAllowsEqualAndIncreasingAdvanceAndStep(t *testing.T)
 		t.Fatalf("Start: %v", err)
 	}
 	defer fixture.engine.Stop()
+	// This test isolates monotonic time admission from bootstrap scheduling.
+	fixture.engine.scheduler.bootstrapping = false
+	fixture.engine.scheduler.onlineTarget = 0
 	start := fixture.clock.Now()
 	for _, now := range []time.Time{start, start.Add(time.Second), start.Add(time.Second)} {
 		if _, err := fixture.engine.Advance(now); err != nil {
@@ -2427,14 +2421,8 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step: %v", err)
-	}
-	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
-	if bootstrap.Online != 100 {
-		t.Fatalf("bootstrap online = %d, want 100", bootstrap.Online)
-	}
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	beforeScheduler := fixture.engine.scheduler
 
 	beforeOwner := captureCanceledAdvanceState(t, fixture)
 	sort.Slice(beforeOwner.sessions, func(left, right int) bool {
@@ -2479,6 +2467,9 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	if afterGenerator := fixture.engine.generator.Snapshot(); !reflect.DeepEqual(afterGenerator, beforeGenerator) {
 		t.Fatalf("pre-admission canceled grant mutated generator:\nbefore = %#v\nafter  = %#v", beforeGenerator, afterGenerator)
 	}
+	if afterScheduler := fixture.engine.scheduler; !reflect.DeepEqual(afterScheduler, beforeScheduler) {
+		t.Fatalf("pre-admission canceled grant mutated scheduler:\nbefore = %#v\nafter  = %#v", beforeScheduler, afterScheduler)
+	}
 
 	sentBefore := fixture.factory.sentCount()
 	retried, err := fixture.engine.ApplyGrant(context.Background(), now, 10)
@@ -2490,6 +2481,9 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	}
 	if got := fixture.factory.sentCount() - sentBefore; got != 10 {
 		t.Fatalf("retried grant sent %d messages, want exactly 10", got)
+	}
+	if fixture.engine.scheduler.bootstrapping {
+		t.Fatal("admitted first grant did not cross the bootstrap barrier")
 	}
 }
 
@@ -3239,11 +3233,8 @@ func TestEngineStepBootstrapsThenCompletesSteadyLoginCycleAtEightyTwenty(t *test
 
 	now := fixture.clock.Now().Add(100 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step: %v", err)
-	}
-	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
+	now, bootstrap := fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	if bootstrap.LoginsCompleted != 100 || bootstrap.BootstrapNew == 0 || bootstrap.Online != 100 {
 		t.Fatalf("bootstrap snapshot = %+v", bootstrap)
 	}
@@ -3857,28 +3848,257 @@ func TestEngineStopCancelsBlockedQueueSnapshotBeforeClosingSessions(t *testing.T
 	}
 }
 
-func TestEngineWorkerSchedulersPartitionOneGlobalLoginCreditStream(t *testing.T) {
+func TestSessionSchedulersPartitionOneGlobalBootstrapCreditStream(t *testing.T) {
 	const workerCount = 3
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
 	shares := [workerCount]int{}
 	for workerID := uint64(0); workerID < workerCount; workerID++ {
-		fixture := newEngineTestFixture(t, engineTestLimits{
-			Formal: true, WorkerID: workerID, WorkerCount: workerCount,
-			StartingCapacity: 512, WorkCapacity: 8_192, MaxWorkPerAdvance: 512,
-		})
-		if err := fixture.engine.Start(context.Background()); err != nil {
-			t.Fatalf("worker %d Start: %v", workerID, err)
+		scheduler := sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount,
+			onlineTarget: cfg.Workload.OnlineUsers,
 		}
-		now := fixture.clock.Now().Add(100 * time.Second)
-		fixture.clock.Set(now)
-		step, err := fixture.engine.Step(context.Background(), now, nil)
+		scheduler.reset(start)
+		budget, err := scheduler.release(start.Add(time.Second))
 		if err != nil {
-			_ = fixture.engine.Stop()
-			t.Fatalf("worker %d Step: %v", workerID, err)
+			t.Fatalf("worker %d release: %v", workerID, err)
 		}
-		shares[workerID] = step.PlannedNew + step.PlannedReturning
-		if err := fixture.engine.Stop(); err != nil {
-			t.Fatalf("worker %d Stop: %v", workerID, err)
+		shares[workerID] = budget
+	}
+
+	total := shares[0] + shares[1] + shares[2]
+	if total != cfg.Workload.BootstrapLoginsPerSecond {
+		t.Fatalf("one-second global bootstrap credit = %d (%v), want %d", total, shares, cfg.Workload.BootstrapLoginsPerSecond)
+	}
+	minimum, maximum := shares[0], shares[0]
+	for _, share := range shares[1:] {
+		minimum = min(minimum, share)
+		maximum = max(maximum, share)
+	}
+	if maximum-minimum > 1 {
+		t.Fatalf("one-second worker bootstrap shares = %v, want difference <= 1", shares)
+	}
+}
+
+func TestSessionSchedulersDiscardUnusedBootstrapCreditInsteadOfCatchingUp(t *testing.T) {
+	const workerCount = 3
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	schedulers := [workerCount]sessionScheduler{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID] = sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount,
+			onlineTarget: cfg.Workload.OnlineUsers,
 		}
+		schedulers[workerID].reset(start)
+	}
+
+	for second := 1; second <= 2; second++ {
+		total := 0
+		for workerID := uint64(0); workerID < workerCount; workerID++ {
+			budget, err := schedulers[workerID].release(start.Add(time.Duration(second) * time.Second))
+			if err != nil {
+				t.Fatalf("worker %d release(%d): %v", workerID, second, err)
+			}
+			total += budget
+		}
+		if total != cfg.Workload.BootstrapLoginsPerSecond {
+			t.Fatalf("second %d bootstrap credit = %d, want non-bursting %d", second, total, cfg.Workload.BootstrapLoginsPerSecond)
+		}
+	}
+
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID].reset(start)
+	}
+	delayedTotal := 0
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		budget, err := schedulers[workerID].release(start.Add(10 * time.Second))
+		if err != nil {
+			t.Fatalf("worker %d delayed release: %v", workerID, err)
+		}
+		delayedTotal += budget
+	}
+	if delayedTotal != cfg.Workload.BootstrapLoginsPerSecond {
+		t.Fatalf("delayed bootstrap credit = %d, want discarded catch-up and cap %d", delayedTotal, cfg.Workload.BootstrapLoginsPerSecond)
+	}
+
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID].reset(start)
+	}
+	for workerID := uint64(1); workerID < workerCount; workerID++ {
+		if _, err := schedulers[workerID].release(start.Add(time.Second)); err != nil {
+			t.Fatalf("worker %d asymmetric first release: %v", workerID, err)
+		}
+	}
+	asymmetricTotal := 0
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		budget, err := schedulers[workerID].release(start.Add(2 * time.Second))
+		if err != nil {
+			t.Fatalf("worker %d asymmetric second release: %v", workerID, err)
+		}
+		asymmetricTotal += budget
+	}
+	if asymmetricTotal != cfg.Workload.BootstrapLoginsPerSecond {
+		t.Fatalf("asymmetrically delayed bootstrap credit = %d, want exact global cap %d", asymmetricTotal, cfg.Workload.BootstrapLoginsPerSecond)
+	}
+
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID].reset(start)
+	}
+	offsetTotal := 0
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		releaseAt := start.Add(time.Second)
+		if workerID == workerCount-1 {
+			releaseAt = releaseAt.Add(100 * time.Millisecond)
+		}
+		budget, err := schedulers[workerID].release(releaseAt)
+		if err != nil {
+			t.Fatalf("worker %d subsecond-offset release: %v", workerID, err)
+		}
+		offsetTotal += budget
+	}
+	if offsetTotal != cfg.Workload.BootstrapLoginsPerSecond {
+		t.Fatalf("subsecond-offset bootstrap credit = %d, want exact global cap %d", offsetTotal, cfg.Workload.BootstrapLoginsPerSecond)
+	}
+
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID].reset(start)
+	}
+	crossBoundaryTotal := 0
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		releaseAt := start.Add(2*time.Second + time.Millisecond)
+		if workerID == 0 {
+			releaseAt = start.Add(2*time.Second - time.Millisecond)
+		}
+		budget, err := schedulers[workerID].release(releaseAt)
+		if err != nil {
+			t.Fatalf("worker %d cross-boundary release: %v", workerID, err)
+		}
+		crossBoundaryTotal += budget
+	}
+	if crossBoundaryTotal != cfg.Workload.BootstrapLoginsPerSecond {
+		t.Fatalf("cross-boundary bootstrap credit = %d, want exact global cap %d", crossBoundaryTotal, cfg.Workload.BootstrapLoginsPerSecond)
+	}
+}
+
+func TestEngineFinishBootstrapIsIdempotentAcrossMeasuredGrants(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	now := time.Unix(1_700_000_123, 0)
+	fixture.engine.scheduler.credit = 7
+	fixture.engine.scheduler.creditRemainder = 11
+	fixture.engine.scheduler.globalLoginTokens = 12
+	fixture.engine.scheduler.replacements = 13
+	fixture.engine.scheduler.loginOrdinal = 14
+	fixture.engine.finishBootstrap(now)
+	if fixture.engine.scheduler.bootstrapping || fixture.engine.scheduler.credit != 0 ||
+		fixture.engine.scheduler.creditRemainder != 0 || fixture.engine.scheduler.globalLoginTokens != 0 ||
+		fixture.engine.scheduler.replacements != 0 || fixture.engine.scheduler.loginOrdinal != 0 ||
+		!fixture.engine.scheduler.lastStep.Equal(now) {
+		t.Fatalf("first bootstrap finish = %+v, want cleared bootstrap regime", fixture.engine.scheduler)
+	}
+
+	fixture.engine.scheduler.credit = 17
+	fixture.engine.scheduler.creditRemainder = 19
+	fixture.engine.scheduler.globalLoginTokens = 20
+	fixture.engine.scheduler.replacements = 23
+	fixture.engine.scheduler.loginOrdinal = 29
+	fixture.engine.finishBootstrap(now.Add(time.Second))
+	if fixture.engine.scheduler.credit != 17 || fixture.engine.scheduler.creditRemainder != 19 ||
+		fixture.engine.scheduler.globalLoginTokens != 20 || fixture.engine.scheduler.replacements != 23 ||
+		fixture.engine.scheduler.loginOrdinal != 29 || !fixture.engine.scheduler.lastStep.Equal(now) {
+		t.Fatalf("repeated bootstrap finish mutated steady credit: %+v", fixture.engine.scheduler)
+	}
+}
+
+func TestEngineFinishBootstrapRestartsExactGlobalSteadyLoginSequence(t *testing.T) {
+	const workerCount = 3
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	schedulers := [workerCount]sessionScheduler{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		schedulers[workerID] = sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount,
+			onlineTarget: cfg.Workload.OnlineUsers,
+		}
+		schedulers[workerID].reset(start)
+		for second := 1; second <= 2; second++ {
+			budget, err := schedulers[workerID].release(start.Add(time.Duration(second) * time.Second))
+			if err != nil {
+				t.Fatalf("worker %d bootstrap release(%d): %v", workerID, second, err)
+			}
+			for ; budget > 0; budget-- {
+				if _, err := schedulers[workerID].nextGlobalLoginOrdinal(); err != nil {
+					t.Fatalf("worker %d bootstrap ordinal: %v", workerID, err)
+				}
+				schedulers[workerID].consumeOne()
+			}
+		}
+	}
+	if got := [workerCount]uint64{
+		schedulers[0].loginOrdinal, schedulers[1].loginOrdinal, schedulers[2].loginOrdinal,
+	}; got != [workerCount]uint64{18, 16, 16} {
+		t.Fatalf("bootstrap local ordinals = %v, want unequal fixed-share phase", got)
+	}
+
+	steadyOrdinals := make([]uint64, 0, 100)
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		engine := Engine{scheduler: schedulers[workerID]}
+		engine.finishBootstrap(start.Add(2 * time.Second))
+		schedulers[workerID] = engine.scheduler
+		localCount, err := workerTokenCount(100, workerID, workerCount)
+		if err != nil {
+			t.Fatalf("worker %d steady count: %v", workerID, err)
+		}
+		for local := uint64(0); local < localCount; local++ {
+			ordinal, ordinalErr := schedulers[workerID].nextGlobalLoginOrdinal()
+			if ordinalErr != nil {
+				t.Fatalf("worker %d steady ordinal: %v", workerID, ordinalErr)
+			}
+			steadyOrdinals = append(steadyOrdinals, ordinal)
+		}
+	}
+	sort.Slice(steadyOrdinals, func(i, j int) bool { return steadyOrdinals[i] < steadyOrdinals[j] })
+	identity, err := NewIdentitySpace("bootstrap-steady-reset", 101, workerCount)
+	if err != nil {
+		t.Fatalf("NewIdentitySpace: %v", err)
+	}
+	schedule, err := NewScheduleModel(identity, cfg.Workload)
+	if err != nil {
+		t.Fatalf("NewScheduleModel: %v", err)
+	}
+	identities := map[LoginIdentity]int{}
+	for expected, ordinal := range steadyOrdinals {
+		if ordinal != uint64(expected) {
+			t.Fatalf("steady ordinal %d = %d, want continuous global sequence", expected, ordinal)
+		}
+		login, loginErr := schedule.Login(ordinal)
+		if loginErr != nil {
+			t.Fatalf("steady Login(%d): %v", ordinal, loginErr)
+		}
+		identities[login.Identity]++
+	}
+	if identities[LoginNew] != 80 || identities[LoginReturning] != 20 {
+		t.Fatalf("post-bootstrap steady identities = %v, want exact 80/20", identities)
+	}
+}
+
+func TestEngineWorkerSchedulersPartitionOneGlobalLoginCreditStream(t *testing.T) {
+	const workerCount = 3
+	cfg := FormalConfig()
+	start := time.Unix(1_700_000_000, 0)
+	shares := [workerCount]int{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		scheduler := sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount,
+			onlineTarget: cfg.Workload.OnlineUsers,
+		}
+		scheduler.reset(start)
+		scheduler.bootstrapping = false
+		budget, err := scheduler.release(start.Add(100 * time.Second))
+		if err != nil {
+			t.Fatalf("worker %d release: %v", workerID, err)
+		}
+		shares[workerID] = budget
 	}
 
 	total := shares[0] + shares[1] + shares[2]
@@ -3919,6 +4139,7 @@ func TestSessionSchedulersPreserveExactFormalDailyGrowthAndCombinedEightyTwenty(
 			workload: cfg.Workload, workerID: workerID, workerCount: workerCount, onlineTarget: 1_000_000,
 		}
 		schedulers[workerID].reset(start)
+		schedulers[workerID].bootstrapping = false
 	}
 
 	for second := 1; second <= secondsPerDay; second++ {
@@ -3968,8 +4189,9 @@ func TestSessionSchedulersPreserveExactFormalDailyGrowthAndCombinedEightyTwenty(
 }
 
 func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *testing.T) {
+	const workerCount = 3
 	cfg := FormalConfig()
-	identity, err := NewIdentitySpace("formal-bootstrap-churn", 101, uint64(cfg.Workload.Workers))
+	identity, err := NewIdentitySpace("formal-bootstrap-churn", 101, workerCount)
 	if err != nil {
 		t.Fatalf("NewIdentitySpace: %v", err)
 	}
@@ -3978,61 +4200,66 @@ func TestFormalSchedulerBootstrapExitsUnderChurnAndBoundsCumulativeNewExcess(t *
 		t.Fatalf("NewScheduleModel: %v", err)
 	}
 	start := time.Unix(1_700_000_000, 0)
-	scheduler := sessionScheduler{workload: cfg.Workload, workerCount: 1, onlineTarget: cfg.Workload.OnlineUsers}
-	scheduler.reset(start)
-	var sessions engineWorkHeap
-	heap.Init(&sessions)
+	schedulers := [workerCount]sessionScheduler{}
+	sessions := [workerCount]engineWorkHeap{}
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		target, targetErr := workerOnlineTarget(cfg.Workload.OnlineUsers, workerID, workerCount)
+		if targetErr != nil {
+			t.Fatalf("worker %d online target: %v", workerID, targetErr)
+		}
+		schedulers[workerID] = sessionScheduler{
+			workload: cfg.Workload, workerID: workerID, workerCount: workerCount, onlineTarget: target,
+		}
+		schedulers[workerID].reset(start)
+		heap.Init(&sessions[workerID])
+	}
 	bootstrapPlanned := map[LoginIdentity]int{}
 	bootstrapCompletedNew := 0
 	exitSecond := -1
-	for second := 1; second <= 7_000 && scheduler.bootstrapping; second++ {
+	for second := 1; second <= 15*60 && exitSecond < 0; second++ {
 		now := start.Add(time.Duration(second) * time.Second)
-		expired := 0
-		for len(sessions) > 0 && !sessions[0].due.After(now) {
-			heap.Pop(&sessions)
-			expired++
-		}
-		scheduler.addReplacements(uint64(expired))
-		budget, releaseErr := scheduler.release(now)
-		if releaseErr != nil {
-			t.Fatalf("release(%d): %v", second, releaseErr)
-		}
-		for budget > 0 && len(sessions) < cfg.Workload.OnlineUsers {
-			loginSchedule, scheduleErr := schedule.Login(scheduler.loginOrdinal)
-			if scheduleErr != nil {
-				t.Fatalf("Login(%d): %v", scheduler.loginOrdinal, scheduleErr)
+		totalOnline := 0
+		for workerID := uint64(0); workerID < workerCount; workerID++ {
+			scheduler := &schedulers[workerID]
+			workerSessions := &sessions[workerID]
+			expired := 0
+			for len(*workerSessions) > 0 && !(*workerSessions)[0].due.After(now) {
+				heap.Pop(workerSessions)
+				expired++
 			}
-			bootstrapPlanned[loginSchedule.Identity]++
-			bootstrapCompletedNew++
-			scheduler.loginOrdinal++
-			scheduler.nextNewIndex++
-			scheduler.consumeOne()
-			budget--
-			heap.Push(&sessions, &engineWork{due: now.Add(loginSchedule.SessionDuration)})
+			scheduler.addReplacements(uint64(expired))
+			budget, releaseErr := scheduler.release(now)
+			if releaseErr != nil {
+				t.Fatalf("worker %d release(%d): %v", workerID, second, releaseErr)
+			}
+			for budget > 0 && len(*workerSessions) < scheduler.onlineTarget {
+				ordinal, ordinalErr := scheduler.nextGlobalLoginOrdinal()
+				if ordinalErr != nil {
+					t.Fatalf("worker %d nextGlobalLoginOrdinal: %v", workerID, ordinalErr)
+				}
+				loginSchedule, scheduleErr := schedule.Login(ordinal)
+				if scheduleErr != nil {
+					t.Fatalf("worker %d Login(%d): %v", workerID, ordinal, scheduleErr)
+				}
+				bootstrapPlanned[loginSchedule.Identity]++
+				bootstrapCompletedNew++
+				scheduler.nextNewIndex++
+				scheduler.consumeOne()
+				budget--
+				heap.Push(workerSessions, &engineWork{due: now.Add(loginSchedule.SessionDuration)})
+			}
+			totalOnline += len(*workerSessions)
 		}
-		if len(sessions) == cfg.Workload.OnlineUsers {
-			scheduler.bootstrapping = false
-			scheduler.credit = 0
-			scheduler.replacements = 0
+		if totalOnline == cfg.Workload.OnlineUsers {
 			exitSecond = second
 		}
 	}
-	if exitSecond < 0 || exitSecond > 7_000 || len(sessions) != cfg.Workload.OnlineUsers {
-		t.Fatalf("formal bootstrap did not reach 10k under churn: exit=%d online=%d", exitSecond, len(sessions))
+	totalOnline := len(sessions[0]) + len(sessions[1]) + len(sessions[2])
+	if exitSecond != 421 || totalOnline != cfg.Workload.OnlineUsers {
+		t.Fatalf("formal bootstrap did not reach 10k at the reviewed 421-second bound under churn: exit=%d online=%d", exitSecond, totalOnline)
 	}
 	if excess := bootstrapCompletedNew - bootstrapPlanned[LoginNew]; excess != bootstrapPlanned[LoginReturning] || excess <= 0 {
 		t.Fatalf("bootstrap cumulative new excess = %d, planned=%v completed_new=%d", excess, bootstrapPlanned, bootstrapCompletedNew)
-	}
-	steady := map[LoginIdentity]int{}
-	for offset := uint64(0); offset < 100; offset++ {
-		loginSchedule, scheduleErr := schedule.Login(scheduler.loginOrdinal + offset)
-		if scheduleErr != nil {
-			t.Fatalf("steady Login(%d): %v", scheduler.loginOrdinal+offset, scheduleErr)
-		}
-		steady[loginSchedule.Identity]++
-	}
-	if steady[LoginNew] != 80 || steady[LoginReturning] != 20 {
-		t.Fatalf("post-bootstrap login cycle remained all-new: %v exit_second=%d", steady, exitSecond)
 	}
 }
 
@@ -4287,14 +4514,8 @@ func TestEngineStepReplacesTerminalSessionWithoutWaitingForCallerCancellation(t 
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(10 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step = %+v, %v", bootstrap, err)
-	}
-	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
-	if bootstrap.Online != 20 {
-		t.Fatalf("settled bootstrap Step = %+v", bootstrap)
-	}
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	client := fixture.factory.clients()[0]
 	fixture.pool.mu.RLock()
 	drainDone := fixture.pool.online[client.uid].done
@@ -4323,14 +4544,8 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(10 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step = %+v, %v", bootstrap, err)
-	}
-	bootstrap = fixture.settleScheduledLogins(t, now, bootstrap)
-	if bootstrap.Online != 20 {
-		t.Fatalf("settled bootstrap Step = %+v", bootstrap)
-	}
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	now = now.Add(time.Minute)
 	fixture.clock.Set(now)
 	replacement, err := fixture.engine.Step(context.Background(), now, nil)
@@ -4378,11 +4593,8 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	defer fixture.engine.Stop()
 	now := fixture.clock.Now().Add(30 * time.Second)
 	fixture.clock.Set(now)
-	bootstrap, err := fixture.engine.Step(context.Background(), now, nil)
-	if err != nil {
-		t.Fatalf("bootstrap Step: %v", err)
-	}
-	fixture.settleScheduledLogins(t, now, bootstrap)
+	now, _ = fixture.bootstrapScheduledLogins(t, now)
+	fixture.engine.finishBootstrapIfOnline(now)
 	waitForEngineCompletions(t, fixture.engine, "bootstrap")
 	now = now.Add(30 * time.Second)
 	fixture.clock.Set(now)
@@ -4940,6 +5152,31 @@ func (f engineTestFixture) settleScheduledLogins(t *testing.T, now time.Time, in
 	if err != nil {
 		t.Fatalf("settle scheduled logins: %v", err)
 	}
+	return combineEngineStepSnapshots(initial, completion)
+}
+
+func (f engineTestFixture) bootstrapScheduledLogins(t *testing.T, now time.Time) (time.Time, EngineStepSnapshot) {
+	t.Helper()
+	aggregate := EngineStepSnapshot{}
+	for stepIndex := 0; stepIndex < 15*60 && aggregate.Online < f.engine.onlineTarget; stepIndex++ {
+		if stepIndex > 0 {
+			now = now.Add(time.Second)
+			f.clock.Set(now)
+		}
+		step, err := f.engine.Step(context.Background(), now, nil)
+		if err != nil {
+			t.Fatalf("bootstrap Step(%d): %v", stepIndex, err)
+		}
+		step = f.settleScheduledLogins(t, now, step)
+		aggregate = combineEngineStepSnapshots(aggregate, step)
+	}
+	if aggregate.Online != f.engine.onlineTarget {
+		t.Fatalf("bootstrap online = %d, want %d", aggregate.Online, f.engine.onlineTarget)
+	}
+	return now, aggregate
+}
+
+func combineEngineStepSnapshots(initial, completion EngineStepSnapshot) EngineStepSnapshot {
 	initial.PlannedNew += completion.PlannedNew
 	initial.PlannedReturning += completion.PlannedReturning
 	initial.AdmittedNew += completion.AdmittedNew

@@ -14,6 +14,9 @@ func validateWorkload(w WorkloadConfig, profile Profile) error {
 	if w.OnlineUsers <= 0 {
 		return fieldError("workload.online_users", "must be greater than zero")
 	}
+	if w.BootstrapLoginsPerSecond <= 0 {
+		return fieldError("workload.bootstrap_logins_per_second", "must be greater than zero")
+	}
 	if w.NewUsersPerDay <= 0 {
 		return fieldError("workload.new_users_per_day", "must be greater than zero")
 	}

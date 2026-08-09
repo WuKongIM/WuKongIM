@@ -149,6 +149,18 @@ then stops and finalizes itself at exactly two measured hours. A clean result
 is `rehearsal_pass`, never formal `pass`. A manual `TERM` remains an
 `operator_stop` and does not count as completion of this reviewed stage.
 
+On a fresh dataset, expect the three workers to admit one global 25-login/second
+bootstrap stream, about 8.3 logins/second per worker. Every login still performs
+the real protocol handshake and stateless full sync. The deterministic scheduler
+reaches 10,000 simultaneous online users in 421 seconds under configured churn
+and is guarded by a 15-minute model bound; remote handshake or sync latency can
+extend wall time within the separate two-hour pre-clock safety ceiling. After
+the barrier, the first global grant clears the unequal bootstrap attempt phase
+and switches all three workers to the unchanged 250,000-new-user/day 80/20
+steady stream without resetting assigned UIDs. Delayed ticks and temporarily full
+starting pools discard unused bootstrap credit; they must not produce catch-up
+login bursts above 25/second globally.
+
 Require the rehearsal to prove:
 
 - all three workers became traffic-ready;

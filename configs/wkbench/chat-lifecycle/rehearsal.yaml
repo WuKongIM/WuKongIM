@@ -6,6 +6,7 @@ stage: rehearsal
 workload:
   workers: 3
   online_users: 10000
+  bootstrap_logins_per_second: 25
   new_users_per_day: 250000
   send_rate_per_second: 2000
   traffic: {person_percent: 90, group_percent: 10}

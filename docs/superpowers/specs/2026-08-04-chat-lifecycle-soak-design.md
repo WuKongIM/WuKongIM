@@ -146,6 +146,33 @@ Login events are split as follows:
 - total login rate is about 3.6 logins/second;
 - the resulting average online session is about 46 minutes.
 
+The empty-dataset bootstrap is a separate pre-clock admission phase. It fills
+the first 10,000 online sessions at one fixed global rate of 25 login attempts
+per second, partitioned exactly across the three workers. Every attempt still
+performs WKProto CONNECT/CONNACK followed by a fresh version-zero full
+conversation synchronization; bootstrap does not create synthetic online
+state, reuse a cursor, or skip synchronization. Each worker retains 256 bounded
+in-flight login slots, so the reviewed bootstrap rate uses about 83 slots per
+worker even at the ten-second single-anomaly bound. The deterministic scheduler
+must reach 10,000 simultaneously online sessions within 15 minutes while the
+normal session-expiry distribution is already active. Unused admission credit
+is discarded at each scheduler step: a delayed tick or temporarily full
+starting pool must not produce a catch-up burst above the fixed global rate.
+Each UTC-aligned one-second bucket gives the three workers immutable 9/8/8
+shares. Keeping the extra position on one worker ensures even subsecond skew
+across a UTC boundary cannot combine adjacent partitions above 25; a worker
+that misses a whole bucket discards its positions. The deterministic
+three-worker churn model reaches 10,000 simultaneous sessions in 421 seconds.
+
+Once the target is reached, the scheduler discards unused bootstrap credit and
+the bootstrap bucket and unequal attempt phases, then restarts the steady login
+plan ordinal at zero and switches to the ordinary 250,000-new-UID/day, 80/20
+new/returning stream below. Bootstrap users and their real product data remain;
+only the measured steady-state rate begins at the workload clock. A worker
+using coordinator grants remains in all-new bootstrap mode after reaching its
+local share until the first grant, which the coordinator sends only after all
+three workers have reported their synchronized shares ready.
+
 Session duration has a deterministic, seeded distribution:
 
 | Share | Duration |

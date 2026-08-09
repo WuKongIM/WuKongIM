@@ -699,6 +699,8 @@ stage duration and fresh Lease identity differ.
 The fixed profile contains:
 
 - 10,000 concurrent online sessions;
+- a pre-clock empty-dataset bootstrap capped at 25 real CONNECT plus full-sync
+  logins per second globally, with a deterministic 15-minute scheduler bound;
 - about 250,000 new users per day;
 - 2,000 primary SEND/s;
 - three independent workers on the load node;
@@ -718,6 +720,23 @@ Every login performs a full conversation synchronization from zero. This
 “no retained state” rule applies to simulated client conversation cursors; it
 does not remove the GitHub and provider receipts required to recover and clean
 up the cloud lifecycle.
+
+The bootstrap rate is not the steady lifecycle rate. It applies only until all
+10,000 sessions are simultaneously traffic-ready, partitions one global budget
+across the three workers, discards unused per-step admission credit rather than
+catching up with a later burst, and never bypasses the real client or product
+sync paths. Every UTC-aligned second gives the workers immutable 9/8/8 shares,
+so subsecond delay across a UTC boundary cannot mix rotating extra positions;
+whole missed buckets are discarded and cannot exceed the aggregate cap. The
+deterministic three-worker churn model reaches readiness in 421 seconds. A
+coordinator-controlled worker remains in bootstrap after reaching
+its local online share. At the global readiness boundary, the initial full
+2,000 SEND/s grant clears the unequal bootstrap attempt ordinals without
+resetting assigned UIDs and atomically moves each worker to the unchanged
+250,000-new-user/day, 80/20 new/returning login model. That first grant remains
+a pre-clock control round and may use the bounded coordinator control-round
+deadline. `run-start.json` is written only after the grant crosses every worker;
+every later measured grant remains capped to the one-second cadence.
 
 ### Readiness and workload clock
 
