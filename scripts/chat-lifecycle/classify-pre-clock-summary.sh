@@ -5,11 +5,22 @@ set -euo pipefail
 summary="$1"
 (( ${#summary} <= 1024 ))
 
-pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+)( observer_code=([a-z_]*))? preflight_code=([a-z_]*) report=unavailable$'
-[[ "$summary" =~ $pattern ]]
+pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+)( worker_runtime_code=([a-z_]*))?( observer_code=([a-z_]*))? preflight_code=([a-z_]*) report=unavailable$'
+if ! [[ "$summary" =~ $pattern ]]; then
+  exit 1
+fi
 coordinator_code="${BASH_REMATCH[3]}"
-observer_field="${BASH_REMATCH[4]:-}"
-observer_code="${BASH_REMATCH[5]:-}"
+runtime_field="${BASH_REMATCH[4]:-}"
+runtime_code="${BASH_REMATCH[5]:-}"
+observer_field="${BASH_REMATCH[6]:-}"
+observer_code="${BASH_REMATCH[7]:-}"
+
+if [[ -n "$runtime_field" ]]; then
+  case "$runtime_code" in
+    ''|retry_queue_saturated|engine_queue_saturated|engine_cpu_saturated|engine_inflight_saturated|session_login_saturated|offered_load_under_delivery|session_scheduler_cpu_saturated|engine_clock_moved_backwards|lifecycle_fence_exhausted|lifecycle_lease_invalidated|lifecycle_replay_saturated) ;;
+    *) exit 1 ;;
+  esac
+fi
 
 if [[ "$coordinator_code" == observer ]]; then
   if [[ -n "$observer_field" ]]; then

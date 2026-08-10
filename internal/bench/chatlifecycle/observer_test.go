@@ -37,6 +37,50 @@ func TestObserverClusterHealthFailsAfterContinuousThirtySeconds(t *testing.T) {
 	}
 }
 
+func TestObserverClusterHealthDoesNotCombineLagFromDifferentSlots(t *testing.T) {
+	cfg := FormalConfig()
+	fixture := newObserverFixture(cfg)
+	resultChannel := make(chan ObserverResult, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { resultChannel <- fixture.observer.Run(ctx, cfg) }()
+	fixture.waitPoll(t)
+
+	for round := 0; round < 7; round++ {
+		laggingSlot := round % 2
+		for _, observed := range fixture.targets {
+			observed.mutate(func(snapshot *target.DebugCluster) {
+				for slotIndex := range snapshot.Slots {
+					for progressIndex := range snapshot.Slots[slotIndex].ReplicaProgress {
+						progress := &snapshot.Slots[slotIndex].ReplicaProgress[progressIndex]
+						progress.MatchIndex = snapshot.Slots[slotIndex].CommitIndex
+						progress.LagEntries = 0
+						progress.State = "StateReplicate"
+					}
+				}
+				if snapshot.NodeID != snapshot.Slots[laggingSlot].LeaderID {
+					return
+				}
+				progress := &snapshot.Slots[laggingSlot].ReplicaProgress[0]
+				progress.MatchIndex--
+				progress.LagEntries++
+			})
+		}
+		fixture.clock.advance(5 * time.Second)
+		fixture.waitPoll(t)
+	}
+
+	select {
+	case result := <-resultChannel:
+		cancel()
+		t.Fatalf("observer combined independent Slot lag windows: %+v", result)
+	default:
+	}
+	cancel()
+	if result := <-resultChannel; result.Outcome != ObserverStopped {
+		t.Fatalf("result = %+v, want stopped", result)
+	}
+}
+
 func TestObserverRoundStartsAllNodesWithOneCadenceContext(t *testing.T) {
 	cfg := LocalConfig()
 	started := make(chan int, len(cfg.Observation.ServiceNodes))

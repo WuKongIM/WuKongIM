@@ -131,9 +131,10 @@ func NewObserver(options ObserverOptions) *Observer {
 }
 
 type observerWindows struct {
-	serviceUnhealthySince *time.Time
-	clusterUnhealthySince *time.Time
-	leaderImbalancedSince *time.Time
+	serviceUnhealthySince    *time.Time
+	clusterInconsistentSince *time.Time
+	hotReplicaLagSince       map[uint32]time.Time
+	leaderImbalancedSince    *time.Time
 }
 
 // Run performs an immediate poll and then polls at the configured cadence.
@@ -152,7 +153,7 @@ func (o *Observer) Run(ctx context.Context, cfg Config) ObserverResult {
 
 	ticker := o.options.Clock.NewTicker(cfg.Observation.Cadence)
 	defer ticker.Stop()
-	windows := observerWindows{}
+	windows := observerWindows{hotReplicaLagSince: make(map[uint32]time.Time, cfg.Workload.Topology.LogicalSlotGroups)}
 	if result, terminal := o.poll(ctx, cfg, targets, &windows); terminal {
 		return result
 	}
@@ -258,14 +259,64 @@ func (o *Observer) poll(
 	if updateContinuousWindow(&windows.serviceUnhealthySince, !serviceHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
 		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeServiceHealth}, true
 	}
-	if updateContinuousWindow(&windows.clusterUnhealthySince, !clusterHealthy, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
-		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeClusterHealth}, true
+	if err != nil {
+		clear(windows.hotReplicaLagSince)
+		if updateContinuousWindow(&windows.clusterInconsistentSince, true, now, cfg.Thresholds.Cluster.UnhealthyFailAfter) {
+			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeClusterHealth}, true
+		}
+	} else {
+		updateContinuousWindow(&windows.clusterInconsistentSince, false, now, cfg.Thresholds.Cluster.UnhealthyFailAfter)
+		if updateHotReplicaLagWindows(
+			windows.hotReplicaLagSince,
+			cluster,
+			o.options.HotSlotGroups,
+			now,
+			cfg.Thresholds.Cluster.UnhealthyFailAfter,
+		) {
+			return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeClusterHealth}, true
+		}
 	}
 
 	if updateContinuousWindow(&windows.leaderImbalancedSince, imbalanced, now, cfg.Thresholds.Cluster.LeaderImbalanceFor) {
 		return ObserverResult{Outcome: ObserverProductFailure, Code: ObserverCodeLeaderImbalance}, true
 	}
 	return ObserverResult{}, false
+}
+
+func updateHotReplicaLagWindows(
+	windows map[uint32]time.Time,
+	observation mergedClusterObservation,
+	declared []uint32,
+	now time.Time,
+	threshold time.Duration,
+) bool {
+	selected := make(map[uint32]struct{}, len(declared))
+	for _, slotID := range declared {
+		selected[slotID] = struct{}{}
+	}
+	for _, slot := range observation.slots {
+		if len(selected) > 0 {
+			if _, ok := selected[slot.slotID]; !ok {
+				continue
+			}
+		}
+		if slot.progressHealthy {
+			delete(windows, slot.slotID)
+			continue
+		}
+		started, exists := windows[slot.slotID]
+		if !exists {
+			windows[slot.slotID] = now
+			if threshold <= 0 {
+				return true
+			}
+			continue
+		}
+		if now.Sub(started) >= threshold {
+			return true
+		}
+	}
+	return false
 }
 
 func observerHotReplicaLagBreaches(observation mergedClusterObservation, declared []uint32) uint64 {

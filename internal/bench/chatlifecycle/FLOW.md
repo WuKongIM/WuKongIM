@@ -895,8 +895,12 @@ Parent cancellation releases the shared round and ticker. The observer requires
 complete stable reports for all 12 logical Slot groups, one leader, three
 desired replicas, three live voters, and leader-only progress. Hot Slot groups
 are an optional bounded, unique declaration; an empty declaration means all 12
-workload groups. Any healthy sample resets the corresponding 30-second service
-or hot-replication failure window. Leader balance compares each node with the
+workload groups. Structurally inconsistent cluster views share one bounded
+30-second failure window. Replica progress owns one bounded failure window per
+logical Slot; a healthy observation resets that Slot's window, so lag moving
+between different Slots cannot be combined into one continuous failure. Any
+healthy service sample likewise resets the 30-second service window. Leader
+balance compares each node with the
 exact rational `slots/nodes` share rather than assuming 4/4/4; a deviation above
 20 percent must remain continuous for ten minutes before product failure. When
 the observer terminates the coordinator, `CoordinatorResult.ObserverCode`
