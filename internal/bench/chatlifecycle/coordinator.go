@@ -92,6 +92,13 @@ type coordinatorTerminationReason struct {
 	disposition coordinatorRoundDisposition
 }
 
+// CoordinatorWorkerFailure retains one deterministic, bounded worker runtime
+// classification without exposing raw worker errors.
+type CoordinatorWorkerFailure struct {
+	WorkerID    uint64
+	RuntimeCode RuntimeFailureCode
+}
+
 // CoordinatorResult contains only bounded orchestration state.
 type CoordinatorResult struct {
 	Outcome CoordinatorOutcome
@@ -104,6 +111,9 @@ type CoordinatorResult struct {
 	Grant     CoordinatorGrant
 	Snapshot  CoordinatorSnapshot
 	Capacity  CapacitySnapshot
+	// WorkerFailure retains the lowest-ID classified worker failure observed by
+	// a failed grant round. An empty RuntimeCode means no classification was available.
+	WorkerFailure CoordinatorWorkerFailure
 	// Continuation is an in-memory, process-local handoff available only after
 	// a passing formal Soak boundary. It is never report or restart state.
 	Continuation *CoordinatorContinuation
@@ -700,9 +710,10 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		return result
 	}
 	result.Grant = grant
-	if grantDisposition := c.deliverGrant(
+	if grantDisposition, workerFailure := c.deliverGrant(
 		observationContext, assignments, grantPlan.request(fence, grant), c.roundTimeout,
 	); grantDisposition != coordinatorRoundSucceeded {
+		result.WorkerFailure = workerFailure
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, grantDisposition)
 		joinFailureObservation()
 		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
@@ -778,9 +789,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		if grantErr != nil {
 			return coordinatorRoundStageFailed
 		}
-		if disposition := c.deliverGrant(
+		if disposition, workerFailure := c.deliverGrant(
 			observationContext, assignments, grantPlan.request(fence, grant), coordinatorGrantCadence,
 		); disposition != coordinatorRoundSucceeded {
+			if workerFailure.RuntimeCode != "" {
+				result.WorkerFailure = workerFailure
+			}
 			if capacityStaircase != nil && grant.RateChanged {
 				_, _ = capacityStaircase.FailRateChange(tickAt)
 				result.Capacity = capacityStaircase.Snapshot()
@@ -1839,9 +1853,9 @@ func (c *Coordinator) deliverGrant(
 	assignments []CoordinatorAssignment,
 	request WorkerGrantRequest,
 	maxRoundTimeout time.Duration,
-) coordinatorRoundDisposition {
+) (coordinatorRoundDisposition, CoordinatorWorkerFailure) {
 	if maxRoundTimeout <= 0 {
-		return coordinatorRoundStageFailed
+		return coordinatorRoundStageFailed, CoordinatorWorkerFailure{}
 	}
 	grantRoundTimeout := min(c.roundTimeout, maxRoundTimeout)
 	roundContext, cancel := context.WithTimeoutCause(parent, grantRoundTimeout, errCoordinatorRoundDeadline)
@@ -1870,14 +1884,21 @@ func (c *Coordinator) deliverGrant(
 	}
 	wait.Wait()
 	var evidence [coordinatorWorkerCount]coordinatorRoundEvidence
+	var workerFailure CoordinatorWorkerFailure
 	for workerID, result := range results {
+		if workerFailure.RuntimeCode == "" {
+			var apiError *WorkerAPIError
+			if errors.As(result.err, &apiError) && validRuntimeFailureCode(apiError.RuntimeCode) {
+				workerFailure = CoordinatorWorkerFailure{WorkerID: uint64(workerID), RuntimeCode: apiError.RuntimeCode}
+			}
+		}
 		expectedReleased, _ := request.Released.worker(uint64(workerID))
 		evidence[workerID] = coordinatorRoundEvidence{err: result.err, valid: result.err == nil &&
 			sameWorkerFence(result.response.WorkerFence, assignments[workerID].WorkerFence) &&
 			result.response.WorkerID == uint64(workerID) && result.response.WorkerCount == coordinatorWorkerCount &&
 			result.response.Sequence == request.Sequence && result.response.Released == expectedReleased}
 	}
-	return resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
+	return resolveCoordinatorRoundDisposition(parent, roundContext, evidence), workerFailure
 }
 
 func (c *Coordinator) statusRound(

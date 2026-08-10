@@ -87,6 +87,11 @@ generator a second time or hide a partially emitted prefix. Cancellation
 before engine admission clears the in-flight request without advancing or
 caching its sequence, so the exact sequence can be transported again. Every
 post-admission success or error remains a stable cached replay boundary.
+Classified runtime failures add only their closed `RuntimeFailureCode` to the
+generic `runtime_failure` response; raw errors never cross the protocol. Exact
+duplicate replay returns the same code. A failed coordinator grant retains the
+lowest worker-ID classified code in its bounded result and unavailable-report
+terminal summary, so finalization does not erase the worker cause.
 If an admitted external grant causes generation-terminal teardown, the Done
 watcher first fences every new control mutation, waits for that one in-flight
 grant to commit its admitted result, and only then publishes the unexpected
@@ -696,6 +701,10 @@ timeout, rejection, or asynchronous transport error; stale outcomes leave it
 unchanged. A successful ACK from any registered attempt completes the logical
 send exactly once, cancels current timeout/future retry work, and moves
 unresolved sibling attempt identities into the verifier's bounded grace index.
+The ordinary loaded-hot first-attempt deadline is the configured hot SENDACK
+p99.9 bound. A deterministic first person-channel create or an all-node-proven
+cold reheat instead uses the configured cold p99.9 bound, so a valid cold
+activation is not retried under the shorter hot threshold. Both remain bounded.
 Timeouts and closed temporary SENDACK reasons schedule the existing
 100 ms, 500 ms, and 2 s deterministic delays; non-retriable SENDACK reasons
 complete immediately. A late successful SENDACK removes a scheduled retry in

@@ -40,10 +40,12 @@ const (
 )
 
 // WorkerAPIError is returned by both the server protocol and typed client.
-// It deliberately carries no raw runtime error strings.
+// RuntimeCode is present only for a classified worker runtime failure; raw
+// runtime error strings never cross the protocol boundary.
 type WorkerAPIError struct {
-	Code   WorkerErrorCode `json:"code"`
-	Status int             `json:"-"`
+	Code        WorkerErrorCode    `json:"code"`
+	RuntimeCode RuntimeFailureCode `json:"runtime_code,omitempty"`
+	Status      int                `json:"-"`
 }
 
 func (e *WorkerAPIError) Error() string {

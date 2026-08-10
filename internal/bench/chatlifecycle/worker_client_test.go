@@ -148,6 +148,30 @@ func TestWorkerClientReturnsStructuredAPIErrorAndHonorsContextCancellation(t *te
 	}
 }
 
+func TestValidWorkerAPIErrorRequiresClosedRuntimeCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value WorkerAPIError
+		want  bool
+	}{
+		{name: "ordinary closed error", value: WorkerAPIError{Code: WorkerErrorInvalidState}, want: true},
+		{name: "legacy generic runtime failure", value: WorkerAPIError{Code: WorkerErrorRuntimeFailure}, want: true},
+		{name: "classified runtime failure", value: WorkerAPIError{Code: WorkerErrorRuntimeFailure, RuntimeCode: RuntimeFailureEngineCPUSaturated}, want: true},
+		{name: "runtime code on non-runtime error", value: WorkerAPIError{Code: WorkerErrorInvalidState, RuntimeCode: RuntimeFailureEngineCPUSaturated}},
+		{name: "unknown runtime code", value: WorkerAPIError{Code: WorkerErrorRuntimeFailure, RuntimeCode: RuntimeFailureCode("unknown")}},
+		{name: "unknown worker error", value: WorkerAPIError{Code: WorkerErrorCode("unknown")}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := validWorkerAPIError(test.value); got != test.want {
+				t.Fatalf("validWorkerAPIError(%+v) = %v, want %v", test.value, got, test.want)
+			}
+		})
+	}
+}
+
 func TestWorkerClientClassifiesTransportCancellationCausally(t *testing.T) {
 	t.Run("ordinary request error survives synchronous late cancel", func(t *testing.T) {
 		ordinaryErr := errors.New("injected ordinary transport error")

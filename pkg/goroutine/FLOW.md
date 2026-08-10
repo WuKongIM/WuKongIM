@@ -40,6 +40,8 @@ Slot archive-trim retry uses one dynamic Slot-module identity; physical Slot
 IDs never become labels.
 Message batch permission helpers use one fixed Message burst task identity;
 UIDs, channels, sessions, and item indexes never become labels.
+Message person-directory batch helpers use a distinct fixed Message burst task
+identity; canonical Channel IDs and batch indexes remain ordinary data.
 Slot-grouped permission metadata reads use one fixed Slot burst task identity;
 physical Slot IDs and permission keys remain ordinary data.
 

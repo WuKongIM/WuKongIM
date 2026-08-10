@@ -20,6 +20,9 @@ const (
 	// sendBatchPermissionWorkers bounds concurrent authoritative metadata reads
 	// without changing the original item order used by hooks and append admission.
 	sendBatchPermissionWorkers = 16
+	// sendBatchPreAppendWorkers bounds independent first-write person-directory
+	// establishment so a gateway batch does not serialize Slot round trips.
+	sendBatchPreAppendWorkers = 16
 
 	sendBatchStagePermission = "permission"
 	sendBatchStagePreAppend  = "pre_append"
@@ -48,6 +51,11 @@ type sendBatchPermissionOutcome struct {
 	channelID string
 	reason    Reason
 	err       error
+}
+
+type sendBatchDirectoryGroup struct {
+	representative int
+	indexes        []int
 }
 
 // Send checks send permissions and delegates one allowed command to the configured channel append submitter.
@@ -141,6 +149,39 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 
 	preAppendStartedAt := time.Now()
 	preAppendResult := sendBatchStageResultOK
+	directoryGroups := make([]sendBatchDirectoryGroup, 0, len(items))
+	directoryGroupByChannel := make(map[string]int, len(items))
+	if a != nil && a.personDirectory != nil {
+		for i := range prepared {
+			if !allowedItems[i] || !sendNeedsPersonDirectory(prepared[i].Command) {
+				continue
+			}
+			channelID := prepared[i].Command.ChannelID
+			groupIndex, ok := directoryGroupByChannel[channelID]
+			if !ok {
+				groupIndex = len(directoryGroups)
+				directoryGroupByChannel[channelID] = groupIndex
+				directoryGroups = append(directoryGroups, sendBatchDirectoryGroup{representative: i})
+			}
+			directoryGroups[groupIndex].indexes = append(directoryGroups[groupIndex].indexes, i)
+		}
+	}
+	directoryErrors := make([]error, len(directoryGroups))
+	runSendBatchWorkers(goruntimeregistry.TaskMessageDirectoryBatch, len(directoryGroups), sendBatchPreAppendWorkers, func(groupIndex int) {
+		group := directoryGroups[groupIndex]
+		item := prepared[group.representative]
+		directoryErrors[groupIndex] = a.ensurePersonDirectory(contexts[group.representative], item.Command)
+	})
+	for groupIndex, group := range directoryGroups {
+		if directoryErrors[groupIndex] == nil {
+			continue
+		}
+		preAppendResult = sendBatchStageResultErr
+		for _, index := range group.indexes {
+			results[index] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: directoryErrors[groupIndex]}
+			allowedItems[index] = false
+		}
+	}
 	allowed := make([]SendBatchItem, 0, len(items))
 	indexes := make([]int, 0, len(items))
 	for i, item := range prepared {
@@ -149,11 +190,6 @@ func (a *App) SendBatch(items []SendBatchItem) []SendBatchItemResult {
 		}
 		ctx := contexts[i]
 		cmd := item.Command
-		if err := a.ensurePersonDirectory(ctx, cmd); err != nil {
-			results[i] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: err}
-			preAppendResult = sendBatchStageResultErr
-			continue
-		}
 		cmd, reason, err := a.beforeSendHook(ctx, cmd)
 		if err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
@@ -233,7 +269,7 @@ func (a *App) resolveSendBatchPermissions(items []SendBatchItem, groups []sendBa
 			outcomes[groupIndex] = batched[i]
 		}
 	}
-	runSendBatchWorkers(len(fallbackGroups), permissionWorkers, func(index int) {
+	runSendBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(fallbackGroups), permissionWorkers, func(index int) {
 		groupIndex := fallbackGroups[index]
 		item := items[groups[groupIndex].representative]
 		ctx := item.Context
@@ -261,7 +297,7 @@ func permissionScopeForBatch(cmd SendCommand) (sendPermissionScope, bool) {
 	}, true
 }
 
-func runSendBatchWorkers(workItems int, maxWorkers int, run func(int)) {
+func runSendBatchWorkers(taskID goruntimeregistry.TaskID, workItems int, maxWorkers int, run func(int)) {
 	workers := min(workItems, maxWorkers)
 	if workers <= 1 {
 		for index := 0; index < workItems; index++ {
@@ -282,7 +318,7 @@ func runSendBatchWorkers(workItems int, maxWorkers int, run func(int)) {
 	var wait sync.WaitGroup
 	wait.Add(workers - 1)
 	for range workers - 1 {
-		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskMessagePermissionBatch, func() {
+		goruntimeregistry.SafeGo(nil, taskID, func() {
 			defer wait.Done()
 			worker()
 		})
@@ -292,10 +328,14 @@ func runSendBatchWorkers(workItems int, maxWorkers int, run func(int)) {
 }
 
 func (a *App) ensurePersonDirectory(ctx context.Context, cmd SendCommand) error {
-	if a == nil || a.personDirectory == nil || cmd.ChannelType != channelTypePerson || cmd.NoPersist || cmd.SyncOnce || cmd.RequestScoped {
+	if a == nil || a.personDirectory == nil || !sendNeedsPersonDirectory(cmd) {
 		return nil
 	}
 	return a.personDirectory.EnsurePersonChannelDirectory(ctx, cmd.ChannelID, int64(cmd.ChannelType))
+}
+
+func sendNeedsPersonDirectory(cmd SendCommand) bool {
+	return cmd.ChannelType == channelTypePerson && !cmd.NoPersist && !cmd.SyncOnce && !cmd.RequestScoped
 }
 
 func (a *App) beforeSendHook(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {

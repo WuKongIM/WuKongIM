@@ -32,8 +32,10 @@ SendBatch(items)
        enforce person receiver denylist and optional receiver allowlist/AllowStranger checks
        enforce agent participant and visitors/customer-service membership checks
        reject denied items with item-aligned Reason values
-  -> for each permission-accepted item in original order:
-       establish the person directory when required
+  -> coalesce permission-accepted persistent person commands by canonical channel ID
+  -> establish each distinct person directory with at most 16 workers
+       map one failed establishment back to every aligned item for that channel
+  -> for each remaining permission-accepted item in original order:
        if SendHook is configured, run it before append admission
        reject hook-denied items with item-aligned Reason values
   -> if Submitter is nil, return ErrRouteNotReady for remaining allowed items
@@ -56,9 +58,10 @@ policy order remains here. Its implementation groups facts by physical Slot so
 one gateway batch uses at most one RPC per represented Slot. There is no
 cross-batch cache or stale window. A configured positive `PermissionCacheTTL`
 keeps the existing read-through cache path and disables this batch path. The
-fixed 16-worker fallback prevents non-group and unsupported modes from
-serializing independent reads while preserving original order for
-person-directory establishment, hooks, append admission, and result alignment.
+fixed 16-worker permission fallback prevents non-group and unsupported modes
+from serializing independent reads. Person-directory establishment has its own
+16-worker bound and coalesces a canonical person channel once per batch; hooks,
+append admission, and final results retain original item order.
 
 `SendBatchObserver` emits one low-cardinality latency observation for each
 `permission`, `pre_append`, and `submitter` stage. It carries only result class,

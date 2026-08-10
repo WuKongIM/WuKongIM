@@ -1660,6 +1660,76 @@ func TestEngineQueueAndCPUSaturationAreHarnessInvalid(t *testing.T) {
 	}
 }
 
+func TestEngineAttemptTimeoutUsesColdBudgetForCreateAndReheat(t *testing.T) {
+	t.Parallel()
+
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		AttemptTimeout: time.Second, ColdAttemptTimeout: 5 * time.Second,
+	})
+	tests := []struct {
+		name   string
+		intent TrafficIntent
+		want   time.Duration
+	}{
+		{name: "ordinary hot send", intent: TrafficIntent{Domain: LogicalDomainPrimary}, want: time.Second},
+		{name: "first person create", intent: TrafficIntent{Domain: LogicalDomainPrimary, MetaCreateCandidate: true}, want: 5 * time.Second},
+		{name: "proven cold reheat", intent: TrafficIntent{Domain: LogicalDomainRevisit}, want: 5 * time.Second},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := fixture.engine.attemptTimeoutFor(test.intent); got != test.want {
+				t.Fatalf("attempt timeout = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestEngineColdCreateDoesNotRetryAtHotDeadline(t *testing.T) {
+	t.Parallel()
+
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		AttemptTimeout: time.Second, ColdAttemptTimeout: 5 * time.Second,
+	})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	uid := fixture.identity.UID(8)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 8, LoginOrdinal: 8}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "cold-create-timeout", 47, TrafficPerson)
+	intent.MetaCreateCandidate = true
+	now := fixture.clock.Now()
+	if err := fixture.engine.SubmitGranted(intent, now); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("initial Advance: %v", err)
+	}
+	if got := fixture.factory.sentCount(); got != 1 {
+		t.Fatalf("initial attempts = %d, want 1", got)
+	}
+
+	hotDeadline := now.Add(time.Second)
+	fixture.clock.Set(hotDeadline)
+	if _, err := fixture.engine.Advance(hotDeadline); err != nil {
+		t.Fatalf("hot-deadline Advance: %v", err)
+	}
+	if snapshot, _ := fixture.engine.Snapshot(); snapshot.RetryQueueDepth != 0 || snapshot.RetryAttempts != 0 {
+		t.Fatalf("cold create retried at hot deadline: %+v", snapshot)
+	}
+
+	coldDeadline := now.Add(5 * time.Second)
+	fixture.clock.Set(coldDeadline)
+	if _, err := fixture.engine.Advance(coldDeadline); err != nil {
+		t.Fatalf("cold-deadline Advance: %v", err)
+	}
+	if snapshot, _ := fixture.engine.Snapshot(); snapshot.RetryQueueDepth != 1 || snapshot.RetryAttempts != 0 {
+		t.Fatalf("cold timeout did not schedule its bounded retry: %+v", snapshot)
+	}
+}
+
 func TestEngineRepeatedStartStopReturnsToBaselineWithoutRetainedIdentity(t *testing.T) {
 	t.Parallel()
 	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 1})
@@ -5067,6 +5137,7 @@ type engineTestLimits struct {
 	InflightCapacity          int
 	MaxWorkPerAdvance         int
 	AttemptTimeout            time.Duration
+	ColdAttemptTimeout        time.Duration
 	ActivityEligibilityWindow time.Duration
 	OnlineUsers               int
 	NewUsersPerDay            int
@@ -5176,6 +5247,10 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 	if attemptTimeout == 0 {
 		attemptTimeout = time.Second
 	}
+	coldAttemptTimeout := limits.ColdAttemptTimeout
+	if coldAttemptTimeout == 0 {
+		coldAttemptTimeout = attemptTimeout
+	}
 	activityEligibilityWindow := limits.ActivityEligibilityWindow
 	if activityEligibilityWindow == 0 {
 		activityEligibilityWindow = 5 * time.Minute
@@ -5194,6 +5269,7 @@ func newEngineTestFixture(t testing.TB, limits engineTestLimits) engineTestFixtu
 		WorkerID: limits.WorkerID, WorkerCount: workerCount,
 		CommandCapacity: commandCapacity, WorkCapacity: workCapacity, RetryCapacity: 64,
 		InflightCapacity: inflightCapacity, MaxWorkPerAdvance: maxWork, AttemptTimeout: attemptTimeout,
+		ColdAttemptTimeout:        coldAttemptTimeout,
 		ActivityEligibilityWindow: activityEligibilityWindow,
 	})
 	if err != nil {

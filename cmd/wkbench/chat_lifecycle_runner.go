@@ -264,8 +264,8 @@ func chatLifecycleCoordinatorSummary(
 	report string,
 ) string {
 	return fmt.Sprintf(
-		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s observer_code=%s preflight_code=%s report=%s\n",
-		verdict.Outcome, verdict.Cause, result.Code, result.ObserverCode, result.Preflight.Code, report,
+		"chat-lifecycle outcome=%s cause=%s coordinator_code=%s worker_runtime_code=%s observer_code=%s preflight_code=%s report=%s\n",
+		verdict.Outcome, verdict.Cause, result.Code, result.WorkerFailure.RuntimeCode, result.ObserverCode, result.Preflight.Code, report,
 	)
 }
 

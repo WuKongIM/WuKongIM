@@ -69,6 +69,20 @@ type RuntimeError struct {
 	code RuntimeFailureCode
 }
 
+func validRuntimeFailureCode(code RuntimeFailureCode) bool {
+	switch code {
+	case RuntimeFailureRetryQueueSaturated, RuntimeFailureEngineQueueSaturated,
+		RuntimeFailureEngineCPUSaturated, RuntimeFailureInflightSaturated,
+		RuntimeFailureLoginSaturated, RuntimeFailureUnderDelivery,
+		RuntimeFailureSchedulerCPUSaturated, RuntimeFailureClockMovedBackwards,
+		RuntimeFailureLifecycleFenceExhausted, RuntimeFailureLifecycleLeaseInvalidated,
+		RuntimeFailureLifecycleReplaySaturated:
+		return true
+	default:
+		return false
+	}
+}
+
 func (e *RuntimeError) Error() string {
 	if e == nil {
 		return "chat lifecycle runtime failed"

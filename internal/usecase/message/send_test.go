@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -410,6 +411,81 @@ func TestSendEnsuresPersistentPersonDirectoryBeforeSubmit(t *testing.T) {
 	}
 	if len(ensurer.channelIDs) != 1 {
 		t.Fatalf("ensurer calls = %+v, want persistent ordinary only", ensurer.channelIDs)
+	}
+}
+
+func TestSendBatchEnsuresDistinctPersonDirectoriesConcurrently(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	ensurer := &blockingPersonDirectoryEnsurer{
+		started: make(chan string, 3), release: release, calls: make(map[string]int),
+	}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{
+		{Result: SendResult{Reason: ReasonSuccess}},
+		{Result: SendResult{Reason: ReasonSuccess}},
+		{Result: SendResult{Reason: ReasonSuccess}},
+	}}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u2", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u3", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+	}
+
+	done := make(chan []SendBatchItemResult, 1)
+	go func() { done <- app.SendBatch(items) }()
+	started := make(map[string]struct{}, 2)
+	for len(started) < 2 {
+		select {
+		case channelID := <-ensurer.started:
+			started[channelID] = struct{}{}
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("distinct directory establishment remained serial")
+		}
+	}
+	close(release)
+	results := <-done
+
+	if len(results) != len(items) {
+		t.Fatalf("SendBatch() len = %d, want %d", len(results), len(items))
+	}
+	if ensurer.maxActive.Load() < 2 {
+		t.Fatalf("maximum concurrent directory calls = %d, want at least 2", ensurer.maxActive.Load())
+	}
+	if calls := ensurer.callCounts(); !reflect.DeepEqual(calls, map[string]int{"u1@u2": 1, "u3@u4": 1}) {
+		t.Fatalf("directory calls = %#v, want one per distinct channel", calls)
+	}
+}
+
+func TestSendBatchPersonDirectoryFailureRemainsItemAligned(t *testing.T) {
+	t.Parallel()
+
+	directoryErr := errors.New("directory unavailable")
+	ensurer := &recordingPersonDirectoryEnsurer{errs: map[string]error{"u3@u4": directoryErr}}
+	submitter := &recordingSubmitter{batchResults: []SendBatchItemResult{{
+		Result: SendResult{MessageID: 41, Reason: ReasonSuccess},
+	}}}
+	app := New(Options{Submitter: submitter, PersonDirectory: ensurer})
+	items := []SendBatchItem{
+		{Command: SendCommand{FromUID: "u1", ChannelID: "u1@u2", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u3", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+		{Command: SendCommand{FromUID: "u4", ChannelID: "u3@u4", ChannelType: channelTypePerson}},
+	}
+
+	results := app.SendBatch(items)
+
+	if len(results) != len(items) || results[0].Result.MessageID != 41 {
+		t.Fatalf("SendBatch() = %#v, want first delegated success", results)
+	}
+	for _, index := range []int{1, 2} {
+		if !errors.Is(results[index].Err, directoryErr) || results[index].Result.Reason != ReasonSystemError {
+			t.Fatalf("result %d = %#v, want aligned directory error", index, results[index])
+		}
+	}
+	if len(submitter.batchItems) != 1 || len(submitter.batchItems[0]) != 1 || submitter.batchItems[0][0].Command.ChannelID != "u1@u2" {
+		t.Fatalf("delegated batch = %#v, want only ready channel", submitter.batchItems)
 	}
 }
 
@@ -952,8 +1028,19 @@ type recordingSubmitter struct {
 }
 
 type recordingPersonDirectoryEnsurer struct {
+	mu         sync.Mutex
 	channelIDs []string
 	err        error
+	errs       map[string]error
+}
+
+type blockingPersonDirectoryEnsurer struct {
+	mu        sync.Mutex
+	started   chan string
+	release   <-chan struct{}
+	calls     map[string]int
+	active    atomic.Int64
+	maxActive atomic.Int64
 }
 
 type recordingSendBatchStageObserver struct {
@@ -973,8 +1060,44 @@ func (o *recordingSendBatchStageObserver) stages() []string {
 }
 
 func (e *recordingPersonDirectoryEnsurer) EnsurePersonChannelDirectory(_ context.Context, channelID string, _ int64) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.channelIDs = append(e.channelIDs, channelID)
+	if err := e.errs[channelID]; err != nil {
+		return err
+	}
 	return e.err
+}
+
+func (e *blockingPersonDirectoryEnsurer) EnsurePersonChannelDirectory(ctx context.Context, channelID string, _ int64) error {
+	e.mu.Lock()
+	e.calls[channelID]++
+	e.mu.Unlock()
+	active := e.active.Add(1)
+	defer e.active.Add(-1)
+	for {
+		peak := e.maxActive.Load()
+		if active <= peak || e.maxActive.CompareAndSwap(peak, active) {
+			break
+		}
+	}
+	e.started <- channelID
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-e.release:
+		return nil
+	}
+}
+
+func (e *blockingPersonDirectoryEnsurer) callCounts() map[string]int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	result := make(map[string]int, len(e.calls))
+	for channelID, count := range e.calls {
+		result[channelID] = count
+	}
+	return result
 }
 
 func (s *recordingSubmitter) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {

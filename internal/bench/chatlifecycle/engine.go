@@ -61,7 +61,11 @@ type EngineConfig struct {
 	RetryCapacity     int
 	InflightCapacity  int
 	MaxWorkPerAdvance int
-	AttemptTimeout    time.Duration
+	// AttemptTimeout is the hot SENDACK retry deadline.
+	AttemptTimeout time.Duration
+	// ColdAttemptTimeout is the retry deadline for the deterministic first
+	// person-channel create and an all-node-proven cold reheat.
+	ColdAttemptTimeout time.Duration
 	// ActivityEligibilityWindow bounds how long a due mandatory initial or
 	// revisit SEND may wait for an eligible online route.
 	ActivityEligibilityWindow time.Duration
@@ -660,12 +664,15 @@ type Engine struct {
 	workers      uint64
 	onlineTarget int
 
-	commandCapacity           int
-	workCapacity              int
-	retryCapacity             int
-	inflightCapacity          int
-	maxWork                   int
-	attemptTimeout            time.Duration
+	commandCapacity  int
+	workCapacity     int
+	retryCapacity    int
+	inflightCapacity int
+	maxWork          int
+	attemptTimeout   time.Duration
+	// coldAttemptTimeout prevents valid cold activation from entering the hot
+	// retry path before the configured cold p99.9 observation bound.
+	coldAttemptTimeout        time.Duration
 	activityEligibilityWindow time.Duration
 	// bootstrapActivityRefresh is consumed by the first owner-applied traffic
 	// operation so pre-clock activity cannot spend its eligibility window waiting.
@@ -752,7 +759,8 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		config.Graph.identity == nil || config.Traffic.identity == nil || config.Generator == nil ||
 		config.Retry.identity == nil || config.Verifier == nil || config.Evidence == nil ||
 		config.CommandCapacity <= 0 || config.WorkCapacity <= 0 || config.RetryCapacity <= 0 ||
-		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 || config.ActivityEligibilityWindow <= 0 ||
+		config.InflightCapacity <= 0 || config.MaxWorkPerAdvance <= 0 || config.AttemptTimeout <= 0 ||
+		config.ColdAttemptTimeout < config.AttemptTimeout || config.ActivityEligibilityWindow <= 0 ||
 		config.CommandCapacity > maxVerifierCapacity || config.WorkCapacity > maxVerifierCapacity ||
 		config.RetryCapacity > maxVerifierCapacity || config.InflightCapacity > maxVerifierCapacity ||
 		config.WorkerCount == 0 || config.WorkerCount != config.Schedule.identity.Workers() ||
@@ -783,6 +791,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		commandCapacity: config.CommandCapacity, workCapacity: config.WorkCapacity,
 		retryCapacity: config.RetryCapacity, inflightCapacity: config.InflightCapacity,
 		maxWork: config.MaxWorkPerAdvance, attemptTimeout: config.AttemptTimeout,
+		coldAttemptTimeout:        config.ColdAttemptTimeout,
 		activityEligibilityWindow: config.ActivityEligibilityWindow,
 		lifecycleCandidateSlots:   lifecycleCandidateSlots,
 		scheduler: sessionScheduler{
@@ -2857,7 +2866,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 		}
 		return errors.Join(e.verifier.ResolveAttemptError(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now))
 	}
-	deadline := now.Add(e.attemptTimeout)
+	deadline := now.Add(e.attemptTimeoutFor(intent))
 	if deadline.Before(now) {
 		return e.abortHarness(inflight, errEngineConfig)
 	}
@@ -2867,6 +2876,15 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	inflight.timeout = timeout
 	return nil
+}
+
+// attemptTimeoutFor selects the bounded first-attempt deadline from the
+// intent's already-proven hot or cold lifecycle classification.
+func (e *Engine) attemptTimeoutFor(intent TrafficIntent) time.Duration {
+	if intent.MetaCreateCandidate || intent.Domain == LogicalDomainRevisit {
+		return e.coldAttemptTimeout
+	}
+	return e.attemptTimeout
 }
 
 func (e *Engine) cancelAttempt(inflight *engineInflight) error {

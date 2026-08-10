@@ -1278,6 +1278,7 @@ func TestCoordinatorGrantFailurePreservesConcurrentObserverProductFailure(t *tes
 		worker := &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}}
 		if workerID == 1 {
 			worker.grantFailSequence = 2
+			worker.grantRuntimeCode = RuntimeFailureEngineCPUSaturated
 		}
 		workers[workerID] = worker
 	}
@@ -1308,6 +1309,9 @@ func TestCoordinatorGrantFailurePreservesConcurrentObserverProductFailure(t *tes
 	result := <-resultChannel
 	if result.Outcome != CoordinatorProductFailure || result.Code != CoordinatorCodeObserver {
 		t.Fatalf("Run() race result = %+v, want observer product failure to outrank grant harness failure", result)
+	}
+	if result.WorkerFailure != (CoordinatorWorkerFailure{WorkerID: 1, RuntimeCode: RuntimeFailureEngineCPUSaturated}) {
+		t.Fatalf("Run() worker failure = %+v, want bounded worker 1 engine CPU evidence", result.WorkerFailure)
 	}
 }
 
@@ -3407,6 +3411,7 @@ type recordingCoordinatorWorker struct {
 	stopSawCanceledContext       bool
 	grantResponseLossOnce        bool
 	grantFailSequence            uint64
+	grantRuntimeCode             RuntimeFailureCode
 	grantCalled                  chan<- uint64
 	grantBarrier                 <-chan struct{}
 	grantRequests                []WorkerGrantRequest
@@ -3458,7 +3463,9 @@ func (w *recordingCoordinatorWorker) Grant(_ context.Context, request WorkerGran
 		w.grantCalled <- request.Sequence
 	}
 	if request.Sequence == w.grantFailSequence {
-		return WorkerGrantResponse{}, &WorkerAPIError{Code: WorkerErrorRuntimeFailure, Status: http.StatusUnprocessableEntity}
+		return WorkerGrantResponse{}, &WorkerAPIError{
+			Code: WorkerErrorRuntimeFailure, RuntimeCode: w.grantRuntimeCode, Status: http.StatusUnprocessableEntity,
+		}
 	}
 	if w.rateErr != nil {
 		return WorkerGrantResponse{}, w.rateErr

@@ -101,6 +101,9 @@ type WorkerServer struct {
 	lastGrantRequest WorkerGrantRequest
 	lastGrantResult  WorkerGrantResponse
 	lastGrantFailed  bool
+	// lastGrantRuntimeCode retains the bounded classified failure for exact
+	// duplicate replay without retaining the underlying error.
+	lastGrantRuntimeCode RuntimeFailureCode
 
 	unexpectedExit chan struct{}
 }
@@ -354,6 +357,7 @@ func (s *WorkerServer) handleAssign(response http.ResponseWriter, request *http.
 	s.lastGrantRequest = WorkerGrantRequest{}
 	s.lastGrantResult = WorkerGrantResponse{}
 	s.lastGrantFailed = false
+	s.lastGrantRuntimeCode = ""
 	status := s.statusLocked()
 	s.mu.Unlock()
 	writeWorkerJSON(response, http.StatusOK, status)
@@ -577,10 +581,10 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 				writeWorkerError(response, http.StatusConflict, WorkerErrorGrantConflict)
 				return
 			}
-			result, failed := s.lastGrantResult, s.lastGrantFailed
+			result, failed, runtimeCode := s.lastGrantResult, s.lastGrantFailed, s.lastGrantRuntimeCode
 			s.mu.Unlock()
 			if failed {
-				writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+				writeWorkerRuntimeError(response, http.StatusUnprocessableEntity, runtimeCode)
 			} else {
 				writeWorkerJSON(response, http.StatusOK, result)
 			}
@@ -645,7 +649,7 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			if request.Context().Err() != nil {
 				return
 			}
-			writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			writeWorkerRuntimeError(response, http.StatusUnprocessableEntity, workerRuntimeFailureCode(grantErr))
 			return
 		}
 		if runtimeFailureTerminatesGeneration(grantErr) {
@@ -654,6 +658,8 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 		s.lastGrantRequest = grant
 		s.lastGrantResult = result
 		s.lastGrantFailed = grantErr != nil
+		s.lastGrantRuntimeCode = workerRuntimeFailureCode(grantErr)
+		runtimeCode := s.lastGrantRuntimeCode
 		s.grantInFlight = nil
 		close(task.done)
 		s.mu.Unlock()
@@ -661,7 +667,7 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 			if request.Context().Err() != nil {
 				return
 			}
-			writeWorkerError(response, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+			writeWorkerRuntimeError(response, http.StatusUnprocessableEntity, runtimeCode)
 			return
 		}
 		writeWorkerJSON(response, http.StatusOK, result)
@@ -1006,6 +1012,18 @@ func writeWorkerError(response http.ResponseWriter, status int, code WorkerError
 	writeWorkerJSON(response, status, WorkerAPIError{Code: code})
 }
 
+func writeWorkerRuntimeError(response http.ResponseWriter, status int, runtimeCode RuntimeFailureCode) {
+	writeWorkerJSON(response, status, WorkerAPIError{Code: WorkerErrorRuntimeFailure, RuntimeCode: runtimeCode})
+}
+
+func workerRuntimeFailureCode(err error) RuntimeFailureCode {
+	var runtimeErr *RuntimeError
+	if errors.As(err, &runtimeErr) && validRuntimeFailureCode(runtimeErr.Code()) {
+		return runtimeErr.Code()
+	}
+	return ""
+}
+
 func writeWorkerJSON(response http.ResponseWriter, status int, value any) {
 	encoded, err := json.Marshal(value)
 	if err != nil || int64(len(encoded))+1 > workerMaxResponseBytes {
@@ -1140,6 +1158,7 @@ func (f engineWorkerGenerationFactory) New(assignment WorkerAssignment) (WorkerG
 		CommandCapacity: limits.command, WorkCapacity: limits.work, RetryCapacity: limits.retry,
 		InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
 		AttemptTimeout:            config.Thresholds.Latency.HotSendACK.P999,
+		ColdAttemptTimeout:        config.Thresholds.Latency.Cold.P999,
 		ActivityEligibilityWindow: config.Thresholds.Latency.SustainedBreachWindow,
 	})
 	if err != nil {

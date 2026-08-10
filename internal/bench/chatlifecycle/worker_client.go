@@ -178,7 +178,7 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		var apiError WorkerAPIError
-		if !decodeStrictWorkerResponse(encoded, &apiError) || !validWorkerErrorCode(apiError.Code) {
+		if !decodeStrictWorkerResponse(encoded, &apiError) || !validWorkerAPIError(apiError) {
 			return ErrWorkerResponse
 		}
 		apiError.Status = response.StatusCode
@@ -188,6 +188,16 @@ func (c *WorkerClient) do(ctx context.Context, method, path string, requestBody,
 		return ErrWorkerResponse
 	}
 	return nil
+}
+
+func validWorkerAPIError(apiError WorkerAPIError) bool {
+	if !validWorkerErrorCode(apiError.Code) {
+		return false
+	}
+	if apiError.RuntimeCode == "" {
+		return true
+	}
+	return apiError.Code == WorkerErrorRuntimeFailure && validRuntimeFailureCode(apiError.RuntimeCode)
 }
 
 func causalWorkerContextError(ctx context.Context, err error) error {

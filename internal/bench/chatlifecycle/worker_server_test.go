@@ -384,7 +384,7 @@ func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T)
 	t.Parallel()
 
 	generation := newFakeWorkerGeneration()
-	generation.grantErr = errors.New("injected accepted grant failure")
+	generation.grantErr = &RuntimeError{code: RuntimeFailureEngineCPUSaturated}
 	server, fence := startWorkerServerForCoordinatorGeneration(t, generation, "grant-failure")
 	grant := WorkerGrantRequest{
 		WorkerFence: fence, Sequence: 1, RatePerSecond: 120, MaxBurst: 240,
@@ -392,7 +392,15 @@ func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T)
 		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
 	}
 	for attempt := 0; attempt < 2; attempt++ {
-		assertWorkerError(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant, http.StatusUnprocessableEntity, WorkerErrorRuntimeFailure)
+		response := workerRequest(t, server, http.MethodPost, "/v1/chat-lifecycle/grant", grant)
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("attempt %d status = %d, want %d", attempt, response.Code, http.StatusUnprocessableEntity)
+		}
+		var apiError WorkerAPIError
+		if err := json.Unmarshal(response.Body.Bytes(), &apiError); err != nil ||
+			apiError.Code != WorkerErrorRuntimeFailure || apiError.RuntimeCode != RuntimeFailureEngineCPUSaturated {
+			t.Fatalf("attempt %d API error = %+v, %v", attempt, apiError, err)
+		}
 	}
 	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
 		t.Fatalf("failed grant applications = %v, want one accepted attempt", got)

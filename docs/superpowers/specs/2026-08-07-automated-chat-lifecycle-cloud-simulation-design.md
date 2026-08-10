@@ -738,6 +738,20 @@ a pre-clock control round and may use the bounded coordinator control-round
 deadline. `run-start.json` is written only after the grant crosses every worker;
 every later measured grant remains capped to the one-second cadence.
 
+The worker's ordinary loaded-hot first-attempt retry deadline is the hot
+p99.9 threshold. A deterministic first person-channel create and an
+all-node-proven cold reheat instead use the cold p99.9 threshold. This keeps
+valid cold activation inside its declared five-second observation window
+without relaxing the one-second grant cadence. On the server path, one gateway
+batch coalesces each canonical person directory once and establishes distinct
+directories with a fixed maximum of 16 workers before ordered hooks and append
+admission.
+
+A failed worker grant response may expose only the closed runtime failure code,
+never a raw error string. Exact duplicate replay preserves that code, and the
+coordinator retains the lowest worker-ID classified code in its bounded result
+and unavailable-report terminal output.
+
 ### Readiness and workload clock
 
 No rehearsal, formal, or capacity duration starts when a process merely becomes
