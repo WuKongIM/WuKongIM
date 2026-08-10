@@ -373,6 +373,10 @@ jobs:
           if [[ "${{ steps.existing.outputs.ready }}" == true ]]; then
             final_dir="$RUNNER_TEMP/previous-final"
           fi
+          if [[ ! -f "$final_dir/rehearsal-result.json" ]]; then
+            echo 'ready=false' >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           outcome="$(jq -er .outcome "$final_dir/rehearsal-result.json")"
           if [[ "$outcome" != rehearsal_pass ]]; then
             echo 'ready=false' >>"$GITHUB_OUTPUT"

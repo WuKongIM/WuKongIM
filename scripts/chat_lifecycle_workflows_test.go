@@ -858,6 +858,18 @@ func TestChatLifecycleFormalTransitionRunsOnFreshLeaseAndReportsBeforeRelease(t 
 	}
 }
 
+func TestRehearsalFinalizerSkipsFormalTransitionWhenFailureEvidenceHasNoRehearsalResult(t *testing.T) {
+	workflow := string(readWorkflow(t, "chat-lifecycle-rehearsal-finalize.yml"))
+	guard := strings.Index(workflow, `if [[ ! -f "$final_dir/rehearsal-result.json" ]]`)
+	outcome := strings.Index(workflow, `outcome="$(jq -er .outcome "$final_dir/rehearsal-result.json")"`)
+	if guard < 0 || outcome <= guard {
+		t.Fatal("rehearsal finalizer does not guard missing failure-only rehearsal-result before reading it")
+	}
+	if !strings.Contains(workflow[guard:outcome], `echo 'ready=false' >>"$GITHUB_OUTPUT"`) {
+		t.Fatal("missing rehearsal-result guard does not explicitly suppress the formal transition")
+	}
+}
+
 func TestChatLifecycleWorkflowClosesBudgetHandoffAndDiscoverySafetyBoundaries(t *testing.T) {
 	start := string(readWorkflow(t, "chat-lifecycle-rehearsal.yml"))
 	for _, required := range []string{
