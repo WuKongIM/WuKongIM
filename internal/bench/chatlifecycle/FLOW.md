@@ -618,7 +618,10 @@ work is still live.
 min-heap holds relationship SEND eligibility, a runtime min-heap holds granted
 SEND, attempt-timeout, and lifecycle deadlines, the indexed retry heap holds at
 most one approved retry per logical message, and the inflight map is explicitly
-capacity-bounded. A separate bounded completion queue lets ordered session
+capacity-bounded. The shared future-work capacity includes every bootstrap
+forward relationship's maximum initial burst plus one possible lifecycle timer,
+because no activity can drain before the first global traffic barrier. A
+separate bounded completion queue lets ordered session
 drains report SENDACKs under backpressure without competing with control
 commands; joined session expiry never waits inside the owner, long clock
 advances consume completions between scheduled work, and shutdown joins drains
@@ -669,6 +672,10 @@ deadline. A temporarily ineligible due activity is reinserted once just beyond
 the current advance boundary, with route scans bounded independently of queue
 size. If that deferral would reach or cross the eligibility deadline, the
 activity closes immediately instead of inserting an unroutable boundary item.
+Bootstrap activity cannot be offered before the measured traffic barrier, so
+that first owner-applied grant raises every still-pending activity deadline to
+at least one full eligibility window after the barrier without changing due
+order. This refresh happens once and does not relax measured-phase deadlines.
 At the deadline it is physically removed and records one closed
 `offered_load_under_delivery` harness event before any active channel can fill
 that grant. Joined shutdown records one aggregate event for pending mandatory

@@ -3426,6 +3426,74 @@ func TestEngineWorkerSchedulersPartitionFormalOnlineTargetAndUIDs(t *testing.T) 
 	}
 }
 
+func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing.T) {
+	const workerCount = uint64(3)
+	config := FormalConfig()
+	for workerID := uint64(0); workerID < workerCount; workerID++ {
+		workerID := workerID
+		t.Run(fmt.Sprintf("worker-%d", workerID), func(t *testing.T) {
+			limits, err := workerEngineLimitsFor(WorkerAssignment{
+				WorkerID: workerID, WorkerCount: workerCount, Config: config,
+			})
+			if err != nil {
+				t.Fatalf("workerEngineLimitsFor: %v", err)
+			}
+			fixture := newEngineTestFixture(t, engineTestLimits{
+				Formal: true, WorkerID: workerID, WorkerCount: workerCount,
+				CommandCapacity: limits.command, WorkCapacity: limits.work,
+				InflightCapacity: limits.inflight, MaxWorkPerAdvance: limits.maxWork,
+				StartingCapacity: limits.starting,
+			})
+			fixture.factory.autoAck = true
+			if err := fixture.engine.Start(context.Background()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+			defer fixture.engine.Stop()
+
+			now := fixture.clock.Now().Add(time.Second)
+			fixture.clock.Set(now)
+			bootstrapErrors := 0
+			for stepIndex := 0; stepIndex < 15*60 && fixture.pool.Counts().Online < fixture.engine.onlineTarget; stepIndex++ {
+				if stepIndex > 0 {
+					now = now.Add(time.Second)
+					fixture.clock.Set(now)
+				}
+				if _, stepErr := fixture.engine.Step(context.Background(), now, nil); stepErr != nil {
+					if !workerStepErrorIsEvidence(stepErr) {
+						t.Fatalf("bootstrap Step(%d): %v", stepIndex, stepErr)
+					}
+					bootstrapErrors++
+				}
+				fixture.engine.loginOps.Wait()
+				if _, settleErr := fixture.engine.Step(context.Background(), now, nil); settleErr != nil {
+					if !workerStepErrorIsEvidence(settleErr) {
+						t.Fatalf("settle bootstrap Step(%d): %v", stepIndex, settleErr)
+					}
+					bootstrapErrors++
+				}
+			}
+			if online := fixture.pool.Counts().Online; online != fixture.engine.onlineTarget {
+				t.Fatalf("bootstrap online = %d, want %d", online, fixture.engine.onlineTarget)
+			}
+			if !fixture.engine.scheduler.bootstrapping {
+				t.Fatal("formal worker left bootstrap before the coordinator barrier")
+			}
+			if bootstrapErrors != 0 {
+				t.Fatalf("formal bootstrap recorded %d harness errors", bootstrapErrors)
+			}
+			release, err := workerOnlineTarget(config.Workload.SendRatePerSecond, workerID, workerCount)
+			if err != nil {
+				t.Fatalf("workerOnlineTarget: %v", err)
+			}
+			result, err := fixture.engine.ApplyGrant(context.Background(), now, uint64(release))
+			if err != nil || !result.Admitted || result.Snapshot.Released != uint64(release) {
+				snapshot, snapshotErr := fixture.engine.Snapshot()
+				t.Fatalf("first formal ApplyGrant = %+v, %v; bootstrap_errors=%d limits=%+v snapshot=%+v error=%v", result, err, bootstrapErrors, limits, snapshot, snapshotErr)
+			}
+		})
+	}
+}
+
 func TestEngineWorkerLocalRelationshipActivationPreservesAggregateHistoryAndInitialBursts(t *testing.T) {
 	const (
 		workerCount    = 3

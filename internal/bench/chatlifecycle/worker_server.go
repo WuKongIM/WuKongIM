@@ -1197,10 +1197,14 @@ func workerEngineLimitsFor(assignment WorkerAssignment) (workerEngineLimits, err
 		deadlineSeconds++
 	}
 	pending := boundedWorkerCapacity(cappedWorkerSum(cappedWorkerProduct(uint64(localRate), deadlineSeconds), uint64(localBurst), 1024), 4096)
-	// Every online user may retain timers for both incoming and outgoing
-	// relationships. Sizing only the forward-owned edges undercounts the
-	// steady-state queue and makes a valid formal assignment self-saturate.
-	work := boundedWorkerCapacity(cappedWorkerSum(cappedWorkerProduct(uint64(online), uint64(MaxUserRelationships)), cappedWorkerProduct(2, uint64(localBurst))), 4096)
+	// Bootstrap creates only forward-owned relationships, but every relationship
+	// may retain its complete initial burst plus one lifecycle timer before the
+	// first global traffic barrier can drain any activity.
+	bootstrapRelationshipWork := cappedWorkerProduct(
+		cappedWorkerProduct(uint64(online), uint64(MaxForwardRelationships)),
+		cappedWorkerSum(uint64(config.Workload.Relationship.InitialMessages.Max), 1),
+	)
+	work := boundedWorkerCapacity(cappedWorkerSum(bootstrapRelationshipWork, cappedWorkerProduct(2, uint64(localBurst))), 4096)
 	sequenceChannelsPerOnline := cappedWorkerSum(uint64(MaxUserRelationships), uint64(MaxFixedGroupMembershipsPerUser))
 	sequence := boundedWorkerCapacity(cappedWorkerProduct(uint64(online), sequenceChannelsPerOnline), 4096)
 	correlation := boundedWorkerCapacity(cappedWorkerProduct(uint64(config.Workload.RuntimeSampling.Size), 2), 1024)

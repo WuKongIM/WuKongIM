@@ -667,6 +667,9 @@ type Engine struct {
 	maxWork                   int
 	attemptTimeout            time.Duration
 	activityEligibilityWindow time.Duration
+	// bootstrapActivityRefresh is consumed by the first owner-applied traffic
+	// operation so pre-clock activity cannot spend its eligibility window waiting.
+	bootstrapActivityRefresh bool
 
 	lifecycleMu sync.Mutex
 	// stepMu serializes every session-expiry and owner-advance transaction so
@@ -891,6 +894,7 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.harnessInvalid = 0
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
+	e.bootstrapActivityRefresh = false
 	e.metaCreatePersonByHashSlot = MetaCreateHashSlotCounts{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
@@ -1116,6 +1120,13 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 			return
 		}
 		e.now = now
+		if refreshErr := e.refreshBootstrapActivityEligibility(now); refreshErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: refreshErr}
+			return
+		}
 		snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
 			var routeErr error
 			if intent.Kind == TrafficPerson {
@@ -1174,6 +1185,13 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 			return
 		}
 		e.now = now
+		if refreshErr := e.refreshBootstrapActivityEligibility(now); refreshErr != nil {
+			response <- struct {
+				snapshot TrafficTickSnapshot
+				err      error
+			}{err: refreshErr}
+			return
+		}
 		snapshot, tickErr := e.generator.Tick(demand, func(intent TrafficIntent) error {
 			var routeErr error
 			if intent.Kind == TrafficPerson {
@@ -1844,6 +1862,30 @@ func (e *Engine) finishBootstrap(now time.Time) {
 	e.scheduler.globalLoginTokens = 0
 	e.scheduler.replacements = 0
 	e.scheduler.loginOrdinal = 0
+	e.bootstrapActivityRefresh = true
+}
+
+// refreshBootstrapActivityEligibility starts the bounded eligibility wait at
+// the first traffic barrier for activity that could not be offered pre-clock.
+// It runs only on the engine owner and preserves deterministic due ordering.
+func (e *Engine) refreshBootstrapActivityEligibility(now time.Time) error {
+	if !e.bootstrapActivityRefresh {
+		return nil
+	}
+	deadline, err := e.newEligibilityDeadline(now)
+	if err != nil {
+		return err
+	}
+	for _, work := range e.activity {
+		if work == nil || work.kind != engineWorkSend || work.eligibilityDeadline.IsZero() {
+			return errEngineConfig
+		}
+		if deadline.After(work.eligibilityDeadline) {
+			work.eligibilityDeadline = deadline
+		}
+	}
+	e.bootstrapActivityRefresh = false
+	return nil
 }
 
 func (e *Engine) startScheduledLogin(generationCtx context.Context, result engineLoginResult) {

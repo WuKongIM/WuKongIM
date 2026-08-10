@@ -745,11 +745,11 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	}
 }
 
-func TestEngineWorkerGenerationFormalSnapshotReservesEveryPersonRelationship(t *testing.T) {
+func TestEngineWorkerGenerationFormalSnapshotReservesBootstrapRelationshipWork(t *testing.T) {
 	t.Parallel()
 
 	config := FormalConfig()
-	for workerID, wantWorkCapacity := range []int{36_008, 35_996, 35_996} {
+	for workerID, wantWorkCapacity := range []int{152_698, 152_651, 152_651} {
 		generation, err := NewEngineWorkerGenerationFactory().New(WorkerAssignment{
 			WorkerFence: WorkerFence{
 				RunID: config.RunID, AssignmentID: "formal-relationship-capacity", Generation: 1,
