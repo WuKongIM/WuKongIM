@@ -248,6 +248,15 @@ recipient delivery enqueuer is configured, the transient send fails instead of
 reporting a success that cannot be delivered.
 
 The writer builds channel-aligned append batches from prepared pending items.
+Before calling storage, one batch coalesces items with the same canonical
+`(FromUID, ClientMsgNo)` and identical payload bytes. Exactly one owner reaches
+`Appender`; every coalesced waiter receives that owner's aligned success or
+failure result, while only the owner may enter durable post-commit work. This
+closes the overlap where an original SEND and its stable-identity retry arrive
+before either is committed: storage never receives an in-batch duplicate key,
+and no extra durable lookup is added to the ordinary new-message path. Empty
+idempotency fields and same-key items with different payload bytes remain
+distinct and retain storage's existing validation behavior.
 The order-safe default keeps one append batch in flight per channel. A caller
 may configure a larger `AppendInflightBatchesPerChannel` only when its Appender
 preserves same-channel request order before assigning durable sequences;

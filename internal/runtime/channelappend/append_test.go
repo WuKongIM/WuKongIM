@@ -427,6 +427,61 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	}
 }
 
+func TestGroupCoalescesOverlappingIdempotentSendsBeforeAppend(t *testing.T) {
+	appender := &duplicateRejectingAppenderForAppendTest{}
+	persistAfter := &recordingPersistAfterEnqueuerForCommitTest{}
+	group := newStartedTestGroup(t, Options{
+		LocalNodeID:           1,
+		MessageID:             newSequenceIDsForPrepare(300),
+		Appender:              appender,
+		PersistAfterEnqueuer:  persistAfter,
+		InboxCoalesceWindow:   20 * time.Millisecond,
+		InboxCoalesceMaxItems: 8,
+	})
+	target := localTargetForAppendTest("room")
+	item := appendSendItemForTest("u1", "room", "payload")
+
+	first, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("first SubmitLocal() error = %v", err)
+	}
+	second, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
+	if err != nil {
+		t.Fatalf("second SubmitLocal() error = %v", err)
+	}
+
+	firstResults := waitFutureForTest(t, first)
+	secondResults := waitFutureForTest(t, second)
+	requireAppendSuccess(t, firstResults, 0, firstResults[0].Result.MessageID, firstResults[0].Result.MessageSeq)
+	requireAppendSuccess(t, secondResults, 0, firstResults[0].Result.MessageID, firstResults[0].Result.MessageSeq)
+	waitCommitBacklogForTest(t, group, target.ChannelID, 0)
+	if got := persistAfter.callCount(); got != 1 {
+		t.Fatalf("PersistAfter calls = %d, want one durable side effect for coalesced retries", got)
+	}
+}
+
+func TestNewIdempotentAppendBatchDoesNotAllocateForLargeUniqueBatch(t *testing.T) {
+	const batchSize = 128
+	items := make([]preparedSend, batchSize)
+	for index := range items {
+		items[index].Command = SendCommand{
+			FromUID:     "u1",
+			ClientMsgNo: fmt.Sprintf("client-%d", index),
+			Payload:     []byte("payload"),
+		}
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		batch := newIdempotentAppendBatch(items)
+		if len(batch.items) != batchSize || batch.ownerByItem != nil {
+			t.Fatalf("batch = %d items with owner map %v, want unchanged unique batch", len(batch.items), batch.ownerByItem != nil)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("newIdempotentAppendBatch allocations = %.1f, want 0", allocs)
+	}
+}
+
 func TestActiveAppendItemsDoesNotAllocateForAllActiveItems(t *testing.T) {
 	items := make([]preparedSend, 16)
 	allocs := testing.AllocsPerRun(100, func() {
@@ -655,6 +710,41 @@ type recordingAppenderForAppendTest struct {
 	itemErrs    []error
 	resultLimit int
 	nextSeq     uint64
+}
+
+type duplicateRejectingAppenderForAppendTest struct {
+	mu      sync.Mutex
+	nextSeq uint64
+}
+
+func (a *duplicateRejectingAppenderForAppendTest) AppendBatch(_ context.Context, req AppendBatchRequest) (AppendBatchResult, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	type idempotencyKey struct {
+		fromUID     string
+		clientMsgNo string
+	}
+	seen := make(map[idempotencyKey]struct{}, len(req.Messages))
+	for _, message := range req.Messages {
+		if message.FromUID == "" || message.ClientMsgNo == "" {
+			continue
+		}
+		key := idempotencyKey{fromUID: message.FromUID, clientMsgNo: message.ClientMsgNo}
+		if _, ok := seen[key]; ok {
+			return AppendBatchResult{}, fmt.Errorf("%w: duplicate idempotency key", ErrAppendFailed)
+		}
+		seen[key] = struct{}{}
+	}
+	items := make([]AppendBatchItemResult, len(req.Messages))
+	for index, message := range req.Messages {
+		a.nextSeq++
+		items[index] = AppendBatchItemResult{
+			MessageID:  message.MessageID,
+			MessageSeq: a.nextSeq,
+			Message:    message,
+		}
+	}
+	return AppendBatchResult{Items: items}, nil
 }
 
 func newRecordingAppenderForAppendTest() *recordingAppenderForAppendTest {

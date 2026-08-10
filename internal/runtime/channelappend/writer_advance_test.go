@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -260,7 +261,9 @@ func TestInboxCoalesceMergesSingleItemSubmissions(t *testing.T) {
 	const submissions = 5
 	futures := make([]*Future, submissions)
 	for i := 0; i < submissions; i++ {
-		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{benchmarkSendItem("coalesce-merge")})
+		item := benchmarkSendItem("coalesce-merge")
+		item.Command.ClientMsgNo = fmt.Sprintf("coalesce-merge-%d", i)
+		future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
 		if err != nil {
 			t.Fatalf("submit %d error = %v", i, err)
 		}
