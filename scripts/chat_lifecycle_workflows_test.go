@@ -560,6 +560,21 @@ func TestChatLifecycleFinalizerPublishesEvidenceBeforeExactZeroInventoryCleanup(
 	}
 }
 
+func TestCleanupAuthenticatorFallsBackToRetainedCompleteEvidenceAfterHandoffDeletion(t *testing.T) {
+	authenticator := readFile(t, filepath.Join(repoRoot(t), "scripts", "chat-lifecycle", "authenticate-cleanup-artifact.sh"))
+	for _, required := range []string{
+		`chat-lifecycle-${WK_CHAT_STAGE}-complete-${request_id}`,
+		`$destination/complete/manifest.json`,
+		`$destination/complete/terminal/receipt.json`,
+		`.result.zero_inventory.selector`,
+		`.receipt.account_id_hash`,
+	} {
+		if !strings.Contains(authenticator, required) {
+			t.Fatalf("cleanup authenticator cannot recover after encrypted handoff deletion; missing %q", required)
+		}
+	}
+}
+
 func TestChatLifecycleRuntimeFailureRetainsOneBoundedDiagnosisWindow(t *testing.T) {
 	for _, contract := range []struct {
 		workflow string
