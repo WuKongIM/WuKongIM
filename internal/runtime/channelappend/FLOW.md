@@ -275,14 +275,18 @@ they cross into durable ownership. The server-allocation proof may skip only
 the durable message-ID lookup. Durable sender/client-message idempotency
 validation remains mandatory.
 
-Batch-level append errors are returned to all active items from that single
-append attempt without retry. When an unexpected append failure races with a
-previous durable commit for the same sender/client/channel key, the writer may
-perform one payload-hash-checked idempotency lookup and complete that item from
-the existing committed result. Recovered idempotency hits do not enqueue
-post-commit side effects because they are not new commits from this append
-attempt. Short append results complete missing items with
-`ErrAppendResultMissing`; per-item append errors map to SENDACK reasons;
+Batch-level append errors normally remain terminal without retry. When an
+unexpected append failure races with a previous durable commit for the same
+sender/client/channel key, the writer performs one payload-hash-checked
+idempotency lookup per item. If none of those lookups recovers a committed
+send, the original batch error remains terminal. If at least one item is
+recovered, the failure is proven to contain a committed retry: recovered items
+complete from their stored results and only active lookup misses enter one
+bounded second append attempt. A failed second attempt may perform one final
+recovery lookup but never triggers a third append. Recovered idempotency hits
+do not enqueue post-commit side effects because they are not new commits from
+either append attempt; successful fresh-item retries do. Short append results
+complete missing items with `ErrAppendResultMissing`; per-item append errors map to SENDACK reasons;
 successful append results complete `SENDACK` futures immediately with
 `ReasonSuccess`, message id, and channel sequence. Newly successful append items also
 enqueue `CommittedEnvelope` values in the same `channelState` as the handoff

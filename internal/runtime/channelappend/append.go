@@ -12,6 +12,7 @@ import (
 const appendMetricPathChannelPlane = "channelplane"
 
 const appendInitialAttempt = 1
+const appendIdempotencyRecoveryAttempt = appendInitialAttempt + 1
 
 const (
 	appendIdempotencyStackItemLimit = 128
@@ -106,7 +107,8 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 	cancel()
 	completion.duration = appendDur
 	if err != nil {
-		unique := appendBatchErrorCompletionsOrRecoveries(runtimeCtx, batch.items, err, ports)
+		unique, retryDur := appendBatchErrorCompletionsOrRecoveriesAndRetry(runtimeCtx, e.target, batch.items, err, ports)
+		completion.duration += retryDur
 		completion.items = append(completion.items, batch.expandCompletions(unique)...)
 		effectResult = appendCompletionsResultClass(completion.items)
 		return completion
@@ -410,6 +412,84 @@ func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []prepar
 		}
 	}
 	return out
+}
+
+// appendBatchErrorCompletionsOrRecoveriesAndRetry retries only durable lookup
+// misses when at least one sibling proves that the failed batch contained an
+// already committed send. The retry is bounded to one storage attempt.
+func appendBatchErrorCompletionsOrRecoveriesAndRetry(
+	ctx context.Context,
+	target AuthorityTarget,
+	items []preparedSend,
+	err error,
+	ports appendPorts,
+) ([]appendItemCompletion, time.Duration) {
+	if !errors.Is(err, ErrAppendFailed) || ports.idempotency == nil {
+		return appendBatchErrorCompletions(items, err), 0
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	out := make([]appendItemCompletion, len(items))
+	misses := make([]preparedSend, 0, len(items))
+	missIndexes := make([]int, 0, len(items))
+	recovered := false
+	for index, item := range items {
+		result, ok, lookupErr := lookupIdempotentSend(ctx, item.Command, preparePorts{idempotency: ports.idempotency})
+		switch {
+		case lookupErr != nil:
+			out[index] = appendItemErrorCompletion(item, lookupErr)
+		case ok:
+			recovered = true
+			out[index] = appendItemCompletion{
+				item:   item,
+				result: SendBatchItemResult{Result: result},
+			}
+		default:
+			misses = append(misses, item)
+			missIndexes = append(missIndexes, index)
+		}
+	}
+
+	if !recovered {
+		for offset, item := range misses {
+			out[missIndexes[offset]] = appendItemErrorCompletion(item, err)
+		}
+		return out, 0
+	}
+
+	retryItems := misses[:0]
+	retryIndexes := missIndexes[:0]
+	for offset, item := range misses {
+		if itemErr := appendItemError(item); itemErr != nil {
+			out[missIndexes[offset]] = appendItemErrorCompletion(item, itemErr)
+			continue
+		}
+		retryItems = append(retryItems, item)
+		retryIndexes = append(retryIndexes, missIndexes[offset])
+	}
+	if len(retryItems) == 0 {
+		return out, 0
+	}
+
+	req := appendRequest(target, retryItems, appendIdempotencyRecoveryAttempt)
+	retryCtx, cancel := appendBatchContext(ctx)
+	startedAt := time.Now()
+	res, retryErr := ports.appender.AppendBatch(retryCtx, req)
+	retryDur := sendtrace.Elapsed(startedAt, time.Now())
+	cancel()
+
+	var retryCompletions []appendItemCompletion
+	if retryErr != nil {
+		retryCompletions = appendBatchErrorCompletionsOrRecoveries(ctx, retryItems, retryErr, ports)
+	} else {
+		retryCompletions = appendResultCompletions(retryItems, res)
+	}
+	for offset, index := range retryIndexes {
+		out[index] = retryCompletions[offset]
+	}
+	return out, retryDur
 }
 
 func appendCompletionsResultClass(items []appendItemCompletion) string {
