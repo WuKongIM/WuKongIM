@@ -113,11 +113,11 @@ func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	if err := verifier.ObserveAttempt(transportFailed, first, 201); err != nil {
 		t.Fatalf("ObserveAttempt(transport, 0): %v", err)
 	}
-	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
-		t.Fatalf("ResolveAttemptError(first): %v", err)
+	if err := verifier.ResolveAttemptLocalAdmissionError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptLocalAdmissionError(first): %v", err)
 	}
-	if err := verifier.ResolveAttemptError(transportFailed.ClientMsgNo, 201); err != nil {
-		t.Fatalf("ResolveAttemptError(first duplicate): %v", err)
+	if err := verifier.ResolveAttemptLocalAdmissionError(transportFailed.ClientMsgNo, 201); err != nil {
+		t.Fatalf("ResolveAttemptLocalAdmissionError(first duplicate): %v", err)
 	}
 
 	succeeded := mustLogicalSend(t, model, 0, 53, TrafficPerson, "sender", "recipient")
@@ -138,8 +138,8 @@ func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	}
 
 	snapshot := verifier.Snapshot()
-	if snapshot.FirstAttempts != 3 || snapshot.FirstAttemptFailures != 2 {
-		t.Fatalf("first-attempt counters = %d/%d, want 3/2; snapshot=%+v", snapshot.FirstAttempts, snapshot.FirstAttemptFailures, snapshot)
+	if snapshot.FirstAttempts != 3 || snapshot.FirstAttemptFailures != 2 || snapshot.FirstAttemptLocalAdmissionFailures != 1 {
+		t.Fatalf("first-attempt counters = %d/%d local=%d, want 3/2 local=1; snapshot=%+v", snapshot.FirstAttempts, snapshot.FirstAttemptFailures, snapshot.FirstAttemptLocalAdmissionFailures, snapshot)
 	}
 }
 

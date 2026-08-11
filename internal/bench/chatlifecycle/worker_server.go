@@ -1537,6 +1537,10 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 	generated := runtime.Generated
 	verification := g.verifier.Snapshot()
 	evidence := g.evidence.Snapshot()
+	firstAttemptFailures, ok := productFirstAttemptFailures(verification)
+	if !ok {
+		return WorkerSnapshot{}, errWorkerServerConfig
+	}
 	return WorkerSnapshot{
 		Generation: engine.Generation, WorkerID: engine.WorkerID, WorkerCount: engine.WorkerCount,
 		Sessions: WorkerSessionSnapshot{
@@ -1551,7 +1555,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		MetaCreate: WorkerMetaCreateSnapshot{PersonByHashSlot: engine.MetaCreatePersonByHashSlot},
 		Messages: WorkerMessageSnapshot{
 			Sent: verification.Sent, SendAttempts: verification.Attempts, SendAcknowledged: verification.Acknowledged,
-			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: verification.FirstAttemptFailures,
+			FirstAttempts: verification.FirstAttempts, FirstAttemptFailures: firstAttemptFailures,
 			SendRejected: verification.SendackRejections, Received: verification.Received,
 			ReceiveAcknowledged: verification.ReceiveAcknowledged, ReceiveAckFailures: verification.ReceiveAckFailures,
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
@@ -1583,6 +1587,14 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		},
 		Evidence: evidence,
 	}, nil
+}
+
+func productFirstAttemptFailures(verification VerifierSnapshot) (uint64, bool) {
+	if verification.FirstAttemptFailures > verification.FirstAttempts ||
+		verification.FirstAttemptLocalAdmissionFailures > verification.FirstAttemptFailures {
+		return 0, false
+	}
+	return verification.FirstAttemptFailures - verification.FirstAttemptLocalAdmissionFailures, true
 }
 
 func workerQueueSnapshot(engine EngineSnapshot) WorkerQueueSnapshot {

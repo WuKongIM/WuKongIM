@@ -123,11 +123,17 @@ func (e *ProductRecvAckError) valid() bool {
 
 // VerifierSnapshot contains only aggregate counts and bounded-state gauges.
 type VerifierSnapshot struct {
-	Classification            SyncClassification
-	Sent                      uint64
-	Attempts                  uint64
-	FirstAttempts             uint64
-	FirstAttemptFailures      uint64
+	Classification       SyncClassification
+	Sent                 uint64
+	Attempts             uint64
+	FirstAttempts        uint64
+	FirstAttemptFailures uint64
+
+	// FirstAttemptLocalAdmissionFailures is the subset whose first wire
+	// attempt was rejected by the load generator's non-waiting local SEND
+	// admission boundary. It is harness pressure, not target correctness.
+	FirstAttemptLocalAdmissionFailures uint64
+
 	RetryAttempts             uint64
 	Acknowledged              uint64
 	SendackRejections         uint64
@@ -165,10 +171,13 @@ type VerifierSnapshot struct {
 }
 
 type verifierSendCounters struct {
-	sent                   uint64
-	attempts               uint64
-	firstAttempts          uint64
-	firstAttemptFailures   uint64
+	sent                 uint64
+	attempts             uint64
+	firstAttempts        uint64
+	firstAttemptFailures uint64
+
+	firstAttemptLocalAdmissionFailures uint64
+
 	retryAttempts          uint64
 	acknowledged           uint64
 	sendackRejections      uint64
@@ -971,6 +980,18 @@ func (v *Verifier) ReleaseSend(logical LogicalSend) error {
 // immediate transport failure. A released sibling is consumed without making
 // the already completed logical send unknown.
 func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, false)
+}
+
+// ResolveAttemptLocalAdmissionError removes an attempt rejected before it
+// entered the socket writer. The ordinary first-attempt counter still records
+// retry behavior, while the additional subset prevents local load-generator
+// pressure from being projected as a target correctness failure.
+func (v *Verifier) ResolveAttemptLocalAdmissionError(clientMsgNo string, clientSeq uint64) error {
+	return v.resolveAttemptError(clientMsgNo, clientSeq, true)
+}
+
+func (v *Verifier) resolveAttemptError(clientMsgNo string, clientSeq uint64, localAdmission bool) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	key := releasedAttemptKey{clientSeq: clientSeq, clientMsgNo: clientMsgNo}
@@ -986,7 +1007,9 @@ func (v *Verifier) ResolveAttemptError(clientMsgNo string, clientSeq uint64) err
 		return v.recordUnknownSendackLocked(pending.logical.LogicalSend, &frame.SendackPacket{ClientSeq: clientSeq, ClientMsgNo: clientMsgNo})
 	}
 	if pending.completion == sendIncomplete {
-		v.recordFirstAttemptFailureLocked(pending, attempt)
+		if v.recordFirstAttemptFailureLocked(pending, attempt) && localAdmission {
+			v.sendCounters.firstAttemptLocalAdmissionFailures++
+		}
 	}
 	attempt.outstanding = false
 	return nil
@@ -1029,10 +1052,13 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 	v.sendMu.Lock()
 	send := v.sendCounters
 	snapshot := VerifierSnapshot{
-		Sent:                   send.sent,
-		Attempts:               send.attempts,
-		FirstAttempts:          send.firstAttempts,
-		FirstAttemptFailures:   send.firstAttemptFailures,
+		Sent:                 send.sent,
+		Attempts:             send.attempts,
+		FirstAttempts:        send.firstAttempts,
+		FirstAttemptFailures: send.firstAttemptFailures,
+
+		FirstAttemptLocalAdmissionFailures: send.firstAttemptLocalAdmissionFailures,
+
 		RetryAttempts:          send.retryAttempts,
 		Acknowledged:           send.acknowledged,
 		SendackRejections:      send.sendackRejections,
@@ -1195,12 +1221,13 @@ func (v *Verifier) recordPayloadCorruption(sample uint64, fingerprint [16]byte, 
 	return v.recordReceiveFailureLocked(FailureCodeReceivePayload, sample, fingerprint, EvidenceStageReceive, value)
 }
 
-func (v *Verifier) recordFirstAttemptFailureLocked(pending *pendingSend, attempt *sendAttemptIdentity) {
+func (v *Verifier) recordFirstAttemptFailureLocked(pending *pendingSend, attempt *sendAttemptIdentity) bool {
 	if pending == nil || attempt == nil || attempt.attempt != 0 || pending.firstAttemptFailed {
-		return
+		return false
 	}
 	pending.firstAttemptFailed = true
 	v.sendCounters.firstAttemptFailures++
+	return true
 }
 
 func (v *Verifier) recordRecvAckFailureLocked(ackErr error, recv *frame.RecvPacket) error {

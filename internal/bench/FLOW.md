@@ -97,6 +97,11 @@ spent performing the previous WKProto handshake is deducted from the next
 wait. An unconditional post-handshake sleep would accumulate handshake latency
 across large online pools and make the coordinator's deterministic connect
 schedule underestimate the real phase duration.
+For chat-lifecycle correctness projection, a first-attempt rejection at the
+non-waiting local SEND admission boundary is removed from the target-owned
+first-attempt failure numerator and remains visible in the cumulative worker
+transport-rejection evidence. Checked attribution prevents local simulator
+pressure from becoming a false product failure without hiding it.
 Scheduled traffic uses per-key pending queues plus a ready-key queue when a
 workload supplies a serialization key. That keeps one busy client or channel
 from forcing a linear scan across a large pending list. Person/group timed

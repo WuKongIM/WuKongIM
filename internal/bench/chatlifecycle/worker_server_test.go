@@ -27,6 +27,35 @@ func TestWorkerQueueSnapshotIncludesTransportAdmissionRejections(t *testing.T) {
 	}
 }
 
+func TestProductFirstAttemptFailuresExcludeLocalAdmissionPressure(t *testing.T) {
+	// This is the exact counter shape from rehearsal
+	// chat-20260811T175629Z-4ff683f0-rehearsal-1. All 38 first-attempt
+	// failures were local non-waiting admission rejections and every logical
+	// SEND was later acknowledged.
+	got, ok := productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 232_008, FirstAttemptFailures: 38,
+		FirstAttemptLocalAdmissionFailures: 38,
+	})
+	if !ok || got != 0 {
+		t.Fatalf("product first-attempt failures = %d, ok=%v, want 0,true", got, ok)
+	}
+
+	got, ok = productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 20_000, FirstAttemptFailures: 3,
+		FirstAttemptLocalAdmissionFailures: 2,
+	})
+	if !ok || got != 1 {
+		t.Fatalf("mixed product first-attempt failures = %d, ok=%v, want 1,true", got, ok)
+	}
+
+	if _, ok := productFirstAttemptFailures(VerifierSnapshot{
+		FirstAttempts: 1, FirstAttemptFailures: 1,
+		FirstAttemptLocalAdmissionFailures: 2,
+	}); ok {
+		t.Fatal("invalid local-admission attribution was accepted")
+	}
+}
+
 func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 	t.Parallel()
 

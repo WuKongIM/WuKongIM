@@ -514,8 +514,12 @@ protocol pumps. A full adapter publication bound, shared-client admission lock,
 writer queue, or inflight bound returns `client.ErrSendQueueFull` immediately
 and enters the existing bounded logical retry path, so data-plane pressure
 cannot hold the serialized engine owner or a coordinator grant RPC. Worker
-queue evidence retains the cumulative `transport_rejected` count, making this
-load-generator pressure distinguishable from server SENDACK behavior.
+queue evidence retains the cumulative `transport_rejected` count across all
+attempts. The verifier separately retains the subset where this local admission
+rejection was the logical SEND's first-attempt failure. Worker correctness
+projection subtracts that subset from `first_attempt_failures`, with checked
+underflow, so the strict product first-attempt rate measures target behavior
+while the load-generator pressure remains explicit harness evidence.
 The ordered session drain uses an explicit streaming read whose lifetime is
 owned only by the generation or caller context; the transport's default
 short-operation timeout still bounds CONNECT and control writes but never
@@ -1100,7 +1104,8 @@ unexpired ring capacity freezes a harness-invalid verdict.
 Correctness uses cumulative counters and exact 128-bit rational comparisons.
 Loss, duplicate persistence, corruption, sequence regression, terminal SEND,
 or activation rejection is immediate product failure. The whole-run first-
-attempt failure rate is strictly below `1/10,000`, so equality fails; the
+attempt failure rate excludes explicitly attributed local non-waiting SEND
+admission rejections and is strictly below `1/10,000`, so equality fails; the
 rolling one-minute rate is at most `1/1,000`, so equality passes. Queue
 saturation and observer gaps are harness invalid. The one-minute reducer is a
 fixed 16-entry ring sized for the reviewed five-second cadence.

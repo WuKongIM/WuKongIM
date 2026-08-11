@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -2865,7 +2866,11 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}
-		return errors.Join(e.verifier.ResolveAttemptError(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now))
+		resolve := e.verifier.ResolveAttemptError
+		if errors.Is(err, wkclient.ErrSendQueueFull) {
+			resolve = e.verifier.ResolveAttemptLocalAdmissionError
+		}
+		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now))
 	}
 	deadline := now.Add(e.attemptTimeoutFor(intent))
 	if deadline.Before(now) {

@@ -111,6 +111,10 @@ func TestEngineRealWKProtoAdmissionPressureCannotBlockOwnerAdvance(t *testing.T)
 	if snapshot.RetryQueueDepth != 1 || snapshot.InflightCurrent != 2 || snapshot.TransportAdmissionRejected != 1 {
 		t.Fatalf("pressure snapshot = %+v, want one bounded retry, two logical inflight sends, and one local rejection", snapshot)
 	}
+	verification := fixture.verifier.Snapshot()
+	if verification.FirstAttemptFailures != 1 || verification.FirstAttemptLocalAdmissionFailures != 1 {
+		t.Fatalf("first-attempt attribution = total %d local %d, want 1/1", verification.FirstAttemptFailures, verification.FirstAttemptLocalAdmissionFailures)
+	}
 }
 
 func TestEngineRealWKProtoOverlappingAttemptsAcceptEitherAckOrder(t *testing.T) {
