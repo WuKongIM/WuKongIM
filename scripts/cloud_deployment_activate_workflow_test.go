@@ -90,6 +90,29 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 	}
 }
 
+func TestCloudDeploymentUpstreamProvenanceUsesGitHubCLITransport(t *testing.T) {
+	path := filepath.Join(repoRoot(t), ".github", "workflows", "cloud-deployment-activate.yml")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(content)
+	start := strings.Index(text, "- name: Authenticate exact successful upstream workflow runs")
+	end := strings.Index(text, "- name: Download exact Lease Receipt")
+	if start < 0 || end <= start {
+		t.Fatal("activation workflow provenance step is missing or unordered")
+	}
+	provenance := text[start:end]
+	if !strings.Contains(provenance, `gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >"${name}-run.json"`) {
+		t.Fatal("upstream provenance must use the authenticated GitHub CLI API transport")
+	}
+	for _, forbidden := range []string{"curl ", "GITHUB_API_URL"} {
+		if strings.Contains(provenance, forbidden) {
+			t.Fatalf("upstream provenance retains runner-dependent transport %q", forbidden)
+		}
+	}
+}
+
 func TestCloudDeploymentReadinessCollectorIsBoundedAndUsesPrivateOrigins(t *testing.T) {
 	path := filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "collect-readiness.sh")
 	content, err := os.ReadFile(path)

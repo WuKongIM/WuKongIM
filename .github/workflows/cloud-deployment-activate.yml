@@ -75,15 +75,10 @@ jobs:
             'upstream workflow provenance validation failed' 'no deployment host was contacted'
           [[ "$LEASE_RUN_ID" =~ ^[0-9]+$ && "$BUNDLE_RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$LEASE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ && "$BUNDLE_ARTIFACT" =~ ^[A-Za-z0-9._-]{1,200}$ ]]
-          api="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/runs"
           for pair in "lease:$LEASE_RUN_ID" "bundle:$BUNDLE_RUN_ID"; do
             name="${pair%%:*}"
             run_id="${pair#*:}"
-            curl --fail --silent --show-error --proto '=https' \
-              -H 'Accept: application/vnd.github+json' \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H 'X-GitHub-Api-Version: 2022-11-28' \
-              "${api}/${run_id}" >"${name}-run.json"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >"${name}-run.json"
           done
           lease_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh lease-run.json .github/workflows/cloud-lease-provision.yml)"
           bundle_head_sha="$(scripts/cloud-deployment/validate-upstream-run.sh bundle-run.json .github/workflows/cloud-deployment-bundle.yml)"
