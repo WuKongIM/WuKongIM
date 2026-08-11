@@ -1,0 +1,509 @@
+name: Agent Tool - Analyze Chat Lifecycle Cloud Lease
+run-name: Chat Lifecycle Analysis ${{ inputs.operation }} ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Exact local Analysis Session operation
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, prepare, close]
+      run_id:
+        description: Exact chat-lifecycle Cloud Lease identity
+        required: true
+        type: string
+      chat_request_id:
+        description: Exact parent chat-lifecycle request identity
+        required: true
+        type: string
+      request_id:
+        description: Unique local Analysis Session correlation identity
+        required: true
+        type: string
+      client_ipv4:
+        description: Local Codex public IPv4 for the bounded Analysis window
+        required: false
+        default: ""
+        type: string
+      client_public_key:
+        description: Base64 PEM RSA key used to encrypt the Analysis Token
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: cloud-lease-lifecycle-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve exact authenticated chat-lifecycle handoff
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      state: ${{ steps.handoff.outputs.state }}
+      stage: ${{ steps.handoff.outputs.stage }}
+      source_sha: ${{ steps.handoff.outputs.source_sha }}
+    env:
+      RUN_ID: ${{ inputs.run_id }}
+      CHAT_REQUEST_ID: ${{ inputs.chat_request_id }}
+      REQUEST_ID: ${{ inputs.request_id }}
+      OPERATION: ${{ inputs.operation }}
+      GH_TOKEN: ${{ github.token }}
+      WK_GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Resolve and authenticate one exact retained handoff
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$CHAT_REQUEST_ID" =~ ^chat-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$ ]]
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{7,63}$ ]]
+          case "$RUN_ID" in
+            "$CHAT_REQUEST_ID-rehearsal-"[1-8]) stage=rehearsal ;;
+            "$CHAT_REQUEST_ID-formal-"[1-8]) stage=formal ;;
+            *) echo 'Lease identity does not belong to the exact chat request.' >&2; exit 1 ;;
+          esac
+          mkdir -p analysis-input handoff session
+          STAGE="$stage"
+          artifact_name="chat-lifecycle-${STAGE}-handoff-${CHAT_REQUEST_ID}"
+          artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=2)"
+          count="$(jq -r '[.artifacts[] | select(.expired == false)] | length' <<<"$artifacts")"
+          if [[ "$count" != 1 ]]; then
+            echo 'state=unknown_run' >>"$GITHUB_OUTPUT"
+            echo "stage=$stage" >>"$GITHUB_OUTPUT"
+            if [[ "$OPERATION" == inspect ]]; then
+              jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
+                '{schema:"wukongim/chat-lifecycle-analysis-preflight/v1",state:"unknown_run",run_id:$run_id,
+                  request_id:$request_id,message:"No unique authenticated chat-lifecycle handoff exists for the exact Cloud Lease.",provider:null}' \
+                >session/preflight.json
+            elif [[ "$OPERATION" == prepare ]]; then
+              jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
+                '{schema:"wukongim/chat-lifecycle-analysis-session/v1",state:"unknown_run",run_id:$run_id,
+                  request_id:$request_id,message:"No unique authenticated chat-lifecycle handoff exists for the exact Cloud Lease.",provider:null}' \
+                >session/session.json
+            else
+              echo 'Cannot close an Analysis window without the exact authenticated handoff.' >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          artifact_id="$(jq -er '[.artifacts[] | select(.expired == false)][0].id' <<<"$artifacts")"
+          producer_run_id="$(jq -er '[.artifacts[] | select(.expired == false)][0].workflow_run.id' <<<"$artifacts")"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${producer_run_id}" >producer-run.json
+          expected_workflow=".github/workflows/chat-lifecycle-${stage}.yml"
+          producer_control_sha="$(jq -er --arg repository "$GITHUB_REPOSITORY" --arg workflow "$expected_workflow" --arg stage "$stage" '
+            select(.repository.full_name == $repository and .head_repository.full_name == $repository and
+              .head_branch == "main" and .status == "completed" and .conclusion == "success" and
+              (.path == $workflow or .path == ($workflow + "@refs/heads/main")) and
+              (($stage == "rehearsal" and .event == "workflow_dispatch") or
+               ($stage == "formal" and (.event == "workflow_dispatch" or .event == "schedule"))) and
+              (.head_sha | test("^[0-9a-f]{40}$"))) | .head_sha
+            ' producer-run.json)"
+          [[ "$producer_control_sha" =~ ^[0-9a-f]{40}$ ]]
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >handoff.zip
+          unzip -q handoff.zip -d handoff
+          for name in handoff.json receipt.json deployment-plan.json release-selector.json analysis-endpoint.json; do
+            mapfile -t matches < <(find handoff -type f -name "$name" -print)
+            ((${#matches[@]} == 1))
+            cp "${matches[0]}" "analysis-input/$name"
+          done
+          lease_plan_digest="$(jq -er .receipt.plan_digest analysis-input/receipt.json)"
+          deployment_plan_digest="$(jq -er .plan_digest analysis-input/deployment-plan.json)"
+          source_sha="$(jq -er '.receipt.provenance.source_sha | select(test("^[0-9a-f]{40}$"))' analysis-input/receipt.json)"
+          load_public="$(jq -er '.hosts[] | select(.role == "load") | .public_address' analysis-input/deployment-plan.json)"
+          jq -e --arg request "$CHAT_REQUEST_ID" --arg lease "$RUN_ID" --arg source "$source_sha" \
+            --arg lease_plan "$lease_plan_digest" '
+              .schema == "wukongim.cloud_lease.selector/v1" and .selector.request_id == $request and
+              .selector.lease_id == $lease and .selector.repository == env.GITHUB_REPOSITORY and
+              .selector.provider == "alibaba" and .selector.region == "cn-hangzhou" and
+              .selector.plan_digest == $lease_plan
+            ' analysis-input/release-selector.json >/dev/null
+          jq -e --arg request "$CHAT_REQUEST_ID" --arg lease "$RUN_ID" --arg source "$source_sha" \
+            --arg lease_plan "$lease_plan_digest" '
+              .schema == "wukongim.cloud_lease.receipt/v1" and .receipt.request_id == $request and
+              .receipt.lease_id == $lease and .receipt.repository == env.GITHUB_REPOSITORY and
+              .receipt.provider == "alibaba" and .receipt.region == "cn-hangzhou" and
+              .receipt.plan_digest == $lease_plan and .receipt.provenance.source_sha == $source and
+              .receipt.state == "active"
+            ' analysis-input/receipt.json >/dev/null
+          jq -e --arg request "$CHAT_REQUEST_ID" --arg lease "$RUN_ID" --arg source "$source_sha" \
+            --arg deployment_plan "$deployment_plan_digest" --arg mcp_url "https://${load_public}:19444/mcp" '
+              .schema == "wukongim.chat_lifecycle.analysis_endpoint/v1" and
+              .request_id == $request and .lease_id == $lease and .source_sha == $source and
+              .deployment_plan_digest == $deployment_plan and .provider == "alibaba" and
+              .region == "cn-hangzhou" and .mcp_url == $mcp_url and
+              (.ca_fingerprint | test("^sha256:[0-9a-f]{64}$"))
+            ' analysis-input/analysis-endpoint.json >/dev/null
+          jq -e --arg request "$CHAT_REQUEST_ID" --arg source "$source_sha" '
+              .request_id == $request and .source_sha == $source and (.deployment_run_id | type == "number")
+            ' analysis-input/handoff.json >/dev/null
+          rm -f analysis-input/handoff.json analysis-input/receipt.json analysis-input/deployment-plan.json
+          echo 'state=found' >>"$GITHUB_OUTPUT"
+          echo "stage=$stage" >>"$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >>"$GITHUB_OUTPUT"
+      - name: Upload bounded non-secret Analysis input
+        if: steps.handoff.outputs.state == 'found'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-analysis-input-${{ inputs.request_id }}
+          path: analysis-input/
+          retention-days: 1
+          if-no-files-found: error
+      - name: Upload unknown preflight
+        if: steps.handoff.outputs.state == 'unknown_run' && inputs.operation == 'inspect'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-analysis-preflight-${{ inputs.request_id }}
+          path: session/preflight.json
+          retention-days: 1
+          if-no-files-found: error
+      - name: Upload unknown session
+        if: steps.handoff.outputs.state == 'unknown_run' && inputs.operation == 'prepare'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chat-lifecycle-analysis-session-${{ inputs.request_id }}
+          path: session/
+          retention-days: 1
+          if-no-files-found: error
+
+  inspect:
+    name: Prove exact live Cloud Lease inventory
+    needs: resolve
+    if: inputs.operation == 'inspect' && needs.resolve.outputs.state == 'found'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: cloud-lease-observe
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      RUN_ID: ${{ inputs.run_id }}
+      REQUEST_ID: ${{ inputs.request_id }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-analysis-input-${{ inputs.request_id }}
+          path: analysis-input
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Observer OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_OBSERVER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-analysis-observe-${{ github.run_id }}
+      - name: Inspect exact provider inventory
+        id: provider
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wkcloudlease" inspect --selector analysis-input/release-selector.json >receipt.json
+          jq -e --arg lease "$RUN_ID" '
+            .schema == "wukongim.cloud_lease.receipt/v1" and .receipt.lease_id == $lease and
+            .receipt.state == "active" and (.receipt.resources | type == "array" and length > 0)
+          ' receipt.json >/dev/null
+          echo 'state=live' >>"$GITHUB_OUTPUT"
+      - name: Materialize exact provider preflight
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          state=insufficient_evidence
+          message='Cloud Lease provider inventory could not prove an exact live Lease.'
+          provider=null
+          if [[ '${{ steps.provider.outputs.state }}' == live ]]; then
+            state=live
+            message='Provider inventory confirmed the exact live chat-lifecycle Cloud Lease.'
+            provider="$(jq -cer '{state:"live",resources:.receipt.resources}' receipt.json)"
+          fi
+          jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" --arg state "$state" \
+            --arg message "$message" --argjson provider "$provider" \
+            '{schema:"wukongim/chat-lifecycle-analysis-preflight/v1",state:$state,run_id:$run_id,
+              request_id:$request_id,message:$message,provider:$provider}' >preflight.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: chat-lifecycle-analysis-preflight-${{ inputs.request_id }}
+          path: preflight.json
+          retention-days: 1
+          if-no-files-found: error
+
+  prepare:
+    name: Open and encrypt one bounded local Codex session
+    needs: resolve
+    if: inputs.operation == 'prepare' && needs.resolve.outputs.state == 'found'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: cloud-lease-provision
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    outputs:
+      runner_attempted: ${{ steps.runner.outputs.attempted }}
+      client_window: ${{ steps.handoff.outputs.client_window }}
+    env:
+      GOWORK: "off"
+      RUN_ID: ${{ inputs.run_id }}
+      REQUEST_ID: ${{ inputs.request_id }}
+      CLIENT_IPV4: ${{ inputs.client_ipv4 }}
+      CLIENT_PUBLIC_KEY: ${{ inputs.client_public_key }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-analysis-input-${{ inputs.request_id }}
+          path: analysis-input
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Provisioner OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_PROVISIONER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-analysis-open-${{ github.run_id }}
+      - name: Validate client material and exact live inventory
+        id: client
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CLIENT_IPV4" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]
+          [[ "$CLIENT_IPV4" != 0.* && "$CLIENT_IPV4" != 127.* ]]
+          test "${#CLIENT_PUBLIC_KEY}" -ge 256
+          test "${#CLIENT_PUBLIC_KEY}" -le 4096
+          mkdir -p session
+          printf '%s' "$CLIENT_PUBLIC_KEY" | base64 --decode >session/client-public.pem
+          openssl pkey -pubin -in session/client-public.pem -noout
+          "$RUNNER_TEMP/wkcloudlease" inspect --selector analysis-input/release-selector.json >receipt.json
+          jq -e --arg lease "$RUN_ID" '.receipt.lease_id == $lease and .receipt.state == "active"' receipt.json >/dev/null
+          echo 'valid=true' >>"$GITHUB_OUTPUT"
+      - name: Open temporary runner exchange window
+        id: runner
+        if: steps.client.outputs.valid == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
+        run: |
+          set -euo pipefail
+          runner_ip="$(curl --fail --silent --show-error --connect-timeout 5 --max-time 10 --proto '=https' --tlsv1.2 https://api.ipify.org)"
+          [[ "$runner_ip" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]
+          until="$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)"
+          echo 'attempted=true' >>"$GITHUB_OUTPUT"
+          jq -n --arg id "analysis-${REQUEST_ID}-runner" --arg source "${runner_ip}/32" --arg until "$until" \
+            '{schema:"wukongim.cloud_lease.access_grant/v1",grant:{id:$id,target_role:"load",protocol:"tcp",
+              port_from:19444,port_to:19444,source_prefix:$source,until:$until}}' >runner-grant.json
+          "$RUNNER_TEMP/wkcloudlease" grant_access --selector analysis-input/release-selector.json \
+            --grant runner-grant.json >runner-receipt.json
+          echo 'opened=true' >>"$GITHUB_OUTPUT"
+      - name: Exchange GitHub identity and encrypt the local session
+        id: handoff
+        if: steps.runner.outputs.opened == 'true'
+        continue-on-error: true
+        shell: bash
+        env:
+          WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
+        run: |
+          set -euo pipefail
+          mcp_url="$(jq -er '.mcp_url | select(test("^https://[0-9.]+:19444/mcp$"))' analysis-input/analysis-endpoint.json)"
+          endpoint="${mcp_url#https://}"
+          endpoint="${endpoint%/mcp}"
+          expected_fingerprint="$(jq -er .ca_fingerprint analysis-input/analysis-endpoint.json)"
+          timeout 15 openssl s_client -showcerts -connect "$endpoint" </dev/null 2>/dev/null \
+            | awk '/-----BEGIN CERTIFICATE-----/{capture=1} capture{print} /-----END CERTIFICATE-----/{capture=0}' >certificate-chain.pem
+          test -s certificate-chain.pem
+          awk '/-----BEGIN CERTIFICATE-----/{n++; file=sprintf("certificate-%d.pem",n)} file{print >file} /-----END CERTIFICATE-----/{close(file);file=""}' certificate-chain.pem
+          matched=''
+          for certificate in certificate-*.pem; do
+            fingerprint="sha256:$(openssl x509 -in "$certificate" -outform DER | sha256sum | awk '{print $1}')"
+            if [[ "$fingerprint" == "$expected_fingerprint" ]]; then cp "$certificate" pinned-ca.pem; matched=true; fi
+          done
+          test "$matched" = true
+          health="$(curl --fail --silent --show-error --cacert pinned-ca.pem "${mcp_url%/mcp}/healthz")"
+          source_sha="$(jq -er --arg run "$RUN_ID" '
+            select(.status == "ok" and .run_id == $run and .run_state == "running" and
+              .provider == "alibaba" and .region == "cn-hangzhou") |
+            .source_sha | select(test("^[0-9a-f]{40}$"))' <<<"$health")"
+          test "$source_sha" = '${{ needs.resolve.outputs.source_sha }}'
+          scenario_digest="$(jq -er '.scenario_digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$health")"
+          audience="wukongim-cloud-lease:${RUN_ID}"
+          encoded_audience="$(jq -nr --arg value "$audience" '$value|@uri')"
+          oidc_token="$(curl --fail --silent --show-error -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${encoded_audience}" | jq -er .value)"
+          token_response="$(curl --fail --silent --show-error --cacert pinned-ca.pem \
+            -H "Authorization: Bearer ${oidc_token}" -X POST "${mcp_url%/mcp}/analysis/token")"
+          analysis_token="$(jq -er .access_token <<<"$token_response")"
+          expires_at="$(jq -er .expires_at <<<"$token_response")"
+          echo "::add-mask::$analysis_token"
+          printf '%s' "$analysis_token" | openssl pkeyutl -encrypt -pubin \
+            -inkey session/client-public.pem -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256 -out session/encrypted-token.bin
+          cp pinned-ca.pem session/pinned-ca.pem
+          jq -n --arg id "analysis-${REQUEST_ID}-client" --arg source "${CLIENT_IPV4}/32" --arg until "$expires_at" \
+            '{schema:"wukongim.cloud_lease.access_grant/v1",grant:{id:$id,target_role:"load",protocol:"tcp",
+              port_from:19444,port_to:19444,source_prefix:$source,until:$until}}' >client-grant.json
+          "$RUNNER_TEMP/wkcloudlease" grant_access --selector analysis-input/release-selector.json \
+            --grant client-grant.json >client-receipt.json
+          jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" --arg source_sha "$source_sha" \
+            --arg scenario_digest "$scenario_digest" --arg mcp_url "$mcp_url" --arg expires_at "$expires_at" \
+            --arg ca_fingerprint "$expected_fingerprint" \
+            '{schema:"wukongim/chat-lifecycle-analysis-session/v1",state:"live",run_id:$run_id,
+              request_id:$request_id,source_sha:$source_sha,scenario_digest:$scenario_digest,
+              mcp_url:$mcp_url,expires_at:$expires_at,ca_fingerprint:$ca_fingerprint,provider:{state:"live"}}' \
+            >session/session.json
+          rm -f session/client-public.pem
+          analysis_token=''
+          echo 'client_window=true' >>"$GITHUB_OUTPUT"
+      - name: Materialize failed session state
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f session/client-public.pem
+          if [[ -f session/session.json ]]; then exit 0; fi
+          rm -f session/encrypted-token.bin session/pinned-ca.pem
+          message='Analysis session handoff failed before the live MCP session was established.'
+          if [[ '${{ steps.client.outputs.valid }}' != true ]]; then
+            message='Exact live Cloud Lease or valid client key/address material could not be confirmed.'
+          fi
+          jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" --arg message "$message" \
+            '{schema:"wukongim/chat-lifecycle-analysis-session/v1",state:"insufficient_evidence",run_id:$run_id,
+              request_id:$request_id,message:$message,provider:null}' >session/session.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: chat-lifecycle-analysis-session-${{ inputs.request_id }}
+          path: session/
+          retention-days: 1
+          if-no-files-found: error
+
+  prepare_cleanup:
+    name: Close runner exchange and failed client windows
+    needs: [resolve, prepare]
+    if: always() && inputs.operation == 'prepare' && needs.resolve.outputs.state == 'found' && needs.prepare.outputs.runner_attempted == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: cloud-lease-release
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      REQUEST_ID: ${{ inputs.request_id }}
+      CLIENT_WINDOW: ${{ needs.prepare.outputs.client_window }}
+      WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-analysis-input-${{ inputs.request_id }}
+          path: analysis-input
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Releaser OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-analysis-clean-${{ github.run_id }}
+      - name: Revoke exact temporary grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/wkcloudlease" revoke_access --selector analysis-input/release-selector.json \
+            --grant-id "analysis-${REQUEST_ID}-runner" >/dev/null
+          if [[ "$CLIENT_WINDOW" != true ]]; then
+            "$RUNNER_TEMP/wkcloudlease" revoke_access --selector analysis-input/release-selector.json \
+              --grant-id "analysis-${REQUEST_ID}-client" >/dev/null
+          fi
+
+  close:
+    name: Close exact local Codex client window
+    needs: resolve
+    if: inputs.operation == 'close' && needs.resolve.outputs.state == 'found'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: cloud-lease-release
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      GOWORK: "off"
+      REQUEST_ID: ${{ inputs.request_id }}
+      WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION: create-and-delete-paid-cloud-lease
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: chat-lifecycle-analysis-input-${{ inputs.request_id }}
+          path: analysis-input
+      - run: go build -trimpath -o "$RUNNER_TEMP/wkcloudlease" ./cmd/wkcloudlease
+      - name: Exchange exact Releaser OIDC identity
+        uses: aliyun/configure-aliyun-credentials-action@1e5248c8d5d93a8781ac344a68e19a43341e79e6 # v1.1.0
+        with:
+          role-to-assume: ${{ vars.ALIBABA_CLOUD_LEASE_RELEASER_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_PROVIDER_ARN }}
+          audience: ${{ vars.ALIBABA_CLOUD_LEASE_OIDC_AUDIENCE }}
+          role-session-name: wukongim-cloud-lease-analysis-close-${{ github.run_id }}
+      - name: Revoke exact runner and client grants idempotently
+        shell: bash
+        run: |
+          set -euo pipefail
+          for suffix in runner client; do
+            "$RUNNER_TEMP/wkcloudlease" revoke_access --selector analysis-input/release-selector.json \
+              --grant-id "analysis-${REQUEST_ID}-${suffix}" >/dev/null
+          done

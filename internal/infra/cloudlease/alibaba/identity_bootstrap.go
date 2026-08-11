@@ -33,6 +33,7 @@ const (
 	CloudLeaseProvisionWorkflow = ".github/workflows/cloud-lease-provision.yml"
 	CloudLeaseObserveWorkflow   = ".github/workflows/cloud-lease-observe.yml"
 	CloudLeaseReleaseWorkflow   = ".github/workflows/cloud-lease-release.yml"
+	CloudLeaseAnalysisWorkflow  = ".github/workflows/cloud-lease-analyze.yml"
 )
 
 var (
@@ -284,6 +285,7 @@ func DesiredIdentityBootstrapState(config IdentityBootstrapConfig, accountID str
 		subjects := []string{
 			identityGitHubSubject(config, role.environment, CloudLeaseOIDCSetupWorkflow),
 			identityGitHubSubject(config, role.environment, role.workflow),
+			identityGitHubSubject(config, role.environment, CloudLeaseAnalysisWorkflow),
 		}
 		trust, err := identityTrustPolicy(providerARN, config.OIDCAudience, subjects)
 		if err != nil {
@@ -352,6 +354,7 @@ func ExpectedIdentityRoleTrust(repository, defaultBranch, providerARN, audience,
 	return identityTrustPolicy(providerARN, audience, []string{
 		identityGitHubSubject(config, environment, CloudLeaseOIDCSetupWorkflow),
 		identityGitHubSubject(config, environment, workflow),
+		identityGitHubSubject(config, environment, CloudLeaseAnalysisWorkflow),
 	})
 }
 

@@ -205,11 +205,10 @@ jobs:
           manager_jwt="$(openssl rand -hex 32)"
           worker_token="$(openssl rand -hex 32)"
           bench_token="$(openssl rand -hex 32)"
-          analysis_token="$(openssl rand -hex 32)"
           demo_user="$manager_user"
           demo_password="$manager_password"
           demo_hash="$("$RUNNER_TEMP/deployment-bundle/bin/caddy" hash-password --plaintext "$demo_password")"
-          for secret in "$manager_user" "$manager_password" "$analysis_password" "$manager_jwt" "$worker_token" "$bench_token" "$analysis_token" "$demo_hash"; do
+          for secret in "$manager_user" "$manager_password" "$analysis_password" "$manager_jwt" "$worker_token" "$bench_token" "$demo_hash"; do
             echo "::add-mask::$secret"
           done
           users="$(jq -cn --arg manager_user "$manager_user" --arg manager_password "$manager_password" --arg analysis_password "$analysis_password" '[
@@ -232,6 +231,7 @@ jobs:
           openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 5 -subj "/CN=${LOAD_PUBLIC}" \
             -addext "subjectAltName=IP:${LOAD_PUBLIC},IP:127.0.0.1" \
             -keyout runtime-load/analysis-key.pem -out runtime-load/analysis-cert.pem
+          analysis_ca_fingerprint="sha256:$(openssl x509 -in runtime-load/analysis-cert.pem -outform DER | sha256sum | awk '{print $1}')"
           source_sha="$(jq -er .source_sha deployment-plan.json)"
           lease_id="$(jq -er .lease_id deployment-plan.json)"
           provider="$(jq -er .provider deployment-plan.json)"
@@ -255,8 +255,13 @@ jobs:
           WK_ANALYSIS_PROMETHEUS_BASE_URL=http://127.0.0.1:9090
           WK_ANALYSIS_NODE_API_URLS='$node_urls'
           WK_ANALYSIS_WORKLOAD_REPORT_DIR=/var/lib/wukongim-cloud/reports
-          WK_ANALYSIS_MCP_TOKEN=$analysis_token
           WK_ANALYSIS_LISTEN_ADDR=0.0.0.0:19444
+          WK_ANALYSIS_GITHUB_OIDC_ENABLED=true
+          WK_ANALYSIS_GITHUB_OIDC_AUDIENCE=wukongim-cloud-lease:$lease_id
+          WK_ANALYSIS_GITHUB_REPOSITORY=$GITHUB_REPOSITORY
+          WK_ANALYSIS_GITHUB_REF=refs/heads/main
+          WK_ANALYSIS_GITHUB_WORKFLOW_REF=$GITHUB_REPOSITORY/.github/workflows/cloud-lease-analyze.yml@refs/heads/main
+          WK_ANALYSIS_GITHUB_ENVIRONMENT=cloud-lease-provision
           EOF
           chmod 0600 runtime-node/* runtime-load/*
           tar -czf runtime-node.tar.gz -C runtime-node .
@@ -289,6 +294,22 @@ jobs:
             .lease_id == $lease and .source_sha == $source and .deployment_plan_digest == $plan and
             (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
           ' encrypted-access.json >/dev/null
+          jq -n --arg schema 'wukongim.chat_lifecycle.analysis_endpoint/v1' \
+            --arg request_id "$request_id" --arg lease_id "$lease_id" --arg source_sha "$source_sha" \
+            --arg deployment_plan_digest "$plan_digest" --arg provider "$provider" --arg region "$region" \
+            --arg mcp_url "https://${LOAD_PUBLIC}:19444/mcp" --arg ca_fingerprint "$analysis_ca_fingerprint" \
+            --arg lease_expires_at "$expires_at" \
+            '{schema:$schema,request_id:$request_id,lease_id:$lease_id,source_sha:$source_sha,
+              deployment_plan_digest:$deployment_plan_digest,provider:$provider,region:$region,
+              mcp_url:$mcp_url,ca_fingerprint:$ca_fingerprint,lease_expires_at:$lease_expires_at}' \
+            >analysis-endpoint.json
+          jq -e --arg request "$request_id" --arg lease "$lease_id" --arg source "$source_sha" --arg plan "$plan_digest" '
+            .schema == "wukongim.chat_lifecycle.analysis_endpoint/v1" and
+            .request_id == $request and .lease_id == $lease and .source_sha == $source and
+            .deployment_plan_digest == $plan and .provider == "alibaba" and .region == "cn-hangzhou" and
+            (.mcp_url | test("^https://[0-9.]+:19444/mcp$")) and
+            (.ca_fingerprint | test("^sha256:[0-9a-f]{64}$"))
+          ' analysis-endpoint.json >/dev/null
       - name: Transfer through load node and activate native services
         shell: bash
         env:
@@ -370,6 +391,7 @@ jobs:
             deployment-plan.json
             readiness-snapshot.json
             deployment-outcome.json
+            analysis-endpoint.json
             encrypted-access.json
             encrypted-deployment-identity.json
           if-no-files-found: warn

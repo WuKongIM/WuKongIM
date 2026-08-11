@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/app"
 	benchconfig "github.com/WuKongIM/WuKongIM/internal/bench/config"
 	cloudanalysis "github.com/WuKongIM/WuKongIM/internal/usecase/cloudanalysis"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cloudsim"
@@ -51,6 +52,24 @@ func TestLoadServeConfigBindsThreeNodeClusterAndTokenLease(t *testing.T) {
 		cfg.gateway.MetricQueries["simulator_cpu_percent"] == "" || cfg.gateway.MetricQueries["simulator_memory_percent"] == "" ||
 		cfg.gateway.MetricQueries["node_data_disk_used_bytes"] == "" {
 		t.Fatalf("metric query IDs = %#v", cfg.gateway.MetricQueries)
+	}
+}
+
+func TestAnalysisHealthPayloadExposesNonSecretSessionIdentity(t *testing.T) {
+	cfg := serveConfig{gateway: app.CloudAnalysisGatewayConfig{
+		RunID: "lease-1", RunState: cloudanalysis.RunState("running"),
+		RunExpiresAt: time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC),
+		Provider:     "alibaba", Region: "cn-hangzhou", SourceSHA: strings.Repeat("a", 40),
+		Scenario: cloudanalysis.ScenarioInspection{Digest: "sha256:" + strings.Repeat("b", 64)},
+	}}
+	payload := analysisHealthPayload(cfg)
+	for key, want := range map[string]any{
+		"run_id": "lease-1", "provider": "alibaba", "region": "cn-hangzhou",
+		"source_sha": strings.Repeat("a", 40), "scenario_digest": "sha256:" + strings.Repeat("b", 64),
+	} {
+		if payload[key] != want {
+			t.Fatalf("health[%q] = %#v, want %#v", key, payload[key], want)
+		}
 	}
 }
 

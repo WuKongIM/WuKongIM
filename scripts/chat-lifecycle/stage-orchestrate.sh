@@ -407,9 +407,10 @@ run_deployment_action() {
     deployment_failed=true
   fi
   mapfile -t encrypted_access < <(find "$deployment_artifact_dir" -type f -name encrypted-access.json -print 2>/dev/null || true)
+  mapfile -t analysis_endpoints < <(find "$deployment_artifact_dir" -type f -name analysis-endpoint.json -print 2>/dev/null || true)
   mapfile -t encrypted_deployment_identities < <(find "$deployment_artifact_dir" -type f -name encrypted-deployment-identity.json -print 2>/dev/null || true)
   if [[ "$deployment_failed" == true ]] ||
-    (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 || ${#encrypted_deployment_identities[@]} != 1 )) ||
+    (( ${#deployment_outcomes[@]} != 1 || ${#encrypted_access[@]} != 1 || ${#analysis_endpoints[@]} != 1 || ${#encrypted_deployment_identities[@]} != 1 )) ||
     ! cmp -s "$attempt_dir/encrypted-deployment-identity.json" "${encrypted_deployment_identities[0]:-/dev/null}"; then
     deployment_failed=true
     return 0
@@ -429,6 +430,16 @@ run_deployment_action() {
       .source_sha == $source and .lease_id == $lease and .deployment_plan_digest == $plan and
       (.recipient_fingerprint | startswith("SHA256:")) and (.ciphertext_base64 | length > 0)
     ' "${encrypted_access[0]}" >/dev/null; then
+    deployment_failed=true
+  fi
+  if ! jq -e --arg request "$WK_CHAT_REQUEST_ID" --arg source "$WK_CHAT_SOURCE_SHA" \
+    --arg lease "$deployment_lease_id" --arg plan "$deployment_plan_digest" '
+      .schema == "wukongim.chat_lifecycle.analysis_endpoint/v1" and
+      .request_id == $request and .source_sha == $source and .lease_id == $lease and
+      .deployment_plan_digest == $plan and .provider == "alibaba" and .region == "cn-hangzhou" and
+      (.mcp_url | test("^https://[0-9.]+:19444/mcp$")) and
+      (.ca_fingerprint | test("^sha256:[0-9a-f]{64}$"))
+    ' "${analysis_endpoints[0]:-/dev/null}" >/dev/null; then
     deployment_failed=true
   fi
 }
@@ -667,6 +678,7 @@ for attempt in 1; do
           cp "$attempt_dir/receipt.json" "$WK_CHAT_OUTPUT_DIR/receipt.json"
           cp "$attempt_dir/deployment-plan.json" "$WK_CHAT_OUTPUT_DIR/deployment-plan.json"
           cp "${deployment_outcomes[0]}" "$WK_CHAT_OUTPUT_DIR/deployment-outcome.json"
+          cp "${analysis_endpoints[0]}" "$WK_CHAT_OUTPUT_DIR/analysis-endpoint.json"
           cp "${encrypted_access[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-access.json"
           cp "${encrypted_deployment_identities[0]}" "$WK_CHAT_OUTPUT_DIR/encrypted-deployment-identity.json"
           while IFS= read -r nested_identity; do

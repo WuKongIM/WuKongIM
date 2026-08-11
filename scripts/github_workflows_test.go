@@ -19,6 +19,7 @@ var workflowCatalog = map[string]string{
 	"chat-lifecycle-stop.yml":               "Agent Tool - Stop Chat Lifecycle Request",
 	"cloud-deployment-activate.yml":         "Agent Tool - Activate Cloud Deployment",
 	"cloud-deployment-bundle.yml":           "Agent Tool - Build Cloud Deployment Bundle",
+	"cloud-lease-analyze.yml":               "Agent Tool - Analyze Chat Lifecycle Cloud Lease",
 	"cloud-lease-observe.yml":               "Agent Tool - Inspect Cloud Lease",
 	"cloud-lease-oidc-setup.yml":            "Agent Tool - Configure Cloud Lease OIDC Roles",
 	"cloud-lease-provision.yml":             "Agent Tool - Provision Cloud Lease",

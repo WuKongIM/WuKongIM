@@ -116,6 +116,12 @@ wrapping private key is never authorized on a host, and the Lease private key
 is removed from every runner after use. The independently generated Codex
 diagnostic private key never enters GitHub. The
 Action cannot Quote, Acquire, Release, or otherwise mutate provider inventory.
+The Action also publishes one non-secret `analysis-endpoint.json` bound to the
+Lease, source, Deployment Plan digest, load-node HTTPS endpoint, and generated
+certificate fingerprint. The load-node Analysis MCP accepts only the exact
+`cloud-lease-analyze.yml` GitHub OIDC workflow/environment identity; the
+separate Cloud Lease Analysis workflow owns provider inventory proof and
+temporary TCP/19444 grants, so Deployment retains no cloud lifecycle role.
 The production Action mirrors the Fleet gates with a locally fakeable shell
 adapter and authenticates its caller-supplied Artifact runs before executing
 payload code.

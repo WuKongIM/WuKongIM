@@ -57,6 +57,9 @@ The Stop Action seals the durable stop marker, blocks future formal procurement,
 ### Diagnose
 
 Diagnose is read-only and never authorizes procurement or cleanup. Resolve and authenticate one exact live request and stage. If provider inventory is already zero, report that live diagnosis is unavailable. Otherwise delegate the exact live run to `$wukongim-cloud-analysis` and preserve its evidence-based classification. Do not substitute old workflow logs for a live Analysis session.
+Establish that session through
+`scripts/chat-lifecycle/analyze.sh <request_id> <lease_id>`; do not send the
+Lease identity to the legacy Cloud Simulation locator workflow.
 
 ## Tracking and completion
 

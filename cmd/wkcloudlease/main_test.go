@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -170,6 +171,34 @@ func TestLifecycleCommandsAcquireInspectReleaseAndSweepTypedDocuments(t *testing
 		t.Fatalf("inspect output = %s, %v", inspectOutput.String(), err)
 	}
 
+	grant := cloudlease.AccessGrant{
+		ID: "analysis-session", TargetRole: "host", Protocol: cloudlease.ProtocolTCP,
+		PortFrom: 19444, PortTo: 19444, SourcePrefix: mustPrefix(t, "192.0.2.7/32"),
+		Until: now.Add(30 * time.Minute),
+	}
+	grantPath := writeJSONDocument(t, directory, "grant.json", accessGrantDocument{Schema: accessGrantSchemaV1, Grant: grant})
+	var grantOutput bytes.Buffer
+	grantCommand := newRootCommandWithDependencies(&grantOutput, dependencies)
+	grantCommand.SetArgs([]string{"grant_access", "--selector", selectorPath, "--grant", grantPath})
+	if err := grantCommand.Execute(); err != nil {
+		t.Fatalf("grant_access error = %v", err)
+	}
+	var granted receiptResult
+	if err := json.Unmarshal(grantOutput.Bytes(), &granted); err != nil || len(granted.Receipt.AccessGrants) != 2 || granted.Receipt.AccessGrants[0] != grant {
+		t.Fatalf("grant_access output = %s, %v", grantOutput.String(), err)
+	}
+
+	var revokeOutput bytes.Buffer
+	revokeCommand := newRootCommandWithDependencies(&revokeOutput, dependencies)
+	revokeCommand.SetArgs([]string{"revoke_access", "--selector", selectorPath, "--grant-id", grant.ID})
+	if err := revokeCommand.Execute(); err != nil {
+		t.Fatalf("revoke_access error = %v", err)
+	}
+	var revoked receiptResult
+	if err := json.Unmarshal(revokeOutput.Bytes(), &revoked); err != nil || len(revoked.Receipt.AccessGrants) != 1 || revoked.Receipt.AccessGrants[0].ID != "http" {
+		t.Fatalf("revoke_access output = %s, %v", revokeOutput.String(), err)
+	}
+
 	var releaseOutput bytes.Buffer
 	release := newRootCommandWithDependencies(&releaseOutput, dependencies)
 	release.SetArgs([]string{"release", "--selector", selectorPath})
@@ -191,6 +220,15 @@ func TestLifecycleCommandsAcquireInspectReleaseAndSweepTypedDocuments(t *testing
 	if err := json.Unmarshal(sweepOutput.Bytes(), &swept); err != nil || swept.Schema != sweepSchemaV1 || swept.Result.Examined != 0 {
 		t.Fatalf("sweep output = %s, %v", sweepOutput.String(), err)
 	}
+}
+
+func mustPrefix(t *testing.T, value string) netip.Prefix {
+	t.Helper()
+	prefix, err := netip.ParsePrefix(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return prefix
 }
 
 func TestAcquireRejectsUnknownBootstrapFieldsBeforeProviderConstruction(t *testing.T) {

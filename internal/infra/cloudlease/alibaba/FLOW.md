@@ -107,6 +107,10 @@ authorization value. The separate identity bootstrap adapter accepts the
 long-lived AccessKey pair only in the setup command, owns no infrastructure
 create method, reconciles one provider plus three one-hour roles and policies,
 and refuses removal while any repository-tagged Lease asset exists.
+The Cloud Lease Analysis workflow is an additional exact trusted subject on
+all three roles: its inspect job uses Observer, its bounded ingress-open job
+uses Provisioner, and its unconditional ingress-close jobs use Releaser. The
+workflow never receives a generic provider mutation command.
 
 Acquire uses one Lease-owned VPC (`10.42.0.0/16`) and vSwitch
 (`10.42.0.0/24`). No ECS instance receives a provider public IPv4 address and

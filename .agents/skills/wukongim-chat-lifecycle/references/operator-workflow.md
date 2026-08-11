@@ -77,6 +77,18 @@ The rehearsal and formal handoff Artifacts contain `encrypted-access.json`, neve
 
 Validate the decrypted request, Lease, source, digest, expiry, `http://` URLs, and shared username/password against the authenticated Deployment Receipt. Present the credential only in the operator conversation. Do not use shell tracing while handling it.
 
+## Live Analysis MCP
+
+For an exact live rehearsal or formal Lease, run
+`scripts/chat-lifecycle/analyze.sh <request_id> <lease_id>`. The helper routes
+to `cloud-lease-analyze.yml`, not the legacy Cloud Simulation locator. The
+workflow authenticates the exact stage handoff, proves its typed Selector
+against current provider inventory, opens only expiring TCP/19444 runner and
+local-client grants, pins the deployment-published TLS fingerprint, exchanges
+the exact GitHub workflow identity for a short-lived MCP token, and revokes the
+temporary grants through the Releaser role. A missing or ambiguous handoff is
+`unknown_run`; it must not be guessed from another request or historical run.
+
 ## Status
 
 Resolve status from an explicit request ID, otherwise from exactly one active local request. Read GitHub runs, Artifacts, the tracking Issue, and Cloud Lease Observer evidence only. Do not run an identity setup, workflow dispatch, Issue write, cancellation, or provider mutation.

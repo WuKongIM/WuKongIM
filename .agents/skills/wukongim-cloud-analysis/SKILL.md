@@ -1,6 +1,6 @@
 ---
 name: wukongim-cloud-analysis
-description: Diagnose one exact live WuKongIM cloud Simulation Run through the repository Analysis MCP. Use when the user or a local Analysis Session asks Codex to inspect a run's cluster state, Prometheus signals, application logs, diagnostics, Controller task audits, profiles, or redacted config; determine whether a finding is product, infrastructure, scenario, healthy, or insufficient evidence; or verify whether the run was already released. Do not use for provisioning, cleanup, repository mutation, or historical analysis after release.
+description: Diagnose one exact live WuKongIM cloud Simulation Run or chat-lifecycle Cloud Lease through the repository Analysis MCP. Use when the user or a local Analysis Session asks Codex to inspect a run's cluster state, Prometheus signals, application logs, diagnostics, Controller task audits, profiles, or redacted config; determine whether a finding is product, infrastructure, scenario, healthy, or insufficient evidence; or verify whether the run was already released. Do not use for provisioning, cleanup, repository mutation, or historical analysis after release.
 ---
 
 # WuKongIM Cloud Analysis
@@ -9,10 +9,17 @@ Analyze one run as a live incident, with provider inventory as the first gate an
 
 ## 1. Prove the run before analysis
 
-Require the exact Run Identity. The Analysis Session Workflow must first prove the retained Run Locator against current provider inventory before handing the local process an encrypted session. Then call `run_inspect` before reading repository code or calling another Analysis MCP tool; the run host itself intentionally has no cloud credential.
+Require the exact Run Identity. For the legacy Cloud Simulation path, the
+Analysis Session Workflow must prove the retained Run Locator against current
+provider inventory. For a chat-lifecycle Cloud Lease, it must instead
+authenticate the exact stage handoff, bind its typed Lease Selector to current
+provider inventory, and use the retained non-secret Analysis endpoint identity.
+Only then may it hand the local process an encrypted session. Call
+`run_inspect` before reading repository code or calling another Analysis MCP
+tool; the run host itself intentionally has no cloud credential.
 
 - If state is `released` and inventory count is zero, state: `Simulation Run <run_id> 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。` Stop immediately. Make no other MCP calls and do not infer a cause from old workflow output.
-- If the locator or run identity is unknown or mismatched, report `unknown_run` and stop. Ask the caller to verify the Run Identity.
+- If the applicable locator/handoff or run identity is unknown or mismatched, report `unknown_run` and stop. Ask the caller to verify the exact Run or Lease Identity.
 - If resources exist but an observability source is unreachable, continue only with reachable sources and classify the result as `insufficient_evidence`; never relabel it `released`.
 - Treat ambiguous inventory identity as a closed failure and stop.
 

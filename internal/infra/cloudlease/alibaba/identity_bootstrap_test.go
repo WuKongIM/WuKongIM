@@ -113,7 +113,8 @@ func TestDesiredIdentityBootstrapStateSeparatesExactWorkflowRoles(t *testing.T) 
 		}
 		ordinarySubject := identityGitHubSubject(config, expected.environment, expected.workflow)
 		setupSubject := identityGitHubSubject(config, expected.environment, CloudLeaseOIDCSetupWorkflow)
-		for _, fragment := range []string{ordinarySubject, setupSubject, `"oidc:aud":["wukongim-cloud-lease"]`} {
+		analysisSubject := identityGitHubSubject(config, expected.environment, CloudLeaseAnalysisWorkflow)
+		for _, fragment := range []string{ordinarySubject, setupSubject, analysisSubject, `"oidc:aud":["wukongim-cloud-lease"]`} {
 			if !strings.Contains(role.TrustPolicy, fragment) {
 				t.Fatalf("role %s trust missing %q: %s", role.Name, fragment, role.TrustPolicy)
 			}
@@ -198,6 +199,7 @@ func TestExpectedIdentityRoleTrustIncludesSetupAndOrdinaryWorkflow(t *testing.T)
 	for _, fragment := range []string{
 		"cloud-lease-observe:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-lease-oidc-setup.yml@refs/heads/main",
 		"cloud-lease-observe:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-lease-observe.yml@refs/heads/main",
+		"cloud-lease-observe:job_workflow_ref:WuKongIM/WuKongIM/.github/workflows/cloud-lease-analyze.yml@refs/heads/main",
 	} {
 		if !strings.Contains(trust, fragment) {
 			t.Fatalf("trust missing %q: %s", fragment, trust)

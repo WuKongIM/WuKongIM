@@ -18,6 +18,7 @@ import (
 const (
 	bootstrapAccessSchemaV1 = "wukongim.cloud_lease.bootstrap_access/v1"
 	selectorSchemaV1        = "wukongim.cloud_lease.selector/v1"
+	accessGrantSchemaV1     = "wukongim.cloud_lease.access_grant/v1"
 	receiptSchemaV1         = "wukongim.cloud_lease.receipt/v1"
 	releaseSchemaV1         = "wukongim.cloud_lease.release/v1"
 	sweepSchemaV1           = "wukongim.cloud_lease.sweep/v1"
@@ -31,6 +32,11 @@ type bootstrapAccessDocument struct {
 type selectorDocument struct {
 	Schema   string              `json:"schema"`
 	Selector cloudlease.Selector `json:"selector"`
+}
+
+type accessGrantDocument struct {
+	Schema string                 `json:"schema"`
+	Grant  cloudlease.AccessGrant `json:"grant"`
 }
 
 type receiptResult struct {
@@ -74,6 +80,30 @@ func addLifecycleCommands(root *cobra.Command, dependencies commandDependencies)
 	inspect.Flags().StringVar(&inspectSelectorPath, "selector", "", "path to the versioned exact Lease Selector JSON")
 	mustMarkRequired(inspect, "selector")
 	root.AddCommand(inspect)
+
+	var grantSelectorPath, grantPath string
+	grantAccess := &cobra.Command{
+		Use: "grant_access", Short: "Create one exact expiring ingress grant for a live Lease", Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runGrantAccess(command.Context(), command.OutOrStdout(), grantSelectorPath, grantPath, dependencies)
+		},
+	}
+	grantAccess.Flags().StringVar(&grantSelectorPath, "selector", "", "path to the versioned exact Lease Selector JSON")
+	grantAccess.Flags().StringVar(&grantPath, "grant", "", "path to the versioned exact Access Grant JSON")
+	mustMarkRequired(grantAccess, "selector", "grant")
+	root.AddCommand(grantAccess)
+
+	var revokeSelectorPath, revokeGrantID string
+	revokeAccess := &cobra.Command{
+		Use: "revoke_access", Short: "Remove one exact ingress grant from a Lease", Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return runRevokeAccess(command.Context(), command.OutOrStdout(), revokeSelectorPath, revokeGrantID, dependencies)
+		},
+	}
+	revokeAccess.Flags().StringVar(&revokeSelectorPath, "selector", "", "path to the versioned exact Lease Selector JSON")
+	revokeAccess.Flags().StringVar(&revokeGrantID, "grant-id", "", "exact Access Grant identity")
+	mustMarkRequired(revokeAccess, "selector", "grant-id")
+	root.AddCommand(revokeAccess)
 
 	var releaseSelectorPath string
 	release := &cobra.Command{
@@ -153,6 +183,45 @@ func runInspect(ctx context.Context, stdout io.Writer, selectorPath string, depe
 	receipt, err := cloudlease.NewController(provider, dependencies.now).Inspect(ctx, selector)
 	if err != nil {
 		return fmt.Errorf("inspect: %w", err)
+	}
+	return json.NewEncoder(stdout).Encode(receiptResult{Schema: receiptSchemaV1, Receipt: receipt})
+}
+
+func runGrantAccess(ctx context.Context, stdout io.Writer, selectorPath, grantPath string, dependencies commandDependencies) error {
+	selector, err := readSelector(selectorPath)
+	if err != nil {
+		return err
+	}
+	var document accessGrantDocument
+	if err := readStrictDocument(grantPath, &document); err != nil {
+		return fmt.Errorf("read access grant: %w", err)
+	}
+	if document.Schema != accessGrantSchemaV1 {
+		return errors.New("access grant schema is not supported")
+	}
+	provider, err := constructLifecycleProvider(dependencies, selector.Provider, selector.Region)
+	if err != nil {
+		return err
+	}
+	receipt, err := cloudlease.NewController(provider, dependencies.now).GrantAccess(ctx, selector, document.Grant)
+	if err != nil {
+		return fmt.Errorf("grant access: %w", err)
+	}
+	return json.NewEncoder(stdout).Encode(receiptResult{Schema: receiptSchemaV1, Receipt: receipt})
+}
+
+func runRevokeAccess(ctx context.Context, stdout io.Writer, selectorPath, grantID string, dependencies commandDependencies) error {
+	selector, err := readSelector(selectorPath)
+	if err != nil {
+		return err
+	}
+	provider, err := constructLifecycleProvider(dependencies, selector.Provider, selector.Region)
+	if err != nil {
+		return err
+	}
+	receipt, err := cloudlease.NewController(provider, dependencies.now).RevokeAccess(ctx, selector, grantID)
+	if err != nil {
+		return fmt.Errorf("revoke access: %w", err)
 	}
 	return json.NewEncoder(stdout).Encode(receiptResult{Schema: receiptSchemaV1, Receipt: receipt})
 }

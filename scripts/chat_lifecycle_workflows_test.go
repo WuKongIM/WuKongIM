@@ -256,6 +256,62 @@ func TestChatLifecycleEncryptedAccessHandoffNeverPublishesPlaintextCredentials(t
 	}
 }
 
+func TestChatLifecycleAnalysisUsesExactLeaseHandoffInsteadOfCloudSimulationLocator(t *testing.T) {
+	root := repoRoot(t)
+	workflowPath := filepath.Join(root, ".github", "workflows", "cloud-lease-analyze.yml")
+	workflow := readFile(t, workflowPath)
+	for _, required := range []string{
+		"chat-lifecycle-${STAGE}-handoff-${CHAT_REQUEST_ID}",
+		"analysis-endpoint.json",
+		"release-selector.json",
+		"wkcloudlease\" inspect",
+		"wkcloudlease\" grant_access",
+		"wkcloudlease\" revoke_access",
+		"wukongim/chat-lifecycle-analysis-preflight/v1",
+		"wukongim/chat-lifecycle-analysis-session/v1",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("Cloud Lease Analysis workflow is missing %q", required)
+		}
+	}
+	if strings.Contains(workflow, "cloud-sim-locator-") || strings.Contains(workflow, "wkcloudsim") {
+		t.Fatal("Cloud Lease Analysis workflow still depends on the legacy Cloud Simulation identity dialect")
+	}
+
+	deployment := string(readWorkflow(t, "cloud-deployment-activate.yml"))
+	for _, required := range []string{
+		"WK_ANALYSIS_GITHUB_OIDC_ENABLED=true",
+		"WK_ANALYSIS_GITHUB_OIDC_AUDIENCE=wukongim-cloud-lease:$lease_id",
+		".github/workflows/cloud-lease-analyze.yml@refs/heads/main",
+		"WK_ANALYSIS_GITHUB_ENVIRONMENT=cloud-lease-provision",
+		"analysis-endpoint.json",
+	} {
+		if !strings.Contains(deployment, required) {
+			t.Fatalf("Deployment Action Analysis handoff is missing %q", required)
+		}
+	}
+
+	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
+	for _, required := range []string{
+		"analysis-endpoint.json",
+		`cp "${analysis_endpoints[0]}" "$WK_CHAT_OUTPUT_DIR/analysis-endpoint.json"`,
+	} {
+		if !strings.Contains(orchestrator, required) {
+			t.Fatalf("stage orchestration Analysis handoff is missing %q", required)
+		}
+	}
+
+	launcher := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "analyze.sh"))
+	for _, required := range []string{
+		"--chat-request-id",
+		"../cloud-sim/analyze.sh",
+	} {
+		if !strings.Contains(launcher, required) {
+			t.Fatalf("chat-lifecycle Analysis launcher is missing %q", required)
+		}
+	}
+}
+
 func TestChatLifecycleUsesOneEncryptedDeploymentIdentityPerLease(t *testing.T) {
 	root := repoRoot(t)
 	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))

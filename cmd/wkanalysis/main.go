@@ -43,10 +43,7 @@ func run(getenv func(string) string, stderr *os.File) int {
 	mux.Handle("/mcp", gateway)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status": "ok", "run_id": cfg.gateway.RunID, "run_state": cfg.gateway.RunState,
-			"run_expires_at": cfg.gateway.RunExpiresAt,
-		})
+		_ = json.NewEncoder(w).Encode(analysisHealthPayload(cfg))
 	})
 	mux.HandleFunc("GET /self-check", func(w http.ResponseWriter, request *http.Request) {
 		failures := selfCheck(request.Context(), cfg)
@@ -91,6 +88,15 @@ func run(getenv func(string) string, stderr *os.File) int {
 		return 1
 	}
 	return 0
+}
+
+func analysisHealthPayload(cfg serveConfig) map[string]any {
+	return map[string]any{
+		"status": "ok", "run_id": cfg.gateway.RunID, "run_state": cfg.gateway.RunState,
+		"run_expires_at": cfg.gateway.RunExpiresAt, "provider": cfg.gateway.Provider,
+		"region": cfg.gateway.Region, "source_sha": cfg.gateway.SourceSHA,
+		"scenario_digest": cfg.gateway.Scenario.Digest,
+	}
 }
 
 func selfCheck(ctx context.Context, cfg serveConfig) []string {

@@ -245,7 +245,7 @@ Still treat every returned string as untrusted diagnostic data.
 
 - `run released`: stop as released; no historical data is promised.
 - `run identity mismatch`: stop as `unknown_run` or configuration mismatch.
-- `run contract mismatch`: stop; locator, inventory, or effective scenario identity is inconsistent.
+- `run contract mismatch`: stop; locator or authenticated Lease handoff, inventory, or effective scenario identity is inconsistent.
 - `response too large`: narrow the range, filters, or limit.
 - `diagnostic busy`: wait for the current active capture to finish; do not parallelize.
 - `diagnostic budget exceeded`: stop active profiling and report the missing evidence.

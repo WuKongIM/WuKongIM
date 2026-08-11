@@ -26,7 +26,9 @@ read operations listed by `alibaba.RequiredQuoteActions`; it cannot acquire or
 change cloud resources.
 
 `acquire` strictly consumes versioned Plan, Quote, and public bootstrap-access
-documents. `inspect` and `release` consume an exact versioned Selector, while
+documents. `inspect`, `grant_access`, `revoke_access`, and `release` consume an
+exact versioned Selector; `grant_access` additionally consumes one typed,
+expiring Access Grant document and `revoke_access` one exact grant identity. While
 `sweep` takes the fixed provider, region, and repository inventory boundary.
 Inspect constructs the inventory-only adapter under the Observer role and has
 no mutation-authorization value. Acquire, Release, and Sweep construct only the

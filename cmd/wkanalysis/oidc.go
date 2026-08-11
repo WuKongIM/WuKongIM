@@ -71,9 +71,14 @@ func loadGitHubOIDCConfig(getenv func(string) string, runID string) (*githubOIDC
 	}
 	config.DefaultSubject = fmt.Sprintf("repo:%s:environment:%s", config.Repository, config.Environment)
 	config.ExpectedSubject = fmt.Sprintf("repo:%s:environment:%s:job_workflow_ref:%s", config.Repository, config.Environment, config.WorkflowRef)
-	expectedWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-analyze.yml@%s", config.Repository, config.Ref)
-	if runID == "" || config.Audience != "wukongim-cloud-sim:"+runID || config.Repository == "" ||
-		!strings.HasPrefix(config.Ref, "refs/heads/") || config.WorkflowRef != expectedWorkflowRef || config.Environment == "" {
+	expectedSimulationWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-sim-analyze.yml@%s", config.Repository, config.Ref)
+	expectedLeaseWorkflowRef := fmt.Sprintf("%s/.github/workflows/cloud-lease-analyze.yml@%s", config.Repository, config.Ref)
+	simulationSession := config.Audience == "wukongim-cloud-sim:"+runID &&
+		config.WorkflowRef == expectedSimulationWorkflowRef && config.Environment == "cloud-sim-analysis"
+	leaseSession := config.Audience == "wukongim-cloud-lease:"+runID &&
+		config.WorkflowRef == expectedLeaseWorkflowRef && config.Environment == "cloud-lease-provision"
+	if runID == "" || config.Repository == "" || !strings.HasPrefix(config.Ref, "refs/heads/") ||
+		(!simulationSession && !leaseSession) {
 		return nil, errInvalidAnalysisConfig
 	}
 	return config, nil

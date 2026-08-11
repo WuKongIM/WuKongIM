@@ -79,3 +79,53 @@ func TestGitHubOIDCVerifierRequiresExactRunWorkflowEnvironmentAndRef(t *testing.
 		t.Fatal("Verify(mismatched environment) error = nil")
 	}
 }
+
+func TestLoadGitHubOIDCConfigAcceptsOnlyReviewedSessionDialects(t *testing.T) {
+	tests := []struct {
+		name        string
+		audience    string
+		workflow    string
+		environment string
+		wantOK      bool
+	}{
+		{
+			name: "cloud simulation", audience: "wukongim-cloud-sim:run-1",
+			workflow:    "WuKongIM/WuKongIM/.github/workflows/cloud-sim-analyze.yml@refs/heads/main",
+			environment: "cloud-sim-analysis", wantOK: true,
+		},
+		{
+			name: "chat lifecycle Cloud Lease", audience: "wukongim-cloud-lease:run-1",
+			workflow:    "WuKongIM/WuKongIM/.github/workflows/cloud-lease-analyze.yml@refs/heads/main",
+			environment: "cloud-lease-provision", wantOK: true,
+		},
+		{
+			name: "crossed environment", audience: "wukongim-cloud-lease:run-1",
+			workflow:    "WuKongIM/WuKongIM/.github/workflows/cloud-lease-analyze.yml@refs/heads/main",
+			environment: "cloud-sim-analysis",
+		},
+		{
+			name: "unreviewed workflow", audience: "wukongim-cloud-lease:run-1",
+			workflow:    "WuKongIM/WuKongIM/.github/workflows/other.yml@refs/heads/main",
+			environment: "cloud-lease-provision",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			env := map[string]string{
+				"WK_ANALYSIS_GITHUB_OIDC_ENABLED":  "true",
+				"WK_ANALYSIS_GITHUB_OIDC_AUDIENCE": test.audience,
+				"WK_ANALYSIS_GITHUB_REPOSITORY":    "WuKongIM/WuKongIM",
+				"WK_ANALYSIS_GITHUB_REF":           "refs/heads/main",
+				"WK_ANALYSIS_GITHUB_WORKFLOW_REF":  test.workflow,
+				"WK_ANALYSIS_GITHUB_ENVIRONMENT":   test.environment,
+			}
+			config, err := loadGitHubOIDCConfig(func(key string) string { return env[key] }, "run-1")
+			if test.wantOK && (err != nil || config == nil) {
+				t.Fatalf("loadGitHubOIDCConfig() = %#v, %v", config, err)
+			}
+			if !test.wantOK && err == nil {
+				t.Fatalf("loadGitHubOIDCConfig() accepted %#v", config)
+			}
+		})
+	}
+}

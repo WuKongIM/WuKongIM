@@ -140,6 +140,57 @@ exit 89
 	}
 }
 
+func TestChatLifecycleAnalyzeRoutesExactLeaseWithoutLegacyLocator(t *testing.T) {
+	runHeavyShellScriptTestInParallel(t)
+	root := repoRoot(t)
+	temp := t.TempDir()
+	bin := filepath.Join(temp, "bin")
+	stateDir := filepath.Join(temp, "state")
+	callLog := filepath.Join(temp, "calls.log")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeAnalyzeFakes(t, bin)
+	requestID := "chat-20260811T120000Z-0123abcd"
+	leaseID := requestID + "-rehearsal-1"
+	command := exec.Command("bash", filepath.Join(root, "scripts", "chat-lifecycle", "analyze.sh"),
+		requestID, leaseID, "--repository", "example/project")
+	command.Dir = root
+	command.Env = append(analyzeFakeEnvironment(bin),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"WK_ANALYZE_CALL_LOG="+callLog,
+		"WK_ANALYZE_STATE_DIR="+stateDir,
+		"WK_ANALYZE_SESSION_STATE=live",
+		"WK_ANALYZE_CHAT_MODE=true",
+	)
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "chat-lifecycle session broker stopped after the exact live preflight") {
+		t.Fatalf("chat-lifecycle analyze error = %v, want post-preflight broker stop:\n%s", err, output)
+	}
+	if strings.Contains(string(output), "Run Locator") || strings.Contains(string(output), "unknown_run") {
+		t.Fatalf("chat-lifecycle analyze fell back to the legacy locator path:\n%s", output)
+	}
+	calls, readErr := os.ReadFile(callLog)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	callText := string(calls)
+	for _, required := range []string{
+		"gh workflow run cloud-lease-analyze.yml",
+		"-f operation=inspect",
+		"-f operation=prepare",
+		"-f run_id=" + leaseID,
+		"-f chat_request_id=" + requestID,
+	} {
+		if !strings.Contains(callText, required) {
+			t.Fatalf("chat-lifecycle analyze calls missing %q:\n%s", required, calls)
+		}
+	}
+	if strings.Contains(callText, "gh workflow run cloud-sim-analyze.yml") {
+		t.Fatalf("chat-lifecycle analyze dispatched the legacy workflow:\n%s", calls)
+	}
+}
+
 func TestCloudSimulationAnalyzeBoundsCodexEnvironmentProbes(t *testing.T) {
 	runTimingSensitiveShellScriptTestExclusively(t)
 	for _, testCase := range []struct {
@@ -1769,9 +1820,11 @@ case "$1" in
         fi
         current="$(cat "$WK_ANALYZE_STATE_DIR/run-id")"
         request_id="$(cat "$WK_ANALYZE_STATE_DIR/request-id")"
-        jq -cn --argjson current "$current" --arg operation "$operation" --arg request_id "$request_id" '
-          [{databaseId:999,displayTitle:"Cloud Simulation Analysis prepare another-request"},
-           {databaseId:$current,displayTitle:("Cloud Simulation Analysis " + $operation + " " + $request_id)}]'
+        title_prefix='Cloud Simulation Analysis'
+        if [[ "${WK_ANALYZE_CHAT_MODE:-}" == true ]]; then title_prefix='Chat Lifecycle Analysis'; fi
+        jq -cn --argjson current "$current" --arg operation "$operation" --arg request_id "$request_id" --arg title_prefix "$title_prefix" '
+          [{databaseId:999,displayTitle:($title_prefix + " prepare another-request")},
+           {databaseId:$current,displayTitle:($title_prefix + " " + $operation + " " + $request_id)}]'
         ;;
       watch)
         if [[ "$(cat "$WK_ANALYZE_STATE_DIR/operation")" == prepare &&
@@ -1821,6 +1874,14 @@ case "$1" in
         mkdir -p "$destination"
         request_id="$(cat "$WK_ANALYZE_STATE_DIR/request-id")"
         operation="$(cat "$WK_ANALYZE_STATE_DIR/operation")"
+        fake_run_id=run-live
+        preflight_schema='wukongim/cloud-simulation-analysis-preflight/v1'
+        session_schema='wukongim/cloud-simulation-analysis-session/v1'
+        if [[ "${WK_ANALYZE_CHAT_MODE:-}" == true ]]; then
+          fake_run_id='chat-20260811T120000Z-0123abcd-rehearsal-1'
+          preflight_schema='wukongim/chat-lifecycle-analysis-preflight/v1'
+          session_schema='wukongim/chat-lifecycle-analysis-session/v1'
+        fi
         if [[ "$operation" == prepare && -n "${WK_ANALYZE_PREPARE_DOWNLOAD_EXIT:-}" ]]; then
           exit "$WK_ANALYZE_PREPARE_DOWNLOAD_EXIT"
         fi
@@ -1830,8 +1891,10 @@ case "$1" in
           elif [[ "$WK_ANALYZE_SESSION_STATE" == insufficient_evidence ]]; then
             jq -n --arg request_id "$request_id" --arg message "${WK_ANALYZE_SESSION_MESSAGE:-Provider preflight could not establish a live identity-matched Simulation Run.}" '{schema:"wukongim/cloud-simulation-analysis-preflight/v1",state:"insufficient_evidence",run_id:"run-insufficient",request_id:$request_id,message:$message,provider:null}' >"$destination/preflight.json"
           else
-            jq -n --arg request_id "$request_id" '{schema:"wukongim/cloud-simulation-analysis-preflight/v1",state:"live",run_id:"run-live",request_id:$request_id,message:"Provider preflight confirmed a live identity-matched Simulation Run; client material is required to open a session.",provider:{state:"live",resources:[{kind:"instance",role:"sim"}]}}' >"$destination/preflight.json"
+            jq -n --arg schema "$preflight_schema" --arg run_id "$fake_run_id" --arg request_id "$request_id" '{schema:$schema,state:"live",run_id:$run_id,request_id:$request_id,message:"Provider preflight confirmed a live identity-matched run; client material is required to open a session.",provider:{state:"live",resources:[{kind:"instance",role:"load"}]}}' >"$destination/preflight.json"
           fi
+        elif [[ "${WK_ANALYZE_CHAT_MODE:-}" == true ]]; then
+          jq -n --arg schema "$session_schema" --arg run_id "$fake_run_id" --arg request_id "$request_id" '{schema:$schema,state:"insufficient_evidence",run_id:$run_id,request_id:$request_id,message:"chat-lifecycle session broker stopped after the exact live preflight",provider:null}' >"$destination/session.json"
         elif [[ "$WK_ANALYZE_SESSION_STATE" == released ]]; then
           jq -n --arg request_id "$request_id" '{schema:"wukongim/cloud-simulation-analysis-session/v1",state:"released",run_id:"run-released",request_id:$request_id,message:"Simulation Run run-released 已由云厂商确认自动销毁，当前没有可分析的实时数据；分析已终止。",provider:{state:"released",resources:[]}}' >"$destination/session.json"
         elif [[ "$WK_ANALYZE_SESSION_STATE" == insufficient_evidence ]]; then

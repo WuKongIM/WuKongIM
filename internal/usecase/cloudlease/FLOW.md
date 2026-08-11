@@ -54,6 +54,9 @@ Acquire can still be reconciled without guessing whether resources exist.
 
 `GrantAccess` and `RevokeAccess` operate on typed, expiring network rules.
 An exact repeated grant and revocation of an absent grant are idempotent.
+The chat-lifecycle Analysis broker uses these operations only for exact
+load-role TCP/19444 runner/client windows; inspection, opening, and closing run
+under separately trusted Observer, Provisioner, and Releaser jobs.
 
 `Release` succeeds only when the provider returns an exact `ZeroInventoryProof`
 covering its complete inventory scopes. Residual inventory returns a
