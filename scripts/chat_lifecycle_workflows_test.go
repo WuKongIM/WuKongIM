@@ -262,13 +262,16 @@ func TestChatLifecycleAnalysisUsesExactLeaseHandoffInsteadOfCloudSimulationLocat
 	workflow := readFile(t, workflowPath)
 	for _, required := range []string{
 		"chat-lifecycle-${STAGE}-handoff-${CHAT_REQUEST_ID}",
+		"chat-lifecycle-${STAGE}-cleanup-${CHAT_REQUEST_ID}",
 		"analysis-endpoint.json",
 		"release-selector.json",
+		"zero-inventory.json",
 		"wkcloudlease\" inspect",
 		"wkcloudlease\" grant_access",
 		"wkcloudlease\" revoke_access",
 		"wukongim/chat-lifecycle-analysis-preflight/v1",
 		"wukongim/chat-lifecycle-analysis-session/v1",
+		`state:"released"`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("Cloud Lease Analysis workflow is missing %q", required)

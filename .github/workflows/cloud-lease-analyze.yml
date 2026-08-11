@@ -83,6 +83,59 @@ jobs:
           artifact_name="chat-lifecycle-${STAGE}-handoff-${CHAT_REQUEST_ID}"
           artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$artifact_name" -f per_page=2)"
           count="$(jq -r '[.artifacts[] | select(.expired == false)] | length' <<<"$artifacts")"
+          cleanup_artifact_name="chat-lifecycle-${STAGE}-cleanup-${CHAT_REQUEST_ID}"
+          cleanup_artifacts="$(gh api -X GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" -f name="$cleanup_artifact_name" -f per_page=2)"
+          cleanup_count="$(jq -r '[.artifacts[] | select(.expired == false)] | length' <<<"$cleanup_artifacts")"
+          if [[ "$cleanup_count" == 1 ]]; then
+            cleanup_artifact_id="$(jq -er '[.artifacts[] | select(.expired == false)][0].id' <<<"$cleanup_artifacts")"
+            cleanup_producer_run_id="$(jq -er '[.artifacts[] | select(.expired == false)][0].workflow_run.id' <<<"$cleanup_artifacts")"
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${cleanup_producer_run_id}" >cleanup-producer-run.json
+            expected_cleanup_workflow=".github/workflows/chat-lifecycle-${stage}-finalize.yml"
+            jq -e --arg repository "$GITHUB_REPOSITORY" --arg workflow "$expected_cleanup_workflow" '
+              select(.repository.full_name == $repository and .head_repository.full_name == $repository and
+                .head_branch == "main" and .status == "completed" and .conclusion == "success" and
+                (.path == $workflow or .path == ($workflow + "@refs/heads/main")) and
+                (.event == "workflow_dispatch" or .event == "schedule") and
+                (.head_sha | test("^[0-9a-f]{40}$")))
+              ' cleanup-producer-run.json >/dev/null
+            mkdir -p cleanup
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${cleanup_artifact_id}/zip" >cleanup.zip
+            unzip -q cleanup.zip -d cleanup
+            mapfile -t cleanup_markers < <(find cleanup -type f -name cleanup.json -print)
+            mapfile -t zero_proofs < <(find cleanup -type f -name zero-inventory.json -print)
+            ((${#cleanup_markers[@]} == 1 && ${#zero_proofs[@]} == 1))
+            jq -e --arg request "$CHAT_REQUEST_ID" --arg stage "$stage" '
+              .schema == ("wukongim.chat_lifecycle." + $stage + "_cleanup/v1") and
+              .request_id == $request and .zero_inventory == true and (.release_run_id | type == "number")
+              ' "${cleanup_markers[0]}" >/dev/null
+            jq -e --arg request "$CHAT_REQUEST_ID" --arg lease "$RUN_ID" '
+              .schema == "wukongim.cloud_lease.release/v1" and
+              .result.zero_inventory.selector.request_id == $request and
+              .result.zero_inventory.selector.lease_id == $lease and
+              .result.zero_inventory.selector.repository == env.GITHUB_REPOSITORY and
+              .result.zero_inventory.selector.provider == "alibaba" and
+              .result.zero_inventory.selector.region == "cn-hangzhou" and
+              (.result.zero_inventory.observed_at | strings | length > 0) and
+              (.result.zero_inventory.scopes | type == "array" and length > 0)
+              ' "${zero_proofs[0]}" >/dev/null
+            echo 'state=released' >>"$GITHUB_OUTPUT"
+            echo "stage=$stage" >>"$GITHUB_OUTPUT"
+            if [[ "$OPERATION" == inspect ]]; then
+              jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
+                '{schema:"wukongim/chat-lifecycle-analysis-preflight/v1",state:"released",run_id:$run_id,
+                  request_id:$request_id,message:"Authenticated cleanup proves exact zero provider inventory.",
+                  provider:{state:"released",resources:[]}}' >session/preflight.json
+            elif [[ "$OPERATION" == prepare ]]; then
+              jq -n --arg run_id "$RUN_ID" --arg request_id "$REQUEST_ID" \
+                '{schema:"wukongim/chat-lifecycle-analysis-session/v1",state:"released",run_id:$run_id,
+                  request_id:$request_id,message:"Authenticated cleanup proves exact zero provider inventory.",
+                  provider:{state:"released",resources:[]}}' >session/session.json
+            fi
+            exit 0
+          fi
+          if [[ "$cleanup_count" != 0 ]]; then
+            count=0
+          fi
           if [[ "$count" != 1 ]]; then
             echo 'state=unknown_run' >>"$GITHUB_OUTPUT"
             echo "stage=$stage" >>"$GITHUB_OUTPUT"
@@ -164,16 +217,16 @@ jobs:
           path: analysis-input/
           retention-days: 1
           if-no-files-found: error
-      - name: Upload unknown preflight
-        if: steps.handoff.outputs.state == 'unknown_run' && inputs.operation == 'inspect'
+      - name: Upload terminal preflight
+        if: (steps.handoff.outputs.state == 'unknown_run' || steps.handoff.outputs.state == 'released') && inputs.operation == 'inspect'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-lifecycle-analysis-preflight-${{ inputs.request_id }}
           path: session/preflight.json
           retention-days: 1
           if-no-files-found: error
-      - name: Upload unknown session
-        if: steps.handoff.outputs.state == 'unknown_run' && inputs.operation == 'prepare'
+      - name: Upload terminal session
+        if: (steps.handoff.outputs.state == 'unknown_run' || steps.handoff.outputs.state == 'released') && inputs.operation == 'prepare'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chat-lifecycle-analysis-session-${{ inputs.request_id }}
