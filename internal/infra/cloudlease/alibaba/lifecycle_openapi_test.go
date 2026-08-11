@@ -3,6 +3,7 @@ package alibaba
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/netip"
 	"reflect"
@@ -101,7 +102,7 @@ func TestQuoteOpenAPIConstructorKeepsLifecycleGuardFalse(t *testing.T) {
 }
 
 func TestSecurityRuleDescriptionRoundTripsExactQuintuple(t *testing.T) {
-	until := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	until := time.Date(2026, 8, 10, 12, 0, 0, 123456789, time.UTC)
 	request := AccessRuleRequest{
 		Kind: AccessRuleGrant, ID: "load-http", TargetRole: "load", Protocol: cloudlease.ProtocolTCP,
 		PortFrom: 80, PortTo: 80, SourcePrefix: netip.MustParsePrefix("0.0.0.0/0"),
@@ -114,7 +115,8 @@ func TestSecurityRuleDescriptionRoundTripsExactQuintuple(t *testing.T) {
 	}
 	decoded, ok := parseSecurityRuleDescription(description)
 	if !ok || decoded.LeaseID != "lease-123" || decoded.ID != "load-http" || decoded.TargetRole != "load" ||
-		decoded.Source != "0.0.0.0/0" || decoded.Destination != "10.42.0.13/32" || decoded.PortFrom != 80 || decoded.UntilUnix != until.Unix() {
+		decoded.Source != "0.0.0.0/0" || decoded.Destination != "10.42.0.13/32" || decoded.PortFrom != 80 ||
+		decoded.UntilUnix != until.Unix() || decoded.UntilNanosecond != int32(until.Nanosecond()) {
 		t.Fatalf("parseSecurityRuleDescription() = %#v/%v", decoded, ok)
 	}
 	permission := lifecycleSecurityPermission{
@@ -127,13 +129,41 @@ func TestSecurityRuleDescriptionRoundTripsExactQuintuple(t *testing.T) {
 	asset := lifecycleSecurityRuleAsset("sg-1", map[string]string{
 		cloudlease.TagResourceRole: "network", cloudlease.TagManagedBy: cloudlease.ManagedByValue,
 	}, permission)
-	if asset.IdentityInherited || asset.Attributes["rule_kind"] != string(AccessRuleGrant) || asset.Grant == nil || asset.Grant.ID != "load-http" {
+	if asset.IdentityInherited || asset.Attributes["rule_kind"] != string(AccessRuleGrant) || asset.Grant == nil ||
+		asset.Grant.ID != "load-http" || !asset.Grant.Until.Equal(until) {
 		t.Fatalf("owned rule asset = %#v", asset)
 	}
 	permission.DestCIDRIP = "10.42.0.14/32"
 	asset = lifecycleSecurityRuleAsset("sg-1", map[string]string{cloudlease.TagResourceRole: "network"}, permission)
 	if !asset.IdentityInherited || asset.Attributes["rule_kind"] != "unknown" || asset.Grant != nil {
 		t.Fatalf("divergent provider rule asset = %#v, want cleanup-only unknown", asset)
+	}
+}
+
+func TestSecurityRuleDescriptionReadsLegacySecondPrecision(t *testing.T) {
+	until := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+	legacy, err := json.Marshal(encodedSecurityRule{
+		LeaseID: "lease-123", Kind: string(AccessRuleGrant), ID: "load-http", TargetRole: "load",
+		Protocol: string(cloudlease.ProtocolTCP), PortFrom: 80, PortTo: 80, Source: "0.0.0.0/0",
+		Destination: "10.42.0.13/32", UntilUnix: until.Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	description := securityRulePrefix + base64.RawURLEncoding.EncodeToString(legacy)
+	decoded, ok := parseSecurityRuleDescription(description)
+	if !ok || decoded.UntilNanosecond != 0 {
+		t.Fatalf("parseSecurityRuleDescription(legacy) = %#v/%v", decoded, ok)
+	}
+	permission := lifecycleSecurityPermission{
+		RuleID: "rule-1", Description: description, IPProtocol: "TCP", PortRange: "80/80",
+		SourceCIDRIP: "0.0.0.0/0", DestCIDRIP: "10.42.0.13/32",
+	}
+	asset := lifecycleSecurityRuleAsset("sg-1", map[string]string{
+		cloudlease.TagResourceRole: "network", cloudlease.TagManagedBy: cloudlease.ManagedByValue,
+	}, permission)
+	if asset.Grant == nil || !asset.Grant.Until.Equal(until) {
+		t.Fatalf("legacy owned rule asset = %#v", asset)
 	}
 }
 

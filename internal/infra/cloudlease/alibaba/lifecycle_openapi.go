@@ -248,6 +248,8 @@ type encodedSecurityRule struct {
 	Source      string `json:"s"`
 	Destination string `json:"d"`
 	UntilUnix   int64  `json:"u"`
+	// UntilNanosecond preserves exact AccessGrant identity while omitempty keeps legacy second-precision rules readable.
+	UntilNanosecond int32 `json:"n,omitempty"`
 }
 
 func securityRuleDescription(request AccessRuleRequest) (string, error) {
@@ -255,7 +257,7 @@ func securityRuleDescription(request AccessRuleRequest) (string, error) {
 		LeaseID: request.Tags[cloudlease.TagLeaseID], Kind: string(request.Kind), ID: request.ID,
 		TargetRole: request.TargetRole, Protocol: string(request.Protocol), PortFrom: request.PortFrom,
 		PortTo: request.PortTo, Source: request.SourcePrefix.String(), Destination: request.DestinationPrefix.String(),
-		UntilUnix: request.Until.UTC().Unix(),
+		UntilUnix: request.Until.UTC().Unix(), UntilNanosecond: int32(request.Until.UTC().Nanosecond()),
 	}
 	data, err := json.Marshal(document)
 	if err != nil {
@@ -280,7 +282,8 @@ func parseSecurityRuleDescription(value string) (encodedSecurityRule, bool) {
 	if json.Unmarshal(data, &rule) != nil || rule.LeaseID == "" || rule.ID == "" || rule.TargetRole == "" ||
 		(rule.Kind != string(AccessRulePrivate) && rule.Kind != string(AccessRuleGrant)) ||
 		(rule.Protocol != string(cloudlease.ProtocolTCP) && rule.Protocol != string(cloudlease.ProtocolUDP)) ||
-		rule.PortFrom == 0 || rule.PortTo < rule.PortFrom || rule.UntilUnix <= 0 {
+		rule.PortFrom == 0 || rule.PortTo < rule.PortFrom || rule.UntilUnix <= 0 ||
+		rule.UntilNanosecond < 0 || rule.UntilNanosecond >= int32(time.Second) {
 		return encodedSecurityRule{}, false
 	}
 	source, sourceErr := netip.ParsePrefix(rule.Source)

@@ -460,7 +460,7 @@ func lifecycleSecurityRuleAsset(groupID string, groupTags map[string]string, per
 		source, _ := netip.ParsePrefix(decoded.Source)
 		asset.Grant = &cloudlease.AccessGrant{ID: decoded.ID, TargetRole: decoded.TargetRole,
 			Protocol: cloudlease.Protocol(decoded.Protocol), PortFrom: decoded.PortFrom, PortTo: decoded.PortTo,
-			SourcePrefix: source, Until: time.Unix(decoded.UntilUnix, 0).UTC()}
+			SourcePrefix: source, Until: time.Unix(decoded.UntilUnix, int64(decoded.UntilNanosecond)).UTC()}
 	}
 	return asset
 }
