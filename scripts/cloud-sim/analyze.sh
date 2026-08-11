@@ -832,20 +832,6 @@ fi
 ((diagnosis_timeout_seconds > 0)) || fail "Analysis Token expired before local Codex started"
 analysis_home="$analysis_temp/analysis-home"
 mkdir -p "$analysis_home"
-system_ca_file=""
-for ca_candidate in "${SSL_CERT_FILE:-}" /etc/ssl/cert.pem /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/cert.pem; do
-  if [[ -n "$ca_candidate" && -s "$ca_candidate" && "$ca_candidate" != "$pinned_ca" ]]; then
-    system_ca_file="$ca_candidate"
-    break
-  fi
-done
-[[ -n "$system_ca_file" ]] || fail "cannot locate the system CA bundle required for ChatGPT"
-combined_ca="$analysis_temp/combined-ca.pem"
-cp "$system_ca_file" "$combined_ca"
-printf '\n' >>"$combined_ca"
-wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" /bin/bash -c \
-  'openssl x509 -in "$1" >>"$2"' analysis-ca "$pinned_ca" "$combined_ca" || \
-  fail "Analysis MCP CA normalization failed or timed out"
 shell_path_toml="$(toml_string "$PATH")"
 analysis_home_toml="$(toml_string "$analysis_home")"
 codex_status=0
@@ -853,7 +839,7 @@ active_bounded_pid=""
 WK_BOUNDED_WRAPPER_PID=""
 wk_start_bounded "$diagnosis_timeout_seconds" \
   env -i PATH="$PATH" HOME="$analysis_home" USER="${USER:-}" TMPDIR="${TMPDIR:-/tmp}" LANG=C LC_ALL=C \
-  CODEX_HOME="$local_codex_home" WK_ANALYSIS_MCP_TOKEN="$analysis_token" SSL_CERT_FILE="$combined_ca" \
+  CODEX_HOME="$local_codex_home" WK_ANALYSIS_MCP_TOKEN="$analysis_token" CODEX_CA_CERTIFICATE="$pinned_ca" \
   "$codex_bin" exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$analysis_worktree" \
     -c 'default_permissions="cloud-analysis"' \
     -c 'permissions.cloud-analysis.filesystem={":minimal"="read",":workspace_roots"={"."="read"}}' \

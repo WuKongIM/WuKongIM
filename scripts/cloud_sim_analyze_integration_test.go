@@ -1716,6 +1716,9 @@ if [[ "$is_remediation" == true ]]; then
   exit 0
 fi
 test "$WK_ANALYSIS_MCP_TOKEN" = analysis-secret-token-0123456789abcdef
+test -n "${CODEX_CA_CERTIFICATE:-}"
+test -f "$CODEX_CA_CERTIFICATE"
+test -z "${SSL_CERT_FILE:-}"
 test -z "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}"
 test -z "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}"
 test -z "${ALIBABA_CLOUD_SECURITY_TOKEN:-}"
