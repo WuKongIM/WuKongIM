@@ -221,6 +221,34 @@ func TestCoordinatorSnapshotAggregationAllowsTransportCapacityToDrainAtFinalStop
 	}
 }
 
+func TestCoordinatorSnapshotAggregationRetainsMonotonicTransportRejections(t *testing.T) {
+	fence := WorkerFence{RunID: "snapshot-transport-rejected", AssignmentID: "snapshot-transport-rejected-assignment", Generation: 6}
+	aggregator, err := NewCoordinatorSnapshotAggregator(fence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := coordinatorSnapshotFixture(fence, 1, time.Second, 10)
+	for index := range first {
+		first[index].Queues.TransportRejected = uint64(index + 1)
+	}
+	aggregated, err := aggregator.Aggregate(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aggregated.Queues.TransportRejected != 6 {
+		t.Fatalf("aggregate transport rejections = %d, want 6", aggregated.Queues.TransportRejected)
+	}
+
+	regressed := coordinatorSnapshotFixture(fence, 2, 2*time.Second, 20)
+	for index := range regressed {
+		regressed[index].Queues.TransportRejected = uint64(index + 2)
+	}
+	regressed[1].Queues.TransportRejected = 1
+	if _, err := aggregator.Aggregate(regressed); !errors.Is(err, ErrCoordinatorSnapshotRegression) {
+		t.Fatalf("regressed transport rejections error = %v, want %v", err, ErrCoordinatorSnapshotRegression)
+	}
+}
+
 func TestCoordinatorGrantPlanRetainsOneGlobalTwoTickCredit(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-global-credit"

@@ -16,17 +16,101 @@ import (
 type engineRealWKFactory struct {
 	addr       string
 	ackTimeout time.Duration
+	capacity   int
 }
 
 func (f engineRealWKFactory) NewSession(context.Context, string, string) (SessionClient, error) {
+	capacity := f.capacity
+	if capacity == 0 {
+		capacity = 4
+	}
 	client, err := wkproto.NewClient(wkproto.ClientConfig{
 		Addr: f.addr, OperationTimeout: time.Second, AckTimeout: f.ackTimeout,
-		SendQueueCapacity: 4, MaxInflight: 4, FrameBufferSize: 4,
+		SendQueueCapacity: capacity, MaxInflight: capacity, FrameBufferSize: capacity,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return NewWKProtoSessionAdapter(client)
+}
+
+func TestEngineRealWKProtoAdmissionPressureCannotBlockOwnerAdvance(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer listener.Close()
+	firstSend := make(chan struct{}, 1)
+	serverStop := make(chan struct{})
+	serverErr := make(chan error, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			serverErr <- acceptErr
+			return
+		}
+		defer conn.Close()
+		protocol := codec.New()
+		if _, decodeErr := protocol.DecodePacketWithConn(conn, frame.LatestVersion); decodeErr != nil {
+			serverErr <- fmt.Errorf("decode CONNECT: %w", decodeErr)
+			return
+		}
+		if writeErr := writeEngineAttemptFrame(conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion}); writeErr != nil {
+			serverErr <- fmt.Errorf("write CONNACK: %w", writeErr)
+			return
+		}
+		if _, decodeErr := protocol.DecodePacketWithConn(conn, frame.LatestVersion); decodeErr != nil {
+			serverErr <- fmt.Errorf("decode first SEND: %w", decodeErr)
+			return
+		}
+		firstSend <- struct{}{}
+		<-serverStop
+		serverErr <- nil
+	}()
+
+	fixture := newEngineTestFixture(t, engineTestLimits{OnlineUsers: 1, WorkCapacity: 64, MaxWorkPerAdvance: 64})
+	fixture.pool.factory = engineRealWKFactory{addr: listener.Addr().String(), ackTimeout: time.Second, capacity: 1}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer close(serverStop)
+	defer fixture.engine.Stop()
+
+	sender := fixture.identity.UID(0)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: sender, UserIndex: 0, LoginOrdinal: 0}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	now := fixture.clock.Now()
+	for ordinal := uint64(1); ordinal <= 2; ordinal++ {
+		if err := fixture.engine.SubmitGranted(fixture.intent(t, sender, "pressure-group", ordinal, TrafficGroup), now); err != nil {
+			t.Fatalf("SubmitGranted(%d): %v", ordinal, err)
+		}
+	}
+
+	advanceDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := fixture.engine.Advance(now)
+		advanceDone <- advanceErr
+	}()
+	select {
+	case advanceErr := <-advanceDone:
+		if advanceErr != nil {
+			t.Fatalf("Advance: %v", advanceErr)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("Advance waited for saturated local SEND admission")
+	}
+	select {
+	case <-firstSend:
+	case err := <-serverErr:
+		t.Fatalf("server before first SEND: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("server did not receive the admitted first SEND")
+	}
+	snapshot := mustEngineSnapshot(t, fixture.engine)
+	if snapshot.RetryQueueDepth != 1 || snapshot.InflightCurrent != 2 || snapshot.TransportAdmissionRejected != 1 {
+		t.Fatalf("pressure snapshot = %+v, want one bounded retry, two logical inflight sends, and one local rejection", snapshot)
+	}
 }
 
 func TestEngineRealWKProtoOverlappingAttemptsAcceptEitherAckOrder(t *testing.T) {

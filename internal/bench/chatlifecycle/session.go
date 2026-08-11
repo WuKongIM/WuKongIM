@@ -7,9 +7,11 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -32,7 +34,9 @@ type SessionClock interface {
 type SessionClient interface {
 	Connect(context.Context, string, string) error
 	ReadFrame(context.Context) (frame.Frame, error)
-	Send(context.Context, *frame.SendPacket) error
+	// TrySend must not wait for local queue or inflight capacity. Implementations
+	// report transient local pressure with client.ErrSendQueueFull.
+	TrySend(context.Context, *frame.SendPacket) error
 	Ping(context.Context) error
 	AckRecv(context.Context, *frame.RecvackPacket) error
 	Close() error
@@ -69,8 +73,13 @@ func (a *WKProtoSessionAdapter) ReadFrame(ctx context.Context) (frame.Frame, err
 	return a.client.ReadFrame(ctx)
 }
 
-func (a *WKProtoSessionAdapter) Send(ctx context.Context, packet *frame.SendPacket) error {
-	return a.client.Send(ctx, packet)
+func (a *WKProtoSessionAdapter) TrySend(ctx context.Context, packet *frame.SendPacket) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	return a.client.TrySend(packet)
 }
 
 func (a *WKProtoSessionAdapter) Ping(ctx context.Context) error {
@@ -175,6 +184,7 @@ type SessionPoolSnapshot struct {
 	QueueDepth                 int
 	QueueCapacity              int
 	TransportInflight          int
+	TransportAdmissionRejected uint64
 	ReadErrors                 uint64
 	VerificationErrors         uint64
 	FactoryFailed              uint64
@@ -250,6 +260,8 @@ type SessionPool struct {
 	gatewayLatency     WorkerHistogramSnapshot
 	syncLatency        WorkerHistogramSnapshot
 	syncThresholds     LatencyThresholdCounters
+	// transportAdmissionRejected survives individual session churn for the generation.
+	transportAdmissionRejected atomic.Uint64
 }
 
 // NewSessionPool validates all lifecycle seams before any client is created.
@@ -557,15 +569,28 @@ func (p *SessionPool) markRelationshipsObserved(userIndex uint64) bool {
 	return true
 }
 
-// Send writes through the currently owned WKProto connection only.
-func (p *SessionPool) Send(ctx context.Context, uid string, packet *frame.SendPacket) error {
+// TrySend performs non-waiting local admission through the owned connection.
+func (p *SessionPool) TrySend(ctx context.Context, uid string, packet *frame.SendPacket) error {
 	p.mu.RLock()
 	session := p.online[uid]
 	p.mu.RUnlock()
 	if session == nil {
 		return errSessionOffline
 	}
-	return session.client.Send(ctx, packet)
+	err := session.client.TrySend(ctx, packet)
+	if errors.Is(err, wkclient.ErrSendQueueFull) {
+		recordSaturatingAtomic(&p.transportAdmissionRejected)
+	}
+	return err
+}
+
+func recordSaturatingAtomic(counter *atomic.Uint64) {
+	for {
+		current := counter.Load()
+		if current == ^uint64(0) || counter.CompareAndSwap(current, current+1) {
+			return
+		}
+	}
 }
 
 // Expire logs out every due session. Sorting makes simultaneous fake-clock
@@ -687,6 +712,7 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		snapshot.QueueCapacity += queue.Capacity
 		snapshot.TransportInflight += queue.Inflight
 	}
+	snapshot.TransportAdmissionRejected = p.transportAdmissionRejected.Load()
 	return snapshot, nil
 }
 
@@ -732,6 +758,7 @@ func (p *SessionPool) resetRuntime() error {
 	p.syncCanceled = 0
 	p.gatewayLatency = newWorkerHistogramSnapshot()
 	p.syncLatency = newWorkerHistogramSnapshot()
+	p.transportAdmissionRejected.Store(0)
 	p.onlineByIndex = make(map[uint64]*onlineSession)
 	p.onlineGroupMembers = make([][]*onlineSession, p.catalog.Count())
 	return nil

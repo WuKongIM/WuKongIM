@@ -20,6 +20,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
+func TestWorkerQueueSnapshotIncludesTransportAdmissionRejections(t *testing.T) {
+	snapshot := workerQueueSnapshot(EngineSnapshot{TransportAdmissionRejected: 9})
+	if snapshot.TransportRejected != 9 {
+		t.Fatalf("transport rejected = %d, want 9", snapshot.TransportRejected)
+	}
+}
+
 func TestWorkerServerRequiresBearerAuthenticationOnEveryEndpoint(t *testing.T) {
 	t.Parallel()
 

@@ -298,6 +298,20 @@ func (c *Client) SendAsync(ctx context.Context, msg Message) (*SendFuture, error
 	return futures[0], nil
 }
 
+// TrySendAsync admits one message without waiting for the SEND admission lock,
+// writer queue, or inflight capacity. ErrSendQueueFull reports transient local
+// pressure; no pending SEND remains when admission is rejected.
+func (c *Client) TrySendAsync(msg Message) (*SendFuture, error) {
+	if c == nil {
+		return nil, ErrClosed
+	}
+	item, err := c.prepareSend(msg)
+	if err != nil {
+		return nil, err
+	}
+	return c.tryAdmitPreparedSend(item)
+}
+
 // ReadFrame waits for the next inbound data frame exposed by this client.
 func (c *Client) ReadFrame(ctx context.Context) (frame.Frame, error) {
 	if c == nil {
@@ -644,6 +658,66 @@ func (c *Client) admitPreparedSends(ctx context.Context, prepared []preparedSend
 		c.observeSendQueue("accepted")
 	}
 	return futures, nil
+}
+
+func (c *Client) tryAdmitPreparedSend(item preparedSend) (*SendFuture, error) {
+	if !c.sendMu.TryLock() {
+		c.observeSendQueue("full")
+		return nil, ErrSendQueueFull
+	}
+	defer c.sendMu.Unlock()
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, ErrClosed
+	}
+	conn := c.conn
+	pending := c.pending
+	session := c.session
+	if conn == nil || pending == nil {
+		c.mu.Unlock()
+		return nil, ErrNotConnected
+	}
+	c.mu.Unlock()
+
+	if len(c.writeCh) >= cap(c.writeCh) {
+		c.observeSendQueue("full")
+		return nil, ErrSendQueueFull
+	}
+	select {
+	case c.inflight <- struct{}{}:
+	default:
+		c.observeSendQueue("full")
+		return nil, ErrSendQueueFull
+	}
+
+	entry, err := pending.addWithFinish(item.key, c.cfg.AckTimeout, c.releaseInflight)
+	if err != nil {
+		c.releaseInflight()
+		return nil, err
+	}
+	req := writeRequest{
+		kind:    writeKindSend,
+		msg:     item.msg,
+		pkt:     item.pkt,
+		entry:   entry,
+		conn:    conn,
+		pending: pending,
+		session: session,
+	}
+	select {
+	case c.writeCh <- req:
+		c.observeSendQueue("accepted")
+		return &SendFuture{done: entry.done}, nil
+	case <-c.closeCh:
+		pending.fail(entry, ErrClosed)
+		return nil, ErrClosed
+	default:
+		pending.fail(entry, ErrSendQueueFull)
+		c.observeSendQueue("full")
+		return nil, ErrSendQueueFull
+	}
 }
 
 func (c *Client) admitPreparedBatch(ctx context.Context, prepared []preparedSend, waiter *sendBatchWaiter) error {

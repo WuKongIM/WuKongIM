@@ -48,7 +48,7 @@ Send / SendAsync / SendBatch
 
 `SendBatch` returns results in input order. The writer batcher only coalesces socket writes; the wire format remains normal WKProto SEND frames. `AckTimeout` belongs to the client pending tracker and should be set high enough for callers whose own contexts own benchmark-level sendack deadlines.
 
-`SendAsync` is the low-level API used by adapters that need to expose SENDACKs through an older frame-oriented interface. It admits the SEND and returns a `SendFuture`; callers can wait with their own context.
+`SendAsync` is the low-level API used by adapters that need to expose SENDACKs through an older frame-oriented interface. It admits the SEND and returns a `SendFuture`; callers can wait with their own context. `TrySendAsync` provides the same future only when the admission lock, writer queue, and inflight bound are immediately available. It returns `ErrSendQueueFull` without leaving a pending SEND when local capacity is busy, allowing deterministic runtimes to retry without blocking their owner loop.
 The pending tracker keys each wire attempt by both `ClientSeq` and
 `ClientMsgNo`. Retries may reuse the idempotent `ClientMsgNo`, but each
 overlapping attempt must provide a distinct nonzero `ClientSeq`; late and

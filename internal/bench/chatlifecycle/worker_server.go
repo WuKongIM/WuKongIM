@@ -1591,6 +1591,7 @@ func workerQueueSnapshot(engine EngineSnapshot) WorkerQueueSnapshot {
 		RetryCurrent: engine.RetryQueueDepth, RetryPeak: engine.RetryQueuePeak, RetryCapacity: engine.RetryQueueCapacity,
 		InflightCurrent: engine.InflightCurrent, InflightPeak: engine.InflightPeak, InflightCapacity: engine.InflightCapacity,
 		TransportCurrent: engine.TransportQueueDepth, TransportCapacity: engine.TransportQueueCapacity,
+		TransportRejected: engine.TransportAdmissionRejected,
 	}
 }
 

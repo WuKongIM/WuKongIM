@@ -663,6 +663,44 @@ func TestClientSendAsyncHonorsMaxInflight(t *testing.T) {
 	}
 }
 
+func TestClientTrySendAsyncRejectsMaxInflightWithoutWaiting(t *testing.T) {
+	c, _ := newConnectedPipeClientOrFatal(t, Config{
+		MaxInflight: 1,
+		AckTimeout:  time.Second,
+	})
+
+	if _, err := c.SendAsync(context.Background(), Message{
+		ClientMsgNo: "first-try-inflight",
+		ChannelID:   "ch-try-inflight",
+		ChannelType: frame.ChannelTypeGroup,
+		Payload:     []byte("first"),
+	}); err != nil {
+		t.Fatalf("SendAsync(first) error = %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := c.TrySendAsync(Message{
+			ClientMsgNo: "second-try-inflight",
+			ChannelID:   "ch-try-inflight",
+			ChannelType: frame.ChannelTypeGroup,
+			Payload:     []byte("second"),
+		})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrSendQueueFull) {
+			t.Fatalf("TrySendAsync(second) error = %v, want %v", err, ErrSendQueueFull)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("TrySendAsync waited for inflight capacity")
+	}
+	if n := pendingEntryCount(c.pending); n != 1 {
+		t.Fatalf("pending entries after rejected try = %d, want first request only", n)
+	}
+}
+
 func TestClientWriterUsesRequestSessionSnapshot(t *testing.T) {
 	c, err := New(Config{Addr: "pipe"})
 	if err != nil {

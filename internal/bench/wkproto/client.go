@@ -98,6 +98,9 @@ type QueueSnapshot struct {
 	PublicationPeak int
 	// PublicationBlocked is the number of Send callers waiting for publication admission.
 	PublicationBlocked int
+	// AdmissionRejected is the cumulative number of non-waiting SEND attempts
+	// rejected by adapter or inner-client local capacity.
+	AdmissionRejected uint64
 }
 
 type clientSession struct {
@@ -129,6 +132,8 @@ type clientSession struct {
 	publicationPeak atomic.Int64
 	// publicationBlocked counts Send callers currently waiting for a permit.
 	publicationBlocked atomic.Int64
+	// admissionRejected counts non-waiting SEND admission pressure.
+	admissionRejected atomic.Uint64
 	// pendingMu protects pendingSendacks and pendingDone.
 	pendingMu sync.Mutex
 	// pendingSendacks counts SEND futures that still need to publish a SENDACK frame.
@@ -277,7 +282,47 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 	}
 
 	session.beginPendingSendack()
-	future, err := session.inner.SendAsync(ctx, wkclient.Message{
+	future, err := session.inner.SendAsync(ctx, clientMessage(pkt))
+	if err != nil {
+		session.completePendingPublication()
+		return err
+	}
+	go c.forwardSendack(session, future, pkt.ClientSeq, pkt.ClientMsgNo)
+	return nil
+}
+
+// TrySend admits one SEND only when both adapter publication capacity and the
+// inner client's local admission bounds are immediately available.
+func (c *Client) TrySend(pkt *frame.SendPacket) error {
+	if pkt == nil {
+		return fmt.Errorf("wkproto client: send packet is nil")
+	}
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	if err := session.tryAcquirePublication(); err != nil {
+		if errors.Is(err, wkclient.ErrSendQueueFull) {
+			session.recordAdmissionRejection()
+		}
+		return err
+	}
+
+	session.beginPendingSendack()
+	future, err := session.inner.TrySendAsync(clientMessage(pkt))
+	if err != nil {
+		if errors.Is(err, wkclient.ErrSendQueueFull) {
+			session.recordAdmissionRejection()
+		}
+		session.completePendingPublication()
+		return err
+	}
+	go c.forwardSendack(session, future, pkt.ClientSeq, pkt.ClientMsgNo)
+	return nil
+}
+
+func clientMessage(pkt *frame.SendPacket) wkclient.Message {
+	return wkclient.Message{
 		Setting:     pkt.Setting,
 		Expire:      pkt.Expire,
 		ClientSeq:   pkt.ClientSeq,
@@ -286,13 +331,7 @@ func (c *Client) Send(ctx context.Context, pkt *frame.SendPacket) error {
 		ChannelType: pkt.ChannelType,
 		Topic:       pkt.Topic,
 		Payload:     pkt.Payload,
-	})
-	if err != nil {
-		session.completePendingPublication()
-		return err
 	}
-	go c.forwardSendack(session, future, pkt.ClientSeq, pkt.ClientMsgNo)
-	return nil
 }
 
 // ReadFrame reads one SENDACK or RECV frame from the connected client stream.
@@ -334,6 +373,7 @@ func (c *Client) QueueSnapshot() QueueSnapshot {
 	snapshot.PublicationCapacity = cap(c.session.publicationPermit)
 	snapshot.PublicationPeak = int(c.session.publicationPeak.Load())
 	snapshot.PublicationBlocked = int(c.session.publicationBlocked.Load())
+	snapshot.AdmissionRejected = c.session.admissionRejected.Load()
 	snapshot.AdapterDepth = snapshot.RecvDepth + snapshot.SendackDepth + snapshot.ErrorDepth
 	snapshot.AdapterCapacity = snapshot.RecvCapacity + snapshot.SendackCapacity + snapshot.ErrorCapacity
 	return snapshot
@@ -562,11 +602,37 @@ func (s *clientSession) acquirePublication(ctx context.Context) error {
 	}
 }
 
+func (s *clientSession) tryAcquirePublication() error {
+	if s.isStopped() {
+		return errClientNotConnected
+	}
+	select {
+	case <-s.publicationPermit:
+		if s.isStopped() {
+			s.publicationPermit <- struct{}{}
+			return errClientNotConnected
+		}
+		s.recordPublicationAdmission()
+		return nil
+	default:
+		return wkclient.ErrSendQueueFull
+	}
+}
+
 func (s *clientSession) recordPublicationAdmission() {
 	current := s.publicationCurrent.Add(1)
 	for {
 		peak := s.publicationPeak.Load()
 		if current <= peak || s.publicationPeak.CompareAndSwap(peak, current) {
+			return
+		}
+	}
+}
+
+func (s *clientSession) recordAdmissionRejection() {
+	for {
+		current := s.admissionRejected.Load()
+		if current == ^uint64(0) || s.admissionRejected.CompareAndSwap(current, current+1) {
 			return
 		}
 	}

@@ -637,6 +637,17 @@ func TestClientSendackPublicationPressureBoundsAdmission(t *testing.T) {
 	if pending != 1 || pending > saturated.PublicationCapacity {
 		t.Fatalf("pending SENDACKs = %d, want 1 and <= publication capacity %d", pending, saturated.PublicationCapacity)
 	}
+	if err := client.TrySend(publicationPressureSend(3)); !errors.Is(err, wkclient.ErrSendQueueFull) {
+		t.Fatalf("TrySend(3) error = %v, want %v", err, wkclient.ErrSendQueueFull)
+	}
+	if snapshot := client.QueueSnapshot(); snapshot.PublicationBlocked != 0 || snapshot.PublicationCurrent != 1 || snapshot.AdmissionRejected != 1 {
+		t.Fatalf("TrySend(3) publication snapshot = %+v, want current/rejected 1 and no blocked caller", snapshot)
+	}
+	select {
+	case seq := <-sendsObserved:
+		t.Fatalf("server observed rejected TrySend %d", seq)
+	default:
+	}
 
 	thirdCtx, cancelThird := context.WithCancel(context.Background())
 	thirdStarted := make(chan struct{})

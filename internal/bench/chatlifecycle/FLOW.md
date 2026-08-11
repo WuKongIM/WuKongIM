@@ -507,9 +507,15 @@ recipient.
 `SessionPool` owns only traffic-ready online sessions. Its factory receives a
 deterministic per-UID CONNECT token, creates a fresh client for every login, and
 then delegates CONNECT-before-zero-coverage-full-sync semantics to `RunLoginSync`.
-The narrow `WKProtoSessionAdapter` delegates CONNECT, SEND, frame reads,
-PING, RECVACK, close, and numeric queue gauges to the existing non-dropping
-`internal/bench/wkproto.Client`; it does not recreate protocol pumps.
+The narrow `WKProtoSessionAdapter` delegates CONNECT, non-waiting SEND
+admission, frame reads, PING, RECVACK, close, and numeric queue gauges to the
+existing non-dropping `internal/bench/wkproto.Client`; it does not recreate
+protocol pumps. A full adapter publication bound, shared-client admission lock,
+writer queue, or inflight bound returns `client.ErrSendQueueFull` immediately
+and enters the existing bounded logical retry path, so data-plane pressure
+cannot hold the serialized engine owner or a coordinator grant RPC. Worker
+queue evidence retains the cumulative `transport_rejected` count, making this
+load-generator pressure distinguishable from server SENDACK behavior.
 The ordered session drain uses an explicit streaming read whose lifetime is
 owned only by the generation or caller context; the transport's default
 short-operation timeout still bounds CONNECT and control writes but never
@@ -612,8 +618,8 @@ Worker transport capacity is the sum of currently online session queues rather
 than a fixed generation setting, so it may change during churn and drains to
 zero after the joined final stop. Coordinator monotonicity therefore treats
 only work, retry, and inflight capacities as immutable.
-Stop first fences admission and cancels the generation, so a Step blocked in
-session SEND admission or a Tick blocked on the serial boundary returns before
+Stop first fences admission and cancels the generation, so a Step inside a
+session SEND call or a Tick blocked on the serial boundary returns before
 Stop joins every Step, Tick, and login startup and then closes sessions and
 cleans engine state. Generation cancellation aborts that incomplete local
 attempt without product evidence; Start cannot reset state while old-generation

@@ -10,6 +10,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -625,8 +626,8 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 	if !client.closed() {
 		t.Fatal("terminal remote read did not close the session")
 	}
-	if err := fixture.pool.Send(context.Background(), uid, &frame.SendPacket{}); !errors.Is(err, errSessionOffline) {
-		t.Fatalf("Send after terminal read = %v, want offline", err)
+	if err := fixture.pool.TrySend(context.Background(), uid, &frame.SendPacket{}); !errors.Is(err, errSessionOffline) {
+		t.Fatalf("TrySend after terminal read = %v, want offline", err)
 	}
 	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
 		t.Fatalf("terminal remote read classification = %q, want product_failure", got)
@@ -837,6 +838,25 @@ func TestSessionPoolOnlineRouteIndexesAllocateNoLookupStateAndReleaseAllChurn(t 
 	}
 }
 
+func TestSessionPoolTransportAdmissionRejectionsSurviveSessionChurn(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	fixture.factory.sendErr = wkclient.ErrSendQueueFull
+	uid := fixture.identity.UID(40)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 40, LoginOrdinal: 40}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	if err := fixture.pool.TrySend(context.Background(), uid, &frame.SendPacket{}); !errors.Is(err, wkclient.ErrSendQueueFull) {
+		t.Fatalf("TrySend error = %v, want %v", err, wkclient.ErrSendQueueFull)
+	}
+	if err := fixture.pool.Logout(uid); err != nil {
+		t.Fatalf("Logout: %v", err)
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.TransportAdmissionRejected != 1 || snapshot.Online != 0 {
+		t.Fatalf("post-churn transport evidence = %+v, want one retained rejection and no online session", snapshot)
+	}
+}
+
 type sessionTestFixture struct {
 	identity *IdentitySpace
 	schedule ScheduleModel
@@ -939,7 +959,7 @@ func (c *parallelSessionClient) ReadFrame(ctx context.Context) (frame.Frame, err
 		return nil, errors.New("closed")
 	}
 }
-func (c *parallelSessionClient) Send(context.Context, *frame.SendPacket) error       { return nil }
+func (c *parallelSessionClient) TrySend(context.Context, *frame.SendPacket) error    { return nil }
 func (c *parallelSessionClient) Ping(context.Context) error                          { return nil }
 func (c *parallelSessionClient) AckRecv(context.Context, *frame.RecvackPacket) error { return nil }
 func (c *parallelSessionClient) Close() error {
@@ -1019,6 +1039,7 @@ type sessionFakeFactory struct {
 	pingEntered   chan<- struct{}
 	pingRelease   <-chan struct{}
 	pingErr       error
+	sendErr       error
 }
 
 func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token string) (SessionClient, error) {
@@ -1030,7 +1051,7 @@ func (f *sessionFakeFactory) NewSession(_ context.Context, _ string, token strin
 		events: f.events, frames: make(chan frame.Frame, 8), acked: make(chan uint64, 8),
 		readErrors: make(chan error, 8), readEntered: make(chan struct{}, 8), readReturned: make(chan struct{}, 8),
 		stop: make(chan struct{}), readExited: make(chan struct{}), onConnect: f.onConnect, connectErr: f.connectErr,
-		pingEntered: f.pingEntered, pingRelease: f.pingRelease, pingErr: f.pingErr,
+		pingEntered: f.pingEntered, pingRelease: f.pingRelease, pingErr: f.pingErr, sendErr: f.sendErr,
 	}
 	f.mu.Lock()
 	f.tokensV = append(f.tokensV, token)
@@ -1098,6 +1119,7 @@ type sessionFakeClient struct {
 	pingEntered          chan<- struct{}
 	pingRelease          <-chan struct{}
 	pingErr              error
+	sendErr              error
 }
 
 func (c *sessionFakeClient) Connect(_ context.Context, _, _ string) error {
@@ -1141,7 +1163,7 @@ type sessionFakeReadError struct {
 
 func (e *sessionFakeReadError) Error() string { return "redacted fake read error" }
 
-func (c *sessionFakeClient) Send(context.Context, *frame.SendPacket) error { return nil }
+func (c *sessionFakeClient) TrySend(context.Context, *frame.SendPacket) error { return c.sendErr }
 
 func (c *sessionFakeClient) Ping(context.Context) error {
 	if c.pingEntered != nil {

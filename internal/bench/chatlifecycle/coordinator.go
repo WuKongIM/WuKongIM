@@ -2418,6 +2418,7 @@ func coordinatorSnapshotRegressed(
 		current.Correlation.DuplicateCompletions, current.Correlation.ConflictingCompletions,
 		current.Correlation.UnknownAcknowledgments,
 		current.Harness.Failures, current.Harness.CommandSaturation, current.Harness.OfferedUnderdelivery,
+		current.Queues.TransportRejected,
 	}
 	previousCounters := []uint64{
 		previous.Sessions.PlannedNew, previous.Sessions.PlannedReturning, previous.Sessions.CompletedNew,
@@ -2439,6 +2440,7 @@ func coordinatorSnapshotRegressed(
 		previous.Correlation.DuplicateCompletions, previous.Correlation.ConflictingCompletions,
 		previous.Correlation.UnknownAcknowledgments,
 		previous.Harness.Failures, previous.Harness.CommandSaturation, previous.Harness.OfferedUnderdelivery,
+		previous.Queues.TransportRejected,
 	}
 	for index := range currentCounters {
 		if currentCounters[index] < previousCounters[index] {
@@ -2680,7 +2682,7 @@ func addCoordinatorQueues(total *WorkerQueueSnapshot, value WorkerQueueSnapshot)
 			return err
 		}
 	}
-	return nil
+	return addCoordinatorUint64(&total.TransportRejected, value.TransportRejected)
 }
 
 func addCoordinatorHarness(total *WorkerHarnessSnapshot, value WorkerHarnessSnapshot) error {

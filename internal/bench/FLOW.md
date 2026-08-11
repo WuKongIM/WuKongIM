@@ -60,7 +60,12 @@ the caller context and session stop signal, so a reader waiting behind another
 reader remains cancelable. The permit preserves one shared preference state:
 non-terminal errors precede SENDACKs, while at most four combined priority
 results precede an already queued RECV. Before `SendAsync` admission, each SEND
-also acquires one publication permit. The `frame_buffer_size` permits bound both
+also acquires one publication permit. `TrySend` instead returns
+`client.ErrSendQueueFull` unless that publication permit and the shared
+client's admission lock, writer queue, and inflight slot are all immediately
+available; it never adds a waiter to the deterministic chat-lifecycle owner
+loop. Its per-session cumulative rejection count is included in the numeric
+queue snapshot. The `frame_buffer_size` permits bound both
 publisher goroutines and pending SENDACKs; a caller waiting for a permit remains
 in its own workload goroutine and observes context cancellation or session
 stop. A future releases its permit only after its ACK/error enters a fixed queue

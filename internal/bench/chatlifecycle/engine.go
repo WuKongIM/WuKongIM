@@ -115,6 +115,7 @@ type EngineSnapshot struct {
 	TransportQueueDepth        int
 	TransportQueueCapacity     int
 	TransportInflight          int
+	TransportAdmissionRejected uint64
 	RelationshipLookback       int
 	ActiveLifecycleTimers      int
 	ActiveHotChannels          int
@@ -2860,7 +2861,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 	}
 	packet := *intent.Packet
 	packet.ClientSeq = clientSeq
-	if err := e.sessions.Send(ctx, logical.Sender, &packet); err != nil {
+	if err := e.sessions.TrySend(ctx, logical.Sender, &packet); err != nil {
 		if ctx != nil && ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 			return e.cancelAttempt(inflight)
 		}
@@ -3508,7 +3509,8 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		RetryQueueDepth: retries.Depth, RetryQueuePeak: retries.Peak, RetryQueueCapacity: e.retryCapacity,
 		InflightCurrent: len(e.inflight), InflightPeak: e.inflightPeak, InflightCapacity: e.inflightCapacity,
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,
-		TransportInflight: sessions.TransportInflight, RelationshipLookback: MaxForwardRelationships,
+		TransportInflight: sessions.TransportInflight, TransportAdmissionRejected: sessions.TransportAdmissionRejected,
+		RelationshipLookback:  MaxForwardRelationships,
 		ActiveLifecycleTimers: e.activeLifecycleTimers, ColdEvidencePending: len(e.lifecycleByChannel),
 		ActiveHotChannels: len(e.activeChannels), PendingHotChannels: len(e.pendingChannels),
 		LoginPlannedNew: e.schedulerMetrics.plannedNew.Load(), LoginPlannedReturning: e.schedulerMetrics.plannedReturning.Load(),

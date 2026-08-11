@@ -357,6 +357,8 @@ type WorkerQueueSnapshot struct {
 	InflightCapacity  int `json:"inflight_capacity"`
 	TransportCurrent  int `json:"transport_current"`
 	TransportCapacity int `json:"transport_capacity"`
+	// TransportRejected is cumulative local non-waiting SEND admission pressure.
+	TransportRejected uint64 `json:"transport_rejected"`
 }
 
 // WorkerHarnessSnapshot exposes closed aggregate harness outcomes.

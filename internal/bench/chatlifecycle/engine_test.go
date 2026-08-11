@@ -5399,8 +5399,8 @@ func (c *expiryCompletionClient) ReadFrame(ctx context.Context) (frame.Frame, er
 	return nil, ctx.Err()
 }
 
-func (*expiryCompletionClient) Send(context.Context, *frame.SendPacket) error { return nil }
-func (*expiryCompletionClient) Ping(context.Context) error                    { return nil }
+func (*expiryCompletionClient) TrySend(context.Context, *frame.SendPacket) error { return nil }
+func (*expiryCompletionClient) Ping(context.Context) error                       { return nil }
 func (*expiryCompletionClient) AckRecv(context.Context, *frame.RecvackPacket) error {
 	return nil
 }
@@ -5567,7 +5567,7 @@ func (c *engineFakeClient) ReadFrame(ctx context.Context) (frame.Frame, error) {
 		return nil, errors.New("closed")
 	}
 }
-func (c *engineFakeClient) Send(ctx context.Context, packet *frame.SendPacket) error {
+func (c *engineFakeClient) TrySend(ctx context.Context, packet *frame.SendPacket) error {
 	c.mu.Lock()
 	c.sent = append(c.sent, packet)
 	messageID := int64(len(c.sent))
