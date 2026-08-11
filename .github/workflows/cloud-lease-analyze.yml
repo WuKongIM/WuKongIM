@@ -171,9 +171,9 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" >handoff.zip
           unzip -q handoff.zip -d handoff
           for name in handoff.json receipt.json deployment-plan.json release-selector.json analysis-endpoint.json; do
-            mapfile -t matches < <(find handoff -type f -name "$name" -print)
-            ((${#matches[@]} == 1))
-            cp "${matches[0]}" "analysis-input/$name"
+            canonical="handoff/$name"
+            [[ -f "$canonical" && ! -L "$canonical" ]]
+            cp "$canonical" "analysis-input/$name"
           done
           lease_plan_digest="$(jq -er .receipt.plan_digest analysis-input/receipt.json)"
           deployment_plan_digest="$(jq -er .plan_digest analysis-input/deployment-plan.json)"

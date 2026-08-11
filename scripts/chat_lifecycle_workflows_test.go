@@ -315,6 +315,78 @@ func TestChatLifecycleAnalysisUsesExactLeaseHandoffInsteadOfCloudSimulationLocat
 	}
 }
 
+func TestChatLifecycleAnalysisSelectsCanonicalHandoffFiles(t *testing.T) {
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct {
+				Name string `yaml:"name"`
+				Run  string `yaml:"run"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(readWorkflow(t, "cloud-lease-analyze.yml"), &workflow); err != nil {
+		t.Fatal(err)
+	}
+	var run string
+	for _, step := range workflow.Jobs["resolve"].Steps {
+		if step.Name == "Resolve and authenticate one exact retained handoff" {
+			run = step.Run
+			break
+		}
+	}
+	if run == "" {
+		t.Fatal("Cloud Lease Analysis workflow is missing the handoff resolver")
+	}
+	start := strings.Index(run, "for name in handoff.json")
+	if start < 0 {
+		t.Fatal("Cloud Lease Analysis workflow is missing the canonical handoff selection loop")
+	}
+	end := strings.Index(run[start:], "\ndone\n")
+	if end < 0 {
+		t.Fatal("Cloud Lease Analysis handoff selection loop has no terminator")
+	}
+	selector := run[start : start+end+len("\ndone")]
+
+	work := t.TempDir()
+	for _, directory := range []string{"handoff/attempt-1", "analysis-input"} {
+		if err := os.MkdirAll(filepath.Join(work, directory), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"handoff.json", "receipt.json", "deployment-plan.json", "release-selector.json", "analysis-endpoint.json"} {
+		if err := os.WriteFile(filepath.Join(work, "handoff", name), []byte("canonical-"+name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(work, "handoff", "attempt-1", name), []byte("audit-"+name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mapfileCompat := `mapfile() {
+  [[ "$1" == -t ]]
+  local variable="$2" line quoted
+  eval "$variable=()"
+  while IFS= read -r line; do
+    printf -v quoted '%q' "$line"
+    eval "$variable+=( $quoted )"
+  done
+}
+`
+	command := exec.Command("bash", "-c", "set -euo pipefail\n"+mapfileCompat+selector)
+	command.Dir = work
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("select canonical handoff files: %v\n%s", err, output)
+	}
+	for _, name := range []string{"handoff.json", "receipt.json", "deployment-plan.json", "release-selector.json", "analysis-endpoint.json"} {
+		got, err := os.ReadFile(filepath.Join(work, "analysis-input", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "canonical-" + name; string(got) != want {
+			t.Fatalf("%s = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestChatLifecycleUsesOneEncryptedDeploymentIdentityPerLease(t *testing.T) {
 	root := repoRoot(t)
 	orchestrator := readFile(t, filepath.Join(root, "scripts", "chat-lifecycle", "stage-orchestrate.sh"))
