@@ -383,14 +383,14 @@ export const domains: DocumentationDomain[] = [
             '实现群成员维护和群消息，并说明十万级成员约束。',
             'Implements group membership and messaging with constraints for 100,000-member groups.',
           ),
-          plannedPage(
+          publishedPage(
             'push',
             '消息推送',
             'Message Push',
             '实现通知、系统消息、离线设备处理和失败恢复。',
             'Implements notifications, system messages, offline-device handling, and recovery.',
           ),
-          plannedPage(
+          publishedPage(
             'ai-and-iot',
             'AI 与 IoT 通信',
             'AI & IoT Communication',

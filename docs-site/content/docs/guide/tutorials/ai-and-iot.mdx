@@ -1,0 +1,183 @@
+---
+title: AI 与 IoT 通信
+description: 组合 AI 流式投影、设备遥测、持久命令同步和业务执行回执。
+---
+
+本教程展示两个共享同一消息底座、但成功条件不同的场景：AI 回答需要可恢复的流式状态，IoT 需要有界遥测和可幂等执行的设备命令。模型调用、设备凭据、业务策略和执行结果始终由业务系统拥有。
+
+<Callout type="warn" title="HTTP 示例只属于受信服务边界">
+  当前产品 HTTP 路由没有通用业务鉴权，默认 Beta Gateway 也不会自动使用已存 `/user/token` 元数据验证每个 CONNECT。浏览器、移动端和设备固件不能直接持有这些服务端能力。
+</Callout>
+
+## AI：创建持久流锚点
+
+业务服务先完成模型权限、配额、内容安全和取消策略。收到用户问题后，以稳定 `client_msg_no` 发送一条带 legacy stream bit 的基础回答消息；`setting=2` 表示流式消息：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"ai-assistant",
+    "channel_id":"alice",
+    "channel_type":1,
+    "client_msg_no":"ai-answer-req-42",
+    "setting":2,
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoiYWlfYW5zd2VyIiwic3RhdHVzIjoic3RyZWFtaW5nIiwicmVxdWVzdF9pZCI6InJlcS00MiJ9"
+  }'
+```
+
+等待 `reason=1` 后再写事件。这证明基础消息已达到 Channel quorum commit，但不表示模型生成、客户端渲染或业务任务已完成。
+
+`/message/event` 当前不会路由查询并验证基础消息是否存在；事件请求中的 `message_id` 只是响应上下文。业务服务必须保持完全相同的 Channel 身份和 `client_msg_no`，不能在基础发送失败时孤立地创建事件投影。
+
+## AI：追加增量并完成
+
+先打开默认事件 lane：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/event \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"alice",
+    "channel_type":1,
+    "from_uid":"ai-assistant",
+    "client_msg_no":"ai-answer-req-42",
+    "event_id":"ai-answer-req-42-open",
+    "event_type":"stream.open",
+    "payload":{"kind":"text"}
+  }'
+```
+
+每个生成块使用新的稳定 `event_id`；结果不明确时，用同一个 ID 和相同 Payload 重试：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/event \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"alice",
+    "channel_type":1,
+    "from_uid":"ai-assistant",
+    "client_msg_no":"ai-answer-req-42",
+    "event_id":"ai-answer-req-42-delta-0001",
+    "event_type":"stream.delta",
+    "payload":{"kind":"text","delta":"Hello"}
+  }'
+```
+
+已应用的 `event_id` 再次出现时返回原结果，不会用新 Payload 重写它。`stream.open`、`stream.delta` 和 `stream.snapshot` 可能只保存在 Slot Leader 的有界缓存中，此时 `msg_event_seq` 可以是 `0`。
+
+生成结束后提交终态：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/event \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"alice",
+    "channel_type":1,
+    "from_uid":"ai-assistant",
+    "client_msg_no":"ai-answer-req-42",
+    "event_id":"ai-answer-req-42-finish",
+    "event_type":"stream.finish",
+    "payload":{"end_reason":3}
+  }'
+```
+
+`stream.finish` 把仍打开的 lane 和保留的 finish marker 作为一个 Slot proposal 形成终态投影。如果领导权变化后新 Leader 没有缓存证据，finish 会 fail-closed；业务服务必须重放完整增量或终态快照，再重试 finish，不能把缺失内容标记为完成。
+
+## AI：同步最终投影
+
+重连客户端可以请求紧凑事件摘要：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/messagesync \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "login_uid":"alice",
+    "channel_id":"ai-assistant",
+    "channel_type":1,
+    "start_message_seq":0,
+    "limit":20,
+    "pull_mode":1,
+    "event_summary_mode":"full"
+  }'
+```
+
+响应可包含 `event_meta`、完成状态和最终 snapshot。当前没有公开 `/message/eventsync`，而 `/message/event` 本身不会把每个 delta 推送到在线客户端 Session。需要逐 Token 实时 UI 时，使用业务自有流连接，或先明确设计另一条有背压、顺序和恢复语义的消息路径；WuKongIM 的事件投影用于终态与重连恢复。
+
+## IoT：发送有界遥测
+
+为每台设备分配稳定 UID 和可撤销凭据。群 Channel 必须先存在，而且发送设备必须满足成员策略；在受信服务网络中创建产品拥有的遥测 Channel：
+
+```bash
+curl -sS http://127.0.0.1:5001/channel \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "channel_id":"fleet-west",
+    "channel_type":2,
+    "reset":1,
+    "subscribers":["device-42","control-service"]
+  }'
+```
+
+`reset=1` 用给定列表替换成员，适合首次配置或业务侧期望状态对账；不要在未知现有成员时盲目使用。这里同时授权设备和控制服务，成功后设备可以发送普通持久消息：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"device-42",
+    "channel_id":"fleet-west",
+    "channel_type":2,
+    "client_msg_no":"device-42-telemetry-1785897600",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoidGVsZW1ldHJ5IiwidGVtcGVyYXR1cmVfYyI6MjEuNCwicmVwb3J0ZWRfYXQiOjE3ODU4OTc2MDB9"
+  }'
+```
+
+高频采样不要逐条无限写入聊天日志。按设备/时间窗聚合、采样或只发送状态变化，并分别限制单设备速率、Payload 大小、Channel 热点、Webhook/插件消费和离线恢复窗口。
+
+## IoT：发送可恢复命令
+
+可恢复命令应复用一个稳定的源 Channel。必须在第一条目标命令发送前，为设备建立持久 CMD 发现绑定：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/cmd/bind \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "uid":"device-42",
+    "channel_id":"fleet-west",
+    "channel_type":2
+  }'
+```
+
+绑定从当前 CMD 日志尾部的下一条 sequence 开始，不会补回更早的命令；因此必须先绑定再发送。随后，受信控制服务在同一源 Channel 上设置 `sync_once=1`：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"control-service",
+    "channel_id":"fleet-west",
+    "channel_type":2,
+    "sync_once":1,
+    "client_msg_no":"device-command-op-42",
+    "payload":"eyJ2ZXJzaW9uIjoxLCJ0eXBlIjoiZGV2aWNlX2NvbW1hbmQiLCJvcGVyYXRpb25faWQiOiJvcC00MiIsImFjdGlvbiI6InNldF9mYW4iLCJ2YWx1ZSI6MiwiZGVhZGxpbmUiOjE3ODU4OTc2NjB9"
+  }'
+```
+
+它进入独立 CMD 日志，绑定创建 UID-owned CMD 发现目录，不污染普通会话。设备重连后同步最新命令 generation：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/sync \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"device-42","limit":20}'
+```
+
+处理完本次返回后调用 `/message/syncack`。该调用推进服务端记录的最新 CMD sync generation；请求 `last_message_seq` 是兼容必填字段，不是设备执行成功证明。设备永久失去该源 Channel 的命令权限时，用相同请求结构调用 `/message/cmd/unbind`。
+
+请求级 `subscribers` 可以做有界的即时目标投递，但不会自动创建 CMD 发现绑定，不能直接承诺重连恢复。在线瞬时命令必须同时设置 `no_persist=1` 和 `sync_once=1`；它没有持久 sequence、离线同步、普通会话或 `msg.offline`。普通非命令 `NoPersist` 即使返回兼容成功，也不会进行实时投递。
+
+## 用业务结果闭环
+
+每个设备命令携带产品级 `operation_id`、deadline、期望状态和版本。设备先按 `operation_id` 幂等执行，再发送一条独立持久结果消息。SENDACK、RECV、RECVACK 和 `/message/syncack` 分别代表提交、在线写入、接收反馈和游标推进，都不代表风扇已经设置为目标档位。
+
+上线前测试模型取消、重复 delta、Leader 切换、缓存压力、终态重放、设备断电、过期命令、重复执行、乱序业务结果、热点设备群和控制服务限流。继续阅读 [消息](/zh/guide/core-concepts/messages)、[Webhook](/zh/guide/integration/webhooks) 和 [消息收发](/zh/guide/integration/messaging)。

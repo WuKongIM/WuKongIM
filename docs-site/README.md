@@ -23,7 +23,9 @@ target-fenced online routing. Phase 9 completes the guide foundation with
 workload-qualified capabilities and use cases, precise cluster/message/Channel/
 user/conversation concepts, and the current node-local plugin boundary. Phase
 10 publishes the first scenario tutorials: direct chat plus group chat through
-bounded 100,000-member membership and fanout workflows.
+bounded 100,000-member membership and fanout workflows. Phase 11 completes the
+scenario set with application-owned mobile push, recoverable AI stream
+projections, bounded device telemetry, and durable or online-only IoT commands.
 
 ## Develop
 
@@ -66,4 +68,5 @@ scope, `PHASE_5_SPEC.md` defines the server-configuration scope, and
 defines troubleshooting and official-tool boundaries. `PHASE_8_SPEC.md`
 defines the current server-architecture boundaries. `PHASE_9_SPEC.md` defines
 the guide-foundation and plugin boundaries. `PHASE_10_SPEC.md` defines the
-direct-chat and group-tutorial boundaries.
+direct-chat and group-tutorial boundaries. `PHASE_11_SPEC.md` defines the
+message-push and AI/IoT tutorial boundaries.
