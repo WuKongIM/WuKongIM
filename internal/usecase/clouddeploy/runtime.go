@@ -55,21 +55,23 @@ func RenderHostFiles(plan DeploymentPlan, role string, templates map[string]stri
 		return nil, ErrInvalidDeployment
 	}
 	apiTargets := make([]string, 0, len(services))
-	nodeTargets := make([]string, 0, len(plan.Hosts))
+	nodeStaticConfigs := make([]string, 0, len(plan.Hosts))
 	apiUpstreams := make([]string, 0, len(services))
 	wsUpstreams := make([]string, 0, len(services))
 	managerUpstreams := make([]string, 0, len(services))
-	for _, service := range services {
+	for index, service := range services {
 		apiTargets = append(apiTargets, strconv.Quote(service.PrivateAddress+":5001"))
 		apiUpstreams = append(apiUpstreams, service.PrivateAddress+":5001")
 		wsUpstreams = append(wsUpstreams, service.PrivateAddress+":5200")
 		managerUpstreams = append(managerUpstreams, service.PrivateAddress+":5301")
-		nodeTargets = append(nodeTargets, strconv.Quote(service.PrivateAddress+":9100"))
+		nodeStaticConfigs = append(nodeStaticConfigs, prometheusHostStaticConfig(
+			service.PrivateAddress+":9100", "node-"+strconv.Itoa(index+1),
+		))
 	}
-	nodeTargets = append(nodeTargets, strconv.Quote(load.PrivateAddress+":9100"))
+	nodeStaticConfigs = append(nodeStaticConfigs, prometheusHostStaticConfig(load.PrivateAddress+":9100", "sim"))
 	prometheus = replaceAll(prometheus, map[string]string{
-		"{{WUKONGIM_METRICS_TARGETS}}": strings.Join(apiTargets, ", "),
-		"{{NODE_EXPORTER_TARGETS}}":    strings.Join(nodeTargets, ", "),
+		"{{WUKONGIM_METRICS_TARGETS}}":     strings.Join(apiTargets, ", "),
+		"{{NODE_EXPORTER_STATIC_CONFIGS}}": strings.Join(nodeStaticConfigs, "\n"),
 	})
 	caddy = replaceAll(caddy, map[string]string{
 		"{{DEMO_WS_UPSTREAMS}}": strings.Join(wsUpstreams, " "), "{{DEMO_API_UPSTREAMS}}": strings.Join(apiUpstreams, " "),
@@ -90,6 +92,10 @@ func RenderHostFiles(plan DeploymentPlan, role string, templates map[string]stri
 		{Path: "etc/wukongim/chat-lifecycle-rehearsal.yaml", Content: []byte(rehearsal), Mode: 0o640},
 		{Path: "etc/wukongim/analysis-scenario.yaml", Content: []byte(analysisScenario), Mode: 0o640},
 	}, nil
+}
+
+func prometheusHostStaticConfig(target, role string) string {
+	return fmt.Sprintf("      - targets: [%s]\n        labels:\n          role: %s", strconv.Quote(target), strconv.Quote(role))
 }
 
 func renderWorkloadConfig(content string, plan DeploymentPlan) string {

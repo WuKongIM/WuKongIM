@@ -962,7 +962,11 @@ produces one complete
 fixed three-worker grant vector per logical second and sends that same vector,
 sequence, rate, burst, and credit evidence to all three exact-fence grant
 endpoints concurrently. One transport failure may retry the identical sequence;
-an unconfirmed vector stops the run. The first pre-clock grant response round
+an unconfirmed vector stops the run. A failed grant records one bounded
+`plan`, `delivery`, `tick`, or `coverage` reason in the coordinator result and
+unavailable-report terminal summary, so remote diagnosis can distinguish a
+worker RPC deadline from scheduler-clock or coverage failure without retaining
+raw error text. The first pre-clock grant response round
 uses the ordinary shared control-round deadline; each later measured response
 round is capped at the one-second grant cadence. Scheduled grant timestamps
 must be nonzero, non-future, and younger than one cadence. The first accepted
@@ -970,7 +974,10 @@ tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
 must fall within 10 milliseconds of one logical second after the preceding
 accepted tick. This narrow bound admits platform timer timestamp quantization
 without accepting a delayed, skipped, or catch-up tick; invalid ticks fail
-closed without advancing the grant plan. Coverage checks use that same 10ms
+closed without advancing the grant plan. A status or cutoff branch that drains
+a concurrently published grant samples the clock after receiving that grant;
+it never compares the new tick against a pre-receive wall-clock sample.
+Coverage checks use that same 10ms
 tolerance so a due ticker has time to publish after the one-second boundary;
 once consumed, its timestamp must still satisfy the strict tick rules.
 Final-cutoff and status branches inspect an already queued grant before they

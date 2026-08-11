@@ -136,6 +136,12 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 			ok:      true,
 		},
 		{
+			name:    "current grant delivery detail remains terminal",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=grant grant_failure_code=delivery worker_runtime_code= observer_code= preflight_code= report=unavailable",
+			want:    "grant\n",
+			ok:      true,
+		},
+		{
 			name:    "observer detail remains terminal",
 			summary: "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer observer_code=cluster_health preflight_code= report=unavailable",
 			want:    "observer\n",
@@ -150,6 +156,10 @@ func TestChatLifecyclePreClockSummaryClassification(t *testing.T) {
 		{
 			name:    "unknown worker runtime detail fails closed",
 			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=runtime worker_runtime_code=future_reason observer_code= preflight_code= report=unavailable",
+		},
+		{
+			name:    "unknown grant detail fails closed",
+			summary: "chat-lifecycle outcome=harness_invalid cause=invalid_observation coordinator_code=grant grant_failure_code=future_reason worker_runtime_code= observer_code= preflight_code= report=unavailable",
 		},
 		{
 			name:    "unknown observer detail fails closed",

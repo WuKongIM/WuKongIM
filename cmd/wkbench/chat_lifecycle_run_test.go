@@ -45,8 +45,9 @@ func TestChatLifecycleExitCodesPreserveSuccessAndFailureClasses(t *testing.T) {
 
 func TestChatLifecycleUnavailableSummaryIncludesObserverCode(t *testing.T) {
 	result := chatlifecycle.CoordinatorResult{
-		Outcome: chatlifecycle.CoordinatorProductFailure,
-		Code:    chatlifecycle.CoordinatorCodeObserver,
+		Outcome:      chatlifecycle.CoordinatorProductFailure,
+		Code:         chatlifecycle.CoordinatorCodeObserver,
+		GrantFailure: chatlifecycle.CoordinatorGrantFailureDelivery,
 		WorkerFailure: chatlifecycle.CoordinatorWorkerFailure{
 			WorkerID: 2, RuntimeCode: chatlifecycle.RuntimeFailureEngineCPUSaturated,
 		},
@@ -54,7 +55,7 @@ func TestChatLifecycleUnavailableSummaryIncludesObserverCode(t *testing.T) {
 	}
 	verdict := chatLifecycleCoordinatorVerdict(result)
 	got := chatLifecycleCoordinatorSummary(verdict, result, "unavailable")
-	const want = "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer worker_runtime_code=engine_cpu_saturated observer_code=cluster_health preflight_code= report=unavailable\n"
+	const want = "chat-lifecycle outcome=product_failure cause=worker_product_failure coordinator_code=observer grant_failure_code=delivery worker_runtime_code=engine_cpu_saturated observer_code=cluster_health preflight_code= report=unavailable\n"
 	if got != want {
 		t.Fatalf("summary = %q, want %q", got, want)
 	}

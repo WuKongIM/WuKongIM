@@ -15,9 +15,11 @@ func TestRenderHostFilesUsesPrivateTopologyAndPublicHTTPHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	templates := map[string]string{
-		"wukongim.toml":  `id={{NODE_ID}} private={{PRIVATE_IPV4}} nodes={{CLUSTER_NODES}} public={{PUBLIC_HTTP_HOST}} load={{LOAD_PRIVATE_IPV4}}`,
-		"prometheus.yml": `wk=[{{WUKONGIM_METRICS_TARGETS}}] hosts=[{{NODE_EXPORTER_TARGETS}}]`,
-		"Caddyfile":      `ws={{DEMO_WS_UPSTREAMS}} api={{DEMO_API_UPSTREAMS}} manager={{MANAGER_UPSTREAMS}} {$WK_DEMO_BASIC_AUTH_HASH}`,
+		"wukongim.toml": `id={{NODE_ID}} private={{PRIVATE_IPV4}} nodes={{CLUSTER_NODES}} public={{PUBLIC_HTTP_HOST}} load={{LOAD_PRIVATE_IPV4}}`,
+		"prometheus.yml": `wk=[{{WUKONGIM_METRICS_TARGETS}}]
+hosts:
+{{NODE_EXPORTER_STATIC_CONFIGS}}`,
+		"Caddyfile": `ws={{DEMO_WS_UPSTREAMS}} api={{DEMO_API_UPSTREAMS}} manager={{MANAGER_UPSTREAMS}} {$WK_DEMO_BASIC_AUTH_HASH}`,
 		"chat-lifecycle.yaml": `run_id: replace-with-unique-formal-run-id
 profile: formal
 workload:
@@ -74,5 +76,10 @@ thresholds:
 		!strings.Contains(joined, "10.42.0.11:19101") ||
 		!strings.Contains(joined, "{$WK_DEMO_BASIC_AUTH_HASH}") {
 		t.Fatalf("load config = %s", joined)
+	}
+	for _, role := range []string{`role: "node-1"`, `role: "node-2"`, `role: "node-3"`, `role: "sim"`} {
+		if !strings.Contains(joined, role) {
+			t.Fatalf("load config missing Prometheus host label %q: %s", role, joined)
+		}
 	}
 }

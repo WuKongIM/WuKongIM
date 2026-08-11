@@ -38,7 +38,9 @@ endpoint also forwards only those closed process families from the root-owned
 textfile, allowing the lifecycle observer to persist per-process uptime,
 cumulative CPU jiffies, and RSS without granting shell access. The endpoint
 rejects the textfile when either its mtime or embedded collector-success time
-is more than 45 seconds old. Demo static, API, and
+is more than 45 seconds old. Prometheus assigns every node-exporter target one
+stable `node-1`, `node-2`, `node-3`, or `sim` role label so Analysis queries can
+separate service-host capacity from load-generator saturation. Demo static, API, and
 WebSocket paths share the same temporary Basic Authentication boundary while
 Manager retains its own read-only application login.
 The successful receipt returns exact `http://<load-eip>/` Manager and

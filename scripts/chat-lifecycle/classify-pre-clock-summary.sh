@@ -5,15 +5,24 @@ set -euo pipefail
 summary="$1"
 (( ${#summary} <= 1024 ))
 
-pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+)( worker_runtime_code=([a-z_]*))?( observer_code=([a-z_]*))? preflight_code=([a-z_]*) report=unavailable$'
+pattern='^chat-lifecycle outcome=([a-z_]+) cause=([a-z_]+) coordinator_code=([a-z_]+)( grant_failure_code=([a-z_]*))?( worker_runtime_code=([a-z_]*))?( observer_code=([a-z_]*))? preflight_code=([a-z_]*) report=unavailable$'
 if ! [[ "$summary" =~ $pattern ]]; then
   exit 1
 fi
 coordinator_code="${BASH_REMATCH[3]}"
-runtime_field="${BASH_REMATCH[4]:-}"
-runtime_code="${BASH_REMATCH[5]:-}"
-observer_field="${BASH_REMATCH[6]:-}"
-observer_code="${BASH_REMATCH[7]:-}"
+grant_field="${BASH_REMATCH[4]:-}"
+grant_code="${BASH_REMATCH[5]:-}"
+runtime_field="${BASH_REMATCH[6]:-}"
+runtime_code="${BASH_REMATCH[7]:-}"
+observer_field="${BASH_REMATCH[8]:-}"
+observer_code="${BASH_REMATCH[9]:-}"
+
+if [[ -n "$grant_field" ]]; then
+  case "$grant_code" in
+    ''|plan|delivery|tick|coverage) ;;
+    *) exit 1 ;;
+  esac
+fi
 
 if [[ -n "$runtime_field" ]]; then
   case "$runtime_code" in

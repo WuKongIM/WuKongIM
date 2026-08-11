@@ -46,7 +46,7 @@ scrape_configs:
       - targets: [{{WUKONGIM_METRICS_TARGETS}}]
   - job_name: hosts
     static_configs:
-      - targets: [{{NODE_EXPORTER_TARGETS}}]
+{{NODE_EXPORTER_STATIC_CONFIGS}}
 `,
 		"config/Caddyfile.tmpl": `{
   auto_https off

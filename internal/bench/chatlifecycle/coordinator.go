@@ -70,6 +70,17 @@ const (
 	CoordinatorCodeStopped         CoordinatorCode = "stopped"
 )
 
+// CoordinatorGrantFailureCode distinguishes the bounded reason why a grant
+// stage failed without exposing worker RPC errors or other unbounded details.
+type CoordinatorGrantFailureCode string
+
+const (
+	CoordinatorGrantFailurePlan     CoordinatorGrantFailureCode = "plan"
+	CoordinatorGrantFailureDelivery CoordinatorGrantFailureCode = "delivery"
+	CoordinatorGrantFailureTick     CoordinatorGrantFailureCode = "tick"
+	CoordinatorGrantFailureCoverage CoordinatorGrantFailureCode = "coverage"
+)
+
 type coordinatorRoundDisposition uint8
 
 const (
@@ -103,6 +114,8 @@ type CoordinatorWorkerFailure struct {
 type CoordinatorResult struct {
 	Outcome CoordinatorOutcome
 	Code    CoordinatorCode
+	// GrantFailure retains the bounded grant-stage reason when a grant round fails.
+	GrantFailure CoordinatorGrantFailureCode
 	// ObserverCode retains the bounded terminal observer reason when Code is observer.
 	ObserverCode ObserverCode
 	// Preflight retains the bounded admission reason without raw errors or credentials.
@@ -703,6 +716,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	}
 	grant, err := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 	if err != nil {
+		result.GrantFailure = CoordinatorGrantFailurePlan
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, coordinatorRoundStageFailed)
 		joinFailureObservation()
 		result.Outcome, result.Code = coordinatorConcurrentFailure(observation, reason)
@@ -713,6 +727,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	if grantDisposition, workerFailure := c.deliverGrant(
 		observationContext, assignments, grantPlan.request(fence, grant), c.roundTimeout,
 	); grantDisposition != coordinatorRoundSucceeded {
+		result.GrantFailure = CoordinatorGrantFailureDelivery
 		result.WorkerFailure = workerFailure
 		reason := lockCoordinatorTerminationReason(ctx, CoordinatorCodeGrant, grantDisposition)
 		joinFailureObservation()
@@ -775,10 +790,12 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 	deliverScheduledGrant := func(tickAt time.Time) coordinatorRoundDisposition {
 		now := c.clock.Now()
 		if !validCoordinatorGrantTick(now, tickAt, lastGrantTickAt, haveGrantTick) {
+			result.GrantFailure = CoordinatorGrantFailureTick
 			return coordinatorRoundStageFailed
 		}
 		if capacityRateReady > 0 && tickAt.After(capacityRateReadyAt) {
 			if err := grantPlan.ScheduleRate(capacityRateReady); err != nil {
+				result.GrantFailure = CoordinatorGrantFailurePlan
 				_, _ = capacityStaircase.FailRateChange(tickAt)
 				result.Capacity = capacityStaircase.Snapshot()
 				return coordinatorRoundStageFailed
@@ -787,11 +804,13 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		}
 		grant, grantErr := grantPlan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
 		if grantErr != nil {
+			result.GrantFailure = CoordinatorGrantFailurePlan
 			return coordinatorRoundStageFailed
 		}
 		if disposition, workerFailure := c.deliverGrant(
 			observationContext, assignments, grantPlan.request(fence, grant), coordinatorGrantCadence,
 		); disposition != coordinatorRoundSucceeded {
+			result.GrantFailure = CoordinatorGrantFailureDelivery
 			if workerFailure.RuntimeCode != "" {
 				result.WorkerFailure = workerFailure
 			}
@@ -803,12 +822,14 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		}
 		if capacityStaircase != nil && grant.RateChanged {
 			if _, commitErr := capacityStaircase.CommitRate(tickAt, grant.RatePerSecond); commitErr != nil {
+				result.GrantFailure = CoordinatorGrantFailurePlan
 				_, _ = capacityStaircase.FailRateChange(tickAt)
 				result.Capacity = capacityStaircase.Snapshot()
 				return coordinatorRoundStageFailed
 			}
 			result.Capacity = capacityStaircase.Snapshot()
 			if beginCapacityWindow != nil && !beginCapacityWindow(result.Capacity) {
+				result.GrantFailure = CoordinatorGrantFailurePlan
 				return coordinatorRoundStageFailed
 			}
 		}
@@ -1036,7 +1057,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				!snapshot.Terminal && !now.Before(snapshot.PhaseEnd) {
 				select {
 				case tickAt := <-grantTicker.C():
+					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) || tickAt.After(snapshot.PhaseEnd) {
+						result.GrantFailure = CoordinatorGrantFailureTick
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1047,6 +1070,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				default:
 				}
 				if grantCoverageMissing(snapshot.PhaseEnd) {
+					result.GrantFailure = CoordinatorGrantFailureCoverage
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1071,6 +1095,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				continue
 			}
 			if grantCoverageMissing(now) {
+				result.GrantFailure = CoordinatorGrantFailureCoverage
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
@@ -1161,7 +1186,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				now = c.clock.Now()
 				select {
 				case tickAt := <-grantTicker.C():
+					now = c.clock.Now()
 					if tickAt.IsZero() || tickAt.After(now) {
+						result.GrantFailure = CoordinatorGrantFailureTick
 						failureCode = CoordinatorCodeGrant
 						goto observationFailure
 					}
@@ -1178,6 +1205,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 					return completeParentCancellation()
 				}
 				if grantCoverageMissing(now) {
+					result.GrantFailure = CoordinatorGrantFailureCoverage
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1246,7 +1274,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			}
 			select {
 			case tickAt := <-grantTicker.C():
+				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
+					result.GrantFailure = CoordinatorGrantFailureTick
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1261,6 +1291,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			default:
 			}
 			if grantCoverageMissing(observationDeadline) {
+				result.GrantFailure = CoordinatorGrantFailureCoverage
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
@@ -1280,6 +1311,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 		default:
 		}
 		if grantCoverageMissing(now) {
+			result.GrantFailure = CoordinatorGrantFailureCoverage
 			failureCode = CoordinatorCodeGrant
 			goto observationFailure
 		}
@@ -1311,7 +1343,9 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			}
 			select {
 			case tickAt := <-grantTicker.C():
+				now = c.clock.Now()
 				if tickAt.IsZero() || tickAt.After(now) {
+					result.GrantFailure = CoordinatorGrantFailureTick
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1330,6 +1364,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			now = c.clock.Now()
 			if !now.Before(observationDeadline) {
 				if grantCoverageMissing(observationDeadline) {
+					result.GrantFailure = CoordinatorGrantFailureCoverage
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}
@@ -1338,6 +1373,7 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 				goto observationComplete
 			}
 			if grantCoverageMissing(now) {
+				result.GrantFailure = CoordinatorGrantFailureCoverage
 				failureCode = CoordinatorCodeGrant
 				goto observationFailure
 			}
@@ -1370,7 +1406,13 @@ func (c *Coordinator) Run(ctx context.Context, cfg Config) (result CoordinatorRe
 			}
 			now = c.clock.Now()
 			if !now.Before(observationDeadline) && !tickAt.Before(observationDeadline) {
-				if tickAt.IsZero() || tickAt.After(now) || grantCoverageMissing(observationDeadline) {
+				if tickAt.IsZero() || tickAt.After(now) {
+					result.GrantFailure = CoordinatorGrantFailureTick
+					failureCode = CoordinatorCodeGrant
+					goto observationFailure
+				}
+				if grantCoverageMissing(observationDeadline) {
+					result.GrantFailure = CoordinatorGrantFailureCoverage
 					failureCode = CoordinatorCodeGrant
 					goto observationFailure
 				}

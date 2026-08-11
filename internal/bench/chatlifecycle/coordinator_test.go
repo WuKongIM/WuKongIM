@@ -2326,6 +2326,9 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
 		t.Fatalf("Run() result = %+v, want harness_invalid/grant", result)
 	}
+	if result.GrantFailure != CoordinatorGrantFailureDelivery {
+		t.Fatalf("Run() grant failure = %q, want %q", result.GrantFailure, CoordinatorGrantFailureDelivery)
+	}
 	if elapsed < roundTimeout/2 || elapsed >= 200*time.Millisecond {
 		t.Fatalf("grant round elapsed = %s, want about one %s shared deadline and less than three sequential deadlines", elapsed, roundTimeout)
 	}
@@ -2428,6 +2431,72 @@ func TestCoordinatorScheduledGrantRoundUsesOneCadenceDeadline(t *testing.T) {
 	}
 }
 
+func TestCoordinatorAcceptsGrantThatBecomesDueAfterStatusClockSample(t *testing.T) {
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-status-grant-clock-race"
+	cfg.Observation.Cadence = coordinatorGrantCadence
+	startedAt := time.Unix(1_700_000_000, 0)
+	clock := newCoincidentCoordinatorClock(startedAt)
+	grantEntered := make(chan coordinatorGrantContext, coordinatorWorkerCount*2)
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		workers[workerID] = &deadlineRecordingGrantCoordinatorWorker{
+			recordingCoordinatorWorker: &recordingCoordinatorWorker{id: uint64(workerID), log: &[]string{}},
+			entered:                    grantEntered,
+		}
+	}
+	coordinator, err := NewCoordinator(CoordinatorOptions{
+		Generation: 41,
+		Preflight: coordinatorPreflightFunc(func(context.Context, Config) PreflightResult {
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}),
+		Setup:   coordinatorSetupFunc(func(context.Context, Config) error { return nil }),
+		Workers: workers,
+		Observer: coordinatorObserverFunc(func(ctx context.Context, _ Config) ObserverResult {
+			<-ctx.Done()
+			return ObserverResult{Outcome: ObserverStopped, Code: ObserverCodeStopped}
+		}),
+		Clock: clock,
+	})
+	if err != nil {
+		t.Fatalf("NewCoordinator() error = %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resultChannel := make(chan CoordinatorResult, 1)
+	go func() { resultChannel <- coordinator.Run(ctx, cfg) }()
+
+	select {
+	case <-clock.loopNowEntered:
+	case <-time.After(time.Second):
+		t.Fatal("coordinator did not reach the measured loop")
+	}
+	for attempt := 0; attempt < coordinatorWorkerCount; attempt++ {
+		if observed := <-grantEntered; observed.request.Sequence != 1 {
+			t.Fatalf("initial grant sequence = %d, want 1", observed.request.Sequence)
+		}
+	}
+	clock.queueCoincidentStatusAndGrant()
+	close(clock.releaseLoopNow)
+
+	for attempt := 0; attempt < coordinatorWorkerCount; attempt++ {
+		select {
+		case observed := <-grantEntered:
+			if observed.request.Sequence != 2 {
+				t.Fatalf("scheduled grant sequence = %d, want 2", observed.request.Sequence)
+			}
+		case result := <-resultChannel:
+			t.Fatalf("Run() terminated before the coincident grant was delivered: %+v", result)
+		case <-time.After(time.Second):
+			t.Fatal("coincident scheduled grant was not delivered")
+		}
+	}
+	cancel()
+	if result := <-resultChannel; result.Outcome != CoordinatorStopped {
+		t.Fatalf("Run() result = %+v, want stopped after the regression proof", result)
+	}
+}
+
 func TestCoordinatorRejectsStaleGrantTickerWithoutAdvancingGrant(t *testing.T) {
 	cfg := LocalConfig()
 	cfg.RunID = "coordinator-stale-grant-tick"
@@ -2472,6 +2541,9 @@ func TestCoordinatorRejectsStaleGrantTickerWithoutAdvancingGrant(t *testing.T) {
 	result := <-resultChannel
 	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
 		t.Fatalf("Run() stale tick result = %+v, want harness_invalid/grant", result)
+	}
+	if result.GrantFailure != CoordinatorGrantFailureTick {
+		t.Fatalf("Run() stale tick grant failure = %q, want %q", result.GrantFailure, CoordinatorGrantFailureTick)
 	}
 	for workerID, worker := range typedWorkers {
 		if len(worker.grantRequests) != 1 {
@@ -2581,6 +2653,9 @@ func TestCoordinatorFinalCutoffCannotBypassQueuedStaleGrant(t *testing.T) {
 	result := <-resultChannel
 	if result.Outcome != CoordinatorHarnessInvalid || result.Code != CoordinatorCodeGrant {
 		t.Fatalf("Run() queued stale cutoff result = %+v, want harness_invalid/grant", result)
+	}
+	if result.GrantFailure != CoordinatorGrantFailureTick {
+		t.Fatalf("Run() queued stale cutoff grant failure = %q, want %q", result.GrantFailure, CoordinatorGrantFailureTick)
 	}
 	for workerID, worker := range typedWorkers {
 		if len(worker.grantRequests) != 1 {
@@ -3235,6 +3310,74 @@ func (w *blockingStopCoordinatorWorker) Stop(ctx context.Context, _ WorkerStopRe
 type fixedCoordinatorClock struct {
 	now    time.Time
 	ticker ObserverTicker
+}
+
+// coincidentCoordinatorClock reproduces a real ticker race: a grant becomes
+// readable just after the status branch samples the wall clock. The received
+// grant timestamp is valid against a fresh clock read.
+type coincidentCoordinatorClock struct {
+	mu             sync.Mutex
+	now            time.Time
+	statusTicker   *fakeObserverTicker
+	grantTicker    *fakeObserverTicker
+	tickerCount    int
+	loopGateUsed   bool
+	transitionDue  bool
+	loopNowEntered chan struct{}
+	releaseLoopNow chan struct{}
+}
+
+func newCoincidentCoordinatorClock(now time.Time) *coincidentCoordinatorClock {
+	return &coincidentCoordinatorClock{
+		now: now, loopNowEntered: make(chan struct{}), releaseLoopNow: make(chan struct{}),
+	}
+}
+
+func (c *coincidentCoordinatorClock) Now() time.Time {
+	c.mu.Lock()
+	if c.tickerCount == 2 && !c.loopGateUsed {
+		c.loopGateUsed = true
+		now := c.now
+		c.mu.Unlock()
+		close(c.loopNowEntered)
+		<-c.releaseLoopNow
+		return now
+	}
+	if c.transitionDue {
+		c.transitionDue = false
+		now := c.now
+		c.now = now.Add(time.Nanosecond)
+		select {
+		case c.grantTicker.ticks <- c.now:
+		default:
+		}
+		c.mu.Unlock()
+		return now
+	}
+	now := c.now
+	c.mu.Unlock()
+	return now
+}
+
+func (c *coincidentCoordinatorClock) NewTicker(time.Duration) ObserverTicker {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ticker := newFakeObserverTicker()
+	c.tickerCount++
+	if c.tickerCount == 1 {
+		c.statusTicker = ticker
+	} else {
+		c.grantTicker = ticker
+	}
+	return ticker
+}
+
+func (c *coincidentCoordinatorClock) queueCoincidentStatusAndGrant() {
+	c.mu.Lock()
+	c.now = c.now.Add(coordinatorGrantCadence)
+	c.transitionDue = true
+	c.statusTicker.ticks <- c.now
+	c.mu.Unlock()
 }
 
 type grantBarrierCoordinatorClock struct {

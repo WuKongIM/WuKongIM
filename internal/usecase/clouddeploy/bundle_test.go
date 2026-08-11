@@ -203,6 +203,8 @@ func TestSealRendersNativeTwelveGroupTemplates(t *testing.T) {
 	prometheusConfig := read("config/prometheus.yml.tmpl")
 	prometheusUnit := read("systemd/prometheus.service")
 	if !strings.Contains(prometheusConfig, "scrape_interval: 15s") ||
+		!strings.Contains(prometheusConfig, "{{NODE_EXPORTER_STATIC_CONFIGS}}") ||
+		strings.Contains(prometheusConfig, "{{NODE_EXPORTER_TARGETS}}") ||
 		!strings.Contains(prometheusUnit, "--storage.tsdb.retention.time=96h") ||
 		!strings.Contains(prometheusUnit, "--storage.tsdb.retention.size=150GB") {
 		t.Fatalf("Prometheus contract = %s\n%s", prometheusConfig, prometheusUnit)
