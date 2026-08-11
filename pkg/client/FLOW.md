@@ -60,10 +60,12 @@ out-of-order ACKs then resolve only their exact attempt.
 reader loop
   -> decode buffered bytes into frames
   -> SENDACK resolves pending send
-  -> RECV decrypts payload when session crypto is active
-  -> optional AutoRecvAck writes RECVACK
-  -> enqueue decrypted RECV in bounded queue
-  -> Recv / ReadFrame consumes queue
+  -> RECV checks DiscardInboundRecv
+       -> yes: optionally AutoRecvAck and continue reading
+       -> no: decrypt payload when session crypto is active
+              -> enqueue decrypted RECV in bounded queue
+              -> optionally AutoRecvAck
+              -> Recv / ReadFrame consumes queue
 ```
 
 The inbound RECV queue is bounded and lossless. When it is full, the reader
@@ -71,6 +73,9 @@ backpressures the socket until a consumer frees capacity. Client close or
 session replacement releases a blocked publisher, so bounded delivery cannot
 strand an old reader loop. `InboundQueueSnapshot` exposes only the current
 queue depth and capacity for bounded saturation observation.
+Send-only tools that do not consume delivered payloads may set
+`DiscardInboundRecv`; RECV frames then bypass payload decryption and the queue,
+so they cannot block SENDACK progress or retain fanout payloads in memory.
 
 ## Control Flow
 

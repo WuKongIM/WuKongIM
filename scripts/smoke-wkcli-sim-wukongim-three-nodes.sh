@@ -17,7 +17,7 @@ CHANNEL_RPC_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_CHANNEL_RPC_WORKERS:-500}"
 GATEWAY_ASYNC_SEND_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_ASYNC_SEND_WORKERS:-${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-4096}}"
 DELIVERY_RECIPIENT_WORKERS="${WK_WKCLI_SIM_THREE_SMOKE_DELIVERY_RECIPIENT_WORKERS:-${WK_DELIVERY_RECIPIENT_WORKER_CONCURRENCY:-800}}"
 GATEWAY_SEND_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_GATEWAY_SEND_TIMEOUT:-14s}"
-SIM_CONNECT_RATE="${WK_WKCLI_SIM_THREE_SMOKE_CONNECT_RATE:-20}"
+SIM_CONNECT_RATE="${WK_WKCLI_SIM_THREE_SMOKE_CONNECT_RATE:-500}"
 SIM_CONCURRENCY="${WK_WKCLI_SIM_THREE_SMOKE_CONCURRENCY:-64}"
 SIM_ACK_TIMEOUT="${WK_WKCLI_SIM_THREE_SMOKE_ACK_TIMEOUT:-15s}"
 MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL="${WK_WKCLI_SIM_THREE_SMOKE_MAX_CONVERSATION_DIRECTORY_ERROR_TOTAL:-0}"
@@ -112,7 +112,7 @@ Options:
   --groups N                Simulated group channels. Default: 6.
   --members N               Members per group. Default: 10.
   --rate RATE               Per-group send rate. Default: 10/s.
-  --connect-rate N          Maximum simulated client connects per second. Default: 20.
+  --connect-rate N          Maximum simulated client connects per second. Default: 500.
   --concurrency N           Maximum concurrent SEND operations. Default: 64.
   --duration DURATION       Sim max runtime. Default: 10s.
   --payload-size SIZE       Sim payload size. Default: 128B.

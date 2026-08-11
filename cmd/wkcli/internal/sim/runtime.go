@@ -26,10 +26,9 @@ const simClientMaxInflight = 32
 // the global concurrency setting across every simulated client.
 const simClientSendQueueCapacity = 128
 
-// simInboundFrameBufferSize keeps only the newest delivered frame because the
-// send-load simulator auto-acks RECV packets and never consumes their payloads.
-// A per-client buffer derived from global SEND concurrency otherwise retains
-// millions of frames during sustained fanout tests and distorts generator QPS.
+// simInboundFrameBufferSize keeps the unused fallback RECV queue allocation
+// small. The send-load simulator explicitly discards delivered payloads so the
+// shared socket reader remains available for SENDACK processing.
 const simInboundFrameBufferSize = 1
 
 // targetAPI is the HTTP bench setup surface required by the runtime.
@@ -503,6 +502,7 @@ func (p *simClientPool) clientConfig(addr string) wkclient.Config {
 		SendQueueCapacity:      simClientSendQueueCapacity,
 		MaxInflight:            simClientMaxInflight,
 		InboundFrameBufferSize: simInboundFrameBufferSize,
+		DiscardInboundRecv:     true,
 		AutoRecvAck:            true,
 		Observer:               p.observer,
 	}

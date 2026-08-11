@@ -940,6 +940,51 @@ func TestRouteInboundRecvBackpressuresWithBoundedWireOrder(t *testing.T) {
 	}
 }
 
+func TestClientDiscardInboundRecvKeepsReaderAvailableForSendack(t *testing.T) {
+	c, serverConn := newConnectedPipeClientOrFatal(t, Config{
+		InboundFrameBufferSize: 1,
+		DiscardInboundRecv:     true,
+	})
+	entry, err := c.pending.add(pendingKey{ClientSeq: 7, ClientMsgNo: "after-recv"}, 100*time.Millisecond)
+	if err != nil {
+		t.Fatalf("pending.add() error = %v", err)
+	}
+
+	wire := append(
+		encodeClientTestFrameOrFatal(t, &frame.RecvPacket{
+			Setting:   frame.SettingNoEncrypt,
+			MessageID: 1,
+			Payload:   []byte("first"),
+		}),
+		encodeClientTestFrameOrFatal(t, &frame.RecvPacket{
+			Setting:   frame.SettingNoEncrypt,
+			MessageID: 2,
+			Payload:   []byte("second"),
+		})...,
+	)
+	wire = append(wire, encodeClientTestFrameOrFatal(t, &frame.SendackPacket{
+		ClientSeq:   7,
+		ClientMsgNo: "after-recv",
+		MessageID:   7007,
+		MessageSeq:  77,
+		ReasonCode:  frame.ReasonSuccess,
+	})...)
+	if _, err := serverConn.Write(wire); err != nil {
+		t.Fatalf("server Write() error = %v", err)
+	}
+
+	outcome := readPendingOutcomeOrFatal(t, entry)
+	if outcome.err != nil {
+		t.Fatalf("pending err = %v", outcome.err)
+	}
+	if outcome.result.MessageID != 7007 {
+		t.Fatalf("MessageID = %d, want 7007", outcome.result.MessageID)
+	}
+	if snapshot := c.InboundQueueSnapshot(); snapshot.Depth != 0 || snapshot.Capacity != 1 {
+		t.Fatalf("inbound queue = %d/%d, want empty 0/1", snapshot.Depth, snapshot.Capacity)
+	}
+}
+
 func TestClientRecvDecryptsAndAutoAcks(t *testing.T) {
 	c, serverConn := newPipeClientServerOrFatal(t, Config{
 		AutoRecvAck: true,
@@ -1933,6 +1978,9 @@ func TestNormalizeConfigAppliesToolingDefaults(t *testing.T) {
 	}
 	if cfg.InboundFrameBufferSize != 1024 {
 		t.Fatalf("InboundFrameBufferSize = %d, want 1024", cfg.InboundFrameBufferSize)
+	}
+	if cfg.DiscardInboundRecv {
+		t.Fatal("DiscardInboundRecv default = true, want false")
 	}
 	if cfg.GenerateClientMsgNo {
 		t.Fatal("GenerateClientMsgNo default = true, want false")

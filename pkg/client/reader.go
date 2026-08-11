@@ -73,6 +73,12 @@ func (c *Client) routeInboundFrameWithPending(f frame.Frame, pending *pendingTra
 		}
 		return nil
 	case *frame.RecvPacket:
+		if c.cfg.DiscardInboundRecv {
+			if c.cfg.AutoRecvAck {
+				_ = c.writeControlToConn(nil, &frame.RecvackPacket{MessageID: pkt.MessageID, MessageSeq: pkt.MessageSeq}, conn, false)
+			}
+			return nil
+		}
 		if err := c.decryptRecv(pkt, session); err != nil {
 			return err
 		}

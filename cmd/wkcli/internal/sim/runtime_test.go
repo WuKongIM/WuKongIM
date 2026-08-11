@@ -347,6 +347,9 @@ func TestSimClientPoolUsesBoundedPerClientBuffers(t *testing.T) {
 	if got := clientCfg.InboundFrameBufferSize; got != simInboundFrameBufferSize {
 		t.Fatalf("InboundFrameBufferSize = %d, want %d", got, simInboundFrameBufferSize)
 	}
+	if !clientCfg.DiscardInboundRecv {
+		t.Fatal("DiscardInboundRecv = false, want true")
+	}
 	if !clientCfg.AutoRecvAck {
 		t.Fatal("AutoRecvAck = false, want true")
 	}

@@ -52,6 +52,10 @@ type Config struct {
 	ReadBufferSize int
 	// InboundFrameBufferSize is the inbound RECV queue size before socket backpressure.
 	InboundFrameBufferSize int
+	// DiscardInboundRecv skips payload decryption and the public receive queue.
+	// Send-only workloads can enable this to keep the shared socket reader available
+	// for SENDACKs without retaining or consuming delivered payloads.
+	DiscardInboundRecv bool
 	// AutoRecvAck makes the client automatically acknowledge RECV frames.
 	AutoRecvAck bool
 	// GenerateClientMsgNo generates ClientMsgNo for messages that omit it.
