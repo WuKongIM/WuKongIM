@@ -27,6 +27,8 @@ codex_bin=""
 source_codex_home=""
 local_codex_home=""
 active_bounded_pid=""
+analysis_bridge_pid=""
+analysis_bridge_url=""
 codex_probe_timeout_seconds="${WK_ANALYSIS_CODEX_PROBE_TIMEOUT_SECONDS:-$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS}"
 analysis_workflow="cloud-sim-analyze.yml"
 analysis_title_prefix="Cloud Simulation Analysis"
@@ -196,9 +198,28 @@ dispatch_close_best_effort() {
     "$request_id" "$close_status" >&2
 }
 
+stop_analysis_bridge() {
+  local bridge_wait
+  if [[ -z "$analysis_bridge_pid" ]]; then
+    return
+  fi
+  kill "$analysis_bridge_pid" 2>/dev/null || true
+  for ((bridge_wait = 0; bridge_wait < 50; bridge_wait += 1)); do
+    kill -0 "$analysis_bridge_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$analysis_bridge_pid" 2>/dev/null; then
+    kill -KILL "$analysis_bridge_pid" 2>/dev/null || true
+  fi
+  wait "$analysis_bridge_pid" 2>/dev/null || true
+  analysis_bridge_pid=""
+  analysis_bridge_url=""
+}
+
 cleanup() {
   local exit_status=$?
   trap - EXIT
+  stop_analysis_bridge
   dispatch_close_best_effort
   analysis_token=""
   if [[ "$analysis_worktree_added" == true && -n "$analysis_worktree" ]]; then
@@ -223,6 +244,7 @@ handle_signal() {
     active_bounded_pid=""
     WK_BOUNDED_WRAPPER_PID=""
   fi
+  stop_analysis_bridge
   exit "$requested_status"
 }
 trap 'handle_signal 129' HUP
@@ -701,7 +723,7 @@ if [[ "$same_host_probe_ready" == true && "$observed_ipv4" != "$client_ipv4" ]];
     fail "same-host Analysis egress IPv4 changed again after one rebind"
 fi
 
-for command in git perl; do
+for command in git go perl; do
 	command -v "$command" >/dev/null 2>&1 || fail "$command is required"
 done
 [[ "$codex_probe_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || \
@@ -802,6 +824,28 @@ done
 [[ "$mcp_reachable" == true ]] || \
   fail "Analysis MCP did not become reachable from local IPv4 $client_ipv4 before its access window deadline; last failure: $health_failure"
 
+analysis_bridge_bin="$analysis_temp/wkcloudanalysisbridge"
+GOWORK=off wk_run_bounded "$WK_LOCAL_TOOL_COMMAND_TIMEOUT_SECONDS" go build -trimpath \
+  -o "$analysis_bridge_bin" "$REPO_ROOT/cmd/wkcloudanalysisbridge" || \
+  fail "cannot build the bounded local Analysis bridge"
+analysis_bridge_ready="$analysis_temp/analysis-bridge.url"
+analysis_bridge_error="$analysis_temp/analysis-bridge.err"
+"$analysis_bridge_bin" --upstream "${mcp_url%/mcp}" --certificate "$pinned_ca" \
+  >"$analysis_bridge_ready" 2>"$analysis_bridge_error" &
+analysis_bridge_pid=$!
+for ((bridge_attempt = 1; bridge_attempt <= 50; bridge_attempt += 1)); do
+  if [[ -s "$analysis_bridge_ready" ]]; then
+    IFS= read -r analysis_bridge_url <"$analysis_bridge_ready"
+    break
+  fi
+  kill -0 "$analysis_bridge_pid" 2>/dev/null || \
+    fail "bounded local Analysis bridge stopped before publishing its endpoint"
+  sleep 0.1
+done
+[[ "$analysis_bridge_url" =~ ^http://127\.0\.0\.1:[1-9][0-9]{0,4}$ ]] || \
+  fail "bounded local Analysis bridge did not publish a valid loopback endpoint"
+analysis_mcp_url="${analysis_bridge_url}/mcp"
+
 source_sha="$(jq -er '.source_sha | select(test("^[0-9a-f]{40}$"))' "$session_json")" || fail "invalid source SHA"
 scenario_digest="$(jq -er '.scenario_digest | select(test("^sha256:[0-9a-f]{64}$"))' "$session_json")" || fail "invalid scenario digest"
 ensure_source_revision "$source_sha"
@@ -839,14 +883,14 @@ active_bounded_pid=""
 WK_BOUNDED_WRAPPER_PID=""
 wk_start_bounded "$diagnosis_timeout_seconds" \
   env -i PATH="$PATH" HOME="$analysis_home" USER="${USER:-}" TMPDIR="${TMPDIR:-/tmp}" LANG=C LC_ALL=C \
-  CODEX_HOME="$local_codex_home" WK_ANALYSIS_MCP_TOKEN="$analysis_token" CODEX_CA_CERTIFICATE="$pinned_ca" \
+  CODEX_HOME="$local_codex_home" WK_ANALYSIS_MCP_TOKEN="$analysis_token" \
   "$codex_bin" exec --ephemeral --ignore-user-config --ignore-rules --strict-config -C "$analysis_worktree" \
     -c 'default_permissions="cloud-analysis"' \
     -c 'permissions.cloud-analysis.filesystem={":minimal"="read",":workspace_roots"={"."="read"}}' \
     -c 'permissions.cloud-analysis.network.enabled=false' \
     -c 'shell_environment_policy.inherit="none"' \
     -c "shell_environment_policy.set={PATH=$shell_path_toml,HOME=$analysis_home_toml,LANG=\"C\",LC_ALL=\"C\"}" \
-    -c "mcp_servers.wukongim_cloud_analysis.url=\"$mcp_url\"" \
+    -c "mcp_servers.wukongim_cloud_analysis.url=\"$analysis_mcp_url\"" \
     -c 'mcp_servers.wukongim_cloud_analysis.bearer_token_env_var="WK_ANALYSIS_MCP_TOKEN"' \
     -c 'mcp_servers.wukongim_cloud_analysis.required=true' \
     -c 'mcp_servers.wukongim_cloud_analysis.startup_timeout_sec=10' \
@@ -863,6 +907,7 @@ active_bounded_pid=""
 WK_BOUNDED_WRAPPER_PID=""
 ((codex_status != 124)) || fail "local Codex diagnosis exceeded the Analysis Token deadline"
 ((codex_status == 0)) || fail "local Codex diagnosis failed"
+stop_analysis_bridge
 
 # State and status describe the workload lifecycle only. Every nullable key is
 # required by the Diagnosis JSON Schema, so preserve workload values, fill

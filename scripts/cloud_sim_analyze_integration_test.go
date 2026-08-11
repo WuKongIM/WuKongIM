@@ -116,7 +116,7 @@ exit 89
 		"permissions.cloud-analysis.filesystem={\":minimal\"=\"read\",\":workspace_roots\"={\".\"=\"read\"}}",
 		"permissions.cloud-analysis.network.enabled=false",
 		"shell_environment_policy.inherit=\"none\"",
-		"mcp_servers.wukongim_cloud_analysis",
+		"mcp_servers.wukongim_cloud_analysis.url=\"http://127.0.0.1:43123/mcp\"",
 		"--output-schema " + filepath.Join(root, ".github", "cloud-sim", "diagnosis.schema.json"),
 		"insufficient_evidence uses severity=none and root_cause_scope=unknown",
 		"curl --noproxy * --fail --silent --show-error --connect-timeout 5 --max-time 10 --cacert ",
@@ -1716,8 +1716,7 @@ if [[ "$is_remediation" == true ]]; then
   exit 0
 fi
 test "$WK_ANALYSIS_MCP_TOKEN" = analysis-secret-token-0123456789abcdef
-test -n "${CODEX_CA_CERTIFICATE:-}"
-test -f "$CODEX_CA_CERTIFICATE"
+test -z "${CODEX_CA_CERTIFICATE:-}"
 test -z "${SSL_CERT_FILE:-}"
 test -z "${ALIBABA_CLOUD_ACCESS_KEY_ID:-}"
 test -z "${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}"
@@ -1751,6 +1750,23 @@ fi
 	writeSetupExecutable(t, filepath.Join(bin, "go"), `#!/usr/bin/env bash
 set -euo pipefail
 printf 'go %s\n' "$*" >>"$WK_ANALYZE_CALL_LOG"
+if [[ " $* " == *' build '* && " $* " == *'/cmd/wkcloudanalysisbridge '* ]]; then
+  output=''
+  while (($#)); do
+    if [[ "$1" == -o ]]; then output="$2"; break; fi
+    shift
+  done
+  test -n "$output"
+  cat >"$output" <<'BRIDGE'
+#!/usr/bin/env bash
+set -euo pipefail
+trap 'exit 0' TERM INT
+printf '%s\n' 'http://127.0.0.1:43123'
+while :; do sleep 1; done
+BRIDGE
+  chmod 0700 "$output"
+  exit 0
+fi
 if [[ " $* " == *' run ./cmd/wkclouddiagnosis validate '* && "${WK_ANALYZE_GO_VALIDATE_HANG:-}" == true ]]; then
   trap '' HUP TERM
   /bin/sleep 30 &
