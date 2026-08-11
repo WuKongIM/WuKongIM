@@ -220,7 +220,10 @@ state's pending plus in-flight item count is below
 `ErrChannelBusy` before they reach the append port. When any post-commit port is
 configured, every append-bound prepared item must also reserve one slot from
 the group-wide `PostCommitHandoffCapacity` before append. The reservation spans
-pending append, append execution, and durable post-commit work. An item that
+pending append, append execution, and durable post-commit work. Reservation
+ownership is recorded against the exact Future item index, and terminal release
+is idempotent for that owner; a duplicate completion can therefore neither
+consume another writer's reservation nor drive the aggregate depth negative. An item that
 cannot reserve a slot completes with `ErrChannelBusy` and is never passed to
 `Appender`; append failure or terminal post-commit completion returns the slot.
 The default is the
@@ -301,6 +304,10 @@ keep using `MessageScopedUIDs` and bypass subscriber scans.
 Post-commit work is scheduled from the writer state after durable append
 succeeds and is independent from `SENDACK` completion. A committed envelope
 remains pending only until one recipient delivery enqueue attempt completes.
+Every dispatched commit records its sequence and attempt in `channelState`.
+Completion must match both values before it can advance the committed cursor or
+release reservation ownership; a stale completion is ignored and observed as
+`stale_completion`.
 The committed envelope owns one payload copy when it enters the async
 post-commit backlog; later state and recipient dispatch steps pass that
 immutable envelope by reference into the canonical Online Delivery plan. The
@@ -467,10 +474,12 @@ active work. Benchmark scripts use these samples for the per-node peak
 `used/cap` pool summary.
 
 Before a post-commit effect enters the asynchronous pool, it copies the
-committed-envelope slice into effect-owned storage. The envelopes themselves
-remain immutable values, while the independent slice ownership lets the writer
-retain and retry its queued backing store without racing an already-running
-effect.
+committed-envelope and reservation records into effect-owned storage. The
+envelopes themselves remain immutable values, while the independent slice
+ownership lets the writer retain and retry its queued backing store without
+racing an already-running effect. Completion aliases this immutable effect
+slice only until exact owner release under the writer lock; the slice may then
+be reused by the next dispatch without a separate allocation.
 
 `Stop` first closes admission and waits for shard admission ownership, append
 state, handoff reservations, committed backlog, and retry FIFO ownership to

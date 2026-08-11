@@ -15,6 +15,7 @@ const (
 	channelAppendResultChannelBusy        = "channel_busy"
 	channelAppendResultRouteNotReady      = "route_not_ready"
 	channelAppendResultStaleRoute         = "stale_route"
+	channelAppendResultStaleCompletion    = "stale_completion"
 	channelAppendResultNotAuthority       = "not_authority"
 	channelAppendResultNotLeader          = "not_leader"
 	channelAppendResultChannelNotFound    = "channel_not_found"

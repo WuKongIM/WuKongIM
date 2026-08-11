@@ -30,10 +30,6 @@ type preparedSend struct {
 	// serverAllocatedMessageID proves Command.MessageID came from ports.messageID during this preparation.
 	serverAllocatedMessageID bool
 	future                   *Future
-	// postCommitReserved reports that this item owns one global handoff slot.
-	// It is transferred to committed state on append success and released on
-	// append failure or terminal post-commit completion.
-	postCommitReserved bool
 }
 
 type preparePorts struct {

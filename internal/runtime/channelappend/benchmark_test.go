@@ -519,14 +519,14 @@ func BenchmarkSubmitLocalHotChannelPostCommit(b *testing.B) {
 func BenchmarkChannelAppendPostCommitPlugin(b *testing.B) {
 	event := CommittedEnvelope{MessageID: 1, MessageSeq: 1, ChannelID: "room", ChannelType: 2, Payload: []byte("payload")}
 	b.Run("disabled", func(b *testing.B) {
-		effect := commitEffect{events: []CommittedEnvelope{event}}
+		effect := commitEffect{events: []committedPostCommit{{envelope: event}}}
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			_ = effect.run(context.Background(), commitPorts{})
 		}
 	})
 	b.Run("enabled_enqueue", func(b *testing.B) {
-		effect := commitEffect{events: []CommittedEnvelope{event}}
+		effect := commitEffect{events: []committedPostCommit{{envelope: event}}}
 		enqueuer := &benchmarkPersistAfterEnqueuer{}
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {

@@ -27,6 +27,14 @@ type postCommitHandoff struct {
 	used     atomic.Int64
 }
 
+// postCommitReservation is the ownership token for one admitted append-bound
+// item. Its idempotent release prevents a stale completion from consuming a
+// different item's capacity before that item's legitimate terminal release.
+type postCommitReservation struct {
+	future *Future
+	index  int
+}
+
 func newPostCommitHandoff(capacity int) *postCommitHandoff {
 	if capacity <= 0 {
 		capacity = 1
@@ -34,9 +42,12 @@ func newPostCommitHandoff(capacity int) *postCommitHandoff {
 	return &postCommitHandoff{capacity: int64(capacity)}
 }
 
-func (h *postCommitHandoff) tryAcquire() bool {
+func (h *postCommitHandoff) tryAcquire(future *Future, index int) bool {
+	if future == nil || index < 0 {
+		return false
+	}
 	if h == nil {
-		return true
+		return future.acquirePostCommitReservation(index)
 	}
 	for {
 		used := h.used.Load()
@@ -44,16 +55,24 @@ func (h *postCommitHandoff) tryAcquire() bool {
 			return false
 		}
 		if h.used.CompareAndSwap(used, used+1) {
-			return true
+			if future.acquirePostCommitReservation(index) {
+				return true
+			}
+			h.used.Add(-1)
+			return false
 		}
 	}
 }
 
-func (h *postCommitHandoff) release(count int) {
-	if h == nil || count <= 0 {
+func (h *postCommitHandoff) release(reservation postCommitReservation) {
+	if reservation.future == nil || reservation.index < 0 ||
+		!reservation.future.claimPostCommitReservationRelease(reservation.index) {
 		return
 	}
-	remaining := h.used.Add(-int64(count))
+	if h == nil {
+		return
+	}
+	remaining := h.used.Add(-1)
 	if remaining < 0 {
 		panic("channelappend: post-commit handoff reservation underflow")
 	}

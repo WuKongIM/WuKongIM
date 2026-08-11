@@ -93,7 +93,7 @@ func TestChannelStateNextAppendBatchDoesNotAllocatePendingCopy(t *testing.T) {
 func TestChannelStateCommitEffectSharesQueuedImmutablePayload(t *testing.T) {
 	payload := []byte("payload")
 	state := newChannelState(AuthorityTarget{ChannelID: ChannelID{ID: "room", Type: 2}}, channelStateLimits{})
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 1, Payload: payload})
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1, Payload: payload}, postCommitReservation{})
 
 	var effect commitEffect
 	ok := state.nextCommitEffect("2:room", &effect)
@@ -103,7 +103,7 @@ func TestChannelStateCommitEffectSharesQueuedImmutablePayload(t *testing.T) {
 	if len(effect.events) != 1 {
 		t.Fatalf("commit effect events = %d, want 1", len(effect.events))
 	}
-	if len(effect.events[0].Payload) == 0 || &effect.events[0].Payload[0] != &payload[0] {
+	if len(effect.events[0].envelope.Payload) == 0 || &effect.events[0].envelope.Payload[0] != &payload[0] {
 		t.Fatalf("commit effect payload did not share queued immutable payload")
 	}
 }
@@ -119,7 +119,7 @@ func TestChannelStateCommitEffectReusesReadySubscriberCache(t *testing.T) {
 		mutationVersion: 7,
 		recipients:      recipients,
 	}
-	state.enqueueCommitted(CommittedEnvelope{MessageID: 1})
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1}, postCommitReservation{})
 
 	var effect commitEffect
 	ok := state.nextCommitEffect("2:room", &effect)

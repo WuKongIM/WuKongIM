@@ -367,13 +367,12 @@ func (w *channelWriter) admitPreparedLocked(batch submittedBatch, outcome prepar
 			admitted := matching[:0]
 			for _, item := range matching {
 				if w.ports.commit.hasPostCommitWork() {
-					if !w.ports.handoff.tryAcquire() {
+					if !w.ports.handoff.tryAcquire(batch.future, item.Index) {
 						delete(pendingIndex, item.Index)
 						outcome.results[item.Index] = SendBatchItemResult{Err: ErrChannelBusy}
 						handoffRejected++
 						continue
 					}
-					item.postCommitReserved = true
 				}
 				admitted = append(admitted, item)
 			}
@@ -492,7 +491,6 @@ func (w *channelWriter) completeRealtimeScheduleError(items []preparedSend, err 
 
 func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 	var dispatch []appendCompletionDispatchItem
-	releaseReservations := 0
 	w.mu.Lock()
 	w.state.recordAppendCompletion(event)
 	for {
@@ -510,18 +508,29 @@ func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 				completion.result.Err == nil &&
 				completion.result.Result.Reason == ReasonSuccess {
 				envelope := committedEnvelopeForAppend(completion.item, completion.appended)
-				w.state.enqueueCommitted(envelope)
+				w.state.enqueueCommitted(envelope, postCommitReservation{
+					future: completion.item.future,
+					index:  completion.item.Index,
+				})
 				w.ports.metrics.addPostCommitBacklog(1)
 				handedOff = true
 			}
-			if completion.item.postCommitReserved && !handedOff {
-				releaseReservations++
-			}
-			dispatch = append(dispatch, appendCompletionDispatchItem{completion: completion, duration: next.duration})
+			dispatch = append(dispatch, appendCompletionDispatchItem{
+				completion:         completion,
+				duration:           next.duration,
+				releaseReservation: w.ports.commit.hasPostCommitWork() && !handedOff,
+			})
 		}
 	}
 	w.mu.Unlock()
-	w.ports.handoff.release(releaseReservations)
+	for _, item := range dispatch {
+		if item.releaseReservation {
+			w.ports.handoff.release(postCommitReservation{
+				future: item.completion.item.future,
+				index:  item.completion.item.Index,
+			})
+		}
+	}
 	w.ports.metrics.observePressure()
 	for _, item := range dispatch {
 		w.dispatchAppendItemCompletion(item.completion, item.duration)
@@ -529,8 +538,9 @@ func (w *channelWriter) applyAppendCompletion(event appendCompletedEvent) {
 }
 
 type appendCompletionDispatchItem struct {
-	completion appendItemCompletion
-	duration   time.Duration
+	completion         appendItemCompletion
+	duration           time.Duration
+	releaseReservation bool
 }
 
 func (w *channelWriter) dispatchAppendItemCompletion(completion appendItemCompletion, dur time.Duration) {
@@ -643,21 +653,37 @@ func (w *channelWriter) retryPostCommit() {
 }
 
 func (w *channelWriter) applyCommitCompletion(event commitCompletedEvent) {
-	failures := append([]commitCompletedItem(nil), event.failures...)
-	releaseReservations := 0
 	w.mu.Lock()
 	backlogBefore := w.state.commitBacklog()
+	if !w.state.matchesCommitCompletion(event.seq, event.attempt) {
+		w.mu.Unlock()
+		observeEffect(w.ports.append.observer, EffectObservation{
+			Stage:  effectStagePostCommit,
+			Result: channelAppendResultStaleCompletion,
+			Items:  len(event.items),
+		})
+		return
+	}
+	releaseCount := len(event.items)
+	if releaseCount > len(event.committed) {
+		releaseCount = len(event.committed)
+	}
+	// Release exact item ownership before clearing commitInflight. The advance
+	// loop may reuse the commit effect's backing slice as soon as the writer lock
+	// is dropped, while event.committed intentionally aliases that slice.
+	for _, committed := range event.committed[:releaseCount] {
+		w.ports.handoff.release(committed.reservation)
+	}
 	if len(event.items) > 0 {
 		w.state.recordSubscriberCache(event.subscriberCache)
 		w.state.finishCommit(len(event.items))
-		releaseReservations = len(event.items)
 	} else {
 		w.state.finishCommitFailure()
 	}
 	w.ports.metrics.addPostCommitBacklog(w.state.commitBacklog() - backlogBefore)
 	w.mu.Unlock()
-	w.ports.handoff.release(releaseReservations)
 	w.ports.metrics.observePressure()
+	failures := append([]commitCompletedItem(nil), event.failures...)
 	for _, item := range event.items {
 		if item.err != nil {
 			failures = append(failures, item)

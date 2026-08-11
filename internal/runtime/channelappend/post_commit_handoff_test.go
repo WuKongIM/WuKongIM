@@ -2,6 +2,28 @@ package channelappend
 
 import "testing"
 
+func TestPostCommitReservationReleaseIsIdempotent(t *testing.T) {
+	handoff := newPostCommitHandoff(2)
+	firstFuture := newFuture(1)
+	secondFuture := newFuture(1)
+	if !handoff.tryAcquire(firstFuture, 0) || !handoff.tryAcquire(secondFuture, 0) {
+		t.Fatal("failed to acquire two handoff reservations")
+	}
+	first := postCommitReservation{future: firstFuture, index: 0}
+	second := postCommitReservation{future: secondFuture, index: 0}
+
+	firstFuture.completeItem(0, SendBatchItemResult{Result: SendResult{Reason: ReasonSuccess}})
+	handoff.release(first)
+	handoff.release(first)
+	if got := handoff.depth(); got != 1 {
+		t.Fatalf("handoff depth after duplicate release = %d, want 1", got)
+	}
+	handoff.release(second)
+	if got := handoff.depth(); got != 0 {
+		t.Fatalf("terminal handoff depth = %d, want 0", got)
+	}
+}
+
 func TestPostCommitRetrySchedulerCompactionClearsBackingTail(t *testing.T) {
 	const writerCount = 2048
 

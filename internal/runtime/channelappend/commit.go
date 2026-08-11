@@ -28,7 +28,7 @@ type commitEffect struct {
 	key             string
 	seq             uint64
 	attempt         int
-	events          []CommittedEnvelope
+	events          []committedPostCommit
 	target          AuthorityTarget
 	subscriberCache subscriberCache
 }
@@ -38,6 +38,9 @@ type commitCompletedEvent struct {
 	seq     uint64
 	attempt int
 	items   []commitCompletedItem
+	// committed aliases the immutable effect records and carries exact
+	// reservation ownership into completion validation without another copy.
+	committed []committedPostCommit
 	// failures contains observation-only side-effect failures that must not change item completion.
 	failures        []commitCompletedItem
 	subscriberCache subscriberCache
@@ -62,6 +65,7 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		seq:             e.seq,
 		attempt:         e.attempt,
 		items:           make([]commitCompletedItem, 0, len(e.events)),
+		committed:       e.events,
 		failures:        make([]commitCompletedItem, 0, len(e.events)),
 		subscriberCache: e.subscriberCache,
 	}
@@ -73,7 +77,8 @@ func (e commitEffect) run(runtimeCtx context.Context, ports commitPorts) commitC
 		}
 	}
 	cache := e.subscriberCache
-	for _, event := range e.events {
+	for _, committed := range e.events {
+		event := committed.envelope
 		enqueuePersistAfterBestEffort(runtimeCtx, ports.persistAfter, event)
 		if !ports.hasRecipientWork() {
 			completion.items = append(completion.items, commitCompletedItem{event: event, checkpointSeq: event.MessageSeq})
@@ -115,18 +120,19 @@ func commitPanicCompletion(effect commitEffect, recovered any) commitCompletedEv
 
 func commitErrorCompletion(effect commitEffect, err error, detail PostCommitFailureDetail) commitCompletedEvent {
 	completion := commitCompletedEvent{
-		key:     effect.key,
-		seq:     effect.seq,
-		attempt: effect.attempt,
-		items:   make([]commitCompletedItem, 0, len(effect.events)),
+		key:       effect.key,
+		seq:       effect.seq,
+		attempt:   effect.attempt,
+		items:     make([]commitCompletedItem, 0, len(effect.events)),
+		committed: effect.events,
 	}
 	itemErr := fmt.Errorf("%w: %w", ErrCommitEffectFailed, err)
 	result := errorClass(err)
-	for _, event := range effect.events {
+	for _, committed := range effect.events {
 		completion.items = append(completion.items, commitCompletedItem{
 			err:    itemErr,
 			result: result,
-			event:  event,
+			event:  committed.envelope,
 			detail: detail,
 		})
 	}

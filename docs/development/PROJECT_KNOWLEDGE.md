@@ -113,6 +113,12 @@
   retain scheduler-saturated envelopes in bounded writer state rather than
   losing an already-committed handoff. Terminal delivery/plugin/webhook failures
   remain best-effort and do not roll back the Channel commit.
+- Channelappend handoff capacity release must prove exact Future/item ownership
+  and be idempotent. A post-commit completion must match the currently in-flight
+  sequence and attempt before it advances the cursor or releases capacity;
+  accepting a stale completion can steal another writer's reservation and make
+  that writer's later legitimate append-failure release underflow the global
+  counter.
 - Channelappend writer activation must pass through the dedicated dispatcher; callers or append/effect workers must never block while submitting back into the bounded advance pool, or saturated advance/append pools can form a cross-pool deadlock.
 - Local Cloud Analysis should use the run's Cloud View `RemoteAddr` as a best-effort same-destination egress hint; transparent routing can give public echo services another IPv4. Keep pinned-TLS MCP health authoritative and preserve the echo fallback for runs without Cloud View.
 

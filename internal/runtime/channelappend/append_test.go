@@ -1199,9 +1199,9 @@ func committedForAppendTest(t *testing.T, group *Group, channelID ChannelID) []C
 	}
 	writer.mu.Lock()
 	defer writer.mu.Unlock()
-	committed := append([]CommittedEnvelope(nil), writer.state.committed...)
-	for i := range committed {
-		committed[i] = committed[i].Clone()
+	committed := make([]CommittedEnvelope, len(writer.state.committed))
+	for i, item := range writer.state.committed {
+		committed[i] = item.envelope.Clone()
 	}
 	return committed
 }

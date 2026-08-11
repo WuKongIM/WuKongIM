@@ -323,7 +323,8 @@ func TestAdvanceDispatcherPublishesQueuedAndDrainedPressure(t *testing.T) {
 func TestWriterPressurePublicationCannotOverwriteDrainWithOlderSnapshot(t *testing.T) {
 	observer := newBlockingPressureObserverForTest()
 	handoff := newPostCommitHandoff(1)
-	if !handoff.tryAcquire() {
+	future := newFuture(1)
+	if !handoff.tryAcquire(future, 0) {
 		t.Fatal("tryAcquire() = false, want initial handoff reservation")
 	}
 	metrics := &groupMetrics{
@@ -348,7 +349,7 @@ func TestWriterPressurePublicationCannotOverwriteDrainWithOlderSnapshot(t *testi
 		t.Fatal("first pressure publication did not start")
 	}
 
-	handoff.release(1)
+	handoff.release(postCommitReservation{future: future, index: 0})
 	updatesDone := make(chan struct{})
 	go func() {
 		for range 10_000 {

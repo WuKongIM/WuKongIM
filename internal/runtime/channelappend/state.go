@@ -21,10 +21,14 @@ type channelState struct {
 	// hasReadyAppendCompletion reports whether readyAppendCompletion is populated.
 	hasReadyAppendCompletion bool
 	completedAppends         map[uint64]appendCompletedEvent
-	committed                []CommittedEnvelope
+	committed                []committedPostCommit
 	nextCommitSeq            uint64
 	commitCursor             int
 	commitInflight           bool
+	// commitInflightSeq and commitInflightAttempt identify the only completion
+	// allowed to advance the durable post-commit cursor.
+	commitInflightSeq     uint64
+	commitInflightAttempt int
 	// commitInflightEvents is the number of committed envelopes owned by the current post-commit effect.
 	commitInflightEvents int
 	commitAttempts       int
@@ -35,6 +39,14 @@ type channelState struct {
 type channelStateLimits struct {
 	pendingItemHighWatermark int
 	appendInflightLimit      int
+}
+
+// committedPostCommit keeps a durable envelope and its exact handoff
+// reservation in one queue record so ownership survives every state-machine
+// copy without a parallel slice or per-message allocation.
+type committedPostCommit struct {
+	envelope    CommittedEnvelope
+	reservation postCommitReservation
 }
 
 // subscriberCache is a versioned non-large channel subscriber snapshot.
@@ -199,8 +211,8 @@ func (s *channelState) popNextAppendCompletion() (appendCompletedEvent, bool) {
 
 // enqueueCommitted transfers an already-reserved durable envelope into the
 // per-channel FIFO. Global handoff admission bounds this queue before append.
-func (s *channelState) enqueueCommitted(event CommittedEnvelope) {
-	s.committed = append(s.committed, event)
+func (s *channelState) enqueueCommitted(event CommittedEnvelope, reservation postCommitReservation) {
+	s.committed = append(s.committed, committedPostCommit{envelope: event, reservation: reservation})
 }
 
 func (s *channelState) nextCommitEffect(key string, out *commitEffect) bool {
@@ -229,7 +241,13 @@ func (s *channelState) nextCommitEffect(key string, out *commitEffect) bool {
 	s.nextCommitSeq += uint64(limit)
 	s.commitInflight = true
 	s.commitInflightEvents = limit
+	s.commitInflightSeq = out.seq
+	s.commitInflightAttempt = out.attempt
 	return true
+}
+
+func (s *channelState) matchesCommitCompletion(seq uint64, attempt int) bool {
+	return s.commitInflight && s.commitInflightSeq == seq && s.commitInflightAttempt == attempt
 }
 
 func (s *channelState) recordSubscriberCache(cache subscriberCache) {
@@ -244,6 +262,8 @@ func (s *channelState) recordSubscriberCache(cache subscriberCache) {
 
 func (s *channelState) finishCommit(count int) {
 	s.commitInflight = false
+	s.commitInflightSeq = 0
+	s.commitInflightAttempt = 0
 	if count <= 0 {
 		count = s.commitInflightEvents
 	}
@@ -253,11 +273,15 @@ func (s *channelState) finishCommit(count int) {
 
 func (s *channelState) finishCommitFailure() {
 	s.commitInflight = false
+	s.commitInflightSeq = 0
+	s.commitInflightAttempt = 0
 	s.commitInflightEvents = 0
 }
 
 func (s *channelState) cancelCommitDispatch() {
 	s.commitInflight = false
+	s.commitInflightSeq = 0
+	s.commitInflightAttempt = 0
 	s.commitInflightEvents = 0
 	if s.commitAttempts > 0 {
 		s.commitAttempts--
@@ -278,7 +302,7 @@ func (s *channelState) dropCommitted(count int) {
 		end = len(s.committed)
 	}
 	for i := s.commitCursor; i < end; i++ {
-		s.committed[i] = CommittedEnvelope{}
+		s.committed[i] = committedPostCommit{}
 	}
 	s.commitCursor = end
 	s.commitAttempts = 0

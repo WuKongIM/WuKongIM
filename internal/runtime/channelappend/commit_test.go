@@ -13,17 +13,133 @@ import (
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
+func TestStaleCommitCompletionCannotReleaseNextReservation(t *testing.T) {
+	handoff := newPostCommitHandoff(2)
+	firstFuture := newFuture(1)
+	secondFuture := newFuture(1)
+	if !handoff.tryAcquire(firstFuture, 0) || !handoff.tryAcquire(secondFuture, 0) {
+		t.Fatal("failed to acquire two handoff reservations")
+	}
+
+	state := newChannelState(localTargetForAppendTest("room"), channelStateLimits{})
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 1}, postCommitReservation{future: firstFuture, index: 0})
+	var firstEffect commitEffect
+	if !state.nextCommitEffect("room", &firstEffect) {
+		t.Fatal("first nextCommitEffect() = false, want true")
+	}
+	writer := &channelWriter{
+		state: state,
+		ports: writerPorts{handoff: handoff},
+	}
+	firstCompletion := commitCompletedEvent{
+		seq:       firstEffect.seq,
+		attempt:   firstEffect.attempt,
+		items:     []commitCompletedItem{{event: firstEffect.events[0].envelope}},
+		committed: firstEffect.events,
+	}
+	writer.applyCommitCompletion(firstCompletion)
+	if got := handoff.depth(); got != 1 {
+		t.Fatalf("handoff depth after first completion = %d, want 1", got)
+	}
+
+	state.enqueueCommitted(CommittedEnvelope{MessageID: 2}, postCommitReservation{future: secondFuture, index: 0})
+	var secondEffect commitEffect
+	if !state.nextCommitEffect("room", &secondEffect) {
+		t.Fatal("second nextCommitEffect() = false, want true")
+	}
+
+	writer.applyCommitCompletion(firstCompletion)
+	if got := handoff.depth(); got != 1 {
+		t.Fatalf("handoff depth after stale completion = %d, want 1", got)
+	}
+	if got := state.commitBacklog(); got != 1 {
+		t.Fatalf("commit backlog after stale completion = %d, want 1", got)
+	}
+	if !state.matchesCommitCompletion(secondEffect.seq, secondEffect.attempt) {
+		t.Fatal("stale completion displaced the current commit effect")
+	}
+
+	writer.applyCommitCompletion(commitCompletedEvent{
+		seq:       secondEffect.seq,
+		attempt:   secondEffect.attempt,
+		items:     []commitCompletedItem{{event: secondEffect.events[0].envelope}},
+		committed: secondEffect.events,
+	})
+	if got := handoff.depth(); got != 0 {
+		t.Fatalf("terminal handoff depth = %d, want 0", got)
+	}
+}
+
+func TestStaleCommitCompletionCannotStealConcurrentAppendReservation(t *testing.T) {
+	handoff := newPostCommitHandoff(2)
+	commitFuture := newFuture(1)
+	appendFuture := newFuture(1)
+	if !handoff.tryAcquire(commitFuture, 0) || !handoff.tryAcquire(appendFuture, 0) {
+		t.Fatal("failed to acquire two handoff reservations")
+	}
+
+	commitState := newChannelState(localTargetForAppendTest("commit-room"), channelStateLimits{})
+	commitState.enqueueCommitted(CommittedEnvelope{MessageID: 1}, postCommitReservation{future: commitFuture, index: 0})
+	var effect commitEffect
+	if !commitState.nextCommitEffect("commit-room", &effect) {
+		t.Fatal("nextCommitEffect() = false, want true")
+	}
+	commitWriter := &channelWriter{
+		state: commitState,
+		ports: writerPorts{handoff: handoff},
+	}
+	completion := commitCompletedEvent{
+		seq:       effect.seq,
+		attempt:   effect.attempt,
+		items:     []commitCompletedItem{{event: effect.events[0].envelope}},
+		committed: effect.events,
+	}
+	commitWriter.applyCommitCompletion(completion)
+	commitWriter.applyCommitCompletion(completion)
+	if got := handoff.depth(); got != 1 {
+		t.Fatalf("handoff depth after stale commit replay = %d, want 1", got)
+	}
+
+	appendState := newChannelState(localTargetForAppendTest("append-room"), channelStateLimits{})
+	appendState.enqueuePrepared([]preparedSend{{Index: 0, future: appendFuture}})
+	seq, inflight, ok := appendState.nextAppendBatch()
+	if !ok {
+		t.Fatal("nextAppendBatch() = false, want true")
+	}
+	appendWriter := &channelWriter{
+		state: appendState,
+		ports: writerPorts{
+			commit:  commitPorts{persistAfter: &recordingPersistAfterEnqueuerForCommitTest{}},
+			handoff: handoff,
+		},
+	}
+	appendErr := errors.New("append failed")
+	appendWriter.applyAppendCompletion(appendCompletedEvent{
+		seq: seq,
+		items: []appendItemCompletion{{
+			item:     inflight[0],
+			result:   SendBatchItemResult{Err: appendErr},
+			traceErr: appendErr,
+		}},
+	})
+	if got := handoff.depth(); got != 0 {
+		t.Fatalf("terminal handoff depth = %d, want 0", got)
+	}
+}
+
 func TestCommitEffectEnqueuesPersistAfterWithoutRecipientWork(t *testing.T) {
 	enqueuer := &recordingPersistAfterEnqueuerForCommitTest{}
 	effect := commitEffect{
 		key: "room",
 		seq: 1,
-		events: []CommittedEnvelope{{
-			MessageID:   10,
-			MessageSeq:  4,
-			ChannelID:   "room",
-			ChannelType: 2,
-			Payload:     []byte("hello"),
+		events: []committedPostCommit{{
+			envelope: CommittedEnvelope{
+				MessageID:   10,
+				MessageSeq:  4,
+				ChannelID:   "room",
+				ChannelType: 2,
+				Payload:     []byte("hello"),
+			},
 		}},
 	}
 
@@ -38,7 +154,7 @@ func TestCommitEffectEnqueuesPersistAfterWithoutRecipientWork(t *testing.T) {
 }
 
 func TestCommitEffectDoesNotRequirePersistAfterForNoPostCommitWork(t *testing.T) {
-	effect := commitEffect{events: []CommittedEnvelope{{MessageID: 10}}}
+	effect := commitEffect{events: []committedPostCommit{{envelope: CommittedEnvelope{MessageID: 10}}}}
 
 	completion := effect.run(context.Background(), commitPorts{})
 
@@ -54,13 +170,15 @@ func TestCommitEffectPersistAfterPanicDoesNotEscapeOrBlockRecipients(t *testing.
 		key:    "room",
 		seq:    1,
 		target: localTargetForAppendTest("room"),
-		events: []CommittedEnvelope{{
-			MessageID:         10,
-			MessageSeq:        4,
-			ChannelID:         "room",
-			ChannelType:       2,
-			Payload:           []byte("hello"),
-			MessageScopedUIDs: []string{"u2"},
+		events: []committedPostCommit{{
+			envelope: CommittedEnvelope{
+				MessageID:         10,
+				MessageSeq:        4,
+				ChannelID:         "room",
+				ChannelType:       2,
+				Payload:           []byte("hello"),
+				MessageScopedUIDs: []string{"u2"},
+			},
 		}},
 	}
 
