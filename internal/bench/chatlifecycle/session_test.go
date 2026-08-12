@@ -178,6 +178,8 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 	client := fixture.factory.clients()[0]
 	closeEntered := make(chan struct{}, 2)
 	client.closeEntered = closeEntered
+	closeRelease := make(chan struct{})
+	client.closeRelease = closeRelease
 	fixture.pool.mu.RLock()
 	session := fixture.pool.online[uid]
 	fixture.pool.mu.RUnlock()
@@ -187,6 +189,10 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("heartbeat write failure did not close the session")
 	}
+	if snapshot := fixture.pool.Snapshot(); snapshot.CloseReasons.HeartbeatFailed != 1 || snapshot.Online != 1 {
+		t.Fatalf("heartbeat failure was not observable while close blocked: %+v", snapshot)
+	}
+	close(closeRelease)
 	select {
 	case <-session.done:
 	case <-time.After(time.Second):
@@ -199,6 +205,50 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 	if snapshot.ReadErrors != 1 || snapshot.CloseReasons.HeartbeatFailed != 1 ||
 		fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("heartbeat write failure evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
+	}
+}
+
+func TestSessionPoolHeartbeatCloseFailureStillDetachesAndCountsCleanup(t *testing.T) {
+	fixture := newSessionTestFixture(t)
+	sleepEntered := make(chan struct{}, 1)
+	sleepRelease := make(chan struct{})
+	fixture.pool.heartbeatSleep = func(ctx context.Context, _ time.Duration) error {
+		select {
+		case sleepEntered <- struct{}{}:
+		default:
+		}
+		select {
+		case <-sleepRelease:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	fixture.factory.pingErr = errors.New("redacted heartbeat write failure")
+	uid := fixture.identity.UID(22)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 22, LoginOrdinal: 12}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	<-sleepEntered
+	client := fixture.factory.clients()[0]
+	client.closeErr = errors.New("private close failure")
+	client.closeDoesNotStop = true
+	fixture.pool.mu.RLock()
+	session := fixture.pool.online[uid]
+	fixture.pool.mu.RUnlock()
+	close(sleepRelease)
+	select {
+	case <-session.heartbeatDone:
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat close failure did not finish cleanup")
+	}
+	if fixture.pool.isOwned(uid) {
+		t.Fatal("heartbeat close failure retained session ownership")
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.CloseReasons.HeartbeatFailed != 1 || snapshot.CloseReasons.TransportCloseFailed != 1 ||
+		snapshot.Online != 0 || snapshot.Closing != 0 {
+		t.Fatalf("heartbeat close-failure diagnostics = %+v", snapshot)
 	}
 }
 
@@ -639,6 +689,23 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 	}
 	if got := fixture.pool.Snapshot().CloseReasons.RemoteTerminal; got != 1 {
 		t.Fatalf("remote-terminal close reasons = %d, want 1", got)
+	}
+}
+
+func TestSessionPoolCountsTransportCloseFailureWithoutRawError(t *testing.T) {
+	t.Parallel()
+	fixture := newSessionTestFixture(t)
+	uid := fixture.identity.UID(38)
+	if _, err := fixture.pool.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 38, LoginOrdinal: 10}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	fixture.factory.clients()[0].closeErr = errors.New("private transport close detail")
+	if err := fixture.pool.Logout(uid); err == nil {
+		t.Fatal("Logout returned nil transport-close error")
+	}
+	snapshot := fixture.pool.Snapshot()
+	if snapshot.CloseReasons.ExplicitLogout != 1 || snapshot.CloseReasons.TransportCloseFailed != 1 {
+		t.Fatalf("transport-close diagnostics = %+v", snapshot.CloseReasons)
 	}
 }
 
@@ -1121,6 +1188,8 @@ type sessionFakeClient struct {
 	readExited           chan struct{}
 	closeEntered         chan struct{}
 	closeRelease         <-chan struct{}
+	closeErr             error
+	closeDoesNotStop     bool
 	queueSnapshotEntered chan<- struct{}
 	queueSnapshotRelease <-chan struct{}
 	closeOnce            sync.Once
@@ -1198,13 +1267,16 @@ func (c *sessionFakeClient) Close() error {
 	if c.closeRelease != nil {
 		<-c.closeRelease
 	}
+	if c.closeDoesNotStop {
+		return c.closeErr
+	}
 	c.closeOnce.Do(func() {
 		c.mu.Lock()
 		c.isClosed = true
 		c.mu.Unlock()
 		close(c.stop)
 	})
-	return nil
+	return c.closeErr
 }
 
 func (c *sessionFakeClient) QueueSnapshot(ctx context.Context) (SessionQueueSnapshot, error) {

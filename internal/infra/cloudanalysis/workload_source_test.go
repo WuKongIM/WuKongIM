@@ -220,6 +220,19 @@ func TestWorkloadSummarySourceReportsBoundedLiveDiagnosticsBeforeFinalSummary(t 
 	if _, err := decodeWorkloadLiveStatus(strings.NewReader(unknownField), "run-1"); !errors.Is(err, errInvalidWorkloadLiveStatus) {
 		t.Fatalf("unknown live field error = %v, want %v", err, errInvalidWorkloadLiveStatus)
 	}
+	regressed := strings.Replace(live,
+		`"recent_events":[`,
+		`"recent_events":[{"at":"2026-08-12T06:49:00Z","kind":"worker_close_reasons_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333,"heartbeat_failed":0,"remote_terminal":0,"read_failed":0,"generation_stop":0,"explicit_logout":0,"transport_close_failed":0}},`,
+		1,
+	)
+	regressed = strings.Replace(regressed,
+		`"at":"2026-08-12T06:49:08Z","kind":"worker_connections_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3333`,
+		`"at":"2026-08-12T06:49:08Z","kind":"worker_connections_changed","worker_id":2,"connections":{"target":3333,"online":0,"starting":0,"closing":0,"traffic_ready":0},"close_reasons":{"expired":3332`,
+		1,
+	)
+	if _, err := decodeWorkloadLiveStatus(strings.NewReader(regressed), "run-1"); !errors.Is(err, errInvalidWorkloadLiveStatus) {
+		t.Fatalf("regressing live event error = %v, want %v", err, errInvalidWorkloadLiveStatus)
+	}
 }
 
 func TestWorkloadSummarySourceRejectsIdentityMismatchAndOversize(t *testing.T) {

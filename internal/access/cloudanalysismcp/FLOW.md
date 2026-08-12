@@ -13,9 +13,11 @@ HTTPS Streamable MCP request
   -> structured Observation
 ```
 
-The MCP endpoint is stateless and JSON-response-only. `workload_inspect` exposes
-only the bounded, parsed wkbench diagnostic summary: threshold measurements,
-actual phase windows, structured failed workers, and the measured-run successful
+The MCP endpoint is stateless and JSON-response-only. While chat-lifecycle is
+running, `workload_inspect` exposes only the bounded, parsed current worker
+connection gauges, fixed close-reason counters, and recent aggregate changes.
+After completion it exposes the bounded wkbench diagnostic summary: threshold
+measurements, actual phase windows, structured failed workers, and the measured-run successful
 send count plus actual ingress QPS. Incomplete workload source/tool failures
 remain explicit with null lifecycle fields rather than a fabricated terminal
 state. Failure details are fixed reason-code-owned templates; raw worker

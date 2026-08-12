@@ -18,7 +18,7 @@ const (
 	// LiveDiagnosticStatusFile is atomically replaced in the report directory.
 	LiveDiagnosticStatusFile = "diagnostic-status.json"
 
-	maxLiveDiagnosticStatusBytes  = 32 << 10
+	maxLiveDiagnosticStatusBytes  = 64 << 10
 	maxLiveDiagnosticRecentEvents = 64
 )
 
@@ -176,7 +176,8 @@ func projectLiveDiagnosticWorkers(snapshots []WorkerSnapshot) (
 	var closes SessionCloseReasonSnapshot
 	var seen [coordinatorWorkerCount]bool
 	for _, snapshot := range snapshots {
-		if snapshot.WorkerID >= coordinatorWorkerCount || seen[snapshot.WorkerID] || snapshot.Phase != WorkerPhaseRunning ||
+		if snapshot.WorkerID >= coordinatorWorkerCount || seen[snapshot.WorkerID] ||
+			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) ||
 			snapshot.SnapshotSequence == 0 {
 			return workers, totals, closes, false
 		}

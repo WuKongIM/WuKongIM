@@ -53,6 +53,10 @@ func TestProductionEvidenceControllerWritesOperatorStopFinalAfterJoinedLifecycle
 	}); err != nil {
 		t.Fatal(err)
 	}
+	statusBody, err := os.ReadFile(filepath.Join(controller.OutputDir(), LiveDiagnosticStatusFile))
+	if err != nil || !strings.Contains(string(statusBody), `"generation_stop": 3`) {
+		t.Fatalf("final live diagnostic status = %q/%v", statusBody, err)
+	}
 	select {
 	case <-lifecycle.done:
 	default:
@@ -598,6 +602,11 @@ func productionControllerWorkerSnapshots(cfg Config, fence WorkerFence, sequence
 		snapshots[index].Sessions.Target = 1
 		snapshots[index].Sessions.Online = 1
 		snapshots[index].Sessions.TrafficReady = 1
+		if phase == WorkerPhaseFinal {
+			snapshots[index].Sessions.Online = 0
+			snapshots[index].Sessions.TrafficReady = 0
+			snapshots[index].Sessions.CloseReasons.GenerationStop = 1
+		}
 		snapshots[index].Messages.FirstAttempts = uint64(index + 1)
 		snapshots[index].Sync.Thresholds = LatencyThresholdCounters{
 			P99Limit: cfg.Thresholds.Latency.Sync.P99, P999Limit: cfg.Thresholds.Latency.Sync.P999,

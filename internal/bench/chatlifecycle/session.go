@@ -246,7 +246,8 @@ type onlineSession struct {
 	groupIndex            int
 	groupPosition         int
 	relationshipsObserved bool
-	closeInitiator        atomic.Uint32
+	// closeInitiator is guarded by SessionPool.mu and claimed exactly once.
+	closeInitiator sessionCloseReason
 }
 
 // SessionPool owns only currently online clients. A UID has exactly one
@@ -761,8 +762,7 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 		session := p.online[uid]
 		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
 		p.closing[uid] = session
-		session.closeInitiator.Store(uint32(sessionCloseReasonExpired))
-		p.recordCloseReasonLocked(sessionCloseReasonExpired)
+		p.claimCloseReasonLocked(session, sessionCloseReasonExpired)
 		sessions = append(sessions, session)
 	}
 	p.mu.Unlock()
@@ -827,8 +827,7 @@ func (p *SessionPool) detachSession(uid string, reason sessionCloseReason) *onli
 	if session != nil {
 		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
 		p.closing[uid] = session
-		session.closeInitiator.Store(uint32(reason))
-		p.recordCloseReasonLocked(reason)
+		p.claimCloseReasonLocked(session, reason)
 	}
 	p.mu.Unlock()
 	if session == nil {
@@ -859,9 +858,7 @@ func (p *SessionPool) finishDetachedSession(session *onlineSession) error {
 func (p *SessionPool) finishDetachedTransport(session *onlineSession) error {
 	closeErr := session.client.Close()
 	if closeErr != nil {
-		p.mu.Lock()
-		incrementSessionOutcome(&p.closeReasons.TransportCloseFailed)
-		p.mu.Unlock()
+		p.recordTransportCloseFailure()
 	}
 	<-session.done
 	<-session.heartbeatDone
@@ -1066,30 +1063,58 @@ func (p *SessionPool) heartbeat(ctx context.Context, session *onlineSession) {
 			continue
 		}
 		if ctx.Err() == nil {
-			session.closeInitiator.CompareAndSwap(uint32(sessionCloseReasonNone), uint32(sessionCloseReasonHeartbeatFailed))
-			_ = session.client.Close()
+			p.mu.Lock()
+			claimed := p.online[session.snapshot.UID] == session &&
+				p.claimCloseReasonLocked(session, sessionCloseReasonHeartbeatFailed)
+			p.mu.Unlock()
+			if claimed {
+				if err := session.client.Close(); err != nil {
+					p.recordTransportCloseFailure()
+					p.detachHeartbeatCloseFailure(session)
+				}
+			}
 		}
 		return
 	}
 }
 
-func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bool) {
-	class := FailureClassHarness
-	code := FailureCodeSessionReadFailed
-	if remoteTerminal {
-		class = FailureClassReceive
-		code = FailureCodeSessionRemoteTerminal
-	}
-	reason := sessionCloseReasonReadFailed
-	if sessionCloseReason(session.closeInitiator.Load()) == sessionCloseReasonHeartbeatFailed {
-		reason = sessionCloseReasonHeartbeatFailed
-	} else if remoteTerminal {
-		reason = sessionCloseReasonRemoteTerminal
-	}
+// detachHeartbeatCloseFailure completes ownership cleanup when a failed PING
+// is followed by a transport Close error. It runs on the heartbeat goroutine,
+// so it joins only the read drain; the caller's deferred close publishes the
+// heartbeatDone boundary after this method returns.
+func (p *SessionPool) detachHeartbeatCloseFailure(session *onlineSession) {
 	p.mu.Lock()
 	if p.online[session.snapshot.UID] != session {
 		p.mu.Unlock()
 		return
+	}
+	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
+	p.closing[session.snapshot.UID] = session
+	p.mu.Unlock()
+
+	session.cancel()
+	<-session.done
+	p.verifier.ReleaseRecipient(session.snapshot.UID)
+	p.finishClosing(session.snapshot.UID, session)
+}
+
+func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bool) {
+	class := FailureClassHarness
+	code := FailureCodeSessionReadFailed
+	p.mu.Lock()
+	if p.online[session.snapshot.UID] != session {
+		p.mu.Unlock()
+		return
+	}
+	reason := session.closeInitiator
+	if reason == sessionCloseReasonNone {
+		reason = sessionCloseReasonReadFailed
+		if remoteTerminal {
+			reason = sessionCloseReasonRemoteTerminal
+			class = FailureClassReceive
+			code = FailureCodeSessionRemoteTerminal
+		}
+		p.claimCloseReasonLocked(session, reason)
 	}
 	// Evidence is bounded in-process state. Recording it while ownership is
 	// locked makes the terminal transition observable in one direction only:
@@ -1098,19 +1123,30 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
 	p.closing[session.snapshot.UID] = session
 	p.readErrors++
-	session.closeInitiator.Store(uint32(reason))
-	p.recordCloseReasonLocked(reason)
 	p.mu.Unlock()
 
 	session.cancel()
 	if err := session.client.Close(); err != nil {
-		p.mu.Lock()
-		incrementSessionOutcome(&p.closeReasons.TransportCloseFailed)
-		p.mu.Unlock()
+		p.recordTransportCloseFailure()
 	}
 	<-session.heartbeatDone
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
 	p.finishClosing(session.snapshot.UID, session)
+}
+
+func (p *SessionPool) claimCloseReasonLocked(session *onlineSession, reason sessionCloseReason) bool {
+	if session == nil || reason == sessionCloseReasonNone || session.closeInitiator != sessionCloseReasonNone {
+		return false
+	}
+	session.closeInitiator = reason
+	p.recordCloseReasonLocked(reason)
+	return true
+}
+
+func (p *SessionPool) recordTransportCloseFailure() {
+	p.mu.Lock()
+	incrementSessionOutcome(&p.closeReasons.TransportCloseFailed)
+	p.mu.Unlock()
 }
 
 func (p *SessionPool) recordCloseReasonLocked(reason sessionCloseReason) {

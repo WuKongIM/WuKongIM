@@ -440,6 +440,9 @@ func (c *ProductionEvidenceController) Finalize(ctx context.Context, cut Coordin
 	if cut.Continuous != (c.continuous && !c.continuing) {
 		return errProductionController
 	}
+	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, CoordinatorCutTerminal, cut.FinalSnapshots) != nil {
+		return errProductionController
+	}
 	if !cut.Continuous {
 		c.stopLifecycleLocked()
 	}

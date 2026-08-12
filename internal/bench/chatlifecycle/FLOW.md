@@ -1023,7 +1023,9 @@ Every successful three-worker evidence cut also atomically replaces
 line to the command diagnostic stream. The status contains current `online`,
 `starting`, `closing`, and `traffic_ready` gauges, the fixed teardown reason
 counters for each worker and their checked totals, plus at most 64 recent
-aggregate change events. It contains no UID, Channel, message, address,
+aggregate change events. Finalize writes one last post-stop cut so explicit
+generation stop and cleanup failures are distinguishable from an earlier
+connection collapse. It contains no UID, Channel, message, address,
 credential, path, or raw error. This running contract is intentionally
 separate from terminal reports so Analysis MCP can diagnose a connection drop
 before `final.json` exists. A fresh production controller arms the observation source at that exact barrier

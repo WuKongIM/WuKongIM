@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	maxWorkloadLiveStatusBytes  = 32 << 10
+	maxWorkloadLiveStatusBytes  = 64 << 10
 	maxWorkloadLiveRecentEvents = 64
 	workloadLiveStatusSchema    = "wukongim/chat-lifecycle-diagnostic-status/v1"
 )
@@ -75,7 +75,8 @@ func validWorkloadLiveStatus(document workloadLiveStatusDocument, expectedRunID 
 	var totals analysis.WorkloadConnectionCounts
 	var closes analysis.WorkloadSessionCloseCounts
 	for index, worker := range document.Workers {
-		if worker.WorkerID != uint64(index) || worker.WorkerID >= 3 || seen[worker.WorkerID] || worker.Phase != "running" ||
+		if worker.WorkerID != uint64(index) || worker.WorkerID >= 3 || seen[worker.WorkerID] ||
+			(worker.Phase != "running" && worker.Phase != "final") ||
 			worker.SnapshotSequence == 0 || !validWorkloadConnections(worker.Connections) {
 			return false
 		}
@@ -88,6 +89,8 @@ func validWorkloadLiveStatus(document workloadLiveStatusDocument, expectedRunID 
 		return false
 	}
 	lastEventAt := document.StartedAt
+	var eventCloses [3]analysis.WorkloadSessionCloseCounts
+	var eventSeen [3]bool
 	for _, event := range document.RecentEvents {
 		if event.At.Before(document.StartedAt) || event.At.After(document.UpdatedAt) || event.WorkerID >= 3 ||
 			event.At.Before(lastEventAt) ||
@@ -96,9 +99,20 @@ func validWorkloadLiveStatus(document workloadLiveStatusDocument, expectedRunID 
 			!workloadCloseCountsWithin(event.CloseReasons, document.Workers[event.WorkerID].CloseReasons) {
 			return false
 		}
+		if eventSeen[event.WorkerID] && !workloadCloseCountsMonotonic(event.CloseReasons, eventCloses[event.WorkerID]) {
+			return false
+		}
+		eventCloses[event.WorkerID], eventSeen[event.WorkerID] = event.CloseReasons, true
 		lastEventAt = event.At
 	}
 	return true
+}
+
+func workloadCloseCountsMonotonic(current, previous analysis.WorkloadSessionCloseCounts) bool {
+	return current.Expired >= previous.Expired && current.HeartbeatFailed >= previous.HeartbeatFailed &&
+		current.RemoteTerminal >= previous.RemoteTerminal && current.ReadFailed >= previous.ReadFailed &&
+		current.GenerationStop >= previous.GenerationStop && current.ExplicitLogout >= previous.ExplicitLogout &&
+		current.TransportCloseFailed >= previous.TransportCloseFailed
 }
 
 func hasRequiredWorkloadLiveFields(data []byte) bool {

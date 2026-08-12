@@ -60,3 +60,45 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 		t.Fatalf("diagnostic log = %q", logBody)
 	}
 }
+
+func TestLiveDiagnosticRecorderBoundsFullRecentEventRing(t *testing.T) {
+	outputDir := t.TempDir()
+	start := time.Unix(1_965_100_000, 0).UTC()
+	fence := WorkerFence{RunID: "live-ring-run", AssignmentID: "live-ring-assignment", Generation: 1}
+	recorder := newLiveDiagnosticRecorder(outputDir, fence.RunID, start, nil)
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
+	for index := range snapshots {
+		snapshots[index].Phase = WorkerPhaseRunning
+		snapshots[index].Sessions.Target = 3333
+		snapshots[index].Sessions.Online = 3333
+		snapshots[index].Sessions.TrafficReady = 3333
+	}
+	for cut := 0; cut < 80; cut++ {
+		for index := range snapshots {
+			snapshots[index].SnapshotSequence++
+		}
+		worker := &snapshots[2]
+		if cut%2 == 0 {
+			worker.Sessions.Online = 0
+			worker.Sessions.TrafficReady = 0
+			worker.Sessions.CloseReasons.HeartbeatFailed++
+		} else {
+			worker.Sessions.Online = worker.Sessions.Target
+			worker.Sessions.TrafficReady = worker.Sessions.Target
+		}
+		if err := recorder.Observe(start.Add(time.Duration(cut+1)*time.Second), CoordinatorCutPeriodic, snapshots); err != nil {
+			t.Fatalf("Observe(%d) error = %v", cut, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(outputDir, LiveDiagnosticStatusFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document liveDiagnosticStatus
+	if err := json.Unmarshal(body, &document); err != nil {
+		t.Fatal(err)
+	}
+	if len(document.RecentEvents) != maxLiveDiagnosticRecentEvents || len(body) > maxLiveDiagnosticStatusBytes {
+		t.Fatalf("bounded ring events/bytes = %d/%d", len(document.RecentEvents), len(body))
+	}
+}

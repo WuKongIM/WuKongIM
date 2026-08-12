@@ -538,7 +538,7 @@ type ConfigReadRequest struct {
 type Sources interface {
 	// InspectRun proves the current live or released state of one exact run.
 	InspectRun(context.Context, string) (RunInspection, error)
-	// WorkloadInspect returns a bounded final wkbench summary or explicit in-progress state.
+	// WorkloadInspect returns bounded live worker status or the final wkbench summary.
 	WorkloadInspect(context.Context, string) (SourceResult, error)
 	// ClusterSnapshot returns a bounded aggregate node/runtime snapshot.
 	ClusterSnapshot(context.Context) (SourceResult, error)
