@@ -233,7 +233,7 @@ start_service() {
     WK_CLUSTER_HASH_SLOT_COUNT=256 \
     WK_CLUSTER_SLOT_REPLICA_N=3 \
     WK_CLUSTER_CHANNEL_REPLICA_N=3 \
-    WK_CLUSTER_MAX_CHANNELS=5000 \
+    WK_CLUSTER_MAX_CHANNELS=50000 \
     WK_API_LISTEN_ADDR="127.0.0.1:$(api_port "$node")" \
     WK_EXTERNAL_TCPADDR="127.0.0.1:$(gateway_port "$node")" \
     WK_MANAGER_LISTEN_ADDR="127.0.0.1:$(manager_port "$node")" \

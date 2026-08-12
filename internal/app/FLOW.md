@@ -459,8 +459,11 @@ Channel bound. The live cluster snapshot is assembled from
 `LocalControlSnapshot` plus each local `LocalSlotRaftStatus`; desired replicas
 come from Controller state, while actual leader, voters, term, indexes, and
 leader-only replica progress come from Slot Raft. It never substitutes the
-preferred leader or fabricates ISR state. Incomplete or impossible progress is
-rejected before the access adapter emits a response.
+preferred leader or fabricates ISR state. A replica `match` index may be ahead
+of the current commit index while an entry is replicated but not yet committed;
+that row reports zero committed-entry lag rather than failing or underflowing.
+Incomplete or structurally invalid progress is rejected before the access
+adapter emits a response.
 
 The app always installs the process-wide `pkg/goroutine` registry, passes it to
 Cluster and Gateway configuration, projects it into the management goroutine

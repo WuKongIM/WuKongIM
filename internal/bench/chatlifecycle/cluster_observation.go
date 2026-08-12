@@ -113,11 +113,14 @@ func healthyLeaderProgress(slot target.ClusterSlot, voters []uint64, maxLag uint
 	}
 	seen := make(map[uint64]struct{}, len(voters))
 	for _, progress := range slot.ReplicaProgress {
-		if _, duplicate := seen[progress.NodeID]; duplicate || !containsNode(voters, progress.NodeID) || progress.MatchIndex > slot.CommitIndex {
+		if _, duplicate := seen[progress.NodeID]; duplicate || !containsNode(voters, progress.NodeID) {
 			return false
 		}
 		seen[progress.NodeID] = struct{}{}
-		lag := slot.CommitIndex - progress.MatchIndex
+		lag := uint64(0)
+		if progress.MatchIndex < slot.CommitIndex {
+			lag = slot.CommitIndex - progress.MatchIndex
+		}
 		if progress.LagEntries != lag || lag > maxLag || progress.State != "StateReplicate" {
 			return false
 		}

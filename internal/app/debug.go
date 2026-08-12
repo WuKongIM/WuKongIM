@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -124,13 +125,20 @@ func debugClusterSlotFromStatus(assignment control.SlotAssignment, status cluste
 	row.ReplicaProgress = make([]debugReplicaProgress, 0, len(status.ReplicaProgress))
 	var previousNodeID uint64
 	for _, progress := range status.ReplicaProgress {
-		if progress.NodeID == 0 || progress.NodeID <= previousNodeID || progress.MatchIndex > status.CommitIndex || !validDebugProgressState(progress.State) {
-			return debugClusterSlot{}, errors.New("debug cluster invalid Slot Raft replica progress")
+		if progress.NodeID == 0 || progress.NodeID <= previousNodeID || !validDebugProgressState(progress.State) {
+			return debugClusterSlot{}, fmt.Errorf(
+				"debug cluster invalid Slot Raft replica progress: slot=%d replica=%d previous_replica=%d match=%d commit=%d state=%q",
+				assignment.SlotID, progress.NodeID, previousNodeID, progress.MatchIndex, status.CommitIndex, progress.State,
+			)
 		}
 		previousNodeID = progress.NodeID
+		lagEntries := uint64(0)
+		if progress.MatchIndex < status.CommitIndex {
+			lagEntries = status.CommitIndex - progress.MatchIndex
+		}
 		row.ReplicaProgress = append(row.ReplicaProgress, debugReplicaProgress{
 			NodeID: progress.NodeID, MatchIndex: progress.MatchIndex,
-			LagEntries: status.CommitIndex - progress.MatchIndex, State: progress.State,
+			LagEntries: lagEntries, State: progress.State,
 		})
 	}
 	return row, nil

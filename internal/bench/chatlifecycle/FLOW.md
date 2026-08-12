@@ -973,7 +973,10 @@ Parent cancellation releases the shared round and ticker. The observer requires
 complete stable reports for all 12 logical Slot groups, one leader, three
 desired replicas, three live voters, and leader-only progress. Hot Slot groups
 are an optional bounded, unique declaration; an empty declaration means all 12
-workload groups. Structurally inconsistent cluster views share one bounded
+workload groups. Health and readiness failures own the service-health window;
+missing or invalid debug-cluster snapshots own the cluster-health window. A
+replica `match` index ahead of commit is healthy replicated-but-uncommitted
+progress and contributes zero committed-entry lag. Structurally inconsistent cluster views share one bounded
 30-second failure window. Replica progress owns one bounded failure window per
 logical Slot; a healthy observation resets that Slot's window, so lag moving
 between different Slots cannot be combined into one continuous failure. Any

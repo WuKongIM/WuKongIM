@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -67,10 +68,9 @@ func TestDebugClusterSnapshotUsesLiveSlotRaftFacts(t *testing.T) {
 	}
 }
 
-func TestDebugClusterSnapshotRejectsIncompleteOrImpossibleProgress(t *testing.T) {
+func TestDebugClusterSnapshotRejectsIncompleteOrInvalidProgress(t *testing.T) {
 	tests := []clusterpkg.SlotRaftStatus{
 		{NodeID: 1, SlotID: 1, LeaderID: 1, Role: "leader", CommitIndex: 10, ReplicaProgressComplete: false},
-		{NodeID: 1, SlotID: 1, LeaderID: 1, Role: "leader", CommitIndex: 10, ReplicaProgressComplete: true, ReplicaProgress: []clusterpkg.SlotRaftReplicaProgress{{NodeID: 2, MatchIndex: 11, State: "StateReplicate"}}},
 		{NodeID: 1, SlotID: 1, LeaderID: 1, Role: "leader", CommitIndex: 10, ReplicaProgressComplete: true, ReplicaProgress: []clusterpkg.SlotRaftReplicaProgress{{NodeID: 2, MatchIndex: 10, State: "future-state"}}},
 	}
 	for _, status := range tests {
@@ -82,6 +82,41 @@ func TestDebugClusterSnapshotRejectsIncompleteOrImpossibleProgress(t *testing.T)
 		if err == nil {
 			t.Fatalf("debugClusterSnapshot() error = nil for status %#v", status)
 		}
+	}
+}
+
+func TestDebugClusterSnapshotAllowsReplicaProgressAheadOfCommit(t *testing.T) {
+	runtime := &debugClusterRuntimeStub{
+		control: control.Snapshot{Revision: 1, Slots: []control.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2, 3}}}},
+		statuses: map[uint32]clusterpkg.SlotRaftStatus{7: {
+			NodeID: 1, SlotID: 7, LeaderID: 1, Role: "leader", CommitIndex: 10,
+			ReplicaProgressComplete: true,
+			ReplicaProgress:         []clusterpkg.SlotRaftReplicaProgress{{NodeID: 2, MatchIndex: 11, State: "StateReplicate"}},
+		}},
+	}
+
+	got, err := (&App{cfg: Config{NodeID: 1}, cluster: runtime}).debugClusterSnapshot(context.Background())
+	if err != nil {
+		t.Fatalf("debugClusterSnapshot() error = %v", err)
+	}
+	if progress := got.Slots[0].ReplicaProgress[0]; progress.MatchIndex != 11 || progress.LagEntries != 0 {
+		t.Fatalf("replica progress = %+v, want replicated-ahead match with zero committed lag", progress)
+	}
+}
+
+func TestDebugClusterSnapshotReplicaProgressErrorIncludesBoundedRaftFacts(t *testing.T) {
+	runtime := &debugClusterRuntimeStub{
+		control: control.Snapshot{Revision: 1, Slots: []control.SlotAssignment{{SlotID: 7, DesiredPeers: []uint64{1, 2, 3}}}},
+		statuses: map[uint32]clusterpkg.SlotRaftStatus{7: {
+			NodeID: 1, SlotID: 7, LeaderID: 1, Role: "leader", CommitIndex: 10,
+			ReplicaProgressComplete: true,
+			ReplicaProgress:         []clusterpkg.SlotRaftReplicaProgress{{NodeID: 2, MatchIndex: 10, State: "future-state"}},
+		}},
+	}
+
+	_, err := (&App{cfg: Config{NodeID: 1}, cluster: runtime}).debugClusterSnapshot(context.Background())
+	if err == nil || !strings.Contains(err.Error(), `slot=7 replica=2 previous_replica=0 match=10 commit=10 state="future-state"`) {
+		t.Fatalf("debugClusterSnapshot() error = %v, want bounded Raft facts", err)
 	}
 }
 

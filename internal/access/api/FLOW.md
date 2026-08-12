@@ -127,6 +127,9 @@ subtree requires that bearer capability. Diagnostics debug routes also require
 a diagnostics reader and query the node-local bounded diagnostics store for
 controlled performance and troubleshooting runs. A failed live cluster
 snapshot returns a fixed `503` response and never exposes its internal cause.
+The node log retains that cause under the low-cardinality
+`internal.access.api.debug_cluster_snapshot_failed` event so a benchmark
+observer failure can be attributed to the exact snapshot validation branch.
 
 `GET /demo` and `HEAD /demo` permanently redirect to `/demo/`. The `/demo/*`
 surface serves the production Vite bundle embedded at Go build time; exact

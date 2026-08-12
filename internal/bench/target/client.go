@@ -1106,7 +1106,11 @@ func validateDebugCluster(snapshot DebugCluster) error {
 				return errors.New("observation cluster contains duplicate replica progress")
 			}
 			seenProgress[progress.NodeID] = struct{}{}
-			if progress.MatchIndex > slot.CommitIndex || slot.CommitIndex-progress.MatchIndex != progress.LagEntries {
+			lagEntries := uint64(0)
+			if progress.MatchIndex < slot.CommitIndex {
+				lagEntries = slot.CommitIndex - progress.MatchIndex
+			}
+			if lagEntries != progress.LagEntries {
 				return errors.New("observation cluster contains inconsistent replica lag")
 			}
 		}
