@@ -105,11 +105,17 @@ expose cancelable forms;
 their existing background wrappers retain their prior semantics. A queued
 rate command rechecks both caller context and Engine generation before mutating
 the allocator. Public Advance crosses a cancellation-aware owner admission
-fence, then joins session expiry outside the owner so that owner can continue
-consuming the bounded, non-dropping SENDACK completion queue. The serial Step
-lock covers that admission, expiry, and the subsequent owner clock,
-correlation, completion, retry, and lifecycle advancement, preventing
-concurrent advances from overtaking. Public Tick acquires a generation-bound
+fence, reserves one entry in the worker-online-target-bounded cleanup queue,
+detaches and cancels session expiry, and commits the subsequent owner clock,
+correlation, completion, retry, and lifecycle advancement under the serial Step
+lock. One generation-owned cleanup loop closes sockets, joins drains and
+heartbeats, releases verifier state, and removes closing tombstones. The serial
+Step boundary never joins that transport work, so coordinator Grant and later
+owner work remain available to consume the bounded, non-dropping SENDACK
+completion queue. The invariant `online + starting + closing <= online_target`
+delays replacement admission while cleanup retains a tombstone, permanently
+reserving enough cleanup capacity for every routable session. Engine stop joins
+the cleanup loop before closing the remaining online sessions. Public Tick acquires a generation-bound
 lease before waiting on the same serial time boundary; Step's private Tick
 inherits the enclosing Step lease and does not lock or lease again. The owner
 admission atomically rejects a requested time earlier than its committed time
@@ -544,9 +550,12 @@ drain, and heartbeat are
 children of the active engine-generation context; stopping a generation fences
 new admission, cancels that context, then joins startup work, drains, and
 heartbeats.
-Expected logout and expiry first remove online admission, then cancel and close
-the socket, join the drain and heartbeat, and finally release recipient
-sequence state. The
+Expected logout first removes online admission, then cancels and closes the
+socket, joins the drain and heartbeat, and finally releases recipient sequence
+state. Engine-driven expiry performs the same ordered cleanup through one
+generation-owned, worker-online-target-bounded cleanup queue after detaching
+and canceling the session under the serial Step boundary. The closing tombstone
+prevents same-UID replacement while cleanup is active. The
 WKProto result queue distinguishes a non-terminal asynchronous SEND publication
 error, which keeps the same drain online and returns both the wire `ClientSeq`
 and stable `client_msg_no` to the engine-owned retry state, from a terminal remote reader
@@ -558,8 +567,8 @@ routable, but it rejects replacement login and remains owned until the old
 drain has joined and recipient verifier state has been released. `Engine.Step` derives replacement demand from
 the resulting online-target deficit, so no blocking exit callback is part of
 the atomic boundary. Public Advance and Tick share the serial Step lock; Step
-and Advance cross the monotonic owner-time admission before joined expiry or
-scheduler mutation. Unknown unexpected read exits remain bounded
+and Advance cross the monotonic owner-time admission before expiry detachment
+or scheduler mutation; neither waits for the cleanup loop. Unknown unexpected read exits remain bounded
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
 group-member routing indexes contain current online sessions only, use
 swap-delete on logout, and allocate no per-lookup history.

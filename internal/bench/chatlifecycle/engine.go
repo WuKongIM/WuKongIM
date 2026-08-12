@@ -917,12 +917,18 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.stop = make(chan struct{})
 	e.done = make(chan struct{})
 	e.generationCtx, e.generationCancel = context.WithCancel(ctx)
+	if err := e.sessions.startExpiryCleanup(e.onlineTarget); err != nil {
+		e.generationCancel()
+		return err
+	}
 	e.generation = nextGeneration
 	e.running = true
 	e.accepting = true
 	e.stopping = false
 	e.cached = e.emptySnapshot(true)
-	e.activeLoops.Add(1)
+	// One owner loop plus one bounded session-expiry cleanup loop are active for
+	// the generation; neither scales with users or Channels.
+	e.activeLoops.Add(2)
 	go e.loop(e.commands, e.stop, e.done)
 	return nil
 }
@@ -958,6 +964,8 @@ func (e *Engine) Stop() error {
 	// Tick waits last because Tick, Step, and Advance share stepMu. Generation
 	// cancellation lets a waiting Tick leave after the earlier holder finishes.
 	e.tickOps.Wait()
+	e.sessions.stopExpiryCleanup()
+	e.activeLoops.Add(-1)
 	// Context-aware calls may return before their already-admitted owner
 	// command observes generation cancellation. Join that command boundary
 	// before closing sessions so no SEND can still be using a client.
@@ -1639,17 +1647,24 @@ func (e *Engine) advanceWithSessionExpiry(admissionCtx, generationCtx context.Co
 	if err := admissionCtx.Err(); err != nil {
 		return 0, err
 	}
-	// Expiry joins the session drain. Keep that wait outside the owner loop so
-	// the owner can consume the drain's bounded, non-dropping SENDACK result.
+	// Expiry reserves bounded cleanup ownership and detaches the session before
+	// owner advancement. The pool's generation loop joins transport cleanup, so
+	// Step, Advance, and coordinator grants never wait on socket teardown.
 	// Caller cancellation linearizes at the check above; once committed, only
 	// generation shutdown may interrupt the remaining owner work.
-	e.sessions.Expire(now)
+	if _, err := e.expireSessions(now); err != nil {
+		return 0, err
+	}
 	processed, err := e.advanceWithContext(generationCtx, now)
 	if generationCtx.Err() != nil &&
 		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return processed, errEngineNotRunning
 	}
 	return processed, err
+}
+
+func (e *Engine) expireSessions(now time.Time) (int, error) {
+	return e.sessions.expireAsync(now)
 }
 
 // awaitOwnerTimeAdmission preserves the cancellation and monotonic-time fence
@@ -1741,16 +1756,17 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	if demand != nil {
 		e.finishBootstrapIfOnline(now)
 	}
-	expired := e.sessions.Expire(now)
+	expired, expireErr := e.expireSessions(now)
 	e.schedulerMetrics.expired.Add(uint64(expired))
 	result.Expired = expired
-	replacementCount := uint64(expired)
+	if expireErr != nil {
+		return result, errors.Join(resultErr, expireErr)
+	}
+	replacementCount := uint64(0)
 	poolBeforeLogins := e.sessions.Counts()
-	if !e.scheduler.bootstrapping && poolBeforeLogins.Online+poolBeforeLogins.Starting < e.onlineTarget {
-		shortage := uint64(e.onlineTarget - poolBeforeLogins.Online - poolBeforeLogins.Starting)
-		if shortage > replacementCount {
-			replacementCount = shortage
-		}
+	ownedBeforeLogins := poolBeforeLogins.Online + poolBeforeLogins.Starting + poolBeforeLogins.Closing
+	if !e.scheduler.bootstrapping && ownedBeforeLogins < e.onlineTarget {
+		replacementCount = uint64(e.onlineTarget - ownedBeforeLogins)
 	}
 	e.scheduler.addReplacements(replacementCount)
 	loginBudget, err := e.scheduler.release(now)
@@ -1760,7 +1776,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	startingSlots := e.sessions.startingCapacity - poolBeforeLogins.Starting
 	scheduled := 0
 	for loginBudget > 0 && scheduled < e.maxWork && startingSlots > 0 {
-		if poolBeforeLogins.Online+poolBeforeLogins.Starting+scheduled >= e.onlineTarget {
+		if ownedBeforeLogins+scheduled >= e.onlineTarget {
 			break
 		}
 		ordinal, ordinalErr := e.scheduler.nextGlobalLoginOrdinal()
@@ -1831,7 +1847,7 @@ func (e *Engine) Step(ctx context.Context, now time.Time, demand []uint64) (Engi
 	}
 	poolAfterLogins := e.sessions.Counts()
 	if scheduled >= e.maxWork &&
-		poolAfterLogins.Online+poolAfterLogins.Starting < e.onlineTarget &&
+		poolAfterLogins.Online+poolAfterLogins.Starting+poolAfterLogins.Closing < e.onlineTarget &&
 		(e.scheduler.credit > 0 || e.scheduler.replacements > 0) {
 		result.Online = poolAfterLogins.Online
 		return result, e.recordRuntimeFailureSync(RuntimeFailureSchedulerCPUSaturated, uint64(e.maxWork))

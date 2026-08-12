@@ -262,6 +262,19 @@ type SessionPool struct {
 	syncThresholds     LatencyThresholdCounters
 	// transportAdmissionRejected survives individual session churn for the generation.
 	transportAdmissionRejected atomic.Uint64
+
+	// ownershipCapacity is the generation's fixed online target. While nonzero,
+	// online, starting, and closing ownership may never exceed this bound, which
+	// permanently reserves one cleanup-queue entry for every routable session.
+	// It is guarded by mu.
+	ownershipCapacity int
+	// cleanupMu serializes generation cleanup-loop lifecycle and reservations.
+	// cleanupPending equals queued plus in-progress cleanup entries; the worker
+	// decrements it before removing the matching closing tombstone.
+	cleanupMu      sync.Mutex
+	cleanupQueue   chan *onlineSession
+	cleanupDone    chan struct{}
+	cleanupPending int
 }
 
 // NewSessionPool validates all lifecycle seams before any client is created.
@@ -331,6 +344,15 @@ func (p *SessionPool) reserveLogin(uid string) error {
 	if online || starting || closing {
 		p.mu.Unlock()
 		return errSessionOnline
+	}
+	if p.ownershipCapacity > 0 && len(p.online)+len(p.starting)+len(p.closing) >= p.ownershipCapacity {
+		capacity := p.ownershipCapacity
+		p.mu.Unlock()
+		_ = p.verifier.evidence.Record(EvidenceEvent{
+			Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: FailureCodeSessionLoginSaturated,
+			Value: uint64(capacity),
+		})
+		return &RuntimeError{code: RuntimeFailureLoginSaturated}
 	}
 	if len(p.starting) >= p.startingCapacity {
 		p.mu.Unlock()
@@ -599,6 +621,143 @@ func (p *SessionPool) Expire(now time.Time) int {
 	if p == nil {
 		return 0
 	}
+	sessions := p.detachExpired(now)
+	p.finishDetachedSessions(sessions)
+	return len(sessions)
+}
+
+// startExpiryCleanup starts the one bounded generation-owned cleanup loop.
+// Capacity is the worker's online target, so queued closing ownership cannot
+// grow with elapsed run history.
+func (p *SessionPool) startExpiryCleanup(capacity int) error {
+	if p == nil || capacity <= 0 || capacity > maxVerifierCapacity {
+		return errSessionConfig
+	}
+	p.cleanupMu.Lock()
+	defer p.cleanupMu.Unlock()
+	if p.cleanupQueue != nil || p.cleanupDone != nil || p.cleanupPending != 0 {
+		return errSessionOnline
+	}
+	p.mu.Lock()
+	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 || p.ownershipCapacity != 0 {
+		p.mu.Unlock()
+		return errSessionOnline
+	}
+	p.ownershipCapacity = capacity
+	p.mu.Unlock()
+	p.cleanupQueue = make(chan *onlineSession, capacity)
+	p.cleanupDone = make(chan struct{})
+	go p.runExpiryCleanup(p.cleanupQueue, p.cleanupDone)
+	return nil
+}
+
+// stopExpiryCleanup joins every detached session before a generation can
+// reset SessionPool ownership or publish terminal cleanup completion.
+func (p *SessionPool) stopExpiryCleanup() {
+	if p == nil {
+		return
+	}
+	p.cleanupMu.Lock()
+	queue, done := p.cleanupQueue, p.cleanupDone
+	if queue == nil {
+		p.cleanupMu.Unlock()
+		return
+	}
+	close(queue)
+	p.cleanupQueue = nil
+	p.cleanupDone = nil
+	p.cleanupMu.Unlock()
+	<-done
+	p.cleanupMu.Lock()
+	p.cleanupPending = 0
+	p.cleanupMu.Unlock()
+}
+
+// expireAsync atomically reserves bounded cleanup ownership before detaching
+// every due session. The generation ownership invariant makes queue exhaustion
+// unreachable; violating it is a terminal configuration error, never a reason
+// to leave an expired session routable.
+func (p *SessionPool) expireAsync(now time.Time) (int, error) {
+	if p == nil {
+		return 0, errSessionConfig
+	}
+	p.cleanupMu.Lock()
+	defer p.cleanupMu.Unlock()
+	if p.cleanupQueue == nil || p.cleanupPending > cap(p.cleanupQueue) {
+		return 0, errSessionConfig
+	}
+	sessions, ok := p.detachExpiredWithin(now, cap(p.cleanupQueue)-p.cleanupPending)
+	if !ok {
+		return 0, errSessionConfig
+	}
+	p.cleanupPending += len(sessions)
+	for _, session := range sessions {
+		p.cleanupQueue <- session
+	}
+	return len(sessions), nil
+}
+
+// runExpiryCleanup owns all asynchronous transport teardown for one Engine
+// generation. It releases the queue reservation before the closing tombstone,
+// so replacement admission can never overbook cleanup capacity.
+func (p *SessionPool) runExpiryCleanup(queue <-chan *onlineSession, done chan<- struct{}) {
+	defer close(done)
+	for session := range queue {
+		_ = p.finishDetachedTransport(session)
+		p.cleanupMu.Lock()
+		p.cleanupPending--
+		p.cleanupMu.Unlock()
+		p.finishClosing(session.snapshot.UID, session)
+	}
+}
+
+// detachExpiredWithin moves every currently due session out of routing only
+// when the caller has reserved enough cleanup entries for the complete set.
+func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlineSession, bool) {
+	p.mu.Lock()
+	due := make([]string, 0)
+	for uid, session := range p.online {
+		if !session.snapshot.Deadline.After(now) {
+			due = append(due, uid)
+		}
+	}
+	if len(due) > capacity {
+		p.mu.Unlock()
+		return nil, false
+	}
+	sort.Strings(due)
+	sessions := make([]*onlineSession, 0, len(due))
+	for _, uid := range due {
+		session := p.online[uid]
+		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
+		p.closing[uid] = session
+		sessions = append(sessions, session)
+	}
+	p.mu.Unlock()
+	for _, session := range sessions {
+		session.cancel()
+	}
+	return sessions, true
+}
+
+// detachExpired removes due sessions from online routing and cancels their
+// drains without waiting for transport cleanup. The closing tombstone keeps
+// each UID owned until finishDetachedSessions completes.
+func (p *SessionPool) detachExpired(now time.Time) []*onlineSession {
+	if p == nil {
+		return nil
+	}
+	due := p.dueSessionUIDs(now)
+	sessions := make([]*onlineSession, 0, len(due))
+	for _, uid := range due {
+		if session := p.detachSession(uid); session != nil {
+			sessions = append(sessions, session)
+		}
+	}
+	return sessions
+}
+
+func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 	p.mu.RLock()
 	due := make([]string, 0)
 	for uid, session := range p.online {
@@ -608,10 +767,7 @@ func (p *SessionPool) Expire(now time.Time) int {
 	}
 	p.mu.RUnlock()
 	sort.Strings(due)
-	for _, uid := range due {
-		_ = p.Logout(uid)
-	}
-	return len(due)
+	return due
 }
 
 // Logout removes online admission, cancels and closes the socket, joins its
@@ -620,6 +776,16 @@ func (p *SessionPool) Logout(uid string) error {
 	if p == nil {
 		return errSessionOffline
 	}
+	session := p.detachSession(uid)
+	if session == nil {
+		return errSessionOffline
+	}
+	return p.finishDetachedSession(session)
+}
+
+// detachSession moves one traffic-ready UID into its closing tombstone before
+// cancellation, so neither routing nor replacement can overlap old cleanup.
+func (p *SessionPool) detachSession(uid string) *onlineSession {
 	p.mu.Lock()
 	session := p.online[uid]
 	if session != nil {
@@ -628,14 +794,35 @@ func (p *SessionPool) Logout(uid string) error {
 	}
 	p.mu.Unlock()
 	if session == nil {
-		return errSessionOffline
+		return nil
 	}
 	session.cancel()
+	return session
+}
+
+// finishDetachedSessions preserves deterministic direct Expire and Logout
+// semantics without using the generation's asynchronous cleanup loop.
+func (p *SessionPool) finishDetachedSessions(sessions []*onlineSession) {
+	for _, session := range sessions {
+		_ = p.finishDetachedSession(session)
+	}
+}
+
+// finishDetachedSession closes transport, joins both per-session loops,
+// releases verifier state, and only then removes the closing tombstone.
+func (p *SessionPool) finishDetachedSession(session *onlineSession) error {
+	closeErr := p.finishDetachedTransport(session)
+	p.finishClosing(session.snapshot.UID, session)
+	return closeErr
+}
+
+// finishDetachedTransport joins transport-owned work and releases verifier
+// state while the caller retains the session's closing tombstone.
+func (p *SessionPool) finishDetachedTransport(session *onlineSession) error {
 	closeErr := session.client.Close()
 	<-session.done
 	<-session.heartbeatDone
-	p.verifier.ReleaseRecipient(uid)
-	p.finishClosing(uid, session)
+	p.verifier.ReleaseRecipient(session.snapshot.UID)
 	return closeErr
 }
 
@@ -739,11 +926,18 @@ func (p *SessionPool) resetRuntime() error {
 	if p == nil {
 		return errSessionConfig
 	}
+	p.cleanupMu.Lock()
+	cleanupStopped := p.cleanupQueue == nil && p.cleanupDone == nil && p.cleanupPending == 0
+	p.cleanupMu.Unlock()
+	if !cleanupStopped {
+		return errSessionOnline
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.online) != 0 || len(p.starting) != 0 || len(p.closing) != 0 {
 		return errSessionOnline
 	}
+	p.ownershipCapacity = 0
 	p.readErrors = 0
 	p.verificationErrors = 0
 	p.factoryFailed = 0

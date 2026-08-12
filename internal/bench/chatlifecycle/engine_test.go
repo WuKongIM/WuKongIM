@@ -2158,14 +2158,8 @@ func TestEngineAdvanceExpiresSessionUnderFullCompletionBackpressure(t *testing.T
 		<-advanceDone
 		t.Fatal("AdvanceContext deadlocked session expiry against the full completion queue")
 	}
-	select {
-	case <-publishReturned:
-	default:
-		t.Fatal("AdvanceContext returned before the session drain published its SENDACK")
-	}
-	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
-		t.Fatalf("expired session ownership = %+v, want empty", counts)
-	}
+	releasePressure()
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
 }
 
 func TestEngineAdvanceCallerCancellationAfterExpiryCommitCompletes(t *testing.T) {
@@ -2196,15 +2190,18 @@ func TestEngineAdvanceCallerCancellationAfterExpiryCommitCompletes(t *testing.T)
 	if _, err := fixture.engine.AdvanceContext(advanceCtx, session.Deadline.Add(time.Second)); err != nil {
 		t.Fatalf("committed AdvanceContext returned caller cancellation after mutation: %v", err)
 	}
+	select {
+	case <-advanceCtx.Done():
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expiry cleanup did not reach the caller-canceling transport close")
+	}
 	if !errors.Is(advanceCtx.Err(), context.Canceled) {
-		t.Fatalf("caller context error = %v, want cancellation during expiry", advanceCtx.Err())
+		t.Fatalf("caller context error = %v, want cancellation during expiry cleanup", advanceCtx.Err())
 	}
-	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
-		t.Fatalf("committed expired session ownership = %+v, want empty", counts)
-	}
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
 }
 
-func TestEngineConcurrentAdvancesSerializeExpiryAndOwnerTime(t *testing.T) {
+func TestEngineConcurrentAdvancesPreserveOwnerTimeWhileEarlierExpiryCleansUp(t *testing.T) {
 	fixture := newEngineTestFixture(t, engineTestLimits{
 		OnlineUsers: 2, SessionDuration: time.Hour, CommandCapacity: 4,
 		WorkCapacity: 64, MaxWorkPerAdvance: 64,
@@ -2253,28 +2250,24 @@ func TestEngineConcurrentAdvancesSerializeExpiryAndOwnerTime(t *testing.T) {
 		firstDone <- advanceErr
 	}()
 	<-firstCloseStarted
-	secondStarted := make(chan struct{})
 	secondDone := make(chan error, 1)
 	go func() {
-		close(secondStarted)
 		_, advanceErr := fixture.engine.AdvanceContext(context.Background(), second.Deadline)
 		secondDone <- advanceErr
 	}()
-	<-secondStarted
-	serialized := true
-	if fixture.engine.stepMu.TryLock() {
-		serialized = false
-		fixture.engine.stepMu.Unlock()
+	select {
+	case err := <-secondDone:
+		if err != nil {
+			t.Fatalf("second AdvanceContext: %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(releaseFirstClose)
+		<-firstDone
+		t.Fatal("later owner advance waited for earlier session cleanup")
 	}
 	close(releaseFirstClose)
 	if err := <-firstDone; err != nil {
 		t.Fatalf("first AdvanceContext: %v", err)
-	}
-	if err := <-secondDone; err != nil {
-		t.Fatalf("second AdvanceContext: %v", err)
-	}
-	if !serialized {
-		t.Fatal("session expiry released the Advance serialization boundary before owner time committed")
 	}
 	ownerNow := make(chan time.Time, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
@@ -2283,9 +2276,157 @@ func TestEngineConcurrentAdvancesSerializeExpiryAndOwnerTime(t *testing.T) {
 	if now := <-ownerNow; !now.Equal(second.Deadline) {
 		t.Fatalf("concurrent Advance owner time = %v, want latest admitted %v", now, second.Deadline)
 	}
-	if counts := fixture.pool.Counts(); counts != (SessionCounts{}) {
-		t.Fatalf("concurrent expired session ownership = %+v, want empty", counts)
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
+}
+
+func assertSessionCountsEventually(t *testing.T, pool *SessionPool, want SessionCounts) {
+	t.Helper()
+	deadline := time.After(250 * time.Millisecond)
+	for {
+		if got := pool.Counts(); got == want {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("session ownership = %+v, want %+v", pool.Counts(), want)
+		default:
+			runtime.Gosched()
+		}
 	}
+}
+
+func TestEngineApplyGrantDoesNotWaitForSessionExpiryCleanup(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, SessionDuration: time.Millisecond, CommandCapacity: 4,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	closeStarted := make(chan struct{})
+	releaseClose := make(chan struct{})
+	client := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "grant-during-expiry"},
+	}
+	client.onClose = func() {
+		close(closeStarted)
+		<-releaseClose
+		close(client.releaseAck)
+	}
+	fixture.pool.factory = fixedSessionClientFactory{client: client}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	session, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	stepDone := make(chan error, 1)
+	go func() {
+		_, stepErr := fixture.engine.Step(context.Background(), session.Deadline, nil)
+		stepDone <- stepErr
+	}()
+	<-closeStarted
+	select {
+	case err := <-stepDone:
+		if err != nil {
+			close(releaseClose)
+			t.Fatalf("Step: %v", err)
+		}
+	case <-time.After(250 * time.Millisecond):
+		close(releaseClose)
+		<-stepDone
+		t.Fatal("autonomous Step waited for blocking session expiry cleanup")
+	}
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 1,
+	}); !errors.Is(err, errSessionOnline) {
+		close(releaseClose)
+		t.Fatalf("same-UID login during expiry cleanup error = %v, want %v", err, errSessionOnline)
+	}
+
+	type grantCallResult struct {
+		result EngineGrantResult
+		err    error
+	}
+	grantDone := make(chan grantCallResult, 1)
+	go func() {
+		result, grantErr := fixture.engine.ApplyGrant(context.Background(), session.Deadline, 0)
+		grantDone <- grantCallResult{result: result, err: grantErr}
+	}()
+
+	select {
+	case granted := <-grantDone:
+		if granted.err != nil || !granted.result.Admitted {
+			close(releaseClose)
+			t.Fatalf("grant during expiry cleanup = %+v, %v; want admitted success", granted.result, granted.err)
+		}
+		close(releaseClose)
+	case <-time.After(250 * time.Millisecond):
+		close(releaseClose)
+		<-grantDone
+		t.Fatal("coordinator grant waited for blocking session expiry cleanup")
+	}
+}
+
+func TestEngineExpiryCleanupReservesCapacityUntilClosingCompletes(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{
+		OnlineUsers: 1, SessionDuration: time.Millisecond, CommandCapacity: 4,
+		WorkCapacity: 64, MaxWorkPerAdvance: 64,
+	})
+	firstCloseStarted := make(chan struct{})
+	releaseFirstClose := make(chan struct{})
+	firstClient := &expiryCompletionClient{
+		releaseAck: make(chan struct{}),
+		ack:        &frame.SendackPacket{ClientSeq: 1, ClientMsgNo: "bounded-cleanup-first"},
+	}
+	firstClient.onClose = func() {
+		close(firstCloseStarted)
+		<-releaseFirstClose
+		close(firstClient.releaseAck)
+	}
+	fixture.pool.factory = fixedSessionClientFactory{client: firstClient}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	first, err := fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(0), UserIndex: 0, LoginOrdinal: 0,
+	})
+	if err != nil {
+		t.Fatalf("first Login: %v", err)
+	}
+	if _, err := fixture.engine.Step(context.Background(), first.Deadline, nil); err != nil {
+		t.Fatalf("first Step: %v", err)
+	}
+	<-firstCloseStarted
+
+	_, err = fixture.engine.Login(context.Background(), SessionLogin{
+		UID: fixture.identity.UID(1), UserIndex: 1, LoginOrdinal: 1,
+	})
+	var runtimeErr *RuntimeError
+	if !errors.As(err, &runtimeErr) || runtimeErr.Code() != RuntimeFailureLoginSaturated {
+		close(releaseFirstClose)
+		t.Fatalf("replacement login while prior cleanup owns capacity = %v, want %s", err, RuntimeFailureLoginSaturated)
+	}
+	step, err := fixture.engine.Step(context.Background(), first.Deadline.Add(time.Millisecond), nil)
+	if err != nil {
+		close(releaseFirstClose)
+		t.Fatalf("Step while prior cleanup owns capacity: %v", err)
+	}
+	if step.AdmittedNew != 0 || step.AdmittedReturning != 0 {
+		close(releaseFirstClose)
+		t.Fatalf("replacement admitted before cleanup completed: %+v", step)
+	}
+	if counts := fixture.pool.Counts(); counts != (SessionCounts{Closing: 1}) {
+		close(releaseFirstClose)
+		t.Fatalf("bounded cleanup ownership = %+v, want one closing", counts)
+	}
+
+	close(releaseFirstClose)
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
 }
 
 func TestEngineAdvanceRejectsOwnerTimeRollbackBeforeMutation(t *testing.T) {
@@ -4686,12 +4827,20 @@ func TestEngineStepExpiresAndReplacesSessionsAtTheirFakeClockDeadline(t *testing
 	fixture.engine.finishBootstrapIfOnline(now)
 	now = now.Add(time.Minute)
 	fixture.clock.Set(now)
+	expiry, err := fixture.engine.Step(context.Background(), now, nil)
+	if err != nil {
+		t.Fatalf("expiry Step: %v", err)
+	}
+	if expiry.Expired != 20 || expiry.AdmittedNew != 0 || expiry.AdmittedReturning != 0 {
+		t.Fatalf("expiry snapshot before cleanup = %+v", expiry)
+	}
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{})
 	replacement, err := fixture.engine.Step(context.Background(), now, nil)
 	if err != nil {
-		t.Fatalf("expiry replacement Step: %v", err)
+		t.Fatalf("post-cleanup replacement Step: %v", err)
 	}
 	replacement = fixture.settleScheduledLogins(t, now, replacement)
-	if replacement.Expired != 20 || replacement.ReplacementLogins != 20 || replacement.LoginsCompleted != 20 || replacement.Online != 20 {
+	if replacement.Expired != 0 || replacement.ReplacementLogins != 20 || replacement.LoginsCompleted != 20 || replacement.Online != 20 {
 		t.Fatalf("expiry replacement snapshot = %+v", replacement)
 	}
 	aggregate, err := fixture.engine.Snapshot()
