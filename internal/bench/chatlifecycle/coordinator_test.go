@@ -1488,7 +1488,7 @@ func TestCoordinatorStartFailuresFenceTrafficAndBestEffortStop(t *testing.T) {
 			wantLog: []string{
 				"preflight", "setup", "assign-0", "assign-1", "assign-2",
 				"start-0", "start-1", "start-2", "grant-0", "grant-1", "grant-1", "grant-2",
-				"observe",
+				"observe", "status-0", "status-1", "status-2",
 				"stop-0", "stop-1", "stop-2",
 			},
 		},
@@ -2419,6 +2419,52 @@ func TestCoordinatorGrantRoundUsesOneBoundedConcurrentDeadline(t *testing.T) {
 	}
 }
 
+func TestCoordinatorGrantRoundRecoversLateWorkerRuntimeClassification(t *testing.T) {
+	t.Parallel()
+
+	const roundTimeout = 25 * time.Millisecond
+	cfg := LocalConfig()
+	cfg.RunID = "coordinator-late-grant-classification"
+	assignments, err := BuildCoordinatorAssignments(cfg, 31)
+	if err != nil {
+		t.Fatalf("BuildCoordinatorAssignments: %v", err)
+	}
+	plan, err := NewCoordinatorGrantPlan(assignments)
+	if err != nil {
+		t.Fatalf("NewCoordinatorGrantPlan: %v", err)
+	}
+	grant, err := plan.Tick([coordinatorWorkerCount]uint64{math.MaxUint64, math.MaxUint64, math.MaxUint64})
+	if err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	request := plan.request(assignments[0].WorkerFence, grant)
+	log := []string{}
+	workers := make([]CoordinatorWorker, coordinatorWorkerCount)
+	for workerID := range workers {
+		recording := &recordingCoordinatorWorker{id: uint64(workerID), log: &log, assignment: assignments[workerID].WorkerAssignment}
+		if workerID == 0 {
+			workers[workerID] = &lateRuntimeClassificationCoordinatorWorker{
+				recordingCoordinatorWorker: recording,
+				terminal:                   make(chan struct{}),
+			}
+		} else {
+			workers[workerID] = recording
+		}
+	}
+	coordinator := &Coordinator{workers: workers, roundTimeout: roundTimeout}
+
+	disposition, failure := coordinator.deliverGrant(
+		context.Background(), assignments, request, roundTimeout,
+	)
+	if disposition != coordinatorRoundStageFailed {
+		t.Fatalf("grant disposition = %d, want stage failure", disposition)
+	}
+	if failure.WorkerID != 0 || failure.RuntimeCode != RuntimeFailureTransportAdmissionSaturated {
+		t.Fatalf("late worker failure = %+v, want worker 0 %q", failure,
+			RuntimeFailureTransportAdmissionSaturated)
+	}
+}
+
 func TestCoordinatorScheduledGrantRoundUsesOneCadenceDeadline(t *testing.T) {
 	const roundTimeout = 5 * time.Second
 	cfg := LocalConfig()
@@ -2991,6 +3037,44 @@ type lateCancellationCoordinatorWorker struct {
 	roundEntered     chan struct{}
 	roundEnteredOnce sync.Once
 	cleanup          *lateCancellationCleanupGate
+}
+
+type lateRuntimeClassificationCoordinatorWorker struct {
+	*recordingCoordinatorWorker
+	terminal chan struct{}
+	once     sync.Once
+}
+
+func (w *lateRuntimeClassificationCoordinatorWorker) Grant(ctx context.Context, request WorkerGrantRequest) (WorkerGrantResponse, error) {
+	if w.id != 0 {
+		return w.recordingCoordinatorWorker.Grant(ctx, request)
+	}
+	w.once.Do(func() {
+		go func() {
+			<-ctx.Done()
+			time.Sleep(10 * time.Millisecond)
+			close(w.terminal)
+		}()
+	})
+	<-ctx.Done()
+	return WorkerGrantResponse{}, ctx.Err()
+}
+
+func (w *lateRuntimeClassificationCoordinatorWorker) Status(context.Context) (WorkerStatus, error) {
+	status := w.status(WorkerPhaseRunning)
+	select {
+	case <-w.terminal:
+		// A generation-ending runtime failure can move to final immediately
+		// after caching the exact grant result and before the evidence poll.
+		status.Phase = WorkerPhaseFinal
+		status.LastGrantSequence = 1
+		status.LastGrantFailed = true
+		status.LastGrantRuntimeCode = RuntimeFailureTransportAdmissionSaturated
+		status.Unexpected = true
+	default:
+		status.ActiveGrantSequence = 1
+	}
+	return status, nil
 }
 
 func (w *lateCancellationCoordinatorWorker) signalRoundEntered() {

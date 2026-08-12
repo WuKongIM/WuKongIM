@@ -135,6 +135,9 @@ type TrafficIntent struct {
 	// MetaCreateCandidate marks the one deterministic initial SEND whose
 	// successful SENDACK closes this person channel's expected unique create.
 	MetaCreateCandidate bool
+	// ColdAttempt keeps every SEND on an ACK-unproven person channel inside the
+	// cold observation bound without counting it as another metadata create.
+	ColdAttempt bool
 }
 
 // TrafficTickSnapshot is one streaming aggregate; it never retains intents.

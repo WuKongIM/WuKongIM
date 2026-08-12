@@ -1196,6 +1196,10 @@ func (p *SessionPool) removeOnlineLocked(uid string, userIndex uint64) {
 }
 
 func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireRecipient bool) (SessionLogin, bool) {
+	return p.onlineGroupMemberExcluding(group, ordinal, requireRecipient, nil)
+}
+
+func (p *SessionPool) onlineGroupMemberExcluding(group Group, ordinal uint64, requireRecipient bool, excluded func(string) bool) (SessionLogin, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if group.Index >= uint64(len(p.onlineGroupMembers)) {
@@ -1209,13 +1213,24 @@ func (p *SessionPool) onlineGroupMember(group Group, ordinal uint64, requireReci
 	if len(members) < needed {
 		return SessionLogin{}, false
 	}
-	session := members[ordinal%uint64(len(members))]
-	return SessionLogin{
-		UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
-	}, true
+	start := ordinal % uint64(len(members))
+	for offset := 0; offset < len(members); offset++ {
+		session := members[(start+uint64(offset))%uint64(len(members))]
+		if excluded != nil && excluded(session.snapshot.UID) {
+			continue
+		}
+		return SessionLogin{
+			UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
+		}, true
+	}
+	return SessionLogin{}, false
 }
 
 func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64) (SessionLogin, uint64, bool) {
+	return p.onlineGroupMemberInCategoryExcluding(category, ordinal, requireRecipient, owner, nil)
+}
+
+func (p *SessionPool) onlineGroupMemberInCategoryExcluding(category GroupCategory, ordinal uint64, requireRecipient bool, owner uint64, excluded func(string) bool) (SessionLogin, uint64, bool) {
 	start, count, ok := p.catalog.categoryRange(category)
 	if !ok {
 		return SessionLogin{}, 0, false
@@ -1237,10 +1252,16 @@ func (p *SessionPool) onlineGroupMemberInCategory(category GroupCategory, ordina
 		if len(members) < needed {
 			continue
 		}
-		session := members[ordinal%uint64(len(members))]
-		return SessionLogin{
-			UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
-		}, groupIndex, true
+		memberStart := ordinal % uint64(len(members))
+		for memberOffset := 0; memberOffset < len(members); memberOffset++ {
+			session := members[(memberStart+uint64(memberOffset))%uint64(len(members))]
+			if excluded != nil && excluded(session.snapshot.UID) {
+				continue
+			}
+			return SessionLogin{
+				UID: session.snapshot.UID, UserIndex: session.snapshot.UserIndex, LoginOrdinal: session.snapshot.LoginOrdinal,
+			}, groupIndex, true
+		}
 	}
 	return SessionLogin{}, 0, false
 }

@@ -41,9 +41,12 @@ assignment ID, and positive generation. An assignment validates the complete
 `Config` plus worker ownership before moving through
 `unassigned -> assigned -> running -> stopping -> final`; active duplicate
 assignments, stale fences, and illegal phase transitions use a closed error
-vocabulary. Protocol version 2 adds coordinator-owned grant delivery, bounded
+vocabulary. Protocol version 2 added coordinator-owned grant delivery, bounded
 readiness in status, and the assignment capability that disables worker-local
-primary-rate release; preflight rejects version 1 before setup or assignment
+primary-rate release. Protocol version 4 additionally exposes only the active
+grant sequence and the latest cached grant sequence/failure/runtime code in
+status, so a caller deadline cannot erase a later generation-owned terminal
+classification. Preflight rejects earlier versions before setup or assignment
 mutation. Polling or a request disconnect never acts as a lease. Explicit
 stop starts one server-owned bounded drain detached from the request, joins the
 existing Engine, caches one identity-free final snapshot, and returns that
@@ -91,7 +94,14 @@ Classified runtime failures add only their closed `RuntimeFailureCode` to the
 generic `runtime_failure` response; raw errors never cross the protocol. Exact
 duplicate replay returns the same code. A failed coordinator grant retains the
 lowest worker-ID classified code in its bounded result and unavailable-report
-terminal summary, so finalization does not erase the worker cause.
+terminal summary, so finalization does not erase the worker cause. When the
+one-second measured grant request expires first, the coordinator never retries
+that mutation: it performs one bounded status-only poll while the exact
+sequence remains in flight and retains the cached late runtime code before
+worker cleanup. The same exact cached sequence remains admissible if the
+generation-ending failure has already moved the worker from running to final;
+an active sequence in final is invalid. Other fence, sequence, phase, or
+runtime-code projections are ignored rather than copied into evidence.
 If an admitted external grant causes generation-terminal teardown, the Done
 watcher first fences every new control mutation, waits for that one in-flight
 grant to commit its admitted result, and only then publishes the unexpected
@@ -718,9 +728,37 @@ the current advance boundary, with route scans bounded independently of queue
 size. If that deferral would reach or cross the eligibility deadline, the
 activity closes immediately instead of inserting an unroutable boundary item.
 Bootstrap activity cannot be offered before the measured traffic barrier, so
-that first owner-applied grant raises every still-pending activity deadline to
-at least one full eligibility window after the barrier without changing due
-order. This refresh happens once and does not relax measured-phase deadlines.
+that first owner-applied grant gives every still-pending activity one full
+eligibility window after its rebased due time. Initial relationship
+messages also retain their checked delay from generation start: the
+relationship's real bootstrap activation time plus its configured offset
+inside the 5-30 second window. The barrier rebases those delays and rebuilds
+the activity heap once. This preserves the 421-second login-time spacing
+between relationships instead of either replaying every item as an overdue
+historical burst or collapsing every cold relationship into the same
+30-second activation spike.
+Each coordinator grant owns one generation-local sender-reservation map and
+exhausts distinct online sessions across person traffic, group traffic, and the
+optional canary before it may reuse a sender. A duplicate mandatory sender is
+deferred inside its existing eligibility window; primary fallback rotates
+across the complete bounded active person-channel set until it finds an online
+unreserved sender. Only deliberately sparse configurations may reuse a sender
+after the complete eligible set is exhausted; the formal 10,000-user gate
+requires every first grant send, including the optional canary, to use a
+distinct session. This keeps the fixed 32-entry per-session transport queue
+from receiving one worker's whole release while still limiting new cold-channel
+admission to the coordinator's fixed global 2,000-SEND/second rate. The bounded
+map is cleared after every grant and discarded with every generation; it
+retains no history.
+An active person channel is hot only after one successful SENDACK proves its
+first cold write. Until then, every routed logical SEND on that channel carries
+the cold attempt deadline, while exactly one queued/inflight/retrying SEND owns
+the metadata-create candidate. Later grants may keep rotating through the same
+ACK-unproven channel without either excluding its endpoints from the complete
+active set or counting another metadata create. Any successful cold SENDACK
+marks the active channel warm and clears the candidate fence; terminal cleanup
+clears the fence without inventing warmth.
+The refresh happens once and does not relax measured-phase deadlines.
 At the deadline it is physically removed and records one closed
 `offered_load_under_delivery` harness event before any active channel can fill
 that grant. Joined shutdown records one aggregate event for pending mandatory
@@ -979,7 +1017,7 @@ interleaved lanes `worker_id + local_index*3`; quotient/remainder counts cover
 the configured global online prefix without overlap or gaps. A single
 coordinator `RateAllocator` owns the `1/1/1` rate-weight vector and the one
 global two-second credit bound. No allocator tick is consumed until all three
-version-2 statuses report traffic-ready; this bootstrap barrier is bounded by
+current-version statuses report traffic-ready; this bootstrap barrier is bounded by
 the configured warmup duration. A readiness poll starts only while the injected
 clock is strictly before the warmup deadline, and its shared context is capped
 by the smaller of the normal status timeout and the remaining warmup. All three
@@ -1006,9 +1044,17 @@ an unconfirmed vector stops the run. A failed grant records one bounded
 `plan`, `delivery`, `tick`, or `coverage` reason in the coordinator result and
 unavailable-report terminal summary, so remote diagnosis can distinguish a
 worker RPC deadline from scheduler-clock or coverage failure without retaining
-raw error text. The first pre-clock grant response round
-uses the ordinary shared control-round deadline; each later measured response
-round is capped at the one-second grant cadence. Scheduled grant timestamps
+raw error text. A delivery deadline may additionally read the current-version
+status projection for at most one ordinary control-round timeout; it never
+resends the grant and retains only a valid late cached runtime code. The first
+pre-clock grant response round uses the ordinary shared control-round deadline
+and synchronously drains its newly admitted work before the measured clock is
+frozen. Each later measured grant response confirms only bounded generation-owned
+engine admission; the existing worker tick loop drains that work independently,
+so SENDACK, retry, or target pressure cannot consume the one-second control RPC.
+Work, retry, inflight, transport, correctness, and observer bounds remain the
+terminal backpressure evidence rather than a hidden grant delay. Each later
+measured response round is capped at the one-second grant cadence. Scheduled grant timestamps
 must be nonzero, non-future, and younger than one cadence. The first accepted
 tick must fall in `[1s, 2s)` after the captured ticker start; every later tick
 must fall within 10 milliseconds of one logical second after the preceding

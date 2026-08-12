@@ -75,15 +75,28 @@ type WorkerServerConfig struct {
 	Factory      WorkerGenerationFactory
 	DrainTimeout time.Duration
 	Now          func() time.Time
+	// ReportGrantFailure receives one bounded post-admission terminal event.
+	// Implementations must not retain raw errors or block normal grant handling.
+	ReportGrantFailure func(WorkerGrantFailureEvent)
+}
+
+// WorkerGrantFailureEvent is the identity-free diagnostic emitted even when
+// the HTTP caller deadline suppresses the cached runtime response.
+type WorkerGrantFailureEvent struct {
+	Event       string             `json:"event"`
+	WorkerID    uint64             `json:"worker_id"`
+	Sequence    uint64             `json:"sequence"`
+	RuntimeCode RuntimeFailureCode `json:"runtime_code,omitempty"`
 }
 
 // WorkerServer hosts only the authenticated chat-lifecycle worker protocol.
 type WorkerServer struct {
-	tokenHash    [sha256.Size]byte
-	factory      WorkerGenerationFactory
-	drainTimeout time.Duration
-	now          func() time.Time
-	mux          *http.ServeMux
+	tokenHash          [sha256.Size]byte
+	factory            WorkerGenerationFactory
+	drainTimeout       time.Duration
+	now                func() time.Time
+	reportGrantFailure func(WorkerGrantFailureEvent)
+	mux                *http.ServeMux
 
 	mu               sync.Mutex
 	phase            WorkerPhase
@@ -138,13 +151,14 @@ func NewWorkerServer(config WorkerServerConfig) (*WorkerServer, error) {
 		config.Now = time.Now
 	}
 	server := &WorkerServer{
-		tokenHash:      sha256.Sum256([]byte(config.ControlToken)),
-		factory:        config.Factory,
-		drainTimeout:   config.DrainTimeout,
-		now:            config.Now,
-		mux:            http.NewServeMux(),
-		phase:          WorkerPhaseUnassigned,
-		unexpectedExit: make(chan struct{}),
+		tokenHash:          sha256.Sum256([]byte(config.ControlToken)),
+		factory:            config.Factory,
+		drainTimeout:       config.DrainTimeout,
+		now:                config.Now,
+		reportGrantFailure: config.ReportGrantFailure,
+		mux:                http.NewServeMux(),
+		phase:              WorkerPhaseUnassigned,
+		unexpectedExit:     make(chan struct{}),
 	}
 	server.routes()
 	return server, nil
@@ -660,10 +674,17 @@ func (s *WorkerServer) handleGrant(response http.ResponseWriter, request *http.R
 		s.lastGrantFailed = grantErr != nil
 		s.lastGrantRuntimeCode = workerRuntimeFailureCode(grantErr)
 		runtimeCode := s.lastGrantRuntimeCode
+		reporter := s.reportGrantFailure
 		s.grantInFlight = nil
 		close(task.done)
 		s.mu.Unlock()
 		if grantErr != nil {
+			if reporter != nil {
+				reporter(WorkerGrantFailureEvent{
+					Event: "wkbench.chat_lifecycle.worker_grant_failure", WorkerID: workerID,
+					Sequence: grant.Sequence, RuntimeCode: runtimeCode,
+				})
+			}
 			if request.Context().Err() != nil {
 				return
 			}
@@ -832,15 +853,23 @@ func (s *WorkerServer) statusLocked() WorkerStatus {
 	if s.phase == WorkerPhaseRunning && !s.generationExited && s.generation != nil {
 		trafficReady = s.generation.TrafficReady()
 	}
+	activeGrantSequence := uint64(0)
+	if s.grantInFlight != nil {
+		activeGrantSequence = s.grantInFlight.request.Sequence
+	}
 	return WorkerStatus{
-		RunID:        s.assignment.RunID,
-		AssignmentID: s.assignment.AssignmentID,
-		Phase:        s.phase,
-		Generation:   s.assignment.Generation,
-		WorkerID:     s.assignment.WorkerID,
-		WorkerCount:  s.assignment.WorkerCount,
-		Unexpected:   s.unexpected,
-		TrafficReady: trafficReady,
+		RunID:                s.assignment.RunID,
+		AssignmentID:         s.assignment.AssignmentID,
+		Phase:                s.phase,
+		Generation:           s.assignment.Generation,
+		WorkerID:             s.assignment.WorkerID,
+		WorkerCount:          s.assignment.WorkerCount,
+		Unexpected:           s.unexpected,
+		TrafficReady:         trafficReady,
+		ActiveGrantSequence:  activeGrantSequence,
+		LastGrantSequence:    s.lastGrantRequest.Sequence,
+		LastGrantFailed:      s.lastGrantFailed,
+		LastGrantRuntimeCode: s.lastGrantRuntimeCode,
 	}
 }
 

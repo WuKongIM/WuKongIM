@@ -464,6 +464,13 @@ const (
 type engineWork struct {
 	due                 time.Time
 	eligibilityDeadline time.Time
+	// bootstrapActivity marks initial relationship activity created before the
+	// global traffic barrier. bootstrapDelay retains the relationship activation
+	// spacing from the bootstrap origin plus its offset inside the configured
+	// initial-message window, so rephasing cannot collapse cold Channels into one
+	// startup burst or replay one bootstrap user's complete history at a time.
+	bootstrapActivity   bool
+	bootstrapDelay      time.Duration
 	kind                engineWorkKind
 	intent              TrafficIntent
 	attempt             uint8
@@ -681,6 +688,8 @@ type Engine struct {
 	// bootstrapActivityRefresh is consumed by the first owner-applied traffic
 	// operation so pre-clock activity cannot spend its eligibility window waiting.
 	bootstrapActivityRefresh bool
+	bootstrapActivityBarrier time.Time
+	bootstrapActivityOrigin  time.Time
 
 	lifecycleMu sync.Mutex
 	// stepMu serializes every session-expiry and owner-advance transaction so
@@ -745,16 +754,31 @@ type Engine struct {
 	lifecycleCandidateLeaseScanned int
 	activeChannels                 []engineActiveChannel
 	activePosition                 map[string]int
-	pendingChannels                []enginePendingChannel
-	pendingPosition                map[string]int
-	activeCursor                   uint64
-	retryAttempts                  uint64
-	finalFailures                  uint64
-	harnessInvalid                 uint64
-	activityUnderDelivered         uint64
-	activityFutureCanceled         uint64
-	metaCreatePersonByHashSlot     MetaCreateHashSlotCounts
-	now                            time.Time
+	// warmedActive records active person channels whose first classified cold
+	// SEND has a successful SENDACK. warmingChannels prevents a second logical
+	// SEND from being counted as the channel's metadata create while the first
+	// candidate is queued, inflight, or retrying.
+	warmedActive    map[string]struct{}
+	warmingChannels map[string]struct{}
+	pendingChannels []enginePendingChannel
+	pendingPosition map[string]int
+	activeCursor    uint64
+	// grantSenders makes each coordinator release exhaust distinct online
+	// sessions before sparse-test compatibility may reuse one. It is cleared
+	// between grants and never retains history.
+	grantSenders       map[string]struct{}
+	grantRoutingActive bool
+	// externalGrantsApplied keeps only the generation-local control sequence.
+	// The first pre-clock grant drains synchronously; later grants only admit
+	// bounded work so data-plane pressure cannot consume the one-second RPC.
+	externalGrantsApplied      uint64
+	retryAttempts              uint64
+	finalFailures              uint64
+	harnessInvalid             uint64
+	activityUnderDelivered     uint64
+	activityFutureCanceled     uint64
+	metaCreatePersonByHashSlot MetaCreateHashSlotCounts
+	now                        time.Time
 }
 
 // NewEngine wires the existing deterministic models and bounded verifier.
@@ -888,9 +912,14 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.lifecycleApprovalReplayPruneScanned = 0
 	e.activeChannels = nil
 	e.activePosition = make(map[string]int)
+	e.warmedActive = make(map[string]struct{})
+	e.warmingChannels = make(map[string]struct{})
 	e.pendingChannels = nil
 	e.pendingPosition = make(map[string]int)
 	e.activeCursor = 0
+	e.grantSenders = make(map[string]struct{})
+	e.grantRoutingActive = false
+	e.externalGrantsApplied = 0
 	e.workPeak = 0
 	e.queuedSends = 0
 	e.inflightPeak = 0
@@ -908,6 +937,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
 	e.bootstrapActivityRefresh = false
+	e.bootstrapActivityBarrier = time.Time{}
+	e.bootstrapActivityOrigin = time.Time{}
 	e.metaCreatePersonByHashSlot = MetaCreateHashSlotCounts{}
 	e.commandSaturation.Store(0)
 	e.now = e.clock.Now()
@@ -1106,9 +1137,9 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	// bootstrap barrier for externally granted generations.
 	e.finishBootstrap(now)
 	result := EngineGrantResult{Admitted: true}
-	snapshot, err := e.applyGrant(generationCtx, now, released)
+	snapshot, first, err := e.applyGrant(generationCtx, now, released)
 	result.Snapshot = snapshot
-	if err == nil {
+	if err == nil && first {
 		_, err = e.advanceWithContext(generationCtx, now)
 	}
 	if generationCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
@@ -1117,18 +1148,22 @@ func (e *Engine) ApplyGrant(ctx context.Context, now time.Time, released uint64)
 	return result, err
 }
 
-func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, error) {
+func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64) (TrafficTickSnapshot, bool, error) {
 	if err := ctx.Err(); err != nil {
-		return TrafficTickSnapshot{}, err
+		return TrafficTickSnapshot{}, false, err
 	}
 	response := make(chan struct {
 		snapshot TrafficTickSnapshot
+		first    bool
 		err      error
 	}, 1)
 	if err := e.enqueue(engineCommand{run: func() {
+		e.beginGrantRouting()
+		defer e.endGrantRouting()
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			response <- struct {
 				snapshot TrafficTickSnapshot
+				first    bool
 				err      error
 			}{err: ctxErr}
 			return
@@ -1136,6 +1171,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 		if timeErr := e.validateOwnerTime(now); timeErr != nil {
 			response <- struct {
 				snapshot TrafficTickSnapshot
+				first    bool
 				err      error
 			}{err: timeErr}
 			return
@@ -1144,6 +1180,7 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 		if refreshErr := e.refreshBootstrapActivityEligibility(now); refreshErr != nil {
 			response <- struct {
 				snapshot TrafficTickSnapshot
+				first    bool
 				err      error
 			}{err: refreshErr}
 			return
@@ -1171,15 +1208,22 @@ func (e *Engine) applyGrant(ctx context.Context, now time.Time, released uint64)
 				}
 			}
 		}
+		first := e.externalGrantsApplied == 0
+		if e.externalGrantsApplied == math.MaxUint64 {
+			grantErr = errors.Join(grantErr, errEngineConfig)
+		} else {
+			e.externalGrantsApplied++
+		}
 		response <- struct {
 			snapshot TrafficTickSnapshot
+			first    bool
 			err      error
-		}{snapshot: snapshot, err: grantErr}
+		}{snapshot: snapshot, first: first, err: grantErr}
 	}}); err != nil {
-		return TrafficTickSnapshot{}, err
+		return TrafficTickSnapshot{}, false, err
 	}
 	result := <-response
-	return result.snapshot, result.err
+	return result.snapshot, result.first, result.err
 }
 
 func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
@@ -1191,6 +1235,8 @@ func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (Traf
 		err      error
 	}, 1)
 	if err := e.enqueue(engineCommand{run: func() {
+		e.beginGrantRouting()
+		defer e.endGrantRouting()
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			response <- struct {
 				snapshot TrafficTickSnapshot
@@ -1892,6 +1938,7 @@ func (e *Engine) finishBootstrap(now time.Time) {
 	e.scheduler.replacements = 0
 	e.scheduler.loginOrdinal = 0
 	e.bootstrapActivityRefresh = true
+	e.bootstrapActivityBarrier = now
 }
 
 // refreshBootstrapActivityEligibility starts the bounded eligibility wait at
@@ -1901,19 +1948,37 @@ func (e *Engine) refreshBootstrapActivityEligibility(now time.Time) error {
 	if !e.bootstrapActivityRefresh {
 		return nil
 	}
-	deadline, err := e.newEligibilityDeadline(now)
-	if err != nil {
-		return err
+	barrier := e.bootstrapActivityBarrier
+	if barrier.IsZero() || barrier.After(now) {
+		return errEngineConfig
 	}
 	for _, work := range e.activity {
-		if work == nil || work.kind != engineWorkSend || work.eligibilityDeadline.IsZero() {
+		if work == nil || work.kind != engineWorkSend || work.eligibilityDeadline.IsZero() || work.bootstrapDelay < 0 {
 			return errEngineConfig
+		}
+		if work.bootstrapActivity {
+			work.due = barrier.Add(work.bootstrapDelay)
+			if work.due.Before(barrier) {
+				return errEngineConfig
+			}
+			work.bootstrapActivity = false
+		}
+		deadlineBase := now
+		if work.due.After(deadlineBase) {
+			deadlineBase = work.due
+		}
+		deadline, err := e.newEligibilityDeadline(deadlineBase)
+		if err != nil {
+			return err
 		}
 		if deadline.After(work.eligibilityDeadline) {
 			work.eligibilityDeadline = deadline
 		}
 	}
+	heap.Init(&e.activity)
 	e.bootstrapActivityRefresh = false
+	e.bootstrapActivityBarrier = time.Time{}
+	e.bootstrapActivityOrigin = time.Time{}
 	return nil
 }
 
@@ -2161,8 +2226,13 @@ func (e *Engine) loop(commands <-chan engineCommand, stop <-chan struct{}, done 
 		e.lifecycleCandidateLeaseScanned = 0
 		e.activeChannels = nil
 		e.activePosition = nil
+		e.warmedActive = nil
+		e.warmingChannels = nil
 		e.pendingChannels = nil
 		e.pendingPosition = nil
+		e.grantSenders = nil
+		e.grantRoutingActive = false
+		e.externalGrantsApplied = 0
 		e.activeLoops.Add(-1)
 		snapshot := e.buildSnapshot(false)
 		e.lifecycleMu.Lock()
@@ -2256,6 +2326,9 @@ func (e *Engine) addSendWork(intent TrafficIntent, attempt uint8, due time.Time)
 	e.nextOrder++
 	heap.Push(&e.work, work)
 	e.queuedSends++
+	if intent.Kind == TrafficPerson && intent.MetaCreateCandidate && intent.ChannelID != "" {
+		e.warmingChannels[intent.ChannelID] = struct{}{}
+	}
 	e.observeWorkPeak()
 	return nil
 }
@@ -2907,7 +2980,7 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 // attemptTimeoutFor selects the bounded first-attempt deadline from the
 // intent's already-proven hot or cold lifecycle classification.
 func (e *Engine) attemptTimeoutFor(intent TrafficIntent) time.Duration {
-	if intent.MetaCreateCandidate || intent.Domain == LogicalDomainRevisit {
+	if intent.ColdAttempt || intent.MetaCreateCandidate || intent.Domain == LogicalDomainRevisit {
 		return e.coldAttemptTimeout
 	}
 	return e.attemptTimeout
@@ -2920,6 +2993,7 @@ func (e *Engine) cancelAttempt(inflight *engineInflight) error {
 	logical := inflight.intent.Logical
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(logical.ClientMsgNo)
+	e.completeMetaCreate(inflight.intent, false)
 	if err := e.verifier.abortSendHarness(logical); err != nil {
 		return err
 	}
@@ -2943,6 +3017,7 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause re
 			return e.abortHarness(inflight, e.recordRuntimeFailure(RuntimeFailureTransportAdmissionSaturated, 1))
 		}
 		logical := inflight.intent.Logical
+		e.completeMetaCreate(inflight.intent, false)
 		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSend(logical)
 		delete(e.inflight, logical.ClientMsgNo)
@@ -2976,6 +3051,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			logical := inflight.intent.Logical
 			e.cancelAttemptTimeout(inflight)
 			e.retries.cancel(ack.ClientMsgNo)
+			e.completeMetaCreate(inflight.intent, false)
 			terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 			_ = e.verifier.ReleaseSend(logical)
 			delete(e.inflight, ack.ClientMsgNo)
@@ -2987,7 +3063,11 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
 		var lifecycleErr error
+		if inflight.intent.ColdAttempt {
+			e.markActiveWarmed(inflight.intent.ChannelID)
+		}
 		if inflight.intent.MetaCreateCandidate {
+			e.completeMetaCreate(inflight.intent, true)
 			hashSlot := lifecycleHashSlotForKey(inflight.intent.ChannelID, formalHashSlots)
 			if inflight.intent.Kind != TrafficPerson || inflight.intent.ChannelID == "" ||
 				e.metaCreatePersonByHashSlot[hashSlot] == math.MaxUint64 {
@@ -3029,6 +3109,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 	}
 	e.cancelAttemptTimeout(inflight)
 	e.retries.cancel(ack.ClientMsgNo)
+	e.completeMetaCreate(inflight.intent, false)
 	terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendNonRetriable)
 	releaseErr := e.verifier.ReleaseSend(logical)
 	delete(e.inflight, ack.ClientMsgNo)
@@ -3052,10 +3133,33 @@ func (e *Engine) abortHarness(inflight *engineInflight, cause error) error {
 		logical := inflight.intent.Logical
 		e.cancelAttemptTimeout(inflight)
 		e.retries.cancel(logical.ClientMsgNo)
+		e.completeMetaCreate(inflight.intent, false)
 		_ = e.verifier.abortSendHarness(logical)
 		delete(e.inflight, logical.ClientMsgNo)
 	}
 	return cause
+}
+
+func (e *Engine) completeMetaCreate(intent TrafficIntent, success bool) {
+	if intent.Kind != TrafficPerson || !intent.MetaCreateCandidate || intent.ChannelID == "" {
+		return
+	}
+	delete(e.warmingChannels, intent.ChannelID)
+	if success {
+		if _, active := e.activePosition[intent.ChannelID]; active {
+			e.warmedActive[intent.ChannelID] = struct{}{}
+		}
+	}
+}
+
+func (e *Engine) markActiveWarmed(channelID string) {
+	if channelID == "" {
+		return
+	}
+	delete(e.warmingChannels, channelID)
+	if _, active := e.activePosition[channelID]; active {
+		e.warmedActive[channelID] = struct{}{}
+	}
 }
 
 func (e *Engine) cancelAttemptTimeout(inflight *engineInflight) {
@@ -3193,7 +3297,23 @@ func (e *Engine) scheduleRelationshipMessagesFrom(edge RelationshipEdge, relatio
 			Direction: direction, ChannelID: edge.PersonChannelID, Domain: domain,
 			MetaCreateCandidate: logicalOffset == 0 && messageIndex == 0,
 		}
-		if err := e.addActivity(&engineWork{due: start.Add(offset), kind: engineWorkSend, intent: intent}); err != nil {
+		bootstrapDelay := time.Duration(0)
+		if e.scheduler.bootstrapping {
+			if e.bootstrapActivityOrigin.IsZero() {
+				e.bootstrapActivityOrigin = start
+			}
+			if start.Before(e.bootstrapActivityOrigin) {
+				return errEngineConfig
+			}
+			bootstrapDelay = start.Sub(e.bootstrapActivityOrigin) + offset
+			if bootstrapDelay < 0 {
+				return errEngineConfig
+			}
+		}
+		if err := e.addActivity(&engineWork{
+			due: start.Add(offset), kind: engineWorkSend, intent: intent,
+			bootstrapActivity: e.scheduler.bootstrapping, bootstrapDelay: bootstrapDelay,
+		}); err != nil {
 			return err
 		}
 	}
@@ -3250,7 +3370,19 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 		if !activity.eligibilityDeadline.After(now) {
 			return TrafficIntent{}, e.expireActivity(activity)
 		}
+		_, warming := e.warmingChannels[activity.intent.ChannelID]
+		_, warmed := e.warmedActive[activity.intent.ChannelID]
+		activity.intent.ColdAttempt = !warmed
+		if activity.intent.MetaCreateCandidate && (warming || warmed) {
+			activity.intent.MetaCreateCandidate = false
+		}
 		if !e.sessions.IsOnline(activity.intent.Logical.Sender) {
+			if err := e.deferActivity(activity, now); err != nil {
+				return TrafficIntent{}, err
+			}
+			continue
+		}
+		if !e.grantSenderAvailable(activity.intent.Logical.Sender) {
 			if err := e.deferActivity(activity, now); err != nil {
 				return TrafficIntent{}, err
 			}
@@ -3266,20 +3398,51 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 			}
 			continue
 		}
-		return e.retargetPersonGrant(grant, activity.intent)
+		routed, err := e.retargetPersonGrant(grant, activity.intent)
+		if err != nil {
+			return TrafficIntent{}, err
+		}
+		e.reserveGrantSender(routed.Logical.Sender)
+		return routed, nil
 	}
 	correlate, err := e.grantShouldCorrelate(grant, LogicalDomainPrimary)
 	if err != nil {
 		return TrafficIntent{}, err
 	}
+	if routed, ok, routeErr := e.routeActivePersonGrant(grant, correlate, true); routeErr != nil {
+		return TrafficIntent{}, routeErr
+	} else if ok {
+		return routed, nil
+	}
+	// Small or deliberately sparse scenarios may expose fewer eligible senders
+	// than the fixed grant. Preserve offered load only after exhausting every
+	// distinct active sender; the formal 10,000-user gate proves this fallback is
+	// not reached by the production workload.
+	if e.grantRoutingActive {
+		if routed, ok, routeErr := e.routeActivePersonGrant(grant, correlate, false); routeErr != nil {
+			return TrafficIntent{}, routeErr
+		} else if ok {
+			return routed, nil
+		}
+	}
+	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
+}
+
+func (e *Engine) routeActivePersonGrant(grant TrafficIntent, correlate, requireUnreserved bool) (TrafficIntent, bool, error) {
 	for scan := 0; scan < len(e.activeChannels); scan++ {
 		position := int((e.activeCursor + uint64(scan)) % uint64(len(e.activeChannels)))
 		active := e.activeChannels[position]
+		channelID := active.edge.PersonChannelID
+		_, warming := e.warmingChannels[channelID]
+		_, warmed := e.warmedActive[channelID]
 		sender, err := SenderFor(active.direction, grant.Logical.LogicalSend, active.edge.OwnerUID, active.edge.PeerUID)
 		if err != nil {
-			return TrafficIntent{}, err
+			return TrafficIntent{}, false, err
 		}
 		if !e.sessions.IsOnline(sender) {
+			continue
+		}
+		if requireUnreserved && !e.grantSenderAvailable(sender) {
 			continue
 		}
 		target := active.edge.OwnerUID
@@ -3292,11 +3455,44 @@ func (e *Engine) routePersonGrant(grant TrafficIntent, now time.Time) (TrafficIn
 		e.activeCursor = uint64(position + 1)
 		template := TrafficIntent{
 			Logical: LogicalSend{Sender: sender, Target: target}, Kind: TrafficPerson,
-			Direction: active.direction, ChannelID: active.edge.PersonChannelID, Domain: LogicalDomainPrimary,
+			Direction: active.direction, ChannelID: channelID, Domain: LogicalDomainPrimary,
+			ColdAttempt: !warmed,
 		}
-		return e.retargetPersonGrant(grant, template)
+		if !warmed && !warming {
+			template.MetaCreateCandidate = true
+		}
+		routed, err := e.retargetPersonGrant(grant, template)
+		if err != nil {
+			return TrafficIntent{}, false, err
+		}
+		e.reserveGrantSender(routed.Logical.Sender)
+		return routed, true, nil
 	}
-	return TrafficIntent{}, e.recordRuntimeFailure(RuntimeFailureUnderDelivery, uint64(len(e.activeChannels)))
+	return TrafficIntent{}, false, nil
+}
+
+func (e *Engine) beginGrantRouting() {
+	clear(e.grantSenders)
+	e.grantRoutingActive = true
+}
+
+func (e *Engine) endGrantRouting() {
+	clear(e.grantSenders)
+	e.grantRoutingActive = false
+}
+
+func (e *Engine) grantSenderAvailable(uid string) bool {
+	if !e.grantRoutingActive {
+		return true
+	}
+	_, reserved := e.grantSenders[uid]
+	return !reserved
+}
+
+func (e *Engine) reserveGrantSender(uid string) {
+	if e.grantRoutingActive && uid != "" {
+		e.grantSenders[uid] = struct{}{}
+	}
 }
 
 func (e *Engine) deferActivity(activity *engineWork, now time.Time) error {
@@ -3344,6 +3540,8 @@ func (e *Engine) removeActiveChannel(channelID string) bool {
 	e.activeChannels[last] = engineActiveChannel{}
 	e.activeChannels = e.activeChannels[:last]
 	delete(e.activePosition, channelID)
+	delete(e.warmedActive, channelID)
+	delete(e.warmingChannels, channelID)
 	if len(e.activeChannels) == 0 {
 		e.activeCursor = 0
 	} else {
@@ -3410,14 +3608,32 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 	if err != nil {
 		return TrafficIntent{}, err
 	}
-	sender, ok := e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
+	excluded := func(uid string) bool { return !e.grantSenderAvailable(uid) }
+	sender, ok := e.sessions.onlineGroupMemberExcluding(group, grant.Logical.LogicalSend, correlate, excluded)
 	if !ok && group.Category != GroupVeryLarge {
 		var routedIndex uint64
-		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(group.Category, grant.Logical.LogicalSend, correlate, e.workerID)
+		sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategoryExcluding(
+			group.Category, grant.Logical.LogicalSend, correlate, e.workerID, excluded,
+		)
 		if ok {
 			group, err = e.generator.catalog.Group(routedIndex)
 			if err != nil {
 				return TrafficIntent{}, err
+			}
+		}
+	}
+	if !ok && e.grantRoutingActive {
+		sender, ok = e.sessions.onlineGroupMember(group, grant.Logical.LogicalSend, correlate)
+		if !ok && group.Category != GroupVeryLarge {
+			var routedIndex uint64
+			sender, routedIndex, ok = e.sessions.onlineGroupMemberInCategory(
+				group.Category, grant.Logical.LogicalSend, correlate, e.workerID,
+			)
+			if ok {
+				group, err = e.generator.catalog.Group(routedIndex)
+				if err != nil {
+					return TrafficIntent{}, err
+				}
 			}
 		}
 	}
@@ -3437,12 +3653,14 @@ func (e *Engine) routeGroupGrant(grant TrafficIntent) (TrafficIntent, error) {
 	grant.Logical = logical
 	grant.Packet = packetForTrafficIntent(logical, payload)
 	grant.ChannelID = group.ID
+	e.reserveGrantSender(sender.UID)
 	return grant, nil
 }
 
 func (e *Engine) cleanupInflight() {
 	for clientMsgNo, inflight := range e.inflight {
 		logical := inflight.intent.Logical
+		e.completeMetaCreate(inflight.intent, false)
 		if err := e.verifier.CompleteTerminal(logical, TerminalSendSessionClosed); err != nil {
 			_ = e.verifier.abortSendHarness(logical)
 		} else {

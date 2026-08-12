@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	coordinatorWorkerCount      = 3
-	coordinatorDefaultRoundTime = 5 * time.Second
-	coordinatorGrantCadence     = time.Second
+	coordinatorWorkerCount       = 3
+	coordinatorDefaultRoundTime  = 5 * time.Second
+	coordinatorGrantCadence      = time.Second
+	coordinatorGrantEvidencePoll = 10 * time.Millisecond
 	// coordinatorGrantTickTolerance admits platform timer timestamp quantization
 	// without accepting a delayed, skipped, or catch-up logical grant tick.
 	coordinatorGrantTickTolerance = 10 * time.Millisecond
@@ -1940,7 +1941,94 @@ func (c *Coordinator) deliverGrant(
 			result.response.WorkerID == uint64(workerID) && result.response.WorkerCount == coordinatorWorkerCount &&
 			result.response.Sequence == request.Sequence && result.response.Released == expectedReleased}
 	}
-	return resolveCoordinatorRoundDisposition(parent, roundContext, evidence), workerFailure
+	disposition := resolveCoordinatorRoundDisposition(parent, roundContext, evidence)
+	if disposition == coordinatorRoundStageFailed && workerFailure.RuntimeCode == "" {
+		workerFailure = c.recoverLateGrantFailure(parent, assignments, request)
+	}
+	return disposition, workerFailure
+}
+
+// recoverLateGrantFailure reads only the bounded worker status projection
+// after a grant delivery deadline. It never retries the mutation. An admitted
+// grant may finish under generation ownership after its HTTP caller has gone;
+// this bounded poll retains that cached runtime classification before cleanup
+// destroys the worker process.
+func (c *Coordinator) recoverLateGrantFailure(
+	parent context.Context,
+	assignments []CoordinatorAssignment,
+	request WorkerGrantRequest,
+) CoordinatorWorkerFailure {
+	if parent == nil || parent.Err() != nil || len(assignments) != coordinatorWorkerCount || c.roundTimeout <= 0 {
+		return CoordinatorWorkerFailure{}
+	}
+	evidenceContext, cancel := context.WithTimeoutCause(parent, c.roundTimeout, errCoordinatorRoundDeadline)
+	defer cancel()
+	for {
+		type statusResult struct {
+			status WorkerStatus
+			err    error
+		}
+		results := [coordinatorWorkerCount]statusResult{}
+		var wait sync.WaitGroup
+		wait.Add(coordinatorWorkerCount)
+		for workerID := 0; workerID < coordinatorWorkerCount; workerID++ {
+			go func() {
+				defer wait.Done()
+				results[workerID].status, results[workerID].err = c.workers[workerID].Status(evidenceContext)
+			}()
+		}
+		wait.Wait()
+
+		pending := false
+		for workerID, result := range results {
+			if result.err != nil || !validCoordinatorGrantEvidenceStatus(result.status, assignments[workerID].WorkerAssignment) {
+				continue
+			}
+			if result.status.LastGrantSequence == request.Sequence && result.status.LastGrantFailed &&
+				validRuntimeFailureCode(result.status.LastGrantRuntimeCode) {
+				return CoordinatorWorkerFailure{WorkerID: uint64(workerID), RuntimeCode: result.status.LastGrantRuntimeCode}
+			}
+			if result.status.ActiveGrantSequence == request.Sequence {
+				pending = true
+			}
+		}
+		if !pending {
+			return CoordinatorWorkerFailure{}
+		}
+		timer := time.NewTimer(coordinatorGrantEvidencePoll)
+		select {
+		case <-evidenceContext.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return CoordinatorWorkerFailure{}
+		case <-timer.C:
+		}
+	}
+}
+
+func validCoordinatorGrantEvidenceStatus(status WorkerStatus, assignment WorkerAssignment) bool {
+	if status.RunID != assignment.RunID || status.AssignmentID != assignment.AssignmentID ||
+		status.Generation != assignment.Generation || status.WorkerID != assignment.WorkerID ||
+		status.WorkerCount != assignment.WorkerCount ||
+		(status.Phase != WorkerPhaseRunning && status.Phase != WorkerPhaseFinal) {
+		return false
+	}
+	if status.Phase == WorkerPhaseFinal && status.ActiveGrantSequence != 0 {
+		return false
+	}
+	if status.ActiveGrantSequence != 0 &&
+		(status.LastGrantSequence == math.MaxUint64 || status.ActiveGrantSequence != status.LastGrantSequence+1) {
+		return false
+	}
+	if status.LastGrantFailed && status.LastGrantSequence == 0 {
+		return false
+	}
+	if status.LastGrantRuntimeCode != "" &&
+		(!status.LastGrantFailed || !validRuntimeFailureCode(status.LastGrantRuntimeCode)) {
+		return false
+	}
+	return true
 }
 
 func (c *Coordinator) statusRound(

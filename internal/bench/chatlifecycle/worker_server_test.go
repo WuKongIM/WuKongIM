@@ -259,8 +259,8 @@ func TestWorkerServerAdvertisesCoordinatorGrantProtocolV2(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &info); err != nil {
 		t.Fatalf("decode info: %v", err)
 	}
-	if info.ProtocolVersion != 3 {
-		t.Fatalf("protocol version = %d, want 2", info.ProtocolVersion)
+	if info.ProtocolVersion != 4 {
+		t.Fatalf("protocol version = %d, want 4", info.ProtocolVersion)
 	}
 }
 
@@ -440,6 +440,68 @@ func TestWorkerServerCachesAcceptedGrantFailureWithoutRegeneration(t *testing.T)
 	}
 	if got := generation.grants; !reflect.DeepEqual(got, []uint64{40}) {
 		t.Fatalf("failed grant applications = %v, want one accepted attempt", got)
+	}
+}
+
+func TestWorkerServerStatusRetainsLateGrantRuntimeFailureAfterCallerDeadline(t *testing.T) {
+	t.Parallel()
+
+	generation := &lateGrantFailureGeneration{
+		fakeWorkerGeneration: newFakeWorkerGeneration(),
+		entered:              make(chan struct{}),
+		release:              make(chan struct{}),
+	}
+	events := make(chan WorkerGrantFailureEvent, 1)
+	server, fence := startWorkerServerForCoordinatorGenerationWithReporter(
+		t, generation, "late-grant-failure", func(event WorkerGrantFailureEvent) { events <- event },
+	)
+	grant := WorkerGrantRequest{
+		WorkerFence: fence, Sequence: 1, RatePerSecond: 120, MaxBurst: 240,
+		Fresh:    WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+		Released: WorkerGrantCounts{Worker0: 40, Worker1: 40, Worker2: 40},
+	}
+
+	requestContext, cancelRequest := context.WithCancel(context.Background())
+	requestDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		requestDone <- workerRequestWithContext(
+			t, server, requestContext, http.MethodPost, "/v1/chat-lifecycle/grant", grant,
+		)
+	}()
+	<-generation.entered
+
+	var inFlight WorkerStatus
+	response := workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	if err := json.Unmarshal(response.Body.Bytes(), &inFlight); err != nil {
+		t.Fatalf("decode in-flight status: %v", err)
+	}
+	if inFlight.ActiveGrantSequence != grant.Sequence || inFlight.LastGrantSequence != 0 ||
+		inFlight.LastGrantFailed || inFlight.LastGrantRuntimeCode != "" {
+		t.Fatalf("in-flight grant status = %+v, want only active sequence %d", inFlight, grant.Sequence)
+	}
+
+	cancelRequest()
+	close(generation.release)
+	<-requestDone
+
+	var terminal WorkerStatus
+	response = workerRequest(t, server, http.MethodGet, "/v1/chat-lifecycle/status", nil)
+	if err := json.Unmarshal(response.Body.Bytes(), &terminal); err != nil {
+		t.Fatalf("decode terminal status: %v", err)
+	}
+	if terminal.ActiveGrantSequence != 0 || terminal.LastGrantSequence != grant.Sequence ||
+		!terminal.LastGrantFailed || terminal.LastGrantRuntimeCode != RuntimeFailureTransportAdmissionSaturated {
+		t.Fatalf("terminal grant status = %+v, want retained sequence %d failure %q", terminal,
+			grant.Sequence, RuntimeFailureTransportAdmissionSaturated)
+	}
+	select {
+	case event := <-events:
+		if event.Event != "wkbench.chat_lifecycle.worker_grant_failure" || event.WorkerID != 0 ||
+			event.Sequence != grant.Sequence || event.RuntimeCode != RuntimeFailureTransportAdmissionSaturated {
+			t.Fatalf("grant failure event = %+v", event)
+		}
+	default:
+		t.Fatal("late admitted grant failure was not reported")
 	}
 }
 
@@ -2445,12 +2507,22 @@ func startWorkerServerForGeneration(t *testing.T, generation WorkerGeneration, a
 }
 
 func startWorkerServerForCoordinatorGeneration(t *testing.T, generation WorkerGeneration, assignmentID string) (*WorkerServer, WorkerFence) {
+	return startWorkerServerForCoordinatorGenerationWithReporter(t, generation, assignmentID, nil)
+}
+
+func startWorkerServerForCoordinatorGenerationWithReporter(
+	t *testing.T,
+	generation WorkerGeneration,
+	assignmentID string,
+	reporter func(WorkerGrantFailureEvent),
+) (*WorkerServer, WorkerFence) {
 	t.Helper()
 	server, err := NewWorkerServer(WorkerServerConfig{
 		ControlToken: "control-secret",
 		Factory: WorkerGenerationFactoryFunc(func(WorkerAssignment) (WorkerGeneration, error) {
 			return generation, nil
 		}),
+		ReportGrantFailure: reporter,
 	})
 	if err != nil {
 		t.Fatalf("NewWorkerServer: %v", err)
@@ -2527,6 +2599,19 @@ type cancelBeforeGrantAdmissionGeneration struct {
 	*fakeWorkerGeneration
 	firstEntered chan struct{}
 	calls        int
+}
+
+type lateGrantFailureGeneration struct {
+	*fakeWorkerGeneration
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (g *lateGrantFailureGeneration) ApplyGrant(_ context.Context, released uint64) (WorkerGrantApplication, error) {
+	g.grants = append(g.grants, released)
+	close(g.entered)
+	<-g.release
+	return WorkerGrantApplication{Admitted: true}, &RuntimeError{code: RuntimeFailureTransportAdmissionSaturated}
 }
 
 func (g *cancelBeforeGrantAdmissionGeneration) ApplyGrant(ctx context.Context, released uint64) (WorkerGrantApplication, error) {

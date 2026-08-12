@@ -161,6 +161,7 @@ func TestEngineExactOnePercentSampledPersonRoutesHaveOnlineRecipient(t *testing.
 		OnlineUsers: 128, SessionDuration: 10 * time.Hour,
 		WorkCapacity: 4_096, InflightCapacity: 256, MaxWorkPerAdvance: 512,
 	})
+	fixture.factory.autoAck = true
 	if err := fixture.engine.Start(context.Background()); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -218,6 +219,7 @@ func TestEngineExactOnePercentSampledPersonRoutesHaveOnlineRecipient(t *testing.
 		if _, err := fixture.engine.Advance(now); err != nil {
 			t.Fatalf("Advance at person route %d: %v", len(personRoutes), err)
 		}
+		waitForEngineCompletions(t, fixture.engine, fmt.Sprintf("person route %d", len(personRoutes)))
 		routes := fixture.factory.sentRoutes()
 		for _, route := range routes[seenRoutes:] {
 			if route.packet.ChannelType == uint8(frame.ChannelTypePerson) {
@@ -574,6 +576,105 @@ func TestEnginePermanentlyOfflineMandatoryActivityExpiresWithoutBeingHiddenByAct
 		t.Fatalf("expired activity was retried or re-recorded: %+v evidence=%+v", stable, fixture.evidence.Snapshot())
 	}
 	assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), 1)
+}
+
+func TestEngineActiveFallbackClassifiesColdUntilMetaCreateAcknowledged(t *testing.T) {
+	t.Parallel()
+
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 128, MaxWorkPerAdvance: 128})
+	fixture.factory.autoAck = true
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	edges := []RelationshipEdge{fixture.graph.edge(0, 1), fixture.graph.edge(2, 3)}
+	for _, edge := range edges {
+		for _, login := range []SessionLogin{
+			{UID: edge.OwnerUID, UserIndex: edge.OwnerIndex, LoginOrdinal: edge.OwnerIndex},
+			{UID: edge.PeerUID, UserIndex: edge.PeerIndex, LoginOrdinal: edge.PeerIndex},
+		} {
+			if _, err := fixture.engine.Login(context.Background(), login); err != nil {
+				t.Fatalf("Login(%q): %v", login.UID, err)
+			}
+		}
+	}
+	now := fixture.clock.Now()
+	type routeResult struct {
+		intent TrafficIntent
+		err    error
+	}
+	route := func(raw uint64, admit bool) TrafficIntent {
+		t.Helper()
+		primary, err := scopedLogicalOrdinal(1, LogicalDomainPrimary, raw)
+		if err != nil {
+			t.Fatalf("scopedLogicalOrdinal: %v", err)
+		}
+		result := make(chan routeResult, 1)
+		if err := fixture.engine.enqueue(engineCommand{run: func() {
+			intent, routeErr := fixture.engine.routePersonGrant(TrafficIntent{
+				Logical: LogicalSend{LogicalSend: primary, WorkerID: 0, Kind: TrafficPerson},
+				Kind:    TrafficPerson, PayloadBytes: 256, Domain: LogicalDomainPrimary,
+			}, now)
+			if routeErr == nil && admit {
+				routeErr = fixture.engine.addSendWork(intent, 0, now)
+			}
+			result <- routeResult{intent: intent, err: routeErr}
+		}}); err != nil {
+			t.Fatalf("enqueue route: %v", err)
+		}
+		routed := <-result
+		if routed.err != nil {
+			t.Fatalf("route: %v", routed.err)
+		}
+		return routed.intent
+	}
+	setup := make(chan struct{}, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		for _, edge := range edges {
+			fixture.engine.addActiveChannel(engineActiveChannel{edge: edge, direction: DirectionOneWay})
+		}
+		setup <- struct{}{}
+	}}); err != nil {
+		t.Fatalf("enqueue setup: %v", err)
+	}
+	<-setup
+
+	first := route(0, true)
+	if !first.MetaCreateCandidate || !first.ColdAttempt || first.ChannelID != edges[0].PersonChannelID {
+		t.Fatalf("first cold fallback = %+v, want meta-create channel %q", first, edges[0].PersonChannelID)
+	}
+	second := route(1, false)
+	if !second.MetaCreateCandidate || !second.ColdAttempt || second.ChannelID != edges[1].PersonChannelID {
+		t.Fatalf("fallback while first channel warms = %+v, want cold channel %q", second, edges[1].PersonChannelID)
+	}
+	reset := make(chan struct{}, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		fixture.engine.activeCursor = 0
+		reset <- struct{}{}
+	}}); err != nil {
+		t.Fatalf("reset cursor before warming fallback: %v", err)
+	}
+	<-reset
+	warming := route(2, false)
+	if warming.MetaCreateCandidate || !warming.ColdAttempt || warming.ChannelID != edges[0].PersonChannelID {
+		t.Fatalf("warming fallback = %+v, want non-meta cold channel %q", warming, edges[0].PersonChannelID)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	waitForEngineCompletions(t, fixture.engine, "meta create")
+	reset = make(chan struct{}, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		fixture.engine.activeCursor = 0
+		reset <- struct{}{}
+	}}); err != nil {
+		t.Fatalf("reset cursor: %v", err)
+	}
+	<-reset
+	hot := route(3, false)
+	if hot.MetaCreateCandidate || hot.ColdAttempt || hot.ChannelID != edges[0].PersonChannelID {
+		t.Fatalf("acknowledged fallback = %+v, want hot channel %q", hot, edges[0].PersonChannelID)
+	}
 }
 
 func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedStop(t *testing.T) {
@@ -2627,9 +2728,7 @@ func TestEngineConcurrentOlderAdvanceFailsBeforeExpiryAfterNewerCommit(t *testin
 		t.Fatalf("newer AdvanceContext: %v", err)
 	}
 	assertClockRollbackFailure(t, <-olderDone)
-	if counts := fixture.pool.Counts(); counts != (SessionCounts{Online: 1}) {
-		t.Fatalf("rollback Advance session ownership = %+v, want second session online", counts)
-	}
+	assertSessionCountsEventually(t, fixture.pool, SessionCounts{Online: 1})
 	ownerNow := make(chan time.Time, 1)
 	if err := fixture.engine.enqueueBlocking(engineCommand{run: func() { ownerNow <- fixture.engine.now }}); err != nil {
 		t.Fatalf("read owner time: %v", err)
@@ -2800,6 +2899,20 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	}
 	if fixture.engine.scheduler.bootstrapping {
 		t.Fatal("admitted first grant did not cross the bootstrap barrier")
+	}
+	secondSentBefore := fixture.factory.sentCount()
+	second, err := fixture.engine.ApplyGrant(context.Background(), now, 10)
+	if err != nil || !second.Admitted || second.Snapshot.Released != 10 {
+		t.Fatalf("second grant = %+v, %v; want admitted release 10", second, err)
+	}
+	if got := fixture.factory.sentCount() - secondSentBefore; got != 0 {
+		t.Fatalf("second grant synchronously drained %d sends, want admission-only control response", got)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("Advance second grant: %v", err)
+	}
+	if got := fixture.factory.sentCount() - secondSentBefore; got != 10 {
+		t.Fatalf("second grant async drain sent %d messages, want 10", got)
 	}
 }
 
@@ -3797,14 +3910,82 @@ func TestEngineFormalWorkerAcceptsFirstCoordinatorGrantAfterBootstrap(t *testing
 			if bootstrapErrors != 0 {
 				t.Fatalf("formal bootstrap recorded %d harness errors", bootstrapErrors)
 			}
+			type hotSetDistribution struct {
+				channels  int
+				endpoints int
+			}
+			hotSetResult := make(chan hotSetDistribution, 1)
+			if enqueueErr := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+				endpoints := make(map[string]struct{}, len(fixture.engine.activeChannels)*2)
+				for _, active := range fixture.engine.activeChannels {
+					endpoints[active.edge.OwnerUID] = struct{}{}
+					endpoints[active.edge.PeerUID] = struct{}{}
+				}
+				hotSetResult <- hotSetDistribution{
+					channels: len(fixture.engine.activeChannels), endpoints: len(endpoints),
+				}
+			}}); enqueueErr != nil {
+				t.Fatalf("inspect bootstrap hot-set distribution: %v", enqueueErr)
+			}
+			hotSet := <-hotSetResult
+			if hotSet.channels <= 0 || hotSet.channels > fixture.engine.generator.hotSet.PersonChannels || hotSet.endpoints < 1_000 {
+				t.Fatalf("worker %d bootstrap hot set = %+v, want at most %d channels spanning at least 1000 endpoints",
+					workerID, hotSet, fixture.engine.generator.hotSet.PersonChannels)
+			}
 			release, err := workerOnlineTarget(config.Workload.SendRatePerSecond, workerID, workerCount)
 			if err != nil {
 				t.Fatalf("workerOnlineTarget: %v", err)
 			}
+			beforeRoutes := len(fixture.factory.sentRoutes())
 			result, err := fixture.engine.ApplyGrant(context.Background(), now, uint64(release))
 			if err != nil || !result.Admitted || result.Snapshot.Released != uint64(release) {
 				snapshot, snapshotErr := fixture.engine.Snapshot()
 				t.Fatalf("first formal ApplyGrant = %+v, %v; bootstrap_errors=%d limits=%+v snapshot=%+v error=%v", result, err, bootstrapErrors, limits, snapshot, snapshotErr)
+			}
+			routes := fixture.factory.sentRoutes()[beforeRoutes:]
+			senders := make(map[string]struct{}, len(routes))
+			for _, route := range routes {
+				senders[route.uid] = struct{}{}
+			}
+			if len(routes) < release || len(routes) > release+1 || len(senders) != len(routes) {
+				t.Fatalf("worker %d first grant routes = %d sends across %d senders, want %d grants plus at most one canary with one sender per send",
+					workerID, len(routes), len(senders), release)
+			}
+			type activityDistribution struct {
+				seconds int
+				maximum int
+				latest  time.Duration
+				invalid bool
+			}
+			distributionResult := make(chan activityDistribution, 1)
+			if enqueueErr := fixture.engine.enqueueBlocking(engineCommand{run: func() {
+				buckets := make(map[int]int)
+				result := activityDistribution{}
+				for _, work := range fixture.engine.activity {
+					if work == nil || work.kind != engineWorkSend || work.bootstrapActivity || work.due.Before(now) ||
+						!work.eligibilityDeadline.After(work.due) {
+						result.invalid = true
+						continue
+					}
+					delay := work.due.Sub(now)
+					second := int(delay / time.Second)
+					buckets[second]++
+					if buckets[second] > result.maximum {
+						result.maximum = buckets[second]
+					}
+					if delay > result.latest {
+						result.latest = delay
+					}
+				}
+				result.seconds = len(buckets)
+				distributionResult <- result
+			}}); enqueueErr != nil {
+				t.Fatalf("inspect bootstrap activity distribution: %v", enqueueErr)
+			}
+			distribution := <-distributionResult
+			if distribution.invalid || distribution.seconds < 300 || distribution.maximum > 1_000 ||
+				distribution.latest > 15*time.Minute {
+				t.Fatalf("worker %d bootstrap activity distribution = %+v, want >=300 seconds, <=1000/second, <=15m", workerID, distribution)
 			}
 		})
 	}
@@ -4391,6 +4572,48 @@ func TestEngineFinishBootstrapIsIdempotentAcrossMeasuredGrants(t *testing.T) {
 		fixture.engine.scheduler.globalLoginTokens != 20 || fixture.engine.scheduler.replacements != 23 ||
 		fixture.engine.scheduler.loginOrdinal != 29 || !fixture.engine.scheduler.lastStep.Equal(now) {
 		t.Fatalf("repeated bootstrap finish mutated steady credit: %+v", fixture.engine.scheduler)
+	}
+}
+
+func TestEngineFinishBootstrapPreservesRelationshipActivationSpacing(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_123, 0)
+	old := now.Add(-10 * time.Minute)
+	engine := &Engine{
+		activityEligibilityWindow: time.Minute,
+		bootstrapActivityRefresh:  true,
+		bootstrapActivityBarrier:  now,
+		activity: engineWorkHeap{
+			{due: old, eligibilityDeadline: old.Add(time.Minute), kind: engineWorkSend, order: 1,
+				intent: TrafficIntent{Logical: LogicalSend{Sender: "sender-a"}}, bootstrapActivity: true},
+			{due: old.Add(10 * time.Second), eligibilityDeadline: old.Add(time.Minute), kind: engineWorkSend, order: 2,
+				intent: TrafficIntent{Logical: LogicalSend{Sender: "sender-a"}}, bootstrapActivity: true, bootstrapDelay: 10 * time.Second},
+			{due: old.Add(time.Minute), eligibilityDeadline: old.Add(2 * time.Minute), kind: engineWorkSend, order: 3,
+				intent: TrafficIntent{Logical: LogicalSend{Sender: "sender-b"}}, bootstrapActivity: true, bootstrapDelay: time.Minute},
+			{due: old.Add(time.Minute + 10*time.Second), eligibilityDeadline: old.Add(2 * time.Minute), kind: engineWorkSend, order: 4,
+				intent: TrafficIntent{Logical: LogicalSend{Sender: "sender-b"}}, bootstrapActivity: true, bootstrapDelay: time.Minute + 10*time.Second},
+		},
+	}
+	heap.Init(&engine.activity)
+
+	if err := engine.refreshBootstrapActivityEligibility(now); err != nil {
+		t.Fatalf("refreshBootstrapActivityEligibility: %v", err)
+	}
+
+	wantSenders := []string{"sender-a", "sender-a", "sender-b", "sender-b"}
+	wantDue := []time.Time{now, now.Add(10 * time.Second), now.Add(time.Minute), now.Add(time.Minute + 10*time.Second)}
+	for index := range wantSenders {
+		work := heap.Pop(&engine.activity).(*engineWork)
+		if work.intent.Logical.Sender != wantSenders[index] || !work.due.Equal(wantDue[index]) {
+			t.Fatalf("activity %d = sender %q due %v, want sender %q due %v", index,
+				work.intent.Logical.Sender, work.due, wantSenders[index], wantDue[index])
+		}
+		wantDeadline := wantDue[index].Add(time.Minute)
+		if !work.eligibilityDeadline.Equal(wantDeadline) {
+			t.Fatalf("activity %d eligibility deadline = %v, want %v", index,
+				work.eligibilityDeadline, wantDeadline)
+		}
 	}
 }
 
@@ -4988,9 +5211,16 @@ func TestEngineRotatingAndLongChannelsConsumePrimaryGrantsOnlyBeforeDeadline(t *
 	now, _ = fixture.bootstrapScheduledLogins(t, now)
 	fixture.engine.finishBootstrapIfOnline(now)
 	waitForEngineCompletions(t, fixture.engine, "bootstrap")
-	now = now.Add(30 * time.Second)
+	// Bootstrap activity retains relationship-activation spacing after the
+	// traffic barrier, so advance beyond the bounded bootstrap plus initial
+	// message window while remaining well before rotating/long deadlines.
+	now = now.Add(2 * time.Minute)
 	fixture.clock.Set(now)
 	for iteration := 0; iteration < 100; iteration++ {
+		if iteration > 0 {
+			now = now.Add(time.Second)
+			fixture.clock.Set(now)
+		}
 		snapshot, _ := fixture.engine.Snapshot()
 		if snapshot.ActivityCurrent == 0 {
 			break

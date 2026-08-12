@@ -3,7 +3,7 @@ package chatlifecycle
 import "time"
 
 const (
-	workerProtocolVersion  uint64 = 3
+	workerProtocolVersion  uint64 = 4
 	workerMaxRequestBytes  int64  = 1 << 20
 	workerMaxResponseBytes int64  = 4 << 20
 )
@@ -195,6 +195,13 @@ type WorkerStatus struct {
 	WorkerCount  uint64      `json:"worker_count"`
 	Unexpected   bool        `json:"unexpected"`
 	TrafficReady bool        `json:"traffic_ready"`
+	// ActiveGrantSequence identifies one admitted grant whose generation-owned
+	// completion outlived the caller request. The remaining fields retain only
+	// the latest bounded replay result, never a raw worker error.
+	ActiveGrantSequence  uint64             `json:"active_grant_sequence,omitempty"`
+	LastGrantSequence    uint64             `json:"last_grant_sequence,omitempty"`
+	LastGrantFailed      bool               `json:"last_grant_failed,omitempty"`
+	LastGrantRuntimeCode RuntimeFailureCode `json:"last_grant_runtime_code,omitempty"`
 }
 
 // WorkerHistogramSnapshot uses fixed buckets so response size cannot grow with runtime.
