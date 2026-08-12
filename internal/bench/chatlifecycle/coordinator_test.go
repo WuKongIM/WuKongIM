@@ -184,6 +184,33 @@ func TestCoordinatorSnapshotAggregationEnforcesFenceSchemaAndMonotonicity(t *tes
 	}
 }
 
+func TestCoordinatorSnapshotAggregationPreservesTerminalSendReasons(t *testing.T) {
+	fence := WorkerFence{RunID: "terminal-reasons", AssignmentID: "terminal-reasons", Generation: 10}
+	aggregator, err := NewCoordinatorSnapshotAggregator(fence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Second, 1)
+	for index := range snapshots {
+		snapshots[index].Messages.Terminal = 3
+		snapshots[index].Messages.TerminalReasons = TerminalSendSnapshot{
+			RetryExhausted: RetryExhaustedSnapshot{Total: uint64(index + 1), Unclassified: uint64(index + 1)},
+			NonRetriable:   uint64(2 - index),
+		}
+	}
+
+	aggregated, err := aggregator.Aggregate(snapshots)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aggregated.Messages.Terminal != 9 || aggregated.Messages.TerminalReasons != (TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 6, Unclassified: 6},
+		NonRetriable:   3,
+	}) {
+		t.Fatalf("terminal reasons = %+v", aggregated.Messages)
+	}
+}
+
 func TestCoordinatorGrantSnapshotAggregationRejectsCounterOverflow(t *testing.T) {
 	fence := WorkerFence{RunID: "snapshot-overflow", AssignmentID: "snapshot-overflow-assignment", Generation: 4}
 	aggregator, err := NewCoordinatorSnapshotAggregator(fence)

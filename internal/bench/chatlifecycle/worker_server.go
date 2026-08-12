@@ -964,7 +964,8 @@ func sumWorkerGrantCounts(counts WorkerGrantCounts) (uint64, bool) {
 }
 
 func validWorkerSnapshot(snapshot WorkerSnapshot) bool {
-	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts {
+	terminal, terminalOK := snapshot.Messages.TerminalReasons.total()
+	if snapshot.Messages.FirstAttemptFailures > snapshot.Messages.FirstAttempts || !terminalOK || terminal != snapshot.Messages.Terminal {
 		return false
 	}
 	thresholds := snapshot.Sync.Thresholds
@@ -1560,7 +1561,8 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 			SendRejected: verification.SendackRejections, Received: verification.Received,
 			ReceiveAcknowledged: verification.ReceiveAcknowledged, ReceiveAckFailures: verification.ReceiveAckFailures,
 			RetryAttempts: verification.RetryAttempts, Terminal: verification.Terminal,
-			Losses: verification.Losses, Duplicates: verification.Duplicates,
+			TerminalReasons: verification.TerminalReasons,
+			Losses:          verification.Losses, Duplicates: verification.Duplicates,
 			Corruptions: verification.Corruptions, SequenceRegressions: verification.SequenceRegressions,
 		},
 		Sync: WorkerSyncSnapshot{

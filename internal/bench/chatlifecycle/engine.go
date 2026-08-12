@@ -2389,7 +2389,7 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 		_ = e.verifier.ResolveAttemptError(completion.clientMsgNo, completion.clientSeq)
 		inflight := e.inflight[completion.clientMsgNo]
 		if inflight != nil && inflight.currentClientSeq == completion.clientSeq {
-			_ = e.scheduleRetry(inflight, e.clock.Now())
+			_ = e.scheduleRetry(inflight, e.clock.Now(), retryExhaustedTransportError)
 		}
 	}
 }
@@ -2404,7 +2404,7 @@ func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Tim
 			return nil
 		}
 		inflight.timeout = nil
-		return e.scheduleRetry(inflight, now)
+		return e.scheduleRetry(inflight, now, retryExhaustedAttemptTimeout)
 	case engineWorkLifecycle:
 		if work.schedule.Class != LifecycleRevisit {
 			return e.completeLifecycleTimer(work, now)
@@ -2885,10 +2885,12 @@ func (e *Engine) processAttempt(ctx context.Context, intent TrafficIntent, attem
 			return e.cancelAttempt(inflight)
 		}
 		resolve := e.verifier.ResolveAttemptError
+		cause := retryExhaustedTransportError
 		if errors.Is(err, wkclient.ErrSendQueueFull) {
 			resolve = e.verifier.ResolveAttemptLocalAdmissionError
+			cause = retryExhaustedLocalAdmission
 		}
-		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now))
+		return errors.Join(resolve(logical.ClientMsgNo, clientSeq), e.scheduleRetry(inflight, now, cause))
 	}
 	deadline := now.Add(e.attemptTimeoutFor(intent))
 	if deadline.Before(now) {
@@ -2925,7 +2927,7 @@ func (e *Engine) cancelAttempt(inflight *engineInflight) error {
 	return nil
 }
 
-func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time) error {
+func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time, cause retryExhaustedCause) error {
 	if inflight.retryScheduled {
 		return nil
 	}
@@ -2937,8 +2939,11 @@ func (e *Engine) scheduleRetry(inflight *engineInflight, now time.Time) error {
 		return nil
 	}
 	if errors.Is(err, ErrRetryLimitReached) {
+		if cause == retryExhaustedLocalAdmission {
+			return e.abortHarness(inflight, e.recordRuntimeFailure(RuntimeFailureTransportAdmissionSaturated, 1))
+		}
 		logical := inflight.intent.Logical
-		terminalErr := e.verifier.CompleteTerminal(logical, TerminalSendRetryExhausted)
+		terminalErr := e.verifier.completeRetryExhausted(logical, cause)
 		_ = e.verifier.ReleaseSend(logical)
 		delete(e.inflight, logical.ClientMsgNo)
 		e.finalFailures++
@@ -2977,7 +2982,7 @@ func (e *Engine) observeSendack(ack *frame.SendackPacket, verificationErr error)
 			e.finalFailures++
 			return terminalErr
 		}
-		return e.scheduleRetry(inflight, e.clock.Now())
+		return e.scheduleRetry(inflight, e.clock.Now(), retryExhaustedRetriableSendack)
 	}
 	logical := inflight.intent.Logical
 	if ack.ReasonCode == frame.ReasonSuccess && ack.MessageID > 0 && ack.MessageSeq > 0 {
@@ -3486,6 +3491,8 @@ func (e *Engine) recordRuntimeFailure(code RuntimeFailureCode, value uint64) err
 		failureCode = FailureCodeLifecycleLeaseInvalidated
 	case RuntimeFailureLifecycleReplaySaturated:
 		failureCode = FailureCodeLifecycleReplaySaturated
+	case RuntimeFailureTransportAdmissionSaturated:
+		failureCode = FailureCodeTransportAdmissionSaturated
 	}
 	_ = e.evidence.Record(EvidenceEvent{Class: FailureClassHarness, Stage: EvidenceStageCapacity, Code: failureCode, Value: value})
 	return &RuntimeError{code: code}

@@ -51,17 +51,18 @@ var (
 type RuntimeFailureCode string
 
 const (
-	RuntimeFailureRetryQueueSaturated       RuntimeFailureCode = "retry_queue_saturated"
-	RuntimeFailureEngineQueueSaturated      RuntimeFailureCode = "engine_queue_saturated"
-	RuntimeFailureEngineCPUSaturated        RuntimeFailureCode = "engine_cpu_saturated"
-	RuntimeFailureInflightSaturated         RuntimeFailureCode = "engine_inflight_saturated"
-	RuntimeFailureLoginSaturated            RuntimeFailureCode = "session_login_saturated"
-	RuntimeFailureUnderDelivery             RuntimeFailureCode = "offered_load_under_delivery"
-	RuntimeFailureSchedulerCPUSaturated     RuntimeFailureCode = "session_scheduler_cpu_saturated"
-	RuntimeFailureClockMovedBackwards       RuntimeFailureCode = "engine_clock_moved_backwards"
-	RuntimeFailureLifecycleFenceExhausted   RuntimeFailureCode = "lifecycle_fence_exhausted"
-	RuntimeFailureLifecycleLeaseInvalidated RuntimeFailureCode = "lifecycle_lease_invalidated"
-	RuntimeFailureLifecycleReplaySaturated  RuntimeFailureCode = "lifecycle_replay_saturated"
+	RuntimeFailureRetryQueueSaturated         RuntimeFailureCode = "retry_queue_saturated"
+	RuntimeFailureEngineQueueSaturated        RuntimeFailureCode = "engine_queue_saturated"
+	RuntimeFailureEngineCPUSaturated          RuntimeFailureCode = "engine_cpu_saturated"
+	RuntimeFailureInflightSaturated           RuntimeFailureCode = "engine_inflight_saturated"
+	RuntimeFailureLoginSaturated              RuntimeFailureCode = "session_login_saturated"
+	RuntimeFailureUnderDelivery               RuntimeFailureCode = "offered_load_under_delivery"
+	RuntimeFailureSchedulerCPUSaturated       RuntimeFailureCode = "session_scheduler_cpu_saturated"
+	RuntimeFailureClockMovedBackwards         RuntimeFailureCode = "engine_clock_moved_backwards"
+	RuntimeFailureLifecycleFenceExhausted     RuntimeFailureCode = "lifecycle_fence_exhausted"
+	RuntimeFailureLifecycleLeaseInvalidated   RuntimeFailureCode = "lifecycle_lease_invalidated"
+	RuntimeFailureLifecycleReplaySaturated    RuntimeFailureCode = "lifecycle_replay_saturated"
+	RuntimeFailureTransportAdmissionSaturated RuntimeFailureCode = "transport_admission_saturated"
 )
 
 // RuntimeError is redacted worker-runtime evidence with harness ownership.
@@ -76,7 +77,7 @@ func validRuntimeFailureCode(code RuntimeFailureCode) bool {
 		RuntimeFailureLoginSaturated, RuntimeFailureUnderDelivery,
 		RuntimeFailureSchedulerCPUSaturated, RuntimeFailureClockMovedBackwards,
 		RuntimeFailureLifecycleFenceExhausted, RuntimeFailureLifecycleLeaseInvalidated,
-		RuntimeFailureLifecycleReplaySaturated:
+		RuntimeFailureLifecycleReplaySaturated, RuntimeFailureTransportAdmissionSaturated:
 		return true
 	default:
 		return false

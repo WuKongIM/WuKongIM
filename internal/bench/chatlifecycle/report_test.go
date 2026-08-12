@@ -22,6 +22,7 @@ func TestReportJSONAndMarkdownContainVersionedEvidence(t *testing.T) {
 			ReportSchemaVersion, ReportThresholdVersion, ReportDesignProfile,
 			report.ConfigDigest, report.Fence.RunHash, "thresholds", "logical_slot_groups", "worker_generations",
 			"minimum_worker_uptime", "generated", "payload_bytes", "messages", "sync", "lifecycle",
+			"terminal_reasons", "retry_exhausted", "non_retriable", "session_closed",
 			"meta_create", "external_demo_activity", "latency", "resources", "data_filesystem_bytes", "cluster",
 			"verdict", "capacity", string(ReportWarningShortLatencyBreach),
 		} {

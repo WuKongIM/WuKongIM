@@ -14,6 +14,7 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/internal/bench/wkproto"
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -1428,6 +1429,110 @@ func TestEngineLateSuccessfulSendackCancelsScheduledRetry(t *testing.T) {
 	}
 	if snapshot.RetryQueueDepth != 0 || snapshot.InflightCurrent != 0 || snapshot.RetryAttempts != 0 {
 		t.Fatalf("late ACK snapshot = %+v", snapshot)
+	}
+}
+
+func TestEngineRetryExhaustionClassifiesAttemptTimeout(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{AttemptTimeout: time.Second})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	uid := fixture.identity.UID(7)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 7, LoginOrdinal: 7}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "timeout-exhaustion-group", 147, TrafficGroup)
+	now := fixture.clock.Now()
+	if err := fixture.engine.SubmitGranted(intent, now); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("initial Advance: %v", err)
+	}
+
+	for attempt := uint8(0); attempt <= uint8(len(fixedRetryBases)); attempt++ {
+		now = now.Add(time.Second)
+		fixture.clock.Set(now)
+		_, advanceErr := fixture.engine.Advance(now)
+		if attempt == uint8(len(fixedRetryBases)) {
+			assertVerificationCode(t, advanceErr, FailureCodeTerminalSend)
+			break
+		}
+		retry, err := fixture.retry.Attempt(intent.Logical, attempt+1)
+		if err != nil {
+			t.Fatalf("Attempt(%d): %v", attempt+1, err)
+		}
+		now = now.Add(retry.Delay)
+		fixture.clock.Set(now)
+		if _, err := fixture.engine.Advance(now); err != nil {
+			t.Fatalf("retry %d Advance: %v", attempt+1, err)
+		}
+	}
+
+	snapshot := fixture.verifier.Snapshot()
+	if snapshot.Terminal != 1 || snapshot.TerminalReasons.RetryExhausted != (RetryExhaustedSnapshot{
+		Total:          1,
+		AttemptTimeout: 1,
+	}) {
+		t.Fatalf("terminal timeout classification = %+v", snapshot.TerminalReasons)
+	}
+}
+
+func TestEngineRetryExhaustionFromLocalAdmissionIsHarnessInvalid(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	for range len(fixedRetryBases) + 1 {
+		fixture.factory.sendErrors = append(fixture.factory.sendErrors, wkclient.ErrSendQueueFull)
+	}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	uid := fixture.identity.UID(7)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: uid, UserIndex: 7, LoginOrdinal: 8}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, uid, "local-admission-exhaustion-group", 148, TrafficGroup)
+	now := fixture.clock.Now()
+	if err := fixture.engine.SubmitGranted(intent, now); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("initial Advance: %v", err)
+	}
+
+	for attempt := uint8(1); attempt <= uint8(len(fixedRetryBases)); attempt++ {
+		retry, err := fixture.retry.Attempt(intent.Logical, attempt)
+		if err != nil {
+			t.Fatalf("Attempt(%d): %v", attempt, err)
+		}
+		now = now.Add(retry.Delay)
+		fixture.clock.Set(now)
+		_, advanceErr := fixture.engine.Advance(now)
+		if attempt == uint8(len(fixedRetryBases)) {
+			assertRuntimeFailure(t, advanceErr, RuntimeFailureCode("transport_admission_saturated"))
+			break
+		}
+		if advanceErr != nil {
+			t.Fatalf("retry %d Advance: %v", attempt, advanceErr)
+		}
+	}
+
+	snapshot := fixture.verifier.Snapshot()
+	if snapshot.Terminal != 0 || snapshot.TerminalReasons != (TerminalSendSnapshot{}) {
+		t.Fatalf("local admission exhaustion was attributed to the product: %+v", snapshot.TerminalReasons)
+	}
+	engineSnapshot, err := fixture.engine.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if engineSnapshot.HarnessInvalid != 1 || engineSnapshot.FinalFailures != 0 || engineSnapshot.Classification != SyncClassificationHarnessInvalid {
+		t.Fatalf("local admission exhaustion snapshot = %+v", engineSnapshot)
+	}
+	if evidence := fixture.evidence.Snapshot(); !evidenceContains(
+		evidence, FailureClassHarness, EvidenceStageCapacity, FailureCodeTransportAdmissionSaturated,
+	) {
+		t.Fatalf("local admission exhaustion evidence = %+v", evidence)
 	}
 }
 

@@ -37,6 +37,58 @@ const (
 	TerminalSendSessionClosed
 )
 
+type retryExhaustedCause uint8
+
+const (
+	retryExhaustedUnclassified retryExhaustedCause = iota + 1
+	retryExhaustedAttemptTimeout
+	retryExhaustedLocalAdmission
+	retryExhaustedTransportError
+	retryExhaustedRetriableSendack
+)
+
+// RetryExhaustedSnapshot is the bounded reason breakdown for logical sends
+// that used every permitted attempt without a successful SENDACK.
+type RetryExhaustedSnapshot struct {
+	Total            uint64 `json:"total"`
+	AttemptTimeout   uint64 `json:"attempt_timeout"`
+	LocalAdmission   uint64 `json:"local_admission"`
+	TransportError   uint64 `json:"transport_error"`
+	RetriableSendack uint64 `json:"retryable_sendack"`
+	Unclassified     uint64 `json:"unclassified"`
+}
+
+func (s RetryExhaustedSnapshot) valid() bool {
+	values := [...]uint64{s.AttemptTimeout, s.LocalAdmission, s.TransportError, s.RetriableSendack, s.Unclassified}
+	var total uint64
+	for _, value := range values {
+		if ^uint64(0)-total < value {
+			return false
+		}
+		total += value
+	}
+	return total == s.Total
+}
+
+// TerminalSendSnapshot is the fixed, identity-free breakdown of terminal send
+// decisions. Its fields must sum to the aggregate terminal count.
+type TerminalSendSnapshot struct {
+	RetryExhausted RetryExhaustedSnapshot `json:"retry_exhausted"`
+	NonRetriable   uint64                 `json:"non_retriable"`
+	SessionClosed  uint64                 `json:"session_closed"`
+}
+
+func (s TerminalSendSnapshot) total() (uint64, bool) {
+	if !s.RetryExhausted.valid() || ^uint64(0)-s.RetryExhausted.Total < s.NonRetriable {
+		return 0, false
+	}
+	total := s.RetryExhausted.Total + s.NonRetriable
+	if ^uint64(0)-total < s.SessionClosed {
+		return 0, false
+	}
+	return total + s.SessionClosed, true
+}
+
 // VerificationError is a redacted stable verifier failure. It never wraps a
 // transport error because arbitrary error text is forbidden in evidence.
 type VerificationError struct {
@@ -138,6 +190,7 @@ type VerifierSnapshot struct {
 	Acknowledged              uint64
 	SendackRejections         uint64
 	Terminal                  uint64
+	TerminalReasons           TerminalSendSnapshot
 	DuplicateCompletions      uint64
 	ConflictingCompletions    uint64
 	UnknownSendacks           uint64
@@ -182,6 +235,7 @@ type verifierSendCounters struct {
 	acknowledged           uint64
 	sendackRejections      uint64
 	terminal               uint64
+	terminalReasons        TerminalSendSnapshot
 	duplicateCompletions   uint64
 	conflictingCompletions uint64
 	unknownSendacks        uint64
@@ -911,10 +965,24 @@ func (v *Verifier) DrainSnapshot() VerificationDrain {
 
 // CompleteTerminal marks the explicit final result chosen by the retry engine.
 func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) error {
+	cause := retryExhaustedCause(0)
+	if code == TerminalSendRetryExhausted {
+		cause = retryExhaustedUnclassified
+	}
+	return v.completeTerminal(logical, code, cause)
+}
+
+func (v *Verifier) completeRetryExhausted(logical LogicalSend, cause retryExhaustedCause) error {
+	return v.completeTerminal(logical, TerminalSendRetryExhausted, cause)
+}
+
+func (v *Verifier) completeTerminal(logical LogicalSend, code TerminalSendCode, cause retryExhaustedCause) error {
 	v.sendMu.Lock()
 	defer v.sendMu.Unlock()
 	pending := v.pending[logical.ClientMsgNo]
-	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed {
+	validCause := (code == TerminalSendRetryExhausted && cause >= retryExhaustedUnclassified && cause <= retryExhaustedRetriableSendack) ||
+		(code != TerminalSendRetryExhausted && cause == 0)
+	if pending == nil || pending.logical != logical || code < TerminalSendRetryExhausted || code > TerminalSendSessionClosed || !validCause {
 		return v.recordHarnessLocked(FailureCodeGeneratorInvariant, logical, EvidenceStageSend, uint64(code))
 	}
 	if pending.completion != sendIncomplete {
@@ -931,6 +999,27 @@ func (v *Verifier) CompleteTerminal(logical LogicalSend, code TerminalSendCode) 
 	pending.terminal = code
 	v.pendingUnfinished--
 	v.sendCounters.terminal++
+	switch code {
+	case TerminalSendRetryExhausted:
+		reasons := &v.sendCounters.terminalReasons.RetryExhausted
+		reasons.Total++
+		switch cause {
+		case retryExhaustedAttemptTimeout:
+			reasons.AttemptTimeout++
+		case retryExhaustedLocalAdmission:
+			reasons.LocalAdmission++
+		case retryExhaustedTransportError:
+			reasons.TransportError++
+		case retryExhaustedRetriableSendack:
+			reasons.RetriableSendack++
+		default:
+			reasons.Unclassified++
+		}
+	case TerminalSendNonRetriable:
+		v.sendCounters.terminalReasons.NonRetriable++
+	case TerminalSendSessionClosed:
+		v.sendCounters.terminalReasons.SessionClosed++
+	}
 	return v.recordSendFailureLocked(FailureCodeTerminalSend, logical.LogicalSend, messageFingerprint(logical.ClientMsgNo), EvidenceStageSend, uint64(code))
 }
 
@@ -1063,6 +1152,7 @@ func (v *Verifier) Snapshot() VerifierSnapshot {
 		Acknowledged:           send.acknowledged,
 		SendackRejections:      send.sendackRejections,
 		Terminal:               send.terminal,
+		TerminalReasons:        send.terminalReasons,
 		DuplicateCompletions:   send.duplicateCompletions,
 		ConflictingCompletions: send.conflictingCompletions,
 		UnknownSendacks:        send.unknownSendacks,
@@ -1334,6 +1424,8 @@ func failureCodeName(code FailureCode) string {
 		return "lifecycle_lease_invalidated"
 	case FailureCodeLifecycleReplaySaturated:
 		return "lifecycle_replay_saturated"
+	case FailureCodeTransportAdmissionSaturated:
+		return "transport_admission_saturated"
 	default:
 		return "unknown"
 	}

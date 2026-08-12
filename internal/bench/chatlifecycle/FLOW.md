@@ -285,8 +285,9 @@ schema v3; the strict reader intentionally rejects legacy report schemas. The me
 and all fixed-array aggregate snapshots remain low-cardinality and carry no
 channel label.
 
-Worker snapshots contain only scalar aggregates,
-fixed arrays, and the verifier's at-most-four evidence classes with at most 64
+Worker snapshots contain only scalar aggregates, including the fixed terminal
+SEND and retry-exhaustion reason breakdown, fixed arrays, and the verifier's
+at-most-four evidence classes with at most 64
 first and 64 last redacted examples per class. No snapshot, checkpoint, report,
 or durable evidence enumerates a UID or channel. Raw candidate identities exist
 only in the bounded authenticated lease, probe, and approval request and are
@@ -456,7 +457,17 @@ One logical SEND deterministically owns one bounded `client_msg_no`. Attempt
 zero has no retry delay; attempts one through three reuse that exact identity
 with 100 ms, 500 ms, and 2 s bases plus deterministic nonnegative jitter in
 `[0, base/5]`. A fourth retry is rejected and duration addition is checked for
-overflow.
+overflow. Retry exhaustion retains a checked, low-cardinality last-trigger
+breakdown: attempt timeout, local transport admission, asynchronous transport
+error, retryable SENDACK, or unclassified compatibility completion. The
+breakdown is propagated through worker snapshots and final reports without a
+UID, channel, message identity, or raw error.
+If the final permitted attempt is itself rejected by the load generator's
+local transport admission bound, the logical SEND is aborted as the closed
+`transport_admission_saturated` harness failure instead of becoming a target
+terminal failure. The retained local-admission terminal field remains readable
+for compatibility evidence, while new engine-owned exhaustion cannot attribute
+an unissued final wire attempt to WuKongIM.
 
 The concurrent verifier registers that attempt-independent identity in an
 explicitly bounded pending map together with the fixed maximum of four
@@ -525,7 +536,10 @@ attempts. The verifier separately retains the subset where this local admission
 rejection was the logical SEND's first-attempt failure. Worker correctness
 projection subtracts that subset from `first_attempt_failures`, with checked
 underflow, so the strict product first-attempt rate measures target behavior
-while the load-generator pressure remains explicit harness evidence.
+while the load-generator pressure remains explicit harness evidence. Exhausting
+the bounded retry path on local admission also stops the worker with
+`transport_admission_saturated/harness_invalid`; it never publishes a product
+terminal SEND.
 The ordered session drain uses an explicit streaming read whose lifetime is
 owned only by the generation or caller context; the transport's default
 short-operation timeout still bounds CONNECT and control writes but never
@@ -1025,7 +1039,11 @@ line to the command diagnostic stream. The status contains current `online`,
 counters for each worker and their checked totals, plus at most 64 recent
 aggregate change events. Finalize writes one last post-stop cut so explicit
 generation stop and cleanup failures are distinguishable from an earlier
-connection collapse. It contains no UID, Channel, message, address,
+connection collapse. The compact status log line additionally includes the
+checked aggregate message counters and terminal-reason breakdown, so a terminal
+cut distinguishes attempt timeout, local admission, transport failure,
+retryable SENDACK exhaustion, non-retriable SENDACK, and generation cleanup.
+It contains no UID, Channel, message identity, address,
 credential, path, or raw error. This running contract is intentionally
 separate from terminal reports so Analysis MCP can diagnose a connection drop
 before `final.json` exists. A fresh production controller arms the observation source at that exact barrier

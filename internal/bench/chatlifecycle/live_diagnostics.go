@@ -106,7 +106,7 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	workers, totals, closes, ok := projectLiveDiagnosticWorkers(snapshots)
+	workers, totals, closes, messages, ok := projectLiveDiagnosticWorkers(snapshots)
 	if !ok {
 		return errProductionController
 	}
@@ -135,11 +135,11 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 	if err := writeLiveDiagnosticStatus(r.path, document); err != nil {
 		return err
 	}
-	r.writeLog(document)
+	r.writeLog(document, messages)
 	return nil
 }
 
-func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus) {
+func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus, messages WorkerMessageSnapshot) {
 	record := struct {
 		Event        string                         `json:"event"`
 		RunID        string                         `json:"run_id"`
@@ -147,9 +147,11 @@ func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus) {
 		Cut          CoordinatorCutKind             `json:"cut"`
 		Totals       liveDiagnosticConnectionCounts `json:"totals"`
 		CloseReasons SessionCloseReasonSnapshot     `json:"close_reasons"`
+		Messages     WorkerMessageSnapshot          `json:"messages"`
 	}{
 		Event: "wkbench.chat_lifecycle.worker_status_cut", RunID: document.RunID,
 		At: document.UpdatedAt, Cut: document.Cut, Totals: document.Totals, CloseReasons: document.CloseReasons,
+		Messages: messages,
 	}
 	body, err := json.Marshal(record)
 	if err == nil {
@@ -169,25 +171,28 @@ func projectLiveDiagnosticWorkers(snapshots []WorkerSnapshot) (
 	[coordinatorWorkerCount]liveDiagnosticWorker,
 	liveDiagnosticConnectionCounts,
 	SessionCloseReasonSnapshot,
+	WorkerMessageSnapshot,
 	bool,
 ) {
 	var workers [coordinatorWorkerCount]liveDiagnosticWorker
 	var totals liveDiagnosticConnectionCounts
 	var closes SessionCloseReasonSnapshot
+	var messages WorkerMessageSnapshot
 	var seen [coordinatorWorkerCount]bool
 	for _, snapshot := range snapshots {
 		if snapshot.WorkerID >= coordinatorWorkerCount || seen[snapshot.WorkerID] ||
 			(snapshot.Phase != WorkerPhaseRunning && snapshot.Phase != WorkerPhaseFinal) ||
 			snapshot.SnapshotSequence == 0 {
-			return workers, totals, closes, false
+			return workers, totals, closes, messages, false
 		}
 		connections := liveDiagnosticConnectionCounts{
 			Target: snapshot.Sessions.Target, Online: snapshot.Sessions.Online, Starting: snapshot.Sessions.Starting,
 			Closing: snapshot.Sessions.Closing, TrafficReady: snapshot.Sessions.TrafficReady,
 		}
 		if !validLiveDiagnosticConnections(connections) || !addLiveDiagnosticConnections(&totals, connections) ||
-			!addLiveDiagnosticCloseReasons(&closes, snapshot.Sessions.CloseReasons) {
-			return workers, totals, closes, false
+			!addLiveDiagnosticCloseReasons(&closes, snapshot.Sessions.CloseReasons) ||
+			addCoordinatorMessages(&messages, snapshot.Messages) != nil {
+			return workers, totals, closes, messages, false
 		}
 		seen[snapshot.WorkerID] = true
 		workers[snapshot.WorkerID] = liveDiagnosticWorker{
@@ -195,7 +200,7 @@ func projectLiveDiagnosticWorkers(snapshots []WorkerSnapshot) (
 			Connections: connections, CloseReasons: snapshot.Sessions.CloseReasons,
 		}
 	}
-	return workers, totals, closes, seen == [coordinatorWorkerCount]bool{true, true, true}
+	return workers, totals, closes, messages, seen == [coordinatorWorkerCount]bool{true, true, true}
 }
 
 func validLiveDiagnosticConnections(value liveDiagnosticConnectionCounts) bool {

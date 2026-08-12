@@ -69,6 +69,32 @@ func TestVerifierSendackAndTerminalCompletion(t *testing.T) {
 	}
 }
 
+func TestVerifierSnapshotClassifiesTerminalSendReasons(t *testing.T) {
+	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
+	startedAt := time.Unix(200, 0)
+	codes := []TerminalSendCode{
+		TerminalSendRetryExhausted,
+		TerminalSendNonRetriable,
+		TerminalSendSessionClosed,
+	}
+	for ordinal, code := range codes {
+		logical := mustLogicalSend(t, model, 0, uint64(ordinal+1), TrafficPerson, "sender", "recipient")
+		if err := verifier.RegisterSend(logical, startedAt); err != nil {
+			t.Fatalf("RegisterSend(%d) error = %v", ordinal, err)
+		}
+		assertVerificationCode(t, verifier.CompleteTerminal(logical, code), FailureCodeTerminalSend)
+	}
+
+	snapshot := verifier.Snapshot()
+	if snapshot.Terminal != 3 || snapshot.TerminalReasons != (TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1},
+		NonRetriable:   1,
+		SessionClosed:  1,
+	}) {
+		t.Fatalf("terminal reasons = %+v", snapshot)
+	}
+}
+
 func TestVerifierCountsFirstAttemptFailuresOncePerLogicalSend(t *testing.T) {
 	model, verifier := newTestVerifier(t, 16, 16, 16, time.Minute)
 	policy := newTestRetryPolicy(t, model)

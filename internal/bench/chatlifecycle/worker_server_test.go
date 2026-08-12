@@ -762,6 +762,12 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	engineGeneration.verifier.sendMu.Lock()
 	engineGeneration.verifier.sendCounters.firstAttempts = 101
 	engineGeneration.verifier.sendCounters.firstAttemptFailures = 2
+	engineGeneration.verifier.sendCounters.terminal = 3
+	engineGeneration.verifier.sendCounters.terminalReasons = TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1},
+		NonRetriable:   1,
+		SessionClosed:  1,
+	}
 	engineGeneration.verifier.sendCounters.sampledExpired = 3
 	engineGeneration.verifier.sendMu.Unlock()
 	engineGeneration.verifier.recvMu.Lock()
@@ -783,6 +789,9 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 		t.Fatalf("worker real sync outcome projection = %+v", snapshot.Sync)
 	}
 	if snapshot.Messages.FirstAttempts != 101 || snapshot.Messages.FirstAttemptFailures != 2 ||
+		snapshot.Messages.Terminal != 3 || snapshot.Messages.TerminalReasons != (TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, Unclassified: 1}, NonRetriable: 1, SessionClosed: 1,
+	}) ||
 		snapshot.Messages.Losses != 3 || snapshot.Messages.Duplicates != 4 ||
 		snapshot.Messages.Corruptions != 5 || snapshot.Messages.SequenceRegressions != 6 {
 		t.Fatalf("worker correctness projection = %+v", snapshot.Messages)

@@ -157,7 +157,9 @@ During the measured run, the output directory contains an atomically replaced
 starting, closing, and traffic-ready counts; fixed connection-close reasons;
 and a bounded recent transition log. `wkbench` also emits one compact
 `wkbench.chat_lifecycle.worker_status_cut` JSON line per evidence cut to
-standard error. Both surfaces are identity-free and are intended for live
+standard error. That line also carries checked aggregate message counters and
+the terminal reason breakdown, including retry exhaustion by attempt timeout,
+local admission, transport error, or retryable SENDACK. Both surfaces are identity-free and are intended for live
 Analysis MCP diagnosis before the terminal report exists.
 
 For a bounded local native-process shakeout:

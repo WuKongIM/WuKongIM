@@ -220,6 +220,82 @@ func TestEngineRealWKProtoOverlappingAttemptsAcceptEitherAckOrder(t *testing.T) 
 	}
 }
 
+func TestEngineRealWKProtoDelayedSuccessAfterRetryWindowIsAlreadyTerminal(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer listener.Close()
+	attemptsReady := make(chan []*frame.SendPacket, 1)
+	releaseAck := make(chan struct{})
+	serverErr := make(chan error, 1)
+	go runEngineDelayedAckServer(listener, attemptsReady, releaseAck, serverErr)
+
+	fixture := newEngineTestFixture(t, engineTestLimits{OnlineUsers: 1, AttemptTimeout: time.Millisecond})
+	fixture.pool.factory = engineRealWKFactory{addr: listener.Addr().String(), ackTimeout: 10 * time.Second, capacity: maxSendAttemptIdentities}
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+
+	sender := fixture.identity.UID(0)
+	if _, err := fixture.engine.Login(context.Background(), SessionLogin{UID: sender, UserIndex: 0, LoginOrdinal: 0}); err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+	intent := fixture.intent(t, sender, "real-delayed-ack-group", 150, TrafficGroup)
+	now := fixture.clock.Now()
+	if err := fixture.engine.SubmitGranted(intent, now); err != nil {
+		t.Fatalf("SubmitGranted: %v", err)
+	}
+	if _, err := fixture.engine.Advance(now); err != nil {
+		t.Fatalf("initial Advance: %v", err)
+	}
+	for attempt := uint8(0); attempt <= uint8(len(fixedRetryBases)); attempt++ {
+		now = now.Add(time.Millisecond)
+		fixture.clock.Set(now)
+		_, advanceErr := fixture.engine.Advance(now)
+		if attempt == uint8(len(fixedRetryBases)) {
+			assertVerificationCode(t, advanceErr, FailureCodeTerminalSend)
+			break
+		}
+		retry, retryErr := fixture.retry.Attempt(intent.Logical, attempt+1)
+		if retryErr != nil {
+			t.Fatalf("Attempt(%d): %v", attempt+1, retryErr)
+		}
+		now = now.Add(retry.Delay)
+		fixture.clock.Set(now)
+		if _, advanceErr := fixture.engine.Advance(now); advanceErr != nil {
+			t.Fatalf("retry %d Advance: %v", attempt+1, advanceErr)
+		}
+	}
+
+	var attempts []*frame.SendPacket
+	select {
+	case attempts = <-attemptsReady:
+	case serverFailure := <-serverErr:
+		t.Fatalf("server before attempts: %v", serverFailure)
+	case <-time.After(time.Second):
+		t.Fatal("server did not receive every retry attempt")
+	}
+	if len(attempts) != maxSendAttemptIdentities {
+		t.Fatalf("wire attempts = %d, want %d", len(attempts), maxSendAttemptIdentities)
+	}
+	for _, attempt := range attempts {
+		if attempt.ClientMsgNo != intent.Logical.ClientMsgNo {
+			t.Fatalf("wire attempt changed stable identity: %+v", attempt)
+		}
+	}
+	verification := fixture.verifier.Snapshot()
+	if verification.TerminalReasons.RetryExhausted.AttemptTimeout != 1 || verification.Acknowledged != 0 {
+		t.Fatalf("terminal state before delayed success = %+v", verification)
+	}
+
+	close(releaseAck)
+	if serverFailure := <-serverErr; serverFailure != nil {
+		t.Fatalf("server delayed ACK: %v", serverFailure)
+	}
+}
+
 func runEngineAttemptServer(
 	listener net.Listener,
 	attemptsReady chan<- [2]*frame.SendPacket,
@@ -264,6 +340,49 @@ func runEngineAttemptServer(
 		}
 	}
 	<-stop
+	result <- nil
+}
+
+func runEngineDelayedAckServer(
+	listener net.Listener,
+	attemptsReady chan<- []*frame.SendPacket,
+	releaseAck <-chan struct{},
+	result chan<- error,
+) {
+	conn, err := listener.Accept()
+	if err != nil {
+		result <- err
+		return
+	}
+	defer conn.Close()
+	protocol := codec.New()
+	if _, err := protocol.DecodePacketWithConn(conn, frame.LatestVersion); err != nil {
+		result <- fmt.Errorf("decode CONNECT: %w", err)
+		return
+	}
+	if err := writeEngineAttemptFrame(conn, &frame.ConnackPacket{ReasonCode: frame.ReasonSuccess, ServerVersion: frame.LatestVersion}); err != nil {
+		result <- fmt.Errorf("write CONNACK: %w", err)
+		return
+	}
+	attempts := make([]*frame.SendPacket, 0, maxSendAttemptIdentities)
+	for index := 0; index < maxSendAttemptIdentities; index++ {
+		packet, err := protocol.DecodePacketWithConn(conn, frame.LatestVersion)
+		if err != nil {
+			result <- fmt.Errorf("decode SEND %d: %w", index, err)
+			return
+		}
+		attempts = append(attempts, packet.(*frame.SendPacket))
+	}
+	attemptsReady <- attempts
+	<-releaseAck
+	last := attempts[len(attempts)-1]
+	if err := writeEngineAttemptFrame(conn, &frame.SendackPacket{
+		ClientSeq: last.ClientSeq, ClientMsgNo: last.ClientMsgNo,
+		MessageID: 903, MessageSeq: 904, ReasonCode: frame.ReasonSuccess,
+	}); err != nil {
+		result <- fmt.Errorf("write delayed SENDACK: %w", err)
+		return
+	}
 	result <- nil
 }
 

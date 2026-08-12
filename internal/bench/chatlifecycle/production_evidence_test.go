@@ -13,6 +13,9 @@ func TestProjectWorkerVerdictEvidenceUsesExactMonotonicCountersAndThresholds(t *
 		snapshot := &snapshots[index]
 		snapshot.Messages = WorkerMessageSnapshot{
 			FirstAttempts: 10_000, FirstAttemptFailures: uint64(index), Terminal: uint64(index),
+			TerminalReasons: TerminalSendSnapshot{RetryExhausted: RetryExhaustedSnapshot{
+				Total: uint64(index), Unclassified: uint64(index),
+			}},
 			Losses: uint64(index), Duplicates: uint64(index + 1), Corruptions: uint64(index + 2),
 			SequenceRegressions: uint64(index + 3),
 		}

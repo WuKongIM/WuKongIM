@@ -31,6 +31,12 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 	snapshots[2].Sessions.Online = 0
 	snapshots[2].Sessions.TrafficReady = 0
 	snapshots[2].Sessions.CloseReasons.HeartbeatFailed = 1
+	snapshots[2].Messages.FirstAttemptFailures = 4
+	snapshots[2].Messages.RetryAttempts = 7
+	snapshots[2].Messages.Terminal = 1
+	snapshots[2].Messages.TerminalReasons = TerminalSendSnapshot{
+		RetryExhausted: RetryExhaustedSnapshot{Total: 1, AttemptTimeout: 1},
+	}
 	if err := recorder.Observe(start.Add(10*time.Second), CoordinatorCutPeriodic, snapshots); err != nil {
 		t.Fatalf("second Observe() error = %v", err)
 	}
@@ -56,7 +62,10 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 		t.Fatalf("diagnostic status bytes = %d", len(body))
 	}
 	if logBody := diagnosticLog.String(); !strings.Contains(logBody, `"event":"wkbench.chat_lifecycle.worker_status_cut"`) ||
-		!strings.Contains(logBody, `"heartbeat_failed":1`) || strings.Contains(logBody, `"uid"`) {
+		!strings.Contains(logBody, `"heartbeat_failed":1`) ||
+		!strings.Contains(logBody, `"messages":{"sent":6`) ||
+		!strings.Contains(logBody, `"first_attempt_failures":4`) ||
+		!strings.Contains(logBody, `"attempt_timeout":1`) || strings.Contains(logBody, `"uid"`) {
 		t.Fatalf("diagnostic log = %q", logBody)
 	}
 }

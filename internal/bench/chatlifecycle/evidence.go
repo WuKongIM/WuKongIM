@@ -82,6 +82,7 @@ const (
 	FailureCodeLifecycleFenceExhausted
 	FailureCodeLifecycleLeaseInvalidated
 	FailureCodeLifecycleReplaySaturated
+	FailureCodeTransportAdmissionSaturated
 )
 
 // EvidenceEvent is the recorder input. Fingerprint is a stable redacted digest;
@@ -276,7 +277,7 @@ func validEvidenceEvent(event EvidenceEvent) bool {
 			FailureCodeEngineInflightSaturated, FailureCodeEngineRetrySaturated,
 			FailureCodeOfferedLoadUnderDelivery, FailureCodeSessionSchedulerCPUSaturated,
 			FailureCodeLifecycleFenceExhausted, FailureCodeLifecycleLeaseInvalidated,
-			FailureCodeLifecycleReplaySaturated:
+			FailureCodeLifecycleReplaySaturated, FailureCodeTransportAdmissionSaturated:
 			return event.Stage == EvidenceStageCapacity
 		case FailureCodeSessionReadFailed:
 			return event.Stage == EvidenceStageReceive
