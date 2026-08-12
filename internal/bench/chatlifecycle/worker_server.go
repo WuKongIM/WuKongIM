@@ -1544,9 +1544,10 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 	return WorkerSnapshot{
 		Generation: engine.Generation, WorkerID: engine.WorkerID, WorkerCount: engine.WorkerCount,
 		Sessions: WorkerSessionSnapshot{
-			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, TrafficReady: engine.TrafficReady,
+			Target: engine.OnlineTarget, Online: engine.Online, Starting: engine.LoginStarting, Closing: engine.Closing, TrafficReady: engine.TrafficReady,
 			PlannedNew: engine.LoginPlannedNew, PlannedReturning: engine.LoginPlannedReturning,
 			CompletedNew: engine.LoginCompletedNew, CompletedReturning: engine.LoginCompletedReturning, Expired: engine.SessionsExpired,
+			CloseReasons: engine.SessionCloseReasons,
 		},
 		Generated: WorkerGeneratedSnapshot{
 			Primary: generated.PrimaryReleased, Person: generated.Person, Group: generated.Group,

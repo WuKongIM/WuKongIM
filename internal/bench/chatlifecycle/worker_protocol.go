@@ -264,15 +264,17 @@ func recordWorkerLatency(snapshot *WorkerHistogramSnapshot, latency time.Duratio
 
 // WorkerSessionSnapshot exposes aggregate session and real-sync progress only.
 type WorkerSessionSnapshot struct {
-	Target             int    `json:"target"`
-	Online             int    `json:"online"`
-	Starting           int    `json:"starting"`
-	TrafficReady       int    `json:"traffic_ready"`
-	PlannedNew         uint64 `json:"planned_new"`
-	PlannedReturning   uint64 `json:"planned_returning"`
-	CompletedNew       uint64 `json:"completed_new"`
-	CompletedReturning uint64 `json:"completed_returning"`
-	Expired            uint64 `json:"expired"`
+	Target             int                        `json:"target"`
+	Online             int                        `json:"online"`
+	Starting           int                        `json:"starting"`
+	Closing            int                        `json:"closing"`
+	TrafficReady       int                        `json:"traffic_ready"`
+	PlannedNew         uint64                     `json:"planned_new"`
+	PlannedReturning   uint64                     `json:"planned_returning"`
+	CompletedNew       uint64                     `json:"completed_new"`
+	CompletedReturning uint64                     `json:"completed_returning"`
+	Expired            uint64                     `json:"expired"`
+	CloseReasons       SessionCloseReasonSnapshot `json:"close_reasons"`
 }
 
 // WorkerGeneratedSnapshot contains monotonic aggregate generation indexes.

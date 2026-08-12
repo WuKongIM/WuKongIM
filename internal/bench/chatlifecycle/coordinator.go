@@ -2401,6 +2401,10 @@ func coordinatorSnapshotRegressed(
 	currentCounters := []uint64{
 		current.Sessions.PlannedNew, current.Sessions.PlannedReturning, current.Sessions.CompletedNew,
 		current.Sessions.CompletedReturning, current.Sessions.Expired,
+		current.Sessions.CloseReasons.Expired, current.Sessions.CloseReasons.HeartbeatFailed,
+		current.Sessions.CloseReasons.RemoteTerminal, current.Sessions.CloseReasons.ReadFailed,
+		current.Sessions.CloseReasons.GenerationStop, current.Sessions.CloseReasons.ExplicitLogout,
+		current.Sessions.CloseReasons.TransportCloseFailed,
 		current.Generated.Primary, current.Generated.Person, current.Generated.Group,
 		current.Generated.Canary, current.Generated.PayloadBytes,
 		current.Messages.Sent, current.Messages.SendAttempts, current.Messages.SendAcknowledged,
@@ -2423,6 +2427,10 @@ func coordinatorSnapshotRegressed(
 	previousCounters := []uint64{
 		previous.Sessions.PlannedNew, previous.Sessions.PlannedReturning, previous.Sessions.CompletedNew,
 		previous.Sessions.CompletedReturning, previous.Sessions.Expired,
+		previous.Sessions.CloseReasons.Expired, previous.Sessions.CloseReasons.HeartbeatFailed,
+		previous.Sessions.CloseReasons.RemoteTerminal, previous.Sessions.CloseReasons.ReadFailed,
+		previous.Sessions.CloseReasons.GenerationStop, previous.Sessions.CloseReasons.ExplicitLogout,
+		previous.Sessions.CloseReasons.TransportCloseFailed,
 		previous.Generated.Primary, previous.Generated.Person, previous.Generated.Group,
 		previous.Generated.Canary, previous.Generated.PayloadBytes,
 		previous.Messages.Sent, previous.Messages.SendAttempts, previous.Messages.SendAcknowledged,
@@ -2562,13 +2570,23 @@ func addCoordinatorSessions(total *WorkerSessionSnapshot, value WorkerSessionSna
 	if err := addCoordinatorInt(&total.Starting, value.Starting); err != nil {
 		return err
 	}
+	if err := addCoordinatorInt(&total.Closing, value.Closing); err != nil {
+		return err
+	}
 	if err := addCoordinatorInt(&total.TrafficReady, value.TrafficReady); err != nil {
 		return err
 	}
-	values := [5]struct{ destination, source *uint64 }{
+	values := [12]struct{ destination, source *uint64 }{
 		{&total.PlannedNew, &value.PlannedNew}, {&total.PlannedReturning, &value.PlannedReturning},
 		{&total.CompletedNew, &value.CompletedNew}, {&total.CompletedReturning, &value.CompletedReturning},
 		{&total.Expired, &value.Expired},
+		{&total.CloseReasons.Expired, &value.CloseReasons.Expired},
+		{&total.CloseReasons.HeartbeatFailed, &value.CloseReasons.HeartbeatFailed},
+		{&total.CloseReasons.RemoteTerminal, &value.CloseReasons.RemoteTerminal},
+		{&total.CloseReasons.ReadFailed, &value.CloseReasons.ReadFailed},
+		{&total.CloseReasons.GenerationStop, &value.CloseReasons.GenerationStop},
+		{&total.CloseReasons.ExplicitLogout, &value.CloseReasons.ExplicitLogout},
+		{&total.CloseReasons.TransportCloseFailed, &value.CloseReasons.TransportCloseFailed},
 	}
 	return addCoordinatorUint64Fields(values[:])
 }

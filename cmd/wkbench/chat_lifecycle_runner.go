@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -154,6 +155,7 @@ func (r *productionChatLifecycleRuntime) controller(
 		Config: cfg, OutputDir: outputDir, Observation: r.observation,
 		Lifecycle: r.lifecycle, Meta: r.meta, MetaAccounting: r.accounting,
 		Dataset: r.dataset, SlotAssignment: r.assignment, Continuous: continuous,
+		DiagnosticLog: os.Stderr,
 	})
 	if err != nil {
 		return nil, errors.New("chat-lifecycle production composition failed")

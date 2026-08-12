@@ -197,10 +197,38 @@ type SessionPoolSnapshot struct {
 	SyncCompleted              uint64
 	SyncFailed                 uint64
 	SyncCanceled               uint64
+	// CloseReasons attributes every teardown to a fixed, identity-free
+	// initiator and separately counts transport-close failures.
+	CloseReasons               SessionCloseReasonSnapshot
 	GatewayConnectLatency      WorkerHistogramSnapshot
 	ConversationSyncLatency    WorkerHistogramSnapshot
 	ConversationSyncThresholds LatencyThresholdCounters
 }
+
+// SessionCloseReasonSnapshot is the bounded connection-teardown vocabulary.
+// The first six counters are mutually exclusive initiators;
+// TransportCloseFailed is an additional cleanup outcome.
+type SessionCloseReasonSnapshot struct {
+	Expired              uint64 `json:"expired"`
+	HeartbeatFailed      uint64 `json:"heartbeat_failed"`
+	RemoteTerminal       uint64 `json:"remote_terminal"`
+	ReadFailed           uint64 `json:"read_failed"`
+	GenerationStop       uint64 `json:"generation_stop"`
+	ExplicitLogout       uint64 `json:"explicit_logout"`
+	TransportCloseFailed uint64 `json:"transport_close_failed"`
+}
+
+type sessionCloseReason uint32
+
+const (
+	sessionCloseReasonNone sessionCloseReason = iota
+	sessionCloseReasonExpired
+	sessionCloseReasonHeartbeatFailed
+	sessionCloseReasonRemoteTerminal
+	sessionCloseReasonReadFailed
+	sessionCloseReasonGenerationStop
+	sessionCloseReasonExplicitLogout
+)
 
 // SessionCounts is the O(1) ownership projection used by the scheduler.
 type SessionCounts struct {
@@ -218,6 +246,7 @@ type onlineSession struct {
 	groupIndex            int
 	groupPosition         int
 	relationshipsObserved bool
+	closeInitiator        atomic.Uint32
 }
 
 // SessionPool owns only currently online clients. A UID has exactly one
@@ -257,6 +286,7 @@ type SessionPool struct {
 	syncCompleted      uint64
 	syncFailed         uint64
 	syncCanceled       uint64
+	closeReasons       SessionCloseReasonSnapshot
 	gatewayLatency     WorkerHistogramSnapshot
 	syncLatency        WorkerHistogramSnapshot
 	syncThresholds     LatencyThresholdCounters
@@ -731,6 +761,8 @@ func (p *SessionPool) detachExpiredWithin(now time.Time, capacity int) ([]*onlin
 		session := p.online[uid]
 		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
 		p.closing[uid] = session
+		session.closeInitiator.Store(uint32(sessionCloseReasonExpired))
+		p.recordCloseReasonLocked(sessionCloseReasonExpired)
 		sessions = append(sessions, session)
 	}
 	p.mu.Unlock()
@@ -750,7 +782,7 @@ func (p *SessionPool) detachExpired(now time.Time) []*onlineSession {
 	due := p.dueSessionUIDs(now)
 	sessions := make([]*onlineSession, 0, len(due))
 	for _, uid := range due {
-		if session := p.detachSession(uid); session != nil {
+		if session := p.detachSession(uid, sessionCloseReasonExpired); session != nil {
 			sessions = append(sessions, session)
 		}
 	}
@@ -773,10 +805,14 @@ func (p *SessionPool) dueSessionUIDs(now time.Time) []string {
 // Logout removes online admission, cancels and closes the socket, joins its
 // ordered drain and heartbeat, and only then releases recipient monotonic state.
 func (p *SessionPool) Logout(uid string) error {
+	return p.logout(uid, sessionCloseReasonExplicitLogout)
+}
+
+func (p *SessionPool) logout(uid string, reason sessionCloseReason) error {
 	if p == nil {
 		return errSessionOffline
 	}
-	session := p.detachSession(uid)
+	session := p.detachSession(uid, reason)
 	if session == nil {
 		return errSessionOffline
 	}
@@ -785,12 +821,14 @@ func (p *SessionPool) Logout(uid string) error {
 
 // detachSession moves one traffic-ready UID into its closing tombstone before
 // cancellation, so neither routing nor replacement can overlap old cleanup.
-func (p *SessionPool) detachSession(uid string) *onlineSession {
+func (p *SessionPool) detachSession(uid string, reason sessionCloseReason) *onlineSession {
 	p.mu.Lock()
 	session := p.online[uid]
 	if session != nil {
 		p.removeOnlineLocked(uid, session.snapshot.UserIndex)
 		p.closing[uid] = session
+		session.closeInitiator.Store(uint32(reason))
+		p.recordCloseReasonLocked(reason)
 	}
 	p.mu.Unlock()
 	if session == nil {
@@ -820,6 +858,11 @@ func (p *SessionPool) finishDetachedSession(session *onlineSession) error {
 // state while the caller retains the session's closing tombstone.
 func (p *SessionPool) finishDetachedTransport(session *onlineSession) error {
 	closeErr := session.client.Close()
+	if closeErr != nil {
+		p.mu.Lock()
+		incrementSessionOutcome(&p.closeReasons.TransportCloseFailed)
+		p.mu.Unlock()
+	}
 	<-session.done
 	<-session.heartbeatDone
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
@@ -840,7 +883,7 @@ func (p *SessionPool) CloseAll() error {
 	sort.Strings(uids)
 	var result error
 	for _, uid := range uids {
-		if err := p.Logout(uid); err != nil && !errors.Is(err, errSessionOffline) {
+		if err := p.logout(uid, sessionCloseReasonGenerationStop); err != nil && !errors.Is(err, errSessionOffline) {
 			result = errors.Join(result, err)
 		}
 	}
@@ -879,6 +922,7 @@ func (p *SessionPool) SnapshotContext(ctx context.Context) (SessionPoolSnapshot,
 		FactoryFailed: p.factoryFailed, FactoryCanceled: p.factoryCanceled,
 		ConnectStarted: p.connectStarted, ConnectCompleted: p.connectCompleted, ConnectFailed: p.connectFailed, ConnectCanceled: p.connectCanceled,
 		SyncStarted: p.syncStarted, SyncCompleted: p.syncCompleted, SyncFailed: p.syncFailed, SyncCanceled: p.syncCanceled,
+		CloseReasons:          p.closeReasons,
 		GatewayConnectLatency: p.gatewayLatency, ConversationSyncLatency: p.syncLatency,
 		ConversationSyncThresholds: p.syncThresholds,
 	}
@@ -950,6 +994,7 @@ func (p *SessionPool) resetRuntime() error {
 	p.syncCompleted = 0
 	p.syncFailed = 0
 	p.syncCanceled = 0
+	p.closeReasons = SessionCloseReasonSnapshot{}
 	p.gatewayLatency = newWorkerHistogramSnapshot()
 	p.syncLatency = newWorkerHistogramSnapshot()
 	p.transportAdmissionRejected.Store(0)
@@ -1021,6 +1066,7 @@ func (p *SessionPool) heartbeat(ctx context.Context, session *onlineSession) {
 			continue
 		}
 		if ctx.Err() == nil {
+			session.closeInitiator.CompareAndSwap(uint32(sessionCloseReasonNone), uint32(sessionCloseReasonHeartbeatFailed))
 			_ = session.client.Close()
 		}
 		return
@@ -1034,6 +1080,12 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 		class = FailureClassReceive
 		code = FailureCodeSessionRemoteTerminal
 	}
+	reason := sessionCloseReasonReadFailed
+	if sessionCloseReason(session.closeInitiator.Load()) == sessionCloseReasonHeartbeatFailed {
+		reason = sessionCloseReasonHeartbeatFailed
+	} else if remoteTerminal {
+		reason = sessionCloseReasonRemoteTerminal
+	}
 	p.mu.Lock()
 	if p.online[session.snapshot.UID] != session {
 		p.mu.Unlock()
@@ -1046,13 +1098,36 @@ func (p *SessionPool) detachUnexpected(session *onlineSession, remoteTerminal bo
 	p.removeOnlineLocked(session.snapshot.UID, session.snapshot.UserIndex)
 	p.closing[session.snapshot.UID] = session
 	p.readErrors++
+	session.closeInitiator.Store(uint32(reason))
+	p.recordCloseReasonLocked(reason)
 	p.mu.Unlock()
 
 	session.cancel()
-	_ = session.client.Close()
+	if err := session.client.Close(); err != nil {
+		p.mu.Lock()
+		incrementSessionOutcome(&p.closeReasons.TransportCloseFailed)
+		p.mu.Unlock()
+	}
 	<-session.heartbeatDone
 	p.verifier.ReleaseRecipient(session.snapshot.UID)
 	p.finishClosing(session.snapshot.UID, session)
+}
+
+func (p *SessionPool) recordCloseReasonLocked(reason sessionCloseReason) {
+	switch reason {
+	case sessionCloseReasonExpired:
+		incrementSessionOutcome(&p.closeReasons.Expired)
+	case sessionCloseReasonHeartbeatFailed:
+		incrementSessionOutcome(&p.closeReasons.HeartbeatFailed)
+	case sessionCloseReasonRemoteTerminal:
+		incrementSessionOutcome(&p.closeReasons.RemoteTerminal)
+	case sessionCloseReasonReadFailed:
+		incrementSessionOutcome(&p.closeReasons.ReadFailed)
+	case sessionCloseReasonGenerationStop:
+		incrementSessionOutcome(&p.closeReasons.GenerationStop)
+	case sessionCloseReasonExplicitLogout:
+		incrementSessionOutcome(&p.closeReasons.ExplicitLogout)
+	}
 }
 
 func (p *SessionPool) finishClosing(uid string, session *onlineSession) {

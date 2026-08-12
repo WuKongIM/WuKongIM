@@ -44,8 +44,11 @@ authority target, route, physical hash slot, logical Slot, session, or message
 identifier. ACK cumulative values are intended for bounded endpoint deltas;
 the duration queries use a fixed one-minute histogram window.
 
-`workload_inspect` returns the bounded diagnostic summary contract rather than
-raw worker reports. It includes actual ingress QPS and successful send count.
+`workload_inspect` returns bounded workload diagnostic contracts rather than
+raw worker reports. While chat-lifecycle is running, its optional `live`
+projection contains exactly the fixed worker connection gauges, teardown
+reason counts, and recent aggregate changes supplied by the infrastructure
+adapter. After completion it includes actual ingress QPS and successful send count.
 Its actual phase windows and structured worker failures let
 consumers choose the narrowest next observation without parsing Markdown or
 guessing a failed worker from aggregate counts. A failed worker may include a
@@ -55,7 +58,7 @@ unknown and never falls back to parsing detail text. Terminal stop failures use
 the exact `phase=stop`, `reason_code=worker_stop_failed` tuple.
 Diagnosis references preserve three workload lifecycle shapes: terminal
 `complete=true + completed + passed|failed`, running
-`complete=false + in_progress + null`, and incomplete source/tool failure with
+`complete=false + in_progress + null` with optional bounded live status, and incomplete source/tool failure with
 `complete=false` plus null state and status. Nullable lifecycle and note keys
 remain present so unknown evidence is never rewritten as an empty string or zero.
 

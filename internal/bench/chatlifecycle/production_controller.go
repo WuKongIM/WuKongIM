@@ -3,6 +3,7 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -49,6 +50,9 @@ type ProductionEvidenceControllerOptions struct {
 	// Continuous enables the one formal Soak-to-capacity process lifetime. It
 	// changes report/finalization semantics but never permits disk resumption.
 	Continuous bool
+	// DiagnosticLog receives one bounded, identity-free JSON line per worker
+	// evidence cut. Nil disables stream logging while retaining the status file.
+	DiagnosticLog io.Writer
 }
 
 // ProductionEvidenceController reduces live sources into one non-resumable
@@ -65,6 +69,7 @@ type ProductionEvidenceController struct {
 	dataset          productionDatasetEvidence
 	assignment       LifecycleSlotAssignment
 	continuous       bool
+	diagnosticLog    io.Writer
 	continuing       bool
 	awaitingCapacity bool
 
@@ -73,6 +78,7 @@ type ProductionEvidenceController struct {
 	start             CoordinatorRunStart
 	datasetDigest     string
 	recorder          *CheckpointRecorder
+	diagnostics       *liveDiagnosticRecorder
 	evaluator         *VerdictEvaluator
 	lastEvaluatorAt   time.Time
 	lastObservation   ProductionObservationSnapshot
@@ -104,6 +110,7 @@ func NewProductionEvidenceController(options ProductionEvidenceControllerOptions
 		cfg: options.Config, outputDir: filepath.Clean(output), observation: options.Observation,
 		lifecycle: options.Lifecycle, meta: options.Meta, accounting: options.MetaAccounting,
 		dataset: options.Dataset, assignment: options.SlotAssignment, continuous: options.Continuous,
+		diagnosticLog: options.DiagnosticLog,
 	}, nil
 }
 
@@ -177,6 +184,7 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 		c.lifecycleCancel, c.lifecycleDone = cancel, done
 		go func() { done <- c.lifecycle.Run(lifecycleCtx, start.Fence) }()
 	}
+	c.diagnostics = newLiveDiagnosticRecorder(c.outputDir, c.cfg.RunID, start.StartedAt, c.diagnosticLog)
 	c.begun = true
 	return nil
 }
@@ -200,7 +208,7 @@ func (c *ProductionEvidenceController) ContinueCapacity(cfg Config, outputDir st
 	c.cfg, c.outputDir = cfg, filepath.Clean(output)
 	c.begun, c.awaitingCapacity, c.continuing = false, false, true
 	c.start = CoordinatorRunStart{}
-	c.recorder, c.evaluator = nil, nil
+	c.recorder, c.diagnostics, c.evaluator = nil, nil, nil
 	c.lastEvaluatorAt, c.lastObservation = time.Time{}, ProductionObservationSnapshot{}
 	c.lastObservationID = 0
 	c.lastOfferedUnderdelivery = 0
@@ -217,6 +225,9 @@ func (c *ProductionEvidenceController) Observe(ctx context.Context, cut Coordina
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if !c.validCut(cut) {
+		return "", errProductionController
+	}
+	if c.diagnostics == nil || c.diagnostics.Observe(cut.At, cut.Kind, cut.Snapshots) != nil {
 		return "", errProductionController
 	}
 	if source, ok := c.observation.(productionWorkerQueueEvidence); ok {

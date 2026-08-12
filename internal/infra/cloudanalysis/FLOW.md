@@ -27,7 +27,7 @@ Phase 1 can exercise a provider-backed inspector locally with
 `ProviderRunInspector`. That inspector requires a valid Run Locator and matches
 provider, region, account hash, repository, source SHA, scenario digest,
 creation time, and lease. A static inspector cannot claim a released run.
-The workload source strictly parses the bounded final `diagnostic-summary.json`,
+The workload source prefers and strictly parses the bounded final `diagnostic-summary.json`,
 including actual phase windows, structured failed workers, measured-run
 successful sends, and actual ingress QPS. It rejects missing or unknown producer
 fields so producer/consumer contract drift cannot silently become zero-valued
@@ -46,6 +46,17 @@ non-zero exit code, and non-passed stability verdict. A `worker_stop_failed`
 record further requires worker-failure exit code `4` and verdict
 `harness_invalid`, so stop evidence cannot coexist with a passing or unrelated
 terminal outcome.
+
+Before that final file exists, the source strictly parses the atomically
+replaced `diagnostic-status.json` running contract. It accepts exactly three
+ordered workers, checked totals, the closed connection-teardown vocabulary,
+and at most 64 ordered recent aggregate events. Missing or unknown fields,
+identity mismatch, counter overflow, invalid ownership gauges, future events,
+or events outside the current cumulative counters fail closed. The MCP
+projection remains `complete=false + state=in_progress`, but now includes the
+current stage, update time, worker connection gauges, close initiators, and
+recent aggregate transitions. It never reads the command journal or exposes
+raw worker logs.
 
 Node hosts sample the `wukongim.service` cgroup once per second from one bounded
 collector process and again from

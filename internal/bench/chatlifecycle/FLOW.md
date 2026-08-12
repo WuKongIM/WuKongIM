@@ -572,6 +572,13 @@ or scheduler mutation; neither waits for the cleanup loop. Unknown unexpected re
 `session_read_failed` harness evidence. The pool's UID, user-index, and fixed
 group-member routing indexes contain current online sessions only, use
 swap-delete on logout, and allocate no per-lookup history.
+The aggregate session snapshot also retains `closing` and one fixed teardown
+initiator count per connection: expiry, heartbeat failure, remote terminal
+read, unclassified read failure, generation stop, or explicit logout.
+Transport-close failures are counted separately. These counters are
+generation-bounded, monotonic, identity-free, and reset only with a new worker
+generation; no UID, socket address, or raw transport error enters the worker
+protocol.
 Scheduler decisions read only O(1) online, starting, and closing counts. An
 aggregate pool snapshot copies client handles and scalar session metadata while
 holding the ownership read lock, releases it, and only then samples transport
@@ -1010,8 +1017,16 @@ window; process-local monotonic readings are stripped before `Elapsed` is
 calculated so the JSON report validates identically after restart or transfer.
 It atomically writes one
 `wukongim.chat_lifecycle.run_start/v1` receipt at that boundary with the stage,
-start, expected end, generation, and only hashed run/assignment identities. A
-fresh production controller arms the observation source at that exact barrier
+start, expected end, generation, and only hashed run/assignment identities.
+Every successful three-worker evidence cut also atomically replaces
+`diagnostic-status.json` in that report directory and emits one compact JSON
+line to the command diagnostic stream. The status contains current `online`,
+`starting`, `closing`, and `traffic_ready` gauges, the fixed teardown reason
+counters for each worker and their checked totals, plus at most 64 recent
+aggregate change events. It contains no UID, Channel, message, address,
+credential, path, or raw error. This running contract is intentionally
+separate from terminal reports so Analysis MCP can diagnose a connection drop
+before `final.json` exists. A fresh production controller arms the observation source at that exact barrier
 before probing the live dataset digest. The digest proof may take longer than
 one observer phase, but it therefore cannot consume the first exact-hour
 forced-GC evidence window; a failed digest remains a terminal Begin failure and
@@ -1091,7 +1106,8 @@ matching stop retries. Aggregation accepts exactly workers 0, 1, and 2 from one
 fence, requires the fixed 16-bucket latency schema, uses checked sums, and
 rejects missing/duplicate workers, overflow, stale sequence or uptime, and any
 monotonic counter/histogram/evidence regression before advancing its fixed
-three-worker baseline.
+three-worker baseline. Session teardown counters participate in the same
+regression and checked-sum rules.
 
 The standalone verdict reducer has the closed outcomes `pass`,
 `rehearsal_pass`, `passed_with_capacity_warning`, `product_failure`,

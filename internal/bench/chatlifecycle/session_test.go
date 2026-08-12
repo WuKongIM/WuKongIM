@@ -45,6 +45,9 @@ func TestSessionPoolLoginSyncExpiryAndFreshRelogin(t *testing.T) {
 	if expired := fixture.pool.Expire(fixture.clock.Now()); expired != 1 {
 		t.Fatalf("Expire = %d, want 1", expired)
 	}
+	if got := fixture.pool.Snapshot().CloseReasons.Expired; got != 1 {
+		t.Fatalf("expired close reasons = %d, want 1", got)
+	}
 	if fixture.pool.IsOnline(uid) || !fixture.factory.clients()[0].closed() {
 		t.Fatal("expired session retained online state or open socket")
 	}
@@ -193,7 +196,8 @@ func TestSessionPoolHeartbeatWriteFailureDetachesSession(t *testing.T) {
 		t.Fatal("heartbeat write failure retained session ownership")
 	}
 	snapshot := fixture.pool.Snapshot()
-	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
+	if snapshot.ReadErrors != 1 || snapshot.CloseReasons.HeartbeatFailed != 1 ||
+		fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("heartbeat write failure evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
 	}
 }
@@ -578,7 +582,8 @@ func TestSessionPoolUnexpectedReadExitIsBoundedHarnessEvidence(t *testing.T) {
 	}
 	<-drainDone
 	snapshot := fixture.pool.Snapshot()
-	if snapshot.ReadErrors != 1 || fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
+	if snapshot.ReadErrors != 1 || snapshot.CloseReasons.ReadFailed != 1 ||
+		fixture.verifier.EvidenceSnapshot().Classification != SyncClassificationHarnessInvalid {
 		t.Fatalf("unexpected read evidence = pool %+v verifier %+v", snapshot, fixture.verifier.EvidenceSnapshot())
 	}
 	if err := fixture.pool.Logout(uid); !errors.Is(err, errSessionOffline) {
@@ -631,6 +636,9 @@ func TestSessionPoolTerminalRemoteReadAtomicallyRemovesOnlineOwnership(t *testin
 	}
 	if got := fixture.verifier.EvidenceSnapshot().Classification; got != SyncClassificationProductFailure {
 		t.Fatalf("terminal remote read classification = %q, want product_failure", got)
+	}
+	if got := fixture.pool.Snapshot().CloseReasons.RemoteTerminal; got != 1 {
+		t.Fatalf("remote-terminal close reasons = %d, want 1", got)
 	}
 }
 
@@ -784,6 +792,9 @@ func TestSessionPoolStartsIndependentLoginsConcurrentlyWithinBound(t *testing.T)
 	}
 	if err := pool.CloseAll(); err != nil {
 		t.Fatalf("CloseAll: %v", err)
+	}
+	if got := pool.Snapshot().CloseReasons.GenerationStop; got != 2 {
+		t.Fatalf("generation-stop close reasons = %d, want 2", got)
 	}
 }
 

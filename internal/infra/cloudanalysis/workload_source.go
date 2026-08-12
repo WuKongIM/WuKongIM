@@ -62,6 +62,7 @@ var (
 
 type workloadSummarySource struct {
 	summaryPath string
+	statusPath  string
 }
 
 func newWorkloadSummarySource(reportDir string) *workloadSummarySource {
@@ -70,6 +71,7 @@ func newWorkloadSummarySource(reportDir string) *workloadSummarySource {
 	}
 	return &workloadSummarySource{
 		summaryPath: filepath.Join(filepath.Clean(reportDir), "diagnostic-summary.json"),
+		statusPath:  filepath.Join(filepath.Clean(reportDir), "diagnostic-status.json"),
 	}
 }
 
@@ -89,6 +91,15 @@ func (s *workloadSummarySource) inspect(ctx context.Context, runID string) (anal
 	}
 	file, err := os.Open(s.summaryPath)
 	if errors.Is(err, os.ErrNotExist) {
+		if live, liveErr := s.inspectLive(runID); liveErr != nil {
+			return analysis.SourceResult{}, liveErr
+		} else if live != nil {
+			return analysis.SourceResult{
+				Node: "sim", Source: "wkbench_diagnostic_status", Completeness: analysis.CompletenessPartial,
+				Warnings: []string{"final wkbench diagnostic summary is not available; bounded live load-generator diagnostics are shown"},
+				Data:     analysis.WorkloadInspection{RunID: runID, State: "in_progress", Live: live},
+			}, nil
+		}
 		return analysis.SourceResult{
 			Node: "sim", Source: "wkbench_diagnostic_summary", Completeness: analysis.CompletenessPartial,
 			Warnings: []string{"final wkbench diagnostic summary is not available; the workload may still be running or may have failed before reporting"},
@@ -106,6 +117,22 @@ func (s *workloadSummarySource) inspect(ctx context.Context, runID string) (anal
 	return analysis.SourceResult{
 		Node: "sim", Source: "wkbench_diagnostic_summary", Completeness: analysis.CompletenessComplete, Data: inspection,
 	}, nil
+}
+
+func (s *workloadSummarySource) inspectLive(runID string) (*analysis.WorkloadLiveStatus, error) {
+	file, err := os.Open(s.statusPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read workload live status: %w", err)
+	}
+	defer file.Close()
+	status, err := decodeWorkloadLiveStatus(io.LimitReader(file, maxWorkloadLiveStatusBytes+1), runID)
+	if err != nil {
+		return nil, err
+	}
+	return &status, nil
 }
 
 func decodeWorkloadSummary(reader io.Reader, expectedRunID string) (analysis.WorkloadInspection, error) {

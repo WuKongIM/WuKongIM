@@ -83,6 +83,7 @@ type EngineSnapshot struct {
 	ActiveSteps                int
 	Online                     int
 	LoginStarting              int
+	Closing                    int
 	TrafficReady               int
 	FactoryFailed              uint64
 	FactoryCanceled            uint64
@@ -131,6 +132,7 @@ type EngineSnapshot struct {
 	LoginSkipped               uint64
 	LoginReplacements          uint64
 	SessionsExpired            uint64
+	SessionCloseReasons        SessionCloseReasonSnapshot
 	RetryAttempts              uint64
 	FinalFailures              uint64
 	HarnessInvalid             uint64
@@ -3514,7 +3516,7 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 	snapshot := EngineSnapshot{
 		Running: running, Generation: e.generation, WorkerID: e.workerID, WorkerCount: e.workers,
 		OnlineTarget: e.onlineTarget, ActiveLoops: int(e.activeLoops.Load()), ActiveSteps: int(e.activeSteps.Load()),
-		Online: sessions.Online, LoginStarting: sessions.Starting, TrafficReady: sessions.TrafficReady,
+		Online: sessions.Online, LoginStarting: sessions.Starting, Closing: sessions.Closing, TrafficReady: sessions.TrafficReady,
 		FactoryFailed: sessions.FactoryFailed, FactoryCanceled: sessions.FactoryCanceled,
 		ConnectStarted: sessions.ConnectStarted, ConnectCompleted: sessions.ConnectCompleted,
 		ConnectFailed: sessions.ConnectFailed, ConnectCanceled: sessions.ConnectCanceled,
@@ -3538,9 +3540,9 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		LoginAdmittedNew: e.schedulerMetrics.admittedNew.Load(), LoginAdmittedReturning: e.schedulerMetrics.admittedReturning.Load(),
 		LoginCompletedNew: e.schedulerMetrics.completedNew.Load(), LoginCompletedReturning: e.schedulerMetrics.completedReturning.Load(),
 		LoginSkipped: e.schedulerMetrics.skipped.Load(), LoginReplacements: e.schedulerMetrics.replacements.Load(),
-		SessionsExpired: e.schedulerMetrics.expired.Load(),
-		RetryAttempts:   e.retryAttempts,
-		FinalFailures:   e.finalFailures, HarnessInvalid: e.harnessInvalid + e.commandSaturation.Load(),
+		SessionsExpired: e.schedulerMetrics.expired.Load(), SessionCloseReasons: sessions.CloseReasons,
+		RetryAttempts: e.retryAttempts,
+		FinalFailures: e.finalFailures, HarnessInvalid: e.harnessInvalid + e.commandSaturation.Load(),
 		CommandSaturation: e.commandSaturation.Load(), Classification: e.evidence.Snapshot().Classification,
 		CompletionQueueDepth: len(e.completions), CompletionQueueCapacity: cap(e.completions),
 	}

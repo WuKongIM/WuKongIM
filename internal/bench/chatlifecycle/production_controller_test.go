@@ -214,6 +214,11 @@ func TestProductionEvidenceControllerFreezesRehearsalPassWithoutFormalLongWindow
 	if err != nil || decision != CoordinatorCompleted {
 		t.Fatalf("rehearsal terminal decision = %q/%v", decision, err)
 	}
+	statusBody, err := os.ReadFile(filepath.Join(controller.OutputDir(), LiveDiagnosticStatusFile))
+	if err != nil || !strings.Contains(string(statusBody), LiveDiagnosticStatusSchemaV1) ||
+		!strings.Contains(string(statusBody), `"recent_events"`) {
+		t.Fatalf("live diagnostic status = %q/%v", statusBody, err)
+	}
 	final := productionControllerWorkerSnapshots(cfg, fence, 2, 2*time.Hour+time.Second, WorkerPhaseFinal)
 	if err := controller.Finalize(context.Background(), CoordinatorFinalCut{
 		Start: startCut, At: start.Add(2*time.Hour + time.Second), Decision: decision,
@@ -590,6 +595,9 @@ func productionControllerWorkerSnapshots(cfg Config, fence WorkerFence, sequence
 	snapshots := coordinatorSnapshotFixture(fence, sequence, uptime, 1)
 	for index := range snapshots {
 		snapshots[index].Phase = phase
+		snapshots[index].Sessions.Target = 1
+		snapshots[index].Sessions.Online = 1
+		snapshots[index].Sessions.TrafficReady = 1
 		snapshots[index].Messages.FirstAttempts = uint64(index + 1)
 		snapshots[index].Sync.Thresholds = LatencyThresholdCounters{
 			P99Limit: cfg.Thresholds.Latency.Sync.P99, P999Limit: cfg.Thresholds.Latency.Sync.P999,
