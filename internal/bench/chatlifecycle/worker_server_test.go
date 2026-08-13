@@ -860,6 +860,45 @@ func TestWorkerEngineGenerationFactoryComposesExistingEngineWithoutIO(t *testing
 	}
 }
 
+func TestWorkerEngineGenerationDrainFencesPlannedShutdown(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{WorkCapacity: 16, MaxWorkPerAdvance: 16})
+	ticker := newManualWorkerGenerationTicker()
+	generation := &engineWorkerGeneration{
+		engine: fixture.engine, verifier: fixture.verifier, evidence: fixture.evidence,
+		lifecycleSlots: mustInitialLifecycleSlotAssignment(t), onlineTarget: 0, trafficDemand: []uint64{0},
+		generation: 1, clock: fixture.clock,
+		newTicker: func(time.Duration) workerGenerationTicker { return ticker },
+		done:      make(chan error, 1),
+	}
+	if err := generation.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ticker.awaitReady(t)
+	added := make(chan error, 1)
+	if err := fixture.engine.enqueue(engineCommand{run: func() {
+		added <- fixture.engine.addActivity(&engineWork{due: fixture.clock.Now(), kind: engineWorkSend})
+	}}); err != nil {
+		t.Fatalf("enqueue pending activity: %v", err)
+	}
+	if err := <-added; err != nil {
+		t.Fatalf("add pending activity: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := generation.Drain(ctx); err != nil {
+		t.Fatalf("Drain: %v", err)
+	}
+	generation.Stop()
+	snapshot, err := generation.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if snapshot.Harness.Failures != 0 || snapshot.Harness.OfferedUnderdelivery != 0 ||
+		snapshot.Harness.PlannedCancellations != 1 || snapshot.Harness.Classification != "" {
+		t.Fatalf("planned terminal harness evidence = %+v", snapshot.Harness)
+	}
+}
+
 func TestEngineWorkerGenerationFormalSnapshotReservesBootstrapRelationshipWork(t *testing.T) {
 	t.Parallel()
 

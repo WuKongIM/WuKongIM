@@ -1499,7 +1499,7 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 	for {
 		drain := g.verifier.DrainSnapshot()
 		if drain.PendingUnfinished == 0 && drain.CorrelationOutstanding == 0 {
-			return nil
+			return g.engine.FencePlannedShutdown(ctx)
 		}
 		if _, err := g.engine.AdvanceContext(ctx, g.clock.Now()); err != nil {
 			return err
@@ -1616,6 +1616,7 @@ func (g *engineWorkerGeneration) workerSnapshot(ctx context.Context) (WorkerSnap
 		Harness: WorkerHarnessSnapshot{
 			Classification: evidence.Classification, Failures: engine.HarnessInvalid,
 			CommandSaturation: engine.CommandSaturation, OfferedUnderdelivery: engine.ActivityUnderDelivered,
+			PlannedCancellations: engine.ActivityPlannedCanceled,
 		},
 		Evidence: evidence,
 	}, nil

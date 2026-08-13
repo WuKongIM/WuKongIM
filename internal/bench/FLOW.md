@@ -159,6 +159,12 @@ non-formal local outcomes `clean`, `rate_failed`, `product_failure`,
 `storage_confounded`, `host_confounded`, or `insufficient_evidence`. It cannot
 emit or satisfy a rehearsal, formal Soak, or capacity verdict.
 
+An explicit worker stop establishes a planned-shutdown fence only after every
+admitted SEND and sampled correlation has drained. Scheduled activities that
+never crossed that fence are retained as `planned_cancellations` and remain
+neutral; runtime expiry, a failed drain, or an unexpected stop still records
+`offered_underdelivery` and harness-invalid evidence.
+
 A complete per-node storage cut must also contain nonzero measured physical
 commits, logical requests/records/bytes, request samples, and WAL input/output;
 the request result and lane partitions must each reconcile to the total request

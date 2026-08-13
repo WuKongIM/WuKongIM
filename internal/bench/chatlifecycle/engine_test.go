@@ -684,13 +684,16 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 		terminal      bool
 		future        bool
 		offered       bool
+		planned       bool
 		wantAbandoned uint64
 		wantCanceled  uint64
+		wantPlanned   uint64
 	}{
 		{name: "pending_is_closed", wantAbandoned: 1},
 		{name: "pending_preserves_terminal_product", terminal: true, wantAbandoned: 1},
 		{name: "future_unoffered_is_cleanly_canceled", future: true, wantCanceled: 1},
 		{name: "future_already_offered_is_under_delivered", future: true, offered: true, wantAbandoned: 1},
+		{name: "planned_shutdown_cancels_pending_after_drain", planned: true, wantPlanned: 1},
 		{name: "drained_is_clean", drain: true},
 	} {
 		test := test
@@ -781,6 +784,11 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 					t.Fatalf("terminal classification before Stop = %q", got)
 				}
 			}
+			if test.planned {
+				if err := fixture.engine.FencePlannedShutdown(context.Background()); err != nil {
+					t.Fatalf("FencePlannedShutdown: %v", err)
+				}
+			}
 			if err := fixture.engine.Stop(); err != nil {
 				t.Fatalf("Stop: %v", err)
 			}
@@ -796,7 +804,9 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 			if test.terminal {
 				wantClassification = SyncClassificationProductFailure
 			}
-			if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != test.wantAbandoned || snapshot.ActivityFutureCanceled != test.wantCanceled || snapshot.HarnessInvalid != wantHarness || snapshot.Classification != wantClassification {
+			if snapshot.ActivityCurrent != 0 || snapshot.ActivityUnderDelivered != test.wantAbandoned ||
+				snapshot.ActivityFutureCanceled != test.wantCanceled || snapshot.ActivityPlannedCanceled != test.wantPlanned ||
+				snapshot.HarnessInvalid != wantHarness || snapshot.Classification != wantClassification {
 				t.Fatalf("stopped mandatory activity accounting = %+v", snapshot)
 			}
 			assertUnderDeliveryEvidence(t, fixture.evidence.Snapshot(), wantHarness)
@@ -805,6 +815,22 @@ func TestEngineStopAccountsForPendingMandatoryActivityWithoutPollutingDrainedSto
 			}
 		})
 	}
+}
+
+func TestEnginePlannedShutdownFenceRejectsUnfinishedSend(t *testing.T) {
+	fixture := newEngineTestFixture(t, engineTestLimits{})
+	if err := fixture.engine.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer fixture.engine.Stop()
+	logical := mustLogicalSend(t, fixture.traffic, 0, 1, TrafficPerson, "sender", "recipient")
+	if err := fixture.verifier.RegisterSend(logical, fixture.clock.Now()); err != nil {
+		t.Fatalf("RegisterSend: %v", err)
+	}
+	if err := fixture.engine.FencePlannedShutdown(context.Background()); !errors.Is(err, errEngineNotDrained) {
+		t.Fatalf("FencePlannedShutdown error = %v, want %v", err, errEngineNotDrained)
+	}
+	assertVerificationCode(t, fixture.verifier.CompleteTerminal(logical, TerminalSendSessionClosed), FailureCodeTerminalSend)
 }
 
 func TestEngineRevisitRequiresExplicitColdRuntimeEvidence(t *testing.T) {

@@ -38,6 +38,7 @@ var (
 	errEngineConfig     = errors.New("chat lifecycle engine: configuration is invalid")
 	errEngineRunning    = errors.New("chat lifecycle engine: already running")
 	errEngineNotRunning = errors.New("chat lifecycle engine: not running")
+	errEngineNotDrained = errors.New("chat lifecycle engine: admitted work is not drained")
 	errSchedulerClock   = errors.New("chat lifecycle scheduler: clock moved backwards or login credit overflowed")
 )
 
@@ -106,6 +107,7 @@ type EngineSnapshot struct {
 	ActivityCurrent            int
 	ActivityUnderDelivered     uint64
 	ActivityFutureCanceled     uint64
+	ActivityPlannedCanceled    uint64
 	QueuePeak                  int
 	QueueCapacity              int
 	RetryQueueDepth            int
@@ -777,6 +779,8 @@ type Engine struct {
 	harnessInvalid             uint64
 	activityUnderDelivered     uint64
 	activityFutureCanceled     uint64
+	activityPlannedCanceled    uint64
+	plannedShutdown            bool
 	metaCreatePersonByHashSlot MetaCreateHashSlotCounts
 	now                        time.Time
 }
@@ -936,6 +940,8 @@ func (e *Engine) startGenerationLocked(ctx context.Context, nextGeneration uint6
 	e.harnessInvalid = 0
 	e.activityUnderDelivered = 0
 	e.activityFutureCanceled = 0
+	e.activityPlannedCanceled = 0
+	e.plannedShutdown = false
 	e.bootstrapActivityRefresh = false
 	e.bootstrapActivityBarrier = time.Time{}
 	e.bootstrapActivityOrigin = time.Time{}
@@ -2135,6 +2141,53 @@ func (e *Engine) ScheduleRateContext(ctx context.Context, rate, burst uint64) er
 			return
 		}
 		response <- e.generator.allocator.ScheduleRate(rate, burst)
+	}}); err != nil {
+		return err
+	}
+	select {
+	case err := <-response:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-generationCtx.Done():
+		return errEngineNotRunning
+	}
+}
+
+// FencePlannedShutdown marks the post-drain boundary after every admitted
+// SEND has reached a terminal correlation outcome. Scheduled activities that
+// never crossed admission become neutral planned cancellations at Stop.
+func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
+	if e == nil {
+		return errEngineConfig
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	e.lifecycleMu.Lock()
+	generation := e.generation
+	generationCtx := e.generationCtx
+	e.lifecycleMu.Unlock()
+	response := make(chan error, 1)
+	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
+		e.drainCompletions()
+		drain := e.verifier.DrainSnapshot()
+		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 || e.retries.Snapshot().Depth != 0 {
+			response <- errEngineNotDrained
+			return
+		}
+		e.lifecycleMu.Lock()
+		validGeneration := e.running && e.generation == generation && e.generationCtx == generationCtx
+		e.lifecycleMu.Unlock()
+		if !validGeneration {
+			response <- errEngineNotRunning
+			return
+		}
+		e.plannedShutdown = true
+		response <- nil
 	}}); err != nil {
 		return err
 	}
@@ -3674,6 +3727,10 @@ func (e *Engine) cleanupPendingActivities() {
 	if len(e.activity) == 0 {
 		return
 	}
+	if e.plannedShutdown {
+		e.activityPlannedCanceled += uint64(len(e.activity))
+		return
+	}
 	var underDelivered, futureCanceled uint64
 	for _, activity := range e.activity {
 		if activity.offered || !activity.due.After(e.now) {
@@ -3751,9 +3808,10 @@ func (e *Engine) buildSnapshotContext(ctx context.Context, running bool) (Engine
 		ConversationSyncThresholds: sessions.ConversationSyncThresholds,
 		MetaCreatePersonByHashSlot: e.metaCreatePersonByHashSlot,
 		QueueCurrent:               e.queuedSends, FutureCurrent: e.futureCount(), ActivityCurrent: len(e.activity),
-		ActivityUnderDelivered: e.activityUnderDelivered,
-		ActivityFutureCanceled: e.activityFutureCanceled,
-		QueuePeak:              e.workPeak, QueueCapacity: e.workCapacity,
+		ActivityUnderDelivered:  e.activityUnderDelivered,
+		ActivityFutureCanceled:  e.activityFutureCanceled,
+		ActivityPlannedCanceled: e.activityPlannedCanceled,
+		QueuePeak:               e.workPeak, QueueCapacity: e.workCapacity,
 		RetryQueueDepth: retries.Depth, RetryQueuePeak: retries.Peak, RetryQueueCapacity: e.retryCapacity,
 		InflightCurrent: len(e.inflight), InflightPeak: e.inflightPeak, InflightCapacity: e.inflightCapacity,
 		TransportQueueDepth: sessions.QueueDepth, TransportQueueCapacity: sessions.QueueCapacity,

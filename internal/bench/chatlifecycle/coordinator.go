@@ -2518,6 +2518,7 @@ func coordinatorSnapshotRegressed(
 		current.Correlation.DuplicateCompletions, current.Correlation.ConflictingCompletions,
 		current.Correlation.UnknownAcknowledgments,
 		current.Harness.Failures, current.Harness.CommandSaturation, current.Harness.OfferedUnderdelivery,
+		current.Harness.PlannedCancellations,
 		current.Queues.TransportRejected,
 	}
 	previousCounters := []uint64{
@@ -2552,6 +2553,7 @@ func coordinatorSnapshotRegressed(
 		previous.Correlation.DuplicateCompletions, previous.Correlation.ConflictingCompletions,
 		previous.Correlation.UnknownAcknowledgments,
 		previous.Harness.Failures, previous.Harness.CommandSaturation, previous.Harness.OfferedUnderdelivery,
+		previous.Harness.PlannedCancellations,
 		previous.Queues.TransportRejected,
 	}
 	for index := range currentCounters {
@@ -2818,9 +2820,10 @@ func addCoordinatorQueues(total *WorkerQueueSnapshot, value WorkerQueueSnapshot)
 
 func addCoordinatorHarness(total *WorkerHarnessSnapshot, value WorkerHarnessSnapshot) error {
 	total.Classification = mergeSyncClassification(total.Classification, value.Classification)
-	values := [3]struct{ destination, source *uint64 }{
+	values := [4]struct{ destination, source *uint64 }{
 		{&total.Failures, &value.Failures}, {&total.CommandSaturation, &value.CommandSaturation},
 		{&total.OfferedUnderdelivery, &value.OfferedUnderdelivery},
+		{&total.PlannedCancellations, &value.PlannedCancellations},
 	}
 	if err := addCoordinatorUint64Fields(values[:]); err != nil {
 		return err

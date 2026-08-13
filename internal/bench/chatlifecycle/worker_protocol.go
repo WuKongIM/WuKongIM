@@ -377,8 +377,11 @@ type WorkerHarnessSnapshot struct {
 	Failures             uint64             `json:"failures"`
 	CommandSaturation    uint64             `json:"command_saturation"`
 	OfferedUnderdelivery uint64             `json:"offered_underdelivery"`
-	DrainTimedOut        bool               `json:"drain_timed_out"`
-	UnexpectedExit       bool               `json:"unexpected_exit"`
+	// PlannedCancellations counts scheduled activities canceled only after the
+	// admitted SEND/SENDACK drain fence closed successfully.
+	PlannedCancellations uint64 `json:"planned_cancellations"`
+	DrainTimedOut        bool   `json:"drain_timed_out"`
+	UnexpectedExit       bool   `json:"unexpected_exit"`
 }
 
 // WorkerSnapshot is the complete bounded, identity-free worker evidence response.
