@@ -137,6 +137,38 @@ the four-host cloud deployment to serve one exact filesystem's
 `/healthz`. A formal run may instead use an existing node exporter with the
 same exact device/mountpoint contract.
 
+When `--physical-io` is enabled, `wkbench host-metrics` also publishes the
+versioned `wkbench_host_block_io_*` contract for the physical device backing
+the selected path. Linux derives read/write IOPS, bytes, utilization, and
+service time from monotonic sysfs counters. macOS resolves the APFS physical
+store and publishes the total IOPS and bytes exposed by `iostat`; unsupported
+utilization, service-time, or read/write splits remain explicit availability
+zeros and have no fabricated value series. Unsupported platforms or ambiguous
+multi-device mappings use the same unavailable contract.
+
+The native three-process local lifecycle wrapper also feeds each host-metrics
+endpoint a closed, atomically replaced process textfile. It samples the exact
+service, worker, coordinator, and host-metrics PIDs as CPU jiffies and RSS;
+the local-step result fails closed when a host/process round or worker-queue
+cut is missing.
+
+`wkbench report local-chat-lifecycle-step` consumes one post-warmup
+qualification report, one drained terminal report, complete normalized
+storage and host-I/O evidence, and a closed process-continuity cut. It emits only the
+non-formal local outcomes `clean`, `rate_failed`, `product_failure`,
+`storage_confounded`, `host_confounded`, or `insufficient_evidence`. It cannot
+emit or satisfy a rehearsal, formal Soak, or capacity verdict.
+
+A complete per-node storage cut must also contain nonzero measured physical
+commits, logical requests/records/bytes, request samples, and WAL input/output;
+the request result and lane partitions must each reconcile to the total request
+count. Present-but-static or unrecognized-label metrics fail closed.
+
+The normalized storage row deliberately joins two bounded label domains:
+commit-coordinator families use `store="message"`, while physical Pebble/WAL,
+flush, and compaction families use `store="channel_log"`. Treating them as one
+Prometheus store label makes real evidence permanently incomplete.
+
 ## Coordinator Run Flow
 
 ```text

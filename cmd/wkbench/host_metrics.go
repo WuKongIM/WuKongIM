@@ -30,6 +30,7 @@ type hostMetricsConfig struct {
 	systemPath         string
 	watchPath          string
 	processMetricsPath string
+	physicalIO         bool
 }
 
 type hostMetricsHandler struct {
@@ -39,6 +40,7 @@ type hostMetricsHandler struct {
 	systemPath         string
 	watchPath          string
 	processMetricsPath string
+	deviceIO           hostDeviceIOSampler
 
 	mu             sync.Mutex
 	previousCPU    hostCPUTotals
@@ -79,6 +81,7 @@ func newHostMetricsCommand(stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&cfg.systemPath, "system-path", "/", "system filesystem path used by the five-percent safety guard")
 	cmd.Flags().StringVar(&cfg.watchPath, "watch-path", "", "optional directory whose bounded size is exported")
 	cmd.Flags().StringVar(&cfg.processMetricsPath, "process-metrics-path", "", "optional trusted process textfile forwarded as bounded evidence")
+	cmd.Flags().BoolVar(&cfg.physicalIO, "physical-io", true, "sample the physical block device when supported")
 	return cmd
 }
 
@@ -124,6 +127,11 @@ func newHostMetricsHandler(cfg hostMetricsConfig) (http.Handler, error) {
 		path: absolute, mountpoint: cfg.mountpoint, device: cfg.device, systemPath: systemAbsolute,
 		watchPath: watchAbsolute, processMetricsPath: processMetricsAbsolute,
 	}
+	if cfg.physicalIO {
+		handler.deviceIO = newHostDeviceIOSampler(absolute)
+	} else {
+		handler.deviceIO = unavailableHostDeviceIOSampler{}
+	}
 	if totals, ok := readHostCPUTotals(); ok {
 		handler.previousCPU, handler.previousCPUSet = totals, true
 	}
@@ -166,6 +174,9 @@ func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http
 		if transmitted, ok := hostNetworkTransmitBytes(); ok {
 			_, _ = fmt.Fprintf(writer, "wkbench_host_network_transmit_bytes %d\n", transmitted)
 		}
+		if h.deviceIO != nil {
+			writeHostDeviceIOMetrics(writer, h.deviceIO.Sample())
+		}
 		if bytes, ok := h.watchedBytes(time.Now()); ok {
 			_, _ = fmt.Fprintf(writer, "wkbench_host_watched_directory_bytes %d\n", bytes)
 		}
@@ -180,19 +191,72 @@ func (h *hostMetricsHandler) ServeHTTP(writer http.ResponseWriter, request *http
 	}
 }
 
+func writeHostDeviceIOMetrics(writer io.Writer, sample hostDeviceIOSample) {
+	device := sample.Device
+	if strings.TrimSpace(device) == "" || strings.ContainsAny(device, "\r\n") {
+		device = "unavailable"
+	}
+	deviceLabel := "physical_device=" + strconv.Quote(device)
+	_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_schema_info{%s,version=\"v1\"} 1\n", deviceLabel)
+	availability := []struct {
+		field string
+		value bool
+	}{
+		{"iops", sample.IOPSAvailable},
+		{"bytes_per_second", sample.BytesPerSecondAvailable},
+		{"utilization", sample.UtilizationAvailable},
+		{"service_time", sample.ServiceTimeAvailable},
+		{"read_write_split", sample.ReadWriteSplitAvailable},
+	}
+	for _, entry := range availability {
+		value := 0
+		if entry.value {
+			value = 1
+		}
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_available{field=%s,%s} %d\n", strconv.Quote(entry.field), deviceLabel, value)
+	}
+	if sample.IOPSAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"total\",%s} %.6f\n", deviceLabel, sample.TotalIOPS)
+		if sample.ReadWriteSplitAvailable {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"read\",%s} %.6f\n", deviceLabel, sample.ReadIOPS)
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_iops{operation=\"write\",%s} %.6f\n", deviceLabel, sample.WriteIOPS)
+		}
+	}
+	if sample.BytesPerSecondAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"total\",%s} %.6f\n", deviceLabel, sample.TotalBytesPerSecond)
+		if sample.ReadWriteSplitAvailable {
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"read\",%s} %.6f\n", deviceLabel, sample.ReadBytesPerSecond)
+			_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_bytes_per_second{operation=\"write\",%s} %.6f\n", deviceLabel, sample.WriteBytesPerSecond)
+		}
+	}
+	if sample.UtilizationAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_utilization_percent{%s} %.6f\n", deviceLabel, sample.UtilizationPercent)
+	}
+	if sample.ServiceTimeAvailable {
+		_, _ = fmt.Fprintf(writer, "wkbench_host_block_io_service_time_milliseconds{%s} %.6f\n", deviceLabel, sample.ServiceTimeMilliseconds)
+	}
+}
+
 func readBoundedProcessMetrics(path string, now time.Time) ([]byte, error) {
 	if path == "" {
 		return nil, nil
 	}
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() < 0 || info.Size() > 256<<10 {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, errHostMetricsConfig
+	}
+	defer file.Close()
+	info, statErr := file.Stat()
+	linkInfo, linkErr := os.Lstat(path)
+	if statErr != nil || linkErr != nil || !info.Mode().IsRegular() || !linkInfo.Mode().IsRegular() ||
+		linkInfo.Mode()&os.ModeSymlink != 0 || !os.SameFile(info, linkInfo) || info.Size() < 0 || info.Size() > 256<<10 {
 		return nil, errHostMetricsConfig
 	}
 	age := now.Sub(info.ModTime())
 	if now.IsZero() || age < -5*time.Second || age > processMetricsFreshnessWindow {
 		return nil, errHostMetricsConfig
 	}
-	body, err := os.ReadFile(path)
+	body, err := io.ReadAll(io.LimitReader(file, (256<<10)+1))
 	if err != nil || int64(len(body)) != info.Size() || strings.ContainsRune(string(body), '\r') {
 		return nil, errHostMetricsConfig
 	}

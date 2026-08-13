@@ -94,8 +94,8 @@ func assertChatLifecyclePIDsExited(t *testing.T, pidDir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 11 {
-		t.Fatalf("PID files = %d, want 11", len(entries))
+	if len(entries) != 12 {
+		t.Fatalf("PID files = %d, want 12", len(entries))
 	}
 	for _, entry := range entries {
 		encoded, err := os.ReadFile(filepath.Join(pidDir, entry.Name()))

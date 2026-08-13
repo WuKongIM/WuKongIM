@@ -1,6 +1,8 @@
 package scripts_test
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,258 @@ func TestWukongIMThreeNode10kBenchScriptSetsEvidenceDefaults(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Fatalf("10k activate script missing default %q", want)
 		}
+	}
+}
+
+func TestStorageMetricsSummaryReportsCommitAndPebbleEvidence(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	before := filepath.Join(dir, "before.prom")
+	sample := filepath.Join(dir, "sample.prom")
+	after := filepath.Join(dir, "after.prom")
+	writeStorageMetricsFixture(t, before, storageMetricsFixture{
+		queue: 2, batches: 10, requests: 40, records: 60, bytes: 6000,
+		collectSum: .01, buildSum: .02, commitSum: .05, publishSum: .01, totalSum: .09,
+		requestOKCount: 40, requestOKSum: .20, requestTimeoutCount: 1, requestTimeoutSum: .10,
+		walIn: 1000, walWritten: 2000, flushBytes: 300, flushCount: 3,
+		compactionRead: 400, compactionWritten: 500, compactionCount: 4,
+		sstable: 10000, debt: 100, compactions: 1, readAmplification: 4, diskUsage: 100,
+	})
+	writeStorageMetricsFixture(t, sample, storageMetricsFixture{
+		queue: 9, batches: 15, requests: 65, records: 110, bytes: 11000,
+		collectSum: .02, buildSum: .035, commitSum: .09, publishSum: .02, totalSum: .165,
+		requestOKCount: 65, requestOKSum: .35, requestTimeoutCount: 1, requestTimeoutSum: .10,
+		walIn: 3000, walWritten: 6000, flushBytes: 600, flushCount: 5,
+		compactionRead: 900, compactionWritten: 1200, compactionCount: 6,
+		sstable: 12000, debt: 900, compactions: 3, readAmplification: 7, diskUsage: 130,
+	})
+	writeStorageMetricsFixture(t, after, storageMetricsFixture{
+		queue: 0, batches: 20, requests: 90, records: 160, bytes: 16000,
+		collectSum: .03, buildSum: .05, commitSum: .13, publishSum: .03, totalSum: .24,
+		requestOKCount: 89, requestOKSum: .50, requestTimeoutCount: 2, requestTimeoutSum: .15,
+		requestCanceledCount: 1, requestCanceledSum: .01, requestErrorCount: 1, requestErrorSum: .02,
+		walIn: 5000, walWritten: 12000, flushBytes: 1000, flushCount: 7,
+		compactionRead: 2000, compactionWritten: 3000, compactionCount: 9,
+		sstable: 11000, debt: 500, compactions: 2, readAmplification: 6, diskUsage: 125,
+	})
+
+	command := exec.Command("awk", "-v", "tag=001000", "-v", "node=node-1", "-f",
+		filepath.Join(root, "scripts", "storage-metrics-summary.awk"), before, sample, after)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("storage summary failed: %v\n%s", err, output)
+	}
+	want := "001000\tnode-1\tcomplete\t9\t10\t50\t100\t10000\t5.000000\t10.000000\t2.000000\t3.000000\t8.000000\t2.000000\t15.000000\t52\t7.307692\t49\t6.122449\t1\t50.000000\t1\t10.000000\t1\t20.000000\t52\t7.307692\t0\t0.000000\t0\t0.000000\t4000\t10000\t2.500000\t700\t4\t1600\t2500\t5\t12000\t900\t3\t7\t130\n"
+	if string(output) != want {
+		t.Fatalf("storage summary:\n%s\nwant:\n%s", output, want)
+	}
+}
+
+func TestStorageMetricsSummaryFailsClosedOnMissingOrResetCounters(t *testing.T) {
+	root := repoRoot(t)
+	script := filepath.Join(root, "scripts", "storage-metrics-summary.awk")
+	base := storageMetricsFixture{
+		queue: 1, batches: 10, requests: 20, records: 30, bytes: 3000,
+		collectSum: .01, buildSum: .02, commitSum: .03, publishSum: .01, totalSum: .07,
+		requestOKCount: 20, requestOKSum: .10,
+		walIn: 1000, walWritten: 1500, flushBytes: 200, flushCount: 2,
+		compactionRead: 300, compactionWritten: 400, compactionCount: 3,
+		sstable: 5000, debt: 100, compactions: 1, readAmplification: 4, diskUsage: 6000,
+	}
+	after := base
+	after.batches, after.requests, after.records, after.bytes = 20, 40, 60, 6000
+	after.collectSum, after.buildSum, after.commitSum, after.publishSum, after.totalSum = .02, .04, .06, .02, .14
+	after.requestOKCount, after.requestOKSum = 40, .20
+	after.walIn, after.walWritten = 2000, 3000
+	after.flushBytes, after.flushCount = 400, 4
+	after.compactionRead, after.compactionWritten, after.compactionCount = 600, 800, 6
+
+	t.Run("optional failure series stay zero", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		writeStorageMetricsFixture(t, afterPath, after)
+		for _, path := range []string{beforePath, afterPath} {
+			body := readFile(t, path)
+			lines := strings.Split(body, "\n")
+			kept := lines[:0]
+			for _, line := range lines {
+				if strings.Contains(line, `result="timeout"`) || strings.Contains(line, `result="canceled"`) || strings.Contains(line, `result="err"`) {
+					continue
+				}
+				kept = append(kept, line)
+			}
+			if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+		if fields[2] != "complete" || fields[19] != "0" || fields[21] != "0" || fields[23] != "0" {
+			t.Fatalf("optional failure evidence = %q", output)
+		}
+	})
+
+	t.Run("required metric missing", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		writeStorageMetricsFixture(t, afterPath, after)
+		body := strings.ReplaceAll(readFile(t, afterPath), "wukongim_storage_pebble_wal_bytes_written{store=\"channel_log\"} 3000\n", "")
+		if err := os.WriteFile(afterPath, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fields := strings.Split(strings.TrimSpace(string(output)), "\t"); fields[2] != "missing" {
+			t.Fatalf("missing evidence = %q", output)
+		}
+	})
+
+	t.Run("wrong pebble store label", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		writeStorageMetricsFixture(t, afterPath, after)
+		for _, path := range []string{beforePath, afterPath} {
+			body := strings.ReplaceAll(readFile(t, path), `store="channel_log"`, `store="message"`)
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fields := strings.Split(strings.TrimSpace(string(output)), "\t"); fields[2] != "missing" {
+			t.Fatalf("wrong store evidence = %q", output)
+		}
+	})
+
+	t.Run("unknown request lane", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		writeStorageMetricsFixture(t, afterPath, after)
+		for _, path := range []string{beforePath, afterPath} {
+			body := strings.ReplaceAll(readFile(t, path), `lane="leader_append"`, `lane="unknown"`)
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fields := strings.Split(strings.TrimSpace(string(output)), "\t"); fields[2] != "missing" {
+			t.Fatalf("unknown lane evidence = %q", output)
+		}
+	})
+
+	t.Run("counter reset", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		reset := after
+		reset.walIn = 10
+		writeStorageMetricsFixture(t, afterPath, reset)
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fields := strings.Split(strings.TrimSpace(string(output)), "\t"); fields[2] != "counter_reset" {
+			t.Fatalf("reset evidence = %q", output)
+		}
+	})
+}
+
+func TestWukongIMBenchScriptsPublishStorageEvidence(t *testing.T) {
+	root := repoRoot(t)
+	for _, path := range []string{
+		"scripts/bench-wukongim-single-node-1000ch.sh",
+		"scripts/bench-wukongim-three-nodes-1000ch.sh",
+	} {
+		t.Run(path, func(t *testing.T) {
+			script := readFile(t, filepath.Join(root, path))
+			for _, want := range []string{
+				"storage_metrics_summary()",
+				`storage-metrics-summary.awk`,
+				`storage_metrics_summary.tsv`,
+				`storage_metrics_summary "$tag"`,
+				`-v header=1`,
+				`evidence`,
+			} {
+				if !strings.Contains(script, want) {
+					t.Fatalf("benchmark script missing storage evidence contract %q", want)
+				}
+			}
+		})
+	}
+}
+
+type storageMetricsFixture struct {
+	queue, batches, requests, records, bytes                                     float64
+	collectSum, buildSum, commitSum, publishSum, totalSum                        float64
+	requestOKCount, requestOKSum, requestTimeoutCount, requestTimeoutSum         float64
+	requestCanceledCount, requestCanceledSum, requestErrorCount, requestErrorSum float64
+	walIn, walWritten, flushBytes, flushCount                                    float64
+	compactionRead, compactionWritten, compactionCount                           float64
+	sstable, debt, compactions, readAmplification, diskUsage                     float64
+}
+
+func writeStorageMetricsFixture(t *testing.T, path string, f storageMetricsFixture) {
+	t.Helper()
+	body := strings.TrimSpace(fmt.Sprintf(`
+wukongim_storage_commit_queue_depth{store="message"} %g
+wukongim_storage_commit_batch_requests_count{store="message"} %g
+wukongim_storage_commit_batch_requests_sum{store="message"} %g
+wukongim_storage_commit_batch_records_sum{store="message"} %g
+wukongim_storage_commit_batch_bytes_sum{store="message"} %g
+wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="collect",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="collect",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="build",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="build",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="commit",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="commit",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="publish",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="publish",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_count{store="message",stage="total",result="ok"} %g
+wukongim_storage_commit_batch_duration_seconds_sum{store="message",stage="total",result="ok"} %g
+wukongim_storage_commit_request_duration_seconds_count{store="message",lane="leader_append",result="ok"} %g
+wukongim_storage_commit_request_duration_seconds_sum{store="message",lane="leader_append",result="ok"} %g
+wukongim_storage_commit_request_duration_seconds_count{store="message",lane="leader_append",result="timeout"} %g
+wukongim_storage_commit_request_duration_seconds_sum{store="message",lane="leader_append",result="timeout"} %g
+wukongim_storage_commit_request_duration_seconds_count{store="message",lane="leader_append",result="canceled"} %g
+wukongim_storage_commit_request_duration_seconds_sum{store="message",lane="leader_append",result="canceled"} %g
+wukongim_storage_commit_request_duration_seconds_count{store="message",lane="leader_append",result="err"} %g
+wukongim_storage_commit_request_duration_seconds_sum{store="message",lane="leader_append",result="err"} %g
+wukongim_storage_pebble_wal_bytes_in{store="channel_log"} %g
+wukongim_storage_pebble_wal_bytes_written{store="channel_log"} %g
+wukongim_storage_pebble_flush_bytes_written{store="channel_log"} %g
+wukongim_storage_pebble_flush_count{store="channel_log"} %g
+wukongim_storage_pebble_compaction_bytes_read{store="channel_log"} %g
+wukongim_storage_pebble_compaction_bytes_written{store="channel_log"} %g
+wukongim_storage_pebble_compaction_count{store="channel_log"} %g
+wukongim_storage_pebble_sstable_size_bytes{store="channel_log"} %g
+wukongim_storage_pebble_compaction_estimated_debt_bytes{store="channel_log"} %g
+wukongim_storage_pebble_compactions_in_progress{store="channel_log"} %g
+wukongim_storage_pebble_read_amplification{store="channel_log"} %g
+wukongim_storage_pebble_disk_usage_bytes{store="channel_log"} %g`,
+		f.queue, f.batches, f.requests, f.records, f.bytes,
+		f.batches, f.collectSum, f.batches, f.buildSum, f.batches, f.commitSum,
+		f.batches, f.publishSum, f.batches, f.totalSum,
+		f.requestOKCount, f.requestOKSum, f.requestTimeoutCount, f.requestTimeoutSum,
+		f.requestCanceledCount, f.requestCanceledSum, f.requestErrorCount, f.requestErrorSum,
+		f.walIn, f.walWritten, f.flushBytes, f.flushCount,
+		f.compactionRead, f.compactionWritten, f.compactionCount,
+		f.sstable, f.debt, f.compactions, f.readAmplification, f.diskUsage)) + "\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -192,6 +446,45 @@ func TestSingleNodeBenchRuntimeSamplerRemainsParentOwned(t *testing.T) {
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("single-node runtime sampler missing parent-owned lifecycle %q", want)
+		}
+	}
+}
+
+func TestSingleNodeBenchUsesReviewedLocalThroughputBaseline(t *testing.T) {
+	script := readFile(t, filepath.Join(repoRoot(t), "scripts", "bench-wukongim-single-node-1000ch.sh"))
+	for _, want := range []string{
+		`QPS_LIST="${WK_BENCH_SINGLE_NODE_QPS:-250,500,750,1000}"`,
+		`USERS="${WK_BENCH_USERS:-2500}"`,
+		`CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"`,
+		`DURATION="${WK_BENCH_DURATION:-5m}"`,
+		`WARMUP="${WK_BENCH_WARMUP:-60s}"`,
+		`COOLDOWN="${WK_BENCH_COOLDOWN:-90s}"`,
+		`WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"`,
+		`WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-256}"`,
+		`WK_CLUSTER_SLOT_REPLICA_N=1`,
+		`WK_CLUSTER_CHANNEL_REPLICA_N=1`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"`,
+		`WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"`,
+		`MINIMUM_FREE_PERCENT="${WK_BENCH_MINIMUM_FREE_PERCENT:-10}"`,
+		`storage_confounded`,
+		`host_confounded`,
+		`local-baseline.json`,
+		`online_users=$USERS`,
+		`send_concurrency=$CONCURRENCY`,
+		`logical_slot_groups=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}`,
+		`hash_slots=${WK_CLUSTER_HASH_SLOT_COUNT:-256}`,
+		`objectives:`,
+		`ingress_qps: ${qps}/s`,
+		`workload_scheduler_planned_total`,
+		`scheduler_accounting`,
+		`start_host_metrics`,
+		`host-io-summary.awk`,
+		`host_io_summary.tsv`,
+		`write_local_artifact_checksums`,
+		`authorizes_three_node_diagnostic`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("single-node baseline missing reviewed contract %q", want)
 		}
 	}
 }

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="${WK_BENCH_SINGLE_NODE_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
 
-QPS_LIST="${WK_BENCH_SINGLE_NODE_QPS:-1000,2000,2400,2490,2500,2600,2800,3000}"
+QPS_LIST="${WK_BENCH_SINGLE_NODE_QPS:-250,500,750,1000}"
 OUT_DIR="${WK_BENCH_SINGLE_NODE_OUT_DIR:-$ROOT_DIR/docs/development/perf-runs/${TIMESTAMP}-single-node-1000ch}"
 WK_BENCH_BIN="${WK_BENCH_BIN:-$ROOT_DIR/data/wkbench-test}"
 WORKER_ADDR="${WK_BENCH_WORKER_ADDR:-http://127.0.0.1:19130}"
@@ -16,13 +16,13 @@ START_SCRIPT="${WK_BENCH_SINGLE_NODE_START_SCRIPT:-$ROOT_DIR/scripts/start-wukon
 READY_TIMEOUT="${WK_BENCH_SINGLE_NODE_READY_TIMEOUT:-90}"
 
 CHANNELS="${WK_BENCH_CHANNELS:-1000}"
-USERS="${WK_BENCH_USERS:-4096}"
+USERS="${WK_BENCH_USERS:-2500}"
 GROUP_MEMBERS="${WK_BENCH_GROUP_MEMBERS:-10}"
 CONCURRENCY="${WK_BENCH_CONCURRENCY:-2800}"
 PAYLOAD_BYTES="${WK_BENCH_PAYLOAD_BYTES:-128}"
-DURATION="${WK_BENCH_DURATION:-15s}"
-WARMUP="${WK_BENCH_WARMUP:-5s}"
-COOLDOWN="${WK_BENCH_COOLDOWN:-2s}"
+DURATION="${WK_BENCH_DURATION:-5m}"
+WARMUP="${WK_BENCH_WARMUP:-60s}"
+COOLDOWN="${WK_BENCH_COOLDOWN:-90s}"
 STABLE_P99="${WK_BENCH_STABLE_P99:-400ms}"
 ACTUAL_QPS_MIN_RATIO="${WK_BENCH_ACTUAL_QPS_MIN_RATIO:-0.90}"
 ACK_TIMEOUT="${WK_BENCH_ACK_TIMEOUT:-15s}"
@@ -33,6 +33,10 @@ SENDER_PICK="${WK_BENCH_SENDER_PICK:-round_robin}"
 PHASE_POLL_TIMEOUT="${WK_BENCH_PHASE_POLL_TIMEOUT:-30s}"
 RUNTIME_POOL_SAMPLE_INTERVAL="${WK_BENCH_RUNTIME_POOL_SAMPLE_INTERVAL:-1}"
 RESOURCE_SAMPLE_INTERVAL="${WK_BENCH_RESOURCE_SAMPLE_INTERVAL:-1}"
+MINIMUM_FREE_PERCENT="${WK_BENCH_MINIMUM_FREE_PERCENT:-10}"
+HOST_METRICS_LISTEN="${WK_BENCH_SINGLE_NODE_HOST_METRICS_LISTEN:-127.0.0.1:19131}"
+HOST_METRICS_ADDR="${WK_BENCH_SINGLE_NODE_HOST_METRICS_ADDR:-http://$HOST_METRICS_LISTEN}"
+SINGLE_NODE_DATA_DIR="${WK_WUKONGIM_SINGLE_NODE_DATA_DIR:-$ROOT_DIR/data/wukongim-single-node-data}"
 
 API_ADDRS="${WK_BENCH_API_ADDRS:-http://127.0.0.1:5001}"
 GATEWAY_ADDRS="${WK_BENCH_GATEWAY_ADDRS:-127.0.0.1:5100}"
@@ -46,7 +50,7 @@ Starts a local cmd/wukongim single-node cluster, then runs fixed multi-channel
 wkbench traffic against it.
 
 Options:
-  --qps LIST             Comma-separated offered QPS list. Default: 1000,2000,2400,2490,2500,2600,2800,3000.
+  --qps LIST             Comma-separated offered SEND/s list. Default: 250,500,750,1000.
   --out-dir DIR          Evidence output directory.
   --wkbench-bin PATH     wkbench binary path. Default: data/wkbench-test.
   --worker-addr URL      Worker control URL. Default: http://127.0.0.1:19130.
@@ -57,12 +61,12 @@ Options:
   --start-script PATH    Single-node startup script. Default: scripts/start-wukongim-single-node.sh.
   --ready-timeout SECS   Cluster ready wait timeout. Default: 90.
   --channels N           Fixed group channel count. Default: 1000.
-  --users N              Online user pool. Default: 4096.
+  --users N              Online connection population. Default: 2500.
   --members N            Members per group channel. Default: 10.
   --concurrency N        wkbench send concurrency. Default: 2800.
-  --duration DURATION    Measured run duration. Default: 15s.
-  --warmup DURATION      Warmup duration. Default: 5s.
-  --cooldown DURATION    Cooldown duration. Default: 2s.
+  --duration DURATION    Measured run duration. Default: 5m.
+  --warmup DURATION      Warmup duration. Default: 60s.
+  --cooldown DURATION    Post-generation drain budget. Default: 90s.
   --stable-p99 DURATION  Soft p99 gate written into scenarios. Default: 400ms.
                          Summary PASS also requires actual/offered >= WK_BENCH_ACTUAL_QPS_MIN_RATIO, default 0.90.
   --ack-timeout DURATION Per-SEND sendack wait timeout in generated traffic. Default: 15s.
@@ -293,6 +297,18 @@ require_positive_int '--members' "$GROUP_MEMBERS"
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
+require_nonnegative_number 'WK_BENCH_ACTUAL_QPS_MIN_RATIO' "$ACTUAL_QPS_MIN_RATIO"
+awk -v ratio="$ACTUAL_QPS_MIN_RATIO" 'BEGIN {exit !(ratio >= 0.90 && ratio <= 1)}' || \
+  die 'WK_BENCH_ACTUAL_QPS_MIN_RATIO must be within 0.90..1.00 for the reviewed local baseline'
+require_positive_int 'WK_BENCH_MINIMUM_FREE_PERCENT' "$MINIMUM_FREE_PERCENT"
+(( MINIMUM_FREE_PERCENT <= 100 )) || die "WK_BENCH_MINIMUM_FREE_PERCENT must not exceed 100: $MINIMUM_FREE_PERCENT"
+[[ "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}" == 12 && "${WK_CLUSTER_HASH_SLOT_COUNT:-256}" == 256 ]] || \
+  die 'the reviewed local baseline requires 12 logical Slot Raft Groups and 256 hash slots'
+[[ "${WK_CLUSTER_SLOT_REPLICA_N:-1}" == 1 && "${WK_CLUSTER_CHANNEL_REPLICA_N:-1}" == 1 ]] || \
+  die 'the single-node cluster baseline requires Slot and Channel replica counts of one'
+[[ "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}" == 200us && "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}" == 1 ]] || \
+  die 'the reviewed local baseline requires a 200us commit window and one coordinator shard'
+[[ "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}" == true ]] || die 'the reviewed local baseline requires synchronous commit'
 [[ "$PROFILE_SECONDS" =~ ^[0-9]+$ ]] || die "--profile-seconds must be a non-negative integer: $PROFILE_SECONDS"
 case "$SENDER_PICK" in
   first_online|round_robin)
@@ -327,6 +343,7 @@ CLUSTER_PID=""
 RESOURCE_SAMPLER_PID=""
 RUNTIME_POOL_SAMPLER_PID=""
 RUNTIME_POOL_SAMPLER_STOP_FILE=""
+HOST_METRICS_PID=""
 
 stop_worker_exact_from_status() {
   local reason="${1:-cleanup}"
@@ -370,10 +387,17 @@ stop_worker_exact_from_status() {
 }
 
 cleanup() {
+  local original_status=$?
   if declare -F stop_runtime_pool_sampler >/dev/null 2>&1; then
     stop_runtime_pool_sampler
   fi
   stop_server_resource_sampler
+  if [[ -n "$HOST_METRICS_PID" ]]; then
+    log "stopping host metrics pid=$HOST_METRICS_PID"
+    kill "$HOST_METRICS_PID" >/dev/null 2>&1 || true
+    wait "$HOST_METRICS_PID" 2>/dev/null || true
+    HOST_METRICS_PID=""
+  fi
   if [[ -n "$WORKER_PID" ]]; then
     log "stopping temporary worker pid=$WORKER_PID"
     stop_worker_exact_from_status "script cleanup" || true
@@ -385,6 +409,7 @@ cleanup() {
     kill "$CLUSTER_PID" >/dev/null 2>&1 || true
     wait "$CLUSTER_PID" 2>/dev/null || true
   fi
+  return "$original_status"
 }
 
 trap cleanup EXIT
@@ -404,8 +429,10 @@ start_cluster() {
   # Preserve synchronous commits; the wider window only improves durable group-commit batching.
   # Keep server send timeout below the 15s client ACK wait so recovery can still write SENDACK.
   WK_DEBUG_API_ENABLE="${WK_DEBUG_API_ENABLE:-true}" \
-  WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-1}" \
-  WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-16}" \
+  WK_CLUSTER_INITIAL_SLOT_COUNT="${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}" \
+  WK_CLUSTER_HASH_SLOT_COUNT="${WK_CLUSTER_HASH_SLOT_COUNT:-256}" \
+  WK_CLUSTER_SLOT_REPLICA_N=1 \
+  WK_CLUSTER_CHANNEL_REPLICA_N=1 \
   WK_CLUSTER_CHANNEL_REACTOR_COUNT="${WK_CLUSTER_CHANNEL_REACTOR_COUNT:-128}" \
   WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS:-500}" \
   WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS="${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-500}" \
@@ -416,18 +443,38 @@ start_cluster() {
   WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE="${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_EFFECT_POOL_SIZE="${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}" \
   WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY="${WK_CHANNEL_APPEND_RECIPIENT_AUTHORITY_DISPATCH_CONCURRENCY:-0}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW="${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}" \
   WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES="${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}" \
-  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-0}" \
+  WK_CLUSTER_COMMIT_COORDINATOR_SHARDS="${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}" \
   WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS="${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}" \
   WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT="${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}" \
   WK_GATEWAY_SEND_TIMEOUT="${WK_GATEWAY_SEND_TIMEOUT:-14s}" \
   WK_CLUSTER_COMMIT_COORDINATOR_SYNC="${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}" \
+  WK_WUKONGIM_SINGLE_NODE_DATA_DIR="$SINGLE_NODE_DATA_DIR" \
     "$START_SCRIPT" "${clean_arg[@]}" --ready-timeout "$READY_TIMEOUT" \
       >"$OUT_DIR/cluster-start.log" 2>&1 &
   CLUSTER_PID="$!"
+}
+
+start_host_metrics() {
+  [[ -d "$SINGLE_NODE_DATA_DIR" ]] || die "single-node data directory is missing: $SINGLE_NODE_DATA_DIR"
+  mkdir -p "$OUT_DIR/logs"
+  "$WK_BENCH_BIN" host-metrics --listen "$HOST_METRICS_LISTEN" \
+    --path "$SINGLE_NODE_DATA_DIR" --mountpoint /var/lib/wukongim-local \
+    --device /dev/wukongim-local --physical-io=true \
+    >"$OUT_DIR/logs/host-metrics.log" 2>&1 &
+  HOST_METRICS_PID="$!"
+  local deadline=$((SECONDS + READY_TIMEOUT))
+  while (( SECONDS <= deadline )); do
+    kill -0 "$HOST_METRICS_PID" 2>/dev/null || die 'single-node host metrics exited before readiness'
+    if curl -fsS --max-time 2 "${HOST_METRICS_ADDR%/}/healthz" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+  die 'single-node host metrics readiness timed out'
 }
 
 ensure_wkbench_binary() {
@@ -599,6 +646,11 @@ run:
   random_seed: 0
   fail_fast: true
   report_dir: $report_dir
+objectives:
+  scale: local-diagnostic
+  standard: false
+  ingress_qps: ${qps}/s
+  tolerance_ratio: 0.1
 limits:
   fail_on_soft: false
   hard:
@@ -691,6 +743,7 @@ scrape_metrics() {
     id="$(metric_file_id "$addr")"
     curl -fsS "${addr%/}/metrics" >"$metrics_dir/${id}-${phase}.prom"
   done
+  curl -fsS --max-time 6 "${HOST_METRICS_ADDR%/}/metrics" >"$metrics_dir/host-$phase.prom"
 }
 
 scrape_metrics_snapshot() {
@@ -982,9 +1035,22 @@ runtime_pool_sampler_loop() {
       id="$(metric_file_id "$addr")"
       curl -fsS --max-time 2 "${addr%/}/metrics" >"$metrics_dir/${id}-sample-${seq}.prom" 2>/dev/null || true
     done
+    curl -fsS --max-time 6 "${HOST_METRICS_ADDR%/}/metrics" >"$metrics_dir/host-sample-${seq}.prom" 2>/dev/null || true
     seq=$((seq + 1))
     sleep "$RUNTIME_POOL_SAMPLE_INTERVAL" || true
   done
+}
+
+host_io_summary() {
+  local tag="$1" metrics_dir out
+  metrics_dir="$OUT_DIR/metrics/$tag"
+  out="$OUT_DIR/host_io_summary.tsv"
+  local -a samples files
+  samples=("$metrics_dir/host-sample-"*.prom)
+  files=("$metrics_dir/host-before.prom")
+  if [[ -e "${samples[0]}" ]]; then files+=("${samples[@]}"); fi
+  files+=("$metrics_dir/host-after.prom")
+  awk -v tag="$tag" -v host=host-local -f "$ROOT_DIR/scripts/host-io-summary.awk" "${files[@]}" >>"$out"
 }
 
 start_runtime_pool_sampler() {
@@ -1068,6 +1134,32 @@ channelappend_metrics_summary() {
       samples=()
     fi
     awk -v tag="$tag" -v node="$id" -f "$summarizer" "$before" "$after" "${samples[@]}" >>"$out" || true
+  done
+}
+
+storage_metrics_summary() {
+  local tag="$1"
+  local metrics_dir="$OUT_DIR/metrics/$tag"
+  local out="$OUT_DIR/storage_metrics_summary.tsv"
+  local summarizer="$ROOT_DIR/scripts/storage-metrics-summary.awk"
+  local addr id before after
+  local samples=() files=()
+  for addr in "${METRICS_VALUES[@]}"; do
+    id="$(metric_file_id "$addr")"
+    before="$metrics_dir/${id}-before.prom"
+    after="$metrics_dir/${id}-after.prom"
+    if [[ ! -f "$before" || ! -f "$after" ]]; then
+      awk -v tag="$tag" -v node="$id" -f "$summarizer" /dev/null /dev/null >>"$out" || true
+      continue
+    fi
+    samples=("$metrics_dir/${id}-sample-"*.prom)
+    if [[ ! -e "${samples[0]}" ]]; then
+      samples=()
+    fi
+    files=("$before")
+    files+=("${samples[@]}")
+    files+=("$after")
+    awk -v tag="$tag" -v node="$id" -f "$summarizer" "${files[@]}" >>"$out" || true
   done
 }
 
@@ -1161,17 +1253,22 @@ run_attempt() {
   rpc_pull_qps_summary "$tag" "$duration"
   channel_metrics_summary "$tag" "$duration"
   channelappend_metrics_summary "$tag"
+  storage_metrics_summary "$tag"
+  host_io_summary "$tag"
   runtime_pool_pressure_summary "$tag"
   ants_pool_usage_summary "$tag"
   cluster_transport_peak_summary "$tag"
 
   if [[ ! -f "$report_dir/report.json" ]]; then
-    printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
+    printf '%s\t%s\tmissing_report\t%s\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n' "$tag" "$qps" "$exit_status" >>"$OUT_DIR/summary.tsv"
     return
   fi
   jq -r --arg tag "$tag" --arg qps "$qps" --arg exit_status "$exit_status" --arg duration "$duration" '
-    (.metrics.counters["group_send_success_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // 0) as $success
-    | (.metrics.counters["group_send_error_total{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // 0) as $errors
+    (.summary.send_success // 0) as $success
+    | ([.metrics.counters | to_entries[] | select(.key | startswith("group_send_error_total{")) | select(.key | contains("phase=run")) | .value] | add // 0) as $errors
+    | ([.metrics.counters | to_entries[] | select(.key | startswith("workload_scheduler_planned_total{")) | select(.key | contains("phase=run")) | .value] | add // 0) as $planned
+    | ([.metrics.counters | to_entries[] | select(.key | startswith("workload_scheduler_dispatched_total{")) | select(.key | contains("phase=run")) | .value] | add // 0) as $dispatched
+    | ([.metrics.counters | to_entries[] | select(.key | startswith("workload_scheduler_dropped_total{")) | select(.key | contains("phase=run")) | .value] | add // 0) as $dropped
     | (.metrics.histograms["group_send_latency_seconds{channel_type=group,phase=run,profile=thousand-groups,traffic=group-send}"] // {}) as $h
     | [
         $tag,
@@ -1186,7 +1283,11 @@ run_attempt() {
         ($h.p50_seconds // 0),
         ($h.p95_seconds // 0),
         ($h.p99_seconds // 0),
-        ($h.max_seconds // 0)
+        ($h.max_seconds // 0),
+        (.summary.connect_success // 0),
+        $planned,
+        $dispatched,
+        $dropped
       ] | @tsv
   ' "$report_dir/report.json" >>"$OUT_DIR/summary.tsv"
 }
@@ -1202,8 +1303,10 @@ write_run_metadata() {
 QPS_LIST=$QPS_LIST
 CHANNELS=$CHANNELS
 USERS=$USERS
+online_users=$USERS
 GROUP_MEMBERS=$GROUP_MEMBERS
 CONCURRENCY=$CONCURRENCY
+send_concurrency=$CONCURRENCY
 PAYLOAD_BYTES=$PAYLOAD_BYTES
 DURATION=$DURATION
 WARMUP=$WARMUP
@@ -1221,6 +1324,10 @@ METRICS_ADDRS=$METRICS_ADDRS
 WORKER_ADDR=$WORKER_ADDR
 START_CLUSTER=$START_CLUSTER
 CLEAN_CLUSTER=$CLEAN_CLUSTER
+CLUSTER_INITIAL_SLOT_COUNT=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}
+logical_slot_groups=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}
+CLUSTER_HASH_SLOT_COUNT=${WK_CLUSTER_HASH_SLOT_COUNT:-256}
+hash_slots=${WK_CLUSTER_HASH_SLOT_COUNT:-256}
 CHANNEL_APPEND_SHARD_COUNT=${WK_CHANNEL_APPEND_SHARD_COUNT:-0}
 CHANNEL_APPEND_ADVANCE_POOL_SIZE=${WK_CHANNEL_APPEND_ADVANCE_POOL_SIZE:-0}
 CHANNEL_APPEND_EFFECT_POOL_SIZE=${WK_CHANNEL_APPEND_EFFECT_POOL_SIZE:-0}
@@ -1231,12 +1338,14 @@ CLUSTER_CHANNEL_STORE_APPLY_WORKERS=${WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS:-50
 CLUSTER_CHANNEL_RPC_WORKERS=${WK_CLUSTER_CHANNEL_RPC_WORKERS:-500}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_RECORDS:-128}
 CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT=${WK_CLUSTER_CHANNEL_APPEND_BATCH_MAX_WAIT:-250us}
-CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-2ms}
+CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW=${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}
 CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_REQUESTS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS:-0}
 CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=${WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES:-131072}
-CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-0}
+CLUSTER_COMMIT_COORDINATOR_SHARDS=${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}
 CLUSTER_COMMIT_COORDINATOR_SYNC=${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}
+HOST_METRICS_ADDR=$HOST_METRICS_ADDR
+SINGLE_NODE_DATA_DIR=$SINGLE_NODE_DATA_DIR
 GATEWAY_ASYNC_SEND_WORKERS=${WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS:-2048}
 GATEWAY_ASYNC_SEND_BATCH_MAX_WAIT=${WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT:-500us}
 GATEWAY_SEND_TIMEOUT=${WK_GATEWAY_SEND_TIMEOUT:-14s}
@@ -1256,13 +1365,192 @@ EOF
   capture_node_pprof before
 }
 
+write_local_preflight_result() {
+  local outcome="$1" reason="$2" free_percent="$3" revision dirty
+  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
+  dirty=false
+  if ! git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null ||
+    [[ -n "$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" ]]; then
+    dirty=true
+  fi
+  {
+    printf '{\n'
+    printf '  "schema": "wukongim/chat-lifecycle-local-single-node-baseline/v1",\n'
+    printf '  "outcome": "%s",\n' "$outcome"
+    printf '  "reason": "%s",\n' "$reason"
+    printf '  "online_connections": %s,\n' "$USERS"
+    printf '  "qps_list": "%s",\n' "$QPS_LIST"
+    printf '  "logical_slot_groups": %s,\n' "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"
+    printf '  "hash_slots": %s,\n' "${WK_CLUSTER_HASH_SLOT_COUNT:-256}"
+    printf '  "slot_replicas": 1,\n'
+    printf '  "channel_replicas": 1,\n'
+    printf '  "commit_coordinator_flush_window": "%s",\n' "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"
+    printf '  "commit_coordinator_shards": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"
+    printf '  "sync_commit": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"
+    printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"
+    printf '  "observed_filesystem_free_percent": %s,\n' "$free_percent"
+    printf '  "source_revision": "%s",\n' "$revision"
+    printf '  "source_dirty": %s\n' "$dirty"
+    printf '}\n'
+  } >"$OUT_DIR/local-baseline.json"
+}
+
+local_baseline_preflight() {
+  local overlap blocks available free_percent
+  if [[ "$START_CLUSTER" -eq 1 ]]; then
+    overlap="$(ps -axo pid=,comm= | awk -v self="$$" '
+      {
+        command = $2
+        sub(/^.*\//, "", command)
+        if ($1 != self && (command == "wukongim" || command == "wkbench" || command == "wkbench-test")) print $0
+      }
+    ')"
+    if [[ -n "$overlap" ]]; then
+      write_local_preflight_result host_confounded overlapping_wukongim_workload 0
+      return 2
+    fi
+  fi
+  df -Pk "$OUT_DIR" >"$OUT_DIR/filesystem-preflight.txt" || {
+    write_local_preflight_result insufficient_evidence filesystem_preflight_unavailable 0
+    return 6
+  }
+  read -r blocks available < <(awk 'NR == 2 {print $2, $4}' "$OUT_DIR/filesystem-preflight.txt")
+  if [[ -z "${blocks:-}" || "$blocks" -le 0 ]]; then
+    write_local_preflight_result insufficient_evidence filesystem_preflight_unavailable 0
+    return 6
+  fi
+  free_percent=$((available * 100 / blocks))
+  if (( free_percent < MINIMUM_FREE_PERCENT )); then
+    write_local_preflight_result storage_confounded filesystem_free_below_10_percent "$free_percent"
+    return 2
+  fi
+  return 0
+}
+
+LATEST_OUTCOME=""
+LATEST_REASON=""
+LATEST_EXIT_STATUS=0
+
+classify_latest_local_step() {
+  local qps="$1" tag row status exit_status actual success errors connected planned dispatched dropped
+  local blocks available free_percent addr
+  tag="$(qps_tag "$qps")"
+  row="$(awk -F '\t' -v tag="$tag" '$1 == tag {line=$0} END {print line}' "$OUT_DIR/summary.tsv")"
+  if [[ -z "$row" ]]; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=missing_summary_row; LATEST_EXIT_STATUS=6
+    return
+  fi
+  IFS=$'\t' read -r _ _ status exit_status actual success errors _ _ _ _ _ _ connected planned dispatched dropped <<<"$row"
+  if [[ -z "${dropped:-}" ]]; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=incomplete_summary_row; LATEST_EXIT_STATUS=6
+    return
+  fi
+  if ! awk -F '\t' -v tag="$tag" '$1 == tag {seen++; if ($3 != "complete") bad=1} END {exit !(seen == 1 && !bad)}' \
+    "$OUT_DIR/storage_metrics_summary.tsv"; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=storage_metrics_incomplete; LATEST_EXIT_STATUS=6
+    return
+  fi
+  if ! awk -F '\t' -v tag="$tag" '$1 == tag {seen++; if ($3 != "complete" && $3 != "unavailable") bad=1} END {exit !(seen == 1 && !bad)}' \
+    "$OUT_DIR/host_io_summary.tsv"; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=host_io_evidence_incomplete; LATEST_EXIT_STATUS=6
+    return
+  fi
+  if [[ -z "$HOST_METRICS_PID" ]] || ! kill -0 "$HOST_METRICS_PID" 2>/dev/null || ! worker_ready; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=benchmark_process_exit; LATEST_EXIT_STATUS=6
+    return
+  fi
+  if [[ "$START_CLUSTER" -eq 1 ]] && { [[ -z "$CLUSTER_PID" ]] || ! kill -0 "$CLUSTER_PID" 2>/dev/null; }; then
+    LATEST_OUTCOME=product_failure; LATEST_REASON=service_process_exit; LATEST_EXIT_STATUS=3
+    return
+  fi
+  for addr in "${API_VALUES[@]}"; do
+    if ! curl -fsS --max-time 2 "${addr%/}/readyz" >/dev/null 2>&1; then
+      LATEST_OUTCOME=product_failure; LATEST_REASON=service_readiness_lost; LATEST_EXIT_STATUS=3
+      return
+    fi
+  done
+  read -r blocks available < <(df -Pk "$OUT_DIR" | awk 'NR == 2 {print $2, $4}')
+  if [[ -z "${blocks:-}" || "$blocks" -le 0 ]]; then
+    LATEST_OUTCOME=insufficient_evidence; LATEST_REASON=filesystem_observation_missing; LATEST_EXIT_STATUS=6
+    return
+  fi
+  free_percent=$((available * 100 / blocks))
+  if (( free_percent < MINIMUM_FREE_PERCENT )); then
+    LATEST_OUTCOME=storage_confounded; LATEST_REASON=filesystem_free_below_10_percent; LATEST_EXIT_STATUS=2
+    return
+  fi
+  if [[ "$status" != passed || "$exit_status" -ne 0 || "$errors" -ne 0 ]] ||
+    ! awk -v actual="$actual" -v offered="$qps" -v minimum="$ACTUAL_QPS_MIN_RATIO" \
+      'BEGIN {exit !(offered > 0 && actual / offered >= minimum)}' ||
+    [[ "$connected" -lt "$USERS" || "$planned" -le 0 || "$dispatched" -ne "$planned" ||
+      $((success + errors)) -ne "$dispatched" || "$dropped" -ne 0 ]]; then
+    LATEST_OUTCOME=rate_failed; LATEST_REASON=underdelivery_or_incomplete_accounting; LATEST_EXIT_STATUS=3
+    return
+  fi
+  LATEST_OUTCOME=clean; LATEST_REASON=complete; LATEST_EXIT_STATUS=0
+}
+
+write_local_artifact_checksums() {
+  local output="$OUT_DIR/checksums.sha256" path digest
+  : >"$output"
+  while IFS= read -r path; do
+    [[ "$path" == "$output" || "$path" == "$OUT_DIR/local-baseline.json" ]] && continue
+    if command -v sha256sum >/dev/null 2>&1; then
+      digest="$(sha256sum "$path" | awk '{print $1}')"
+    else
+      digest="$(shasum -a 256 "$path" | awk '{print $1}')"
+    fi
+    printf '%s  %s\n' "$digest" "${path#"$OUT_DIR"/}" >>"$output"
+  done < <(find "$OUT_DIR" -type f -print | LC_ALL=C sort)
+}
+
+write_local_baseline_result() {
+  local outcome="$1" reason="$2" highest="$3" first_failing="$4" revision dirty blocks available free_percent authorizes
+  revision="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || printf unknown)"
+  dirty=false
+  if ! git -C "$ROOT_DIR" diff --quiet --ignore-submodules HEAD -- 2>/dev/null ||
+    [[ -n "$(git -C "$ROOT_DIR" ls-files --others --exclude-standard 2>/dev/null)" ]]; then dirty=true; fi
+  read -r blocks available < <(df -Pk "$OUT_DIR" | awk 'NR == 2 {print $2, $4}')
+  free_percent=0
+  if [[ -n "${blocks:-}" && "$blocks" -gt 0 ]]; then free_percent=$((available * 100 / blocks)); fi
+  authorizes=false
+  if [[ "$outcome" == clean ]] && awk -v highest="$highest" 'BEGIN {exit !(highest >= 1000)}'; then authorizes=true; fi
+  {
+    printf '{\n'
+    printf '  "schema": "wukongim/chat-lifecycle-local-single-node-baseline/v1",\n'
+    printf '  "outcome": "%s",\n' "$outcome"
+    printf '  "reason": "%s",\n' "$reason"
+    printf '  "online_connections": %s,\n' "$USERS"
+    printf '  "highest_clean_rate": %s,\n' "$highest"
+    printf '  "first_failing_rate": %s,\n' "$first_failing"
+    printf '  "authorizes_three_node_diagnostic": %s,\n' "$authorizes"
+    printf '  "qps_list": "%s",\n' "$QPS_LIST"
+    printf '  "logical_slot_groups": %s,\n' "${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}"
+    printf '  "hash_slots": %s,\n' "${WK_CLUSTER_HASH_SLOT_COUNT:-256}"
+    printf '  "slot_replicas": 1,\n'
+    printf '  "channel_replicas": 1,\n'
+    printf '  "commit_coordinator_flush_window": "%s",\n' "${WK_CLUSTER_COMMIT_COORDINATOR_FLUSH_WINDOW:-200us}"
+    printf '  "commit_coordinator_shards": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SHARDS:-1}"
+    printf '  "sync_commit": %s,\n' "${WK_CLUSTER_COMMIT_COORDINATOR_SYNC:-true}"
+    printf '  "minimum_filesystem_free_percent": %s,\n' "$MINIMUM_FREE_PERCENT"
+    printf '  "observed_filesystem_free_percent": %s,\n' "$free_percent"
+    printf '  "source_revision": "%s",\n' "$revision"
+    printf '  "source_dirty": %s,\n' "$dirty"
+    printf '  "summary": "summary.tsv",\n'
+    printf '  "storage_summary": "storage_metrics_summary.tsv",\n'
+    printf '  "host_io_summary": "host_io_summary.tsv",\n'
+    printf '  "artifact_checksums": "checksums.sha256"\n'
+    printf '}\n'
+  } >"$OUT_DIR/local-baseline.json"
+}
+
 write_display_summary() {
   local p99_limit
   p99_limit="$(duration_seconds "$STABLE_P99")"
   # Write archival summary.txt without ANSI escapes
   (
     C_RESET='' C_BOLD='' C_DIM='' C_GREEN='' C_RED='' C_YELLOW='' C_CYAN='' C_MAGENTA='' C_WHITE=''
-    awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" \
+    awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" -v users="$USERS" \
       -v c_bold="" -v c_reset="" -v c_green="" \
       -v c_red="" -v c_dim="" -v c_yellow="" '
     BEGIN {
@@ -1278,7 +1566,7 @@ write_display_summary() {
 
       printf "%sBENCH RESULT%s\n", c_bold, c_reset
       print "────────────"
-      printf "p99 gate: <= %.0f ms │ send_errors: 0\n", p99_limit * 1000
+      printf "p99 diagnostic threshold: %.0f ms │ send_errors: 0\n", p99_limit * 1000
       printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
       printf "%s%9s %10s %7s %8s %8s %8s %8s %8s %12s %s%s\n", c_dim, "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note", c_reset
     }
@@ -1295,10 +1583,15 @@ write_display_summary() {
       if (offered > 0) {
         actual_ratio = actual / offered
       }
+      success = $6 + 0
       errors = $7 + 0
       p95 = $11 + 0
       p99 = $12 + 0
       max = $13 + 0
+      connected = $14 + 0
+      planned = $15 + 0
+      dispatched = $16 + 0
+      dropped = $17 + 0
       note = "ok"
       result = "PASS"
       if (status != "passed") {
@@ -1313,13 +1606,14 @@ write_display_summary() {
         result = "FAIL"
         note = "send_errors"
       }
-      if (p99 > p99_limit) {
-        result = "FAIL"
-        note = "p99"
-      }
       if (actual_ratio < actual_min_ratio) {
         result = "FAIL"
         note = sprintf("actual_ratio=%.3f", actual_ratio)
+      }
+      if (connected < users) { result = "FAIL"; note = "online_connections" }
+      if (planned <= 0 || dispatched != planned || success + errors != dispatched || dropped > 0) {
+        result = "FAIL"
+        note = "scheduler_accounting"
       }
       if (result == "PASS" && actual > best_actual) {
         best_actual = actual
@@ -1486,7 +1780,6 @@ append_ants_pool_usage_display() {
             row_pool[i],
             sprintf("%.0f/%.0f", row_running[i], row_capacity[i]),
             util_color, row_util[i], (util_color != "") ? c_reset : "",
-            row_waiting[i]
             row_waiting[i]
         }
       }
@@ -2078,7 +2371,7 @@ print_summary() {
   # Live terminal output uses colorized functions
   local p99_limit
   p99_limit="$(duration_seconds "$STABLE_P99")"
-  awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" \
+    awk -v rpc_file="$OUT_DIR/rpc_pull_qps.tsv" -v p99_limit="$p99_limit" -v actual_min_ratio="$ACTUAL_QPS_MIN_RATIO" -v users="$USERS" \
     -v c_bold="$C_BOLD" -v c_reset="$C_RESET" -v c_green="$C_GREEN" \
     -v c_red="$C_RED" -v c_dim="$C_DIM" -v c_yellow="$C_YELLOW" '
     BEGIN {
@@ -2091,21 +2384,23 @@ print_summary() {
       close(rpc_file)
       printf "%sBENCH RESULT%s\n", c_bold, c_reset
       print "────────────"
-      printf "p99 gate: <= %.0f ms │ send_errors: 0\n", p99_limit * 1000
+      printf "p99 diagnostic threshold: %.0f ms │ send_errors: 0\n", p99_limit * 1000
       printf "actual/offered gate: >= %.2f\n\n", actual_min_ratio
       printf "%s%9s %10s %7s %8s %8s %8s %8s %8s %12s %s%s\n", c_dim, "offered", "actual", "ratio", "result", "errors", "p99ms", "p95ms", "maxms", "rpc_pull/s", "note", c_reset
     }
     NR == 1 { next }
     {
       tag = $1; offered = $2 + 0; status = $3; exit_status = $4 + 0
-      actual = $5 + 0; errors = $7 + 0; p95 = $11 + 0; p99 = $12 + 0; max = $13 + 0
+      actual = $5 + 0; success = $6 + 0; errors = $7 + 0; p95 = $11 + 0; p99 = $12 + 0; max = $13 + 0
+      connected = $14 + 0; planned = $15 + 0; dispatched = $16 + 0; dropped = $17 + 0
       actual_ratio = (offered > 0) ? actual / offered : 0
       note = "ok"; result = "PASS"
       if (status != "passed") { result = "FAIL"; note = status }
       if (exit_status != 0) { result = "FAIL"; note = "exit=" exit_status }
       if (errors > 0) { result = "FAIL"; note = "send_errors" }
-      if (p99 > p99_limit) { result = "FAIL"; note = "p99" }
       if (actual_ratio < actual_min_ratio) { result = "FAIL"; note = sprintf("actual_ratio=%.3f", actual_ratio) }
+      if (connected < users) { result = "FAIL"; note = "online_connections" }
+      if (planned <= 0 || dispatched != planned || success + errors != dispatched || dropped > 0) { result = "FAIL"; note = "scheduler_accounting" }
       if (result == "PASS" && actual > best_actual) { best_actual = actual; best_offered = offered; best_p99 = p99; best_rpc = rpc_qps[tag] }
       result_str = (result == "PASS") ? c_green "    PASS" c_reset : c_red "    FAIL" c_reset
       printf "%9.0f %10.1f %7.3f %s %8.0f %8.1f %8.1f %8.1f %12.1f %s%s%s\n", offered, actual, actual_ratio, result_str, errors, p99 * 1000, p95 * 1000, max * 1000, rpc_qps[tag], c_dim, note, c_reset
@@ -2125,6 +2420,8 @@ print_summary() {
   printf '  %s%-23s%s %s\n' "$C_DIM" "server_process" "$C_RESET" "resources/server-process-summary.tsv"
   printf '  %s%-23s%s %s\n' "$C_DIM" "cluster_transport" "$C_RESET" "cluster_transport_peak_summary.tsv"
   printf '  %s%-23s%s %s\n' "$C_DIM" "ants_pool_usage" "$C_RESET" "ants_pool_usage_summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "storage_metrics" "$C_RESET" "storage_metrics_summary.tsv"
+  printf '  %s%-23s%s %s\n' "$C_DIM" "host_io" "$C_RESET" "host_io_summary.tsv"
 }
 
 write_evidence_summary() {
@@ -2153,6 +2450,8 @@ write_evidence_summary() {
 - server_process: resources/server-process-summary.tsv
 - cluster_transport: cluster_transport_peak_summary.tsv
 - ants_pool_usage: ants_pool_usage_summary.tsv
+- storage_metrics: storage_metrics_summary.tsv
+- host_io: host_io_summary.tsv
 
 ## Result
 \`\`\`text
@@ -2174,16 +2473,24 @@ main() {
   cd "$ROOT_DIR"
   mkdir -p "$OUT_DIR/metrics" "$OUT_DIR/reports"
 
+  local preflight_status=0
+  local_baseline_preflight || preflight_status=$?
+  if (( preflight_status != 0 )); then
+    log "local baseline preflight result: $OUT_DIR/local-baseline.json"
+    exit "$preflight_status"
+  fi
+
   ensure_wkbench_binary
   start_cluster
   check_cluster_ready
+  start_host_metrics
   ensure_worker
   write_target_and_workers
   write_run_metadata
   start_server_resource_sampler
 
   cat >"$OUT_DIR/summary.tsv" <<'EOF'
-tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds
+tag	offered_qps	status	exit_status	actual_qps	send_success	send_errors	connect_error_rate	sendack_error_rate	p50_seconds	p95_seconds	p99_seconds	max_seconds	connect_success	scheduler_planned	scheduler_dispatched	scheduler_dropped
 EOF
   cat >"$OUT_DIR/rpc_pull_qps.tsv" <<'EOF'
 tag	node	rpc_pull_delta	rpc_pull_qps
@@ -2195,6 +2502,8 @@ EOF
   cat >"$OUT_DIR/channelappend_metrics_summary.tsv" <<'EOF'
 tag	node	router_total_delta	router_local_delta	router_remote_delta	router_error_delta	router_backpressured_delta	router_channel_busy_delta	router_route_not_ready_delta	router_timeout_delta	local_admission_total_delta	local_admission_rejected_delta	router_avg_ms	mailbox_depth_max	mailbox_capacity_max	mailbox_fill_max	effect_slots_max	effect_slots_capacity_max	pending_append_max	append_inflight_max	post_commit_backlog_max	effect_total_delta	effect_error_delta	append_effect_delta	post_commit_effect_delta	effect_avg_ms	effect_worker_inflight_max	effect_worker_capacity_max	effect_worker_util_max	effect_queue_depth_max	effect_queue_capacity_max	effect_queue_fill_max	effect_pool_submit_delta	effect_pool_full_delta	effect_pool_error_delta	effect_pool_inflight_max	effect_pool_capacity_max	effect_pool_util_max	effect_pool_saturated_max	effect_pool_over90_count
 EOF
+  awk -v header=1 -f "$ROOT_DIR/scripts/storage-metrics-summary.awk" /dev/null >"$OUT_DIR/storage_metrics_summary.tsv"
+  awk -v header=1 -f "$ROOT_DIR/scripts/host-io-summary.awk" /dev/null >"$OUT_DIR/host_io_summary.tsv"
   cat >"$OUT_DIR/runtime_pool_pressure_summary.tsv" <<'EOF'
 tag	node	component	pool	queue	priority	queue_depth_max	queue_capacity	queue_fill_max	queue_bytes_max	queue_bytes_capacity	queue_bytes_fill_max	inflight_max	workers	inflight_util_max	admission_full_delta	admission_busy_delta	admission_dirty_delta	admission_requeued_delta	reason
 EOF
@@ -2205,10 +2514,20 @@ EOF
 tag	node	sample_points	sample_pairs	peak_internal_mib_s	peak_out_mib_s	peak_in_mib_s	peak_duplex_mib_s	peak_from_seq	peak_to_seq
 EOF
 
-  local qps
+  local qps highest_clean_rate=0 first_failing_rate=0 final_outcome=clean final_reason=complete final_status=0
   for qps in "${QPS_VALUES[@]}"; do
     [[ "$qps" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "invalid qps value: $qps"
     run_attempt "$qps"
+    classify_latest_local_step "$qps"
+    if [[ "$LATEST_OUTCOME" == clean ]]; then
+      highest_clean_rate="$qps"
+      continue
+    fi
+    first_failing_rate="$qps"
+    final_outcome="$LATEST_OUTCOME"
+    final_reason="$LATEST_REASON"
+    final_status="$LATEST_EXIT_STATUS"
+    break
   done
 
   stop_server_resource_sampler
@@ -2218,6 +2537,9 @@ EOF
   scrape_metrics_snapshot after
   capture_node_pprof after
   print_summary
+  write_local_artifact_checksums
+  write_local_baseline_result "$final_outcome" "$final_reason" "$highest_clean_rate" "$first_failing_rate"
+  return "$final_status"
 }
 
 main "$@"

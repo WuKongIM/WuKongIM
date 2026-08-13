@@ -80,11 +80,16 @@ func exitConfigError(err error) error {
 }
 
 func newReportCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "report",
 		Short: "Render standalone benchmark reports",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return commandExit{code: exitInternal, message: "report is not implemented yet"}
+			if err := cmd.Help(); err != nil {
+				return commandExit{code: exitInternal, message: err.Error()}
+			}
+			return commandExit{code: exitConfig}
 		},
 	}
+	cmd.AddCommand(newLocalChatLifecycleStepReportCommand())
+	return cmd
 }

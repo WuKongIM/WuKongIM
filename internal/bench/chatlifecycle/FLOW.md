@@ -1299,6 +1299,21 @@ capture prepares against a cloned aggregation baseline and commits recorder
 sequence state only after both JSON and Markdown writes succeed, so an output
 failure may retry the identical worker snapshot cut.
 
+The native local shared-storage staircase deliberately remains outside this
+persisted verdict vocabulary. A qualification cut immediately after warmup is
+the counter baseline; an operator stop after the fixed measured interval first
+closes SEND grant admission and then uses the existing bounded worker drain.
+The separate local-step classifier requires at least 2,500 online sessions at
+the baseline, exact SEND/SENDACK delta equality, at least 90 percent of offered
+throughput, zero terminal/correctness failures, empty correlation and worker
+queues after drain, complete product/storage evidence, and continuous service,
+worker, host-metrics, and local process-sampler processes. Product evidence is
+complete only when host/process rounds and worker-queue cuts have no missing
+samples. Less than ten percent filesystem free is
+`storage_confounded`, overlapping WuKongIM work is `host_confounded`, and
+missing evidence is `insufficient_evidence`; none is a product-capacity or
+formal verdict.
+
 Capacity admission accepts only a validated final passing formal-stage Soak report of
 at least 72 hours whose persisted dataset-reference digest still matches a
 later exact three-node live-target probe. The caller supplies only the frozen

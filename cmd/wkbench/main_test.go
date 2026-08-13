@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/capacity"
+	"github.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle"
 	"github.com/WuKongIM/WuKongIM/internal/bench/messageevent"
 )
 
@@ -113,6 +114,300 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("stale collector timestamp status = %d, want %d", response.Code, http.StatusServiceUnavailable)
 	}
+}
+
+func TestClassifyLocalChatLifecycleStepSeparatesRateFromOnlineConnections(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	evidence := localChatLifecycleStepEvidence{
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true, ProcessesContinuous: true,
+	}
+
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+	})
+
+	if result.Outcome != localChatLifecycleStepClean || result.OnlineConnections != 2500 ||
+		result.Acknowledged != 11_900 || result.Expected != 12_000 || result.ActualRatePerSecond != 99.16666666666667 {
+		t.Fatalf("local step result = %+v", result)
+	}
+}
+
+func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*chatlifecycle.Report, *chatlifecycle.Report, *localChatLifecycleStepEvidence)
+		want   localChatLifecycleStepOutcome
+	}{
+		{
+			name: "storage confounded", want: localChatLifecycleStepStorageConfounded,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Resources.Nodes[1].DataFilesystemAvailableBytes = 50
+			},
+		},
+		{
+			name: "missing normalized storage evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.StorageComplete = false
+			},
+		},
+		{
+			name: "missing normalized host I/O evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.HostIOComplete = false
+			},
+		},
+		{
+			name: "throughput underdelivery", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Messages.Sent = 6_100
+				after.Messages.SendAcknowledged = 6_100
+			},
+		},
+		{
+			name: "remaining correlation", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Correlation.Outstanding = 1
+			},
+		},
+		{
+			name: "product queue above warmup baseline", want: localChatLifecycleStepRateFailed,
+			mutate: func(before *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				before.Resources.Nodes[0].QueueCurrent = 2
+				after.Resources.Nodes[0].QueueCurrent = 3
+			},
+		},
+		{
+			name: "terminal send", want: localChatLifecycleStepProductFailure,
+			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
+				after.Messages.Terminal = 1
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			before, after := localChatLifecycleStepReports()
+			evidence := localChatLifecycleStepEvidence{
+				StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true, ProcessesContinuous: true,
+			}
+			test.mutate(&before, &after, &evidence)
+			result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+				OfferedRatePerSecond: 100, MeasuredDuration: 2 * time.Minute, MinimumThroughputPercent: 90,
+			})
+			if result.Outcome != test.want {
+				t.Fatalf("outcome = %q, want %q; result=%+v", result.Outcome, test.want, result)
+			}
+		})
+	}
+}
+
+func TestLocalChatLifecycleProductMetricsRequireClosedCompleteCuts(t *testing.T) {
+	_, report := localChatLifecycleStepReports()
+	report.Resources.Capacity.Complete = true
+	report.Resources.Capacity.ProcessesComplete = true
+	report.Resources.Capacity.Samples = 2
+	report.Resources.Capacity.WorkerQueuesComplete = true
+	report.Resources.Capacity.WorkerQueueSamples = 2
+	report.Cluster.HealthySamples = 2
+	if !localChatLifecycleProductMetricsComplete(report) {
+		t.Fatal("complete local product metrics were rejected")
+	}
+	report.Resources.Capacity.MissingSamples = 1
+	if localChatLifecycleProductMetricsComplete(report) {
+		t.Fatal("missing host/process sample was accepted")
+	}
+	report.Resources.Capacity.MissingSamples = 0
+	report.Resources.Capacity.WorkerQueueMissingSamples = 1
+	if localChatLifecycleProductMetricsComplete(report) {
+		t.Fatal("missing worker queue sample was accepted")
+	}
+}
+
+func TestLocalChatLifecycleStepEvidenceReadersRequireCompleteClosedRows(t *testing.T) {
+	directory := t.TempDir()
+	storagePath := filepath.Join(directory, "storage.tsv")
+	var storage strings.Builder
+	storage.WriteString(strings.Join(localStepStorageHeader, "\t") + "\n")
+	for node := 1; node <= 3; node++ {
+		row := make([]string, len(localStepStorageHeader))
+		for index := range row {
+			row[index] = "0"
+		}
+		row[0], row[1], row[2] = "rate-100", fmt.Sprintf("node-%d", node), "complete"
+		for _, column := range []int{4, 5, 6, 7, 15, 31, 32} {
+			row[column] = "1"
+		}
+		storage.WriteString(strings.Join(row, "\t") + "\n")
+	}
+	if err := os.WriteFile(storagePath, []byte(storage.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err != nil || !complete {
+		t.Fatalf("storage evidence complete/error = %v/%v", complete, err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-101"); err == nil || complete {
+		t.Fatalf("mismatched storage tag complete/error = %v/%v", complete, err)
+	}
+	zeroActivity := strings.NewReplacer(
+		"\t1\t1\t1\t1\t", "\t0\t0\t0\t0\t",
+	).Replace(storage.String())
+	if err := os.WriteFile(storagePath, []byte(zeroActivity), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err == nil || complete {
+		t.Fatalf("zero-activity storage complete/error = %v/%v", complete, err)
+	}
+	invalidHeader := append([]string(nil), localStepStorageHeader...)
+	invalidHeader[3] = "renamed_queue_depth"
+	invalidStorage := strings.Replace(storage.String(), strings.Join(localStepStorageHeader, "\t"), strings.Join(invalidHeader, "\t"), 1)
+	if err := os.WriteFile(storagePath, []byte(invalidStorage), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepStorageEvidence(storagePath, "rate-100"); err == nil || complete {
+		t.Fatalf("invalid storage header complete/error = %v/%v", complete, err)
+	}
+
+	hostIOPath := filepath.Join(directory, "host-io.tsv")
+	var hostIO strings.Builder
+	hostIO.WriteString(strings.Join(localStepHostIOHeader, "\t") + "\n")
+	for _, host := range []string{"host-node-1", "host-node-2", "host-node-3", "host-load"} {
+		hostIO.WriteString("rate-100\t" + host + "\tunavailable\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\n")
+	}
+	if err := os.WriteFile(hostIOPath, []byte(hostIO.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, err := readLocalStepHostIOEvidence(hostIOPath, "rate-100"); err != nil || !complete {
+		t.Fatalf("host I/O evidence complete/error = %v/%v", complete, err)
+	}
+	if complete, err := readLocalStepHostIOEvidence(hostIOPath, "rate-101"); err == nil || complete {
+		t.Fatalf("mismatched host I/O tag complete/error = %v/%v", complete, err)
+	}
+
+	processPath := filepath.Join(directory, "process.tsv")
+	processes := []string{"service-1", "service-2", "service-3", "worker-1", "worker-2", "worker-3",
+		"host-metrics-1", "host-metrics-2", "host-metrics-3", "host-metrics-load", "process-metrics-collector"}
+	var process strings.Builder
+	process.WriteString("name\talive\n")
+	for _, name := range processes {
+		fmt.Fprintf(&process, "%s\ttrue\n", name)
+	}
+	if err := os.WriteFile(processPath, []byte(process.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if continuous, err := readLocalStepProcessContinuity(processPath); err != nil || !continuous {
+		t.Fatalf("process continuity complete/error = %v/%v", continuous, err)
+	}
+}
+
+func TestLinuxPhysicalDeviceIOSampleUsesCounterDeltas(t *testing.T) {
+	before, err := parseLinuxBlockDeviceCounters("100 0 200 300 400 0 500 600 0 700 800")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := parseLinuxBlockDeviceCounters("120 0 260 340 430 0 620 660 0 900 1000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sample, ok := linuxBlockDeviceDelta("nvme1n1", before, after, 2*time.Second)
+	if !ok || !sample.IOPSAvailable || !sample.BytesPerSecondAvailable || !sample.UtilizationAvailable || !sample.ServiceTimeAvailable {
+		t.Fatalf("linux sample availability = %+v / %v", sample, ok)
+	}
+	if sample.ReadIOPS != 10 || sample.WriteIOPS != 15 || sample.TotalIOPS != 25 ||
+		sample.ReadBytesPerSecond != 15_360 || sample.WriteBytesPerSecond != 30_720 ||
+		sample.UtilizationPercent != 10 || sample.ServiceTimeMilliseconds != 2 {
+		t.Fatalf("linux sample = %+v", sample)
+	}
+}
+
+func TestDarwinPhysicalDeviceIOSampleMarksUnsupportedFieldsUnavailable(t *testing.T) {
+	volume, ok := parseDarwinDFDevice(`Filesystem 512-blocks Used Available Capacity iused ifree %iused Mounted on
+/dev/disk3s5 100000 50000 50000 50% 1 2 33% /System/Volumes/Data
+`)
+	if !ok || volume != "/dev/disk3s5" {
+		t.Fatalf("darwin volume = %q/%v", volume, ok)
+	}
+	device, ok := parseDarwinPhysicalDevice(`
+   Device Identifier:         disk3s5
+   Part of Whole:             disk3
+   APFS Physical Store:       disk0s2
+`)
+	if !ok || device != "disk0" {
+		t.Fatalf("physical device = %q/%v", device, ok)
+	}
+	sample, err := parseDarwinIostatDeviceSample(device, `
+              disk0
+    KB/t xfrs   MB
+   22.75 9999 200.00
+    7.48  208   1.52
+`, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sample.IOPSAvailable || !sample.BytesPerSecondAvailable || sample.TotalIOPS != 208 ||
+		sample.TotalBytesPerSecond != 1.52*1024*1024 || sample.UtilizationAvailable || sample.ServiceTimeAvailable ||
+		sample.ReadWriteSplitAvailable {
+		t.Fatalf("darwin sample = %+v", sample)
+	}
+}
+
+func TestHostMetricsPublishesVersionedPhysicalIOAvailability(t *testing.T) {
+	directory := t.TempDir()
+	handlerValue, err := newHostMetricsHandler(hostMetricsConfig{
+		path: directory, mountpoint: "/data", device: "/dev/data",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := handlerValue.(*hostMetricsHandler)
+	handler.deviceIO = fixedHostDeviceIOSampler{sample: hostDeviceIOSample{
+		Device: "disk0", IOPSAvailable: true, BytesPerSecondAvailable: true,
+		TotalIOPS: 208, TotalBytesPerSecond: 1_593_835.52,
+	}}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("metrics status/body = %d/%q", response.Code, response.Body.String())
+	}
+	body := response.Body.String()
+	for _, want := range []string{
+		`wkbench_host_block_io_schema_info{physical_device="disk0",version="v1"} 1`,
+		`wkbench_host_block_io_available{field="iops",physical_device="disk0"} 1`,
+		`wkbench_host_block_io_available{field="utilization",physical_device="disk0"} 0`,
+		`wkbench_host_block_io_iops{operation="total",physical_device="disk0"} 208.000000`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("metrics body missing %q: %q", want, body)
+		}
+	}
+	if strings.Contains(body, "wkbench_host_block_io_service_time_milliseconds{") {
+		t.Fatalf("unsupported service time was fabricated: %q", body)
+	}
+}
+
+type fixedHostDeviceIOSampler struct{ sample hostDeviceIOSample }
+
+func (s fixedHostDeviceIOSampler) Sample() hostDeviceIOSample { return s.sample }
+
+func localChatLifecycleStepReports() (chatlifecycle.Report, chatlifecycle.Report) {
+	start := time.Unix(1_970_000_000, 0).UTC()
+	before := chatlifecycle.Report{
+		ConfigDigest: "sha256:local-step", Fence: chatlifecycle.ReportFence{RunHash: "sha256:run", AssignmentHash: "sha256:assignment", Generation: 1},
+		Window:   chatlifecycle.ReportTimeWindow{End: start},
+		Topology: chatlifecycle.ReportTopologyProof{Validated: true, LogicalSlotGroups: 12, HashSlots: 256, SlotReplicas: 3, ChannelReplicas: 3},
+		Sessions: chatlifecycle.WorkerSessionSnapshot{Target: 2500, Online: 2500},
+		Messages: chatlifecycle.WorkerMessageSnapshot{Sent: 100, SendAcknowledged: 100},
+	}
+	after := before
+	after.Window.End = start.Add(2 * time.Minute)
+	after.Final = true
+	after.Verdict = chatlifecycle.ReportVerdictEvidence{
+		Outcome: chatlifecycle.VerdictOperatorStop, Cause: chatlifecycle.VerdictCauseOperatorRequested, Terminal: true,
+	}
+	after.Messages.Sent = 12_000
+	after.Messages.SendAcknowledged = 12_000
+	for index := range after.Resources.Nodes {
+		after.Resources.Nodes[index].DataFilesystemBytes = 1_000
+		after.Resources.Nodes[index].DataFilesystemAvailableBytes = 200
+	}
+	return before, after
 }
 
 func TestRootCommandUsesWkbenchName(t *testing.T) {
