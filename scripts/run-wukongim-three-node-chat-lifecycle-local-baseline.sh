@@ -175,7 +175,8 @@ fi
 STEP_OUTCOME=""
 STEP_STATUS=0
 run_step() {
-  local phase="$1" rate="$2" measured="$3" step_dir="$RUN_DIR/steps/${phase}-rate-$rate" status=0 outcome
+  local phase="$1" rate="$2" measured="$3"
+  local step_dir="$RUN_DIR/steps/${phase}-rate-$rate" status=0 outcome
   log "$phase step: ${rate} offered SEND/s for ${measured}s"
   "$SHAKEOUT" --run-dir "$step_dir" --base-port "$BASE_PORT" --ready-timeout "$READY_TIMEOUT" \
     --send-rate "$rate" --measure-seconds "$measured" --warmup-seconds "$WARMUP_SECONDS" \

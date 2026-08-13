@@ -108,6 +108,17 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 	if strings.Contains(strings.ToLower(script), "docker") || strings.Contains(script, "workflow") || strings.Contains(script, "aliyun") {
 		t.Fatal("local baseline must not invoke container or cloud operations")
 	}
+	if strings.Contains(script, `local phase="$1" rate="$2" measured="$3" step_dir=`) {
+		t.Fatal("run_step must bind positional parameters before expanding them under set -u")
+	}
+	for _, want := range []string{
+		`local phase="$1" rate="$2" measured="$3"`,
+		`local step_dir="$RUN_DIR/steps/${phase}-rate-$rate"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("local baseline run_step missing safe declaration %q", want)
+		}
+	}
 	if output, err := exec.Command("bash", "-n", scriptPath).CombinedOutput(); err != nil {
 		t.Fatalf("bash syntax failed: %v\n%s", err, output)
 	}
