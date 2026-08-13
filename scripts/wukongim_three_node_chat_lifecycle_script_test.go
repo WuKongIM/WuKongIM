@@ -29,7 +29,8 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"record_timeline_boundary warmup_end", "record_timeline_boundary measurement_end",
 		"record_timeline_boundary drain_start", "record_timeline_boundary drain_end",
 		"host-io-summary.awk", "host_io_summary.tsv",
-		"--host-io-summary", "process-continuity.tsv", "report local-chat-lifecycle-step", "local-step.json",
+		"product-queue-snapshot.awk", "product_queue_summary.tsv", "wait_for_product_queue_convergence",
+		"--host-io-summary", "--product-queue-summary", "process-continuity.tsv", "report local-chat-lifecycle-step", "local-step.json",
 		"kill -TERM", "kill -KILL", "pids", "final.json",
 	} {
 		if !strings.Contains(script, want) {
@@ -44,6 +45,35 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 	}
 	if output, err := exec.Command("bash", "-n", scriptPath).CombinedOutput(); err != nil {
 		t.Fatalf("bash syntax failed: %v\n%s", err, output)
+	}
+}
+
+func TestProductQueueSnapshotSummarizerRequiresBothMetricFamilies(t *testing.T) {
+	root := repoRoot(t)
+	metrics := filepath.Join(t.TempDir(), "metrics.prom")
+	body := `wukongim_runtime_pool_queue_depth{component="gateway",pool="send"} 7
+wukongim_runtime_pool_queue_depth{component="slot",pool="scheduler"} 3
+wukongim_runtime_pool_inflight{component="gateway",pool="send"} 5
+wukongim_runtime_pool_inflight{component="slot",pool="scheduler"} 2
+`
+	if err := os.WriteFile(metrics, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("awk", "-f", "scripts/product-queue-snapshot.awk", metrics)
+	cmd.Dir = root
+	output, err := cmd.CombinedOutput()
+	if err != nil || string(output) != "complete\t10\t7\n" {
+		t.Fatalf("queue summary = %q, %v", output, err)
+	}
+	if err := os.WriteFile(metrics, []byte(`wukongim_runtime_pool_queue_depth{component="gateway"} 7
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command("awk", "-f", "scripts/product-queue-snapshot.awk", metrics)
+	cmd.Dir = root
+	output, err = cmd.CombinedOutput()
+	if err == nil || string(output) != "missing\t0\t0\n" {
+		t.Fatalf("incomplete queue summary = %q, %v", output, err)
 	}
 }
 

@@ -140,7 +140,8 @@ func TestHostMetricsNativeResourceCollectors(t *testing.T) {
 func TestClassifyLocalChatLifecycleStepSeparatesRateFromOnlineConnections(t *testing.T) {
 	before, after := localChatLifecycleStepReports()
 	evidence := localChatLifecycleStepEvidence{
-		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true, ProcessesContinuous: true,
+		StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+		ProductQueueEvidenceComplete: true, ProductQueuesConverged: true, ProcessesContinuous: true,
 	}
 
 	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
@@ -178,6 +179,18 @@ func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
 			},
 		},
 		{
+			name: "missing post-drain product queue evidence", want: localChatLifecycleStepInsufficientEvidence,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProductQueueEvidenceComplete = false
+			},
+		},
+		{
+			name: "post-drain product queues did not converge", want: localChatLifecycleStepRateFailed,
+			mutate: func(_ *chatlifecycle.Report, _ *chatlifecycle.Report, evidence *localChatLifecycleStepEvidence) {
+				evidence.ProductQueuesConverged = false
+			},
+		},
+		{
 			name: "throughput underdelivery", want: localChatLifecycleStepRateFailed,
 			mutate: func(_ *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
 				after.Messages.Sent = 6_100
@@ -191,7 +204,7 @@ func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
 			},
 		},
 		{
-			name: "product queue above warmup baseline", want: localChatLifecycleStepRateFailed,
+			name: "terminal report predates product drain evidence", want: localChatLifecycleStepClean,
 			mutate: func(before *chatlifecycle.Report, after *chatlifecycle.Report, _ *localChatLifecycleStepEvidence) {
 				before.Resources.Nodes[0].QueueCurrent = 2
 				after.Resources.Nodes[0].QueueCurrent = 3
@@ -207,7 +220,8 @@ func TestClassifyLocalChatLifecycleStepFailsClosed(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			before, after := localChatLifecycleStepReports()
 			evidence := localChatLifecycleStepEvidence{
-				StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true, ProcessesContinuous: true,
+				StorageComplete: true, HostIOComplete: true, ProductMetricsComplete: true,
+				ProductQueueEvidenceComplete: true, ProductQueuesConverged: true, ProcessesContinuous: true,
 			}
 			test.mutate(&before, &after, &evidence)
 			result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
@@ -300,6 +314,26 @@ func TestLocalChatLifecycleStepEvidenceReadersRequireCompleteClosedRows(t *testi
 	}
 	if complete, err := readLocalStepHostIOEvidence(hostIOPath, "rate-101"); err == nil || complete {
 		t.Fatalf("mismatched host I/O tag complete/error = %v/%v", complete, err)
+	}
+
+	productQueuePath := filepath.Join(directory, "product-queue.tsv")
+	var productQueue strings.Builder
+	productQueue.WriteString(strings.Join(localStepProductQueueHeader, "\t") + "\n")
+	for node := 1; node <= 3; node++ {
+		fmt.Fprintf(&productQueue, "rate-100\tnode-%d\tcomplete\t60\t160\t40\t80\ttrue\n", node)
+	}
+	if err := os.WriteFile(productQueuePath, []byte(productQueue.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || !converged {
+		t.Fatalf("product queue evidence complete/converged/error = %v/%v/%v", complete, converged, err)
+	}
+	notConverged := strings.Replace(productQueue.String(), "\t40\t80\ttrue\n", "\t70\t80\tfalse\n", 1)
+	if err := os.WriteFile(productQueuePath, []byte(notConverged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged, err := readLocalStepProductQueueEvidence(productQueuePath, "rate-100"); err != nil || !complete || converged {
+		t.Fatalf("non-converged product queue complete/converged/error = %v/%v/%v", complete, converged, err)
 	}
 
 	processPath := filepath.Join(directory, "process.tsv")

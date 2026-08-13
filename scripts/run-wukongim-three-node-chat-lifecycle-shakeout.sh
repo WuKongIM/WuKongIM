@@ -561,6 +561,80 @@ capture_service_metrics() {
   done
 }
 
+capture_product_queue_metrics() {
+  local phase="$1" node destination observed status index
+  local -a capture_pids=() capture_names=()
+  observed="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  for node in 1 2 3; do
+    destination="$METRICS_DIR/node-$node-$phase.prom"
+    capture_metric_target "http://127.0.0.1:$(api_port "$node")/metrics" 3 "$destination" &
+    capture_pids+=("$!")
+    capture_names+=("node-$node")
+  done
+  for index in "${!capture_pids[@]}"; do
+    status=complete
+    wait "${capture_pids[$index]}" || status=missing
+    printf '%s\t%s\t%s\t%s\n' "$observed" "$phase" "${capture_names[$index]}" "$status" >>"$EVIDENCE_DIR/timeline.tsv"
+  done
+}
+
+write_product_queue_summary() {
+  local phase="$1" output="$RUN_DIR/product_queue_summary.tsv" temporary="$RUN_DIR/product_queue_summary.tsv.next"
+  local node baseline_status baseline_queue baseline_inflight drained_status drained_queue drained_inflight converged all_converged
+  all_converged=true
+  printf 'tag\tnode\tevidence\tbaseline_queue\tbaseline_inflight\tdrained_queue\tdrained_inflight\tconverged\n' >"$temporary"
+  for node in 1 2 3; do
+    baseline_status=missing
+    baseline_queue=0
+    baseline_inflight=0
+    drained_status=missing
+    drained_queue=0
+    drained_inflight=0
+    read -r baseline_status baseline_queue baseline_inflight < <(
+      awk -f "$ROOT_DIR/scripts/product-queue-snapshot.awk" "$METRICS_DIR/node-$node-before.prom" 2>/dev/null || true
+    ) || true
+    read -r drained_status drained_queue drained_inflight < <(
+      awk -f "$ROOT_DIR/scripts/product-queue-snapshot.awk" "$METRICS_DIR/node-$node-$phase.prom" 2>/dev/null || true
+    ) || true
+    converged=false
+    if [[ "$baseline_status" == complete && "$drained_status" == complete ]] &&
+      (( drained_queue <= baseline_queue && drained_inflight <= baseline_inflight )); then
+      converged=true
+    fi
+    if [[ "$baseline_status" != complete || "$drained_status" != complete ]]; then
+      drained_status=missing
+    fi
+    [[ "$converged" == true ]] || all_converged=false
+    printf 'rate-%s\tnode-%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$SEND_RATE" "$node" "$drained_status" "$baseline_queue" "$baseline_inflight" \
+      "$drained_queue" "$drained_inflight" "$converged" >>"$temporary"
+  done
+  mv "$temporary" "$output"
+  [[ "$all_converged" == true ]]
+}
+
+wait_for_product_queue_convergence() {
+  local attempt=0 phase deadline
+  deadline="$GRACEFUL_STOP_DEADLINE"
+  if (( deadline <= SECONDS )); then
+    deadline=$((SECONDS + GRACEFUL_STOP_TIMEOUT))
+  fi
+  while true; do
+    attempt=$((attempt + 1))
+    phase="product-drain-$attempt"
+    capture_product_queue_metrics "$phase"
+    if write_product_queue_summary "$phase"; then
+      log "post-drain product queues converged after $attempt sample(s)"
+      return 0
+    fi
+    if (( SECONDS >= deadline )); then
+      log "post-drain product queues did not converge within ${GRACEFUL_STOP_TIMEOUT}s"
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 summarize_storage_metrics() {
   local output="$RUN_DIR/storage_metrics_summary.tsv" node before after
   local -a samples files
@@ -628,7 +702,7 @@ write_artifact_checksums() {
     digest="$(sha256_file "$path")"
     printf '%s  %s\n' "$digest" "${path#"$RUN_DIR"/}" >>"$output"
   done < <(find "$CONFIG_DIR" "$REPORT_DIR" "$EVIDENCE_DIR" "$METRICS_DIR" \
-    "$RUN_DIR/storage_metrics_summary.tsv" "$RUN_DIR/host_io_summary.tsv" "$RUN_DIR/local-step.json" \
+    "$RUN_DIR/storage_metrics_summary.tsv" "$RUN_DIR/host_io_summary.tsv" "$RUN_DIR/product_queue_summary.tsv" "$RUN_DIR/local-step.json" \
     -type f -print | LC_ALL=C sort)
 }
 
@@ -679,6 +753,7 @@ done
 coordinator_status=0
 wait "$COORDINATOR_PID" || coordinator_status=$?
 if (( MEASURE_SECONDS > 0 )); then
+  wait_for_product_queue_convergence || true
   capture_service_metrics after
   record_timeline_boundary drain_end
   record_timeline_boundary shutdown_start
@@ -691,6 +766,7 @@ if (( MEASURE_SECONDS > 0 )); then
     --after "$REPORT_DIR/final.json" \
     --storage-summary "$RUN_DIR/storage_metrics_summary.tsv" \
     --host-io-summary "$RUN_DIR/host_io_summary.tsv" \
+    --product-queue-summary "$RUN_DIR/product_queue_summary.tsv" \
     --process-continuity "$EVIDENCE_DIR/process-continuity.tsv" \
     --output "$RUN_DIR/local-step.json" \
     --offered-rate "$SEND_RATE" \

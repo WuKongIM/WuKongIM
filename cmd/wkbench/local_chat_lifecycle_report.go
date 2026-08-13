@@ -36,6 +36,11 @@ var localStepStorageHeader = []string{
 
 var localStepProcessHeader = []string{"name", "alive"}
 
+var localStepProductQueueHeader = []string{
+	"tag", "node", "evidence", "baseline_queue", "baseline_inflight",
+	"drained_queue", "drained_inflight", "converged",
+}
+
 var localStepHostIOHeader = []string{
 	"tag", "host", "evidence", "physical_device", "iops_available", "iops_max",
 	"bytes_per_second_available", "bytes_per_second_max", "utilization_available",
@@ -64,35 +69,39 @@ type localChatLifecycleStepOptions struct {
 
 // localChatLifecycleStepEvidence records whether every required evidence cut is closed.
 type localChatLifecycleStepEvidence struct {
-	StorageComplete        bool
-	HostIOComplete         bool
-	ProductMetricsComplete bool
-	ProcessesContinuous    bool
-	HostConfounded         bool
+	StorageComplete              bool
+	HostIOComplete               bool
+	ProductMetricsComplete       bool
+	ProductQueueEvidenceComplete bool
+	ProductQueuesConverged       bool
+	ProcessesContinuous          bool
+	HostConfounded               bool
 }
 
 // localChatLifecycleStepResult is the non-formal typed result consumed by the staircase.
 type localChatLifecycleStepResult struct {
-	Schema                    string                        `json:"schema"`
-	Outcome                   localChatLifecycleStepOutcome `json:"outcome"`
-	Reason                    string                        `json:"reason"`
-	OfferedRatePerSecond      uint64                        `json:"offered_rate_per_second"`
-	ActualRatePerSecond       float64                       `json:"actual_rate_per_second"`
-	MinimumThroughputPercent  uint64                        `json:"minimum_throughput_percent"`
-	MeasuredDurationSeconds   float64                       `json:"measured_duration_seconds"`
-	OnlineConnections         int                           `json:"online_connections"`
-	Sent                      uint64                        `json:"sent"`
-	Acknowledged              uint64                        `json:"acknowledged"`
-	Expected                  uint64                        `json:"expected"`
-	MinimumFilesystemFreePct  float64                       `json:"minimum_filesystem_free_percent"`
-	StorageEvidenceComplete   bool                          `json:"storage_evidence_complete"`
-	HostIOEvidenceComplete    bool                          `json:"host_io_evidence_complete"`
-	ProductMetricsComplete    bool                          `json:"product_metrics_complete"`
-	ProcessContinuityComplete bool                          `json:"process_continuity_complete"`
+	Schema                       string                        `json:"schema"`
+	Outcome                      localChatLifecycleStepOutcome `json:"outcome"`
+	Reason                       string                        `json:"reason"`
+	OfferedRatePerSecond         uint64                        `json:"offered_rate_per_second"`
+	ActualRatePerSecond          float64                       `json:"actual_rate_per_second"`
+	MinimumThroughputPercent     uint64                        `json:"minimum_throughput_percent"`
+	MeasuredDurationSeconds      float64                       `json:"measured_duration_seconds"`
+	OnlineConnections            int                           `json:"online_connections"`
+	Sent                         uint64                        `json:"sent"`
+	Acknowledged                 uint64                        `json:"acknowledged"`
+	Expected                     uint64                        `json:"expected"`
+	MinimumFilesystemFreePct     float64                       `json:"minimum_filesystem_free_percent"`
+	StorageEvidenceComplete      bool                          `json:"storage_evidence_complete"`
+	HostIOEvidenceComplete       bool                          `json:"host_io_evidence_complete"`
+	ProductMetricsComplete       bool                          `json:"product_metrics_complete"`
+	ProductQueueEvidenceComplete bool                          `json:"product_queue_evidence_complete"`
+	ProductQueuesConverged       bool                          `json:"product_queues_converged"`
+	ProcessContinuityComplete    bool                          `json:"process_continuity_complete"`
 }
 
 func newLocalChatLifecycleStepReportCommand() *cobra.Command {
-	var beforePath, afterPath, storagePath, hostIOPath, processPath, outputPath string
+	var beforePath, afterPath, storagePath, hostIOPath, productQueuePath, processPath, outputPath string
 	var offeredRate, minimumThroughput uint64
 	var measuredDuration time.Duration
 	var hostConfounded bool
@@ -110,11 +119,13 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 			expectedTag := "rate-" + strconv.FormatUint(offeredRate, 10)
 			storageComplete, storageErr := readLocalStepStorageEvidence(storagePath, expectedTag)
 			hostIOComplete, hostIOErr := readLocalStepHostIOEvidence(hostIOPath, expectedTag)
+			productQueueComplete, productQueuesConverged, productQueueErr := readLocalStepProductQueueEvidence(productQueuePath, expectedTag)
 			processesContinuous, processErr := readLocalStepProcessContinuity(processPath)
 			evidence := localChatLifecycleStepEvidence{
 				StorageComplete: storageComplete, HostIOComplete: hostIOComplete,
 				ProductMetricsComplete: beforeErr == nil && afterErr == nil &&
 					localChatLifecycleProductMetricsComplete(before) && localChatLifecycleProductMetricsComplete(after),
+				ProductQueueEvidenceComplete: productQueueComplete, ProductQueuesConverged: productQueuesConverged,
 				ProcessesContinuous: processesContinuous, HostConfounded: hostConfounded,
 			}
 			if storageErr != nil {
@@ -122,6 +133,9 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 			}
 			if hostIOErr != nil {
 				evidence.HostIOComplete = false
+			}
+			if productQueueErr != nil {
+				evidence.ProductQueueEvidenceComplete = false
 			}
 			if processErr != nil {
 				evidence.ProcessesContinuous = false
@@ -140,18 +154,55 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 	cmd.Flags().StringVar(&afterPath, "after", "", "terminal report captured after bounded drain")
 	cmd.Flags().StringVar(&storagePath, "storage-summary", "", "normalized three-node storage summary TSV")
 	cmd.Flags().StringVar(&hostIOPath, "host-io-summary", "", "normalized four-host physical I/O summary TSV")
+	cmd.Flags().StringVar(&productQueuePath, "product-queue-summary", "", "normalized post-drain product queue summary TSV")
 	cmd.Flags().StringVar(&processPath, "process-continuity", "", "closed process continuity TSV")
 	cmd.Flags().StringVar(&outputPath, "output", "", "typed local step JSON output")
 	cmd.Flags().Uint64Var(&offeredRate, "offered-rate", 0, "offered SEND rate per second")
 	cmd.Flags().DurationVar(&measuredDuration, "measured-duration", 0, "post-warmup measured interval")
 	cmd.Flags().Uint64Var(&minimumThroughput, "minimum-throughput-percent", 90, "minimum actual/offered SENDACK percentage")
 	cmd.Flags().BoolVar(&hostConfounded, "host-confounded", false, "mark overlapping WuKongIM workload evidence")
-	for _, name := range []string{"before", "after", "storage-summary", "host-io-summary", "process-continuity", "output", "offered-rate", "measured-duration"} {
+	for _, name := range []string{"before", "after", "storage-summary", "host-io-summary", "product-queue-summary", "process-continuity", "output", "offered-rate", "measured-duration"} {
 		if err := cmd.MarkFlagRequired(name); err != nil {
 			panic(err)
 		}
 	}
 	return cmd
+}
+
+func readLocalStepProductQueueEvidence(path, expectedTag string) (complete, converged bool, err error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, false, err
+	}
+	defer file.Close()
+	rows, err := readLocalStepTSV(file, localStepProductQueueHeader)
+	if err != nil || len(rows) != 3 {
+		return false, false, errors.New("local product queue evidence is incomplete")
+	}
+	seen := map[string]bool{}
+	converged = true
+	for _, row := range rows {
+		if row[0] != expectedTag || row[2] != "complete" || seen[row[1]] {
+			return false, false, errors.New("local product queue evidence is incomplete")
+		}
+		for _, column := range []int{3, 4, 5, 6} {
+			if _, parseErr := strconv.ParseUint(row[column], 10, 64); parseErr != nil {
+				return false, false, errors.New("local product queue evidence is incomplete")
+			}
+		}
+		rowConverged, parseErr := strconv.ParseBool(row[7])
+		if parseErr != nil {
+			return false, false, errors.New("local product queue evidence is incomplete")
+		}
+		converged = converged && rowConverged
+		seen[row[1]] = true
+	}
+	for _, node := range []string{"node-1", "node-2", "node-3"} {
+		if !seen[node] {
+			return false, false, errors.New("local product queue evidence is incomplete")
+		}
+	}
+	return true, converged, nil
 }
 
 func localChatLifecycleProductMetricsComplete(report chatlifecycle.Report) bool {
@@ -343,6 +394,7 @@ func classifyLocalChatLifecycleStep(
 		MinimumThroughputPercent: options.MinimumThroughputPercent,
 		MeasuredDurationSeconds:  options.MeasuredDuration.Seconds(), OnlineConnections: before.Sessions.Online,
 		StorageEvidenceComplete: evidence.StorageComplete, ProductMetricsComplete: evidence.ProductMetricsComplete,
+		ProductQueueEvidenceComplete: evidence.ProductQueueEvidenceComplete, ProductQueuesConverged: evidence.ProductQueuesConverged,
 		HostIOEvidenceComplete: evidence.HostIOComplete, ProcessContinuityComplete: evidence.ProcessesContinuous,
 	}
 	if options.OfferedRatePerSecond == 0 || options.MeasuredDuration < time.Second || options.MeasuredDuration%time.Second != 0 ||
@@ -353,7 +405,8 @@ func classifyLocalChatLifecycleStep(
 		result.Outcome, result.Reason = localChatLifecycleStepHostConfounded, "overlapping_wukongim_workload"
 		return result
 	}
-	if !evidence.StorageComplete || !evidence.HostIOComplete || !evidence.ProductMetricsComplete || !evidence.ProcessesContinuous {
+	if !evidence.StorageComplete || !evidence.HostIOComplete || !evidence.ProductMetricsComplete ||
+		!evidence.ProductQueueEvidenceComplete || !evidence.ProcessesContinuous {
 		return result
 	}
 	if !sameLocalChatLifecycleStep(before, after) || !after.Final || !after.Verdict.Terminal ||
@@ -384,22 +437,12 @@ func classifyLocalChatLifecycleStep(
 	}
 	minimumAcknowledged := minimumLocalStepAcknowledged(result.Expected, options.MinimumThroughputPercent)
 	if acknowledged < minimumAcknowledged || acknowledged != sent ||
-		localChatLifecycleWorkRemaining(after) || localChatLifecycleProductQueuesAboveBaseline(before, after) {
+		localChatLifecycleWorkRemaining(after) || !evidence.ProductQueuesConverged {
 		result.Outcome, result.Reason = localChatLifecycleStepRateFailed, "underdelivery_or_incomplete_drain"
 		return result
 	}
 	result.Outcome, result.Reason = localChatLifecycleStepClean, "complete"
 	return result
-}
-
-func localChatLifecycleProductQueuesAboveBaseline(before, after chatlifecycle.Report) bool {
-	for index := range after.Resources.Nodes {
-		if after.Resources.Nodes[index].QueueCurrent > before.Resources.Nodes[index].QueueCurrent ||
-			after.Resources.Nodes[index].InflightCurrent > before.Resources.Nodes[index].InflightCurrent {
-			return true
-		}
-	}
-	return false
 }
 
 func minimumLocalStepAcknowledged(expected, percent uint64) uint64 {

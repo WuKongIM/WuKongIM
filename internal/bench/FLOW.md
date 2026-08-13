@@ -154,7 +154,13 @@ cut is missing.
 
 `wkbench report local-chat-lifecycle-step` consumes one post-warmup
 qualification report, one drained terminal report, complete normalized
-storage and host-I/O evidence, and a closed process-continuity cut. It emits only the
+storage and host-I/O evidence, a normalized post-drain service queue cut, and
+a closed process-continuity cut. The local wrapper samples that queue cut after
+the coordinator's bounded worker drain/stop completes and waits for the three
+service nodes to return below their post-warmup baselines. The terminal
+report's service-resource projection is the last active observation before
+worker shutdown; it must not be reused as post-drain queue evidence. The
+command emits only the
 non-formal local outcomes `clean`, `rate_failed`, `product_failure`,
 `storage_confounded`, `host_confounded`, or `insufficient_evidence`. It cannot
 emit or satisfy a rehearsal, formal Soak, or capacity verdict.
