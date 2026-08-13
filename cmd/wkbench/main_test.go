@@ -71,6 +71,14 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	nativeHandler := handler.(*hostMetricsHandler)
+	totals, ok := readHostCPUTotals()
+	if !ok || totals.total == 0 {
+		t.Fatal("native CPU totals unavailable")
+	}
+	nativeHandler.previousCPU = totals
+	nativeHandler.previousCPU.total--
+	nativeHandler.previousCPUSet = true
 	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -80,6 +88,8 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	for _, want := range []string{
 		`node_filesystem_size_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
 		`node_filesystem_avail_bytes{device="/dev/local-data-1",mountpoint="/var/lib/wukongim-1"}`,
+		`wkbench_host_cpu_busy_percent `,
+		`wkbench_host_memory_used_percent `,
 		`wukongim_process_up{unit="wukongim.service"} 0`,
 	} {
 		if !strings.Contains(response.Body.String(), want) {
@@ -113,6 +123,17 @@ func TestHostMetricsCommandValidatesAndExposesSelectedFilesystem(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/metrics", nil))
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("stale collector timestamp status = %d, want %d", response.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHostMetricsNativeResourceCollectors(t *testing.T) {
+	totals, ok := readHostCPUTotals()
+	if !ok || totals.total == 0 || totals.idle > totals.total {
+		t.Fatalf("host CPU totals = %+v/%v, want a valid native sample", totals, ok)
+	}
+	memory, ok := hostMemoryUsedPercent()
+	if !ok || memory < 0 || memory > 100 {
+		t.Fatalf("host memory used percent = %v/%v, want a value in [0,100]", memory, ok)
 	}
 }
 

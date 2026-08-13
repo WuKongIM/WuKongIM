@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
 )
@@ -318,58 +320,45 @@ func (h *hostMetricsHandler) cpuPercent() (float64, bool) {
 }
 
 func readHostCPUTotals() (hostCPUTotals, bool) {
-	body, err := os.ReadFile("/proc/stat")
-	if err != nil {
+	times, err := cpu.Times(false)
+	if err != nil || len(times) != 1 {
 		return hostCPUTotals{}, false
 	}
-	line := strings.SplitN(string(body), "\n", 2)[0]
-	fields := strings.Fields(line)
-	if len(fields) < 5 || fields[0] != "cpu" {
-		return hostCPUTotals{}, false
+	sample := times[0]
+	values := [...]float64{
+		sample.User, sample.System, sample.Idle, sample.Nice, sample.Iowait,
+		sample.Irq, sample.Softirq, sample.Steal,
 	}
-	var result hostCPUTotals
-	for index, raw := range fields[1:] {
-		value, err := strconv.ParseUint(raw, 10, 64)
-		if err != nil || math.MaxUint64-result.total < value {
+	var totalSeconds float64
+	for _, value := range values {
+		if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 			return hostCPUTotals{}, false
 		}
-		result.total += value
-		if index == 3 || index == 4 {
-			if math.MaxUint64-result.idle < value {
-				return hostCPUTotals{}, false
-			}
-			result.idle += value
-		}
+		totalSeconds += value
 	}
-	return result, result.total > 0
+	idleSeconds := sample.Idle + sample.Iowait
+	total, totalOK := hostCPUSecondsToTicks(totalSeconds)
+	idle, idleOK := hostCPUSecondsToTicks(idleSeconds)
+	if !totalOK || !idleOK || total == 0 || idle > total {
+		return hostCPUTotals{}, false
+	}
+	return hostCPUTotals{total: total, idle: idle}, true
+}
+
+func hostCPUSecondsToTicks(seconds float64) (uint64, bool) {
+	const ticksPerSecond = 1_000_000_000
+	if seconds < 0 || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds > float64(math.MaxUint64)/ticksPerSecond {
+		return 0, false
+	}
+	return uint64(math.Round(seconds * ticksPerSecond)), true
 }
 
 func hostMemoryUsedPercent() (float64, bool) {
-	body, err := os.ReadFile("/proc/meminfo")
-	if err != nil {
+	memory, err := mem.VirtualMemory()
+	if err != nil || memory.Total == 0 || memory.Available > memory.Total {
 		return 0, false
 	}
-	var total, available uint64
-	for _, line := range strings.Split(string(body), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		value, err := strconv.ParseUint(fields[1], 10, 64)
-		if err != nil {
-			return 0, false
-		}
-		switch fields[0] {
-		case "MemTotal:":
-			total = value
-		case "MemAvailable:":
-			available = value
-		}
-	}
-	if total == 0 || available > total {
-		return 0, false
-	}
-	return float64(total-available) * 100 / float64(total), true
+	return float64(memory.Total-memory.Available) * 100 / float64(memory.Total), true
 }
 
 func hostNetworkTransmitBytes() (uint64, bool) {
