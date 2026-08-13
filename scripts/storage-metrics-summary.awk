@@ -71,6 +71,22 @@ function optional_delta(key, first_key, last_key, first_value, last_value) {
   return last_value - first_value
 }
 
+function lazy_delta(key, first_key, last_key, first_value, last_value) {
+  first_key = 1 SUBSEP key
+  last_key = file_index SUBSEP key
+  if (!(last_key in seen)) {
+    mark_evidence("missing")
+    return 0
+  }
+  first_value = first_key in seen ? values[first_key] : 0
+  last_value = values[last_key]
+  if (last_value < first_value) {
+    mark_evidence("counter_reset")
+    return 0
+  }
+  return last_value - first_value
+}
+
 function required_max(key) {
   if (!(key in max_seen)) {
     mark_evidence("missing")
@@ -184,22 +200,22 @@ END {
   }
 
   queue_max = required_max("commit_queue_depth")
-  commit_count = delta("batch_count")
-  logical_requests = delta("batch_requests_sum")
-  records = delta("batch_records_sum")
-  bytes = delta("batch_bytes_sum")
-  collect_count = delta("collect_count")
-  collect_sum = delta("collect_sum")
-  build_count = delta("build_count")
-  build_sum = delta("build_sum")
-  physical_count = delta("commit_count")
-  physical_sum = delta("commit_sum")
-  publish_count = delta("publish_count")
-  publish_sum = delta("publish_sum")
-  total_count = delta("total_count")
-  total_sum = delta("total_sum")
-  request_count = delta("request_count")
-  request_sum = delta("request_sum")
+  commit_count = lazy_delta("batch_count")
+  logical_requests = lazy_delta("batch_requests_sum")
+  records = lazy_delta("batch_records_sum")
+  bytes = lazy_delta("batch_bytes_sum")
+  collect_count = lazy_delta("collect_count")
+  collect_sum = lazy_delta("collect_sum")
+  build_count = lazy_delta("build_count")
+  build_sum = lazy_delta("build_sum")
+  physical_count = lazy_delta("commit_count")
+  physical_sum = lazy_delta("commit_sum")
+  publish_count = lazy_delta("publish_count")
+  publish_sum = lazy_delta("publish_sum")
+  total_count = lazy_delta("total_count")
+  total_sum = lazy_delta("total_sum")
+  request_count = lazy_delta("request_count")
+  request_sum = lazy_delta("request_sum")
   request_ok = optional_delta("request_ok_count")
   request_ok_sum = optional_delta("request_ok_sum")
   request_timeout = optional_delta("request_timeout_count")

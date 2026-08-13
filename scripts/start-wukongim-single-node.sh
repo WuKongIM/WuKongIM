@@ -79,7 +79,7 @@ log_path() {
 print_plan() {
   printf 'repo_root=%s\n' "$ROOT_DIR"
   if [[ "$BUILD" -eq 1 ]]; then
-    printf 'build_cmd=go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
+    printf 'build_cmd=GOWORK=off go build -o %s ./cmd/wukongim\n' "$BIN_PATH"
   else
     printf 'build_cmd=<disabled>\n'
   fi
@@ -220,8 +220,8 @@ mkdir -p "$(dirname "$BIN_PATH")" "$LOG_DIR"
 
 ensure_embedded_prometheus() {
   local goos goarch suffix embed_name embed_path tmp src_dir gobin_path
-  goos="${GOOS:-$(go env GOOS)}"
-  goarch="${GOARCH:-$(go env GOARCH)}"
+  goos="${GOOS:-$(GOWORK=off go env GOOS)}"
+  goarch="${GOARCH:-$(GOWORK=off go env GOARCH)}"
   suffix=""
   if [[ "$goos" == "windows" ]]; then
     suffix=".exe"
@@ -242,7 +242,7 @@ ensure_embedded_prometheus() {
   git clone --depth 1 --branch "$PROMETHEUS_SOURCE_REF" "$PROMETHEUS_REPO" "$src_dir"
   (
     cd "$src_dir"
-    GOOS="$goos" GOARCH="$goarch" go build -o "$gobin_path" ./cmd/prometheus
+    GOWORK=off GOOS="$goos" GOARCH="$goarch" go build -o "$gobin_path" ./cmd/prometheus
   )
   [[ -x "$gobin_path" ]] || die "prometheus build did not produce executable: $gobin_path"
   cp "$gobin_path" "$embed_path"
@@ -258,7 +258,7 @@ if [[ "$BUILD" -eq 1 ]]; then
   log "building $BIN_PATH"
   (
     cd "$ROOT_DIR"
-    go build -o "$BIN_PATH" ./cmd/wukongim
+    GOWORK=off go build -o "$BIN_PATH" ./cmd/wukongim
   )
 elif [[ ! -x "$BIN_PATH" ]]; then
   die "--no-build requested but binary is not executable: $BIN_PATH"
@@ -278,11 +278,21 @@ check_process() {
 }
 
 start_node() {
-  local log_file
+  local log_file exported_name
+  local env_args=()
+  while IFS= read -r exported_name; do
+    case "$exported_name" in
+      WK_BENCH_API_ENABLE|WK_BENCH_API_MAX_BATCH_SIZE|WK_BENCH_API_MAX_PAYLOAD_BYTES)
+        ;;
+      WK_WUKONGIM_SINGLE_NODE_*|WK_BENCH_*|WK_PROMETHEUS_SOURCE_REF|WK_PROMETHEUS_EMBED_VERSION|WK_PROMETHEUS_REPO|WK_PROMETHEUS_EMBED_DIR)
+        env_args+=("-u" "$exported_name")
+        ;;
+    esac
+  done < <(compgen -e)
   log_file="$(log_path)"
   : > "$log_file"
   log "starting node: $CONFIG_PATH"
-  "$BIN_PATH" -config "$CONFIG_PATH" >"$log_file" 2>&1 &
+  env "${env_args[@]}" "$BIN_PATH" -config "$CONFIG_PATH" >"$log_file" 2>&1 &
   PID="$!"
   log "node pid=${PID} log=$log_file"
 }

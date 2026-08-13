@@ -33,6 +33,7 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	)
 	cmd.Dir = root
 	cmd.Env = append(envWithout("WK_PROMETHEUS_ENABLE", "WK_PROMETHEUS_BINARY_PATH", "WK_PROMETHEUS_EMBED_DIR",
+		"GOWORK",
 		"WK_WUKONGIM_SINGLE_NODE_CONFIG",
 		"WK_WUKONGIM_SINGLE_NODE_BIN",
 		"WK_WUKONGIM_SINGLE_NODE_LOG_DIR",
@@ -41,7 +42,11 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 		"WK_WUKONGIM_SINGLE_NODE_READY_TIMEOUT",
 		"WK_WUKONGIM_SINGLE_NODE_POLL_INTERVAL"),
 		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"GOWORK="+filepath.Join(t.TempDir(), "ancestor-go.work"),
 		"WK_PROMETHEUS_EMBED_DIR="+embedDir,
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR="+filepath.Join(t.TempDir(), "script-data"),
+		"WK_BENCH_SINGLE_NODE_QPS=250,500,750,1000",
+		"WK_BENCH_API_ENABLE=true",
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -55,6 +60,11 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	if !strings.Contains(goCalls, "build -o "+outputBin+" ./cmd/wukongim") {
 		t.Fatalf("expected build command, got:\n%s", goCalls)
 	}
+	goEnv := readFile(t, filepath.Join(callsDir, "go.env"))
+	wantBuildEnv := "GOWORK=off args=build -o " + outputBin + " ./cmd/wukongim"
+	if !strings.Contains(goEnv, wantBuildEnv) {
+		t.Fatalf("single-node build must ignore an ancestor go.work file, got:\n%s", goEnv)
+	}
 
 	nodeCalls := readFile(t, filepath.Join(callsDir, "wukongim.calls"))
 	wantConfig := "-config " + filepath.Join(root, "scripts/wukongim/wukongim.toml")
@@ -67,6 +77,16 @@ func TestWukongIMSingleNodeScriptBuildsStartsAndStopsNode(t *testing.T) {
 	}
 	if !strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=") || strings.Contains(nodeEnv, "WK_PROMETHEUS_BINARY_PATH=<unset>") {
 		t.Fatalf("expected script to clear binary path so wukongim uses embedded prometheus, got:\n%s", nodeEnv)
+	}
+	for _, want := range []string{
+		"WK_WUKONGIM_SINGLE_NODE_DATA_DIR=<unset>",
+		"WK_PROMETHEUS_EMBED_DIR=<unset>",
+		"WK_BENCH_SINGLE_NODE_QPS=<unset>",
+		"WK_BENCH_API_ENABLE=true",
+	} {
+		if !strings.Contains(nodeEnv, want) {
+			t.Fatalf("expected node env %q, got:\n%s", want, nodeEnv)
+		}
 	}
 	goCalls = readFile(t, filepath.Join(callsDir, "go.calls"))
 	if strings.Contains(goCalls, "install github.com/prometheus/prometheus/cmd/prometheus@") {

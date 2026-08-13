@@ -294,6 +294,7 @@ done
 require_positive_int '--channels' "$CHANNELS"
 require_positive_int '--users' "$USERS"
 require_positive_int '--members' "$GROUP_MEMBERS"
+(( GROUP_MEMBERS > 1 )) || die '--members must be greater than one for the reviewed fanout objective'
 require_positive_int '--concurrency' "$CONCURRENCY"
 require_positive_int '--ready-timeout' "$READY_TIMEOUT"
 require_nonnegative_number '--resource-interval' "$RESOURCE_SAMPLE_INTERVAL"
@@ -630,12 +631,18 @@ rate_per_channel() {
   awk -v qps="$qps" -v channels="$CHANNELS" 'BEGIN { printf "%.6g", qps / channels }'
 }
 
+online_fanout_qps() {
+  local qps="$1"
+  awk -v qps="$qps" -v members="$GROUP_MEMBERS" 'BEGIN { printf "%.6g", qps * (members - 1) }'
+}
+
 write_scenario() {
   local qps="$1"
   local tag="$2"
   local report_dir="$3"
-  local rate
+  local rate fanout
   rate="$(rate_per_channel "$qps")"
+  fanout="$(online_fanout_qps "$qps")"
   cat >"$OUT_DIR/scenario-${tag}.yaml" <<YAML
 version: wkbench/v1
 run:
@@ -647,9 +654,10 @@ run:
   fail_fast: true
   report_dir: $report_dir
 objectives:
-  scale: local-diagnostic
+  scale: small
   standard: false
   ingress_qps: ${qps}/s
+  online_fanout_qps: ${fanout}/s
   tolerance_ratio: 0.1
 limits:
   fail_on_soft: false

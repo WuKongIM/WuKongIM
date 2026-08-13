@@ -90,6 +90,34 @@ func TestStorageMetricsSummaryFailsClosedOnMissingOrResetCounters(t *testing.T) 
 	after.flushBytes, after.flushCount = 400, 4
 	after.compactionRead, after.compactionWritten, after.compactionCount = 600, 800, 6
 
+	t.Run("lazy commit series start at zero", func(t *testing.T) {
+		dir := t.TempDir()
+		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
+		writeStorageMetricsFixture(t, beforePath, base)
+		writeStorageMetricsFixture(t, afterPath, after)
+		lines := strings.Split(readFile(t, beforePath), "\n")
+		kept := lines[:0]
+		for _, line := range lines {
+			if strings.HasPrefix(line, "wukongim_storage_commit_") {
+				continue
+			}
+			kept = append(kept, line)
+		}
+		if err := os.WriteFile(beforePath, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		output, err := exec.Command("awk", "-v", "tag=t", "-v", "node=n", "-f", script, beforePath, afterPath).CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		fields := strings.Split(strings.TrimSpace(string(output)), "\t")
+		for index, want := range map[int]string{2: "complete", 4: "20", 5: "40", 6: "60", 7: "6000", 15: "40", 17: "40", 25: "40"} {
+			if fields[index] != want {
+				t.Fatalf("field[%d] = %q, want %q; output=%q", index, fields[index], want, output)
+			}
+		}
+	})
+
 	t.Run("optional failure series stay zero", func(t *testing.T) {
 		dir := t.TempDir()
 		beforePath, afterPath := filepath.Join(dir, "before.prom"), filepath.Join(dir, "after.prom")
@@ -474,7 +502,9 @@ func TestSingleNodeBenchUsesReviewedLocalThroughputBaseline(t *testing.T) {
 		`logical_slot_groups=${WK_CLUSTER_INITIAL_SLOT_COUNT:-12}`,
 		`hash_slots=${WK_CLUSTER_HASH_SLOT_COUNT:-256}`,
 		`objectives:`,
+		`scale: small`,
 		`ingress_qps: ${qps}/s`,
+		`online_fanout_qps: ${fanout}/s`,
 		`workload_scheduler_planned_total`,
 		`scheduler_accounting`,
 		`start_host_metrics`,
@@ -486,6 +516,9 @@ func TestSingleNodeBenchUsesReviewedLocalThroughputBaseline(t *testing.T) {
 		if !strings.Contains(script, want) {
 			t.Fatalf("single-node baseline missing reviewed contract %q", want)
 		}
+	}
+	if strings.Contains(script, `scale: local-diagnostic`) {
+		t.Fatal("single-node baseline must use a wkbench-supported objective scale")
 	}
 }
 

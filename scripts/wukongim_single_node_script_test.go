@@ -51,7 +51,7 @@ func TestWukongIMSingleNodeScriptDryRunPrintsCommand(t *testing.T) {
 	}
 	text := string(output)
 	for _, want := range []string{
-		"build_cmd=go build -o " + outputBin + " ./cmd/wukongim",
+		"build_cmd=GOWORK=off go build -o " + outputBin + " ./cmd/wukongim",
 		"config=" + filepath.Join(root, "scripts/wukongim/wukongim.toml"),
 		"ready=http://127.0.0.1:5001/readyz",
 		"prometheus_enable=true",
