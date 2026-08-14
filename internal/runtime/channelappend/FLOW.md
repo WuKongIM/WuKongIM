@@ -485,7 +485,11 @@ advance, append_effect, and post_commit pools. Advance waiting includes both
 the dispatcher queue and a dispatcher currently blocked on the underlying
 ants/v2 pool; append_effect reports direct ants state. Post_commit reports
 logical admitted tasks so retained idle ants workers are not mistaken for
-active work. Benchmark scripts use these samples for the per-node peak
+active work. After any of these pools releases its final executing task, it
+requests a publication only after decrementing its running count. The same
+serialized publisher therefore makes the terminal zero sample observable even
+when no later traffic causes another pressure transition. Benchmark scripts use
+these samples for the per-node peak
 `used/cap` pool summary.
 
 Before a post-commit effect enters the asynchronous pool, it copies the

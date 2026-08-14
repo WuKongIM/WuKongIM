@@ -300,9 +300,11 @@ func phaseFromWindow(window PhaseWindow) PhaseEvidence {
 }
 
 type queueMetric struct {
-	name   string
-	metric string
-	labels map[string]string
+	name           string
+	metric         string
+	labels         map[string]string
+	partitionLabel string
+	partitions     []string
 }
 
 type resultCounterMetric struct {
@@ -344,7 +346,11 @@ var requiredQueueMetrics = [...]queueMetric{
 	{name: QueuePostCommitBacklog, metric: "wukongim_channelappend_writer_state_items", labels: map[string]string{"kind": "post_commit_backlog"}},
 	{name: QueuePostCommitHandoff, metric: "wukongim_channelappend_post_commit_handoff_depth"},
 	{name: QueuePostCommitRetry, metric: "wukongim_channelappend_post_commit_retry_queue_depth"},
-	{name: QueueEffectPoolInflight, metric: "wukongim_channelappend_effect_pool_inflight"},
+	{
+		name: QueueEffectPoolInflight, metric: "wukongim_ants_pool_running",
+		labels: map[string]string{"component": "channelappend"}, partitionLabel: "pool",
+		partitions: []string{"advance", "append_effect", "post_commit"},
+	},
 	{name: QueueStorageCommit, metric: "wukongim_storage_commit_queue_depth"},
 	{name: QueueDeliveryPlan, metric: "wukongim_delivery_recipient_worker_queue_depth"},
 	{name: QueueDeliveryInflight, metric: "wukongim_delivery_recipient_worker_inflight"},
@@ -448,9 +454,34 @@ func parseProductQueueCut(reader io.Reader) (benchmetrics.PrometheusSnapshot, Pr
 func queueDepth(snapshot benchmetrics.PrometheusSnapshot, required queueMetric) (float64, bool) {
 	total := 0.0
 	found := false
+	var allowedPartitions map[string]struct{}
+	var seenPartitions map[string]struct{}
+	if required.partitionLabel != "" {
+		allowedPartitions = make(map[string]struct{}, len(required.partitions))
+		seenPartitions = make(map[string]struct{}, len(required.partitions))
+		for _, partition := range required.partitions {
+			if partition == "" {
+				return 0, false
+			}
+			allowedPartitions[partition] = struct{}{}
+		}
+	}
 	for _, sample := range snapshot.Samples {
 		if sample.Name != required.metric || !labelsContain(sample.Labels, required.labels) {
 			continue
+		}
+		if required.partitionLabel != "" {
+			partition, ok := sample.Labels[required.partitionLabel]
+			if !ok {
+				return 0, false
+			}
+			if _, ok := allowedPartitions[partition]; !ok {
+				return 0, false
+			}
+			if _, duplicate := seenPartitions[partition]; duplicate {
+				return 0, false
+			}
+			seenPartitions[partition] = struct{}{}
 		}
 		if math.IsNaN(sample.Value) || math.IsInf(sample.Value, 0) || sample.Value < 0 {
 			return 0, false
@@ -460,6 +491,9 @@ func queueDepth(snapshot benchmetrics.PrometheusSnapshot, required queueMetric) 
 			return 0, false
 		}
 		found = true
+	}
+	if required.partitionLabel != "" && len(seenPartitions) != len(allowedPartitions) {
+		return 0, false
 	}
 	return total, found
 }

@@ -87,6 +87,64 @@ func TestBuildProductQueueEvidenceRequiresEveryRawMetric(t *testing.T) {
 	}
 }
 
+func TestBuildProductQueueEvidenceUsesProductionChannelAppendPoolGauge(t *testing.T) {
+	cutAt := time.Now().UTC()
+	baseline := completeProductQueuePrometheus(2, testProductQueueCut("warmup", "run", cutAt.Add(-time.Minute)))
+	terminal := completeProductQueuePrometheus(0, testProductQueueCut("run", "cooldown", cutAt))
+	if strings.Contains(baseline, "wukongim_channelappend_effect_pool_inflight") {
+		t.Fatal("fixture retained the unpopulated legacy effect-pool family")
+	}
+	evidence, err := BuildProductQueueEvidence(
+		strings.NewReader(baseline),
+		strings.NewReader(terminal),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if complete, converged := evaluateProductQueues(evidence); !complete || !converged {
+		t.Fatalf("production queue evidence = %+v, want complete/converged", evidence)
+	}
+	var pool ProductQueueBoundary
+	for _, queue := range evidence.Queues {
+		if queue.Name == QueueEffectPoolInflight {
+			pool = queue
+			break
+		}
+	}
+	if pool.BaselineDepth != 12 || pool.TerminalDepth != 0 {
+		t.Fatalf("channelappend pool boundary = %+v, want all three fixed pools summed", pool)
+	}
+
+	for _, poolName := range []string{"advance", "append_effect", "post_commit"} {
+		t.Run("missing_"+poolName, func(t *testing.T) {
+			missing := strings.Replace(terminal,
+				`wukongim_ants_pool_running{component="channelappend",pool="`+poolName+`"} 0`+"\n", "", 1)
+			incomplete, err := BuildProductQueueEvidence(strings.NewReader(baseline), strings.NewReader(missing))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if complete, _ := evaluateProductQueues(incomplete); complete {
+				t.Fatalf("missing %s pool was complete: %+v", poolName, incomplete)
+			}
+		})
+	}
+
+	for name, suffix := range map[string]string{
+		"unknown":   `wukongim_ants_pool_running{component="channelappend",pool="unreviewed"} 0` + "\n",
+		"duplicate": `wukongim_ants_pool_running{component="channelappend",pool="append_effect"} 0` + "\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			incomplete, err := BuildProductQueueEvidence(strings.NewReader(baseline), strings.NewReader(terminal+suffix))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if complete, _ := evaluateProductQueues(incomplete); complete {
+				t.Fatalf("%s pool partition was complete: %+v", name, incomplete)
+			}
+		})
+	}
+}
+
 func TestBuildProductQueueEvidenceRejectsOpenOrResetResultPartitions(t *testing.T) {
 	cutAt := time.Now().UTC()
 	baseline := strings.Replace(
@@ -265,7 +323,9 @@ wukongim_channelappend_writer_state_items{kind="append_inflight"} ` + integerStr
 wukongim_channelappend_writer_state_items{kind="post_commit_backlog"} ` + integerString(depth) + `
 wukongim_channelappend_post_commit_handoff_depth ` + integerString(depth) + `
 wukongim_channelappend_post_commit_retry_queue_depth ` + integerString(depth) + `
-wukongim_channelappend_effect_pool_inflight{stage="append"} ` + integerString(depth) + `
+wukongim_ants_pool_running{component="channelappend",pool="advance"} ` + integerString(depth) + `
+wukongim_ants_pool_running{component="channelappend",pool="append_effect"} ` + integerString(depth) + `
+wukongim_ants_pool_running{component="channelappend",pool="post_commit"} ` + integerString(depth) + `
 wukongim_storage_commit_queue_depth ` + integerString(depth) + `
 wukongim_delivery_recipient_worker_queue_depth ` + integerString(depth) + `
 wukongim_delivery_recipient_worker_inflight ` + integerString(depth) + `

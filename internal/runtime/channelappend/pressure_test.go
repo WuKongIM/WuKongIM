@@ -35,6 +35,17 @@ type blockingPressureObserverForTest struct {
 	events       []WriterPressureObservation
 }
 
+type terminalPoolPressureObserverForTest struct {
+	pool           string
+	runningStarted chan struct{}
+	releaseRunning chan struct{}
+	terminalZero   chan struct{}
+
+	mu          sync.Mutex
+	runningSeen bool
+	zeroSeen    bool
+}
+
 func newCapturePressureObserver() *capturePressureObserver {
 	return &capturePressureObserver{
 		antsSeen:  make(map[string]AntsPoolObservation),
@@ -48,6 +59,40 @@ func newBlockingPressureObserverForTest() *blockingPressureObserverForTest {
 		firstStarted: make(chan struct{}),
 		releaseFirst: make(chan struct{}),
 	}
+}
+
+func newTerminalPoolPressureObserverForTest(pool string) *terminalPoolPressureObserverForTest {
+	return &terminalPoolPressureObserverForTest{
+		pool:           pool,
+		runningStarted: make(chan struct{}),
+		releaseRunning: make(chan struct{}),
+		terminalZero:   make(chan struct{}),
+	}
+}
+
+func (o *terminalPoolPressureObserverForTest) AppendFinished(string, error, time.Duration) {}
+
+func (o *terminalPoolPressureObserverForTest) SetChannelAppendWriterPressure(WriterPressureObservation) {
+}
+
+func (o *terminalPoolPressureObserverForTest) ObserveChannelAppendAntsPool(event AntsPoolObservation) {
+	if event.Pool != o.pool {
+		return
+	}
+	o.mu.Lock()
+	if event.Running > 0 && !o.runningSeen {
+		o.runningSeen = true
+		close(o.runningStarted)
+		release := o.releaseRunning
+		o.mu.Unlock()
+		<-release
+		return
+	}
+	if event.Running == 0 && o.runningSeen && !o.zeroSeen {
+		o.zeroSeen = true
+		close(o.terminalZero)
+	}
+	o.mu.Unlock()
 }
 
 func (o *blockingPressureObserverForTest) SetChannelAppendWriterPressure(event WriterPressureObservation) {
@@ -124,6 +169,85 @@ func (c *capturePressureObserver) advanceSnapshot() (AntsPoolObservation, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.lastAdvance, c.maxAdvanceWaiting
+}
+
+func TestGroupPublishesTerminalRunningAfterEveryWorkerPoolTaskReturns(t *testing.T) {
+	for _, poolName := range []string{"advance", "append_effect", "post_commit"} {
+		t.Run(poolName, func(t *testing.T) {
+			observer := newTerminalPoolPressureObserverForTest(poolName)
+			group := New(Options{
+				LocalNodeID:    1,
+				EffectPoolSize: 1,
+				Observer:       observer,
+			})
+			if err := group.Start(context.Background()); err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			t.Cleanup(func() {
+				select {
+				case <-observer.releaseRunning:
+				default:
+					close(observer.releaseRunning)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				if err := group.Stop(ctx); err != nil {
+					t.Errorf("Stop() error = %v", err)
+				}
+			})
+
+			var pool *workerPool
+			switch poolName {
+			case "advance":
+				pool = group.advancePool
+			case "append_effect":
+				pool = group.appendPool
+			case "post_commit":
+				pool = group.postCommitPool
+			default:
+				t.Fatalf("unknown pool %q", poolName)
+			}
+
+			entered := make(chan struct{})
+			releaseTask := make(chan struct{})
+			bodyReturned := make(chan struct{})
+			if err := pool.submit(func() {
+				close(entered)
+				<-releaseTask
+				close(bodyReturned)
+			}); err != nil {
+				t.Fatalf("submit(%s) error = %v", poolName, err)
+			}
+			select {
+			case <-entered:
+			case <-time.After(time.Second):
+				t.Fatalf("%s task did not start", poolName)
+			}
+
+			// Request one known publication while the task is running. The
+			// observer blocks that serialized callback, leaving the publisher's
+			// wake channel empty when the task returns.
+			group.metrics.observePressure()
+			select {
+			case <-observer.runningStarted:
+			case <-time.After(time.Second):
+				t.Fatalf("%s running pressure was not published", poolName)
+			}
+
+			close(releaseTask)
+			select {
+			case <-bodyReturned:
+			case <-time.After(time.Second):
+				t.Fatalf("%s task body did not return", poolName)
+			}
+			close(observer.releaseRunning)
+			select {
+			case <-observer.terminalZero:
+			case <-time.After(time.Second):
+				t.Fatalf("%s terminal running pressure was not published", poolName)
+			}
+		})
+	}
 }
 
 func TestGroupEmitsAggregatePressure(t *testing.T) {

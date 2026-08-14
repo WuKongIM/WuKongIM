@@ -20,7 +20,10 @@ type workerPool struct {
 	logicalInflight atomic.Int64
 	busy            atomic.Int64
 	rejected        atomic.Int64
-	unregisterPool  func()
+	// onStateChange requests a serialized group pressure publication after an
+	// executing task releases its busy ownership.
+	onStateChange  func()
+	unregisterPool func()
 }
 
 func newWorkerPool(size int) *workerPool {
@@ -73,7 +76,7 @@ func (p *workerPool) submitWithCompletion(fn func(), onDone func()) error {
 	if !p.nonblocking {
 		return p.pool.Submit(func() {
 			p.busy.Add(1)
-			defer p.busy.Add(-1)
+			defer p.finishBusyTask()
 			if onDone != nil {
 				defer onDone()
 			}
@@ -87,7 +90,7 @@ func (p *workerPool) submitWithCompletion(fn func(), onDone func()) error {
 	wrapped := func() {
 		p.busy.Add(1)
 		defer func() {
-			p.busy.Add(-1)
+			p.finishBusyTask()
 			remaining := p.logicalInflight.Add(-1)
 			if remaining < 0 {
 				panic("channelappend: worker pool logical inflight underflow")
@@ -114,6 +117,13 @@ func (p *workerPool) submitWithCompletion(fn func(), onDone func()) error {
 			p.rejected.Add(1)
 		}
 		return err
+	}
+}
+
+func (p *workerPool) finishBusyTask() {
+	p.busy.Add(-1)
+	if p.onStateChange != nil {
+		p.onStateChange()
 	}
 }
 

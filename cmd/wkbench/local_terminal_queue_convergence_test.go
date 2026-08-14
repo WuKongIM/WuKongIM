@@ -95,7 +95,9 @@ func writeQueueFixture(t *testing.T, path string, depth int, cut localbaseline.P
 		"wukongim_channelappend_writer_state_items{kind=\"post_commit_backlog\"} " + value + "\n" +
 		"wukongim_channelappend_post_commit_handoff_depth " + value + "\n" +
 		"wukongim_channelappend_post_commit_retry_queue_depth " + value + "\n" +
-		"wukongim_channelappend_effect_pool_inflight{stage=\"append\"} " + value + "\n" +
+		"wukongim_ants_pool_running{component=\"channelappend\",pool=\"advance\"} " + value + "\n" +
+		"wukongim_ants_pool_running{component=\"channelappend\",pool=\"append_effect\"} " + value + "\n" +
+		"wukongim_ants_pool_running{component=\"channelappend\",pool=\"post_commit\"} " + value + "\n" +
 		"wukongim_storage_commit_queue_depth " + value + "\n" +
 		"wukongim_delivery_recipient_worker_queue_depth " + value + "\n" +
 		"wukongim_delivery_recipient_worker_inflight " + value + "\n" +

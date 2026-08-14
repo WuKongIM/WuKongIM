@@ -1618,7 +1618,9 @@ wukongim_channelappend_writer_state_items{kind="append_inflight"} 0
 wukongim_channelappend_writer_state_items{kind="post_commit_backlog"} 0
 wukongim_channelappend_post_commit_handoff_depth 0
 wukongim_channelappend_post_commit_retry_queue_depth 0
-wukongim_channelappend_effect_pool_inflight{stage="append"} 0
+wukongim_ants_pool_running{component="channelappend",pool="advance"} 0
+wukongim_ants_pool_running{component="channelappend",pool="append_effect"} 0
+wukongim_ants_pool_running{component="channelappend",pool="post_commit"} 0
 wukongim_storage_commit_queue_depth 0
 wukongim_delivery_recipient_worker_queue_depth 0
 wukongim_delivery_recipient_worker_inflight 0
