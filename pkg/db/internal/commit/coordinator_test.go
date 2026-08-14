@@ -248,6 +248,52 @@ func TestCoordinatorQueueDepthDoesNotRegressAfterPhysicalDrain(t *testing.T) {
 	}
 }
 
+func TestCoordinatorQueueDepthReachesZeroAfterFinalCollectedBatch(t *testing.T) {
+	db := openTestDB(t)
+	observer := &recordingObserver{depthCh: make(chan int, 32)}
+	c := commit.NewCoordinator(db, commit.Config{
+		FlushWindow: 10 * time.Millisecond,
+		QueueSize:   8,
+		Observer:    observer,
+	})
+	defer c.Close()
+
+	firstCommitStarted := make(chan struct{})
+	releaseFirstCommit := make(chan struct{})
+	var commits atomic.Int64
+	c.SetCommitFunc(func(*engine.Batch) error {
+		if commits.Add(1) == 1 {
+			close(firstCommitStarted)
+			<-releaseFirstCommit
+		}
+		return nil
+	})
+
+	results := make(chan error, 4)
+	submit := func() {
+		go func() {
+			results <- c.Submit(context.Background(), commit.Request{
+				Build: func(*engine.Batch) error { return nil },
+			})
+		}()
+	}
+	submit()
+	waitSignal(t, firstCommitStarted, "first physical commit")
+	for range 3 {
+		submit()
+	}
+	waitForExactQueueDepth(t, observer.depthCh, 3)
+	close(releaseFirstCommit)
+	for range 4 {
+		if err := waitResult(t, results, "collected commit request"); err != nil {
+			t.Fatalf("Submit() error = %v", err)
+		}
+	}
+	if got := observer.lastQueueDepth(); got != 0 {
+		t.Fatalf("final observed queue depth = %d, want 0 after final batch collected every queued request", got)
+	}
+}
+
 func TestShardedCoordinatorQueueDepthDoesNotRegressAfterPhysicalDrain(t *testing.T) {
 	db := openTestDB(t)
 	observer := newBlockingQueueDepthObserver()
@@ -1104,6 +1150,15 @@ func (o *recordingObserver) ObserveRequest(event commit.RequestEvent) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.requests = append(o.requests, event)
+}
+
+func (o *recordingObserver) lastQueueDepth() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(o.depths) == 0 {
+		return -1
+	}
+	return o.depths[len(o.depths)-1]
 }
 
 func (o *recordingObserver) onlyBatch(t *testing.T) commit.BatchEvent {

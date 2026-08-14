@@ -334,6 +334,10 @@ func (c *Coordinator) run() {
 		}
 		collectStarted := time.Now()
 		batch := c.collect(req)
+		// collect may drain additional requests directly from the channel. Publish
+		// the remaining physical queue after that drain so the last grouped batch
+		// cannot leave its pre-collection depth as the terminal gauge.
+		c.observeQueueDepth()
 		c.commit(batch, time.Since(collectStarted))
 	}
 }

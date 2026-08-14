@@ -114,7 +114,9 @@ Current flow:
     each shard still uses synchronous physical commits. Absolute queue-depth
     publication is linearized both within a shard and across the aggregate;
     delayed observer callbacks refresh the latest total and cannot overwrite a
-    terminal zero with stale queued work. Batch helpers reject
+    terminal zero with stale queued work. The coordinator also republishes
+    after grouped collection drains sibling requests directly from its channel,
+    so the final batch cannot retain a pre-collection depth. Batch helpers reject
     duplicate canonical entries before writes, group work by `Engine` in
     request order, and never hold channel locks from different physical engines
     simultaneously. If caller cancellation leaves an admitted group running to
