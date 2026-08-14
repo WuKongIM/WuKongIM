@@ -439,7 +439,7 @@ write_measured_host_overlap_status() {
 
 start_measured_host_overlap_monitor() {
   local pid
-  local -a owned_pids=("${PIDS[@]}")
+  local -a owned_pids=("$$" "${PIDS[@]}")
   (( HOST_OVERLAP_MONITOR_STARTED == 0 )) || return 0
   HOST_OVERLAP_MONITOR_STARTED=1
   (

@@ -27,6 +27,7 @@ func TestChatLifecycleShakeoutScriptStaticContract(t *testing.T) {
 		"soak chat-lifecycle", "request_coordinator_stop", "handle_signal", "GRACEFUL_STOP_DEADLINE",
 		"OPERATOR_SIGNAL_STATUS", "request_pending_operator_stop", "--operator-interrupted",
 		"detect-local-workload-overlap.sh", "check_measured_host_overlap", "--host-confounded",
+		`local -a owned_pids=("$$" "${PIDS[@]}")`,
 		"finalize_source_rebuildability_after_builds",
 		"DRAIN_BOUNDARY_RECORDED",
 		"coordinator_graceful_stop_timeout", "capture_graceful_stop_timeout_evidence",
