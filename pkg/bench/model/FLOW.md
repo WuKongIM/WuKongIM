@@ -1,65 +1,57 @@
-# pkg/bench/model Flow
+---
+scope: package
+summary: Defines shared wkbench configuration, deterministic plans, reports, rates, scenario digests, and bench target API DTOs.
+---
+
+# Benchmark Model Flow
 
 ## Responsibility
 
-`pkg/bench/model` owns shared wkbench schema, deterministic plan, report, rate,
-and bench/v1 target API DTOs. Both the black-box `cmd/wkbench` implementation
-and the promoted `cmd/wukongim` benchmark-only target surface may import this
-package.
+This package owns the lightweight schemas shared by `cmd/wkbench` and the
+benchmark-only target surface in `cmd/wukongim`.
+It does not execute benchmarks, manage workers, or depend on server runtimes.
 
 ## Boundaries
 
-- Keep this package as data model and lightweight parsing helpers only.
-- Do not import `internal`, `pkg/cluster`, or server runtime packages from
-  here.
-- Keep exported fields documented because these structs define config, YAML,
-  JSON, and HTTP API contracts.
-- `DigestScenario` hashes the canonical JSON form of the fully loaded effective
-  scenario so lifecycle tags and Analysis MCP refer to the same workload.
+- Keep only data models and lightweight parsing or digest helpers here; do not
+  import internal, cluster, or server runtime packages.
+- Exported fields are YAML, JSON, configuration, or HTTP contracts and require
+  documentation.
+- Worker assignments contain selected capacity profiles but never worker
+  control credentials.
 
-`Worker.Client` is an optional complete per-session capacity profile. When it
-is present, every capacity is positive; when it is omitted, wkbench retains the
-existing generic client defaults. The coordinator copies only the selected
-worker's profile into that worker's assignment and never places worker control
-credentials in the assignment payload.
+## Main Flows
 
-`Worker.TCPSource` is an optional complete local TCP source pool. Configured
-addresses are unique, valid, non-unspecified IPv4 addresses, and the inclusive
-port range is bounded by `1024..65535`. `TCPSourceCapacity` is the Cartesian
-product of the address list and port range. After worker weights produce final
-identity ranges, the planner requires each configured capacity to cover that
-worker's range. The coordinator deep-copies the selected worker's address slice
-into its assignment without copying worker control credentials. Omission is
-intentional and leaves source selection to the operating system through the
-ordinary `net.Dialer`; wkbench does not guess an OS source-port capacity.
+1. Load and validate the effective scenario, then hash canonical JSON so plans,
+   lifecycle tags, and Analysis MCP share one digest.
+2. Produce deterministic worker identity, online-identity, source-address,
+   churn, rate, and Hash Slot spread plans.
+3. Exchange closed `bench/v1` target DTOs for assignments, progress, reports,
+   and bounded Channel runtime probes.
 
-Reviewed scenario objectives declare a stable `small`, `medium`, or `large`
-scale, ingress and online-fanout QPS, tolerance, and active-channel window.
-`IdentityConfig.TotalUsers` is the full online-plus-offline pool; zero is the
-legacy compatibility fallback to `OnlineConfig.TotalUsers`. The plan therefore
-records both `IdentityPool` and `OnlineIdentityPool`. A worker's optional
-`OnlineIdentityIndexes` is mutable runtime mapping for scheduled identity churn
-and is omitted from the initial deterministic plan.
+## Invariants and Failure Semantics
 
-`OnlineConfig.Churn` is explicit about interval, churn ratio, same-user share,
-identity-swap share, and history-sync policy. Long stability profiles require
-the shares to sum to one, at least one full offline identity lane for swaps,
-and `history_sync: false`. Bench capabilities separately advertise batched
-subscriber adds and removals so identity-swap workers can keep group membership
-aligned without growing long-run group cardinality.
+- Optional client and TCP source profiles are complete when present; capacities
+  are positive and cover the worker's final identity range.
+- TCP source IPv4 addresses are unique and non-unspecified; ports remain in
+  `1024..65535`. Omission delegates source selection to the OS.
+- Long stability churn shares sum to one, reserve an offline swap lane, and
+  disable history sync.
+- Hash Slot spread maps channel index `n` to physical Hash Slot `n` for the
+  declared profile count.
+- Runtime probes use either the generated half-open range selector or at most
+  1,200 explicit channels, never both; private errors map to the closed safe
+  reason vocabulary.
 
-`ShardConfig.HashSlotSpread` is a group-profile contract: `HashSlotCount` must
-be positive and equal the profile channel count. It means channel index `n`
-must be generated into physical hash slot `n`, not merely distributed by the
-ordinary worker shard strategy.
+## Read First
 
-The restricted Channel runtime probe DTO has two mutually exclusive selector
-modes. Existing clients retain the generated `run_id`, `profile`,
-`channel_type`, and half-open `range` contract. Diagnostic callers may instead
-send up to 1,200 concrete `(channel_id, channel_type)` identities. Probe
-responses retain the aggregate and `missing` compatibility fields and add
-ordered per-channel role, status, LEO, HW, checkpoint, leader-epoch, and
-channel-epoch evidence only for the explicit selector. Probe failures cross
-the shared controller boundary with one closed reason: `deadline`, `canceled`,
-`runtime_unavailable`, `invalid_evidence`, or `internal`; private source errors
-never become the safe reason text.
+- [Scenario config](config.go)
+- [Deterministic plan](plan.go)
+- [Scenario digest](scenario_digest.go)
+- [TCP source pool](tcp_source.go)
+- [Bench target API](bench_api.go)
+
+## Update Triggers
+
+Update this file when schemas, scenario digest, capacity profiles, churn,
+identity planning, Hash Slot spread, reports, or target API contracts change.

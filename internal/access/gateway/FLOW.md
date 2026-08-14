@@ -1,100 +1,59 @@
-# internal/access/gateway Flow
+---
+scope: package
+summary: Maps gateway sessions and frames to message, presence, and delivery usecases without owning authority or durable-send policy.
+---
+
+# Gateway Access Flow
 
 ## Responsibility
 
-`internal/access/gateway` adapts `pkg/gateway` events to entry-agnostic
-message and presence usecases. It does not own durable send business rules or
-presence authority policy.
-
-## Presence Flow
-
-```text
-OnSessionActivate(Context)
-  -> read authenticated UID, device, listener, and session fields from gateway Context/Session values
-  -> map them into presence.ActivateCommand
-  -> call presence.Activate
-  -> classify known presence activation errors for gateway auth metrics
-  -> return activation errors to gateway core so core writes system-error CONNACK and closes
-
-OnSessionClose(Context)
-  -> map UID and sessionID into presence.DeactivateCommand
-  -> call presence.Deactivate
-  -> map UID and sessionID into delivery.SessionClosedCommand when delivery is configured
-  -> call delivery.SessionClosed even when presence deactivation fails
-
-OnSessionActivateRollback(Context, err)
-  -> map UID and sessionID into presence.DeactivateCommand
-  -> call presence.Deactivate after a post-activation CONNACK write failure
-```
-
-## Send Flow
-
-```text
-OnFrame(SendPacket)
-  -> map session uid, device id/flag, and frame fields into message.SendCommand
-  -> when sendtrace is enabled and the packet has a channel id/type, generate one trace id and attach diagnostics channel key
-  -> stamp the configured owner node id for sender echo suppression
-  -> request person-channel canonicalization when ChannelType is person
-  -> call message.SendBatch with one item
-  -> record gateway.messages_send when trace metadata exists
-  -> map usecase result/error to frame.ReasonCode
-  -> write SendackPacket
-  -> record gateway.write_sendack after the write attempt when trace metadata exists
-
-OnSendBatch([]SendBatchItem)
-  -> compute one shared send deadline for the gateway micro-batch
-  -> map valid packet items into message.SendBatchItem
-     (including session device id/flag, person-channel canonicalization requests, and sendtrace metadata only when enabled)
-  -> call message.SendBatch
-  -> require item-aligned result count
-  -> record gateway.messages_send once per valid item when trace metadata exists
-  -> write one SendackPacket for every input item
-  -> record gateway.write_sendack after each write attempt when trace metadata exists
-
-OnFrame(PingPacket)
-  -> best-effort touch presence activity for the gateway session
-  -> write PongPacket on the same gateway session
-
-OnFrame(RecvackPacket)
-  -> require an authenticated UID and positive message id
-  -> map session id, message id, and message seq into delivery.RecvackCommand
-  -> call delivery.Recvack when delivery is configured
-```
-
-`OnSendBatch` is a synchronous adapter. Gateway core already owns the bounded
-asynchronous SEND queue, so this package does not add another SEND queue or
-fire-and-forget SEND worker.
-
-Unauthenticated sends and nil message usecases are converted into sendacks
-instead of raw protocol errors. Unsupported frames other than SEND, PING, and
-RECVACK still return `ErrUnsupportedFrame`. Stale or malformed RECVACK frames
-are treated as best-effort delivery feedback and ignored without protocol
-noise.
-
-Known route-authority errors (`ErrRouteNotReady`, stale route, not leader) and
-send deadline expiry are written as `ReasonNodeNotMatch` so WKProto clients can
-retry through a fresher route during channel runtime migration or failover windows.
-The sendack observer still records deadline expiry with error class `timeout`
-to keep route-wait and timeout diagnostics separate from durable append
-successes.
-
-Missing UID during session activation returns `ErrUnauthenticatedSession` to
-gateway core; the adapter does not write CONNACK directly.
+`internal/access/gateway` adapts `pkg/gateway` authentication/session events and
+WKProto frames to entry-independent presence, message, and delivery commands,
+then maps results back to protocol frames and stable reason codes.
+It does not own reusable message, presence, delivery, or storage policy.
 
 ## Boundaries
 
-- This package may import `pkg/gateway` and `pkg/protocol/frame`.
-- This package must not import `pkg/cluster` or `pkg/channel`.
-- Presence activation only maps gateway Context/session values into usecase
-  commands. The captured session handle exposes close/write behavior plus
-  local/remote addresses for owner-local manager connection projection.
-  Authority, conflict, and route policy stay in the presence usecase.
-- Delivery feedback only maps gateway Context/session values into delivery
-  commands. Fanout, ack tracking, and local push policy stay outside gateway.
-- Single-frame and batched SEND payloads are mapped as immutable send-path
-  slices. The adapter does not clone payload bytes; durable append and async
-  delivery boundaries take ownership copies when they cross into storage or
-  worker queues.
-- Plugin Send hooks are not invoked in this adapter. They run inside
-  `internal/usecase/message` after permission checks, so all entry points
-  share the same hook behavior.
+- Presence authority/conflict policy, durable SEND rules, recipient fanout, ACK
+  tracking, and push behavior remain in usecases and runtimes.
+- This package may import gateway/frame contracts but not concrete cluster or
+  Channel runtimes.
+- Gateway core already owns asynchronous bounded SEND admission; this adapter
+  remains synchronous and creates no second queue.
+
+## Main Flows
+
+1. Activation maps authenticated Session values to presence, classifies known
+   failures, and rolls back accepted activation if successful CONNACK cannot be
+   published; close deactivates and independently reports delivery closure.
+2. Single or batched SEND maps immutable packet/session fields, calls one
+   aligned message batch, records optional trace stages, and writes one SENDACK
+   for every input item.
+3. PING best-effort touches presence before PONG; RECVACK validates identity and
+   positive message ID before delegating best-effort delivery feedback.
+
+## Invariants and Failure Semantics
+
+- Missing activation UID is an authentication error; the adapter never writes
+  CONNACK directly.
+- Route movement and send-deadline failures map to retryable node-not-match
+  SENDACK while observations keep timeout distinct.
+- Unauthenticated SEND becomes a SENDACK result rather than a raw protocol
+  error. Malformed/stale RECVACK is ignored without protocol noise.
+- Batched result cardinality and order must match inputs.
+- Send hooks run after permission inside the message usecase, uniformly across
+  all entries. Payload ownership remains immutable until lower durable/async
+  boundaries copy it.
+
+## Read First
+
+- [Gateway handler](handler.go)
+- [Presence mapping](presence.go)
+- [SEND batching](batch.go)
+- [DTO mapper](mapper.go)
+
+## Update Triggers
+
+Update this file when session mapping, activation rollback, frame support,
+SENDACK error mapping, batching/alignment, trace stages, or import boundaries
+change.

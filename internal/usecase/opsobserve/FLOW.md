@@ -1,42 +1,51 @@
-# Operations Observation Flow
+---
+scope: package
+summary: Defines closed-world Operations MCP validation and bounded observation envelopes over narrow sources.
+---
 
-`opsobserve` owns the entry-independent validation and response contract for
-the embedded operations MCP.
+# Operations Observation Use Case Flow
 
-```text
-MCP tool
-  -> opsobserve.Service validates the closed-world request
-  -> narrow Source method
-  -> bounded SourceResult
-  -> wukongim/ops-observation/v1 envelope
-```
+## Responsibility
 
-The package never accepts a URL, filesystem path, command, PromQL expression,
-SQL statement, or a general Controller writer. Source failures become explicit
-`unavailable` observations with an `unknown` verdict; missing evidence is never
-reported as zero or healthy.
+This package owns entry-independent Operations MCP request validation, the
+frozen tool registry, source contracts, caching policy, and bounded
+`wukongim/ops-observation/v1` responses.
+It does not own MCP transport, authentication, or concrete observation sources.
 
-The frozen registry contains:
+## Boundaries
 
-- `cluster_health`, `node_inspect`, `slot_inspect`,
-  `channel_runtime_inspect`, and `controller_tasks_query`;
-- `metrics_query_range` using server-owned query IDs only;
-- `logs_search` and `logs_context` over fixed application-log sources;
-- `diagnostics_query`, `config_read_redacted`, and `backup_inspect`;
-- `pprof_analyze`.
+- Requests cannot provide URLs, paths, commands, PromQL, SQL, or a general
+  Controller writer.
+- Sources implement cluster, node, Slot, Channel, task, metrics, logs,
+  diagnostics, redacted config, backup, and profile observations.
+- Authentication, MCP transport, concrete cluster access, and profile capture
+  runtime live outside the use case.
 
-Every request is closed-world decoded and every response is capped at 1 MiB.
-Logs use opaque cursors, return raw lines capped at 8 KiB each, default to 100
-and cap at 200 lines, and mark the content untrusted. Metric ranges are at most
-24 hours, 100 series, and 2,000 points per series. Point lookups for channel
-runtime state never scan the channel catalog. Short inventory reads use a
-three-second singleflight cache and redacted configuration uses a 30-second
-cache; logs, diagnostics, and pprof are not cached.
+## Main Flows
 
-`backup_inspect` exposes the scheduled full-backup plan, active backup or
-restore state, and a bounded archive inventory. It never exposes repository
-credentials.
+1. Closed-world decode and validate one named tool request.
+2. Invoke exactly one narrow source method and apply tool-specific bounds and
+   optional short inventory or redacted-config caching.
+3. Return a response capped at 1 MiB with explicit unavailable/unknown evidence.
 
-`pprof_analyze` is the only active observation. Its request is still
-closed-world and bounded to one node, one supported profile kind, at most 30
-CPU seconds, and at most 100 parsed rows.
+## Invariants and Failure Semantics
+
+- Missing or failed source evidence is `unavailable` with `unknown` verdict,
+  never zero or healthy.
+- Logs use opaque cursors, untrusted content, 8-KiB lines, default 100 and max
+  200 lines. Metric ranges are at most 24 hours, 100 series, and 2,000 points.
+- Point Channel reads never scan the catalog. Inventory cache is three seconds;
+  redacted config is 30 seconds; logs, diagnostics, and profiles are uncached.
+- Backup inspection never exposes repository credentials.
+- Profile analysis is the only active observation and is bounded to one node,
+  supported kind, at most 30 CPU seconds, and at most 100 rows.
+
+## Read First
+
+- [Observation service](service.go)
+- [Tool and response contracts](types.go)
+
+## Update Triggers
+
+Update this file when registry tools, validation, source ports, response bounds,
+cache policy, log or metric limits, backup projection, or profiling changes.

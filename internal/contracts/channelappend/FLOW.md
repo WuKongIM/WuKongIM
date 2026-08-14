@@ -1,48 +1,51 @@
-# internal/contracts/channelappend Flow
+---
+scope: package
+summary: Defines immutable entry-independent Channel append, authority, result, and committed-envelope contracts with stable error families.
+---
+
+# Channel Append Contracts Flow
 
 ## Responsibility
 
-`internal/contracts/channelappend` owns the entry-independent contracts for
-channel-authority writes. Gateway, HTTP, node RPC, message usecases, cluster
-adapters, and the channel append authority runtime share these DTOs without pulling
-in concrete entry, app, or cluster packages.
+`internal/contracts/channelappend` contains the DTOs, sentinel errors, reasons,
+and clone helpers shared by entries, message usecases, node RPC, cluster
+adapters, and the Channel append authority runtime.
+It does not perform permission checks, durable append, routing, or delivery.
 
-## Send Contract Flow
+## Boundaries
 
-```text
-entry adapter
-  -> channelappend.Submitter.Send / SendBatch
-  -> channel authority router or local append runtime
-  -> append contract
-  -> committed envelope
-  -> subscriber recipient selection
-  -> canonical Online Delivery plan contract
-```
+- Route resolution, permission, append execution, recipient discovery, Online
+  Delivery, and gateway push live outside this contract package.
+- Recipient plan/route/push DTOs belong to `internal/contracts/onlinedelivery`.
+- Concrete entry, app, cluster, and Channel runtime types must not cross this
+  boundary.
 
-The package only defines data, sentinel errors, and clone helpers. It does not
-resolve routes, append messages, dispatch recipients, or push gateway frames.
+## Main Flows
 
-## Ownership Rules
+1. Entry-neutral `Send`/`SendBatch` commands reach the authority router and
+   aligned append contract.
+2. Fresh success yields an immutable committed envelope for post-commit
+   recipient planning.
+3. Stable reason and error families return to entry adapters for SENDACK mapping.
 
-- `SendCommand`, `Message`, `AppendBatchRequest`, and `CommittedEnvelope`
-  provide clone helpers when they own slices. Recipient plans, routes, and
-  push/result DTOs belong to `internal/contracts/onlinedelivery`.
-- SEND hot-path implementations may pass payload and message-scoped UID slices
-  by reference. Callers and callees must treat those slices as immutable until a
-  concrete ownership boundary, such as durable storage, takes its own copy.
-- Post-commit delivery treats `CommittedEnvelope` payloads as immutable after
-  the writer creates the async backlog copy; recipient queues and owner pushes
-  pass that envelope by reference until a concrete push adapter serializes or
-  copies it.
-- `AuthorityTarget` identifies the fenced channel authority route used for
-  write admission. `RouteGeneration` versions the complete projected route for
-  cache invalidation; it is not a Channel machine or wire-protocol fence.
-  `WriteFenced` mirrors the resolved authority state so a local writer can
-  recover an already committed idempotent retry before the new-append fence.
-- `AppendBatchRequest` carries the expected authority epoch and leader epoch so
-  append adapters can reject stale writes without re-resolving caller intent.
-- `AppendBatchRequest.ServerAllocatedMessageIDs` is an all-items proof created
-  by the local preparation runtime. It permits storage to omit only existing
-  message-ID reads; it never relaxes sender/client-message idempotency checks.
-- Reason constants and append/routing error sentinels remain stable so entry
-  adapters can map SENDACK outcomes without depending on runtime packages.
+## Invariants and Failure Semantics
+
+- Hot-path payload and scoped-recipient slices may be borrowed only while every
+  participant treats them as immutable; concrete durable/async owners copy.
+- Authority target carries complete route generation and observed write-fence
+  state. Route generation orders cache projection, not Channel machine state.
+- Append requests carry expected authority and leader epochs to reject stale
+  writes without reinterpreting caller intent.
+- Server-allocated message-ID proof applies to every item and skips only
+  existing-ID reads; sender/client idempotency remains mandatory.
+
+## Read First
+
+- [Contract types](types.go)
+- [Stable errors](errors.go)
+- [Ownership tests](types_test.go)
+
+## Update Triggers
+
+Update this file when DTO ownership, route fencing, append proof, clone behavior,
+reason/error stability, or package boundaries change.

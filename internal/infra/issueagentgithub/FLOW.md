@@ -1,52 +1,52 @@
-# Issue Agent GitHub Adapter Flow
+---
+scope: package
+summary: Implements bounded GitHub reads and fenced writes for the serverless Issue Agent.
+---
 
-`internal/infra/issueagentgithub` adapts narrow Issue Agent ports to bounded
-GitHub REST and GraphQL calls.
+# Issue Agent GitHub Flow
 
-```text
-read token
-  -> Issue, comments, permissions, unresolved Review threads
-  -> exact-source recursive tree for mandatory AGENTS.md and advisory FLOW.md identities
-  -> credential-free ContextBundle
+## Responsibility
 
-protected Publisher App credential
-  -> repository-scoped short-lived installation token
-  -> verify complete agent-state/issue-N signed commit ancestry
-  -> re-read Issue authority, Agent ref, commit, and Draft PR
-  -> expected-head GitHub-signed commit on agent/issue-N
-  -> complete Draft PR + signed state successor + one status comment
+This package implements the Issue Agent's narrow GitHub ports for fresh task
+context, repository instructions, signed ancestry, candidate publication, and
+bounded scheduled inventory.
+It does not decide lifecycle policy, verify candidates, or invoke models.
 
-stale Ready Agent PR + current main
-  -> verify bounded linear App-signed history from signed source
-  -> reconstruct its exact aggregate ChangeSet
-  -> prove candidate paths are unchanged on current main
-  -> build and verify exact result tree
-  -> App-signed staging commit + atomic main/Agent/staging ref fences
-  -> signed state successor + fresh Review generation
-```
+## Boundaries
 
-The adapter never executes candidate code. Default branches, tags, non-Agent
-refs, protected paths, stale heads, external commits, unsigned state, truncated
-pagination, and ambiguous PRs fail closed. Candidate commits are accepted only
-when their exact parent, message, paths, blob identities, configured App Bot
-author, and GitHub signature match. No method merges a PR or closes a Bug
-Issue.
+- It uses protected GitHub App credentials and exposes domain projections, not
+  a generic REST, GraphQL, or Git transport.
+- `AGENTS.md` from the exact source revision is mandatory context; `FLOW.md` is
+  advisory context with frozen blob identity.
+- Model execution and clean-checkout verification live outside this package.
 
-Mechanical base synchronization never invokes candidate code or resolves a
-semantic conflict. It accepts only the signed state's exact bounded candidate
-history, refuses external heads and candidate-path overlap, and uses a bounded
-staging ref so a failed compare-and-swap cannot silently replace the Agent
-branch. An exact App-signed ref swap interrupted before its state write is
-recoverable even if `main` advanced again: its exact published base is recorded
-first, then a later reconciliation continues forward. Every other head
-mismatch fails closed.
+## Main Flows
 
-If a state publication reports an error or an untrusted immediate result after
-the remote write, the State Store re-reads the per-Issue ref through one
-context-cancellable, 3.1-second bounded consistency window. It recovers only
-when the ref points to the exact expected parent, canonical state content,
-path, configured App Bot author, and GitHub-signed commit. Missing, different,
-or still-unverifiable successors retain the original fail-closed result.
+1. Read fresh Issue, comment, permission, review-thread, instruction, and exact
+   source-revision facts into a bounded context projection.
+2. Verify signed linear ancestry and all freshness fences, append the expected
+   candidate head, create a draft PR, and publish the exact successor state.
+3. For a bounded mechanical base sync, prove unchanged candidate paths and
+   App-signed linear history before moving the staging ref.
 
-The scheduled inventory is a complete, sorted set of at most 40 open
-`ready-for-agent` Issues. A larger or paginated result fails closed.
+## Invariants and Failure Semantics
+
+- Default-branch drift, tags, protected paths, non-agent or unsigned commits,
+  stale heads, external ancestry, truncation, and ambiguity fail closed.
+- Every write is followed by a bounded fresh read and succeeds only when the
+  exact expected successor is visible.
+- Scheduled inventory is complete, sorted, and limited to 40 items; pagination
+  beyond that bound is an error, not a partial result.
+- Credentials and GitHub response details never enter candidate evidence.
+
+## Read First
+
+- [Context builder](context_builder.go)
+- [Repository reader](reader.go)
+- [Git database](git_database.go)
+- [Domain projections](projections.go)
+
+## Update Triggers
+
+Update this file when GitHub permissions, context inputs, signing or ancestry
+fences, publication transitions, mechanical sync, or inventory bounds change.

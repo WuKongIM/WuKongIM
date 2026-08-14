@@ -1,131 +1,62 @@
-# Cloud Deployment Use-Case Flow
+---
+scope: package
+summary: Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts.
+---
 
-`clouddeploy` owns the procurement-independent, content-addressed payload and
-the provider-neutral activation contract used by the Cloud Lease Deployment
-Action. It accepts only a validated non-secret Lease inventory projection; it
-has no provider API, lifecycle permission, runtime credential, or workload
-stage authority.
+# Cloud Deployment Use Case Flow
 
-```text
-trusted main control SHA + immutable source SHA
-  -> runner builds Manager and Demo assets
-  -> runner builds linux/amd64 product and control binaries
-  -> runner adds checksum-pinned offline dependencies
-  -> Seal writes the fixed Ubuntu 24.04 deployment intent and native templates
-  -> static validation proves ELF architecture, required files, secret paths,
-     fixed modes, no symlink or container dependency, and exact topology constants
-  -> ordered file records produce one SHA-256 bundle digest
-  -> Verify independently recomputes the same digest on every target host
+## Responsibility
 
-active Lease Receipt + verified bundle manifest
-  -> BuildPlan binds exact Lease, source, control, bundle, four roles, addresses,
-     disks, expiry, and fixed topology into one digest
-  -> RenderHostFiles produces Lease-specific native configuration without secrets
-  -> install-offline verifies, mounts, renders, and prepares only the selected role
-  -> activate-offline starts role infrastructure without starting the coordinator
-  -> readiness reads effective topology config from all three nodes and proves
-     host, cluster, load, proxy, and observer gates; host clock evidence comes
-     directly from each Ubuntu chrony daemon instead of the untrusted runner clock
-  -> EvaluateReadiness emits one typed receipt or stable bounded failure
-```
+This package owns the procurement-independent content-addressed deployment
+bundle and provider-neutral activation contract. It accepts only validated,
+non-secret Lease inventory and has no provider lifecycle authority.
 
-The bundle is deliberately free of secrets and Lease-specific configuration.
-Its load-node payload includes 15-second Prometheus scraping with fixed
-96-hour/150-GB retention, node metrics, and one root collector that exports
-independent process metrics for every service, worker, coordinator, proxy, and
-collector through node_exporter's textfile directory. The bounded host-metrics
-endpoint also forwards only those closed process families from the root-owned
-textfile, allowing the lifecycle observer to persist per-process uptime,
-cumulative CPU jiffies, and RSS without granting shell access. The endpoint
-rejects the textfile when either its mtime or embedded collector-success time
-is more than 45 seconds old. Prometheus assigns every node-exporter target one
-stable `node-1`, `node-2`, `node-3`, or `sim` role label so Analysis queries can
-separate service-host capacity from load-generator saturation. Demo static, API, and
-WebSocket paths share the same temporary Basic Authentication boundary while
-Manager retains its own read-only application login.
-The successful receipt returns exact `http://<load-eip>/` Manager and
-`http://<load-eip>/demo/` Demo URLs. Safe GET/HEAD proxy routes may retry a
-different healthy upstream; write routes and WebSocket upgrades use separate
-reverse-proxy handlers with load-balancer retries and upstream connection reuse
-disabled. This also prevents the underlying HTTP transport from replaying an
-otherwise idempotent-looking write after a stale reused connection.
-The native Caddy unit validates the fully rendered configuration before every
-start, so malformed route or matcher syntax fails activation instead of serving
-a partial public surface.
-The load host carries separate non-restarting formal and rehearsal coordinator
-units plus their bounded dependency gate. The sealed formal and rehearsal YAML
-must be byte-equivalent after normalizing only `run_id` and `stage`; both retain
-the exact 10,000-online/250,000-new-user/2,000-SEND/s workload and thresholds.
-The formal unit directly owns one native `wkbench formal-chain` process that
-runs the 72-hour Soak, derives the capacity configuration from that exact
-passing report, and continues the at-most-eight-hour staircase plus 30-minute
-recovery with the same worker fence, generation, lifecycle loop, observation
-source, and dataset. It never restarts service or worker processes, clears
-data, or splices a second process lifetime. The immutable Deployment Plan
-carries the admitted ¥1,500/¥1,350 budget envelope, Lease creation/expiry
-instants, and the exact provider-neutral quote line items. The Action seals
-those values plus a base64 JSON line-item projection into the root-only load
-environment. The rehearsal runner and formal-chain both verify the line-item
-sum and closed charge-kind vocabulary. Rehearsal requires its two-hour run plus
-a one-hour cleanup reserve; formal-chain requires at least 81.5 hours
-remaining. Both use the same envelope for five-second accrued-cost and expiry-
-reserve guards through rehearsal, Soak, and capacity.
-After exact zero-inventory cleanup, stage orchestration carries only
-conservative accrued cost into the next Quote: held host hours are rounded up,
-observed public traffic is rounded to GiB when available (otherwise the full
-quoted allowance is reserved), and retention risk is charged in full. It does
-not debit the complete multi-hour Quote for a short failed deployment.
-Deployment deliberately leaves both coordinator units dormant. Workload
-orchestration consumes the successful Deployment Receipt and alone authorizes
-the exact stage-specific coordinator start. Remote systemd, rather than a
-GitHub runner, owns the measured execution and its report files.
-Before that ownership transfer, the Deployment Action may be re-invoked on the
-same Lease with the same source, content-addressed bundle, and sealed SSH
-identity after a request-bound protected-main control fix. Host installation is
-idempotent for an already mounted expected ext4 data disk and overwrites only
-the reviewed role payload and per-deployment runtime credentials. The Action
-still cannot replace bundle provenance or mutate the Lease lifecycle.
-The one exact `4daf86e4a88478ccdecd9675acee8414810413be` orchestrator revision
-predates the `wkdeploy` bootstrap-user correction. Its repair deployment adds
-an idempotent `wukong` compatibility account carrying only the already admitted
-public keys and equivalent sudo policy so that the already-running orchestrator
-and its finalizer can finish without replacing the Lease. That same frozen
-revision also treats `systemctl reset-failed` as an always-successful operation;
-on systemd versions that reject a never-failed dormant unit, the repair Action
-briefly overlays the selected coordinator with `/bin/false`, proves the failed
-state, removes the overlay, and leaves the real unit failed for the frozen
-orchestrator to reset immediately before its authorized start. The current
-orchestrator treats reset as idempotent. Other control revisions do not create
-the account or prime coordinator state. The frozen dependency script also
-predates authenticated worker health endpoints. Its exact legacy file hash,
-the exact first authenticated compatibility hash, or the exact rejected
-pre-start self-wait hash may be replaced atomically with the token-bearing
-equivalent after load host preparation; unknown content fails closed. The
-immutable template remains unchanged while that active source/bundle identity
-is in use. Current bundles carry the authenticated probe directly and start a
-bounded stage wrapper as the systemd main process; the wrapper waits until the
-15-second collector exposes exactly one up/CPU/RSS row for that unit and only
-then execs wkbench. Formal preflight therefore sees its own current unit
-without attempting the impossible wait for a main process from ExecStartPre.
-The exact-unit-hash compatibility drop-in gives only the frozen bundle the
-same behavior.
-The use case renders and validates Deployment Plans and readiness outcomes.
-Disk discovery/mounting, systemd activation, SSH transfer, runtime credential
-materialization, and live evidence collection remain host/Action adapters. The
-Action opens only the exact unexpired per-Lease deployment Ed25519 identity
-sealed to the `cloud-deployment` Environment wrapping key; the standing
-wrapping private key is never authorized on a host, and the Lease private key
-is removed from every runner after use. The independently generated Codex
-diagnostic private key never enters GitHub. The
-Action cannot Quote, Acquire, Release, or otherwise mutate provider inventory.
-The Action also publishes one non-secret `analysis-endpoint.json` bound to the
-Lease, source, Deployment Plan digest, load-node HTTPS endpoint, and generated
-certificate fingerprint. The load-node Analysis MCP accepts only the exact
-`cloud-lease-analyze.yml` GitHub OIDC workflow/environment identity; the
-separate Cloud Lease Analysis workflow owns provider inventory proof and
-temporary TCP/19444 grants, so Deployment retains no cloud lifecycle role.
-The production Action mirrors the Fleet gates with a locally fakeable shell
-adapter and authenticates its caller-supplied Artifact runs before executing
-payload code.
-The legacy
-`internal/infra/cloudsim/deploy` bundle remains a separate compatibility path.
+## Boundaries
+
+- Bundles contain Ubuntu 24.04 native binaries, assets, pinned offline
+  dependencies, and templates, but no secrets or Lease-specific configuration.
+- Host transfer, disk mounting, systemd, runtime credentials, SSH, and live
+  evidence are Action adapters; workload orchestration alone starts coordinators.
+- Deployment cannot quote, acquire, release, sweep, or replace Lease provenance.
+
+## Main Flows
+
+1. Build and seal linux/amd64 product/control artifacts; validate ELF, required
+   files, modes, topology, secret paths, symlinks, and container independence;
+   hash ordered records into one bundle digest verified on each host.
+2. `BuildPlan` binds Lease, source, control, bundle, four roles, addresses,
+   disks, expiry, topology, quote line items, and budget into one immutable
+   digest; render secret-free role files and perform idempotent offline install.
+3. Activate infrastructure with coordinators dormant, read every host's
+   effective topology and chrony evidence, apply host/cluster/proxy/observer
+   gates, and emit a typed readiness receipt or stable bounded failure.
+
+## Invariants and Failure Semantics
+
+- Topology remains three service hosts plus one load host, 256 Hash Slots, and
+  the reviewed rehearsal/formal workload after normalizing only run ID/stage.
+- Public Manager and Demo share temporary Basic Authentication; Manager keeps
+  its own read-only login. Only safe GET/HEAD may retry upstreams; writes and
+  WebSockets disable retries and connection reuse.
+- Formal execution is one native process across soak, capacity, and recovery;
+  it never restarts services/workers, clears data, or splices process lifetimes.
+- Five-second cost and expiry guards enforce the admitted CNY 1,350 operational
+  stop and CNY 1,500 hard limit.
+- A control repair may redeploy only the same Lease, source, bundle, and sealed
+  identity. Bootstrap-user, coordinator-state, and dependency-script repairs
+  are allowed only for explicitly recognized frozen revision or file hashes;
+  unknown compatibility content fails closed.
+- The published analysis endpoint is non-secret and identity-bound; provider
+  access grants remain owned by the separate analysis lifecycle.
+
+## Read First
+
+- [Bundle sealing](bundle.go)
+- [Deployment planning](deployment.go)
+- [Host runtime contract](runtime.go)
+- [Native templates](templates.go)
+
+## Update Triggers
+
+Update this file when bundle contents, topology, plan identity, native services,
+readiness, public routing, coordinator ownership, budgets, or compatibility changes.

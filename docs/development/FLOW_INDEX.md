@@ -8,86 +8,86 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 
 | Path | Scope | Summary | Lines | Budget |
 | --- | --- | --- | ---: | --- |
-| [cmd/wkcloudanalysisbridge/FLOW.md](../../cmd/wkcloudanalysisbridge/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 18 | ok |
-| [cmd/wkcloudbundle/FLOW.md](../../cmd/wkcloudbundle/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 22 | ok |
-| [cmd/wkcloudlease/FLOW.md](../../cmd/wkcloudlease/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 40 | ok |
-| [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 20 | ok |
-| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 129 | warning |
+| [cmd/wkcloudanalysisbridge/FLOW.md](../../cmd/wkcloudanalysisbridge/FLOW.md) | `package` | Runs a local-only HTTP bridge to one authenticated Analysis MCP endpoint with exact certificate and destination pinning. | 46 | ok |
+| [cmd/wkcloudbundle/FLOW.md](../../cmd/wkcloudbundle/FLOW.md) | `package` | Seals and verifies immutable offline deployment bundles without cloud, credential, build, or service authority. | 50 | ok |
+| [cmd/wkcloudlease/FLOW.md](../../cmd/wkcloudlease/FLOW.md) | `package` | Exposes synchronous provider-neutral Cloud Lease commands while separating read-only inspection from paid mutation authority. | 52 | ok |
+| [cmd/wkcloudleaseoidc/FLOW.md](../../cmd/wkcloudleaseoidc/FLOW.md) | `package` | Creates, verifies, and removes repository-owned Alibaba OIDC identity without Cloud Lease acquisition authority. | 48 | ok |
+| [docs-site/FLOW.md](../../docs-site/FLOW.md) | `subtree` | Owns the bilingual static v3 documentation site, shared navigation, publication state, search, SEO, and machine-readable outputs. | 60 | ok |
 | [internal/access/api/FLOW.md](../../internal/access/api/FLOW.md) | `package` | Adapts product, benchmark, debug, and compatibility HTTP requests to internal use cases. | 76 | ok |
-| [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 41 | ok |
-| [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
-| [internal/access/gateway/FLOW.md](../../internal/access/gateway/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 100 | ok |
-| [internal/access/issueagentcli/FLOW.md](../../internal/access/issueagentcli/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 20 | ok |
+| [internal/access/cloudanalysismcp/FLOW.md](../../internal/access/cloudanalysismcp/FLOW.md) | `package` | Adapts authenticated Analysis MCP and token requests to a closed, bounded observation usecase surface. | 51 | ok |
+| [internal/access/cloudview/FLOW.md](../../internal/access/cloudview/FLOW.md) | `package` | Proxies one Simulation Run's public HTTP and WebSocket traffic while preserving health routing and benchmark-purity evidence. | 55 | ok |
+| [internal/access/gateway/FLOW.md](../../internal/access/gateway/FLOW.md) | `package` | Maps gateway sessions and frames to message, presence, and delivery usecases without owning authority or durable-send policy. | 59 | ok |
+| [internal/access/issueagentcli/FLOW.md](../../internal/access/issueagentcli/FLOW.md) | `package` | Exposes the fixed Issue Agent command set as strict bounded JSON process operations with generic credential-safe diagnostics. | 43 | ok |
 | [internal/access/manager/FLOW.md](../../internal/access/manager/FLOW.md) | `package` | Adapts authenticated Manager HTTP and UI operations to bounded management use cases. | 79 | ok |
 | [internal/access/node/FLOW.md](../../internal/access/node/FLOW.md) | `package` | Adapts versioned node RPC frames to local authority, runtime, and management ports. | 79 | ok |
-| [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 32 | ok |
-| [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 25 | ok |
-| [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 23 | ok |
+| [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
+| [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
+| [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
 | [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 80 | ok |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 78 | ok |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 84 | ok |
-| [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 77 | ok |
-| [internal/contracts/channelappend/FLOW.md](../../internal/contracts/channelappend/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
+| [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 53 | ok |
+| [internal/contracts/channelappend/FLOW.md](../../internal/contracts/channelappend/FLOW.md) | `package` | Defines immutable entry-independent Channel append, authority, result, and committed-envelope contracts with stable error families. | 51 | ok |
 | [internal/contracts/channelmembers/FLOW.md](../../internal/contracts/channelmembers/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 11 | ok |
-| [internal/contracts/issueagent/FLOW.md](../../internal/contracts/issueagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 33 | ok |
+| [internal/contracts/issueagent/FLOW.md](../../internal/contracts/issueagent/FLOW.md) | `package` | Defines bounded canonical Issue Agent context, candidate, evidence, result, and state JSON without lifecycle or publication behavior. | 52 | ok |
 | [internal/contracts/messageevents/FLOW.md](../../internal/contracts/messageevents/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 11 | ok |
-| [internal/contracts/onlinedelivery/FLOW.md](../../internal/contracts/onlinedelivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 16 | ok |
-| [internal/contracts/reviewagent/FLOW.md](../../internal/contracts/reviewagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 26 | ok |
-| [internal/infra/backup/FLOW.md](../../internal/infra/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 85 | ok |
-| [internal/infra/cloudanalysis/FLOW.md](../../internal/infra/cloudanalysis/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 59 | ok |
-| [internal/infra/clouddeploy/FLOW.md](../../internal/infra/clouddeploy/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 16 | ok |
+| [internal/contracts/onlinedelivery/FLOW.md](../../internal/contracts/onlinedelivery/FLOW.md) | `package` | Defines immutable bounded recipient plans, exact authority targets, owner pushes, and classified delivery results. | 44 | ok |
+| [internal/contracts/reviewagent/FLOW.md](../../internal/contracts/reviewagent/FLOW.md) | `package` | Defines strict generation-bound Review Agent context, advisory result, trusted evidence, explanation, and canonical state JSON. | 51 | ok |
+| [internal/infra/backup/FLOW.md](../../internal/infra/backup/FLOW.md) | `package` | Adapts backup repositories, cluster routing, Controller state, export, and restore ports without owning backup policy. | 56 | ok |
+| [internal/infra/cloudanalysis/FLOW.md](../../internal/infra/cloudanalysis/FLOW.md) | `package` | Implements bounded private-origin sources and strict parsers for live cloud simulation analysis. | 57 | ok |
+| [internal/infra/clouddeploy/FLOW.md](../../internal/infra/clouddeploy/FLOW.md) | `package` | Provides a root-anchored filesystem adapter for cloud deployment files, inventory, and digests. | 44 | ok |
 | [internal/infra/clouddeploy/fake/FLOW.md](../../internal/infra/clouddeploy/fake/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 8 | ok |
-| [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 124 | warning |
+| [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `package` | Implements fail-closed Alibaba Cloud lease quoting, paid lifecycle, inventory, release, sweep, and OIDC bootstrap. | 61 | ok |
 | [internal/infra/cloudlease/fake/FLOW.md](../../internal/infra/cloudlease/fake/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 25 | ok |
 | [internal/infra/cloudsim/fake/FLOW.md](../../internal/infra/cloudsim/fake/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 14 | ok |
 | [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 74 | ok |
-| [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 38 | ok |
-| [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 52 | ok |
-| [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 48 | ok |
-| [internal/log/FLOW.md](../../internal/log/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 54 | ok |
-| [internal/observability/taskaudit/FLOW.md](../../internal/observability/taskaudit/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 31 | ok |
-| [internal/runtime/backup/FLOW.md](../../internal/runtime/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 53 | ok |
+| [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 46 | ok |
+| [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `package` | Implements bounded GitHub reads and fenced writes for the serverless Issue Agent. | 52 | ok |
+| [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `package` | Implements exact-head GitHub reads, state refs, review publication, checks, and merge for the Review Agent. | 52 | ok |
+| [internal/log/FLOW.md](../../internal/log/FLOW.md) | `package` | Provides internal application log construction, rotation, console filtering, synchronization, and bounded reads. | 52 | ok |
+| [internal/observability/taskaudit/FLOW.md](../../internal/observability/taskaudit/FLOW.md) | `package` | Persists and projects bounded Controller task audit history for manager queries. | 47 | ok |
+| [internal/runtime/backup/FLOW.md](../../internal/runtime/backup/FLOW.md) | `package` | Owns node-local backup archive streaming, publication verification, and the Controller-leader scheduled supervisor. | 51 | ok |
 | [internal/runtime/channelappend/FLOW.md](../../internal/runtime/channelappend/FLOW.md) | `package` | Owns routed local Channel append admission, ordered durable writes, item futures, and bounded post-commit delivery handoff. | 76 | ok |
-| [internal/runtime/cloudviewstate/FLOW.md](../../internal/runtime/cloudviewstate/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 18 | ok |
-| [internal/runtime/delivery/FLOW.md](../../internal/runtime/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 83 | ok |
-| [internal/runtime/issueagentverify/FLOW.md](../../internal/runtime/issueagentverify/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 29 | ok |
-| [internal/runtime/online/FLOW.md](../../internal/runtime/online/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 39 | ok |
-| [internal/runtime/opsmcp/FLOW.md](../../internal/runtime/opsmcp/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 44 | ok |
-| [internal/runtime/presence/FLOW.md](../../internal/runtime/presence/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 90 | ok |
+| [internal/runtime/cloudviewstate/FLOW.md](../../internal/runtime/cloudviewstate/FLOW.md) | `package` | Persists monotonic run-local evidence that public interaction or operator mutation affected a cloud simulation. | 45 | ok |
+| [internal/runtime/delivery/FLOW.md](../../internal/runtime/delivery/FLOW.md) | `package` | Executes canonical online delivery plans with bounded Channel ordering, owner routing, retries, and RECVACK state. | 60 | ok |
+| [internal/runtime/issueagentverify/FLOW.md](../../internal/runtime/issueagentverify/FLOW.md) | `package` | Captures credential-free candidates and verifies them in a clean exact-base checkout using trusted tests. | 49 | ok |
+| [internal/runtime/online/FLOW.md](../../internal/runtime/online/FLOW.md) | `package` | Maintains node-local pending and active connection routes, concrete session handles, and bounded touch batching. | 46 | ok |
+| [internal/runtime/opsmcp/FLOW.md](../../internal/runtime/opsmcp/FLOW.md) | `package` | Owns node-local Operations MCP authentication, budgets, audits, metrics, and fenced profile capture. | 55 | ok |
+| [internal/runtime/presence/FLOW.md](../../internal/runtime/presence/FLOW.md) | `package` | Maintains hash-slot-authoritative virtual connection routes with exact fencing, conflict staging, touch, and TTL expiry. | 53 | ok |
 | [internal/runtime/reviewagentverify/FLOW.md](../../internal/runtime/reviewagentverify/FLOW.md) | `package` | Freezes Review Agent context and validates trusted check evidence. | 54 | ok |
-| [internal/runtime/webhook/FLOW.md](../../internal/runtime/webhook/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 38 | ok |
-| [internal/usecase/backup/FLOW.md](../../internal/usecase/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 88 | ok |
-| [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 81 | ok |
-| [internal/usecase/chatlifecyclerun/FLOW.md](../../internal/usecase/chatlifecyclerun/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 39 | ok |
-| [internal/usecase/cloudanalysis/FLOW.md](../../internal/usecase/cloudanalysis/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 63 | ok |
-| [internal/usecase/clouddeploy/FLOW.md](../../internal/usecase/clouddeploy/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 131 | warning |
-| [internal/usecase/cloudlease/FLOW.md](../../internal/usecase/cloudlease/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 70 | ok |
-| [internal/usecase/cloudsim/FLOW.md](../../internal/usecase/cloudsim/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 109 | warning |
-| [internal/usecase/conversation/FLOW.md](../../internal/usecase/conversation/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 94 | ok |
-| [internal/usecase/delivery/FLOW.md](../../internal/usecase/delivery/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 46 | ok |
-| [internal/usecase/issueagent/FLOW.md](../../internal/usecase/issueagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 24 | ok |
+| [internal/runtime/webhook/FLOW.md](../../internal/runtime/webhook/FLOW.md) | `package` | Performs bounded node-local best-effort delivery of message, offline-recipient, and online-status webhooks. | 49 | ok |
+| [internal/usecase/backup/FLOW.md](../../internal/usecase/backup/FLOW.md) | `package` | Owns cluster-wide backup plan policy, job admission, archive lifecycle, retention, and current-cluster restore orchestration. | 61 | ok |
+| [internal/usecase/channel/FLOW.md](../../internal/usecase/channel/FLOW.md) | `package` | Orchestrates channel metadata, ordinary membership, derived member lists, versioning, projection, and bounded iteration. | 56 | ok |
+| [internal/usecase/chatlifecyclerun/FLOW.md](../../internal/usecase/chatlifecyclerun/FLOW.md) | `package` | Materializes reviewed rehearsal and formal chat-lifecycle run plans from four operator inputs and trusted context. | 52 | ok |
+| [internal/usecase/cloudanalysis/FLOW.md](../../internal/usecase/cloudanalysis/FLOW.md) | `package` | Validates exact-run Analysis MCP requests and returns bounded observations from narrow live sources. | 54 | ok |
+| [internal/usecase/clouddeploy/FLOW.md](../../internal/usecase/clouddeploy/FLOW.md) | `package` | Seals provider-neutral offline deployment bundles, exact Lease plans, host files, and typed readiness receipts. | 62 | ok |
+| [internal/usecase/cloudlease/FLOW.md](../../internal/usecase/cloudlease/FLOW.md) | `package` | Owns provider-neutral temporary cloud Lease validation, quote, acquisition, access grants, release, and sweep policy. | 52 | ok |
+| [internal/usecase/cloudsim/FLOW.md](../../internal/usecase/cloudsim/FLOW.md) | `package` | Owns provider-neutral cloud Simulation Run identity, admission, lifecycle, access windows, finalization, and cleanup rules. | 63 | ok |
+| [internal/usecase/conversation/FLOW.md](../../internal/usecase/conversation/FLOW.md) | `package` | Builds transient conversations from UID membership and Channel state, and owns badge, hide, and activation commands. | 56 | ok |
+| [internal/usecase/delivery/FLOW.md](../../internal/usecase/delivery/FLOW.md) | `package` | Provides the temporary entry-agnostic gateway feedback facade and explicit legacy committed-event rejection. | 47 | ok |
+| [internal/usecase/issueagent/FLOW.md](../../internal/usecase/issueagent/FLOW.md) | `package` | Owns deterministic Issue Agent admission, authorization, lifecycle reconciliation, commands, status, and publication planning. | 50 | ok |
 | [internal/usecase/management/FLOW.md](../../internal/usecase/management/FLOW.md) | `package` | Builds entry-independent Manager read models and safety-gated orchestration over narrow cluster, runtime, and diagnostic ports. | 73 | ok |
 | [internal/usecase/message/FLOW.md](../../internal/usecase/message/FLOW.md) | `package` | Owns entry-independent message permission policy, send orchestration, committed sync, and message-event projection contracts. | 71 | ok |
-| [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 42 | ok |
+| [internal/usecase/opsobserve/FLOW.md](../../internal/usecase/opsobserve/FLOW.md) | `package` | Defines closed-world Operations MCP validation and bounded observation envelopes over narrow sources. | 51 | ok |
 | [internal/usecase/plugin/FLOW.md](../../internal/usecase/plugin/FLOW.md) | `package` | Owns entry-independent plugin desired state, candidate selection, hook orchestration, and PDK-compatible host RPC mapping. | 73 | ok |
-| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 107 | warning |
-| [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 41 | ok |
-| [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 39 | ok |
-| [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 61 | ok |
-| [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 65 | ok |
+| [internal/usecase/presence/FLOW.md](../../internal/usecase/presence/FLOW.md) | `package` | Coordinates owner-local connection lifecycle with UID authority registration, actions, touch batching, and route lookup. | 57 | ok |
+| [internal/usecase/reviewagent/FLOW.md](../../internal/usecase/reviewagent/FLOW.md) | `package` | Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy. | 53 | ok |
+| [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 51 | ok |
+| [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
+| [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `package` | Defines shared wkbench configuration, deterministic plans, reports, rates, scenario digests, and bench target API DTOs. | 57 | ok |
 | [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 72 | ok |
 | [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 71 | ok |
-| [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 144 | warning |
-| [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 108 | warning |
+| [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 62 | ok |
+| [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 57 | ok |
 | [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 77 | ok |
 | [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 78 | ok |
-| [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 44 | ok |
+| [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 53 | ok |
 | [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 76 | ok |
-| [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 83 | ok |
+| [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 58 | ok |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 50 | ok |
 | [pkg/gateway/FLOW.md](../../pkg/gateway/FLOW.md) | `subtree` | Provides reusable client listeners, protocol adapters, sessions, authentication, bounded dispatch, transport writes, and connection lifecycle. | 76 | ok |
-| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 94 | ok |
-| [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 14 | ok |
+| [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 55 | ok |
+| [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 82 | ok |
-| [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 110 | warning |
-| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `legacy-subtree` | Metadata migration pending. | 93 | ok |
+| [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
+| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 57 | ok |

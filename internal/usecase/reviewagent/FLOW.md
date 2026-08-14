@@ -1,41 +1,53 @@
-# Review Agent Usecase Flow
+---
+scope: package
+summary: Owns deterministic Review Agent commands, PR lifecycle reconciliation, scheduling, projection planning, and publication policy.
+---
 
-`internal/usecase/reviewagent` owns deterministic pull-request lifecycle,
-command authorization, scheduler, and projection planning. It accepts only
-fresh facts, protected policy, validated signed state, and current UTC time.
-It performs no GitHub, Git, filesystem, shell, network, or model operation.
+# Review Agent Use Case Flow
 
-```text
-fresh PR facts + signal + per-PR state + scheduler state
-  -> ReconcilePullRequest
-  -> one bounded ReconcilePlan
-  -> fresh human-review state repairs projections without a model
+## Responsibility
 
-exact comment + fresh actor permission
-  -> non-command comments become observed no-ops
-  -> exact @review-agent prefix -> ParseCommand
-  -> review | status | explain | reconsider | retry | cancel
-  -> only fresh admin authority may start or mutate model work
+This package owns deterministic pull-request lifecycle, command authorization,
+scheduling, signed state, projection repair, publication, and merge-eligibility
+planning.
+It does not perform GitHub, Git, filesystem, verification, or model operations.
 
-PR lifecycle/review/manual signal without an admin review command
-  -> may cancel stale work or repair existing projections
-  -> must not create a review generation or model session
+## Boundaries
 
-validated durable decision + fresh publication facts
-  -> PlanPublication
-  -> status comment + formal Review + Review Agent Verdict
-  -> auto-merge eligibility only for clean approved admin/member PRs
-     without a human REQUEST_CHANGES Review
-```
+- It accepts fresh facts, protected policy, validated signed state, and current
+  UTC time; it performs no GitHub, Git, filesystem, shell, network, or model I/O.
+- Only adapters execute plans. Model results never choose check conclusions.
+- Human review state and admin authority remain external facts.
 
-Each review infrastructure attempt receives one signed 90-minute deadline. The
-single automatic retry remains in the same generation but receives a fresh
-attempt deadline, so it cannot inherit a budget shorter than the protected
-baseline/reviewer/publication reservation. A retry waiting in the scheduler
-has no active attempt deadline; the fresh deadline starts only when its lease
-is reacquired. The signed generation `StartedAt` derives the 180-minute cap;
-if that cap cannot contain a complete fresh attempt, reconciliation fails
-closed instead of dispatching a shortened or unbounded retry.
+## Main Flows
 
-Only adapters execute plans. A model result never chooses a GitHub Check
-conclusion directly.
+1. Reconcile fresh PR, signal, per-PR state, and scheduler state into one bounded
+   plan; lifecycle signals without an admin command may cancel stale work or
+   repair projections but cannot start a model generation.
+2. Parse the exact `@review-agent` commands `review`, `status`, `explain`,
+   `reconsider`, `retry`, and `cancel`; only fresh admin authority may mutate work.
+3. Plan status, formal review, verdict check, and exact-head auto-merge eligibility
+   from validated durable decisions and fresh publication facts.
+
+## Invariants and Failure Semantics
+
+- Non-command comments are observed no-ops.
+- Auto-merge requires a clean approved admin/member PR and no human
+  `REQUEST_CHANGES` review.
+- Each infrastructure attempt receives a signed 90-minute deadline. The single
+  retry stays in the generation but starts a fresh deadline on lease reacquire.
+- The signed generation start imposes a 180-minute cap; if it cannot fit a
+  complete fresh attempt, reconciliation fails closed.
+
+## Read First
+
+- [Reconciliation](reconcile.go)
+- [Scheduler](scheduler.go)
+- [Commands](commands.go)
+- [State](state.go)
+- [Publication planning](publication.go)
+
+## Update Triggers
+
+Update this file when commands, permissions, scheduling, deadlines, signed
+state, projection repair, publication, verdict, or merge policy changes.

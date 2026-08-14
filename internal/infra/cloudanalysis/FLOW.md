@@ -1,59 +1,57 @@
-# Cloud Analysis HTTP Adapters
+---
+scope: package
+summary: Implements bounded private-origin sources and strict parsers for live cloud simulation analysis.
+---
 
-`internal/infra/cloudanalysis` implements the usecase's narrow `Sources` port
-over startup-configured private origins only:
+# Cloud Analysis Infrastructure Flow
 
-```text
-manager -> nodes, workqueues, app logs, physical-Slot-filtered diagnostics, task audits, redacted config
-prometheus -> /api/v1/query_range with usecase-resolved PromQL, including
-              node-exporter textfile evidence for service cgroup memory
-node APIs -> /debug/pprof for allowlisted node IDs
-```
+## Responsibility
 
-The manager client authenticates with a dedicated run-scoped capability user or
-pre-issued bearer token and caches only the short-lived JWT. It does not reuse a
-human manager session. Diagnostics forward the optional exact physical
-`slot_id` selector to the private Manager API. HTTP bodies and profile retention
-are size bounded.
+This package implements the live analysis ports for Manager state, Prometheus
+range queries, node profiles, run inspection, workload evidence, and strict
+diagnostic parsing.
+It does not own diagnosis policy, MCP transport, or cloud resource lifecycle.
 
-Raw profiles remain in an in-memory bounded store on the gateway. MCP consumers
-receive metadata or symbolized top rows, never raw profile bytes or filesystem
-paths. Heap summaries may select only `inuse_space` or `alloc_space`, so retained
-and transient cumulative allocation evidence stay explicit without widening the
-profile surface. Local Compose uses `StaticRunInspector`; the cloud Analysis Workflow
-proves provider inventory and Run Locator identity before opening ingress, then
-the host-local gateway reports runtime state without receiving a cloud role.
-Phase 1 can exercise a provider-backed inspector locally with
-`ProviderRunInspector`. That inspector requires a valid Run Locator and matches
-provider, region, account hash, repository, source SHA, scenario digest,
-creation time, and lease. A static inspector cannot claim a released run.
-The workload source strictly parses the bounded final `diagnostic-summary.json`,
-including actual phase windows, structured failed workers, measured-run
-successful sends, and actual ingress QPS. It rejects missing or unknown producer
-fields so producer/consumer contract drift cannot silently become zero-valued
-evidence. The successful send count remains the storage-growth denominator. It never reads
-the raw report or human `summary.md`. Non-truncated failure evidence must account
-for every worker included in `summary.worker_failed`; otherwise the source rejects
-the document instead of reporting complete evidence. Failure detail accepts only
-fixed reason-code templates or an explicit redaction marker, so forged producer
-text cannot cross the MCP boundary. The optional failed-worker `operation` also
-uses a reason-bound allowlist: person/group send, sendack, recv, recvack, or
-sendack-lock for session failures, and `worker_status` or `phase_completion` for
-phase timeouts. `worker_stop_failed` is accepted only with phase `stop`; unknown
-operations and mismatched reason/phase tuples are rejected rather than exposed
-through the MCP. Any structured worker failure also requires a failed status,
-non-zero exit code, and non-passed stability verdict. A `worker_stop_failed`
-record further requires worker-failure exit code `4` and verdict
-`harness_invalid`, so stop evidence cannot coexist with a passing or unrelated
-terminal outcome.
+## Boundaries
 
-Node hosts sample the `wukongim.service` cgroup once per second from one bounded
-collector process and again from
-`ExecStopPost`. The textfile collector preserves the maximum observed
-native peak, the effective limit and swap settings, and monotonic OOM event
-totals across service restarts. It detects both the Alibaba Cloud Linux 3
-default cgroup v1 memory controller and unified cgroup v2; the Bootstrap Gate
-requires readable memory evidence on all three nodes, not merely an active
-collector unit. This closes the evidence gap left by the normal 15-second
-Prometheus interval without granting the Analysis MCP arbitrary PromQL or
-systemd access.
+- Sources contact only configured private origins and use run-scoped Manager
+  authentication with bounded response bodies.
+- Prometheus receives resolved, fixed-purpose PromQL. Callers cannot use this
+  package as an arbitrary query proxy.
+- CPU, heap, and goroutine profiles come only from allowlisted nodes. Raw
+  profiles remain bounded in memory; consumers receive metadata and parsed
+  top rows.
+- Run inspection validates exact provider identity. The package does not
+  provision, mutate, or release cloud resources.
+
+## Main Flows
+
+1. Source adapters authenticate, fetch bounded Manager or Prometheus evidence,
+   validate its shape, and return domain DTOs.
+2. Profile collection captures an allowed bounded profile and converts it to
+   safe summary rows without exposing raw profile bytes.
+3. Run inspection combines static identity, provider inventory, diagnostics,
+   and one-second cgroup evidence into strict analysis inputs.
+
+## Invariants and Failure Semantics
+
+- Missing, malformed, truncated, or identity-mismatched evidence fails closed.
+- Diagnostic summaries accept only the documented operations, statuses, exit
+  codes, and verdict combinations.
+- Heap analysis uses the fixed sample type; profile type and duration are not
+  caller-defined escape hatches.
+- Bootstrap requires readable cgroup v1 or v2 evidence rather than inferring
+  resource health.
+
+## Read First
+
+- [HTTP sources](http_sources.go)
+- [Prometheus adapter](prometheus.go)
+- [Profile handling](profiles.go)
+- [Run inspector](run_inspector.go)
+- [Workload source](workload_source.go)
+
+## Update Triggers
+
+Update this file when source origins, authentication, evidence bounds, profile
+formats, identity validation, or diagnostic parsing change.

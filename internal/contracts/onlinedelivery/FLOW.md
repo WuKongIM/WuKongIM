@@ -1,16 +1,44 @@
-# Online Delivery Contracts
+---
+scope: package
+summary: Defines immutable bounded recipient plans, exact authority targets, owner pushes, and classified delivery results.
+---
 
-`internal/contracts/onlinedelivery` owns the canonical values that cross the
-Online Delivery seam.
+# Online Delivery Contracts Flow
 
-- A `RecipientDeliveryPlan` explicitly identifies Durable or Transient delivery
-  and carries a bounded set of recipients grouped by exact authority target.
-- Successful plan admission transfers shared immutable ownership. Callers must
-  not mutate the event, targets, or recipients after admission succeeds.
-- An `OwnerPush` groups exact online routes owned by one node. Its result keeps
-  accepted, retryable, and dropped routes distinct.
-- Clone methods exist for adapters and tests that retain or serialize values;
-  the Online Delivery admission hot path does not clone plans.
+## Responsibility
 
-Subscriber discovery, authority grouping, ACK tokens,
-worker queues, and retry state are not part of this contract package.
+`internal/contracts/onlinedelivery` owns the canonical values transferred across
+Online Delivery planning, admission, presence resolution, and owner push seams.
+It does not select recipients, execute plans, persist ACKs, or write sessions.
+
+## Boundaries
+
+- Subscriber discovery, target grouping, queues, ACK tokens, retry state, and
+  concrete push execution stay outside.
+- Clone helpers support retaining/serializing adapters and tests; the admitted
+  hot path does not clone by default.
+- The package contains data contracts only.
+
+## Main Flows
+
+1. A bounded plan classifies Durable or Transient delivery and groups recipients
+   by exact authority target.
+2. Successful admission transfers shared immutable plan ownership.
+3. Owner push returns accepted, retryable, and dropped routes as distinct sets.
+
+## Invariants and Failure Semantics
+
+- Callers never mutate events, targets, or recipients after successful
+  admission.
+- Exact authority grouping survives queue and push boundaries.
+- Intentionally skipped routes are classified as dropped rather than omitted.
+
+## Read First
+
+- [Delivery types](types.go)
+- [Contract tests](types_test.go)
+
+## Update Triggers
+
+Update this file when plan classification, authority grouping, ownership
+transfer, route result classes, or clone semantics change.

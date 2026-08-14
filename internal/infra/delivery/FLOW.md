@@ -1,38 +1,46 @@
-# internal/infra/delivery Flow
+---
+scope: package
+summary: Adapts presence lookup and owner-local session writes for canonical online delivery.
+---
+
+# Delivery Infrastructure Flow
 
 ## Responsibility
 
-`internal/infra/delivery` adapts canonical Online Delivery ports to the
-entry-agnostic presence usecase, owner-local online registry, gateway session,
-and WuKong protocol packet. It contains adapters only; retry, pending RECVACK,
-owner grouping, and plan orchestration remain in `internal/runtime/delivery`.
+This package adapts presence and the online-session registry to the delivery
+runtime's narrow ports, and converts accepted owner-local deliveries into
+gateway packets.
+It does not own plan admission, retries, ACK tracking, or offline classification.
 
-The retired `LocalOwnerPusher` compatibility stack has been removed.
-`LocalSessionWriter` is the single owner-local physical-write adapter used by
-production composition.
+## Boundaries
 
-## Owner-local Session Write Flow
+- Retry, ACK tracking, plan admission, grouping, and offline classification
+  belong to `internal/runtime/delivery`.
+- Protocol and concrete session details stay inside the local writer adapter.
+- Presence results preserve exact-target alignment; adapter availability is
+  not interpreted as recipient offline state.
 
-```text
-runtime/delivery.PushOwner
-  -> reserve item-aligned pending RECVACK state in runtime/delivery
-  -> LocalSessionWriter validates exact active UID/session/owner identity
-  -> build the recipient-specific frame.RecvPacket
-  -> write through the owner-local gateway SessionHandle
-     -> success: runtime finishes that reservation and reports accepted
-     -> transient write failure: runtime rolls back and reports retryable
-     -> stale route/build/closed/overflow failure: runtime rolls back and reports dropped
-```
+## Main Flows
 
-The writer never receives or mutates ACK tokens. A missing online registry is
-adapter unavailability and therefore retryable, not evidence that the route is
-terminally stale. Session lookup validates the full owner fence immediately
-before the physical write.
+1. `OnlinePresence` resolves exact authority-target groups and returns aligned
+   routes or aligned group errors.
+2. `LocalSessionWriter` rechecks active UID, session, and owner identity,
+   builds the receive packet, and writes through the stored session handle.
 
-## Presence Adapters
+## Invariants and Failure Semantics
 
-`PresenceResolver` converts the entry-agnostic presence usecase's exact-target
-lookup into canonical Online Delivery results. It preserves one result per
-input target, copies all fencing and route metadata, and reports a missing
-presence dependency as an aligned availability error for every target instead
-of classifying recipients as offline.
+- The writer performs the final owner fence immediately before the write.
+- Accepted writes return success; missing registry state is retryable, while
+  stale identity, packet-build, closed-session, and overflow failures drop.
+- This adapter never creates ACK tokens or changes retry policy.
+- A failed presence dependency must not be converted into an offline result.
+
+## Read First
+
+- [Presence adapter](online_presence.go)
+- [Local session writer](local_session_writer.go)
+
+## Update Triggers
+
+Update this file when presence alignment, owner fencing, packet conversion,
+session-write results, or delivery port contracts change.

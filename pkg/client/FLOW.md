@@ -1,108 +1,57 @@
-# pkg/client Flow
+---
+scope: package
+summary: Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling.
+---
 
-`pkg/client` is a tooling-grade WKProto TCP client for wkbench, e2e tests, and server-side Go tools.
+# WKProto Client Flow
 
-It owns protocol connection behavior only: CONNECT/CONNACK, optional session encryption, SEND/SENDACK, RECV/RECVACK, PING/PONG, one writer pump, one reader loop, and optional pooling. It does not prepare users, channels, subscribers, or tokens.
+## Responsibility
 
-SEND batching writes multiple normal WKProto SEND frames contiguously on one TCP stream. No SENDBATCH frame is introduced.
+This package owns protocol connection behavior for wkbench, E2E tests, and Go
+tools: CONNECT, optional crypto, SEND/ACK, RECV/ACK, ping, one writer pump, one
+reader loop per connection, and optional identity pooling.
+It does not provision users or channels, choose benchmark policy, or retry sends.
 
-## Connection Lifecycle
+## Boundaries
 
-```text
-New(Config)
-  -> normalize defaults
-  -> generate client keypair
-  -> Connect(ConnectOptions)
-  -> dial TCP
-  -> write CONNECT
-  -> read CONNACK
-  -> derive optional session crypto
-  -> publish active connection
-  -> start writer loop once
-  -> start reader loop for this connection
-  -> Close
-```
+- It does not create users, tokens, channels, or subscribers, and it owns no
+  benchmark retry or identity-rebalance policy.
+- SEND batching writes contiguous ordinary WKProto SEND frames; it introduces
+  no SENDBATCH wire frame.
+- Pooling assigns configured identities to gateway addresses round-robin.
 
-`Client` represents one authenticated WKProto TCP session. Reconnect is allowed by calling `Connect` again; the new connection gets a fresh pending tracker and reader loop, and the old connection is closed after the new session is published.
+## Main Flows
 
-Synchronous CONNECT reads and writes use `OperationTimeout` and clear socket deadlines before the background reader takes over. `Close` is terminal for a `Client`; use a new `Client` or `Pool` entry after a terminal close.
-`ReadFrame` and `Recv` are streaming waits: they have no implicit
-`OperationTimeout` and return only for a frame, session transition, close, or
-their caller context. Short control operations retain the configured timeout.
+1. Connect dials, exchanges CONNECT/CONNACK under operation timeouts, derives
+   optional session crypto, publishes the new session, starts writer/reader,
+   then closes the replaced connection.
+2. Send reserves bounded inflight state, records `(ClientSeq, ClientMsgNo)`,
+   queues a writer request, and resolves the exact future when the reader sees
+   its SENDACK.
+3. The reader decrypts RECV into a bounded lossless queue and optionally sends
+   RECVACK; send-only callers may discard inbound RECV before decryption/queueing.
 
-## SEND Flow
+## Invariants and Failure Semantics
 
-```text
-Send / SendAsync / SendBatch
-  -> validate and assign ClientSeq
-  -> build SendPacket
-  -> reserve MaxInflight slot
-  -> add pending SENDACK entry
-  -> enqueue writer request
-  -> writer batches nearby SEND frames
-  -> encrypt each SEND when session crypto is active
-  -> write contiguous WKProto SEND frames
-  -> reader receives SENDACK
-  -> pending tracker resolves SendFuture
-```
+- `Close` is terminal. Reconnect before terminal close uses a fresh pending
+  tracker and reader; streaming `Recv`/`ReadFrame` has no implicit operation timeout.
+- `TrySendAsync` leaves no pending entry when admission, writer queue, or
+  inflight capacity is busy.
+- Retries may reuse idempotent `ClientMsgNo`, but overlapping attempts require
+  distinct nonzero `ClientSeq` so late ACKs cannot resolve another attempt.
+- A full inbound queue backpressures the socket; close or replacement releases
+  blocked publishers. Discard mode prevents RECV fanout from blocking ACK progress.
+- Ping and RECVACK share the writer so all frames remain serialized.
 
-`SendBatch` returns results in input order. The writer batcher only coalesces socket writes; the wire format remains normal WKProto SEND frames. `AckTimeout` belongs to the client pending tracker and should be set high enough for callers whose own contexts own benchmark-level sendack deadlines.
+## Read First
 
-`SendAsync` is the low-level API used by adapters that need to expose SENDACKs through an older frame-oriented interface. It admits the SEND and returns a `SendFuture`; callers can wait with their own context. `TrySendAsync` provides the same future only when the admission lock, writer queue, and inflight bound are immediately available. It returns `ErrSendQueueFull` without leaving a pending SEND when local capacity is busy, allowing deterministic runtimes to retry without blocking their owner loop.
-The pending tracker keys each wire attempt by both `ClientSeq` and
-`ClientMsgNo`. Retries may reuse the idempotent `ClientMsgNo`, but each
-overlapping attempt must provide a distinct nonzero `ClientSeq`; late and
-out-of-order ACKs then resolve only their exact attempt.
+- [Client lifecycle](client.go)
+- [Writer](writer.go)
+- [Reader](reader.go)
+- [Message API](message.go)
+- [Identity pool](pool.go)
 
-## RECV Flow
+## Update Triggers
 
-```text
-reader loop
-  -> decode buffered bytes into frames
-  -> SENDACK resolves pending send
-  -> RECV checks DiscardInboundRecv
-       -> yes: optionally AutoRecvAck and continue reading
-       -> no: decrypt payload when session crypto is active
-              -> enqueue decrypted RECV in bounded queue
-              -> optionally AutoRecvAck
-              -> Recv / ReadFrame consumes queue
-```
-
-The inbound RECV queue is bounded and lossless. When it is full, the reader
-backpressures the socket until a consumer frees capacity. Client close or
-session replacement releases a blocked publisher, so bounded delivery cannot
-strand an old reader loop. `InboundQueueSnapshot` exposes only the current
-queue depth and capacity for bounded saturation observation.
-Send-only tools that do not consume delivered payloads may set
-`DiscardInboundRecv`; RECV frames then bypass payload decryption and the queue,
-so they cannot block SENDACK progress or retain fanout payloads in memory.
-
-## Control Flow
-
-`Ping` and `RecvAck` share the writer loop with SENDs so control frames and SEND frames are serialized on the same TCP stream. Control writes use `OperationTimeout` or the caller's shorter context deadline.
-
-## Pool Flow
-
-```text
-NewPool(PoolConfig)
-  -> validate gateway addresses
-  -> Connect([]Identity)
-  -> create one Client per identity
-  -> assign addresses round-robin
-  -> connect at optional rate limit
-  -> Send / SendBatch route by UID
-  -> Close closes every Client
-```
-
-`Pool` is a thin orchestration layer for tools that need many online identities. It does not retry failed sends or rebalance identities after connection; callers own benchmark or e2e policy decisions above the pool.
-
-## Adapter Notes
-
-`internal/bench/wkproto` wraps `pkg/client` to preserve the historical
-`ReadFrame` API. It converts `SendFuture` results back into local
-`SendackPacket` frames and forwards decrypted RECV packets. Separate bounded
-RECV, SENDACK, and error queues isolate acknowledgement progress without
-discarding receive evidence. Error and SENDACK results share a fixed priority
-burst quota so neither errors nor an already queued RECV can starve.
-
-`test/e2e/suite` uses the same package for CONNECT, crypto, SENDACK matching, and RECV decryption while keeping black-box helper methods outside the client package.
+Update this file when connection replacement, timeouts, encryption, send
+admission, ACK identity, inbound backpressure, control writes, or pooling changes.

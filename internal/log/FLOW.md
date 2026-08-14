@@ -1,54 +1,52 @@
-# internal/log Flow
+---
+scope: package
+summary: Provides internal application log construction, rotation, console filtering, synchronization, and bounded reads.
+---
+
+# Application Logging Flow
 
 ## Responsibility
 
-`internal/log` provides the zap/lumberjack-backed `wklog.Logger`
-implementation used by the internal composition root, plus a node-local
-reader for the ordinary application log files produced by that logger.
+This package implements the zap and lumberjack-backed `wklog.Logger`, console
+presentation filtering, and bounded reads of ordinary node-local application
+logs.
+It does not define business events or read distributed runtime logs.
 
-It owns only ordinary application log construction, field conversion, file
-rotation, bounded fixed-file reading, and sync behavior. Business packages
-should continue to depend on `pkg/wklog` interfaces rather than importing this
-package.
+## Boundaries
 
-## Log Files
+- Business packages depend on `pkg/wklog`; `internal/app` creates, names, and
+  synchronizes the concrete logger.
+- The reader exposes only `app.log`, `warn.log`, `error.log`, and `debug.log`
+  beneath the configured log directory.
+- It does not read Controller, Slot, Channel, Raft, arbitrary paths, or logs on
+  another node.
 
-```text
-Config
-  -> NewLogger
-  -> app.log for info and above
-  -> warn.log for warn only
-  -> error.log for error and above
-  -> debug.log when Level enables debug
-  -> optional console sink
-       -> ANSI level colors only when stdout is an interactive terminal and
-          neither NO_COLOR nor TERM=dumb disables color
-       -> app-selected lifecycle presentation events may be excluded from
-          stdout while remaining unchanged in their rolling files
-```
+## Main Flows
 
-`internal/app` is responsible for creating the root logger from `Config.Log`,
-passing named children to composed runtimes, and syncing the logger during
-shutdown. The app uses console-only event exclusion for startup lifecycle
-records because it renders those same records as a bounded human-facing startup
-summary; exclusion never changes file routing or structured fields.
+1. Logger construction routes structured records by level into rotating files
+   and optionally to the console.
+2. Console-only lifecycle exclusions let the app render selected startup events
+   while preserving their file records and structured fields.
+3. `AppLogReader` performs bounded initial, forward, and contextual reads using
+   opaque cursors and capped raw lines.
 
-## Application Log Reader
+## Invariants and Failure Semantics
 
-```text
-manager selected-node read
-  -> internal/app adapter
-  -> AppLogReader.Sources/Entries
-  -> fixed files under WK_LOG_DIR:
-     app.log, warn.log, error.log, debug.log
-```
+- ANSI colors are enabled only for an interactive terminal and are disabled by
+  `NO_COLOR` or `TERM=dumb`.
+- Console filtering never changes file routing or record fields.
+- Reader input cannot select a filesystem path; scans and returned lines have
+  independent bounds.
+- Context reads return exact before/after lines from the same selected file.
 
-`AppLogReader` reads only those fixed ordinary application log files. It does
-not accept arbitrary paths, does not expose local filesystem paths, and does not
-read Controller, Slot, Channel, Raft, or other distributed logs. Initial tail
-pages and forward reads are bounded by the configured scan budget, and returned
-raw lines are capped independently from best-effort JSON or console parsing.
-Context reads use the same opaque cursor and a bounded backward tail scan to
-return exact `before` plus `after` raw lines from the selected file. They do not
-search arbitrary directories or synthesize neighboring entries on another
-node.
+## Read First
+
+- [Logger construction](zap.go)
+- [Log configuration](config.go)
+- [Console filtering](console_filter.go)
+- [Application log reader](app_reader.go)
+
+## Update Triggers
+
+Update this file when log routing, rotation, console presentation, sync, fixed
+sources, cursor behavior, or read bounds change.
